@@ -67,7 +67,7 @@ read it with `getEnv(context)` and `getExecutionContext(context)`.
 | `VISITOR_LIMITER` | `ratelimits` binding, 60 per 10 s | `wrangler.jsonc`, per environment (own namespace each) |
 | `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-staging` and `x-explorer-production` as a secret |
 | `SENTRY_DSN` | secret, optional | the same |
-| `BUILD_ID` | var | added to every build by `vite.config.ts`: the short git commit (`BUILD_ID=... pnpm build` overrides it) |
+| `BUILD_ID` | var | added to every build by `vite.config.ts` (`scripts/build-id.ts`): the short git commit, plus `-dirty` when the tree has uncommitted changes. `BUILD_ID=... pnpm build` overrides it. Without git it is `dev`, but a build for a Cloudflare environment (`CLOUDFLARE_ENV`, so every deploy) fails instead, because the edge cache key includes it |
 
 The Cloudflare Vite plugin flattens one Cloudflare environment into the build, chosen at build time with
 `CLOUDFLARE_ENV` (`pnpm deploy:staging` and `pnpm deploy:production` set it). `vars` and `ratelimits` are not
