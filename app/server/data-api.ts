@@ -54,7 +54,7 @@ export interface DataApi {
   lastValidated(): Promise<LastValidated>;
   /**
    * A validated ledger by index, hash or date. `expand` adds its transactions in full, `transactions` their hashes
-   * (`expand` wins).
+   * (`expand` wins). Either way `transactions` is always a list, empty for a ledger with no transactions.
    */
   ledger(id: string, opts: { expand: true; transactions?: boolean }): Promise<LedgerExpanded>;
   ledger(id: string, opts: { transactions: true; expand?: false }): Promise<LedgerWithHashes>;
@@ -141,7 +141,8 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
 
   /**
    * One cached GET. `template` is a key of `PATHS`' values, `params` fill its `{name}`s; with `unwrap`, the part
-   * of the answer under that key is what is returned (and cached), otherwise the whole answer.
+   * of the answer under that key is what is returned (and cached), otherwise the whole answer. `finish` shapes
+   * the unwrapped part before it is cached.
    */
   async function get<T>(
     template: (typeof PATHS)[keyof typeof PATHS],
@@ -149,6 +150,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     query: Query,
     cls: CacheClass,
     unwrap?: string,
+    finish?: (part: T) => T,
   ): Promise<T> {
     const path = template.replace(/\{(\w+)\}/g, (_match, name: string) => segment(name, params[name] ?? ""));
     const search = new URLSearchParams();
@@ -165,7 +167,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       if (part === undefined || part === null) {
         throw new UpstreamError("server", `data API GET ${url} answered without "${unwrap}"`, { status: 200 });
       }
-      return part as T;
+      return finish ? finish(part as T) : (part as T);
     });
   }
 
@@ -180,14 +182,22 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
    */
   const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? "immutable" : "live");
 
-  const ledger = (id: string, opts?: { expand?: boolean; transactions?: boolean }) =>
-    get<Ledger>(
+  /**
+   * The API adds `transactions` to an expanded ledger only when the ledger has some, unless `transactions=true` is
+   * sent too, which makes the key always there (`[]` for none). So `expand` always goes with `transactions=true`,
+   * and a ledger asked for with either has a list even if the answer, against the reference, left the key out.
+   */
+  const ledger = (id: string, opts?: { expand?: boolean; transactions?: boolean }) => {
+    const withTransactions = Boolean(opts?.expand || opts?.transactions);
+    return get<Ledger>(
       PATHS.ledger,
       { ledger_param: id },
-      { expand: opts?.expand, transactions: opts?.transactions },
+      { expand: opts?.expand, transactions: withTransactions },
       "immutable",
       "ledger",
+      withTransactions ? (found) => ({ ...found, transactions: found.transactions ?? [] }) : undefined,
     );
+  };
 
   return {
     lastValidated: () => get<LastValidated>(PATHS.lastValidated, {}, {}, "live"),

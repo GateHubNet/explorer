@@ -16,7 +16,9 @@ import type { TxJson, TxMeta } from "../domain/parse/types";
  * original Ripple API; `accepted` and `closed` are the text `"true"`.
  *
  * `transactions` is there when asked for: transaction hashes with `transactions=true`, transaction objects with
- * `expand=true` (`DataApi.ledger` narrows it by the options it is given).
+ * `expand=true` (`DataApi.ledger` narrows it by the options it is given). The API itself leaves the key out of an
+ * empty ledger fetched with `expand=true` alone, so the client sends `transactions=true` with it and makes sure the
+ * list is there (`[]` when empty).
  */
 export interface Ledger {
   ledger_hash: string;
@@ -42,12 +44,12 @@ export interface Ledger {
   transactions?: string[] | TxObject[];
 }
 
-/** A ledger fetched with `transactions=true`. */
+/** A ledger fetched with `transactions=true`: the hashes of its transactions; `[]` for an empty ledger. */
 export interface LedgerWithHashes extends Ledger {
   transactions: string[];
 }
 
-/** A ledger fetched with `expand=true`: its transactions in full, without `ledger_hash`. */
+/** A ledger fetched with `expand=true`: its transactions in full, without `ledger_hash`; `[]` for an empty ledger. */
 export interface LedgerExpanded extends Ledger {
   transactions: TxObject[];
 }

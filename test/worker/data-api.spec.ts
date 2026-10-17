@@ -100,6 +100,8 @@ const txObject = {
   tx: { TransactionType: "Payment", Account: ACCOUNT, Fee: "10" },
   meta: { TransactionIndex: 12, TransactionResult: "tesSUCCESS", AffectedNodes: [] },
 };
+const expandedLedgerBody = { ...ledgerBody, ledger: { ...ledgerBody.ledger, transactions: [txObject] } };
+const hashedLedgerBody = { ...ledgerBody, ledger: { ...ledgerBody.ledger, transactions: [HASH] } };
 const transactionBody = { result: "success", transaction: txObject };
 const transactionsBody = { result: "success", count: 1, marker: "WzEwNzY3MDM2MCw1XQ", transactions: [txObject] };
 const accountBody = {
@@ -164,17 +166,18 @@ const cases: Case[] = [
     name: "ledger by hash, expanded",
     cls: "immutable",
     call: (a) => a.ledger(HASH, { expand: true }),
-    url: `/v2/ledgers/${HASH}?expand=true`,
-    body: ledgerBody,
-    result: ledgerBody.ledger,
+    // `transactions=true` goes with `expand=true`, so that the key is there for a ledger with no transactions.
+    url: `/v2/ledgers/${HASH}?expand=true&transactions=true`,
+    body: expandedLedgerBody,
+    result: expandedLedgerBody.ledger,
   },
   {
     name: "ledger with transaction hashes",
     cls: "immutable",
     call: (a) => a.ledger("107695660", { transactions: true }),
     url: "/v2/ledgers/107695660?transactions=true",
-    body: ledgerBody,
-    result: ledgerBody.ledger,
+    body: hashedLedgerBody,
+    result: hashedLedgerBody.ledger,
   },
   {
     name: "transaction",
@@ -296,8 +299,52 @@ describe("requests", () => {
     expect(request.headers.get("X-API-Key")).toBe("test-key");
   });
 
-  it("types the transactions of a ledger by what was asked for", async () => {
+  it("asks for the transactions whenever it asks for them in full, which the API otherwise leaves out of an empty ledger", async () => {
+    fetchSpy.mockImplementation(async () => json(expandedLedgerBody));
+    const api = createDataApi(xrpl, env, passThroughCache);
+    const queryOf = async (opts?: { expand?: boolean; transactions?: boolean }) => {
+      await api.ledger("107695660", opts);
+      return new URL(sentRequest().url).search;
+    };
+
+    expect(await queryOf({ expand: true })).toBe("?expand=true&transactions=true");
+    expect(await queryOf({ expand: true, transactions: false })).toBe("?expand=true&transactions=true");
+    expect(await queryOf({ expand: true, transactions: true })).toBe("?expand=true&transactions=true");
+    expect(await queryOf({ transactions: true })).toBe("?transactions=true");
+    expect(await queryOf({ expand: false, transactions: false })).toBe("");
+    expect(await queryOf()).toBe("");
+  });
+
+  it("an expanded ledger with no transactions has an empty list", async () => {
+    fetchSpy.mockResolvedValueOnce(json({ ...ledgerBody, ledger: { ...ledgerBody.ledger, transactions: [] } }));
+
+    const ledger = await createDataApi(xrpl, env, passThroughCache).ledger("107695660", { expand: true });
+
+    expect(ledger.transactions).toEqual([]);
+  });
+
+  it("is an empty list too when the answer leaves the key out (the API does for expand alone on an empty ledger)", async () => {
     fetchSpy.mockImplementation(async () => json(ledgerBody));
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    const expanded = await api.ledger("107695660", { expand: true });
+    const hashes = await api.ledger("107695660", { transactions: true });
+
+    expect(expanded.transactions).toEqual([]);
+    expect(hashes.transactions).toEqual([]);
+    expect(expanded.ledger_index).toBe(107695660);
+  });
+
+  it("leaves a ledger fetched without its transactions without a transactions key", async () => {
+    fetchSpy.mockResolvedValueOnce(json(ledgerBody));
+
+    const ledger = await createDataApi(xrpl, env, passThroughCache).ledger("107695660");
+
+    expect("transactions" in ledger).toBe(false);
+  });
+
+  it("types the transactions of a ledger by what was asked for", async () => {
+    fetchSpy.mockImplementation(async () => json(expandedLedgerBody));
     const api = createDataApi(xrpl, env, passThroughCache);
 
     const expanded = await api.ledger("107695660", { expand: true });
