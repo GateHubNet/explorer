@@ -85,6 +85,54 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds. |
 | `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
 | `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, and the `SubrequestCache` interface both clients take. |
+| `edge-cache.ts` | The page-level edge cache and visitor limit (`withEdgeCache`), the subrequest cache the clients take (`createSubrequestCache`), and what loaders and routes use to name a page's class (`cached`, `forwardCacheClass`, `cacheClassHeaders`). |
+| `logging.ts` | The request id and the one log line per request (`withRequestLog`), and Sentry, loaded only for a Worker that has a `SENTRY_DSN` (`withSentryWhenConfigured`). |
+
+## The Worker entry
+
+`workers/app.ts` wraps React Router's request handler, outside in: Sentry (only with a `SENTRY_DSN`), the request id and
+log line, the edge cache with the visitor limit, React Router.
+
+- **Request id and log.** Every response has `X-Request-Id` (the request's `CF-Ray` when it has one, else a random id), and
+  every request writes one line, `{ id, method, path, status, cache, ms }`. The path only: a query string can hold what a
+  visitor typed.
+- **`X-Cache`** is on every response: `HIT`, `MISS`, `STALE`, or `BYPASS` for requests that skip the cache (anything but GET, and
+  the root `/` and its `/_.data`, a redirect that depends on a cookie).
+- **Visitor limit.** On a miss only (a hit, and a stale copy being refreshed, cost nothing upstream), the Worker asks
+  `VISITOR_LIMITER`, keyed by `CF-Connecting-IP`; over the limit the answer is a small 429 page with `Retry-After: 10` and
+  nothing is rendered. Non-GET requests are always misses and are limited too (a HEAD renders the whole page). A limiter that
+  throws lets the visitor through.
+- **A failing render** (it throws, or answers 5xx) is replaced by the stored copy, whatever its age (stored copies live
+  `max(edge TTL + 30 s, 24 h)`), with `X-Cache: STALE`; without one, a throw or a 503 becomes a small 503 page with
+  `Retry-After: 30`. Both pages are `noindex` and self-contained until the design system has its own.
+- **Errors are never stored**: 4xx, 5xx and 429, except a 404 of class `short`; nor an answer that sets a cookie.
+
+### Naming a page's class
+
+A loader answers with `cached(payload, class, { ttl?, status?, headers? })`, which wraps `data()` and adds two internal
+headers, and the route exports `headers = forwardCacheClass`:
+
+```ts
+export const headers = forwardCacheClass;
+export async function loader({ params, context }: Route.LoaderArgs) {
+  // ...
+  if (!found) throw cached("Not found", "short", { status: 404 });
+  return cached(page, "immutable");
+}
+```
+
+React Router builds the headers of the document and those of the `.data` URL a client-side navigation fetches from the same
+route `headers` functions, so both carry the class. They are stored under their own URLs (the key is the URL, `.data` and
+`_routes` included, plus `BUILD_ID`). Every route with such a loader needs the export, and so does the root route when its
+error boundary shows a thrown 404; a route without it is simply not cached. The deepest route that names a class decides.
+For a `redirect()` or a resource route (an image), put `cacheClassHeaders(class, ttl?)` on the `Response`.
+
+The entry stores the answer, hands the browser the class's `Cache-Control` (the image one for `image/*`), and strips the
+internal headers (`X-Cache-Class`, `X-Cache-Ttl`, and the `X-Edge-*` ones on stored copies). Freshness is decided by the
+entry, not the Cache API, which ignores `stale-while-revalidate`: after the edge TTL a copy is served `STALE` for the class's
+`swr` while one render refreshes it (one at a time per Worker instance).
+
+The Cache API does not work on `*.workers.dev`, so `X-Cache` is always `MISS` there; use a custom domain.
 
 ## Tests
 
@@ -95,6 +143,10 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call
   the Worker with `exports.default.fetch(...)` and read bindings with `env`, both from `cloudflare:workers`. (`SELF`
   and `cloudflare:test`'s `env` still exist but are deprecated.)
+  `edge-cache.spec.ts` calls `withEdgeCache` and `createSubrequestCache` directly (fake `render`, fake `waitUntil`, a fake clock
+  for `Date` only, the runtime's own Cache API); `route-headers.spec.ts` runs `cached` and `forwardCacheClass` through React
+  Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
+  Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry).
 - Recorded mainnet ledgers (XRPL, XRPL AMM cases, Xahau), copied from `data-api-new` and kept as `.json.gz`, are in
   `test/fixtures/ledgers/`; `test/fixtures/PROVENANCE.md` says where each directory came from. Tests read them with
   `loadTx(set, hash)` and `allTxs(set)` from `test/support/ledgers.ts` (Node `fs`, test-only; `tsconfig.cloudflare.json`
