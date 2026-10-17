@@ -37,11 +37,12 @@ To add a transaction that is not here (the plan's later tasks may need one), rec
 
 ## Recorded for this repository: `ledgers/xrpl-extra/` and `ledgers/xahau-extra/`
 
-These hold transaction types of spec section 7.3 that no set above contains: all that were missing, except
-SignerListSet, which was missing too but was deliberately not recorded (see the end of this section). Which types
-were missing was worked out from the transactions themselves (every transaction of `ledgers/xrpl/`,
-`ledgers/xrpl-amm/` and `ledgers/xahau/`, not the manifests' `found` maps, which list only some). They are
-mainnet ledgers in the same format as above, written by the same recorder, `data-api-new`'s
+These hold the transaction types of spec section 7.3 that no set above contains and that the scan found. Six more
+were missing and are in no set, because 3000 ledgers did not hold them: they are listed after the table below and
+tested with hand-written transactions. SignerListSet was missing too and was deliberately not recorded (see the end of
+this section). Which types were missing was worked out from the transactions themselves (every transaction of
+`ledgers/xrpl/`, `ledgers/xrpl-amm/` and `ledgers/xahau/`, not the manifests' `found` maps, which list only some).
+The recorded ones are mainnet ledgers in the same format as above, written by the same recorder, `data-api-new`'s
 `packages/shared/scripts/record-fixtures.ts`, which only reads from public nodes. It ran from the worktree
 `data-api-new/.worktrees/feat-rate-limit-keys` (branch `feat/rate-limit-keys`, clean, commit
 `ff659c95c6ce9fbf12e6745c91984fedc5f3ca16`; the script was last changed in `75bea47e536ce4b0c4ce70d3bc70a40cb6f407d2`),
