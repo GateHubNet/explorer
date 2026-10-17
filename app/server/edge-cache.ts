@@ -48,8 +48,11 @@ export interface CachedOptions {
 /**
  * A loader's answer, with the cache class of the page it is for. Wraps React Router's `data()`: return it, or throw
  * it for a 404 (`throw cached(message, "short", { status: 404 })`). The deepest route that names a class decides the
- * class of the page; every route with a loader that uses this, and the root route (its error boundary shows a
- * thrown 404), needs `export const headers = forwardCacheClass`.
+ * class of the page. Every route whose loader uses this (or a helper that throws it, such as `upstreamFailure`), and
+ * the root route (its error boundary shows a thrown 404), needs `export const headers = forwardCacheClass`: React
+ * Router gives a route without a `headers` export its parent's headers, so the class it named is dropped and the
+ * page is stored under its parent's class, or not at all if no parent names one. (test/unit/route-headers.test.ts
+ * checks every file under app/routes.)
  */
 export function cached<T>(payload: T, cls: CacheClass, opts: CachedOptions = {}) {
   const headers = new Headers(opts.headers);

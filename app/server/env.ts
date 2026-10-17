@@ -1,5 +1,8 @@
 import { createContext, RouterContextProvider } from "react-router";
 
+import type { SubrequestCache } from "./cache-class";
+import { createSubrequestCache } from "./edge-cache";
+
 /**
  * What the Worker is configured with: `vars` and `ratelimits` of wrangler.jsonc, the two secrets
  * (`.dev.vars` locally) and `BUILD_ID`, which vite.config.ts adds to the vars of every build.
@@ -26,13 +29,15 @@ declare global {
 
 // Everything React Router 8 specific about getting the Worker's `env` and `ctx` into loaders is in
 // this file: the entry (workers/app.ts) builds the load context with createLoadContext, loaders and
-// middleware read it back with getEnv and getExecutionContext.
-const workerContext = createContext<{ env: Env; ctx: ExecutionContext }>();
+// middleware read it back with getEnv, getExecutionContext and getSubrequestCache.
+const workerContext = createContext<{ env: Env; ctx: ExecutionContext; cache: SubrequestCache }>();
 
 /** The load context for one request. Pass it to the request handler in workers/app.ts. */
 export function createLoadContext(env: Env, ctx: ExecutionContext): RouterContextProvider {
   const context = new RouterContextProvider();
-  context.set(workerContext, { env, ctx });
+  // One subrequest cache per request, over the data centre's Cache API: every client the request's loaders make
+  // shares it, and so does every request there.
+  context.set(workerContext, { env, ctx, cache: createSubrequestCache(ctx, env.BUILD_ID) });
   return context;
 }
 
@@ -55,4 +60,12 @@ export function getEnv(context: unknown): Env {
 /** The request's execution context (`waitUntil`), from a loader's or middleware's `context`. */
 export function getExecutionContext(context: unknown): ExecutionContext {
   return workerOf(context).ctx;
+}
+
+/**
+ * The cache the data API and node clients of this request keep their answers in (`clientsFor` in clients.ts hands it
+ * to them), from a loader's or middleware's `context`.
+ */
+export function getSubrequestCache(context: unknown): SubrequestCache {
+  return workerOf(context).cache;
 }
