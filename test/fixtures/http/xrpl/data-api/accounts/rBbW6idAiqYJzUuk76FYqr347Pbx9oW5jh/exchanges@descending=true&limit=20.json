@@ -1,0 +1,45 @@
+{
+  "count": 2,
+  "exchanges": [
+    {
+      "base_amount": "15235.08",
+      "base_currency": "4C494F4E53000000000000000000000000000000",
+      "base_issuer": "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS",
+      "buyer": "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48",
+      "counter_amount": "2.411362",
+      "counter_currency": "XRP",
+      "executed_time": "2026-10-17T16:11:02Z",
+      "ledger_index": 107720688,
+      "node_index": 4,
+      "offer_sequence": 98986799,
+      "provider": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "rate": "0.00015827695",
+      "seller": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "taker": "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48",
+      "tx_hash": "C7FE6468BA25CE904C41722C0892316954133B000339C644073A88CACD8A9143",
+      "tx_index": 46,
+      "tx_type": "OfferCreate"
+    },
+    {
+      "base_amount": "14822.07",
+      "base_currency": "4C494F4E53000000000000000000000000000000",
+      "base_issuer": "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS",
+      "buyer": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "counter_amount": "2.345993",
+      "counter_currency": "XRP",
+      "executed_time": "2026-10-17T15:34:10Z",
+      "ledger_index": 107720115,
+      "node_index": 0,
+      "offer_sequence": 98986739,
+      "provider": "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48",
+      "rate": "0.00015827702",
+      "seller": "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48",
+      "taker": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "tx_hash": "76018ADC532CD195BE2ACEF9D4B4D1CB32D93FD4BE9ACC2693C9B856D1D8D8AB",
+      "tx_index": 51,
+      "tx_type": "OfferCreate"
+    }
+  ],
+  "marker": "WzEwNzcyMDExNSw1MV0",
+  "result": "success"
+}

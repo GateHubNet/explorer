@@ -1,0 +1,21 @@
+{
+  "ledger": {
+    "accepted": "true",
+    "account_hash": "F7C9701E24B039689D92BE3E4D8C08987ACC41D0CAB27E3FB30DD195712D18DA",
+    "close_flags": "0",
+    "close_time": 1792251250,
+    "close_time_human": "2026-Oct-17 15:34:10",
+    "close_time_resolution": "10",
+    "closed": "true",
+    "hash": "09A8A70428647A2B24936846D8EDA483FCED7FD5DB8271D762A2B89E51C4E486",
+    "ledger_hash": "09A8A70428647A2B24936846D8EDA483FCED7FD5DB8271D762A2B89E51C4E486",
+    "ledger_index": 107720115,
+    "parent_close_time": 1792251242,
+    "parent_hash": "1048DFBF67355192F80973D71BF63A870B0913136170F383EBC4EA517A66D0D0",
+    "seqNum": "107720115",
+    "totalCoins": "99985590058034930",
+    "total_coins": "99985590058034930",
+    "transaction_hash": "36C3B68DBFDA1D930AE2A0D819057D2A53E171DF7B12CF03DA0D60172B7D444F"
+  },
+  "result": "success"
+}

@@ -1,0 +1,39 @@
+{
+  "result": {
+    "Account": "r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h",
+    "Asset": {
+      "currency": "USD",
+      "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"
+    },
+    "Asset2": {
+      "currency": "XRP"
+    },
+    "BidMax": {
+      "currency": "03930D02208264E2E40EC1B0C09E4DB96EE197B1",
+      "issuer": "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am",
+      "value": "294.354152174"
+    },
+    "BidMin": {
+      "currency": "03930D02208264E2E40EC1B0C09E4DB96EE197B1",
+      "issuer": "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am",
+      "value": "294.354152174"
+    },
+    "Fee": "100",
+    "LastLedgerSequence": 106084543,
+    "Sequence": 106083514,
+    "SigningPubKey": "EDE661A6FEBBD4779B9FBA7AE2FD1EA748CDC076A993529837EBBE70752F4D298D",
+    "TransactionType": "AMMBid",
+    "TxnSignature": "B2C8642EACBFB4747D4C1E4523CCB4FC527EA3A77F41DF311B856705CD5A5C7F46B7638874A20217BB61E0CDC3A04B06C337306EDE0C7FEE3DF49912D0253301",
+    "date": 839236501,
+    "hash": "2D66C6FD02977F96126FB352AAD691CA556790DBF71E0CDF3B701E18A49B9427",
+    "inLedger": 106084525,
+    "ledger_index": 106084525,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h","Balance":"3808902","Flags":0,"OwnerCount":4,"Sequence":106083515},"LedgerEntryType":"AccountRoot","LedgerIndex":"131B81749A6CB363DE837FD50291D0B27BF41541F49BCAE421053F4A471A1DFD","PreviousFields":{"Balance":"3809002","Sequence":106083514},"PreviousTxnID":"2211EA0A9C02AF1C34F12A84FED5D719922692496C8428BDD6B2A4AEB09B6B88","PreviousTxnLgrSeq":106084521}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-119.682168303"},"Flags":2228224,"HighLimit":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h","value":"0"},"HighNode":"0","LowLimit":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","value":"0"},"LowNode":"7"},"LedgerEntryType":"RippleState","LedgerIndex":"A19846CB442A3FCCF9C65B06466840B5583D859B49851EE994FA94D4D3EA9182","PreviousFields":{"Balance":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-414.036320477"}},"PreviousTxnID":"E51C377EB392795812A09C3D501DB109AD8B55A9A4542B3462F9995B25C999CA","PreviousTxnLgrSeq":106084485}},{"ModifiedNode":{"FinalFields":{"Account":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","Asset":{"currency":"XRP"},"Asset2":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"AuctionSlot":{"Account":"r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h","DiscountedFee":22,"Expiration":839322900,"Price":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","value":"294.354152174"}},"Flags":0,"LPTokenBalance":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","value":"3340651.434735374"},"OwnerNode":"0","TradingFee":220,"VoteSlots":[{"VoteEntry":{"Account":"rfHdtybrQgU1GZZGwddJ2K7m2Dwyso2fuR","TradingFee":10,"VoteWeight":4320}},{"VoteEntry":{"Account":"rHhaopoUtZVfcLrXuPnDxqozoRWbKsKy8q","TradingFee":1000,"VoteWeight":1153}},{"VoteEntry":{"Account":"rUfQAjaC4DVjPJsFRpFJrtAcvbzPCUiCY6","TradingFee":10,"VoteWeight":1}},{"VoteEntry":{"Account":"raNf8ibQZECTaiFqkDXKRmM2GfdWK76cSu","TradingFee":270,"VoteWeight":132}}]},"LedgerEntryType":"AMM","LedgerIndex":"EF95AD04AF97DF0DD76C5C624F93EF6F5479CDF8F30FAE612F1D434B5D6A914B","PreviousFields":{"AuctionSlot":{"Account":"raNf8ibQZECTaiFqkDXKRmM2GfdWK76cSu","DiscountedFee":22,"Expiration":835368620,"Price":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","value":"294.354152174"}},"LPTokenBalance":{"currency":"03930D02208264E2E40EC1B0C09E4DB96EE197B1","issuer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","value":"3340945.788887548"}},"PreviousTxnID":"E51C377EB392795812A09C3D501DB109AD8B55A9A4542B3462F9995B25C999CA","PreviousTxnLgrSeq":106084485}}],
+      "TransactionIndex": 79,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

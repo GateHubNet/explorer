@@ -1,0 +1,51 @@
+{
+  "count": 3,
+  "payments": [
+    {
+      "amount": "0.000001",
+      "currency": "XAH",
+      "delivered_amount": "0.000001",
+      "destination": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+      "destination_balance_changes": [{"counterparty":"","currency":"XAH","value":"0.000001"}],
+      "executed_time": "2026-10-15T10:37:20Z",
+      "ledger_index": 26541060,
+      "source": "rGBDWWc2AWC6RuhzPVmzmbsiy17nLkRkf6",
+      "source_balance_changes": [{"counterparty":"","currency":"XAH","value":"-0.000001"}],
+      "source_currency": "XAH",
+      "transaction_cost": "0.007056",
+      "tx_hash": "D437E9B6486965D1E97D3737FD00A4B0C9615DFFF3ECC813EF6A3A6CB44B945F",
+      "tx_index": 15
+    },
+    {
+      "amount": "0.000001",
+      "currency": "XAH",
+      "delivered_amount": "0.000001",
+      "destination": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+      "destination_balance_changes": [{"counterparty":"","currency":"XAH","value":"0.000001"}],
+      "executed_time": "2026-10-15T10:37:20Z",
+      "ledger_index": 26541060,
+      "source": "rHG68vqThU1to7Br4dCQJ7NDsfef6GUbp5",
+      "source_balance_changes": [{"counterparty":"","currency":"XAH","value":"-0.000001"}],
+      "source_currency": "XAH",
+      "transaction_cost": "0.007056",
+      "tx_hash": "9477F1D23635D87299BE09F0ACC5FFB9A8843D33159E0E6AA318066086CA1E18",
+      "tx_index": 14
+    },
+    {
+      "amount": "0.000001",
+      "currency": "XAH",
+      "delivered_amount": "0.000001",
+      "destination": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+      "destination_balance_changes": [{"counterparty":"","currency":"XAH","value":"0.000001"}],
+      "executed_time": "2026-10-15T10:37:20Z",
+      "ledger_index": 26541060,
+      "source": "rNY1RmJBKuK7SKdzdzeBDgeE6EEBD9aX6A",
+      "source_balance_changes": [{"counterparty":"","currency":"XAH","value":"-0.000001"}],
+      "source_currency": "XAH",
+      "transaction_cost": "0.007056",
+      "tx_hash": "F1FF73D3004F1221722FEFD1E30CECFFC24A80EA77A1ECB465CAC3E568816D33",
+      "tx_index": 13
+    }
+  ],
+  "result": "success"
+}

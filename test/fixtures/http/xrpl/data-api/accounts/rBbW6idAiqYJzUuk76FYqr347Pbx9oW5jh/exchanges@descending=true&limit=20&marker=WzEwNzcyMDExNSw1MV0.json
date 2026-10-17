@@ -1,0 +1,25 @@
+{
+  "count": 1,
+  "exchanges": [
+    {
+      "base_amount": "15590.27",
+      "base_currency": "4C494F4E53000000000000000000000000000000",
+      "base_issuer": "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS",
+      "buyer": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "counter_amount": "2.383056",
+      "counter_currency": "XRP",
+      "executed_time": "2026-10-08T01:43:52Z",
+      "ledger_index": 107506489,
+      "node_index": 4,
+      "offer_sequence": 98966312,
+      "provider": "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48",
+      "rate": "0.00015285534",
+      "seller": "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48",
+      "taker": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "tx_hash": "5E9A5A60F9750E18628A122D6C4B925721A9B6C55CE9F7001774267F09B82F99",
+      "tx_index": 38,
+      "tx_type": "OfferCreate"
+    }
+  ],
+  "result": "success"
+}

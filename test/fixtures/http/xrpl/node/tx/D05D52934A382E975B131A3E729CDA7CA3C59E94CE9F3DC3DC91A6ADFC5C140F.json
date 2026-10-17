@@ -1,0 +1,32 @@
+{
+  "result": {
+    "Account": "rsjsfxKNcgkcGLndpkdLr5CKLvQ8Nntsf1",
+    "Fee": "10",
+    "Flags": 131072,
+    "LastLedgerSequence": 107721458,
+    "Memos": [
+      {"Memo":{"MemoData":"33344341333444463131303846344241"}}
+    ],
+    "Sequence": 106269668,
+    "SigningPubKey": "ED8AE37400AF6046086E699BA13E49D3037298C7F4919CA5E5C31E71086419E497",
+    "TakerGets": "280556208",
+    "TakerPays": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "361.496674"
+    },
+    "TransactionType": "OfferCreate",
+    "TxnSignature": "948F03D265D403E9F645C5889C8C687FAAB46E4C32137F2C17DE6B7F3C50888BCBCABCE5EDBBAB99ACA30EC9A865218C63AE1A33EFF4901282ECCAAC1D69C706",
+    "date": 845571672,
+    "hash": "D05D52934A382E975B131A3E729CDA7CA3C59E94CE9F3DC3DC91A6ADFC5C140F",
+    "inLedger": 107721455,
+    "ledger_index": 107721455,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rsjsfxKNcgkcGLndpkdLr5CKLvQ8Nntsf1","Balance":"282556198","Flags":0,"OwnerCount":1,"Sequence":106269669},"LedgerEntryType":"AccountRoot","LedgerIndex":"FE0B15C96F7B21640B3902280F0A797AD62E8D9B1999FBE33BA2C7D6CE9E0F48","PreviousFields":{"Balance":"282556208","Sequence":106269668},"PreviousTxnID":"CA5AA88BCA94EE65427C295F435CE4211B0CBE28DF90B54FD666E54CC7D3FE92","PreviousTxnLgrSeq":107721440}}],
+      "TransactionIndex": 99,
+      "TransactionResult": "tecKILLED"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

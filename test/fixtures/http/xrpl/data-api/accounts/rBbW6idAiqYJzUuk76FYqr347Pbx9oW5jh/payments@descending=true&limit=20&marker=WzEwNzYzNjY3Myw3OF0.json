@@ -1,0 +1,21 @@
+{
+  "count": 1,
+  "payments": [
+    {
+      "amount": "2.306481",
+      "currency": "XRP",
+      "delivered_amount": "2.306481",
+      "destination": "rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48",
+      "destination_balance_changes": [{"counterparty":"","currency":"XRP","value":"2.306481"}],
+      "executed_time": "2026-02-12T01:07:50Z",
+      "ledger_index": 102186243,
+      "source": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "source_balance_changes": [{"counterparty":"","currency":"XRP","value":"-2.306481"}],
+      "source_currency": "XRP",
+      "transaction_cost": "0.000012",
+      "tx_hash": "AACAFCFEBB5C970049A576CBFE6EF544A47EE3ADBA99122FA43234D18D5FFD40",
+      "tx_index": 63
+    }
+  ],
+  "result": "success"
+}

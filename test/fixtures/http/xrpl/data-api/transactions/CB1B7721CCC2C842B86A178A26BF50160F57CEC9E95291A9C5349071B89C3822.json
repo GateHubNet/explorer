@@ -1,0 +1,30 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-08T01:43:52+00:00",
+    "hash": "CB1B7721CCC2C842B86A178A26BF50160F57CEC9E95291A9C5349071B89C3822",
+    "ledger_index": 107506489,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"USD","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-83.11730586683633"},"Flags":2228224,"HighLimit":{"currency":"USD","issuer":"rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6","value":"9999999999999999e79"},"HighNode":"37c","LowLimit":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","value":"0"},"LowNode":"2508"},"LedgerEntryType":"RippleState","LedgerIndex":"9A6C3769BB8CF0725767B6A272158F3D8FF28954928CEFC249B2FC2C1E34E3FA","PreviousFields":{"Balance":{"currency":"USD","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0"}},"PreviousTxnID":"987756A1BF38A8EF44316A92FF1CFF5275F02E8C411578D9E9D46A190511741F","PreviousTxnLgrSeq":107479917}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"USD","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"12813.56852898324"},"Flags":16842752,"HighLimit":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","value":"0"},"HighNode":"230c","LowLimit":{"currency":"USD","issuer":"rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"9AE3CEB5FBC465610CAD1D890BAAD70EB8489A76EE19B6990E7DC0004D7CFD1F","PreviousFields":{"Balance":{"currency":"USD","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"12896.85206946181"}},"PreviousTxnID":"36191C98E7B7E28ED2C337E33EB808EB117A6C60FD03A21AAE9F27918C94959A","PreviousTxnLgrSeq":107506489}},{"ModifiedNode":{"FinalFields":{"AMMID":"630D4F2C7A2F80C4367BAC35219CE2C1274B59330694769A79B0C94A59789AAF","Account":"rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q","Balance":"8403133358","Flags":26214400,"OwnerCount":1,"Sequence":86795329},"LedgerEntryType":"AccountRoot","LedgerIndex":"A88F25E5AD1D3945FB52291910763E286C55DBE1157E8F19D00F3CA964C6BC45","PreviousFields":{"Balance":"8348618512"},"PreviousTxnID":"36191C98E7B7E28ED2C337E33EB808EB117A6C60FD03A21AAE9F27918C94959A","PreviousTxnLgrSeq":107506489}},{"ModifiedNode":{"FinalFields":{"Account":"rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6","AccountTxnID":"CB1B7721CCC2C842B86A178A26BF50160F57CEC9E95291A9C5349071B89C3822","Balance":"3038888744","Flags":0,"OwnerCount":1740,"Sequence":37447132},"LedgerEntryType":"AccountRoot","LedgerIndex":"BFF40FB02870A44349BB5E482CD2A4AA3415C7E72F4D2E9E98129972F26DA9AA","PreviousFields":{"AccountTxnID":"9C08AAA64EA60251BDBDF48E229419D1FB87D84B513808A03452B2681E95C80C","Balance":"3093403600","Sequence":37447131},"PreviousTxnID":"5BB813B4B567C8FE1C0215F01C02F407F71850AD5D7675160D0016E9F65B6A4B","PreviousTxnLgrSeq":107506293}}],
+      "DeliveredAmount": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","value":"83.11730586683633"},
+      "TransactionIndex": 22,
+      "TransactionResult": "tesSUCCESS",
+      "delivered_amount": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","value":"83.11730586683633"}
+    },
+    "tx": {
+      "Account": "rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6",
+      "Amount": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","value":"83.15692257212035"},
+      "DeliverMin": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","value":"83.07376564954824"},
+      "Destination": "rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6",
+      "Fee": "10",
+      "Flags": 196608,
+      "LastLedgerSequence": 107506490,
+      "Paths": [[{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","type":48},{"account":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","type":1}]],
+      "SendMax": "54514846",
+      "Sequence": 37447131,
+      "SigningPubKey": "EDE30BA017ED458B9B372295863B042C2BA8F11AD53B4BDFB398E778CB7679146B",
+      "TransactionType": "Payment",
+      "TxnSignature": "A6DDFB653A6D19B73426510F144E532A8513843D94ED3F665D9F7EF3AC69DEAF8D5FAA7FE5AA9E36BDB60578ED7CCF66DBB6752C03CC3439752004C5A201DF09"
+    }
+  }
+}

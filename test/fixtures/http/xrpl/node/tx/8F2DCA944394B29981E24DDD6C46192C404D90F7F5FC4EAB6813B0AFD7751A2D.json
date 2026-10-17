@@ -1,0 +1,25 @@
+{
+  "result": {
+    "Account": "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC",
+    "Destination": "rGCxaHPdFpkwZUxv7rCPCU8uLaavTiBqPq",
+    "Fee": "200000",
+    "LastLedgerSequence": 107671611,
+    "Sequence": 107670569,
+    "SigningPubKey": "037A1DB26DD6A81B3A94775C2C21CEA71A3958BE3F75DDE52B6DBFA29C7946AC10",
+    "TransactionType": "AccountDelete",
+    "TxnSignature": "304402207AAA098752A7430974B2334DE5BA5308A74C483CC85FC2290DAC92D30531585F02205A51F282BAA4956F7E4F865801BE9EE1E2C73BE361FF2446B4E51EAE60A24AC2",
+    "date": 845378370,
+    "hash": "8F2DCA944394B29981E24DDD6C46192C404D90F7F5FC4EAB6813B0AFD7751A2D",
+    "inLedger": 107671593,
+    "ledger_index": 107671593,
+    "meta": {
+      "AffectedNodes": [{"DeletedNode":{"FinalFields":{"Account":"r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC","Balance":"0","Flags":0,"OwnerCount":0,"PreviousTxnID":"EE8547C7070DFB9C2249EAF693B77C1253858317F5132F058EEE267199F8828C","PreviousTxnLgrSeq":107670694,"Sequence":107670570},"LedgerEntryType":"AccountRoot","LedgerIndex":"3AC660EC891826BE3C6C42D64370660CB6398F2CAFA9C97B65F6B441423E3BDE","PreviousFields":{"Balance":"1328260","Sequence":107670569}}},{"ModifiedNode":{"FinalFields":{"Account":"rGCxaHPdFpkwZUxv7rCPCU8uLaavTiBqPq","Balance":"4845740","FirstNFTokenSequence":94588059,"Flags":0,"MintedNFTokens":1,"OwnerCount":3,"Sequence":94588568},"LedgerEntryType":"AccountRoot","LedgerIndex":"D52BDE018BA254FDF1D0B0AEF2ED244B1F5A9A9DDC4947032817F50984873473","PreviousFields":{"Balance":"3717480"},"PreviousTxnID":"1AA42A83B1B140414792D536E7E26438C4EAA9EEA5286D1CF2DB9414A7DBA4B5","PreviousTxnLgrSeq":107671573}}],
+      "DeliveredAmount": "1128260",
+      "TransactionIndex": 22,
+      "TransactionResult": "tesSUCCESS",
+      "delivered_amount": "1128260"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

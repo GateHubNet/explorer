@@ -1,0 +1,22 @@
+{
+  "result": {
+    "account_data": {
+      "Account": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+      "AccountIndex": "1b7",
+      "Balance": "9351039221",
+      "Flags": 1048576,
+      "LedgerEntryType": "AccountRoot",
+      "OwnerCount": 2,
+      "PreviousTxnID": "E50256728AC7E3C58878EC2D6D56EE32E1B365507F9EE6D4BC96CCFD3CCB159F",
+      "PreviousTxnLgrSeq": 26596843,
+      "RegularKey": "rrrrrrrrrrrrrrrrrrrrBZbvji",
+      "Sequence": 755783996,
+      "TouchCount": "4efb35b",
+      "index": "2A437E47F32B3DA16C69404F21B8F8BC2CB1EFBC19426CDF71C6510BF31F7C1C"
+    },
+    "ledger_hash": "EFA9CD5F98635E5E505EF63AECEF1576D324AF95BED7D3C3897B2BB20203E0B5",
+    "ledger_index": 26596843,
+    "status": "success",
+    "validated": true
+  }
+}

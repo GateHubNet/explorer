@@ -14,6 +14,8 @@
     "test:e2e": "playwright test",
     "api:sync": "tsx scripts/api-sync.ts",
     "api:check": "tsx scripts/api-sync.ts --check",
+    "fixtures:sync": "tsx scripts/make-http-fixtures.ts",
+    "fixtures:check": "tsx scripts/make-http-fixtures.ts --check",
     "deploy:staging": "CLOUDFLARE_ENV=staging react-router build && wrangler deploy",
     "deploy:production": "CLOUDFLARE_ENV=production react-router build && wrangler deploy",
     "verify": "pnpm api:check && pnpm typecheck && pnpm test && pnpm build",

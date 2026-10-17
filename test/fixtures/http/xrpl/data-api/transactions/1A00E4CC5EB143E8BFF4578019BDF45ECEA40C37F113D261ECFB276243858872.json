@@ -1,0 +1,25 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-17T17:01:12+00:00",
+    "hash": "1A00E4CC5EB143E8BFF4578019BDF45ECEA40C37F113D261ECFB276243858872",
+    "ledger_index": 107721455,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"raBkGGTqmGJE2vQENXhkDsAm2BEXZSQpmj","Balance":"1403215","Flags":0,"OwnerCount":0,"Sequence":107635982},"LedgerEntryType":"AccountRoot","LedgerIndex":"630562875BE274D8B9FAEBD7FE8909BF2BC8266E1651B64A7C60EBFC380788B5","PreviousFields":{"Balance":"1403265","Sequence":107635981},"PreviousTxnID":"6925B57671F65BF3B136C26AF53234AC857475B492F5836F616B3D5950573FE4","PreviousTxnLgrSeq":107721454}}],
+      "TransactionIndex": 106,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "raBkGGTqmGJE2vQENXhkDsAm2BEXZSQpmj",
+      "BatchSigners": [{"BatchSigner":{"Account":"rxLfrvic9BP4atxcz433ZcdbHUknKFixM","SigningPubKey":"ED36DE14E1F33730C455DD3A79B9A16AB2F63599BF79C139D0C8F05119FE3FB648","TxnSignature":"7DD9A9E2140DCA1130EC4129D83F4FA68C93D2AEA4633FA06824D2898A13A4078540A3BD8D48A930865E4899EC41DA6F09AB6C70495D75C1450BA8B3B578CD08"}}],
+      "Fee": "50",
+      "Flags": 65536,
+      "LastLedgerSequence": 107721456,
+      "RawTransactions": [{"RawTransaction":{"Account":"rxLfrvic9BP4atxcz433ZcdbHUknKFixM","Amount":{"currency":"CNY","issuer":"rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y","value":"1000000000000000e15"},"Destination":"rxLfrvic9BP4atxcz433ZcdbHUknKFixM","Fee":"0","Flags":1073938432,"Paths":[[{"currency":"XLM","issuer":"rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y","type":48}]],"SendMax":"11157073","Sequence":0,"SigningPubKey":"","TicketSequence":107609845,"TransactionType":"Payment"}},{"RawTransaction":{"Account":"rxLfrvic9BP4atxcz433ZcdbHUknKFixM","Amount":"999999999999999","DeliverMin":"11157113","Destination":"rxLfrvic9BP4atxcz433ZcdbHUknKFixM","Fee":"0","Flags":1073872896,"SendMax":{"currency":"CNY","issuer":"rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y","value":"1000000000000000e15"},"Sequence":0,"SigningPubKey":"","TicketSequence":107609848,"TransactionType":"Payment"}}],
+      "Sequence": 107635981,
+      "SigningPubKey": "ED8D63BFC7D75D4CCCCEB0B12DF2629C013244085994377A4D93BFC191E1DC77FB",
+      "TransactionType": "Batch",
+      "TxnSignature": "957F0FA900163AEE70589621A65052807EE57DFA50846CC7DCB60F4FEC1B0D49445D940E57706740044AB602D2F9779182832D3C8DDE999E7BFF9BB7039F3202"
+    }
+  }
+}

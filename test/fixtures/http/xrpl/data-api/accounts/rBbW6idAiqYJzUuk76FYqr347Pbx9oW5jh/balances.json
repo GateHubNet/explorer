@@ -1,0 +1,16 @@
+{
+  "balances": [
+    {
+      "currency": "XRP",
+      "value": "10.001625"
+    },
+    {
+      "counterparty": "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS",
+      "currency": "4C494F4E53000000000000000000000000000000",
+      "value": "48329.908117603"
+    }
+  ],
+  "ledger_index": 107721455,
+  "limit": 200,
+  "result": "success"
+}

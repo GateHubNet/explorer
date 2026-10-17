@@ -1,0 +1,43 @@
+{
+  "result": {
+    "Account": "rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W",
+    "Amount": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "1005443747.861525"
+    },
+    "DeliverMax": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "1005443747.861525"
+    },
+    "DeliverMin": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "170.47575845"
+    },
+    "Destination": "rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W",
+    "Fee": "12",
+    "Flags": 131072,
+    "LastLedgerSequence": 107695746,
+    "SendMax": "134000000",
+    "Sequence": 92526553,
+    "SigningPubKey": "02AC4CD127B004CF6C9CC50108FF44627ED0F0C8675C7866E5B4CDAB65D0CB1E64",
+    "SourceTag": 74920348,
+    "TransactionType": "Payment",
+    "TxnSignature": "3045022100E50B1A839B4CD191B64A886E0D3308DFC6F01A2F6B8FCE0A2BCF52CEA2B2835A02202D98D42456AA62CB8EBB6D68F5925E5F315A2F637FD35D2D9AD39807A5D244FD",
+    "date": 845468031,
+    "hash": "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60",
+    "inLedger": 107694747,
+    "ledger_index": 107694747,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"2447341.562339902"},"Flags":16842752,"HighLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"0"},"HighNode":"619","LowLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27","PreviousFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"2447521.010506695"}},"PreviousTxnID":"5845E64D2B4A3778DF4FBFD2DDB1A1360CE2A0157C84EEAFC11F12ECB30984D9","PreviousTxnLgrSeq":107694743}},{"ModifiedNode":{"FinalFields":{"AMMID":"160C6649399D6AF625ED94A66812944BDA1D8993445A503F6B5730DECC7D3767","Account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","Balance":"1823900107357","Flags":26214400,"OwnerCount":1,"Sequence":93814277},"LedgerEntryType":"AccountRoot","LedgerIndex":"95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915","PreviousFields":{"Balance":"1823766107357"},"PreviousTxnID":"5845E64D2B4A3778DF4FBFD2DDB1A1360CE2A0157C84EEAFC11F12ECB30984D9","PreviousTxnLgrSeq":107694743}},{"ModifiedNode":{"FinalFields":{"Account":"rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W","Balance":"8978027","Flags":0,"OwnerCount":29,"Sequence":92526554},"LedgerEntryType":"AccountRoot","LedgerIndex":"B68045BB6BC216ACEF99F98C8415B0D34C7231DA94C0C12E0DBA08428BB91C73","PreviousFields":{"Balance":"142978039","Sequence":92526553},"PreviousTxnID":"091666BA532D28309BCDC52FF0B6CD37A2889EBCEAB04619820ED436A86DF52C","PreviousTxnLgrSeq":107694742}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"1740.571911126321"},"Flags":1114112,"HighLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"0"},"HighNode":"551","LowLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W","value":"1005443747.861523"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"E352F136C7E645C4230D11CD3D900618A9FE5B8EFDF57DD4640BF63BB1BF30E8","PreviousFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"1561.123744333321"}},"PreviousTxnID":"6E8E4B4633288BF013D4760BFEBE50130E7AC85D88D6F81FF40CBE4DB297BD88","PreviousTxnLgrSeq":107694688}}],
+      "DeliveredAmount": {"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"179.448166793"},
+      "TransactionIndex": 0,
+      "TransactionResult": "tesSUCCESS",
+      "delivered_amount": {"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"179.448166793"}
+    },
+    "status": "success",
+    "validated": true
+  }
+}

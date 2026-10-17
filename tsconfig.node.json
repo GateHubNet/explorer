@@ -1,6 +1,15 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["vite.config.ts", "vitest.config.ts", "scripts/**/*", "test/unit/**/*"],
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "scripts/**/*",
+    "test/unit/**/*",
+    "test/support/upstream-core.ts",
+    "test/support/fixture-server.ts",
+    "app/server/api-types.ts",
+    "app/domain/parse/types.ts"
+  ],
   "compilerOptions": {
     "composite": true,
     "strict": true,

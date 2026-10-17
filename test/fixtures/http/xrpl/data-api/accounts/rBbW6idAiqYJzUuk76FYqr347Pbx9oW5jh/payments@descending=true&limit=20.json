@@ -1,0 +1,22 @@
+{
+  "count": 1,
+  "marker": "WzEwNzYzNjY3Myw3OF0",
+  "payments": [
+    {
+      "amount": "0.00001",
+      "currency": "XRP",
+      "delivered_amount": "0.00001",
+      "destination": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "destination_balance_changes": [{"counterparty":"","currency":"XRP","value":"0.00001"}],
+      "executed_time": "2026-10-13T21:34:30Z",
+      "ledger_index": 107636673,
+      "source": "rDQSFBVK7Nrh2tTCmPPRjpjxdTZ2afhvFz",
+      "source_balance_changes": [{"counterparty":"","currency":"XRP","value":"-0.00001"}],
+      "source_currency": "XRP",
+      "transaction_cost": "0.000011",
+      "tx_hash": "52FC2BE167D21568A673B62B98559721C5991FDB4B4654DCD4C955306D3892EB",
+      "tx_index": 78
+    }
+  ],
+  "result": "success"
+}

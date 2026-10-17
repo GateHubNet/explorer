@@ -1,0 +1,27 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-15T09:45:30+00:00",
+    "hash": "3A1F25CDF0E2E4466AA0B019EA3039A6E5F87C01FBDD69CBDC474DAC32D8E64C",
+    "ledger_index": 26540187,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rDitc4S7Y1GF2yzM4S2dayA4jYuK6YewSz","AccountIndex":"e181","Balance":"5125076091","Flags":0,"OwnerCount":106,"RewardAccumulator":"0","RewardLgrFirst":26540187,"RewardLgrLast":26540187,"RewardTime":845372721,"Sequence":761069103,"TouchCount":"ae"},"LedgerEntryType":"AccountRoot","LedgerIndex":"20ACB6B72609FD9E28B6CD76702C139BA8E2DB8764A124399E840B4D9F47F92E","PreviousFields":{"Balance":"5125084721","RewardAccumulator":"9633a46e","RewardLgrFirst":25815461,"RewardLgrLast":26533544,"RewardTime":842755751,"Sequence":761069102,"TouchCount":"ad"},"PreviousTxnID":"DB6F41D4A4D782F7EC14E571501AEA15270C9BE07F3963F044EAE49382DC4D17","PreviousTxnLgrSeq":26533574}},{"ModifiedNode":{"FinalFields":{"Account":"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh","Balance":"1000001424700","Flags":1048576,"HookNamespaces":["0000000000000000000000000000000000000000000000000000000000000000"],"HookStateCount":37,"OwnerCount":39,"RegularKey":"rrrrrrrrrrrrrrrrrrrrBZbvji","Sequence":1,"TouchCount":"2b498"},"LedgerEntryType":"AccountRoot","LedgerIndex":"2B6AC232AA4C4BE41BF49D2459FA4A0347E1B543A4C92FCEE0821C0201E2E9A8","PreviousFields":{"TouchCount":"2b497"},"PreviousTxnID":"A3537D7C5C449B438BFA4F40B8E81D5486B8170036EA486784DB4D662CE37814","PreviousTxnLgrSeq":26539699}},{"CreatedNode":{"LedgerEntryType":"EmittedTxn","LedgerIndex":"ABAE29C3EB4E24752D99BD6B336A3B7E73CAE23A8D105B06B464D35A4CC1A9F5","NewFields":{"EmittedTxn":{"Account":"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh","EmitDetails":{"EmitBurden":"1","EmitGeneration":1,"EmitHookHash":"610F33B8EBF7EC795F822A454FB852156AEFE50BE0CB8326338A81CD74801864","EmitNonce":"766A5152B8A110E69BB4E628FB877C03DBCA5947A9DA6A94413B89CC52327C3E","EmitParentTxnID":"3A1F25CDF0E2E4466AA0B019EA3039A6E5F87C01FBDD69CBDC474DAC32D8E64C"},"Fee":"0","FirstLedgerSequence":26540188,"Flags":2147483648,"GenesisMints":[{"GenesisMint":{"Amount":"11755654","Destination":"rDitc4S7Y1GF2yzM4S2dayA4jYuK6YewSz"}},{"GenesisMint":{"Amount":"587351","Destination":"rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv"}},{"GenesisMint":{"Amount":"587351","Destination":"rN7XCq12KBvBLKad3wWsVUwmb3dNx1fx3e"}},{"GenesisMint":{"Amount":"587351","Destination":"ra7MQw7YoMjUw6thxmSGE6jpAEY3LTHxev"}},{"GenesisMint":{"Amount":"587351","Destination":"rfMB6RCNdWSB6TJXYwCEU5HvDC2eArJp8h"}},{"GenesisMint":{"Amount":"587351","Destination":"r4FF5jjJMS2XqWDyTYStWrgARsj3FjaJ2J"}},{"GenesisMint":{"Amount":"587351","Destination":"r4FRPZbLnyuVeGiSi1Ap6uaaPvPXYZh1XN"}},{"GenesisMint":{"Amount":"587351","Destination":"rHsh4MNWJKXN2YGtSf95aEzFYzMqwGiBve"}}],"LastLedgerSequence":26540192,"Sequence":0,"SigningPubKey":"000000000000000000000000000000000000000000000000000000000000000000","TransactionType":"GenesisMint"}}}},{"CreatedNode":{"LedgerEntryType":"DirectoryNode","LedgerIndex":"B4DE823055D00BC12CD78FE1AAF74EE6062195B2629F49A25915A39C64BE1900","NewFields":{"Flags":4,"RootIndex":"B4DE823055D00BC12CD78FE1AAF74EE6062195B2629F49A25915A39C64BE1900"}}}],
+      "HookEmissions": [{"HookEmission":{"EmitNonce":"766A5152B8A110E69BB4E628FB877C03DBCA5947A9DA6A94413B89CC52327C3E","EmittedTxnID":"E8264F11B5CDD9844BFCF3C5CDFE99B5F7EBB91B3723C2CC8A1680FAD86EB22D","HookAccount":"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh","HookHash":"610F33B8EBF7EC795F822A454FB852156AEFE50BE0CB8326338A81CD74801864"}}],
+      "HookExecutions": [{"HookExecution":{"Flags":1,"HookAccount":"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh","HookEmitCount":1,"HookExecutionIndex":0,"HookHash":"610F33B8EBF7EC795F822A454FB852156AEFE50BE0CB8326338A81CD74801864","HookInstructionCount":"962","HookResult":3,"HookReturnCode":"15b","HookReturnString":"5265776172643A20456D6974746564207265776172642074786E207375636365737366756C6C792E00","HookStateChangeCount":15}}],
+      "TransactionIndex": 9,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rDitc4S7Y1GF2yzM4S2dayA4jYuK6YewSz",
+      "Fee": "8630",
+      "Flags": 0,
+      "Issuer": "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+      "LastLedgerSequence": 26540205,
+      "NetworkID": 21337,
+      "Sequence": 761069102,
+      "SigningPubKey": "03B01F73AD224E95703E756C4F50A25631E2DE077DDDA5266142130F8E3BF37FBA",
+      "TransactionType": "ClaimReward",
+      "TxnSignature": "30440220433A5DDA8463261190DAD67D4EB0FE90FE541D8FA9115931BC4650750B55A2D9022070247350F00FBF6A05F138904849B99873A922088960E6589F2CD3571FE2C202"
+    }
+  }
+}

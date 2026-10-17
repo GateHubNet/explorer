@@ -1,0 +1,17 @@
+{
+  "result": {
+    "state": {
+      "build_version": "2026.9.8-release+3300",
+      "complete_ledgers": "2-26596843",
+      "io_latency_ms": 1,
+      "load_base": 256,
+      "load_factor": 256,
+      "peers": 31,
+      "server_state": "full",
+      "uptime": 1209600,
+      "validated_ledger": {"base_fee":10,"close_time":845574431,"hash":"EFA9CD5F98635E5E505EF63AECEF1576D324AF95BED7D3C3897B2BB20203E0B5","reserve_base":1000000,"reserve_inc":200000,"seq":26596843},
+      "validation_quorum": 24
+    },
+    "status": "success"
+  }
+}

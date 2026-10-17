@@ -1,0 +1,17 @@
+{
+  "result": {
+    "state": {
+      "build_version": "3.0.0",
+      "complete_ledgers": "32570-107721455",
+      "io_latency_ms": 1,
+      "load_base": 256,
+      "load_factor": 256,
+      "peers": 24,
+      "server_state": "full",
+      "uptime": 1209600,
+      "validated_ledger": {"base_fee":10,"close_time":845571672,"hash":"68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092","reserve_base":1000000,"reserve_inc":200000,"seq":107721455},
+      "validation_quorum": 28
+    },
+    "status": "success"
+  }
+}

@@ -71,3 +71,10 @@ Not found in 3000 ledgers, so not in any set, and tested with hand-written trans
 
 SignerListSet is missing from the copied ledgers too, and is in no set: it was not looked for in the recording (the
 decision was to leave it hand-written), so its tests in `describe.test.ts` use hand-written transactions as well.
+
+## Derived, not copied: `http/`
+
+`http/<net>/` is not a copy of anything: it holds the data API's and the nodes' answers worked out from the ledgers above
+(`pnpm fixtures:sync`, `scripts/http-fixtures.ts`), and, written by hand, the account files and `server_state` (the README's
+"Upstream fixtures" says which is which, and `test/unit/http-fixtures.test.ts` checks the hand-written ones against the
+recordings). Its transactions are the recorded ones; the creation data of its accounts and its `server_state` are invented.

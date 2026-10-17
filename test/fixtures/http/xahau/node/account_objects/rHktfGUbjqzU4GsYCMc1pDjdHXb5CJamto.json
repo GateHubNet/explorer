@@ -1,0 +1,12 @@
+{
+  "result": {
+    "account": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+    "account_objects": [
+      {"Balance":{"currency":"EVR","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-28437367.3675102"},"Flags":2228224,"HighLimit":{"currency":"EVR","issuer":"rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto","value":"1000000000"},"HighNode":"0","LedgerEntryType":"RippleState","LowLimit":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","value":"0"},"LowNode":"3b9","PreviousTxnID":"704535FB6927CE0E20FBFE00976E5F6A3267C4E4A9099ECB8B534779C74103C7","PreviousTxnLgrSeq":26596843,"index":"91E9272A83FDD89324719F70DF020C2863E2ACCC660F895723E20F52B6DD04EB"}
+    ],
+    "ledger_hash": "EFA9CD5F98635E5E505EF63AECEF1576D324AF95BED7D3C3897B2BB20203E0B5",
+    "ledger_index": 26596843,
+    "status": "success",
+    "validated": true
+  }
+}

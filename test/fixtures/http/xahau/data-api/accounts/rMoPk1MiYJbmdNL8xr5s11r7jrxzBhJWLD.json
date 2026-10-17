@@ -1,0 +1,11 @@
+{
+  "account_data": {
+    "account": "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD",
+    "inception": "2026-07-02T17:43:31Z",
+    "initial_balance": "15",
+    "ledger_index": 24000000,
+    "parent": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+    "tx_hash": "8B49E1CD1AD52C90F35C426776F83BA3DA382B181398E42A5294E00D0AE3A807"
+  },
+  "result": "success"
+}

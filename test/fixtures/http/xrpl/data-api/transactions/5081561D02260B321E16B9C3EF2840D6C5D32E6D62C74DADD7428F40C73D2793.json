@@ -1,0 +1,25 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-16T17:34:11+00:00",
+    "hash": "5081561D02260B321E16B9C3EF2840D6C5D32E6D62C74DADD7428F40C73D2793",
+    "ledger_index": 107699656,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"9138.022931592573"},"Flags":1114112,"HighLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"0"},"HighNode":"fa6","LowLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"29019262CCF152AE40BF82BE1C3AC0B3099C2AC9D0565AEBA1AE3566C6071860","PreviousFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"9681.893781968844"}},"PreviousTxnID":"DAD8774B8B36DFDC9EB89B78759685ACF438041EC05A800FA6BED2AEB5004EDE","PreviousTxnLgrSeq":107699655}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"2410615.114125501"},"Flags":16842752,"HighLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"0"},"HighNode":"619","LowLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27","PreviousFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"2410071.243275125"}},"PreviousTxnID":"9D538D140FA2FC75560116A96E5AA8CDACF97B5A350B42A87C1FAF24068027DE","PreviousTxnLgrSeq":107699655}},{"ModifiedNode":{"FinalFields":{"Account":"rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy","Balance":"422146315","Flags":0,"OwnerCount":2,"Sequence":103651296},"LedgerEntryType":"AccountRoot","LedgerIndex":"531669DD6F4AC0D563A6D6E5C1D9CE000DAD343E19F870C5F3464C29E7934A07","PreviousFields":{"Balance":"4868810","Sequence":103651295},"PreviousTxnID":"DAD8774B8B36DFDC9EB89B78759685ACF438041EC05A800FA6BED2AEB5004EDE","PreviousTxnLgrSeq":107699655}},{"ModifiedNode":{"FinalFields":{"AMMID":"160C6649399D6AF625ED94A66812944BDA1D8993445A503F6B5730DECC7D3767","Account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","Balance":"1852892822223","Flags":26214400,"OwnerCount":1,"Sequence":93814277},"LedgerEntryType":"AccountRoot","LedgerIndex":"95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915","PreviousFields":{"Balance":"1853310099738"},"PreviousTxnID":"9D538D140FA2FC75560116A96E5AA8CDACF97B5A350B42A87C1FAF24068027DE","PreviousTxnLgrSeq":107699655}}],
+      "TransactionIndex": 14,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy",
+      "Fee": "10",
+      "Flags": 131072,
+      "LastLedgerSequence": 107699659,
+      "Sequence": 103651295,
+      "SigningPubKey": "EDEAA332BD4E342F29D67D1D88301EE9762ED13AD2595710FBECC8F057DAC4B8DE",
+      "TakerGets": {"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"4096.739197"},
+      "TakerPays": "3143167446",
+      "TransactionType": "OfferCreate",
+      "TxnSignature": "CA39F8EEF1FA629766C6A89BBF79C884EB35E855281F9DA61DA3C965847C0A2510FCBEAE411ECBCC8AEC4E688103880AFFB11CF77F6D9F59E1E50B4C97EB9000"
+    }
+  }
+}

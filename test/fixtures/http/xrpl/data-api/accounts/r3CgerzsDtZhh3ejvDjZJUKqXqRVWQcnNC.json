@@ -1,0 +1,11 @@
+{
+  "account_data": {
+    "account": "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC",
+    "inception": "2024-08-12T10:02:43Z",
+    "initial_balance": "10",
+    "ledger_index": 90000000,
+    "parent": "rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns",
+    "tx_hash": "B1325C096304A5D143AA1C7C37551D2BB23F313BA3385D39C3ED0B5C43722ABE"
+  },
+  "result": "success"
+}

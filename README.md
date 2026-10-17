@@ -47,6 +47,8 @@ values there replace the `vars` of `wrangler.jsonc` locally.
 | `pnpm test:e2e` | Playwright (set up in a later task) |
 | `pnpm api:sync` | Copy the data API's OpenAPI document (`$DATA_API_REPO/docs/openapi.yaml`, default `../data-api-new`) to `api/openapi.yaml` and regenerate `app/server/openapi.d.ts`; name the source commit it prints in the commit message |
 | `pnpm api:check` | Regenerate the types from the committed `api/openapi.yaml` and fail if `app/server/openapi.d.ts` differs (needs no `data-api-new`) |
+| `pnpm fixtures:sync` | Write the generated upstream fixtures of `test/fixtures/http/` from the recorded ledgers (see "Upstream fixtures"); names files that no longer belong, never deletes |
+| `pnpm fixtures:check` | Change nothing; fail when those files are not what the generator writes (`scripts/http-fixtures.test.ts` does the same inside `pnpm test`) |
 | `pnpm deploy:staging`, `pnpm deploy:production` | Build for that Cloudflare environment, then `wrangler deploy` |
 | `pnpm verify` | `api:check`, `typecheck`, `test`, `build` |
 
@@ -184,7 +186,9 @@ the browser).
 
 - `unit` project: `app/**/*.test.ts` (not under `app/ui`), `scripts/**/*.test.ts` and `test/unit/**/*.test.ts`, in Node.
   (`test/unit` is typechecked with `scripts/` by `tsconfig.node.json`, which has the Node types; `tsconfig.cloudflare.json`
-  leaves it out. A test that reads files, such as the route scan and the token check, goes there.)
+  leaves it out. A test that reads files, such as the route scan and the token check, goes there. The same Node config also
+  holds the few `app/` and `test/support/` files that `scripts/` and the Node tests import: `upstream-core.ts`, `fixture-server.ts`,
+  `app/server/api-types.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.)
 - `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
   rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
 - The projects do not read `vite.config.ts`, so `vitest.config.ts` gives each the `~/` alias (`app/`) itself;
@@ -200,7 +204,7 @@ the browser).
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
   Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry); `layout.spec.ts` asks the Worker
   for `/`, the 404 pages, `/:net`, the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
-  that needs a cache miss asks for a path nobody else does.
+  that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures").
 - Recorded mainnet ledgers (XRPL, XRPL AMM cases, Xahau), copied from `data-api-new` and kept as `.json.gz`, are in
   `test/fixtures/ledgers/`; `test/fixtures/PROVENANCE.md` says where each directory came from. Tests read them with
   `loadTx(set, hash)` and `allTxs(set)` from `test/support/ledgers.ts` (Node `fs`, test-only; `tsconfig.cloudflare.json`
@@ -211,6 +215,78 @@ the browser).
 
 `@cloudflare/vitest-plugin` is the renamed `@cloudflare/vitest-pool-workers` (that package is deprecated and its
 last release, 0.23.0, only accepts Vitest 4). The API and configuration are the same.
+
+## Upstream fixtures
+
+Loader tests and the end-to-end suite never reach the network: they run against recorded answers of the data API and of the
+nodes, `test/fixtures/http/<net>/` for `xrpl` and `xahau`. The answers are the recorded mainnet ledgers (`test/fixtures/ledgers/`)
+shaped as the servers shape them (`scripts/http-fixtures.ts`: the data API's from its reference and `app/server/api-types.ts`,
+rippled's from API v1), plus the accounts, which are written by hand.
+
+| Path below `<net>/` | Holds | By |
+|---|---|---|
+| `data-api/last_validated.json` | the newest recorded ledger (XRPL 107721455, Xahau 26596843) | generator |
+| `data-api/ledgers/<index>.json`, `...@transactions=true.json` | every recorded ledger, plain and with its hashes in ledger order | generator |
+| `data-api/ledgers/<index>@expand=true&transactions=true.json` | in full: XRPL 107720688 (two accounts created) and 107721455; Xahau 26540187, 26540188 (the only consecutive ledgers of the recordings, for previous and next), 26596843 | generator |
+| `data-api/transactions/<HASH>.json` | one per type the recordings looked for (the manifests' `found` and `cases`: XRPL 29, Xahau 7), the 8 newest, and every transaction an account list names | generator |
+| `data-api/transactions@descending=true&limit=8.json`, `data-api/network/fees@descending=true&limit=8.json` | the home page's lists | generator |
+| `node/tx/<HASH>.json`, `node/ledger/<index>[@...].json` | the same transactions and the expanded ledgers, as the node answers (Ripple-epoch times) | generator |
+| `ledger-hashes.json` | ledger hash to index, so that a ledger is stored once and found by either | generator |
+| `data-api/accounts/<address>.json` and `/balances`, `/orders`, `/transactions@...`, `/payments@...`, `/exchanges@...` | an account's creation, live state and lists (see below) | by hand |
+| `node/account_info/<address>.json`, `node/account_objects/<address>.json`, `node/server_state.json` | the node's view of the active accounts and the reserves | by hand |
+
+A file is named by its request: the path after `/v2/`, then `@` and the query with its parameters sorted (`transactions=true&expand=true`
+is `expand=true&transactions=true`); a node file by method, subject (the transaction, ledger or account asked for) and the other
+parameters, the default `ledger_index=validated` left out. Data API files hold the response body, node files the whole JSON-RPC
+answer (`{ "result": ... }`). Keys are sorted and a transaction is one line, so a change shows as a one-line diff. Anything
+without a file is answered as the real server answers a thing that does not exist: the API's `404 { "result": "error",
+"message": ... }` (`ledger not found`, `transaction not found`, `Account not found`, `account not found`, `Cannot GET ...`) and the
+node's `txnNotFound`, `lgrNotFound`, `actNotFound` at HTTP 200. A data API request without `X-API-Key` is a 401. The key is
+never in a fixture.
+
+**The accounts.** The addresses and their transactions are real; what is not in the recordings is not invented beyond what a
+page needs.
+
+| | XRPL | Xahau |
+|---|---|---|
+| Active | `rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh`: 10.001625 XRP and one trust line (LIONS, issuer `rGHtf1...`), no open offers; 6 transactions (pages of 4 and 2), 2 payments (1 and 1), 3 trades (2 and 1) | `rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto`: 9,351.039221 XAH and an EVR line; its 8 newest transactions, all payments (pages of 5 and 3), no trades |
+| Deleted | `r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC`: its history is the recorded AccountDelete; the node says `actNotFound`, balances and orders are 404 | `rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD`: its two recorded payments; Xahau has no recorded AccountDelete, so this one is declared gone |
+| Never funded | `rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC`, valid and in no recording: no account, balances or orders (404), empty lists | the same address |
+
+Rows of the lists are the recorded transactions exactly as `/v2/transactions/{hash}` serves them; `payments` and `exchanges`
+rows are worked out from the same transactions' metadata. An active account's `account_info` is the state its newest
+listed transaction left (balance, sequence, flags, `PreviousTxnID`) on the newest ledger. The creation of each account
+(`parent`, `initial_balance`, `inception`, `ledger_index`, `tx_hash`) is invented, because it happened before the recordings
+begin; its `tx_hash` is a made-up hash that nothing serves. What the recordings do not contain, no account has: an open offer,
+an escrow, an LP token, a domain, an `account_objects` page with a `marker`. Tests that need those override the answer. The
+Xahau active account's `OwnerCount` is 2 and `account_objects` lists the one object (the EVR line) the recordings show.
+`test/unit/http-fixtures.test.ts` checks the hand-written files against the recordings and against each other.
+
+**In a Worker test:**
+
+```ts
+const mock = mockUpstream("xrpl", {
+  "GET /v2/transactions/<HASH>": dataApiError(503, "unavailable"),   // a failing data API
+  "GET /v2/ledgers/107721455?expand=true&transactions=true": null,   // no such ledger: the node's fixture may take over
+  "node account_info rXXX": nodeError("actNotFound"),                // a body is a node's `result`
+  "xahau GET /v2/last_validated": (req) => new Response("...", { status: 500 }),
+});
+expect(mock.requests.map((r) => r.key)).toEqual([...]);             // net, kind, key, status, source, headers, body
+expect(mock.unusedOverrides()).toEqual([]);                          // a typo in a key
+mock.restore();
+```
+
+`mockUpstream(net, overrides?)` (`test/support/upstream.ts`) replaces `fetch` for both networks' data API and node at the URLs of
+the test `env`, so a test may call either network; `net` is the network the unprefixed override keys belong to. Anything else
+that is fetched throws. An override key is `GET <path>?<query>` for the data API (query order free) or `node <method> <subject>` /
+`node <method> <all params sorted>` for a node (the more specific wins), optionally prefixed with `xrpl` or `xahau`. Its value is a
+function `(req: Request) => Response`, a `Response` (cloned for every request), `null` (as if there were no fixture), or a JSON
+body (a data API's, or a node's `result`). An unknown key throws. `dataApiError(status, message)` and `nodeError(code)` make
+the servers' errors.
+
+**In the end-to-end suite:** `startFixtureServer(port)` (`test/support/fixture-server.ts`, Node only, `port` 0 for any) serves the
+same fixtures at `<url>/xrpl` and `<url>/xahau` (data API) and `<url>/xrpl-node` and `<url>/xahau-node` (JSON-RPC), so the two
+networks differ in URL, and in the Worker's cache keys, even on one origin. It returns `{ url, requests, close() }`.
 
 ## The parsing libraries in the Workers runtime
 

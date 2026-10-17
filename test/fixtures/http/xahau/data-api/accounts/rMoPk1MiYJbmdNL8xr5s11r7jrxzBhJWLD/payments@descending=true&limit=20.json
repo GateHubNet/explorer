@@ -1,0 +1,36 @@
+{
+  "count": 2,
+  "payments": [
+    {
+      "amount": "0.000001",
+      "currency": "XAH",
+      "delivered_amount": "0.000001",
+      "destination": "rmv53yu8Wid6kj6AC6NvmiwSXNxRa8vTH",
+      "destination_balance_changes": [{"counterparty":"","currency":"XAH","value":"0.000001"}],
+      "executed_time": "2026-10-15T10:17:01Z",
+      "ledger_index": 26540711,
+      "source": "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD",
+      "source_balance_changes": [{"counterparty":"","currency":"XAH","value":"-0.000001"}],
+      "source_currency": "XAH",
+      "transaction_cost": "0.012782",
+      "tx_hash": "9C647CBA92C7C8610F302237A360B547FE6827F45ECD0C75443C90611DD325A6",
+      "tx_index": 116
+    },
+    {
+      "amount": "0.000001",
+      "currency": "XAH",
+      "delivered_amount": "0.000001",
+      "destination": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+      "destination_balance_changes": [{"counterparty":"","currency":"XAH","value":"0.000001"}],
+      "executed_time": "2026-10-15T10:10:41Z",
+      "ledger_index": 26540613,
+      "source": "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD",
+      "source_balance_changes": [{"counterparty":"","currency":"XAH","value":"-0.000001"}],
+      "source_currency": "XAH",
+      "transaction_cost": "0.007056",
+      "tx_hash": "D84BF891A5247189646841798F74BCFB3149B22CE0CC8F8DCA8018511DEFE70B",
+      "tx_index": 109
+    }
+  ],
+  "result": "success"
+}

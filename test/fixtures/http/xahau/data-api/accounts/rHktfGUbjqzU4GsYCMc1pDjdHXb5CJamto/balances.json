@@ -1,0 +1,16 @@
+{
+  "balances": [
+    {
+      "currency": "XAH",
+      "value": "9351.039221"
+    },
+    {
+      "counterparty": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "currency": "EVR",
+      "value": "28437367.3675102"
+    }
+  ],
+  "ledger_index": 26596843,
+  "limit": 200,
+  "result": "success"
+}

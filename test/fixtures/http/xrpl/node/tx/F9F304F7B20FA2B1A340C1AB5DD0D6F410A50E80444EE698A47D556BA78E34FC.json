@@ -1,0 +1,33 @@
+{
+  "result": {
+    "Account": "rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7",
+    "Fee": "21",
+    "Flags": 131072,
+    "LastLedgerSequence": 107698998,
+    "Sequence": 100573941,
+    "SigningPubKey": "03124702845238AA10F37DD38659D76198D0317852680119865898170E9EDEF526",
+    "TakerGets": {
+      "currency": "XAH",
+      "issuer": "rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv",
+      "value": "1000"
+    },
+    "TakerPays": {
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "1"
+    },
+    "TransactionType": "OfferCreate",
+    "TxnSignature": "3045022100BC74212C4956A7AC76C0F420D69DD5A64DD6EB6CA72E62BC04F380CE9A46A8D0022000BC0B08BB05BDBFF8AD7DC451B95F58942131563DBF587CA1BAE0B2933C1FCD",
+    "date": 845484602,
+    "hash": "F9F304F7B20FA2B1A340C1AB5DD0D6F410A50E80444EE698A47D556BA78E34FC",
+    "inLedger": 107698980,
+    "ledger_index": 107698980,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe","BookDirectory":"F52A3ABAFA4C5856E662441BD92DD9C45B045889AD2BA46D50231FE43BA2031A","BookNode":"0","Flags":131072,"OwnerNode":"0","Sequence":99976298,"TakerGets":"388650380","TakerPays":{"currency":"XAH","issuer":"rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv","value":"38424.65552746001"}},"LedgerEntryType":"Offer","LedgerIndex":"2B75CEFC6CCE4B628DAEC653DC1C22FFF314D219B98D1535E536C9CF8CF1366A","PreviousFields":{"TakerGets":"389416533","TakerPays":{"currency":"XAH","issuer":"rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv","value":"38500.40269412"}},"PreviousTxnID":"652491F12BE8D9952349ECB18176BC79B7CD49470B2ECA69D0818D9F665D2A9B","PreviousTxnLgrSeq":107698980}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"2417281.22921947"},"Flags":16842752,"HighLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"0"},"HighNode":"619","LowLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27","PreviousFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"2417282.22921947"}},"PreviousTxnID":"C82E231ADC03C25D8AE5FD8710A7924687F4A6734248BBB73FC9D015D9A8B1E0","PreviousTxnLgrSeq":107698966}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"713"},"Flags":1114112,"HighLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"0"},"HighNode":"a7b","LowLimit":{"currency":"524C555344000000000000000000000000000000","issuer":"rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7","value":"208005674"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"3E9DE3918F7FB5197CE39FF22B228C5E4D4EE282EAF8AD244581CED0DB7C302E","PreviousFields":{"Balance":{"currency":"524C555344000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"712"}},"PreviousTxnID":"216A99812E767F171A321C2205585A3D4B7A13CEE01F1E2ED714E72A922F6809","PreviousTxnLgrSeq":107698965}},{"ModifiedNode":{"FinalFields":{"Account":"rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe","Balance":"552650368","Flags":0,"OwnerCount":7,"Sequence":99976299},"LedgerEntryType":"AccountRoot","LedgerIndex":"5AA0B9625A87B80AFA9AB6DE8C43F0C4E18D63C7EF6126D5184B5FF0B0BF4B53","PreviousFields":{"Balance":"553416521"},"PreviousTxnID":"652491F12BE8D9952349ECB18176BC79B7CD49470B2ECA69D0818D9F665D2A9B","PreviousTxnLgrSeq":107698980}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"XAH","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-106743.7532445306"},"Flags":2228224,"HighLimit":{"currency":"XAH","issuer":"rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7","value":"1000000000"},"HighNode":"0","LowLimit":{"currency":"XAH","issuer":"rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv","value":"0"},"LowNode":"274"},"LedgerEntryType":"RippleState","LedgerIndex":"61C1E7D141F9061C3F13054FE584FCC02B48991D61D241EC5586B88B3861DBAC","PreviousFields":{"Balance":{"currency":"XAH","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-106819.5004111906"}},"PreviousTxnID":"216A99812E767F171A321C2205585A3D4B7A13CEE01F1E2ED714E72A922F6809","PreviousTxnLgrSeq":107698965}},{"ModifiedNode":{"FinalFields":{"Account":"rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7","Balance":"19988217","Domain":"696E6674662E6F7267","Flags":16777216,"OwnerCount":3,"RegularKey":"rwuU2H2RQuo1PYvyqgN747YK5w5Hyhp4BR","Sequence":100573942},"LedgerEntryType":"AccountRoot","LedgerIndex":"6317A6FA85656CCC381C1B0117F599E9B08144B02E55F3EC3EB57DC1AF0EF4E4","PreviousFields":{"Balance":"19988238","Sequence":100573941},"PreviousTxnID":"216A99812E767F171A321C2205585A3D4B7A13CEE01F1E2ED714E72A922F6809","PreviousTxnLgrSeq":107698965}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"XAH","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-452.8593823068838"},"Flags":2228224,"HighLimit":{"currency":"XAH","issuer":"rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe","value":"17714026.60075916"},"HighNode":"0","LowLimit":{"currency":"XAH","issuer":"rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv","value":"0"},"LowNode":"27a"},"LedgerEntryType":"RippleState","LedgerIndex":"8612FF1E992D38D1EEE8D9E921B76A330342EED5A6FD6E0DA8B17012606B7849","PreviousFields":{"Balance":{"currency":"XAH","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-377.1122156468896"}},"PreviousTxnID":"005DD242AA885D9DC18B585FD126CF7E1615580A94579AAA0B5B4D3EC54F2C40","PreviousTxnLgrSeq":107698810}},{"ModifiedNode":{"FinalFields":{"AMMID":"160C6649399D6AF625ED94A66812944BDA1D8993445A503F6B5730DECC7D3767","Account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","Balance":"1847749889490","Flags":26214400,"OwnerCount":1,"Sequence":93814277},"LedgerEntryType":"AccountRoot","LedgerIndex":"95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915","PreviousFields":{"Balance":"1847749123337"},"PreviousTxnID":"C82E231ADC03C25D8AE5FD8710A7924687F4A6734248BBB73FC9D015D9A8B1E0","PreviousTxnLgrSeq":107698966}}],
+      "TransactionIndex": 30,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

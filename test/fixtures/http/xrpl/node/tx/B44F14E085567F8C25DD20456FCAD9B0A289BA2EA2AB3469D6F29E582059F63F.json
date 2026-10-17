@@ -1,0 +1,34 @@
+{
+  "result": {
+    "Account": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+    "Asset": {
+      "currency": "XRP"
+    },
+    "Asset2": {
+      "currency": "SNK",
+      "issuer": "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm"
+    },
+    "Fee": "12",
+    "Flags": 131072,
+    "LastLedgerSequence": 100132168,
+    "Memos": [
+      {"Memo":{"MemoData":"5472616E73616374696F6E20696E697469617465642076696120786D61676E657469632E6F72670A414D4D576974686472617720666F7220585250203A20534E4B"}}
+    ],
+    "Sequence": 90648515,
+    "SigningPubKey": "038D99180624BD315E9CD28E25135B8348196D2F9629F0E928627854F030A24B16",
+    "SourceTag": 10011010,
+    "TransactionType": "AMMWithdraw",
+    "TxnSignature": "304402205F660C4E5691125068FD2D0FA957FE2CD45568191A7B27D277605878B70E0F8402200EE37B065D123DF58D6CC420DD475D842DE66FC104E8CE1BB8F5E1788FF2030F",
+    "date": 816158911,
+    "hash": "B44F14E085567F8C25DD20456FCAD9B0A289BA2EA2AB3469D6F29E582059F63F",
+    "inLedger": 100132150,
+    "ledger_index": 100132150,
+    "meta": {
+      "AffectedNodes": [{"DeletedNode":{"FinalFields":{"AMMID":"AAD231FF1AAF028EF42780B6B0D58D026BC24F7F2CF6A8354530B59396AB3F84","Account":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","Balance":"0","Flags":26214400,"OwnerCount":0,"PreviousTxnID":"65013CB6E85B054A5BDE3D93E765338879A4A9EA474422C809216AFD7EA7F972","PreviousTxnLgrSeq":100132143,"Sequence":98269302},"LedgerEntryType":"AccountRoot","LedgerIndex":"21A67C69B4058F00659E454E6C6C4E0B5C157B6E11FBE713DFFC5D0EF32764E2","PreviousFields":{"Balance":"21974","OwnerCount":1}}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"SNK","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-0.00008512063930883026"},"Flags":2228224,"HighLimit":{"currency":"SNK","issuer":"rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP","value":"9998.99999999951"},"HighNode":"0","LowLimit":{"currency":"SNK","issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","value":"0"},"LowNode":"1"},"LedgerEntryType":"RippleState","LedgerIndex":"21E91FD51B106D63C9803E92FF1A34EB43B9EE56554093455301ECB5A424DC44","PreviousFields":{"Balance":{"currency":"SNK","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-3500760000000000e-30"}},"PreviousTxnID":"4AB4C8503F6640B35FFF73961A6AECA09DD0C15218FA0760FD966721A9EF9348","PreviousTxnLgrSeq":99518869}},{"DeletedNode":{"FinalFields":{"Flags":0,"Owner":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","PreviousTxnID":"65013CB6E85B054A5BDE3D93E765338879A4A9EA474422C809216AFD7EA7F972","PreviousTxnLgrSeq":100132143,"RootIndex":"26B1E86B5D894C83C00D920B2FB77B7DB2DE5819217B06BF64CE07A551D23BF3"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"26B1E86B5D894C83C00D920B2FB77B7DB2DE5819217B06BF64CE07A551D23BF3"}},{"DeletedNode":{"FinalFields":{"Balance":{"currency":"SNK","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0"},"Flags":16777216,"HighLimit":{"currency":"SNK","issuer":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","value":"0"},"HighNode":"0","LowLimit":{"currency":"SNK","issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","value":"0"},"LowNode":"0","PreviousTxnID":"65013CB6E85B054A5BDE3D93E765338879A4A9EA474422C809216AFD7EA7F972","PreviousTxnLgrSeq":100132143},"LedgerEntryType":"RippleState","LedgerIndex":"4F3F8287F4621F7169AC2FA30DC880F8D4768AC2B08539574C1CD652278F653F","PreviousFields":{"Balance":{"currency":"SNK","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-0.0000851206393053295"},"Flags":16908288}}},{"DeletedNode":{"FinalFields":{"Balance":{"currency":"03BEE087CAB9A53DE035A3E3F7550EEC26048A1B","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0"},"Flags":2097152,"HighLimit":{"currency":"03BEE087CAB9A53DE035A3E3F7550EEC26048A1B","issuer":"rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP","value":"0"},"HighNode":"0","LowLimit":{"currency":"03BEE087CAB9A53DE035A3E3F7550EEC26048A1B","issuer":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","value":"0"},"LowNode":"0","PreviousTxnID":"4AB4C8503F6640B35FFF73961A6AECA09DD0C15218FA0760FD966721A9EF9348","PreviousTxnLgrSeq":99518869},"LedgerEntryType":"RippleState","LedgerIndex":"5D04ABA538B5C470DB0E9709A0318AEE4FF942817B987E3CD593A24CE8A9716F","PreviousFields":{"Balance":{"currency":"03BEE087CAB9A53DE035A3E3F7550EEC26048A1B","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-1.18871683962"},"Flags":2228224}}},{"ModifiedNode":{"FinalFields":{"Account":"rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP","Balance":"13980905","Flags":0,"OwnerCount":9,"Sequence":90648516},"LedgerEntryType":"AccountRoot","LedgerIndex":"8D40680B9DDA8A9BBDFD756A2D9CEA928C4FEF5804A633BF7BBFF48D1A353ACC","PreviousFields":{"Balance":"13958943","OwnerCount":10,"Sequence":90648515},"PreviousTxnID":"689CB05430F7B1E1B2A3E8F893AE5993B701E8C4448E390470EF94AA44852C0F","PreviousTxnLgrSeq":99776383}},{"ModifiedNode":{"LedgerEntryType":"AccountRoot","LedgerIndex":"A366A9FE856873B25BAF914B7D920F8FAF27DA7D419E8CBD96DF2A372276D02F","PreviousTxnID":"232E4F846CDFCCF2AF8834EAB785E68D572CF9A52225A88D10E318A96A04347E","PreviousTxnLgrSeq":100130261}},{"DeletedNode":{"FinalFields":{"Account":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","Asset":{"currency":"XRP"},"Asset2":{"currency":"SNK","issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm"},"AuctionSlot":{"Account":"rJxRjYD2ic9D56gJhsc2v5ZgSZ8JdJqEEG","DiscountedFee":25,"Expiration":809017710,"Price":{"currency":"03BEE087CAB9A53DE035A3E3F7550EEC26048A1B","issuer":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","value":"0"}},"Flags":0,"LPTokenBalance":{"currency":"03BEE087CAB9A53DE035A3E3F7550EEC26048A1B","issuer":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","value":"1.18871683962"},"OwnerNode":"0","PreviousTxnID":"65013CB6E85B054A5BDE3D93E765338879A4A9EA474422C809216AFD7EA7F972","PreviousTxnLgrSeq":100132143,"TradingFee":250,"VoteSlots":[{"VoteEntry":{"Account":"rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP","TradingFee":250,"VoteWeight":2}},{"VoteEntry":{"Account":"rUuAfF4FLABpC4LHxQ7yxfNQ9qtdWYF7Yv","TradingFee":250,"VoteWeight":3}}]},"LedgerEntryType":"AMM","LedgerIndex":"AAD231FF1AAF028EF42780B6B0D58D026BC24F7F2CF6A8354530B59396AB3F84"}},{"ModifiedNode":{"FinalFields":{"Flags":0,"IndexNext":"1","IndexPrevious":"9","Owner":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","RootIndex":"AD7B5E0275B443448B3A1AA125327C685EBEE10442EF1E85A2AC5AE5FD63DB4E"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"AD7B5E0275B443448B3A1AA125327C685EBEE10442EF1E85A2AC5AE5FD63DB4E","PreviousTxnID":"232E4F846CDFCCF2AF8834EAB785E68D572CF9A52225A88D10E318A96A04347E","PreviousTxnLgrSeq":100130261}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP","RootIndex":"BD31F48C65C4560A91BCDEE8830FD7DC2C56F5A542566C52A0CD03E0F8C350CE"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"BD31F48C65C4560A91BCDEE8830FD7DC2C56F5A542566C52A0CD03E0F8C350CE","PreviousTxnID":"4AB4C8503F6640B35FFF73961A6AECA09DD0C15218FA0760FD966721A9EF9348","PreviousTxnLgrSeq":99518869}}],
+      "TransactionIndex": 45,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "status": "success",
+    "validated": true
+  }
+}
