@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LedgerPageData, LedgerRow } from "../../server/ledger-view";
@@ -168,6 +168,71 @@ describe("LedgerPage: filter by type", () => {
     expect(screen.queryByRole("group", { name: "Filter by type" })).toBeNull();
     expect(screen.getByText("No transactions in this ledger.")).toBeTruthy();
     expect(screen.queryByText(/^Showing/)).toBeNull();
+  });
+});
+
+describe("LedgerPage: from one ledger to the next", () => {
+  /** The same page for another ledger, as React Router leaves it when only `:id` changes: the component is reused. */
+  const another = (types: string[], hash: string, index: number): LedgerPageData => {
+    const data = ledger(types);
+    return { ...data, header: { ...data.header, hash, index } };
+  };
+  const next = another(Array.from({ length: 300 }, () => "TrustSet"), "AB".repeat(32), 107720689);
+
+  it("starts the next ledger on All and the first 100 rows, whatever was chosen on the one before", () => {
+    const first = ledger([...Array.from({ length: 250 }, () => "OfferCreate"), "Payment", "Payment", "Payment"]);
+    const view = (data: LedgerPageData) => (
+      <MemoryRouter>
+        <LedgerPage network={XRPL} data={data} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(first));
+    fireEvent.click(screen.getByRole("button", { name: "Show all 253" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Payment/ }));
+    expect(pressed().map((button) => button.textContent)).toEqual(["Payment 3"]);
+    expect(tableRows()).toHaveLength(3);
+
+    // Next ledger: it has no Payment button at all.
+    rerender(view(next));
+    expect(pressed().map((button) => button.textContent)).toEqual(["All 300"]);
+    expect(tableRows()).toHaveLength(FIRST_ROWS);
+    expect(screen.getByText("Showing 100 of 300, in ledger order")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show all 300" })).toBeTruthy();
+  });
+
+  it("does not carry 'Show all' over: a 1,500-row ledger after a 300-row one shows 100 rows", () => {
+    const view = (data: LedgerPageData) => (
+      <MemoryRouter>
+        <LedgerPage network={XRPL} data={data} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(next));
+    fireEvent.click(screen.getByRole("button", { name: "Show all 300" }));
+    expect(tableRows()).toHaveLength(300);
+
+    rerender(view(another(Array.from({ length: 1500 }, () => "OfferCreate"), "CD".repeat(32), 107720690)));
+    expect(tableRows()).toHaveLength(FIRST_ROWS);
+    expect(screen.getByRole("button", { name: "Show all 1,500" })).toBeTruthy();
+  });
+
+  it("keeps the choice while it is the same ledger that is drawn again (its data revalidated)", () => {
+    const view = (data: LedgerPageData) => (
+      <MemoryRouter>
+        <LedgerPage network={XRPL} data={data} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(next));
+    fireEvent.click(screen.getByRole("button", { name: "Show all 300" }));
+    rerender(view({ ...next }));
+    expect(tableRows()).toHaveLength(300);
+  });
+
+  it("marks the raw header as the .raw block whose summary the stylesheet gives an inset focus ring", () => {
+    const { container } = renderInRouter(<LedgerPage network={XRPL} data={ledger(["Payment"])} />);
+    const details = container.querySelector("details");
+    expect(details?.classList.contains("raw")).toBe(true);
+    expect(details?.classList.contains("card")).toBe(true);
+    expect(details?.querySelector(":scope > summary")).not.toBeNull();
   });
 });
 

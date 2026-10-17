@@ -277,6 +277,12 @@ a.example:hover {
   cursor: pointer;
 }
 
+/* The block is a card, which clips what is outside its padding box, and the summary fills that box: the global ring, drawn
+   2px outside, would be cut off. Draw it inside. */
+.raw summary:focus-visible {
+  outline-offset: -2px;
+}
+
 .raw summary::-webkit-details-marker {
   display: none;
 }

@@ -196,7 +196,9 @@ export function LedgerPage({ network, data }: { network: NetworkInfo; data: Ledg
         </aside>
       </div>
 
-      <TransactionsCard network={network} data={data} />
+      {/* Keyed by the ledger: React Router reuses this component when only the id changes (Previous, Next), and the filter
+          and "Show all" of one ledger must not carry over to the next, which may have no such type, or 1,500 rows. */}
+      <TransactionsCard key={header.hash} network={network} data={data} />
 
       <details className="card raw">
         <summary>
