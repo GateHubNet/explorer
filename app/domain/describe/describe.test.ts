@@ -1120,6 +1120,48 @@ describe("describe: AMM", () => {
     });
   });
 
+  /**
+   * The metadata of a two-asset deposit or withdrawal by the issuer of TOK, which is the pool's second asset: its
+   * native balance and its trust line with the pool (the pool holds TOK, so the issuer's side of the line is negative),
+   * before and after. `tokBefore` and `tokAfter` are the pool's holding.
+   */
+  const POOL_ACCOUNT = "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG";
+  const issuerMeta = (xrp: [before: string, after: string], tok: [before: string, after: string]): TxMeta => ({
+    ...SUCCESS,
+    AffectedNodes: [
+      {
+        ModifiedNode: {
+          LedgerEntryType: "AccountRoot",
+          LedgerIndex: "11".repeat(32),
+          FinalFields: { Account: A, Balance: xrp[1] },
+          PreviousFields: { Balance: xrp[0] },
+        },
+      },
+      {
+        ModifiedNode: {
+          LedgerEntryType: "RippleState",
+          LedgerIndex: "22".repeat(32),
+          FinalFields: {
+            Balance: { currency: "TOK", issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji", value: `-${tok[1]}` },
+            LowLimit: { currency: "TOK", issuer: A, value: "0" },
+            HighLimit: { currency: "TOK", issuer: POOL_ACCOUNT, value: "0" },
+          },
+          PreviousFields: {
+            Balance: { currency: "TOK", issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji", value: `-${tok[0]}` },
+          },
+        },
+      },
+      {
+        ModifiedNode: {
+          LedgerEntryType: "AMM",
+          LedgerIndex: "33".repeat(32),
+          FinalFields: { Account: POOL_ACCOUNT },
+        },
+      },
+    ],
+  });
+  const issuerPair = { Asset: { currency: "XRP" }, Asset2: { currency: "TOK", issuer: A } };
+
   describe("AMMDeposit", () => {
     it("says what the account put in, as the metadata shows it, and links the pool", () => {
       const d = run("xrpl", "83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B");
@@ -1153,6 +1195,30 @@ describe("describe: AMM", () => {
         ["Source tag", "20221212"],
         ["Flags", "tfTwoAsset"],
       ]);
+    });
+
+    it("says an issuer of one of the pool's assets put that asset in too", () => {
+      // The issuer's side of its trust line with the pool has the pool as its counterparty, not the issuer.
+      // It paid 5 XRP and the fee of 10 drops, and the pool's holding of TOK rose by 100.
+      const tx = synth("AMMDeposit", {
+        ...issuerPair,
+        Amount: "5000000",
+        Amount2: { currency: "TOK", issuer: A, value: "100" },
+      });
+      const d = say(tx, issuerMeta(["100000000", "94999990"], ["0", "100"]));
+      expect(readOf(d.sentence)).toBe(`${A} added 5 XRP and 100 TOK to the XRP/TOK pool.`);
+      expect(d.sentence.filter((part) => part.t === "amount")).toStrictEqual([
+        { t: "amount", value: "5", currency: "XRP" },
+        { t: "amount", value: "100", currency: "TOK", issuer: A },
+      ]);
+      expect(poolOf(d)).toStrictEqual({ t: "pool", v: POOL_ACCOUNT, pair: "XRP/TOK" });
+    });
+
+    it("says what an issuer put in of the asset it issues, not the most it allowed", () => {
+      // Amount2 allows 45; the pool's holding of TOK rose by 40.
+      const tx = synth("AMMDeposit", { ...issuerPair, Amount2: { currency: "TOK", issuer: A, value: "45" } });
+      const d = say(tx, issuerMeta(["100000000", "99999990"], ["10", "50"]));
+      expect(readOf(d.sentence)).toBe(`${A} added 40 TOK to the XRP/TOK pool.`);
     });
 
     it("says a failed deposit tried to add what the transaction asked for", () => {
@@ -1208,6 +1274,29 @@ describe("describe: AMM", () => {
       const d = run("xrpl-amm", "781C5A2707D3A3E9BB00B483A8719345A6ECF0E5532E0CB5FA4016E1D5D6A832");
       expect(readOf(d.sentence)).toBe(
         "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV withdrew 4.179818391349 USDC and 4.180497018217728 RLUSD from the USDC/RLUSD pool.",
+      );
+    });
+
+    it("says an issuer of one of the pool's assets took that asset out too", () => {
+      // The issuer got 5 XRP less the fee of 10 drops, and the pool's holding of TOK fell by 100.
+      const tx = synth("AMMWithdraw", {
+        ...issuerPair,
+        Amount: "5000000",
+        Amount2: { currency: "TOK", issuer: A, value: "100" },
+      });
+      const d = say(tx, issuerMeta(["100000000", "104999990"], ["300", "200"]));
+      expect(readOf(d.sentence)).toBe(`${A} withdrew 5 XRP and 100 TOK from the XRP/TOK pool.`);
+      expect(d.sentence.filter((part) => part.t === "amount")).toStrictEqual([
+        { t: "amount", value: "5", currency: "XRP" },
+        { t: "amount", value: "100", currency: "TOK", issuer: A },
+      ]);
+    });
+
+    it("does not mistake a deposit for a withdrawal by the issuer, or the other way round", () => {
+      // The pool's holding of TOK rose: nothing was withdrawn of it, so only the native amount is.
+      const tx = synth("AMMWithdraw", { ...issuerPair, Amount: "5000000" });
+      expect(readOf(say(tx, issuerMeta(["100000000", "104999990"], ["0", "100"])).sentence)).toBe(
+        `${A} withdrew 5 XRP from the XRP/TOK pool.`,
       );
     });
 

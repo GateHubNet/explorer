@@ -66,15 +66,21 @@ const sameAsset = (a: Asset, b: Asset): boolean => a.currency === b.currency && 
 /**
  * What the sender's balances of the pool's assets moved by, in the direction of the transaction: what a deposit put
  * in, what a withdrawal took out, in the order of the pair. The fee is taken out of the native change, and an asset
- * that did not move is left out. The LP tokens are not an asset of the pool, so they are not among them.
+ * that did not move is left out. The LP tokens are not an asset of the pool, so they are not among them. A sender that
+ * issues one of the assets is read from its side of the trust line with the pool.
  */
 function movedAmounts({ tx, native, changes }: Input, direction: "in" | "out"): FlowAmount[] {
   const mine = changes().filter((change) => change.account === tx.Account);
   const amounts: FlowAmount[] = [];
   for (const asset of pairOfAssets(tx)) {
     let net = new BigNumber(0);
+    // The issuer of the asset has no balance of it: its entry is its side of a trust line, whose counterparty is the
+    // holder (here the pool), so for an asset the sender issues the currency is all there is to match on.
+    const issuedBySender = asset.issuer !== undefined && asset.issuer === tx.Account;
     for (const change of mine) {
-      if (sameAsset(change, asset)) net = net.plus(change.value);
+      if (issuedBySender ? change.currency === asset.currency : sameAsset(change, asset)) {
+        net = net.plus(change.value);
+      }
     }
     if (asset.currency === native && asset.issuer === undefined) net = net.plus(dropsToNative(tx.Fee));
 
