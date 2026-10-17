@@ -38,6 +38,12 @@ function failedRun(set: FixtureSet, hash: string, code = "tecKILLED"): Descripti
 const SUCCESS: TxMeta = { TransactionIndex: 0, TransactionResult: "tesSUCCESS", AffectedNodes: [] };
 const FAILED: TxMeta = { ...SUCCESS, TransactionResult: "tecNO_PERMISSION" };
 
+// What resultText says of the codes the failures below carry; a failed sentence ends with it after the full stop.
+const PATH_DRY = " No path had enough liquidity to deliver the amount.";
+const KILLED = " The offer could not be filled as its flags required, so nothing was traded.";
+const NO_PERMISSION = " The account is not allowed to do this.";
+const UNFUNDED_OFFER = " The account did not hold the asset the offer sells, so no offer was placed.";
+
 const A = "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x";
 const B = "rpj7WC49jiUU87bCATJoHFuTZDBoFEfkpa";
 const K = "rKqSPjN6okYt7iPk3xzWvuW9oN1Nk7vSUV";
@@ -230,7 +236,7 @@ describe("describe: Payment", () => {
   describe("failed", () => {
     it("says the sender tried to send the amount, and draws no flow", () => {
       const d = run("xrpl", "5AA87418BCF36929DBA2638FE6B83A27A6F77FDFF42F25EDB82929F0BADF9D8B");
-      expect(textOf(d.sentence)).toBe(`rwQPgn3GbhxWT8XW7So7wGiUxbWgyTjst5 tried to send 25 BXE to ${B}.`);
+      expect(textOf(d.sentence)).toBe(`rwQPgn3GbhxWT8XW7So7wGiUxbWgyTjst5 tried to send 25 BXE to ${B}.${PATH_DRY}`);
       expect(d.ok).toBe(false);
       expect(d.flow).toBeUndefined();
     });
@@ -242,7 +248,7 @@ describe("describe: Payment", () => {
         SendMax: "30000000",
       });
       expect(textOf(describeTx(tx, FAILED, { native: "XRP" }).sentence)).toBe(
-        `${A} tried to pay 5 USD to ${B}, spending up to 30 XRP.`,
+        `${A} tried to pay 5 USD to ${B}, spending up to 30 XRP.${NO_PERMISSION}`,
       );
     });
 
@@ -250,7 +256,7 @@ describe("describe: Payment", () => {
       // Flags 131072 is tfPartialPayment; a failed payment delivered nothing, so there is no delivered amount.
       const d = run("xrpl", "EFA9C831379AD23DE46C08E92B4DB32BD12289C10E4B5BCF5E31BEF4F6A0FD31");
       expect(textOf(d.sentence)).toBe(
-        "r3FZvGY7VsLez8ttA4xcKVZh9tJEnesffz tried to pay up to 0.038264 XRP to r3FZvGY7VsLez8ttA4xcKVZh9tJEnesffz, spending up to 454.5325242211337 62756C6C00000000000000000000000000000000.",
+        `r3FZvGY7VsLez8ttA4xcKVZh9tJEnesffz tried to pay up to 0.038264 XRP to r3FZvGY7VsLez8ttA4xcKVZh9tJEnesffz, spending up to 454.5325242211337 62756C6C00000000000000000000000000000000.${PATH_DRY}`,
       );
       expect(d.ok).toBe(false);
     });
@@ -311,7 +317,7 @@ describe("describe: offers", () => {
   it("says an offer that failed was tried", () => {
     const d = run("xrpl", "E0721233B5AF0E66BE66638D26D6DE25ED72F97860D6BD611620EB21A346E81E");
     expect(textOf(d.sentence)).toBe(
-      "rJB8m4chXL1uC86wWpFMa5sPGg1qt1uZcV tried to offer to sell 307615.600809 47414E4700000000000000000000000000000000 for 0.111853 XRP.",
+      `rJB8m4chXL1uC86wWpFMa5sPGg1qt1uZcV tried to offer to sell 307615.600809 47414E4700000000000000000000000000000000 for 0.111853 XRP.${UNFUNDED_OFFER}`,
     );
     expect(d.ok).toBe(false);
   });
@@ -325,7 +331,7 @@ describe("describe: offers", () => {
 
   it("says a failed cancel tried to cancel", () => {
     expect(textOf(failedRun("xrpl", "BAEDB3060FB6D4365B6C5E08CF94672AAD00F27D173B5428C8BAC0791A9AB050").sentence)).toBe(
-      "r3rhWeE31Jt5sWmi4QiGLMZnY3ENgqw96W tried to cancel offer 174683952.",
+      `r3rhWeE31Jt5sWmi4QiGLMZnY3ENgqw96W tried to cancel offer 174683952.${KILLED}`,
     );
   });
 });
@@ -491,7 +497,7 @@ describe("describe: account types", () => {
       const d = describeTx(synth("SetRegularKey"), SUCCESS, { native: "XRP" });
       expect(textOf(d.sentence)).toBe(`${A} removed its regular key.`);
       expect(textOf(describeTx(synth("SetRegularKey"), FAILED, { native: "XRP" }).sentence)).toBe(
-        `${A} tried to remove its regular key.`,
+        `${A} tried to remove its regular key.${NO_PERMISSION}`,
       );
     });
   });
@@ -594,7 +600,8 @@ describe("describe: a failed transaction", () => {
     ],
   ] as const)("reads 'tried to …' for a failed %s", (_label, set, hash, expected) => {
     const d = failedRun(set, hash);
-    expect(textOf(d.sentence)).toBe(expected);
+    // failedRun gives the transaction tecKILLED.
+    expect(textOf(d.sentence)).toBe(expected + KILLED);
     expect(d.ok).toBe(false);
     expect(d.flow).toBeUndefined();
   });
@@ -605,17 +612,51 @@ describe("describe: a failed transaction", () => {
       SignerEntries: [{ SignerEntry: { Account: B, SignerWeight: 1 } }],
     });
     expect(textOf(describeTx(signers, FAILED, { native: "XRP" }).sentence)).toBe(
-      `${A} tried to set a signer list of 1 signer, quorum 1.`,
+      `${A} tried to set a signer list of 1 signer, quorum 1.${NO_PERMISSION}`,
     );
     expect(textOf(describeTx(synth("FooBar"), FAILED, { native: "XRP" }).sentence)).toBe(
-      `${A} tried to submit a FooBar.`,
+      `${A} tried to submit a FooBar.${NO_PERMISSION}`,
     );
+  });
+
+  it("ends a failed sentence with the text of its result, as a segment of its own after the full stop", () => {
+    const d = run("xrpl", "5AA87418BCF36929DBA2638FE6B83A27A6F77FDFF42F25EDB82929F0BADF9D8B");
+    expect(d.result).toStrictEqual({
+      code: "tecPATH_DRY",
+      ok: false,
+      text: "No path had enough liquidity to deliver the amount.",
+    });
+    expect(d.sentence.at(-1)).toStrictEqual(text(PATH_DRY));
+    expect(d.sentence.at(-2)).toStrictEqual(text("."));
+  });
+
+  it("explains a result code with no sentence of its own by its class and the code", () => {
+    const meta = { ...SUCCESS, TransactionResult: "tecFOO_BAR" };
+    const d = describeTx(synth("FooBar"), meta, { native: "XRP" });
+    expect(textOf(d.sentence)).toBe(`${A} tried to submit a FooBar. Failed, but the fee was charged (tec code tecFOO_BAR).`);
+    expect(d.result).toStrictEqual({
+      code: "tecFOO_BAR",
+      ok: false,
+      text: "Failed, but the fee was charged (tec code tecFOO_BAR).",
+    });
+  });
+
+  it("carries the result of a success, and leaves its sentence as it was", () => {
+    const d = run("xrpl", "38D85B89F3CB0E036084946F1E38677BE418B2E13255209CB31AD3B5B6F8F6F2");
+    expect(d.result).toStrictEqual({
+      code: "tesSUCCESS",
+      ok: true,
+      text: "The transaction was applied and is final.",
+    });
+    expect(d.ok).toBe(d.result.ok);
+    expect(d.sentence.at(-1)).toStrictEqual(text("."));
   });
 
   it("takes ok from the result code, so only tesSUCCESS is ok", () => {
     for (const code of ["tesSUCCESS", "tecPATH_DRY", "tecKILLED", "tefPAST_SEQ", "terQUEUED", "tecUNKNOWN_FUTURE"]) {
       const d = describeTx(synth("FooBar"), { ...SUCCESS, TransactionResult: code }, { native: "XRP" });
       expect(d.ok).toBe(resultText(code).ok);
+      expect(d.result).toStrictEqual({ code, ...resultText(code) });
     }
   });
 });
@@ -719,6 +760,27 @@ describe.each<FixtureSet>(["xrpl", "xrpl-amm", "xahau"])("describe: every record
       const d = describeTx(tx, meta, { native: nativeOf(set) });
       expect(d.sentence[0], tx.hash).toStrictEqual(account(tx.Account));
       expect(textOf(d.sentence), tx.hash).toMatch(/\.$/);
+    }
+  });
+
+  it("gives every transaction its result, and ends every failure with the text of that result", () => {
+    for (const { tx, meta } of allTxs(set)) {
+      const d = describeTx(tx, meta, { native: nativeOf(set) });
+      const expected = resultText(meta.TransactionResult);
+      expect(d.result, tx.hash).toStrictEqual({ code: meta.TransactionResult, ...expected });
+      expect(d.result.code, tx.hash).toBe(meta.TransactionResult);
+      expect(d.ok, tx.hash).toBe(d.result.ok);
+      const last = d.sentence.at(-1)!;
+      if (d.ok) {
+        // A success says nothing of its result: the sentence ends at its full stop.
+        expect(textOf(d.sentence), tx.hash).not.toContain(expected.text);
+        expect(last.t === "text" && last.v.endsWith("."), tx.hash).toBe(true);
+      } else {
+        // A failure's sentence ends at its full stop too, and the text of the result follows as a segment of its own.
+        expect(last, tx.hash).toStrictEqual(text(` ${expected.text}`));
+        const stop = d.sentence.at(-2)!;
+        expect(stop.t === "text" && stop.v.endsWith("."), tx.hash).toBe(true);
+      }
     }
   });
 

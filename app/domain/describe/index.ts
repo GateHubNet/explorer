@@ -9,7 +9,7 @@ import { ammHops, balanceChanges } from "../parse";
 import type { Native, TxJson, TxMeta } from "../parse/types";
 import { resultText } from "../results";
 import { accountHandlers } from "./account";
-import { account, genericDetails, mergeHandlers, seq, withArticle } from "./helpers";
+import { account, genericDetails, mergeHandlers, seq, text, withArticle } from "./helpers";
 import { offerHandlers } from "./offers";
 import { paymentHandlers } from "./payment";
 import type { Description, Input, Summary } from "./types";
@@ -34,11 +34,13 @@ function lazily<T>(make: () => T): () => T {
 }
 
 /**
- * What a transaction did, in words. `ok` is whether it succeeded (`resultText` of its result code); a failed
- * transaction reads "{account} tried to …" and has no flow, as nothing moved.
+ * What a transaction did, in words. `result` is its result code with the text of `resultText`, and `ok` whether it
+ * succeeded; a failed transaction reads "{account} tried to …", then says why in the text of its result, and has no
+ * flow, as nothing moved.
  */
 export function describe(tx: TxJson, meta: TxMeta, ctx: { native: Native }): Description {
-  const ok = resultText(meta.TransactionResult).ok;
+  const result = { code: meta.TransactionResult, ...resultText(meta.TransactionResult) };
+  const ok = result.ok;
   const input: Input = {
     tx,
     meta,
@@ -53,10 +55,15 @@ export function describe(tx: TxJson, meta: TxMeta, ctx: { native: Native }): Des
   const handler = Object.hasOwn(HANDLERS, tx.TransactionType) ? HANDLERS[tx.TransactionType]! : describeUnknown;
   const summary = handler(input);
 
+  const sentence = seq(account(tx.Account), ok ? " " : " tried to ", summary.predicate, ".");
+  // A failure says why, in a segment of its own so that the sentence stays what it was.
+  if (!ok) sentence.push(text(` ${result.text}`));
+
   const description: Description = {
     title: summary.title,
     ok,
-    sentence: seq(account(tx.Account), ok ? " " : " tried to ", summary.predicate, "."),
+    result,
+    sentence,
     details: summary.details ?? [],
   };
   if (ok && summary.flow) description.flow = summary.flow;

@@ -30,12 +30,21 @@ export type FlowStep = {
 /** One field of the details table. */
 export type Detail = { label: string; value: Segment[] };
 
+/** The result code of a transaction and what it means (`resultText`). */
+export type TxResult = { code: string; ok: boolean; text: string };
+
 export type Description = {
   /** A short noun phrase for the kind of transaction (`Payment`, `Trust line`), or the raw type if there is no phrase. */
   title: string;
-  /** False for every result but `tesSUCCESS`: the sentence then reads "tried to …". */
+  /** False for every result but `tesSUCCESS`: the sentence then reads "tried to …". Equal to `result.ok`. */
   ok: boolean;
-  /** "{account} sent 5 XRP to {account}.", as segments. Starts with the sender's account segment. */
+  /** `meta.TransactionResult` and its plain-language text. */
+  result: TxResult;
+  /**
+   * "{account} sent 5 XRP to {account}.", as segments. Starts with the sender's account segment. A failed transaction's
+   * sentence ends with one more text segment after the full stop, a space and the result's text: "{account} tried to
+   * pay 5 XRP to {account}. No path had enough liquidity to deliver the amount."
+   */
   sentence: Segment[];
   /** Sender, the pools or offers on the way, destination. Only for a transaction that moved something. */
   flow?: FlowStep[];
