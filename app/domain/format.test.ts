@@ -125,16 +125,18 @@ describe("formatUtc", () => {
     expect(formatUtc("2026-10-17 15:42:51")).toBe("2026-10-17 15:42:51 UTC");
   });
 
-  it("reads a number below 946684800 as Ripple-epoch seconds", () => {
-    // Ripple second 0 is 2000-01-01 00:00:00 UTC.
-    expect(formatUtc(0)).toBe("2000-01-01 00:00:00 UTC");
-    expect(formatUtc(845_566_971)).toBe("2026-10-17 15:42:51 UTC");
-    expect(formatUtc(946_684_799)).toBe("2029-12-30 23:59:59 UTC");
+  it("reads a number as unix seconds", () => {
+    expect(formatUtc(1_792_251_771)).toBe("2026-10-17 15:42:51 UTC");
+    expect(formatUtc(0)).toBe("1970-01-01 00:00:00 UTC");
   });
 
-  it("reads a number from 946684800 up as unix seconds", () => {
+  it("does not guess an epoch from the size of the number", () => {
+    // Small numbers are unix seconds too (a Ripple-epoch time is converted before it gets here).
+    expect(formatUtc(845_566_971)).toBe("1996-10-17 15:42:51 UTC");
+    expect(formatUtc(946_684_799)).toBe("1999-12-31 23:59:59 UTC");
     expect(formatUtc(946_684_800)).toBe("2000-01-01 00:00:00 UTC");
-    expect(formatUtc(1_792_251_771)).toBe("2026-10-17 15:42:51 UTC");
+    // The same on both sides of 946684800, which a Ripple-epoch time passes on 2029-12-30.
+    expect(formatUtc(946_684_801)).toBe("2000-01-01 00:00:01 UTC");
   });
 
   it("returns what is not a time as it came", () => {

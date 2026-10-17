@@ -92,21 +92,20 @@ function isPrintable(byte: number): boolean {
   return byte >= 0x20 && byte <= 0x7e;
 }
 
-/** Seconds from the Unix epoch to the Ripple epoch (2000-01-01 00:00:00 UTC). */
-const RIPPLE_EPOCH = 946_684_800;
 /** An ISO date and time with no zone designator, which JavaScript would read as local time. */
 const ISO_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/;
 const ISO_START = /^\d{4}-\d{2}-\d{2}/;
 
 /**
  * A moment as `2026-10-17 15:42:51 UTC`. A string is an ISO 8601 date and time (read as UTC when it
- * has no zone). A number is seconds: Ripple-epoch seconds when below 946684800, Unix seconds from
- * there up. What is not a moment is returned as it came.
+ * has no zone). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since
+ * 2000-01-01) must be converted before it gets here, as the size of a number cannot tell the two
+ * epochs apart. What is not a moment is returned as it came.
  */
 export function formatUtc(at: string | number): string {
   let date: Date;
   if (typeof at === "number") {
-    date = new Date((at < RIPPLE_EPOCH ? at + RIPPLE_EPOCH : at) * 1000);
+    date = new Date(at * 1000);
   } else if (ISO_START.test(at)) {
     date = new Date(ISO_WITHOUT_ZONE.test(at) ? `${at.replace(" ", "T")}Z` : at);
   } else {
