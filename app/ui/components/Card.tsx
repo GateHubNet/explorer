@@ -4,10 +4,12 @@ import { cx } from "../cx";
 
 /**
  * A bordered panel (1 px, 12 px radius). With a `title` it is a named section (an `h2`, and `action` at the end of the head
- * row); without one, pass `label` if it should be a landmark. `flush` takes the padding off the body, for a table.
+ * row); without one, pass `label` if it should be a landmark. `flush` takes the padding off the body, for a table. `id` is
+ * on the root element, for a link to the card (`/{net}#latest-ledgers`, see anchors.ts).
  */
 export function Card({
   as: Tag = "section",
+  id,
   title,
   action,
   label,
@@ -16,6 +18,7 @@ export function Card({
   children,
 }: {
   as?: "section" | "aside" | "div";
+  id?: string;
   title?: ReactNode;
   action?: ReactNode;
   label?: string;
@@ -26,6 +29,7 @@ export function Card({
   const titleId = useId();
   return (
     <Tag
+      id={id}
       className={cx("card", flush && "card--flush", className)}
       aria-labelledby={title ? titleId : undefined}
       aria-label={title ? undefined : label}

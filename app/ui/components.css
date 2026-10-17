@@ -512,9 +512,11 @@ a.nav-item:hover {
   font-size: 11px;
 }
 
+/* The code beside "Success": set apart by its mono face, size and a lighter weight, not by fading it. `opacity` took the
+   light pill from 5.0:1 to 3.9:1; test/unit/tokens.test.ts checks the pair. */
 .pill__code {
   font-size: 11px;
-  opacity: 0.85;
+  font-weight: 400;
 }
 
 .type {

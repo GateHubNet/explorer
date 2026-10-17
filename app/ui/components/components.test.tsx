@@ -29,6 +29,7 @@ import { StatGrid, StatTile } from "./StatTile";
 import { Tabs } from "./Tabs";
 import { ThemeToggle } from "./ThemeToggle";
 import { TypeTag } from "./TypeTag";
+import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { PRODUCT_NAME } from "../brand";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RouteErrorScreen } from "../pages/RouteErrorScreen";
@@ -250,6 +251,30 @@ describe("Card and StatTile", () => {
     expect(within(card).getByRole("heading", { level: 2 }).textContent).toBe("Latest ledgers");
     expect(within(card).getByRole("link").textContent).toBe("Latest ledger");
     expect(card.textContent).toContain("body");
+  });
+
+  it("carries an id on its root element, for a link to it (#latest-ledgers)", () => {
+    const { container, rerender } = render(
+      <Card id={LATEST_LEDGERS_ID} title="Latest ledgers">
+        body
+      </Card>,
+    );
+    const card = screen.getByRole("region", { name: "Latest ledgers" });
+    expect(card.id).toBe("latest-ledgers");
+    expect(container.firstElementChild).toBe(card);
+    expect(container.querySelectorAll("#latest-ledgers")).toHaveLength(1);
+
+    rerender(
+      <Card as="div" id={LATEST_TRANSACTIONS_ID}>
+        body
+      </Card>,
+    );
+    expect(container.firstElementChild!.id).toBe("latest-transactions");
+  });
+
+  it("has no id unless it is given one", () => {
+    const { container } = render(<Card title="Latest ledgers">body</Card>);
+    expect(container.firstElementChild!.hasAttribute("id")).toBe(false);
   });
 
   it("shows a tile's label, value and note", () => {

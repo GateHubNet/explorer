@@ -137,6 +137,16 @@ function contrast(a: Rgb, b: Rgb): number {
 const ACCENTS = { xrpl: "#2f5bea", xahau: "#b45309" };
 const WHITE = rgb("#ffffff");
 const AA = 4.5;
+const componentsCss = readFileSync(new URL("../../app/ui/components.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** The body of the rule whose selector is exactly `selector` in components.css. */
+function componentsRule(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`(?:^|[}\\s])${escaped}\\s*\\{([^}]*)\\}`).exec(componentsCss);
+  if (!match) throw new Error(`no rule for ${selector} in components.css`);
+  return match[1]!;
+}
+
 /** The share of --sunken in the background of a hovered table row, as written in components.css. */
 const ROW_HOVER_SHARE = Number(/\.table__row:not\(\.table__head\):hover\s*\{[^}]*--sunken\)\s+(\d+)%/.exec(readFileSync(new URL("../../app/ui/components.css", import.meta.url), "utf8"))?.[1]) / 100;
 
@@ -175,5 +185,18 @@ describe.each([
 
   it.each(Object.entries(ACCENTS))("white text on the %s accent (the search button) is at least 4.5:1", (_net, accent) => {
     expect(contrast(WHITE, rgb(accent))).toBeGreaterThanOrEqual(AA);
+  });
+
+  // The result code beside "Success" (ResultPill showCode) is 11 px text in the pill's own colour, so it needs the full 4.5:1.
+  // `opacity` makes text fainter than its colour says: 0.85 turned the light success pill's 5.0:1 into 3.9:1. The rule's opacity,
+  // if it has one, is modelled here, so a fade comes back as a failure.
+  it.each([
+    ["--ok", "--ok-bg"],
+    ["--bad", "--bad-bg"],
+  ] as const)("the result code (.pill__code) in a %s pill is at least 4.5:1 on %s, whatever opacity the rule sets", (fg, bg) => {
+    const opacity = Number(/opacity\s*:\s*([\d.]+)/.exec(componentsRule(".pill__code"))?.[1] ?? 1);
+    expect(opacity).toBeGreaterThan(0);
+    const shown = mix(c(fg), c(bg), opacity); // the text colour blended into the pill's background
+    expect(contrast(shown, c(bg))).toBeGreaterThanOrEqual(AA);
   });
 });
