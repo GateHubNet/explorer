@@ -20,7 +20,8 @@ import { paymentHandlers } from "./payment";
 import type { Description, Input, Summary } from "./types";
 import { xahauHandlers } from "./xahau";
 
-export type { Description, Detail, FlowStep, Handler, HandlerMap, Input, Segment, Summary } from "./types";
+export { headlineAmount, rowSentence } from "./row";
+export type { Description, Detail, FlowAmount, FlowStep, Handler, HandlerMap, Input, Segment, Summary } from "./types";
 
 const HANDLERS = mergeHandlers(
   paymentHandlers,

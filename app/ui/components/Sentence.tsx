@@ -8,9 +8,10 @@ import { Amount } from "./Amount";
 /**
  * The segments of `describe().sentence` (or a detail's value) as the page shows them: text as it is, an account as a chip
  * linking to its page, an amount through `Amount`, and a pool as a chip with its pair linking to the pool's account.
- * Put it in the element the sentence belongs in (`<p className="sentence">`, a table cell).
+ * Put it in the element the sentence belongs in (`<p className="sentence">`, a table cell). `compact` is for a table's cell:
+ * accounts and pools are plain links, without the chip's box, so that more of the sentence fits on its one line.
  */
-export function Sentence({ net, segments }: { net: NetworkId; segments: readonly Segment[] }) {
+export function Sentence({ net, segments, compact }: { net: NetworkId; segments: readonly Segment[]; compact?: boolean }) {
   return (
     <>
       {segments.map((segment, index) => {
@@ -18,12 +19,12 @@ export function Sentence({ net, segments }: { net: NetworkId; segments: readonly
           case "text":
             return segment.v;
           case "account":
-            return <AccountLink key={index} net={net} address={segment.v} variant="chip" />;
+            return <AccountLink key={index} net={net} address={segment.v} variant={compact ? "plain" : "chip"} />;
           case "amount":
             return <Amount key={index} value={segment.value} currency={segment.currency} issuer={segment.issuer} />;
           case "pool":
             return (
-              <Link key={index} to={`/${net}/account/${segment.v}`} className="ent" title={`AMM pool ${segment.v}`}>
+              <Link key={index} to={`/${net}/account/${segment.v}`} className={compact ? "mono" : "ent"} title={`AMM pool ${segment.v}`}>
                 {segment.pair}
               </Link>
             );

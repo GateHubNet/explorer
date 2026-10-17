@@ -1,8 +1,9 @@
 import { exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { PRODUCT_NAME } from "../../app/ui/brand";
 import { THEME_SCRIPT } from "../../app/ui/theme-script";
+import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The layout and the network routes on the real Worker (workers/app.ts, React Router, the edge cache): the
 // redirect from `/`, the unknown-network and unknown-path 404s, the `/:net` layout with its header, the theme and the
@@ -118,7 +119,22 @@ describe("an unknown network or path", () => {
   });
 });
 
+// `/xrpl` and `/xahau` are the home pages now, which read the data API: the tests that look at the layout around them
+// run against the recorded answers.
+let upstream: UpstreamMock | undefined;
+const withRecordedUpstream = () => {
+  beforeEach(() => {
+    upstream = mockUpstream("xrpl");
+  });
+  afterEach(() => {
+    upstream?.restore();
+    upstream = undefined;
+  });
+};
+
 describe("/:net", () => {
+  withRecordedUpstream();
+
   it("puts the network's accent on the page: the wrapper of the header carries data-net", async () => {
     const { html } = await page("/xahau");
     const wrapper = html.indexOf('data-net="xahau"');
@@ -174,6 +190,8 @@ describe("/:net", () => {
 });
 
 describe("the document shell", () => {
+  withRecordedUpstream();
+
   it("leaves data-theme to the inline script: <html> has none, and the script is in <head> before the stylesheet", async () => {
     const { html } = await page("/xrpl");
     const htmlTag = /<html[^>]*>/.exec(html)![0];

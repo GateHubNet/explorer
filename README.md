@@ -166,7 +166,8 @@ the browser).
   that sets one. Only `/` reads it (a 302 to `/{net}`, `Cache-Control: no-store`, XRPL without a valid cookie).
 - **Routes** (`app/routes.ts`): `/` (`routes/index.tsx`, the redirect), `/robots.txt`, `/:net` (`routes/net.tsx`, the layout:
   header, footer, search, the network's accent; its loader answers a 404 for an unknown network and gives its children
-  `useNetwork()`), and `*` (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
+  `useNetwork()`) with the home page (`routes/net._index.tsx`) and the ledger page (`routes/net.ledger.$id.tsx`) under it, and `*`
+  (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
   network with `requireNetwork(context, params)` and the clients with `clientsFor(context, net)`, names its cache class with
   `cached(...)`, turns upstream failures into responses with `upstreamFailure(err, what)`, and its module exports
   `headers = forwardCacheClass` (see above; `test/unit/route-headers.test.ts` enforces it). A page with its own big search box
@@ -181,6 +182,35 @@ the browser).
   chunk, fetched on first focus. `/` focuses the box except while another field has focus.
 - **Amounts.** Always render through `Amount` (`formatAmount` and `formatCurrency`: exponent notation is written out, a
   40-hex currency becomes text or "LP token"). `Sentence` renders the segments of `describe()`.
+
+## Home and ledger pages
+
+`/{net}` (`routes/net._index.tsx`) and `/{net}/ledger/{index|hash}` (`routes/net.ledger.$id.tsx`) are children of the `/:net`
+layout. Each loader asks the data API (and, for a ledger the index lacks, the node), hands the answers to a view builder in
+`app/server/` and returns the result with `cached(...)`; the page component in `app/ui/pages/` only draws it. The browser never
+gets a transaction's JSON, only what a row shows, so the parsing and summary code (`describe/`, `parse/`) stays in the Worker.
+
+| | Loader | View builder | Page |
+|---|---|---|---|
+| Home | `last_validated`, `network/fees` (8) and `transactions` (8) side by side, then `ledgers/{latest}` for the supply | `homePage` (`home-view.ts`): tiles, ledger rows (counts and close times from the fees rows), transaction rows (`headlineAmount`), the hero's examples | `HomePage` |
+| Ledger | `ledgers/{id}?expand=true` and `last_validated` side by side; the node's `ledger` when the index says not found | `ledgerPage` (`ledger-view.ts`): header, counts by type and result, fees (exact, as drops), accounts created, one row per transaction (`rowSentence` of `describe`), the raw header | `LedgerPage` |
+
+- **Cache classes.** Home: `live-home`. Ledger: `immutable` unless its index is the newest validated one (then `live`); a ledger
+  shown from the node is `short` with a 60 s TTL and the note "Not in the index yet, shown from the network"; a ledger neither
+  has, and an id that is neither an index nor a hash, is a 404 of class `short`. A lower-case or mixed-case hash, and an index with
+  leading zeros, are 302 redirects (class `immutable`) to the one URL an object has. Failures of the data API are 503s through
+  `upstreamFailure`, so the edge serves a stale copy or its busy page; the node is asked only for "not found", never for an
+  outage. A call a page cannot do without but the visitor did not ask for (the newest ledger, the home page's lists) goes through
+  `upstreamOutage`, which makes even its "not found" a 503. Both loaders wait for all their side-by-side calls before they throw, so
+  nothing is left running behind an answered request.
+- **No deferred data.** An `immutable` page is stored for a year, so everything is loaded in the loader.
+- **Ledger list.** Every transaction is in the loader data; the page shows the first 100 (`FIRST_ROWS`) and "Show all N" shows the
+  rest without a request. The type filter works on the whole list: a button for each of the seven commonest types, "Other" for the
+  rest. A ledger of 1,500 transactions is about 740 KB of HTML.
+- **Ages.** The stored HTML carries close times (`17:01:12`, `at 17:01:12 UTC`), never an age: `RelativeTime` fills in "3 s ago" in
+  the browser (one shared timer, none while the tab is hidden), because a page is stored for seconds or for a year.
+- **Tables** (`DataTable`) scroll inside their card below their `minWidth`, which must be at least the sum of the tracks, the gaps
+  and the padding of a row, or the rows' borders and hover end early.
 
 ## Tests
 
@@ -203,8 +233,12 @@ the browser).
   for `Date` only, the runtime's own Cache API); `route-headers.spec.ts` runs `cached` and `forwardCacheClass` through React
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
   Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry); `layout.spec.ts` asks the Worker
-  for `/`, the 404 pages, `/:net`, the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
-  that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures").
+  for `/`, the 404 pages, `/:net` (the home page now, so against the recorded upstream), the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
+  that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures"). `home.spec.ts` and `ledger.spec.ts` ask for the pages
+  through `pageClient` (`test/support/pages.ts`: the page, the HTML as text, anchors, table rows, the class and TTL the entry stored a
+  page under). What a spec file's Worker puts in the Cache API stays there for the rest of the file, edge pages and subrequests
+  alike (and an error is never stored): a test that overrides an upstream answer asks for a URL, a ledger or a network no other test
+  of the file asks for, and a test that needs a failing `last_validated` goes first.
 - Recorded mainnet ledgers (XRPL, XRPL AMM cases, Xahau), copied from `data-api-new` and kept as `.json.gz`, are in
   `test/fixtures/ledgers/`; `test/fixtures/PROVENANCE.md` says where each directory came from. Tests read them with
   `loadTx(set, hash)` and `allTxs(set)` from `test/support/ledgers.ts` (Node `fs`, test-only; `tsconfig.cloudflare.json`

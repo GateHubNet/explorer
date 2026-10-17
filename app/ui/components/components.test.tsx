@@ -218,6 +218,22 @@ describe("Sentence", () => {
     );
     expect(container.textContent).toBe("0.0000001 XRP");
   });
+
+  it("with `compact`, shows accounts and pools as plain links, the same links without the chip's box", () => {
+    const { container } = renderInRouter(<Sentence net="xrpl" segments={segments} compact />);
+    expect(container.querySelector(".ent")).toBeNull();
+    expect(screen.getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
+      `/xrpl/account/${ADDRESS}`,
+      "/xrpl/account/rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5",
+      "/xrpl/account/rAtRwrVakWQaGpzxtqgJZDb3Tg7t32rXT",
+    ]);
+    expect(container.textContent).toContain("through XRP/USD.");
+  });
+
+  it("without it, accounts and pools are chips", () => {
+    const { container } = renderInRouter(<Sentence net="xrpl" segments={segments} />);
+    expect(container.querySelectorAll(".ent")).toHaveLength(3);
+  });
 });
 
 describe("CopyButton", () => {

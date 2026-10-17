@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { UpstreamError, type UpstreamErrorKind } from "./upstream";
-import { upstreamFailure } from "./loader-errors";
+import { upstreamFailure, upstreamOutage } from "./loader-errors";
 
 /** What `upstreamFailure` throws. */
 function thrownBy(fn: () => never): unknown {
@@ -67,5 +67,31 @@ describe("upstreamFailure", () => {
     const response = new Response("already a response", { status: 418 });
     expect(thrownBy(() => upstreamFailure(response, "ledger 99"))).toBe(response);
     expect(thrownBy(() => upstreamFailure("a string", "ledger 99"))).toBe("a string");
+  });
+});
+
+describe("upstreamOutage", () => {
+  it.each<UpstreamErrorKind>(["not_found", "bad_request"])(
+    "turns %s into a 503: the API lacking a thing the page needs is an outage, not a missing page",
+    (kind) => {
+      const { status, headers, data } = asData(
+        thrownBy(() => upstreamOutage(new UpstreamError(kind, "no such thing", { status: 404 }), "the newest ledger")),
+      );
+      expect(status).toBe(503);
+      expect(headers.get("Retry-After")).toBe("30");
+      expect(headers.has("X-Cache-Class")).toBe(false);
+      expect(data).toEqual({ unavailable: "the newest ledger" });
+    },
+  );
+
+  it.each<UpstreamErrorKind>(["rate_limited", "server", "timeout", "network"])("treats %s as upstreamFailure does", (kind) => {
+    const { status, headers } = asData(thrownBy(() => upstreamOutage(new UpstreamError(kind, "x", { retryAfter: 9 }), "x")));
+    expect(status).toBe(503);
+    expect(headers.get("Retry-After")).toBe("9");
+  });
+
+  it("rethrows anything else untouched", () => {
+    const bug = new TypeError("x is not a function");
+    expect(thrownBy(() => upstreamOutage(bug, "x"))).toBe(bug);
   });
 });

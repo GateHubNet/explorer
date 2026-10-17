@@ -29,3 +29,16 @@ export function upstreamFailure(err: unknown, what: string): never {
   }
   throw err;
 }
+
+/**
+ * `upstreamFailure` for a call the page cannot be built without but that is not what the visitor asked for: the newest ledger,
+ * the lists of the home page. The API not having those is its fault and not a missing page, so a `not_found` or a
+ * `bad_request` is an outage too (a 503, not a 404 that would be stored as the page for 30 s). Everything else is treated as
+ * `upstreamFailure` treats it.
+ */
+export function upstreamOutage(err: unknown, what: string): never {
+  if (err instanceof UpstreamError && (err.kind === "not_found" || err.kind === "bad_request")) {
+    return upstreamFailure(new UpstreamError("server", err.message, { status: err.status, cause: err }), what);
+  }
+  return upstreamFailure(err, what);
+}
