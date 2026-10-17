@@ -45,9 +45,10 @@ values there replace the `vars` of `wrangler.jsonc` locally.
 | `pnpm typecheck` | `wrangler types` (runtime types into the git-ignored `worker-configuration.d.ts`), `react-router typegen`, `tsc -b` |
 | `pnpm test` | `vitest run`: the `unit` project (Node) and the `worker` project (Workers runtime) |
 | `pnpm test:e2e` | Playwright (set up in a later task) |
-| `pnpm api:sync` | Refresh the copy of the data API's OpenAPI document (a later task) |
+| `pnpm api:sync` | Copy the data API's OpenAPI document (`$DATA_API_REPO/docs/openapi.yaml`, default `../data-api-new`) to `api/openapi.yaml` and regenerate `app/server/openapi.d.ts`; name the source commit it prints in the commit message |
+| `pnpm api:check` | Regenerate the types from the committed `api/openapi.yaml` and fail if `app/server/openapi.d.ts` differs (needs no `data-api-new`) |
 | `pnpm deploy:staging`, `pnpm deploy:production` | Build for that Cloudflare environment, then `wrangler deploy` |
-| `pnpm verify` | `typecheck`, `test`, `build` |
+| `pnpm verify` | `api:check`, `typecheck`, `test`, `build` |
 
 Run one project or one file with `pnpm test --project worker` or `pnpm test app/server`. Do not put `--` after
 `pnpm test`: pnpm hands it to Vitest, which then treats everything after it as literal arguments and runs
@@ -73,9 +74,22 @@ The Cloudflare Vite plugin flattens one Cloudflare environment into the build, c
 `CLOUDFLARE_ENV` (`pnpm deploy:staging` and `pnpm deploy:production` set it). `vars` and `ratelimits` are not
 inherited, so each environment repeats them. The top level of `wrangler.jsonc` is local development and the tests.
 
+## The data API and the node
+
+`app/server/` is Worker-only code that loaders call; the browser never imports it.
+
+| File | |
+|---|---|
+| `networks.ts` | `xrpl` and `xahau`: name, native currency, CTID network id, and the data API and node URLs from `Env`. The only place that knows a network's URLs. |
+| `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. |
+| `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds. |
+| `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
+| `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, and the `SubrequestCache` interface both clients take. |
+
 ## Tests
 
-- `unit` project: `app/**/*.test.{ts,tsx}` and `scripts/**/*.test.ts`, in Node.
+- `unit` project: `app/**/*.test.{ts,tsx}`, `scripts/**/*.test.ts` and `test/unit/**/*.test.ts`, in Node. (`test/unit` is
+  typechecked with `scripts/` by `tsconfig.node.json`, which has the Node types; `tsconfig.cloudflare.json` leaves it out.)
 - `worker` project: `test/worker/**/*.spec.ts`, in workerd on the real Worker (`workers/app.ts`, the React Router
   plugin and `wrangler.jsonc`; the vars, secrets and `BUILD_ID` are pinned in `vitest.config.ts`, so a developer's
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call

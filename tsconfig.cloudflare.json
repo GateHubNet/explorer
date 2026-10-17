@@ -9,6 +9,7 @@
     "test/**/*",
     "worker-configuration.d.ts"
   ],
+  "exclude": ["test/unit"],
   "compilerOptions": {
     "composite": true,
     "strict": true,
