@@ -1,0 +1,29 @@
+{
+  "network": "xahau",
+  "endpoint": "wss://xahau.network",
+  "recorded_at": "2026-10-17T19:05:53.824Z",
+  "validated_head": 26596911,
+  "scan_limit": 3000,
+  "scanned": 3000,
+  "skipped": [],
+  "any_result": false,
+  "complete": true,
+  "server_definitions": true,
+  "found": {
+    "SetHook": {
+      "ledger": 26596843,
+      "hash": "01A4FDA81686D9AA9AD53C82CB36CE6377CB91374B3CA8AC858198D100E45275"
+    }
+  },
+  "missing": [
+    "URITokenCancelSellOffer",
+    "Import"
+  ],
+  "ledgers": [
+    {
+      "ledger": 26596843,
+      "bytes": 46118,
+      "gzipBytes": 10159
+    }
+  ]
+}

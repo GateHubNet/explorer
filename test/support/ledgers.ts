@@ -5,7 +5,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import type { TxJson, TxMeta } from "../../app/domain/parse/types";
 
-export type FixtureSet = "xrpl" | "xrpl-amm" | "xahau";
+/**
+ * `xrpl-extra` and `xahau-extra` hold the transaction types the other sets lack, recorded for the explorer's own
+ * tests (see test/fixtures/PROVENANCE.md).
+ */
+export type FixtureSet = "xrpl" | "xrpl-amm" | "xahau" | "xrpl-extra" | "xahau-extra";
 
 export type FixtureTx = {
   tx: TxJson;

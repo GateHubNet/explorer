@@ -1,0 +1,58 @@
+{
+  "network": "xrpl",
+  "endpoint": "wss://s2.ripple.com",
+  "recorded_at": "2026-10-17T17:50:50.100Z",
+  "validated_head": 107721797,
+  "scan_limit": 3000,
+  "scanned": 3000,
+  "skipped": [],
+  "any_result": false,
+  "complete": true,
+  "server_definitions": true,
+  "found": {
+    "CheckCancel": {
+      "ledger": 107720115,
+      "hash": "10CEF6273B6C4476E86169B7BB1723BF3CD2CFD948B1A732450543B2270AD87E"
+    },
+    "EscrowCancel": {
+      "ledger": 107720549,
+      "hash": "9C4D48A7F44A7A58DEBE2F31525966684E74A51F407BD7A837A41326BB3C9743"
+    },
+    "EscrowCreate": {
+      "ledger": 107720688,
+      "hash": "E033B3615C85BF65972B7AE3569937D1135FB9E39F5F7D5F6CF7BEFF77F25FC4"
+    },
+    "NFTokenBurn": {
+      "ledger": 107721455,
+      "hash": "401D8E59D6F14FD1AEC3D4A295C32D32A195AF36ECB91AAB4D3DE03D6B5C38CA"
+    }
+  },
+  "missing": [
+    "PaymentChannelCreate",
+    "PaymentChannelFund",
+    "PaymentChannelClaim",
+    "AMMDelete"
+  ],
+  "ledgers": [
+    {
+      "ledger": 107720115,
+      "bytes": 245699,
+      "gzipBytes": 51176
+    },
+    {
+      "ledger": 107720549,
+      "bytes": 161730,
+      "gzipBytes": 29998
+    },
+    {
+      "ledger": 107720688,
+      "bytes": 220992,
+      "gzipBytes": 43114
+    },
+    {
+      "ledger": 107721455,
+      "bytes": 421768,
+      "gzipBytes": 73831
+    }
+  ]
+}
