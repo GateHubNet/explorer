@@ -27,12 +27,12 @@ describe("the parsing libraries in the Workers runtime", () => {
 
 describe("the Worker", () => {
   it("serves an HTML page whose loader reads the Worker's env", async () => {
-    const response = await exports.default.fetch("https://example.com/");
+    // The loader of the /:net layout builds its network from the Worker's env (getEnv throws when the context did not
+    // come from workers/app.ts), so a 200 here means the env reached it.
+    const response = await exports.default.fetch("https://example.com/xrpl");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
-    const html = await response.text();
-    expect(html).toContain("<!DOCTYPE html>");
-    expect(html).toContain('data-build="test-build"');
+    expect(await response.text()).toContain("<!DOCTYPE html>");
   });
 
   it("has the bindings the app declares", async () => {

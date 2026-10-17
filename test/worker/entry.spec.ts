@@ -6,8 +6,9 @@ import { requestIdOf, withRequestLog, withSentryWhenConfigured } from "../../app
 import worker from "../../workers/app";
 
 // The Worker entry (workers/app.ts) as a deployed Worker runs it: React Router behind the edge cache, the
-// visitor limit and the request log. The routes have no cache class yet, so what is stored is tested in
-// edge-cache.spec.ts and route-headers.spec.ts; this file is about what the entry adds to every request.
+// visitor limit and the request log. What is stored is tested in edge-cache.spec.ts and route-headers.spec.ts;
+// this file is about what the entry adds to every request. A 404 page is class `short`, so it is stored: a test that
+// needs a miss (the visitor limit applies to misses only) asks for a path no other test has.
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -42,7 +43,7 @@ describe("X-Request-Id", () => {
   it("is on the 429 page too", async () => {
     const limited: Env = { ...env, VISITOR_LIMITER: { limit: async () => ({ success: false }) } };
     const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
-    const response = await worker.fetch!(incoming("https://explorer.test/nowhere"), limited, ctx);
+    const response = await worker.fetch!(incoming("https://explorer.test/nowhere/limited"), limited, ctx);
     expect(response.status).toBe(429);
     expect(response.headers.get("X-Request-Id")).toBeTruthy();
   });
@@ -85,10 +86,14 @@ describe("the request log", () => {
 
   it("says BYPASS for the root, which is never cached", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const response = await get("/", { "CF-Ray": "0000000000000001-AMS", "CF-Connecting-IP": visitor() });
+    // The root answers with a redirect; the test looks at that answer, not at the page it leads to.
+    const response = await exports.default.fetch("https://explorer.test/", {
+      headers: { "CF-Ray": "0000000000000001-AMS", "CF-Connecting-IP": visitor() },
+      redirect: "manual",
+    });
     expect(response.headers.get("X-Cache")).toBe("BYPASS");
     const line = JSON.parse(String(log.mock.calls.find(([l]) => String(l).includes("0000000000000001-AMS"))![0]));
-    expect(line).toMatchObject({ id: "0000000000000001-AMS", method: "GET", path: "/", status: 200, cache: "BYPASS" });
+    expect(line).toMatchObject({ id: "0000000000000001-AMS", method: "GET", path: "/", status: 302, cache: "BYPASS" });
   });
 
   it("logs a request that failed in the entry itself as a 500 and lets the failure through", async () => {
@@ -238,7 +243,7 @@ describe("Sentry", () => {
       const errors = vi.spyOn(console, "error").mockImplementation(() => {});
       const sent = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no network in tests"));
       const response = await worker.fetch!(
-        incoming("https://explorer.test/nowhere", { headers: { "CF-Connecting-IP": visitor() } }),
+        incoming("https://explorer.test/nowhere/sentry", { headers: { "CF-Connecting-IP": visitor() } }),
         { ...env, SENTRY_DSN: dsn },
         ctx,
       );

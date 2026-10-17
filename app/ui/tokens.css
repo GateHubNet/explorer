@@ -1,0 +1,129 @@
+/* The design tokens of spec section 8: light, dark, and one accent per network.
+
+   Light is the default. Dark applies in two cases that need the same values: the system is dark and the visitor has not
+   chosen light (the @media block), or the visitor chose dark (data-theme="dark", set on <html> by the inline script of
+   theme-script.ts). CSS cannot share one block between a media query and a selector, so the dark values are written twice;
+   test/unit/tokens.test.ts keeps the copies equal.
+
+   The tokens are declared on :root and again on every [data-net] element (the wrapper of a page, app/ui/components/Shell.tsx),
+   because `--link: var(--accent)` is resolved where it is declared: the wrapper has the network's accent, :root does not. */
+
+:root, [data-net] {
+  color-scheme: light;
+
+  --bg: #F5F6F8;
+  --surface: #FFFFFF;
+  --sunken: #EEF0F3;
+  --border: #E1E4E9;
+  --border-strong: #CDD2D9;
+  --fg: #0F1217;
+  --muted: #4F5864;
+  --faint: #646D7A;
+  --ok: #17733F;
+  --ok-bg: #E3F3E9;
+  --bad: #B42318;
+  --bad-bg: #FCEBE9;
+  --link: var(--accent);
+
+  /* Charts: series colours in this order, then "Other"; up and down. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-other: #8b94a1;
+  --up: #2a78d6;
+  --down: #e34948;
+
+  /* Which icon of the theme toggle shows: the moon (go dark) in light, the sun (go light) in dark. */
+  --moon-display: inline;
+  --sun-display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]), :root:not([data-theme="light"]) [data-net] {
+    color-scheme: dark;
+
+    --bg: #0B0E12;
+    --surface: #12161C;
+    --sunken: #181D24;
+    --border: #232A33;
+    --border-strong: #323B46;
+    --fg: #E7EBF0;
+    --muted: #A3ACB9;
+    --faint: #8D97A5;
+    --ok: #5BD08F;
+    --ok-bg: #10281B;
+    --bad: #F28B80;
+    --bad-bg: #30161A;
+    --link: color-mix(in srgb, var(--accent) 55%, #ffffff);
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-other: #6b7380;
+    --up: #3987e5;
+    --down: #e66767;
+
+    --moon-display: none;
+    --sun-display: inline;
+  }
+}
+
+:root[data-theme="dark"], :root[data-theme="dark"] [data-net] {
+  color-scheme: dark;
+
+  --bg: #0B0E12;
+  --surface: #12161C;
+  --sunken: #181D24;
+  --border: #232A33;
+  --border-strong: #323B46;
+  --fg: #E7EBF0;
+  --muted: #A3ACB9;
+  --faint: #8D97A5;
+  --ok: #5BD08F;
+  --ok-bg: #10281B;
+  --bad: #F28B80;
+  --bad-bg: #30161A;
+  --link: color-mix(in srgb, var(--accent) 55%, #ffffff);
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-other: #6b7380;
+  --up: #3987e5;
+  --down: #e66767;
+
+  --moon-display: none;
+  --sun-display: inline;
+}
+
+/* One accent per network. A page outside both (an unknown path) has XRPL's. */
+:root {
+  --accent-xrpl: #2F5BEA;
+  --accent-xahau: #B45309;
+  --accent: var(--accent-xrpl);
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --gutter: 20px;
+}
+
+[data-net="xrpl"] {
+  --accent: var(--accent-xrpl);
+}
+
+[data-net="xahau"] {
+  --accent: var(--accent-xahau);
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 16px;
+  }
+}

@@ -59,7 +59,8 @@ plugin of the other project keeps a file watcher open; a path filter does not.
 
 `app/server/env.ts` is the type of the Worker's bindings (`Env`) and the one place that knows how React Router 8
 hands them to loaders: `workers/app.ts` creates the load context with `createLoadContext(env, ctx)`, and loaders
-read it with `getEnv(context)` and `getExecutionContext(context)`.
+read it with `getEnv(context)`, `getExecutionContext(context)` and `getSubrequestCache(context)` (one subrequest cache
+per request, over the data centre's Cache API, built with `BUILD_ID`).
 
 | Name | Kind | Where it is set |
 |---|---|---|
@@ -87,6 +88,10 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, and the `SubrequestCache` interface both clients take. |
 | `edge-cache.ts` | The page-level edge cache and visitor limit (`withEdgeCache`), the subrequest cache the clients take (`createSubrequestCache`), and what loaders and routes use to name a page's class (`cached`, `forwardCacheClass`, `cacheClassHeaders`). |
 | `logging.ts` | The request id and the one log line per request (`withRequestLog`), and Sentry, loaded only for a Worker that has a `SENTRY_DSN` (`withSentryWhenConfigured`). |
+| `clients.ts` | `clientsFor(context, net)`: the data API client and the node client of a network, over the request's subrequest cache. What a loader calls. |
+| `network-route.ts` | `requireNetwork(context, params)` (the `:net` segment as a `Network`, or a 404 of class `short`), `publicNetwork(net)` (what may go to the browser: no URLs), `readNetworkCookie(header)`. |
+| `loader-errors.ts` | `upstreamFailure(err, what)`: what a loader throws for a failed upstream call: 404 `short` for `not_found`/`bad_request`, 503 with `Retry-After` for the rest, anything else rethrown. |
+| `capture.ts` | `handleLoaderError`, the `handleError` of `app/entry.server.tsx`: one log line per loader error and, with a `SENTRY_DSN`, Sentry. |
 
 ## The Worker entry
 
@@ -124,7 +129,10 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 React Router builds the headers of the document and those of the `.data` URL a client-side navigation fetches from the same
 route `headers` functions, so both carry the class. They are stored under their own URLs (the key is the URL, `.data` and
 `_routes` included, plus `BUILD_ID`). Every route with such a loader needs the export, and so does the root route when its
-error boundary shows a thrown 404; a route without it is simply not cached. The deepest route that names a class decides.
+error boundary shows a thrown 404. A route without it is not "uncached": React Router gives it its parent's headers, so the
+class its loader named is dropped and the page takes the parent's class (or none, when no parent names one). The deepest route
+that names a class decides. `test/unit/route-headers.test.ts` fails when a file under `app/routes` (or `app/root.tsx`) imports
+`cached`, `upstreamFailure` or `requireNetwork` and has no `headers` export.
 For a `redirect()` or a resource route (an image), put `cacheClassHeaders(class, ttl?)` on the `Response`.
 
 The entry stores the answer, hands the browser the class's `Cache-Control` (the image one for `image/*`), and strips the
@@ -134,10 +142,54 @@ entry, not the Cache API, which ignores `stale-while-revalidate`: after the edge
 
 The Cache API does not work on `*.workers.dev`, so `X-Cache` is always `MISS` there; use a custom domain.
 
+## The UI and the routes
+
+`app/ui/` is the design system of the mock, as CSS and React components that take props and never fetch; type-only imports from
+`app/server/` and `app/domain/` are fine, runtime ones from `app/server/` are not (`app/domain` is pure and may be bundled for
+the browser).
+
+- **Styles.** `app/ui/styles.css` is the one stylesheet (`root.tsx` links it; the build inlines its imports into a single
+  file): `fonts.css` (Geist and Geist Mono, variable, self-hosted from the `geist` package, preloaded by `fonts.ts`),
+  `tokens.css` (spec 8 verbatim as custom properties), `base.css` and `components.css`. A component's class is its name
+  (`.card`), its parts `.card__head`, its states `.is-current` / `.pill--ok`. Nothing in them knows a theme or a network.
+- **Network accent.** `Shell` wraps a page in `<div data-net="xrpl|xahau">`; `tokens.css` gives that wrapper the network's
+  `--accent`. The tokens are declared on `:root` *and* on every `[data-net]` element, because `--link: var(--accent)` is
+  resolved where it is declared.
+- **Theme.** Light by default, dark when the system is dark, unless the visitor chose: `ThemeToggle` stores `light` or `dark`
+  in `localStorage` and `THEME_SCRIPT` (inline in `<head>`, before the stylesheet) puts it on `<html data-theme>` before first
+  paint. The server never renders `data-theme`, so the stored HTML is the same for everyone. The dark tokens are written twice
+  (media query and `[data-theme="dark"]`); `test/unit/tokens.test.ts` keeps them equal and checks the contrast pairs.
+- **Network cookie.** The browser writes `net=<id>` (`Path=/; Max-Age=31536000; SameSite=Lax`): an inline script in the
+  `/:net` layout and an effect for client-side switches. Never a `Set-Cookie` header: the edge cache will not store an answer
+  that sets one. Only `/` reads it (a 302 to `/{net}`, `Cache-Control: no-store`, XRPL without a valid cookie).
+- **Routes** (`app/routes.ts`): `/` (`routes/index.tsx`, the redirect), `/robots.txt`, `/:net` (`routes/net.tsx`, the layout:
+  header, footer, search, the network's accent; its loader answers a 404 for an unknown network and gives its children
+  `useNetwork()`), and `*` (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
+  network with `requireNetwork(context, params)` and the clients with `clientsFor(context, net)`, names its cache class with
+  `cached(...)`, turns upstream failures into responses with `upstreamFailure(err, what)`, and its module exports
+  `headers = forwardCacheClass` (see above; `test/unit/route-headers.test.ts` enforces it). A page with its own big search box
+  (the home page) exports `handle = { heroSearch: true }` so the header leaves its box out. The header's Ledgers and
+  Transactions links go to the ids `latest-ledgers` and `latest-transactions` (`app/ui/anchors.ts`) on the home page.
+- **Errors.** `net.tsx` and `root.tsx` export an `ErrorBoundary` that shows `RouteErrorScreen` inside the page frame: a 404
+  thrown by `cached`/`upstreamFailure`/`requireNetwork` becomes `NotFoundPage` ("We couldn't find {what} on {network}",
+  with the search box and a way home), a 503 a try-again page, anything else a plain apology. `NotFoundPage` takes a
+  `suggestion={{ href, label }}` for the "on the other network" link.
+- **Search box.** `SearchBox` is a GET form to `/{net}/search` (`name="q"`). Hints appear as you type (`classify` from
+  `app/domain/search.ts`, mapped by `app/ui/search-hints.ts`); that code and the address codec it pulls in are a separate
+  chunk, fetched on first focus. `/` focuses the box except while another field has focus.
+- **Amounts.** Always render through `Amount` (`formatAmount` and `formatCurrency`: exponent notation is written out, a
+  40-hex currency becomes text or "LP token"). `Sentence` renders the segments of `describe()`.
+
 ## Tests
 
-- `unit` project: `app/**/*.test.{ts,tsx}`, `scripts/**/*.test.ts` and `test/unit/**/*.test.ts`, in Node. (`test/unit` is
-  typechecked with `scripts/` by `tsconfig.node.json`, which has the Node types; `tsconfig.cloudflare.json` leaves it out.)
+- `unit` project: `app/**/*.test.ts` (not under `app/ui`), `scripts/**/*.test.ts` and `test/unit/**/*.test.ts`, in Node.
+  (`test/unit` is typechecked with `scripts/` by `tsconfig.node.json`, which has the Node types; `tsconfig.cloudflare.json`
+  leaves it out. A test that reads files, such as the route scan and the token check, goes there.)
+- `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
+  rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
+- The projects do not read `vite.config.ts`, so `vitest.config.ts` gives each the `~/` alias (`app/`) itself;
+  `app/domain/alias.test.ts` and `test/worker/alias.spec.ts` fail without it. The code of `app/` imports with relative
+  paths.
 - `worker` project: `test/worker/**/*.spec.ts`, in workerd on the real Worker (`workers/app.ts`, the React Router
   plugin and `wrangler.jsonc`; the vars, secrets and `BUILD_ID` are pinned in `vitest.config.ts`, so a developer's
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call
@@ -146,7 +198,9 @@ The Cache API does not work on `*.workers.dev`, so `X-Cache` is always `MISS` th
   `edge-cache.spec.ts` calls `withEdgeCache` and `createSubrequestCache` directly (fake `render`, fake `waitUntil`, a fake clock
   for `Date` only, the runtime's own Cache API); `route-headers.spec.ts` runs `cached` and `forwardCacheClass` through React
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
-  Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry).
+  Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry); `layout.spec.ts` asks the Worker
+  for `/`, the 404 pages, `/:net`, the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
+  that needs a cache miss asks for a path nobody else does.
 - Recorded mainnet ledgers (XRPL, XRPL AMM cases, Xahau), copied from `data-api-new` and kept as `.json.gz`, are in
   `test/fixtures/ledgers/`; `test/fixtures/PROVENANCE.md` says where each directory came from. Tests read them with
   `loadTx(set, hash)` and `allTxs(set)` from `test/support/ledgers.ts` (Node `fs`, test-only; `tsconfig.cloudflare.json`

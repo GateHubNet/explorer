@@ -1,6 +1,8 @@
+import { fileURLToPath } from "node:url";
+
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { reactRouter } from "@react-router/dev/vite";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 // Pinned for the worker project, so that a developer's .dev.vars (a real key, a Sentry DSN, a local
 // data API) cannot change what the tests do or where they send requests.
@@ -14,15 +16,30 @@ const testBindings = {
   BUILD_ID: "test-build",
 };
 
+// `~/` is `app/`, as in tsconfig.cloudflare.json. The projects below are not built from vite.config.ts, so
+// they do not see its `resolve.tsconfigPaths`; each lists the alias itself.
+const resolve = { alias: { "~": fileURLToPath(new URL("./app", import.meta.url)) } };
+
 export default defineConfig({
   test: {
     projects: [
       {
-        // Pure code and components: Node.
+        // Pure code: Node. (The components of app/ui need a DOM and are the `components` project.)
+        resolve,
         test: {
           name: "unit",
           environment: "node",
-          include: ["app/**/*.test.{ts,tsx}", "scripts/**/*.test.ts", "test/unit/**/*.test.ts"],
+          include: ["app/**/*.test.ts", "scripts/**/*.test.ts", "test/unit/**/*.test.ts"],
+          exclude: [...configDefaults.exclude, "app/ui/**"],
+        },
+      },
+      {
+        // Components and the browser-side code of app/ui: happy-dom.
+        resolve,
+        test: {
+          name: "components",
+          environment: "happy-dom",
+          include: ["app/ui/**/*.test.{ts,tsx}"],
         },
       },
       {
@@ -34,9 +51,12 @@ export default defineConfig({
           }),
           reactRouter(),
         ],
+        resolve,
         test: {
           name: "worker",
           include: ["test/worker/**/*.spec.ts"],
+          // Process the stylesheet, so that `styles.css?url` in root.tsx is a real URL as it is in the build.
+          css: true,
           // CommonJS packages that require() ES modules cannot be loaded as they are in workerd, so
           // Vite pre-bundles them, as it does in the production build.
           deps: {

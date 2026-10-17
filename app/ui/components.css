@@ -1,0 +1,916 @@
+/* The components of app/ui/components. Class names are the component's (`.card`), its parts (`.card__head`) and its states
+   (`.is-current`, `.pill--ok`). Colours, borders and radii come from the tokens; nothing here knows a theme or a network. */
+
+/* ---------------------------------------------------------------------------------------------------------------
+   The page */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.container {
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.main {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-block: 24px 64px;
+}
+
+.main:focus {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Header */
+
+.hdr {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.hdr__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding-block: 12px;
+}
+
+.hdr__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--fg);
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.hdr__brand:hover {
+  text-decoration: none;
+}
+
+@media (max-width: 720px) {
+  /* The name goes (below), and the mark alone is still a 44 px target. */
+  .hdr__brand {
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+
+.logo__bg {
+  fill: var(--accent);
+}
+
+.hdr__nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.nav-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+a.nav-item:hover {
+  background: var(--sunken);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.nav-item.is-soon {
+  cursor: default;
+}
+
+.soon {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hdr__tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg);
+}
+
+.icon-btn:hover {
+  background: var(--sunken);
+}
+
+/* The menu button is for phones only (after .icon-btn, whose display it overrides). */
+.icon-btn.hdr__menu {
+  display: none;
+}
+
+.theme-toggle__sun {
+  display: var(--sun-display);
+}
+
+.theme-toggle__moon {
+  display: var(--moon-display);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Network switch */
+
+.netswitch {
+  display: flex;
+  padding: 3px;
+  background: var(--sunken);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.netswitch__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.netswitch__item:hover {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+/* A 44 px target (spec 8) around the 32 px segment, without making the control taller. */
+.netswitch__item {
+  position: relative;
+}
+
+.netswitch__item::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+
+.netswitch__item[aria-current] {
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--border);
+}
+
+.netswitch__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.netswitch__dot[data-network="xrpl"] {
+  background: var(--accent-xrpl);
+}
+
+.netswitch__dot[data-network="xahau"] {
+  background: var(--accent-xahau);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Search box and its hints */
+
+.search {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.search__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: var(--sunken);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 12px;
+  min-height: 44px;
+}
+
+.search__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.search__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.search__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  text-overflow: ellipsis;
+}
+
+.search__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.search__key {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.search__submit {
+  flex: none;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.search__hints:empty {
+  display: none;
+}
+
+.search--header {
+  flex: 1 1 260px;
+}
+
+/* In the header the hints float over the page; in the hero and on a 404 they are part of it. */
+.search--header .search__hints {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin-top: 6px;
+  box-shadow: 0 12px 32px -12px rgba(15, 18, 23, 0.35);
+}
+
+.search--hero .search__field {
+  gap: 10px;
+  padding: 6px 6px 6px 16px;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 18, 23, 0.04), 0 6px 20px -12px rgba(15, 18, 23, 0.25);
+}
+
+.search--hero .search__input {
+  padding: 10px 0;
+  font-size: 15px;
+}
+
+.hits {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.hit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  color: var(--fg);
+}
+
+.hit:hover {
+  background: var(--sunken);
+  text-decoration: none;
+}
+
+.hit__detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hit__net {
+  color: var(--faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.hit__go {
+  flex: none;
+  color: var(--faint);
+}
+
+.search__empty {
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Footer */
+
+.ftr {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.ftr__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding-block: 22px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Cards, tiles, fields */
+
+.card {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card__title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.card__action {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.card__body {
+  padding: 16px 20px;
+}
+
+.card--flush > .card__body {
+  padding: 0;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.stat__label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.stat__value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 4px 16px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.kv:first-child {
+  border-top: 0;
+}
+
+.kv dt {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.kv dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Pills, tags, amounts, entities, buttons */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill--ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.pill--bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.pill--neutral {
+  background: var(--sunken);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.pill.mono {
+  font-size: 11px;
+}
+
+.pill__code {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.type {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--sunken);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.amt {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.amt--pos {
+  color: var(--ok);
+}
+
+/* An account, in a sentence: a chip. */
+.ent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--sunken);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+a.ent {
+  color: var(--fg);
+}
+
+a.ent:hover {
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+
+.sentence {
+  line-height: 1.9;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+a.btn {
+  color: var(--fg);
+}
+
+.btn:hover {
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+
+.btn:disabled,
+.btn.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn.is-disabled:hover {
+  border-color: var(--border);
+}
+
+.copy {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--faint);
+  vertical-align: middle;
+}
+
+.copy:hover {
+  background: var(--sunken);
+  color: var(--fg);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Tables */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table__row {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  column-gap: 16px;
+  min-height: 46px;
+  padding: 0 16px;
+  border-top: 1px solid var(--border);
+}
+
+.table__head {
+  min-height: 36px;
+  border-top: 0;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Not plain --sunken as in the mock: the Xahau accent in light mode is 4.40:1 on it, under AA for the links in the row. */
+.table__row:not(.table__head):hover {
+  background: color-mix(in srgb, var(--sunken) 60%, var(--surface));
+}
+
+.table__cell {
+  min-width: 0;
+}
+
+/* Right-aligned inside the whole track (not `justify-self: end`, which would let a long value overflow the track). */
+.table__cell.is-end {
+  text-align: right;
+}
+
+.table__cell.is-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table__empty {
+  padding: 24px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Tabs, pager, breadcrumbs */
+
+.tabs {
+  overflow-x: auto;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs ul {
+  display: flex;
+}
+
+.tabs__item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 46px;
+  margin-right: 20px;
+  padding: 12px 2px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+a.tabs__item:hover {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.tabs__item.is-current {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+
+.tabs__item.is-soon {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.pager {
+  display: flex;
+  gap: 8px;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.crumbs li {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crumbs [aria-current] {
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Notices and failed sections */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notice__icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.notice__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.notice__title {
+  display: block;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.notice--info .notice__icon {
+  color: var(--link);
+}
+
+.notice--success {
+  border-color: var(--ok);
+}
+
+.notice--success .notice__icon {
+  color: var(--ok);
+}
+
+.notice--warning,
+.notice--error {
+  border-color: var(--bad);
+}
+
+.notice--warning .notice__icon,
+.notice--error .notice__icon {
+  color: var(--bad);
+}
+
+.notice--error {
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Raw data (pages use these; the components come with their pages) */
+
+.code {
+  max-height: 420px;
+  padding: 16px;
+  overflow: auto;
+  background: var(--sunken);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Not found and errors */
+
+.notfound {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 640px;
+  padding-block: 32px 0;
+}
+
+.notfound h1 {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.notfound p {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* A link on a line of its own is a target of its own (44 px, spec 8). */
+.notfound p > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.notfound .search {
+  align-self: stretch;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Phones */
+
+@media (max-width: 720px) {
+  .hdr__inner {
+    gap: 8px 12px;
+  }
+
+  .hdr__name {
+    display: none;
+  }
+
+  .hdr__tools {
+    order: 2;
+  }
+
+  .icon-btn.hdr__menu {
+    display: flex;
+  }
+
+  .search--header {
+    order: 5;
+    flex: 1 1 100%;
+  }
+
+  .search__field {
+    min-height: 46px;
+  }
+
+  /* No "/" key on a phone. */
+  .search__key {
+    display: none;
+  }
+
+  .hdr__nav {
+    display: none;
+    order: 4;
+    flex: 1 1 100%;
+  }
+
+  .hdr__nav.is-open {
+    display: block;
+  }
+
+  .hdr__nav ul {
+    flex-direction: column;
+  }
+
+  .nav-item {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .kv {
+    grid-template-columns: 1fr;
+  }
+
+  .card__body {
+    padding-inline: 16px;
+  }
+
+  .main {
+    padding-block: 18px 40px;
+  }
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. The desktop sizes of the mock are smaller. */
+@media (pointer: coarse), (max-width: 720px) {
+  .btn,
+  .tabs__item,
+  .nav-item {
+    min-height: 44px;
+  }
+
+  .copy {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
