@@ -1,0 +1,73 @@
+/**
+ * Worker configuration. Details: https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * The top level is local development and the tests. `staging` and `production` are selected at
+ * build time (`CLOUDFLARE_ENV=staging react-router build`, see the `deploy:*` scripts), because
+ * the Cloudflare Vite plugin writes a flattened config for the selected environment.
+ *
+ * `vars` and `ratelimits` are not inherited, so each environment repeats them.
+ * `BUILD_ID` is not listed here: vite.config.ts adds the git commit to the vars of every build.
+ * Secrets (`DATA_API_KEY`, `SENTRY_DSN`) are never listed: `.dev.vars` locally,
+ * `wrangler secret put --env <env>` when deployed.
+ *
+ * The data API hosts below are placeholders (`.invalid` never resolves) until the hosts are
+ * decided; the nodes are the public defaults.
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "x-explorer",
+	"compatibility_date": "2026-10-06",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": "./workers/app.ts",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"vars": {
+		"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
+		"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
+		"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
+		"XAHAU_NODE_URL": "https://xahau.network/"
+	},
+	"ratelimits": [
+		{
+			"name": "VISITOR_LIMITER",
+			"namespace_id": "1000",
+			"simple": { "limit": 60, "period": 10 }
+		}
+	],
+	"env": {
+		"staging": {
+			"name": "x-explorer-staging",
+			"vars": {
+				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
+				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
+				"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
+				"XAHAU_NODE_URL": "https://xahau.network/"
+			},
+			"ratelimits": [
+				{
+					"name": "VISITOR_LIMITER",
+					"namespace_id": "1001",
+					"simple": { "limit": 60, "period": 10 }
+				}
+			]
+		},
+		"production": {
+			"name": "x-explorer-production",
+			"vars": {
+				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
+				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
+				"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
+				"XAHAU_NODE_URL": "https://xahau.network/"
+			},
+			"ratelimits": [
+				{
+					"name": "VISITOR_LIMITER",
+					"namespace_id": "1002",
+					"simple": { "limit": 60, "period": 10 }
+				}
+			]
+		}
+	}
+}

@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local development (`pnpm dev`). Never commit .dev.vars.
+# The key listed in the data API's GH_RATE_LIMIT_KEYS.
+DATA_API_KEY=
+# Optional; Sentry stays off while it is empty.
+SENTRY_DSN=
