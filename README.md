@@ -81,6 +81,10 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call
   the Worker with `exports.default.fetch(...)` and read bindings with `env`, both from `cloudflare:workers`. (`SELF`
   and `cloudflare:test`'s `env` still exist but are deprecated.)
+- Recorded mainnet ledgers (XRPL, XRPL AMM cases, Xahau), copied from `data-api-new` and kept as `.json.gz`, are in
+  `test/fixtures/ledgers/`; `test/fixtures/PROVENANCE.md` says where each directory came from. Tests read them with
+  `loadTx(set, hash)` and `allTxs(set)` from `test/support/ledgers.ts` (Node `fs`, test-only; `tsconfig.cloudflare.json`
+  has no `node` types on purpose, so `test/support/node-modules.d.ts` declares the two modules that file uses).
 - Recorded transaction metadata for the runtime check is in `test/fixtures/runtime/`: the AMMDeposit
   `83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B` of ledger 107671558, from
   `data-api-new/packages/shared/test/fixtures/xrpl/recorded/107671558.json.gz`.

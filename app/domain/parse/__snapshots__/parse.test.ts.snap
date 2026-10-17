@@ -1,0 +1,3827 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`every recorded transaction > parses to these totals per set 1`] = `
+{
+  "xahau": {
+    "accountsCreated": 0,
+    "ammHops": 0,
+    "balanceChanges": 736,
+    "objectsTouched": 2804,
+    "transactions": 364,
+  },
+  "xrpl": {
+    "accountsCreated": 0,
+    "ammHops": 34,
+    "balanceChanges": 1786,
+    "objectsTouched": 4827,
+    "transactions": 1306,
+  },
+  "xrpl-amm": {
+    "accountsCreated": 4,
+    "ammHops": 138,
+    "balanceChanges": 2905,
+    "objectsTouched": 5977,
+    "transactions": 1423,
+  },
+}
+`;
+
+exports[`the recorded transactions, parsed > xahau ClaimReward 3A1F25CDF0E2E4466AA0B019EA3039A6E5F87C01FBDD69CBDC474DAC32D8E64C 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rDitc4S7Y1GF2yzM4S2dayA4jYuK6YewSz",
+      "after": "5125.076091",
+      "currency": "XAH",
+      "value": "-0.00863",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rDitc4S7Y1GF2yzM4S2dayA4jYuK6YewSz",
+      "change": "modified",
+      "index": "20ACB6B72609FD9E28B6CD76702C139BA8E2DB8764A124399E840B4D9F47F92E",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+      "change": "modified",
+      "index": "2B6AC232AA4C4BE41BF49D2459FA4A0347E1B543A4C92FCEE0821C0201E2E9A8",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "created",
+      "index": "ABAE29C3EB4E24752D99BD6B336A3B7E73CAE23A8D105B06B464D35A4CC1A9F5",
+      "type": "EmittedTxn",
+    },
+    {
+      "change": "created",
+      "index": "B4DE823055D00BC12CD78FE1AAF74EE6062195B2629F49A25915A39C64BE1900",
+      "type": "DirectoryNode",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xahau GenesisMint E8264F11B5CDD9844BFCF3C5CDFE99B5F7EBB91B3723C2CC8A1680FAD86EB22D 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rDitc4S7Y1GF2yzM4S2dayA4jYuK6YewSz",
+      "after": "5136.831745",
+      "currency": "XAH",
+      "value": "11.755654",
+    },
+    {
+      "account": "rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv",
+      "after": "1005954.775961",
+      "currency": "XAH",
+      "value": "0.587351",
+    },
+    {
+      "account": "rN7XCq12KBvBLKad3wWsVUwmb3dNx1fx3e",
+      "after": "1316629.233712",
+      "currency": "XAH",
+      "value": "0.587351",
+    },
+    {
+      "account": "ra7MQw7YoMjUw6thxmSGE6jpAEY3LTHxev",
+      "after": "9621063.489042",
+      "currency": "XAH",
+      "value": "0.587351",
+    },
+    {
+      "account": "rfMB6RCNdWSB6TJXYwCEU5HvDC2eArJp8h",
+      "after": "14317546.887343",
+      "currency": "XAH",
+      "value": "0.587351",
+    },
+    {
+      "account": "r4FRPZbLnyuVeGiSi1Ap6uaaPvPXYZh1XN",
+      "after": "10917430.882295",
+      "currency": "XAH",
+      "value": "0.587351",
+    },
+    {
+      "account": "rHsh4MNWJKXN2YGtSf95aEzFYzMqwGiBve",
+      "after": "1102854.912496",
+      "currency": "XAH",
+      "value": "0.587351",
+    },
+    {
+      "account": "r4FF5jjJMS2XqWDyTYStWrgARsj3FjaJ2J",
+      "after": "2324679.942733",
+      "currency": "XAH",
+      "value": "0.587351",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rDitc4S7Y1GF2yzM4S2dayA4jYuK6YewSz",
+      "change": "modified",
+      "index": "20ACB6B72609FD9E28B6CD76702C139BA8E2DB8764A124399E840B4D9F47F92E",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv",
+      "change": "modified",
+      "index": "227791D4667E09F9E546791DC8FA2A80C850ECD7997686B1B54E30006E299A20",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rN7XCq12KBvBLKad3wWsVUwmb3dNx1fx3e",
+      "change": "modified",
+      "index": "271591B2268E50B1F03705FA476AB2D671A0DE6FF49934C77684C643FF2EF631",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+      "change": "modified",
+      "index": "2B6AC232AA4C4BE41BF49D2459FA4A0347E1B543A4C92FCEE0821C0201E2E9A8",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "ra7MQw7YoMjUw6thxmSGE6jpAEY3LTHxev",
+      "change": "modified",
+      "index": "36E78FF5F3A78D9B85468D77EA08EF21BC539A9438E071CD802A80C8F816B87A",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rfMB6RCNdWSB6TJXYwCEU5HvDC2eArJp8h",
+      "change": "modified",
+      "index": "45E5512AB2F99A808ED3C60A9461EC8BDBA54976EA7CC044BE2A8B8C93C03FD8",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "r4FRPZbLnyuVeGiSi1Ap6uaaPvPXYZh1XN",
+      "change": "modified",
+      "index": "7B4566CD6A6B1FDFFB1C33D8F7A186CF17DD191058C18C2F3B6F1237D70800DA",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rHsh4MNWJKXN2YGtSf95aEzFYzMqwGiBve",
+      "change": "modified",
+      "index": "97F932A936C9E4DA98302FB29A9190F8B31BBD0CE57A0E0B973D47AE5936D8B0",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "deleted",
+      "index": "ABAE29C3EB4E24752D99BD6B336A3B7E73CAE23A8D105B06B464D35A4CC1A9F5",
+      "type": "EmittedTxn",
+    },
+    {
+      "change": "deleted",
+      "index": "B4DE823055D00BC12CD78FE1AAF74EE6062195B2629F49A25915A39C64BE1900",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "r4FF5jjJMS2XqWDyTYStWrgARsj3FjaJ2J",
+      "change": "modified",
+      "index": "F5856191065AB52B67C090E67A3824A24B4B07A64177557F3BC7FAC1C6EBCD6B",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xahau Invoke DE1FEAEA69ABF97EA8D95341A6C9B79094746CD8F35C0557583BB986867BB48D 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "raMuVso2TBQQ8rqYJKZimnL3EFZFtv6YNH",
+      "after": "25.994741",
+      "currency": "XAH",
+      "value": "-0.018088",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "0040E073F850CEEF7BE9085144BD72B91E311638D0A9FB773E14B36B36E778D6",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "084F866F7171EAB873F7D69F90C0A1E3F1B1C6CD7B8C5A4226810F435A3C6C26",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "09C01CC19BEB3B693FA584E9192B58099DBC90CD6AF55DE1AF45603A02636B7C",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "0A098B49BFC4D30803E9B4D5249EF8C84AADD87FDD7887A29DBD325286E6E6FA",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "0FCE5AA1971C52C60028ED99923FB91C15104D4709244A916A48EDC0225905C9",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "1033CF763FE7CD0F89FB36E8195105200CE69233168749E11F34EB29C8025615",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "1167B7DA28AD797B293CD2C4708F2F45C1D119BCF0F55E720DB61CCD7CA42670",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "1258E74F5BC1D7727E5FF67B576986C83B7701636FB7568C87B9653A16D6BDC5",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "136EFA7E2661DAF06059598DB4373DED40E06783098AE48086B6884C80D2D191",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "14D00139D527553D47C4A4051F4F01C2E5BBB6A1D2997B05C0367EB1D129C256",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "1A8B25DCD59EE55EAB85BB920140F21D8B7B51CD7F512C0F6117805E756BA918",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "1A95A0FFAEB90EE8215693AD0D43BA6BF9919CC5C7A28A5F51565CA31213C269",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "1FD280AD48213A9B986D86A88015D100AEAEE2416BBE05A5D0027EE32EF2BB44",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "225B4773AD5B1C2D676671F98AC37CF346D45F3C9278EC285A4F48F9AF3E4560",
+      "type": "HookState",
+    },
+    {
+      "change": "deleted",
+      "index": "22F43F59AA0153173CEB7A1828459F43FBA68F1286182356312181FDA7985B2F",
+      "type": "HookState",
+    },
+    {
+      "account": "rsfTBRAbD2bYjVuXhJ2RReQXxR4K5birVW",
+      "change": "deleted",
+      "index": "26EAC58628EC67E7A62B9B1BDBEEA682B85EE07122C91835AA4611E2D0622945",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "286E4B91EC81FBC6BE625D573C22C0B509BC0E2F0B718D29BCE5B7190E7CB2D6",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "2AD12C59BC11834F30B89F107C874E52A647B3F427D027C1ACC38A43A20FA1BC",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "2E66EB7D6295B22CC1114786A8DE4D80BE6EB9AC3EF5DF0D125FE836A7F978DA",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "2EC9AA34BEE196EA414F8D4ECCA3625DC89FDF2A69978B78D059C61737597BE3",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "33AB037E77669E3F51F2D1927AD5D528D5D7C590BA2392E708741F26F6C7D3F0",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "3513B2D2872EAFD871E30F93D172D0C6F875A277828B3FA99A5C1A759E13D33E",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "352AAA688FDFCA14D2F83FFE780339ECFC66589BA5D4B5318276782AADF6CF74",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "45E5D5B914A9FA48F95FD53DBCC0D2E51859F44A05BA55F20C8E5824937002C7",
+      "type": "HookState",
+    },
+    {
+      "change": "created",
+      "index": "4608C876A13994E7EE334A5B5DCA4984453A8DE5D6B3356893E3B5396DF97B60",
+      "type": "HookState",
+    },
+    {
+      "change": "deleted",
+      "index": "4AF658938EF66E1F2209198C0BB791977F874E535075856E3474ABB7F07AECF5",
+      "type": "HookState",
+    },
+    {
+      "account": "rsfTBRAbD2bYjVuXhJ2RReQXxR4K5birVW",
+      "change": "modified",
+      "index": "4BE4458F01975A6D2661C9D3940C9CE8DF26321C53BEF8DDF572A958040BAF99",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "4E88AA3F6D2CE9F9FA7BCEF5376866BEF16A7758F0CD379E80DBA68DC178D73B",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "4FA35A12AC7DD317AC4791F63639E924238E889C7D367F1DD5F88400FA3887AF",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "5294A01FDE3466294AE3C757EB055A3646E693381CB105AC08DEDD8CA800F5FF",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "52CCBEC3138AAC5ACF23EF468FA91ACD0C37D471988B4D344AFBDD64F66B474B",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "553E0BD43F3BAD223FFD24D59A4B67ADFB2F1D9FF7B7F547518AC043B517B6F8",
+      "type": "HookState",
+    },
+    {
+      "account": "rsfTBRAbD2bYjVuXhJ2RReQXxR4K5birVW",
+      "change": "modified",
+      "index": "55A1A15D54AD3E8F9E983FA424AE40F5A28DA283503A177810DC51614688609D",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "56336F3AFB2723199B6C7DDE5F000643BFEA9CBF946F9D1CF8FB6AFDFFD4B081",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "5B938624D402213A7381DD40813370418875A7E996896F68055B1B4281778118",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "5BD804034FDCD627298E59F8A217D5A6E9E461590D8FD0CAAF7D45F55CBD6DD5",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "5DB26C76842295401172432BEA77587CDBAA0604677334DCF071EFE67974179A",
+      "type": "HookState",
+    },
+    {
+      "account": "rsfTBRAbD2bYjVuXhJ2RReQXxR4K5birVW",
+      "change": "modified",
+      "index": "5DCBF776FEA9DE601B2FF603226852D47C1722D68534B4DC0F183D01436BBBAF",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rsfTBRAbD2bYjVuXhJ2RReQXxR4K5birVW",
+      "change": "modified",
+      "index": "603BC3E24A4DB3B9BBBB247AF4801ABA016A545D22A89F08C9789A1807154E2A",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "6C5A9DBB397F6F88D7B20DA39452A22E6C7DFD1A3B3A3299B1087100AFD2C144",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "6E4F59A9A919DDD61113255726B023A87BC51CBF72082986E466B40654163884",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "709D51841E49E453C9B8B2BE2F7B352BBCB4A9CF0B0CC014412AE1D27A9E7877",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "732CFC10E3AFFD7EC9498DF95E1879FFDA1A343C80925ED40A4897ACAB7517FD",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "75A09A59A3C40C56DA3FC364B652DD5478B1075456E473D282FCD5F2296D08BE",
+      "type": "HookState",
+    },
+    {
+      "change": "created",
+      "index": "7BDFDD074F34D14272CD1E25E52DEC1C3BE3E3657BC2B0F3170AA0AAD6A2503C",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "812F1E5BFBEB4ACA5294417C677E24E8C1563F1981369667E6B6F2E3FC385ACC",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "836F8166D3D2BE8EE9F1A142551F76C619B9C9D95D0399F10F1A2DC734AE20A2",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "848BEACA64614E8705F43B8CE9C045DE5A98383656E969074C78F290092AD5C4",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "879739237205C03C8559A699BE46F762CF4EF876B4F554925F9D5D301C0DD7C2",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "8ACDC06B7364515C1133E20AF3486929F7C3B9EAE891742C1A2CB8568FBF3DF8",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "8D0102EAF0EB3A07F7C534DB5ED38FFB769C156BC501ACBFFBC5DF46D151C61B",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "8ED57B96E4D976662C5B13E0B46D7A1CBE72B5C5154E09AD74E19055D14621D1",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "93B4E13EC9034A61C6B236108B974AE74D1971952ED2855C27E8407ED98072F5",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "94A0E72FB596922E0C3DF87B83DC5A9D458E105D0925713D601723A47054DF13",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "996707C68AFD2AEB839C8C4F86EF260B0635E1153275D46576B0F8C7FCFBE33D",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "9AC1904A6631025841D877CC31D59C0BDEA3C5C7D1558B904AAB175BA34A8FA5",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "A05ED5347D15F40BBA223E5CA80C195E464AB32043FE4BC034CD27FA654D644B",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "A20179AA69B4C54EB7400927B0AC60373759BD72ABD8ED1D1D058ADEC2DBB432",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "A271702484F3DB1837C63D01C4A4C4E6C1BF95060D3F68AA81144C33DAA7D04B",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "A95D1E0FCA43111F1EAE1D87897C38C49C934A51E4A33662DACCFF9774DE8CCD",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "ABC02FBFFC11461C6CFC80AB0DE4CC1A66F7C6134708EC88A84B29470FBC9A96",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "BF6ECF8D593B93264668D5E61BA4E7AD4653FC7C113D30F92088B665B56AAD94",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "C27D3788A7F215D7A118006511BD70435335C6D5B65D942CC582BFB5BCF5C0EF",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "C55A5640DCD45A838B1B1157B2931BFB03009B74073301D2607D35B4C868A582",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "CA0ABB894E7280629EEA5C2E2C700D63C6175D69F49D65A094375FF906FFE125",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "D2F868CB3A16C45D4798F2995ACEB3E5BEE09EA644C63ACA058892FFEE86B730",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "D314BF556C6C79BB8DD167B1078C3B06E8E577A1455847CEFB0F1FC8AD74DC6F",
+      "type": "HookState",
+    },
+    {
+      "account": "rsfTBRAbD2bYjVuXhJ2RReQXxR4K5birVW",
+      "change": "modified",
+      "index": "D66DF86E500548A63388FDB5E725DD9FA747E406FFA568A6760C6044B4E26958",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "D6793B9A274DD096A2A8C748047B9916850B52DC293AA07A7CE1C932C6779563",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "D81653201AD231C4EEABF692F8B556D2FB9B82C96C8C28DF4F90A50E5B5BC332",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "DC62F3A3EFC85C00863359E1B5BACCA03CE2A547CCF99C7B8AFF7A02DA4D8149",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "E983C89FA9C0FF13EA7AE37869D3E8588DF77CC61DD51F5DB89021DD12F05512",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "EABF97E9AE868D04938E0E40705CDF1784062112C2A3F27B6B8303C33CF67E74",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "ECB6E5B87730D0382E81F292C7926AE7DB8358E60936B2ACFAF9BDE4F7BC1C76",
+      "type": "HookState",
+    },
+    {
+      "account": "raMuVso2TBQQ8rqYJKZimnL3EFZFtv6YNH",
+      "change": "modified",
+      "index": "F92EA1E85EBEE1508E41D1745DBABCDECF467F360205C7AFA6E64BCD92DA27B6",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "FA90F3E3757E3226B58647E10C3D3D15A516F0916018242C4ABC10D08964095A",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "FBC4CF4D53ACD062FA1138DF3124D8553D4C315DC97E975902328BD1E566A877",
+      "type": "HookState",
+    },
+    {
+      "change": "modified",
+      "index": "FE0DB53F44016CA7F3851682B19E84CDF3BD12B06D378686AEFCD222C2CBBB1C",
+      "type": "HookState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xahau Remit 8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "after": "213.756058",
+      "currency": "RVN",
+      "issuer": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+      "value": "-0.011506",
+    },
+    {
+      "account": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "after": "211.420714",
+      "currency": "EVR",
+      "issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "value": "-0.01138",
+    },
+    {
+      "account": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "after": "13460.386612",
+      "currency": "XAH",
+      "value": "-0.121697",
+    },
+    {
+      "account": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "after": "3096.8982",
+      "currency": "XXX",
+      "issuer": "rxxxx9gmp1DSJ8bE4Gya48VtRdPPz7mHF",
+      "value": "-0.16672",
+    },
+    {
+      "account": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+      "after": "-213.756058",
+      "currency": "RVN",
+      "issuer": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "value": "0.011506",
+    },
+    {
+      "account": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+      "after": "-0.161679",
+      "currency": "RVN",
+      "issuer": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "value": "-0.011506",
+    },
+    {
+      "account": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "after": "81.146444",
+      "currency": "XAH",
+      "value": "0.116634",
+    },
+    {
+      "account": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "after": "1.249597",
+      "currency": "XXX",
+      "issuer": "rxxxx9gmp1DSJ8bE4Gya48VtRdPPz7mHF",
+      "value": "0.16672",
+    },
+    {
+      "account": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "after": "0.161679",
+      "currency": "RVN",
+      "issuer": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+      "value": "0.011506",
+    },
+    {
+      "account": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "after": "0.159912",
+      "currency": "EVR",
+      "issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "value": "0.01138",
+    },
+    {
+      "account": "rxxxx9gmp1DSJ8bE4Gya48VtRdPPz7mHF",
+      "after": "-1.249597",
+      "currency": "XXX",
+      "issuer": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "value": "-0.16672",
+    },
+    {
+      "account": "rxxxx9gmp1DSJ8bE4Gya48VtRdPPz7mHF",
+      "after": "-3096.8982",
+      "currency": "XXX",
+      "issuer": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "value": "0.16672",
+    },
+    {
+      "account": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "after": "-211.420714",
+      "currency": "EVR",
+      "issuer": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "value": "0.01138",
+    },
+    {
+      "account": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "after": "-0.159912",
+      "currency": "EVR",
+      "issuer": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "value": "-0.01138",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "0D4EB34F47D91BB4A589D7E0D1A084BBC16071C25D579B15CC1580638CA62A69",
+      "type": "RippleState",
+    },
+    {
+      "account": "rE8CnkPE7KY3MFurBUSEZdm8aFrehqUsWy",
+      "change": "modified",
+      "index": "2B713AA92F6F89DEE978352AA9A4FB1D9BDB792A132DB5CC6C54D81B1DF18731",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "31B04CD4C3FAE8D1CBA8974A7B9E12ADF97A84178A092A817D1CCDC2D7FE5F1F",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "4C0136C3962F771AB05BF8985B8CB0724F809EECC76AB99D1DFA45F716EA06A9",
+      "type": "RippleState",
+    },
+    {
+      "change": "deleted",
+      "index": "4C154A0A0757FED833E224ED2C2C282CBDA5C91865DA3F6DC54A42CF6F6C01F0",
+      "type": "HookState",
+    },
+    {
+      "account": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "change": "modified",
+      "index": "742C018E63E53D81E6094E97FE39E4A352570CA4E412687596032E84C9888BD7",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "86A408B27945B793245A48699D239E5AF8365817DB321218B58ECE549C920C04",
+      "type": "RippleState",
+    },
+    {
+      "account": "rDripFkNyrKz7XUEWKCa18aTeGQ9mi7afj",
+      "change": "modified",
+      "index": "89917B34ADA22D5A6329C7CBDDD4DDA1BF7AF33EE5E9041A40E3F82FFF876427",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "92498DA2130AE7983CCFB3B248C17B18E52E58C63A5656913AF4255AC9D128EC",
+      "type": "RippleState",
+    },
+    {
+      "account": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "change": "modified",
+      "index": "A9659A4E11A4FC227009EBBD9C41768301FC7E8CD7FC7D915107E38802536DB0",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+      "change": "modified",
+      "index": "ABB90CD97A6CCB8FA1530D4C6E8B16B5499F65DFDC2C168F2C691717BD927A44",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "deleted",
+      "index": "AFFA1428E6062DA693B80253E633C3DE7D68F34C2CC57E791E5ED4DB7B9D1695",
+      "type": "EmittedTxn",
+    },
+    {
+      "change": "deleted",
+      "index": "B4DE823055D00BC12CD78FE1AAF74EE6062195B2629F49A25915A39C64BE1900",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rxxxx9gmp1DSJ8bE4Gya48VtRdPPz7mHF",
+      "change": "modified",
+      "index": "CE3625D80B70E30CEF558AFF139F28287912BD5D35F589B0590C6F78C66DF1D0",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "EAC88F785A1E5505224250A682D28D342DB3EC9F54ED6EFF6DF7DBBA4659B5E0",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xahau URITokenBuy FDE327991B2702E7BF849A36487CEA0DE9BB307F5110F1621C9B8EEE6696AC5F 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rDNSWrpCGt6RU7agVsqa1mW7QimVSoyZNN",
+      "after": "193.399657",
+      "currency": "EVR",
+      "issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "value": "-0.01",
+    },
+    {
+      "account": "rDNSWrpCGt6RU7agVsqa1mW7QimVSoyZNN",
+      "after": "551.040917",
+      "currency": "XAH",
+      "value": "-0.000418",
+    },
+    {
+      "account": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "after": "-193.399657",
+      "currency": "EVR",
+      "issuer": "rDNSWrpCGt6RU7agVsqa1mW7QimVSoyZNN",
+      "value": "0.01",
+    },
+    {
+      "account": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "after": "-21.06673578111109",
+      "currency": "EVR",
+      "issuer": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "value": "-0.01",
+    },
+    {
+      "account": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "after": "21.06673578111109",
+      "currency": "EVR",
+      "issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "value": "0.01",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "1197161B406BAC0BDA4872F537480668BF764EAD2917FB7001F6F3FA1E8036E2",
+      "type": "RippleState",
+    },
+    {
+      "account": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "change": "modified",
+      "index": "1834302E2414FB2AB99047ABA3C198C3DAE100A66F18CA969FBCCF65B260C835",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "change": "modified",
+      "index": "A9659A4E11A4FC227009EBBD9C41768301FC7E8CD7FC7D915107E38802536DB0",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rDNSWrpCGt6RU7agVsqa1mW7QimVSoyZNN",
+      "change": "modified",
+      "index": "B61BCD9C96E00A9DA261E6AFD9F87B655B21EA27AB5E42454BCD2B1992898201",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "change": "modified",
+      "index": "BB5F4BF6D332CE1A9D1314179173DD6BA9DDC1E0929FED7ECA348DCC46A022BE",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "EE3EDD8256495FB4B33611ADD0110772B2DE67A3657B56551F558FDFB98BF1B3",
+      "type": "RippleState",
+    },
+    {
+      "account": "rDNSWrpCGt6RU7agVsqa1mW7QimVSoyZNN",
+      "change": "modified",
+      "index": "F84062E34601C92FB68BBBD4FCD7698E0623DED13ECBD1BA913FF6400D5CEE02",
+      "type": "URIToken",
+    },
+    {
+      "account": "rDNSWrpCGt6RU7agVsqa1mW7QimVSoyZNN",
+      "change": "modified",
+      "index": "FF1C4CE9F763CAFB4380B716B4E8429BB9F51E4BF0CB107890453A82E8E3CAF6",
+      "type": "DirectoryNode",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xahau URITokenMint 2EC9B35DA9FABDA4E375EBB158F7454E864FF24DDE4BD597F1EF6C04BC4EF4C3 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "after": "18.929085",
+      "currency": "XAH",
+      "value": "-0.00001",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "change": "modified",
+      "index": "1834302E2414FB2AB99047ABA3C198C3DAE100A66F18CA969FBCCF65B260C835",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "change": "created",
+      "index": "1EC0D61549D75614843FBA0DA241065008D1411AB2801D525108CA1EEFB51270",
+      "type": "URIToken",
+    },
+    {
+      "account": "rLAWSrTFULUzy98WfwrKiuPb84nqmVESHw",
+      "change": "modified",
+      "index": "BB5F4BF6D332CE1A9D1314179173DD6BA9DDC1E0929FED7ECA348DCC46A022BE",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl AMMCreate 6F152B6ED9514109B5CA4DA5A1050A5C57237BA413A12E46A7CC6E1F8FBCE977 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "after": "237.105032",
+      "currency": "XRP",
+      "value": "-0.2",
+    },
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "after": "0.31177293952",
+      "currency": "XRV",
+      "issuer": "rfozJfYGi7oSwnvyV6ev7TaC1NPN9sCXqW",
+      "value": "-31176.958222",
+    },
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "after": "1227158.931451438",
+      "currency": "PLX",
+      "issuer": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+      "value": "-27452.95114",
+    },
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "after": "29255.76030053546",
+      "currency": "0305EB443064B9E9DCA84E1DCDA1D3174EBDA574",
+      "issuer": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "value": "29255.76030053546",
+    },
+    {
+      "account": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "after": "27452.95114",
+      "currency": "PLX",
+      "issuer": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+      "value": "27452.95114",
+    },
+    {
+      "account": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "after": "31176.958222",
+      "currency": "XRV",
+      "issuer": "rfozJfYGi7oSwnvyV6ev7TaC1NPN9sCXqW",
+      "value": "31176.958222",
+    },
+    {
+      "account": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "after": "-29255.76030053546",
+      "currency": "0305EB443064B9E9DCA84E1DCDA1D3174EBDA574",
+      "issuer": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "value": "-29255.76030053546",
+    },
+    {
+      "account": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+      "after": "-27452.95114",
+      "currency": "PLX",
+      "issuer": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "value": "-27452.95114",
+    },
+    {
+      "account": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+      "after": "-1227158.931451438",
+      "currency": "PLX",
+      "issuer": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "value": "27452.95114",
+    },
+    {
+      "account": "rfozJfYGi7oSwnvyV6ev7TaC1NPN9sCXqW",
+      "after": "-31176.958222",
+      "currency": "XRV",
+      "issuer": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "value": "-31176.958222",
+    },
+    {
+      "account": "rfozJfYGi7oSwnvyV6ev7TaC1NPN9sCXqW",
+      "after": "-0.31177293952",
+      "currency": "XRV",
+      "issuer": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "value": "31176.958222",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "created",
+      "index": "13B0B32ABDBC862E0AC822DB422330C57E506280B5BAB8F1F787E8725E6898CF",
+      "type": "RippleState",
+    },
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "change": "modified",
+      "index": "31682E4DCBC0EC68CDB38C45233607CAE680387DA2A98A69D08FFC85896C9805",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "change": "created",
+      "index": "5289FD0389D4736E57D6FD09A133C5C76AF95BDCF88A70FBE394EED59D2ADA5A",
+      "type": "AMM",
+    },
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "change": "modified",
+      "index": "55BF1357A9240AEDE6932FBAAAF5FAB5C4EC7618FD07BC7E5DDB872B96E20B4B",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "6D556DCB1A3326D35C141D4FFDA0C1DBE246851D95F8777CEFDC6FEFC327DD15",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "7683EFD3DE854719F199349671326B74F116AD33A0E0F75E2BDA815E1D99256D",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "change": "created",
+      "index": "7C062BA7A106D08FDB2C2C7D30617AB2975472D87DBF998990AF928F8EAA8C45",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "created",
+      "index": "82524E5279494DFFFC487C773AB564DC89FDEFC0E8FBC538CC1843B3CACAC72E",
+      "type": "RippleState",
+    },
+    {
+      "account": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "change": "modified",
+      "index": "826472F87BBA14C9AC3218A1C5A15402D72F37DACCB1F1D78B10AD39054DD10E",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "8953D1FCA42D663BE47581DCA61CDCAFD7F4541E4233A7C4344E431421C745B5",
+      "type": "RippleState",
+    },
+    {
+      "account": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "change": "created",
+      "index": "911317C88C1F6C30D7951A5DA7E722931239768A74B3254F33758B0E3EF941C5",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "98214056BC479D2470CA9EA906A0FB4284D5C6A259E1C4F0041D478390595668",
+      "type": "RippleState",
+    },
+    {
+      "change": "created",
+      "index": "B6244292937B575AEBF666EDDD1835952F53C5058082869470E396336D7BBC6F",
+      "type": "RippleState",
+    },
+    {
+      "account": "rfozJfYGi7oSwnvyV6ev7TaC1NPN9sCXqW",
+      "change": "modified",
+      "index": "CFB5E9C63A01D6F3E8A24FCBF5712C768F96BB0841A869746A335100C7AB2BFF",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+      "change": "created",
+      "index": "DE5A1A6BD381EC8EBB1CC47D541F76EC0ACD5F8409FEB3123E5CF0735286B82D",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+      "change": "modified",
+      "index": "FCBE4AE098B4AF7F2316EA2744CB317487EFAEEF92EC12A3B0AC22A54F9C62F9",
+      "type": "DirectoryNode",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl AMMDeposit 83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x",
+      "after": "1589.621713",
+      "currency": "XRP",
+      "value": "-60.295846",
+    },
+    {
+      "account": "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x",
+      "after": "939536.950207",
+      "currency": "03B9D5AED48B20CC0926373FB46775329CFDB52E",
+      "issuer": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+      "value": "151173.8912936",
+    },
+    {
+      "account": "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x",
+      "after": "0.0000016808518",
+      "currency": "XLM",
+      "issuer": "rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y",
+      "value": "-437.0302400914623",
+    },
+    {
+      "account": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+      "after": "151090.758078",
+      "currency": "XRP",
+      "value": "60.295834",
+    },
+    {
+      "account": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+      "after": "-939536.950207",
+      "currency": "03B9D5AED48B20CC0926373FB46775329CFDB52E",
+      "issuer": "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x",
+      "value": "-151173.8912936",
+    },
+    {
+      "account": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+      "after": "1095120.937848475",
+      "currency": "XLM",
+      "issuer": "rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y",
+      "value": "437.030240091",
+    },
+    {
+      "account": "rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y",
+      "after": "-0.0000016808518",
+      "currency": "XLM",
+      "issuer": "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x",
+      "value": "437.0302400914623",
+    },
+    {
+      "account": "rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y",
+      "after": "-1095120.937848475",
+      "currency": "XLM",
+      "issuer": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+      "value": "-437.030240091",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x",
+      "change": "modified",
+      "index": "0C43DDED841EACC4F86D3DA3E0689CC291F3972E964097E88D73919898A50BAA",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+      "change": "modified",
+      "index": "1259C52F7E10AB380FC1240A2757FADD5AB0276BA31E54DA98A40464E04D8D40",
+      "type": "AMM",
+    },
+    {
+      "account": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+      "change": "modified",
+      "index": "2F5BD2C68BC2246CF43F6D16D86DDEEBCF6779A34604ECA05E8605DE41206EA3",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "3642032A99C2FDF1708C82302FE01287B0AEF3050A25B41DD792B143B9103FCE",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "CE83EA13B18A903EB8436D53DB7E622313D31A9BE78FB5D075822B88A8C12890",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "E03D7ED4E5A4A9914B72500B7ABFA1B85879F6460FA32E54F3ED1A542EC40E56",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl AMMWithdraw 4F2B0756C721F7DAE0016F3B7481601377241BE63B8C5A1BD90F4ECA732D8CA8 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "after": "105391.1106873145",
+      "currency": "5852504252000000000000000000000000000000",
+      "issuer": "rfnMuYiECGMAHUkZdDw5K1c7gVdoiqkmJC",
+      "value": "10513.46363006797",
+    },
+    {
+      "account": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "after": "1908609.221859064",
+      "currency": "03D691C79BBF79EC77DA6A06515A6E260F4A30C3",
+      "issuer": "rpyCB3yHAsmYYQz1CN3cYqtZ6FhjTea1Fz",
+      "value": "-336813.392092738",
+    },
+    {
+      "account": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "after": "6.028179",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "after": "15892624.14176326",
+      "currency": "50484E4958000000000000000000000000000000",
+      "issuer": "rDFXbW2ZZCG5WgPtqwNiA2xZokLMm9ivmN",
+      "value": "15892624.14176255",
+    },
+    {
+      "account": "rfnMuYiECGMAHUkZdDw5K1c7gVdoiqkmJC",
+      "after": "-105391.1106873145",
+      "currency": "5852504252000000000000000000000000000000",
+      "issuer": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "value": "-10513.46363006797",
+    },
+    {
+      "account": "rfnMuYiECGMAHUkZdDw5K1c7gVdoiqkmJC",
+      "after": "-59576.2945595458",
+      "currency": "5852504252000000000000000000000000000000",
+      "issuer": "rpyCB3yHAsmYYQz1CN3cYqtZ6FhjTea1Fz",
+      "value": "10513.463630068",
+    },
+    {
+      "account": "rpyCB3yHAsmYYQz1CN3cYqtZ6FhjTea1Fz",
+      "after": "-1908609.221859064",
+      "currency": "03D691C79BBF79EC77DA6A06515A6E260F4A30C3",
+      "issuer": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "value": "336813.392092738",
+    },
+    {
+      "account": "rpyCB3yHAsmYYQz1CN3cYqtZ6FhjTea1Fz",
+      "after": "59576.2945595458",
+      "currency": "5852504252000000000000000000000000000000",
+      "issuer": "rfnMuYiECGMAHUkZdDw5K1c7gVdoiqkmJC",
+      "value": "-10513.463630068",
+    },
+    {
+      "account": "rpyCB3yHAsmYYQz1CN3cYqtZ6FhjTea1Fz",
+      "after": "90058204.46136575",
+      "currency": "50484E4958000000000000000000000000000000",
+      "issuer": "rDFXbW2ZZCG5WgPtqwNiA2xZokLMm9ivmN",
+      "value": "-15892624.14176255",
+    },
+    {
+      "account": "rDFXbW2ZZCG5WgPtqwNiA2xZokLMm9ivmN",
+      "after": "-15892624.14176326",
+      "currency": "50484E4958000000000000000000000000000000",
+      "issuer": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "value": "-15892624.14176255",
+    },
+    {
+      "account": "rDFXbW2ZZCG5WgPtqwNiA2xZokLMm9ivmN",
+      "after": "-90058204.46136575",
+      "currency": "50484E4958000000000000000000000000000000",
+      "issuer": "rpyCB3yHAsmYYQz1CN3cYqtZ6FhjTea1Fz",
+      "value": "15892624.14176255",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "6554A4BE486927B00F225743796B2BFB089EB9F6EB72B06B03C2A8977759F898",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "67D57E552B6E6E3976E134F9E5BE281EDE094A263195A3FE4BE88E14F8D51827",
+      "type": "RippleState",
+    },
+    {
+      "account": "rhsuXNGZesfqeUtVyinrj2HcvVNqVKWUpC",
+      "change": "modified",
+      "index": "A3A7B2033F80660CFE50CA60BD7DBB5A12652C336793ADE7DA0296CBCA25D5EF",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "B56B26AE8CB19CFD994E2B5C9B9558BBE05E6ACA78D16EA30D85F14C3A710080",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "E790E80283B71829E8B1C329C9F0DB9219311EB32F2E511F5437A06585B8904A",
+      "type": "RippleState",
+    },
+    {
+      "account": "rpyCB3yHAsmYYQz1CN3cYqtZ6FhjTea1Fz",
+      "change": "modified",
+      "index": "E953E7874FC615CE3DA87DD28C47B32C6E1FC7D0B19BADD3A65A3E4D272415E2",
+      "type": "AMM",
+    },
+    {
+      "change": "modified",
+      "index": "ED63C19FF71B47F3DE4CBF470B2C43FC8DF0C308FE4744877302EAD0B6E4DB19",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl AccountDelete 8F2DCA944394B29981E24DDD6C46192C404D90F7F5FC4EAB6813B0AFD7751A2D 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC",
+      "after": "0",
+      "currency": "XRP",
+      "value": "-1.32826",
+    },
+    {
+      "account": "rGCxaHPdFpkwZUxv7rCPCU8uLaavTiBqPq",
+      "after": "4.84574",
+      "currency": "XRP",
+      "value": "1.12826",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC",
+      "change": "deleted",
+      "index": "3AC660EC891826BE3C6C42D64370660CB6398F2CAFA9C97B65F6B441423E3BDE",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rGCxaHPdFpkwZUxv7rCPCU8uLaavTiBqPq",
+      "change": "modified",
+      "index": "D52BDE018BA254FDF1D0B0AEF2ED244B1F5A9A9DDC4947032817F50984873473",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl CheckCash A0EE5458F913A115FC3BA022BDC227FBBCE81236DDF4A6B2BEA06BAEFAA8C1CE 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rrsgF9au2zTjsB6HsK8LS9B3aUjDHQKAZ6",
+      "after": "934.957467",
+      "currency": "XRP",
+      "value": "933.622827",
+    },
+    {
+      "account": "r4PboXNDNese3YLhc8tgzzKNhjGeEaxqfc",
+      "after": "34.80008",
+      "currency": "XRP",
+      "value": "-933.622827",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "r4PboXNDNese3YLhc8tgzzKNhjGeEaxqfc",
+      "change": "modified",
+      "index": "18012AC5FE2EF352AA7EC942D78C349C9D889E094699D3C32C7BBDB7949DF6B7",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "r4PboXNDNese3YLhc8tgzzKNhjGeEaxqfc",
+      "change": "modified",
+      "index": "51C728D382195753D214988822021AC0A97D9D4BB13F3D3FAC0A868AF178D741",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rrsgF9au2zTjsB6HsK8LS9B3aUjDHQKAZ6",
+      "change": "modified",
+      "index": "75D6A2783D970056802B180D99C1E7A30079CC60AFA64DD9369C715D2BD8EC35",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rrsgF9au2zTjsB6HsK8LS9B3aUjDHQKAZ6",
+      "change": "modified",
+      "index": "CC9A41CF89E0E7656EB4FF54F263D6CEA2D055BB02B5883643B6C735FD3EC1AF",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "r4PboXNDNese3YLhc8tgzzKNhjGeEaxqfc",
+      "change": "deleted",
+      "index": "DA20D2F849E6CF65E9521201138B61DC3CC73C62CD6AABC805D2FA62D21816F9",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "r4PboXNDNese3YLhc8tgzzKNhjGeEaxqfc",
+      "change": "modified",
+      "index": "E88097467AF36044C2A6D920286D8484FDC455BCCE05971DC94AFA81ED6BCFEB",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "r4PboXNDNese3YLhc8tgzzKNhjGeEaxqfc",
+      "change": "deleted",
+      "index": "F53F1F3FB5630BEAEEA41F42AA110DF4068EBD227EC6C03BDED04DED76111B82",
+      "type": "Check",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl EscrowFinish 92EC1EA8B38B7242F07591AB4BF1AAB5E6B2E3015CE6E15AAAADAC05E6B74046 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rDjzmUuSPJp9Evb2C7Ea8D2eTYyA5eApFP",
+      "after": "4.464655",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "r4FJShwnFTdcJDHacuAtGFd5KLWNbvUJ88",
+      "after": "51.20008",
+      "currency": "XRP",
+      "value": "50",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rDjzmUuSPJp9Evb2C7Ea8D2eTYyA5eApFP",
+      "change": "modified",
+      "index": "26B0D3142F71F6C8C9B06BA1EF6B31586E1C052660597C721E4198F8D6FCD0B2",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5",
+      "change": "modified",
+      "index": "894B38F1C49B85F62FDE432C7FBF79C61E8B0723CC266C312F2737E741506ADC",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5",
+      "change": "deleted",
+      "index": "8993DA09444641A6BDA272A292157A0E8AF79F040AA4E551C48257F493228455",
+      "type": "Escrow",
+    },
+    {
+      "account": "r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5",
+      "change": "modified",
+      "index": "9D0C12FC157FAEEDA93E7C883BD09B0EC8A713CFF5555F62A1316AAC0A38AFA5",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "r4FJShwnFTdcJDHacuAtGFd5KLWNbvUJ88",
+      "change": "modified",
+      "index": "E31B4D7015B81C8E1B39792048EC2D934FC360ABFB23EF694C2391EC38F22C0A",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "r4FJShwnFTdcJDHacuAtGFd5KLWNbvUJ88",
+      "change": "modified",
+      "index": "EC95173796C8A92D8B6630DA50819AA90A4978B71DF1A48A71F1A8279799C0D8",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl NFTokenAcceptOffer 423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "4C6133A4113AD3D9CCA6F8200AF5B12BEEBB4DDDFFFFFFFFFFFFFFFFFFFFFFFF",
+      "type": "NFTokenPage",
+    },
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "deleted",
+      "index": "597C21F489133DB130FA7390B1E705310FD86A70D5EE52B2BF17C0D9ADDE942E",
+      "type": "NFTokenOffer",
+    },
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "modified",
+      "index": "809E09ED4FB2215A5B269C90971D0C71BAA7AB61516A6A15AAA86B5E818EF6A6",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "deleted",
+      "index": "BC85458CD65DBF9C99A2EC6111A6EF13F4F43015C00B2C1357F50B5B2C4B2981",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rfxioGqxazNZt3sbeVSZtziEQBHHJAXXjE",
+      "change": "modified",
+      "index": "C890D98E84ED70B03D0868BC76589A6E91172D53A77191344366AB8CCB568E9E",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "CEAECC5B87EA043BD98E1B4FE8663AC59D5C3518EA73255F47EFC6360655E727",
+      "type": "NFTokenPage",
+    },
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "modified",
+      "index": "D8C884DB4CF2ED1E213978BDCFA55A9ED1713B1DFFD354FC9F77E73DAEAB06F1",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl NFTokenMint 7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "after": "10261.945095",
+      "currency": "XRP",
+      "value": "-0.00002",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "modified",
+      "index": "1EF1F8B48E2F3EB178BC08B0339E6F11369CEECB093DD1052206C15360550083",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "modified",
+      "index": "2FE9B1E610CAA99C847CD948F4744342CD7B96EA85F8A36A0E1DD098B523818D",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "deleted",
+      "index": "33DA039E1B7E57DC6F3A16ED14E0D751232769CF6CB419D771020B3354E220E1",
+      "type": "Ticket",
+    },
+    {
+      "change": "created",
+      "index": "66F28A929DDCAB71C9C3E9CD278C66FCF707622DBAC764820D74A8C7BB564F4E",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "created",
+      "index": "91868651FDD014F2B57230FA2D2046BEA814AB98F5B7C3D9999C6CECC7AE2D17",
+      "type": "NFTokenOffer",
+    },
+    {
+      "change": "modified",
+      "index": "C890D98E84ED70B03D0868BC76589A6E91172D53A77191344366AB8CCB568E9E",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "CEAECC5B87EA043BD98E1B4FE8663AC59D5C3518EA73255FC0672F8D0655E6DE",
+      "type": "NFTokenPage",
+    },
+    {
+      "account": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+      "change": "modified",
+      "index": "D8C884DB4CF2ED1E213978BDCFA55A9ED1713B1DFFD354FC9F77E73DAEAB06F1",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu",
+      "change": "modified",
+      "index": "FDB6BE5C90D9555F21AA6B9FE69BF1724233107D56B609DC367D6D0ACB56A505",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl TicketCreate A6D2AB0623B1874F35E0884BC42A82A18389627317EE1A93E61A4CF0B43E915B 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "after": "92182.676622",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "048F0343E689F6A195A5172C604C6058A30D21D17BC09D7409458E1C3E0150CC",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "06B7C956B03120267D5973A0D37E9EEB84B49208DB1CA2CB9E3BFF015CD88E0A",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "08A3E9B1B0BC027A01941E77756929D0916B6F090A16A60E5DE6BDB934ED8798",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "0BD129035763ED1EAA6773AF4E826BFAF9DFDD4E3B2197DE5659306D60194C98",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "11AA83158D0A49B85005535E93AB0F54408DED9F00D80AA05F2E00C2B61CB0AD",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "1257B37DF6D184FBEAE417D69F64F632F39CB6C037362596DA71CE9B6CE456CB",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "164594BDD9F8D67D993B96C5484AC849CF5E0C13FB2BBC04AED0745E62226B24",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "189A049BC1D91BD08D9F32ACB05C8B4240678C875B2DED98F6C70C556AF67663",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "18A15E41A540BD20668D3603B9CA37FE9E6152AA9E0044EFF124038512EB22E2",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "1C72805DED3F28B63292A9AB2A972DD2A4B4A48794F6679E0E9A67FFDB0380D6",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "21ED177F5BED865FEB65D38356EC0F68EAC6DC2EA7CA6FAC11E1C7D434AACC58",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "2222243BA8D5127E84090DCE5792BBEFDB02ED534529E9F4A2543EE64B201A70",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "22F7017E648B960923C9503C5F632933AEA615BED7ECD9641FB2FEF23819160E",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "29F015B966D91C6537B4215D4D050A50DBF5CCFFCFC98DDFA0D0A252F433C7D8",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "2DF815C9AD7F047EECD7FFC8061771B6BD7727BDF71047C7DBF6CF03A01DBB0A",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "2E23AA04D00B206406D983E69274B9C710D23321DDD0997A1627FB27479E48C4",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "30FF2E3E38B1E7447932A29C323DE1B283D05B339B5CFBD0A69EADB640ACE476",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "326C082D61FF64F62D12B6237FEE8AC1208075AFF7747084A44426D6CE0AD7FB",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "367F2664D20475732EE17FE3D7A32492DBD1DB278D32AF650303D6747ECCBD7E",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "3B37ECCE63E9A2597355ED537C69646ECF5E00650223158EC9427AD1A820F9F4",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "3BE02AEC961C62A13A742AAA1C07C2FC9BD55E30301634D926334BC6E90D5211",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "3FCA258C3EFD05880D04133934EA104AA1B88E0305D34EEACB6C6CB29D61355B",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "40835BF4EC395CC5B9463C20F38629B3E86A20EE908E6B5475F2984CA7111139",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "424A0ADBFC2FB1A9E66CBE3524A0FF8CA893DB293F577B7FF475FE4B6C1C3B09",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "43ABD43D1DEA466C1E284EB153F89890CB66544E1BE136719FCD45567C9965D9",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "46563EDB78C753384FF12B555B74A5E90FBA7ECCD3D2FEC2D2C173DD8B7616D7",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "467AD30023047BF279BB57BE1B7495E79C86CF262DFF8D9D9F3B5ED4819A5993",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "modified",
+      "index": "4824CDE404DFF7651F66274B5F6D842272C504FC16BD38F37B01233D55DA4C3E",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "499E1B14B84EC15C8D55680A139BA33BF36F2A23FD42E976895403ED06361335",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "4D98CC5BD63453BAD88EC5F86306589C0426FA6B00D94C054342BD149AF07C1A",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "4F0941BE3CDC067326E2AA2AC5DA68D501AA745A9848BFC3148F30A49E1A56F0",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "5037F6551F2142B8195D2C9EF854399DB69082384A2FF6B90BAFC11DC243FBE5",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "52BA8A7F11CE907B5E3E7DB910CBFBF6E41DB22EB44F496E4D17A1C0F4C0D45A",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "537208BF27095ACB79BCB3E4C77E7274A9872536154FCF15F5B3F557919630D5",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "53B990D4F8C2A884434A4FC2C1070D3351163B18A2F6580FEF4E6D93B5B1A04F",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "54513F0E8813C5B0E4FAC932E66F6E703ECDE1A798F2DB9E91226351B66D05AE",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "55D9F638A42A1C4402C49D254DCF9598E1AE2842A8CAC2306691B59CC585A462",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "597E862F5B31C49E044FBE28C2707CB827795D7A828F3F6B8AF425E7F8F18AF3",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "5E531AB4F6E89553198A6D49D1321359DF562A5D8D55E541E9365D4663EB846C",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "602EE17DB20D6775D4E83D03B657AEF00B05EA17A1BFAF0223DD017C29D45009",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "621A68B1481D94CE64C6D344101576510929DD9EC0D75C39F4A68CF2F2560F9B",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "6642C9929C01C2D58BCD8840364399ED07CC3DB1485A99C93FE67BB5EC9EE731",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "698661F864D74036E596D86F5F4E6EC0C22CB857C301AF164FDB9F06A8855F43",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "6C586A16AAF48EE025542C167D47BF1AA7BD4E98C7489CE561B624E8CA8B3ABC",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "708EC1746190C921BC6E1056AD470440DC76E6D0D29112FB6C1A2DCC3661FE85",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "74F77779BBD63DD3A988DB7D9F452982BDD7D6C5CD8ED1EFB27A59D818A513A6",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "75742C1944C69A159AA168C6ED519547962483A743BD8D2A70C2E74A3A0F15B6",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "76C5DAA5FCB28FF9F9A224B442B8E630E6417AF91785653EF50B7AECC5C94F7B",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "77F1B5E8F7EAFCE527AE3004480BD7E86EA68699498617F07CBEBD5920BB9DF8",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "784DE07443403AE959C00C0DE47F60499B071B2F8045488108CDB63F002A97F6",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "78521EEF9C9E2C07CB91C372FC96D9C5CBA9461F7E35C1377CE5DC8D34B9C907",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "78A7D078707355F30DDBE98ED7449E1CA87BB6DD87B45681D721EB3A38EF855F",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "78E2A329A5DC46858D137A8C45D077B1864B7C7DC49F311575165718E0D78D61",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "7B297474BA8FFFD7812C7ED2D5E0ECE3C28ABD8238616C0BD73BC0412752868B",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "7B4DD4E75D43E6FD19EFDE256241B29856D85E84DAF0C3F2283C358792D439D2",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "80E478F694D061A9D679B9E0C07D81FB81BEC43B1DACD3CE9EB5CEB6BE50EFA9",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "874B2B167C66338C9EFE1E5D96F3AAD3A3775D3088072A532695599387227E93",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "8C2A164430D0E731F2C3C891470579EAF739DBE3C196F85C407EDA19CFB710D7",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "91529E94008E8A9716BA5BA8E172127F6A7DE3201C71CEE9F901FD769A00BBA7",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "91CF7D5D9675E29EF1CB1DB5071E23A0ADC5DFFE98F54581C2ED4E7833355956",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "93D6C1B4657469446BF79BE6BC03C99964D175BE61D24D3CEFBCB0DBDE0C9F2B",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "945C362984F8C54FBC5B1CF2639B2A56DB07E0F568BE69984A97EB17DF343626",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "95F54E2A746677B916F2796B979D5242AF8EE67F8B34C441FBB7CD7E74631494",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "965B15DE7A0F9FC3B78F37F4DB29BC1FEDAB1178C4689AF0BFE6210C7B146BD1",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "992DB50E8F2A13B5EDC434CCF26FB392C2337F29BD788F00B1F19A8DC5A87E6A",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "994E3DB85BA23AD0502B985F33D4CEED4461C6C0D7DC50B7B2CE643791D323AC",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "99B002A582784B04F99D8CCCA9177AD817D9F977CAEEC675AF0A1DD0FEB15BF1",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "9CC032FBBC71D0B3DBB992CFD7419CC7773204F227E9BD8502C1F5AB1716F1D9",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "A4CCFC285AB13738DE513A0D8F10E5F7346811A18AB9911A351316A9F0F97A88",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "A863C3AD16EBB0B18627F492E9EB194088F760570696122A7FD3BE005AC00236",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "AA9FD0122DCF6F77AD22A3E23C42739485B96BE8AB44ACCD24CFA2705136BA25",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "modified",
+      "index": "AB4F967F07A17B276A162D2BE831BB2B4BB7D28C58A71E2B47040114CE4599AE",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "AE04CEFC51E1458BF4B43B5830983FDA98D766DFEB7C8914117CCDAC04AC7D50",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "AEC283887900D79CFAF6807634E1B62FDA4C6FE38B41C06F1BB3BA39DC55A8A1",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "AF4C3CAB4CB7FAA8B7AD4154ED3B2047909DBB98513176AC7F38F05872BF743F",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "AFEEB6572B686B0D4C51B801B59DBAA4F0F7A465DE65C17F9C64F92CBE19A647",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "B2DBE145DCC448B714B80328B70EBAFE4C8B3F2DAF7FF6E106455B1F82961E32",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "B5784B3378E1520A8A387F467D7C8F73EAC0B9DC6B0E0CB1D8187E647E45C60F",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "B73E1A1EAD32E8C00966D1398829D2C27F09E5716C121AFDD6C539DE26D27267",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "B8B1994403C6FD2C474B1389B09342F84F1D7D83FCB9DC10EB4443DD3B399749",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "BADFF07191FB421D24BA64763768FDEBE85E463DCD4D776722CC9C6B5C37BCBC",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "BCE39EC87830AABE4E900E2858E1D732CF3A3996A93930DB05D87D1353A421AB",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "BE6F7333AC0764D47D9F448FBB6267C29F20EDECB4082691D6451D3D6A455D5F",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "C1A33740F461367B52127557D68E0E636F221E632D1F6E17FEA4FB4DECC314BC",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "C681C81122BA1DE0639CAE12AAF03CEEFFB72EC576F7796B3DC4DC5CBB4B43B6",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "CC0AC680641B6BBDE44A4B1FEB23C0C9511CE6DD8F38591E480FBBB69B6115F1",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "CD2762DE5D27AEF53B3FB6FB75EDA9FAD2C0D43C74021504505D28F3A349874D",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "CDBE0F9FFA561A457C28678859771F569FDA91A1DEC33C65EB04C4A144713791",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "CF84B16ED1794B0586288A7BCB79A465175BE50883B991508303640907BCDDCD",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "D0E578F8E3A18C257E88812C63E18DBD24544F4B4441856B80F05D1A9A70B46C",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "D481A7A1343AED7E561160A6406142FFDC89944AFB33569448FB8AB7AB8A2E36",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "D52344C8ACDFA447A96615D714D4C635D931488F0183CDE2DE15668C09FCB5DD",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "D533C4CD07594861FC4788DB61BF3DCA6013E8051182A4E38D9979548A6E3A81",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "D69F228BD9A56449DB85D3E7EBC3B19021EC444A8DAB51626F6669B48882C1B4",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "D92F06053EF1B5703C80609ED73B5DDA447BDF36402D6C946E9DFB0C864A2BDA",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "E28C75AC054EEB9289A7D41ED92ED816607B1B3AEABDD80101FD746D692F6496",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "E6258DB86F1598F15A2F91592653E3F41747E77868C42C02CF999D1106E73369",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "EB0CA422E571EF072EABC9D2C9CF6226845FA078D861A77CE5EF0027DE7F41EF",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "F02B68F14DB2F0191C09DBA731C08A868F6B01066D78DDDB7AA206B66FEF3619",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "F14CB73BA81CD7D08CDC30D1B5999D01D0DE2ECEE49517069804004AAB49C5A6",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "F45FB0AAEA9162DA4459080CAF66F276D8B455BAA59FE61759030D0BBB21EC27",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "F6D01BCB8B6B2F6B342C072DB97AEA8BDC5C923FA5ECBF4651E31F10015F8C65",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "modified",
+      "index": "F6ED7E4F8D3EAE3D246D421803B101F4C204AA91046C647121563B6F7DFD9310",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "F76174ED20C01176F968BC8AE2E67FF4BDBE9C1569E604FEDAB631CD66480A8B",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "FAB5BA7377A179051500C4AF902C9E60C28EAF5167DCC5499D97076B74F99841",
+      "type": "Ticket",
+    },
+    {
+      "account": "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ",
+      "change": "created",
+      "index": "FC9685C171F9245236A1E6DA34554E69DFC0E4C13490A93AF01E2C2CF49A0652",
+      "type": "Ticket",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm bid 2D66C6FD02977F96126FB352AAD691CA556790DBF71E0CDF3B701E18A49B9427 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h",
+      "after": "3.808902",
+      "currency": "XRP",
+      "value": "-0.0001",
+    },
+    {
+      "account": "r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h",
+      "after": "119.682168303",
+      "currency": "03930D02208264E2E40EC1B0C09E4DB96EE197B1",
+      "issuer": "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am",
+      "value": "-294.354152174",
+    },
+    {
+      "account": "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am",
+      "after": "-119.682168303",
+      "currency": "03930D02208264E2E40EC1B0C09E4DB96EE197B1",
+      "issuer": "r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h",
+      "value": "294.354152174",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h",
+      "change": "modified",
+      "index": "131B81749A6CB363DE837FD50291D0B27BF41541F49BCAE421053F4A471A1DFD",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "A19846CB442A3FCCF9C65B06466840B5583D859B49851EE994FA94D4D3EA9182",
+      "type": "RippleState",
+    },
+    {
+      "account": "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am",
+      "change": "modified",
+      "index": "EF95AD04AF97DF0DD76C5C624F93EF6F5479CDF8F30FAE612F1D434B5D6A914B",
+      "type": "AMM",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm create B9A146300E7755D109BF92B6B51725B8C45BA1CCFB6683C0E01DA679B2FB0675 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "after": "13.799984",
+      "currency": "XRP",
+      "value": "-500.2",
+    },
+    {
+      "account": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "after": "0",
+      "currency": "DVR",
+      "issuer": "rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9",
+      "value": "-1000000",
+    },
+    {
+      "account": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "after": "22360679.77499789",
+      "currency": "036D9072B9D0C769D60E61FCC2E38D12E1C6BD27",
+      "issuer": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "value": "22360679.77499789",
+    },
+    {
+      "account": "rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9",
+      "after": "-1000000",
+      "currency": "DVR",
+      "issuer": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "value": "-1000000",
+    },
+    {
+      "account": "rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9",
+      "after": "0",
+      "currency": "DVR",
+      "issuer": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "value": "1000000",
+    },
+    {
+      "account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "after": "1000000",
+      "currency": "DVR",
+      "issuer": "rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9",
+      "value": "1000000",
+    },
+    {
+      "account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "after": "500",
+      "currency": "XRP",
+      "value": "500",
+    },
+    {
+      "account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "after": "-22360679.77499789",
+      "currency": "036D9072B9D0C769D60E61FCC2E38D12E1C6BD27",
+      "issuer": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "value": "-22360679.77499789",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "1EE4E767547EC613B640AA473B35B9DA8A77191D5CAA05FAE81DA45EB68541E3",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "created",
+      "index": "59B9EEE2156286CE93E8B66C5BA03210B37325AE2884678E456B9709E309E0DC",
+      "type": "RippleState",
+    },
+    {
+      "account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "change": "created",
+      "index": "6D83EA15A7BECC561060C4FF05BD321B2717CB12EAB5ADB033BD85281092BD7E",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "change": "modified",
+      "index": "9F3646823D9A3C1C436EB8563F08561DDCDAF0E7B6A0C2FC24D49806F88E4104",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "change": "created",
+      "index": "B1DB1F7D8C4BD7652504143792DC65193061DD8A3304E7287447FB6C1B479A7C",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "change": "created",
+      "index": "BCCA56CA30C51D02332406E91DB29E8230A29F5CACE689F769BE3F8F8953A9DD",
+      "type": "AMM",
+    },
+    {
+      "account": "rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9",
+      "change": "modified",
+      "index": "D33D676DDCD8747B5A8C213A4FDF313A3F39C681F6939406310A26AB52D59BDF",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "D938DBB8D30310A8E167FEE6D19CF361165194D7424E2D1B104FA5823962164F",
+      "type": "RippleState",
+    },
+    {
+      "account": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "change": "modified",
+      "index": "E2A8B50D00B9B797C97918FC9C7369563F666FDB64732E15E25C633B21067249",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "created",
+      "index": "FAB0FD95B0EEDDE83BD334CDCCB4E2DBD1F9301B40BFC71129A5BFB71E574586",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm deposit_single_asset 94E38B2BCCA96997BCEC32925AEB289D35EC9FD67977995102D91A7E3DD71FEF 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f",
+      "after": "489501.888267",
+      "currency": "03B245BE580EC4F4386A751C084489EC4B514A2F",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "489501.888267",
+    },
+    {
+      "account": "rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f",
+      "after": "1625.156421",
+      "currency": "XRP",
+      "value": "-1010.000012",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "1846230.856091",
+      "currency": "XRP",
+      "value": "1010",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "-489501.888267",
+      "currency": "03B245BE580EC4F4386A751C084489EC4B514A2F",
+      "issuer": "rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f",
+      "value": "-489501.888267",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "160C6649399D6AF625ED94A66812944BDA1D8993445A503F6B5730DECC7D3767",
+      "type": "AMM",
+    },
+    {
+      "account": "rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f",
+      "change": "modified",
+      "index": "37CE13165B7C347B4355E3D67F606C17454E8305EE4ED5EBE29BCD894EC73A23",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "A3066D2D97DCEA062A10AF1DB9896376178A479BD7F5AF3C157C4468B696404F",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "created",
+      "index": "ACC228612B2C9F6485097D16B54C2AD128D8700815904748A451E1A1512A3FAA",
+      "type": "RippleState",
+    },
+    {
+      "account": "rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f",
+      "change": "modified",
+      "index": "FF42FDF4955784EDD6CA76A1150339DE5185B4D00312953F165A6E3393309B7E",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm deposit_two_asset 20254F31198DE60948CB0488464D9D9E55B262486D5C366FD6046374254ADF25 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z",
+      "after": "135.08985",
+      "currency": "XRP",
+      "value": "-82.769316",
+    },
+    {
+      "account": "rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z",
+      "after": "204600.700591",
+      "currency": "03B245BE580EC4F4386A751C084489EC4B514A2F",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "80142.926261",
+    },
+    {
+      "account": "rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z",
+      "after": "0.020336953419",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-108.041216585052",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "-204600.700591",
+      "currency": "03B245BE580EC4F4386A751C084489EC4B514A2F",
+      "issuer": "rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z",
+      "value": "-80142.926261",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "2414787.987373346",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "108.041216585",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "1849945.116674",
+      "currency": "XRP",
+      "value": "82.769304",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-2414787.987373346",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "-108.041216585",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-0.020336953419",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z",
+      "value": "108.041216585052",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "160C6649399D6AF625ED94A66812944BDA1D8993445A503F6B5730DECC7D3767",
+      "type": "AMM",
+    },
+    {
+      "account": "rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z",
+      "change": "modified",
+      "index": "2A39135F2370782B80C367AC44353593B995D07D86841FB9976A79FEBC31B4B0",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "2BA640778BCDF66B472451E310C1FFCEEC157538EA13D847A9FE88883D2EAD56",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27",
+      "type": "RippleState",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "F4DAF66226AFE0DE7A0A221E3379D3DE8289879AB6453BA29942E1625DFC7D07",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm lp_token_transfer 6C6B9070EF68F9BC7777C018DC85596B40C531DBB29FA0E9C49B5964DF75B96B 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rXPMxDRxMM6JLk8AMVh569iap3TtnjaF3",
+      "after": "0",
+      "currency": "03F5BC4D66B44AEAD668A84F094E08C8C13F5EE2",
+      "issuer": "rGuYK1v7kyrKEa86wPN2M9CHpT9LiWFr5m",
+      "value": "-141421356.2373095",
+    },
+    {
+      "account": "rXPMxDRxMM6JLk8AMVh569iap3TtnjaF3",
+      "after": "5508.613363",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rGuYK1v7kyrKEa86wPN2M9CHpT9LiWFr5m",
+      "after": "0",
+      "currency": "03F5BC4D66B44AEAD668A84F094E08C8C13F5EE2",
+      "issuer": "rXPMxDRxMM6JLk8AMVh569iap3TtnjaF3",
+      "value": "141421356.2373095",
+    },
+    {
+      "account": "rGuYK1v7kyrKEa86wPN2M9CHpT9LiWFr5m",
+      "after": "-141421356.2373095",
+      "currency": "03F5BC4D66B44AEAD668A84F094E08C8C13F5EE2",
+      "issuer": "rKqSPjN6okYt7iPk3xzWvuW9oN1Nk7vSUV",
+      "value": "-141421356.2373095",
+    },
+    {
+      "account": "rKqSPjN6okYt7iPk3xzWvuW9oN1Nk7vSUV",
+      "after": "141421356.2373095",
+      "currency": "03F5BC4D66B44AEAD668A84F094E08C8C13F5EE2",
+      "issuer": "rGuYK1v7kyrKEa86wPN2M9CHpT9LiWFr5m",
+      "value": "141421356.2373095",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rGuYK1v7kyrKEa86wPN2M9CHpT9LiWFr5m",
+      "change": "modified",
+      "index": "4B7B140986E36A932399ACF06654E15A4CC166F270D8AB994BC851E6C13835DE",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "deleted",
+      "index": "6A7470D18CE30B07754A778A8F04AC361E415AEF2B9D2CF15526E8544C0B87A5",
+      "type": "RippleState",
+    },
+    {
+      "account": "rXPMxDRxMM6JLk8AMVh569iap3TtnjaF3",
+      "change": "modified",
+      "index": "7D26B66176483A44348FE906AD7768A6692B8E77EE04D885628F41E281302153",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rXPMxDRxMM6JLk8AMVh569iap3TtnjaF3",
+      "change": "modified",
+      "index": "91355793956E99E0DF4A7AB153E6F5B94DB8E8933D44413C601488416D5C543F",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "A80B516B96C966ED53E61036E8A071158A8829E7020F8394BF55D625EF93A68D",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "DD2EA236CE0B27D9B0A932AD6FF9E4C6EC8003C8BD2CE9BE63085BCD85C2D48A",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm offercreate_autobridged_pool_leg F9F304F7B20FA2B1A340C1AB5DD0D6F410A50E80444EE698A47D556BA78E34FC 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [
+    {
+      "in": {
+        "currency": "XRP",
+        "value": "0.766153",
+      },
+      "out": {
+        "currency": "524C555344000000000000000000000000000000",
+        "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+        "value": "1",
+      },
+      "pool": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+    },
+  ],
+  "balanceChanges": [
+    {
+      "account": "rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7",
+      "after": "713",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "1",
+    },
+    {
+      "account": "rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7",
+      "after": "106743.7532445306",
+      "currency": "XAH",
+      "issuer": "rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv",
+      "value": "-75.74716666",
+    },
+    {
+      "account": "rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7",
+      "after": "19.988217",
+      "currency": "XRP",
+      "value": "-0.000021",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "2417281.22921947",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-1",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "1847749.88949",
+      "currency": "XRP",
+      "value": "0.766153",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-2417281.22921947",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "1",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-713",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7",
+      "value": "-1",
+    },
+    {
+      "account": "rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe",
+      "after": "552.650368",
+      "currency": "XRP",
+      "value": "-0.766153",
+    },
+    {
+      "account": "rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe",
+      "after": "452.8593823068838",
+      "currency": "XAH",
+      "issuer": "rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv",
+      "value": "75.7471666599942",
+    },
+    {
+      "account": "rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv",
+      "after": "-106743.7532445306",
+      "currency": "XAH",
+      "issuer": "rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7",
+      "value": "75.74716666",
+    },
+    {
+      "account": "rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv",
+      "after": "-452.8593823068838",
+      "currency": "XAH",
+      "issuer": "rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe",
+      "value": "-75.7471666599942",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe",
+      "change": "modified",
+      "index": "2B75CEFC6CCE4B628DAEC653DC1C22FFF314D219B98D1535E536C9CF8CF1366A",
+      "type": "Offer",
+    },
+    {
+      "change": "modified",
+      "index": "2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "3E9DE3918F7FB5197CE39FF22B228C5E4D4EE282EAF8AD244581CED0DB7C302E",
+      "type": "RippleState",
+    },
+    {
+      "account": "rUfp2CFb3nP1zEqTzXhCkMXrHVnf4ciuwe",
+      "change": "modified",
+      "index": "5AA0B9625A87B80AFA9AB6DE8C43F0C4E18D63C7EF6126D5184B5FF0B0BF4B53",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "61C1E7D141F9061C3F13054FE584FCC02B48991D61D241EC5586B88B3861DBAC",
+      "type": "RippleState",
+    },
+    {
+      "account": "rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7",
+      "change": "modified",
+      "index": "6317A6FA85656CCC381C1B0117F599E9B08144B02E55F3EC3EB57DC1AF0EF4E4",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "8612FF1E992D38D1EEE8D9E921B76A330342EED5A6FD6E0DA8B17012606B7849",
+      "type": "RippleState",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm payment_creates_account 9886513ACD1740029F9ADE0395905F868DE874A50B8E8F7AFD8F918795F6D191 1`] = `
+{
+  "accountsCreated": [
+    "rw3rk5xmeUJdujfYBVZNoTn5fZsLEZmxUJ",
+  ],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rDrtNsGeAoUWa6Hu12yGBPtLRMESRoyS5W",
+      "after": "3130365.252442",
+      "currency": "XRP",
+      "value": "-10.000024",
+    },
+    {
+      "account": "rw3rk5xmeUJdujfYBVZNoTn5fZsLEZmxUJ",
+      "after": "10",
+      "currency": "XRP",
+      "value": "10",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rDrtNsGeAoUWa6Hu12yGBPtLRMESRoyS5W",
+      "change": "modified",
+      "index": "3E3AC93ACC259298C0209FEDFE19BDD3C0DF18C7C949F5C36EBD1DF2B306F5BD",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rw3rk5xmeUJdujfYBVZNoTn5fZsLEZmxUJ",
+      "change": "created",
+      "index": "DFE90EC8BC9CDD8B18DE4560D323BA0E932F2BFE8D713B9047075A869C3B584D",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm payment_pool_and_book 8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [
+    {
+      "in": {
+        "currency": "XRP",
+        "value": "1.015604",
+      },
+      "out": {
+        "currency": "524C555344000000000000000000000000000000",
+        "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+        "value": "1.325962092",
+      },
+      "pool": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+    },
+  ],
+  "balanceChanges": [
+    {
+      "account": "rfi8FjRARhrHfFgtphVNYEoWRzx4MhKGnZ",
+      "after": "264.083753",
+      "currency": "XRP",
+      "value": "-2.290126",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "2417282.053464318",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-1.325962092",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "1847691.034536",
+      "currency": "XRP",
+      "value": "1.015604",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-2417282.053464318",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "1.325962092",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-28.48753051685408",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rKrVTQChbm1761udZt18u9Aq9onJwEyvZw",
+      "value": "1.66403790847914",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-28918.18108153278",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rXPMusrUYj1t1DM2m3n6y1jjdTv3X81ZQ",
+      "value": "-2.99",
+    },
+    {
+      "account": "rKrVTQChbm1761udZt18u9Aq9onJwEyvZw",
+      "after": "28.48753051685408",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-1.66403790847914",
+    },
+    {
+      "account": "rKrVTQChbm1761udZt18u9Aq9onJwEyvZw",
+      "after": "28.049741",
+      "currency": "XRP",
+      "value": "1.27451",
+    },
+    {
+      "account": "rXPMusrUYj1t1DM2m3n6y1jjdTv3X81ZQ",
+      "after": "28918.18108153278",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "2.99",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "373943843DCB1CF0B2FA8F51B98EF1CE4E76E90B8E9230261352894566B9190C",
+      "type": "RippleState",
+    },
+    {
+      "account": "rfi8FjRARhrHfFgtphVNYEoWRzx4MhKGnZ",
+      "change": "modified",
+      "index": "3C7B6EFD33D8C2A2C4296219AFF28E649588563F7843B8E9BC122AA419AD846E",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rKrVTQChbm1761udZt18u9Aq9onJwEyvZw",
+      "change": "modified",
+      "index": "4C5542E3DB67550B8D5DC532A189F1FACAB674280E45686DB6752973C7848F42",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rKrVTQChbm1761udZt18u9Aq9onJwEyvZw",
+      "change": "modified",
+      "index": "57FB83989A2B23C5F57CCF725CB8E5B1B5765170FC1EB28816A3E7F97D8C0A16",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rKrVTQChbm1761udZt18u9Aq9onJwEyvZw",
+      "change": "deleted",
+      "index": "9F0140DC73EB6F954C5064C23EB6010278E6787F45F8815E72AC769CA742D90D",
+      "type": "Offer",
+    },
+    {
+      "change": "deleted",
+      "index": "CFEC8953D22B1B50F20F46ECBCD51990A26BDB71951ED8265A1B35F45702C1E0",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "modified",
+      "index": "E683BD4109B78745C62FD849C1E5F65CBD6BE3C03EB398677EC351E2089DCEEC",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm payment_two_pools 2C9538843C61FE4120577EDCD885C9B4E6AC6694C9DF3603528B81A2D9FC084A 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [
+    {
+      "in": {
+        "currency": "USD",
+        "issuer": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+        "value": "2.04637079847",
+      },
+      "out": {
+        "currency": "XRP",
+        "value": "1.455815",
+      },
+      "pool": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+    },
+    {
+      "in": {
+        "currency": "XRP",
+        "value": "1.455815",
+      },
+      "out": {
+        "currency": "SGB",
+        "issuer": "rctArjqVvTHihekzDeecKo6mkTYTUSBNc",
+        "value": "2213.26267826",
+      },
+      "pool": "rEaErQ5vEbHXThFedUrjz9YFotG5HHcxoW",
+    },
+  ],
+  "balanceChanges": [
+    {
+      "account": "rNEpRusKEXTqTpJiGYNi3xrmDBLnT5BUPC",
+      "after": "2004.618621",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rNEpRusKEXTqTpJiGYNi3xrmDBLnT5BUPC",
+      "after": "0",
+      "currency": "USD",
+      "issuer": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "value": "-2.05046354006267",
+    },
+    {
+      "account": "rNEpRusKEXTqTpJiGYNi3xrmDBLnT5BUPC",
+      "after": "2207.997650434776",
+      "currency": "SGB",
+      "issuer": "rctArjqVvTHihekzDeecKo6mkTYTUSBNc",
+      "value": "2206.642750008961",
+    },
+    {
+      "account": "rEaErQ5vEbHXThFedUrjz9YFotG5HHcxoW",
+      "after": "11924.049685",
+      "currency": "XRP",
+      "value": "1.455815",
+    },
+    {
+      "account": "rEaErQ5vEbHXThFedUrjz9YFotG5HHcxoW",
+      "after": "18182673.34790068",
+      "currency": "SGB",
+      "issuer": "rctArjqVvTHihekzDeecKo6mkTYTUSBNc",
+      "value": "-2213.26267826",
+    },
+    {
+      "account": "rctArjqVvTHihekzDeecKo6mkTYTUSBNc",
+      "after": "-18182673.34790068",
+      "currency": "SGB",
+      "issuer": "rEaErQ5vEbHXThFedUrjz9YFotG5HHcxoW",
+      "value": "2213.26267826",
+    },
+    {
+      "account": "rctArjqVvTHihekzDeecKo6mkTYTUSBNc",
+      "after": "-2207.997650434776",
+      "currency": "SGB",
+      "issuer": "rNEpRusKEXTqTpJiGYNi3xrmDBLnT5BUPC",
+      "value": "-2206.642750008961",
+    },
+    {
+      "account": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "after": "0",
+      "currency": "USD",
+      "issuer": "rNEpRusKEXTqTpJiGYNi3xrmDBLnT5BUPC",
+      "value": "2.05046354006267",
+    },
+    {
+      "account": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "after": "-12051.38995870885",
+      "currency": "USD",
+      "issuer": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "value": "-2.04637079847",
+    },
+    {
+      "account": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "after": "12051.38995870885",
+      "currency": "USD",
+      "issuer": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "value": "2.04637079847",
+    },
+    {
+      "account": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "after": "8612.541227",
+      "currency": "XRP",
+      "value": "-1.455815",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rEaErQ5vEbHXThFedUrjz9YFotG5HHcxoW",
+      "change": "modified",
+      "index": "071F1CD013F73512BE3BF73DD49193AB8F187AE47E5BC20146D7A1EBFD324D31",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "271A1B6B3A233F67D046B8C47524D44ECB4B3BF1921FAA40BE9C0A6D5B0C1EDC",
+      "type": "RippleState",
+    },
+    {
+      "account": "rNEpRusKEXTqTpJiGYNi3xrmDBLnT5BUPC",
+      "change": "modified",
+      "index": "452699BA4C29BA61CFC88FA35CC13923B32C0E3CA9120FE015E7DABF87376505",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "4EB0571048B9E45EF679B011C8765DF843AEF8D99CF5E22436370244A4F3AAA6",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "9AE3CEB5FBC465610CAD1D890BAAD70EB8489A76EE19B6990E7DC0004D7CFD1F",
+      "type": "RippleState",
+    },
+    {
+      "account": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "change": "modified",
+      "index": "A88F25E5AD1D3945FB52291910763E286C55DBE1157E8F19D00F3CA964C6BC45",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "B0AFF0627F27E4734130345F87E73A34EB699BC2846F78D9FF3C9857C41DB3B3",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm swap_iou_iou B9C56D941C726140DCDE385A5045EDF976745F434153EA49908AAE92969B1469 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [
+    {
+      "in": {
+        "currency": "524C555344000000000000000000000000000000",
+        "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+        "value": "22.19651885465",
+      },
+      "out": {
+        "currency": "5553444300000000000000000000000000000000",
+        "issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+        "value": "22.21468168488",
+      },
+      "pool": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+    },
+  ],
+  "balanceChanges": [
+    {
+      "account": "rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6",
+      "after": "22.21468168488",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "value": "22.21468168488",
+    },
+    {
+      "account": "rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6",
+      "after": "301.8697118031817",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-22.1965188546534",
+    },
+    {
+      "account": "rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6",
+      "after": "378.416705",
+      "currency": "XRP",
+      "value": "-0.00001",
+    },
+    {
+      "account": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "after": "-22.21468168488",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6",
+      "value": "-22.21468168488",
+    },
+    {
+      "account": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "after": "-26143.78888602195",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "value": "22.21468168488",
+    },
+    {
+      "account": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "after": "26143.78888602195",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "value": "-22.21468168488",
+    },
+    {
+      "account": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "after": "26106.99384217401",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "22.19651885465",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-26106.99384217401",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "value": "-22.19651885465",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-301.8697118031817",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6",
+      "value": "22.1965188546534",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "06708CFF76E2C5204E757CE32DDE615FCECFA766856440584A31D8D64D0B905F",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "11CA00D630A56C1E35F222DC7882396C0B02EA701CFF40E907E38979B80826B4",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "67333BEBD6626F5A8745E9B17C204C5D84B95CC1DC4B49F329DE1CFFCAC4A83D",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "A92E75B22F28DBE5B8DA92B6365E02506C19727082EAF5E32E321F569131D24B",
+      "type": "RippleState",
+    },
+    {
+      "account": "rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6",
+      "change": "modified",
+      "index": "E7C799A822859C2DC1CA293CB3136B6590628B19F81D5C7BA8752B49BB422E84",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm swap_issuer_transfer_rate CB1B7721CCC2C842B86A178A26BF50160F57CEC9E95291A9C5349071B89C3822 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [
+    {
+      "in": {
+        "currency": "XRP",
+        "value": "54.514846",
+      },
+      "out": {
+        "currency": "USD",
+        "issuer": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+        "value": "83.28354047857",
+      },
+      "pool": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+    },
+  ],
+  "balanceChanges": [
+    {
+      "account": "rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6",
+      "after": "83.11730586683633",
+      "currency": "USD",
+      "issuer": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "value": "83.11730586683633",
+    },
+    {
+      "account": "rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6",
+      "after": "3038.888744",
+      "currency": "XRP",
+      "value": "-54.514856",
+    },
+    {
+      "account": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "after": "-83.11730586683633",
+      "currency": "USD",
+      "issuer": "rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6",
+      "value": "-83.11730586683633",
+    },
+    {
+      "account": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "after": "-12813.56852898324",
+      "currency": "USD",
+      "issuer": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "value": "83.28354047857",
+    },
+    {
+      "account": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "after": "12813.56852898324",
+      "currency": "USD",
+      "issuer": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+      "value": "-83.28354047857",
+    },
+    {
+      "account": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "after": "8403.133358",
+      "currency": "XRP",
+      "value": "54.514846",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "9A6C3769BB8CF0725767B6A272158F3D8FF28954928CEFC249B2FC2C1E34E3FA",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "9AE3CEB5FBC465610CAD1D890BAAD70EB8489A76EE19B6990E7DC0004D7CFD1F",
+      "type": "RippleState",
+    },
+    {
+      "account": "rs9ineLqrCzeAGS1bxsrW8x2n3bRJYAh3Q",
+      "change": "modified",
+      "index": "A88F25E5AD1D3945FB52291910763E286C55DBE1157E8F19D00F3CA964C6BC45",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rapido5rxPmP4YkMZZEeXSHqWefxHEkqv6",
+      "change": "modified",
+      "index": "BFF40FB02870A44349BB5E482CD2A4AA3415C7E72F4D2E9E98129972F26DA9AA",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm swap_offercreate_xrp_iou 5081561D02260B321E16B9C3EF2840D6C5D32E6D62C74DADD7428F40C73D2793 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [
+    {
+      "in": {
+        "currency": "524C555344000000000000000000000000000000",
+        "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+        "value": "543.870850376",
+      },
+      "out": {
+        "currency": "XRP",
+        "value": "417.277515",
+      },
+      "pool": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+    },
+  ],
+  "balanceChanges": [
+    {
+      "account": "rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy",
+      "after": "9138.022931592573",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-543.870850376271",
+    },
+    {
+      "account": "rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy",
+      "after": "422.146315",
+      "currency": "XRP",
+      "value": "417.277505",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-9138.022931592573",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy",
+      "value": "543.870850376271",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-2410615.114125501",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "-543.870850376",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "2410615.114125501",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "543.870850376",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "1852892.822223",
+      "currency": "XRP",
+      "value": "-417.277515",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "29019262CCF152AE40BF82BE1C3AC0B3099C2AC9D0565AEBA1AE3566C6071860",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27",
+      "type": "RippleState",
+    },
+    {
+      "account": "rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy",
+      "change": "modified",
+      "index": "531669DD6F4AC0D563A6D6E5C1D9CE000DAD343E19F870C5F3464C29E7934A07",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm swap_payment_xrp_iou 52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [
+    {
+      "in": {
+        "currency": "XRP",
+        "value": "134",
+      },
+      "out": {
+        "currency": "524C555344000000000000000000000000000000",
+        "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+        "value": "179.448166793",
+      },
+      "pool": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+    },
+  ],
+  "balanceChanges": [
+    {
+      "account": "rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W",
+      "after": "8.978027",
+      "currency": "XRP",
+      "value": "-134.000012",
+    },
+    {
+      "account": "rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W",
+      "after": "1740.571911126321",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "179.448166793",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "2447341.562339902",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-179.448166793",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "1823900.107357",
+      "currency": "XRP",
+      "value": "134",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-2447341.562339902",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "179.448166793",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-1740.571911126321",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W",
+      "value": "-179.448166793",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "change": "modified",
+      "index": "2BCFBCB6565955DC4360705C247A4235D695FBFE197F6E8386E00136F2BB7E27",
+      "type": "RippleState",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W",
+      "change": "modified",
+      "index": "B68045BB6BC216ACEF99F98C8415B0D34C7231DA94C0C12E0DBA08428BB91C73",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "E352F136C7E645C4230D11CD3D900618A9FE5B8EFDF57DD4640BF63BB1BF30E8",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm vote EF35220095FC32B7036D130A460CFB31B80BAF973C0C7F7A9812B0665E33701B 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rthwVkuErKQtat6Sn6X2vAeveCEWfFBnt",
+      "after": "6.693594",
+      "currency": "XRP",
+      "value": "-0.00004",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rthwVkuErKQtat6Sn6X2vAeveCEWfFBnt",
+      "change": "modified",
+      "index": "B948260BB0A9551EC7CAE209AD6AE8313FE74C5ED1839B68F30041F099D7DAF3",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef",
+      "change": "modified",
+      "index": "CA8347EAE6841C0B8F8635F275A83EF106C421DD60D16D151F4E0C791DF08CD3",
+      "type": "AMM",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm withdraw_all_deletes_pool B44F14E085567F8C25DD20456FCAD9B0A289BA2EA2AB3469D6F29E582059F63F 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+      "after": "0.00008512063930883026",
+      "currency": "SNK",
+      "issuer": "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm",
+      "value": "0.0000851206393053295",
+    },
+    {
+      "account": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+      "after": "0",
+      "currency": "03BEE087CAB9A53DE035A3E3F7550EEC26048A1B",
+      "issuer": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "value": "-1.18871683962",
+    },
+    {
+      "account": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+      "after": "13.980905",
+      "currency": "XRP",
+      "value": "0.021962",
+    },
+    {
+      "account": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "after": "0",
+      "currency": "XRP",
+      "value": "-0.021974",
+    },
+    {
+      "account": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "after": "0",
+      "currency": "SNK",
+      "issuer": "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm",
+      "value": "-0.0000851206393053295",
+    },
+    {
+      "account": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "after": "0",
+      "currency": "03BEE087CAB9A53DE035A3E3F7550EEC26048A1B",
+      "issuer": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+      "value": "1.18871683962",
+    },
+    {
+      "account": "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm",
+      "after": "-0.00008512063930883026",
+      "currency": "SNK",
+      "issuer": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+      "value": "-0.0000851206393053295",
+    },
+    {
+      "account": "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm",
+      "after": "0",
+      "currency": "SNK",
+      "issuer": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "value": "0.0000851206393053295",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "change": "deleted",
+      "index": "21A67C69B4058F00659E454E6C6C4E0B5C157B6E11FBE713DFFC5D0EF32764E2",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "21E91FD51B106D63C9803E92FF1A34EB43B9EE56554093455301ECB5A424DC44",
+      "type": "RippleState",
+    },
+    {
+      "account": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "change": "deleted",
+      "index": "26B1E86B5D894C83C00D920B2FB77B7DB2DE5819217B06BF64CE07A551D23BF3",
+      "type": "DirectoryNode",
+    },
+    {
+      "change": "deleted",
+      "index": "4F3F8287F4621F7169AC2FA30DC880F8D4768AC2B08539574C1CD652278F653F",
+      "type": "RippleState",
+    },
+    {
+      "change": "deleted",
+      "index": "5D04ABA538B5C470DB0E9709A0318AEE4FF942817B987E3CD593A24CE8A9716F",
+      "type": "RippleState",
+    },
+    {
+      "account": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+      "change": "modified",
+      "index": "8D40680B9DDA8A9BBDFD756A2D9CEA928C4FEF5804A633BF7BBFF48D1A353ACC",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "A366A9FE856873B25BAF914B7D920F8FAF27DA7D419E8CBD96DF2A372276D02F",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+      "change": "deleted",
+      "index": "AAD231FF1AAF028EF42780B6B0D58D026BC24F7F2CF6A8354530B59396AB3F84",
+      "type": "AMM",
+    },
+    {
+      "account": "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm",
+      "change": "modified",
+      "index": "AD7B5E0275B443448B3A1AA125327C685EBEE10442EF1E85A2AC5AE5FD63DB4E",
+      "type": "DirectoryNode",
+    },
+    {
+      "account": "rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP",
+      "change": "modified",
+      "index": "BD31F48C65C4560A91BCDEE8830FD7DC2C56F5A542566C52A0CD03E0F8C350CE",
+      "type": "DirectoryNode",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm withdraw_single_asset 2D6FF646176D364EAD12395D67CCA6D459E1875F537D035D9B10B7754ACA07A3 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rN6iUvsnjWGvGpWMsTptvDjxXXGBf4Cws2",
+      "after": "591343.534993",
+      "currency": "03B245BE580EC4F4386A751C084489EC4B514A2F",
+      "issuer": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "value": "-24262.103601",
+    },
+    {
+      "account": "rN6iUvsnjWGvGpWMsTptvDjxXXGBf4Cws2",
+      "after": "295.274986",
+      "currency": "XRP",
+      "value": "49.999987",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "-591343.534993",
+      "currency": "03B245BE580EC4F4386A751C084489EC4B514A2F",
+      "issuer": "rN6iUvsnjWGvGpWMsTptvDjxXXGBf4Cws2",
+      "value": "24262.103601",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "after": "1847409.442931",
+      "currency": "XRP",
+      "value": "-49.999999",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "160C6649399D6AF625ED94A66812944BDA1D8993445A503F6B5730DECC7D3767",
+      "type": "AMM",
+    },
+    {
+      "change": "modified",
+      "index": "695EAE394C02AC83FA14DEACD1827EC519D00B231603E57354F685278A76CDA4",
+      "type": "RippleState",
+    },
+    {
+      "account": "rN6iUvsnjWGvGpWMsTptvDjxXXGBf4Cws2",
+      "change": "modified",
+      "index": "83E0D8CDD4FA9EFD85A5A31E8564EC8B700190C80E460883EBD819491005DC2C",
+      "type": "AccountRoot",
+    },
+    {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "change": "modified",
+      "index": "95F777A378AF9428695717149DDE4EC563BE9EB0C9186CCFDED9542240B9B915",
+      "type": "AccountRoot",
+    },
+  ],
+}
+`;
+
+exports[`the recorded transactions, parsed > xrpl-amm withdraw_two_asset 781C5A2707D3A3E9BB00B483A8719345A6ECF0E5532E0CB5FA4016E1D5D6A832 1`] = `
+{
+  "accountsCreated": [],
+  "ammHops": [],
+  "balanceChanges": [
+    {
+      "account": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "after": "1655.65452",
+      "currency": "XRP",
+      "value": "-0.000012",
+    },
+    {
+      "account": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "after": "0.31365486813",
+      "currency": "03F20B853FF03B7648B755D6F942165CCBDA3FCA",
+      "issuer": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "value": "-4.16712896228",
+    },
+    {
+      "account": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "after": "4.348909110165093",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "4.180497018217728",
+    },
+    {
+      "account": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "after": "4.179818391358357",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "value": "4.179818391349",
+    },
+    {
+      "account": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "after": "26108.29939269826",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "value": "-4.17981839135",
+    },
+    {
+      "account": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "after": "-0.31365486813",
+      "currency": "03F20B853FF03B7648B755D6F942165CCBDA3FCA",
+      "issuer": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "value": "4.16712896228",
+    },
+    {
+      "account": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "after": "26112.53828344373",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "value": "-4.18049701822",
+    },
+    {
+      "account": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "after": "-26108.29939269826",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "value": "4.17981839135",
+    },
+    {
+      "account": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "after": "-4.179818391358357",
+      "currency": "5553444300000000000000000000000000000000",
+      "issuer": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "value": "-4.179818391349",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-26112.53828344373",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "value": "4.18049701822",
+    },
+    {
+      "account": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "after": "-4.348909110165093",
+      "currency": "524C555344000000000000000000000000000000",
+      "issuer": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "value": "-4.180497018217728",
+    },
+  ],
+  "objectsTouched": [
+    {
+      "account": "rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV",
+      "change": "modified",
+      "index": "0FA886A9F24FB3EA803B643EEBBEED8CEB8615C19F9CDF1B7D9A4FC802FD2440",
+      "type": "AccountRoot",
+    },
+    {
+      "change": "modified",
+      "index": "11CA00D630A56C1E35F222DC7882396C0B02EA701CFF40E907E38979B80826B4",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "58636D90568C272D1CA2B3B684806DF6952078A546977318468FFCCBAC3B7001",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "67333BEBD6626F5A8745E9B17C204C5D84B95CC1DC4B49F329DE1CFFCAC4A83D",
+      "type": "RippleState",
+    },
+    {
+      "change": "modified",
+      "index": "82565E21CEB6390C5B828FC5CC4BF87D7E9E7970D35FB21CA90270C3DC146A1A",
+      "type": "RippleState",
+    },
+    {
+      "account": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+      "change": "modified",
+      "index": "F3AA3D4A817E8DE170F6CFC5308AB1CF1F7EDDA2BF357BEFE74CA4F7FB6AB9FD",
+      "type": "AMM",
+    },
+    {
+      "change": "modified",
+      "index": "F91EB86CF38EF106E78A8336B8BCED9CC5BBBE14CDE29A83A06F53A01A5D9E8E",
+      "type": "RippleState",
+    },
+  ],
+}
+`;
