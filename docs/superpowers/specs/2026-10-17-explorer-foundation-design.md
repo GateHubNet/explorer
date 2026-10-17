@@ -26,7 +26,7 @@ Sub-projects 2 to 4 only need sub-project 1, so their order is open.
 |---|---|
 | Audience | A public explorer for anyone: polished, fast, safe to expose. |
 | Scope | Five sub-projects as above; this spec covers only the foundation and core lookup. |
-| Stack | Open choice. Chosen: **React Router v7 in framework mode on Cloudflare Workers** (approach A over Astro islands and Hono + server JSX). |
+| Stack | Open choice. Chosen: **React Router in framework mode on Cloudflare Workers** (approach A over Astro islands and Hono + server JSX). Designed as v7; built on **v8**, the current major when planning started (8.4, stable since June 2026). |
 | Rendering | Search engines and link previews matter: pages are rendered on the server. |
 | Hosting | Cloudflare. |
 | Repository | Its own repository, `~/github.com/GateHubNet/x-explorer`, not a package of the data API's workspace. |
@@ -58,7 +58,8 @@ x-explorer/
   app/routes/                     one module per URL: a loader (runs in the Worker) and the page
   app/server/                     Worker-only code, never sent to the browser
     networks.ts                   xrpl | xahau → data API base URL, node JSON-RPC URL, native currency, CTID network id
-    data-api.ts                   typed /v2 client; types generated from api/openapi.yaml; key from the DATA_API_KEY secret
+    data-api.ts                   typed /v2 client; key from the DATA_API_KEY secret
+    api-types.ts                  response types, hand-written from the API reference (openapi.yaml has no response schemas)
     node-rpc.ts                   JSON-RPC client: tx, ledger, account_info, account_objects, server_state (later book_offers, amm_info)
     edge-cache.ts                 Cloudflare Cache API wrapper: cache key and TTL class per response
   app/domain/                     pure code used by server and browser, no I/O
@@ -260,7 +261,7 @@ The product name is a placeholder ("explorer") held in one constant, and the hos
 - **Unit (Vitest)**: `search`, `ctid`, `format`, `results`, `parse/` and `describe/`. The `parse/` and `describe/` tests are snapshot tests over real mainnet transactions in `test/fixtures/tx/`, copied from `data-api-new/packages/shared/test/fixtures/xrpl/recorded`; `test/fixtures/PROVENANCE.md` records the source repository, path and commit of every copied file. A covered type with no recording, Xahau's included, is recorded with `data-api-new`'s `record-fixtures --txs` and copied in the same way. The `parse/` tests also pin where the explorer's balance changes differ from the data API's rows (the fee, at least).
 - **Loaders (`@cloudflare/vitest-pool-workers`)**: run in the Workers runtime against recorded API and node responses in `test/fixtures/http/`. They cover every route's cache class and headers, CTID resolution, the 64-hex disambiguation, the node fallback and each error row of section 10.
 - **End to end (Playwright)**: against `wrangler dev`, by default with the data API and the node replaced by a small fixture server that serves `test/fixtures/http/`. Setting `E2E_DATA_API_URL` and `E2E_NODE_URL` runs the same suite against a running `data-api-new` stack (its docker-compose) or staging. Flows: search to a transaction, ledger previous and next, account tabs and paging, the network switch, theme toggle without a flash, an Open Graph image renders, and an axe accessibility check on every page.
-- **The API description**: `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. `pnpm api:sync` copies it from a local checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates the types with `openapi-typescript`; the commit message names the source commit. CI regenerates the types from the committed copy and fails if they differ, and the end-to-end suite against staging catches drift between the copy and the running API.
+- **The API description**: `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. `pnpm api:sync` copies it from a local checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates the types with `openapi-typescript`; the commit message names the source commit. The document lists paths and parameters but no response schemas, so the generated types check that every path the client calls exists (a compile error otherwise), and the response types are hand-written in `app/server/api-types.ts`. CI regenerates the types from the committed copy and fails if they differ, and the end-to-end suite against staging catches drift in the response bodies.
 
 ## 13. Deployment and rollout
 
