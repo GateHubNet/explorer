@@ -286,7 +286,10 @@ the servers' errors.
 
 **In the end-to-end suite:** `startFixtureServer(port)` (`test/support/fixture-server.ts`, Node only, `port` 0 for any) serves the
 same fixtures at `<url>/xrpl` and `<url>/xahau` (data API) and `<url>/xrpl-node` and `<url>/xahau-node` (JSON-RPC), so the two
-networks differ in URL, and in the Worker's cache keys, even on one origin. It returns `{ url, requests, close() }`.
+networks differ in URL, and in the Worker's cache keys, even on one origin. It returns `{ url, requests, close() }`. A request
+reaches a file only through names made of safe pieces (no `.`/`..`, `/`, `\`, `%`, `?`, `#` in a path segment, a node's subject
+or its other parameters: `isSafePart` in `upstream-core.ts`), and the reader (`fileReader`) takes no path that resolves, or links,
+outside `test/fixtures/http/`; either lock alone stops a request from reading another file.
 
 ## The parsing libraries in the Workers runtime
 

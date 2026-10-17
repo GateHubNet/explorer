@@ -151,19 +151,39 @@ function nodeRest(method: string, params: NodeParams): string {
   return nodeParamsText(rest);
 }
 
-/** The path of the file of a data API request relative to test/fixtures/http/: `xrpl/data-api/ledgers/107721455.json`. */
+/**
+ * Whether a piece of a request (a path segment, a node's subject, a query) may be a piece of a fixture file's path. What a
+ * request says is data from outside: a piece that is `.` or `..`, or holds a separator (`/` or `\`), an escape (`%`, which
+ * a second decoding would turn into either), `?`, `#` or NUL, names no fixture and is never made into a path. No fixture
+ * has such a piece in its name.
+ */
+export function isSafePart(part: string): boolean {
+  return part !== "" && part !== "." && part !== ".." && !/[/\\%?#\0]/.test(part);
+}
+
+/**
+ * The path of the file of a data API request relative to test/fixtures/http/: `xrpl/data-api/ledgers/107721455.json`.
+ * `undefined` for a request that is not under `/v2`, or that has a piece no file name can hold (see `isSafePart`).
+ */
 export function dataApiFile(net: NetworkName, pathname: string, search: string): string | undefined {
   const [version, ...rest] = segmentsOf(pathname);
-  if (version !== "v2" || rest.length === 0) return undefined;
+  if (version !== "v2" || rest.length === 0 || !rest.every(isSafePart)) return undefined;
   const query = canonicalQuery(search);
+  if (query !== "" && !isSafePart(query)) return undefined;
   return `${net}/data-api/${rest.join("/")}${query ? `@${query}` : ""}.json`;
 }
 
-/** The path of the file of a node request: `xrpl/node/account_info/rXXX.json`; `ledger` is named by index. */
-export function nodeFile(net: NetworkName, method: string, params: NodeParams, ledgerIndex?: number): string {
+/**
+ * The path of the file of a node request: `xrpl/node/account_info/rXXX.json`; `ledger` is named by index. `undefined` when
+ * the method, the subject or the other parameters hold a piece no file name can hold (see `isSafePart`).
+ */
+export function nodeFile(net: NetworkName, method: string, params: NodeParams, ledgerIndex?: number): string | undefined {
+  if (!/^[a-z_]+$/.test(method)) return undefined;
   const subject = method === "ledger" && ledgerIndex !== undefined ? String(ledgerIndex) : nodeSubject(method, params);
   const rest = nodeRest(method, params);
+  if (rest !== "" && !isSafePart(rest)) return undefined;
   if (subject === undefined) return `${net}/node/${method}.json`;
+  if (!isSafePart(subject)) return undefined;
   return `${net}/node/${method}/${subject}${rest ? `@${rest}` : ""}.json`;
 }
 

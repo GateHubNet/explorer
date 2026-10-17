@@ -12,27 +12,43 @@
 //
 // Node only: it is not imported from anything that runs in the Workers runtime.
 
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { createServer, type IncomingMessage } from "node:http";
+import { resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createUpstream, type FixtureFiles, type SeenRequest, type UpstreamBases } from "./upstream-core";
 
 const ROOT = new URL("../fixtures/http/", import.meta.url);
 
-/** The fixture files on disk. A path with a `.` or `..` segment is none of ours, whatever a request asked for. */
-const onDisk: FixtureFiles = {
-  async read(path) {
-    if (path.includes("\\") || path.includes("\0") || path.split("/").some((segment) => segment === ".." || segment === ".")) {
-      return undefined;
-    }
-    try {
-      return await readFile(fileURLToPath(new URL(path, ROOT)), "utf8");
-    } catch {
-      return undefined;
-    }
-  },
-};
+/**
+ * The files below `root`. upstream-core.ts only asks for paths made of pieces that are safe in a file name; this is the
+ * second lock, and it does not rely on the first: a path with an escape (`%`), a backslash, `?`, `#` or NUL, or that
+ * resolves outside `root` (a prefix of its name does not make a sibling directory part of it), or whose real file does (a
+ * link), is no fixture.
+ */
+export function fileReader(root: URL): FixtureFiles {
+  const base = resolve(fileURLToPath(root));
+  const inside = base + sep;
+  let realBase: Promise<string> | undefined;
+  return {
+    async read(path) {
+      if (/[\\%?#\0]/.test(path)) return undefined;
+      const target = resolve(base, path);
+      if (!target.startsWith(inside)) return undefined;
+      try {
+        const real = await realpath(target);
+        realBase ??= realpath(base);
+        if (!real.startsWith(`${await realBase}${sep}`)) return undefined;
+        return await readFile(real, "utf8");
+      } catch {
+        return undefined;
+      }
+    },
+  };
+}
+
+const onDisk = fileReader(ROOT);
 
 export interface FixtureServer {
   /** `http://127.0.0.1:<port>`, the origin the base paths above hang from. */

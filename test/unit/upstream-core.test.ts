@@ -6,6 +6,7 @@ import {
   dataApiError,
   dataApiFile,
   dataApiKey,
+  isSafePart,
   nodeError,
   nodeFile,
   nodeKeys,
@@ -56,6 +57,76 @@ describe("keys and file names", () => {
     expect(nodeFile("xahau", "ledger", { ledger_index: 5, transactions: true, expand: true })).toBe("xahau/node/ledger/5@expand=true&transactions=true.json");
     expect(nodeFile("xahau", "ledger", { ledger_hash: HASH }, 5)).toBe("xahau/node/ledger/5.json");
     expect(nodeFile("xrpl", "server_state", {})).toBe("xrpl/node/server_state.json");
+  });
+});
+
+describe("what a request may make of a file path", () => {
+  it("lets a piece through unless it could name another directory or be read as an escape", () => {
+    for (const fine of [HASH, ACCOUNT, "107721455", "descending=true&limit=20&marker=WzEwNzY3MDM2MCw1XQ", "expand=true&transactions=true", "a.b"]) {
+      expect(isSafePart(fine), fine).toBe(true);
+    }
+    for (const bad of ["", ".", "..", "a/b", "../x", "a\\b", "%2e%2e", "%252e", "a%2fb", "a?b", "a#b", "a\0b"]) {
+      expect(isSafePart(bad), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("names no file for a data API path or query that holds such a piece, however it is written", () => {
+    for (const path of [
+      "/v2/%2e%2e/%2e%2e/package",
+      "/v2/%252e%252e/%252e%252e/package",
+      "/v2/accounts/..%2f..%2fpackage",
+      "/v2/accounts/..%5cpackage",
+      "/v2/accounts/..%255cpackage",
+      "/v2/accounts/%00",
+    ]) {
+      expect(dataApiFile("xrpl", path, ""), path).toBeUndefined();
+    }
+    expect(dataApiFile("xrpl", "/v2/ledgers/5", "marker=../../x")).toBeUndefined();
+    // Dots inside a longer name are no dot segment: this is one file name, in the directory it always is in.
+    expect(dataApiFile("xrpl", "/v2/ledgers/5", "marker=%2e%2e")).toBe("xrpl/data-api/ledgers/5@marker=...json");
+  });
+
+  it("names no file for a node method, subject or parameter that holds such a piece", () => {
+    const up = "../../../../../../package";
+    expect(nodeFile("xrpl", "account_info", { account: up })).toBeUndefined();
+    expect(nodeFile("xrpl", "account_info", { account: "%2e%2e/%2e%2e/package" })).toBeUndefined();
+    expect(nodeFile("xrpl", "account_info", { account: "..\\..\\package" })).toBeUndefined();
+    expect(nodeFile("xrpl", "account_objects", { account: ACCOUNT, marker: up })).toBeUndefined();
+    expect(nodeFile("xrpl", "tx", { transaction: up })).toBeUndefined();
+    expect(nodeFile("xrpl", "ledger", { ledger_index: up })).toBeUndefined();
+    expect(nodeFile("xrpl", "../../package", { account: ACCOUNT })).toBeUndefined();
+    expect(nodeFile("xrpl", "Account_Info", { account: ACCOUNT })).toBeUndefined();
+  });
+
+  it("never asks the files for a path that is not made of safe pieces", async () => {
+    const asked: string[] = [];
+    const files: FixtureFiles = { read: async (path) => (asked.push(path), undefined) };
+    const upstream = createUpstream({
+      files,
+      primary: "xrpl",
+      bases: {
+        xrpl: { dataApi: "http://fixtures.test/xrpl", node: "http://fixtures.test/xrpl-node" },
+        xahau: { dataApi: "http://fixtures.test/xahau", node: "http://fixtures.test/xahau-node" },
+      },
+    });
+    const up = "../../../../../../package";
+    for (const path of ["/xrpl/v2/%252e%252e/%252e%252e/package", "/xrpl/v2/accounts/..%255c..%255cpackage", "/xrpl/v2/accounts/%2e%2e%2f%2e%2e%2fpackage"]) {
+      const response = await upstream.handle(new Request(`http://fixtures.test${path}`, { headers: { "X-API-Key": "k" } }));
+      expect(response!.status, path).toBe(404);
+    }
+    for (const [method, params] of [
+      ["account_info", { account: "%2e%2e/%2e%2e/%2e%2e/package" }],
+      ["account_info", { account: up }],
+      ["account_info", { account: "..\\..\\package" }],
+      ["tx", { transaction: up }],
+      ["ledger", { ledger_hash: up }],
+      ["account_objects", { account: ACCOUNT, marker: up }],
+      [up, {}],
+    ] as const) {
+      const response = await upstream.handle(new Request("http://fixtures.test/xrpl-node", { method: "POST", body: JSON.stringify({ method, params: [params] }) }));
+      expect((await jsonOf(response)).result.status, `${method} ${JSON.stringify(params)}`).toBe("error");
+    }
+    expect(asked.filter((path) => path.includes("package") || /[%\\]|\.\./.test(path))).toEqual([]);
   });
 });
 

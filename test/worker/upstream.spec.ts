@@ -199,6 +199,16 @@ describe("mockUpstream", () => {
       expect(other.status).toBe(404);
     });
 
+    it("finds no fixture for a path that is escaped or climbs, and answers as for any other thing that is absent", async () => {
+      mock = mockUpstream("xrpl");
+      for (const path of ["/v2/%252e%252e/%252e%252e/package", "/v2/accounts/..%255c..%255cpackage", "/v2/transactions/%2e%2e%2f%2e%2e%2fpackage"]) {
+        const response = await fetch(`${xrpl.dataApiUrl}${path}`, { headers: { "X-API-Key": "k" } });
+        expect(response.status, path).toBe(404);
+      }
+      const node = await fetch(xrpl.nodeUrl, { method: "POST", body: JSON.stringify({ method: "account_info", params: [{ account: "%2e%2e/%2e%2e/package" }] }) });
+      expect(((await node.json()) as { result: { error: string } }).result.error).toBe("actNotFound");
+    });
+
     it("refuses a request without the API key, as the API does", async () => {
       mock = mockUpstream("xrpl");
       const response = await fetch(`${xrpl.dataApiUrl}/v2/last_validated`);
