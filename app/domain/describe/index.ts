@@ -9,14 +9,30 @@ import { ammHops, balanceChanges } from "../parse";
 import type { Native, TxJson, TxMeta } from "../parse/types";
 import { resultText } from "../results";
 import { accountHandlers } from "./account";
+import { ammHandlers } from "./amm";
+import { checkHandlers } from "./checks";
+import { escrowHandlers } from "./escrow";
 import { account, genericDetails, mergeHandlers, seq, text, withArticle } from "./helpers";
+import { nftHandlers } from "./nft";
 import { offerHandlers } from "./offers";
+import { paychanHandlers } from "./paychan";
 import { paymentHandlers } from "./payment";
 import type { Description, Input, Summary } from "./types";
+import { xahauHandlers } from "./xahau";
 
 export type { Description, Detail, FlowStep, Handler, HandlerMap, Input, Segment, Summary } from "./types";
 
-const HANDLERS = mergeHandlers(paymentHandlers, offerHandlers, accountHandlers);
+const HANDLERS = mergeHandlers(
+  paymentHandlers,
+  offerHandlers,
+  accountHandlers,
+  escrowHandlers,
+  paychanHandlers,
+  checkHandlers,
+  nftHandlers,
+  ammHandlers,
+  xahauHandlers,
+);
 
 /** A type with no handler: "{account} submitted a {Type}." and a table of its fields. */
 function describeUnknown({ tx, native, verb }: Input): Summary {

@@ -1,8 +1,8 @@
 // The small pieces the handlers of `describe/` are built from: segments, amounts, flags, details. Pure.
 
 import BigNumber from "bignumber.js";
-import { dropsToNative, formatUtc } from "../format";
-import type { AmmHop, Native, TxJson } from "../parse/types";
+import { dropsToNative, formatAmount, formatCurrency, formatUtc } from "../format";
+import type { AmmHop, Asset, Native, TxJson } from "../parse/types";
 import type { Detail, FlowAmount, Handler, HandlerMap, Segment } from "./types";
 
 // --- Segments ------------------------------------------------------------------------------------------------------
@@ -14,8 +14,15 @@ export function account(v: unknown): Segment {
   return typeof v === "string" && v !== "" ? { t: "account", v } : text("an unknown account");
 }
 
-/** A swap's pool, named by the pair of currencies it swapped, `<in>/<out>`, as raw codes. */
-export const poolPair = (hop: AmmHop): string => `${hop.in.currency}/${hop.out.currency}`;
+/**
+ * A pool's name, from the currencies of its two assets: `<code>/<code>`, each as `formatCurrency` shows it, so an LP
+ * token or a code that is not text reads well. The one place a pool pair is named.
+ */
+export const pairName = (a: Asset, b: Asset): string =>
+  `${formatCurrency(a.currency)}/${formatCurrency(b.currency)}`;
+
+/** A swap's pool, named by the pair of currencies it swapped: `<in>/<out>`. */
+export const poolPair = (hop: AmmHop): string => pairName(hop.in, hop.out);
 
 export const pool = (hop: AmmHop): Segment => ({ t: "pool", v: hop.pool, pair: poolPair(hop) });
 
@@ -187,6 +194,31 @@ const RIPPLE_EPOCH = 946684800;
 /** A time field of a transaction (`Expiration`, `FinishAfter`, ...), which is in Ripple-epoch seconds, as UTC text. */
 export function rippleTime(raw: unknown): Segment {
   return text(typeof raw === "number" && Number.isFinite(raw) ? formatUtc(raw + RIPPLE_EPOCH) : String(raw));
+}
+
+/** `a`, `a and b`, `a, b and c`: parts of a sentence in a list. */
+export function listOf(items: readonly Part[]): Part[] {
+  return items.map((item, i) => [i === 0 ? "" : i === items.length - 1 ? " and " : ", ", item]);
+}
+
+/** A fee in hundred-thousandths (an NFT's `TransferFee`, an AMM's `TradingFee`) as a percentage: 5000 is `5%`. */
+export function feePercent(raw: unknown): string | undefined {
+  const fee = wholeNumber(raw);
+  return fee === undefined ? undefined : `${new BigNumber(fee).shiftedBy(-3).toFixed()}%`;
+}
+
+/** An amount of LP tokens (`{ currency, issuer, value }`) as `1,500.5 LP tokens`: its currency code says nothing. */
+export function lpTokens(raw: unknown): string | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { value } = raw as Record<string, unknown>;
+  return typeof value === "string" ? `${formatAmount(value)} LP tokens` : undefined;
+}
+
+/** The size of a field of hex, `16 bytes`; undefined for anything that is not hex. */
+export function byteSize(hex: unknown): string | undefined {
+  return typeof hex === "string" && hex.length % 2 === 0 && /^[0-9a-f]*$/i.test(hex)
+    ? plural(hex.length / 2, "byte")
+    : undefined;
 }
 
 /** `1 ticket`, `20 tickets`. */
