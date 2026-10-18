@@ -294,7 +294,7 @@ describe("TransactionPage: the balance changes", () => {
   it("shows the balance after, and the currency of each row", () => {
     renderPage(transaction());
     const rows = within(table()).getAllByRole("row").slice(1);
-    expect(rows.map((row) => cells(row)[1]!.textContent)).toEqual(["XRP", "XRP", "USD", "USD"]);
+    expect(rows.map((row) => cells(row)[1]!.querySelector(".mono")!.textContent)).toEqual(["XRP", "XRP", "USD", "USD"]);
     expect(rows.map((row) => cells(row)[3]!.textContent)).toEqual(["12,480.256114", "1,804,220.553901", "4,401,122.18", "3,860.25"]);
   });
 
@@ -307,10 +307,31 @@ describe("TransactionPage: the balance changes", () => {
     expect(within(cells(rows[0]!)[0]!).getByRole("link").getAttribute("href")).toBe(`/xrpl/account/${ALICE}`);
   });
 
-  it("gives the issuer of an issued currency on hover", () => {
+  it("shows the other side of the trust line of an issued currency in the open, so that two currencies of one code can be told apart", () => {
     renderPage(transaction());
-    const usd = within(table()).getAllByRole("row")[3]!;
-    expect(cells(usd)[1]!.querySelector("[title]")?.getAttribute("title")).toBe(`USD issued by ${USD.issuer}`);
+    const rows = within(table()).getAllByRole("row").slice(1);
+    const usd = cells(rows[3]!)[1]!;
+    expect(usd.textContent).toBe(`USDwith ${shortAddress(USD.issuer)}`);
+    const link = within(usd).getByRole("link");
+    expect(link.getAttribute("href")).toBe(`/xrpl/account/${USD.issuer}`);
+    expect(link.getAttribute("title")).toBe(USD.issuer);
+    // The native currency has none.
+    expect(cells(rows[0]!)[1]!.textContent).toBe("XRP");
+    expect(within(cells(rows[0]!)[1]!).queryByRole("link")).toBeNull();
+  });
+
+  it("says 'with' and not 'issuer': in the issuer's own row the other side of the line is the holder", () => {
+    renderPage(transaction());
+    const rows = within(table()).getAllByRole("row").slice(1);
+    expect(cells(rows[3]!)[1]!.textContent).not.toMatch(/issu/i);
+  });
+
+  it("gives the code of a currency that is shown as text, on hover", () => {
+    const hex = "524C555344000000000000000000000000000000";
+    renderPage(transaction({ changes: [{ account: BOB, currency: hex, issuer: USD.issuer, value: "3", after: "4", role: "destination" }] }));
+    const cell = cells(within(table()).getAllByRole("row")[1]!)[1]!;
+    expect(cell.textContent).toBe(`RLUSDwith ${shortAddress(USD.issuer)}`);
+    expect(cell.querySelector("[title]")?.getAttribute("title")).toBe(hex);
   });
 
   it("says that the sender's native change includes the fee", () => {
@@ -435,6 +456,24 @@ describe("TransactionPage: a transaction shown from the node", () => {
   });
 });
 
+describe("TransactionPage: the order of its cards", () => {
+  // The desktop board puts the raw card in the left column and the margin on the right: a grid does that (pages.css). The page order is
+  // the phone's (TransactionMobile): details, balance changes, what is in the margin, the raw data last.
+  it("is details, balance changes, the margin, the raw data", () => {
+    renderPage(transaction());
+    const grid = document.querySelector(".txgrid")!;
+    expect(grid).not.toBeNull();
+    const names = [...grid.children].map((child) => child.getAttribute("aria-label") ?? child.querySelector("h2")?.textContent);
+    expect(names).toEqual(["Details", "Balance changes", "Context", "Raw transaction data"]);
+    expect([...grid.children].map((child) => child.className.split(" ").find((c) => c.startsWith("txgrid__")))).toEqual([
+      "txgrid__details",
+      "txgrid__balance",
+      "txgrid__aside",
+      "txgrid__raw",
+    ]);
+  });
+});
+
 describe("TransactionPage: the raw data", () => {
   it("is a card you can jump to, with the three tabs Transaction, Metadata and Binary", () => {
     renderPage(transaction());
@@ -442,6 +481,33 @@ describe("TransactionPage: the raw data", () => {
     expect(card).not.toBeNull();
     expect(within(card).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Transaction", "Metadata", "Binary"]);
     expect(within(card).getByRole("tabpanel").textContent).toContain("TransactionType");
+  });
+
+  it("has a heading of its own for the stacked panels to sit under", () => {
+    const html = renderToString(
+      <RouterProviderFor>
+        <TransactionPage network={XRPL} data={transaction()} />
+      </RouterProviderFor>,
+    );
+    const raw = html.slice(html.indexOf('id="raw"'));
+    expect(raw.indexOf("<h2")).toBeGreaterThanOrEqual(0);
+    expect(raw.indexOf("<h2")).toBeLessThan(raw.indexOf("<h3"));
+    expect(raw).toContain(">Raw data</h2>");
+  });
+
+  it("says under Binary when the index has no binary form for this type of transaction", () => {
+    renderPage(transaction({ raw: { tx: "{}", meta: "{}", binary: { state: "unsupported" } } }));
+    fireEvent.click(screen.getByRole("tab", { name: "Binary" }));
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.textContent).toContain("The index has no binary form for this type of transaction.");
+    expect(panel.textContent).not.toMatch(/try again|reload/i);
+    expect(panel.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("tells a page stored for 30 s to be tried again in a minute, not reloaded", () => {
+    renderPage(transaction({ raw: { tx: "{}", meta: "{}", binary: { state: "failed" } } }));
+    fireEvent.click(screen.getByRole("tab", { name: "Binary" }));
+    expect(screen.getByRole("tabpanel").textContent).toBe("The binary form could not be loaded just now. Try again in a minute.");
   });
 
   it("shows the hex of the transaction and of its metadata under Binary", () => {

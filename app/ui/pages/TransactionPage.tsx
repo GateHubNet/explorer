@@ -154,13 +154,22 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
     {
       id: "currency",
       header: "Currency",
-      width: "90px",
+      width: "minmax(130px, 0.8fr)",
       cell: (change) => {
         const shown = formatCurrency(change.currency);
         const code = shown !== change.currency ? change.currency : undefined;
         return (
-          <span className="mono" title={change.issuer ? `${code ?? change.currency} issued by ${change.issuer}` : code}>
-            {shown}
+          <span className="cur">
+            <span className="mono" title={code}>
+              {shown}
+            </span>
+            {/* The other side of the trust line, in the open: two currencies of one code are told apart by it. It is the issuer in a holder's
+                row and the holder in the issuer's own, so it is not called either. */}
+            {change.issuer && (
+              <span className="cur__line">
+                with <AccountLink net={net} address={change.issuer} />
+              </span>
+            )}
           </span>
         );
       },
@@ -228,30 +237,29 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
         {data.flow && <Flow net={net} steps={data.flow} />}
       </Card>
 
-      <div className="cols">
-        <div className="cols__wide stack">
-          <Card title="Details" className="card--tight">
-            <DetailList rows={rows} />
-          </Card>
+      <div className="txgrid">
+        <Card title="Details" className="card--tight txgrid__details">
+          <DetailList rows={rows} />
+        </Card>
 
-          <Card
-            title="Balance changes"
-            flush
-            action={<span className="faint">{`from the transaction metadata · the sender’s ${network.native} change includes the fee`}</span>}
-          >
-            <DataTable
-              label="Balance changes"
-              columns={columns}
-              rows={data.changes}
-              rowKey={(change, index) => `${index}:${change.account}:${change.currency}:${change.issuer ?? ""}`}
-              // The tracks at their least (200 + 90 + 150 + 190), the three gaps and the padding of a row.
-              minWidth={710}
-              empty="No balances changed."
-            />
-          </Card>
-        </div>
+        <Card
+          title="Balance changes"
+          className="txgrid__balance"
+          flush
+          action={<span className="faint">{`from the transaction metadata · the sender’s ${network.native} change includes the fee`}</span>}
+        >
+          <DataTable
+            label="Balance changes"
+            columns={columns}
+            rows={data.changes}
+            rowKey={(change, index) => `${index}:${change.account}:${change.currency}:${change.issuer ?? ""}`}
+            // The tracks at their least (200 + 130 + 150 + 190), the three gaps and the padding of a row.
+            minWidth={750}
+            empty="No balances changed."
+          />
+        </Card>
 
-        <aside aria-label="Context" className="cols__side">
+        <aside aria-label="Context" className="txgrid__aside">
           <Card as="div">
             <div className="result">
               <span className="result__label">Result</span>
@@ -297,11 +305,11 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
             </div>
           </Card>
         </aside>
-      </div>
 
-      <Card id="raw" label="Raw transaction data" flush>
-        <RawTabs label="Raw data" tabs={rawTabs(data.raw)} />
-      </Card>
+        <Card id="raw" label="Raw transaction data" flush className="txgrid__raw">
+          <RawTabs label="Raw data" heading="Raw data" tabs={rawTabs(data.raw)} />
+        </Card>
+      </div>
     </>
   );
 }

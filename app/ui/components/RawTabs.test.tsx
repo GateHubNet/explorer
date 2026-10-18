@@ -119,6 +119,45 @@ describe("RawTabs in the browser", () => {
     expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
   });
 
+  it("leaves Alt, Ctrl and Cmd with the arrows, Home and End to the browser (history, the start of a line)", async () => {
+    render(<RawTabs label="Raw data" tabs={tabs} />);
+    const first = await screen.findByRole("tab", { name: "Transaction" });
+    first.focus();
+    for (const modifier of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      for (const key of ["ArrowLeft", "ArrowRight", "Home", "End"]) {
+        // fireEvent returns false when the handler cancelled the event.
+        expect(fireEvent.keyDown(first, { key, ...modifier }), `${key} with ${Object.keys(modifier)[0]}`).toBe(true);
+        expect(screen.getByRole("tab", { name: "Transaction" }).getAttribute("aria-selected")).toBe("true");
+      }
+    }
+    // Without a modifier the key is the tabs' and is cancelled.
+    expect(fireEvent.keyDown(first, { key: "ArrowRight" })).toBe(false);
+    expect(screen.getByRole("tab", { name: "Metadata" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("makes a panel of a note focusable, as there is nothing in it to focus; a panel of text has the text to focus instead", async () => {
+    const withNote: RawTab[] = [tabs[0]!, { id: "binary", label: "Binary", note: "No binary form." }];
+    render(<RawTabs label="Raw data" tabs={withNote} />);
+    expect(screen.getByRole("tabpanel").getAttribute("tabindex")).toBeNull();
+    fireEvent.click(await screen.findByRole("tab", { name: "Binary" }));
+    expect(screen.getByRole("tabpanel").getAttribute("tabindex")).toBe("0");
+    fireEvent.click(screen.getByRole("tab", { name: "Transaction" }));
+    expect(screen.getByRole("tabpanel").getAttribute("tabindex")).toBeNull();
+  });
+
+  it("has a heading of its own, which the headings of the stacked panels sit under, and which a screen reader keeps once there are tabs", async () => {
+    const stacked = renderToString(<RawTabs label="Raw data" heading="Raw data" tabs={tabs} />);
+    // On the server a visible h2 ahead of the h3s: nothing else says what the three blocks are.
+    expect(stacked.indexOf('<h2 class="rawtabs__title">Raw data</h2>')).toBeGreaterThanOrEqual(0);
+    expect(stacked.indexOf("<h2")).toBeLessThan(stacked.indexOf("<h3"));
+
+    render(<RawTabs label="Raw data" heading="Raw data" tabs={tabs} />);
+    await screen.findByRole("tablist");
+    // With tabs the labels say it (as on the board), and the heading stays for the outline.
+    const heading = screen.getByRole("heading", { level: 2, name: "Raw data" });
+    expect(heading.className).toBe("sr");
+  });
+
   it("shows the note too in the server's markup, under the heading of its tab", () => {
     const html = renderToString(<RawTabs label="Raw data" tabs={[{ id: "binary", label: "Binary", note: "Shown once the transaction is indexed." }]} />);
     expect(html).toContain(">Binary</h3>");

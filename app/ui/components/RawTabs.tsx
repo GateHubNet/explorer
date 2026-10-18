@@ -28,8 +28,11 @@ function Panel({ tab }: { tab: RawTab }) {
  * draws it, has every panel one under the other under a heading of its name: tabs need script to switch, and a page that is
  * stored for a year must not hide two thirds of itself from a browser that never runs it. Once the browser has run the page
  * the panels become a tab list of real buttons (arrow keys, Home and End move) with one panel and a Copy button.
+ *
+ * `heading` is the h2 the panels' headings sit under: shown above the stacked panels, where nothing else says what the three blocks
+ * are, and kept for screen readers (`sr`) once the tabs are there, whose labels say it, as on the board.
  */
-export function RawTabs({ label, tabs }: { label: string; tabs: readonly RawTab[] }) {
+export function RawTabs({ label, heading, tabs }: { label: string; heading?: string; tabs: readonly RawTab[] }) {
   const base = useId();
   // False on the server and on the first client render, so that the markup hydrates as it was printed.
   const [enhanced, setEnhanced] = useState(false);
@@ -42,6 +45,7 @@ export function RawTabs({ label, tabs }: { label: string; tabs: readonly RawTab[
   if (!enhanced) {
     return (
       <div className="rawtabs">
+        {heading && <h2 className="rawtabs__title">{heading}</h2>}
         {tabs.map((tab) => (
           <div key={tab.id} className="rawtabs__section">
             <h3 className="rawtabs__heading">{tab.label}</h3>
@@ -56,6 +60,8 @@ export function RawTabs({ label, tabs }: { label: string; tabs: readonly RawTab[
   if (!current) return null;
 
   function move(event: KeyboardEvent<HTMLButtonElement>, from: number) {
+    // Alt+Left is "back", Cmd+Left the start of a line, Ctrl+Home the top of the page: the browser's, not the tabs'.
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const last = tabs.length - 1;
     const to =
       event.key === "ArrowRight" ? (from === last ? 0 : from + 1) : event.key === "ArrowLeft" ? (from === 0 ? last : from - 1) : event.key === "Home" ? 0 : event.key === "End" ? last : undefined;
@@ -68,6 +74,7 @@ export function RawTabs({ label, tabs }: { label: string; tabs: readonly RawTab[
 
   return (
     <div className="rawtabs">
+      {heading && <h2 className="sr">{heading}</h2>}
       <div className="rawtabs__bar">
         <div role="tablist" aria-label={label} className="rawtabs__list">
           {tabs.map((tab, index) => (
@@ -89,7 +96,8 @@ export function RawTabs({ label, tabs }: { label: string; tabs: readonly RawTab[
         </div>
         {current.text !== undefined && <CopyTextButton getText={() => current.text ?? ""}>Copy</CopyTextButton>}
       </div>
-      <div role="tabpanel" id={panelId} aria-labelledby={tabId(current.id)}>
+      {/* A panel that is only a note has nothing in it to focus, so it takes the focus itself; text is a focusable region of its own. */}
+      <div role="tabpanel" id={panelId} aria-labelledby={tabId(current.id)} tabIndex={current.text === undefined ? 0 : undefined}>
         <Panel tab={current} />
       </div>
     </div>

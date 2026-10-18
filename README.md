@@ -248,9 +248,17 @@ fails if the page's files import them as values).
   in the client (`tx-shape.ts`), so the page code reads what is whole and the node's transaction is the one answer it checks itself
   (`txFromNode`). `neighboursOf` only asks that the ledger's list holds this transaction at its place. An expanded ledger
   (`expand=true`, the ledger page's) still takes a list that is missing for an empty one.
-- **Raw tabs without JavaScript.** All three panels are in the page, one under the other, each under a heading; once the script has
-  run they become a tablist (real buttons, arrow keys, Home and End) with one panel and a Copy button. The server's markup and the
-  first client render are the same, so nothing mismatches.
+- **Raw tabs without JavaScript.** All three panels are in the page, one under the other, each under an h3 and all under a visible
+  h2 "Raw data"; once the script has run they become a tablist (real buttons, arrow keys, Home and End, but not with Alt, Ctrl or
+  Cmd, which stay the browser's) with one panel and a Copy button, and the h2 stays for screen readers (`sr`), as on the board. A
+  panel that is only a note takes the focus itself. The server's markup and the first client render are the same, so nothing
+  mismatches. A block of raw text (`.code`) is focusable and draws its ring inside, as the card around it would clip an outset one.
+- **Layout.** The page's order is the phone's (TransactionMobile): details, balance changes, the margin (result, ledger and
+  neighbours, objects), the raw data last. At 900 px and wider `.txgrid` (pages.css) is a grid whose areas put the raw card in the
+  left column under the balance changes and the margin on the right, as the desktop board does; the columns are `minmax(0, 1fr)`
+  so the balance table, which has a minimum width, scrolls inside its card and never widens the page.
+- **Currencies.** An issued currency shows the other side of its trust line under its code (`with rMxCKb…m5De`): the issuer in a
+  holder's row, the holder in the issuer's own, so it is not called "issuer".
 - **The sender's native change** in Balance changes is the whole change of its balance, fee included (the page says so; the fee has
   a row of its own). A change shows a plus sign in the success colour or a minus sign; the roles (sender, destination, AMM pool)
   are tags beside the account.

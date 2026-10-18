@@ -309,14 +309,51 @@ a.example:hover {
   font-size: 13px;
 }
 
-/* The details and the balance changes, one above the other, in the wide column. It must be allowed to be narrower than its widest
-   content: the balance table has a minimum width of its own and scrolls inside its card, and a column that is as wide as the
-   table pushes the whole page sideways on a phone. */
-.stack {
+/* The page's cards in one grid. The order of the page is the phone's (TransactionMobile): details, balance changes, what is in
+   the margin, the raw data last. On a wide screen the desktop board's: the raw card in the left column under the balance changes,
+   the margin on the right. A column is `minmax(0, 1fr)`: it may be narrower than its widest content, the balance table, which has
+   a minimum width of its own and scrolls inside its card (a column as wide as the table pushes the whole page sideways on a phone). */
+.txgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.txgrid__aside {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .txgrid {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    /* The margin spans every row. The last row is empty and takes what the margin has over, so the cards on its left keep their height. */
+    grid-template-areas:
+      "details aside"
+      "balance aside"
+      "raw aside"
+      ". aside";
+    grid-template-rows: auto auto auto 1fr;
+  }
+
+  .txgrid__details {
+    grid-area: details;
+  }
+
+  .txgrid__balance {
+    grid-area: balance;
+  }
+
+  .txgrid__aside {
+    grid-area: aside;
+  }
+
+  .txgrid__raw {
+    grid-area: raw;
+  }
 }
 
 .summary > .card__body {
@@ -406,6 +443,19 @@ a.example:hover {
   font-size: 11px;
 }
 
+/* A currency, and the other side of its trust line under it. */
+.cur {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 6px;
+}
+
+.cur__line {
+  color: var(--faint);
+  font-size: 12px;
+}
+
 .memo {
   padding: 2px 8px;
   border: 1px solid var(--border);
@@ -483,14 +533,17 @@ a.example:hover {
 }
 
 /* The raw data: stacked sections until the script has run, then a tab list with one panel. */
-.rawtabs__heading {
-  padding: 12px 16px;
-  font-size: 13px;
+.rawtabs__title {
+  padding: 14px 16px;
+  font-size: 15px;
   font-weight: 600;
 }
 
-.rawtabs__section + .rawtabs__section .rawtabs__heading {
+.rawtabs__heading {
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .rawtabs__note {

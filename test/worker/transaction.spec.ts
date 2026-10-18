@@ -449,6 +449,19 @@ describe("a Payment", () => {
     expect(hrefs(html)).toContain("#raw");
   });
 
+  it("is in the order of the phone, the raw data last, under a heading of its own (the desktop's grid is CSS)", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${PAYMENT}`);
+    const at = (needle: string) => html.indexOf(needle);
+    expect(at('aria-labelledby')).toBeGreaterThan(0);
+    const order = [">Details</h2>", ">Balance changes</h2>", 'aria-label="Context"', 'id="raw"'].map(at);
+    expect(order.every((position) => position > 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    const raw = html.slice(at('id="raw"'));
+    expect(raw.indexOf("<h2")).toBeLessThan(raw.indexOf("<h3"));
+    expect(raw).toContain(">Raw data</h2>");
+  });
+
   it("asks for the transaction, its binary form and the transactions of its ledger, side by side, and nothing else", async () => {
     mock = mockUpstream("xrpl");
     // A transaction no other test of the file asks for, so that nothing is in the cache.
@@ -502,12 +515,15 @@ describe("a Payment through an AMM pool", () => {
     const { html } = await page(`/xrpl/tx/${SWAP}`);
     const rows = tableRows(html, "Balance changes");
     const pool = shortAddress("rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3");
+    // An issued currency shows the other side of its trust line under its code: here the issuer, for the pool's holding of it.
+    const issuer = shortAddress("rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De");
     expect(rows.filter((row) => row[0] === `${pool} AMM pool`).map((row) => [row[1], row[2]])).toEqual([
-      ["RLUSD", "−179.448166793"],
+      [`RLUSD with ${issuer}`, "−179.448166793"],
       ["XRP", "+134"],
     ]);
     expect(rows[1]![0]).toBe(`${shortAddress("rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W")} sender`);
     expect(rows[1]!.slice(1)).toEqual(["XRP", "−134.000012", "8.978027"]);
+    expect(hrefs(html)).toContain("/xrpl/account/rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De");
   });
 
   it("is the first of its ledger: no previous, a link to the next", async () => {

@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 
 const read = (name: string) => readFileSync(new URL(`../../app/ui/${name}`, import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const pagesCss = read("pages.css");
+const componentsCss = read("components.css");
+const baseCss = read("base.css");
 const tokensCss = read("tokens.css");
 
 /** The declarations of the rule whose selector is exactly `selector`. */
@@ -97,9 +99,60 @@ describe("the raw tabs", () => {
   });
 });
 
-describe("the wide column", () => {
-  it("may be narrower than the balance table's minimum width, which scrolls inside its card (or a phone scrolls sideways)", () => {
-    expect(rule(pagesCss, ".stack")["min-width"]).toBe("0");
+describe("the raw text blocks", () => {
+  it("are a card's focusable content, whose ring the card would clip: the ring is drawn inside (the ledger page's raw header too)", () => {
+    // The global ring is outset, and `.card` has `overflow: hidden`.
+    expect(rule(baseCss, ":focus-visible")["outline-offset"]).toBe("2px");
+    expect(rule(componentsCss, ".card").overflow).toBe("hidden");
+    const code = rule(componentsCss, ".code:focus-visible");
+    expect(Number.parseFloat(code["outline-offset"]!)).toBeLessThanOrEqual(-2);
+    // It is not turned off: the global outline still applies.
+    expect(code.outline ?? "2px solid").not.toMatch(/none|^0/);
+  });
+});
+
+// --- The layout of the page's cards ---------------------------------------------------------------------------------------------
+
+/** The text of a CSS file without the `@media` blocks that match `query`, and the text inside them. */
+function mediaBlock(css: string, query: string): { inside: string; outside: string } {
+  const at = css.indexOf(`@media ${query}`);
+  if (at < 0) throw new Error(`no @media ${query}`);
+  const open = css.indexOf("{", at);
+  let depth = 0;
+  for (let i = open; i < css.length; i += 1) {
+    if (css[i] === "{") depth += 1;
+    if (css[i] === "}" && --depth === 0) return { inside: css.slice(open + 1, i), outside: css.slice(0, at) + css.slice(i + 1) };
+  }
+  throw new Error("unbalanced braces");
+}
+
+describe("the grid of the transaction page", () => {
+  const { inside, outside } = mediaBlock(pagesCss, "(min-width: 900px)");
+  const areas = [...(/grid-template-areas\s*:\s*([^;]+);/.exec(inside)?.[1] ?? "").matchAll(/"([^"]*)"/g)].map((m) => m[1]!.trim().split(/\s+/));
+
+  it("puts the raw card in the left column under Details and Balance changes, with the margin cards in the right column spanning them all (the desktop board)", () => {
+    expect(areas.length).toBeGreaterThanOrEqual(3);
+    const columnOf = (name: string) => areas.flatMap((row) => row.flatMap((cell, column) => (cell === name ? [column] : [])));
+    for (const name of ["details", "balance", "raw"]) expect(new Set(columnOf(name)), name).toEqual(new Set([0]));
+    expect(new Set(columnOf("aside"))).toEqual(new Set([1]));
+    const rowOf = (name: string) => areas.findIndex((row) => row.includes(name));
+    expect(rowOf("details")).toBeLessThan(rowOf("balance"));
+    expect(rowOf("balance")).toBeLessThan(rowOf("raw"));
+    // The margin spans every row (a row of its own at the end takes what the margin has over, so the cards on the left do not stretch).
+    for (const row of areas) expect(row[1]).toBe("aside");
+    expect(areas.at(-1)![0]).toBe(".");
+    expect(/grid-template-rows\s*:[^;]*1fr/.test(inside)).toBe(true);
+  });
+
+  it("keeps the columns able to shrink below their content (the balance table scrolls inside its card instead of widening the page)", () => {
+    expect(/grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+\d+px/.test(inside)).toBe(true);
+    expect(rule(outside, ".txgrid")["grid-template-columns"]).toBe("minmax(0, 1fr)");
+  });
+
+  it("gives its cards their areas only in that layout: on a phone they follow the order of the page, the raw data last (TransactionMobile)", () => {
+    expect(outside).not.toMatch(/grid-area/);
+    expect(outside).not.toMatch(/grid-template-areas/);
+    for (const name of ["details", "balance", "aside", "raw"]) expect(inside).toContain(`grid-area: ${name}`);
   });
 });
 

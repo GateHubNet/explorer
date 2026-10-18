@@ -802,6 +802,12 @@ a.tabs__item:hover {
   white-space: pre;
 }
 
+/* A block of raw text is focusable (it scrolls), and the card around it clips what is outside its padding box: the global ring, drawn
+   2px outside, would be cut off. Draw it inside. */
+.code:focus-visible {
+  outline-offset: -2px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Not found and errors */
 
