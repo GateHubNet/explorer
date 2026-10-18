@@ -488,8 +488,7 @@ describe("a Payment", () => {
     const { html } = await page(`/xrpl/tx/${PAYMENT}`);
     expect(html).toMatch(/<title>[^<]*Payment[^<]*AACAFC…FD40[^<]*XRPL[^<]*<\/title>/);
     const description = /<meta[^>]*name="description"[^>]*content="([^"]*)"/.exec(html)?.[1];
-    expect(description).toContain("sent 2.306481 XRP");
-    expect(description).toContain("102,186,243");
+    expect(description).toBe("Payment of 2.306481 XRP from rBbW6i…W5jh to rDFDjd…fy48 · XRPL ledger 102,186,243");
     expect(robots(html)).toBeUndefined();
   });
 });

@@ -1,14 +1,13 @@
 import { Outlet, useMatches } from "react-router";
 
 import { forwardCacheClass } from "../server/edge-cache";
-import { publicNetwork, requireNetwork } from "../server/network-route";
+import { publicNetwork, requireNetwork, type NetworkLayoutData } from "../server/network-route";
 import { PRODUCT_NAME } from "../ui/brand";
 import { NetworkCookie } from "../ui/components/NetworkCookie";
 import { Shell } from "../ui/components/Shell";
 import { DEFAULT_NETWORK, findNetwork } from "../ui/networks";
 import { errorMeta, RouteErrorScreen } from "../ui/pages/RouteErrorScreen";
 import { wantsHeroSearch } from "../ui/route-handle";
-import type { NetworkLoaderData } from "../ui/use-network";
 
 import type { Route } from "./+types/net";
 
@@ -17,11 +16,11 @@ export const headers = forwardCacheClass;
 
 /**
  * The layout of `/:net`. Its loader answers for the whole network: an unknown first segment is a 404, a known one gives the
- * child routes `useNetwork()` (the public part of the network; the data API and node URLs stay in the Worker). It names no
- * cache class: that is the page's.
+ * child routes `useNetwork()` (the public part of the network; the data API and node URLs stay in the Worker) and, to their `meta`,
+ * the origin of the request. It names no cache class: that is the page's.
  */
-export function loader({ params, context }: Route.LoaderArgs): NetworkLoaderData {
-  return { network: publicNetwork(requireNetwork(context, params)) };
+export function loader({ request, params, context }: Route.LoaderArgs): NetworkLayoutData {
+  return { network: publicNetwork(requireNetwork(context, params)), origin: new URL(request.url).origin };
 }
 
 export function meta({ error, loaderData, params }: Route.MetaArgs) {

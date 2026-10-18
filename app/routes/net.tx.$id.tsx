@@ -1,11 +1,12 @@
 import { redirect } from "react-router";
 
 import { decodeCtid } from "../domain/ctid";
-import { formatAmount, shortHash } from "../domain/format";
+import { shortHash } from "../domain/format";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
+import { metaContext, transactionMeta } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
 import { networkIdOfCtid, type Network, type NetworkId } from "../server/networks";
 import { resolveCtid } from "../server/resolve";
@@ -159,19 +160,14 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
   return cached(page, "short", { ttl: FROM_NODE_TTL });
 }
 
-export function meta({ loaderData, params }: Route.MetaArgs) {
-  const network = findNetwork(params.net);
-  if (!loaderData || !network) return [];
-  const suffix = `${network.name} · ${PRODUCT_NAME}`;
+export function meta({ loaderData, matches, params }: Route.MetaArgs) {
+  const ctx = metaContext(params.net, matches);
+  if (!loaderData || !ctx) return [];
+  const suffix = `${ctx.network.name} · ${PRODUCT_NAME}`;
 
   switch (loaderData.kind) {
-    case "transaction": {
-      const data: TransactionPageData = loaderData;
-      return [
-        { title: `${data.title} ${shortHash(data.hash)} · ${suffix}` },
-        { name: "description", content: `${data.summary} Transaction ${data.position.index} of ledger ${formatAmount(String(data.ledgerIndex))} on ${network.name}.` },
-      ];
-    }
+    case "transaction":
+      return transactionMeta(loaderData, ctx);
     case "other-network":
       return [{ title: `CTID on ${loaderData.other.name} · ${suffix}` }, { name: "robots", content: "noindex, follow" }];
     default:

@@ -8,6 +8,15 @@ import { isNetworkId, networkOf, type Network, type NetworkId } from "./networks
 /** The facts about a network the browser may have: no data API URL, no node URL. */
 export type PublicNetwork = Omit<Network, "dataApiUrl" | "nodeUrl">;
 
+/**
+ * The loader data of the `/:net` layout: the network, and the origin the request was made to (`https://host`). The tags of the pages
+ * (app/server/meta.ts) name it in their canonical URLs and image URLs; `meta` has no request, so the layout's loader reads it.
+ */
+export interface NetworkLayoutData {
+  network: PublicNetwork;
+  origin: string;
+}
+
 export function publicNetwork(net: Network): PublicNetwork {
   const { dataApiUrl: _dataApiUrl, nodeUrl: _nodeUrl, ...shown } = net;
   return shown;

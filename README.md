@@ -183,7 +183,10 @@ the browser).
   header, footer, search, the network's accent; its loader answers a 404 for an unknown network and gives its children
   `useNetwork()`) with the home page (`routes/net._index.tsx`), the ledger page (`routes/net.ledger.$id.tsx`), the transaction page
   (`routes/net.tx.$id.tsx`), the account page (`routes/net.account.$address.tsx`) and its payments CSV
-  (`routes/net.account.$address.payments[.csv].ts`, a resource route) and search (`routes/net.search.tsx`) under it, and `*` (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
+  (`routes/net.account.$address.payments[.csv].ts`, a resource route) and search (`routes/net.search.tsx`) under it, `/og/:net/:kind/:id.png`
+  (`routes/og.$net.$kind.$id[.png].tsx`, a resource route outside the layout: the link-preview images, see "SEO and link previews"), and `*`
+  (`routes/not-found.tsx`). The layout's loader also gives its children the origin of the request (`NetworkLayoutData`), which the pages' `meta` reads.
+  A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
   network with `requireNetwork(context, params)` and the clients with `clientsFor(context, net)`, names its cache class with
   `cached(...)`, turns upstream failures into responses with `upstreamFailure(err, what)`, and its module exports
   `headers = forwardCacheClass` (see above; `test/unit/route-headers.test.ts` enforces it). A page with its own big search box
@@ -382,6 +385,70 @@ cost a render each.
 `NotFoundPage` is the frame of the help, the 404s and the other-network offer: its `title`, `message`, `children` (the help list),
 `query` and `suggestion` carry what differs.
 
+## SEO and link previews
+
+Spec 9. Every page's `meta` export is a thin call into `app/server/meta.ts`, pure functions over the page data and the origin
+of the request (unit-tested in `app/server/meta.test.ts`; `meta` is part of the route module, so the browser runs them on a
+client-side navigation: that file imports nothing heavy, and `test/unit/og-bundle.test.ts` pins it).
+
+| Page | Tags |
+|---|---|
+| Home `/{net}` | title, a description that does not change (no ledger number in it), canonical, `og:*`, `twitter:card=summary`; **no image** (the card is of a transaction, a ledger or an account) |
+| Transaction | title, description, canonical `/{net}/tx/{HASH}`, `og:title/description/url/type/site_name`, `og:image` + width 1200, height 630, alt, `twitter:card=summary_large_image` + title, description, image, alt |
+| Ledger | the same; the canonical URL and the image name the ledger by its index, whichever of index and hash the page was reached by |
+| Account (first page of a list) | the same; the canonical URL keeps `?tab=` unless it is the first tab, and drops `tag`, `marker` and `back`; the image is the account's whatever the tab |
+| Account with a `marker` | `noindex, follow`, canonical = the first page of its tab, no `og:*` |
+| Search, 404s, never activated, CTID offer | unchanged: `noindex, follow` (search) or `noindex`, no canonical, no `og:*` |
+
+- **Description of a transaction**: `Payment of 1,250.00 USD from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660` for a transaction that
+  moved an amount from one account to another (what the destination got, from the flow of `describe`); for any other (it failed, an
+  offer, a swap, which is a payment to oneself) the sentence of the page without its full stop, then `· XRPL ledger N`. No ages, nothing of
+  the visitor.
+- **Origin.** Canonical, `og:url` and `og:image` are absolute on the origin of the request. `meta` has no request, so the `/:net` layout's
+  loader returns `origin: new URL(request.url).origin` and each `meta` finds it with `metaContext(params.net, matches)`. No variable names the
+  site: the edge cache's key holds the host, so each stored page names its own.
+
+### The image route
+
+`/og/{net}/{tx|ledger|account}/{id}.png` (`routes/og.$net.$kind.$id[.png].tsx`): 1200 × 630, `image/png`, `X-Robots-Tag: noindex`.
+
+| Case | Answer |
+|---|---|
+| net, kind or id not valid (a transaction: 64 hex digits; a ledger: 1 to 10 digits or 64 hex; an account: a classic address with a valid checksum; a CTID, an X-address, `latest`, a missing `.png`) | 404, class `short`, **no upstream call** |
+| a transaction hash or ledger hash in lower case, a ledger index with leading zeros | 302 to the one URL, class `immutable`, no upstream call |
+| a transaction the data API has; a ledger it has that is not the newest | `immutable` (`max-age=31536000, immutable` for the browser) |
+| the newest ledger | `short` (30 s): its page is `live`, and the index may not have all of it yet |
+| an account (data API: creation and balances) | `slow` (1 h, `max-age=300`) |
+| an account whose balances could not be read | drawn without them, `short`: asked again soon |
+| from the node (the API says "not found"; for an account, no creation record) | `short` with a TTL of 60 s, like the page |
+| "not found" at both | 404, class `short` |
+| an upstream failure that leaves the question open (5xx, 429, timeout; `last_validated` for a ledger), or a card the renderer cannot draw | 503 with `Retry-After`, never stored (the entry serves the stored copy, however old, if there is one) |
+
+The data comes through the same clients as the page: `describe` (title, result, sentence, flow) and `headlineAmount` for a transaction
+(`transactionFacts` in `app/server/card-data.ts`; the balance changes, objects touched and raw JSON the page also works out are not),
+`ledgerPage` for a ledger, `activationOf` and the native balance of `/balances` for an account. `card-data.ts` makes plain data of it
+(`CardData`, `app/og/types.ts`), `app/og/card.tsx` lays it out (the `LinkPreview` board: the accent bar, logo and pill of the network, the kind
+and result, the big line, the accounts, the footer) and `app/og/render.ts` draws it with `workers-og` (Satori and resvg-wasm).
+
+- **Fonts.** Geist (400, 500, 600) and Geist Mono (400, 500), bundled, never fetched. Satori reads TTF, not the WOFF2 of the pages, and the
+  Cloudflare Vite plugin turns an imported `.bin` file into an `ArrayBuffer` (and has no rule for `.ttf`), so `app/og/fonts/` holds the
+  `geist` package's TTF files under that extension, with its licence; `test/unit/og-fonts.test.ts` keeps them byte for byte the package's.
+  Refresh them with `cp node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf app/og/fonts/Geist-Regular.bin` (and so on) when `geist` is
+  updated. The board's weight 650 is drawn as 600.
+- **WebAssembly.** `workers-og` imports its two `.wasm` files itself (`import x from "./resvg.wasm"`), which the Cloudflare Vite plugin
+  and the Vitest plugin both turn into compiled modules: no configuration was needed.
+- **Size and loading.** `workers-og` and the fonts are imported with `import()` on the first image drawn, so they are separate chunks that
+  no other route loads, and `test/unit/og-bundle.test.ts` checks that nothing of the renderer is named outside `app/og/render.ts`, that
+  `app/server/meta.ts` (which the browser runs) cannot reach it, and, when a build exists, that `build/client` holds none of it.
+  Worker upload (`wrangler deploy --dry-run`, 14 modules): 5105 KiB / **1556 KiB gzip** (was 2486 / 548 KiB): the renderer chunk 503 KiB, the
+  resvg and yoga wasm 1428 KiB, the fonts 663 KiB. The limit is 10 MB gzip. Initial JavaScript per page (entry, root, layout, route and their
+  imports, gzip): home 127.7 KB, ledger 129.8, transaction 131.9, account 132.3 (was 126.5, 128.6, 130.7, 131.3; the budget is 150).
+- **Logs.** `workers-og` writes `init RESVG` to the console on every image, and, after the first, a logged `Already initialized` error
+  with its stack (it initialises resvg on each call and catches the second). That is its own code; an image is drawn once per URL and
+  kept by the edge.
+- **Looking at one.** `pnpm build`, start the fixture server (`startFixtureServer`, see "Upstream fixtures") and `wrangler dev` with the
+  four URLs and `DATA_API_KEY` as `--var`s pointing at it, then open `/og/xrpl/tx/AACAFCFEBB5C970049A576CBFE6EF544A47EE3ADBA99122FA43234D18D5FFD40.png`.
+
 ## Tests
 
 - `unit` project: `app/**/*.test.ts` (not under `app/ui`), `scripts/**/*.test.ts` and `test/unit/**/*.test.ts`, in Node.
@@ -407,6 +474,12 @@ cost a render each.
   that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures"). `home.spec.ts`, `ledger.spec.ts`, `search.spec.ts` and `transaction.spec.ts` ask for the pages
   through `pageClient` (`test/support/pages.ts`: the page, the HTML as text, anchors, table rows, the class and TTL the entry stored a
   page under); `resolve.spec.ts` calls `resolveCtid` and `findHash` with a data API client and a node client of its own. `account.spec.ts` covers the account page (failures first, one made-up account per override, from `account(n)`), `account-csv.spec.ts` its CSV; `app/server/account-view.test.ts` and `qr.test.ts` the view builder and the QR encoder (checked against `qrencode` 4.1.1's output and by Apple's Vision decoder when it was written), `test/unit/account-bundle.test.ts` and `account-css.test.ts` what the page may import and what its stylesheet must keep. `transaction.spec.ts` covers the transaction page and its redirects, 404s, node fallback and 503s (failures first, one transaction per override); `app/server/transaction-view.test.ts` the view builder over recorded transactions; `test/unit/transaction-bundle.test.ts` and `transaction-css.test.ts` what the page may import and what its stylesheet must keep. The
+  `meta.spec.ts` checks the tags of every page against values worked out from the recorded transactions, ledgers and accounts (title, description,
+  canonical, Open Graph, Twitter, `noindex`, the origin of the request); `og.spec.ts` the image route (validation without a call, the redirects, the
+  classes and TTLs stored, the node fallback, the 503s that are not stored) with `test/support/png.ts`, a small PNG decoder, to read the size and
+  the colour of the pixels drawn; `app/server/meta.test.ts`, `card-data.test.ts` and `app/og/card.test.ts` the tag builders, the words of the card
+  and its layout (every element Satori would reject is checked for), and `test/unit/og-fonts.test.ts` and `og-bundle.test.ts` the bundled fonts and
+  where the renderer may be imported. The
   hashes of a recorded ledger come from `test/support/ledger-hashes.ts`, read from the fixture files and not through a client. What a spec file's Worker puts in the Cache API stays there for the rest of the file, edge pages and subrequests
   alike (and an error is never stored): a test that overrides an upstream answer asks for a URL, a ledger or a network no other test
   of the file asks for, and a test that needs a failing `last_validated` goes first.

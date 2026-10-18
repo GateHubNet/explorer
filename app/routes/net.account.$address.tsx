@@ -2,7 +2,7 @@ import { redirect } from "react-router";
 import { classicAddressToXAddress, isValidClassicAddress, isValidXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
 import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab } from "../domain/account-tabs";
-import { formatAmount, formatUtc, shortAddress } from "../domain/format";
+import { shortAddress } from "../domain/format";
 import {
   accountHeader,
   existenceOf,
@@ -31,6 +31,7 @@ import { markDegraded } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
+import { accountMeta, metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
 import type { Network } from "../server/networks";
 import { encodeQr, qrPath } from "../server/qr";
@@ -306,37 +307,14 @@ async function firstPage(
   return cached(page, "live");
 }
 
-export function meta({ loaderData, params }: Route.MetaArgs) {
-  const network = findNetwork(params.net);
-  if (!loaderData || !network) return [];
-  const suffix = `${network.name} · ${PRODUCT_NAME}`;
+export function meta({ loaderData, matches, params }: Route.MetaArgs) {
+  const ctx = metaContext(params.net, matches);
+  if (!loaderData || !ctx) return [];
 
   if (loaderData.kind === "never-activated") {
-    return [{ title: `Address not activated · ${suffix}` }, { name: "robots", content: "noindex" }];
+    return [{ title: `Address not activated · ${ctx.network.name} · ${PRODUCT_NAME}` }, { name: "robots", content: "noindex" }];
   }
-
-  const data: AccountPageData = loaderData;
-  const title = `Account ${shortAddress(data.address)} · ${suffix}`;
-  if (data.header.status === "history") {
-    return [
-      { title },
-      { name: "description", content: `Older ${data.tab} of the account ${data.address} on ${network.name}.` },
-      { name: "robots", content: "noindex, follow" },
-    ];
-  }
-
-  const { balance, activation, status } = data.header;
-  const facts = [
-    status === "deleted" ? "Deleted account" : balance ? `Balance ${formatAmount(balance.native)} ${data.native}` : null,
-    activation ? `activated ${formatUtc(activation.time).slice(0, 10)}` : null,
-  ].filter(Boolean);
-  return [
-    { title },
-    {
-      name: "description",
-      content: `${data.address} on ${network.name}${facts.length > 0 ? `: ${facts.join(", ")}` : ""}. Transactions, payments, trades, offers and objects.`,
-    },
-  ];
+  return accountMeta(loaderData, ctx);
 }
 
 export default function Account({ loaderData }: Route.ComponentProps) {

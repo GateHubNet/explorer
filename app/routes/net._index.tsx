@@ -1,11 +1,9 @@
-import { formatAmount } from "../domain/format";
 import { clientsFor } from "../server/clients";
 import { cached, forwardCacheClass } from "../server/edge-cache";
 import { homePage } from "../server/home-view";
 import { upstreamOutage } from "../server/loader-errors";
+import { homeMeta, metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
-import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork } from "../ui/networks";
 import { HOME_TITLES, HomePage } from "../ui/pages/HomePage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useNetwork } from "../ui/use-network";
@@ -50,16 +48,10 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   return cached(homePage({ network, last, ledger, fees: fees.rows, transactions: transactions.transactions }), "live-home");
 }
 
-export function meta({ loaderData, params }: Route.MetaArgs) {
-  const network = findNetwork(params.net);
-  if (!loaderData || !network) return [];
-  return [
-    { title: `${HOME_TITLES[network.id]} · ${PRODUCT_NAME}` },
-    {
-      name: "description",
-      content: `Look up any ledger, transaction or account on ${network.name} from validated history. The newest validated ledger is #${formatAmount(String(loaderData.latest.index))}.`,
-    },
-  ];
+export function meta({ loaderData, matches, params }: Route.MetaArgs) {
+  const ctx = metaContext(params.net, matches);
+  if (!loaderData || !ctx) return [];
+  return homeMeta(HOME_TITLES[ctx.network.id], ctx);
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {

@@ -1,14 +1,13 @@
 import { redirect } from "react-router";
 
-import { formatAmount, formatUtc, shortHash } from "../domain/format";
+import { shortHash } from "../domain/format";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "../server/ledger-view";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
+import { ledgerMeta, metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
 import { UpstreamError } from "../server/upstream";
-import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork } from "../ui/networks";
 import { LedgerPage } from "../ui/pages/LedgerPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -82,19 +81,10 @@ function canonicalRedirect(to: string) {
   return redirect(to, { status: 302, headers: cacheClassHeaders("immutable") });
 }
 
-export function meta({ loaderData, params }: Route.MetaArgs) {
-  const network = findNetwork(params.net);
-  if (!loaderData || !network) return [];
-  const { header, txCount } = loaderData;
-  const index = formatAmount(String(header.index));
-  const transactions = `${formatAmount(String(txCount))} ${txCount === 1 ? "transaction" : "transactions"}`;
-  return [
-    { title: `Ledger #${index} · ${network.name} · ${PRODUCT_NAME}` },
-    {
-      name: "description",
-      content: `Ledger ${index} on ${network.name} closed ${formatUtc(header.closeTime)} with ${transactions}.`,
-    },
-  ];
+export function meta({ loaderData, matches, params }: Route.MetaArgs) {
+  const ctx = metaContext(params.net, matches);
+  if (!loaderData || !ctx) return [];
+  return ledgerMeta(loaderData, ctx);
 }
 
 export default function Ledger({ loaderData }: Route.ComponentProps) {
