@@ -176,25 +176,56 @@ test.describe("when the Worker cannot give the page new data", () => {
 });
 
 test.describe("pausing the updates", () => {
-  test("has a button that pauses and resumes them, kept for the tab", async ({ page }) => {
+  const statusOf = (page: Page) => page.locator('.hero__live[role="status"]');
+
+  test("has a button that pauses and resumes them, says what it did, and is kept for the tab", async ({ page }) => {
     await openBehind(page);
     const pause = page.getByRole("button", { name: "Pause live updates" });
-    await expect(pause).toHaveAttribute("aria-pressed", "false");
+    // Its label says what it will do; it is not also a pressed toggle.
+    expect(await pause.getAttribute("aria-pressed")).toBeNull();
     // A target of 44 px, as the stylesheet says.
     expect((await pause.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(statusOf(page)).toHaveText("");
 
     await pause.click();
     const resume = page.getByRole("button", { name: "Resume live updates" });
-    await expect(resume).toHaveAttribute("aria-pressed", "true");
+    await expect(resume).toHaveClass(/is-paused/);
+    expect(await resume.getAttribute("aria-pressed")).toBeNull();
+    // What the visitor did is said once, by the status, and the dot goes quiet.
+    await expect(statusOf(page)).toHaveText("Live updates paused");
     await expect(page.locator(".hero__dot")).toHaveClass(/is-paused/);
 
-    // The choice is the tab's: a reload keeps it.
+    // The choice is the tab's: a reload keeps it, and says nothing about it.
     await page.reload();
     await hydrated(page);
-    await expect(page.getByRole("button", { name: "Resume live updates" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Resume live updates" })).toHaveClass(/is-paused/);
+    await expect(statusOf(page)).toHaveText("");
 
     await page.getByRole("button", { name: "Resume live updates" }).click();
-    await expect(page.getByRole("button", { name: "Pause live updates" })).toHaveAttribute("aria-pressed", "false");
+    await expect(statusOf(page)).toHaveText("Live updates resumed");
+    await expect(page.getByRole("button", { name: "Pause live updates" })).not.toHaveClass(/is-paused/);
     await expect(page.locator(".hero__dot")).not.toHaveClass(/is-paused/);
+  });
+});
+
+test.describe("holding the updates while the visitor is on a table", () => {
+  const HELD = "Paused while you look at the table";
+
+  test("says so while the mouse is over a table, and is not stuck by a click that left focus on the table's scroll region", async ({ page }) => {
+    await openBehind(page);
+    const region = page.getByRole("region", { name: "Latest transactions, scrollable table" });
+    await expect(page.getByText(HELD)).toHaveCount(0);
+
+    // A click on a spot of the table that is not a link focuses the scroll region (it has tabindex 0), which a mouse does not make keyboard focus.
+    await page.getByRole("table", { name: "Latest transactions" }).getByRole("columnheader", { name: "Type" }).click();
+    await expect(region).toBeFocused();
+    await expect(page.getByText(HELD)).toBeVisible();
+
+    // The mouse leaves; the region keeps its focus, and nothing holds the page.
+    await page.mouse.move(2, 2);
+    await expect(region).toBeFocused();
+    await expect(page.getByText(HELD)).toHaveCount(0);
+    // And it is not in the status line, which a screen reader announces.
+    await expect(page.locator('.hero__live[role="status"]')).toHaveText("");
   });
 });

@@ -8,8 +8,17 @@ import { createHomeOnScreen } from "./home-live";
 
 const page = (build: string, index: number) => ({ build, latest: { index } }) as HomeLoaderData;
 
-beforeEach(() => sessionStorage.clear());
-afterEach(() => sessionStorage.clear());
+let visibility: DocumentVisibilityState = "visible";
+beforeEach(() => {
+  sessionStorage.clear();
+  visibility = "visible";
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibility });
+});
+afterEach(() => {
+  sessionStorage.clear();
+  document.body.replaceChildren();
+  Reflect.deleteProperty(document, "visibilityState");
+});
 
 function setup(storage: () => Storage | undefined = () => sessionStorage) {
   const reload = vi.fn();
@@ -111,5 +120,141 @@ describe("a refresh of the home page", () => {
     const xahau = page("abc1234", 26_000_000);
     expect(await onScreen.reload("xahau", async () => xahau)).toBe(xahau);
     expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+// A reload throws away what the visitor is typing, in the hero's search box or anywhere: the page waits until they are not.
+describe("a deploy while the visitor is typing", () => {
+  const field = (tag: "input" | "textarea", type?: string): HTMLInputElement => {
+    const element = document.createElement(tag);
+    if (type) element.setAttribute("type", type);
+    document.body.appendChild(element);
+    return element as HTMLInputElement;
+  };
+  const type = (element: HTMLInputElement | HTMLTextAreaElement, text: string) => {
+    element.value = text;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const leave = (element: HTMLElement) => {
+    element.blur();
+    element.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+  };
+  const refused = async (onScreen: ReturnType<typeof setup>["onScreen"], index = 101) => {
+    await onScreen.reload("xrpl", async () => page("def5678", index));
+  };
+
+  it("does not reload while a text field has focus, and reloads when it is blurred and empty", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    const search = field("input", "search");
+    search.focus();
+    await refused(onScreen);
+    expect(reload).not.toHaveBeenCalled();
+    leave(search);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reload while a field holds text, blurred or not, and reloads when it is emptied", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    const search = field("input", "search");
+    search.focus();
+    type(search, "rJF2Xan");
+    leave(search);
+    await refused(onScreen);
+    expect(reload).not.toHaveBeenCalled();
+    type(search, "rJF2Xan..");
+    expect(reload).not.toHaveBeenCalled();
+    type(search, "");
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a textarea", () => field("textarea")],
+    ["an input with no type", () => field("input")],
+    ["an email field", () => field("input", "email")],
+  ])("waits for any text field of the page, not only the hero's: %s", async (_name, make) => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    const element = make();
+    type(element, "text");
+    await refused(onScreen);
+    expect(reload).not.toHaveBeenCalled();
+    type(element, "");
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for an editable element, too", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    // (happy-dom has no layout of editing: the property a browser derives from the attribute.)
+    Object.defineProperty(editable, "isContentEditable", { value: true });
+    editable.textContent = "text";
+    document.body.appendChild(editable);
+    await refused(onScreen);
+    expect(reload).not.toHaveBeenCalled();
+    editable.textContent = "";
+    editable.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not held up by what is not for typing: a focused button, a checkbox, an empty field that has no focus", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    field("input", "search");
+    const checkbox = field("input", "checkbox");
+    checkbox.focus();
+    await refused(onScreen);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("reloads when the tab is hidden, whatever is in the field: the visitor is not looking", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    const search = field("input", "search");
+    search.focus();
+    type(search, "rJF2Xan");
+    await refused(onScreen);
+    expect(reload).not.toHaveBeenCalled();
+    visibility = "hidden";
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not stack its waiting: many refused answers while the visitor types are one reload when they stop", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    const search = field("input", "search");
+    search.focus();
+    await refused(onScreen, 101);
+    await refused(onScreen, 102);
+    await refused(onScreen, 103);
+    leave(search);
+    expect(reload).toHaveBeenCalledTimes(1);
+    // Nothing is listening any more: more events reload nothing.
+    type(search, "");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("notes that it has reloaded when it does, not when it starts to wait, so that a page left before then is not counted as reloaded for", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    const search = field("input", "search");
+    search.focus();
+    await refused(onScreen);
+    expect(sessionStorage.getItem("explorer:build-reloads")).toBeNull();
+    leave(search);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(sessionStorage.getItem("explorer:build-reloads")!)).toEqual(["abc1234>def5678"]);
+  });
+
+  it("reloads at once, as before, when nobody is typing", async () => {
+    const { onScreen, reload } = setup();
+    onScreen.show("xrpl", page("abc1234", 100));
+    await refused(onScreen);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

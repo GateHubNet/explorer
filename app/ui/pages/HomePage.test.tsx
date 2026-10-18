@@ -261,6 +261,8 @@ describe("HomePage, when its data changes", () => {
 describe("HomePage, the live controls", () => {
   const controls = (over: Partial<LiveControls> = {}): LiveControls => ({
     paused: false,
+    held: false,
+    notice: "",
     failures: 0,
     onTogglePause: vi.fn(),
     onHold: vi.fn(),
@@ -275,22 +277,25 @@ describe("HomePage, the live controls", () => {
     expect(document.querySelector(".hero__live")).toBeNull();
   });
 
-  it("has a real button that pauses and resumes the updates: pressed when paused, 44 px by the stylesheet, and it says what it does", () => {
+  it("has a real button that pauses and resumes the updates: its label says what it will do, it is 44 px by the stylesheet, and it is not also a pressed toggle", () => {
     const live = controls();
     showing(live);
     const button = screen.getByRole("button", { name: "Pause live updates" });
     expect(button.tagName).toBe("BUTTON");
     expect(button.getAttribute("type")).toBe("button");
-    expect(button.getAttribute("aria-pressed")).toBe("false");
+    // A button whose name changes with its state must not also say it is pressed: a screen reader would say "Resume live updates, pressed".
+    expect(button.hasAttribute("aria-pressed")).toBe(false);
     expect(button.className).toContain("live-toggle");
+    expect(button.classList.contains("is-paused")).toBe(false);
     fireEvent.click(button);
     expect(live.onTogglePause).toHaveBeenCalledTimes(1);
 
     cleanup();
     showing(controls({ paused: true }));
     const resume = screen.getByRole("button", { name: "Resume live updates" });
-    expect(resume.getAttribute("aria-pressed")).toBe("true");
-    // The dot that says the page is live says it is not.
+    expect(resume.hasAttribute("aria-pressed")).toBe(false);
+    // What the stylesheet fills the button for, and the dot that says the page is live says it is not.
+    expect(resume.classList.contains("is-paused")).toBe(true);
     expect(document.querySelector(".hero__dot")!.classList.contains("is-paused")).toBe(true);
   });
 
@@ -313,16 +318,15 @@ describe("HomePage, the live controls", () => {
     beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
     afterEach(() => vi.useRealTimers());
 
-    function Host({ failures }: { failures: number }) {
-      return <HomePage network={XRPL} data={data()} live={controls({ failures })} />;
-    }
-    let setFailures!: (failures: number) => void;
+    type Say = { failures: number; paused: boolean; notice: string };
+    let say!: (next: Partial<Say>) => void;
     function Counting() {
-      const [failures, set] = useState(0);
-      setFailures = (next) => act(() => set(next));
-      return <Host failures={failures} />;
+      const [state, set] = useState<Say>({ failures: 0, paused: false, notice: "" });
+      say = (next) => act(() => set((was) => ({ ...was, ...next })));
+      return <HomePage network={XRPL} data={data()} live={controls(state)} />;
     }
     const mountCounting = () => renderInRouter(<Counting />);
+    const setFailures = (failures: number) => say({ failures });
 
     it("says nothing while the updates work, and after one failure", () => {
       mountCounting();
@@ -383,12 +387,45 @@ describe("HomePage, the live controls", () => {
       setFailures(0);
       expect(status()).toBe(element);
     });
+
+    it("says what the visitor has just done with the pause button, which is announced once for each press, from the same element", () => {
+      mountCounting();
+      const element = status();
+      say({ paused: true, notice: "Live updates paused" });
+      expect(status()).toBe(element);
+      expect(element.textContent).toBe("Live updates paused");
+      say({ paused: false, notice: "Live updates resumed" });
+      expect(element.textContent).toBe("Live updates resumed");
+      say({ notice: "" });
+      expect(element.textContent).toBe("");
+    });
+
+    it("does not say that it is retrying while the visitor has paused it, and does not say 'reconnected' for a pause", () => {
+      mountCounting();
+      setFailures(2);
+      expect(status().textContent).toBe("Live updates paused, retrying…");
+      say({ paused: true, notice: "Live updates paused" });
+      expect(status().textContent).toBe("Live updates paused");
+      say({ notice: "" });
+      // Nothing is being retried: the line is quiet, and the failures that were are still counted for when it is resumed.
+      expect(status().textContent).toBe("");
+      expect(document.querySelector(".hero__dot")!.classList.contains("is-paused")).toBe(true);
+    });
   });
 
   describe("holding the updates while the visitor is on a table", () => {
     const ledgers = () => screen.getByRole("region", { name: "Latest ledgers, scrollable table" });
     const transactions = () => screen.getByRole("region", { name: "Latest transactions, scrollable table" });
     const holds = (live: LiveControls) => (live.onHold as ReturnType<typeof vi.fn>).mock.calls.map(([held]) => held);
+
+    /** What a mouse click on a spot of a table that is not a link does: it focuses the scroll region (tabindex 0), and the browser says that is not `:focus-visible`. */
+    function focusLikeAMouse(element: HTMLElement) {
+      const matches = HTMLElement.prototype.matches;
+      vi.spyOn(HTMLElement.prototype, "matches").mockImplementation(function (this: HTMLElement, selector: string) {
+        return selector === ":focus-visible" ? false : matches.call(this, selector);
+      });
+      act(() => element.focus());
+    }
 
     it("holds while a mouse is over either table, and lets go when it leaves", () => {
       const live = controls();
@@ -400,7 +437,7 @@ describe("HomePage, the live controls", () => {
       expect(holds(live)).toEqual([true, false, true, false]);
     });
 
-    it("holds while focus is anywhere inside a table, and lets go when it leaves the table (not when it moves inside it)", () => {
+    it("holds while a link in a table has focus, and lets go when focus leaves the table (not when it moves inside it)", () => {
       const live = controls();
       showing(live);
       const links = within(ledgers()).getAllByRole("link");
@@ -413,7 +450,38 @@ describe("HomePage, the live controls", () => {
       expect(holds(live).at(-1)).toBe(false);
     });
 
-    it("does not let go while the other kind of hold is still there: a mouse left, focus is still in the table", () => {
+    it("holds while the keyboard has focus on a table's scroll region, which is how a keyboard scrolls it", () => {
+      const live = controls();
+      showing(live);
+      // (happy-dom says `:focus-visible` for an element focused from script, as a browser does after a key.)
+      act(() => ledgers().focus());
+      expect(holds(live).at(-1)).toBe(true);
+      act(() => ledgers().blur());
+      expect(holds(live).at(-1)).toBe(false);
+    });
+
+    it("does not hold for a click that put focus on a table's scroll region: that is not keyboard focus, and would stay after the pointer left", () => {
+      const live = controls();
+      showing(live);
+      focusLikeAMouse(ledgers());
+      expect(document.activeElement).toBe(ledgers());
+      expect(holds(live).some(Boolean)).toBe(false);
+      // The mouse that clicked is over the table, so the hold is the pointer's; when it leaves, nothing is left holding.
+      fireEvent.pointerEnter(ledgers(), { pointerType: "mouse" });
+      fireEvent.pointerLeave(ledgers(), { pointerType: "mouse" });
+      expect(holds(live).at(-1)).toBe(false);
+    });
+
+    it("lets go of the hold a link had when focus moves to the scroll region by a click", () => {
+      const live = controls();
+      showing(live);
+      act(() => within(ledgers()).getAllByRole("link")[0]!.focus());
+      expect(holds(live).at(-1)).toBe(true);
+      focusLikeAMouse(ledgers());
+      expect(holds(live).at(-1)).toBe(false);
+    });
+
+    it("does not let go while the other kind of hold is still there: a mouse left, a link in the table still has focus", () => {
       const live = controls();
       showing(live);
       act(() => within(ledgers()).getAllByRole("link")[0]!.focus());
@@ -434,6 +502,57 @@ describe("HomePage, the live controls", () => {
     it("tells nobody when there is nobody to tell", () => {
       showing();
       expect(() => fireEvent.pointerEnter(ledgers(), { pointerType: "mouse" })).not.toThrow();
+    });
+
+    it("lets go when the page goes away, so that a page that replaces it (the other network's home) is not held by the one that left", () => {
+      const live = controls();
+      let remount!: () => void;
+      function Keyed() {
+        const [network, setNetwork] = useState<typeof XRPL | typeof XAHAU>(XRPL);
+        remount = () => act(() => setNetwork(XAHAU));
+        return <HomePage key={network.id} network={network} data={data()} live={live} />;
+      }
+      renderInRouter(<Keyed />);
+      fireEvent.pointerEnter(ledgers(), { pointerType: "mouse" });
+      act(() => within(transactions()).getAllByRole("link")[0]!.focus());
+      expect(holds(live).at(-1)).toBe(true);
+
+      remount();
+      expect(holds(live).at(-1)).toBe(false);
+    });
+
+    it("lets go when the page is unmounted", () => {
+      const live = controls();
+      const { unmount } = showing(live);
+      fireEvent.pointerEnter(ledgers(), { pointerType: "mouse" });
+      unmount();
+      expect(holds(live).at(-1)).toBe(false);
+    });
+  });
+
+  describe("saying that the page is held", () => {
+    it("shows, in visible text in the hero's row, that the updates wait while the visitor looks at a table, and not otherwise", () => {
+      showing(controls());
+      expect(screen.queryByText("Paused while you look at the table")).toBeNull();
+      cleanup();
+      showing(controls({ held: true }));
+      const held = screen.getByText("Paused while you look at the table");
+      expect(held.closest(".hero__status-row")).not.toBeNull();
+      expect(held.className).toContain("hero__held");
+      // The dot goes quiet with it.
+      expect(document.querySelector(".hero__dot")!.classList.contains("is-paused")).toBe(true);
+    });
+
+    it("is not in the status element, nor in any live region: a pointer moving over the tables is not announced", () => {
+      showing(controls({ held: true }));
+      const held = screen.getByText("Paused while you look at the table");
+      expect(held.closest("[role=status], [aria-live]")).toBeNull();
+      expect(status().textContent).toBe("");
+    });
+
+    it("is not said for a page without controls", () => {
+      showing();
+      expect(screen.queryByText("Paused while you look at the table")).toBeNull();
     });
   });
 });

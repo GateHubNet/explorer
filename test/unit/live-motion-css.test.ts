@@ -247,8 +247,10 @@ describe("the pause button and the status", () => {
     expect(toggle["min-width"]).toBe("44px");
     expect(toggle.color).toBe("var(--muted)");
     expect(toggle.background).toBe("var(--surface)");
-    // Pressed it is filled with --sunken: --muted and --fg are both AA on it (tokens.test.ts).
-    expect(rule(components, '.live-toggle[aria-pressed="true"]').background).toBe("var(--sunken)");
+    // Paused it is filled with --sunken: --muted and --fg are both AA on it (tokens.test.ts). The look hangs on a class: the button's name
+    // switches between "Pause" and "Resume", so it is not also `aria-pressed` (a screen reader would say "Resume live updates, pressed").
+    expect(rule(components, ".live-toggle.is-paused").background).toBe("var(--sunken)");
+    expect(components).not.toContain("aria-pressed");
   });
 
   it("sits in a row as high as the button, so that adding it when the script runs moves nothing below", () => {
@@ -257,6 +259,8 @@ describe("the pause button and the status", () => {
 
   it("says what it has to say in a token's colour that is AA on the page, and the dot goes quiet in tokens", () => {
     expect(rule(pages, ".hero__live").color).toBe("var(--muted)");
+    // The line that says the page waits while the visitor is on a table: the same quiet colour, on the page's background, and not a live region.
+    expect(rule(pages, ".hero__held").color).toBe("var(--muted)");
     const dot = rule(pages, ".hero__dot.is-paused");
     expect(dot.background).toBe("var(--faint)");
     expect(dot["box-shadow"]).toBe("0 0 0 4px var(--sunken)");

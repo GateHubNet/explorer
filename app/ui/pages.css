@@ -63,6 +63,12 @@
   margin-left: 8px;
 }
 
+/* That the page waits while the visitor is on a table: visible text in the row, and not in the status line, which a screen reader announces. */
+.hero__held {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .hero__dot {
   flex: none;
   width: 8px;

@@ -1,4 +1,4 @@
-import { useRef, type FocusEvent, type PointerEvent } from "react";
+import { useEffect, useRef, type FocusEvent, type PointerEvent } from "react";
 import { Link } from "react-router";
 
 import { formatAmount, formatUtc } from "../../domain/format";
@@ -28,6 +28,23 @@ const timeOfDay = (at: number) => formatUtc(at).slice(11, 19);
 const count = (n: number) => formatAmount(String(n));
 
 /**
+ * Whether focus on `target` holds the updates while it is in a table: a link or a button in it (it is about to be pressed, and a row that moved
+ * would take it away), or anything that shows a focus ring, which is how a keyboard has focus (`:focus-visible`: the table's scroll region
+ * has tabindex 0 so that a keyboard can scroll it). A click on a spot of the table that is not a link also focuses the scroll region, but that
+ * is not keyboard focus and must not hold the page after the pointer has left.
+ */
+function holdsFocus(target: EventTarget): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.closest("a[href], button") !== null) return true;
+  try {
+    return target.matches(":focus-visible");
+  } catch {
+    // A browser that does not know the selector says nothing of keyboard focus: no hold, which is the safe side (the page goes on).
+    return false;
+  }
+}
+
+/**
  * The home page: the search hero with examples, four tiles, the newest ledgers and the newest transactions. Takes what the
  * loader made of the data API's answers (`homePage`) and never fetches. Ages are worked out in the browser
  * (`RelativeTime`); the HTML itself carries close times, so that one stored copy is right for everybody.
@@ -38,12 +55,19 @@ const count = (n: number) => formatAmount(String(n));
  * render, so the server's HTML and the hydration are the same, and none for a visitor who asked for less motion (see motion.ts).
  *
  * `live` is what the visitor can do about it and what the page says: a button that pauses and resumes the updates, a quiet status line
- * when they cannot reach the page, and a hold while the pointer is over a table or focus is in one, so that rows do not move under a
- * click. Without it (every other use of the page) there are none of the three.
+ * when they cannot reach the page (and for what the button just did), and a hold while the pointer is over a table or keyboard focus is in
+ * one, so that rows do not move under a click, with a line that says the page waits (visible text, not in the status line). Without it
+ * (every other use of the page) there are none of the three.
  */
 export function HomePage({ network, data, live }: { network: NetworkInfo; data: HomePageData; live?: LiveControls }) {
   const { latest, txCount, average, fees } = data;
-  const stopped = live !== undefined && (live.paused || live.failures >= PAUSED_AFTER_FAILURES);
+  const latestHref = `/${network.id}/ledger/${latest.index}`;
+  const whole = latest.supply.split(".")[0]!;
+  // What the tiles say as text: it is also the token of the figure, which ticks in only when it says something else.
+  const txPerLedger = txCount === null ? "—" : count(txCount);
+  const txAverage = average ? `average ${count(average.transactions)} over the last ${count(average.ledgers)}` : "not counted yet";
+  const feeNote = fees ? `average ${formatAmount(fees.average)} · max ${formatAmount(fees.max)} per transaction` : "not counted yet";
+  const stopped = live !== undefined && (live.paused || live.held || live.failures >= PAUSED_AFTER_FAILURES);
 
   // A hold for each table and each way of being on it; the page is held while any is.
   const holds = useRef(new Set<string>());
@@ -58,18 +82,25 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
       if (event.pointerType !== "touch") hold(`${table}:pointer`, true);
     },
     onPointerLeave: () => hold(`${table}:pointer`, false),
-    onFocus: () => hold(`${table}:focus`, true),
+    // What focus does is decided each time it moves, so that a mouse that focuses the scroll region after a link had focus lets go of it.
+    onFocus: (event: FocusEvent<HTMLElement>) => hold(`${table}:focus`, holdsFocus(event.target)),
     // Focus moving inside the table is not leaving it.
     onBlur: (event: FocusEvent<HTMLElement>) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hold(`${table}:focus`, false);
     },
   });
-  const latestHref = `/${network.id}/ledger/${latest.index}`;
-  const whole = latest.supply.split(".")[0]!;
-  // What the tiles say as text: it is also the token of the figure, which ticks in only when it says something else.
-  const txPerLedger = txCount === null ? "—" : count(txCount);
-  const txAverage = average ? `average ${count(average.transactions)} over the last ${count(average.ledgers)}` : "not counted yet";
-  const feeNote = fees ? `average ${formatAmount(fees.average)} · max ${formatAmount(fees.max)} per transaction` : "not counted yet";
+  // A hold must not outlive the page that made it: the page is remounted for the other network's home, and the hook that polls is not.
+  const currentLive = useRef(live);
+  useEffect(() => {
+    currentLive.current = live;
+  });
+  useEffect(
+    () => () => {
+      holds.current.clear();
+      currentLive.current?.onHold(false);
+    },
+    [],
+  );
 
   const ledgerColumns: Column<HomeLedgerRow>[] = [
     { id: "ledger", header: "Ledger", width: "minmax(100px, 1fr)", cell: (row) => <LedgerLink net={network.id} index={row.index} /> },
@@ -120,9 +151,10 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
               <LiveValue token={String(latest.closeTime)}>
                 <RelativeTime at={latest.closeTime} fallback={`at ${formatUtc(latest.closeTime).slice(11)}`} />
               </LiveValue>
-              {live && <LiveStatus failures={live.failures} />}
+              {live && <LiveStatus failures={live.failures} paused={live.paused} notice={live.notice} />}
             </span>
           </p>
+          {live?.held && <span className="hero__held">Paused while you look at the table</span>}
           {live && <LiveToggle paused={live.paused} onToggle={live.onTogglePause} />}
         </div>
         <h1 id="hero-title" className="hero__title">

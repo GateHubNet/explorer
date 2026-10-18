@@ -71,7 +71,7 @@ function mountHome(serverLoader: () => Promise<HomeLoaderData>, first = dataAt(1
       {
         id: "routes/net",
         path: "/:net",
-        loader: () => ({ network, origin: "https://explorer.test", run: ++layoutRuns.count }),
+        loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
         shouldRevalidate: net.shouldRevalidate,
         Component: Outlet,
         children: [
@@ -230,26 +230,39 @@ describe("net._index.tsx", () => {
   });
 
   describe("pausing", () => {
-    it("stops the polling with the button, remembers the choice in the tab, and asks at once when it is resumed", async () => {
+    const status = () => screen.getByRole("status").textContent;
+
+    it("stops the polling with the button, says so once, remembers the choice in the tab, and asks at once when it is resumed", async () => {
       const serverLoader = vi.fn(async () => dataAt(101));
       mountHome(serverLoader);
+      expect(status()).toBe("");
       fireEvent.click(screen.getByRole("button", { name: "Pause live updates" }));
-      expect(screen.getByRole("button", { name: "Resume live updates" }).getAttribute("aria-pressed")).toBe("true");
+      const resume = screen.getByRole("button", { name: "Resume live updates" });
+      // The label says what the button will do; it is not also a pressed toggle.
+      expect(resume.hasAttribute("aria-pressed")).toBe(false);
+      expect(resume.classList.contains("is-paused")).toBe(true);
+      // What the visitor did is said once, by the element that is a status, and then it is quiet again.
+      expect(status()).toBe("Live updates paused");
       expect(sessionStorage.getItem("explorer:live-paused")).toBe("1");
       await pass(60_000);
       expect(serverLoader).not.toHaveBeenCalled();
+      expect(status()).toBe("");
 
       fireEvent.click(screen.getByRole("button", { name: "Resume live updates" }));
+      expect(status()).toBe("Live updates resumed");
       await pass(0);
       expect(serverLoader).toHaveBeenCalledTimes(1);
       expect(sessionStorage.getItem("explorer:live-paused")).toBeNull();
+      await pass(4000);
+      expect(status()).not.toBe("Live updates resumed");
     });
 
-    it("starts paused in a tab that was paused, and works where storage does not", async () => {
+    it("starts paused in a tab that was paused, without announcing it, and works where storage does not", async () => {
       sessionStorage.setItem("explorer:live-paused", "1");
       const serverLoader = vi.fn(async () => dataAt(101));
       mountHome(serverLoader);
       expect(screen.getByRole("button", { name: "Resume live updates" })).toBeTruthy();
+      expect(status()).toBe("");
       await pass(30_000);
       expect(serverLoader).not.toHaveBeenCalled();
 
@@ -268,24 +281,95 @@ describe("net._index.tsx", () => {
   });
 
   describe("holding", () => {
-    it("does not ask while a mouse is over a table or focus is in one, and goes on with its beat when the mouse leaves", async () => {
+    const table = () => screen.getByRole("region", { name: "Latest transactions, scrollable table" });
+    const HELD = "Paused while you look at the table";
+
+    it("does not ask while a mouse is over a table or a link in one has focus, says so, and goes on with its beat when the mouse leaves", async () => {
       const serverLoader = vi.fn(async () => dataAt(101));
       mountHome(serverLoader);
-      const table = screen.getByRole("region", { name: "Latest transactions, scrollable table" });
-      fireEvent.pointerEnter(table, { pointerType: "mouse" });
+      expect(screen.queryByText(HELD)).toBeNull();
+      fireEvent.pointerEnter(table(), { pointerType: "mouse" });
+      expect(screen.getByText(HELD)).toBeTruthy();
       await pass(20_000);
       expect(serverLoader).not.toHaveBeenCalled();
-      fireEvent.pointerLeave(table, { pointerType: "mouse" });
+      fireEvent.pointerLeave(table(), { pointerType: "mouse" });
+      expect(screen.queryByText(HELD)).toBeNull();
       await pass(4000);
       expect(serverLoader).toHaveBeenCalledTimes(1);
 
-      const link = within(table).getAllByRole("link")[0]!;
+      const link = within(table()).getAllByRole("link")[0]!;
       act(() => link.focus());
+      expect(screen.getByText(HELD)).toBeTruthy();
       await pass(20_000);
       expect(serverLoader).toHaveBeenCalledTimes(1);
       act(() => link.blur());
       await pass(4000);
       expect(serverLoader).toHaveBeenCalledTimes(2);
+    });
+
+    it("is not stuck by a click that focused the scroll region: that is not keyboard focus, so the page goes on when the mouse has left", async () => {
+      const serverLoader = vi.fn(async () => dataAt(101));
+      mountHome(serverLoader);
+      const matches = HTMLElement.prototype.matches;
+      vi.spyOn(HTMLElement.prototype, "matches").mockImplementation(function (this: HTMLElement, selector: string) {
+        return selector === ":focus-visible" ? false : matches.call(this, selector);
+      });
+      fireEvent.pointerEnter(table(), { pointerType: "mouse" });
+      act(() => table().focus());
+      fireEvent.pointerLeave(table(), { pointerType: "mouse" });
+      // The scroll region still has focus (the visitor clicked in it), and nothing holds the page.
+      expect(document.activeElement).toBe(table());
+      expect(screen.queryByText(HELD)).toBeNull();
+      await pass(4000);
+      expect(serverLoader).toHaveBeenCalledTimes(1);
+    });
+
+    it("is held by the keyboard's focus on the scroll region, which is how a keyboard scrolls the table", async () => {
+      const serverLoader = vi.fn(async () => dataAt(101));
+      mountHome(serverLoader);
+      act(() => table().focus());
+      expect(screen.getByText(HELD)).toBeTruthy();
+      await pass(20_000);
+      expect(serverLoader).not.toHaveBeenCalled();
+    });
+
+    it("is let go when the page is replaced by the other network's: the hold of the one that left does not stay on the one that came", async () => {
+      const serverLoader = vi.fn(async () => dataAt(26_000_000));
+      const { router } = mountHome(serverLoader);
+      fireEvent.pointerEnter(table(), { pointerType: "mouse" });
+      expect(screen.getByText(HELD)).toBeTruthy();
+
+      await act(async () => void router.navigate("/xahau"));
+      await pass(0);
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Explore Xahau");
+      expect(screen.queryByText(HELD)).toBeNull();
+      serverLoader.mockClear();
+      await pass(4000);
+      expect(serverLoader).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("a deploy while the visitor types", () => {
+    const search = () => document.querySelector<HTMLInputElement>('input[name="q"]')!;
+
+    it("does not reload the document while the search box has focus or holds text, and does when it is empty and blurred", async () => {
+      const reload = vi.spyOn(window.location, "reload").mockImplementation(() => {});
+      mountHome(vi.fn(async () => dataAt(101, "def5678")), dataAt(100, "abc1234"));
+      act(() => search().focus());
+      fireEvent.input(search(), { target: { value: "rJF2Xan" } });
+      await pass(40_000);
+      expect(reload).not.toHaveBeenCalled();
+
+      // Blurred but not empty: still not.
+      act(() => search().blur());
+      await pass(10_000);
+      expect(reload).not.toHaveBeenCalled();
+
+      fireEvent.input(search(), { target: { value: "" } });
+      await pass(0);
+      expect(reload).toHaveBeenCalledTimes(1);
+      await pass(60_000);
+      expect(reload).toHaveBeenCalledTimes(1);
     });
   });
 });

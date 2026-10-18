@@ -775,7 +775,7 @@ a.btn {
   }
 }
 
-/* The button that pauses the live updates (WCAG 2.2.2). 44 px, a pill like the examples beside it; pressed, it is filled. */
+/* The button that pauses the live updates (WCAG 2.2.2). 44 px, a pill like the examples beside it; paused, it is filled. */
 .live-toggle {
   display: inline-flex;
   align-items: center;
@@ -795,7 +795,7 @@ a.btn {
   color: var(--fg);
 }
 
-.live-toggle[aria-pressed="true"] {
+.live-toggle.is-paused {
   border-color: var(--border-strong);
   background: var(--sunken);
   color: var(--fg);
