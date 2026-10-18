@@ -1,0 +1,289 @@
+import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./check-bundle";
+
+// A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the four pages' and
+// whose chunks are random bytes (they do not compress, so a chunk's gzipped size is known to within a few bytes).
+
+const IMMUTABLE_HEADERS = "/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n";
+
+interface FakeChunk {
+  /** The file name below assets/. */
+  name: string;
+  /** Raw bytes, random unless `text` is given. */
+  size?: number;
+  text?: string;
+}
+
+interface FakeRoute {
+  id: string;
+  parentId?: string;
+  module: string;
+  imports?: string[];
+}
+
+const dirs: string[] = [];
+afterEach(() => {
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+/** The gzipped size of the file as the check measures it. */
+const gz = (content: Buffer | string) => gzipSync(content, { level: 9 }).length;
+
+function fakeBuild(options: {
+  chunks: FakeChunk[];
+  routes: FakeRoute[];
+  entry?: { module: string; imports?: string[] };
+  headers?: string | null;
+  extra?: Record<string, string | Buffer>;
+  manifest?: boolean;
+}): { dir: string; sizes: Map<string, number> } {
+  const dir = mkdtempSync(join(tmpdir(), "t15b-check-bundle-"));
+  dirs.push(dir);
+  mkdirSync(join(dir, "assets"));
+  const sizes = new Map<string, number>();
+  for (const chunk of options.chunks) {
+    const content = chunk.text ?? randomBytes(chunk.size ?? 100);
+    writeFileSync(join(dir, "assets", chunk.name), content);
+    sizes.set(chunk.name, gz(content));
+  }
+  if (options.manifest !== false) {
+    const manifest = {
+      entry: { module: `/assets/${options.entry?.module ?? "entry.js"}`, imports: (options.entry?.imports ?? []).map((n) => `/assets/${n}`), css: [] },
+      routes: Object.fromEntries(
+        options.routes.map((route) => [
+          route.id,
+          { id: route.id, parentId: route.parentId, module: `/assets/${route.module}`, imports: (route.imports ?? []).map((n) => `/assets/${n}`), css: [] },
+        ]),
+      ),
+      url: "/assets/manifest-abc123.js",
+      version: "abc123",
+    };
+    writeFileSync(join(dir, "assets", "manifest-abc123.js"), `window.__reactRouterManifest=${JSON.stringify(manifest)};`);
+  }
+  if (options.headers !== null) writeFileSync(join(dir, "_headers"), options.headers ?? IMMUTABLE_HEADERS);
+  for (const [path, content] of Object.entries(options.extra ?? {})) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
+    writeFileSync(join(dir, path), content);
+  }
+  return { dir, sizes };
+}
+
+const ROUTES: FakeRoute[] = [
+  { id: "root", module: "root.js", imports: ["shared.js"] },
+  { id: "routes/net", parentId: "root", module: "net.js", imports: ["shared.js", "shell.js"] },
+  { id: "routes/net._index", parentId: "routes/net", module: "home.js", imports: ["shared.js", "table.js"] },
+  { id: "routes/net.ledger.$id", parentId: "routes/net", module: "ledger.js", imports: ["shared.js", "table.js"] },
+  { id: "routes/net.tx.$id", parentId: "routes/net", module: "tx.js", imports: ["shared.js"] },
+  { id: "routes/net.account.$address", parentId: "routes/net", module: "account.js", imports: ["shared.js", "table.js", "qr-picture.js"] },
+  // Not one of the four pages: its chunk is loaded only when somebody goes there.
+  { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
+];
+const CHUNKS: FakeChunk[] = [
+  { name: "entry.js", size: 3000 },
+  { name: "root.js", size: 2000 },
+  { name: "net.js", size: 1500 },
+  { name: "shared.js", size: 10_000 },
+  { name: "shell.js", size: 4000 },
+  { name: "table.js", size: 2500 },
+  { name: "home.js", size: 1000 },
+  { name: "ledger.js", size: 1100 },
+  { name: "tx.js", size: 1200 },
+  { name: "account.js", size: 1300 },
+  { name: "qr-picture.js", size: 700 },
+  { name: "search.js", size: 500 },
+  { name: "search-page.js", size: 50_000 },
+];
+
+describe("the pages", () => {
+  it("are home, ledger, transaction and account, by their routes", () => {
+    expect(PAGES).toEqual([
+      { name: "home", route: "routes/net._index" },
+      { name: "ledger", route: "routes/net.ledger.$id" },
+      { name: "transaction", route: "routes/net.tx.$id" },
+      { name: "account", route: "routes/net.account.$address" },
+    ]);
+  });
+
+  it("have a budget of 150 KB", () => {
+    expect(BUDGET_BYTES).toBe(150_000);
+  });
+});
+
+describe("checkBundle: what a page loads", () => {
+  it("adds up, gzipped, the entry, the root, the layout and the route with every chunk they import, each chunk once", () => {
+    const { dir, sizes } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, entry: { module: "entry.js", imports: ["shared.js"] } });
+    const report = checkBundle(dir);
+    expect(report.problems).toEqual([]);
+
+    const sum = (names: string[]) => names.reduce((total, name) => total + sizes.get(name)!, 0);
+    const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js"];
+    const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
+    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account"]);
+    expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
+    expect(byPage.ledger!.bytes).toBe(sum([...common, "table.js", "ledger.js"]));
+    expect(byPage.transaction!.bytes).toBe(sum([...common, "tx.js"]));
+    expect(byPage.account!.bytes).toBe(sum([...common, "table.js", "qr-picture.js", "account.js"]));
+    // The chunk of a route that is not a page, and the ones only it imports, are in none of the four.
+    expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
+    expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
+    expect(byPage.home!.files).toHaveLength(7);
+  });
+
+  it("passes a page under the budget and says so in a table", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
+    const report = checkBundle(dir);
+    const table = formatReport(report);
+    expect(report.problems).toEqual([]);
+    expect(table).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/account\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toContain("150.0 KB");
+    expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account)\s/.test(line))).toHaveLength(4);
+  });
+
+  it("fails a page over 150 KB gzipped, and only that page", () => {
+    const heavy = CHUNKS.map((chunk) => (chunk.name === "ledger.js" ? { ...chunk, size: 151_000 } : chunk));
+    const { dir } = fakeBuild({ chunks: heavy, routes: ROUTES });
+    const report = checkBundle(dir);
+    expect(report.problems).toHaveLength(1);
+    expect(report.problems[0]).toMatch(/ledger/);
+    expect(report.problems[0]).toMatch(/150/);
+    const table = formatReport(report);
+    expect(table).toMatch(/ledger\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+OVER/);
+    expect(table).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+  });
+
+  it("counts the gzipped size and not the raw one: 200 KB that compress to a few bytes are fine", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS.map((chunk) => (chunk.name === "tx.js" ? { name: "tx.js", text: "a".repeat(200_000) } : chunk)), routes: ROUTES });
+    expect(checkBundle(dir).problems).toEqual([]);
+  });
+
+  it("counts a chunk the entry imports in every page, and the file at the edge of the budget", () => {
+    // The entry's own imports are loaded by every page.
+    const { dir } = fakeBuild({
+      chunks: [...CHUNKS, { name: "react-dom.js", size: 140_000 }],
+      routes: ROUTES,
+      entry: { module: "entry.js", imports: ["react-dom.js"] },
+    });
+    const report = checkBundle(dir);
+    expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
+    expect(report.problems).toHaveLength(4);
+  });
+});
+
+describe("checkBundle: what must not be in the build", () => {
+  it.each(FORBIDDEN.map((forbidden) => [forbidden.label, forbidden.sample] as const))("fails on %s in any file of build/client", (label, sample) => {
+    const { dir } = fakeBuild({
+      chunks: [...CHUNKS, { name: "leak.js", text: `var x=1;${sample};var y=2;` }],
+      routes: ROUTES,
+    });
+    const report = checkBundle(dir);
+    expect(report.problems).toHaveLength(1);
+    expect(report.problems[0]).toContain(label);
+    expect(report.problems[0]).toContain("assets/leak.js");
+  });
+
+  it("looks in a file no page loads, in a stylesheet and in a subdirectory too", () => {
+    const { dir } = fakeBuild({
+      chunks: CHUNKS,
+      routes: ROUTES,
+      extra: { "assets/styles.css": "/* satori */", "deep/er/page.html": "<p>AffectedNodes</p>" },
+    });
+    const problems = checkBundle(dir).problems;
+    expect(problems.some((problem) => problem.includes("assets/styles.css") && problem.includes("satori"))).toBe(true);
+    expect(problems.some((problem) => problem.includes("deep/er/page.html") && problem.includes("AffectedNodes"))).toBe(true);
+  });
+
+  it("does not read fonts and images as text", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/Geist.woff2": Buffer.from("satori resvg AffectedNodes"), "favicon.ico": Buffer.from("workers-og") } });
+    expect(checkBundle(dir).problems).toEqual([]);
+  });
+
+  it("names each forbidden thing once per file, however often it appears", () => {
+    const { dir } = fakeBuild({ chunks: [...CHUNKS, { name: "leak.js", text: "satori satori satori" }], routes: ROUTES });
+    expect(checkBundle(dir).problems).toHaveLength(1);
+  });
+
+  it("forbids the renderer, the transaction parser's vocabulary, the binary codec and the QR encoder's tables", () => {
+    expect(FORBIDDEN.map((forbidden) => forbidden.label).sort()).toEqual(
+      ["AffectedNodes", "FinalFields", "QR encoder tables", "TransactionType", "resvg", "ripple-binary", "satori", "workers-og"].sort(),
+    );
+  });
+
+  it("has a QR needle that finds the tables in the encoder's own source, spaced or minified", () => {
+    const qr = FORBIDDEN.find((forbidden) => forbidden.label === "QR encoder tables")!;
+    const source = readFileSync(new URL("../app/server/qr.ts", import.meta.url), "utf8");
+    expect(qr.pattern.test(source)).toBe(true);
+    expect(qr.pattern.test("const a=[-1,10,16,26,18,24,16,18,22,22],b=[-1,1,1,1,2,2,4,4,4,5];")).toBe(true);
+    expect(qr.pattern.test("const a=[-1,10,16,26,18,24,16,18,22,23]")).toBe(false);
+  });
+});
+
+describe("checkBundle: a build that is not what it should be", () => {
+  it("fails without a manifest", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, manifest: false });
+    expect(checkBundle(dir).problems.join("\n")).toMatch(/manifest/);
+  });
+
+  it("fails when the manifest names a file that is not there", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS.filter((chunk) => chunk.name !== "table.js"), routes: ROUTES });
+    const problems = checkBundle(dir).problems;
+    expect(problems.join("\n")).toMatch(/table\.js/);
+    expect(problems.join("\n")).toMatch(/missing/i);
+  });
+
+  it("fails when a page's route is not in the manifest", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES.filter((route) => route.id !== "routes/net.tx.$id") });
+    expect(checkBundle(dir).problems.join("\n")).toMatch(/transaction.*routes\/net\.tx\.\$id/s);
+  });
+
+  it("fails when the build has no _headers, or one without the rule for the hashed assets", () => {
+    const missing = fakeBuild({ chunks: CHUNKS, routes: ROUTES, headers: null }).dir;
+    expect(checkBundle(missing).problems.join("\n")).toMatch(/_headers/);
+    const wrong = fakeBuild({ chunks: CHUNKS, routes: ROUTES, headers: "/assets/*\n  Cache-Control: max-age=60\n" }).dir;
+    expect(checkBundle(wrong).problems.join("\n")).toMatch(/_headers.*for a year/s);
+    const other = fakeBuild({ chunks: CHUNKS, routes: ROUTES, headers: "/other/*\n  Cache-Control: public, max-age=31536000, immutable\n" }).dir;
+    expect(checkBundle(other).problems.join("\n")).toMatch(/_headers/);
+  });
+
+  it("fails on a directory that is not a build", () => {
+    expect(checkBundle(join(tmpdir(), "t15b-no-such-build")).problems.join("\n")).toMatch(/not a client build/);
+  });
+});
+
+describe("headersRules", () => {
+  it("reads a _headers file: a path on a line, its headers indented below it", () => {
+    expect(headersRules("# a comment\n/assets/*\n  Cache-Control: public, max-age=1\n  X-A: b: c\n\n/other\n  X-B: 1\n")).toEqual([
+      { path: "/assets/*", headers: { "cache-control": "public, max-age=1", "x-a": "b: c" } },
+      { path: "/other", headers: { "x-b": "1" } },
+    ]);
+  });
+});
+
+describe("the command", () => {
+  const script = fileURLToPath(new URL("./check-bundle.ts", import.meta.url));
+  const run = (dir: string) => spawnSync("pnpm", ["exec", "tsx", script, dir], { encoding: "utf8", cwd: dirname(script) });
+
+  it("prints the table and exits 0 for a build within the budget", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
+    const result = run(dir);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+  }, 30_000);
+
+  it("prints what is wrong and exits 1 for a build over it", () => {
+    const chunks = [...CHUNKS.map((chunk) => (chunk.name === "tx.js" ? { ...chunk, size: 160_000 } : chunk)), { name: "leak.js", text: "resvg" }];
+    const { dir } = fakeBuild({ chunks, routes: ROUTES });
+    const result = run(dir);
+    expect(result.status).toBe(1);
+    expect(result.stdout + result.stderr).toMatch(/transaction/);
+    expect(result.stdout + result.stderr).toMatch(/resvg/);
+  }, 30_000);
+});

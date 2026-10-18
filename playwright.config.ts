@@ -1,0 +1,51 @@
+import { chromium, defineConfig, devices } from "@playwright/test";
+
+import { chromiumToUse } from "./scripts/e2e-env";
+
+// The end-to-end suite (spec 12). It runs against the BUILT Worker under `wrangler dev`, with the data API and the nodes replaced by the
+// fixture server unless E2E_DATA_API_URL and E2E_NODE_URL name a real stack; test/e2e/stack.ts starts and stops all of it, and README.md
+// ("End-to-end tests") has the switches. `E2E_BASE_URL` skips that and tests a Worker that is already running (a deployed staging).
+
+const port = Number(process.env.E2E_PORT ?? 8832);
+const baseURL = process.env.E2E_BASE_URL || `http://127.0.0.1:${port}`;
+
+const executablePath = chromiumToUse({ executablePath: chromium.executablePath(), env: process.env });
+// (The config is read again in every worker process; say it once.)
+if (executablePath && !process.env.E2E_CHROMIUM && process.env.TEST_WORKER_INDEX === undefined) {
+  console.log(`[e2e] the Chromium this Playwright wants is not installed; using ${executablePath}`);
+}
+
+export default defineConfig({
+  testDir: "./test/e2e",
+  testMatch: "**/*.spec.ts",
+  // Every test is independent: it has its own context, and its own visitor address for the Worker's rate limit (test/e2e/support.ts).
+  fullyParallel: true,
+  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : 4,
+  // A test that passes on the second try is a test that fails: no retries, here or in a pipeline.
+  retries: 0,
+  forbidOnly: Boolean(process.env.CI),
+  reporter: [["list"], ["html", { open: "never" }]],
+  timeout: 30_000,
+  expect: { timeout: 10_000 },
+  use: {
+    baseURL,
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    launchOptions: executablePath ? { executablePath } : {},
+  },
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: "node --import tsx test/e2e/stack.ts",
+        url: `${baseURL}/robots.txt`,
+        // Never a server somebody else left: it would not be the build under test.
+        reuseExistingServer: false,
+        // The build, the Worker and its start.
+        timeout: 180_000,
+        // Its SIGTERM handler stops wrangler, closes the fixture server and removes the run's state directory.
+        gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+});

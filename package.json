@@ -18,7 +18,8 @@
     "fixtures:check": "tsx scripts/make-http-fixtures.ts --check",
     "deploy:staging": "CLOUDFLARE_ENV=staging react-router build && wrangler deploy",
     "deploy:production": "CLOUDFLARE_ENV=production react-router build && wrangler deploy",
-    "verify": "pnpm api:check && pnpm typecheck && pnpm test && pnpm build",
+    "check:bundle": "tsx scripts/check-bundle.ts",
+    "verify": "pnpm api:check && pnpm typecheck && pnpm test && pnpm build && pnpm check:bundle",
     "postinstall": "wrangler types"
   },
   "dependencies": {

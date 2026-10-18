@@ -44,13 +44,14 @@ values there replace the `vars` of `wrangler.jsonc` locally.
 | `pnpm build` | Production build into `build/` |
 | `pnpm typecheck` | `wrangler types` (runtime types into the git-ignored `worker-configuration.d.ts`), `react-router typegen`, `tsc -b` |
 | `pnpm test` | `vitest run`: the `unit` project (Node) and the `worker` project (Workers runtime) |
-| `pnpm test:e2e` | Playwright (set up in a later task) |
+| `pnpm test:e2e` | The end-to-end suite (Playwright, Chromium): builds, starts the fixture server and the built Worker under `wrangler dev`, runs `test/e2e/`, stops them and removes their state. See "End-to-end tests" |
 | `pnpm api:sync` | Copy the data API's OpenAPI document (`$DATA_API_REPO/docs/openapi.yaml`, default `../data-api-new`) to `api/openapi.yaml` and regenerate `app/server/openapi.d.ts`; name the source commit it prints in the commit message |
 | `pnpm api:check` | Regenerate the types from the committed `api/openapi.yaml` and fail if `app/server/openapi.d.ts` differs (needs no `data-api-new`) |
 | `pnpm fixtures:sync` | Write the generated upstream fixtures of `test/fixtures/http/` from the recorded ledgers (see "Upstream fixtures"); names files that no longer belong, never deletes |
 | `pnpm fixtures:check` | Change nothing; fail when those files are not what the generator writes (`scripts/http-fixtures.test.ts` does the same inside `pnpm test`) |
-| `pnpm deploy:staging`, `pnpm deploy:production` | Build for that Cloudflare environment, then `wrangler deploy` |
-| `pnpm verify` | `api:check`, `typecheck`, `test`, `build` |
+| `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page loads more than 150 KB of JavaScript (gzip), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
+| `pnpm deploy:staging`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
+| `pnpm verify` | `api:check`, `typecheck`, `test`, `build`, `check:bundle` |
 
 Run one project or one file with `pnpm test --project worker` or `pnpm test app/server`. Do not put `--` after
 `pnpm test`: pnpm hands it to Vitest, which then treats everything after it as literal arguments and runs
@@ -229,9 +230,14 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
 - **Ages.** The stored HTML carries close times (`17:01:12`, `at 17:01:12 UTC`), never an age: `RelativeTime` fills in "3 s ago" in
   the browser (one shared timer, none while the tab is hidden), because a page is stored for seconds or for a year.
 - **Tables** (`DataTable`) scroll inside their card below their `minWidth`, which must be at least the sum of the tracks, the gaps
-  and the padding of a row, or the rows' borders and hover end early. What scrolls is a region (`role="region"`, named like the
-  table, `tabindex="0"`) so that a keyboard can scroll a table whose rows hold nothing to focus (axe: `scrollable-region-focusable`);
-  its focus ring is drawn inside it, as the card around it clips an outside one.
+  and the padding of a row, or the rows' borders and hover end early. What scrolls is a region (`role="region"`, named "{table}, scrollable
+  table", `tabindex="0"`) so that a keyboard can scroll a table whose rows hold nothing to focus (axe: `scrollable-region-focusable`);
+  its focus ring is drawn inside it, as the card around it clips an outside one. The name is not the table's: the card around a table
+  is a region named by its title, often the same words, and two landmarks of one name cannot be told apart (axe: `landmark-unique`).
+- **Previous and next ledger** are links named by the number they show, then what they are (`107,720,687, previous ledger`), because an
+  accessible name has to contain the visible text (WCAG 2.5.3, axe: `label-content-name-mismatch`): somebody who says "click
+  107,720,687" must reach it. The one that leads nowhere (the newest ledger has no next) is a `span` with `role="link"` and `aria-disabled`, because a
+  name cannot be given to an element with no role (axe: `aria-prohibited-attr`).
 
 ## The transaction page
 
@@ -458,12 +464,18 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   (`test/unit` is typechecked with `scripts/` by `tsconfig.node.json`, which has the Node types; `tsconfig.cloudflare.json`
   leaves it out. A test that reads files, such as the route scan and the token check, goes there. The same Node config also
   holds the few `app/` and `test/support/` files that `scripts/` and the Node tests import: `upstream-core.ts`, `fixture-server.ts`,
-  `app/server/api-types.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.)
+  `app/server/api-types.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
+  `test/e2e/stack.ts`, which starts the end-to-end stack, is in that config too; the Playwright config and specs are `tsconfig.e2e.json`'s, with
+  the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out.)
+  `scripts/check-bundle.test.ts` runs the bundle check over a fake build (a budget breach, each forbidden name, a missing file);
+  `scripts/e2e-env.test.ts` the switches of the end-to-end suite; `test/unit/headers-file.test.ts` `public/_headers`.
 - `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
   rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
 - The projects do not read `vite.config.ts`, so `vitest.config.ts` gives each the `~/` alias (`app/`) itself;
   `app/domain/alias.test.ts` and `test/worker/alias.spec.ts` fail without it. The code of `app/` imports with relative
   paths.
+- The end-to-end suite is not part of `pnpm test`: it needs a browser and a running Worker, and has its own command (`pnpm test:e2e`, see
+  "End-to-end tests"). `test/e2e/*.spec.ts` are Playwright's, not Vitest's.
 - `worker` project: `test/worker/**/*.spec.ts`, in workerd on the real Worker (`workers/app.ts`, the React Router
   plugin and `wrangler.jsonc`; the vars, secrets and `BUILD_ID` are pinned in `vitest.config.ts`, so a developer's
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call
@@ -583,6 +595,106 @@ reaches a file only through names made of safe pieces (no `.`/`..`, `/`, `\`, `%
 or its other parameters: `isSafePart` in `upstream-core.ts`), and the reader (`fileReader`) takes no path that resolves, or links,
 outside `test/fixtures/http/`; either lock alone stops a request from reading another file.
 
+## End-to-end tests
+
+`pnpm test:e2e` runs `test/e2e/*.spec.ts` with Playwright in Chromium, against **the built Worker**: `react-router build` (the Cloudflare
+Vite plugin's output in `build/`), run by `wrangler dev`, so it is what `wrangler deploy` would upload, with its static assets, `_headers`,
+rate-limit binding and Cache API. The data API and the nodes are the fixture server (`test/support/fixture-server.ts`, see "Upstream
+fixtures") unless a real stack is named. Nothing in the browser or the Worker reaches the network but `127.0.0.1`.
+
+`playwright.config.ts` has Playwright start `test/e2e/stack.ts` as its `webServer` and stop it at the end. The stack:
+
+1. builds (`pnpm build`, without `CLOUDFLARE_ENV`; about 1.5 s), unless `E2E_SKIP_BUILD=1`: a stale build would test the code of an hour ago;
+2. starts the fixture server on a free port;
+3. makes a temporary directory (`x-explorer-e2e-*` under the system's temp directory, new for every run) with a file `worker.env` (mode 600:
+   the four upstream URLs and `DATA_API_KEY`) and `state/`;
+4. starts `wrangler dev --config build/server/wrangler.json --persist-to <dir>/state --env-file <dir>/worker.env` on `E2E_PORT` (inspector on the
+   next port) and waits for `/robots.txt`;
+5. on Playwright's SIGTERM: stops wrangler, closes the fixture server and removes the directory.
+
+The URLs and the key reach the Worker through that file, **never through the repository**: no `.dev.vars` is written, and a developer's own
+(which `pnpm build` copies into `build/server/.dev.vars`, and `wrangler dev` would then read over the variables of the run) is not read,
+because `--env-file` turns that lookup off. The state directory holds the Worker's Cache API, so every run starts without a stored page: an
+immutable page from an earlier run cannot hide what the code does now. The suite uses its own ports (8832 and 8833 unless `E2E_PORT` says
+otherwise; never 5173) and never reuses a server that is already running.
+
+| Variable | Default | |
+|---|---|---|
+| `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one |
+| `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or staging. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
+| `E2E_DATA_API_KEY` | `e2e-fixture-key` (the fixtures take any) | The `X-API-Key` of a real data API; required with `E2E_DATA_API_URL` |
+| `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed staging) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
+| `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:staging` leaves) is refused |
+| `E2E_WORKERS` | `4` | Parallel workers |
+| `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
+| `E2E_CHROMIUM` | unset | The path of a Chromium to use |
+
+**Against a real stack** the suite reads recorded mainnet ledgers and transactions (final, so the same there as in the fixtures), which the
+stack must have. What the fixtures hold by hand is not an account's today (`test/e2e/fixtures.ts` `LIVE`): the tests that read the account
+files (their pages of four and two rows, a balance, an address nobody funded) are skipped when `E2E_DATA_API_URL` or `E2E_BASE_URL` is set.
+It has not been run against a real stack from this repository.
+
+**The browser.** `pnpm exec playwright install chromium` fetches the revision this Playwright wants. Where only an older Chromium headless
+shell is in Playwright's browsers directory (a machine whose browsers an earlier Playwright installed), the config uses the newest one it
+finds and says so (`chromiumToUse` in `scripts/e2e-env.ts`).
+
+**Determinism.** No retries (a test that passes on the second try is a test that fails), no assertion on a time or a duration (the pages
+show ages, `13 h ago`; they are never asserted), only Playwright's waiting assertions and `waitForURL`. Each test has a visitor address of its
+own: the Worker allows 60 uncached renders in 10 s per address, and without one every request would be the same visitor
+(`CF-Connecting-IP`, `test/e2e/support.ts`). Each test also fails on anything the browser's console logged as an error and on an uncaught
+exception (a hydration mismatch, a script that throws, a missing file of the build), unless it says `test.use({ allowConsoleErrors: true })`.
+
+| Spec | Flows |
+|---|---|
+| `search.spec.ts` | A pasted hash with its noise (`0x`, lower case, spaces) shows its hint and leads to the transaction; a hint leads to an account and `/` focuses the header's box; a grouped ledger index (`107,720,688`); the box as a plain form with JavaScript off; a hash of the other network, the 404 and the "Search on Xahau" offer; an address never activated |
+| `ledger.spec.ts` | Xahau 26540187 → next (26540188) → previous, in the page (no new document), by the links named `26,540,188, next ledger`; the type filter |
+| `account.spec.ts` | The tabs (Transactions, Payments, Trades, Offers, Objects; Analytics is not a link); Older and Newer on Transactions (four rows, two rows, four rows; the marker page shows no live state) and on Payments, which keep the tab; the balance, the token and the reserve |
+| `network.spec.ts` | The switch goes to the other network's home, changes `data-net` and the title, writes the `net` cookie, and `/` then redirects to it; `/` without a cookie is XRPL; an unknown network is a 404 |
+| `theme.spec.ts` | See below |
+| `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the network switch |
+| `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
+| `assets.spec.ts` | The stylesheet, scripts and font of a page carry `Cache-Control: public, max-age=31536000, immutable` from `public/_headers` (the local runtime applies it); a page and the favicon do not |
+| `a11y.spec.ts` | See below |
+
+**Theme, with no flash.** The page is stored once for everybody, so the server cannot name a theme: `THEME_SCRIPT`, a plain inline script in
+`<head>` before the stylesheet, puts the stored choice on `<html data-theme>`. The spec checks that three ways. (1) The stored HTML: `<html>` has no
+`data-theme`, and the script is a plain `<script>` before the `<link rel="stylesheet">` and the body. (2) The first frame: a context with
+`localStorage.theme` set (Playwright's `storageState`) loads the page with every `/assets/*.js` aborted, so that React cannot set anything and only
+the HTML can; `data-theme` is then `dark`, and the body paints with the background the system's dark gives (the same page with
+`prefers-color-scheme: dark` and nothing stored); a stored `light` beats a dark system the same way; and a `PerformanceObserver` installed before the
+page's scripts notes `data-theme` when the browser reports the first paint and the first contentful paint. (3) With scripts: the toggle sets
+`data-theme` and `localStorage`, `aria-pressed` follows, the choice survives a client-side navigation and a reload, the system theme is followed until
+a choice is made, and it works where `localStorage` throws. Removing the script fails (1) and (2); moving it after the stylesheet fails (1) only,
+because Chrome still runs it before the first paint.
+
+**Accessibility.** `@axe-core/playwright` with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` (the rules of WCAG 2.2 AA, including
+`color-contrast`, `target-size` and `label-content-name-mismatch`, which the spec checks ran). The gate is no violation of impact `serious` or
+`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account and 404 pages
+× a 1280 px desktop and a 375 px phone × four settings: light and dark by `prefers-color-scheme`, and dark and light chosen with the toggle
+(against the opposite system theme; the spec checks the page really has that `color-scheme`). Eleven more pages (the other tabs of an account, a page
+behind a marker, a never-activated account, a missing transaction, the search help, the Xahau home and account, a ledger of 66 transactions) run in
+the two system themes. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
+about ARIA attributes with "needs review" results counted as failures (axe reports a name on an element that cannot have one that way, so the gate
+above does not see it).
+
+## The client bundle check
+
+`scripts/check-bundle.ts` (`pnpm check:bundle`, the last step of `pnpm verify`; its logic is tested in `scripts/check-bundle.test.ts`) reads
+`build/client` after the build and fails when:
+
+- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction or account route; what it loads
+  first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
+  layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure). Chunks fetched with
+  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Today: home 130.8 KB, ledger 132.9, transaction
+  135.1, account 135.5 (earlier reports gave 127.7, 129.8, 131.9 and 132.3: the same numbers in KiB, 1024 bytes);
+- any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
+  the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
+  These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts and images are not read;
+- `build/client/_headers` is missing or lacks the rule that keeps `/assets/*` for a year;
+- the manifest or a file it names is missing.
+
+It prints a table (page, files, bytes, KB, `ok` or `OVER`) and the problems.
+
 ## The parsing libraries in the Workers runtime
 
 `test/worker/runtime.spec.ts` runs `ripple-lib-transactionparser` 0.8.2, `ripple-address-codec` 5 and
@@ -597,8 +709,56 @@ as the production build bundles it. Any new CommonJS dependency that fails to lo
 goes in that list. `ripple-lib-transactionparser` cannot go in it: it `require`s Node's `assert`, which the
 optimizer does not resolve, and it loads without it.
 
-## Deploying
+## The pipeline and deploying
 
-Not automated yet (no CI in this repository). A deploy is `pnpm deploy:staging` or `pnpm deploy:production`, with
-the real data API hosts in `wrangler.jsonc` and `DATA_API_KEY` set as a secret on the Worker (`x-explorer-staging`,
-`x-explorer-production`).
+There is no CI configuration in this repository: which system runs the pipeline is still to be decided (spec 13). The pipeline is these
+steps, in this order, and a system that runs them is a pipeline. The explorer depends on no private package, so it needs no npm token.
+
+```sh
+pnpm install --frozen-lockfile     # the lockfile as it is; fails if package.json disagrees (the postinstall hook runs wrangler types)
+pnpm verify                        # api:check, typecheck (wrangler types, react-router typegen, tsc -b), test (unit, components, loaders in workerd),
+                                   # build, check:bundle
+E2E_SKIP_BUILD=1 pnpm test:e2e     # the end-to-end suite on the build verify has just made (needs a Chromium: pnpm exec playwright install chromium)
+pnpm deploy:staging                # CLOUDFLARE_ENV=staging react-router build && wrangler deploy
+# ...the rollout below...
+pnpm deploy:production             # CLOUDFLARE_ENV=production react-router build && wrangler deploy
+```
+
+**`wrangler deploy --env <env>` and the Cloudflare Vite plugin.** The environment is chosen when the Worker is *built*, not when it is deployed:
+the plugin writes `build/server/wrangler.json` for the environment `CLOUDFLARE_ENV` names (its name, vars and rate-limit namespace flattened to the top level;
+`staging` is the Worker `x-explorer-staging`, `production` is `x-explorer-production`) and a redirect in `.wrangler/deploy/config.json` that `wrangler deploy`
+follows. So the deploy scripts build with `CLOUDFLARE_ENV` and run a plain `wrangler deploy`, which is what spec 13's `wrangler deploy --env <env>`
+comes to here. Checked with `wrangler deploy --dry-run`: after a `CLOUDFLARE_ENV=staging` build, `--env staging` is accepted and `--env production` is an
+error ("does not match the target environment"); after a build with no `CLOUDFLARE_ENV`, `--env staging` is accepted without a warning and **selects nothing**: the generated file is
+named `x-explorer` and holds the vars of local development, and it has no environment for the flag to pick. So never build without `CLOUDFLARE_ENV` and deploy; use the scripts.
+A build for an environment also needs a commit to name it (`BUILD_ID`, see "Configuration"): the edge cache key includes it. The deploy builds
+again for its environment: the code is the commit `verify` and the end-to-end suite looked at, the vars and the rate-limit namespace are the environment's.
+`wrangler deploy` needs `CLOUDFLARE_API_TOKEN` (and `CLOUDFLARE_ACCOUNT_ID`) in the pipeline's secrets.
+
+**Secrets**, once per Worker and again when one changes (they are not in the repository, `wrangler.jsonc` or the build):
+
+```sh
+pnpm exec wrangler secret put DATA_API_KEY --env staging      # the key listed in the data API's GH_RATE_LIMIT_KEYS
+pnpm exec wrangler secret put SENTRY_DSN --env staging        # optional: Sentry stays off without it
+pnpm exec wrangler secret put DATA_API_KEY --env production
+```
+
+The data API hosts in `wrangler.jsonc` are placeholders (`*.example.invalid`) until the hosts are decided; the deployed Workers need the real ones
+in the `vars` of each environment before the first deploy.
+
+**Rollout** (spec 13):
+
+1. `data-api-new` ships `GH_RATE_LIMIT_KEYS` and the explorer's key is issued.
+2. Deploy to staging on its custom domain (the Cache API does not work on `*.workers.dev`), and run the end-to-end suite against the real staging API and
+   node: either `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` (the same Worker under `wrangler dev`, pointed at the staging
+   stack) or `E2E_BASE_URL=https://staging.example.com E2E_WORKERS=1 pnpm test:e2e` (the deployed Worker itself). The suite catches drift in the
+   response bodies the hand-written types in `app/server/api-types.ts` cannot see.
+3. Production.
+
+**The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
+checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.
+The pipeline's `pnpm verify` runs `pnpm api:check`, which regenerates the types from the committed copy and fails if they differ.
+
+**Fixtures** are copied or derived, never invented without saying so: `test/fixtures/PROVENANCE.md` records, for every copied file, the source repository,
+path and commit, and what was recorded, from where and when; "Upstream fixtures" says which of `test/fixtures/http/` is generated (`pnpm fixtures:sync`)
+and which was written by hand.

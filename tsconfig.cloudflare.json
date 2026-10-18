@@ -9,7 +9,7 @@
     "test/**/*",
     "worker-configuration.d.ts"
   ],
-  "exclude": ["test/unit", "test/support/fixture-server.ts"],
+  "exclude": ["test/unit", "test/e2e", "test/support/fixture-server.ts"],
   "compilerOptions": {
     "composite": true,
     "strict": true,

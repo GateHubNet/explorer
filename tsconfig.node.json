@@ -5,6 +5,7 @@
     "vitest.config.ts",
     "scripts/**/*",
     "test/unit/**/*",
+    "test/e2e/stack.ts",
     "test/support/upstream-core.ts",
     "test/support/fixture-server.ts",
     "app/server/api-types.ts",
