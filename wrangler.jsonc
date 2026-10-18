@@ -11,7 +11,18 @@
  * `wrangler secret put --env <env>` when deployed.
  *
  * The data API hosts below are placeholders (`.invalid` never resolves) until the hosts are
- * decided; the nodes are the public defaults.
+ * decided; the nodes are the public defaults. `scripts/predeploy-check.ts` refuses to let a build with a
+ * placeholder (or a non-https URL) be deployed: the `deploy:*` scripts run it between the build and
+ * `wrangler deploy`.
+ *
+ * `staging` and `production` are not served from `*.workers.dev` (`workers_dev` and `preview_urls` are
+ * false): the Cache API does nothing there, so every request would render and call the data API, and the
+ * Worker would be a second, duplicate site. They have no routes yet, because the hosts are not named. When
+ * they are, add to each environment, before its first deploy:
+ *
+ *     "routes": [{ "pattern": "<host>", "custom_domain": true }]
+ *
+ * (README: "The pipeline and deploying".)
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
@@ -39,6 +50,8 @@
 	"env": {
 		"staging": {
 			"name": "x-explorer-staging",
+			"workers_dev": false,
+			"preview_urls": false,
 			"vars": {
 				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
 				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
@@ -55,6 +68,8 @@
 		},
 		"production": {
 			"name": "x-explorer-production",
+			"workers_dev": false,
+			"preview_urls": false,
 			"vars": {
 				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
 				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",

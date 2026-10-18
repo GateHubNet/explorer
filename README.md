@@ -50,7 +50,7 @@ values there replace the `vars` of `wrangler.jsonc` locally.
 | `pnpm fixtures:sync` | Write the generated upstream fixtures of `test/fixtures/http/` from the recorded ledgers (see "Upstream fixtures"); names files that no longer belong, never deletes |
 | `pnpm fixtures:check` | Change nothing; fail when those files are not what the generator writes (`scripts/http-fixtures.test.ts` does the same inside `pnpm test`) |
 | `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page loads more than 150 KB of JavaScript (gzip), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
-| `pnpm deploy:staging`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
+| `pnpm deploy:staging`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `scripts/predeploy-check.ts <env>` (refuses a placeholder or non-https upstream URL, a build for another environment, a Worker reachable on workers.dev), then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
 | `pnpm verify` | `api:check`, `typecheck`, `test`, `build`, `check:bundle` |
 
 Run one project or one file with `pnpm test --project worker` or `pnpm test app/server`. Do not put `--` after
@@ -88,7 +88,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. `transaction(hash)` and `transactionBinary(hash)` (`binary=true`: `tx` and `meta` as hex, or as the stored JSON for a type the API's codec cannot serialize) are the same path with and without that flag. What the pages read of a transaction, of its binary form and of a ledger's list of hashes is checked **inside the load the subrequest cache runs** (`tx-shape.ts`): a 200 with the wrong content is an `UpstreamError` of kind `server` and is never stored, where an answer that came back whole would have been kept for a year. |
 | `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds. |
 | `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
-| `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, and the `SubrequestCache` interface both clients take. |
+| `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, `MARKER_PAGE_CLASS` (the class of a list page reached with a marker: `slow`, see "The account page"), and the `SubrequestCache` interface both clients take. |
 | `edge-cache.ts` | The page-level edge cache and visitor limit (`withEdgeCache`), the subrequest cache the clients take (`createSubrequestCache`), and what loaders and routes use to name a page's class (`cached`, `forwardCacheClass`, `cacheClassHeaders`) or to say it is degraded (`DegradedMark`, `markDegraded` in `env.ts`). |
 | `logging.ts` | The request id and the one log line per request (`withRequestLog`), and Sentry, loaded only for a Worker that has a `SENTRY_DSN` (`withSentryWhenConfigured`). |
 | `clients.ts` | `clientsFor(context, net)`: the data API client and the node client of a network, over the request's subrequest cache. What a loader calls. |
@@ -302,7 +302,7 @@ JavaScript); Analytics is a disabled tab that says "soon". Lists are newest firs
 | an address that is not an account | 404 without a call, noindex | `short` |
 | an unknown `?tab=`, or a `marker` on Offers or Objects (they have no pages) | 302 to the URL without it | `short` |
 | the first page of a tab | the page; header read from the data API (creation, balances) and the node (`account_info`, `account_objects` with `limit: 400`, `server_state`), the list **streamed** after it | `live` |
-| a page reached with a `marker` | the page, awaited whole: the list and nothing else (no live state, no activation, and the creation record is not asked for); `noindex, follow` | `immutable` |
+| a page reached with a `marker` | the page, awaited whole: the list and nothing else (no live state, no activation, and the creation record is not asked for); `noindex, follow` | `slow` (`MARKER_PAGE_CLASS`, see below) |
 | a marker the API refuses (400), that is not base64url, or that has nothing behind it (an empty list) | 404 | `short` |
 | the index has no creation, the node no account **and** `?limit=1` of the account's transactions is empty | 404 "This address has never been activated" with a link to the other network; noindex | `short` |
 | the index knows it and the node says it is gone, or neither knows it but the index has a transaction of it | the history with a "Deleted" banner, no balance, tokens or owned objects (the activation says it is not in the index when there is no creation record) | `live` |
@@ -315,11 +315,21 @@ JavaScript); Analytics is a disabled tab that says "soon". Lists are newest firs
   page), so the HTML holds the header before the list. The promise never rejects: a failure is a list of state `failed`, which the
   page shows as the section error. It is settled before the framework stops streaming (`streamTimeout`, 5 s), by a 4.5 s deadline of
   the loader's own, so a slow upstream cannot leave the browser with a rejected promise. Bots get the whole document
-  (`entry.server.tsx` waits for `allReady` for them). A page behind a marker awaits its list: it is stored for a year and must be whole.
+  (`entry.server.tsx` waits for `allReady` for them). A page behind a marker awaits its list: it is stored (for an hour) and must be whole.
 - **Retry** fetches the route's own data again in the browser (`useRevalidator`: the explorer's `.data` URL, never the data API). A
   degraded answer was not stored, so the retry reaches a fresh render, which is stored if it is good.
-- **No live state, no activation behind a marker.** Such a page is `immutable`, and a balance in it would be as old as the page; the
-  activation is slow-class data (an hour) that must not sit in a page stored for a year, and the index has no creation record for an
+- **Marker pages are `slow` (1 hour), not `immutable`: a deliberate deviation from spec 2, which the owner is to confirm.** The spec has
+  them stored for a year because "markers are stable under new data", and at the head of the index they are. But data-api-new writes
+  history *below* the frontier: its range backfill runs beside the live syncer, `--reprocess` rewrites rows after a parser change, and
+  gap repair fills holes. An account whose history crosses the frontier would get its oldest marker page stored without an Older link,
+  and a repaired or reprocessed payment or trade would stay stale for a year (the page, and the subrequest under it, which has the same
+  class, until a deploy changes `BUILD_ID`). The choice is one constant, `MARKER_PAGE_CLASS` in `app/server/cache-class.ts`, used by the
+  list calls of `data-api.ts` (`listClass`) and by the account route; when backfill is finished and nothing rewrites history any more,
+  set it to `"immutable"` and change the tests that pin it (`data-api.spec.ts` "after a marker", `account.spec.ts` "paging") and this
+  paragraph. The pages stay `noindex, follow`.
+- **No live state, no activation behind a marker.** Such a page is stored for a long time (an hour, a year if `MARKER_PAGE_CLASS` is
+  `immutable`), and a balance in it would be as old as the page; the activation is slow-class data (an hour) that must not sit in a page
+  stored for a year, and the index has no creation record for an
   account created before its first ledger (it is filled by range, genesis accounts have none), which the first page shows as active
   all the same. So the page shows the address and the list, and a link to the first page for the rest. It 404s only when the API
   refuses the marker or there is nothing behind it.
@@ -471,7 +481,9 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
   a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the browser, the env file read back with wrangler's own loader, which console errors a test lets through); `test/unit/e2e-stack.test.ts`
-  runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`.
+  runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
+  `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, another environment, workers.dev, the redirect), the
+  command through a link, and that the deploy scripts run it between the build and `wrangler deploy` and the environments of `wrangler.jsonc` are not on workers.dev.
 - `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
   rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
 - The projects do not read `vite.config.ts`, so `vitest.config.ts` gives each the `~/` alias (`app/`) itself;
@@ -740,9 +752,9 @@ pnpm install --frozen-lockfile     # the lockfile as it is; fails if package.jso
 pnpm verify                        # api:check, typecheck (wrangler types, react-router typegen, tsc -b), test (unit, components, loaders in workerd),
                                    # build, check:bundle
 E2E_SKIP_BUILD=1 pnpm test:e2e     # the end-to-end suite on the build verify has just made (needs a Chromium: pnpm exec playwright install chromium)
-pnpm deploy:staging                # CLOUDFLARE_ENV=staging react-router build && wrangler deploy
+pnpm deploy:staging                # CLOUDFLARE_ENV=staging react-router build && tsx scripts/predeploy-check.ts staging && wrangler deploy
 # ...the rollout below...
-pnpm deploy:production             # CLOUDFLARE_ENV=production react-router build && wrangler deploy
+pnpm deploy:production             # CLOUDFLARE_ENV=production react-router build && tsx scripts/predeploy-check.ts production && wrangler deploy
 ```
 
 **`wrangler deploy --env <env>` and the Cloudflare Vite plugin.** The environment is chosen when the Worker is *built*, not when it is deployed:
@@ -756,7 +768,34 @@ A build for an environment also needs a commit to name it (`BUILD_ID`, see "Conf
 again for its environment: the code is the commit `verify` and the end-to-end suite looked at, the vars and the rate-limit namespace are the environment's.
 `wrangler deploy` needs `CLOUDFLARE_API_TOKEN` (and `CLOUDFLARE_ACCOUNT_ID`) in the pipeline's secrets.
 
-**Secrets**, once per Worker and again when one changes (they are not in the repository, `wrangler.jsonc` or the build):
+**The pre-deploy guard** (`scripts/predeploy-check.ts <staging|production>`, logic in `scripts/predeploy-guard.ts`, tests in
+`scripts/predeploy-check.test.ts` over fake configs; nothing in them deploys) runs between the build and `wrangler deploy`, chained with `&&`, so
+its exit code stops the deploy. It reads the config the plugin wrote (`build/server/wrangler.json`) and exits 1, printing every reason, when:
+
+- an upstream var (`XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL`, `XAHAU_NODE_URL`) is a placeholder (a host under `.invalid`, which is what
+  `wrangler.jsonc` holds until the hosts are decided: a Worker deployed with them answers every page with a 503), is not an `https` URL, or is missing;
+- the build is not for the environment asked for, or for none (a build without `CLOUDFLARE_ENV` is the top level, local development);
+- `workers_dev` or `preview_urls` is not `false` in the build, so that the Worker would be reachable on `*.workers.dev`;
+- `.wrangler/deploy/config.json`, the redirect `wrangler deploy` follows, is missing or does not lead to that very file (it would then deploy
+  `wrangler.jsonc`'s top level instead).
+
+It fails closed: a build that is missing, unreadable or not an object is a refusal. It always runs when it is run, however it was reached (a link
+included). It **cannot check secrets**, which are not in the build: set `DATA_API_KEY` with `wrangler secret put` (below) before the environment takes
+traffic, or the data API refuses every call and every page is a 503.
+
+**Hosts and routes.** `staging` and `production` are not served from `*.workers.dev` (`"workers_dev": false` and `"preview_urls": false` in each): the
+Cache API does nothing there, so every request would render and call the data API (only the per-address limiter would protect the key's quota), and
+the Worker would be a second copy of the site that names itself in its canonical links. The environments have **no routes yet**, because the hosts are
+not named. When they are, before the first deploy of an environment, put its real hosts in its `vars` and add to it
+
+```jsonc
+"routes": [{ "pattern": "<host>", "custom_domain": true }]
+```
+
+(`custom_domain` makes Cloudflare create the DNS record and certificate for the host). Until then a deploy is refused by the guard, because the hosts
+are placeholders, which is the intent.
+
+**Secrets**, once per Worker and again when one changes (they are not in the repository, `wrangler.jsonc` or the build; the guard cannot see them):
 
 ```sh
 pnpm exec wrangler secret put DATA_API_KEY --env staging      # the key listed in the data API's GH_RATE_LIMIT_KEYS
@@ -766,7 +805,7 @@ pnpm exec wrangler secret put SENTRY_DSN --env production     # optional
 ```
 
 The data API hosts in `wrangler.jsonc` are placeholders (`*.example.invalid`) until the hosts are decided; the deployed Workers need the real ones
-in the `vars` of each environment before the first deploy.
+in the `vars` of each environment before the first deploy (the guard refuses a deploy with a placeholder).
 
 **Rollout** (spec 13):
 

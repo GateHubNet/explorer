@@ -40,6 +40,8 @@ const X_ADDRESS_NO_TAG = "XVMgJSRJAMekfCw3mHHsRUbqYqWuZ26KqXMt3GKX2eENgJ9";
 
 const LIVE = { cls: "live", ttl: 5 };
 const IMMUTABLE = { cls: "immutable", ttl: 31_536_000 };
+// A page reached with a marker: `slow`, not `immutable` (MARKER_PAGE_CLASS in cache-class.ts), because backfill writes history below the marker.
+const MARKER_PAGE = { cls: "slow", ttl: 3_600 };
 const SHORT = { cls: "short", ttl: 30 };
 
 /** A valid address that no recording has: 20 bytes of `n`. */
@@ -1024,13 +1026,13 @@ describe("the list streams after the header", () => {
 // Paging
 
 describe("paging", () => {
-  it("links Older to the API's marker on the first page, and the page behind it is class immutable and noindex, follow", async () => {
+  it("links Older to the API's marker on the first page, and the page behind it is class slow (an hour, not a year) and noindex, follow", async () => {
     mock = mockUpstream("xrpl");
     const first = await page(`/xrpl/account/${ACTIVE}?case=paging`);
     expect(hrefs(first.html)).toContain(`/xrpl/account/${ACTIVE}?marker=WzEwNzYxMjU3MywyNV0`);
 
     const { html } = await page(`/xrpl/account/${ACTIVE}?marker=WzEwNzYxMjU3MywyNV0`);
-    expect(await storedAs(`/xrpl/account/${ACTIVE}?marker=WzEwNzYxMjU3MywyNV0`)).toEqual(IMMUTABLE);
+    expect(await storedAs(`/xrpl/account/${ACTIVE}?marker=WzEwNzYxMjU3MywyNV0`)).toEqual(MARKER_PAGE);
     expect(html).toMatch(/<meta name="robots" content="noindex, follow"/);
     expect(tableRows(html, "Transactions").slice(1).map((r) => [r[0], r[1]])).toEqual([
       ["2026-10-08 01:43:52", "OfferCreate"],
@@ -1072,7 +1074,7 @@ describe("paging", () => {
     const { html } = await page(`/xrpl/account/${a}?marker=M1`);
     expect(tableRows(html, "Transactions")).toHaveLength(3);
     expect(textOf(html)).not.toContain("Activat");
-    expect(await storedAs(`/xrpl/account/${a}?marker=M1`)).toEqual(IMMUTABLE);
+    expect(await storedAs(`/xrpl/account/${a}?marker=M1`)).toEqual(MARKER_PAGE);
     // The creation record was never asked for, so its absence cannot make the page a 404.
     expect(mock.requests.some((r) => r.key === `GET /v2/accounts/${a}`)).toBe(false);
   });
@@ -1114,7 +1116,7 @@ describe("paging", () => {
     expect(tableRows(payments.html, "Payments")).toHaveLength(2);
     expect(hrefs(payments.html)).toContain(`/xrpl/account/${ACTIVE}?tab=payments`);
     expect(payments.html).toMatch(/<meta name="robots" content="noindex, follow"/);
-    expect(await storedAs(`/xrpl/account/${ACTIVE}?tab=payments&marker=WzEwNzYzNjY3Myw3OF0`)).toEqual(IMMUTABLE);
+    expect(await storedAs(`/xrpl/account/${ACTIVE}?tab=payments&marker=WzEwNzYzNjY3Myw3OF0`)).toEqual(MARKER_PAGE);
     // The CSV link is the same on every page of the list.
     expect(anchors(payments.html).find((a) => a.text === "Download CSV")?.attrs).toContain(`href="/xrpl/account/${ACTIVE}/payments.csv"`);
 

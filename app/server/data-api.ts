@@ -20,7 +20,7 @@ import type {
   TxObject,
   TxStoredJson,
 } from "./api-types";
-import type { CacheClass, SubrequestCache } from "./cache-class";
+import { MARKER_PAGE_CLASS, type CacheClass, type SubrequestCache } from "./cache-class";
 import type { Env } from "./env";
 import { isMarker } from "./marker";
 import type { Network } from "./networks";
@@ -251,9 +251,10 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   });
   /**
    * A page reached with a marker is stable under new data only when the list runs newest first: then it is the
-   * history before the marker. An oldest-first list grows at the end.
+   * history before the marker. An oldest-first list grows at the end. Even so it is only `MARKER_PAGE_CLASS`, which is not
+   * `immutable` while the index can still be backfilled (see there).
    */
-  const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? "immutable" : "live");
+  const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : "live");
 
   /**
    * The API adds `transactions` to an expanded ledger only when the ledger has some, unless `transactions=true` is

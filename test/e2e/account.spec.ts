@@ -51,7 +51,7 @@ test.describe("the account page", () => {
     await expect(rowsOf(page, "Transactions")).toHaveCount(3); // the last two transactions and the header
     // The oldest page has nothing older.
     await expect(pagination.getByRole("link", { name: "Older" })).toHaveCount(0);
-    // A page behind a marker is the list alone (it is kept for good, so it holds no live state).
+    // A page behind a marker is the list alone (it is kept for an hour or more, so it holds no live state).
     await expect(page.getByRole("main")).toContainText("does not show the balance or the live state");
 
     await pagination.getByRole("link", { name: "Newer" }).click();

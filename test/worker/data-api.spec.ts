@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type MockInstance } from "vitest";
 
 import type { TxObject } from "../../app/server/api-types";
-import type { CacheClass } from "../../app/server/cache-class";
+import { CACHE_CLASSES, MARKER_PAGE_CLASS, type CacheClass } from "../../app/server/cache-class";
 import { createDataApi, UpstreamError, type DataApi } from "../../app/server/data-api";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
@@ -208,7 +208,8 @@ const cases: Case[] = [
   },
   {
     name: "transactions, after a marker",
-    cls: "immutable",
+    // `slow`, not `immutable` (MARKER_PAGE_CLASS in cache-class.ts): backfill and gap repair write history below the marker.
+    cls: "slow",
     call: (a) => a.transactions({ descending: true, limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" }),
     url: "/v2/transactions?descending=true&limit=20&marker=WzEwNzY3MDM2MCw1XQ",
     body: transactionsBody,
@@ -248,7 +249,8 @@ const cases: Case[] = [
   },
   {
     name: "accountTransactions, after a marker",
-    cls: "immutable",
+    // `slow`, not `immutable` (MARKER_PAGE_CLASS in cache-class.ts): backfill and gap repair write history below the marker.
+    cls: "slow",
     call: (a) => a.accountTransactions(ACCOUNT, { descending: true, limit: 20, marker: "abc" }),
     url: `/v2/accounts/${ACCOUNT}/transactions?descending=true&limit=20&marker=abc`,
     body: transactionsBody,
@@ -264,7 +266,8 @@ const cases: Case[] = [
   },
   {
     name: "accountPayments, after a marker",
-    cls: "immutable",
+    // `slow`, not `immutable` (MARKER_PAGE_CLASS in cache-class.ts): backfill and gap repair write history below the marker.
+    cls: "slow",
     call: (a) => a.accountPayments(ACCOUNT, { descending: true, limit: 20, marker: "abc" }),
     url: `/v2/accounts/${ACCOUNT}/payments?descending=true&limit=20&marker=abc`,
     body: paymentsBody,
@@ -280,7 +283,8 @@ const cases: Case[] = [
   },
   {
     name: "accountExchanges, after a marker",
-    cls: "immutable",
+    // `slow`, not `immutable` (MARKER_PAGE_CLASS in cache-class.ts): backfill and gap repair write history below the marker.
+    cls: "slow",
     call: (a) => a.accountExchanges(ACCOUNT, { descending: true, limit: 20, marker: "abc" }),
     url: `/v2/accounts/${ACCOUNT}/exchanges?descending=true&limit=20&marker=abc`,
     body: exchangesBody,
@@ -626,7 +630,7 @@ describe("cache", () => {
     expect(cache.calls[0]!.key).toContain(`${BASE}${c.url}`);
   });
 
-  it("a page after a marker is stable only when the list is newest first", async () => {
+  it("a page after a marker is kept longer than a first page only when the list is newest first", async () => {
     const cache = recordingCache();
     fetchSpy.mockImplementation(async () => json(transactionsBody));
     const api = createDataApi(xrpl, env, cache);
@@ -635,6 +639,13 @@ describe("cache", () => {
     await api.accountTransactions(ACCOUNT, { descending: false, limit: 20, marker: "m" });
 
     expect(cache.calls.map((c) => c.cls)).toEqual(["live", "live"]);
+  });
+
+  // A deliberate deviation from spec 2 (which has them immutable): data-api-new's range backfill, `--reprocess` and gap repair write history
+  // below the frontier, so a marker is stable only at the head. MARKER_PAGE_CLASS says where to flip it back once backfill is finished.
+  it("keeps a page after a marker for an hour, not a year, while history can still be rewritten", () => {
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+    expect(CACHE_CLASSES[MARKER_PAGE_CLASS].edgeTtl).toBe(3600);
   });
 
   it("does not look in the cache for the request it refuses", async () => {

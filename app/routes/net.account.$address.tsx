@@ -24,6 +24,7 @@ import {
   type NeverActivatedData,
   type TabList,
 } from "../server/account-view";
+import { MARKER_PAGE_CLASS } from "../server/cache-class";
 import type { DataApi } from "../server/data-api";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
@@ -117,8 +118,9 @@ function readList(api: DataApi, tab: AccountTab, ctx: ListContext): Promise<TabL
  * - **Never funded** (the index has no creation and the node no account) is a 404 of class `short`. **Deleted** (the index knows it, the
  *   node does not) is the history with a "Deleted" banner and is stored as `live`. The node failing is "Live state unavailable". Any of
  *   these, or a section that could not be loaded, marks the request degraded: the page is served and not stored.
- * - **A page with a marker** is old history and class `immutable`, `noindex, follow`. Everything is awaited (a stored page must be
- *   whole), and it carries no live state, which would be as old as the page. A marker the API refuses is a 404.
+ * - **A page with a marker** is old history and class `MARKER_PAGE_CLASS` (`slow`, not `immutable`: backfill writes history below the
+ *   frontier, see cache-class.ts), `noindex, follow`. Everything is awaited (a stored page must be whole), and it carries no live state,
+ *   which would be as old as the page. A marker the API refuses is a 404.
  */
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
@@ -174,8 +176,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 type Common = Pick<AccountPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr">;
 
 /**
- * A page of old history: awaited whole, class `immutable`, and nothing but the list. It does not ask for the creation record: that
- * is slow-class data that must not sit in a page stored for a year, and the index has none for an account that was created before its
+ * A page of old history: awaited whole, class `MARKER_PAGE_CLASS`, and nothing but the list. It does not ask for the creation record: that
+ * is slow-class data that must not sit in a page stored for a long time, and the index has none for an account that was created before its
  * first ledger (it is filled by range), whose first page shows it as active all the same. The page does not exist when the API refuses
  * the marker or when there is nothing behind it.
  */
@@ -197,7 +199,7 @@ async function historyPage(context: Route.LoaderArgs["context"], network: Networ
 
   const header: HistoryHeader = { status: "history" };
   const page: AccountPageData = { ...common, mode: "history", header, list };
-  return cached(page, "immutable");
+  return cached(page, MARKER_PAGE_CLASS);
 }
 
 /** The first page of a tab: class `live`, the header awaited, the list streamed. */
