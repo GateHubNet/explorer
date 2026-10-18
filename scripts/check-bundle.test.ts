@@ -1,16 +1,15 @@
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./check-bundle";
+import { BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
 
 // A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the four pages' and
-// whose chunks are random bytes (they do not compress, so a chunk's gzipped size is known to within a few bytes).
+// whose chunks are bytes of no pattern (they do not compress, so a chunk's gzipped size is known to within a few bytes).
 
 const IMMUTABLE_HEADERS = "/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n";
 
@@ -27,6 +26,17 @@ interface FakeRoute {
   parentId?: string;
   module: string;
   imports?: string[];
+}
+
+/** Bytes that do not compress, the same every time (a generator of a seed): the gzipped size of a chunk is then known to within a few bytes, and repeatable. */
+function incompressible(size: number, seed: number): Buffer {
+  const bytes = Buffer.alloc(size);
+  let state = seed >>> 0;
+  for (let i = 0; i < size; i += 1) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    bytes[i] = state >>> 24;
+  }
+  return bytes;
 }
 
 const dirs: string[] = [];
@@ -50,7 +60,7 @@ function fakeBuild(options: {
   mkdirSync(join(dir, "assets"));
   const sizes = new Map<string, number>();
   for (const chunk of options.chunks) {
-    const content = chunk.text ?? randomBytes(chunk.size ?? 100);
+    const content = chunk.text ?? incompressible(chunk.size ?? 100, [...chunk.name].reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7));
     writeFileSync(join(dir, "assets", chunk.name), content);
     sizes.set(chunk.name, gz(content));
   }
@@ -165,7 +175,41 @@ describe("checkBundle: what a page loads", () => {
     expect(checkBundle(dir).problems).toEqual([]);
   });
 
-  it("counts a chunk the entry imports in every page, and the file at the edge of the budget", () => {
+  /**
+   * A build whose home page loads exactly `target` bytes, gzipped: the chunk every page shares carries most of it, and the home page's
+   * own chunk is adjusted a byte at a time until the sum is right. (The other pages are smaller by the size of the chunk they lack.)
+   */
+  function homeAt(target: number) {
+    let shared = 120_000;
+    let home = 5000;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const chunks = CHUNKS.map((chunk) => (chunk.name === "shared.js" ? { ...chunk, size: shared } : chunk.name === "home.js" ? { ...chunk, size: home } : chunk));
+      const { dir } = fakeBuild({ chunks, routes: ROUTES });
+      const report = checkBundle(dir);
+      const bytes = report.pages.find((page) => page.name === "home")!.bytes;
+      if (bytes === target) return report;
+      const delta = target - bytes;
+      if (Math.abs(delta) > 3000) shared += delta - Math.sign(delta) * 1000;
+      else home += delta;
+    }
+    throw new Error(`no build whose home page loads ${target} bytes`);
+  }
+
+  it("holds a page to 150,000 bytes gzipped: that many passes, one more fails", () => {
+    const atLimit = homeAt(BUDGET_BYTES);
+    expect(atLimit.pages.find((page) => page.name === "home")!.bytes).toBe(150_000);
+    expect(atLimit.problems.filter((problem) => problem.includes("the home page"))).toEqual([]);
+    expect(formatReport(atLimit)).toMatch(/home\s+\d+\s+150,000\s+150\.0 KB\s+ok/);
+
+    const over = homeAt(BUDGET_BYTES + 1);
+    expect(over.pages.find((page) => page.name === "home")!.bytes).toBe(150_001);
+    expect(over.problems.filter((problem) => problem.includes("the home page"))).toHaveLength(1);
+    expect(formatReport(over)).toMatch(/home\s+\d+\s+150,001\s+150\.0 KB\s+OVER/);
+    // The other pages are under it in both.
+    expect(atLimit.problems.filter((problem) => !problem.includes("the home page"))).toEqual([]);
+  });
+
+  it("counts a chunk the entry imports in every page", () => {
     // The entry's own imports are loaded by every page.
     const { dir } = fakeBuild({
       chunks: [...CHUNKS, { name: "react-dom.js", size: 140_000 }],
@@ -286,4 +330,37 @@ describe("the command", () => {
     expect(result.stdout + result.stderr).toMatch(/transaction/);
     expect(result.stdout + result.stderr).toMatch(/resvg/);
   }, 30_000);
+
+  // The gate once decided whether it was being run by comparing the URL of the module (a real path) with `process.argv[1]` (the path as
+  // typed): through a link they differ, and it then printed nothing and exited 0 for any build. A gate that cannot tell it is the command
+  // must fail, not pass.
+  describe("reached through a link", () => {
+    /** A link to the script, or to the directory that holds it, in a directory made here; `build` is where no client build is. */
+    function linked(kind: "file" | "directory") {
+      const dir = mkdtempSync(join(tmpdir(), "t15b-check-bundle-link-"));
+      dirs.push(dir);
+      if (kind === "file") {
+        symlinkSync(script, join(dir, "check-bundle.ts"));
+        return { entry: join(dir, "check-bundle.ts"), missing: join(dir, "no-build") };
+      }
+      symlinkSync(dirname(script), join(dir, "linked-scripts"));
+      return { entry: join(dir, "linked-scripts", "check-bundle.ts"), missing: join(dir, "no-build") };
+    }
+    const runLinked = (entry: string, ...args: string[]) => spawnSync("pnpm", ["exec", "tsx", entry, ...args], { encoding: "utf8", cwd: dirname(script) });
+
+    it.each(["file", "directory"] as const)("fails, and says why, for a build that is not there (a link to the %s)", (kind) => {
+      const { entry, missing } = linked(kind);
+      const result = runLinked(entry, missing);
+      expect(result.stdout + result.stderr).toMatch(/not a client build/);
+      expect(result.status).toBe(1);
+    }, 30_000);
+
+    it.each(["file", "directory"] as const)("still passes a build that is within the budget (a link to the %s)", (kind) => {
+      const { entry } = linked(kind);
+      const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
+      const result = runLinked(entry, dir);
+      expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+      expect(result.status).toBe(0);
+    }, 30_000);
+  });
 });

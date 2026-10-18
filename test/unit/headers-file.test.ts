@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { headersRules } from "../../scripts/check-bundle";
+import { headersRules } from "../../scripts/bundle-budget";
 
 // `public/_headers` is read by Cloudflare's static assets (and by the Cloudflare Vite plugin's local runtime, `wrangler dev` on the
 // build included): the files of `build/client/assets/` are named by a hash of their content, so a browser may keep them for good.
