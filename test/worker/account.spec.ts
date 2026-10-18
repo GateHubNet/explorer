@@ -5,7 +5,7 @@ import { encodeAccountID } from "ripple-address-codec";
 import { shortAddress } from "../../app/domain/format";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { anchors, elementText, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
-import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The account page, `/{net}/account/{address}`, on the real Worker against the recorded answers of the data API and the nodes
 // (test/fixtures/http/) and, where a test needs what the recordings do not hold (offers, escrows, an LP token, a domain, a node that
@@ -320,6 +320,8 @@ describe("when the account cannot be told apart from one that does not exist", (
     const html = await response.text();
     expect(response.status).toBe(503);
     expect(textOf(html)).not.toContain("never been activated");
+    // The node failing is already the answer: nobody asks the history.
+    expect(mock.requests.some((r) => r.key.endsWith("/transactions?limit=1"))).toBe(false);
   });
 });
 
@@ -382,9 +384,66 @@ describe("an address that was never activated", () => {
     expect(html).toContain("<title>Address not activated · XRPL · explorer</title>");
     expect(hrefs(html)).toContain(`/xahau/account/${NEVER_FUNDED}`);
     expect(await storedAs(`/xrpl/account/${NEVER_FUNDED}`)).toEqual(SHORT);
-    // Both questions were asked: the index and the node.
+    // Three questions were asked: the index, the node and, since neither has the account, whether the index has a history of it.
     expect(mock.requests.some((r) => r.kind === "node" && r.key.startsWith("node account_info"))).toBe(true);
     expect(mock.requests.some((r) => r.key === `GET /v2/accounts/${NEVER_FUNDED}`)).toBe(true);
+    expect(statusesOf(mock, `GET /v2/accounts/${NEVER_FUNDED}/transactions?limit=1`)).toEqual([200]);
+  });
+
+  /** An address the index has no creation of and the node has no account for: only its history decides. */
+  const unknown = (a: string, history: unknown): Overrides => ({
+    [`GET /v2/accounts/${a}`]: null,
+    [`GET /v2/accounts/${a}/balances`]: null,
+    [`node account_info ${a}`]: nodeError("actNotFound"),
+    [`node account_objects ${a}`]: nodeError("actNotFound"),
+    [`GET /v2/accounts/${a}/transactions?limit=1`]: history as never,
+    [LIST(a, "transactions")]: history as never,
+  });
+
+  it("is a 404 when the history is empty too, and the history was asked for as one row, once", async () => {
+    const a = account(60);
+    mock = mockUpstream("xrpl", unknown(a, { result: "success", count: 0, transactions: [] }));
+    const { html } = await page(`/xrpl/account/${a}`, 404);
+    expect(textOf(html)).toContain("This address has never been activated");
+    expect(statusesOf(mock, `GET /v2/accounts/${a}/transactions?limit=1`)).toEqual([200]);
+    expect(await storedAs(`/xrpl/account/${a}`)).toEqual(SHORT);
+  });
+
+  it("is the deleted account's history, with the activation unknown, when the index has a history of it", async () => {
+    const a = account(61);
+    const history = await recordedList("transactions@descending=true&limit=20");
+    mock = mockUpstream("xrpl", unknown(a, history));
+    const { html } = await page(`/xrpl/account/${a}`);
+    const text = textOf(html);
+    expect(text).toContain("Deleted This account was deleted from the ledger");
+    expect(text).toContain("Activation is not in the index yet.");
+    expect(text).not.toContain("never been activated");
+    expect(text).not.toContain("Live state unavailable");
+    expect(tableRows(html, "Transactions")).toHaveLength(5);
+    expect(statusesOf(mock, `GET /v2/accounts/${a}/transactions?limit=1`)).toEqual([200]);
+    expect(await storedAs(`/xrpl/account/${a}`)).toEqual(LIVE);
+  });
+
+  it("answers 503, not 'never activated', when the history cannot be asked for, and stores nothing", async () => {
+    const a = account(62);
+    mock = mockUpstream("xrpl", {
+      ...unknown(a, { result: "success", count: 0, transactions: [] }),
+      [`GET /v2/accounts/${a}/transactions?limit=1`]: () => dataApiError(500, "boom"),
+    });
+    const response = await get(`/xrpl/account/${a}`);
+    const html = await response.text();
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(textOf(html)).not.toContain("never been activated");
+    expect(statusesOf(mock, `GET /v2/accounts/${a}/transactions?limit=1`)).toEqual([500]);
+    expect(await isStored(`/xrpl/account/${a}`)).toBe(false);
+  });
+
+  it("asks for the history of no account the index or the node knows", async () => {
+    const a = account(63);
+    mock = mockUpstream("xrpl", { ...(await withHistory(a)), [`GET /v2/accounts/${a}`]: null });
+    await page(`/xrpl/account/${a}`);
+    expect(mock.requests.some((r) => r.key.endsWith("/transactions?limit=1"))).toBe(false);
   });
 
   it("is the same on Xahau", async () => {
@@ -409,6 +468,8 @@ describe("a deleted account", () => {
     const rows = tableRows(html, "Transactions");
     expect(rows).toHaveLength(2);
     expect(rows[1]![1]).toBe("AccountDelete");
+    // The index knows it, so nobody asks whether it has a history.
+    expect(mock.requests.some((r) => r.key.endsWith("/transactions?limit=1"))).toBe(false);
     expect(await storedAs(`/xrpl/account/${DELETED}`)).toEqual(LIVE);
   });
 
@@ -629,6 +690,52 @@ describe("what the recordings do not hold", () => {
   });
 });
 
+describe("the last activity", () => {
+  // The time of "Last active" is the close time of the ledger of the account's last transaction: one more call, which the page does
+  // without when it is slow, and which does not make the header wait for the rest of its calls.
+  const ledgerAnswer = (index: number) => ({ result: "success", ledger: { ledger_index: index, close_time: 1792253462 } });
+
+  it("starts the lookup as soon as account_info has answered, so the header takes as long as its slowest call, not two calls", async () => {
+    const a = account(64);
+    mock = mockUpstream("xrpl", {
+      ...(await withHistory(a, { info: { PreviousTxnLgrSeq: 107700124 } })),
+      [`GET /v2/accounts/${a}/balances`]: async () => {
+        await sleep(1_200);
+        return Response.json({ result: "success", ledger_index: 107721455, limit: 200, balances: [{ currency: "XRP", value: "25" }] });
+      },
+      "GET /v2/ledgers/107700124": async () => {
+        await sleep(1_000);
+        return Response.json(ledgerAnswer(107700124));
+      },
+    });
+    const started = Date.now();
+    const { html } = await page(`/xrpl/account/${a}`);
+    // Sequential, the two would take 2.2 s.
+    expect(Date.now() - started).toBeLessThan(1_900);
+    expect(textOf(html)).toContain("Last active 2026-10-17 16:11:02 UTC");
+  });
+
+  it("gives up on the lookup after 1.5 s: the header shows the ledger instead of a time, and the page is not degraded", async () => {
+    const a = account(65);
+    mock = mockUpstream("xrpl", {
+      ...(await withHistory(a, { info: { PreviousTxnLgrSeq: 107700125 } })),
+      "GET /v2/ledgers/107700125": () => new Promise<Response>(() => {}),
+    });
+    const started = Date.now();
+    const { html } = await page(`/xrpl/account/${a}`);
+    const took = Date.now() - started;
+    expect(took).toBeGreaterThanOrEqual(1_400);
+    expect(took).toBeLessThan(2_600);
+    const text = textOf(html);
+    expect(text).toContain("Last active ledger #107,700,125");
+    expect(text).toContain("Sequence 12");
+    expect(text).not.toContain("Live state unavailable");
+    expect(hrefs(html)).toContain("/xrpl/tx/C7FE6468BA25CE904C41722C0892316954133B000339C644073A88CACD8A9143");
+    // A page without a time is still a good page.
+    expect(await storedAs(`/xrpl/account/${a}`)).toEqual(LIVE);
+  }, 15_000);
+});
+
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tabs
 
@@ -808,25 +915,38 @@ describe("paging", () => {
     expect(nav).toContain('aria-disabled="true"');
   });
 
-  it("carries no live state on a page behind a marker: it would be as old as the page", async () => {
+  it("carries no live state and no activation on a page behind a marker: both would be as old as the page", async () => {
     const a = account(50);
     mock = mockUpstream("xrpl", {
-      [`GET /v2/accounts/${a}`]: healthy(a)[`GET /v2/accounts/${a}`],
       [LIST(a, "transactions", "M1")]: await recordedList("transactions@descending=true&limit=20&marker=WzEwNzYxMjU3MywyNV0"),
     });
     const { html } = await page(`/xrpl/account/${a}?marker=M1`);
     const text = textOf(html);
-    expect(text).toContain("Activated on 2025-07-15 18:30:43 UTC");
+    expect(text).not.toContain("Activated on");
+    expect(text).not.toContain("Activation is not in the index");
     expect(text).toContain("does not show the balance or the live state");
     expect(text).not.toContain("Sequence");
     expect(text).not.toContain("Tokens");
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Live state unavailable");
     expect(hrefs(html)).toContain(`/xrpl/account/${a}`);
-    // The node was not asked at all, nor the balances.
-    expect(requests(mock, "node")).toEqual([]);
-    expect(mock.requests.some((r) => r.key.endsWith("/balances"))).toBe(false);
+    // Nothing but the page's own list was asked for: not the node, not the balances, not the creation of the account.
+    expect(mock.requests.map((r) => r.key)).toEqual([LIST(a, "transactions", "M1")]);
     expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("shows the older history of an account the index has no creation record of (the index is filled by range, genesis accounts have none)", async () => {
+    const a = account(56);
+    // The mock answers the creation record's URL with the API's own 404, as the API does for such an account; nothing asks for it.
+    mock = mockUpstream("xrpl", {
+      [LIST(a, "transactions", "M1")]: await recordedList("transactions@descending=true&limit=20&marker=WzEwNzYxMjU3MywyNV0"),
+    });
+    const { html } = await page(`/xrpl/account/${a}?marker=M1`);
+    expect(tableRows(html, "Transactions")).toHaveLength(3);
+    expect(textOf(html)).not.toContain("Activat");
+    expect(await storedAs(`/xrpl/account/${a}?marker=M1`)).toEqual(IMMUTABLE);
+    // The creation record was never asked for, so its absence cannot make the page a 404.
+    expect(mock.requests.some((r) => r.key === `GET /v2/accounts/${a}`)).toBe(false);
   });
 
   it("goes back one page at a time: each page's URL remembers the markers before it", async () => {
@@ -834,7 +954,6 @@ describe("paging", () => {
     const row = (await recordedList("transactions@descending=true&limit=20&marker=WzEwNzYxMjU3MywyNV0")).transactions!.slice(0, 1);
     const list = (marker?: string) => ({ result: "success", count: 1, ...(marker ? { marker } : {}), transactions: row });
     mock = mockUpstream("xrpl", {
-      [`GET /v2/accounts/${a}`]: healthy(a)[`GET /v2/accounts/${a}`],
       [LIST(a, "transactions", "M1")]: list("M2"),
       [LIST(a, "transactions", "M2")]: list("M3"),
       [LIST(a, "transactions", "M3")]: list(),
@@ -868,10 +987,7 @@ describe("paging", () => {
 
   it("is a 404 of class short when the API refuses the marker", async () => {
     const a = account(52);
-    mock = mockUpstream("xrpl", {
-      [`GET /v2/accounts/${a}`]: healthy(a)[`GET /v2/accounts/${a}`],
-      [LIST(a, "transactions", "NOPE")]: () => dataApiError(400, "invalid marker"),
-    });
+    mock = mockUpstream("xrpl", { [LIST(a, "transactions", "NOPE")]: () => dataApiError(400, "invalid marker") });
     const { html } = await page(`/xrpl/account/${a}?marker=NOPE`, 404);
     expect(textOf(html)).toContain("We couldn’t find that page of the account");
     expect(await storedAs(`/xrpl/account/${a}?marker=NOPE`)).toEqual(SHORT);
@@ -887,18 +1003,27 @@ describe("paging", () => {
     expect(mock.requests).toEqual([]);
   });
 
-  it("is a 404 for a page behind a marker of an account the index does not know", async () => {
+  it("is a 404 of class short when the list behind the marker comes back empty: no such page", async () => {
     const a = account(54);
-    mock = mockUpstream("xrpl", { [`GET /v2/accounts/${a}`]: null, [LIST(a, "transactions", "M1")]: { result: "success", count: 0, transactions: [] } });
-    await page(`/xrpl/account/${a}?marker=M1`, 404);
+    mock = mockUpstream("xrpl", { [LIST(a, "transactions", "M1")]: { result: "success", count: 0, transactions: [] } });
+    const { html } = await page(`/xrpl/account/${a}?marker=M1`, 404);
+    expect(textOf(html)).toContain("We couldn’t find that page of the account");
+    expect(await storedAs(`/xrpl/account/${a}?marker=M1`)).toEqual(SHORT);
+  });
+
+  it("is a 404 for an empty page of the payments and of the trades too", async () => {
+    const a = account(57);
+    mock = mockUpstream("xrpl", {
+      [LIST(a, "payments", "M1")]: { result: "success", count: 0, payments: [] },
+      [LIST(a, "exchanges", "M1")]: { result: "success", count: 0, exchanges: [] },
+    });
+    await page(`/xrpl/account/${a}?tab=payments&marker=M1`, 404);
+    await page(`/xrpl/account/${a}?tab=trades&marker=M1`, 404);
   });
 
   it("answers 503, not a page, when the list behind a marker cannot be loaded: an old page must be whole", async () => {
     const a = account(55);
-    mock = mockUpstream("xrpl", {
-      [`GET /v2/accounts/${a}`]: healthy(a)[`GET /v2/accounts/${a}`],
-      [LIST(a, "transactions", "M1")]: () => dataApiError(500, "boom"),
-    });
+    mock = mockUpstream("xrpl", { [LIST(a, "transactions", "M1")]: () => dataApiError(500, "boom") });
     const response = await get(`/xrpl/account/${a}?marker=M1`);
     await response.text();
     expect(response.status).toBe(503);

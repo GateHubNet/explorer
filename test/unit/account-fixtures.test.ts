@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { nodeFile } from "../support/upstream-core";
+import { dataApiFile, nodeFile } from "../support/upstream-core";
 
 // The account page asks the node for the objects of an account with `limit: 400`, and a fixture is found by every parameter of the
 // request but its subject (upstream-core.ts), so the active accounts have the file for that request next to the one without a limit.
@@ -15,5 +15,17 @@ describe.each(Object.entries(ACTIVE) as Array<["xrpl" | "xahau", string]>)("the 
     const file = nodeFile(net, "account_objects", request);
     expect(file).toBe(`${net}/node/account_objects/${address}@limit=400.json`);
     expect(read(file!)).toBe(read(`${net}/node/account_objects/${address}.json`));
+  });
+});
+
+// An address neither the index nor the node knows has its history asked for as one row (`?limit=1`, oldest first) before the page says it
+// was never activated; the fixtures answer that as the real API does for an address with no rows: an empty list.
+const NEVER_FUNDED = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
+
+describe.each(["xrpl", "xahau"] as const)("the never-funded address on %s", (net) => {
+  it("has an empty page for the probe of its history, at the file the page's request names", () => {
+    const file = dataApiFile(net, `/v2/accounts/${NEVER_FUNDED}/transactions`, "limit=1");
+    expect(file).toBe(`${net}/data-api/accounts/${NEVER_FUNDED}/transactions@limit=1.json`);
+    expect(JSON.parse(read(file!))).toEqual({ count: 0, result: "success", transactions: [] });
   });
 });

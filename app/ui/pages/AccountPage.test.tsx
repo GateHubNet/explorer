@@ -147,7 +147,7 @@ describe("the header", () => {
     expect(document.querySelector(".account-balance")!.querySelectorAll("a")).toHaveLength(0);
     expect(document.querySelector(".account-balance")!.classList.contains("account-balance--soft")).toBe(false);
     unmount();
-    renderInRouter(<AccountPage network={XRPL} data={data({ mode: "history", header: { status: "history", activation: null } })} />);
+    renderInRouter(<AccountPage network={XRPL} data={data({ mode: "history", header: { status: "history" } })} />);
     await screen.findByText(/does not show the balance/);
     const panel = document.querySelector(".account-balance")!;
     expect(panel.querySelectorAll("a")).toHaveLength(1);
@@ -480,12 +480,14 @@ describe("a page of old history", () => {
   it("shows no balance and no live state, no margin, and a link to the first page", async () => {
     const history = data({
       mode: "history",
-      header: { status: "history", activation: { time: 1552588800, parent: PARENT, initialBalance: "25", txHash: TX } },
+      header: { status: "history" },
       list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: `/xrpl/account/${ADDRESS}?marker=M2&back=M1` }),
     });
     renderInRouter(<AccountPage network={XRPL} data={history} />);
     expect(await screen.findByRole("heading", { level: 1, name: ADDRESS })).toBeTruthy();
     expect(screen.getByText(/does not show the balance or the live state/)).toBeTruthy();
+    // Neither does it say when the account was activated: that is as old as the page, and the index may not know it.
+    expect(screen.queryByText(/Activat/)).toBeNull();
     expect(screen.getByRole("link", { name: "See them on the account’s first page" }).getAttribute("href")).toBe(`/xrpl/account/${ADDRESS}`);
     expect(screen.queryByRole("heading", { name: "Tokens" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Owned objects" })).toBeNull();

@@ -145,20 +145,25 @@ describe("loaded", () => {
   });
 });
 
-describe("existenceOf: what the index and the node say between them", () => {
+describe("existenceOf: what the index, the node and the history say between them", () => {
   const created_ = ok(created("xrpl", XRPL));
   const info = ok(infoOf("xrpl", XRPL));
   it.each([
-    ["the index knows it and the node has it", created_, info, "active"],
-    ["the index knows it and the node says it is gone", created_, MISSING, "deleted"],
-    ["the index knows it and the node did not answer", created_, FAILED, "unverified"],
-    ["the index has no creation and the node has it (before the backfill)", MISSING, info, "active"],
-    ["neither has it: never activated", MISSING, MISSING, "never-activated"],
-    ["the index has nothing and the node did not answer: it cannot be told", MISSING, FAILED, "outage"],
-    ["the index failed", FAILED, info, "outage"],
-    ["the index failed and the node says it is gone", FAILED, MISSING, "outage"],
-  ] as const)("%s: %s", (_what, c, n, expected) => {
-    expect(existenceOf(c as Loaded<AccountData>, n as Loaded<AccountInfo>)).toBe(expected);
+    ["the index knows it and the node has it", created_, info, undefined, "active"],
+    ["the index knows it and the node says it is gone", created_, MISSING, undefined, "deleted"],
+    ["the index knows it and the node did not answer", created_, FAILED, undefined, "unverified"],
+    ["the index has no creation and the node has it (before the backfill)", MISSING, info, undefined, "active"],
+    ["neither has it, and nobody has asked the history yet", MISSING, MISSING, undefined, "undetermined"],
+    ["neither has it and the index has no history of it: never activated", MISSING, MISSING, ok(false), "never-activated"],
+    ["neither has it, but the index has a history of it: deleted, before the index's creation records", MISSING, MISSING, ok(true), "deleted"],
+    ["neither has it and the history could not be asked: it cannot be told", MISSING, MISSING, FAILED, "outage"],
+    ["the index has no creation and the node did not answer: it cannot be told", MISSING, FAILED, undefined, "outage"],
+    ["the same, whatever the history says", MISSING, FAILED, ok(false), "outage"],
+    ["the index failed", FAILED, info, undefined, "outage"],
+    ["the index failed and the node says it is gone", FAILED, MISSING, ok(true), "outage"],
+    ["the history is of no account when the index has the creation", created_, MISSING, ok(false), "deleted"],
+  ] as const)("%s: %s", (_what, c, n, history, expected) => {
+    expect(existenceOf(c as Loaded<AccountData>, n as Loaded<AccountInfo>, history as Loaded<boolean> | undefined)).toBe(expected);
   });
 });
 
@@ -390,6 +395,21 @@ describe("accountHeader", () => {
 
   it("is the account the index has no creation for when the node has it: no activation line", () => {
     expect(accountHeader(input({ created: MISSING })).header.activation).toBeNull();
+  });
+
+  it("is a deleted account with its activation unknown when neither has it and the index has a history of it", () => {
+    const { header, problems } = accountHeader(input({ created: MISSING, info: MISSING, objects: MISSING, balances: MISSING, history: ok(true) }));
+    expect(problems).toEqual([]);
+    expect(header.status).toBe("deleted");
+    expect(header.activation).toBeNull();
+    expect(header.live).toEqual({ state: "none" });
+  });
+
+  it("is not for an account that was never activated, or one that cannot be told", () => {
+    const none = { created: MISSING, info: MISSING, objects: MISSING, balances: MISSING } as const;
+    expect(() => accountHeader(input({ ...none, history: ok(false) }))).toThrow(/never-activated/);
+    expect(() => accountHeader(input({ ...none }))).toThrow(/undetermined/);
+    expect(() => accountHeader(input({ ...none, history: FAILED }))).toThrow(/outage/);
   });
 
   it("does not put the node's raw objects in the header", () => {

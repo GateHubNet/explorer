@@ -176,7 +176,7 @@ function Flag({ children }: { children: ReactNode }) {
 function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
   const net = network.id;
   const { header, address } = data;
-  const activation = header.activation;
+  const activation = header.status === "history" ? null : header.activation;
   const live = header.status === "history" ? null : header.live;
   const domain = live?.state === "ok" ? live.domain : null;
 
@@ -195,26 +195,28 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
           </div>
         </div>
 
-        <p className="account-id__meta">
-          {activation ? (
-            <>
-              Activated on{" "}
-              <Link to={`/${net}/tx/${activation.txHash}`} className="num">
-                {formatUtc(activation.time)}
-              </Link>{" "}
-              by <AccountLink net={net} address={activation.parent} /> with{" "}
-              <Amount value={activation.initialBalance} currency={network.native} className="plain" />
-            </>
-          ) : (
-            <span className="faint">Activation is not in the index yet.</span>
-          )}
-          {domain && (
-            <>
-              {" "}
-              · domain <span className="mono">{domain}</span>
-            </>
-          )}
-        </p>
+        {header.status !== "history" && (
+          <p className="account-id__meta">
+            {activation ? (
+              <>
+                Activated on{" "}
+                <Link to={`/${net}/tx/${activation.txHash}`} className="num">
+                  {formatUtc(activation.time)}
+                </Link>{" "}
+                by <AccountLink net={net} address={activation.parent} /> with{" "}
+                <Amount value={activation.initialBalance} currency={network.native} className="plain" />
+              </>
+            ) : (
+              <span className="faint">Activation is not in the index yet.</span>
+            )}
+            {domain && (
+              <>
+                {" "}
+                · domain <span className="mono">{domain}</span>
+              </>
+            )}
+          </p>
+        )}
 
         {live?.state === "ok" && (
           <div className="account-flags">

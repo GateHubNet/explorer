@@ -288,14 +288,14 @@ JavaScript); Analytics is a disabled tab that says "soon". Lists are newest firs
 | an address that is not an account | 404 without a call, noindex | `short` |
 | an unknown `?tab=`, or a `marker` on Offers or Objects (they have no pages) | 302 to the URL without it | `short` |
 | the first page of a tab | the page; header read from the data API (creation, balances) and the node (`account_info`, `account_objects` with `limit: 400`, `server_state`), the list **streamed** after it | `live` |
-| a page reached with a `marker` | the page, awaited whole, with no live state; `noindex, follow` | `immutable` |
-| a marker the API refuses (400), or that is not base64url, or a page behind a marker of an account the index does not know | 404 | `short` |
-| the index has no creation and the node no account | 404 "This address has never been activated" with a link to the other network; noindex | `short` |
-| the index knows it and the node says it is gone | the history with a "Deleted" banner, no balance, tokens or owned objects | `live` |
+| a page reached with a `marker` | the page, awaited whole: the list and nothing else (no live state, no activation, and the creation record is not asked for); `noindex, follow` | `immutable` |
+| a marker the API refuses (400), that is not base64url, or that has nothing behind it (an empty list) | 404 | `short` |
+| the index has no creation, the node no account **and** `?limit=1` of the account's transactions is empty | 404 "This address has never been activated" with a link to the other network; noindex | `short` |
+| the index knows it and the node says it is gone, or neither knows it but the index has a transaction of it | the history with a "Deleted" banner, no balance, tokens or owned objects (the activation says it is not in the index when there is no creation record) | `live` |
 | the node did not answer (any of its three calls) | the history, "Live state unavailable" with a Retry, the balance the index read; what only the node tells is left out | served, not stored |
 | the streamed list failed (or took more than 4.5 s) | the header and, in place of the list, "Couldn't load transactions" with a Retry | served, not stored |
 | balances failed | the page with "Couldn't load tokens" and a Retry | served, not stored |
-| the index failed on the account, or has nothing and the node did not answer | 503 (it cannot be told from an address that does not exist) | not stored |
+| the index failed on the account, or has nothing and the node did not answer, or the one-row history could not be asked | 503 (it cannot be told from an address that does not exist) | not stored |
 
 - **Streaming.** On the first page the loader awaits the header and returns the list as a promise (`Suspense` and `Await` in the
   page), so the HTML holds the header before the list. The promise never rejects: a failure is a list of state `failed`, which the
@@ -304,14 +304,22 @@ JavaScript); Analytics is a disabled tab that says "soon". Lists are newest firs
   (`entry.server.tsx` waits for `allReady` for them). A page behind a marker awaits its list: it is stored for a year and must be whole.
 - **Retry** fetches the route's own data again in the browser (`useRevalidator`: the explorer's `.data` URL, never the data API). A
   degraded answer was not stored, so the retry reaches a fresh render, which is stored if it is good.
-- **No live state behind a marker.** Such a page is `immutable`, and a balance in it would be as old as the page, so it shows the
-  address, the activation and the list, and a link to the first page for the rest.
+- **No live state, no activation behind a marker.** Such a page is `immutable`, and a balance in it would be as old as the page; the
+  activation is slow-class data (an hour) that must not sit in a page stored for a year, and the index has no creation record for an
+  account created before its first ledger (it is filled by range, genesis accounts have none), which the first page shows as active
+  all the same. So the page shows the address and the list, and a link to the first page for the rest. It 404s only when the API
+  refuses the marker or there is nothing behind it.
 - **Newer and Older.** The API's markers run towards older rows only. Older is the `next` marker of the answer; a page remembers
   how to go back in its own URL, `?marker=M3&back=M2.M1` (the markers of the pages before it, nearest first, at most ten); the
   second page's Newer is the first page, which has no marker. A URL with a trail that is not one is read as having none.
-- **Exists, deleted, never funded.** `existenceOf(created, info)` (the index's creation, the node's `account_info`): both have it, active;
-  the index only, deleted; the node only (the index is behind), active without an activation line; neither, never activated. Not being
-  able to tell is a 503, never a page that says it.
+- **Exists, deleted, never funded.** `existenceOf(created, info, history)` (the index's creation, the node's `account_info`, and, only when
+  neither has the account, whether the index has a transaction of the address: `accountTransactions(a, {limit: 1})`): both have it,
+  active; the index only, deleted; the node only (the index is behind), active without an activation line; neither, and a history,
+  deleted with the activation unknown; neither and no history, never activated. Not being able to tell (the node down, the history
+  call failing) is a 503, never a page that says it.
+- **Last active.** The time is the close time of the ledger of `PreviousTxnLgrSeq`. The lookup starts as soon as `account_info` has
+  answered and has its own deadline of 1.5 s, so the header takes as long as its slowest call and never more than that deadline
+  longer; without a time the flag shows the ledger (`ledger #107,720,688`), and the page is not degraded.
 - **Reserve.** `reserve_base + owner_count × reserve_inc` from `server_state`'s `validated_ledger` (drops, cached 5 minutes), and
   the available balance is what the balance leaves, never below 0, in `bignumber.js`. Nothing is hard-coded, so a vote of the
   validators shows up. The page prints "Reserve 1.2 XRP = 1 base + 1 object × 0.2".
@@ -452,7 +460,8 @@ Xahau active account's `OwnerCount` is 2 and `account_objects` lists the one obj
 `test/unit/http-fixtures.test.ts` checks the hand-written files against the recordings and against each other. The account page asks the
 node for `account_objects` with `limit: 400`, and a fixture is found by all the parameters of a request but its subject, so each
 active account's objects are in the file twice (`<ACCOUNT>.json` and `<ACCOUNT>@limit=400.json`, byte copies,
-`test/unit/account-fixtures.test.ts`). The payments CSV has no fixture: a test gives it as an override.
+`test/unit/account-fixtures.test.ts`), and the never-funded address has an empty `transactions@limit=1.json` (the one-row probe of its
+history). The payments CSV has no fixture: a test gives it as an override.
 
 **In a Worker test:**
 

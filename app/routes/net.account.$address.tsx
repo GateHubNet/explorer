@@ -5,7 +5,6 @@ import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab } from "../do
 import { formatAmount, formatUtc, shortAddress } from "../domain/format";
 import {
   accountHeader,
-  activationOf,
   existenceOf,
   failedList,
   loaded,
@@ -21,6 +20,7 @@ import {
   type AccountPageData,
   type HistoryHeader,
   type ListContext,
+  type Loaded,
   type NeverActivatedData,
   type TabList,
 } from "../server/account-view";
@@ -52,6 +52,9 @@ export const headers = forwardCacheClass;
  * instead of a section that says it could not load; the data API's own deadline (5 s) is not early enough to be sure.
  */
 const LIST_DEADLINE_MS = 4_500;
+
+/** How long after account_info the page waits for the close time of the ledger of the account's last transaction: no time is no reason to hold the header. */
+const LAST_LEDGER_DEADLINE_MS = 1_500;
 
 /** A redirect to the one URL a thing has, with the class of the page it leads to. */
 function permanent(to: string) {
@@ -163,28 +166,30 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
 type Common = Pick<AccountPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr">;
 
-/** A page of old history: awaited whole, class `immutable`, with the creation and no live state. */
+/**
+ * A page of old history: awaited whole, class `immutable`, and nothing but the list. It does not ask for the creation record: that
+ * is slow-class data that must not sit in a page stored for a year, and the index has none for an account that was created before its
+ * first ledger (it is filled by range), whose first page shows it as active all the same. The page does not exist when the API refuses
+ * the marker or when there is nothing behind it.
+ */
 async function historyPage(context: Route.LoaderArgs["context"], network: Network, tab: AccountTab, ctx: ListContext, common: Common) {
   const { api } = clientsFor(context, network);
-  const [created, list] = await Promise.allSettled([api.account(ctx.address), readList(api, tab, ctx)]);
-
-  // Without a creation the index does not know the account: there is nothing to keep for good.
-  if (created.status === "rejected") {
-    if (created.reason instanceof UpstreamError && created.reason.kind === "not_found") {
-      throw cached({ notFound: "that page of the account" }, "short", { status: 404 });
-    }
-    return upstreamOutage(created.reason, "the account");
-  }
-  if (list.status === "rejected") {
+  let list: TabList;
+  try {
+    list = await readList(api, tab, ctx);
+  } catch (err) {
     // The API refuses a marker that is not one (a 400): the page does not exist.
-    if (list.reason instanceof UpstreamError && list.reason.kind === "bad_request") {
+    if (err instanceof UpstreamError && err.kind === "bad_request") {
       throw cached({ notFound: "that page of the account" }, "short", { status: 404 });
     }
-    return upstreamOutage(list.reason, "the account's history");
+    return upstreamOutage(err, "the account's history");
+  }
+  if (list.state === "ok" && "rows" in list && list.rows.length === 0) {
+    throw cached({ notFound: "that page of the account" }, "short", { status: 404 });
   }
 
-  const header: HistoryHeader = { status: "history", activation: activationOf(created.value) };
-  const page: AccountPageData = { ...common, mode: "history", header, list: list.value };
+  const header: HistoryHeader = { status: "history" };
+  const page: AccountPageData = { ...common, mode: "history", header, list };
   return cached(page, "immutable");
 }
 
@@ -218,20 +223,53 @@ async function firstPage(
           },
         );
 
+  // The time of "Last active" is the close time of one ledger, which is looked up as soon as account_info has answered (not after the rest
+  // of the calls) and given a deadline of its own: the header waits for its slowest call, and for this one no more than that deadline after
+  // account_info. It never rejects: no time is not a degraded page.
+  const infoCall = node.accountInfo(address);
+  const lastLedger = infoCall.then(
+    (found) => {
+      const seq = found.account_data.PreviousTxnLgrSeq;
+      if (!Number.isSafeInteger(seq)) return null;
+      return within(
+        api.ledger(String(seq)).then(
+          (ledger) => (Number.isFinite(ledger.close_time) ? ledger.close_time : null),
+          (err: unknown) => {
+            logProblem("the ledger of an account's last transaction could not be read", err, request);
+            return null;
+          },
+        ),
+        LAST_LEDGER_DEADLINE_MS,
+        () => null,
+      );
+    },
+    () => null,
+  );
+
   const results = await Promise.allSettled([
     api.account(address),
-    node.accountInfo(address),
+    infoCall,
     node.accountObjects(address, { limit: OBJECTS_LIMIT }),
     node.serverState(),
     api.balances(address),
+    lastLedger,
   ]);
   const created = loaded(results[0]);
   const info = loaded(results[1]);
   const objects = loaded(results[2]);
   const state = loaded(results[3]);
   const balances = loaded(results[4]);
+  const lastLedgerTime = results[5].status === "fulfilled" ? results[5].value : null;
 
-  const existence = existenceOf(created, info);
+  // Neither the index nor the node has the account: the history decides between a deleted account (the index's creation records start
+  // at its first ledger) and an address that never was, with one row of it.
+  let history: Loaded<boolean> | undefined;
+  if (existenceOf(created, info) === "undetermined") {
+    const [probe] = await Promise.allSettled([api.accountTransactions(address, { limit: 1 }).then((found) => found.transactions.length > 0)]);
+    history = loaded(probe);
+  }
+
+  const existence = existenceOf(created, info, history);
   if (existence === "never-activated") {
     const other = findNetwork(network.other);
     const page: NeverActivatedData = { kind: "never-activated", address, other: { id: network.other, name: other?.name ?? network.other } };
@@ -241,19 +279,7 @@ async function firstPage(
     return upstreamOutage(new UpstreamError("server", "the account could not be told apart from one that does not exist"), `account ${shortAddress(address)}`);
   }
 
-  // When the ledger of its last transaction closed: optional, so a failure leaves the time out and is not a degraded page.
-  let lastLedgerTime: number | null = null;
-  if (info.state === "ok" && Number.isSafeInteger(info.value.account_data.PreviousTxnLgrSeq)) {
-    lastLedgerTime = await api.ledger(String(info.value.account_data.PreviousTxnLgrSeq)).then(
-      (ledger) => (Number.isFinite(ledger.close_time) ? ledger.close_time : null),
-      (err: unknown) => {
-        logProblem("the ledger of an account's last transaction could not be read", err, request);
-        return null;
-      },
-    );
-  }
-
-  const { header, problems } = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime });
+  const { header, problems } = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, history });
   if (problems.length > 0) {
     markDegraded(context, problems.join("; "));
     logProblem("an account page is degraded", new Error(problems.join("; ")), request);

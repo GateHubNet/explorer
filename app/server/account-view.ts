@@ -96,21 +96,28 @@ export function loaded<T>(result: PromiseSettledResult<T>): Loaded<T> {
   return result.reason.kind === "not_found" ? { state: "missing" } : { state: "failed" };
 }
 
-export type Existence = "active" | "deleted" | "unverified" | "never-activated" | "outage";
+export type Existence = "active" | "deleted" | "unverified" | "never-activated" | "outage" | "undetermined";
 
 /**
- * Whether the account exists, from what the index and the node say (spec 10).
+ * Whether the account exists, from what the index, the node and (when they cannot tell) the index's history say (spec 10).
  *
  * - The index knows it and the node has it: active. The node says it is gone: deleted. The node did not answer: `unverified`,
  *   shown with the history and without its live state.
- * - The index has no creation and the node has the account: active (the index may be behind). Neither has it: never activated.
- * - The index failed, or has nothing and the node did not answer: `outage`. It cannot be told, and a page must not say.
+ * - The index has no creation and the node has the account: active (the index may be behind).
+ * - Neither has it: `undetermined` until `history` says whether the index has any transaction of the address. The index is filled by
+ *   range, so an account created before its first ledger has no creation record, and a deleted one is then known by its history alone:
+ *   a history is a deleted account (its activation unknown), none is never activated, and a history that could not be asked for is an
+ *   outage, because a page must not say "never activated" without knowing.
+ * - The index failed, or has nothing and the node did not answer: `outage`. It cannot be told either.
  */
-export function existenceOf(created: Loaded<AccountData>, info: Loaded<AccountInfo>): Existence {
+export function existenceOf(created: Loaded<AccountData>, info: Loaded<AccountInfo>, history?: Loaded<boolean>): Existence {
   if (created.state === "failed") return "outage";
   if (created.state === "missing") {
     if (info.state === "ok") return "active";
-    return info.state === "missing" ? "never-activated" : "outage";
+    if (info.state === "failed") return "outage";
+    if (history === undefined) return "undetermined";
+    if (history.state !== "ok") return "outage";
+    return history.value ? "deleted" : "never-activated";
   }
   return info.state === "ok" ? "active" : info.state === "missing" ? "deleted" : "unverified";
 }
@@ -321,6 +328,8 @@ export interface HeaderInput {
   balances: Loaded<BalancesResponse>;
   /** The close time (unix seconds) of the ledger that last changed the account, if it could be read. */
   lastLedgerTime: number | null;
+  /** Whether the index has a transaction of the address: asked only when neither the index nor the node has the account. */
+  history?: Loaded<boolean>;
 }
 
 export function activationOf(created: AccountData): Activation {
@@ -337,9 +346,9 @@ export function activationOf(created: AccountData): Activation {
  * names what could not be read, for the log and for the degraded mark: a page with any of them is served and not stored.
  */
 export function accountHeader(input: HeaderInput): { header: AccountHeader; problems: string[] } {
-  const { native, created, info, objects, state, balances, lastLedgerTime } = input;
-  const existence = existenceOf(created, info);
-  if (existence === "never-activated" || existence === "outage") {
+  const { native, created, info, objects, state, balances, lastLedgerTime, history } = input;
+  const existence = existenceOf(created, info, history);
+  if (existence === "never-activated" || existence === "outage" || existence === "undetermined") {
     throw new Error(`accountHeader is for an account that exists, not one that is ${existence}`);
   }
   const net: NetworkId = native === "XAH" ? "xahau" : "xrpl";
@@ -752,10 +761,13 @@ export function failedList(tab: AccountTab): TabList {
   return { state: "failed", what: TAB_WHAT[tab] };
 }
 
-/** The header of a page of old history (reached with a marker): that page is stored for good, so it carries no live state. */
+/**
+ * The header of a page of old history (reached with a marker): that page is stored for good, so it carries nothing that changes (no
+ * live state) and nothing that the index may not have (no activation: the creation record is slow-class data, and an account created
+ * before the index's first ledger has none).
+ */
 export interface HistoryHeader {
   status: "history";
-  activation: Activation | null;
 }
 
 /** The finished QR code of the address, for the page to draw: `path` is the `d` of a `<path>` in module units (see `qrPath`). */
