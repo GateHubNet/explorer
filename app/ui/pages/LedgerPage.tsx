@@ -244,8 +244,14 @@ function Neighbour({
     );
   if (!enabled) {
     return (
-      // A link that is not available (it has no href): the role is what lets it have a name (a span has none to give).
-      <span className="btn is-disabled" role="link" aria-disabled="true" aria-label={`${label} (not validated yet)`}>
+      // A link that is not available (it has no href): the role is what lets it have a name (a span has none to give). Why it is not
+      // differs: the ledger after the newest is not validated yet; ledger 1 has no ledger before it.
+      <span
+        className="btn is-disabled"
+        role="link"
+        aria-disabled="true"
+        aria-label={`${label} (${direction === "next" ? "not validated yet" : "this is the first ledger"})`}
+      >
         {content}
       </span>
     );

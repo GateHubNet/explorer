@@ -322,6 +322,25 @@ describe("LedgerPage: the rest", () => {
     expect(disabled.getAttribute("aria-label")!.startsWith(disabled.textContent!)).toBe(true);
   });
 
+  // "Not validated yet" is true of the ledger after the newest, and of no other. Ledger 1 has no ledger before it, and says so.
+  it("says of the previous link at ledger 1 that there is no earlier ledger, not that it is not validated yet", () => {
+    const first = ledger(["Payment"], [], { header: { ...ledger(["Payment"]).header, index: 1 } });
+    renderInRouter(<LedgerPage network={XRPL} data={first} />);
+    const disabled = screen.getByRole("link", { name: "0, previous ledger (this is the first ledger)" });
+    expect(disabled.getAttribute("aria-disabled")).toBe("true");
+    expect(disabled.hasAttribute("href")).toBe(false);
+    expect(disabled.textContent).toBe("0");
+    expect(screen.queryByLabelText(/not validated yet/)).toBeNull();
+    // Its next is a link to ledger 2.
+    expect(screen.getByRole("link", { name: "2, next ledger" }).getAttribute("href")).toBe("/xrpl/ledger/2");
+  });
+
+  it("still says of the next link at the newest ledger that it is not validated yet", () => {
+    renderInRouter(<LedgerPage network={XRPL} data={ledger(["Payment"], [], { hasNext: false })} />);
+    expect(screen.getByRole("link", { name: "107,720,689, next ledger (not validated yet)" })).toBeTruthy();
+    expect(screen.queryByLabelText(/first ledger/)).toBeNull();
+  });
+
   // A name cannot be given to an element with no role (axe: aria-prohibited-attr, "needs review"): the one that leads nowhere is a link
   // that is not available, which is what `role="link"` with `aria-disabled` says, and a screen reader then reads its name.
   it("is a disabled link, so that its name is read, when the ledger it would lead to is not validated yet", () => {
