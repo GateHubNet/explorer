@@ -9,6 +9,9 @@ export default [
     index("routes/net._index.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
+    route("account/:address", "routes/net.account.$address.tsx"),
+    // A resource route: a CSV of the account's payments, not a page. React Router runs its own loader only.
+    route("account/:address/payments.csv", "routes/net.account.$address.payments[.csv].ts"),
     route("search", "routes/net.search.tsx"),
   ]),
   // Anything else.

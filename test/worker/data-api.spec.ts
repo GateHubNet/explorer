@@ -818,3 +818,112 @@ describe("an answer that is not what the reference promises", () => {
     });
   });
 });
+
+describe("the CSV of an account's payments", () => {
+  const api = () => createDataApi(xrpl, env, passThroughCache);
+  const CSV = '"source","destination"\n"rA","rB"\n';
+  const csv = (init: { headers?: Record<string, string> } = {}, body: BodyInit | null = CSV) =>
+    new Response(body, { status: 200, headers: { "Content-Type": "text/csv", ...init.headers } });
+
+  it("asks for one page of the newest payments in CSV, at the most the API serves, with the key and nothing else", async () => {
+    fetchSpy.mockResolvedValueOnce(csv());
+    await api().accountPaymentsCsv(ACCOUNT, {});
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const request = sentRequest();
+    expect(request.method).toBe("GET");
+    const url = new URL(request.url);
+    expect(`${url.origin}${url.pathname}`).toBe(`${BASE}/v2/accounts/${ACCOUNT}/payments`);
+    expect(Object.fromEntries(url.searchParams)).toEqual({ descending: "true", format: "csv", limit: "1000" });
+    expect(request.headers.get("X-API-Key")).toBe("test-key");
+    expect(request.headers.get("Accept")).toBe("text/csv");
+    expect(fetchSpy.mock.calls[0]![1]?.redirect).toBe("manual");
+  });
+
+  it("passes the visitor's marker on, in the query", async () => {
+    fetchSpy.mockResolvedValueOnce(csv());
+    await api().accountPaymentsCsv(ACCOUNT, { marker: "WzEwNzYzNjY3Myw3OF0" });
+    expect(new URL(sentRequest().url).searchParams.get("marker")).toBe("WzEwNzYzNjY3Myw3OF0");
+  });
+
+  it("returns the body unread, so that it can be streamed", async () => {
+    fetchSpy.mockResolvedValueOnce(csv());
+    const page = await api().accountPaymentsCsv(ACCOUNT, {});
+    expect(page.body).toBeInstanceOf(ReadableStream);
+    expect(page.body.locked).toBe(false);
+    expect(await new Response(page.body).text()).toBe(CSV);
+  });
+
+  it("takes the marker of the next page from the Link header, never the URL the header names", async () => {
+    const link = `<https://xrpl.data.example.com/v2/accounts/${ACCOUNT}/payments?limit=1000&marker=WzEwNzY3MDM2MCw1XQ&format=csv>; rel="next"`;
+    fetchSpy.mockResolvedValueOnce(csv({ headers: { Link: link } }));
+    const page = await api().accountPaymentsCsv(ACCOUNT, {});
+    expect(page.nextMarker).toBe("WzEwNzY3MDM2MCw1XQ");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["no Link header", undefined],
+    ["a Link that is not a next page", `<https://x.example/v2?marker=ABC>; rel="prev"`],
+    ["a next page with no marker", `<https://x.example/v2/accounts/${ACCOUNT}/payments?limit=1000>; rel="next"`],
+    ["a marker that is not one", `<https://x.example/v2?marker=%3Cscript%3E>; rel="next"`],
+    ["a marker that is far too long", `<https://x.example/v2?marker=${"A".repeat(600)}>; rel="next"`],
+    ["something that is not a Link at all", "garbage"],
+  ])("has no next marker for %s", async (_what, link) => {
+    fetchSpy.mockResolvedValueOnce(csv(link === undefined ? {} : { headers: { Link: link } }));
+    expect((await api().accountPaymentsCsv(ACCOUNT, {})).nextMarker).toBeUndefined();
+  });
+
+  it("is not_found for a 404, bad_request for a 400 (a marker that is not one), rate_limited for a 429 and server for a 500", async () => {
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "Account not found" }, { status: 404 }));
+    expect((await failureOf(api().accountPaymentsCsv(ACCOUNT, {}))).kind).toBe("not_found");
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid marker" }, { status: 400 }));
+    const bad = await failureOf(api().accountPaymentsCsv(ACCOUNT, { marker: "x" }));
+    expect(bad.kind).toBe("bad_request");
+    expect(bad.message).toContain("invalid marker");
+    fetchSpy.mockResolvedValueOnce(json({ error: "Rate limit exceeded" }, { status: 429, headers: { "Retry-After": "4" } }));
+    expect(await failureOf(api().accountPaymentsCsv(ACCOUNT, {}))).toMatchObject({ kind: "rate_limited", retryAfter: 4 });
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve payments" }, { status: 500 }));
+    expect((await failureOf(api().accountPaymentsCsv(ACCOUNT, {}))).kind).toBe("server");
+  });
+
+  it("is a failure for a 200 that is not CSV (a proxy's page, JSON), and cancels what it did not read", async () => {
+    fetchSpy.mockResolvedValueOnce(json({ result: "success", payments: [] }));
+    const error = await failureOf(api().accountPaymentsCsv(ACCOUNT, {}));
+    expect(error.kind).toBe("server");
+    expect(error.message).toContain("not CSV");
+    fetchSpy.mockResolvedValueOnce(new Response("<html>bad gateway</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+    expect((await failureOf(api().accountPaymentsCsv(ACCOUNT, {}))).kind).toBe("server");
+  });
+
+  it("gives up on an API that does not answer within 5 s, like any other request", async () => {
+    vi.useFakeTimers();
+    fetchSpy.mockImplementation(() => new Promise<Response>(() => {}));
+    const outcome = failureOf(api().accountPaymentsCsv(ACCOUNT, {}));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect((await outcome).kind).toBe("timeout");
+  });
+
+  it("refuses an address that would be resolved away as a path (empty, . and ..) before any call, and escapes the rest", async () => {
+    for (const bad of ["", ".", ".."]) {
+      const error = await api().accountPaymentsCsv(bad, {}).then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
+      expect(error, JSON.stringify(bad)).toBeInstanceOf(UpstreamError);
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fetchSpy.mockResolvedValueOnce(csv());
+    await api().accountPaymentsCsv("a/b?c", {});
+    expect(new URL(sentRequest().url).pathname).toBe("/v2/accounts/a%2Fb%3Fc/payments");
+  });
+
+  it("is never kept by the subrequest cache: the body is a stream", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockResolvedValueOnce(csv());
+    await createDataApi(xrpl, env, cache).accountPaymentsCsv(ACCOUNT, {});
+    expect(cache.calls).toEqual([]);
+  });
+});
+

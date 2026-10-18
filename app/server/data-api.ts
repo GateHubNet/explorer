@@ -22,6 +22,7 @@ import type {
 } from "./api-types";
 import type { CacheClass, SubrequestCache } from "./cache-class";
 import type { Env } from "./env";
+import { isMarker } from "./marker";
 import type { Network } from "./networks";
 import type { paths } from "./openapi";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
@@ -51,6 +52,17 @@ const PATHS = {
 
 /** Paging of a list: `marker` is the opaque token of the previous page's answer. */
 export type ListQuery = { descending?: boolean; limit?: number; marker?: string };
+
+/** The most rows of a payments CSV: the API's own maximum for the account lists (it cuts a larger `limit` down to it). */
+export const CSV_PAGE_LIMIT = 1000;
+
+/** One page of a CSV list, as the API served it. */
+export interface CsvPage {
+  /** The CSV, not read yet: stream it on. */
+  body: ReadableStream<Uint8Array>;
+  /** The marker of the page after this one (from the API's `Link` header), when there is one. */
+  nextMarker?: string;
+}
 
 export interface DataApi {
   /** The newest ledger the API has committed. */
@@ -84,6 +96,12 @@ export interface DataApi {
   accountTransactions(address: string, q: ListQuery): Promise<Page<"transactions", TxObject>>;
   accountPayments(address: string, q: ListQuery): Promise<Page<"payments", Payment>>;
   accountExchanges(address: string, q: ListQuery): Promise<Page<"exchanges", AccountExchange>>;
+  /**
+   * One page of an account's payments as CSV (`format=csv`), newest first, at most `CSV_PAGE_LIMIT` rows, after `marker` when
+   * it is given. Not cached, and not read: the body is a stream for the caller to pass on. A 200 that is not CSV is an
+   * `UpstreamError` of kind `server`.
+   */
+  accountPaymentsCsv(address: string, q: { marker?: string }): Promise<CsvPage>;
   /** What the transactions of each ledger paid in fees, one row per ledger. */
   fees(q: { descending: boolean; limit: number }): Promise<Page<"rows", FeeRow>>;
 }
@@ -114,31 +132,54 @@ async function reasonOf(response: Response): Promise<string | undefined> {
   return undefined;
 }
 
+/**
+ * The marker of the next page in the `Link` header of a list (`<https://host/v2/...?marker=M>; rel="next"`). The header names
+ * the API's own URL, which is never followed or passed on: only a marker that is one is taken out of it.
+ */
+function nextMarkerOf(link: string | null): string | undefined {
+  const next = link === null ? undefined : /<([^>]*)>\s*;\s*rel="?next"?/i.exec(link)?.[1];
+  if (next === undefined) return undefined;
+  let marker: string | null;
+  try {
+    marker = new URL(next, "http://api.invalid").searchParams.get("marker");
+  } catch {
+    return undefined;
+  }
+  return isMarker(marker) ? marker : undefined;
+}
+
 export function createDataApi(net: Network, env: Env, cache: SubrequestCache): DataApi {
   const base = net.dataApiUrl.replace(/\/+$/, "");
+
+  /** Sends the one kind of request the client makes: the key in its header, never redirected. */
+  async function send(path: string, accept: string, signal: AbortSignal): Promise<Response> {
+    return fetch(`${base}${path}`, {
+      method: "GET",
+      headers: { "X-API-Key": env.DATA_API_KEY, Accept: accept },
+      // A redirect would carry the key to wherever it points; the API never redirects.
+      redirect: "manual",
+      signal,
+    });
+  }
+
+  /** Throws the `UpstreamError` of an answer that is not 2xx; `what` says which request it was. */
+  async function throwUnlessOk(response: Response, what: string): Promise<void> {
+    if (response.status >= 200 && response.status <= 299) return;
+    const { status } = response;
+    const reason = await reasonOf(response);
+    const kind = status === 404 ? "not_found" : status === 400 ? "bad_request" : status === 429 ? "rate_limited" : "server";
+    throw new UpstreamError(kind, `${what} answered ${status}${reason ? `: ${reason}` : ""}`, {
+      status,
+      retryAfter: retryAfterOf(response.headers),
+    });
+  }
 
   /** Fetches `path` and returns the JSON body of a 2xx answer; any other answer throws. */
   function fetchJson(path: string): Promise<unknown> {
     const what = `data API GET ${path}`;
     return withDeadline(DATA_API_TIMEOUT_MS, what, async (signal) => {
-      const response = await fetch(`${base}${path}`, {
-        method: "GET",
-        headers: { "X-API-Key": env.DATA_API_KEY, Accept: "application/json" },
-        // A redirect would carry the key to wherever it points; the API never redirects.
-        redirect: "manual",
-        signal,
-      });
-
-      if (response.status < 200 || response.status > 299) {
-        const { status } = response;
-        const reason = await reasonOf(response);
-        const kind =
-          status === 404 ? "not_found" : status === 400 ? "bad_request" : status === 429 ? "rate_limited" : "server";
-        throw new UpstreamError(kind, `${what} answered ${status}${reason ? `: ${reason}` : ""}`, {
-          status,
-          retryAfter: retryAfterOf(response.headers),
-        });
-      }
+      const response = await send(path, "application/json", signal);
+      await throwUnlessOk(response, what);
 
       try {
         return (await response.json()) as unknown;
@@ -180,6 +221,26 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         throw new UpstreamError("server", `data API GET ${url} answered without "${unwrap}"`, { status: 200 });
       }
       return finish ? finish(part as T) : (part as T);
+    });
+  }
+
+  /**
+   * Fetches a CSV page. The deadline holds until the answer starts (its status and headers), not for the body, which the caller
+   * streams on: a body that stalls is the runtime's to cut, and the visitor sees a CSV that ends early.
+   */
+  function fetchCsv(path: string): Promise<CsvPage> {
+    const what = `data API GET ${path}`;
+    return withDeadline(DATA_API_TIMEOUT_MS, what, async (signal) => {
+      const response = await send(path, "text/csv", signal);
+      await throwUnlessOk(response, what);
+
+      if (!response.headers.get("Content-Type")?.toLowerCase().startsWith("text/csv")) {
+        void response.body?.cancel();
+        throw new UpstreamError("server", `${what} answered something that is not CSV`, { status: response.status });
+      }
+      const body = response.body ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() });
+      const nextMarker = nextMarkerOf(response.headers.get("Link"));
+      return nextMarker === undefined ? { body } : { body, nextMarker };
     });
   }
 
@@ -245,6 +306,12 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     accountTransactions: (address, q) => get(PATHS.accountTransactions, { address }, listQuery(q), listClass(q)),
     accountPayments: (address, q) => get(PATHS.accountPayments, { address }, listQuery(q), listClass(q)),
     accountExchanges: (address, q) => get(PATHS.accountExchanges, { address }, listQuery(q), listClass(q)),
+    accountPaymentsCsv: async (address, q) => {
+      const path = PATHS.accountPayments.replace("{address}", segment("address", address));
+      const search = new URLSearchParams({ descending: "true", format: "csv", limit: String(CSV_PAGE_LIMIT) });
+      if (q.marker) search.set("marker", q.marker);
+      return fetchCsv(`${path}?${search}`);
+    },
     fees: (q) => get(PATHS.fees, {}, { descending: q.descending, limit: q.limit }, "live"),
   };
 }

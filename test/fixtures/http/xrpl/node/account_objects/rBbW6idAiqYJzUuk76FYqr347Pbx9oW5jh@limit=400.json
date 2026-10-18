@@ -1,0 +1,12 @@
+{
+  "result": {
+    "account": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+    "account_objects": [
+      {"Balance":{"currency":"4C494F4E53000000000000000000000000000000","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"48329.908117603"},"Flags":1114112,"HighLimit":{"currency":"4C494F4E53000000000000000000000000000000","issuer":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","value":"0"},"HighNode":"2a","LedgerEntryType":"RippleState","LowLimit":{"currency":"4C494F4E53000000000000000000000000000000","issuer":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","value":"1000000000"},"LowNode":"0","PreviousTxnID":"C7FE6468BA25CE904C41722C0892316954133B000339C644073A88CACD8A9143","PreviousTxnLgrSeq":107720688,"index":"B68ADDF3995EFD889FAB3C2DC89B91121D874A2102CF22A97B3B6E04FD8403E0"}
+    ],
+    "ledger_hash": "68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092",
+    "ledger_index": 107721455,
+    "status": "success",
+    "validated": true
+  }
+}

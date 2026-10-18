@@ -1,7 +1,7 @@
 import { createContext, RouterContextProvider } from "react-router";
 
 import type { SubrequestCache } from "./cache-class";
-import { createSubrequestCache } from "./edge-cache";
+import { createDegradedMark, createSubrequestCache, type DegradedMark } from "./edge-cache";
 
 /**
  * What the Worker is configured with: `vars` and `ratelimits` of wrangler.jsonc, the two secrets
@@ -30,14 +30,21 @@ declare global {
 // Everything React Router 8 specific about getting the Worker's `env` and `ctx` into loaders is in
 // this file: the entry (workers/app.ts) builds the load context with createLoadContext, loaders and
 // middleware read it back with getEnv, getExecutionContext and getSubrequestCache.
-const workerContext = createContext<{ env: Env; ctx: ExecutionContext; cache: SubrequestCache }>();
+const workerContext = createContext<{ env: Env; ctx: ExecutionContext; cache: SubrequestCache; degraded: DegradedMark }>();
 
-/** The load context for one request. Pass it to the request handler in workers/app.ts. */
-export function createLoadContext(env: Env, ctx: ExecutionContext): RouterContextProvider {
+/**
+ * The load context for one request. Pass it to the request handler in workers/app.ts, with the `DegradedMark` the edge cache
+ * made for this render (`withEdgeCache` gives it to `render`), so that a loader's `markDegraded` reaches the cache.
+ */
+export function createLoadContext(
+  env: Env,
+  ctx: ExecutionContext,
+  degraded: DegradedMark = createDegradedMark(),
+): RouterContextProvider {
   const context = new RouterContextProvider();
   // One subrequest cache per request, over the data centre's Cache API: every client the request's loaders make
   // shares it, and so does every request there.
-  context.set(workerContext, { env, ctx, cache: createSubrequestCache(ctx, env.BUILD_ID) });
+  context.set(workerContext, { env, ctx, cache: createSubrequestCache(ctx, env.BUILD_ID), degraded });
   return context;
 }
 
@@ -68,4 +75,13 @@ export function getExecutionContext(context: unknown): ExecutionContext {
  */
 export function getSubrequestCache(context: unknown): SubrequestCache {
   return workerOf(context).cache;
+}
+
+/**
+ * Says that the page this loader is answering has a part missing (the node did not answer, a section could not be loaded): the
+ * edge cache serves it and does not store it, even if the section that failed streams after the header. From a loader's or
+ * middleware's `context`; `reason` goes to the log line.
+ */
+export function markDegraded(context: unknown, reason: string): void {
+  workerOf(context).degraded.mark(reason);
 }

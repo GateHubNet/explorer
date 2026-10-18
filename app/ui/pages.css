@@ -601,6 +601,381 @@ a.example:hover {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Account: the header card, the margin, the tabs and their lists */
+
+.account-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px 32px;
+  padding: 22px;
+}
+
+.account-id {
+  flex: 999 1 520px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.account-id__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.account-id__name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-id__label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.account-id__address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 2px;
+  min-width: 0;
+}
+
+.account-id__address h1 {
+  min-width: 0;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.account-id__meta {
+  color: var(--muted);
+}
+
+.account-id__meta .amt.plain {
+  font-weight: 400;
+}
+
+.identicon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 7px;
+  border-radius: 11px;
+  background: var(--sunken);
+  fill: var(--accent);
+}
+
+/* The QR code: the summary is a button in the row of the address; open, it takes the row under it. */
+.qr {
+  display: inline-block;
+}
+
+.qr[open] {
+  flex: 1 0 100%;
+}
+
+.qr__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+  cursor: pointer;
+}
+
+.qr__toggle::-webkit-details-marker {
+  display: none;
+}
+
+/* The card clips what is outside its padding box, and the summary is near its edge: draw the ring inside. */
+.qr__toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+.qr__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 0 4px;
+  font-size: 13px;
+}
+
+.qr__code {
+  width: 176px;
+  height: 176px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.account-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.account-balance {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--sunken);
+}
+
+/* A panel that holds a link is not plain --sunken (the Xahau accent is 4.40:1 on it): the blend the table rows hover with. */
+.account-balance--soft {
+  background: color-mix(in srgb, var(--sunken) 60%, var(--surface));
+}
+
+.account-balance__label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.account-balance__value {
+  font-size: 28px;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+.account-balance__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+.amt.plain {
+  font-weight: 400;
+}
+
+.account-address-note {
+  overflow-wrap: anywhere;
+}
+
+/* Tokens */
+.token {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.token:first-child {
+  border-top: 0;
+}
+
+.token__badge {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--sunken);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.token__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.token__name > span:first-child {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.token__issuer {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* A balance is read as a whole: it keeps its line, and the name beside it gives way. */
+.token > .amt {
+  flex: none;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tokens__empty {
+  padding: 16px;
+}
+
+.more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-top: 1px solid var(--border);
+  color: var(--link);
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The card clips what is outside its padding box: draw the ring inside. */
+.more > summary:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Owned objects */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--sunken);
+}
+
+.tile__count {
+  font-size: 18px;
+}
+
+.tile__label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.owned__note {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+/* Activity: the tabs, the note above a list, and what a list shows while it is loading or when it could not be loaded */
+.activity {
+  min-width: 0;
+}
+
+/* The ring of a tab is drawn inside it: the strip around the tabs scrolls, and the card clips. */
+.tabs__item:focus-visible {
+  outline-offset: -2px;
+}
+
+.activity__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
+}
+
+.activity__loading {
+  padding: 28px 16px;
+  color: var(--faint);
+}
+
+.activity__failed {
+  padding: 16px;
+}
+
+/* The date and the time of day, one under the other. */
+.when {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.when > .faint {
+  font-size: 12px;
+}
+
+/* What the transaction did to the balance, and under it how many other changes there were: two lines, so that neither pushes into the
+   next column. */
+.change {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+
+.change > .faint {
+  font-size: 12px;
+}
+
+/* Objects: a box each, the fields side by side. */
+.objectlist {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+
+.object {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.object__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.object__label {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.object__value {
+  overflow-wrap: anywhere;
+}
+
+.object__tx {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Phones */
 
 @media (max-width: 640px) {
@@ -622,6 +997,27 @@ a.example:hover {
 
   .summary__sentence {
     font-size: 17px;
+  }
+
+  .account-card {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .account-id__address h1 {
+    font-size: 18px;
+  }
+
+  .account-balance__value {
+    font-size: 24px;
+  }
+
+  .objectlist {
+    padding-inline: 12px;
+  }
+
+  .object__tx {
+    margin-left: 0;
   }
 
   /* One box under another, the arrow between them pointing down (the icon turns, not its row). */

@@ -7,7 +7,8 @@
 // headers. The route's `headers` export, `forwardCacheClass`, copies them from the loader's headers onto the
 // response React Router builds; that is the same function for a document and for the `.data` URL a client-side
 // navigation fetches, so both carry the class. `withEdgeCache` reads them, stores the response under its URL, and
-// takes them off before the visitor sees it.
+// takes them off before the visitor sees it. A loader that answers with a part of the page missing marks the request as
+// degraded (`DegradedMark`, below), and then nothing is stored.
 
 import { data } from "react-router";
 import type { HeadersFunction } from "react-router";
@@ -79,6 +80,44 @@ export const forwardCacheClass: HeadersFunction = ({ loaderHeaders, parentHeader
   }
   return headers;
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// A degraded answer
+
+/**
+ * What a loader tells the edge cache about the request it is answering: that the page is served with a part missing (the
+ * node is down, a deferred list could not be loaded), so that it must not be stored, whatever class it names. One per render,
+ * made by the entry (`withEdgeCache` hands it to `render`) and reached from loaders through the load context
+ * (`markDegraded(context, reason)` in env.ts).
+ *
+ * A loader may set it late: a section that streams after the header settles before the stream ends, and a page's copy is made
+ * only when its body is complete (see `store`), so a mark set at any point of the stream counts.
+ */
+export interface DegradedMark {
+  /** Whether the request has been marked. Read it once the body is complete. */
+  readonly degraded: boolean;
+  /** Why, the first time it was marked, for the log line. */
+  readonly reason: string | undefined;
+  /** Says that this answer is degraded. Marking twice keeps the first reason. */
+  mark(reason: string): void;
+}
+
+export function createDegradedMark(): DegradedMark {
+  let reason: string | undefined;
+  let degraded = false;
+  return {
+    get degraded() {
+      return degraded;
+    },
+    get reason() {
+      return reason;
+    },
+    mark(why) {
+      if (!degraded) reason = why;
+      degraded = true;
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // The subrequest cache
@@ -203,12 +242,21 @@ function storableAs(response: Response): { cls: CacheClass; ttl: number } | unde
   return { cls, ttl: Number.isFinite(override) && override > 0 ? override : CACHE_CLASSES[cls].edgeTtl };
 }
 
-/** What the visitor gets for a render's response: no internal headers, the browser's `Cache-Control`, `X-Cache`. */
-function answerFor(response: Response, label: CacheLabel, stored: { cls: CacheClass } | undefined): Response {
+/**
+ * What the visitor gets for a render's response: no internal headers, the browser's `Cache-Control`, `X-Cache`. A degraded answer
+ * the loader has already marked is kept by nobody (`no-store`); one that is only found out to be degraded while it streams has
+ * gone out with its class's `Cache-Control`, which for the classes of the pages that stream (`live`) revalidates every time.
+ */
+function answerFor(
+  response: Response,
+  label: CacheLabel,
+  stored: { cls: CacheClass } | undefined,
+  degraded = false,
+): Response {
   const headers = visitorHeaders(response.headers);
   if (stored) {
     headers.set("Cache-Control", browserCacheControl(stored.cls, headers.get("Content-Type")));
-  } else if ((response.status >= 400 || headers.has("Set-Cookie")) && !headers.has("Cache-Control")) {
+  } else if ((degraded || response.status >= 400 || headers.has("Set-Cookie")) && !headers.has("Cache-Control")) {
     headers.set("Cache-Control", "no-store");
   }
   headers.set("X-Cache", label);
@@ -254,14 +302,34 @@ function serveStored(copy: StoredCopy, label: "HIT" | "STALE"): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-/** Stores `response` (a clone: its body is read here) for `ttl` seconds of freshness. */
+/**
+ * Stores `response` (a clone: its body is read here) for `ttl` seconds of freshness, unless the render marked the request as
+ * degraded. The body is read to its end first: a page that streams a section after its header is complete only when that
+ * section has settled, and a section that failed marks the request on the way. (The copy is a buffer, as `cache.put` would make
+ * of it.) A body that fails half way is not stored either.
+ */
 async function store(
   cache: Cache,
   key: Request,
   response: Response,
   kind: { cls: CacheClass; ttl: number },
   request: Request,
+  mark: DegradedMark,
 ) {
+  let body: ArrayBuffer;
+  try {
+    body = await response.arrayBuffer();
+  } catch (error) {
+    logProblem("edge cache could not read the body to store", error, request);
+    return;
+  }
+  if (mark.degraded) {
+    console.warn(
+      JSON.stringify({ level: "warn", what: "degraded answer not stored", reason: mark.reason, path: new URL(request.url).pathname }),
+    );
+    return;
+  }
+
   const headers = visitorHeaders(response.headers);
   const keep = Math.ceil(Math.max(kind.ttl + KEEP_AFTER_FRESH_SECONDS, KEEP_AT_LEAST_SECONDS));
   headers.set("Cache-Control", `public, max-age=${keep}`);
@@ -270,7 +338,8 @@ async function store(
   headers.set(STORED_AT, String(Date.now()));
   try {
     const { status, statusText } = response;
-    await cache.put(key, new Response(response.body, { status, statusText, headers }));
+    // A status that cannot have a body (204) must not be given an empty one.
+    await cache.put(key, new Response(body.byteLength === 0 ? null : body, { status, statusText, headers }));
   } catch (error) {
     logProblem("edge cache write failed", error, request);
   }
@@ -374,14 +443,14 @@ export async function withEdgeCache(
   request: Request,
   env: Env,
   ctx: ExecutionContext,
-  render: () => Promise<Response>,
+  render: (mark: DegradedMark) => Promise<Response>,
 ): Promise<Response> {
   const { pathname } = new URL(request.url);
   const root = UNCACHED_PATHS.has(pathname);
   if (request.method !== "GET" || root) {
     // The redirect at the root costs nothing. Any other request that skips the cache renders on the visitor's account.
     if (!root && !(await withinVisitorLimit(request, env))) return tooManyRequests();
-    const response = await attempt(render, request);
+    const response = await attempt(() => render(createDegradedMark()), request);
     return response ? answerFor(response, "BYPASS", undefined) : unavailable();
   }
 
@@ -404,12 +473,15 @@ export async function withEdgeCache(
     return tooManyRequests();
   }
 
-  const response = await attempt(render, request);
+  const mark = createDegradedMark();
+  const response = await attempt(() => render(mark), request);
   if (response && response.status < 500) {
     await copy?.response.body?.cancel();
-    const kind = storableAs(response);
-    if (kind) ctx.waitUntil(store(cache, key, response.clone(), kind, request));
-    return answerFor(response, "MISS", kind);
+    // A loader that already knows the answer is degraded spares the copy; one that finds out while the page streams marks
+    // the request later, and `store` looks again when the body is complete.
+    const kind = mark.degraded ? undefined : storableAs(response);
+    if (kind) ctx.waitUntil(store(cache, key, response.clone(), kind, request, mark));
+    return answerFor(response, "MISS", kind, mark.degraded);
   }
 
   // The render failed: a throw, or a 5xx.
@@ -423,12 +495,19 @@ export async function withEdgeCache(
 }
 
 /** Starts the refresh of a stale copy, unless this Worker instance is already refreshing it. */
-function refresh(cache: Cache, key: Request, request: Request, ctx: ExecutionContext, render: () => Promise<Response>) {
+function refresh(
+  cache: Cache,
+  key: Request,
+  request: Request,
+  ctx: ExecutionContext,
+  render: (mark: DegradedMark) => Promise<Response>,
+) {
   if (refreshing.has(key.url)) return;
   const task = (async () => {
-    const response = await attempt(render, request);
-    const kind = response && response.status < 500 ? storableAs(response) : undefined;
-    if (response && kind) await store(cache, key, response, kind, request);
+    const mark = createDegradedMark();
+    const response = await attempt(() => render(mark), request);
+    const kind = response && response.status < 500 && !mark.degraded ? storableAs(response) : undefined;
+    if (response && kind) await store(cache, key, response, kind, request, mark);
     else await response?.body?.cancel();
   })().finally(() => refreshing.delete(key.url));
   refreshing.set(key.url, task);

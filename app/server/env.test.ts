@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createLoadContext, getEnv, getExecutionContext, getSubrequestCache, type Env } from "./env";
+import { createDegradedMark } from "./edge-cache";
+import { createLoadContext, getEnv, getExecutionContext, getSubrequestCache, markDegraded, type Env } from "./env";
 
 const env: Env = {
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
@@ -35,5 +36,27 @@ describe("the loader context", () => {
 
   it("says what is wrong when the subrequest cache is asked of a context the Worker did not make", () => {
     expect(() => getSubrequestCache({})).toThrow(/createLoadContext/);
+  });
+});
+
+describe("the degraded mark of the loader context", () => {
+  it("is the one the entry made the context with, so that a loader's mark reaches the edge cache", () => {
+    const mark = createDegradedMark();
+    const context = createLoadContext(env, ctx, mark);
+    expect(mark.degraded).toBe(false);
+    markDegraded(context, "node unavailable");
+    expect(mark.degraded).toBe(true);
+    expect(mark.reason).toBe("node unavailable");
+  });
+
+  it("is a fresh mark for each context made without one", () => {
+    const first = createLoadContext(env, ctx);
+    const second = createLoadContext(env, ctx);
+    markDegraded(first, "list failed");
+    expect(() => markDegraded(second, "other")).not.toThrow();
+  });
+
+  it("says what is wrong when the context did not come from the Worker entry", () => {
+    expect(() => markDegraded({}, "x")).toThrow(/createLoadContext/);
   });
 });

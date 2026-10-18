@@ -14,7 +14,7 @@ const requestHandler = createRequestHandler(
 export default withSentryWhenConfigured({
   async fetch(request, env, ctx) {
     return withRequestLog(request, () =>
-      withEdgeCache(request, env, ctx, () => requestHandler(request, createLoadContext(env, ctx))),
+      withEdgeCache(request, env, ctx, (degraded) => requestHandler(request, createLoadContext(env, ctx, degraded))),
     );
   },
 } satisfies ExportedHandler<Env>);

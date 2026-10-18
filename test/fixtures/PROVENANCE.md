@@ -79,6 +79,10 @@ decision was to leave it hand-written), so its tests in `describe.test.ts` use h
 "Upstream fixtures" says which is which, and `test/unit/http-fixtures.test.ts` checks the hand-written ones against the
 recordings). Its transactions are the recorded ones; the creation data of its accounts and its `server_state` are invented.
 
+The account page asks the node for `account_objects` with `limit: 400` (the largest page), and a fixture is found by all the
+parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
+and `<ACCOUNT>@limit=400.json` (a byte copy; `test/unit/account-fixtures.test.ts` keeps them equal).
+
 ## Copied for the `?binary=true` fixtures: `definitions/xahau/`
 
 | Here | Source path in `data-api-new` | `data-api-new` commit at copy time | Last changed in |

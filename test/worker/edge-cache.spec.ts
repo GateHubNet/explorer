@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CACHE_CLASSES, type CacheClass } from "../../app/server/cache-class";
-import { createSubrequestCache, edgeCacheKey, withEdgeCache } from "../../app/server/edge-cache";
+import { createDegradedMark, createSubrequestCache, edgeCacheKey, withEdgeCache, type DegradedMark } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 
 // The page-level edge cache, called directly with a fake `render` and a fake execution context. The Cache API
@@ -597,6 +597,170 @@ describe("what is never stored", () => {
     await withEdgeCache(get(url), h.env, h.ctx, render);
     await h.settle();
     expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+  });
+});
+
+describe("a degraded answer", () => {
+  // A page that renders with a part missing (the node is down, a list could not be loaded) says so by marking the request, and is
+  // served but never stored. The mark may be set while the body is still streaming, so the copy is made when the body is complete.
+
+  /** A `render` whose n-th answer is decided by `how(n, mark)`; it gets the mark of its own render. */
+  function marking(how: (call: number, mark: DegradedMark) => Answer | Response | Promise<Answer | Response>) {
+    let calls = 0;
+    const seen: DegradedMark[] = [];
+    const render = vi.fn(async (mark: DegradedMark) => {
+      calls += 1;
+      seen.push(mark);
+      const next = await how(calls, mark);
+      return next instanceof Response ? next : answer(next);
+    });
+    return Object.assign(render, { seen });
+  }
+
+  it("a fresh mark says nothing, keeps the first reason, and is only ever set", () => {
+    const mark = createDegradedMark();
+    expect(mark.degraded).toBe(false);
+    expect(mark.reason).toBeUndefined();
+    mark.mark("node unavailable");
+    mark.mark("transactions failed");
+    expect(mark.degraded).toBe(true);
+    expect(mark.reason).toBe("node unavailable");
+  });
+
+  it("is served and not stored when the render marked the request before it answered, and the browser is told not to keep it", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const render = marking((_call, mark) => {
+      mark.mark("node unavailable");
+      return { cls: "live", body: "<html>live state unavailable</html>" };
+    });
+
+    const first = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(first.status).toBe(200);
+    expect(first.headers.get("X-Cache")).toBe("MISS");
+    expect(first.headers.get("Cache-Control")).toBe("no-store");
+    expectNoInternalHeaders(first);
+    expect(await first.text()).toBe("<html>live state unavailable</html>");
+    await h.settle();
+    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+
+    const second = await withEdgeCache(get(url), h.env, h.ctx, render);
+    await second.text();
+    await h.settle();
+    expect(second.headers.get("X-Cache")).toBe("MISS");
+    expect(render).toHaveBeenCalledTimes(2);
+  });
+
+  it("is not stored when the mark is set while the body streams, and the visitor still gets the first chunk before the section settles", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    let settleSection!: () => void;
+    const sectionSettles = new Promise<void>((resolve) => (settleSection = resolve));
+    const encoder = new TextEncoder();
+    const render = marking((_call, mark) => {
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(encoder.encode("<html>header"));
+          await sectionSettles;
+          // The deferred section failed: it marks the request, then the rest of the page is sent.
+          mark.mark("transactions failed");
+          controller.enqueue(encoder.encode(" couldn't load transactions</html>"));
+          controller.close();
+        },
+      });
+      return answer({ cls: "live", body: stream });
+    });
+
+    const response = await withEdgeCache(get(url), h.env, h.ctx, render);
+    // Streaming is not held back: the visitor has the header while the section is still pending.
+    const reader = response.body!.getReader();
+    const firstChunk = await reader.read();
+    expect(new TextDecoder().decode(firstChunk.value)).toBe("<html>header");
+    expect(render.seen[0]!.degraded).toBe(false);
+
+    settleSection();
+    let rest = "";
+    for (let part = await reader.read(); !part.done; part = await reader.read()) rest += new TextDecoder().decode(part.value);
+    expect(rest).toBe(" couldn't load transactions</html>");
+    await h.settle();
+    expect(render.seen[0]!.degraded).toBe(true);
+    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+
+    const again = await withEdgeCache(get(url), h.env, h.ctx, render);
+    await again.text();
+    expect(again.headers.get("X-Cache")).toBe("MISS");
+  });
+
+  it("stores a later good render of the same page", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const render = marking((call, mark) => {
+      if (call === 1) mark.mark("node unavailable");
+      return { cls: "live", body: `render ${call}` };
+    });
+
+    expect(await (await withEdgeCache(get(url), h.env, h.ctx, render)).text()).toBe("render 1");
+    await h.settle();
+    const good = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(good.headers.get("X-Cache")).toBe("MISS");
+    expect(good.headers.get("Cache-Control")).toBe(CACHE_CLASSES.live.browser.html);
+    expect(await good.text()).toBe("render 2");
+    await h.settle();
+
+    const hit = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(hit.headers.get("X-Cache")).toBe("HIT");
+    expect(await hit.text()).toBe("render 2");
+    expect(render).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives each render a mark of its own", async () => {
+    const h = harness();
+    const render = marking(() => ({ cls: "live" }));
+    await withEdgeCache(get(pageUrl()), h.env, h.ctx, render);
+    await withEdgeCache(get(pageUrl()), h.env, h.ctx, render);
+    await withEdgeCache(get(pageUrl()), { ...h.env }, h.ctx, render);
+    expect(new Set(render.seen).size).toBe(3);
+  });
+
+  it("leaves the stored copy as it was when its refresh is degraded", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const render = marking((call, mark) => {
+      if (call === 2) mark.mark("node unavailable");
+      return { cls: "live", body: `render ${call}` };
+    });
+
+    await withEdgeCache(get(url), h.env, h.ctx, render);
+    await h.settle();
+    // Past the 5 s of a live copy and within its 30 s of stale-while-revalidate: stale, and one render refreshes it.
+    advance(6_000);
+    const stale = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(stale.headers.get("X-Cache")).toBe("STALE");
+    expect(await stale.text()).toBe("render 1");
+    await h.settle();
+    expect(render).toHaveBeenCalledTimes(2);
+
+    // The degraded refresh stored nothing: the copy is still render 1, and still stale (and this request starts the next refresh).
+    const stillStale = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(stillStale.headers.get("X-Cache")).toBe("STALE");
+    expect(await stillStale.text()).toBe("render 1");
+    await h.settle();
+    // That refresh was good and replaced the copy.
+    const replaced = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(replaced.headers.get("X-Cache")).toBe("HIT");
+    expect(await replaced.text()).toBe("render 3");
+  });
+
+  it("does not stop a redirect or a body-less answer from being stored", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const render = marking(() => ({ cls: "immutable", status: 302, headers: { Location: "/xrpl/account/rX" } }));
+    await withEdgeCache(get(url), h.env, h.ctx, render);
+    await h.settle();
+    const hit = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(hit.headers.get("X-Cache")).toBe("HIT");
+    expect(hit.status).toBe(302);
+    expect(hit.headers.get("Location")).toBe("/xrpl/account/rX");
   });
 });
 

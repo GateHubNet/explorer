@@ -88,7 +88,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds. |
 | `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
 | `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, and the `SubrequestCache` interface both clients take. |
-| `edge-cache.ts` | The page-level edge cache and visitor limit (`withEdgeCache`), the subrequest cache the clients take (`createSubrequestCache`), and what loaders and routes use to name a page's class (`cached`, `forwardCacheClass`, `cacheClassHeaders`). |
+| `edge-cache.ts` | The page-level edge cache and visitor limit (`withEdgeCache`), the subrequest cache the clients take (`createSubrequestCache`), and what loaders and routes use to name a page's class (`cached`, `forwardCacheClass`, `cacheClassHeaders`) or to say it is degraded (`DegradedMark`, `markDegraded` in `env.ts`). |
 | `logging.ts` | The request id and the one log line per request (`withRequestLog`), and Sentry, loaded only for a Worker that has a `SENTRY_DSN` (`withSentryWhenConfigured`). |
 | `clients.ts` | `clientsFor(context, net)`: the data API client and the node client of a network, over the request's subrequest cache. What a loader calls. |
 | `network-route.ts` | `requireNetwork(context, params)` (the `:net` segment as a `Network`, or a 404 of class `short`), `publicNetwork(net)` (what may go to the browser: no URLs), `readNetworkCookie(header)`. |
@@ -96,6 +96,9 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `capture.ts` | `handleLoaderError`, the `handleError` of `app/entry.server.tsx`: one log line per loader error and, with a `SENTRY_DSN`, Sentry. |
 | `resolve.ts` | What a search input names: `resolveCtid(api, net, ctid)` (the hash at a CTID's place in its ledger, or the other network it belongs to, or `null`) and `findHash(api, node, hash)` (a transaction, a ledger, both or neither; the node is asked when the data API has neither). They return "nothing" for a thing that is not there and throw the `UpstreamError` of a failure, so a caller can tell a 404 from a 503. An answer that cannot be right is a failure too: a 200 for a hash without its `tx`, a ledger's list that is not a list, a hash in it that is not 64 hex digits (it goes into a redirect and a path). |
 | `tx-shape.ts` | The shape checks of a transaction, its binary form and a ledger's list of hashes (`checkIndexTransaction`, `checkBinaryAnswer`, `checkLedgerHashes`; `checkNodeTransaction` for the node's), which the data API client runs inside its cached loads. |
+| `account-view.ts` | What the account page shows: the header (`accountHeader`: activation, flags, sequence, balance with the reserve from `server_state`, tokens, owned objects), the rows of each tab (`transactionRows`, `paymentRows`, `tradeRows`, `offerRows`, `objectRows`), the Newer and Older links (`pagingOf`), and what the index and the node say between them about whether the account exists (`existenceOf`). See "The account page". |
+| `qr.ts` | A QR code encoder (byte mode, error correction level M, versions 1 to 9) and `qrPath`, the picture as the `d` of an SVG path. Imported by the account route only, so it is never in the browser bundle (`test/unit/account-bundle.test.ts`). |
+| `marker.ts` | `isMarker`: what a marker of the data API's lists may look like (base64url, at most 512 characters), checked before one is sent or put in a link. |
 | `transaction-view.ts` | What the transaction page shows (`transactionPage`): worked out from a transaction of the data API (`txFromIndex`) or the node (`txFromNode`), the hashes of its ledger (`neighboursOf`) and the binary form (`binaryOf`). See "The transaction page". |
 
 ## The Worker entry
@@ -116,6 +119,13 @@ log line, the edge cache with the visitor limit, React Router.
   `max(edge TTL + 30 s, 24 h)`), with `X-Cache: STALE`; without one, a throw or a 503 becomes a small 503 page with
   `Retry-After: 30`. Both pages are `noindex` and self-contained until the design system has its own.
 - **Errors are never stored**: 4xx, 5xx and 429, except a 404 of class `short`; nor an answer that sets a cookie.
+- **Degraded answers are never stored.** A page that renders with a part missing (the node is down, a streamed list could not be
+  loaded) is a 200 that must not be kept. `withEdgeCache` hands `render` a `DegradedMark`, one per render, which `workers/app.ts`
+  puts in the load context; a loader calls `markDegraded(context, reason)`. The mark may be set while the body streams (a section
+  that fails settles before the stream ends), so the copy is made only when the body is complete (`store` reads it to its end, then
+  looks at the mark); a mark set before the answer also takes the browser's caching away (`Cache-Control: no-store`). A degraded
+  refresh of a stale copy leaves the copy as it was, and the next good render is stored as usual. The log gets one line
+  (`degraded answer not stored`, with the reason).
 
 ### Naming a page's class
 
@@ -170,7 +180,8 @@ the browser).
 - **Routes** (`app/routes.ts`): `/` (`routes/index.tsx`, the redirect), `/robots.txt`, `/:net` (`routes/net.tsx`, the layout:
   header, footer, search, the network's accent; its loader answers a 404 for an unknown network and gives its children
   `useNetwork()`) with the home page (`routes/net._index.tsx`), the ledger page (`routes/net.ledger.$id.tsx`), the transaction page
-  (`routes/net.tx.$id.tsx`) and search (`routes/net.search.tsx`) under it, and `*` (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
+  (`routes/net.tx.$id.tsx`), the account page (`routes/net.account.$address.tsx`) and its payments CSV
+  (`routes/net.account.$address.payments[.csv].ts`, a resource route) and search (`routes/net.search.tsx`) under it, and `*` (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
   network with `requireNetwork(context, params)` and the clients with `clientsFor(context, net)`, names its cache class with
   `cached(...)`, turns upstream failures into responses with `upstreamFailure(err, what)`, and its module exports
   `headers = forwardCacheClass` (see above; `test/unit/route-headers.test.ts` enforces it). A page with its own big search box
@@ -264,6 +275,72 @@ fails if the page's files import them as values).
   are tags beside the account.
 - **No age** is in the stored page (`RelativeTime` fills it in in the browser), and nothing is streamed.
 
+## The account page
+
+`/{net}/account/{address}` (`routes/net.account.$address.tsx`, a child of the `/:net` layout): the loader asks the clients,
+`app/server/account-view.ts` works out what the page shows, and `app/ui/pages/AccountPage.tsx` draws it (with `Identicon`, `QrButton`
+and the tabs of `Tabs`). The tabs are `?tab=transactions|payments|trades|offers|objects` (each a link, so each works without
+JavaScript); Analytics is a disabled tab that says "soon". Lists are newest first, 20 a page, with Newer and Older.
+
+| Request | Answer | Class |
+|---|---|---|
+| an X-address | 302 to the classic address, with `?tag=N` for its tag | `immutable` |
+| an address that is not an account | 404 without a call, noindex | `short` |
+| an unknown `?tab=`, or a `marker` on Offers or Objects (they have no pages) | 302 to the URL without it | `short` |
+| the first page of a tab | the page; header read from the data API (creation, balances) and the node (`account_info`, `account_objects` with `limit: 400`, `server_state`), the list **streamed** after it | `live` |
+| a page reached with a `marker` | the page, awaited whole, with no live state; `noindex, follow` | `immutable` |
+| a marker the API refuses (400), or that is not base64url, or a page behind a marker of an account the index does not know | 404 | `short` |
+| the index has no creation and the node no account | 404 "This address has never been activated" with a link to the other network; noindex | `short` |
+| the index knows it and the node says it is gone | the history with a "Deleted" banner, no balance, tokens or owned objects | `live` |
+| the node did not answer (any of its three calls) | the history, "Live state unavailable" with a Retry, the balance the index read; what only the node tells is left out | served, not stored |
+| the streamed list failed (or took more than 4.5 s) | the header and, in place of the list, "Couldn't load transactions" with a Retry | served, not stored |
+| balances failed | the page with "Couldn't load tokens" and a Retry | served, not stored |
+| the index failed on the account, or has nothing and the node did not answer | 503 (it cannot be told from an address that does not exist) | not stored |
+
+- **Streaming.** On the first page the loader awaits the header and returns the list as a promise (`Suspense` and `Await` in the
+  page), so the HTML holds the header before the list. The promise never rejects: a failure is a list of state `failed`, which the
+  page shows as the section error. It is settled before the framework stops streaming (`streamTimeout`, 5 s), by a 4.5 s deadline of
+  the loader's own, so a slow upstream cannot leave the browser with a rejected promise. Bots get the whole document
+  (`entry.server.tsx` waits for `allReady` for them). A page behind a marker awaits its list: it is stored for a year and must be whole.
+- **Retry** fetches the route's own data again in the browser (`useRevalidator`: the explorer's `.data` URL, never the data API). A
+  degraded answer was not stored, so the retry reaches a fresh render, which is stored if it is good.
+- **No live state behind a marker.** Such a page is `immutable`, and a balance in it would be as old as the page, so it shows the
+  address, the activation and the list, and a link to the first page for the rest.
+- **Newer and Older.** The API's markers run towards older rows only. Older is the `next` marker of the answer; a page remembers
+  how to go back in its own URL, `?marker=M3&back=M2.M1` (the markers of the pages before it, nearest first, at most ten); the
+  second page's Newer is the first page, which has no marker. A URL with a trail that is not one is read as having none.
+- **Exists, deleted, never funded.** `existenceOf(created, info)` (the index's creation, the node's `account_info`): both have it, active;
+  the index only, deleted; the node only (the index is behind), active without an activation line; neither, never activated. Not being
+  able to tell is a 503, never a page that says it.
+- **Reserve.** `reserve_base + owner_count × reserve_inc` from `server_state`'s `validated_ledger` (drops, cached 5 minutes), and
+  the available balance is what the balance leaves, never below 0, in `bignumber.js`. Nothing is hard-coded, so a vote of the
+  validators shows up. The page prints "Reserve 1.2 XRP = 1 base + 1 object × 0.2".
+- **QR code and identicon.** The QR code is drawn in the Worker (`qr.ts`) and reaches the page as an SVG path inside a closed
+  `<details>` (the summary is the button), black on white in either theme with the quiet zone scanners want. The identicon is a 5 x 5
+  pattern drawn from the address (`app/domain/identicon.ts`), in the network's accent.
+- **Flags** are named for each network (the same bit is the AMM flag on the XRP Ledger); a bit nobody here knows says nothing. The
+  domain is the hex of an ASCII text, shown as text and never as a link. The destination tag of `?tag=` is shown in a note when it is
+  a decimal 32-bit number written the one way, and is never echoed otherwise.
+- **The tabs.** Transactions has the date, type, what happened (from the account's side: its own transactions leave their sender
+  out), the change of its balance (the native one first, and how many others) and the result. Payments are signed from the account's
+  side with the destination tag, and link to the CSV. Trades say buy or sell, the pair, the amount, the rate and the counterparty.
+  Offers are read live from the node through the index and show the rate worked out from the total and the quantity (8 significant
+  digits). Objects lists what the account owns besides trust lines and offers (escrows, checks, payment channels, NFT pages, tickets,
+  signer lists, deposit preauthorizations) with their fields; with a `marker` from the node it says "Showing the first 400 objects".
+- **No ages** are in the stored page (`RelativeTime`), as on the other pages.
+- **The mock's counts** on the tabs and its type filter are not here: the API has no totals (spec non-goals), and a filter over 20 rows
+  would hide a page that has its own markers.
+
+### The payments CSV
+
+`/{net}/account/{address}/payments.csv[?marker=...]` (`routes/net.account.$address.payments[.csv].ts`) is a resource route: one page of
+the data API's own CSV (`/v2/accounts/{address}/payments?format=csv&descending=true&limit=1000`, the most the API serves), streamed.
+The address and the marker are checked before any call (a 404, noindex, class `short`). What goes out is the body, `Content-Type:
+text/csv`, `Content-Disposition: attachment` with the explorer's own name `<address>-payments.csv`, `X-Robots-Tag: noindex`,
+`X-Content-Type-Options: nosniff` and, when the API says there is a next page, a `Link: </net/account/a/payments.csv?marker=...>;
+rel="next"`: the API's own `Link` names its own URL and is never passed on. The key goes to the API in `X-API-Key` and nowhere else.
+Class `short` (the edge keeps 30 s of it); a failure of the API, or a 200 that is not CSV, is a 503 and is never stored.
+
 ## Search
 
 `/{net}/search?q=...` (`routes/net.search.tsx`) is what the search box submits, so it works before JavaScript loads. Its loader says what
@@ -312,7 +389,7 @@ cost a render each.
   for `/`, the 404 pages, `/:net` (the home page now, so against the recorded upstream), the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
   that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures"). `home.spec.ts`, `ledger.spec.ts`, `search.spec.ts` and `transaction.spec.ts` ask for the pages
   through `pageClient` (`test/support/pages.ts`: the page, the HTML as text, anchors, table rows, the class and TTL the entry stored a
-  page under); `resolve.spec.ts` calls `resolveCtid` and `findHash` with a data API client and a node client of its own. `transaction.spec.ts` covers the transaction page and its redirects, 404s, node fallback and 503s (failures first, one transaction per override); `app/server/transaction-view.test.ts` the view builder over recorded transactions; `test/unit/transaction-bundle.test.ts` and `transaction-css.test.ts` what the page may import and what its stylesheet must keep. The
+  page under); `resolve.spec.ts` calls `resolveCtid` and `findHash` with a data API client and a node client of its own. `account.spec.ts` covers the account page (failures first, one made-up account per override, from `account(n)`), `account-csv.spec.ts` its CSV; `app/server/account-view.test.ts` and `qr.test.ts` the view builder and the QR encoder (checked against `qrencode` 4.1.1's output and by Apple's Vision decoder when it was written), `test/unit/account-bundle.test.ts` and `account-css.test.ts` what the page may import and what its stylesheet must keep. `transaction.spec.ts` covers the transaction page and its redirects, 404s, node fallback and 503s (failures first, one transaction per override); `app/server/transaction-view.test.ts` the view builder over recorded transactions; `test/unit/transaction-bundle.test.ts` and `transaction-css.test.ts` what the page may import and what its stylesheet must keep. The
   hashes of a recorded ledger come from `test/support/ledger-hashes.ts`, read from the fixture files and not through a client. What a spec file's Worker puts in the Cache API stays there for the rest of the file, edge pages and subrequests
   alike (and an error is never stored): a test that overrides an upstream answer asks for a URL, a ledger or a network no other test
   of the file asks for, and a test that needs a failing `last_validated` goes first.
@@ -372,7 +449,10 @@ listed transaction left (balance, sequence, flags, `PreviousTxnID`) on the newes
 begin; its `tx_hash` is a made-up hash that nothing serves. What the recordings do not contain, no account has: an open offer,
 an escrow, an LP token, a domain, an `account_objects` page with a `marker`. Tests that need those override the answer. The
 Xahau active account's `OwnerCount` is 2 and `account_objects` lists the one object (the EVR line) the recordings show.
-`test/unit/http-fixtures.test.ts` checks the hand-written files against the recordings and against each other.
+`test/unit/http-fixtures.test.ts` checks the hand-written files against the recordings and against each other. The account page asks the
+node for `account_objects` with `limit: 400`, and a fixture is found by all the parameters of a request but its subject, so each
+active account's objects are in the file twice (`<ACCOUNT>.json` and `<ACCOUNT>@limit=400.json`, byte copies,
+`test/unit/account-fixtures.test.ts`). The payments CSV has no fixture: a test gives it as an override.
 
 **In a Worker test:**
 
