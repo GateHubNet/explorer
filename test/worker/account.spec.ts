@@ -1270,7 +1270,53 @@ describe("the query of the URL", () => {
       const { html } = await page(`/xrpl/account/${ACTIVE}?tag=${tag}`);
       expect(textOf(html)).not.toContain("Destination tag");
       const decoded = decodeURIComponent(tag);
-      if (decoded.length > 2) expect(html).not.toContain(decoded);
+      // Not the whole HTML: its scripts hold the route manifest's random version (and ids), which meets a short tag like 007 now and then.
+      if (decoded.length > 2) expect(toldBy(html).filter((told) => told.includes(decoded))).toEqual([]);
     },
   );
+});
+
+/**
+ * What a page tells, apart from its scripts: its visible text and the values of the attributes of its tags, outside `<script>` and `<style>`
+ * elements (a canonical link, a `content`, an `href`, a `value`). The names of the build's own files (`/assets/...`, hashed with random text) are
+ * not told by anybody.
+ */
+function toldBy(html: string): string[] {
+  const markup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "<script></script>").replace(/<style\b[\s\S]*?<\/style>/gi, "<style></style>");
+  const values = [...markup.matchAll(/<[a-zA-Z][^>]*>/g)].flatMap((tag) =>
+    [...tag[0].matchAll(/\s[\w:.-]+="([^"]*)"/g)].map((attribute) => attribute[1]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")),
+  );
+  return [textOf(html), ...values.filter((value) => !value.startsWith("/assets/"))];
+}
+
+describe("what a page tells (toldBy, for the ?tag tests above)", () => {
+  const sample = '<html><head><link rel="modulepreload" href="/assets/root-A007bcDe.js"><meta property="og:url" content="https://explorer.test/xrpl/account/rX"></head>' +
+    '<body><main><p>An account</p><a href="/xrpl/account/rX?tab=payments">Payments</a><input value="rX"></main></body></html>';
+  const withScript = (digits: string) =>
+    sample.replace("</body>", `<script>window.__reactRouterManifest={"version":"f${digits}b","routes":{}};</script><script src="/assets/entry.js">${digits}</script></body>`);
+
+  // The flake: a tag of 007 was "found" in the HTML of a page whose manifest version happened to have those digits in it.
+  it("does not find digits that are only in a script, which the whole HTML does", () => {
+    const html = withScript("007");
+    expect(html).toContain("007");
+    expect(toldBy(html).filter((told) => told.includes("007"))).toEqual([]);
+  });
+
+  it("does not find digits in the name of a file of the build, or in a style", () => {
+    const html = sample.replace("</head>", "<style>.a007{color:red}</style></head>");
+    expect(html).toContain("007");
+    expect(toldBy(html).filter((told) => told.includes("007"))).toEqual([]);
+  });
+
+  it.each([
+    ["the visible text", (html: string) => html.replace("An account", "An account 007")],
+    ["a link", (html: string) => html.replace("?tab=payments", "?tab=payments&tag=007")],
+    ["a meta tag", (html: string) => html.replace("explorer.test/xrpl/account/rX", "explorer.test/xrpl/account/rX?tag=007")],
+    ["a field's value", (html: string) => html.replace('value="rX"', 'value="rX 007"')],
+    ["an attribute, with its entities", (html: string) => html.replace("<p>", '<p title="a &amp; 007">')],
+  ])("finds digits in %s", (_where, put) => {
+    expect(toldBy(put(sample)).filter((told) => told.includes("007"))).not.toEqual([]);
+    // Also with a script that has them too.
+    expect(toldBy(put(withScript("007"))).filter((told) => told.includes("007"))).not.toEqual([]);
+  });
 });

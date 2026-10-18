@@ -343,6 +343,51 @@ function accountListHashes(net: NetworkName): string[] {
   return hashes;
 }
 
+// ---- Comparing with the disk -------------------------------------------------------------------------------------------
+
+/** Every file below `dir`, as paths relative to it. */
+function filesBelow(dir: URL, prefix = ""): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) found.push(...filesBelow(new URL(`${entry.name}/`, dir), `${prefix}${entry.name}/`));
+    else found.push(`${prefix}${entry.name}`);
+  }
+  return found;
+}
+
+export interface Differences {
+  /** Generated files that are not on disk. */
+  missing: string[];
+  /** Generated files whose text differs from the disk's. */
+  changed: string[];
+  /** Files on disk that are neither generated nor written by hand. */
+  stale: string[];
+}
+
+/** How the generated files differ from test/fixtures/http/ (`pnpm fixtures:check` and the test of this file; the command is make-http-fixtures.ts). */
+export function compare(generated: Map<string, string>): Differences {
+  const missing: string[] = [];
+  const changed: string[] = [];
+  for (const [path, text] of generated) {
+    let onDisk: string;
+    try {
+      onDisk = readFileSync(new URL(path, HTTP), "utf8");
+    } catch {
+      missing.push(path);
+      continue;
+    }
+    if (onDisk !== text) changed.push(path);
+  }
+  let present: string[] = [];
+  try {
+    present = filesBelow(HTTP);
+  } catch {
+    // No fixtures directory yet.
+  }
+  const stale = present.filter((path) => !generated.has(path) && !isHandWritten(path));
+  return { missing: missing.sort(), changed: changed.sort(), stale: stale.sort() };
+}
+
 // ---- Generating ------------------------------------------------------------------------------------------------------
 
 /** Every generated file of the fixtures: path below test/fixtures/http/ and text. */

@@ -43,7 +43,7 @@ values there replace the `vars` of `wrangler.jsonc` locally.
 | `pnpm dev` | Dev server, with the Worker running in workerd |
 | `pnpm build` | Production build into `build/` |
 | `pnpm typecheck` | `wrangler types` (runtime types into the git-ignored `worker-configuration.d.ts`), `react-router typegen`, `tsc -b` |
-| `pnpm test` | `vitest run`: the `unit` project (Node) and the `worker` project (Workers runtime) |
+| `pnpm test` | `vitest run`: the `unit` project (Node), the `components` project (happy-dom: the components of `app/ui`) and the `worker` project (Workers runtime) |
 | `pnpm test:e2e` | The end-to-end suite (Playwright, Chromium): builds, starts the fixture server and the built Worker under `wrangler dev`, runs `test/e2e/`, stops them and removes their state. See "End-to-end tests" |
 | `pnpm api:sync` | Copy the data API's OpenAPI document (`$DATA_API_REPO/docs/openapi.yaml`, default `../data-api-new`) to `api/openapi.yaml` and regenerate `app/server/openapi.d.ts`; name the source commit it prints in the commit message |
 | `pnpm api:check` | Regenerate the types from the committed `api/openapi.yaml` and fail if `app/server/openapi.d.ts` differs (needs no `data-api-new`) |
@@ -479,8 +479,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   no other route loads, and `test/unit/og-bundle.test.ts` checks that nothing of the renderer is named outside `app/og/render.ts`, that
   `app/server/meta.ts` (which the browser runs) cannot reach it, and, when a build exists, that `build/client` holds none of it.
   Worker upload (`wrangler deploy --dry-run`, 14 modules): 5105 KiB / **1556 KiB gzip** (was 2486 / 548 KiB): the renderer chunk 503 KiB, the
-  resvg and yoga wasm 1428 KiB, the fonts 663 KiB. The limit is 10 MB gzip. Initial JavaScript per page (entry, root, layout, route and their
-  imports, gzip): home 127.7 KB, ledger 129.8, transaction 131.9, account 132.3 (was 126.5, 128.6, 130.7, 131.3; the budget is 150).
+  resvg and yoga wasm 1428 KiB, the fonts 663 KiB. The limit is 10 MB gzip. (The initial JavaScript of the pages is not repeated here: `pnpm check:bundle`
+  prints it, and "The client bundle check" has the budget and the figures of the day.)
 - **Logs.** `workers-og` writes `init RESVG` to the console on every image, and, after the first, a logged `Already initialized` error
   with its stack (it initialises resvg on each call and catches the second). That is its own code; an image is drawn once per URL and
   kept by the edge.
@@ -502,6 +502,10 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
   `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, another environment, workers.dev, the redirect), the
   command through a link, and that the deploy scripts run it between the build and `wrangler deploy` and the environments of `wrangler.jsonc` are not on workers.dev.
+  **The commands run every time they are run**, however they were reached (`scripts/api-sync.ts`, `scripts/make-http-fixtures.ts`, `scripts/check-bundle.ts`,
+  `scripts/predeploy-check.ts`, `test/e2e/stack.ts`): none decides whether it is "the script" by comparing the URL of its module with `process.argv[1]`, which differ
+  through a link and once made a gate print nothing and pass (`pnpm api:check` among them). What a command shares with its tests is in a file of its own
+  (`api-sync-core.ts`, `compare` in `http-fixtures.ts`, `bundle-budget.ts`, `predeploy-guard.ts`), and each is tested as a command through a link.
 - `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
   rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
 - The projects do not read `vite.config.ts`, so `vitest.config.ts` gives each the `~/` alias (`app/`) itself;
@@ -736,8 +740,8 @@ was reached (a link to it included): a gate that cannot tell whether it is being
 - a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction or account route; what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure). Chunks fetched with
-  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Sizes are in kilobytes of 1000 bytes. Today: home 130.8 KB, ledger 132.9,
-  transaction 135.1, account 135.5; 150,000 bytes passes and 150,001 fails;
+  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Sizes are in kilobytes of 1000 bytes. Today: home 131.1 KB, ledger 133.3,
+  transaction 135.4, account 135.8; 150,000 bytes passes and 150,001 fails;
 - any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
   the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
   These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts and images are not read;
@@ -825,6 +829,10 @@ pnpm exec wrangler secret put SENTRY_DSN --env production     # optional
 The data API hosts in `wrangler.jsonc` are placeholders (`*.example.invalid`) until the hosts are decided; the deployed Workers need the real ones
 in the `vars` of each environment before the first deploy (the guard refuses a deploy with a placeholder).
 
+**The plan.** The Workers **Paid** plan is required. The Free plan allows 10 ms of CPU per request: drawing a link-preview image (Satori and
+resvg-wasm, `/og/...png`) and rendering a ledger with thousands of transactions (a page of 740 KB and more, parsed and described in the Worker)
+need far more, and a request over the limit is cut off. Both are normal traffic here (every unfurled link asks for an image).
+
 **Rollout** (spec 13):
 
 1. `data-api-new` ships `GH_RATE_LIMIT_KEYS` and the explorer's key is issued.
@@ -833,6 +841,29 @@ in the `vars` of each environment before the first deploy (the guard refuses a d
    stack) or `E2E_BASE_URL=https://staging.example.com E2E_WORKERS=1 pnpm test:e2e` (the deployed Worker itself). The suite catches drift in the
    response bodies the hand-written types in `app/server/api-types.ts` cannot see.
 3. Production.
+
+**Staging checklist.** Things that cannot be settled without a deployed Worker on a custom domain, carried from the reviews; go through them on
+staging before production:
+
+- [ ] **Hosts and routes** are in place (see "Hosts and routes" above), with the real data API hosts in the `vars`; `pnpm deploy:staging` passes the guard.
+- [ ] **Secrets are set**: `wrangler secret put DATA_API_KEY --env staging` (and `SENTRY_DSN`, optional). The guard cannot see them. Without the key the
+  data API refuses every call and every page is a 503.
+- [ ] **The Cache API accepts the key host of the subrequest cache.** `createSubrequestCache` keys its entries on `https://subrequest-cache.invalid/<build>/<hash>`
+  (`subrequestKey` in `app/server/edge-cache.ts`), a host that is not the zone's own, and the page tests run on the runtime's local Cache API, which accepts it.
+  If the deployed one does not, a `put` fails, the failure is logged (`subrequest cache write failed`) and **the subrequest cache silently does nothing**: every
+  page then calls the data API and the node for everything. Check with `wrangler tail --env staging --format json`: ask for two pages that share a call (a ledger,
+  and the next one) and look for those lines, and in the data API's own log for the same ledger fetched twice within its TTL. If it fails, change the host of the key to
+  the zone's (a path on the Worker's own host) and keep the rest.
+- [ ] **IPv6 visitors.** `VISITOR_LIMITER` is keyed by `CF-Connecting-IP`, and one IPv6 visitor holds a whole /64 (or larger) of addresses, so the limit of 60 renders per
+  10 s is easy to step around by rotating addresses within it. Follow-up: key an IPv6 address by its /64 prefix. Look at the limiter's rejections in the logs (`429`) with real
+  traffic before deciding.
+- [ ] **The edge cache can be filled through query strings.** Its key is the whole URL and the build ID, so every made-up query string (`?x=1`, `?x=2`, ...) on an
+  existing page is a render, an upstream call and a stored copy of its own, kept as long as the page's class says (a year for an immutable ledger or transaction). Only an unknown `?tab=`, a `marker` where there are none, and an image's query are
+  tidied into redirects. The visitor limit (renders per address) is the only brake. Watch the cache hit ratio and the data API's load on staging; if it matters, drop unknown
+  parameters from the key, or redirect them away as the image route does.
+- [ ] **Run the end-to-end suite against staging**: `E2E_BASE_URL=https://<staging host> E2E_WORKERS=1 pnpm test:e2e` (see "End-to-end tests"; the suite catches drift in
+  the data API's response bodies that `app/server/api-types.ts` cannot see), and, once, `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` against
+  the staging stack.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

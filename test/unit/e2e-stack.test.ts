@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -37,9 +37,9 @@ function standIn(wrangler: string | null) {
 
 const workdirsIn = (tmp: string) => readdirSync(tmp).filter((name) => name.startsWith("x-explorer-e2e-"));
 
-function start(root: string, tmp: string, extra: Record<string, string> = {}) {
+function start(root: string, tmp: string, extra: Record<string, string> = {}, entry = stack) {
   const output: string[] = [];
-  const child = spawn("node", ["--import", "tsx", stack], {
+  const child = spawn("node", ["--import", "tsx", entry], {
     cwd: repository,
     env: { ...process.env, E2E_STACK_ROOT: root, E2E_SKIP_BUILD: "1", TMPDIR: tmp, E2E_PORT: "8890", ...extra },
     stdio: ["ignore", "pipe", "pipe"],
@@ -74,6 +74,27 @@ describe("the end-to-end stack", () => {
   it("fails, and removes its directory, when wrangler ends at once", async () => {
     const { root, tmp } = standIn("exit 3");
     const run = start(root, tmp);
+    const { code } = await run.exited;
+    expect(code).toBe(1);
+    expect(run.output.join("")).toMatch(/wrangler dev ended \(3\)/);
+    expect(workdirsIn(tmp)).toEqual([]);
+  }, 30_000);
+
+  // The stack once decided whether it was being run by comparing the URL of its module (a real path) with `process.argv[1]` (the path as it was
+  // typed): through a link they differ, and then it did nothing and exited 0, so that Playwright's `webServer` found nothing to wait for. It runs
+  // every time it is run, however it was reached.
+  it.each(["file", "directory"] as const)("runs when it is reached through a link to the %s: it fails, saying so, when wrangler ends at once", async (kind) => {
+    const { root, tmp } = standIn("exit 3");
+    const links = mkdtempSync(join(tmp, "links-"));
+    let entry: string;
+    if (kind === "file") {
+      entry = join(links, "stack.ts");
+      symlinkSync(stack, entry);
+    } else {
+      symlinkSync(dirname(stack), join(links, "linked-e2e"));
+      entry = join(links, "linked-e2e", "stack.ts");
+    }
+    const run = start(root, tmp, {}, entry);
     const { code } = await run.exited;
     expect(code).toBe(1);
     expect(run.output.join("")).toMatch(/wrangler dev ended \(3\)/);

@@ -1,9 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { runApiSync } from "../../scripts/api-sync";
+import { runApiSync } from "../../scripts/api-sync-core";
 
 // OpenAPI documents the way data-api-new writes them: quoted path keys, parameters, and no response schemas.
 const DOCUMENT = `openapi: 3.0.0
@@ -196,5 +198,52 @@ describe("arguments", () => {
     expect(await run(["--chek"])).toBe(2);
     expect(output.join("\n")).toContain("--chek");
     expect(existsSync(join(project, "api"))).toBe(false);
+  });
+});
+
+// The command (`tsx scripts/api-sync.ts`, which `pnpm api:check`, the first step of `pnpm verify`, runs) once decided whether it was being run by
+// comparing the URL of its module (a real path) with `process.argv[1]` (the path as it was typed): through a link they differ, and then it
+// printed nothing and exited 0, so that the check passed whatever the types said. It runs every time it is run, however it was reached.
+describe("the command", () => {
+  const script = fileURLToPath(new URL("../../scripts/api-sync.ts", import.meta.url));
+  const repository = dirname(dirname(script));
+  const tsx = (entry: string, ...args: string[]) => spawnSync("pnpm", ["exec", "tsx", entry, ...args], { encoding: "utf8", cwd: dirname(script) });
+  const said = (result: ReturnType<typeof tsx>) => `${result.stdout}${result.stderr}`;
+
+  /** The command reached directly, and through a link to the file and to the directory that holds it. */
+  function entries() {
+    const links = mkdtempSync(join(base, "links-"));
+    symlinkSync(script, join(links, "api-sync.ts"));
+    symlinkSync(dirname(script), join(links, "linked-scripts"));
+    return { directly: script, "a link to the file": join(links, "api-sync.ts"), "a link to the directory": join(links, "linked-scripts", "api-sync.ts") };
+  }
+
+  it.each(["directly", "a link to the file", "a link to the directory"] as const)("runs when it is reached %s: an option it does not know is refused with 2", (how) => {
+    const result = tsx(entries()[how], "--no-such-option");
+    expect(result.status, said(result)).toBe(2);
+    expect(said(result)).toContain("unknown option --no-such-option");
+  });
+
+  it.each(["directly", "a link to the file", "a link to the directory"] as const)("checks the committed types when it is reached %s", (how) => {
+    const result = tsx(entries()[how], "--check");
+    expect(result.status, said(result)).toBe(0);
+    expect(said(result)).toContain("app/server/openapi.d.ts is up to date with api/openapi.yaml");
+  });
+
+  // The whole point of the check: types that are not what the document generates fail it, also through a link.
+  it("fails the check, through a link, when the types are not what the committed document generates", () => {
+    const stale = join(base, "stale-project");
+    for (const dir of ["scripts", "api", join("app", "server")]) mkdirSync(join(stale, dir), { recursive: true });
+    writeFileSync(join(stale, "package.json"), '{ "type": "module" }');
+    for (const file of ["api-sync.ts", "api-sync-core.ts"]) copyFileSync(join(dirname(script), file), join(stale, "scripts", file));
+    symlinkSync(join(repository, "node_modules"), join(stale, "node_modules"));
+    writeFileSync(join(stale, "api", "openapi.yaml"), DOCUMENT);
+    writeFileSync(join(stale, "app", "server", "openapi.d.ts"), "// types somebody edited by hand\n");
+    const link = join(base, "link-to-stale.ts");
+    symlinkSync(join(stale, "scripts", "api-sync.ts"), link);
+
+    const result = tsx(link, "--check");
+    expect(result.status, said(result)).toBe(1);
+    expect(said(result)).toContain("is not what api/openapi.yaml generates");
   });
 });

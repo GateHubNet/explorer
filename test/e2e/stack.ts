@@ -157,4 +157,8 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) void main();
+// Nothing imports this file; it is the command (Playwright's `webServer`, the tests of test/unit/e2e-stack.test.ts), and it runs every time it is
+// run, however it was reached (a link, a relative path, another working directory). It used to run "only when run as a script", decided by
+// comparing the URL of the module with `process.argv[1]`; through a link it did nothing and exited 0. A command that cannot tell whether it
+// is the command must run, not stay silent, so it does not try to tell.
+void main();

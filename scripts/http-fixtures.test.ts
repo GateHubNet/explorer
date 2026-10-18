@@ -1,9 +1,14 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, describe, expect, it } from "vitest";
 
 import {
   binaryTx,
+  compare,
   dataApiLedger,
   dataApiTx,
   feeRow,
@@ -23,7 +28,6 @@ import {
   type RawLedger,
   type RawTx,
 } from "./http-fixtures";
-import { compare } from "./make-http-fixtures";
 
 describe("the generated upstream fixtures", () => {
   // The committed files are what the generator writes from the recordings (`pnpm fixtures:sync` rewrites them).
@@ -249,4 +253,28 @@ describe("the ?binary=true fixtures", () => {
     expect(definitionsFor("xahau").transactionType.from("URITokenMint")).toBeDefined();
     expect(definitionsFor("xrpl").transactionType.from("URITokenMint")).toBeUndefined();
   });
+});
+
+// The command (`tsx scripts/make-http-fixtures.ts`, `pnpm fixtures:check`) once decided whether it was being run by comparing the URL of its
+// module (a real path) with `process.argv[1]` (the path as it was typed): through a link they differ, and then it printed nothing and exited 0,
+// so that a check passed whatever the fixtures held. It runs every time it is run, however it was reached.
+describe("the command", () => {
+  const script = fileURLToPath(new URL("./make-http-fixtures.ts", import.meta.url));
+  const links = mkdtempSync(join(tmpdir(), "fw-fixtures-links-"));
+  afterAll(() => rmSync(links, { recursive: true, force: true }));
+  symlinkSync(script, join(links, "make-http-fixtures.ts"));
+  symlinkSync(dirname(script), join(links, "linked-scripts"));
+  const entries = {
+    directly: script,
+    "a link to the file": join(links, "make-http-fixtures.ts"),
+    "a link to the directory": join(links, "linked-scripts", "make-http-fixtures.ts"),
+  };
+
+  it.each(Object.keys(entries) as Array<keyof typeof entries>)("checks the fixtures, and says so, when it is reached %s", (how) => {
+    const result = spawnSync("pnpm", ["exec", "tsx", entries[how], "--check"], { encoding: "utf8", cwd: dirname(script) });
+    const said = `${result.stdout}${result.stderr}`;
+    expect(result.status, said).toBe(0);
+    // A command that did not run would have said nothing.
+    expect(result.stdout).toMatch(/\d+ generated fixture files are up to date/);
+  }, 60_000);
 });
