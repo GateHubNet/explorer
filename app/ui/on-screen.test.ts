@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOnScreen } from "./on-screen";
 
 // A revalidation that fails would replace the page with the error screen (React Router drops the route's data and shows its boundary).
-// `createOnScreen` is what the home route's `clientLoader` uses to hand back what the page already shows instead.
+// `createOnScreen` is what the home route's `clientLoader` uses to hand back what the page already shows instead; it also counts the
+// refreshes that did not work, which the page's polling (backoff) and its "paused" signal read.
 
 const failure = () => Promise.reject(new Error("503"));
 
@@ -43,7 +44,7 @@ describe("createOnScreen", () => {
     expect(await onScreen.reload("xrpl", failure)).toBe("new");
   });
 
-  it("does not hide a redirect: a thrown Response is React Router's to follow", async () => {
+  it("does not hide a redirect: a thrown 3xx Response is React Router's to follow", async () => {
     const onScreen = createOnScreen<string>();
     onScreen.show("xrpl", "shown");
     const redirect = new Response(null, { status: 302, headers: { Location: "/xahau" } });
@@ -56,13 +57,127 @@ describe("createOnScreen", () => {
     expect(await onScreen.reload("xrpl", () => Promise.reject(new Response("busy", { status: 503 })))).toBe("shown");
   });
 
-  it("keeps the page when the answer is behind it, so that an old stored copy never takes the page back", async () => {
-    const onScreen = createOnScreen<number>({ behind: (next, shown) => next < shown });
+  it("does not hide an abort: a navigation that interrupted the refresh is not a failure of it", async () => {
+    const onScreen = createOnScreen<string>();
+    onScreen.show("xrpl", "shown");
+    const aborted = new DOMException("The operation was aborted.", "AbortError");
+    await expect(onScreen.reload("xrpl", () => Promise.reject(aborted))).rejects.toBe(aborted);
+    expect(onScreen.failures()).toBe(0);
+  });
+});
+
+describe("refusing an answer", () => {
+  it("keeps the page when the answer is one `refuse` says no to, so that an old stored copy never takes the page back", async () => {
+    const onScreen = createOnScreen<number>({ refuse: (next, shown) => next < shown });
     onScreen.show("xrpl", 107);
     expect(await onScreen.reload("xrpl", async () => 100)).toBe(107);
     expect(await onScreen.reload("xrpl", async () => 107)).toBe(107);
     expect(await onScreen.reload("xrpl", async () => 108)).toBe(108);
     // Another page: nothing to compare with.
     expect(await onScreen.reload("xahau", async () => 5)).toBe(5);
+  });
+
+  it("counts a refused answer as a refresh that did not work", async () => {
+    const onScreen = createOnScreen<number>({ refuse: (next, shown) => next < shown });
+    onScreen.show("xrpl", 107);
+    await onScreen.reload("xrpl", async () => 100);
+    expect(onScreen.failures()).toBe(1);
+    await onScreen.reload("xrpl", async () => 108);
+    expect(onScreen.failures()).toBe(0);
+  });
+});
+
+describe("counting the refreshes that did not work", () => {
+  it("counts consecutive failures, and a success starts the count again", async () => {
+    const onScreen = createOnScreen<string>();
+    onScreen.show("xrpl", "shown");
+    expect(onScreen.failures()).toBe(0);
+    await onScreen.reload("xrpl", failure);
+    await onScreen.reload("xrpl", failure);
+    expect(onScreen.failures()).toBe(2);
+    await onScreen.reload("xrpl", async () => "fresh");
+    expect(onScreen.failures()).toBe(0);
+  });
+
+  it("tells whoever is listening, once for each change, and not for a count that stays", async () => {
+    const onScreen = createOnScreen<string>();
+    onScreen.show("xrpl", "shown");
+    const listener = vi.fn();
+    const stop = onScreen.subscribe(listener);
+    await onScreen.reload("xrpl", async () => "fresh");
+    expect(listener).not.toHaveBeenCalled();
+    await onScreen.reload("xrpl", failure);
+    await onScreen.reload("xrpl", failure);
+    await onScreen.reload("xrpl", async () => "fresh");
+    expect(listener).toHaveBeenCalledTimes(3);
+    stop();
+    await onScreen.reload("xrpl", failure);
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it("starts from nothing when a page appears or leaves, and does not count a failure that nothing was on screen for", async () => {
+    const onScreen = createOnScreen<string>();
+    const leave = onScreen.show("xrpl", "shown");
+    await onScreen.reload("xrpl", failure);
+    expect(onScreen.failures()).toBe(1);
+    leave();
+    expect(onScreen.failures()).toBe(0);
+    await expect(onScreen.reload("xrpl", failure)).rejects.toThrow();
+    expect(onScreen.failures()).toBe(0);
+    onScreen.show("xrpl", "shown");
+    await onScreen.reload("xrpl", failure);
+    onScreen.show("xahau", "another network");
+    expect(onScreen.failures()).toBe(0);
+  });
+});
+
+describe("a refresh that does not settle", () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+  afterEach(() => vi.useRealTimers());
+
+  it("is given up after 10 s: the page stays, the refresh counts as failed, and a late answer is ignored", async () => {
+    const onScreen = createOnScreen<string>();
+    onScreen.show("xrpl", "shown");
+    let answer!: (value: string) => void;
+    const hung = new Promise<string>((resolve) => (answer = resolve));
+    const outcome = onScreen.reload("xrpl", () => hung);
+
+    await vi.advanceTimersByTimeAsync(9999);
+    let settled = false;
+    void outcome.then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await outcome).toBe("shown");
+    expect(onScreen.failures()).toBe(1);
+    // The answer that comes after is nobody's: nothing is thrown, nothing changes.
+    answer("too late");
+    await Promise.resolve();
+    expect(onScreen.failures()).toBe(1);
+  });
+
+  it("leaves no timer behind for a refresh that answered", async () => {
+    const onScreen = createOnScreen<string>();
+    onScreen.show("xrpl", "shown");
+    await onScreen.reload("xrpl", async () => "fresh");
+    await onScreen.reload("xrpl", failure);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("is not a limit on a navigation to the page: with nothing on screen the load is waited for", async () => {
+    const onScreen = createOnScreen<string>();
+    const slow = new Promise<string>((resolve) => setTimeout(() => resolve("arrived"), 30_000));
+    const outcome = onScreen.reload("xrpl", () => slow);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await outcome).toBe("arrived");
+  });
+
+  it("takes the limit from its options", async () => {
+    const onScreen = createOnScreen<string>({ timeoutMs: 1000 });
+    onScreen.show("xrpl", "shown");
+    const outcome = onScreen.reload("xrpl", () => new Promise<string>(() => {}));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await outcome).toBe("shown");
   });
 });

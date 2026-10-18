@@ -1,15 +1,17 @@
 import { useEffect } from "react";
 
+import { HOME_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
 import { cached, forwardCacheClass } from "../server/edge-cache";
-import { homePage, type HomePageData } from "../server/home-view";
+import { getEnv } from "../server/env";
+import { homePage, latestLedgerIndex, type HomeLoaderData } from "../server/home-view";
 import { upstreamOutage } from "../server/loader-errors";
 import { homeMeta, metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
-import { createOnScreen } from "../ui/on-screen";
+import { createHomeOnScreen } from "../ui/home-live";
 import { HOME_TITLES, HomePage } from "../ui/pages/HomePage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
-import { useLiveRefresh } from "../ui/use-live-refresh";
+import { useHomeLive } from "../ui/use-home-live";
 import { useNetwork } from "../ui/use-network";
 
 import type { Route } from "./+types/net._index";
@@ -37,20 +39,25 @@ function valueOf<T>(result: PromiseSettledResult<T>): T {
  * exists, so a "not found" from the API is an outage here.
  *
  * The three lists are asked for side by side and all awaited, even when one has failed: what did arrive is cached for the
- * visitor's next try, and no request is left running behind a page that has already been answered.
+ * visitor's next try, and no request is left running behind a page that has already been answered. They are asked for at
+ * `HOME_CALL_TTL_SECONDS` (2 s), a little longer than the page's 1 s at the edge, so that a refresh finds them warm. The ledger whose header
+ * is read is `latestLedgerIndex`'s, so that the tiles and the hero say one ledger even when `last_validated` is ahead of the fees list.
+ * The data carries the Worker's `BUILD_ID`, for an open page to tell a deploy (`home-live.ts`).
  */
 export async function loader({ params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
   const { api } = clientsFor(context, network);
+  const fresh = { ttl: HOME_CALL_TTL_SECONDS };
 
   const [last, fees, transactions] = await Promise.allSettled([
-    api.lastValidated(),
-    api.fees({ descending: true, limit: LIST_SIZE }),
-    api.transactions({ descending: true, limit: LIST_SIZE }),
+    api.lastValidated(fresh),
+    api.fees({ descending: true, limit: LIST_SIZE }, fresh),
+    api.transactions({ descending: true, limit: LIST_SIZE }, fresh),
   ]).then((results) => [valueOf(results[0]), valueOf(results[1]), valueOf(results[2])] as const);
 
-  const ledger = await api.ledger(last.ledger_index).catch((err: unknown) => upstreamOutage(err, WHAT));
-  return cached(homePage({ network, last, ledger, fees: fees.rows, transactions: transactions.transactions }), "live-home");
+  const ledger = await api.ledger(String(latestLedgerIndex(last, fees.rows))).catch((err: unknown) => upstreamOutage(err, WHAT));
+  const page = homePage({ network, ledger, fees: fees.rows, transactions: transactions.transactions });
+  return cached({ ...page, build: getEnv(context).BUILD_ID } satisfies HomeLoaderData, "live-home");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -60,17 +67,18 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 /**
- * What the home page on screen shows. The page asks for its data again every few seconds, and React Router would answer a revalidation
- * that fails (a 503 once) by dropping the page's data and showing the error boundary in its place. The page keeps what it shows instead
- * (`on-screen.ts`), and so does it for an answer that is older than the ledger it shows (the edge serves a stored copy, whatever its age,
- * when a render fails).
+ * What the home page on screen shows, and what happens when its refresh does not work: React Router would answer a revalidation that fails
+ * (a 503 once) by dropping the page's data and showing the error boundary in its place, so the page keeps what it shows instead, counts the
+ * failures (the polling slows down, the hero says so after two), gives up on a refresh that takes more than 10 s, and refuses an answer that
+ * is older than the ledger it shows or of another build than it is (a deploy: it reloads, once). See `app/ui/home-live.ts` and `on-screen.ts`.
  */
-const onScreen = createOnScreen<HomePageData>({ behind: (next, shown) => next.latest.index < shown.latest.index });
+const onScreen = createHomeOnScreen();
 
 /**
  * In the browser only, and only after the first render (the document and the first hydration use the server's data as it came): runs the
  * loader above, through the explorer's own `.data` URL, and hands the page what it already shows when that fails. A navigation to the home
- * page, which has nothing on screen to keep, gets the error screen as before.
+ * page, which has nothing on screen to keep, gets the error screen as before. (A route with a `clientLoader` has its own request: the
+ * server's loader is fetched when this one asks for it, `_routes=routes/net._index`, and the `/:net` layout does not come along: `net.tsx`.)
  */
 export function clientLoader({ params, serverLoader }: Route.ClientLoaderArgs) {
   return onScreen.reload(params.net, serverLoader);
@@ -78,8 +86,8 @@ export function clientLoader({ params, serverLoader }: Route.ClientLoaderArgs) {
 
 export default function Home({ loaderData, params }: Route.ComponentProps) {
   const network = useNetwork();
-  useLiveRefresh();
+  const live = useHomeLive(onScreen);
   useEffect(() => onScreen.show(params.net, loaderData), [params.net, loaderData]);
   // Keyed by the network: switching to the other network's home is a navigation, and is not animated as a ledger closing.
-  return <HomePage key={network.id} network={network} data={loaderData} />;
+  return <HomePage key={network.id} network={network} data={loaderData} live={live} />;
 }

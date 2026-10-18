@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CACHE_CLASSES, type CacheClass } from "../../app/server/cache-class";
-import { createDegradedMark, createSubrequestCache, edgeCacheKey, withEdgeCache, type DegradedMark } from "../../app/server/edge-cache";
+import {
+  createDegradedMark,
+  createSubrequestCache,
+  edgeCacheKey,
+  SINGLE_FLIGHT_WAIT_MS,
+  withEdgeCache,
+  type DegradedMark,
+  type Render,
+} from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 
 // The page-level edge cache, called directly with a fake `render` and a fake execution context. The Cache API
@@ -783,6 +791,276 @@ describe("a degraded answer", () => {
 
 // A HEAD is answered as the GET of the same URL, with the body dropped (unfurlers and monitors send them): from the stored copy when there
 // is one, and otherwise by one render, as a GET, that is stored as a GET's would be. It never renders twice for one request.
+// Single flight: while one request renders a page that is not in the cache, the others that ask for the same page at the same moment (a
+// herd: the home page is asked for by every open tab every 4 s) wait for it instead of rendering again, and are given the answer it stored. Per
+// Worker instance; every class. The visitor limit applies to each request as it always did, and an answer that cannot be shared (degraded, an
+// error, not storable, a render that threw) is rendered by each of them for themselves, as before.
+describe("many requests for one page at once", () => {
+  /** A `render` that waits for the test to let it go, then answers with `how(call, mark)`; it counts its calls. */
+  function held(how: (call: number, mark: DegradedMark) => Answer | Response | Promise<Answer | Response> = () => ({ cls: "live", body: "<html>page</html>" })) {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let calls = 0;
+    const render = vi.fn(async (mark: DegradedMark) => {
+      calls += 1;
+      const call = calls;
+      // Only the first render is held: whoever renders after it answers at once.
+      if (call === 1) await gate;
+      const next = await how(call, mark);
+      return next instanceof Response ? next : answer(next);
+    });
+    return { render, release };
+  }
+
+  /** Starts `n` requests for `url` and waits until each has passed the visitor limit and is either rendering or waiting for the render. */
+  async function ask(h: ReturnType<typeof harness>, render: Render, url: string, n: number, options: { method?: string } = {}) {
+    const before = h.limit.mock.calls.length;
+    const requests = Array.from({ length: n }, () => withEdgeCache(get(url, {}, options.method), h.env, h.ctx, render));
+    await vi.waitFor(() => expect(h.limit.mock.calls.length - before).toBe(n));
+    // The limit answered; what each does next (join, or lead) takes a few ticks.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return requests;
+  }
+
+  it("renders once, and gives the others a copy of the answer, with the same status and headers, naming what it is", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    const { render, release } = held(() => ({ cls: "live", body: "<html>one render</html>", headers: { "X-Test": "kept" } }));
+    const requests = await ask(h, render, url, 5);
+    expect(render).toHaveBeenCalledTimes(1);
+
+    release();
+    const responses = await Promise.all(requests);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(await Promise.all(responses.map((response) => response.text()))).toEqual(Array(5).fill("<html>one render</html>"));
+    const labels = responses.map((response) => response.headers.get("X-Cache")).sort();
+    expect(labels).toEqual(["MISS", "MISS-SHARED", "MISS-SHARED", "MISS-SHARED", "MISS-SHARED"]);
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("text/html");
+      expect(response.headers.get("X-Test")).toBe("kept");
+      expect(response.headers.get("Cache-Control")).toBe(CACHE_CLASSES.live.browser.html);
+      expectNoInternalHeaders(response);
+    }
+    // And it was stored once: the next request is a hit.
+    await h.settle();
+    const next = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(next.headers.get("X-Cache")).toBe("HIT");
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives them a redirect as the redirect it is, and a body as the whole of it when the render streamed", async () => {
+    const h = harness();
+    const redirect = pageUrl("/xrpl/ledger/00107721455");
+    const held302 = held(() => ({ cls: "immutable", status: 302, headers: { Location: "/xrpl/ledger/107721455" } }));
+    const asked = await ask(h, held302.render, redirect, 3);
+    held302.release();
+    const redirects = await Promise.all(asked);
+    expect(held302.render).toHaveBeenCalledTimes(1);
+    for (const response of redirects) {
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe("/xrpl/ledger/107721455");
+    }
+
+    const streamed = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const encoder = new TextEncoder();
+    const heldStream = held(() => ({
+      cls: "live",
+      body: new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(encoder.encode("<html>header "));
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          controller.enqueue(encoder.encode("and the list</html>"));
+          controller.close();
+        },
+      }),
+    }));
+    const others = await ask(h, heldStream.render, streamed, 3);
+    heldStream.release();
+    const pages = await Promise.all((await Promise.all(others)).map((response) => response.text()));
+    expect(pages).toEqual(Array(3).fill("<html>header and the list</html>"));
+    expect(heldStream.render).toHaveBeenCalledTimes(1);
+  });
+
+  it("still asks the visitor limit for every request, and a request that is refused gets the 429 page and does not wait", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    h.limit.mockImplementation(async () => ({ success: true }));
+    h.limit.mockImplementationOnce(async () => ({ success: true })); // the first, which renders
+    h.limit.mockImplementationOnce(async () => ({ success: false })); // the second
+    const { render, release } = held();
+    const requests = await ask(h, render, url, 3);
+    expect(h.limit).toHaveBeenCalledTimes(3);
+
+    const refused = await requests[1]!;
+    expect(refused.status).toBe(429);
+    release();
+    const [leader, , waiter] = await Promise.all(requests);
+    expect(leader!.headers.get("X-Cache")).toBe("MISS");
+    expect(waiter!.headers.get("X-Cache")).toBe("MISS-SHARED");
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("makes each of them render when the first render marked its answer as degraded, which is never shared", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const { render, release } = held((call, mark) => {
+      if (call === 1) mark.mark("node unavailable");
+      return { cls: "live", body: `<html>render ${call}</html>` };
+    });
+    const requests = await ask(h, render, url, 4);
+    release();
+    const responses = await Promise.all(requests);
+    await h.settle();
+    expect(render).toHaveBeenCalledTimes(4);
+    expect(responses.map((response) => response.status)).toEqual([200, 200, 200, 200]);
+    // Nobody was given another's copy; each has the answer of its own render.
+    expect(responses.map((response) => response.headers.get("X-Cache"))).toEqual(["MISS", "MISS", "MISS", "MISS"]);
+    const bodies = await Promise.all(responses.map((response) => response.text()));
+    expect(new Set(bodies).size).toBe(4);
+  });
+
+  it("makes each of them render when the first render threw", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    const { render, release } = held((call) => {
+      if (call === 1) throw new Error("boom");
+      return { cls: "live", body: `<html>render ${call}</html>` };
+    });
+    const requests = await ask(h, render, url, 3);
+    release();
+    const [leader, ...waiters] = await Promise.all(requests);
+    expect(leader!.status).toBe(503);
+    expect(render).toHaveBeenCalledTimes(3);
+    expect(waiters.map((response) => response.status)).toEqual([200, 200]);
+    expect(waiters.map((response) => response.headers.get("X-Cache"))).toEqual(["MISS", "MISS"]);
+  });
+
+  it("makes each of them render when the answer cannot be stored (an error, a page nobody named a class for, a cookie), and does not hold them for its body", async () => {
+    const h = harness();
+    for (const [name, spec] of [
+      ["404", { cls: "live", status: 404, body: "not here" }],
+      ["no class", { body: "<html>no class</html>" }],
+      ["a cookie", { cls: "live", headers: { "Set-Cookie": "net=xahau; Path=/" } }],
+      ["a 500", { cls: "live", status: 500 }],
+    ] as const) {
+      const url = pageUrl("/xrpl");
+      let calls = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const render = vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) await gate;
+        return answer(calls === 1 ? spec : { cls: "live", body: `<html>render ${calls}</html>` });
+      });
+      const requests = await ask(h, render, url, 3);
+      release();
+      const responses = await Promise.all(requests);
+      expect(render, name).toHaveBeenCalledTimes(3);
+      expect(responses.map((response) => response.headers.get("X-Cache")), name).not.toContain("MISS-SHARED");
+    }
+  });
+
+  it("does not hold a waiter for the body of an answer that is already known not to be storable", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    let neverEnds!: () => void;
+    const render = vi.fn(async () => {
+      if (render.mock.calls.length === 1) {
+        // A 404 whose body streams for ever: the headers are enough to know it is not shared.
+        return answer({ cls: "live", status: 404, body: new ReadableStream({ start: (controller) => void (neverEnds = () => controller.close()) }) });
+      }
+      return answer({ cls: "live", body: "<html>own render</html>" });
+    });
+    const [leader, waiter] = await ask(h, render, url, 2);
+    const response = await waiter!;
+    expect(await response.text()).toBe("<html>own render</html>");
+    expect(render).toHaveBeenCalledTimes(2);
+    neverEnds();
+    await leader;
+  });
+
+  it("is per page: another URL, and the `.data` URL of the same page, render for themselves", async () => {
+    const h = harness();
+    const page = pageUrl("/xrpl");
+    const data = `${page}.data`;
+    const other = pageUrl("/xrpl");
+    const { render, release } = held();
+    const requests = [
+      ...(await ask(h, render, page, 2)),
+      ...(await ask(h, render, data, 2)),
+      ...(await ask(h, render, other, 2)),
+    ];
+    release();
+    await Promise.all(requests);
+    await h.settle();
+    // Three keys, three renders; the others of each key waited for theirs. (Only the first render is held: the others answer at once.)
+    expect(render).toHaveBeenCalledTimes(3);
+  });
+
+  it("answers a HEAD of a page that is being rendered with that render, without the body", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    const { render, release } = held(() => ({ cls: "live", body: "<html>page</html>" }));
+    const getRequest = withEdgeCache(get(url), h.env, h.ctx, render);
+    await vi.waitFor(() => expect(h.limit).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const headRequest = withEdgeCache(get(url, {}, "HEAD"), h.env, h.ctx, render);
+    await vi.waitFor(() => expect(h.limit).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    release();
+
+    const [page, head] = await Promise.all([getRequest, headRequest]);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(await page.text()).toBe("<html>page</html>");
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    expect(head.headers.get("X-Cache")).toBe("MISS-SHARED");
+    expect(head.headers.get("Content-Type")).toBe("text/html");
+  });
+
+  it("never joins what skips the cache: the root, its `.data` URL, and anything but a GET render each time", async () => {
+    const h = harness();
+    for (const [request, label] of [
+      [(n: number) => get(`https://explorer.test/`, { "CF-Connecting-IP": `192.0.2.${n}` }), "/"],
+      [(n: number) => get(`https://explorer.test/_.data`, { "CF-Connecting-IP": `192.0.2.${n}` }), "/_.data"],
+      [(n: number) => get(pageUrl("/xrpl/search"), { "CF-Connecting-IP": `192.0.2.${n}` }, "POST"), "POST"],
+    ] as const) {
+      const render = renderOf({ cls: "live", body: "x" });
+      const pending = [1, 2, 3].map((n) => withEdgeCache(request(n), h.env, h.ctx, render));
+      const responses = await Promise.all(pending);
+      expect(render, label).toHaveBeenCalledTimes(3);
+      expect(responses.map((response) => response.headers.get("X-Cache")), label).toEqual(["BYPASS", "BYPASS", "BYPASS"]);
+    }
+  });
+
+  it("stops waiting for a render that never ends, and does not let the next request wait for it either", async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(T0);
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    const render = vi.fn(async () => {
+      if (render.mock.calls.length === 1) return new Promise<Response>(() => {});
+      return answer({ cls: "live", body: `<html>render ${render.mock.calls.length}</html>` });
+    });
+    void withEdgeCache(get(url), h.env, h.ctx, render);
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1), { interval: 1 });
+    const waiter = withEdgeCache(get(url), h.env, h.ctx, render);
+    await vi.waitFor(() => expect(h.limit).toHaveBeenCalledTimes(2), { interval: 1 });
+
+    await vi.advanceTimersByTimeAsync(SINGLE_FLIGHT_WAIT_MS);
+    const response = await waiter;
+    expect(await response.text()).toBe("<html>render 2</html>");
+    expect(render).toHaveBeenCalledTimes(2);
+    // The hung render's place was given up: a request now is not made to wait for it.
+    await h.settle();
+    const later = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(later.headers.get("X-Cache")).toBe("HIT");
+  });
+});
+
 describe("HEAD", () => {
   const head = (url: string, headers: Record<string, string> = {}) => get(url, headers, "HEAD");
   /** The headers of an answer as pairs, in a fixed order. */

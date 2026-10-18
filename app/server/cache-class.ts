@@ -21,10 +21,10 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
     browser: { html: "max-age=60", image: "max-age=31536000, immutable" },
   },
   /**
-   * The home page, and the three calls it is built from (`lastValidated`, `fees`, the first page of `transactions`). A ledger closes every
-   * 3-4 s and the open page follows the chain (see `use-live-refresh.ts`): 1 s fresh, then 2 s during which the stored copy is served while
-   * one render refreshes it, so a reload never shows a copy much older than one ledger. At the owner's request; spec 4 had 3 s + 30 s.
-   * (A copy older than 3 s is not served: the visitor waits for a render. A failing render is still replaced by the stored copy, of any age.)
+   * The home page. A ledger closes every 3-4 s and the open page follows the chain (see `use-live-refresh.ts`): 1 s fresh, then 2 s during
+   * which the stored copy is served while one render refreshes it, so a reload never shows a copy much older than one ledger. At the owner's
+   * request; spec 4 had 3 s + 30 s. (A copy older than 3 s is not served: the visitor waits for a render. A failing render is still
+   * replaced by the stored copy, of any age.) The calls the page is built from are kept `HOME_CALL_TTL_SECONDS`, below.
    */
   "live-home": { edgeTtl: 1, swr: 2, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** The newest ledger, an account's live state, the first page of a list. */
@@ -34,6 +34,14 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
   /** Search pages, a 404 for a well-formed id. */
   short: { edgeTtl: 30, swr: 0, browser: { html: "max-age=0", image: "max-age=0" } },
 };
+
+/**
+ * How long the home page's three calls to the data API (`lastValidated`, `fees` and the first page of `transactions`) are kept in the subrequest
+ * cache: a little longer than the page's 1 s at the edge, so that a refresh at the edge finds them warm, and shorter than a ledger. The
+ * worst case for what the page shows is then the edge's 1 s fresh and 2 s stale, plus these 2 s the data was kept: about 5 s, one ledger and a
+ * little. The home loader asks for it (`{ ttl }` on those calls); every other caller keeps the class's 5 s and its own cache entry.
+ */
+export const HOME_CALL_TTL_SECONDS = 2;
 
 /**
  * The class of a list page reached with a marker, and of the account page that shows it. A DELIBERATE DEVIATION from spec 2, which has

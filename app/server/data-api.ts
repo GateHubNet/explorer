@@ -64,9 +64,17 @@ export interface CsvPage {
   nextMarker?: string;
 }
 
+/**
+ * `ttl`: keep the answer this many seconds instead of the call's class's. It has a cache entry of its own (the key says so), so that an
+ * answer kept longer for another caller is not what this one reads. The home page asks for `HOME_CALL_TTL_SECONDS`.
+ */
+export interface FreshOptions {
+  ttl?: number;
+}
+
 export interface DataApi {
-  /** The newest ledger the API has committed. */
-  lastValidated(): Promise<LastValidated>;
+  /** The newest ledger the API has committed. Class `live` (5 s); the home page asks for `{ ttl: HOME_CALL_TTL_SECONDS }`. */
+  lastValidated(opts?: FreshOptions): Promise<LastValidated>;
   /**
    * A validated ledger by index, hash or date. `expand` adds its transactions in full, `transactions` their hashes
    * (`expand` wins). Either way `transactions` is always a list, empty for a ledger with no transactions.
@@ -85,8 +93,11 @@ export interface DataApi {
    * Asked for beside `transaction` by the transaction page, for its Binary tab.
    */
   transactionBinary(hash: string): Promise<TxBinary | TxStoredJson>;
-  /** Transactions of all accounts, oldest first unless `descending`. */
-  transactions(q: ListQuery): Promise<Page<"transactions", TxObject>>;
+  /**
+   * Transactions of all accounts, oldest first unless `descending`. Class `live`; with `ttl` and **no marker** (in either direction) the
+   * answer is kept that long instead. A list reached with a marker keeps the class it has (`MARKER_PAGE_CLASS` when newest first) and ignores `ttl`.
+   */
+  transactions(q: ListQuery, opts?: FreshOptions): Promise<Page<"transactions", TxObject>>;
   /** How an account was created. 404 (`not_found`) for an address that never was. */
   account(address: string): Promise<AccountData>;
   /** An account's balances on the newest validated ledger, read by the API from a node. */
@@ -102,8 +113,8 @@ export interface DataApi {
    * `UpstreamError` of kind `server`.
    */
   accountPaymentsCsv(address: string, q: { marker?: string }): Promise<CsvPage>;
-  /** What the transactions of each ledger paid in fees, one row per ledger. */
-  fees(q: { descending: boolean; limit: number }): Promise<Page<"rows", FeeRow>>;
+  /** What the transactions of each ledger paid in fees, one row per ledger. Class `live`; the home page asks for `{ ttl: HOME_CALL_TTL_SECONDS }`. */
+  fees(q: { descending: boolean; limit: number }, opts?: FreshOptions): Promise<Page<"rows", FeeRow>>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -204,6 +215,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     cls: CacheClass,
     unwrap?: string,
     finish?: (part: T) => T,
+    ttl?: number,
   ): Promise<T> {
     const path = template.replace(/\{(\w+)\}/g, (_match, name: string) => segment(name, params[name] ?? ""));
     const search = new URLSearchParams();
@@ -213,15 +225,22 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     const queryString = search.toString();
     const url = queryString ? `${path}?${queryString}` : path;
 
-    return cache.json(`GET ${base}${url}`, cls, async () => {
-      const body = await fetchJson(url);
-      if (unwrap === undefined) return body as T;
-      const part = typeof body === "object" && body !== null ? (body as Record<string, unknown>)[unwrap] : undefined;
-      if (part === undefined || part === null) {
-        throw new UpstreamError("server", `data API GET ${url} answered without "${unwrap}"`, { status: 200 });
-      }
-      return finish ? finish(part as T) : (part as T);
-    });
+    // An answer kept for a TTL of the caller's own is not the one another caller reads, which may have been kept longer.
+    const key = ttl === undefined ? `GET ${base}${url}` : `GET ${base}${url} [kept ${ttl} s]`;
+    return cache.json(
+      key,
+      cls,
+      async () => {
+        const body = await fetchJson(url);
+        if (unwrap === undefined) return body as T;
+        const part = typeof body === "object" && body !== null ? (body as Record<string, unknown>)[unwrap] : undefined;
+        if (part === undefined || part === null) {
+          throw new UpstreamError("server", `data API GET ${url} answered without "${unwrap}"`, { status: 200 });
+        }
+        return finish ? finish(part as T) : (part as T);
+      },
+      ttl,
+    );
   }
 
   /**
@@ -252,10 +271,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   /**
    * A page reached with a marker is stable under new data only when the list runs newest first: then it is the
    * history before the marker. An oldest-first list grows at the end. Even so it is only `MARKER_PAGE_CLASS`, which is not
-   * `immutable` while the index can still be backfilled (see there). `first` is the class of a list's first page (or of an oldest-first one):
-   * `live` for an account's, `live-home` for the home page's network-wide list.
+   * `immutable` while the index can still be backfilled (see there).
    */
-  const listClass = (q: ListQuery, first: CacheClass = "live"): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : first);
+  const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : "live");
 
   /**
    * The API adds `transactions` to an expanded ledger only when the ledger has some, unless `transactions=true` is
@@ -287,9 +305,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   };
 
   return {
-    // `live-home` (1 s) for the three calls the home page is built from: it follows the chain, so an answer older than a ledger is a stale page.
-    // The ledger page (its Next at the newest ledger) and the image route read `lastValidated` too, and a second is fine there.
-    lastValidated: () => get<LastValidated>(PATHS.lastValidated, {}, {}, "live-home"),
+    // The home page follows the chain and asks for these three at `HOME_CALL_TTL_SECONDS` (`opts.ttl`); the ledger page (its Next at the
+    // newest ledger) and the image route read `lastValidated` at its class, 5 s, and are not asked to be any fresher.
+    lastValidated: (opts) => get<LastValidated>(PATHS.lastValidated, {}, {}, "live", undefined, undefined, opts?.ttl),
     // The overloads of the interface narrow `transactions` by the options; the answer is the same either way.
     ledger: ledger as DataApi["ledger"],
     // What the pages read of a transaction is checked inside the load, so that an answer that is not one is a failure and not stored.
@@ -303,7 +321,8 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         checkBinaryAnswer(found, hash);
         return found;
       }),
-    transactions: (q) => get(PATHS.transactions, {}, listQuery(q), listClass(q, "live-home")),
+    // The TTL is for a first page only: a list reached with a marker, in either direction, is the class it has.
+    transactions: (q, opts) => get(PATHS.transactions, {}, listQuery(q), listClass(q), undefined, undefined, q.marker ? undefined : opts?.ttl),
     account: (address) => get<AccountData>(PATHS.account, { address }, {}, "slow", "account_data"),
     balances: (address) => get(PATHS.balances, { address }, {}, "live"),
     orders: (address) => get(PATHS.orders, { address }, {}, "live"),
@@ -316,6 +335,6 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       if (q.marker) search.set("marker", q.marker);
       return fetchCsv(`${path}?${search}`);
     },
-    fees: (q) => get(PATHS.fees, {}, { descending: q.descending, limit: q.limit }, "live-home"),
+    fees: (q, opts) => get(PATHS.fees, {}, { descending: q.descending, limit: q.limit }, "live", undefined, undefined, opts?.ttl),
   };
 }

@@ -4,6 +4,23 @@ import { useNavigation, useRevalidator } from "react-router";
 /** How often an open page asks for its data again, in ms: about one ledger (they close every 3-4 s). */
 export const LIVE_REFRESH_MS = 4000;
 
+/** The slowest it goes when the refreshes do not work, in ms. */
+export const LIVE_REFRESH_MAX_MS = 60_000;
+
+/** The wait before the next beat after `failures` refreshes in a row did not work: 4, 8, 16, 32 s, then 60. A success starts it again from 4. */
+export function refreshInterval(failures: number): number {
+  return Math.min(LIVE_REFRESH_MS * 2 ** Math.max(0, failures), LIVE_REFRESH_MAX_MS);
+}
+
+export interface LiveRefreshOptions {
+  /** How many refreshes in a row did not work (`OnScreen.failures`): the beat slows down with each. */
+  failures?: number;
+  /** The visitor paused the updates: no timer at all, and the data is asked for at once when they resume. */
+  paused?: boolean;
+  /** The visitor is on a table (the pointer over it, focus in it): the beat goes on and is skipped, so that rows do not move under a click. */
+  holding?: boolean;
+}
+
 /**
  * Keeps the page's data as new as the chain: every `LIVE_REFRESH_MS` it has React Router run the route's loaders again
  * (`useRevalidator().revalidate()`), which fetches the explorer's own `.data` URL for the page, never the data API, and gives the page the
@@ -13,34 +30,46 @@ export const LIVE_REFRESH_MS = 4000;
  *   once (the page may be minutes behind) and the beat goes on from there.
  * - Never two at a time, and never on top of a navigation: a beat that finds a revalidation running (`revalidator.state`) or a navigation
  *   in progress is skipped, so a slow answer is not met by another request.
+ * - Slower when it does not work: `failures` refreshes in a row double the wait, up to a minute (`refreshInterval`).
+ * - Not while `paused` (no timer; resuming asks at once) and not while `holding` (the beat is skipped, and letting go asks at the next one).
  * - It stops when the page is left: the timer and the listener go with the component.
  *
  * It does nothing while rendering, so the server's HTML and the first render in the browser are what they were. A revalidation that fails
  * is the route's to handle (the home route hands the page's data back, `on-screen.ts`).
  */
-export function useLiveRefresh(): void {
+export function useLiveRefresh({ failures = 0, paused = false, holding = false }: LiveRefreshOptions = {}): void {
   const revalidator = useRevalidator();
   const navigation = useNavigation();
   const busy = revalidator.state !== "idle" || navigation.state !== "idle";
+  const interval = refreshInterval(failures);
 
   // `revalidator.state` is a render behind a revalidation that has just been started, and React Router restarts one that is asked for again
   // while it runs (aborting the loads under way): what this hook started and has not seen end is kept here too.
   const running = useRef(false);
+  // Whether the effect last ran paused, so that resuming (and nothing else that restarts the timer) asks at once.
+  const wasPaused = useRef(false);
 
-  // Reads the latest `busy` and `revalidate` without being a reason to restart the timer.
+  // Reads the latest `busy`, `holding` and `revalidate` without being a reason to restart the timer.
   const beat = useEffectEvent(() => {
-    if (document.visibilityState !== "visible" || busy || running.current) return;
+    if (document.visibilityState !== "visible" || holding || busy || running.current) return;
     running.current = true;
-    void Promise.resolve(revalidator.revalidate()).finally(() => {
-      running.current = false;
-    });
+    void Promise.resolve(revalidator.revalidate())
+      // The router reports what a loader does wrong through its state; a rejection of its own is not the page's to handle, only not to leave unhandled.
+      .catch(() => undefined)
+      .finally(() => {
+        running.current = false;
+      });
   });
 
   useEffect(() => {
+    if (paused) {
+      wasPaused.current = true;
+      return;
+    }
     let timer: ReturnType<typeof setInterval> | undefined;
     const start = () => {
       clearInterval(timer);
-      timer = setInterval(() => beat(), LIVE_REFRESH_MS);
+      timer = setInterval(() => beat(), interval);
     };
     const stop = () => {
       clearInterval(timer);
@@ -57,9 +86,13 @@ export function useLiveRefresh(): void {
 
     if (document.visibilityState === "visible") start();
     document.addEventListener("visibilitychange", onVisibility);
+    if (wasPaused.current) {
+      wasPaused.current = false;
+      beat();
+    }
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       stop();
     };
-  }, []);
+  }, [interval, paused]);
 }

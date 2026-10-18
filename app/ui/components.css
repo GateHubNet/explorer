@@ -675,11 +675,15 @@ a.btn {
 /* ---------------------------------------------------------------------------------------------------------------
    Live updates: the home page follows the chain (README, "Live updates"). A new row enters at the top of a table (`.is-entering`, put on
    it by DataTable `live`), the rows that were there slide down to their places (inline transforms from use-live-rows.ts, FLIP), and a figure
-   that changed ticks in (`.is-changed`, LiveValue). Both get a highlight: the network's accent, a little of it, fading out over 1.2 s.
-   Movement takes 600 ms at most and runs once, so nothing flashes more than three times a second. Nothing here runs on the first
-   render. The highlight is behind text of every colour the page has, so its strength is bounded by AA contrast on both accents in both
-   themes (test/unit/live-motion-css.test.ts reads the percentage below); it is a translucent colour, not a mix with a surface, so it
-   fades out on whatever is behind it (a hovered row included). */
+   that changed ticks in (`.is-changed`, LiveValue). Each also gets the network's accent, fading out over 1.2 s, in two ways that cannot cost
+   a text its contrast: a wash behind it, as strong as AA allows, and a mark that is behind no text (a bar in the row's padding, a ring
+   outside the figure). Movement takes 600 ms at most and runs once, so nothing flashes more than three times a second. Nothing here runs on
+   the first render.
+
+   The wash is behind text of every colour the page has, on the page's own background (the hero's line) and on a card, a tile or a chip, in
+   light and dark, on both accents: the most the Xahau link in light mode takes on `--bg` is 2.4% (4.5:1), so it is 2%, and 3% would not do
+   (test/unit/live-motion-css.test.ts reads the percentage and computes the contrast with the tokens). It is a translucent colour, not a mix
+   with a surface, so it fades out on whatever is behind it. */
 
 @keyframes row-enter {
   from {
@@ -706,10 +710,30 @@ a.btn {
 
 @keyframes live-flash {
   from {
-    background-color: color-mix(in srgb, var(--accent) 7%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 2%, transparent);
   }
   to {
     background-color: transparent;
+  }
+}
+
+/* The bar is inset in the row's padding (16 px), narrower than it, so it is never behind a letter. */
+@keyframes row-mark {
+  from {
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  to {
+    box-shadow: inset 3px 0 0 transparent;
+  }
+}
+
+/* The ring is outside the figure's own box, where nothing is written. */
+@keyframes value-mark {
+  from {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 3px transparent;
   }
 }
 
@@ -717,7 +741,8 @@ a.btn {
 .table__row.is-entering {
   animation:
     row-enter 400ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms backwards,
-    live-flash 1200ms ease-out backwards;
+    live-flash 1200ms ease-out backwards,
+    row-mark 1200ms ease-out backwards;
 }
 
 /* A box of its own, so that it can move; `max-width` keeps a long figure inside its tile. */
@@ -730,19 +755,50 @@ a.btn {
 .live__value.is-changed {
   animation:
     value-in 360ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards,
-    live-flash 1200ms ease-out backwards;
+    live-flash 1200ms ease-out backwards,
+    value-mark 1200ms ease-out backwards;
 }
 
-/* base.css turns every animation off for this setting, `!important` on `*`. A new row and a changed figure keep the quiet half: the colour
+/* base.css turns every animation off for this setting, `!important` on `*`. A new row and a changed figure keep the quiet half: the colours
    fading out, once, with nothing moving. (Between two `!important` declarations the class's specificity beats `*`.) */
 @media (prefers-reduced-motion: reduce) {
   .table__row.is-entering {
-    animation: live-flash 1200ms ease-out !important;
+    animation:
+      live-flash 1200ms ease-out,
+      row-mark 1200ms ease-out !important;
   }
 
   .live__value.is-changed {
-    animation: live-flash 1200ms ease-out !important;
+    animation:
+      live-flash 1200ms ease-out,
+      value-mark 1200ms ease-out !important;
   }
+}
+
+/* The button that pauses the live updates (WCAG 2.2.2). 44 px, a pill like the examples beside it; pressed, it is filled. */
+.live-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.live-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.live-toggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--sunken);
+  color: var(--fg);
 }
 
 /* ---------------------------------------------------------------------------------------------------------------

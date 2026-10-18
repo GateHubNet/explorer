@@ -1,9 +1,10 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { renderToString } from "react-dom/server";
 import { createMemoryRouter, RouterProvider, useLoaderData, useNavigate } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LIVE_REFRESH_MS, useLiveRefresh } from "./use-live-refresh";
+import { LIVE_REFRESH_MAX_MS, LIVE_REFRESH_MS, refreshInterval, useLiveRefresh, type LiveRefreshOptions } from "./use-live-refresh";
 
 // The open home page asks the explorer's own Worker for its data again every few seconds (`useRevalidator().revalidate()`: the `.data` URL of
 // the route, never the data API). These tests use a real data router with a loader that counts, and fake timers.
@@ -34,8 +35,13 @@ const pass = (ms: number) =>
     await vi.advanceTimersByTimeAsync(ms);
   });
 
+/** What `Controlled` is told to do next: the test changes the options of the hook as the page would (failures counted, a pause, a hold). */
+let setOptions!: (next: LiveRefreshOptions) => void;
+
 function Page() {
-  useLiveRefresh();
+  const [options, set] = useState<LiveRefreshOptions>({});
+  setOptions = (next) => act(() => set(next));
+  useLiveRefresh(options);
   const loaded = useLoaderData() as number;
   return <p>loaded {loaded}</p>;
 }
@@ -242,5 +248,135 @@ describe("useLiveRefresh", () => {
 
     const { container } = render(<RouterProvider router={router} />);
     expect(container.textContent).toBe("loaded 7");
+  });
+});
+
+describe("refreshInterval", () => {
+  it("doubles with each failure in a row, from 4 s, and stops at 60 s", () => {
+    expect([0, 1, 2, 3, 4, 5, 20, 2000].map(refreshInterval)).toEqual([4000, 8000, 16_000, 32_000, 60_000, 60_000, 60_000, 60_000]);
+    expect(LIVE_REFRESH_MAX_MS).toBe(60_000);
+  });
+});
+
+describe("useLiveRefresh, when the refreshes do not work", () => {
+  it("slows down with each failure in a row, and is back to 4 s with the first success", async () => {
+    const { runs } = mount();
+    await pass(4000);
+    expect(runs.count).toBe(1);
+
+    // Two failures in a row: the next beat is 16 s after the second.
+    setOptions({ failures: 2 });
+    await pass(15_999);
+    expect(runs.count).toBe(1);
+    await pass(1);
+    expect(runs.count).toBe(2);
+
+    // Four: 60 s, the most.
+    setOptions({ failures: 4 });
+    await pass(59_999);
+    expect(runs.count).toBe(2);
+    await pass(1);
+    expect(runs.count).toBe(3);
+
+    // A success: 4 s again.
+    setOptions({ failures: 0 });
+    await pass(3999);
+    expect(runs.count).toBe(3);
+    await pass(1);
+    expect(runs.count).toBe(4);
+  });
+
+  it("asks at once when the tab is shown again, whatever the pace has become", async () => {
+    const { runs } = mount();
+    setOptions({ failures: 3 });
+    act(() => setVisibility("hidden"));
+    await act(async () => setVisibility("visible"));
+    expect(runs.count).toBe(1);
+    await pass(31_999);
+    expect(runs.count).toBe(1);
+    await pass(1);
+    expect(runs.count).toBe(2);
+  });
+
+  it("does not leave a rejection of the router's own unhandled, and goes on", async () => {
+    // (This project has no Node types: `process` is reached as the runtime has it.)
+    const node = (globalThis as unknown as { process: { on(event: string, listener: () => void): void; off(event: string, listener: () => void): void } }).process;
+    const unhandled = vi.fn();
+    node.on("unhandledRejection", unhandled);
+    try {
+      const { runs, router } = mount();
+      const revalidate = router.revalidate.bind(router);
+      let calls = 0;
+      router.revalidate = () => {
+        calls += 1;
+        return calls === 1 ? Promise.reject(new Error("the router failed")) : revalidate();
+      };
+      await pass(4000);
+      await pass(0);
+      expect(calls).toBe(1);
+      expect(unhandled).not.toHaveBeenCalled();
+      await pass(4000);
+      expect(calls).toBe(2);
+      expect(runs.count).toBe(1);
+    } finally {
+      node.off("unhandledRejection", unhandled);
+    }
+  });
+});
+
+describe("useLiveRefresh, paused and held", () => {
+  it("does nothing while it is paused (no timer), and asks at once when it is resumed", async () => {
+    const { runs } = mount();
+    await pass(4000);
+    expect(runs.count).toBe(1);
+
+    setOptions({ paused: true });
+    expect(vi.getTimerCount()).toBe(0);
+    await pass(60_000);
+    expect(runs.count).toBe(1);
+
+    setOptions({ paused: false });
+    await pass(0);
+    expect(runs.count).toBe(2);
+    await pass(3999);
+    expect(runs.count).toBe(2);
+    await pass(1);
+    expect(runs.count).toBe(3);
+  });
+
+  it("starts paused when the page was told to, and does not ask before it is resumed", async () => {
+    const { runs } = mount();
+    setOptions({ paused: true });
+    await pass(30_000);
+    expect(runs.count).toBe(0);
+  });
+
+  it("skips its beats while held (a pointer over a table, focus in it), keeps the beat, and does not ask in a rush when it is let go", async () => {
+    const { runs } = mount();
+    await pass(4000);
+    expect(runs.count).toBe(1);
+
+    setOptions({ holding: true });
+    await pass(12_000);
+    expect(runs.count).toBe(1);
+    // Still ticking: letting go costs at most the wait for the next beat.
+    expect(vi.getTimerCount()).toBe(1);
+    setOptions({ holding: false });
+    await pass(0);
+    expect(runs.count).toBe(1);
+    await pass(4000);
+    expect(runs.count).toBe(2);
+  });
+
+  it("does not ask when the tab is shown while it is held or paused", async () => {
+    const { runs } = mount();
+    setOptions({ holding: true });
+    act(() => setVisibility("hidden"));
+    await act(async () => setVisibility("visible"));
+    expect(runs.count).toBe(0);
+    setOptions({ paused: true });
+    act(() => setVisibility("hidden"));
+    await act(async () => setVisibility("visible"));
+    expect(runs.count).toBe(0);
   });
 });

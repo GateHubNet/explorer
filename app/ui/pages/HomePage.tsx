@@ -1,3 +1,4 @@
+import { useRef, type FocusEvent, type PointerEvent } from "react";
 import { Link } from "react-router";
 
 import { formatAmount, formatUtc } from "../../domain/format";
@@ -8,6 +9,7 @@ import { Amount } from "../components/Amount";
 import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
 import { HashLink, LedgerLink } from "../components/HashLink";
+import { LiveStatus, LiveToggle, PAUSED_AFTER_FAILURES } from "../components/LiveStatus";
 import { LiveValue } from "../components/LiveValue";
 import { ResultPill } from "../components/Pill";
 import { RelativeTime } from "../components/RelativeTime";
@@ -15,6 +17,8 @@ import { SearchBox } from "../components/SearchBox";
 import { StatGrid, StatTile } from "../components/StatTile";
 import { TypeTag } from "../components/TypeTag";
 import type { NetworkInfo } from "../networks";
+import type { LiveControls } from "../use-home-live";
+import { cx } from "../cx";
 
 /** The headline of each network's home page (also its title). */
 export const HOME_TITLES = { xrpl: "Explore the XRP Ledger", xahau: "Explore Xahau" } as const;
@@ -32,9 +36,34 @@ const count = (n: number) => formatAmount(String(n));
  * New rows enter at the top of the two tables and the rows that were there slide down (`DataTable live`); a figure that changed
  * ticks in (`LiveValue`, with the text it shows as its token, so that a figure that says the same does not move). None of it on the first
  * render, so the server's HTML and the hydration are the same, and none for a visitor who asked for less motion (see motion.ts).
+ *
+ * `live` is what the visitor can do about it and what the page says: a button that pauses and resumes the updates, a quiet status line
+ * when they cannot reach the page, and a hold while the pointer is over a table or focus is in one, so that rows do not move under a
+ * click. Without it (every other use of the page) there are none of the three.
  */
-export function HomePage({ network, data }: { network: NetworkInfo; data: HomePageData }) {
+export function HomePage({ network, data, live }: { network: NetworkInfo; data: HomePageData; live?: LiveControls }) {
   const { latest, txCount, average, fees } = data;
+  const stopped = live !== undefined && (live.paused || live.failures >= PAUSED_AFTER_FAILURES);
+
+  // A hold for each table and each way of being on it; the page is held while any is.
+  const holds = useRef(new Set<string>());
+  const hold = (id: string, on: boolean) => {
+    if (on) holds.current.add(id);
+    else holds.current.delete(id);
+    live?.onHold(holds.current.size > 0);
+  };
+  const holding = (table: string) => ({
+    // A finger is not a pointer that stays over a table: only a mouse or a pen holds.
+    onPointerEnter: (event: PointerEvent) => {
+      if (event.pointerType !== "touch") hold(`${table}:pointer`, true);
+    },
+    onPointerLeave: () => hold(`${table}:pointer`, false),
+    onFocus: () => hold(`${table}:focus`, true),
+    // Focus moving inside the table is not leaving it.
+    onBlur: (event: FocusEvent<HTMLElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hold(`${table}:focus`, false);
+    },
+  });
   const latestHref = `/${network.id}/ledger/${latest.index}`;
   const whole = latest.supply.split(".")[0]!;
   // What the tiles say as text: it is also the token of the figure, which ticks in only when it says something else.
@@ -79,19 +108,23 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
   return (
     <>
       <section className="hero" aria-labelledby="hero-title">
-        <p className="hero__status">
-          <span className="hero__dot" aria-hidden="true" />
-          <span>
-            {network.name} mainnet · ledger{" "}
-            <LiveValue token={String(latest.index)}>
-              <LedgerLink net={network.id} index={latest.index} />
-            </LiveValue>{" "}
-            validated{" "}
-            <LiveValue token={String(latest.closeTime)}>
-              <RelativeTime at={latest.closeTime} fallback={`at ${formatUtc(latest.closeTime).slice(11)}`} />
-            </LiveValue>
-          </span>
-        </p>
+        <div className="hero__status-row">
+          <p className="hero__status">
+            <span className={cx("hero__dot", stopped && "is-paused")} aria-hidden="true" />
+            <span>
+              {network.name} mainnet · ledger{" "}
+              <LiveValue token={String(latest.index)}>
+                <LedgerLink net={network.id} index={latest.index} />
+              </LiveValue>{" "}
+              validated{" "}
+              <LiveValue token={String(latest.closeTime)}>
+                <RelativeTime at={latest.closeTime} fallback={`at ${formatUtc(latest.closeTime).slice(11)}`} />
+              </LiveValue>
+              {live && <LiveStatus failures={live.failures} />}
+            </span>
+          </p>
+          {live && <LiveToggle paused={live.paused} onToggle={live.onTogglePause} />}
+        </div>
         <h1 id="hero-title" className="hero__title">
           {HOME_TITLES[network.id]}
         </h1>
@@ -162,16 +195,18 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
           flush
           className="cols__narrow"
         >
-          <DataTable
-            label="Latest ledgers"
-            columns={ledgerColumns}
-            rows={data.ledgers}
-            rowKey={(row) => String(row.index)}
-            // The tracks at their least, the gaps and the padding of a row (16 px each side, 16 px between).
-            minWidth={380}
-            empty="No ledgers yet."
-            live
-          />
+          <div {...holding("ledgers")}>
+            <DataTable
+              label="Latest ledgers"
+              columns={ledgerColumns}
+              rows={data.ledgers}
+              rowKey={(row) => String(row.index)}
+              // The tracks at their least, the gaps and the padding of a row (16 px each side, 16 px between).
+              minWidth={380}
+              empty="No ledgers yet."
+              live
+            />
+          </div>
         </Card>
 
         <Card
@@ -181,16 +216,18 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
           flush
           className="cols__wide"
         >
-          <DataTable
-            label="Latest transactions"
-            columns={txColumns}
-            rows={data.transactions}
-            rowKey={(row) => row.hash}
-            // Likewise.
-            minWidth={744}
-            empty="No transactions yet."
-            live
-          />
+          <div {...holding("transactions")}>
+            <DataTable
+              label="Latest transactions"
+              columns={txColumns}
+              rows={data.transactions}
+              rowKey={(row) => row.hash}
+              // Likewise.
+              minWidth={744}
+              empty="No transactions yet."
+              live
+            />
+          </div>
         </Card>
       </div>
     </>

@@ -14,3 +14,10 @@ export const FLIP_EASING = "cubic-bezier(0.2, 0.7, 0.2, 1)";
 export function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/**
+ * How long a new row keeps its `.is-entering` class, in ms: the longest of its animations (the highlight fades out in 1.2 s) and a
+ * little over. It is the script's to take away, not a render's: the page renders again with each beat, and a class that went with the render
+ * would cut an animation that is still running (use-live-rows.ts; test/unit/live-motion-css.test.ts reads it against the stylesheet).
+ */
+export const ENTER_MS = 1300;

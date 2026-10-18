@@ -200,7 +200,11 @@ const UNKNOWN_VISITOR = "unknown";
  */
 const UNCACHED_PATHS = new Set(["/", "/_.data"]);
 
-type CacheLabel = "HIT" | "MISS" | "STALE" | "BYPASS";
+/**
+ * What `X-Cache` says. `MISS-SHARED` is a miss that another request's render answered (single flight, below): the visitor was given a
+ * copy of what that render stored, and nothing was rendered for them.
+ */
+type CacheLabel = "HIT" | "MISS" | "MISS-SHARED" | "STALE" | "BYPASS";
 
 /**
  * The key a page is stored under: its URL, and the build ID so that a deploy replaces every entry at once.
@@ -303,10 +307,26 @@ function serveStored(copy: StoredCopy, label: "HIT" | "STALE"): Response {
 }
 
 /**
+ * A rendered answer as plain data (a buffer and pairs of strings), which a request other than the one that rendered it may be given:
+ * workerd does not let one request read another's streams, but bytes cross requests freely.
+ */
+interface SharedAnswer {
+  cls: CacheClass;
+  status: number;
+  statusText: string;
+  /** The headers a visitor gets, the internal ones taken off. */
+  headers: Array<[string, string]>;
+  body: ArrayBuffer;
+}
+
+/**
  * Stores `response` (a clone: its body is read here) for `ttl` seconds of freshness, unless the render marked the request as
  * degraded. The body is read to its end first: a page that streams a section after its header is complete only when that
  * section has settled, and a section that failed marks the request on the way. (The copy is a buffer, as `cache.put` would make
  * of it.) A body that fails half way is not stored either.
+ *
+ * Returns what it buffered, as a `SharedAnswer`, when the answer is whole and not degraded (also when the Cache API refused to keep it):
+ * the requests that waited for this render are given it (`withEdgeCache`, "single flight"). `undefined` when it must not be shared.
  */
 async function store(
   cache: Cache,
@@ -315,21 +335,23 @@ async function store(
   kind: { cls: CacheClass; ttl: number },
   request: Request,
   mark: DegradedMark,
-) {
+): Promise<SharedAnswer | undefined> {
   let body: ArrayBuffer;
   try {
     body = await response.arrayBuffer();
   } catch (error) {
     logProblem("edge cache could not read the body to store", error, request);
-    return;
+    return undefined;
   }
   if (mark.degraded) {
     console.warn(
       JSON.stringify({ level: "warn", what: "degraded answer not stored", reason: mark.reason, path: new URL(request.url).pathname }),
     );
-    return;
+    return undefined;
   }
 
+  const { status, statusText } = response;
+  const shared: SharedAnswer = { cls: kind.cls, status, statusText, headers: [...visitorHeaders(response.headers)], body };
   const headers = visitorHeaders(response.headers);
   const keep = Math.ceil(Math.max(kind.ttl + KEEP_AFTER_FRESH_SECONDS, KEEP_AT_LEAST_SECONDS));
   headers.set("Cache-Control", `public, max-age=${keep}`);
@@ -337,12 +359,82 @@ async function store(
   headers.set(STORED_TTL, String(kind.ttl));
   headers.set(STORED_AT, String(Date.now()));
   try {
-    const { status, statusText } = response;
     // A status that cannot have a body (204) must not be given an empty one.
     await cache.put(key, new Response(body.byteLength === 0 ? null : body, { status, statusText, headers }));
   } catch (error) {
     logProblem("edge cache write failed", error, request);
   }
+  return shared;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Single flight
+
+/** How long a request waits for the render of the page it asked for, at the most, before it renders for itself. */
+export const SINGLE_FLIGHT_WAIT_MS = 15_000;
+
+type Flight = Promise<SharedAnswer | undefined>;
+
+/**
+ * The pages that are being rendered by a request of this Worker instance because they were not in the cache, by key. The next request for
+ * such a page, in this instance, waits for that render instead of making its own (a herd: every open home page asks again every 4 s), and
+ * is given a copy of the answer when it turns out to be one that is stored and whole. Not an answer to share (degraded, an error, not
+ * storable, a render that threw or took too long): each of them renders for itself, as they did before. Per instance and in memory: another
+ * instance, or a restart, starts its own.
+ */
+const flights = new Map<string, Flight>();
+
+/** Registers the render of `url` that this request is about to make; the others will wait for `settle`. */
+function lead(url: string) {
+  let resolve!: (answer: SharedAnswer | undefined) => void;
+  const promise: Flight = new Promise((done) => (resolve = done));
+  flights.set(url, promise);
+  let settled = false;
+  let following = false;
+  const settle = (answer: SharedAnswer | undefined) => {
+    if (settled) return;
+    settled = true;
+    // (Not a newer flight that took its place when this one was given up on.)
+    if (flights.get(url) === promise) flights.delete(url);
+    resolve(answer);
+  };
+  return {
+    settle,
+    /** The answer is that of `stored`, which is not known until its body has been read and the Cache API has it. */
+    follow(stored: Promise<SharedAnswer | undefined>) {
+      following = true;
+      stored.then(settle, () => settle(undefined));
+    },
+    /** Whatever happened, the others are not left waiting: unless an answer is on its way, there is nothing to share. */
+    end() {
+      if (!following) settle(undefined);
+    },
+  };
+}
+
+/** The answer of the render that `flight` is, or `undefined` when there is none to share or it takes more than `SINGLE_FLIGHT_WAIT_MS`. */
+async function waitFor(url: string, flight: Flight): Promise<SharedAnswer | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const gaveUp = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => {
+      // A render that is this slow is not waited for by the next request either.
+      if (flights.get(url) === flight) flights.delete(url);
+      resolve(undefined);
+    }, SINGLE_FLIGHT_WAIT_MS);
+  });
+  try {
+    return await Promise.race([flight, gaveUp]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The visitor's answer from a render that another request made: its body (a copy of the buffer), the browser's `Cache-Control`, `X-Cache`. */
+function sharedAnswer({ cls, status, statusText, headers, body }: SharedAnswer): Response {
+  const answer = new Headers(headers);
+  answer.set("Cache-Control", browserCacheControl(cls, answer.get("Content-Type")));
+  answer.set("X-Cache", "MISS-SHARED");
+  return new Response(body.byteLength === 0 ? null : body.slice(0), { status, statusText, headers: answer });
 }
 
 /** Renders at most one refresh of a stale page at a time per Worker instance, however many visitors ask for it. */
@@ -449,7 +541,9 @@ function withoutBody(response: Response): Response {
  * - A stored copy younger than its TTL is served (`HIT`); one past it but within the class's stale-while-revalidate
  *   window is served too (`STALE`) while one `render` refreshes it in `ctx.waitUntil`.
  * - Otherwise this is a miss: the visitor's limit is checked (60 per 10 s, over it the 429 page), `render` runs and its
- *   answer is stored if it names a class (`cached`) and is not an error.
+ *   answer is stored if it names a class (`cached`) and is not an error. If another request of this Worker instance is already
+ *   rendering the same page for the cache, this one waits for it and is given a copy of what it stored (`MISS-SHARED`, see "Single
+ *   flight" above); when that answer is not one to share, it renders for itself.
  * - A `render` that throws or answers 5xx is replaced by the stored copy, of any age, if there is one (stale-if-error);
  *   failing that, a throw or a 503 becomes the 503 page.
  *
@@ -491,25 +585,44 @@ export async function withEdgeCache(request: Request, env: Env, ctx: ExecutionCo
     return tooManyRequests();
   }
 
-  const mark = createDegradedMark();
-  const response = await attempt(() => render(mark, request), request);
-  if (response && response.status < 500) {
-    await copy?.response.body?.cancel();
-    // A loader that already knows the answer is degraded spares the copy; one that finds out while the page streams marks
-    // the request later, and `store` looks again when the body is complete.
-    const kind = mark.degraded ? undefined : storableAs(response);
-    if (kind) ctx.waitUntil(store(cache, key, response.clone(), kind, request, mark));
-    return answerFor(response, "MISS", kind, mark.degraded);
+  // Single flight: a page that another request is rendering for the cache is waited for, not rendered again.
+  const rendering = flights.get(key.url);
+  if (rendering) {
+    const shared = await waitFor(key.url, rendering);
+    if (shared) {
+      await copy?.response.body?.cancel();
+      return sharedAnswer(shared);
+    }
+    // Nothing to share: this request renders for itself, as if it had come first (and takes no flight of its own: the others that waited do the same).
   }
+  const flight = rendering ? undefined : lead(key.url);
+  try {
+    const mark = createDegradedMark();
+    const response = await attempt(() => render(mark, request), request);
+    if (response && response.status < 500) {
+      await copy?.response.body?.cancel();
+      // A loader that already knows the answer is degraded spares the copy; one that finds out while the page streams marks
+      // the request later, and `store` looks again when the body is complete.
+      const kind = mark.degraded ? undefined : storableAs(response);
+      if (kind) {
+        const stored = store(cache, key, response.clone(), kind, request, mark);
+        ctx.waitUntil(stored);
+        flight?.follow(stored);
+      }
+      return answerFor(response, "MISS", kind, mark.degraded);
+    }
 
-  // The render failed: a throw, or a 5xx.
-  if (copy) {
+    // The render failed: a throw, or a 5xx.
+    if (copy) {
+      await response?.body?.cancel();
+      return serveStored(copy, "STALE");
+    }
+    if (response && response.status !== 503) return answerFor(response, "MISS", undefined);
     await response?.body?.cancel();
-    return serveStored(copy, "STALE");
+    return unavailable();
+  } finally {
+    flight?.end();
   }
-  if (response && response.status !== 503) return answerFor(response, "MISS", undefined);
-  await response?.body?.cancel();
-  return unavailable();
 }
 
 /** Starts the refresh of a stale copy, unless this Worker instance is already refreshing it. */

@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 
 import { fixturePort } from "../../scripts/e2e-env";
+import { XRPL_HEAD_LEDGER, XRPL_LEDGER } from "./fixtures";
 
 const url = () => `http://127.0.0.1:${fixturePort(process.env)}/__fixture/overrides`;
 
@@ -26,9 +27,9 @@ export const fixtures = {
 
 const recorded = <T>(path: string): T => JSON.parse(readFileSync(new URL(`../fixtures/http/xrpl/data-api/${path}.json`, import.meta.url), "utf8")) as T;
 
-/** The newest recorded XRPL ledger, and the one before it that the recordings have in full. */
-export const HEAD = 107721455;
-export const BEFORE_HEAD = 107720688;
+/** The newest recorded XRPL ledger (`last_validated`), and the one before it that the recordings have in full: `fixtures.ts` has them. */
+export const HEAD = XRPL_HEAD_LEDGER;
+export const BEFORE_HEAD = XRPL_LEDGER;
 
 interface FeesAnswer {
   rows: unknown[];

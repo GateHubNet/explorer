@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
-import { FLIP_EASING, FLIP_MS, prefersReducedMotion } from "./motion";
+import { ENTER_MS, FLIP_EASING, FLIP_MS, prefersReducedMotion } from "./motion";
 
 const NONE: ReadonlySet<string> = new Set();
 
@@ -58,26 +58,56 @@ function slide(rows: Map<string, HTMLElement>, before: ReadonlyMap<string, numbe
  * `entering` (a class the stylesheet animates), and the rows that were there and are somewhere else now slide into place. `table` is the
  * element whose children are the rows; a row says its key in `data-key`. Returns the entering keys, to be put on the rows while rendering.
  *
- * Nothing happens on the first render (the server's, the hydration), while `enabled` is false, or, for the sliding, when the visitor asked
- * for less motion. Positions are kept from the end of each commit, measured from the top of the table so that scrolling the page is not a
- * move. The row that falls off the list is simply gone.
+ * A row stays `entering` for `ENTER_MS` from the commit that brought it, through any number of renders in between (the page renders again
+ * with each beat, and a class that was a matter of one render would cut the animation short); then the script takes the class off the row
+ * itself, and the next render has it without. Nothing happens on the first render (the server's, the hydration), while `enabled` is false,
+ * or, for the sliding, when the visitor asked for less motion. Positions are kept from the end of each commit, measured from the top of
+ * the table so that scrolling the page is not a move. The row that falls off the list is simply gone.
  */
 export function useLiveRows(table: RefObject<HTMLElement | null>, keys: readonly string[], enabled: boolean): ReadonlySet<string> {
   const last = useRef<{ keys: ReadonlySet<string>; tops: ReadonlyMap<string, number> } | null>(null);
+  /** The rows that came in less than `ENTER_MS` ago, with the timer that ends it. */
+  const entered = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const before = last.current;
-  const entering = enabled && before ? new Set(keys.filter((key) => !before.keys.has(key))) : NONE;
+  const entering = enabled && before ? new Set(keys.filter((key) => !before.keys.has(key) || entered.current.has(key))) : NONE;
 
   useLayoutEffect(() => {
     const element = table.current;
     if (!enabled || !element) {
       last.current = null;
+      for (const timer of entered.current.values()) clearTimeout(timer);
+      entered.current.clear();
       return;
     }
     const { rows, tops } = measure(element);
-    if (last.current && !prefersReducedMotion()) slide(rows, last.current.tops, tops, element);
+    const previous = last.current;
+    if (previous) {
+      if (!prefersReducedMotion()) slide(rows, previous.tops, tops, element);
+      for (const key of keys) {
+        if (previous.keys.has(key) || entered.current.has(key)) continue;
+        entered.current.set(
+          key,
+          setTimeout(() => {
+            entered.current.delete(key);
+            for (const row of Array.from(element.children)) {
+              if (row instanceof HTMLElement && row.dataset.key === key) row.classList.remove("is-entering");
+            }
+          }, ENTER_MS),
+        );
+      }
+    }
     last.current = { keys: new Set(keys), tops };
   });
+
+  // No timer outlives the table.
+  useEffect(
+    () => () => {
+      for (const timer of entered.current.values()) clearTimeout(timer);
+      entered.current.clear();
+    },
+    [],
+  );
 
   return entering;
 }

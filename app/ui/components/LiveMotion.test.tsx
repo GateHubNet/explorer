@@ -2,6 +2,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ENTER_MS } from "../motion";
 import { DataTable } from "./DataTable";
 import { LiveValue } from "./LiveValue";
 
@@ -172,6 +173,58 @@ describe("DataTable, live", () => {
     expect(entering(container)).toEqual([]);
     rerender(<Table ids={["c", "b", "a"]} live />);
     expect(entering(container)).toEqual(["c"]);
+  });
+});
+
+describe("DataTable, live: how long a new row stays entering", () => {
+  // The next beat renders the page again, with the same data or the next ledger, while the row that came in is still fading its highlight
+  // out (1.2 s). A class that went with the render would cut the animation: it stays until the animation is over.
+  beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps the class through a render inside the animation, adds the next row's, and takes each away when its own animation is over", () => {
+    const { container, rerender } = render(<Table ids={["a", "b"]} />);
+    rerender(<Table ids={["c", "a", "b"]} />);
+    expect(entering(container)).toEqual(["c"]);
+
+    act(() => void vi.advanceTimersByTime(500));
+    rerender(<Table ids={["c", "a", "b"]} />);
+    expect(entering(container)).toEqual(["c"]);
+
+    rerender(<Table ids={["d", "c", "a"]} />);
+    expect(entering(container)).toEqual(["d", "c"]);
+
+    // 1.3 s after c came in, not after d.
+    act(() => void vi.advanceTimersByTime(801));
+    expect(entering(container)).toEqual(["d"]);
+    act(() => void vi.advanceTimersByTime(500));
+    expect(entering(container)).toEqual([]);
+    // And a later render does not bring it back.
+    rerender(<Table ids={["d", "c", "a"]} />);
+    expect(entering(container)).toEqual([]);
+  });
+
+  it("is as long as the longest animation of the stylesheet (read there), and holds no timer when the table goes", () => {
+    const { container, rerender, unmount } = render(<Table ids={["a"]} />);
+    rerender(<Table ids={["b", "a"]} />);
+    act(() => void vi.advanceTimersByTime(ENTER_MS - 1));
+    expect(entering(container)).toEqual(["b"]);
+    act(() => void vi.advanceTimersByTime(1));
+    expect(entering(container)).toEqual([]);
+
+    rerender(<Table ids={["c", "b", "a"]} />);
+    expect(vi.getTimerCount()).toBe(1);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does nothing to a row that has left the list before its animation was over", () => {
+    const { container, rerender } = render(<Table ids={["a", "b"]} />);
+    rerender(<Table ids={["c", "a"]} />);
+    rerender(<Table ids={["d", "c"]} />);
+    expect(container.querySelector('[data-key="a"]')).toBeNull();
+    act(() => void vi.advanceTimersByTime(ENTER_MS));
+    expect(entering(container)).toEqual([]);
   });
 });
 

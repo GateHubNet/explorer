@@ -10,7 +10,10 @@ const components = read("components.css");
 const base = read("base.css");
 const tokens = read("tokens.css");
 /** How long the rows that were there slide, from motion.ts (a module of the browser's types, which this project does not have: read as text). */
-const FLIP_MS = Number(/export const FLIP_MS = (\d+);/.exec(readFileSync(new URL("../../app/ui/motion.ts", import.meta.url), "utf8"))?.[1]);
+const motion = readFileSync(new URL("../../app/ui/motion.ts", import.meta.url), "utf8");
+const FLIP_MS = Number(/export const FLIP_MS = (\d+);/.exec(motion)?.[1]);
+/** How long a row is kept `.is-entering` by the script, from motion.ts. */
+const ENTER_MS = Number(/export const ENTER_MS = (\d+);/.exec(motion)?.[1]);
 
 /** The text between the braces that follow `head` (the first occurrence), braces balanced. */
 function braces(css: string, head: string): string {
@@ -73,24 +76,50 @@ describe("the keyframes", () => {
     expect(flash).toMatch(/to\s*\{[^}]*background-color:\s*transparent/);
     expect(flash).not.toMatch(/transform|translate|opacity|scale/);
   });
+
+  // The wash is as strong as the text on it allows (below), which on the lightest backgrounds is hardly to be seen. What makes a new row
+  // and a changed figure easy to find is a mark that is not behind any text: a bar in the row's own padding, a ring round the figure.
+  it("mark a new row with a bar in its padding and a changed figure with a ring outside it, in colours that fade out, behind no text", () => {
+    const bar = keyframes("row-mark");
+    const ring = keyframes("value-mark");
+    for (const frames of [bar, ring]) {
+      expect(frames).not.toMatch(/transform|translate|opacity|scale|background/);
+      expect(frames).toMatch(/from\s*\{[^}]*box-shadow:[^;}]*color-mix\(in srgb, var\(--accent\) [\d.]+%, transparent\)/);
+      expect(frames).toMatch(/to\s*\{[^}]*box-shadow:[^;}]*transparent/);
+    }
+    // The bar is inset and thinner than the padding of a row (16 px), so that it never reaches the text; the ring is outside its element.
+    const width = Number(/from\s*\{[^}]*box-shadow:\s*inset (\d+)px 0 0/.exec(bar)?.[1]);
+    const padding = Number(/^0 (\d+)px$/.exec(rule(components, ".table__row").padding ?? "")?.[1]);
+    expect(width).toBeGreaterThan(0);
+    expect(width).toBeLessThan(padding);
+    expect(ring).toMatch(/from\s*\{[^}]*box-shadow:\s*0 0 0 \d+px/);
+    expect(ring).not.toMatch(/inset/);
+  });
 });
 
 describe("the classes", () => {
   const entering = animations(rule(components, ".table__row.is-entering").animation!);
   const changed = animations(rule(components, ".live__value.is-changed").animation!);
 
-  it("play a new row's slide and highlight, and a changed figure's tick and highlight", () => {
-    expect(entering.map((a) => a.name)).toEqual(["row-enter", "live-flash"]);
-    expect(changed.map((a) => a.name)).toEqual(["value-in", "live-flash"]);
+  it("play a new row's slide, highlight and mark, and a changed figure's tick, highlight and mark", () => {
+    expect(entering.map((a) => a.name)).toEqual(["row-enter", "live-flash", "row-mark"]);
+    expect(changed.map((a) => a.name)).toEqual(["value-in", "live-flash", "value-mark"]);
   });
 
   it("move for 600 ms at most, the delay included, and fade the highlight out in about 1.2 s", () => {
     for (const a of [entering[0]!, changed[0]!]) expect(a.duration + a.delay, a.name).toBeLessThanOrEqual(600);
     expect(FLIP_MS).toBeLessThanOrEqual(600);
-    for (const a of [entering[1]!, changed[1]!]) {
+    for (const a of [entering[1]!, changed[1]!, entering[2]!, changed[2]!]) {
       expect(a.duration, a.name).toBeGreaterThanOrEqual(1000);
       expect(a.duration, a.name).toBeLessThanOrEqual(1500);
     }
+  });
+
+  it("are kept on a row by the script (ENTER_MS) for as long as the longest of them runs, and no longer than a beat", () => {
+    const longest = Math.max(...entering.map((a) => a.duration + a.delay));
+    expect(ENTER_MS).toBeGreaterThanOrEqual(longest);
+    expect(ENTER_MS).toBeLessThanOrEqual(longest + 500);
+    expect(ENTER_MS).toBeLessThan(4000);
   });
 
   it("run once: nothing repeats, so nothing flashes more than three times a second", () => {
@@ -133,26 +162,58 @@ describe("contrast under the highlight", () => {
   const accents = { xrpl: rgb(tokensOf(":root", tokens)["--accent-xrpl"]!), xahau: rgb(tokensOf(":root", tokens)["--accent-xahau"]!) };
   const share = Number(/color-mix\(in srgb, var\(--accent\) ([\d.]+)%, transparent\)/.exec(keyframes("live-flash"))![1]) / 100;
 
+  // What is behind a highlighted element: the page (`--bg`, where the hero's status line and its examples' labels are) or a card, a tile, a
+  // chip (`--surface`). The animation replaces a hovered row's colour, so a row's backdrop is its card's.
+  const BACKDROPS = ["--bg", "--surface"] as const;
+
+  /** The lowest contrast of any text colour that can be inside a highlighted element, on the highlight at `at`, over every backdrop, theme and accent. */
+  function worst(at: number): { ratio: number; where: string } {
+    let found = { ratio: Number.POSITIVE_INFINITY, where: "" };
+    for (const [name, t] of Object.entries(themes)) {
+      for (const [net, accent] of Object.entries(accents)) {
+        const link = name === "light" ? accent : mix(accent, [255, 255, 255], 0.55);
+        for (const backdrop of BACKDROPS) {
+          const peak = mix(accent, rgb(t[backdrop]!), at);
+          for (const [token, colour] of [["--fg", rgb(t["--fg"]!)], ["--muted", rgb(t["--muted"]!)], ["--faint", rgb(t["--faint"]!)], ["--link", link]] as const) {
+            const ratio = contrast(colour, peak);
+            if (ratio < found.ratio) found = { ratio, where: `${token} on ${backdrop}, ${name}, ${net}` };
+          }
+        }
+      }
+    }
+    return found;
+  }
+
   it("tints the background with a little of the accent", () => {
-    expect(share).toBeGreaterThan(0.04);
-    expect(share).toBeLessThanOrEqual(0.15);
+    expect(share).toBeGreaterThan(0);
+    expect(share).toBeLessThanOrEqual(0.05);
   });
 
   describe.each(Object.entries(themes))("%s", (name, t) => {
     describe.each(Object.entries(accents))("with the %s accent", (_net, accent) => {
-      // The highlight is the accent at `share` over the surface of the card or the tile (the animation replaces a hovered row's colour).
-      const peak = mix(accent, rgb(t["--surface"]!), share);
       const link = name === "light" ? accent : mix(accent, [255, 255, 255], 0.55);
 
-      it.each([
-        ["--fg", () => rgb(t["--fg"]!)],
-        ["--muted", () => rgb(t["--muted"]!)],
-        ["--faint", () => rgb(t["--faint"]!)],
-        ["--link", () => link],
-      ] as const)("%s on the strongest moment of the highlight is at least 4.5:1", (_token, colour) => {
-        expect(contrast(colour(), peak)).toBeGreaterThanOrEqual(4.5);
+      describe.each(BACKDROPS)("on %s", (backdrop) => {
+        // The highlight is the accent at `share` over what is behind the element.
+        const peak = mix(accent, rgb(t[backdrop]!), share);
+
+        it.each([
+          ["--fg", () => rgb(t["--fg"]!)],
+          ["--muted", () => rgb(t["--muted"]!)],
+          ["--faint", () => rgb(t["--faint"]!)],
+          ["--link", () => link],
+        ] as const)("%s on the strongest moment of the highlight is at least 4.5:1", (_token, colour) => {
+          expect(contrast(colour(), peak)).toBeGreaterThanOrEqual(4.5);
+        });
       });
     });
+  });
+
+  it("is the strongest wash that keeps all of them at 4.5:1: a whole percent more would not (the Xahau link in light mode, on the page's own background)", () => {
+    expect(worst(share).ratio).toBeGreaterThanOrEqual(4.5);
+    expect(worst(share + 0.01).ratio).toBeLessThan(4.5);
+    // And where it is the page's background that it is least on:
+    expect(worst(share + 0.01).where).toMatch(/--link on --bg, light, xahau/);
   });
 });
 
@@ -165,15 +226,39 @@ describe("prefers-reduced-motion: reduce", () => {
     expect(all).toMatch(/transition:\s*none\s*!important/);
   });
 
-  it("leaves a new row and a changed figure the highlight only: a colour fading out, nothing moves", () => {
-    for (const selector of [".table__row.is-entering", ".live__value.is-changed"]) {
+  it("leaves a new row and a changed figure the highlight and the mark only: colours fading out, nothing moves", () => {
+    for (const [selector, mark] of [[".table__row.is-entering", "row-mark"], [".live__value.is-changed", "value-mark"]] as const) {
       const declarations = rule(reduced, selector);
-      const [animation, ...others] = animations(declarations.animation!.replace(/\s*!important$/, ""));
-      expect(animation!.name, selector).toBe("live-flash");
-      expect(others, selector).toEqual([]);
+      const kept = animations(declarations.animation!.replace(/\s*!important$/, ""));
+      expect(kept.map((a) => a.name), selector).toEqual(["live-flash", mark]);
       // `!important` against base.css's `animation: none !important` on `*`; the class's specificity wins between the two.
       expect(declarations.animation, selector).toMatch(/!important$/);
       expect(declarations.transform, selector).toBeUndefined();
     }
+  });
+});
+
+describe("the pause button and the status", () => {
+  const pages = read("pages.css");
+
+  it("is a 44 px target (WCAG 2.2.2's pause is also a target), a pill like the examples beside it, in tokens", () => {
+    const toggle = rule(components, ".live-toggle");
+    expect(toggle["min-height"]).toBe("44px");
+    expect(toggle["min-width"]).toBe("44px");
+    expect(toggle.color).toBe("var(--muted)");
+    expect(toggle.background).toBe("var(--surface)");
+    // Pressed it is filled with --sunken: --muted and --fg are both AA on it (tokens.test.ts).
+    expect(rule(components, '.live-toggle[aria-pressed="true"]').background).toBe("var(--sunken)");
+  });
+
+  it("sits in a row as high as the button, so that adding it when the script runs moves nothing below", () => {
+    expect(rule(pages, ".hero__status-row")["min-height"]).toBe("44px");
+  });
+
+  it("says what it has to say in a token's colour that is AA on the page, and the dot goes quiet in tokens", () => {
+    expect(rule(pages, ".hero__live").color).toBe("var(--muted)");
+    const dot = rule(pages, ".hero__dot.is-paused");
+    expect(dot.background).toBe("var(--faint)");
+    expect(dot["box-shadow"]).toBe("0 0 0 4px var(--sunken)");
   });
 });

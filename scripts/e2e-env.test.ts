@@ -65,6 +65,12 @@ describe("fixturePort", () => {
     expect(fixturePort({ E2E_FIXTURE_PORT: "9100", E2E_PORT: "9000" })).toBe(9100);
   });
 
+  it("says so when E2E_FIXTURE_PORT is set and empty, rather than taking it for port 0 or for nothing", () => {
+    expect(() => fixturePort({ E2E_FIXTURE_PORT: "" })).toThrow(/E2E_FIXTURE_PORT is set but empty/);
+    expect(() => fixturePort({ E2E_FIXTURE_PORT: "  " })).toThrow(/E2E_FIXTURE_PORT is set but empty/);
+    expect(() => fixturePort({ E2E_FIXTURE_PORT: "abc" })).toThrow(/E2E_FIXTURE_PORT.*not a port/);
+  });
+
   it("refuses 5173 (another dev server's), and anything that is not a port", () => {
     expect(() => fixturePort({ E2E_FIXTURE_PORT: "5173" })).toThrow(/5173/);
     expect(() => fixturePort({ E2E_PORT: "5171" })).toThrow(/5173/);

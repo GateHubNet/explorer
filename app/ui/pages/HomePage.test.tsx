@@ -1,10 +1,11 @@
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState, type ReactElement } from "react";
 import { renderToString } from "react-dom/server";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomePageData } from "../../server/home-view";
+import type { LiveControls } from "../use-home-live";
 import { HomePage } from "./HomePage";
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
@@ -250,5 +251,189 @@ describe("HomePage, when its data changes", () => {
     expect(screen.getByRole("link", { name: "Latest ledger →" }).getAttribute("href")).toBe("/xrpl/ledger/107695661");
     expect(screen.getByRole("link", { name: "All in ledger #107,695,661 →" }).getAttribute("href")).toBe("/xrpl/ledger/107695661");
     expect(screen.getByRole("link", { name: "Ledger 107,695,661" }).getAttribute("href")).toBe("/xrpl/ledger/107695661");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// What the visitor can do about the updates: a visible pause (WCAG 2.2.2), no refresh under a pointer or a focus in a table, and a
+// quiet signal when the updates cannot reach the page.
+
+describe("HomePage, the live controls", () => {
+  const controls = (over: Partial<LiveControls> = {}): LiveControls => ({
+    paused: false,
+    failures: 0,
+    onTogglePause: vi.fn(),
+    onHold: vi.fn(),
+    ...over,
+  });
+  const showing = (live?: LiveControls) => renderInRouter(<HomePage network={XRPL} data={data()} live={live} />);
+  const status = () => screen.getByRole("status");
+
+  it("has no pause, no status and no hold when the page is not given any (every other use of it)", () => {
+    showing();
+    expect(screen.queryByRole("button", { name: /live updates/ })).toBeNull();
+    expect(document.querySelector(".hero__live")).toBeNull();
+  });
+
+  it("has a real button that pauses and resumes the updates: pressed when paused, 44 px by the stylesheet, and it says what it does", () => {
+    const live = controls();
+    showing(live);
+    const button = screen.getByRole("button", { name: "Pause live updates" });
+    expect(button.tagName).toBe("BUTTON");
+    expect(button.getAttribute("type")).toBe("button");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.className).toContain("live-toggle");
+    fireEvent.click(button);
+    expect(live.onTogglePause).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    showing(controls({ paused: true }));
+    const resume = screen.getByRole("button", { name: "Resume live updates" });
+    expect(resume.getAttribute("aria-pressed")).toBe("true");
+    // The dot that says the page is live says it is not.
+    expect(document.querySelector(".hero__dot")!.classList.contains("is-paused")).toBe(true);
+  });
+
+  it("is next to the hero's status, in the same row", () => {
+    showing(controls());
+    const button = screen.getByRole("button", { name: "Pause live updates" });
+    const row = button.closest(".hero__status-row")!;
+    expect(row).not.toBeNull();
+    expect(row.querySelector(".hero__status")).not.toBeNull();
+  });
+
+  it("is not in the server's HTML, where it could do nothing, and its status element is", () => {
+    const router = createMemoryRouter([{ path: "*", element: <HomePage network={XRPL} data={data()} live={controls()} /> }], { initialEntries: ["/xrpl"] });
+    const html = renderToString(<RouterProvider router={router} />);
+    expect(html).not.toContain("Pause live updates");
+    expect(html).toMatch(/<span[^>]*role="status"[^>]*><\/span>/);
+  });
+
+  describe("the status", () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+    afterEach(() => vi.useRealTimers());
+
+    function Host({ failures }: { failures: number }) {
+      return <HomePage network={XRPL} data={data()} live={controls({ failures })} />;
+    }
+    let setFailures!: (failures: number) => void;
+    function Counting() {
+      const [failures, set] = useState(0);
+      setFailures = (next) => act(() => set(next));
+      return <Host failures={failures} />;
+    }
+    const mountCounting = () => renderInRouter(<Counting />);
+
+    it("says nothing while the updates work, and after one failure", () => {
+      mountCounting();
+      expect(status().textContent).toBe("");
+      setFailures(1);
+      expect(status().textContent).toBe("");
+    });
+
+    it("says, after two failures in a row, that the updates are paused and retrying, in visible text", () => {
+      mountCounting();
+      setFailures(1);
+      setFailures(2);
+      expect(status().textContent).toBe("Live updates paused, retrying…");
+      expect(document.querySelector(".hero__dot")!.classList.contains("is-paused")).toBe(true);
+      // Visible, and not removed from the page for the eye: no `sr` class, no hiding.
+      expect(status().classList.contains("sr")).toBe(false);
+      expect(status().hasAttribute("hidden")).toBe(false);
+    });
+
+    it("changes its text on these transitions only: a third failure does not touch it, so a screen reader hears it once", () => {
+      mountCounting();
+      setFailures(2);
+      const changes: string[] = [];
+      const observer = new MutationObserver((records) => records.forEach((record) => changes.push(record.type)));
+      observer.observe(status(), { childList: true, characterData: true, subtree: true });
+      setFailures(3);
+      setFailures(4);
+      setFailures(5);
+      expect(changes).toEqual([]);
+      observer.disconnect();
+    });
+
+    it("says that the updates are back, when they are, and then says nothing again", () => {
+      mountCounting();
+      setFailures(2);
+      setFailures(0);
+      expect(status().textContent).toBe("Live updates reconnected");
+      act(() => void vi.advanceTimersByTime(3999));
+      expect(status().textContent).toBe("Live updates reconnected");
+      act(() => void vi.advanceTimersByTime(1));
+      expect(status().textContent).toBe("");
+      expect(document.querySelector(".hero__dot")!.classList.contains("is-paused")).toBe(false);
+    });
+
+    it("does not say 'reconnected' after a single failure that cleared, which was never announced", () => {
+      mountCounting();
+      setFailures(1);
+      setFailures(0);
+      expect(status().textContent).toBe("");
+    });
+
+    it("is a status of the page and not an alert, set up before anything changes it, and the same element for good", () => {
+      mountCounting();
+      const element = status();
+      expect(element.getAttribute("role")).toBe("status");
+      setFailures(2);
+      expect(status()).toBe(element);
+      setFailures(0);
+      expect(status()).toBe(element);
+    });
+  });
+
+  describe("holding the updates while the visitor is on a table", () => {
+    const ledgers = () => screen.getByRole("region", { name: "Latest ledgers, scrollable table" });
+    const transactions = () => screen.getByRole("region", { name: "Latest transactions, scrollable table" });
+    const holds = (live: LiveControls) => (live.onHold as ReturnType<typeof vi.fn>).mock.calls.map(([held]) => held);
+
+    it("holds while a mouse is over either table, and lets go when it leaves", () => {
+      const live = controls();
+      showing(live);
+      fireEvent.pointerEnter(ledgers(), { pointerType: "mouse" });
+      fireEvent.pointerLeave(ledgers(), { pointerType: "mouse" });
+      fireEvent.pointerEnter(transactions(), { pointerType: "mouse" });
+      fireEvent.pointerLeave(transactions(), { pointerType: "mouse" });
+      expect(holds(live)).toEqual([true, false, true, false]);
+    });
+
+    it("holds while focus is anywhere inside a table, and lets go when it leaves the table (not when it moves inside it)", () => {
+      const live = controls();
+      showing(live);
+      const links = within(ledgers()).getAllByRole("link");
+      act(() => links[0]!.focus());
+      act(() => links[1]!.focus());
+      expect(holds(live).at(-1)).toBe(true);
+      act(() => within(transactions()).getAllByRole("link")[0]!.focus());
+      expect(holds(live).at(-1)).toBe(true);
+      act(() => (document.activeElement as HTMLElement).blur());
+      expect(holds(live).at(-1)).toBe(false);
+    });
+
+    it("does not let go while the other kind of hold is still there: a mouse left, focus is still in the table", () => {
+      const live = controls();
+      showing(live);
+      act(() => within(ledgers()).getAllByRole("link")[0]!.focus());
+      fireEvent.pointerEnter(ledgers(), { pointerType: "mouse" });
+      fireEvent.pointerLeave(ledgers(), { pointerType: "mouse" });
+      expect(holds(live).every(Boolean)).toBe(true);
+      act(() => (document.activeElement as HTMLElement).blur());
+      expect(holds(live).at(-1)).toBe(false);
+    });
+
+    it("is not for a finger: a touch is not a pointer that stays over a table", () => {
+      const live = controls();
+      showing(live);
+      fireEvent.pointerEnter(ledgers(), { pointerType: "touch" });
+      expect(holds(live)).toEqual([]);
+    });
+
+    it("tells nobody when there is nobody to tell", () => {
+      showing();
+      expect(() => fireEvent.pointerEnter(ledgers(), { pointerType: "mouse" })).not.toThrow();
+    });
   });
 });

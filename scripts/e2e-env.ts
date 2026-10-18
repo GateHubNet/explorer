@@ -53,9 +53,15 @@ export function upstreamUrls(env: Record<string, string | undefined>, fixtureUrl
  */
 export function fixturePort(env: Record<string, string | undefined>): number {
   const worker = Number(env.E2E_PORT ?? 8832);
-  const port = env.E2E_FIXTURE_PORT === undefined ? worker + 2 : Number(env.E2E_FIXTURE_PORT);
+  const given = env.E2E_FIXTURE_PORT;
+  if (given !== undefined && given.trim() === "") {
+    throw new Error("E2E_FIXTURE_PORT is set but empty: give it a port, or leave it unset for the Worker's port plus two");
+  }
+  const port = given === undefined ? worker + 2 : Number(given);
   if (port === 5173) throw new Error("the fixture server's port is 5173, which another dev server keeps");
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`${env.E2E_FIXTURE_PORT ?? worker + 2} is not a port for the fixture server`);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`${given === undefined ? `E2E_PORT + 2 (${port})` : `E2E_FIXTURE_PORT=${given}`} is not a port for the fixture server`);
+  }
   return port;
 }
 

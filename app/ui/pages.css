@@ -44,6 +44,25 @@
   white-space: nowrap;
 }
 
+/* The status line and the button that pauses the updates, side by side; the row is as high as the button (44 px) whether or not the button
+   is there yet (it is added when the script runs), so that nothing below it moves. */
+.hero__status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  min-height: 44px;
+}
+
+/* What the page says about its updates, after the line, when there is something to say. */
+.hero__live {
+  color: var(--muted);
+}
+
+.hero__live:not(:empty) {
+  margin-left: 8px;
+}
+
 .hero__dot {
   flex: none;
   width: 8px;
@@ -52,6 +71,12 @@
   border-radius: 50%;
   background: var(--ok);
   box-shadow: 0 0 0 4px var(--ok-bg);
+}
+
+/* The dot says the page is live; it says it is not when the updates are paused or cannot reach the page. */
+.hero__dot.is-paused {
+  background: var(--faint);
+  box-shadow: 0 0 0 4px var(--sunken);
 }
 
 .hero__title {

@@ -57,18 +57,44 @@ export interface HomePageData {
   examples: HomeExample[];
 }
 
+/**
+ * What the home route's loader returns: the page, and the `BUILD_ID` of the Worker that made it (a short git commit, not a secret). An open
+ * page compares it with the build it was loaded with: after a deploy, data of a new shape must not be drawn by the old code, so it reloads
+ * (`app/ui/home-live.ts`).
+ */
+export interface HomeLoaderData extends HomePageData {
+  build: string;
+}
+
 /** An ISO 8601 time of the data API as unix seconds. */
 const seconds = (iso: string): number => Math.floor(Date.parse(iso) / 1000);
 
+/**
+ * The ledger the page shows as the latest, whose header the loader asks for: `last_validated`'s, unless the fees list is not up to it.
+ * The two are read from different places and can disagree for a moment (the list is computed from the ledger table, which may not have the
+ * ledger `last_validated` names yet). The page used to say "—" for that ledger's transactions and fees for a beat, and the next beat had them:
+ * the tiles flickered. Now the newest ledger the list has is the latest, so that the page is at most a ledger behind and has no hole. A
+ * list that is ahead of `last_validated`, or has no rows, changes nothing.
+ */
+export function latestLedgerIndex(last: LastValidated, fees: readonly FeeRow[]): number {
+  const named = Number(last.ledger_index);
+  if (fees.length === 0) return named;
+  const newestCounted = Math.max(...fees.map((row) => row.ledger_index));
+  return newestCounted < named ? newestCounted : named;
+}
+
+/**
+ * The page's data. Everything about the latest ledger (its index, hash, close time, supply, and the fees row that counts it) is that of
+ * `ledger`, whose index `latestLedgerIndex` chose, so the tiles and the hero always say the same ledger.
+ */
 export function homePage(input: {
   network: Pick<Network, "id" | "ctidNetworkId" | "native">;
-  last: LastValidated;
   ledger: Ledger;
   fees: readonly FeeRow[];
   transactions: readonly TxObject[];
 }): HomePageData {
-  const { network, last, ledger, fees, transactions } = input;
-  const index = Number(last.ledger_index);
+  const { network, ledger, fees, transactions } = input;
+  const index = Number(ledger.ledger_index);
 
   const counted = fees.find((row) => row.ledger_index === index);
   const rows: HomeTxRow[] = transactions.map(({ hash, tx, meta, date }) => ({
@@ -106,7 +132,7 @@ export function homePage(input: {
   return {
     latest: {
       index,
-      hash: last.ledger_hash,
+      hash: ledger.ledger_hash,
       closeTime: ledger.close_time,
       supply: dropsToNative(ledger.total_coins),
     },
