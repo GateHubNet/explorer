@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Account analytics</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;--up:#2a78d6;--down:#e34948;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C;--up:#3987e5;--down:#e66767}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:5px;vertical-align:middle;min-width:30px;min-height:30px;position:relative}
+.copy::after{content:'';position:absolute;inset:-7px}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.amt{font-family:'Geist Mono',ui-monospace,monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.tab{border:0;background:transparent;padding:12px 2px;margin-right:20px;cursor:pointer;color:var(--muted)!important;font-weight:500;border-bottom:2px solid transparent;min-height:46px;white-space:nowrap;display:inline-flex;align-items:center;box-sizing:border-box}
+.tab:hover{color:var(--fg)!important;text-decoration:none!important}
+.tab.on{color:var(--fg)!important;border-bottom-color:var(--accent)}
+.flag{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:var(--surface)}
+.idc{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;width:44px;height:44px;padding:4px;border-radius:11px;background:var(--sunken);box-sizing:border-box;flex:none}
+.idc span{border-radius:2px}
+.plot{position:relative;height:200px}
+.gl{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+.gl.base{border-top-color:var(--axis)}
+.yl{position:absolute;right:10px;transform:translateY(50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.col{flex:1 1 0;height:100%;display:flex;align-items:flex-end;justify-content:center;border:0;background:transparent;padding:0;min-width:0;cursor:default;position:relative}
+.col:focus-visible{outline:2px solid var(--link);outline-offset:-2px;border-radius:4px}
+.stack{width:min(24px,72%);display:flex;flex-direction:column-reverse;gap:2px;border-radius:4px 4px 0 0;overflow:hidden}
+.stack span{flex-basis:0;min-height:1px}
+.col.dim .stack,.col.dim .fail{opacity:.45}
+.fail{position:absolute;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;line-height:1;color:var(--bad);pointer-events:none}
+.dcol{flex:1 1 0;height:100%;position:relative;border:0;background:transparent;padding:0;min-width:0;cursor:default}
+.dcol:focus-visible{outline:2px solid var(--link);outline-offset:-2px;border-radius:4px}
+.dup{position:absolute;bottom:50%;left:50%;transform:translateX(-50%);width:min(24px,72%);background:var(--up);border-radius:4px 4px 0 0;margin-bottom:1px}
+.ddn{position:absolute;top:50%;left:50%;transform:translateX(-50%);width:min(24px,72%);background:var(--down);border-radius:0 0 4px 4px;margin-top:1px}
+.dcol.dim .dup,.dcol.dim .ddn{opacity:.45}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:170px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip .k{display:inline-block;width:12px;height:2px;border-radius:1px;margin-right:8px;vertical-align:middle}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.hit{position:absolute;inset:0;border:0;background:transparent;padding:0;cursor:crosshair;width:100%;height:100%}
+.xh{position:absolute;top:0;bottom:0;width:1px;background:var(--border-strong);pointer-events:none}
+.dot{position:absolute;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px var(--surface);pointer-events:none;background:var(--s1)}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:560px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.pos{color:var(--ok)}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" style="display: flex; padding: 3px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px;">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav cur" href="Account.dc.html" aria-current="page">Accounts</a>
+      <a class="nav" href="Network.dc.html">Network</a>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+    </nav>
+    <form role="search" style="flex: 1 1 260px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+      <span class="mono" style="font-size: 11px; color: var(--faint); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px;">/</span>
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 20px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><span>Accounts</span><span aria-hidden="true">/</span><span class="mono" aria-current="page" style="color: var(--muted);">rJF2Xa…FQvg</span>
+  </nav>
+
+  <section aria-label="Account" style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; display: flex; flex-wrap: wrap; gap: 22px 32px; align-items: flex-start; justify-content: space-between;">
+    <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
+        <div class="idc" aria-hidden="true">
+          <sc-for list="{{cells}}" as="c" hint-placeholder-count="25"><span style="background: {{c.bg}};"></span></sc-for>
+        </div>
+        <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 12px; color: var(--faint); font-weight: 500;">Account</span>
+          <h1 class="mono" style="margin: 0; font-size: 21px; font-weight: 500; overflow-wrap: anywhere; letter-spacing: -0.01em;">rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg<button type="button" class="copy" aria-label="Copy address"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button><button type="button" class="copy" aria-label="Show QR code"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path></svg></button></h1>
+        </div>
+      </div>
+      <p style="margin: 0; color: var(--muted);">Activated on <span class="num">14 Mar 2019</span> by <a class="mono" href="Account.dc.html">rYogZ7…aWm</a> with <span class="amt" style="font-weight: 400;">25 {{cur}}</span> · domain <a href="#">example.com</a></p>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        <span class="flag"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Requires destination tag</span>
+        <span class="flag"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Regular key set</span>
+        <span class="flag">Sequence <span class="mono num">46,118,303</span></span>
+        <span class="flag">Last active <a href="Transaction.dc.html">3 s ago</a></span>
+      </div>
+    </div>
+    <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 12px; background: var(--sunken); border: 1px solid var(--border);">
+      <span style="font-size: 12px; color: var(--faint); font-weight: 500;">{{cur}} balance</span>
+      <span class="amt" style="font-size: 28px; letter-spacing: -0.015em;">12,480.256114</span>
+      <span style="font-size: 13px; color: var(--muted);">Available <span class="amt" style="font-weight: 400;">12,477.856114</span></span>
+      <span style="font-size: 12px; color: var(--faint);">Reserve 2.4 {{cur}} = 1 base + 7 objects × 0.2</span>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Account sections" style="overflow: hidden;">
+    <div style="padding: 0 16px; border-bottom: 1px solid var(--border); overflow-x: auto;">
+      <nav aria-label="Account sections" style="display: flex;">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5"><a class="tab" href="Account.dc.html">{{t.label}}<span class="mono num" style="font-size: 12px; color: var(--faint); margin-left: 6px;">{{t.n}}</span></a></sc-for>
+        <a class="tab on" href="AccountAnalytics.dc.html" aria-current="page">Analytics</a>
+      </nav>
+    </div>
+    <div role="group" aria-label="Analytics filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 14px 16px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 13px; color: var(--faint);">Period</span>
+        <div class="segs"><sc-for list="{{periods}}" as="p" hint-placeholder-count="4"><button type="button" class="seg {{p.cls}}" aria-pressed="{{p.on}}" onClick="{{p.pick}}">{{p.label}}</button></sc-for></div>
+      </div>
+      <span style="font-size: 13px; color: var(--muted);">Values in <b style="color: var(--fg); font-weight: 600;">{{cur}}</b>; tokens converted at each {{unit}}'s DEX rate</span>
+      <span style="font-size: 12px; color: var(--faint); margin-left: auto;">{{periodNote}}</span>
+    </div>
+  </section>
+
+  <section aria-label="Summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px;">
+    <sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+      <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">{{t.label}}</span>
+        <span class="num" style="font-size: 24px; font-weight: 600; letter-spacing: -0.015em;">{{t.value}}</span>
+        <span style="font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px;">
+          <sc-if value="{{t.up}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M5 1.5 9 8H1z" fill="currentColor"></path></svg></sc-if>
+          <sc-if value="{{t.down}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M5 8.5 1 2h8z" fill="currentColor"></path></svg></sc-if>
+          {{t.sub}}
+        </span>
+        <span class="src">{{t.src}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+    <section class="card" aria-labelledby="av-title" style="flex: 1 1 480px; min-width: 0; padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 id="av-title" style="margin: 0; font-size: 15px; font-weight: 600;">Account value, in {{cur}}</h2>
+          <span class="src">/v2/accounts/{a}/stats/value</span>
+        </div>
+        <div class="segs">
+          <button type="button" class="seg {{vw.chartCls}}" aria-pressed="{{vw.isChart}}" onClick="{{vw.showChart}}">Chart</button>
+          <button type="button" class="seg {{vw.tableCls}}" aria-pressed="{{vw.isTable}}" onClick="{{vw.showTable}}">Table</button>
+        </div>
+      </div>
+      <sc-if value="{{vw.isChart}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex;">
+          <div style="position: relative; width: 56px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{vAxis}}" as="a" hint-placeholder-count="4"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+          <div style="flex: 1 1 auto; min-width: 0;">
+            <div class="plot">
+              <sc-for list="{{vAxis}}" as="a" hint-placeholder-count="4"><span class="gl" style="bottom: {{a.pos}};"></span></sc-for>
+              <svg aria-hidden="true" viewBox="0 0 1000 200" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;">
+                <path d="{{vLine}}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" style="stroke: var(--s1);"></path>
+              </svg>
+              <span class="dot" style="left: 100%; top: {{vEnd}};"></span>
+              <sc-if value="{{vTip.show}}" hint-placeholder-val="{{false}}">
+                <span class="xh" style="left: {{vTip.left}};"></span>
+                <span class="dot" style="left: {{vTip.left}}; top: {{vTip.top}};"></span>
+                <div class="tip" style="left: {{vTip.left}}; transform: {{vTip.tf}};"><span style="color: var(--faint);">{{vTip.date}}</span><span><span class="k" style="background: var(--s1);"></span><b>{{vTip.v}} {{cur}}</b></span></div>
+              </sc-if>
+              <button type="button" class="hit" aria-label="Account value chart. Use the arrow keys to read values." onMouseMove="{{vMove}}" onMouseLeave="{{vLeave}}" onBlur="{{vLeave}}" onFocus="{{vFocus}}" onKeyDown="{{vKey}}"></button>
+            </div>
+            <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{lineXl}}" as="x" hint-placeholder-count="5"><span class="xl" style="left: {{x.pos}};">{{x.label}}</span></sc-for></div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{vw.isTable}}" hint-placeholder-val="{{false}}">
+        <div class="tbl" role="table" aria-label="Account value" style="--cols: minmax(110px, 1fr) minmax(130px, 1fr) minmax(100px, 1fr);">
+          <div role="row" class="trow th"><span role="columnheader">{{unitCap}}</span><span role="columnheader">Value, {{cur}}</span><span role="columnheader">Change</span></div>
+          <sc-for list="{{vRows}}" as="r" hint-placeholder-count="8"><div role="row" class="trow"><span role="cell">{{r.date}}</span><span role="cell">{{r.v}}</span><span role="cell">{{r.d}}</span></div></sc-for>
+        </div>
+      </sc-if>
+      <span style="font-size: 12px; color: var(--faint);">{{cur}} plus every token held, at the end of each {{unit}}. The axis does not start at zero.</span>
+    </section>
+
+    <section class="card" aria-labelledby="ac-title" style="flex: 1 1 480px; min-width: 0; padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 id="ac-title" style="margin: 0; font-size: 15px; font-weight: 600;">Transactions sent per {{unit}}, by type</h2>
+          <span class="src">/v2/accounts/{a}/stats/transactions</span>
+        </div>
+        <div class="segs">
+          <button type="button" class="seg {{aw.chartCls}}" aria-pressed="{{aw.isChart}}" onClick="{{aw.showChart}}">Chart</button>
+          <button type="button" class="seg {{aw.tableCls}}" aria-pressed="{{aw.isTable}}" onClick="{{aw.showTable}}">Table</button>
+        </div>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <sc-for list="{{typeLegend}}" as="g" hint-placeholder-count="6"><span><span class="sw" style="background: {{g.color}};"></span>{{g.name}}</span></sc-for>
+        <span><span aria-hidden="true" style="color: var(--bad); font-weight: 700; margin-right: 6px;">×</span>has a failed transaction</span>
+      </div>
+      <sc-if value="{{aw.isChart}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex;">
+          <div style="position: relative; width: 40px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{aAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+          <div style="flex: 1 1 auto; min-width: 0;">
+            <div class="plot" onMouseLeave="{{aLeave}}">
+              <sc-for list="{{aAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+              <div style="position: absolute; inset: 0; display: flex; align-items: flex-end;">
+                <sc-for list="{{aCols}}" as="c" hint-placeholder-count="30">
+                  <button type="button" class="col {{c.cls}}" aria-label="{{c.aria}}" onMouseEnter="{{c.enter}}" onFocus="{{c.enter}}" onBlur="{{aLeave}}">
+                    <span class="stack" style="height: {{c.h}};">
+                      <sc-for list="{{c.segs}}" as="s" hint-placeholder-count="6"><span style="flex-grow: {{s.grow}}; background: {{s.color}};"></span></sc-for>
+                    </span>
+                    <sc-if value="{{c.failed}}" hint-placeholder-val="{{false}}"><span class="fail" aria-hidden="true" style="bottom: calc({{c.h}} + 4px);">×</span></sc-if>
+                  </button>
+                </sc-for>
+              </div>
+              <sc-if value="{{aTip.show}}" hint-placeholder-val="{{false}}">
+                <div class="tip" style="left: {{aTip.left}}; transform: {{aTip.tf}};">
+                  <span style="color: var(--faint);">{{aTip.date}}</span>
+                  <sc-for list="{{aTip.rows}}" as="r" hint-placeholder-count="4"><span><span class="k" style="background: {{r.color}};"></span><b>{{r.v}}</b> <span style="color: var(--muted);">{{r.name}}</span></span></sc-for>
+                  <span style="border-top: 1px solid var(--border); padding-top: 4px; margin-top: 2px;"><b>{{aTip.total}}</b> <span style="color: var(--muted);">sent · {{aTip.failed}} failed</span></span>
+                </div>
+              </sc-if>
+            </div>
+            <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{colXl}}" as="x" hint-placeholder-count="5"><span class="xl" style="left: {{x.pos}};">{{x.label}}</span></sc-for></div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{aw.isTable}}" hint-placeholder-val="{{false}}">
+        <div class="tbl" role="table" aria-label="Transactions sent by type" style="--cols: 90px repeat({{typeCount}}, minmax(70px, 1fr)) 70px 70px;">
+          <div role="row" class="trow th"><span role="columnheader">{{unitCap}}</span><sc-for list="{{typeLegend}}" as="g" hint-placeholder-count="6"><span role="columnheader">{{g.name}}</span></sc-for><span role="columnheader">Total</span><span role="columnheader">Failed</span></div>
+          <sc-for list="{{aRows}}" as="r" hint-placeholder-count="8">
+            <div role="row" class="trow"><span role="cell">{{r.date}}</span><sc-for list="{{r.vals}}" as="v" hint-placeholder-count="6"><span role="cell">{{v.t}}</span></sc-for><span role="cell" style="font-weight: 600;">{{r.total}}</span><span role="cell">{{r.failed}}</span></div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="bh-title" style="padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="bh-title" style="margin: 0; font-size: 15px; font-weight: 600;">Balance history, per currency</h2>
+        <span class="src">/v2/accounts/{a}/balance_changes</span>
+      </div>
+      <div class="segs">
+        <button type="button" class="seg {{bw.chartCls}}" aria-pressed="{{bw.isChart}}" onClick="{{bw.showChart}}">Chart</button>
+        <button type="button" class="seg {{bw.tableCls}}" aria-pressed="{{bw.isTable}}" onClick="{{bw.showTable}}">Table</button>
+      </div>
+    </div>
+    <sc-if value="{{bw.isChart}}" hint-placeholder-val="{{true}}">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 18px 22px;">
+        <sc-for list="{{balPanels}}" as="p" hint-placeholder-count="4">
+          <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;">
+              <span style="font-weight: 600;">{{p.cur}}</span>
+              <span style="font-size: 12px; color: var(--muted);"><b class="amt" style="color: var(--fg);">{{p.readV}}</b> {{p.readD}}</span>
+            </div>
+            <div style="display: flex;">
+              <div style="position: relative; width: 48px; flex: none;" aria-hidden="true"><div class="plot" style="height: 110px;"><sc-for list="{{p.ticks}}" as="a" hint-placeholder-count="3"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+              <div style="flex: 1 1 auto; min-width: 0;">
+                <div class="plot" style="height: 110px;">
+                  <sc-for list="{{p.ticks}}" as="a" hint-placeholder-count="3"><span class="gl" style="bottom: {{a.pos}};"></span></sc-for>
+                  <svg aria-hidden="true" viewBox="0 0 1000 110" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;">
+                    <path d="{{p.path}}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" style="stroke: var(--s1);"></path>
+                  </svg>
+                  <span class="dot" style="left: 100%; top: {{p.endTop}};"></span>
+                  <sc-if value="{{p.hov}}" hint-placeholder-val="{{false}}">
+                    <span class="xh" style="left: {{bLeft}};"></span>
+                    <span class="dot" style="left: {{bLeft}}; top: {{p.hovTop}};"></span>
+                  </sc-if>
+                  <button type="button" class="hit" aria-label="{{p.aria}}" onMouseMove="{{bMove}}" onMouseLeave="{{bLeave}}" onBlur="{{bLeave}}" onFocus="{{bFocus}}" onKeyDown="{{bKey}}"></button>
+                </div>
+                <div style="position: relative; height: 22px;" aria-hidden="true"><sc-for list="{{edgeXl}}" as="x" hint-placeholder-count="2"><span class="xl" style="left: {{x.pos}}; transform: {{x.tf}};">{{x.label}}</span></sc-for></div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{bw.isTable}}" hint-placeholder-val="{{false}}">
+      <div class="tbl" role="table" aria-label="Balance history" style="--cols: minmax(100px, 1fr) repeat(4, minmax(100px, 1fr));">
+        <div role="row" class="trow th"><span role="columnheader">{{unitCap}}</span><sc-for list="{{balPanels}}" as="p" hint-placeholder-count="4"><span role="columnheader">{{p.cur}}</span></sc-for></div>
+        <sc-for list="{{bRows}}" as="r" hint-placeholder-count="8"><div role="row" class="trow"><span role="cell">{{r.date}}</span><sc-for list="{{r.vals}}" as="v" hint-placeholder-count="4"><span role="cell">{{v.t}}</span></sc-for></div></sc-for>
+      </div>
+    </sc-if>
+    <span style="font-size: 12px; color: var(--faint);">Each currency on its own scale; hover one to read all four on the same {{unit}}.</span>
+  </section>
+
+  <section class="card" aria-labelledby="mf-title" style="padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="mf-title" style="margin: 0; font-size: 15px; font-weight: 600;">Money in and out per {{unit}}, in {{cur}}</h2>
+        <span class="src">/v2/accounts/{a}/reports</span>
+      </div>
+      <div class="segs">
+        <button type="button" class="seg {{mw.chartCls}}" aria-pressed="{{mw.isChart}}" onClick="{{mw.showChart}}">Chart</button>
+        <button type="button" class="seg {{mw.tableCls}}" aria-pressed="{{mw.isTable}}" onClick="{{mw.showTable}}">Table</button>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px;">
+      <div class="legend" aria-label="Legend">
+        <span><span class="sw" style="background: var(--up);"></span>Received, drawn up</span>
+        <span><span class="sw" style="background: var(--down);"></span>Sent, drawn down</span>
+      </div>
+      <span class="num" style="font-size: 12.5px; color: var(--muted);">Received <b style="color: var(--fg);">+{{mIn}}</b> · sent <b style="color: var(--fg);">−{{mOut}}</b> · net <b style="color: var(--fg);">{{mNet}}</b> {{cur}}</span>
+    </div>
+    <sc-if value="{{mw.isChart}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex;">
+        <div style="position: relative; width: 56px; flex: none;" aria-hidden="true"><div class="plot" style="height: 220px;"><sc-for list="{{mAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+        <div style="flex: 1 1 auto; min-width: 0;">
+          <div class="plot" style="height: 220px;" onMouseLeave="{{mLeave}}">
+            <sc-for list="{{mAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+            <div style="position: absolute; inset: 0; display: flex;">
+              <sc-for list="{{mCols}}" as="c" hint-placeholder-count="30">
+                <button type="button" class="dcol {{c.cls}}" aria-label="{{c.aria}}" onMouseEnter="{{c.enter}}" onFocus="{{c.enter}}" onBlur="{{mLeave}}"><span class="dup" style="height: {{c.up}};"></span><span class="ddn" style="height: {{c.dn}};"></span></button>
+              </sc-for>
+            </div>
+            <sc-if value="{{mTip.show}}" hint-placeholder-val="{{false}}">
+              <div class="tip" style="left: {{mTip.left}}; transform: {{mTip.tf}};">
+                <span style="color: var(--faint);">{{mTip.date}}</span>
+                <span><span class="k" style="background: var(--up);"></span><b>+{{mTip.rin}}</b> <span style="color: var(--muted);">received</span></span>
+                <span><span class="k" style="background: var(--down);"></span><b>−{{mTip.rout}}</b> <span style="color: var(--muted);">sent</span></span>
+                <span style="border-top: 1px solid var(--border); padding-top: 4px; margin-top: 2px;"><b>{{mTip.net}}</b> <span style="color: var(--muted);">net {{cur}}</span></span>
+              </div>
+            </sc-if>
+          </div>
+          <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{colXl}}" as="x" hint-placeholder-count="5"><span class="xl" style="left: {{x.pos}};">{{x.label}}</span></sc-for></div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{mw.isTable}}" hint-placeholder-val="{{false}}">
+      <div class="tbl" role="table" aria-label="Money in and out" style="--cols: minmax(100px, 1fr) repeat(3, minmax(110px, 1fr));">
+        <div role="row" class="trow th"><span role="columnheader">{{unitCap}}</span><span role="columnheader">Received</span><span role="columnheader">Sent</span><span role="columnheader">Net</span></div>
+        <sc-for list="{{mRows}}" as="r" hint-placeholder-count="8"><div role="row" class="trow"><span role="cell">{{r.date}}</span><span role="cell">+{{r.rin}}</span><span role="cell">−{{r.rout}}</span><span role="cell">{{r.net}}</span></div></sc-for>
+      </div>
+    </sc-if>
+    <span style="font-size: 12px; color: var(--faint);">Payments, DEX trades, escrow and channels that changed this account's balances. Amounts that only passed through are left out.</span>
+  </section>
+
+  <section class="card" aria-labelledby="bc-title" style="overflow: hidden;">
+    <div style="padding: 14px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="bc-title" style="margin: 0; font-size: 15px; font-weight: 600;">Where balance changes come from, {{periodLabel}}</h2>
+        <span class="src">/v2/accounts/{a}/balance_changes</span>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <span><span class="sw" style="background: var(--down);"></span>Out, to the left</span>
+        <span><span class="sw" style="background: var(--up);"></span>In, to the right</span>
+      </div>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Balance changes by type" style="min-width: 900px; --cols: minmax(170px, 1fr) minmax(260px, 1.6fr) 120px 120px 120px 80px;">
+        <div role="row" class="tr th"><span role="columnheader">Change type</span><span role="columnheader" style="text-align: center;">Out · In</span><span role="columnheader" class="r">In, {{cur}}</span><span role="columnheader" class="r">Out, {{cur}}</span><span role="columnheader" class="r">Net, {{cur}}</span><span role="columnheader" class="r">Changes</span></div>
+        <div class="tb">
+          <sc-for list="{{chg}}" as="c" hint-placeholder-count="7">
+            <div role="row" class="tr">
+              <span role="cell" style="display: flex; flex-direction: column; line-height: 1.3;"><span style="font-weight: 500;">{{c.label}}</span><span style="font-size: 11.5px; color: var(--faint);">{{c.hint}}</span></span>
+              <span role="cell" title="{{c.title}}" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; height: 24px;">
+                <span aria-hidden="true" style="display: flex; justify-content: flex-end; align-items: center; height: 100%; border-right: 1px solid var(--axis); padding-right: 1px;"><span style="height: 14px; width: {{c.outW}}; background: var(--down); border-radius: 3px 0 0 3px;"></span></span>
+                <span aria-hidden="true" style="display: flex; justify-content: flex-start; align-items: center; height: 100%; padding-left: 1px;"><span style="height: 14px; width: {{c.inW}}; background: var(--up); border-radius: 0 3px 3px 0;"></span></span>
+                <span class="sr">{{c.title}}</span>
+              </span>
+              <span role="cell" class="r amt" style="font-weight: 400;">{{c.inV}}</span>
+              <span role="cell" class="r amt" style="font-weight: 400;">{{c.outV}}</span>
+              <span role="cell" class="r amt">{{c.net}}</span>
+              <span role="cell" class="r num" style="color: var(--muted);">{{c.n}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">Every balance change of the period, grouped by what caused it. Passed through: payments that rippled through this account's trust lines on their way to someone else.</div>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+    <section class="card" aria-labelledby="cp-title" style="flex: 1 1 460px; min-width: 0; overflow: hidden;">
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="cp-title" style="margin: 0; font-size: 15px; font-weight: 600;">Top counterparties, by value</h2>
+        <span class="src">/v2/accounts/{a}/reports</span>
+      </div>
+      <div style="overflow-x: auto;">
+        <div role="table" aria-label="Top counterparties" style="min-width: 480px; --cols: minmax(130px, 1fr) 110px 110px 80px;">
+          <div role="row" class="tr th"><span role="columnheader">Counterparty</span><span role="columnheader" class="r">Sent, {{cur}}</span><span role="columnheader" class="r">Received, {{cur}}</span><span role="columnheader" class="r">Payments</span></div>
+          <div class="tb">
+            <sc-for list="{{cps}}" as="c" hint-placeholder-count="6">
+              <div role="row" class="tr">
+                <span role="cell"><a class="mono" href="Account.dc.html">{{c.acct}}</a></span>
+                <span role="cell" class="r amt" style="font-weight: 400;">{{c.sent}}</span>
+                <span role="cell" class="r amt" style="font-weight: 400;">{{c.recv}}</span>
+                <span role="cell" class="r num" style="color: var(--muted);">{{c.n}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">{{cpNote}}</div>
+    </section>
+
+    <section class="card" aria-labelledby="dx-title" style="flex: 1 1 460px; min-width: 0; overflow: hidden;">
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="dx-title" style="margin: 0; font-size: 15px; font-weight: 600;">DEX trading, per pair</h2>
+        <span class="src">/v2/accounts/{a}/exchanges</span>
+      </div>
+      <div style="overflow-x: auto;">
+        <div role="table" aria-label="DEX trading per pair" style="min-width: 520px; --cols: minmax(110px, 1fr) 100px 64px 110px 110px;">
+          <div role="row" class="tr th"><span role="columnheader">Pair</span><span role="columnheader" class="r">Volume, {{cur}}</span><span role="columnheader" class="r">Trades</span><span role="columnheader" class="r">Bought</span><span role="columnheader" class="r">Sold</span></div>
+          <div class="tb">
+            <sc-for list="{{pairs}}" as="p" hint-placeholder-count="4">
+              <div role="row" class="tr">
+                <span role="cell" style="display: flex; flex-direction: column; line-height: 1.3; min-width: 0;"><a href="MarketPair.dc.html" style="font-weight: 600; color: var(--fg);">{{p.pair}}</a><span class="mono" style="font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{p.issuer}}</span></span>
+                <span role="cell" class="r amt">{{p.vol}}</span>
+                <span role="cell" class="r num" style="color: var(--muted);">{{p.n}}</span>
+                <span role="cell" class="r amt" style="font-weight: 400;">{{p.bought}}</span>
+                <span role="cell" class="r amt" style="font-weight: 400;">{{p.sold}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">{{dexNote}}</div>
+    </section>
+  </div>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2800}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', period: '30d', vView: 'chart', aView: 'chart', bView: 'chart', mView: 'chart', vHov: -1, aHov: -1, bHov: -1, mHov: -1 };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const st = this.state;
+    const cur = x ? 'XRP' : 'XAH';
+    const fmt = (n) => Math.round(n).toLocaleString('en-US');
+    const fmt2 = (n, d) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    const compact = (n) => {
+      const a = Math.abs(n);
+      if (a >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+      if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e8 ? 0 : 1) + 'M';
+      if (a >= 1e3) return (n / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'K';
+      if (a >= 1 || a === 0) return String(Math.round(n));
+      return String(+n.toPrecision(2));
+    };
+    const tickLab = (v) => Math.abs(v) >= 1000 ? compact(v) : String(+v.toFixed(4));
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const niceStep = (rough) => { const r = rough > 0 ? rough : 1; const mag = Math.pow(10, Math.floor(Math.log10(r))); return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= r - 1e-12); };
+    const niceAxis = (max) => {
+      const step = niceStep(Math.max(max, 1) / 4);
+      const top = Math.ceil(Math.max(max, 1) / step - 1e-9) * step;
+      const ticks = [];
+      for (let k = 0; k * step <= top + 1e-9; k++) ticks.push({ pos: (k * step / top * 100).toFixed(2) + '%', label: tickLab(k * step), cls: k === 0 ? 'base' : '' });
+      return { top, ticks };
+    };
+    const niceRange = (mn, mx) => {
+      if (mx - mn < Math.abs(mx) * 1e-6 + 1e-12) { mn = mn - Math.abs(mn) * 0.05 - 1e-9; mx = mx + Math.abs(mx) * 0.05 + 1e-9; }
+      const step = niceStep((mx - mn) / 3);
+      const lo = Math.floor(mn / step + 1e-9) * step, hi = Math.ceil(mx / step - 1e-9) * step;
+      const ticks = [];
+      for (let k = 0; lo + k * step <= hi + step * 1e-6; k++) { const v = lo + k * step; ticks.push({ pos: ((v - lo) / (hi - lo) * 100).toFixed(2) + '%', label: tickLab(v) }); }
+      return { lo, hi, ticks };
+    };
+    const tf = (left) => left < 22 ? 'translateX(8px)' : left > 78 ? 'translateX(calc(-100% - 8px))' : 'translateX(-50%)';
+
+    const addr = 'rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg';
+    let seed = 0;
+    for (let i = 0; i < addr.length; i++) seed = (seed * 31 + addr.charCodeAt(i)) >>> 0;
+    const cells = [];
+    for (let r = 0; r < 5; r++) {
+      const row = [];
+      for (let c = 0; c < 3; c++) { seed = (seed * 1103515245 + 12345) >>> 0; row.push((seed >>> 16) % 2 === 0); }
+      const full = [row[0], row[1], row[2], row[1], row[0]];
+      full.forEach((on) => cells.push({ bg: on ? 'var(--accent)' : 'transparent' }));
+    }
+    const tabs = [['Transactions', '1,284'], ['Payments', '412'], ['Trades', '96'], ['Offers', '2'], ['Objects', '1']].map((t) => ({ label: t[0], n: t[1] }));
+
+    const period = st.period;
+    const P = { '30d': [30, 'day', 1, 'last 30 days'], '90d': [90, 'day', 3, 'last 90 days'], '1y': [52, 'week', 12, 'last year'], 'all': [92, 'month', 70, 'since 14 Mar 2019'] }[period];
+    const n = P[0], unit = P[1], mult = P[2], periodLabel = P[3];
+    const endMs = Date.UTC(2026, 9, 19);
+    const dateOf = (i) => {
+      if (unit === 'month') return new Date(Date.UTC(2026, 9 - (n - 1 - i), 1)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+      const ms = endMs - (n - 1 - i) * (unit === 'week' ? 7 : 1) * 86400000;
+      return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    };
+    const R = seedRng((x ? 1100 : 1300) + n);
+    const xr = x ? 1 : 7.9;
+    const every = Math.ceil(n / 6);
+    const lineXl = [];
+    const colXl = [];
+    for (let i = 0; i < n; i++) if ((n - 1 - i) % every === 0) { lineXl.push({ label: dateOf(i), pos: (n > 1 ? i / (n - 1) * 100 : 50).toFixed(2) + '%' }); colXl.push({ label: dateOf(i), pos: ((i + 0.5) / n * 100).toFixed(2) + '%' }); }
+    const edgeXl = [{ label: dateOf(0), pos: '0%', tf: 'none' }, { label: dateOf(n - 1), pos: '100%', tf: 'translateX(-100%)' }];
+    const xPos = (i) => (n > 1 ? i / (n - 1) * 1000 : 500).toFixed(1);
+    const moveTo = (k) => (e) => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.max(0, Math.min(n - 1, Math.round((e.clientX - r.left) / r.width * (n - 1)))); if (this.state[k] !== i) this.setState({ [k]: i }); };
+    const keyTo = (k) => (e) => { const c = this.state[k] < 0 ? n - 1 : this.state[k]; if (e.key === 'ArrowLeft') { e.preventDefault(); this.setState({ [k]: Math.max(0, c - 1) }); } if (e.key === 'ArrowRight') { e.preventDefault(); this.setState({ [k]: Math.min(n - 1, c + 1) }); } };
+    const view = (k) => {
+      const isChart = st[k] === 'chart';
+      const hk = k[0] + 'Hov';
+      return { isChart, isTable: !isChart, chartCls: isChart ? 'on' : '', tableCls: isChart ? '' : 'on', showChart: () => this.setState({ [k]: 'chart' }), showTable: () => this.setState({ [k]: 'table', [hk]: -1 }) };
+    };
+
+    const valueNow = x ? 16787.15 : 132718.4;
+    const value = [];
+    let vv = valueNow;
+    const vol = unit === 'day' ? 0.022 : unit === 'week' ? 0.05 : 0.09;
+    for (let i = n - 1; i >= 0; i--) { value[i] = vv; vv = vv / (1 + (R() - 0.44) * vol); }
+    const vr = niceRange(Math.min.apply(null, value), Math.max.apply(null, value));
+    const yv = (q) => 1 - (q - vr.lo) / (vr.hi - vr.lo);
+    const vLine = value.map((q, i) => (i ? 'L' : 'M') + xPos(i) + ' ' + (yv(q) * 200).toFixed(1)).join(' ');
+    const vh = st.vHov;
+    const vTip = vh >= 0 && vh < n ? Object.assign({ show: true, date: dateOf(vh), v: fmt2(value[vh], 2), top: (yv(value[vh]) * 100).toFixed(2) + '%', left: (vh / (n - 1) * 100).toFixed(2) + '%' }, { tf: tf(vh / (n - 1) * 100) }) : { show: false, date: '', v: '', top: '0%', left: '0%', tf: '' };
+    const vRows = value.map((q, i) => ({ date: dateOf(i), v: fmt2(q, 2), d: i ? ((q / value[i - 1] - 1) * 100 >= 0 ? '+' : '−') + Math.abs((q / value[i - 1] - 1) * 100).toFixed(2) + '%' : '—' })).reverse();
+    const vChg = (value[n - 1] / value[0] - 1) * 100;
+
+    const types = x
+      ? [['Payment', 'var(--s1)', 0.46], ['OfferCreate', 'var(--s2)', 0.24], ['OfferCancel', 'var(--s3)', 0.09], ['TrustSet', 'var(--s4)', 0.05], ['AMM', 'var(--s5)', 0.06], ['Other', 'var(--s-other)', 0.10]]
+      : [['Payment', 'var(--s1)', 0.52], ['OfferCreate', 'var(--s2)', 0.18], ['ClaimReward', 'var(--s3)', 0.12], ['URIToken', 'var(--s4)', 0.06], ['Other', 'var(--s-other)', 0.12]];
+    const perUnit = { day: 2.1, week: 7, month: 9 }[unit];
+    const cols = [];
+    for (let i = 0; i < n; i++) {
+      const target = perUnit * (0.15 + R() * 1.7);
+      const segs = types.map((t) => ({ name: t[0], color: t[1], v: Math.max(0, Math.round(target * t[2] * (0.4 + R() * 1.2) + (R() - 0.5) * 0.6)) }));
+      const total = segs.reduce((p, s) => p + s.v, 0);
+      const failed = total === 0 ? 0 : unit === 'month' ? Math.round(total * 0.03 * R() * 2) : R() < (unit === 'day' ? 0.1 : 0.35) ? 1 : 0;
+      cols.push({ date: dateOf(i), segs, total, failed });
+    }
+    const aAx = niceAxis(Math.max.apply(null, cols.map((c) => c.total)));
+    const ah = st.aHov;
+    const aCols = cols.map((c, i) => ({
+      h: (c.total / aAx.top * 100).toFixed(2) + '%', segs: c.segs.filter((s) => s.v > 0).map((s) => ({ grow: s.v, color: s.color })),
+      failed: c.failed > 0, cls: ah < 0 ? '' : ah === i ? '' : 'dim',
+      aria: c.date + ': ' + c.total + ' sent' + (c.failed ? ', ' + c.failed + ' failed' : ''), enter: () => this.setState({ aHov: i })
+    }));
+    const aTip = ah >= 0 && ah < n ? { show: true, date: cols[ah].date, total: String(cols[ah].total), failed: String(cols[ah].failed), rows: cols[ah].segs.filter((s) => s.v > 0).map((s) => ({ name: s.name, color: s.color, v: String(s.v) })), left: ((ah + 0.5) / n * 100).toFixed(2) + '%', tf: tf((ah + 0.5) / n * 100) } : { show: false, date: '', total: '', failed: '', rows: [], left: '0%', tf: '' };
+    const aRows = cols.slice().reverse().map((c) => ({ date: c.date, total: String(c.total), failed: String(c.failed), vals: c.segs.map((s) => ({ t: String(s.v) })) }));
+    const sentTotal = cols.reduce((p, c) => p + c.total, 0);
+    const failedTotal = cols.reduce((p, c) => p + c.failed, 0);
+
+    const curs = x ? [['XRP', 12480.256114, 2, 0.25, 0.5], ['USD', 3120.5, 2, 0.4, 0.25], ['EUR', 410, 2, 0.9, 0.15], ['BTC', 0.0125, 4, 0, 0]]
+      : [['XAH', 12480.256114, 2, 0.25, 0.5], ['USD', 3120.5, 2, 0.4, 0.25], ['EUR', 410, 2, 0.9, 0.15], ['GBP', 95.1, 2, 0.8, 0.15]];
+    const series = curs.map((c) => {
+      const a = [];
+      let q = c[1];
+      for (let i = n - 1; i >= 0; i--) {
+        if (c[0] === 'BTC') { a[i] = i >= n - (unit === 'day' ? 6 : 1) ? c[1] : 0; continue; }
+        a[i] = q;
+        if (R() < c[4]) q = Math.max(0, q - (R() - 0.35) * c[1] * c[3]);
+      }
+      return a;
+    });
+    const bh = st.bHov;
+    const bLeft = bh >= 0 ? (bh / (n - 1) * 100).toFixed(2) + '%' : '0%';
+    const balPanels = curs.map((c, k) => {
+      const a = series[k];
+      const rg = niceRange(Math.min.apply(null, a), Math.max.apply(null, a));
+      const yb = (q) => 1 - (q - rg.lo) / (rg.hi - rg.lo);
+      const at = bh >= 0 ? bh : n - 1;
+      return {
+        cur: c[0], ticks: rg.ticks,
+        path: a.map((q, i) => (i ? 'L' : 'M') + xPos(i) + ' ' + (yb(q) * 110).toFixed(1)).join(' '),
+        endTop: (yb(a[n - 1]) * 100).toFixed(2) + '%',
+        hov: bh >= 0, hovTop: (yb(a[at]) * 100).toFixed(2) + '%',
+        readV: fmt2(a[at], c[2]) + ' ' + c[0], readD: bh >= 0 ? 'on ' + dateOf(bh) : 'now',
+        aria: c[0] + ' balance chart. Use the arrow keys to read values.'
+      };
+    });
+    const bRows = [];
+    for (let i = n - 1; i >= 0; i--) bRows.push({ date: dateOf(i), vals: curs.map((c, k) => ({ t: fmt2(series[k][i], c[2]) })) });
+
+    const flowBase = { day: 820, week: 3900, month: 9800 }[unit] * xr;
+    const rin = [], rout = [];
+    for (let i = 0; i < n; i++) { rin.push(R() < 0.55 ? flowBase * (0.15 + R() * 1.8) : 0); rout.push(R() < 0.6 ? flowBase * (0.15 + R() * 1.8) : 0); }
+    const mAx = niceAxis(Math.max(Math.max.apply(null, rin), Math.max.apply(null, rout)));
+    const mt = mAx.top;
+    const mAxis = [[mt, '+'], [mt / 2, '+'], [0, ''], [mt / 2, '−'], [mt, '−']].map((t, k) => ({ pos: (100 - k * 25) + '%', label: t[1] + compact(t[0]), cls: k === 2 ? 'base' : '' }));
+    const mh = st.mHov;
+    const signed = (q) => (q >= 0 ? '+' : '−') + compact(Math.abs(q));
+    const mCols = rin.map((q, i) => ({ up: (q / mt * 50).toFixed(2) + '%', dn: (rout[i] / mt * 50).toFixed(2) + '%', cls: mh < 0 || mh === i ? '' : 'dim', aria: dateOf(i) + ': received ' + compact(q) + ', sent ' + compact(rout[i]) + ' ' + cur, enter: () => this.setState({ mHov: i }) }));
+    const mTip = mh >= 0 && mh < n ? { show: true, date: dateOf(mh), rin: compact(rin[mh]), rout: compact(rout[mh]), net: signed(rin[mh] - rout[mh]), left: ((mh + 0.5) / n * 100).toFixed(2) + '%', tf: tf((mh + 0.5) / n * 100) } : { show: false, date: '', rin: '', rout: '', net: '', left: '0%', tf: '' };
+    const mRows = rin.map((q, i) => ({ date: dateOf(i), rin: compact(q), rout: compact(rout[i]), net: signed(q - rout[i]) })).reverse();
+    const sumIn = rin.reduce((p, q) => p + q, 0), sumOut = rout.reduce((p, q) => p + q, 0);
+
+    const feeDrops = sentTotal * (x ? 12 : 15);
+    const ctDefs = [
+      ['Fees', 'transaction cost, burned', 0, feeDrops / 1e6, sentTotal],
+      ['DEX trades', 'order book' + (x ? ' and AMM' : ''), 3960, 4310, 22],
+      ['Payments in', 'received', 9840, 0, 14],
+      ['Payments out', 'sent', 0, 6120, 11],
+      ['Passed through', 'as an intermediary', 3400, 3400, 6],
+      ['Escrow', 'locked, finished or cancelled', 0, 1000, 1],
+      ['Payment channels', 'funded or claimed', 120, 300, 2]
+    ];
+    const sc = (k, q) => k === 0 ? q : q * mult * xr;
+    const ctMax = Math.max.apply(null, ctDefs.map((c, k) => Math.max(sc(k, c[2]), sc(k, c[3]))));
+    const amtTxt = (q) => q === 0 ? '0' : q < 1 ? q.toFixed(6) : fmt(q);
+    const chg = ctDefs.map((c, k) => {
+      const iv = sc(k, c[2]), ov = sc(k, c[3]), cnt = k === 0 ? c[4] : Math.round(c[4] * mult);
+      const w = (q) => q === 0 ? '0%' : Math.max(1, q / ctMax * 100).toFixed(1) + '%';
+      const net = iv - ov;
+      return { label: c[0], hint: c[1], inW: w(iv), outW: w(ov), inV: amtTxt(iv), outV: amtTxt(ov), net: net === 0 ? '0' : (net > 0 ? '+' : '−') + amtTxt(Math.abs(net)), n: fmt(cnt), title: c[0] + ': in ' + amtTxt(iv) + ', out ' + amtTxt(ov) + ' ' + cur };
+    });
+
+    const cpDefs = x ? [['rNYbL8…Kq5', 4820, 0, 9], ['rwisR4…nkW', 0, 6400, 5], ['rAtRwr…2rXT', 1000, 512, 3], ['rCQfy3…WWL', 1000, 0, 2], ['rmMVsQ…Cwp', 0, 980, 3], ['rfpH3e…dX3f', 25, 0, 1]]
+      : [['rNYbL8…Kq5', 4820, 0, 9], ['rwisR4…nkW', 0, 6400, 5], ['rCQfy3…WWL', 1000, 0, 2], ['rmMVsQ…Cwp', 0, 980, 3], ['rsW8Gc…vYgY', 0, 61, 1], ['rfpH3e…dX3f', 25, 0, 1]];
+    const cps = cpDefs.map((c) => ({ acct: c[0], sent: c[1] ? fmt(c[1] * mult * xr) : '—', recv: c[2] ? fmt(c[2] * mult * xr) : '—', n: String(Math.max(1, Math.round(c[3] * mult))) }));
+    const nCp = Math.round((x ? 14 : 12) * Math.sqrt(mult));
+
+    const pairDefs = x ? [['XRP/USD', 'USD rA7wzf…g95', 8420, 9, '1,200 XRP', '3,712 XRP'], ['BTC/XRP', 'BTC rmMVsQ…Cwp', 7820, 1, '0.0125 BTC', '—'], ['XRP/USD', 'USD rYYUaK…TMy', 1150, 3, '310 XRP', '160 XRP'], ['XRP/EUR', 'EUR rA7wzf…g95', 400, 1, '—', '400 XRP']]
+      : [['XAH/USD', 'USD rA7wzf…g95', 66500, 7, '9,400 XAH', '29,300 XAH'], ['EVR/XAH', 'EVR rEvern…oN2', 18200, 4, '4,420 EVR', '—'], ['XAH/EUR', 'EUR rA7wzf…g95', 3160, 1, '—', '3,160 XAH']];
+    const pairs = pairDefs.map((p) => ({ pair: p[0], issuer: p[1], vol: fmt(p[2] * mult), n: String(Math.round(p[3] * mult)), bought: mult === 1 ? p[4] : p[4] === '—' ? '—' : 'see trades', sold: mult === 1 ? p[5] : p[5] === '—' ? '—' : 'see trades' }));
+    if (mult !== 1) pairs.forEach((p, k) => { const d = pairDefs[k]; const scl = (s) => s === '—' ? '—' : s.replace(/^([\d,.]+)/, (m) => { const v = parseFloat(m.replace(/,/g, '')) * mult; return v < 1 ? v.toFixed(4) : fmt(v); }); p.bought = scl(d[4]); p.sold = scl(d[5]); });
+
+    const tiles = [
+      { label: 'Account value now', value: fmt2(valueNow, 0) + ' ' + cur, sub: (vChg >= 0 ? '+' : '−') + Math.abs(vChg).toFixed(1) + '% over the ' + periodLabel.replace('since', 'period since'), up: vChg >= 0, down: vChg < 0, src: '/v2/accounts/{a}/stats/value' },
+      { label: 'Transactions sent', value: fmt(sentTotal), sub: failedTotal + ' failed, fee still paid', up: false, down: false, src: '/v2/accounts/{a}/stats/transactions' },
+      { label: 'Fees paid', value: (feeDrops / 1e6).toFixed(6) + ' ' + cur, sub: fmt(feeDrops) + ' drops, burned', up: false, down: false, src: '/v2/accounts/{a}/stats/transactions' },
+      { label: 'Counterparties', value: String(nCp), sub: 'accounts it paid or was paid by', up: false, down: false, src: '/v2/accounts/{a}/reports' }
+    ];
+
+    const periods = [['30d', '30 D'], ['90d', '90 D'], ['1y', '1 Y'], ['all', 'All']].map((p) => ({ label: p[1], on: period === p[0], cls: period === p[0] ? 'on' : '', pick: () => this.setState({ period: p[0], vHov: -1, aHov: -1, bHov: -1, mHov: -1 }) }));
+    const unitCap = unit === 'day' ? 'Day' : unit === 'week' ? 'Week of' : 'Month';
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl', vHov: -1, aHov: -1, bHov: -1, mHov: -1 }),
+      pickXahau: () => this.setState({ net: 'xahau', vHov: -1, aHov: -1, bHov: -1, mHov: -1 }),
+      netName: x ? 'XRPL' : 'Xahau', cur, cells, tabs,
+      periods, unit, unitCap, periodLabel,
+      periodNote: 'Showing the ' + periodLabel + ', per ' + unit,
+      tiles,
+      vw: view('vView'), aw: view('aView'), bw: view('bView'), mw: view('mView'),
+      vAxis: vr.ticks, vLine, vEnd: (yv(value[n - 1]) * 100).toFixed(2) + '%', vTip, vRows, lineXl, colXl, edgeXl,
+      vMove: moveTo('vHov'), vLeave: () => this.setState({ vHov: -1 }), vFocus: () => this.setState({ vHov: n - 1 }), vKey: keyTo('vHov'),
+      typeLegend: types.map((t) => ({ name: t[0], color: t[1] })), typeCount: String(types.length),
+      aAxis: aAx.ticks, aCols, aTip, aRows, aLeave: () => this.setState({ aHov: -1 }),
+      balPanels, bRows, bLeft,
+      bMove: moveTo('bHov'), bLeave: () => this.setState({ bHov: -1 }), bFocus: () => this.setState({ bHov: n - 1 }), bKey: keyTo('bHov'),
+      mAxis, mCols, mTip, mRows, mLeave: () => this.setState({ mHov: -1 }),
+      mIn: compact(sumIn), mOut: compact(sumOut), mNet: signed(sumIn - sumOut),
+      chg, cps, cpNote: 'The 6 largest of ' + nCp + ' counterparties, by sent plus received value.',
+      pairs, dexNote: x ? 'Includes swaps against AMM pools. Bought and sold are in each pair’s base currency.' : 'Order-book trades only; Xahau has no AMM. Bought and sold are in each pair’s base currency.'
+    };
+  }
+}
+</script>
+</body>
+</html>

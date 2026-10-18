@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Amendments</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--s1:#2a78d6;--track:#DCE8F8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--s1:#3987e5;--track:#1B2A3D}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);white-space:nowrap;color:var(--fg)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.ok{color:var(--ok);background:var(--ok-bg)}
+.info{color:var(--fg);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.info svg{color:var(--link)}
+.neu{color:var(--fg);background:var(--sunken)}
+.off{color:var(--muted);background:transparent;box-shadow:inset 0 0 0 1px var(--border)}
+.cbar{position:relative;display:block;height:8px;border-radius:4px;background:var(--track);width:100%;max-width:220px}
+.cfill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--s1)}
+.ctick{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--fg);border-radius:1px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav cur" href="Network.dc.html" aria-current="page">Network</a>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Network.dc.html">Network</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Amendments</span>
+  </nav>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 520px;">
+      <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Amendments</h1>
+      <p style="margin: 0; color: var(--muted);">Changes to the {{netName}} protocol. Each one activates only after the validators on the default UNL vote it in.</p>
+    </div>
+    <a href="Validators.dc.html" style="font-size: 13px; font-weight: 500;">Validators →</a>
+  </div>
+
+  <section class="card" aria-label="Activating soon" style="padding: 16px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; border-color: color-mix(in srgb, var(--accent) 40%, var(--border));">
+    <span aria-hidden="true" style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--sunken); color: var(--link); flex: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
+    <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+      <span style="font-weight: 600; font-size: 15px;"><a class="mono" href="Amendment.dc.html">{{act.name}}</a> activates in {{act.days}} days, on {{act.date}}, if it keeps 80%</span>
+      <span style="font-size: 13px; color: var(--muted);">{{act.yes}} of {{nUnl}} UNL validators vote yes · majority since {{act.since}}, held for 14 days before it activates</span>
+    </div>
+    <a href="Amendment.dc.html" style="font-size: 13px; font-weight: 500;">Votes and history →</a>
+  </section>
+
+  <p style="margin: 0; font-size: 13px; color: var(--muted);">Validators vote on every flag ledger, once every 256 ledgers. An amendment that holds at least 80% of the UNL for 14 days in a row activates through an EnableAmendment pseudo-transaction. Next flag ledger <span class="mono num" style="color: var(--fg);">#{{nextFlag}}</span> in ~{{mins}} min.</p>
+
+  <section class="card" aria-labelledby="am-title" style="overflow: hidden;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+        <h2 id="am-title" style="margin: 0; font-size: 15px; font-weight: 600;">All amendments</h2>
+        <span class="src">/v2/network/amendments</span>
+      </div>
+      <div class="segs" role="group" aria-label="Filter by status" style="flex-wrap: wrap; align-self: flex-start; max-width: 100%;">
+        <sc-for list="{{chips}}" as="c" hint-placeholder-count="5"><button type="button" class="seg {{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.label}}<span class="mono num" style="font-size: 12px; color: var(--faint);">{{c.n}}</span></button></sc-for>
+      </div>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Amendments" style="min-width: 1000px; --cols: 32px minmax(230px, 1.6fr) 104px minmax(200px, 1.3fr) 190px 150px;">
+        <div role="row" class="tr th">
+          <span role="columnheader" class="r">#</span>
+          <span role="columnheader">Amendment</span>
+          <span role="columnheader">Introduced</span>
+          <span role="columnheader">Consensus, UNL</span>
+          <span role="columnheader">Status</span>
+          <span role="columnheader">Enabled on</span>
+        </div>
+        <div class="tb">
+          <sc-for list="{{rows}}" as="a" hint-placeholder-count="14">
+            <div role="row" class="tr" style="min-height: 56px;">
+              <span role="cell" class="r mono num" style="color: var(--faint); font-size: 12px;">{{a.rank}}</span>
+              <span role="cell" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;">
+                <a class="mono" href="Amendment.dc.html" style="font-weight: 500;">{{a.name}}</a>
+                <sc-if value="{{a.hasXls}}" hint-placeholder-val="{{false}}"><span class="tag">{{a.xls}}</span></sc-if>
+              </span>
+              <span role="cell" class="mono" style="color: var(--muted);">{{a.intro}}</span>
+              <span role="cell">
+                <sc-if value="{{a.hasBar}}" hint-placeholder-val="{{true}}">
+                  <span style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                    <span class="cbar" role="img" aria-label="{{a.aria}}"><span class="cfill" style="width: {{a.w}};"></span><span class="ctick" style="left: 80%;"></span></span>
+                    <span class="num" style="font-size: 12px; color: var(--muted);"><b style="color: var(--fg); font-weight: 600;">{{a.pct}}</b> · {{a.cnt}} UNL</span>
+                  </span>
+                </sc-if>
+                <sc-if value="{{a.noBar}}" hint-placeholder-val="{{false}}"><span style="color: var(--faint);">—<span class="sr">no vote running</span></span></sc-if>
+              </span>
+              <span role="cell">
+                <sc-if value="{{a.isActivated}}" hint-placeholder-val="{{false}}"><span class="pill ok"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>Activated</span></sc-if>
+                <sc-if value="{{a.isActivating}}" hint-placeholder-val="{{false}}"><span class="pill info"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Activating, in {{a.days}} days</span></sc-if>
+                <sc-if value="{{a.isVoting}}" hint-placeholder-val="{{true}}"><span class="pill neu"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M9 11V4h6v7M9 15h6"></path></svg>Voting</span></sc-if>
+                <sc-if value="{{a.isObsolete}}" hint-placeholder-val="{{false}}"><span class="pill off"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12h8"></path></svg>Obsolete</span></sc-if>
+              </span>
+              <span role="cell" style="display: flex; flex-direction: column; line-height: 1.3;">
+                <sc-if value="{{a.hasDate}}" hint-placeholder-val="{{false}}"><span class="num">{{a.date}}</span><a class="mono num" href="Ledger.dc.html" style="font-size: 12px;">#{{a.ledger}}</a></sc-if>
+                <sc-if value="{{a.noDate}}" hint-placeholder-val="{{true}}"><span style="color: var(--faint);">—<span class="sr">not enabled</span></span></sc-if>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">
+      <span>{{pageNote}} · the tick on each bar marks 80%</span>
+      <div style="display: flex; gap: 8px;"><button type="button" class="btn" disabled="{{yes}}" style="opacity: .55;">← Previous</button><button type="button" class="btn" disabled="{{lastPage}}">Next →</button></div>
+    </div>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', filter: 'all' };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const st = this.state;
+    const fmt = (n) => n.toLocaleString('en-US');
+
+    const nUnl = x ? 35 : 31;
+    const ledgerNow = x ? 107748183 : 17482913;
+    const nextFlag = Math.ceil((ledgerNow + 1) / 256) * 256;
+    const mins = Math.round((nextFlag - ledgerNow) * (x ? 3.91 : 3.97) / 60);
+    const nowMs = Date.UTC(2026, 9, 19);
+    const genMs = Date.UTC(2023, 9, 30);
+    const ledgerAt = (ms) => {
+      const raw = x ? ledgerNow - (nowMs - ms) / 86400000 * 22096 : 1 + (ms - genMs) / (nowMs - genMs) * (ledgerNow - 1);
+      return Math.max(256, Math.floor(raw / 256) * 256);
+    };
+    const dLabel = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+    const defs = x ? [
+      ['fixCleanup3_4_0', '', '3.4.0', 'activating', 29, null],
+      ['Batch', 'XLS-56', '2.5.0', 'voting', 25, null],
+      ['PermissionedDEX', 'XLS-81', '2.5.0', 'voting', 22, null],
+      ['TokenEscrow', 'XLS-85', '2.5.0', 'voting', 16, null],
+      ['XChainBridge', 'XLS-38', '2.0.0', 'voting', 4, null],
+      ['DynamicNFT', 'XLS-46', '2.4.0', 'activated', null, Date.UTC(2026, 5, 24)],
+      ['PermissionedDomains', 'XLS-80', '2.4.0', 'activated', null, Date.UTC(2026, 3, 2)],
+      ['DeepFreeze', 'XLS-77', '2.4.0', 'activated', null, Date.UTC(2026, 1, 18)],
+      ['MPTokensV1', 'XLS-33', '2.3.0', 'activated', null, Date.UTC(2025, 9, 1)],
+      ['Credentials', 'XLS-70', '2.3.0', 'activated', null, Date.UTC(2025, 8, 4)],
+      ['AMMClawback', 'XLS-73', '2.3.0', 'activated', null, Date.UTC(2025, 0, 30)],
+      ['PriceOracle', 'XLS-47', '2.2.0', 'activated', null, Date.UTC(2024, 10, 2)],
+      ['DID', 'XLS-40', '2.0.0', 'activated', null, Date.UTC(2024, 9, 30)],
+      ['AMM', 'XLS-30', '1.12.0', 'activated', null, Date.UTC(2024, 2, 22)],
+      ['fixNFTokenNegOffer', '', '1.9.0', 'obsolete', null, null],
+      ['fixNFTokenDirV1', '', '1.9.0', 'obsolete', null, null],
+      ['NonFungibleTokensV1', 'XLS-20', '1.9.0', 'obsolete', null, null],
+      ['CryptoConditionsSuite', '', '0.60.0', 'obsolete', null, null]
+    ] : [
+      ['fixReduceImport', '', '2026.6.2', 'activating', 26, null],
+      ['fixNSDelete', '', '2025.7.1', 'voting', 19, null],
+      ['fix240819', '', '2024.9.11', 'voting', 12, null],
+      ['fixXahauV3', '', '2024.4.21', 'activated', null, Date.UTC(2024, 5, 3)],
+      ['ZeroB2M', '', '2024.1.28', 'activated', null, Date.UTC(2024, 3, 2)],
+      ['Remit', '', '2024.1.28', 'activated', null, Date.UTC(2024, 2, 19)],
+      ['HooksUpdate1', '', '2023.12.29', 'activated', null, Date.UTC(2024, 1, 6)],
+      ['fixXahauV2', '', '2023.12.29', 'activated', null, Date.UTC(2024, 0, 23)],
+      ['fixXahauV1', '', '2023.11.10', 'activated', null, Date.UTC(2023, 11, 5)],
+      ['URIToken', '', '2023.10.30', 'activated', null, Date.UTC(2023, 9, 30)],
+      ['Import', '', '2023.10.30', 'activated', null, Date.UTC(2023, 9, 30)],
+      ['Hooks', '', '2023.10.30', 'activated', null, Date.UTC(2023, 9, 30)]
+    ];
+    const totals = x ? { activating: 1, voting: 4, activated: 87, obsolete: 4 } : { activating: 1, voting: 2, activated: 64, obsolete: 0 };
+    const allN = totals.activating + totals.voting + totals.activated + totals.obsolete;
+    const actDays = x ? 4 : 9;
+
+    let list = defs.map((d, i) => {
+      const pct = d[4] != null ? d[4] / nUnl * 100 : 0;
+      return {
+        rank: String(i + 1), name: d[0], xls: d[1], hasXls: !!d[1], intro: d[2], status: d[3],
+        hasBar: d[4] != null, noBar: d[4] == null,
+        w: pct.toFixed(1) + '%', pct: pct.toFixed(1) + '%', cnt: (d[4] || 0) + ' / ' + nUnl,
+        aria: (d[4] || 0) + ' of ' + nUnl + ' UNL validators vote yes, ' + pct.toFixed(1) + '%; 80% needed',
+        isActivated: d[3] === 'activated', isActivating: d[3] === 'activating', isVoting: d[3] === 'voting', isObsolete: d[3] === 'obsolete',
+        days: String(actDays),
+        hasDate: !!d[5], noDate: !d[5],
+        date: d[5] ? dLabel(d[5]) : '', ledger: d[5] ? fmt(ledgerAt(d[5])) : ''
+      };
+    });
+    if (st.filter !== 'all') list = list.filter((r) => r.status === st.filter);
+    const shown = list.slice(0, 14);
+    const total = st.filter === 'all' ? allN : totals[st.filter];
+    const pageNote = shown.length === 0 ? 'No amendments with this status' : 'Showing ' + shown.length + ' of ' + total;
+
+    const chips = [['all', 'All', allN], ['activating', 'Activating', totals.activating], ['voting', 'Voting', totals.voting], ['activated', 'Activated', totals.activated], ['obsolete', 'Obsolete', totals.obsolete]]
+      .map((c) => ({ label: c[1], n: String(c[2]), on: st.filter === c[0], cls: st.filter === c[0] ? 'on' : '', pick: () => this.setState({ filter: c[0] }) }));
+
+    const actMs = nowMs + actDays * 86400000;
+    const act = { name: defs[0][0], days: String(actDays), date: dLabel(actMs), yes: String(defs[0][4]), since: dLabel(actMs - 14 * 86400000) };
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl', filter: 'all' }),
+      pickXahau: () => this.setState({ net: 'xahau', filter: 'all' }),
+      netName: x ? 'XRPL' : 'Xahau', yes: true,
+      nUnl: String(nUnl), nextFlag: fmt(nextFlag), mins: String(mins), act,
+      chips, rows: shown, pageNote, lastPage: shown.length >= total
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Validators</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.hseg{border:0;padding:0;min-width:2px;height:100%;cursor:default}
+.hseg.dim{opacity:.45}
+.hseg:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
+.hl{position:absolute;top:3px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;box-sizing:border-box;font-variant-numeric:tabular-nums}
+.hl b{color:var(--fg);font-weight:600}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:520px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--fg)}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;white-space:nowrap}
+.st.good{color:var(--ok)}
+.st.quiet{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.field{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:0 12px;min-height:44px;box-sizing:border-box}
+.sel{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
+.disc summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:500;color:var(--link)}
+.disc summary::-webkit-details-marker{display:none}
+.disc .chev{transition:transform .15s}
+.disc[open] .chev{transform:rotate(90deg)}
+.disc ul{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:4px}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav cur" href="Network.dc.html" aria-current="page">Network</a>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Network.dc.html">Network</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Validators</span>
+  </nav>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 520px;">
+      <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Validators</h1>
+      <p style="margin: 0; color: var(--muted);">{{intro}}</p>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+      <a href="Amendments.dc.html" style="font-size: 13px; font-weight: 500;">Amendments →</a>
+      <span class="src">/v2/network/validators</span>
+    </div>
+  </div>
+
+  <section aria-label="Network overview" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px;">
+    <sc-for list="{{tiles}}" as="t" hint-placeholder-count="6">
+      <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">{{t.label}}</span>
+        <span class="num" style="font-size: 24px; font-weight: 600; letter-spacing: -0.015em;">{{t.value}}</span>
+        <span style="font-size: 12px; color: var(--muted);">{{t.sub}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section class="card" aria-labelledby="ver-title" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="ver-title" style="margin: 0; font-size: 15px; font-weight: 600;">Validator software versions</h2>
+        <span class="src">/v2/network/validators</span>
+      </div>
+      <div class="segs">
+        <button type="button" class="seg {{chartCls}}" aria-pressed="{{isChart}}" onClick="{{showChart}}">Chart</button>
+        <button type="button" class="seg {{tableCls}}" aria-pressed="{{isTable}}" onClick="{{showTable}}">Table</button>
+      </div>
+    </div>
+    <div class="legend" aria-label="Legend">
+      <sc-for list="{{verLegend}}" as="g" hint-placeholder-count="5"><span><span class="sw" style="background: {{g.color}};"></span>{{g.name}}</span></sc-for>
+    </div>
+
+    <sc-if value="{{isChart}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex; flex-direction: column; gap: 8px;" onMouseLeave="{{leaveVer}}">
+        <sc-for list="{{verGroups}}" as="g" hint-placeholder-count="2">
+          <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: start;">
+            <span style="display: flex; flex-direction: column; line-height: 1.2; padding-top: 2px;"><span style="font-weight: 600; font-size: 13px;">{{g.label}}</span><span class="num" style="font-size: 11px; color: var(--faint);">{{g.total}}</span></span>
+            <div style="position: relative; min-width: 0;">
+              <div style="display: flex; gap: 2px; height: 28px; border-radius: 4px; overflow: hidden;">
+                <sc-for list="{{g.segs}}" as="s" hint-placeholder-count="4"><button type="button" class="hseg {{s.cls}}" aria-label="{{s.aria}}" onMouseEnter="{{s.enter}}" onFocus="{{s.enter}}" onBlur="{{leaveVer}}" style="flex: {{s.flex}} 1 0px; background: {{s.color}};"></button></sc-for>
+              </div>
+              <div style="position: relative; height: 22px;" aria-hidden="true">
+                <sc-for list="{{g.segs}}" as="s" hint-placeholder-count="4"><sc-if value="{{s.showLabel}}" hint-placeholder-val="{{true}}"><span class="hl" style="left: {{s.start}}; width: {{s.w}};"><b>{{s.name}}</b> {{s.pctTxt}}</span></sc-if></sc-for>
+              </div>
+              <sc-if value="{{g.tip.show}}" hint-placeholder-val="{{false}}">
+                <div class="tip" style="left: {{g.tip.left}}; top: 34px; transform: {{g.tip.tf}};">
+                  <span style="color: var(--faint);">{{g.tipHead}}</span>
+                  <span><span class="sw" style="background: {{g.tip.color}};"></span><b>{{g.tip.name}}</b></span>
+                  <span style="color: var(--muted);"><b style="color: var(--fg);">{{g.tip.v}}</b> validators · {{g.tip.pct}}</span>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+        <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px;" aria-hidden="true">
+          <span></span>
+          <div style="position: relative; height: 22px; border-top: 1px solid var(--axis);">
+            <sc-for list="{{pctTicks}}" as="t" hint-placeholder-count="5"><span class="xl" style="left: {{t.pos}}; transform: {{t.tf}};">{{t.label}}</span></sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isTable}}" hint-placeholder-val="{{false}}">
+      <div class="tbl" role="table" aria-label="Validator software versions" style="--cols: minmax(110px, 1.4fr) repeat(4, minmax(80px, 1fr));">
+        <div role="row" class="trow th"><span role="columnheader">Version</span><span role="columnheader">UNL</span><span role="columnheader">UNL share</span><span role="columnheader">All</span><span role="columnheader">All share</span></div>
+        <sc-for list="{{verRows}}" as="r" hint-placeholder-count="5">
+          <div role="row" class="trow"><span role="cell"><span class="sw" style="background: {{r.color}};"></span>{{r.name}}</span><span role="cell">{{r.u}}</span><span role="cell">{{r.up}}</span><span role="cell">{{r.a}}</span><span role="cell">{{r.ap}}</span></div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <span style="font-size: 12px; color: var(--faint);">{{verNote}}</span>
+  </section>
+
+  <section class="card" aria-labelledby="list-title" style="overflow: hidden;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+        <h2 id="list-title" style="margin: 0; font-size: 15px; font-weight: 600;">Validators</h2>
+        <span class="src">/v2/network/validators</span>
+      </div>
+      <div role="group" aria-label="Filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;">
+        <div class="segs" role="group" aria-label="Which validators">
+          <sc-for list="{{scopes}}" as="s" hint-placeholder-count="2"><button type="button" class="seg {{s.cls}}" aria-pressed="{{s.on}}" onClick="{{s.pick}}">{{s.label}}<span class="mono num" style="font-size: 12px; color: var(--faint);">{{s.n}}</span></button></sc-for>
+        </div>
+        <div class="field" style="flex: 1 1 240px;">
+          <label for="val-q" class="sr">Search validators by domain or key</label>
+          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+          <input id="val-q" type="search" value="{{q}}" onChange="{{onQ}}" placeholder="Domain or key" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+        </div>
+        <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <label for="val-amd-x" style="font-size: 13px; color: var(--faint);">Votes yes for</label>
+            <select id="val-amd-x" class="sel" value="{{amd}}" onChange="{{onAmd}}"><option value="">any amendment</option><option value="fixCleanup3_4_0">fixCleanup3_4_0</option><option value="Batch">Batch</option><option value="PermissionedDEX">PermissionedDEX</option><option value="TokenEscrow">TokenEscrow</option><option value="XChainBridge">XChainBridge</option></select>
+          </div>
+        </sc-if>
+        <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <label for="val-amd-h" style="font-size: 13px; color: var(--faint);">Votes yes for</label>
+            <select id="val-amd-h" class="sel" value="{{amd}}" onChange="{{onAmd}}"><option value="">any amendment</option><option value="fixReduceImport">fixReduceImport</option><option value="fixNSDelete">fixNSDelete</option><option value="fix240819">fix240819</option></select>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Validators" style="min-width: 980px; --cols: minmax(260px, 2.2fr) 130px 104px minmax(150px, 1fr) 140px 88px;">
+        <div role="row" class="tr th">
+          <span role="columnheader">Validator</span>
+          <span role="columnheader">Version</span>
+          <span role="columnheader" class="r">Agreement 24 h</span>
+          <span role="columnheader">Fee votes · base / owner / fee</span>
+          <span role="columnheader">Amendment votes</span>
+          <span role="columnheader" class="r">Last seen</span>
+        </div>
+        <div class="tb">
+          <sc-for list="{{rows}}" as="v" hint-placeholder-count="12">
+            <div role="row" class="tr">
+              <span role="cell" style="display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 7px 0;">
+                <span style="display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; min-width: 0;">
+                  <a class="{{v.nameCls}}" href="Validator.dc.html" style="font-weight: 600;">{{v.name}}</a>
+                  <sc-if value="{{v.verified}}" hint-placeholder-val="{{true}}"><span class="st good"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>verified</span></sc-if>
+                  <sc-if value="{{v.unverified}}" hint-placeholder-val="{{false}}"><span class="st quiet"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5M12 16.5h.01"></path></svg>not verified</span></sc-if>
+                  <sc-if value="{{v.unl}}" hint-placeholder-val="{{true}}"><span class="tag" title="{{v.unlTitle}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6z"></path></svg>UNL<span class="sr">, {{v.unlTitle}}</span></span></sc-if>
+                </span>
+                <span class="mono" style="font-size: 11.5px; color: var(--faint);">{{v.sub}}</span>
+              </span>
+              <span role="cell" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="mono">{{v.ver}}</span>
+                <sc-if value="{{v.latest}}" hint-placeholder-val="{{true}}"><span class="st good"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M6.5 13.5 12 8l5.5 5.5M6 4h12"></path></svg>latest</span></sc-if>
+              </span>
+              <span role="cell" class="r mono num">{{v.agree}}</span>
+              <span role="cell" class="mono num" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                <sc-if value="{{v.hasFee}}" hint-placeholder-val="{{true}}">
+                  <sc-for list="{{v.fee}}" as="f" hint-placeholder-count="3"><span style="display: inline-flex; align-items: center; gap: 1px;"><span style="color: var(--faint);">{{f.sep}}</span>{{f.v}}<span aria-hidden="true" style="color: var(--muted); font-weight: 600;">{{f.arrow}}</span><span class="sr">{{f.sr}}</span></span></sc-for>
+                </sc-if>
+                <sc-if value="{{v.noFee}}" hint-placeholder-val="{{false}}"><span style="color: var(--faint);" title="No fee vote reported">—<span class="sr">no fee vote reported</span></span></sc-if>
+              </span>
+              <span role="cell">
+                <sc-if value="{{v.hasYes}}" hint-placeholder-val="{{true}}">
+                  <details class="disc">
+                    <summary><span class="num">{{v.yesN}} yes</span><svg class="chev" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></summary>
+                    <ul>
+                      <sc-for list="{{v.yesList}}" as="a" hint-placeholder-count="3"><li><a class="mono" href="Amendment.dc.html" style="font-size: 12px;">{{a.name}}</a></li></sc-for>
+                    </ul>
+                  </details>
+                </sc-if>
+                <sc-if value="{{v.noYes}}" hint-placeholder-val="{{false}}"><span style="color: var(--faint);">0 yes</span></sc-if>
+              </span>
+              <span role="cell" class="r num" style="color: var(--muted);">{{v.seen}}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{empty}}" hint-placeholder-val="{{false}}">
+            <div style="padding: 28px 16px; color: var(--faint); border-top: 1px solid var(--border);">No validators match these filters.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">
+      <span>{{pageNote}} · {{feeNote}}</span>
+      <div style="display: flex; gap: 8px;"><button type="button" class="btn" disabled="{{yes}}" style="opacity: .55;">← Previous</button><button type="button" class="btn">Next →</button></div>
+    </div>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":1750}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', scope: 'unl', q: '', amd: '', view: 'chart', vh: '' };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const st = this.state;
+    const cur = x ? 'XRP' : 'XAH';
+    const fmt = (n) => n.toLocaleString('en-US');
+
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const fleet = (xr) => {
+      const R = seedRng(xr ? 4242 : 5353);
+      const key = () => { let k = 'n9'; for (let i = 0; i < 50; i++) k += B58[Math.floor(R() * 58)]; return k; };
+      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+      const unlD = (xr ? 'val-01 northpeak ledgerworks harborline quietfjord cobaltgate tallpine meridian-labs stonebridge bluecanyon ninefold saltmarsh ironwood-nodes lowtide greyheron copperfield eastwick larchhill val-02 brightwater oakmoss redkite fernbank glasshouse millrace westerly kestrel-net sandpiper thornbury halcyon-labs quarrystone silverbirch val-03 driftwood amberline'
+        : 'hooksmith northpeak val-x1 coralreef saltgrass pinecrest tidewater emberfield dunmore cloudberry ravenhill mosswood ashgrove val-x2 starling-labs wolfbay juniper-node highmoor lanternfish bramble eastcliff rookery gullwing foxglove val-x3 seaholly marblearch nettlebed oxbow quillon windrush').split(' ');
+      const othD = xr ? ['', 'nodeyard', '', 'testbench', 'plainview', '', 'orchard-labs', 'skylark', '', 'val-07', 'hilltop', ''] : ['', 'hookbench', 'val-x9', '', 'seawall', '', 'tinker-labs', '', 'brookside', ''];
+      const othV = xr ? ['none', 'yes', 'none', 'no', 'yes', 'none', 'yes', 'no', 'none', 'yes', 'yes', 'none'] : ['none', 'yes', 'no', 'none', 'yes', 'none', 'yes', 'none', 'no', 'none'];
+      const vers = xr ? ['3.4.0', '3.3.1', '3.2.0', '3.1.2', '3.0.2'] : ['2026.9.30', '2026.6.2', '2026.3.11', '2025.12.4', '2025.7.1'];
+      const plan = xr ? [30, 4, 1] : [24, 5, 2];
+      const verIdx = [];
+      plan.forEach((c, k) => { for (let i = 0; i < c; i++) verIdx.push(k); });
+      shuffle(verIdx);
+      if (verIdx[1] !== 0) { const j = verIdx.indexOf(0); verIdx[j] = verIdx[1]; verIdx[1] = 0; }
+      const amds = xr ? [['fixCleanup3_4_0', 29, 0, 1], ['Batch', 25, 4, 1], ['PermissionedDEX', 22, 4, 1], ['TokenEscrow', 16, 4, -1], ['XChainBridge', 4, 4, -1]]
+        : [['fixReduceImport', 26, 1, 1], ['fixNSDelete', 19, 4, 1], ['fix240819', 12, 4, -1]];
+      const yes = unlD.map(() => []);
+      amds.forEach((a) => {
+        const order = shuffle(unlD.map((d, i) => i)).filter((i) => verIdx[i] <= a[2] && i !== 1);
+        if (a[3] > 0) order.unshift(1); else order.push(1);
+        order.slice(0, a[1]).forEach((i) => yes[i].push(a[0]));
+      });
+      const cur0 = [1, 0.2, 10];
+      const feeOf = (r) => r < 0.08 ? null : r < 0.7 ? cur0.slice() : r < 0.8 ? [1, 0.2, 12] : r < 0.9 ? [0.8, 0.15, 10] : [1, 0.1, 10];
+      const recs = unlD.map((d, i) => ({
+        domain: d + '.example', verify: i === (xr ? 23 : 17) ? 'no' : 'yes', key: key(), sign: key(), unl: true,
+        ver: vers[verIdx[i]], verI: verIdx[i], agree: i === (xr ? 12 : 9) ? 97.84 : 99.9 + R() * 0.1,
+        fee: i === 1 ? [1, 0.2, 12] : feeOf(R()), yes: yes[i], seen: Math.round(R() * 3)
+      }));
+      othD.forEach((d, i) => {
+        const vi = Math.min(4, Math.floor(R() * 5));
+        const ys = amds.filter((a) => vi <= a[2] && R() < a[1] / unlD.length).map((a) => a[0]);
+        recs.push({ domain: d ? d + '.example' : '', verify: othV[i], key: key(), sign: key(), unl: false, ver: vers[vi], verI: vi, agree: 88 + R() * 12, fee: feeOf(R()), yes: ys, seen: i === 5 ? 10800 : Math.round(1 + R() * 40) });
+      });
+      return { recs, amds, vers, cur: cur0 };
+    };
+
+    const F = fleet(x);
+    const pub = x ? 'vl.ripple.com' : 'vl.xahau.org';
+    const short = (k) => k.slice(0, 6) + '…' + k.slice(-4);
+    const ago = (s) => s < 1 ? 'just now' : s < 60 ? s + ' s ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago';
+    const nUnl = F.recs.filter((r) => r.unl).length;
+    const seenAll = x ? 142 : 58;
+    const quorum = Math.ceil(nUnl * 0.8);
+    const ledgerNow = x ? 107748183 : 17482913;
+    const nextFlag = Math.ceil((ledgerNow + 1) / 256) * 256;
+    const mins = Math.round((nextFlag - ledgerNow) * (x ? 3.91 : 3.97) / 60);
+
+    const tiles = [
+      { label: 'Validators seen, last 24 h', value: String(seenAll), sub: nUnl + ' on the default UNL, ' + (seenAll - nUnl) + ' others' },
+      { label: 'On the default UNL', value: nUnl + ' / ' + nUnl, sub: 'seen of listed, on ' + pub },
+      { label: 'Quorum', value: quorum + ' of ' + nUnl, sub: '80% of the UNL must agree on a ledger' },
+      { label: 'Negative UNL', value: x ? '1' : '0', sub: x ? 'validator discounted while it is offline' : 'no validator discounted' },
+      { label: 'Base / owner reserve', value: '1 / 0.2 ' + cur, sub: 'base fee 10 drops' },
+      { label: 'Next flag ledger', value: '#' + fmt(nextFlag), sub: 'in ~' + mins + ' min · fee and amendment votes are counted there' }
+    ];
+
+    const tipTf = (left) => left < 22 ? 'translateX(-8px)' : left > 78 ? 'translateX(calc(-100% + 8px))' : 'translateX(-50%)';
+    const verNames = x ? ['3.4.0', '3.3.1', '3.2.0', '3.1.2', 'Other'] : ['2026.9.30', '2026.6.2', '2026.3.11', '2025.12.4', 'Other'];
+    const colors = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s-other)'];
+    const groupsDef = x ? [['UNL', [30, 4, 1, 0, 0]], ['All', [88, 27, 12, 6, 9]]] : [['UNL', [24, 5, 2, 0, 0]], ['All', [36, 12, 5, 3, 2]]];
+    const verGroups = groupsDef.map((g, gi) => {
+      const total = g[1].reduce((a, b) => a + b, 0);
+      let acc = 0;
+      const segs = [];
+      g[1].forEach((c, k) => {
+        if (!c) return;
+        const pct = c / total * 100;
+        const id = gi + '-' + k;
+        segs.push({
+          k, flex: c, color: colors[k], cls: st.vh && st.vh !== id ? 'dim' : '',
+          aria: g[0] + ' validators, ' + verNames[k] + ': ' + c + ', ' + pct.toFixed(1) + '%',
+          enter: () => this.setState({ vh: id }),
+          start: acc.toFixed(2) + '%', w: pct.toFixed(2) + '%', name: verNames[k], pctTxt: Math.round(pct) + '%', showLabel: pct >= 9, mid: acc + pct / 2, c, pct
+        });
+        acc += pct;
+      });
+      const parts = st.vh ? st.vh.split('-') : [];
+      const hs = parts[0] === String(gi) ? segs.find((s) => String(s.k) === parts[1]) : null;
+      const tip = hs ? { show: true, left: hs.mid.toFixed(2) + '%', tf: tipTf(hs.mid), color: hs.color, name: hs.name, v: String(hs.c), pct: hs.pct.toFixed(1) + '%' } : { show: false, left: '0%', tf: '', color: '', name: '', v: '', pct: '' };
+      return { label: g[0], total: total + ' validators', tipHead: g[0] === 'UNL' ? 'On the default UNL' : 'All seen in 24 h', segs, tip };
+    });
+    const verRows = verNames.map((nm, k) => {
+      const u = groupsDef[0][1][k], a = groupsDef[1][1][k];
+      const tu = groupsDef[0][1].reduce((p, q) => p + q, 0), ta = groupsDef[1][1].reduce((p, q) => p + q, 0);
+      return { name: nm, color: colors[k], u: String(u), up: (u / tu * 100).toFixed(1) + '%', a: String(a), ap: (a / ta * 100).toFixed(1) + '%' };
+    });
+    const pctTicks = [0, 25, 50, 75, 100].map((p) => ({ pos: p + '%', label: p + '%', tf: p === 0 ? 'none' : p === 100 ? 'translateX(-100%)' : 'translateX(-50%)' }));
+
+    const curFee = F.cur;
+    const all = F.recs.map((r) => ({
+      sortKey: r.domain ? '0' + r.domain : '1' + r.key,
+      name: r.domain || short(r.key), nameCls: r.domain ? '' : 'mono',
+      sub: r.domain ? short(r.key) : 'no domain',
+      verified: r.verify === 'yes', unverified: r.verify === 'no',
+      unl: r.unl, unlTitle: 'Listed by ' + pub,
+      ver: r.ver, latest: r.verI === 0,
+      agree: r.agree.toFixed(2) + '%',
+      hasFee: !!r.fee, noFee: !r.fee,
+      fee: r.fee ? r.fee.map((v, k) => ({ sep: k ? '/ ' : '', v: String(v), arrow: v > curFee[k] ? '↑' : v < curFee[k] ? '↓' : '', sr: v > curFee[k] ? ', higher than now' : v < curFee[k] ? ', lower than now' : '' })) : [],
+      yesN: r.yes.length, hasYes: r.yes.length > 0, noYes: r.yes.length === 0, yesList: r.yes.map((n) => ({ name: n })),
+      seen: ago(r.seen), key: r.key, domain: r.domain, yesSet: r.yes
+    }));
+    let rows = all.filter((r) => st.scope === 'all' || r.unl);
+    const q = (st.q || '').trim().toLowerCase();
+    if (q) rows = rows.filter((r) => (r.domain + ' ' + r.key).toLowerCase().indexOf(q) >= 0);
+    if (st.amd) rows = rows.filter((r) => r.yesSet.indexOf(st.amd) >= 0);
+    rows.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
+    const filtered = !!q || !!st.amd;
+    const shown = rows.slice(0, 12);
+    const totalScope = st.scope === 'all' ? seenAll : nUnl;
+    const pageNote = filtered ? rows.length + (rows.length === 1 ? ' match' : ' matches') + (rows.length > 12 ? ', showing 12' : '') : 'Showing 1–' + shown.length + ' of ' + totalScope;
+
+    const scopes = [['unl', 'UNL', nUnl], ['all', 'All', seenAll]].map((s) => ({ label: s[1], n: String(s[2]), on: st.scope === s[0], cls: st.scope === s[0] ? 'on' : '', pick: () => this.setState({ scope: s[0] }) }));
+    const isChart = st.view === 'chart';
+    const reset = { scope: 'unl', q: '', amd: '', vh: '' };
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState(Object.assign({ net: 'xrpl' }, reset)),
+      pickXahau: () => this.setState(Object.assign({ net: 'xahau' }, reset)),
+      netName: x ? 'XRPL' : 'Xahau', yes: true,
+      intro: x ? 'Validators whose validations reached our servers in the last 24 hours. The default UNL is the list rippled trusts out of the box.' : 'Validators whose validations reached our servers in the last 24 hours. The default UNL is the list xahaud trusts out of the box.',
+      tiles,
+      isChart, isTable: !isChart, chartCls: isChart ? 'on' : '', tableCls: isChart ? '' : 'on',
+      showChart: () => this.setState({ view: 'chart' }), showTable: () => this.setState({ view: 'table', vh: '' }),
+      verLegend: verNames.map((nm, k) => ({ name: nm, color: colors[k] })),
+      verGroups, verRows, pctTicks,
+      leaveVer: () => this.setState({ vh: '' }),
+      verNote: 'Each validator’s version as it reports it in its validations. “Other” groups releases older than ' + verNames[3] + '.',
+      scopes, q: st.q, onQ: (e) => this.setState({ q: e.target.value }),
+      amd: st.amd, onAmd: (e) => this.setState({ amd: e.target.value }),
+      rows: shown, empty: shown.length === 0, pageNote,
+      feeNote: 'Fee votes in ' + cur + ' / ' + cur + ' / drops; ↑ ↓ against the current value'
+    };
+  }
+}
+</script>
+</body>
+</html>
