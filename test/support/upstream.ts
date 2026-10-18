@@ -51,6 +51,14 @@ function configuredBases(): UpstreamBases {
   return bases;
 }
 
+/**
+ * The statuses the mock answered the requests for `key` with (`GET /v2/last_validated`, `node tx <HASH>`, ...), in order. An
+ * override that did not reach the Worker as the response it was shows as `0`: the answer was never made.
+ */
+export function statusesOf(mock: Pick<UpstreamMock, "requests">, key: string): number[] {
+  return mock.requests.filter((request) => request.key === key).map((request) => request.status);
+}
+
 export interface UpstreamMock {
   /** Every request the mock answered, in order. */
   requests: SeenRequest[];

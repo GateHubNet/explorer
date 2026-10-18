@@ -60,9 +60,8 @@ const REMIT = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF"
 
 const OWNED = { cls: "immutable", ttl: 31_536_000 };
 
-// An override that is a `Response` value is made in the test's request and cloned in the Worker's, and workerd refuses to read its body
-// there ("Cannot perform I/O on behalf of a different request"): the client then fails as `network`, which a page answers like any other
-// failure. A function makes the Response inside the Worker's request, so the status the test names is the one the client sees.
+// An override may be a function or a `Response` value (the mock captures a value's status, headers and body when it is made); this file
+// uses functions.
 
 // First in the file: a failed call is never stored, but the answers that worked are, so a failing one is asked for before
 // anything has been, and for transactions and ledgers that nothing else in the file asks for.

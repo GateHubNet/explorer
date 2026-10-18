@@ -4,7 +4,7 @@ import { encodeCtid } from "../../app/domain/ctid";
 import { shortHash } from "../../app/domain/format";
 import { recordedHashes } from "../support/ledger-hashes";
 import { anchors, hrefs, pageClient, textOf } from "../support/pages";
-import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 
 // `/{net}/search?q=...` (spec 6) on the real Worker against the recorded answers of the data API and the nodes
 // (test/fixtures/http/): the redirects, the choice page, the help text, the not-found pages and the CTIDs.
@@ -72,6 +72,8 @@ describe("when an upstream fails", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(html).toContain("Temporarily unavailable");
+    // The Worker was given the 503 itself, not a failure to connect.
+    expect(statusesOf(mock, `GET /v2/transactions/${hash}`)).toEqual([503]);
     expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
     expect(mock.unusedOverrides()).toEqual([]);
   });
@@ -94,6 +96,7 @@ describe("when an upstream fails", () => {
 
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(statusesOf(mock, "GET /v2/ledgers/107600101?transactions=true")).toEqual([500]);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
@@ -108,6 +111,9 @@ describe("when an upstream fails", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe(`/xrpl/tx/${hash}`);
+    // The failing question really failed, with the status it was given, and the page went on with the answer it had.
+    expect(statusesOf(mock, `GET /v2/ledgers/${hash}`)).toEqual([500]);
+    expect(statusesOf(mock, `GET /v2/transactions/${hash}`)).toEqual([200]);
   });
 });
 

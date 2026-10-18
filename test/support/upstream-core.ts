@@ -31,9 +31,10 @@ export interface FixtureFiles {
 }
 
 /**
- * What replaces an answer. A function gets the request and returns the Response; a `Response` is cloned for every
- * request; `null` removes the fixture (the answer is then the "absent" one); anything else is a JSON body: the body
- * of a data API answer (status 200) or the `result` of a node's.
+ * What replaces an answer. A function gets the request and returns the Response; a `Response` is captured (status, status
+ * text, headers and body) when the mock is made and rebuilt for every request, see `capture`; `null` removes the fixture
+ * (the answer is then the "absent" one); anything else is a JSON body: the body of a data API answer (status 200) or the
+ * `result` of a node's.
  */
 export type Override = unknown;
 export type Overrides = Record<string, Override>;
@@ -270,6 +271,39 @@ function below(base: URL, url: URL): string | undefined {
 
 const KEY_PATTERN = /^(?:(xrpl|xahau) )?(GET \/\S*|node [a-z_]+(?: \S+)?)$/;
 
+/** The statuses that cannot have a body: a Response built for one with an empty buffer would throw. */
+const NO_BODY = new Set([101, 204, 205, 304]);
+
+/**
+ * A `Response` given as an override, taken apart once: its status, status text and headers as they are when the mock is made, and
+ * its body, which is read from a clone at once (a promise, because a body can only be read asynchronously).
+ *
+ * Why not clone it for every request: the Response is made in the test's request, and the answer is wanted in the Worker's, which a
+ * test makes with `exports.default.fetch`. workerd refuses to read a body in another request than the one that made it ("Cannot
+ * perform I/O on behalf of a different request"), so the Worker's data API client saw a connection failure, whatever the status
+ * the test had given. The bytes are plain data and cross requests freely; a Response is built from them for every request.
+ */
+class CapturedResponse {
+  readonly status: number;
+  readonly statusText: string;
+  readonly headers: Array<[string, string]>;
+  readonly body: Promise<ArrayBuffer>;
+
+  constructor(response: Response) {
+    this.status = response.status;
+    this.statusText = response.statusText;
+    this.headers = [...response.headers];
+    this.body = response.clone().arrayBuffer();
+    // A body that fails is reported to the request that uses it, not as an unhandled rejection here.
+    this.body.catch(() => {});
+  }
+
+  async build(): Promise<Response> {
+    const init = { status: this.status, statusText: this.statusText, headers: this.headers };
+    return new Response(NO_BODY.has(this.status) ? null : await this.body, init);
+  }
+}
+
 type KeyedOverrides = Map<NetworkName, Map<string, Override>>;
 
 /** Overrides by network and canonical key. A key that is none of the formats above is a mistake: it throws. */
@@ -288,7 +322,7 @@ function parseOverrides(primary: NetworkName, overrides: Overrides): KeyedOverri
       const [, method, rest] = /^node (\S+)(?: (.+))?$/.exec(body)!;
       canonical = !rest ? `node ${method}` : rest.includes("=") ? `node ${method} ${canonicalParams(rest)}` : `node ${method} ${upperHash(rest)}`;
     }
-    keyed.get(net)!.set(canonical, value);
+    keyed.get(net)!.set(canonical, value instanceof Response ? new CapturedResponse(value) : value);
   }
   return keyed;
 }
@@ -335,7 +369,7 @@ export function createUpstream({ files, bases, primary, overrides = {} }: Upstre
     return table.then((entries) => entries[hash.toUpperCase()]);
   }
 
-  /** Runs an override: a function is called, a Response cloned, `null` stands for "absent", the rest is a body. */
+  /** Runs an override: a function is called, a captured Response rebuilt, `null` stands for "absent", the rest is a body. */
   async function overridden(
     value: Override,
     request: Request,
@@ -347,7 +381,7 @@ export function createUpstream({ files, bases, primary, overrides = {} }: Upstre
       if (!(made instanceof Response)) throw new TypeError("an override function must return a Response");
       return made;
     }
-    if (value instanceof Response) return value.clone();
+    if (value instanceof CapturedResponse) return value.build();
     if (value === null) return absent();
     return asBody(value);
   }

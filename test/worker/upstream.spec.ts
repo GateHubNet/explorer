@@ -1,3 +1,4 @@
+import { exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDataApi, UpstreamError } from "../../app/server/data-api";
@@ -5,7 +6,7 @@ import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { createNodeRpc } from "../../app/server/node-rpc";
 import { passThroughCache } from "../support/subrequest-cache";
-import { dataApiError, mockUpstream, nodeError, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, nodeError, statusesOf, type UpstreamMock } from "../support/upstream";
 
 // The upstream mock: the data API and the nodes of both networks, answered from test/fixtures/http/.
 
@@ -310,6 +311,31 @@ describe("mockUpstream", () => {
       // Only the key that was overridden: the other shapes of that ledger are the fixtures.
       expect((await api.ledger(String(HEAD.index), { transactions: true })).transactions.length).toBeGreaterThan(0);
       expect(mock.requests.filter((r) => r.source === "override")).toHaveLength(5);
+    });
+
+    it("reaches the Worker as that response when a page is asked for, as a value or as a function", async () => {
+      // A Response made here is read in the Worker's request, which workerd refuses for a body that was not captured in this one
+      // ("Cannot perform I/O on behalf of a different request"): the Worker would then see a connection failure, whatever the status.
+      const asked = async (path: string, visitor: number) => {
+        const response = await exports.default.fetch(`https://explorer.test${path}`, {
+          headers: { "CF-Connecting-IP": `203.0.113.${visitor}` },
+          redirect: "manual",
+        });
+        await response.text();
+        return response;
+      };
+      mock = mockUpstream("xrpl", {
+        "GET /v2/ledgers/107700091?expand=true&transactions=true": dataApiError(503, "unavailable"),
+        "GET /v2/ledgers/107700092?expand=true&transactions=true": () => dataApiError(500, "boom"),
+        "GET /v2/ledgers/107700093?expand=true&transactions=true": Response.json({ result: "error", message: "slow down" }, { status: 429, headers: { "Retry-After": "7" } }),
+      });
+      expect((await asked("/xrpl/ledger/107700091", 1)).status).toBe(503);
+      expect((await asked("/xrpl/ledger/107700092", 2)).status).toBe(503);
+      expect((await asked("/xrpl/ledger/107700093", 3)).status).toBe(503);
+      expect(statusesOf(mock, "GET /v2/ledgers/107700091?expand=true&transactions=true")).toEqual([503]);
+      expect(statusesOf(mock, "GET /v2/ledgers/107700092?expand=true&transactions=true")).toEqual([500]);
+      expect(statusesOf(mock, "GET /v2/ledgers/107700093?expand=true&transactions=true")).toEqual([429]);
+      expect(mock.unusedOverrides()).toEqual([]);
     });
 
     it("gives a function the request, key header included", async () => {

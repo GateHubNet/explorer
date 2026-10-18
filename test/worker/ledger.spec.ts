@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { shortAddress, shortHash } from "../../app/domain/format";
-import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 
 // The ledger page, `/{net}/ledger/{index|hash}`, on the real Worker against the recorded answers of the data API and the
@@ -64,6 +64,8 @@ describe("when an upstream fails", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(html).toContain("Temporarily unavailable");
+    // The Worker was given the 500 itself, not a failure to connect.
+    expect(statusesOf(mock, "GET /v2/last_validated")).toEqual([500]);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
@@ -74,6 +76,7 @@ describe("when an upstream fails", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(html).toContain("Temporarily unavailable");
+    expect(statusesOf(mock, "GET /v2/ledgers/107700004?expand=true&transactions=true")).toEqual([503]);
     expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
     expect(mock.unusedOverrides()).toEqual([]);
   });

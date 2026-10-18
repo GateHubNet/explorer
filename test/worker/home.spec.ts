@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
 import { shortAddress, shortHash } from "../../app/domain/format";
-import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 
 // The home page, `/{net}`, on the real Worker against the recorded answers of the data API (test/fixtures/http/): the hero
@@ -30,6 +30,8 @@ describe("when the data API fails", () => {
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(response.headers.get("X-Cache")).toBe("MISS");
     expect(html).toContain("Temporarily unavailable");
+    // The Worker was given the 503 itself, not a failure to connect.
+    expect(statusesOf(mock, "GET /v2/network/fees?descending=true&limit=8")).toEqual([503]);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 });

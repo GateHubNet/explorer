@@ -201,6 +201,46 @@ describe("createUpstream", () => {
     expect((await jsonOf(garbage)).result.error).toBe("invalidParams");
   });
 
+  describe("a Response given as an override", () => {
+    const KEY = "GET /v2/last_validated";
+
+    it("is captured when the mock is made, and every request gets a Response of its own built from it", async () => {
+      const original = Response.json({ result: "error", message: "unavailable" }, { status: 503, headers: { "Retry-After": "7", "X-Kept": "1" } });
+      const upstream = make({ [KEY]: original });
+      // What happens to the original afterwards - its body read, its headers changed - is no concern of the mock.
+      await original.text();
+      original.headers.set("X-Late", "1");
+
+      const first = (await upstream.handle(get("/xrpl/v2/last_validated")))!;
+      const second = (await upstream.handle(get("/xrpl/v2/last_validated")))!;
+      expect(first).not.toBe(second);
+      for (const answer of [first, second]) {
+        expect(answer.status).toBe(503);
+        expect(answer.headers.get("Retry-After")).toBe("7");
+        expect(answer.headers.get("X-Kept")).toBe("1");
+        expect(answer.headers.has("X-Late")).toBe(false);
+      }
+      expect(await jsonOf(first)).toEqual({ result: "error", message: "unavailable" });
+      expect(await jsonOf(second)).toEqual({ result: "error", message: "unavailable" });
+    });
+
+    it("keeps the status text, and answers a status that has no body without one", async () => {
+      const upstream = make({ [KEY]: new Response(null, { status: 304, statusText: "Not Modified", headers: { ETag: "x" } }) });
+      const answer = (await upstream.handle(get("/xrpl/v2/last_validated")))!;
+      expect(answer.status).toBe(304);
+      expect(answer.statusText).toBe("Not Modified");
+      expect(answer.headers.get("ETag")).toBe("x");
+      expect(answer.body).toBeNull();
+    });
+
+    it("is not mistaken for a JSON body, and a plain object still is one", async () => {
+      const upstream = make({ [KEY]: { result: "success", ledger_index: "9" } });
+      const answer = (await upstream.handle(get("/xrpl/v2/last_validated")))!;
+      expect(answer.status).toBe(200);
+      expect(await jsonOf(answer)).toEqual({ result: "success", ledger_index: "9" });
+    });
+  });
+
   it("describes the errors it makes as the servers do", () => {
     expect(nodeError("txnNotFound")).toMatchObject({ error: "txnNotFound", error_code: 29, status: "error" });
     expect(nodeError("somethingElse")).toMatchObject({ error: "somethingElse", error_code: 73 });

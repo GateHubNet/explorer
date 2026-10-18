@@ -392,12 +392,14 @@ mock.restore();
 the test `env`, so a test may call either network; `net` is the network the unprefixed override keys belong to. Anything else
 that is fetched throws. An override key is `GET <path>?<query>` for the data API (query order free) or `node <method> <subject>` /
 `node <method> <all params sorted>` for a node (the more specific wins), optionally prefixed with `xrpl` or `xahau`. Its value is a
-function `(req: Request) => Response`, a `Response` (cloned for every request), `null` (as if there were no fixture), or a JSON
-body (a data API's, or a node's `result`). An unknown key throws. `dataApiError(status, message)` and `nodeError(code)` make
-the servers' errors. **A spec that asks the Worker for a page (`exports.default.fetch`) overrides with a function**, `() =>
-dataApiError(503, "...")`: a `Response` value is made in the test's request and cloned in the Worker's, and workerd refuses to read
-its body there (`Cannot perform I/O on behalf of a different request`), so the client sees a `network` failure whatever the status
-was. (`resolve.spec.ts` and `data-api.spec.ts` call the clients in the test's own request, where a `Response` value is fine.)
+function `(req: Request) => Response`, a `Response` (its status, headers and body are captured when the mock is made, and every
+request gets a new `Response` built from them), `null` (as if there were no fixture), or a JSON body (a data API's, or a node's
+`result`). An unknown key throws. `dataApiError(status, message)` and `nodeError(code)` make the servers' errors. A `Response`
+value works for a spec that asks the Worker for a page (`exports.default.fetch`) as well as for one that calls a client: the body is
+read once, where the test made it. (It used to be cloned for every request, and workerd refuses to read a body in another request
+than the one that made it, `Cannot perform I/O on behalf of a different request`, so a Worker saw a connection failure whatever
+status the test had given.) A test that overrides to make something fail should still show that the Worker was given the failure it
+meant: `statusesOf(mock, "GET /v2/...")` lists the statuses the mock answered a key with, and `0` is an answer that was never made.
 
 **In the end-to-end suite:** `startFixtureServer(port)` (`test/support/fixture-server.ts`, Node only, `port` 0 for any) serves the
 same fixtures at `<url>/xrpl` and `<url>/xahau` (data API) and `<url>/xrpl-node` and `<url>/xahau-node` (JSON-RPC), so the two
