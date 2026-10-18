@@ -131,6 +131,38 @@ async function withHistory(address: string, health: Health = {}, extra: Override
 
 const requests = (m: UpstreamMock, kind: "node" | "data-api") => m.requests.filter((r) => r.kind === kind);
 
+/**
+ * What a `.data` URL (a client-side navigation, a Retry) answers, decoded. It is turbo-stream: a flat list in which every key, string and
+ * value is an element and objects and lists refer to elements by index, then one line `P<id>:[...]` for each promise of the data when it
+ * settles, continuing the same index space. A promise is decoded in place; one that never settled is `"pending"`.
+ */
+function decodeData(body: string): Record<string, { data: Record<string, unknown> }> {
+  const [first, ...rest] = body.split("\n").filter(Boolean);
+  const flat: unknown[] = JSON.parse(first!);
+  const settled = new Map<number, number>();
+  for (const line of rest) {
+    const match = /^P(\d+):(.*)$/.exec(line);
+    if (!match) throw new Error(`not a promise line: ${line.slice(0, 80)}`);
+    settled.set(Number(match[1]), flat.length);
+    flat.push(...(JSON.parse(match[2]!) as unknown[]));
+  }
+  const decode = (index: number): unknown => {
+    // -5 is null and -1 is undefined; the data has neither a NaN nor an infinity.
+    if (index < 0) return index === -5 ? null : undefined;
+    const item = flat[index];
+    if (Array.isArray(item)) {
+      if (item[0] === "P") return settled.has(item[1] as number) ? decode(settled.get(item[1] as number)!) : "pending";
+      return item.map((entry) => decode(entry as number));
+    }
+    if (typeof item === "object" && item !== null) {
+      return Object.fromEntries(Object.entries(item).map(([key, value]) => [flat[Number(key.slice(1))] as string, decode(value as number)]));
+    }
+    return item;
+  };
+  return decode(0) as Record<string, { data: Record<string, unknown> }>;
+}
+const ACCOUNT_ROUTE = "routes/net.account.$address";
+
 // ---------------------------------------------------------------------------------------------------------------------------
 // When an upstream fails. First in the file.
 
@@ -247,16 +279,18 @@ describe("when the list of the tab cannot be loaded", () => {
     });
 
     const first = await get(`/xrpl/account/${a}.data`);
-    const body = await first.text();
+    const failed = decodeData(await first.text())[ACCOUNT_ROUTE]!.data;
     expect(first.status).toBe(200);
-    expect(body).toContain("failed");
+    // The header is the page's own, and the list is the failed state the page shows "Couldn’t load transactions" for.
+    expect(failed).toMatchObject({ kind: "account", mode: "live", address: a, tab: "transactions", header: { status: "active" } });
+    expect(failed.list).toEqual({ state: "failed", what: "transactions" });
     expect(await isStored(`/xrpl/account/${a}.data`)).toBe(false);
 
     const second = await get(`/xrpl/account/${a}.data`);
-    const good = await second.text();
+    const good = decodeData(await second.text())[ACCOUNT_ROUTE]!.data;
     expect(second.headers.get("X-Cache")).toBe("MISS");
-    expect(good).not.toContain("failed");
-    expect(good).toContain("OfferCreate");
+    expect(good.list).toMatchObject({ state: "ok", tab: "transactions", paging: { newerHref: null, olderHref: `/xrpl/account/${a}?marker=WzEwNzYxMjU3MywyNV0` } });
+    expect((good.list as { rows: Array<{ type: string }> }).rows.map((row) => row.type)).toEqual(["OfferCreate", "OfferCreate", "Payment", "OfferCreate"]);
     expect(await storedAs(`/xrpl/account/${a}.data`)).toEqual(LIVE);
   });
 
@@ -619,14 +653,43 @@ describe("the active XRPL account", () => {
     expect(html).not.toMatch(/<meta name="robots"/);
   });
 
-  it("asks the data API for the account, balances and the first page, and the node for the account, its objects and the reserves", async () => {
-    mock = mockUpstream("xrpl");
-    await page(`${path}?case=requests`);
-    const keys = mock.requests.map((r) => r.key).sort();
-    // Everything that is cached for longer than this test took was asked for by the tests above; what is left is the page's own list.
-    expect(keys.every((key) => key.includes(ACTIVE) || key.startsWith("node server_state") || key.startsWith("GET /v2/ledgers/"))).toBe(true);
-    for (const request of requests(mock, "data-api")) expect(request.headers.get("X-API-Key")).toBe("test-key");
-    // The browser never reaches the data API: only the Worker's requests are in the mock, and the page links to no API host.
+  it("asks the data API for the account, its balances, the first page of the tab and the ledger of its last transaction, and the node for the account and its objects: nothing else, once, and shows none of it", async () => {
+    // A made-up account, so that nothing it asks for is in the subrequest cache already (the tests above fill it for the recorded one) and
+    // every request reaches the mock. server_state is the one answer all accounts share, cached for 5 minutes: it is asked for at most once.
+    const a = account(66);
+    mock = mockUpstream("xrpl", {
+      ...(await withHistory(a, { info: { PreviousTxnLgrSeq: 107700777 } })),
+      "GET /v2/ledgers/107700777": { result: "success", ledger: { ledger_index: 107700777, close_time: 1792253462 } },
+    });
+    const { html } = await page(`/xrpl/account/${a}`);
+
+    const asked = mock.requests.filter((r) => r.key !== "node server_state").map((r) => r.key).sort();
+    expect(asked).toEqual(
+      [
+        `GET /v2/accounts/${a}`,
+        `GET /v2/accounts/${a}/balances`,
+        `GET /v2/accounts/${a}/transactions?descending=true&limit=20`,
+        "GET /v2/ledgers/107700777",
+        `node account_info account=${a}&ledger_index=validated`,
+        `node account_objects account=${a}&ledger_index=validated&limit=400`,
+      ].sort(),
+    );
+    expect(mock.requests.filter((r) => r.key === "node server_state").length).toBeLessThanOrEqual(1);
+    expect(mock.requests.every((r) => r.net === "xrpl")).toBe(true);
+    expect(mock.requests.every((r) => r.status === 200)).toBe(true);
+
+    for (const request of requests(mock, "data-api")) {
+      expect(request.method).toBe("GET");
+      expect(request.headers.get("X-API-Key")).toBe("test-key");
+    }
+    for (const request of requests(mock, "node")) expect(request.method).toBe("POST");
+
+    // The browser never reaches the data API or the node: the page names neither host, nor the key, in its markup or its data.
+    const hosts = [env.XRPL_DATA_API_URL, env.XAHAU_DATA_API_URL, env.XRPL_NODE_URL, env.XAHAU_NODE_URL].map((url) => new URL(url).host);
+    expect(hosts.length).toBe(4);
+    for (const host of hosts) expect(html, host).not.toContain(host);
+    expect(html).not.toContain("example.invalid");
+    expect(html).not.toContain("test-key");
   });
 });
 

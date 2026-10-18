@@ -451,14 +451,13 @@ function TabPanel({ network, data, list }: { network: NetworkInfo; data: Account
   switch (list.tab) {
     case "transactions":
       return (
-        <Panel tab="transactions" note="Newest first" foot={plural(list.rows.length, "transaction", "transactions")} paging={list.paging}>
+        <Panel note="Newest first" foot={plural(list.rows.length, "transaction", "transactions")} paging={list.paging}>
           <TransactionsTable net={net} native={network.native} rows={list.rows} />
         </Panel>
       );
     case "payments":
       return (
         <Panel
-          tab="payments"
           note="Successful payments between this account and others"
           action={
             <a className="btn" href={list.csvHref} download>
@@ -476,14 +475,13 @@ function TabPanel({ network, data, list }: { network: NetworkInfo; data: Account
       );
     case "trades":
       return (
-        <Panel tab="trades" note="Trades this account took part in" foot={plural(list.rows.length, "trade", "trades")} paging={list.paging}>
+        <Panel note="Trades this account took part in" foot={plural(list.rows.length, "trade", "trades")} paging={list.paging}>
           <TradesTable net={net} rows={list.rows} />
         </Panel>
       );
     case "offers":
       return (
         <Panel
-          tab="offers"
           note={list.ledgerIndex === null ? "Open offers, read live" : `Open offers, read live at ledger #${count(list.ledgerIndex)}`}
           foot={
             list.rows.length === 0
@@ -499,7 +497,6 @@ function TabPanel({ network, data, list }: { network: NetworkInfo; data: Account
     case "objects":
       return (
         <Panel
-          tab="objects"
           note={`Objects this account owns, read live${list.ledgerIndex === null ? "" : ` at ledger #${count(list.ledgerIndex)}`}. Trust lines (${count(list.trustLines)}) and offers (${count(list.offers)}) have their own places.`}
           foot={list.truncated ? `Showing the first ${count(OBJECTS_LIMIT)} objects` : plural(list.rows.length, "object", "objects")}
         >
@@ -511,14 +508,12 @@ function TabPanel({ network, data, list }: { network: NetworkInfo; data: Account
 
 /** A tab's panel: a note (and an action) above its content, a footer with the count and the pager below. */
 function Panel({
-  tab,
   note,
   action,
   foot,
   paging,
   children,
 }: {
-  tab: AccountTab;
   note: string;
   action?: ReactNode;
   foot: string;
@@ -526,7 +521,7 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <div className="activity__panel" role="region" aria-label={TAB_LABELS[tab]}>
+    <div className="activity__panel">
       <div className="activity__head">
         <span className="faint">{note}</span>
         {action}

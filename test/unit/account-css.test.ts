@@ -73,8 +73,13 @@ describe("the panel of the account page that holds a link", () => {
 
 describe("focus rings inside a card", () => {
   // `.card` clips what is outside its padding box, and these controls sit at its edge: the ring is drawn inside them.
-  it.each([".tabs__item:focus-visible", ".qr__toggle:focus-visible", ".more > summary:focus-visible"])("%s is drawn inside", (selector) => {
-    const css = selector.startsWith(".tabs__item") || selector.startsWith(".qr") || selector.startsWith(".more") ? pagesCss : componentsCss;
+  it.each([
+    [".tabs__item:focus-visible", pagesCss],
+    [".qr__toggle:focus-visible", pagesCss],
+    [".more > summary:focus-visible", pagesCss],
+    // The scroll region of a table is focusable (axe: scrollable-region-focusable) and fills its card.
+    [".table-scroll:focus-visible", componentsCss],
+  ] as const)("%s is drawn inside", (selector, css) => {
     expect(rule(css, selector)["outline-offset"]).toBe("-2px");
   });
 });

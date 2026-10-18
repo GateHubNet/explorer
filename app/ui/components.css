@@ -623,6 +623,11 @@ a.btn {
   overflow-x: auto;
 }
 
+/* The region is a scroll container a keyboard can focus, and fills its card, which clips what is outside its padding box: the ring is drawn inside. */
+.table-scroll:focus-visible {
+  outline-offset: -2px;
+}
+
 .table__row {
   display: grid;
   grid-template-columns: var(--cols);

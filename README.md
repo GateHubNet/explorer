@@ -125,7 +125,9 @@ log line, the edge cache with the visitor limit, React Router.
   that fails settles before the stream ends), so the copy is made only when the body is complete (`store` reads it to its end, then
   looks at the mark); a mark set before the answer also takes the browser's caching away (`Cache-Control: no-store`). A degraded
   refresh of a stale copy leaves the copy as it was, and the next good render is stored as usual. The log gets one line
-  (`degraded answer not stored`, with the reason).
+  (`degraded answer not stored`, with the reason). **The store buffers the whole body in memory** (`arrayBuffer()`) before it decides,
+  for every page and CSV it stores: the visitor's copy streams meanwhile, but for a very large page (a ledger with thousands of
+  transactions) the Worker holds all of it until the stream ends.
 
 ### Naming a page's class
 
@@ -224,7 +226,9 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
 - **Ages.** The stored HTML carries close times (`17:01:12`, `at 17:01:12 UTC`), never an age: `RelativeTime` fills in "3 s ago" in
   the browser (one shared timer, none while the tab is hidden), because a page is stored for seconds or for a year.
 - **Tables** (`DataTable`) scroll inside their card below their `minWidth`, which must be at least the sum of the tracks, the gaps
-  and the padding of a row, or the rows' borders and hover end early.
+  and the padding of a row, or the rows' borders and hover end early. What scrolls is a region (`role="region"`, named like the
+  table, `tabindex="0"`) so that a keyboard can scroll a table whose rows hold nothing to focus (axe: `scrollable-region-focusable`);
+  its focus ring is drawn inside it, as the card around it clips an outside one.
 
 ## The transaction page
 

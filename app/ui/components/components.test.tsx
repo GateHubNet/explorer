@@ -336,6 +336,21 @@ describe("DataTable", () => {
     render(<DataTable label="Transactions" columns={columns} rows={[]} rowKey={(r) => r.hash} empty="No transactions." />);
     expect(screen.getByText("No transactions.")).toBeTruthy();
   });
+
+  it("is in a region that a keyboard can reach and scroll, named like the table: its rows may hold nothing else to focus (axe: scrollable-region-focusable)", () => {
+    render(<DataTable label="Open offers" columns={columns} rows={rows} rowKey={(r) => r.hash} minWidth={900} />);
+    const region = screen.getByRole("region", { name: "Open offers" });
+    expect(region.getAttribute("tabindex")).toBe("0");
+    expect(region.className).toContain("table-scroll");
+    expect(within(region).getByRole("table", { name: "Open offers" })).toBeTruthy();
+  });
+
+  it("is that region when it is empty too, where the note is what it holds", () => {
+    render(<DataTable label="Open offers" columns={columns} rows={[]} rowKey={(r) => r.hash} empty="No offers." />);
+    const region = screen.getByRole("region", { name: "Open offers" });
+    expect(region.getAttribute("tabindex")).toBe("0");
+    expect(within(region).getByText("No offers.")).toBeTruthy();
+  });
 });
 
 describe("Tabs", () => {

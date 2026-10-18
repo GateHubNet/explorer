@@ -105,8 +105,10 @@ function readList(api: DataApi, tab: AccountTab, ctx: ListContext): Promise<TabL
  * `/{net}/account/{address}` (spec 2, 3, 7.2, 10).
  *
  * - An X-address is a 302 to the classic address, with `?tag=` for its tag (class `immutable`); an address that is neither is a 404 of
- *   class `short`, without a call. `?tag=` that is not a decimal 32-bit number is not shown and never echoed. An unknown `?tab=` is a 302
- *   to the URL without it, so that a made-up value never becomes a stored page; so is a `marker` on a tab that has no pages.
+ *   class `short`, without a call. `?tag=` that is not a decimal 32-bit number is not shown and never echoed. An unknown `?tab=` (the one
+ *   parameter that selects what the page shows) is a 302 to the URL without it, and so is a `marker` on a tab that has no pages. That only
+ *   tidies those two: every route is keyed on its whole URL (the edge cache's key is the URL and the build ID), so a made-up `back`, `tag`
+ *   or other parameter, on a marker URL or any other, is a page of its own, stored for as long as its class says.
  * - **The first page of a tab** (no marker) is class `live`. The header is read side by side from the data API (creation, balances) and
  *   the node (`account_info`, `account_objects`, `server_state` for the reserves) and awaited. The list of the tab is a promise that
  *   streams in after it, and that never rejects: when it cannot be loaded it is a `failed` list, which the page shows as "Couldn't

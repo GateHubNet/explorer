@@ -18,6 +18,10 @@ export interface Column<Row> {
  * A table of the mock's look (46 px rows, a faint header row, a hover row), built as ARIA `table`/`row`/`cell` over a CSS
  * grid so columns can be given tracks. It scrolls sideways inside its card on a phone: `minWidth` is the width below which
  * it does. Put it in `<Card flush>`.
+ *
+ * What scrolls is a region a keyboard can reach (`tabindex="0"`) and that is named like the table, because a table whose rows hold
+ * no link or button has nothing to focus and could not be scrolled from the keyboard (axe: scrollable-region-focusable). Its ring
+ * is drawn inside it (components.css): the card around it clips an outside one.
  */
 export function DataTable<Row>({
   label,
@@ -41,7 +45,7 @@ export function DataTable<Row>({
     cx("table__cell", column.align === "end" && "is-end", column.ellipsis && "is-ellipsis");
 
   return (
-    <div className="table-scroll">
+    <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>
       <div role="table" aria-label={label} style={style}>
         <div role="row" className="table__row table__head">
           {columns.map((column) => (
