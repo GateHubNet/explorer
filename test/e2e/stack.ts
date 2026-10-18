@@ -19,17 +19,20 @@
 //   E2E_DATA_API_KEY    the key a real data API wants (X-API-Key); the fixtures take any non-empty one.
 //   E2E_SKIP_BUILD=1    use build/ as it is (the pipeline has just made it with `pnpm verify`); otherwise it is built first.
 //   E2E_VERBOSE=1       show the Worker's and wrangler's own log lines (one per request).
+//
+// For the tests of this file (test/unit/e2e-stack.test.ts): E2E_STACK_ROOT names another project root, with a build/ and a
+// node_modules/.bin/wrangler of its own (a stand-in), so that the stack can be run without a build and with a wrangler that fails.
 
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { upstreamUrls } from "../../scripts/e2e-env";
+import { formatEnvFile, isStackWorkdir, upstreamUrls } from "../../scripts/e2e-env";
 import { type FixtureServer, startFixtureServer } from "../support/fixture-server";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
+const root = process.env.E2E_STACK_ROOT ?? fileURLToPath(new URL("../../", import.meta.url));
 
 const log = (message: string) => console.log(`[e2e stack] ${message}`);
 
@@ -44,8 +47,13 @@ async function main(): Promise<void> {
   let worker: ChildProcess | undefined;
   let stopping = false;
 
+  // Only the directory made here, and only if it is where it should be. Safe to call again.
+  const removeWorkdir = () => {
+    if (workdir && isStackWorkdir(workdir, tmpdir())) rmSync(workdir, { recursive: true, force: true });
+  };
   const cleanup = async () => {
-    if (worker && worker.exitCode === null) {
+    // Not one that has ended already, by itself or from the signal that went to its whole group: there is no 'exit' to wait for.
+    if (worker && worker.exitCode === null && worker.signalCode === null) {
       worker.kill("SIGTERM");
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
@@ -59,8 +67,7 @@ async function main(): Promise<void> {
       });
     }
     await fixtures?.close().catch(() => undefined);
-    // Only the directory made here, and only if it is where it should be.
-    if (workdir && workdir.startsWith(`${tmpdir()}${sep}`) && workdir.includes("x-explorer-e2e-")) rmSync(workdir, { recursive: true, force: true });
+    removeWorkdir();
   };
   const stop = (code: number) => {
     if (stopping) return;
@@ -69,6 +76,8 @@ async function main(): Promise<void> {
   };
   process.on("SIGTERM", () => stop(0));
   process.on("SIGINT", () => stop(0));
+  // The directory holds the key. Whatever ends the process (an exit, an exception nobody caught), it does not outlive it.
+  process.on("exit", removeWorkdir);
 
   try {
     if (!real) {
@@ -97,8 +106,8 @@ async function main(): Promise<void> {
 
     workdir = mkdtempSync(join(tmpdir(), "x-explorer-e2e-"));
     const envFile = join(workdir, "worker.env");
-    writeFileSync(envFile, Object.entries({ ...urls, DATA_API_KEY: key }).map(([name, value]) => `${name}=${value}`).join("\n") + "\n", { mode: 0o600 });
-    chmodSync(envFile, 0o600);
+    // Created private (the key is in it), in a directory that is the owner's alone.
+    writeFileSync(envFile, formatEnvFile({ ...urls, DATA_API_KEY: key }), { mode: 0o600 });
 
     log(`wrangler dev on ${port}, state in ${workdir}`);
     worker = spawn(
@@ -118,10 +127,24 @@ async function main(): Promise<void> {
       {
         cwd: root,
         stdio: "inherit",
-        // `--env-file` also stops wrangler from reading a .dev.vars next to the build; this makes it read the file itself.
-        env: { ...env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "true", WRANGLER_SEND_METRICS: "false", NO_COLOR: "1" },
+        env: {
+          ...env,
+          // Giving `--env-file` is what stops wrangler from reading a .dev.vars next to the build. Wrangler reads that file when
+          // CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV is true, which is its default; it is set here so that a value inherited from the
+          // developer's shell cannot turn it off (the Worker would then run on the placeholder hosts of wrangler.jsonc), and the
+          // process environment is kept out of the Worker's variables.
+          CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "true",
+          CLOUDFLARE_INCLUDE_PROCESS_ENV: "false",
+          WRANGLER_SEND_METRICS: "false",
+          NO_COLOR: "1",
+        },
       },
     );
+    // wrangler could not be started at all (not there, not executable): nothing will ever answer.
+    worker.once("error", (error) => {
+      console.error(`[e2e stack] wrangler could not be started: ${error.message}`);
+      stop(1);
+    });
     worker.once("exit", (code, signal) => {
       if (!stopping) {
         log(`wrangler dev ended (${signal ?? code})`);

@@ -128,6 +128,45 @@ test.describe("names", () => {
   }
 });
 
+// axe cannot decide the contrast of the first amount in the account's table ("needs review": "overlapped by another element"). What overlaps it
+// is the line below, `+1 more`: that line's hit-test box starts under 1 px above its own layout box, inside the bottom of the amount's, and
+// axe, finding another element on top at that point, gives up. It has no background, so nothing about the amount's colours is in doubt: they
+// are checked here as axe would, against the first background behind them, for every amount in the table.
+for (const scheme of ["light", "dark"] as const) {
+  test.describe(`amounts in ${scheme}`, () => {
+    test.use({ colorScheme: scheme });
+
+    test("meet 4.5:1 on the card they are in, whatever axe makes of the line under the first", async ({ page }) => {
+      await page.goto(`/xrpl/account/${XRPL_ACCOUNT}`);
+      await hydrated(page);
+      await visible("Transactions")(page);
+      const ratios = await page.evaluate(() => {
+        const channel = (value: number) => {
+          const c = value / 255;
+          return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        };
+        const rgb = (text: string): number[] => text.match(/[\d.]+/g)!.map(Number);
+        const luminance = ([r, g, b]: number[]) => 0.2126 * channel(r!) + 0.7152 * channel(g!) + 0.0722 * channel(b!);
+        const backgroundBehind = (element: Element): number[] => {
+          for (let node: Element | null = element; node; node = node.parentElement) {
+            const color = rgb(getComputedStyle(node).backgroundColor);
+            if ((color[3] ?? 1) > 0) return color;
+          }
+          return [255, 255, 255];
+        };
+        return [...document.querySelectorAll(".amt--pos, .amt--neg")].map((element) => {
+          const own = luminance(rgb(getComputedStyle(element).color));
+          const behind = luminance(backgroundBehind(element));
+          const [light, dark] = own > behind ? [own, behind] : [behind, own];
+          return { text: element.textContent, ratio: (light + 0.05) / (dark + 0.05) };
+        });
+      });
+      expect(ratios.length).toBeGreaterThan(0);
+      expect(ratios.filter((amount) => amount.ratio < 4.5)).toEqual([]);
+    });
+  });
+}
+
 test.describe("the gate", () => {
   test("runs the rules of WCAG 2.2 AA, 2.5.3 (label in name) among them", async ({ page }) => {
     await page.goto(`/xahau/ledger/${XAHAU_LEDGER}`);

@@ -14,95 +14,170 @@ const stored = (baseURL: string, theme: "light" | "dark") => ({
 const dataTheme = (page: Page) => page.evaluate(() => document.documentElement.getAttribute("data-theme"));
 const background = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
-/** The page with no script of its own running: React cannot set anything, only what is in the HTML can. */
+/**
+ * The page with no script of its own running: React cannot set anything, only what is in the HTML can. The browser logs each of the
+ * requests that were refused as an error, so a test that uses this says `test.use({ allowConsoleErrors: true })`.
+ */
 async function withoutScripts(context: BrowserContext): Promise<void> {
   await context.route("**/assets/*.js", (route) => route.abort());
 }
 
-test.describe("the theme", () => {
-  test("is not in the stored HTML, and the script that applies the choice comes before the stylesheet and blocks parsing", async ({ request }) => {
-    const html = await (await request.get("/xrpl")).text();
-    // One page for everybody: <html> has no theme.
-    expect(html).toMatch(/<html lang="en"[^>]*>/);
-    expect(html.match(/<html[^>]*>/)![0]).not.toContain("data-theme");
+/** What `watchTheme` saw, in the page. Times are `performance.now()`, the clock of the paint timings. */
+interface ThemeWatch {
+  /** When `data-theme` first appeared on any element (in practice <html>), as the observer was told: in the microtask after the script. */
+  setAt: number | null;
+  /** The first time the stylesheet's <link> was seen entering the document, and what <html> had then. */
+  atStylesheet: { at: number; theme: string | null } | null;
+  /** The first tick of the observer at all, and what <html> had then. */
+  firstTick: { at: number; theme: string | null } | null;
+}
 
-    const stylesheet = html.search(/<link rel="stylesheet"/);
-    const script = html.search(/<script>try\{var t=localStorage\.getItem\("theme"\)/);
+/** Installs, before any script of the page, a MutationObserver on the whole document that notes when the theme is put on <html>. */
+async function watchTheme(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    const seen: ThemeWatch = { setAt: null, atStylesheet: null, firstTick: null };
+    Object.assign(window, { themeWatch: seen });
+    new MutationObserver((records) => {
+      const at = performance.now();
+      const theme = document.documentElement.getAttribute("data-theme");
+      seen.firstTick ??= { at, theme };
+      for (const record of records) {
+        if (record.type === "attributes") seen.setAt ??= at;
+        for (const node of record.addedNodes) {
+          if (node instanceof HTMLLinkElement && node.rel === "stylesheet") seen.atStylesheet ??= { at, theme };
+        }
+      }
+    }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-theme"] });
+  });
+}
+
+/** The time of the browser's first paint, once it has painted. */
+async function firstPaint(page: Page): Promise<number> {
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName("first-paint").length)).toBeGreaterThan(0);
+  return page.evaluate(() => performance.getEntriesByName("first-paint")[0]!.startTime);
+}
+
+const themeWatch = (page: Page) => page.evaluate(() => (window as unknown as { themeWatch: ThemeWatch }).themeWatch);
+
+test.describe("the theme", () => {
+  test("is not in the stored HTML, and the script that applies the choice is a plain script before the stylesheet that sets it at once", async ({ page, request }) => {
+    const html = await (await request.get("/xrpl")).text();
+    // Parsed as a browser parses it (a DOMParser runs no script): the order of the head and the attributes of its elements.
+    const head = await page.evaluate((source) => {
+      const doc = new DOMParser().parseFromString(source, "text/html");
+      return {
+        htmlAttributes: doc.documentElement.getAttributeNames(),
+        children: [...doc.head.children].map((element) => ({
+          tag: element.tagName,
+          attributes: element.getAttributeNames(),
+          rel: element.getAttribute("rel"),
+          text: element.tagName === "SCRIPT" ? element.textContent : null,
+        })),
+        bodyFollowsHead: doc.head.nextElementSibling === doc.body,
+      };
+    }, html);
+
+    // One page for everybody: <html> has no theme.
+    expect(head.htmlAttributes).not.toContain("data-theme");
+    expect(head.bodyFollowsHead).toBe(true);
+
+    const scripts = head.children.filter((child) => child.tag === "SCRIPT" && child.text?.includes("dataset.theme"));
+    expect(scripts, "one script in <head> puts the stored theme on <html>").toHaveLength(1);
+    const script = scripts[0]!;
+    // Plain: no src, async, defer, type="module" or nomodule, so the parser runs it where it finds it and waits for it.
+    expect(script.attributes).toEqual([]);
+
+    const stylesheet = head.children.findIndex((child) => child.tag === "LINK" && child.rel?.split(/\s+/).includes("stylesheet"));
     expect(stylesheet).toBeGreaterThan(0);
-    expect(script, "the theme script is in the head as a plain inline script (not async, deferred or a module)").toBeGreaterThan(0);
-    expect(script).toBeLessThan(stylesheet);
-    expect(script).toBeLessThan(html.indexOf("<body"));
-    expect(html.slice(script, html.indexOf("</script>", script))).toContain("document.documentElement.dataset.theme=t");
+    expect(head.children.indexOf(script)).toBeLessThan(stylesheet);
+    // Nothing that is not the script's own is ahead of it that could keep it waiting: only <meta>, <title> and <link> elements.
+    expect(head.children.slice(0, head.children.indexOf(script)).every((child) => !["SCRIPT", "STYLE"].includes(child.tag))).toBe(true);
+
+    // It sets the attribute when it runs, and does not put that off to an event, a timer or a promise.
+    const body = script.text!;
+    expect(body).toContain("document.documentElement.dataset.theme=");
+    expect(body).not.toMatch(/addEventListener|DOMContentLoaded|\bload\b|readystatechange|setTimeout|setInterval|requestAnimationFrame|requestIdleCallback|queueMicrotask|Promise|\basync\b|\bawait\b|MutationObserver/);
   });
 
   test.describe("before any script of the page has run", () => {
     test.use({ allowConsoleErrors: true });
 
-    test("a stored dark choice is on <html> in the first frame, and paints as the system's dark does", async ({ browser, baseURL }) => {
-      const chosen = await browser.newContext({ baseURL, colorScheme: "light", storageState: stored(baseURL!, "dark") });
+    test("a stored dark choice is on <html> in the first frame, and paints as the system's dark does", async ({ contextFor, baseURL }) => {
+      const chosen = await contextFor({ colorScheme: "light", storageState: stored(baseURL!, "dark") });
       await withoutScripts(chosen);
       const chosenPage = await chosen.newPage();
       await chosenPage.goto("/xrpl");
       expect(await dataTheme(chosenPage)).toBe("dark");
       const darkByChoice = await background(chosenPage);
-      await chosen.close();
 
       // The system is dark and nobody has chosen: what a dark first frame looks like.
-      const system = await browser.newContext({ baseURL, colorScheme: "dark" });
+      const system = await contextFor({ colorScheme: "dark" });
       await withoutScripts(system);
       const systemPage = await system.newPage();
       await systemPage.goto("/xrpl");
       expect(await dataTheme(systemPage)).toBeNull();
       const darkBySystem = await background(systemPage);
-      await system.close();
 
       // The system is light and nobody has chosen.
-      const plain = await browser.newContext({ baseURL, colorScheme: "light" });
+      const plain = await contextFor({ colorScheme: "light" });
       await withoutScripts(plain);
       const plainPage = await plain.newPage();
       await plainPage.goto("/xrpl");
       const light = await background(plainPage);
-      await plain.close();
 
       expect(darkByChoice).toBe(darkBySystem);
       expect(light).not.toBe(darkBySystem);
     });
 
-    test("a stored light choice beats a dark system, in the first frame too", async ({ browser, baseURL }) => {
-      const context = await browser.newContext({ baseURL, colorScheme: "dark", storageState: stored(baseURL!, "light") });
+    test("a stored light choice beats a dark system, in the first frame too", async ({ contextFor, baseURL }) => {
+      const context = await contextFor({ colorScheme: "dark", storageState: stored(baseURL!, "light") });
       await withoutScripts(context);
       const page = await context.newPage();
       await page.goto("/xrpl");
       expect(await dataTheme(page)).toBe("light");
 
-      const plain = await browser.newContext({ baseURL, colorScheme: "light" });
+      const plain = await contextFor({ colorScheme: "light" });
       await withoutScripts(plain);
       const plainPage = await plain.newPage();
       await plainPage.goto("/xrpl");
       expect(await background(page)).toBe(await background(plainPage));
-      await context.close();
-      await plain.close();
     });
 
-    test("a first paint that comes before the stylesheet has the theme: it is recorded when the browser paints", async ({ browser, baseURL }) => {
-      const context = await browser.newContext({ baseURL, colorScheme: "light", storageState: stored(baseURL!, "dark") });
-      await withoutScripts(context);
-      // Runs before the page's own scripts, in every document: notes the theme at the first paint and the first contentful paint.
-      await context.addInitScript(() => {
-        const seen: Record<string, string> = {};
-        Object.assign(window, { themeAtPaint: seen });
-        new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) seen[entry.name] = document.documentElement.getAttribute("data-theme") ?? "none";
-        }).observe({ type: "paint", buffered: true });
+    for (const [chosen, system] of [
+      ["dark", "light"],
+      ["light", "dark"],
+    ] as const) {
+      test(`a stored ${chosen} choice was on <html> before the stylesheet entered the document, and before the first paint`, async ({ contextFor, baseURL }) => {
+        const context = await contextFor({ colorScheme: system, storageState: stored(baseURL!, chosen) });
+        await withoutScripts(context);
+        await watchTheme(context);
+        const page = await context.newPage();
+        await page.goto("/xrpl");
+        const paint = await firstPaint(page);
+        const seen = await themeWatch(page);
+
+        // The stylesheet's <link> reached the document with the choice already on <html>: the script ran first.
+        expect(seen.atStylesheet, "the observer saw the stylesheet's <link> enter the document").not.toBeNull();
+        expect(seen.atStylesheet!.theme).toBe(chosen);
+        // It was set, and the observer was told, before the browser first painted anything.
+        expect(seen.setAt, "the observer saw data-theme set").not.toBeNull();
+        expect(seen.setAt!).toBeLessThanOrEqual(paint);
+        expect(seen.atStylesheet!.at).toBeLessThanOrEqual(paint);
+        // (The first tick of the observer is before the script: the attribute is not there yet, and was not there to begin with.)
+        expect(seen.firstTick!.theme).toBeNull();
+        expect(await dataTheme(page)).toBe(chosen);
       });
+    }
+
+    test("with nothing stored, nothing is put on <html>", async ({ contextFor }) => {
+      const context = await contextFor({ colorScheme: "dark" });
+      await withoutScripts(context);
+      await watchTheme(context);
       const page = await context.newPage();
       await page.goto("/xrpl");
-      await expect
-        .poll(() => page.evaluate(() => Object.keys((window as unknown as { themeAtPaint: object }).themeAtPaint).length))
-        .toBeGreaterThan(0);
-      const seen = await page.evaluate(() => (window as unknown as { themeAtPaint: Record<string, string> }).themeAtPaint);
-      expect(Object.values(seen).every((theme) => theme === "dark")).toBe(true);
-      await context.close();
+      await firstPaint(page);
+      expect((await themeWatch(page)).setAt).toBeNull();
+      expect(await dataTheme(page)).toBeNull();
     });
   });
 
@@ -149,8 +224,8 @@ test.describe("the theme", () => {
     expect(await background(page)).toBe(lightBackground);
   });
 
-  test("is chosen even where the browser keeps nothing", async ({ browser, baseURL }) => {
-    const context = await browser.newContext({ baseURL, colorScheme: "light" });
+  test("is chosen even where the browser keeps nothing", async ({ contextFor }) => {
+    const context = await contextFor({ colorScheme: "light" });
     // Storage that throws, as in a private window with site data off.
     await context.addInitScript(() => {
       Object.defineProperty(window, "localStorage", {
@@ -164,6 +239,5 @@ test.describe("the theme", () => {
     await hydrated(page);
     await page.getByRole("button", { name: "Dark theme" }).click();
     expect(await dataTheme(page)).toBe("dark");
-    await context.close();
   });
 });

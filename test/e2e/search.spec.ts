@@ -44,15 +44,14 @@ test.describe("search", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ledger #107,720,688");
   });
 
-  test("works before the script has run: the box is a form", async ({ browser, baseURL }) => {
-    const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+  test("works before the script has run: the box is a form", async ({ contextFor }) => {
+    const context = await contextFor({ javaScriptEnabled: false });
     const page = await context.newPage();
     await page.goto("/xrpl");
     await page.getByRole("main").getByRole("searchbox", { name: "Search XRPL" }).fill(XRPL_PAYMENT);
     await page.getByRole("main").getByRole("button", { name: "Search" }).click();
     await page.waitForURL(`**/xrpl/tx/${XRPL_PAYMENT}`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Payment");
-    await context.close();
   });
 
   test("a hash that is on the other network says so and the offer leads there", async ({ page }) => {

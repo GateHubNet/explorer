@@ -236,8 +236,9 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
   is a region named by its title, often the same words, and two landmarks of one name cannot be told apart (axe: `landmark-unique`).
 - **Previous and next ledger** are links named by the number they show, then what they are (`107,720,687, previous ledger`), because an
   accessible name has to contain the visible text (WCAG 2.5.3, axe: `label-content-name-mismatch`): somebody who says "click
-  107,720,687" must reach it. The one that leads nowhere (the newest ledger has no next) is a `span` with `role="link"` and `aria-disabled`, because a
-  name cannot be given to an element with no role (axe: `aria-prohibited-attr`).
+  107,720,687" must reach it. The one that leads nowhere is a `span` with `role="link"` and `aria-disabled`, because a
+  name cannot be given to an element with no role (axe: `aria-prohibited-attr`), and says why: the next of the newest ledger is "not validated yet"; the
+  previous of ledger 1 is "this is the first ledger".
 
 ## The transaction page
 
@@ -467,8 +468,10 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `app/server/api-types.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
   `test/e2e/stack.ts`, which starts the end-to-end stack, is in that config too; the Playwright config and specs are `tsconfig.e2e.json`'s, with
   the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out.)
-  `scripts/check-bundle.test.ts` runs the bundle check over a fake build (a budget breach, each forbidden name, a missing file);
-  `scripts/e2e-env.test.ts` the switches of the end-to-end suite; `test/unit/headers-file.test.ts` `public/_headers`.
+  `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
+  a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/e2e-env.test.ts` the switches of the end-to-end suite
+  (URLs, the browser, the env file read back with wrangler's own loader, which console errors a test lets through); `test/unit/e2e-stack.test.ts`
+  runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`.
 - `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
   rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
 - The projects do not read `vite.config.ts`, so `vitest.config.ts` gives each the `~/` alias (`app/`) itself;
@@ -607,10 +610,11 @@ fixtures") unless a real stack is named. Nothing in the browser or the Worker re
 1. builds (`pnpm build`, without `CLOUDFLARE_ENV`; about 1.5 s), unless `E2E_SKIP_BUILD=1`: a stale build would test the code of an hour ago;
 2. starts the fixture server on a free port;
 3. makes a temporary directory (`x-explorer-e2e-*` under the system's temp directory, new for every run) with a file `worker.env` (mode 600:
-   the four upstream URLs and `DATA_API_KEY`) and `state/`;
+   the four upstream URLs and `DATA_API_KEY`, each in quotes with `$` escaped, because wrangler rewrites `$NAME` in a value) and `state/`;
 4. starts `wrangler dev --config build/server/wrangler.json --persist-to <dir>/state --env-file <dir>/worker.env` on `E2E_PORT` (inspector on the
    next port) and waits for `/robots.txt`;
-5. on Playwright's SIGTERM: stops wrangler, closes the fixture server and removes the directory.
+5. on Playwright's SIGTERM: stops wrangler, closes the fixture server and removes the directory. The directory holds the key, so it is also
+   removed when the process exits for any other reason, and when wrangler cannot be started or ends by itself the stack says so and exits 1.
 
 The URLs and the key reach the Worker through that file, **never through the repository**: no `.dev.vars` is written, and a developer's own
 (which `pnpm build` copies into `build/server/.dev.vars`, and `wrangler dev` would then read over the variables of the run) is not read,
@@ -628,21 +632,30 @@ otherwise; never 5173) and never reuses a server that is already running.
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
+| `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
 **Against a real stack** the suite reads recorded mainnet ledgers and transactions (final, so the same there as in the fixtures), which the
 stack must have. What the fixtures hold by hand is not an account's today (`test/e2e/fixtures.ts` `LIVE`): the tests that read the account
 files (their pages of four and two rows, a balance, an address nobody funded) are skipped when `E2E_DATA_API_URL` or `E2E_BASE_URL` is set.
 It has not been run against a real stack from this repository.
 
-**The browser.** `pnpm exec playwright install chromium` fetches the revision this Playwright wants. Where only an older Chromium headless
-shell is in Playwright's browsers directory (a machine whose browsers an earlier Playwright installed), the config uses the newest one it
-finds and says so (`chromiumToUse` in `scripts/e2e-env.ts`).
+**The browser.** `pnpm exec playwright install chromium` fetches the revision this Playwright wants, and it is what a pipeline needs. In this order
+(`chromiumToUse` in `scripts/e2e-env.ts`): `E2E_CHROMIUM`, if set; the headless shell of the wanted revision, if installed; the full Chromium of the wanted
+revision, if installed; otherwise, if only an older headless shell is in Playwright's browsers directory (a machine whose browsers an earlier
+Playwright installed), then on a developer's machine the newest one, with a **warning on stderr** that names both revisions and the install command; in a
+pipeline (`CI` set to something but `0` or `false`) it is an **error** naming `pnpm exec playwright install chromium`, unless `E2E_ALLOW_OLDER_CHROMIUM=1`
+(the older one is then used, with the same warning). With no browser installed, Playwright says what to run.
 
 **Determinism.** No retries (a test that passes on the second try is a test that fails), no assertion on a time or a duration (the pages
 show ages, `13 h ago`; they are never asserted), only Playwright's waiting assertions and `waitForURL`. Each test has a visitor address of its
 own: the Worker allows 60 uncached renders in 10 s per address, and without one every request would be the same visitor
 (`CF-Connecting-IP`, `test/e2e/support.ts`). Each test also fails on anything the browser's console logged as an error and on an uncaught
-exception (a hydration mismatch, a script that throws, a missing file of the build), unless it says `test.use({ allowConsoleErrors: true })`.
+exception (a hydration mismatch, a script that throws, a missing file of the build, a page that answers 5xx), unless it says
+`test.use({ allowConsoleErrors: true })`. The one answer let through is a 404 for a page that is not there (as a document or as the `.data` request of a
+client-side navigation; not a file of `/assets/` or `/__manifest`): the browser logs it, and the tests that ask for one assert the page.
+A test that needs a context of its own (a stored theme, scripts off, storage that throws) asks `contextFor(options)` of `test/e2e/support.ts`, which gives
+it the test's visitor address and the same check on every page, and closes it; `guard.spec.ts` shows the check failing a test (with `test.fail()`)
+for a 5xx, a missing manifest or asset, and an exception in such a context.
 
 | Spec | Flows |
 |---|---|
@@ -654,39 +667,47 @@ exception (a hydration mismatch, a script that throws, a missing file of the bui
 | `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the network switch |
 | `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
 | `assets.spec.ts` | The stylesheet, scripts and font of a page carry `Cache-Control: public, max-age=31536000, immutable` from `public/_headers` (the local runtime applies it); a page and the favicon do not |
+| `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route manifest or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
 | `a11y.spec.ts` | See below |
 
 **Theme, with no flash.** The page is stored once for everybody, so the server cannot name a theme: `THEME_SCRIPT`, a plain inline script in
-`<head>` before the stylesheet, puts the stored choice on `<html data-theme>`. The spec checks that three ways. (1) The stored HTML: `<html>` has no
-`data-theme`, and the script is a plain `<script>` before the `<link rel="stylesheet">` and the body. (2) The first frame: a context with
-`localStorage.theme` set (Playwright's `storageState`) loads the page with every `/assets/*.js` aborted, so that React cannot set anything and only
-the HTML can; `data-theme` is then `dark`, and the body paints with the background the system's dark gives (the same page with
-`prefers-color-scheme: dark` and nothing stored); a stored `light` beats a dark system the same way; and a `PerformanceObserver` installed before the
-page's scripts notes `data-theme` when the browser reports the first paint and the first contentful paint. (3) With scripts: the toggle sets
-`data-theme` and `localStorage`, `aria-pressed` follows, the choice survives a client-side navigation and a reload, the system theme is followed until
-a choice is made, and it works where `localStorage` throws. Removing the script fails (1) and (2); moving it after the stylesheet fails (1) only,
-because Chrome still runs it before the first paint.
+`<head>` before the stylesheet, puts the stored choice on `<html data-theme>`. The spec checks that three ways. (1) The stored HTML, parsed as a
+browser parses it (a `DOMParser`): `<html>` has no `data-theme`; the head has one script that sets `dataset.theme`, with no attributes at all (no `src`,
+`async`, `defer`, `type="module"`), no script or style ahead of it, and ahead of the first `<link rel="stylesheet">`; and its text puts the attribute at
+once, with no `DOMContentLoaded`, `load`, timer or promise. (2) The first frame: a context with `localStorage.theme` set (Playwright's `storageState`)
+loads the page with every `/assets/*.js` aborted, so that React cannot set anything and only the HTML can; `data-theme` is then the stored choice, and the body
+paints with the background the system's dark gives (the same page with `prefers-color-scheme: dark` and nothing stored); a stored `light` beats a dark
+system the same way. (3) When it happened: a `MutationObserver` on the whole document, installed before the page's scripts (`addInitScript`), notes
+`performance.now()` when `data-theme` first appears and when the stylesheet's `<link>` first enters the document (and what `<html>` had at that tick).
+The spec asserts that `<html>` already had the choice when the `<link>` came in, and that the time the attribute was set (the microtask after the
+script, the observer being told) is not after `first-paint`'s `startTime`. That is a measure of the order in which the attribute and the stylesheet reached the
+document and of the attribute coming before the first paint; the pixels of the first frame are not captured, the background comparison of (2) being what says
+what they are. (4) With scripts: the toggle sets `data-theme` and `localStorage`, `aria-pressed` follows, the choice survives a client-side navigation and a
+reload, the system theme is followed until a choice is made, and it works where `localStorage` throws. Removing the script fails (1), (2) and (3); moving it
+after the stylesheet fails (1) and (3).
 
 **Accessibility.** `@axe-core/playwright` with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` (the rules of WCAG 2.2 AA, including
 `color-contrast`, `target-size` and `label-content-name-mismatch`, which the spec checks ran). The gate is no violation of impact `serious` or
 `critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account and 404 pages
 × a 1280 px desktop and a 375 px phone × four settings: light and dark by `prefers-color-scheme`, and dark and light chosen with the toggle
-(against the opposite system theme; the spec checks the page really has that `color-scheme`). Eleven more pages (the other tabs of an account, a page
-behind a marker, a never-activated account, a missing transaction, the search help, the Xahau home and account, a ledger of 66 transactions) run in
+(against the opposite system theme; the spec checks the page really has that `color-scheme`). Twelve more pages (the other tabs of an account, a page
+behind a marker, a never-activated account, a missing transaction, the search help, the newest ledger, the Xahau home and account, a ledger of 66
+transactions) run in
 the two system themes. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
 about ARIA attributes with "needs review" results counted as failures (axe reports a name on an element that cannot have one that way, so the gate
 above does not see it).
 
 ## The client bundle check
 
-`scripts/check-bundle.ts` (`pnpm check:bundle`, the last step of `pnpm verify`; its logic is tested in `scripts/check-bundle.test.ts`) reads
-`build/client` after the build and fails when:
+`scripts/check-bundle.ts` (`pnpm check:bundle`, the last step of `pnpm verify`) runs the check of `scripts/bundle-budget.ts` (tested in
+`scripts/check-bundle.test.ts`) on `build/client` after the build and exits 1 when it finds a problem. The command always runs the check, however it
+was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
 - a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction or account route; what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure). Chunks fetched with
-  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Today: home 130.8 KB, ledger 132.9, transaction
-  135.1, account 135.5 (earlier reports gave 127.7, 129.8, 131.9 and 132.3: the same numbers in KiB, 1024 bytes);
+  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Sizes are in kilobytes of 1000 bytes. Today: home 130.8 KB, ledger 132.9,
+  transaction 135.1, account 135.5; 150,000 bytes passes and 150,001 fails;
 - any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
   the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
   These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts and images are not read;
@@ -741,6 +762,7 @@ again for its environment: the code is the commit `verify` and the end-to-end su
 pnpm exec wrangler secret put DATA_API_KEY --env staging      # the key listed in the data API's GH_RATE_LIMIT_KEYS
 pnpm exec wrangler secret put SENTRY_DSN --env staging        # optional: Sentry stays off without it
 pnpm exec wrangler secret put DATA_API_KEY --env production
+pnpm exec wrangler secret put SENTRY_DSN --env production     # optional
 ```
 
 The data API hosts in `wrangler.jsonc` are placeholders (`*.example.invalid`) until the hosts are decided; the deployed Workers need the real ones

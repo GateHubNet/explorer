@@ -9,11 +9,12 @@ import { chromiumToUse } from "./scripts/e2e-env";
 const port = Number(process.env.E2E_PORT ?? 8832);
 const baseURL = process.env.E2E_BASE_URL || `http://127.0.0.1:${port}`;
 
-const executablePath = chromiumToUse({ executablePath: chromium.executablePath(), env: process.env });
-// (The config is read again in every worker process; say it once.)
-if (executablePath && !process.env.E2E_CHROMIUM && process.env.TEST_WORKER_INDEX === undefined) {
-  console.log(`[e2e] the Chromium this Playwright wants is not installed; using ${executablePath}`);
-}
+// The config is read again in every worker process; say things once.
+const inMainProcess = process.env.TEST_WORKER_INDEX === undefined;
+const browser = chromiumToUse({ executablePath: chromium.executablePath(), env: process.env });
+if (browser.error) throw new Error(`[e2e] ${browser.error}`);
+if (browser.warning && inMainProcess) console.error(browser.warning);
+const executablePath = browser.executablePath;
 
 export default defineConfig({
   testDir: "./test/e2e",
