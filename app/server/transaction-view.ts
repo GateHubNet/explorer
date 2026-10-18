@@ -10,10 +10,10 @@ import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } 
 import { balanceChanges, objectsTouched } from "../domain/parse";
 import { isPoolAccountRoot, nodesOf } from "../domain/parse/objects";
 import type { BalanceChange, Native, TouchedObject, TxJson, TxMeta } from "../domain/parse/types";
-import type { TxObject } from "./api-types";
+import type { TxBinary, TxObject, TxStoredJson } from "./api-types";
 import type { NodeTx } from "./node-rpc";
 import type { NetworkName, SearchPageData } from "./search-view";
-import { UpstreamError } from "./upstream";
+import { checkNodeTransaction, isObject, malformed } from "./tx-shape";
 
 // ---- What a transaction is, whichever of the data API and the node it came from -------------------------------------
 
@@ -30,62 +30,32 @@ export interface TransactionSource {
   meta: TxMeta;
 }
 
-const HEX_64 = /^[0-9A-Fa-f]{64}$/;
-
-/** An answer that is not what the upstream's reference promises: its failure (a 503 that is never stored), not a page. */
-const malformed = (what: string, why: string) => new UpstreamError("server", `${what} answered something unexpected: ${why}`, { status: 200 });
-
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** Checks what the page leans on and builds the source: the pieces `describe` and `parse` read must be there. */
-function sourceOf(
-  what: string,
-  origin: TransactionSource["origin"],
-  expectedHash: string,
-  parts: { hash: unknown; ledgerIndex: unknown; closeTime: number; tx: unknown; meta: unknown },
-): TransactionSource {
-  const { hash, ledgerIndex, closeTime, tx, meta } = parts;
-  if (typeof hash !== "string" || !HEX_64.test(hash) || hash.toUpperCase() !== expectedHash.toUpperCase()) {
-    throw malformed(what, "a transaction with another hash than the one asked for");
-  }
-  if (typeof ledgerIndex !== "number" || !Number.isSafeInteger(ledgerIndex) || ledgerIndex < 0) throw malformed(what, "no ledger index");
-  if (!Number.isFinite(closeTime)) throw malformed(what, "no time");
-  if (!isObject(tx) || typeof tx.TransactionType !== "string" || typeof tx.Account !== "string") {
-    throw malformed(what, "a transaction without its type and account");
-  }
-  if (
-    !isObject(meta) ||
-    typeof meta.TransactionResult !== "string" ||
-    typeof meta.TransactionIndex !== "number" ||
-    !Number.isInteger(meta.TransactionIndex) ||
-    meta.TransactionIndex < 0 ||
-    !Array.isArray(meta.AffectedNodes)
-  ) {
-    throw malformed(what, "metadata without its result, place and nodes");
-  }
+/**
+ * The data API's `/v2/transactions/{hash}`. The client has checked what it gives (`checkIndexTransaction`, inside the load its cache
+ * runs), so this only reads it: the hash in upper case, the time in unix seconds.
+ */
+export function txFromIndex(object: TxObject): TransactionSource {
   return {
-    origin,
-    hash: hash.toUpperCase(),
-    ledgerIndex,
-    closeTime,
-    tx: tx as TxJson,
-    meta: meta as unknown as TxMeta,
+    origin: "index",
+    hash: object.hash.toUpperCase(),
+    ledgerIndex: object.ledger_index,
+    closeTime: Date.parse(object.date) / 1000,
+    tx: object.tx,
+    meta: object.meta,
   };
 }
 
-/** The data API's `/v2/transactions/{hash}`. `expectedHash` is the one asked for. */
-export function txFromIndex(object: TxObject, expectedHash: string): TransactionSource {
-  const what = "data API transaction";
-  const o: Partial<Record<string, unknown>> = isObject(object) ? object : {};
-  const closeTime = typeof o.date === "string" ? Date.parse(o.date) / 1000 : Number.NaN;
-  return sourceOf(what, "index", expectedHash, { hash: o.hash, ledgerIndex: o.ledger_index, closeTime, tx: o.tx, meta: o.meta });
-}
-
-/** The node's `tx`: a transaction of a validated ledger, its time already in unix seconds. */
+/** The node's `tx`: a transaction of a validated ledger, its time already in unix seconds. The node client reads less of it, so it is checked here. */
 export function txFromNode(object: NodeTx, expectedHash: string): TransactionSource {
-  const o: Partial<Record<string, unknown>> = isObject(object) ? object : {};
-  const closeTime = typeof o.date === "number" ? o.date : Number.NaN;
-  return sourceOf("node transaction", "node", expectedHash, { hash: o.hash, ledgerIndex: o.ledger_index, closeTime, tx: o.tx, meta: o.meta });
+  checkNodeTransaction(object, expectedHash);
+  return {
+    origin: "node",
+    hash: object.hash.toUpperCase(),
+    ledgerIndex: object.ledger_index,
+    closeTime: object.date,
+    tx: object.tx,
+    meta: object.meta,
+  };
 }
 
 // ---- Neighbours and the binary form -------------------------------------------------------------------------------------
@@ -105,41 +75,36 @@ export interface Neighbours {
 }
 
 /**
- * The transactions before and after `hash`, from the hashes of its ledger (`/v2/ledgers/{index}?transactions=true`), which are
- * in the order of the ledger: the one at `position` must be this one. A list that says otherwise, or a neighbour that is not a
- * hash, is the upstream's fault and throws an `UpstreamError`: an immutable page must not store a wrong neighbour.
+ * The transactions before and after `hash`, from the hashes of its ledger (`/v2/ledgers/{index}?transactions=true`, a list of hashes
+ * the client has checked), which are in the order of the ledger: the one at `position` must be this one. A list that says
+ * otherwise is the upstream's fault and throws an `UpstreamError`: an immutable page must not store a wrong neighbour.
  */
-export function neighboursOf(hashes: unknown, hash: string, position: number): Neighbours {
-  const what = "data API ledger";
-  if (!Array.isArray(hashes)) throw malformed(what, "no list of transactions");
-  const here: unknown = hashes[position];
-  if (typeof here !== "string" || here.toUpperCase() !== hash.toUpperCase()) {
-    throw malformed(what, "a list that does not hold the transaction at its place");
+export function neighboursOf(hashes: readonly string[], hash: string, position: number): Neighbours {
+  if (hashes[position]?.toUpperCase() !== hash.toUpperCase()) {
+    throw malformed("data API ledger", "a list that does not hold the transaction at its place");
   }
-
   const at = (place: number): Neighbour | null => {
-    if (place < 0 || place >= hashes.length) return null;
-    const neighbour: unknown = hashes[place];
-    if (typeof neighbour !== "string" || !HEX_64.test(neighbour)) throw malformed(what, "a transaction that is not a hash");
-    return { position: place, hash: neighbour.toUpperCase() };
+    const neighbour = hashes[place];
+    return neighbour === undefined ? null : { position: place, hash: neighbour.toUpperCase() };
   };
   return { count: hashes.length, previous: at(position - 1), next: at(position + 1) };
 }
 
 /**
- * The Binary tab: the hex of the serialization (`ready`), a transaction the data API could not give it for (`failed`: the page
- * says so and is stored short), or a transaction shown from the node (`pending`: it appears once the transaction is indexed).
+ * The Binary tab:
+ * - `ready`: the hex of the serialization;
+ * - `unsupported`: the API's codec cannot serialize this type of transaction and it served the stored JSON instead, which is a
+ *   lasting answer (the page is `immutable` and says the index has no binary form);
+ * - `failed`: the binary form could not be had, and asking again can help (the page is stored `short`, and says so);
+ * - `pending`: a transaction shown from the node, whose binary form appears once it is indexed.
  */
-export type BinaryRaw = { state: "ready"; tx: string; meta: string } | { state: "failed" } | { state: "pending" };
+export type BinaryRaw = { state: "ready"; tx: string; meta: string } | { state: "unsupported" } | { state: "failed" } | { state: "pending" };
 
-const HEX_BLOB = /^(?:[0-9A-Fa-f]{2})+$/;
-
-/** `binary=true`'s answer as the Binary tab; an answer without two hex blobs is a tab that could not be loaded. */
-export function binaryOf(answer: unknown): Exclude<BinaryRaw, { state: "pending" }> {
-  if (isObject(answer) && typeof answer.tx === "string" && typeof answer.meta === "string" && HEX_BLOB.test(answer.tx) && HEX_BLOB.test(answer.meta)) {
-    return { state: "ready", tx: answer.tx, meta: answer.meta };
-  }
-  return { state: "failed" };
+/** What `binary=true` gave, which the client has checked: hex, or the stored JSON in its place. */
+export function binaryOf(answer: TxBinary | TxStoredJson): Extract<BinaryRaw, { state: "ready" | "unsupported" }> {
+  return typeof answer.tx === "string" && typeof answer.meta === "string"
+    ? { state: "ready", tx: answer.tx, meta: answer.meta }
+    : { state: "unsupported" };
 }
 
 // ---- The page ------------------------------------------------------------------------------------------------------------

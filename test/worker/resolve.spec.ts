@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
-import { createDataApi, UpstreamError } from "../../app/server/data-api";
+import { createDataApi, UpstreamError, type DataApi } from "../../app/server/data-api";
 import type { Env } from "../../app/server/env";
 import { networkOf, type NetworkId } from "../../app/server/networks";
 import { createNodeRpc } from "../../app/server/node-rpc";
@@ -83,21 +83,51 @@ describe("resolveCtid: when the ledger lists something that is not a transaction
     expect((failure as UpstreamError).kind).toBe("server");
   });
 
-  it("checks only the entry it takes: another bad entry in the list does not matter", async () => {
+  it("fails the whole answer for a bad entry anywhere in the list: the client checks the list it stores, which lasts a year", async () => {
     const good = "CD".repeat(32);
     mock = mockUpstream("xrpl", {
       "GET /v2/ledgers/107600007?transactions=true": { result: "success", ledger: { ledger_index: 107600007, transactions: [good, "junk"] } },
     });
     const { api, network } = clientFor("xrpl");
-    expect(await resolveCtid(api, network, encodeCtid(107600007, 0, XRPL_NETWORK_ID))).toEqual({ hash: good });
+    const failure = await resolveCtid(api, network, encodeCtid(107600007, 0, XRPL_NETWORK_ID)).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).kind).toBe("server");
   });
 
-  it("still answers null for an index past the end of a list of any content", async () => {
+  it("still answers null for an index past the end of the list", async () => {
     mock = mockUpstream("xrpl", {
-      "GET /v2/ledgers/107600008?transactions=true": { result: "success", ledger: { ledger_index: 107600008, transactions: ["junk"] } },
+      "GET /v2/ledgers/107600008?transactions=true": { result: "success", ledger: { ledger_index: 107600008, transactions: ["CD".repeat(32)] } },
     });
     const { api, network } = clientFor("xrpl");
     expect(await resolveCtid(api, network, encodeCtid(107600008, 1, XRPL_NETWORK_ID))).toBeNull();
+  });
+
+  // The client keeps such lists out of the cache, so a real client never gives them. `resolveCtid` takes any `DataApi`, and the
+  // hash goes into a redirect and a path: it checks the one it takes whatever it was given.
+  describe("whatever client it is given", () => {
+    const given = (transactions: unknown) => ({ ledger: async () => ({ ledger_index: 107600009, transactions }) }) as unknown as DataApi;
+
+    it.each([["text", "not-a-hash"], ["a path", "../../etc/passwd"], ["63 digits", "AB".repeat(31) + "A"], ["a number", 17], ["null", null]])(
+      "throws for %s at the CTID's place",
+      async (_what, entry) => {
+        const { network } = clientFor("xrpl");
+        const failure = await resolveCtid(given([entry]), network, encodeCtid(107600009, 0, XRPL_NETWORK_ID)).catch((error: unknown) => error);
+        expect(failure).toBeInstanceOf(UpstreamError);
+        expect((failure as UpstreamError).kind).toBe("server");
+      },
+    );
+
+    it("throws for a list that is not a list", async () => {
+      const { network } = clientFor("xrpl");
+      const failure = await resolveCtid(given("oops"), network, encodeCtid(107600009, 0, XRPL_NETWORK_ID)).catch((error: unknown) => error);
+      expect((failure as UpstreamError).kind).toBe("server");
+    });
+
+    it("does not look at the entries it does not take", async () => {
+      const { network } = clientFor("xrpl");
+      expect(await resolveCtid(given(["CD".repeat(32), "junk"]), network, encodeCtid(107600009, 0, XRPL_NETWORK_ID))).toEqual({ hash: "CD".repeat(32) });
+      expect(await resolveCtid(given(["junk"]), network, encodeCtid(107600009, 1, XRPL_NETWORK_ID))).toBeNull();
+    });
   });
 });
 
@@ -281,6 +311,29 @@ describe("findHash: when the upstream fails", () => {
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
+  it("counts a transaction of the node without a type as an upstream failure (the node client reads less of it)", async () => {
+    const hash = "1D".repeat(32);
+    mock = mockUpstream("xrpl", {
+      [`node tx ${hash}`]: {
+        status: "success",
+        validated: true,
+        ledger_index: 107600020,
+        date: 845378370,
+        hash,
+        Account: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+        Fee: "10",
+        meta: { TransactionIndex: 1, TransactionResult: "tesSUCCESS", AffectedNodes: [] },
+      },
+    });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    const failure = await findHash(api, node, hash).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).kind).toBe("server");
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
   it("answers with the ledger when the transaction call came back without a transaction in it", async () => {
     const hash = "1E".repeat(32);
     mock = mockUpstream("xrpl", {
@@ -326,7 +379,13 @@ describe("findHash", () => {
     mock = mockUpstream("xrpl", {
       [`GET /v2/transactions/${hash}`]: {
         result: "success",
-        transaction: { hash, ledger_index: 107600010, date: "2026-10-17T16:11:02+00:00", tx: { TransactionType: "Payment" }, meta: {} },
+        transaction: {
+          hash,
+          ledger_index: 107600010,
+          date: "2026-10-17T16:11:02+00:00",
+          tx: { TransactionType: "Payment", Account: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh" },
+          meta: { TransactionIndex: 3, TransactionResult: "tesSUCCESS", AffectedNodes: [] },
+        },
       },
       [`GET /v2/ledgers/${hash}`]: { result: "success", ledger: { ledger_index: 107600011, close_time: 1792253000 } },
     });

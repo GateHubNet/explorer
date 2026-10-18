@@ -60,12 +60,16 @@ const REMIT = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF"
 
 const OWNED = { cls: "immutable", ttl: 31_536_000 };
 
+// An override that is a `Response` value is made in the test's request and cloned in the Worker's, and workerd refuses to read its body
+// there ("Cannot perform I/O on behalf of a different request"): the client then fails as `network`, which a page answers like any other
+// failure. A function makes the Response inside the Worker's request, so the status the test names is the one the client sees.
+
 // First in the file: a failed call is never stored, but the answers that worked are, so a failing one is asked for before
 // anything has been, and for transactions and ledgers that nothing else in the file asks for.
 describe("when an upstream fails", () => {
   it("answers 503 when the data API fails, does not ask the node in its place, and stores nothing", async () => {
     const hash = "2C9538843C61FE4120577EDCD885C9B4E6AC6694C9DF3603528B81A2D9FC084A";
-    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: dataApiError(503, "unavailable") });
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: () => dataApiError(503, "unavailable") });
     const response = await get(`/xrpl/tx/${hash}`);
     const html = await response.text();
 
@@ -79,7 +83,7 @@ describe("when an upstream fails", () => {
 
   it("answers 503 when the data API is limiting us", async () => {
     const hash = "9C4D48A7F44A7A58DEBE2F31525966684E74A51F407BD7A837A41326BB3C9743";
-    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: dataApiError(429, "slow down", { "Retry-After": "7" }) });
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: () => dataApiError(429, "slow down", { "Retry-After": "7" }) });
     const response = await get(`/xrpl/tx/${hash}`);
     await response.text();
     expect(response.status).toBe(503);
@@ -88,7 +92,7 @@ describe("when an upstream fails", () => {
 
   it("shows the page with a Binary tab that says it could not be loaded, and stores it short, never immutable", async () => {
     const hash = "52FC2BE167D21568A673B62B98559721C5991FDB4B4654DCD4C955306D3892EB";
-    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}?binary=true`]: dataApiError(500, "boom") });
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}?binary=true`]: () => dataApiError(500, "boom") });
     const { response, html } = await page(`/xrpl/tx/${hash}`);
     const text = textOf(html);
 
@@ -113,7 +117,7 @@ describe("when an upstream fails", () => {
 
   it("answers 503 when the transactions of its ledger cannot be read: an immutable page must not store a missing neighbour", async () => {
     const hash = "2D66C6FD02977F96126FB352AAD691CA556790DBF71E0CDF3B701E18A49B9427";
-    mock = mockUpstream("xrpl", { "GET /v2/ledgers/106084525?transactions=true": dataApiError(500, "boom") });
+    mock = mockUpstream("xrpl", { "GET /v2/ledgers/106084525?transactions=true": () => dataApiError(500, "boom") });
     const response = await get(`/xrpl/tx/${hash}`);
     const html = await response.text();
 
@@ -179,6 +183,171 @@ describe("when an upstream fails", () => {
     const response = await get(`/xrpl/tx/${hash}`);
     await response.text();
     expect(response.status).toBe(503);
+  });
+});
+
+// A 400 for a hash that is 64 hex digits is the API's fault (the name is one it must take), not a transaction that does not exist.
+describe("when the upstream refuses a well-formed hash", () => {
+  it("answers 503 for a 400 of the data API, not a 404 that would be stored, and does not ask the node", async () => {
+    const hash = "8F2DCA944394B29981E24DDD6C46192C404D90F7F5FC4EAB6813B0AFD7751A2D";
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: () => dataApiError(400, "invalid hash") });
+    const response = await get(`/xrpl/tx/${hash}`);
+    const html = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(html).toContain("Temporarily unavailable");
+    expect(html).not.toContain("couldn’t find");
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+    expect(await stored(`/xrpl/tx/${hash}`)).toBeUndefined();
+  });
+
+  it("answers 503 for a node that finds the hash malformed, after a data API that does not have it", async () => {
+    const hash = "B9A146300E7755D109BF92B6B51725B8C45BA1CCFB6683C0E01DA679B2FB0675";
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/transactions/${hash}`]: null,
+      [`node tx ${hash}`]: { status: "error", error: "invalidParams", error_message: "Invalid field 'transaction'." },
+    });
+    const response = await get(`/xrpl/tx/${hash}`);
+    const html = await response.text();
+    expect(response.status).toBe(503);
+    expect(html).not.toContain("couldn’t find");
+    expect(mock.unusedOverrides()).toEqual([]);
+    expect(await stored(`/xrpl/tx/${hash}`)).toBeUndefined();
+  });
+});
+
+// The subrequest cache keeps an answer of the data API for a year (class immutable), so an answer that a page cannot use must never
+// get there: the client checks it inside the load the cache runs. Each scenario asks twice for something the first answer spoiled,
+// and the second answer, from the fixtures, must be seen. (A page stored short stands for 30 s at the edge, so the second request
+// is for the same transaction under another URL, which is another key of the edge cache and the same keys of the subrequest cache.)
+describe("a 200 that is not what the API promises is never stored", () => {
+  const SPOILT_TX = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
+  const SPOILT_LIST_TX = "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052";
+  const JUNK_LIST_TX = "A6D2AB0623B1874F35E0884BC42A82A18389627317EE1A93E61A4CF0B43E915B";
+  const SPOILT_BINARY_TX = "A0EE5458F913A115FC3BA022BDC227FBBCE81236DDF4A6B2BEA06BAEFAA8C1CE";
+
+  it("a transaction without its tx is a 503, and the transaction is there when the API answers properly", async () => {
+    const date = "2026-10-15T11:19:30+00:00";
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${SPOILT_TX}`]: { result: "success", transaction: { hash: SPOILT_TX, ledger_index: 107671538, date } } });
+    const spoilt = await get(`/xrpl/tx/${SPOILT_TX}`);
+    await spoilt.text();
+    expect(spoilt.status).toBe(503);
+    expect(mock.unusedOverrides()).toEqual([]);
+    mock.restore();
+
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${SPOILT_TX}`);
+    expect(html).toMatch(/<h1[^>]*>[^<]*<\/h1>/);
+    expect(textOf(html)).toContain(`Hash ${SPOILT_TX}`);
+    expect(mock.requests.some((r) => r.key === `GET /v2/transactions/${SPOILT_TX}` && r.source === "fixture")).toBe(true);
+    expect(await storedAs(`/xrpl/tx/${SPOILT_TX}`)).toEqual(OWNED);
+  });
+
+  it("a ledger answer without its list of transactions is a 503, not an empty ledger, and the neighbours are there afterwards", async () => {
+    mock = mockUpstream("xrpl", {
+      "GET /v2/ledgers/107671591?transactions=true": { result: "success", ledger: { ledger_index: 107671591, ledger_hash: "AB".repeat(32) } },
+    });
+    const spoilt = await get(`/xrpl/tx/${SPOILT_LIST_TX}`);
+    await spoilt.text();
+    expect(spoilt.status).toBe(503);
+    expect(mock.unusedOverrides()).toEqual([]);
+    mock.restore();
+
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${SPOILT_LIST_TX}`);
+    const hashes = await recordedHashes("xrpl", 107671591);
+    expect(textOf(html)).toContain(`transaction 50 of ${hashes.length}`);
+    expect(anchors(html).find((a) => a.text === "Next · #51")?.attrs).toContain(`href="/xrpl/tx/${hashes[51]}"`);
+    expect(await storedAs(`/xrpl/tx/${SPOILT_LIST_TX}`)).toEqual(OWNED);
+  });
+
+  it("a ledger's list with something that is not a hash in it is a 503 too, and a good list is read afterwards", async () => {
+    mock = mockUpstream("xrpl", {
+      "GET /v2/ledgers/107671607?transactions=true": { result: "success", ledger: { ledger_index: 107671607, transactions: ["../../etc/passwd"] } },
+    });
+    const spoilt = await get(`/xrpl/tx/${JUNK_LIST_TX}`);
+    await spoilt.text();
+    expect(spoilt.status).toBe(503);
+    mock.restore();
+
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${JUNK_LIST_TX}`);
+    expect(textOf(html)).toContain("transaction 37 of");
+  });
+
+  it("a binary form that is not hex gives the page without it, stored short and with a Binary tab that is true, and the hex is there afterwards", async () => {
+    const date = "2026-10-15T11:19:30+00:00";
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/transactions/${SPOILT_BINARY_TX}?binary=true`]: {
+        result: "success",
+        transaction: { hash: SPOILT_BINARY_TX, ledger_index: 107671568, date, tx: "this is not hex", meta: "AB" },
+      },
+    });
+    const first = await page(`/xrpl/tx/${SPOILT_BINARY_TX}`);
+    const text = textOf(first.html);
+    expect(text).toContain("The binary form could not be loaded just now.");
+    // What it says is true: asking again can help.
+    expect(text).toContain("Try again in a minute.");
+    expect(text).not.toContain("Reload");
+    expect(await storedAs(`/xrpl/tx/${SPOILT_BINARY_TX}`)).toEqual({ cls: "short", ttl: 30 });
+    expect(mock.unusedOverrides()).toEqual([]);
+    mock.restore();
+
+    // The same transaction under another URL: another entry of the edge cache, the same of the subrequest cache.
+    mock = mockUpstream("xrpl");
+    const again = await page(`/xrpl/tx/${SPOILT_BINARY_TX}?again=1`);
+    const binary = await recorded("xrpl", SPOILT_BINARY_TX, true);
+    expect(textOf(again.html)).toContain(binary.tx as unknown as string);
+    expect(textOf(again.html)).not.toContain("could not be loaded");
+    expect(await storedAs(`/xrpl/tx/${SPOILT_BINARY_TX}?again=1`)).toEqual(OWNED);
+  });
+
+  it("says in a log line why a binary form was not taken", async () => {
+    const hash = "83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B";
+    const errors: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      errors.push(args.map(String).join(" "));
+    };
+    try {
+      mock = mockUpstream("xrpl", {
+        [`GET /v2/transactions/${hash}?binary=true`]: { result: "success", transaction: { hash, ledger_index: 107671558, date: "2026-10-15T11:19:30+00:00", tx: "nothex", meta: "AB" } },
+      });
+      await page(`/xrpl/tx/${hash}`);
+    } finally {
+      console.error = original;
+    }
+    const line = errors.find((e) => e.includes("binary"));
+    expect(line, errors.join("\n")).toBeDefined();
+    expect(line).toContain("binary form");
+    expect(line).toMatch(/not hex|unexpected/);
+  });
+
+  it("a binary answer in JSON, for a type the API's codec cannot serialize, is a permanent answer: the page is immutable and says there is no binary form", async () => {
+    const hash = "92EC1EA8B38B7242F07591AB4BF1AAB5E6B2E3015CE6E15AAAADAC05E6B74046";
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/transactions/${hash}?binary=true`]: {
+        result: "success",
+        transaction: {
+          hash,
+          ledger_index: 107670360,
+          date: "2026-10-15T11:19:30+00:00",
+          tx: { TransactionType: "EscrowFinish", Account: "rDjzmUuSBDzW4kDGUhkZGxC9m3dnKKBYgC" },
+          meta: { TransactionResult: "tesSUCCESS" },
+        },
+      },
+    });
+    const { response, html } = await page(`/xrpl/tx/${hash}`);
+    const text = textOf(html);
+
+    expect(text).toContain("The index has no binary form for this type of transaction.");
+    expect(text).not.toContain("could not be loaded");
+    expect(text).not.toContain("Reload");
+    expect(response.headers.get("Cache-Control")).toBe("max-age=60");
+    expect(await storedAs(`/xrpl/tx/${hash}`)).toEqual(OWNED);
+    expect(mock.unusedOverrides()).toEqual([]);
   });
 });
 
@@ -310,18 +479,6 @@ describe("a Payment", () => {
     expect(description).toContain("sent 2.306481 XRP");
     expect(description).toContain("102,186,243");
     expect(robots(html)).toBeUndefined();
-  });
-
-  it("does not hand the browser the transaction as data: only its JSON as text, in the raw tabs", async () => {
-    mock = mockUpstream("xrpl");
-    const { html } = await page(`/xrpl/tx/${PAYMENT}`);
-    // The loader data is serialized into the page; an object with metadata in it would show as these keys.
-    const script = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]!).filter((s) => s.includes("window.__reactRouterContext"));
-    expect(script.length).toBeGreaterThan(0);
-    const data = script.join("\n");
-    expect(data).toContain("TransactionType");
-    expect(data).not.toMatch(/\\"AffectedNodes\\"\s*:\s*\[/);
-    expect(data).not.toMatch(/"AffectedNodes"\s*:\s*\[/);
   });
 });
 
@@ -521,7 +678,7 @@ describe("a CTID", () => {
   });
 
   it("answers 503 when the ledger of the CTID cannot be read", async () => {
-    mock = mockUpstream("xrpl", { "GET /v2/ledgers/107506490?transactions=true": dataApiError(500, "boom") });
+    mock = mockUpstream("xrpl", { "GET /v2/ledgers/107506490?transactions=true": () => dataApiError(500, "boom") });
     const response = await get(`/xrpl/tx/${encodeCtid(107506490, 0, 0)}`);
     await response.text();
     expect(response.status).toBe(503);
@@ -661,6 +818,26 @@ describe("a transaction the index does not have yet", () => {
 });
 
 describe("the page as loader data for a client-side navigation", () => {
+  it("does not hand the browser the transaction as data: its JSON is in it as the text of the raw tabs, and as nothing else", async () => {
+    mock = mockUpstream("xrpl");
+    const hash = "10CEF6273B6C4476E86169B7BB1723BF3CD2CFD948B1A732450543B2270AD87E";
+    const response = await get(`/xrpl/tx/${hash}.data`);
+    const body = await response.text();
+    expect(response.status).toBe(200);
+
+    // The loader data of a client-side navigation is a flat list (turbo-stream): every key and every string of the data is an element
+    // of it. A transaction as an object would put its field names there, as elements of their own.
+    const flat = JSON.parse(body) as unknown[];
+    const strings = new Set(flat.filter((item): item is string => typeof item === "string"));
+    for (const field of ["AffectedNodes", "TransactionType", "TransactionResult", "TxnSignature", "SigningPubKey", "FinalFields", "LedgerEntryType", "Fee", "Account", "Sequence"]) {
+      expect(strings.has(field), field).toBe(false);
+    }
+    // The check can tell: the page's own keys are elements, and the JSON text is one string.
+    for (const key of ["kind", "title", "changes", "objects", "raw"]) expect(strings.has(key), key).toBe(true);
+    expect([...strings].some((item) => item.includes('"TransactionType"') && item.includes('"AffectedNodes"') === false)).toBe(true);
+    expect([...strings].some((item) => item.includes('"AffectedNodes"'))).toBe(true);
+  });
+
   it("is the same class as the page of that URL", async () => {
     mock = mockUpstream("xahau");
     const hash = "3A1F25CDF0E2E4466AA0B019EA3039A6E5F87C01FBDD69CBDC474DAC32D8E64C";

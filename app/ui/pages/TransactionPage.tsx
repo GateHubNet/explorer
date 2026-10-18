@@ -31,7 +31,10 @@ const count = (n: number) => formatAmount(String(n));
 const ROLE_LABEL: Record<ChangeRole, string> = { sender: "sender", destination: "destination", pool: "AMM pool" };
 const CHANGE_LABEL = { created: "Created", modified: "Modified", deleted: "Deleted" } as const;
 
-const BINARY_FAILED = "The binary form could not be loaded just now. Reload the page to try again.";
+// What a Binary tab without hex says must be true: a page without the hex is stored for 30 s (`short`) and asking again may find it;
+// for a type the index cannot serialize it never will; and a transaction from the node is indexed within a minute.
+const BINARY_FAILED = "The binary form could not be loaded just now. Try again in a minute.";
+const BINARY_UNSUPPORTED = "The index has no binary form for this type of transaction.";
 const BINARY_PENDING = "The binary form appears once the transaction is indexed.";
 
 /** The three tabs of the raw data. The binary form is the hex of the transaction, which its hash is taken over, and of its metadata. */
@@ -42,7 +45,11 @@ function rawTabs(raw: TransactionPageData["raw"]): RawTab[] {
     { id: "meta", label: "Metadata", text: raw.meta },
     binary.state === "ready"
       ? { id: "binary", label: "Binary", text: `Transaction\n${binary.tx}\n\nMetadata\n${binary.meta}`, wrap: true }
-      : { id: "binary", label: "Binary", note: binary.state === "failed" ? BINARY_FAILED : BINARY_PENDING },
+      : {
+          id: "binary",
+          label: "Binary",
+          note: binary.state === "failed" ? BINARY_FAILED : binary.state === "unsupported" ? BINARY_UNSUPPORTED : BINARY_PENDING,
+        },
   ];
 }
 

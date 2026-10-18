@@ -18,11 +18,13 @@ import type {
   Payment,
   TxBinary,
   TxObject,
+  TxStoredJson,
 } from "./api-types";
 import type { CacheClass, SubrequestCache } from "./cache-class";
 import type { Env } from "./env";
 import type { Network } from "./networks";
 import type { paths } from "./openapi";
+import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
 import { clip, DATA_API_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
 
 export { UpstreamError } from "./upstream";
@@ -60,13 +62,17 @@ export interface DataApi {
   ledger(id: string, opts: { expand: true; transactions?: boolean }): Promise<LedgerExpanded>;
   ledger(id: string, opts: { transactions: true; expand?: false }): Promise<LedgerWithHashes>;
   ledger(id: string, opts?: { expand?: boolean; transactions?: boolean }): Promise<Ledger>;
-  /** One transaction by hash. */
+  /**
+   * One transaction by hash. An answer that is not a transaction of that hash, with its type, account and metadata, is an
+   * `UpstreamError` of kind `server` (a 200 with the wrong content is the API failing), and is not stored.
+   */
   transaction(hash: string): Promise<TxObject>;
   /**
    * The same transaction with `tx` and `meta` as the hex of their serialization (`binary=true`): the blob of `tx` is the one
-   * its hash is taken over. Asked for beside `transaction` by the transaction page, for its Binary tab.
+   * its hash is taken over. For a type the API's codec cannot serialize the API serves the JSON it stored instead (`TxStoredJson`).
+   * Asked for beside `transaction` by the transaction page, for its Binary tab.
    */
-  transactionBinary(hash: string): Promise<TxBinary>;
+  transactionBinary(hash: string): Promise<TxBinary | TxStoredJson>;
   /** Transactions of all accounts, oldest first unless `descending`. */
   transactions(q: ListQuery): Promise<Page<"transactions", TxObject>>;
   /** How an account was created. 404 (`not_found`) for an address that never was. */
@@ -191,17 +197,29 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   /**
    * The API adds `transactions` to an expanded ledger only when the ledger has some, unless `transactions=true` is
    * sent too, which makes the key always there (`[]` for none). So `expand` always goes with `transactions=true`,
-   * and a ledger asked for with either has a list even if the answer, against the reference, left the key out.
+   * and an expanded ledger has a list even if the answer, against the reference, left the key out.
+   *
+   * The hashes of a ledger (`transactions` without `expand`) are not defaulted: a list that is not there is not an empty ledger, and
+   * a page that took it for one would have every transaction of the ledger fail (and the answer would be stored for a year). The
+   * list must be a list of hashes, or the answer is a failure (`checkLedgerHashes`) and nothing is stored.
    */
   const ledger = (id: string, opts?: { expand?: boolean; transactions?: boolean }) => {
     const withTransactions = Boolean(opts?.expand || opts?.transactions);
+    const hashesOnly = Boolean(opts?.transactions && !opts.expand);
     return get<Ledger>(
       PATHS.ledger,
       { ledger_param: id },
       { expand: opts?.expand, transactions: withTransactions },
       "immutable",
       "ledger",
-      withTransactions ? (found) => ({ ...found, transactions: found.transactions ?? [] }) : undefined,
+      hashesOnly
+        ? (found) => {
+            checkLedgerHashes(found);
+            return found;
+          }
+        : withTransactions
+          ? (found) => ({ ...found, transactions: found.transactions ?? [] })
+          : undefined,
     );
   };
 
@@ -209,8 +227,17 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     lastValidated: () => get<LastValidated>(PATHS.lastValidated, {}, {}, "live"),
     // The overloads of the interface narrow `transactions` by the options; the answer is the same either way.
     ledger: ledger as DataApi["ledger"],
-    transaction: (hash) => get<TxObject>(PATHS.transaction, { tx_hash: hash }, {}, "immutable", "transaction"),
-    transactionBinary: (hash) => get<TxBinary>(PATHS.transaction, { tx_hash: hash }, { binary: true }, "immutable", "transaction"),
+    // What the pages read of a transaction is checked inside the load, so that an answer that is not one is a failure and not stored.
+    transaction: (hash) =>
+      get<TxObject>(PATHS.transaction, { tx_hash: hash }, {}, "immutable", "transaction", (found) => {
+        checkIndexTransaction(found, hash);
+        return found;
+      }),
+    transactionBinary: (hash) =>
+      get<TxBinary | TxStoredJson>(PATHS.transaction, { tx_hash: hash }, { binary: true }, "immutable", "transaction", (found) => {
+        checkBinaryAnswer(found, hash);
+        return found;
+      }),
     transactions: (q) => get(PATHS.transactions, {}, listQuery(q), listClass(q)),
     account: (address) => get<AccountData>(PATHS.account, { address }, {}, "slow", "account_data"),
     balances: (address) => get(PATHS.balances, { address }, {}, "live"),

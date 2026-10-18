@@ -96,6 +96,19 @@ export interface TxBinary {
 }
 
 /**
+ * What `?binary=true` serves for a transaction the API's codec cannot serialize (a type missing from its definitions): the JSON it
+ * stored, in the places of the hex (api-reference.md, "Differences from data.ripple.com"). A lasting answer, not an error.
+ */
+export interface TxStoredJson {
+  hash: string;
+  ledger_index: number;
+  /** `YYYY-MM-DDTHH:mm:ss+00:00`. */
+  date: string;
+  tx: Record<string, unknown>;
+  meta: Record<string, unknown>;
+}
+
+/**
  * A list answer: `{ result, count, marker?, <rows> }`. `K` is the key the rows come under (`transactions`,
  * `payments`, `exchanges`, `rows`). `marker` is there when there is a next page; pass it back as `marker` (it is
  * opaque, and works only for the endpoint and sort direction it came from).

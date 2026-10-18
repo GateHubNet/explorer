@@ -310,8 +310,14 @@ describe("requests", () => {
     expect(request.headers.get("X-API-Key")).toBe("test-key");
   });
 
+  /** What the API answers for a ledger by what is asked: its transactions in full, their hashes, or neither. */
+  const ledgerAnswer = async (input: RequestInfo | URL) => {
+    const query = new URL(input instanceof Request ? input.url : String(input)).searchParams;
+    return json(query.get("expand") === "true" ? expandedLedgerBody : query.get("transactions") === "true" ? hashedLedgerBody : ledgerBody);
+  };
+
   it("asks for the transactions whenever it asks for them in full, which the API otherwise leaves out of an empty ledger", async () => {
-    fetchSpy.mockImplementation(async () => json(expandedLedgerBody));
+    fetchSpy.mockImplementation(ledgerAnswer);
     const api = createDataApi(xrpl, env, passThroughCache);
     const queryOf = async (opts?: { expand?: boolean; transactions?: boolean }) => {
       await api.ledger("107695660", opts);
@@ -334,16 +340,20 @@ describe("requests", () => {
     expect(ledger.transactions).toEqual([]);
   });
 
-  it("is an empty list too when the answer leaves the key out (the API does for expand alone on an empty ledger)", async () => {
+  it("is an empty list for an expanded ledger when the answer leaves the key out (the API does for expand alone on an empty ledger)", async () => {
     fetchSpy.mockImplementation(async () => json(ledgerBody));
     const api = createDataApi(xrpl, env, passThroughCache);
 
     const expanded = await api.ledger("107695660", { expand: true });
-    const hashes = await api.ledger("107695660", { transactions: true });
 
     expect(expanded.transactions).toEqual([]);
-    expect(hashes.transactions).toEqual([]);
     expect(expanded.ledger_index).toBe(107695660);
+  });
+
+  it("is not an empty list for the hashes of a ledger when the answer leaves the key out: it is always there, and a page would take the ledger for an empty one", async () => {
+    fetchSpy.mockImplementation(async () => json(ledgerBody));
+    const failure = await failureOf(createDataApi(xrpl, env, passThroughCache).ledger("107695660", { transactions: true }));
+    expect(failure.kind).toBe("server");
   });
 
   it("leaves a ledger fetched without its transactions without a transactions key", async () => {
@@ -355,7 +365,7 @@ describe("requests", () => {
   });
 
   it("types the transactions of a ledger by what was asked for", async () => {
-    fetchSpy.mockImplementation(async () => json(expandedLedgerBody));
+    fetchSpy.mockImplementation(ledgerAnswer);
     const api = createDataApi(xrpl, env, passThroughCache);
 
     const expanded = await api.ledger("107695660", { expand: true });
@@ -400,7 +410,8 @@ describe("requests", () => {
 
   it("escapes what it puts in a path, so an identifier cannot reach another endpoint", async () => {
     fetchSpy.mockResolvedValueOnce(json(transactionBody));
-    await createDataApi(xrpl, env, passThroughCache).transaction("AB/CD?x#y");
+    // (The answer is the transaction of HASH, not of this identifier: the client says so, which does not matter here.)
+    await createDataApi(xrpl, env, passThroughCache).transaction("AB/CD?x#y").catch(() => undefined);
     expect(sentRequest().url).toBe(`${BASE}/v2/transactions/AB%2FCD%3Fx%23y`);
   });
 
@@ -669,5 +680,141 @@ describe("cache", () => {
     expect(await api.transaction(HASH)).toEqual(txObject);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(store.size).toBe(1);
+  });
+});
+
+// A 200 that is not what the reference promises is the API failing, not an answer: the subrequest cache stores what the client returns
+// for a year (class immutable), so a shape that the pages cannot use would be stored with it. The checks are in the client, inside the
+// load the cache runs, and a load that throws stores nothing.
+describe("an answer that is not what the reference promises", () => {
+  /** A cache that stores what `load` returns, as the Worker's does, so that a stored answer shows. */
+  function storingCache() {
+    const store = new Map<string, unknown>();
+    const cache = {
+      store,
+      async json<T>(key: string, _cls: CacheClass, load: () => Promise<T>): Promise<T> {
+        if (store.has(key)) return store.get(key) as T;
+        const value = await load();
+        store.set(key, value);
+        return value;
+      },
+    };
+    return cache;
+  }
+
+  /** The call fails as an upstream failure of kind `server` (a 200 with the wrong content), and nothing is stored; a good answer then is. */
+  async function failsWithoutStoring(body: unknown, call: (api: DataApi) => Promise<unknown>, good: unknown) {
+    const cache = storingCache();
+    const api = createDataApi(xrpl, env, cache);
+    fetchSpy.mockResolvedValueOnce(json(body));
+    const error = await failureOf(call(api));
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(cache.store.size).toBe(0);
+
+    fetchSpy.mockResolvedValueOnce(json(good));
+    await call(api);
+    expect(cache.store.size).toBe(1);
+  }
+
+  const withTransaction = (change: Record<string, unknown>) => ({ result: "success", transaction: { ...txObject, ...change } });
+
+  describe("for a transaction", () => {
+    it.each<[string, Record<string, unknown>]>([
+      ["no tx", { tx: undefined }],
+      ["a tx that is text", { tx: "Payment" }],
+      ["a tx that is null", { tx: null }],
+      ["a tx without a type", { tx: { Account: ACCOUNT } }],
+      ["a tx whose type is not text", { tx: { TransactionType: 7, Account: ACCOUNT } }],
+      ["a tx without an account", { tx: { TransactionType: "Payment" } }],
+      ["no meta", { meta: undefined }],
+      ["a meta without a result", { meta: { TransactionIndex: 3, AffectedNodes: [] } }],
+      ["a meta without a place in the ledger", { meta: { TransactionResult: "tesSUCCESS", AffectedNodes: [] } }],
+      ["a negative place", { meta: { TransactionIndex: -1, TransactionResult: "tesSUCCESS", AffectedNodes: [] } }],
+      ["a meta whose nodes are not a list", { meta: { TransactionIndex: 3, TransactionResult: "tesSUCCESS", AffectedNodes: "none" } }],
+      ["a ledger that is not a number", { ledger_index: "107" }],
+      ["a date that is not a date", { date: "yesterday" }],
+      ["no date", { date: undefined }],
+      ["the hash of another transaction", { hash: "AB".repeat(32) }],
+      ["no hash", { hash: undefined }],
+    ])("is a failure for %s, is not stored, and the good answer after it is", async (_what, change) => {
+      await failsWithoutStoring(withTransaction(change), (api) => api.transaction(HASH), transactionBody);
+    });
+
+    it("is a failure for an answer that is not an object at all", async () => {
+      await failsWithoutStoring({ result: "success", transaction: "gone" }, (api) => api.transaction(HASH), transactionBody);
+    });
+
+    it("takes the hash in any case, and a pseudo-transaction with an empty account", async () => {
+      fetchSpy.mockResolvedValueOnce(json(withTransaction({ hash: HASH.toLowerCase(), tx: { TransactionType: "UNLReport", Account: "" } })));
+      const found = await createDataApi(xrpl, env, passThroughCache).transaction(HASH);
+      expect(found.tx.TransactionType).toBe("UNLReport");
+    });
+  });
+
+  describe("for the binary form of a transaction", () => {
+    const binary = { ...binaryObject };
+    const withBinary = (change: Record<string, unknown>) => ({ result: "success", transaction: { ...binary, ...change } });
+
+    it.each<[string, Record<string, unknown>]>([
+      ["a tx that is not hex", { tx: "XYZ1" }],
+      ["a tx of an odd length", { tx: "ABC" }],
+      ["an empty tx", { tx: "" }],
+      ["a tx that is a number", { tx: 7 }],
+      ["a meta that is not hex", { meta: "zz" }],
+      ["no meta", { meta: undefined }],
+      ["no tx", { tx: undefined }],
+      ["hex and JSON mixed", { meta: { TransactionResult: "tesSUCCESS" } }],
+      ["a tx that is a list", { tx: ["AB"], meta: ["CD"] }],
+      ["the hash of another transaction", { hash: "AB".repeat(32) }],
+    ])("is a failure for %s, is not stored, and the good answer after it is", async (_what, change) => {
+      await failsWithoutStoring(withBinary(change), (api) => api.transactionBinary(HASH), binaryBody);
+    });
+
+    it("is an answer when tx and meta are JSON: the API serves a transaction its codec cannot serialize as it stored it (api-reference.md)", async () => {
+      const stored = { tx: { TransactionType: "Payment", Account: ACCOUNT }, meta: { TransactionResult: "tesSUCCESS" } };
+      const cache = storingCache();
+      fetchSpy.mockResolvedValueOnce(json(withBinary(stored)));
+
+      const found = await createDataApi(xrpl, env, cache).transactionBinary(HASH);
+
+      expect(found.tx).toEqual(stored.tx);
+      expect(found.meta).toEqual(stored.meta);
+      expect(cache.store.size).toBe(1);
+    });
+  });
+
+  describe("for the hashes of a ledger", () => {
+    const withList = (transactions: unknown) => ({
+      ...hashedLedgerBody,
+      ledger: transactions === undefined ? { ...ledgerBody.ledger } : { ...ledgerBody.ledger, transactions },
+    });
+
+    it.each<[string, unknown]>([
+      ["no list", undefined],
+      ["a list that is text", "oops"],
+      ["a list that is an object", { 0: HASH }],
+      ["a list that is null", null],
+      ["a hash that is not hex", [HASH, "not-a-hash"]],
+      ["a hash of 63 digits", [HASH.slice(1)]],
+      ["a hash of 66 digits", [`${HASH}AB`]],
+      ["a path", ["../../etc/passwd"]],
+      ["a number", [7]],
+      ["null", [null]],
+    ])("is a failure for %s, is not stored, and the good answer after it is", async (_what, list) => {
+      await failsWithoutStoring(withList(list), (api) => api.ledger("107695660", { transactions: true }), hashedLedgerBody);
+    });
+
+    it("is an answer for no transactions, an empty list: a ledger with none", async () => {
+      fetchSpy.mockResolvedValueOnce(json(withList([])));
+      const ledger = await createDataApi(xrpl, env, passThroughCache).ledger("107695660", { transactions: true });
+      expect(ledger.transactions).toEqual([]);
+    });
+
+    it("takes hashes in either case", async () => {
+      fetchSpy.mockResolvedValueOnce(json(withList([HASH.toLowerCase()])));
+      const ledger = await createDataApi(xrpl, env, passThroughCache).ledger("107695660", { transactions: true });
+      expect(ledger.transactions).toEqual([HASH.toLowerCase()]);
+    });
   });
 });

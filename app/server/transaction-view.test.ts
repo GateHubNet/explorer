@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { encodeCtid } from "../domain/ctid";
 import { dropsToNative, shortAddress, shortHash } from "../domain/format";
 import type { TxJson, TxMeta } from "../domain/parse/types";
-import type { TxBinary, TxObject } from "./api-types";
+import type { TxBinary, TxObject, TxStoredJson } from "./api-types";
 import type { NodeTx } from "./node-rpc";
 import {
   binaryOf,
@@ -41,7 +41,7 @@ const neighbours = (count: number, position: number) => ({
 
 function page(hash: string, net: "xrpl" | "xahau" = "xrpl", count = 70): TransactionPageData {
   const object = fixtureTx(net, hash);
-  const source = txFromIndex(object, hash);
+  const source = txFromIndex(object);
   return transactionPage(source, {
     network: net === "xrpl" ? XRPL : XAHAU,
     neighbours: neighbours(count, source.meta.TransactionIndex),
@@ -60,34 +60,16 @@ const failure = (run: () => unknown): UpstreamError => {
 };
 
 describe("txFromIndex", () => {
+  // What the data API gives is checked by the client inside the load its cache runs (test/worker/data-api.spec.ts), so this only reads it.
   it("takes a transaction of the data API: its place, its time in unix seconds, the hash in upper case", () => {
     const object = fixtureTx("xrpl", PAYMENT);
-    const source = txFromIndex(object, PAYMENT.toLowerCase());
+    const source = txFromIndex({ ...object, hash: PAYMENT.toLowerCase() });
     expect(source.origin).toBe("index");
     expect(source.hash).toBe(PAYMENT);
     expect(source.ledgerIndex).toBe(102186243);
     expect(source.closeTime).toBe(Date.parse(object.date) / 1000);
     expect(source.tx).toBe(object.tx);
     expect(source.meta).toBe(object.meta);
-  });
-
-  it.each([
-    ["a hash that is not the one asked for", (o: any) => ({ ...o, hash: "AB".repeat(32) })],
-    ["no hash", (o: any) => ({ ...o, hash: undefined })],
-    ["no tx", (o: any) => ({ ...o, tx: undefined })],
-    ["a tx that is text", (o: any) => ({ ...o, tx: "Payment" })],
-    ["a tx without a type", (o: any) => ({ ...o, tx: { Account: "rX" } })],
-    ["a tx without an account", (o: any) => ({ ...o, tx: { TransactionType: "Payment" } })],
-    ["no meta", (o: any) => ({ ...o, meta: undefined })],
-    ["a meta without a result", (o: any) => ({ ...o, meta: { TransactionIndex: 3, AffectedNodes: [] } })],
-    ["a meta without a place in the ledger", (o: any) => ({ ...o, meta: { TransactionResult: "tesSUCCESS", AffectedNodes: [] } })],
-    ["a meta whose nodes are not a list", (o: any) => ({ ...o, meta: { ...o.meta, AffectedNodes: "none" } })],
-    ["a ledger that is not a number", (o: any) => ({ ...o, ledger_index: "107" })],
-    ["a date that is not a date", (o: any) => ({ ...o, date: "yesterday" })],
-    ["nothing", () => null],
-  ])("is an upstream failure for %s, never a TypeError", (_what, spoil) => {
-    const error = failure(() => txFromIndex(spoil(fixtureTx("xrpl", PAYMENT)) as TxObject, PAYMENT));
-    expect(error.kind).toBe("server");
   });
 });
 
@@ -102,10 +84,17 @@ describe("txFromNode", () => {
     expect(source).toMatchObject({ origin: "node", hash: PAYMENT, ledgerIndex: 102186243, closeTime: 1792253462 });
   });
 
-  it("is an upstream failure for an answer that is not the transaction asked for", () => {
-    expect(failure(() => txFromNode({ ...node(), hash: "AB".repeat(32) }, PAYMENT)).kind).toBe("server");
-    expect(failure(() => txFromNode({ ...node(), meta: {} as TxMeta }, PAYMENT)).kind).toBe("server");
-    expect(failure(() => txFromNode({ ...node(), date: Number.NaN }, PAYMENT)).kind).toBe("server");
+  // The node client reads less of an answer than the data API's does, so this is where a node's transaction is checked.
+  it.each([
+    ["another hash than the one asked for", (n: NodeTx) => ({ ...n, hash: "AB".repeat(32) })],
+    ["no hash", (n: NodeTx) => ({ ...n, hash: undefined as never })],
+    ["metadata without a result, a place or nodes", (n: NodeTx) => ({ ...n, meta: {} as TxMeta })],
+    ["no transaction type", (n: NodeTx) => ({ ...n, tx: { Account: "rX", Fee: "10" } as never })],
+    ["a transaction that is text", (n: NodeTx) => ({ ...n, tx: "Payment" as never })],
+    ["no time", (n: NodeTx) => ({ ...n, date: Number.NaN })],
+    ["a ledger that is not a number", (n: NodeTx) => ({ ...n, ledger_index: "107" as never })],
+  ])("is an upstream failure for %s", (_what, spoil) => {
+    expect(failure(() => txFromNode(spoil(node()), PAYMENT)).kind).toBe("server");
   });
 });
 
@@ -131,30 +120,22 @@ describe("neighboursOf", () => {
   it.each([
     ["a list that does not hold the transaction at its place", hashes, "AB".repeat(32), 2],
     ["a place past the end", hashes, hashes[0]!, 9],
-    ["something that is not a list", "oops", hashes[0]!, 0],
-    ["a neighbour that is not a hash", [hashes[0], "junk", hashes[2]], hashes[0]!, 0],
-    ["a neighbour that is a number", [7, hashes[1]], hashes[1]!, 1],
+    ["a list without it, though at another place", [...hashes].reverse(), hashes[0]!, 0],
   ])("is an upstream failure for %s: an immutable page must not store a wrong neighbour", (_what, list, hash, position) => {
     expect(failure(() => neighboursOf(list, hash, position)).kind).toBe("server");
   });
 });
 
 describe("binaryOf", () => {
-  it("is the blobs of the answer, when both are hex", () => {
+  // The client has checked the answer (hex, or the JSON the API stored for a type its codec cannot serialize).
+  it("is the blobs of the answer when they are hex", () => {
     const answer = fixtureBinary("xrpl", PAYMENT);
     expect(binaryOf(answer)).toEqual({ state: "ready", tx: answer.tx, meta: answer.meta });
   });
 
-  it.each([
-    ["nothing", undefined],
-    ["a tx that is not text", { tx: 7, meta: "AB" }],
-    ["a tx that is not hex", { tx: "XYZ1", meta: "AB" }],
-    ["a tx of an odd length", { tx: "ABC", meta: "AB" }],
-    ["an empty tx", { tx: "", meta: "AB" }],
-    ["a meta that is not hex", { tx: "AB", meta: "zz" }],
-    ["no meta", { tx: "AB" }],
-  ])("is 'failed' for %s", (_what, answer) => {
-    expect(binaryOf(answer)).toEqual({ state: "failed" });
+  it("is 'unsupported' when the answer is the stored JSON: the index has no binary form of this type, and never will", () => {
+    const stored: TxStoredJson = { hash: PAYMENT, ledger_index: 1, date: "2026-10-15T11:19:30+00:00", tx: { TransactionType: "Payment" }, meta: { TransactionResult: "tesSUCCESS" } };
+    expect(binaryOf(stored)).toEqual({ state: "unsupported" });
   });
 });
 
@@ -199,7 +180,7 @@ describe("transactionPage over a plain Payment", () => {
   });
 
   it("has no CTID for a place that does not fit one", () => {
-    const source: TransactionSource = { ...txFromIndex(object, PAYMENT), ledgerIndex: 2 ** 28 };
+    const source: TransactionSource = { ...txFromIndex(object), ledgerIndex: 2 ** 28 };
     expect(transactionPage(source, { network: XRPL, neighbours: null, binary: { state: "failed" } }).ctid).toBeNull();
   });
 

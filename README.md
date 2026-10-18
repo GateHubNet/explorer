@@ -84,7 +84,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | File | |
 |---|---|
 | `networks.ts` | `xrpl` and `xahau`: name, native currency, CTID network id, and the data API and node URLs from `Env`. The only place that knows a network's URLs. |
-| `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. `transaction(hash)` and `transactionBinary(hash)` (`binary=true`: `tx` and `meta` as hex) are the same path with and without that flag. |
+| `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. `transaction(hash)` and `transactionBinary(hash)` (`binary=true`: `tx` and `meta` as hex, or as the stored JSON for a type the API's codec cannot serialize) are the same path with and without that flag. What the pages read of a transaction, of its binary form and of a ledger's list of hashes is checked **inside the load the subrequest cache runs** (`tx-shape.ts`): a 200 with the wrong content is an `UpstreamError` of kind `server` and is never stored, where an answer that came back whole would have been kept for a year. |
 | `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds. |
 | `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
 | `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, and the `SubrequestCache` interface both clients take. |
@@ -95,6 +95,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `loader-errors.ts` | `upstreamFailure(err, what)`: what a loader throws for a failed upstream call: 404 `short` for `not_found`/`bad_request`, 503 with `Retry-After` for the rest, anything else rethrown. |
 | `capture.ts` | `handleLoaderError`, the `handleError` of `app/entry.server.tsx`: one log line per loader error and, with a `SENTRY_DSN`, Sentry. |
 | `resolve.ts` | What a search input names: `resolveCtid(api, net, ctid)` (the hash at a CTID's place in its ledger, or the other network it belongs to, or `null`) and `findHash(api, node, hash)` (a transaction, a ledger, both or neither; the node is asked when the data API has neither). They return "nothing" for a thing that is not there and throw the `UpstreamError` of a failure, so a caller can tell a 404 from a 503. An answer that cannot be right is a failure too: a 200 for a hash without its `tx`, a ledger's list that is not a list, a hash in it that is not 64 hex digits (it goes into a redirect and a path). |
+| `tx-shape.ts` | The shape checks of a transaction, its binary form and a ledger's list of hashes (`checkIndexTransaction`, `checkBinaryAnswer`, `checkLedgerHashes`; `checkNodeTransaction` for the node's), which the data API client runs inside its cached loads. |
 | `transaction-view.ts` | What the transaction page shows (`transactionPage`): worked out from a transaction of the data API (`txFromIndex`) or the node (`txFromNode`), the hashes of its ledger (`neighboursOf`) and the binary form (`binaryOf`). See "The transaction page". |
 
 ## The Worker entry
@@ -225,11 +226,12 @@ fails if the page's files import them as values).
 | Request | Answer | Class |
 |---|---|---|
 | a hash in upper case, found by the data API | the page; the transaction, `?binary=true` and `/v2/ledgers/{index}?transactions=true` (for the neighbours) are asked for | `immutable` |
-| the same, and the binary call failed | the page, its Binary tab saying "The binary form could not be loaded just now." | `short` (30 s), never `immutable` |
+| the same, and the binary call failed, or answered something that is not hex (the client throws, nothing is stored; the reason is logged) | the page, its Binary tab saying "The binary form could not be loaded just now. Try again in a minute." | `short` (30 s), never `immutable` |
+| the same, and the binary answer is JSON (the API's codec cannot serialize this type, so it serves what it stored: a lasting answer) | the page, its Binary tab saying "The index has no binary form for this type of transaction." | `immutable` |
 | the same, and the ledger's list failed, was "not found", or does not hold the transaction at its place | 503 (`upstreamOutage`): a missing neighbour would be stored for a year | not stored |
 | the data API says "not found" | the node's `tx`; a transaction in a validated ledger is shown with "Not in the index yet, shown from the network", **without** previous/next and Binary (they say they appear once it is indexed) | `short`, TTL 60 s |
 | neither has it, or the node's answer is not validated | 404 with the search box and "Search on {other network}" (`/{other}/search?q={HASH}`) | `short` (30 s), `noindex` |
-| any other failure of the data API (5xx, 429, timeout, a 200 without a usable transaction) | 503, the node is not asked | not stored |
+| any other failure of the data API (5xx, 429, timeout, a 200 without a usable transaction), and a 400 (the hash is well formed, so the refusal is the API's fault) | 503, the node is not asked | not stored |
 | a hash in another case | 302 to the upper-case URL, nobody asked | `immutable` |
 | a CTID of this network | 302 to `/{net}/tx/{HASH}` (`resolveCtid`); a CTID that names nothing, or of a network id that is neither XRPL's nor Xahau's, is a 404 | `immutable` redirect, `short` 404 |
 | a CTID of the other network | 200: the page the search shows ("That CTID is on Xahau", with the link), nobody asked; `noindex, follow` | `short` |
@@ -239,7 +241,13 @@ fails if the page's files import them as values).
   Previous / Next are `#11` and `#13`. They link to `/{net}/tx/{HASH}` of the neighbours in the ledger's list, which has only
   hashes, so a link shows a position and no type. At either end of the ledger the link is shown disabled ("first in ledger").
 - **Binary.** The API's hex is the serialization itself (it re-hashes to the transaction hash), so the Worker never encodes: the
-  Binary tab shows the hex of the transaction (the blob the hash is taken over) and of its metadata.
+  Binary tab shows the hex of the transaction (the blob the hash is taken over) and of its metadata. A tab without hex says why, and
+  what it says is true: "try again in a minute" for a page stored 30 s, "no binary form" for a type the index cannot serialize,
+  "appears once the transaction is indexed" for a transaction shown from the node.
+- **Checked before it is kept.** `transaction`, `transactionBinary` and `ledger(id, { transactions: true })` check their answers
+  in the client (`tx-shape.ts`), so the page code reads what is whole and the node's transaction is the one answer it checks itself
+  (`txFromNode`). `neighboursOf` only asks that the ledger's list holds this transaction at its place. An expanded ledger
+  (`expand=true`, the ledger page's) still takes a list that is missing for an empty one.
 - **Raw tabs without JavaScript.** All three panels are in the page, one under the other, each under a heading; once the script has
   run they become a tablist (real buttons, arrow keys, Home and End) with one panel and a Copy button. The server's markup and the
   first client render are the same, so nothing mismatches.
@@ -378,7 +386,10 @@ that is fetched throws. An override key is `GET <path>?<query>` for the data API
 `node <method> <all params sorted>` for a node (the more specific wins), optionally prefixed with `xrpl` or `xahau`. Its value is a
 function `(req: Request) => Response`, a `Response` (cloned for every request), `null` (as if there were no fixture), or a JSON
 body (a data API's, or a node's `result`). An unknown key throws. `dataApiError(status, message)` and `nodeError(code)` make
-the servers' errors.
+the servers' errors. **A spec that asks the Worker for a page (`exports.default.fetch`) overrides with a function**, `() =>
+dataApiError(503, "...")`: a `Response` value is made in the test's request and cloned in the Worker's, and workerd refuses to read
+its body there (`Cannot perform I/O on behalf of a different request`), so the client sees a `network` failure whatever the status
+was. (`resolve.spec.ts` and `data-api.spec.ts` call the clients in the test's own request, where a `Response` value is fine.)
 
 **In the end-to-end suite:** `startFixtureServer(port)` (`test/support/fixture-server.ts`, Node only, `port` 0 for any) serves the
 same fixtures at `<url>/xrpl` and `<url>/xahau` (data API) and `<url>/xrpl-node` and `<url>/xahau-node` (JSON-RPC), so the two

@@ -5,6 +5,7 @@ import { formatAmount, shortHash } from "../domain/format";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
+import { logProblem } from "../server/logging";
 import { requireNetwork } from "../server/network-route";
 import { networkIdOfCtid, type Network, type NetworkId } from "../server/networks";
 import { resolveCtid } from "../server/resolve";
@@ -16,6 +17,7 @@ import {
   transactionPage,
   txFromIndex,
   txFromNode,
+  type BinaryRaw,
   type TransactionPageData,
 } from "../server/transaction-view";
 import { UpstreamError } from "../server/upstream";
@@ -53,22 +55,26 @@ function nameOf(id: NetworkId): NetworkName {
  * - A CTID of this network is a 302 to the hash it names (`resolveCtid`); one of the other network is the page that offers it
  *   there (what the search shows); a CTID that names nothing, or of a network that is not covered, is a 404.
  * - The page asks the data API for the transaction, for its binary form (`binary=true`) and then for the hashes of its ledger,
- *   and is class `immutable`. All of it is loaded here, never streamed: a page stored for a year must be whole. The binary
- *   form is the one part that may fail without the page: then the Binary tab says so, and the page is stored `short`. The
- *   ledger's list must not fail: a missing neighbour would be stored for a year, so that is a 503 (even its "not found": the
- *   API returned the transaction in that ledger).
+ *   and is class `immutable`. All of it is loaded here, never streamed: a page stored for a year must be whole. What the
+ *   client returns is whole: it checks each answer inside the load its cache runs, so a 200 with the wrong content is a failure
+ *   and is never stored. The binary form is the one part that may fail without the page: then the Binary tab says so (and a log
+ *   line why), and the page is stored `short`. The API's JSON in place of the hex, for a type its codec cannot serialize, is a
+ *   lasting answer: the page is `immutable` and the tab says there is no binary form. The ledger's list must not fail: a
+ *   missing neighbour would be stored for a year, so that is a 503 (even its "not found": the API returned the transaction in
+ *   that ledger).
  * - The data API says "not found": the node is asked, and a transaction it has in a validated ledger is shown with a note, as
  *   `short` for 60 s, without neighbours or binary form (they appear once it is indexed). If it has none either, a 404 that
- *   offers the same search on the other network. Any other failure of the data API is a 503 and the node is not asked.
+ *   offers the same search on the other network. Any other failure of the data API is a 503 and the node is not asked; a 400
+ *   (the hash is well formed) too, as it is the API's fault.
  */
-export async function loader({ params, context }: Route.LoaderArgs) {
+export async function loader({ request, params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
   const id = params.id ?? "";
 
   if (HASH_64.test(id)) {
     const hash = id.toUpperCase();
     if (id !== hash) return permanent(`/${network.id}/tx/${hash}`);
-    return transactionAnswer(context, network, hash);
+    return transactionAnswer(context, network, hash, request);
   }
 
   const ctid = decodeCtid(id);
@@ -94,7 +100,7 @@ async function ctidAnswer(context: Route.LoaderArgs["context"], network: Network
   return cached(otherNetworkPage(shownQuery(ctid), ctid, nameOf(resolved.otherNetwork)), "short");
 }
 
-async function transactionAnswer(context: Route.LoaderArgs["context"], network: Network, hash: string) {
+async function transactionAnswer(context: Route.LoaderArgs["context"], network: Network, hash: string, request: Request) {
   const what = `transaction ${shortHash(hash)}`;
   const { api, node } = clientsFor(context, network);
 
@@ -102,12 +108,8 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
   const [found, binary] = await Promise.allSettled([api.transaction(hash), api.transactionBinary(hash)]);
 
   if (found.status === "fulfilled") {
-    let source;
-    try {
-      source = txFromIndex(found.value, hash);
-    } catch (err) {
-      return upstreamFailure(err, what);
-    }
+    // The client has checked the transaction and the list (inside the load its cache runs), so what is read here is whole.
+    const source = txFromIndex(found.value);
 
     const ledger = await api
       .ledger(String(source.ledgerIndex), { transactions: true })
@@ -119,14 +121,23 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
       return upstreamFailure(err, what);
     }
 
-    const form = binary.status === "fulfilled" ? binaryOf(binary.value) : ({ state: "failed" } as const);
+    let form: BinaryRaw;
+    if (binary.status === "fulfilled") {
+      form = binaryOf(binary.value);
+    } else {
+      // The page does without it (its Binary tab says it could not be loaded), and says why here: asking again can help.
+      logProblem("the binary form of a transaction was not taken", binary.reason, request);
+      form = { state: "failed" };
+    }
     const page = transactionPage(source, { network, neighbours, binary: form });
-    // Whole: for a year. Without its binary form (which a retry may find) only for the short class's 30 s.
-    return cached(page, form.state === "ready" ? "immutable" : "short");
+    // Whole (also with the JSON the API serves for a type it cannot serialize, which is a lasting answer): for a year. Without its
+    // binary form, which asking again may find, only for the short class's 30 s.
+    return cached(page, form.state === "failed" ? "short" : "immutable");
   }
 
   // Not indexed (yet): the network itself may have it (spec 10). Any other failure is a 503, and the node is not asked in its place.
-  if (!(found.reason instanceof UpstreamError && found.reason.kind === "not_found")) return upstreamFailure(found.reason, what);
+  // That includes a 400: the hash is 64 hex digits, a name the API must take, so a refusal is its fault and not a missing transaction.
+  if (!(found.reason instanceof UpstreamError && found.reason.kind === "not_found")) return upstreamOutage(found.reason, what);
 
   let fromNode;
   try {
@@ -135,14 +146,14 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
     if (err instanceof UpstreamError && err.kind === "not_found") {
       return cached(transactionNotFoundPage(hash, nameOf(network.other)), "short", { status: 404 });
     }
-    return upstreamFailure(err, what);
+    return upstreamOutage(err, what);
   }
 
   let source;
   try {
     source = txFromNode(fromNode, hash);
   } catch (err) {
-    return upstreamFailure(err, what);
+    return upstreamOutage(err, what);
   }
   const page = transactionPage(source, { network, neighbours: null, binary: { state: "pending" } });
   return cached(page, "short", { ttl: FROM_NODE_TTL });
