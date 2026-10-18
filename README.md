@@ -397,7 +397,7 @@ client-side navigation: that file imports nothing heavy, and `test/unit/og-bundl
 | Transaction | title, description, canonical `/{net}/tx/{HASH}`, `og:title/description/url/type/site_name`, `og:image` + width 1200, height 630, alt, `twitter:card=summary_large_image` + title, description, image, alt |
 | Ledger | the same; the canonical URL and the image name the ledger by its index, whichever of index and hash the page was reached by |
 | Account (first page of a list) | the same; the canonical URL keeps `?tab=` unless it is the first tab, and drops `tag`, `marker` and `back`; the image is the account's whatever the tab |
-| Account with a `marker` | `noindex, follow`, canonical = the first page of its tab, no `og:*` |
+| Account with a `marker` | `noindex, follow`, **no canonical** (Google advises against `noindex` with a canonical to another URL), no `og:*` |
 | Search, 404s, never activated, CTID offer | unchanged: `noindex, follow` (search) or `noindex`, no canonical, no `og:*` |
 
 - **Description of a transaction**: `Payment of 1,250.00 USD from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660` for a transaction that
@@ -414,6 +414,7 @@ client-side navigation: that file imports nothing heavy, and `test/unit/og-bundl
 
 | Case | Answer |
 |---|---|
+| a URL with a query string (`…/x.png?a=1`): the edge cache's key holds the query, so each would be a copy drawn and kept of its own | 302 to the bare path, class `immutable`, before anything else: no call, nothing drawn |
 | net, kind or id not valid (a transaction: 64 hex digits; a ledger: 1 to 10 digits or 64 hex; an account: a classic address with a valid checksum; a CTID, an X-address, `latest`, a missing `.png`) | 404, class `short`, **no upstream call** |
 | a transaction hash or ledger hash in lower case, a ledger index with leading zeros | 302 to the one URL, class `immutable`, no upstream call |
 | a transaction the data API has; a ledger it has that is not the newest | `immutable` (`max-age=31536000, immutable` for the browser) |
@@ -422,7 +423,7 @@ client-side navigation: that file imports nothing heavy, and `test/unit/og-bundl
 | an account whose balances could not be read | drawn without them, `short`: asked again soon |
 | from the node (the API says "not found"; for an account, no creation record) | `short` with a TTL of 60 s, like the page |
 | "not found" at both | 404, class `short` |
-| an upstream failure that leaves the question open (5xx, 429, timeout; `last_validated` for a ledger), or a card the renderer cannot draw | 503 with `Retry-After`, never stored (the entry serves the stored copy, however old, if there is one) |
+| an upstream failure that leaves the question open (5xx, 429, timeout; `last_validated` for a ledger), or a card the renderer cannot draw | 503, never stored; the entry serves the stored copy, however old, if there is one, and otherwise answers with its own 503 page (`Retry-After: 30`, whatever wait the route or the upstream named). A render failure is logged (`a link-preview image could not be drawn`) |
 
 The data comes through the same clients as the page: `describe` (title, result, sentence, flow) and `headlineAmount` for a transaction
 (`transactionFacts` in `app/server/card-data.ts`; the balance changes, objects touched and raw JSON the page also works out are not),
@@ -434,7 +435,9 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   Cloudflare Vite plugin turns an imported `.bin` file into an `ArrayBuffer` (and has no rule for `.ttf`), so `app/og/fonts/` holds the
   `geist` package's TTF files under that extension, with its licence; `test/unit/og-fonts.test.ts` keeps them byte for byte the package's.
   Refresh them with `cp node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf app/og/fonts/Geist-Regular.bin` (and so on) when `geist` is
-  updated. The board's weight 650 is drawn as 600.
+  updated. The board's weight 650 is drawn as 600. `FONTS` (`app/og/fonts.ts`) is one array that `render.ts` hands to the renderer as it
+  is: Satori keeps its parse of the fonts (660 KB of TrueType) under that array's identity, so a copy per image would be parsed again per
+  image (`test/worker/og-render.spec.ts`).
 - **WebAssembly.** `workers-og` imports its two `.wasm` files itself (`import x from "./resvg.wasm"`), which the Cloudflare Vite plugin
   and the Vitest plugin both turn into compiled modules: no configuration was needed.
 - **Size and loading.** `workers-og` and the fonts are imported with `import()` on the first image drawn, so they are separate chunks that
@@ -476,7 +479,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   page under); `resolve.spec.ts` calls `resolveCtid` and `findHash` with a data API client and a node client of its own. `account.spec.ts` covers the account page (failures first, one made-up account per override, from `account(n)`), `account-csv.spec.ts` its CSV; `app/server/account-view.test.ts` and `qr.test.ts` the view builder and the QR encoder (checked against `qrencode` 4.1.1's output and by Apple's Vision decoder when it was written), `test/unit/account-bundle.test.ts` and `account-css.test.ts` what the page may import and what its stylesheet must keep. `transaction.spec.ts` covers the transaction page and its redirects, 404s, node fallback and 503s (failures first, one transaction per override); `app/server/transaction-view.test.ts` the view builder over recorded transactions; `test/unit/transaction-bundle.test.ts` and `transaction-css.test.ts` what the page may import and what its stylesheet must keep. The
   `meta.spec.ts` checks the tags of every page against values worked out from the recorded transactions, ledgers and accounts (title, description,
   canonical, Open Graph, Twitter, `noindex`, the origin of the request); `og.spec.ts` the image route (validation without a call, the redirects, the
-  classes and TTLs stored, the node fallback, the 503s that are not stored) with `test/support/png.ts`, a small PNG decoder, to read the size and
+  classes and TTLs stored, the node fallback, the 503s that are not stored, a query string, a card that cannot be drawn) and `og-render.spec.ts` the
+  renderer's seam with `workers-og` (the one array of fonts, a failing draw), with `test/support/png.ts`, a small PNG decoder, to read the size and
   the colour of the pixels drawn; `app/server/meta.test.ts`, `card-data.test.ts` and `app/og/card.test.ts` the tag builders, the words of the card
   and its layout (every element Satori would reject is checked for), and `test/unit/og-fonts.test.ts` and `og-bundle.test.ts` the bundled fonts and
   where the renderer may be imported. The

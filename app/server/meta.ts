@@ -197,8 +197,7 @@ export interface AccountFacts {
 
 /**
  * The tags of `/{net}/account/{address}`. The canonical URL names the tab unless it is the first one; `tag` and every other parameter
- * are not part of it. A page of old history (reached with a marker) is `noindex, follow` with the first page of its tab as its canonical
- * URL, and has nothing to share.
+ * are not part of it. A page of old history (reached with a marker) is `noindex, follow`, with no canonical URL and nothing to share.
  */
 export function accountMeta(account: AccountFacts, ctx: MetaContext): MetaDescriptor[] {
   const { network, origin } = ctx;
@@ -207,11 +206,11 @@ export function accountMeta(account: AccountFacts, ctx: MetaContext): MetaDescri
   const url = absolute(origin, accountHref(network.id, address, { tab }));
 
   if (header.status === "history") {
+    // No canonical URL: Google advises against `noindex` on a page that names another URL as its canonical, and the two disagree.
     return [
       { title },
       { name: "description", content: `Older ${tab} of the account ${address} on ${network.name}.` },
       { name: "robots", content: "noindex, follow" },
-      { tagName: "link", rel: "canonical", href: url },
     ];
   }
 

@@ -222,15 +222,15 @@ describe("accountMeta", () => {
     expect(content(accountMeta(deleted, XRPL), "description")).toContain("Deleted account");
   });
 
-  it("is a page of old history: noindex, follow, with a canonical URL that is the first page of its tab and no sharing tags", () => {
-    const history = accountMeta(account({ header: { status: "history" }, tab: "payments" }), XRPL);
-    expect(content(history, "robots")).toBe("noindex, follow");
-    expect(link(history, "canonical")).toBe(`https://explorer.test/xrpl/account/${ADDRESS}?tab=payments`);
-    expect(content(history, "description")).toBe(`Older payments of the account ${ADDRESS} on XRPL.`);
-    expect(keys(history).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
-
-    const first = accountMeta(account({ header: { status: "history" }, tab: "transactions" }), XRPL);
-    expect(link(first, "canonical")).toBe(`https://explorer.test/xrpl/account/${ADDRESS}`);
+  it("is a page of old history: noindex, follow, with no canonical URL (Google advises against noindex with a canonical to another page) and no sharing tags", () => {
+    for (const tab of ["transactions", "payments", "trades"] as const) {
+      const history = accountMeta(account({ header: { status: "history" }, tab }), XRPL);
+      expect(content(history, "robots"), tab).toBe("noindex, follow");
+      expect(link(history, "canonical"), tab).toBeUndefined();
+      expect(tags(history).some((tag) => tag.tagName === "link"), tab).toBe(false);
+      expect(content(history, "description"), tab).toBe(`Older ${tab} of the account ${ADDRESS} on XRPL.`);
+      expect(keys(history).filter((key) => /^(og|twitter):/.test(key)), tab).toEqual([]);
+    }
   });
 });
 

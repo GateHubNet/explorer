@@ -1,7 +1,8 @@
 import { env, exports } from "cloudflare:workers";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { encodeAccountID } from "ripple-address-codec";
 
+import * as render from "../../app/og/render";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { decodePng, hex, pngSize } from "../support/png";
 import { pageClient } from "../support/pages";
@@ -35,6 +36,7 @@ const FROM_NODE = { cls: "short", ttl: 60 };
 const PAYMENT = "AACAFCFEBB5C970049A576CBFE6EF544A47EE3ADBA99122FA43234D18D5FFD40";
 const SWAP = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
 const REMIT = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF";
+const FOLLOWED = "8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900";
 const NODE_ONLY = "D437E9B6486965D1E97D3737FD00A4B0C9615DFFF3ECC813EF6A3A6CB44B945F";
 const LEDGER_HASH = "11EF780A54D66662233920C6318B19D60DAD5F644E687AAEC0F829B82142BC02";
 const ACTIVE = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
@@ -81,7 +83,7 @@ describe("when an upstream fails", () => {
     const { response } = await image(`/og/xrpl/tx/${hash}.png`);
 
     expect(response.status).toBe(503);
-    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(response.headers.get("Retry-After")).toBe("30");
     expect(response.headers.get("Content-Type")).not.toBe("image/png");
     expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
     expect(await isStored(`/og/xrpl/tx/${hash}.png`)).toBe(false);
@@ -92,7 +94,9 @@ describe("when an upstream fails", () => {
     mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: () => dataApiError(429, "slow down", { "Retry-After": "7" }) });
     const { response } = await image(`/og/xrpl/tx/${hash}.png`);
     expect(response.status).toBe(503);
-    expect(response.headers.get("Retry-After")).toBeTruthy();
+    // The route answers with the API's own wait (7 s), but a 503 the entry has no stored copy to replace is answered with the entry's own
+    // page, whose Retry-After is 30: the upstream's is not what a visitor sees (the ruling of Task 9: a thrown 503's Retry-After is dead).
+    expect(response.headers.get("Retry-After")).toBe("30");
     expect(await isStored(`/og/xrpl/tx/${hash}.png`)).toBe(false);
   });
 
@@ -130,6 +134,91 @@ describe("when an upstream fails", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(await isStored(`/og/xrpl/account/${unknown}.png`)).toBe(false);
+  });
+});
+
+// A card the renderer cannot draw is an outage of this answer, not a missing image: the same 503 as a failing upstream.
+describe("when the card cannot be drawn", () => {
+  it("answers 503 with Retry-After, stores nothing, and logs what happened", async () => {
+    const hash = "52FC2BE167D21568A673B62B98559721C5991FDB4B4654DCD4C955306D3892EB";
+    const path = `/og/xrpl/tx/${hash}.png`;
+    const drawing = vi.spyOn(render, "renderCard").mockRejectedValue(new Error("the renderer cannot draw this"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mock = mockUpstream("xrpl");
+      const { response } = await image(path);
+
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBe("30");
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(await isStored(path)).toBe(false);
+
+      const lines = logged.mock.calls.flatMap(([line]) => {
+        try {
+          return [JSON.parse(String(line)) as Record<string, unknown>];
+        } catch {
+          return [];
+        }
+      });
+      expect(lines.filter((line) => line.what === "a link-preview image could not be drawn")).toEqual([
+        { level: "error", what: "a link-preview image could not be drawn", path, error: "the renderer cannot draw this" },
+      ]);
+    } finally {
+      drawing.mockRestore();
+      logged.mockRestore();
+    }
+  });
+});
+
+// The cache key holds the query string, so a query on an image URL would be a copy of its own, drawn again, for as long as its class says.
+// Every URL with one is a 302 to the bare path instead, before anything is looked at, asked for or drawn.
+describe("a query string", () => {
+  it.each([
+    ["a transaction", `/og/xrpl/tx/${PAYMENT}.png`],
+    ["a ledger", "/og/xrpl/ledger/107720688.png"],
+    ["an account", `/og/xrpl/account/${ACTIVE}.png`],
+    ["an id that is not one", "/og/xrpl/tx/ABC123.png"],
+    ["a network that does not exist", "/og/bitcoin/tx/ABC123.png"],
+  ])("on the image of %s is a 302 to the bare path, class immutable, with no call and nothing drawn", async (_what, bare) => {
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      for (const query of ["?a=1", "?a=2", "?a=1&b=2", "?utm_source=chat"]) {
+        const response = await get(`${bare}${query}`);
+        await response.arrayBuffer();
+        expect(response.status, query).toBe(302);
+        expect(response.headers.get("Location"), query).toBe(bare);
+        expect(response.headers.get("Content-Type"), query).not.toBe("image/png");
+      }
+      expect(mock.requests).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await storedAs(`${bare}?a=1`)).toEqual(IMMUTABLE);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("sends a lower-case hash to the bare path as it is, and the bare path to the upper-case one", async () => {
+    mock = mockUpstream("xrpl");
+    const lower = await get(`/og/xrpl/tx/${PAYMENT.toLowerCase()}.png?a=1`);
+    await lower.arrayBuffer();
+    expect(lower.status).toBe(302);
+    expect(lower.headers.get("Location")).toBe(`/og/xrpl/tx/${PAYMENT.toLowerCase()}.png`);
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("is followed to the image", async () => {
+    mock = mockUpstream("xrpl");
+    const redirect = await get(`/og/xrpl/tx/${FOLLOWED}.png?a=1`);
+    await redirect.arrayBuffer();
+    expect(redirect.headers.get("Location")).toBe(`/og/xrpl/tx/${FOLLOWED}.png`);
+    expectPng(await image(redirect.headers.get("Location")!));
+  });
+
+  it("is not there when the URL only ends in a question mark: that is the bare URL, one copy", async () => {
+    mock = mockUpstream("xrpl");
+    expectPng(await image(`/og/xrpl/tx/${FOLLOWED}.png?`));
   });
 });
 

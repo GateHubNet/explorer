@@ -11,9 +11,8 @@ import { CARD_HEIGHT, CARD_WIDTH, type CardData } from "./types";
 /** The PNG of a card. Rejects if the renderer cannot draw it. */
 export async function renderCard(data: CardData): Promise<ArrayBuffer> {
   const [{ ImageResponse }, { FONTS }] = await Promise.all([import("workers-og"), import("./fonts")]);
-  const image = new ImageResponse(card(data), { width: CARD_WIDTH, height: CARD_HEIGHT, format: "png", fonts: [...FONTS] });
-  // The renderer answers with a stream that starts drawing when it is read; a card it cannot draw fails here.
-  const bytes = await image.arrayBuffer();
-  if (!image.ok) throw new Error(`the renderer answered ${image.status}`);
-  return bytes;
+  const image = new ImageResponse(card(data), { width: CARD_WIDTH, height: CARD_HEIGHT, format: "png", fonts: FONTS });
+  // The renderer answers 200 whatever happens (it is a stream that draws when it is read): a card it cannot draw fails here, as a
+  // rejection of the read.
+  return image.arrayBuffer();
 }

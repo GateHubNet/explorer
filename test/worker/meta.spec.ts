@@ -281,14 +281,22 @@ describe("an account page", () => {
     expect(named.canonical).toEqual([`${ORIGIN}/xrpl/account/${ACTIVE}`]);
   });
 
-  it("is noindex, follow on a page of old history, with the first page of the tab as its canonical URL and nothing to share", async () => {
+  it("is noindex, follow on a page of old history, with no canonical URL and nothing to share", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}?marker=WzEwNzYxMjU3MywyNV0`);
     const tags = head(html);
     expect(tags.content("robots")).toBe("noindex, follow");
-    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/account/${ACTIVE}`]);
+    expect(tags.canonical).toEqual([]);
     for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
     expect(tags.content("description")).toBe(`Older transactions of the account ${ACTIVE} on XRPL.`);
+  });
+
+  it("has no canonical URL on a page of old history of another tab either", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/account/${ACTIVE}?tab=payments&marker=WzEwNzYzNjY3Myw3OF0`)).html);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    expect(tags.content("description")).toBe(`Older payments of the account ${ACTIVE} on XRPL.`);
   });
 
   it("is noindex and shares nothing for an address that was never activated", async () => {

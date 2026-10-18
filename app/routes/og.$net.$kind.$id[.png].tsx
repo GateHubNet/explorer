@@ -20,6 +20,8 @@ import { UpstreamError } from "../server/upstream";
 // `/og/{net}/{tx|ledger|account}/{id}.png` (spec 2, 4, 9): the link-preview image of a transaction, a ledger or an account, 1200 × 630,
 // drawn on the first request and kept by the edge. A resource route at the top level: no layout, no HTML.
 //
+// - A URL with a query string is a 302 to the bare path (class `immutable`), before anything else: no call, nothing drawn, and no
+//   copy of the image per query in the edge cache.
 // - Net, kind and id are checked first, without a call: anything that is not one is a 404 of class `short`. A transaction hash in lower
 //   case, a ledger hash in lower case and a ledger index with leading zeros are a 302 to the one URL the object has (class `immutable`),
 //   as the pages do it. A CTID, an X-address and a label such as `latest` are not ids of an image.
@@ -93,6 +95,11 @@ async function image(data: CardData, request: Request, cls: CacheClass, ttl?: nu
 }
 
 export async function loader({ params, request, context }: LoaderFunctionArgs) {
+  // The image has no use for a query string, and the edge cache's key holds it: each one would be a copy of its own, drawn and kept for as
+  // long as its class says. So any URL with one is sent to the bare path, before anything is checked, asked for or drawn.
+  const { pathname, search } = new URL(request.url);
+  if (search !== "") return permanent(pathname);
+
   const segment = params.net ?? "";
   if (!isNetworkId(segment)) return notFound();
   const network = networkOf(segment, getEnv(context));

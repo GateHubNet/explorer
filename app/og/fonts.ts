@@ -12,10 +12,15 @@ import geistSemiBold from "./fonts/Geist-SemiBold.bin";
 import geistMonoMedium from "./fonts/GeistMono-Medium.bin";
 import geistMonoRegular from "./fonts/GeistMono-Regular.bin";
 
-export const FONTS = [
+/**
+ * The fonts, in the one array this module makes. Pass this array itself to the renderer, never a copy of it: Satori parses the fonts
+ * (about 660 KB of TrueType) once per array it is given and keeps the result under that array's identity, so a copy made for each
+ * image is parsed again for each image (test/worker/og-render.spec.ts).
+ */
+export const FONTS: Array<{ name: string; data: ArrayBuffer; weight: 400 | 500 | 600; style: "normal" }> = [
   { name: "Geist", data: geistRegular, weight: 400, style: "normal" },
   { name: "Geist", data: geistMedium, weight: 500, style: "normal" },
   { name: "Geist", data: geistSemiBold, weight: 600, style: "normal" },
   { name: "Geist Mono", data: geistMonoRegular, weight: 400, style: "normal" },
   { name: "Geist Mono", data: geistMonoMedium, weight: 500, style: "normal" },
-] as const;
+];
