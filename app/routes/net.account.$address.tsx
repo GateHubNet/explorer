@@ -1,5 +1,5 @@
 import { redirect } from "react-router";
-import { isValidClassicAddress, isValidXAddress, xAddressToClassicAddress } from "ripple-address-codec";
+import { classicAddressToXAddress, isValidClassicAddress, isValidXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
 import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab } from "../domain/account-tabs";
 import { formatAmount, formatUtc, shortAddress } from "../domain/format";
@@ -148,14 +148,18 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   }
   const marker = markerParam ?? undefined;
 
-  const code = encodeQr(address);
+  // A page opened with a destination tag has the tag in its QR code, as the X-address of the address (a wallet that scans it fills in
+  // both); without one the code is the classic address.
+  const tag = parseTag(search.get("tag"));
+  const content = tag === null ? address : classicAddressToXAddress(address, tag, false);
+  const code = encodeQr(content);
   const common = {
     kind: "account" as const,
     address,
     native: network.native,
     tab,
-    tag: parseTag(search.get("tag")),
-    qr: { size: code.size, path: qrPath(code) },
+    tag,
+    qr: { size: code.size, path: qrPath(code), content, tag },
   };
   const ctx: ListContext = { net: network.id, native: network.native, address, marker, back: marker === undefined ? [] : parseTrail(search.get("back")) };
 

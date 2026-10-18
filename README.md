@@ -324,16 +324,21 @@ JavaScript); Analytics is a disabled tab that says "soon". Lists are newest firs
   the available balance is what the balance leaves, never below 0, in `bignumber.js`. Nothing is hard-coded, so a vote of the
   validators shows up. The page prints "Reserve 1.2 XRP = 1 base + 1 object × 0.2".
 - **QR code and identicon.** The QR code is drawn in the Worker (`qr.ts`) and reaches the page as an SVG path inside a closed
-  `<details>` (the summary is the button), black on white in either theme with the quiet zone scanners want. The identicon is a 5 x 5
-  pattern drawn from the address (`app/domain/identicon.ts`), in the network's accent.
+  `<details>` (the summary is the button), black on white in either theme with the quiet zone scanners want. A page opened with a
+  valid `?tag=N` has the X-address (the address with that tag) in it and says so in the code's label and caption, so that a wallet that
+  scans it fills in the tag too; without a tag it is the classic address. The identicon is a 5 x 5 pattern drawn from the address
+  (`app/domain/identicon.ts`), in the network's accent.
 - **Flags** are named for each network (the same bit is the AMM flag on the XRP Ledger); a bit nobody here knows says nothing. The
+  flag that asks senders not to pay in the native currency (`lsfDisallowXRP`) is "Asks not to receive XRP" (XAH): it is advisory.
+  Owned-object counts are singular for one (`1 escrow`). The
   domain is the hex of an ASCII text, shown as text and never as a link. The destination tag of `?tag=` is shown in a note when it is
   a decimal 32-bit number written the one way, and is never echoed otherwise.
 - **The tabs.** Transactions has the date, type, what happened (from the account's side: its own transactions leave their sender
   out), the change of its balance (the native one first, and how many others) and the result. Payments are signed from the account's
   side with the destination tag, and link to the CSV. Trades say buy or sell, the pair, the amount, the rate and the counterparty.
   Offers are read live from the node through the index and show the rate worked out from the total and the quantity (8 significant
-  digits). Objects lists what the account owns besides trust lines and offers (escrows, checks, payment channels, NFT pages, tickets,
+  digits); the API gives one page of at most 200 (no total, no marker), so a page that is full says "Showing the first N open offers"
+  and not "All N" (`OrdersResponse.limit`, as for the tokens). Objects lists what the account owns besides trust lines and offers (escrows, checks, payment channels, NFT pages, tickets,
   signer lists, deposit preauthorizations) with their fields; with a `marker` from the node it says "Showing the first 400 objects".
 - **No ages** are in the stored page (`RelativeTime`), as on the other pages.
 - **The mock's counts** on the tabs and its type filter are not here: the API has no totals (spec non-goals), and a filter over 20 rows

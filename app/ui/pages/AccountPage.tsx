@@ -345,7 +345,7 @@ function TokensCard({ network, header }: { network: NetworkInfo; header: Account
       title="Tokens"
       flush
       className="tokens"
-      action={<span className="faint">{tokens.truncated ? `first ${count(tokens.items.length)} trust lines` : plural(tokens.items.length, "trust line", "trust lines")}</span>}
+      action={<span className="faint">{tokens.truncated ? `first ${plural(tokens.items.length, "trust line", "trust lines")}` : plural(tokens.items.length, "trust line", "trust lines")}</span>}
     >
       {tokens.items.length === 0 ? (
         <p className="tokens__empty faint">No tokens.</p>
@@ -485,7 +485,13 @@ function TabPanel({ network, data, list }: { network: NetworkInfo; data: Account
         <Panel
           tab="offers"
           note={list.ledgerIndex === null ? "Open offers, read live" : `Open offers, read live at ledger #${count(list.ledgerIndex)}`}
-          foot={list.rows.length === 0 ? "No open offers" : `All ${plural(list.rows.length, "open offer", "open offers")}`}
+          foot={
+            list.rows.length === 0
+              ? "No open offers"
+              : list.truncated
+                ? `Showing the first ${plural(list.rows.length, "open offer", "open offers")}`
+                : `All ${plural(list.rows.length, "open offer", "open offers")}`
+          }
         >
           <OffersTable rows={list.rows} />
         </Panel>

@@ -1,9 +1,10 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
-import { encodeAccountID } from "ripple-address-codec";
+import { classicAddressToXAddress, encodeAccountID, xAddressToClassicAddress } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
 import { edgeCacheKey } from "../../app/server/edge-cache";
+import { encodeQr, qrPath } from "../../app/server/qr";
 import { anchors, elementText, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
@@ -516,7 +517,7 @@ describe("the active XRPL account", () => {
     expect(text).toContain("LIONS rGHtf1…AuzS 48,329.908117603");
     expect(hrefs(html)).toContain("/xrpl/account/rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS");
     // Owned objects: counts by type.
-    expect(text).toContain("Owned objects 1 trust lines");
+    expect(text).toContain("Owned objects 1 trust line");
   });
 
   it("shows the last activity as a link to the transaction, with its time and never an age", async () => {
@@ -539,6 +540,30 @@ describe("the active XRPL account", () => {
     expect(html).toContain('aria-label="Copy address"');
     // An identicon is drawn from the address.
     expect(html).toMatch(/<svg class="identicon"[^>]*aria-hidden="true"/);
+  });
+
+  it("draws the QR code of the X-address, destination tag included, when the URL has a valid ?tag, and of the classic address otherwise", async () => {
+    const a = account(28);
+    mock = mockUpstream("xrpl", await withHistory(a));
+    const pathOf = (html: string) => /<svg class="qr__code"[^>]*>[\s\S]*?<path d="([^"]*)"/.exec(html)![1];
+    const x = classicAddressToXAddress(a, 104882, false);
+    // The X-address is the address with the tag, whichever way it is written.
+    expect(xAddressToClassicAddress(x)).toMatchObject({ classicAddress: a, tag: 104882 });
+
+    const plain = await page(`/xrpl/account/${a}`);
+    expect(pathOf(plain.html)).toBe(qrPath(encodeQr(a)));
+    expect(plain.html).toContain(`aria-label="QR code of the address ${a}"`);
+    expect(textOf(plain.html)).toContain("Scan it with a wallet to get the address.");
+
+    const tagged = await page(`/xrpl/account/${a}?tag=104882`);
+    expect(pathOf(tagged.html)).toBe(qrPath(encodeQr(x)));
+    expect(pathOf(tagged.html)).not.toBe(pathOf(plain.html));
+    expect(tagged.html).toContain(`aria-label="QR code of the X-address ${x}, which is the address with destination tag 104882"`);
+    expect(textOf(tagged.html)).toContain("Scan it with a wallet to get the address and destination tag 104882.");
+
+    // A tag that is not one is not in the code, as it is not on the page.
+    const bad = await page(`/xrpl/account/${a}?tag=abc`);
+    expect(pathOf(bad.html)).toBe(qrPath(encodeQr(a)));
   });
 
   it("lists the transactions newest first with what the account's balance did, and links each to its page", async () => {
@@ -631,6 +656,14 @@ describe("what the recordings do not hold", () => {
     expect(hrefs(html).some((href) => href.includes("example.com"))).toBe(false);
   });
 
+  it("names the flag that asks not to receive XRP as an ask, not a block", async () => {
+    const a = account(27);
+    mock = mockUpstream("xrpl", { ...(await withHistory(a, { info: { Flags: 0x00080000 } })) });
+    const { html } = await page(`/xrpl/account/${a}`);
+    expect(textOf(html)).toContain("Asks not to receive XRP");
+    expect(textOf(html)).not.toContain("Blocks incoming");
+  });
+
   it("names the flags of the account and its regular key", async () => {
     const a = account(21);
     mock = mockUpstream("xrpl", { ...(await withHistory(a, { info: { Flags: 0x00020000 | 0x00800000, RegularKey: account(99) } })) });
@@ -669,7 +702,7 @@ describe("what the recordings do not hold", () => {
     mock = mockUpstream("xrpl", { ...(await withHistory(a, { objects })) });
     const { html } = await page(`/xrpl/account/${a}`);
     const text = textOf(html);
-    expect(text).toContain("Owned objects 2 trust lines 1 offers 1 escrows");
+    expect(text).toContain("Owned objects 2 trust lines 1 offer 1 escrow");
     expect(text).toContain("Reserve 1.8 XRP = 1 base + 4 objects × 0.2");
   });
 
@@ -795,6 +828,38 @@ describe("the tabs", () => {
     expect(textOf(html)).toContain("Open offers, read live at ledger #107,721,455");
     expect(textOf(html)).toContain("All 2 open offers");
     expect(await storedAs(`/xrpl/account/${a}?tab=offers`)).toEqual(LIVE);
+  });
+
+  it("?tab=offers says 'Showing the first 200 open offers', not a total, when the API's page was full", async () => {
+    const a = account(35);
+    const offer = (sequence: number) => ({
+      specification: { direction: "sell", quantity: { currency: "XRP", value: "1" }, totalPrice: { currency: "USD", value: "2", counterparty: account(36) } },
+      properties: { maker: a, flags: 0, sequence },
+    });
+    mock = mockUpstream("xrpl", {
+      ...healthy(a),
+      [`GET /v2/accounts/${a}/orders`]: { result: "success", ledger_index: 107721455, limit: 200, orders: Array.from({ length: 200 }, (_, i) => offer(i + 1)) },
+    });
+    const { html } = await page(`/xrpl/account/${a}?tab=offers`);
+    expect(textOf(html)).toContain("Showing the first 200 open offers");
+    expect(textOf(html)).not.toContain("All 200");
+    expect(tableRows(html, "Open offers")).toHaveLength(201);
+  });
+
+  it("?tab=offers says 'All 1 open offer' for one that fits", async () => {
+    const a = account(37);
+    mock = mockUpstream("xrpl", {
+      ...healthy(a),
+      [`GET /v2/accounts/${a}/orders`]: {
+        result: "success",
+        ledger_index: 107721455,
+        limit: 200,
+        orders: [{ specification: { direction: "buy", quantity: { currency: "XRP", value: "1" }, totalPrice: { currency: "USD", value: "2" } }, properties: { maker: a, flags: 0, sequence: 9 } }],
+      },
+    });
+    const { html } = await page(`/xrpl/account/${a}?tab=offers`);
+    expect(textOf(html)).toContain("All 1 open offer");
+    expect(textOf(html)).not.toContain("Showing the first");
   });
 
   it("?tab=offers on an account with none says so", async () => {
@@ -969,6 +1034,15 @@ describe("paging", () => {
     const fourth = await page(`/xrpl/account/${a}?marker=M3&back=M2.M1`);
     expect(hrefs(fourth.html)).toContain(`/xrpl/account/${a}?marker=M2&back=M1`);
     expect(anchors(/<nav class="pager"[^>]*>([\s\S]*?)<\/nav>/.exec(fourth.html)![1]!).map((x) => x.text)).toEqual(["Newer"]);
+  });
+
+  it("has the same QR code behind a marker: the X-address of the address with its tag, a tag of 0 included", async () => {
+    const a = account(58);
+    mock = mockUpstream("xrpl", { [LIST(a, "transactions", "M1")]: await recordedList("transactions@descending=true&limit=20&marker=WzEwNzYxMjU3MywyNV0") });
+    const { html } = await page(`/xrpl/account/${a}?marker=M1&tag=0`);
+    const x = classicAddressToXAddress(a, 0, false);
+    expect(/<svg class="qr__code"[^>]*>[\s\S]*?<path d="([^"]*)"/.exec(html)![1]).toBe(qrPath(encodeQr(x)));
+    expect(html).toContain(`aria-label="QR code of the X-address ${x}, which is the address with destination tag 0"`);
   });
 
   it("pages the payments and the trades by their own markers, keeping the tab", async () => {

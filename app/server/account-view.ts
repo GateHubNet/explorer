@@ -176,7 +176,8 @@ export interface AccountFlag {
 const FLAGS: ReadonlyArray<{ mask: number; id: string; label: (native: Native) => string; only?: NetworkId }> = [
   { mask: 0x00020000, id: "requireDestTag", label: () => "Requires destination tag" },
   { mask: 0x00040000, id: "requireAuth", label: () => "Requires trust line authorization" },
-  { mask: 0x00080000, id: "disallowNative", label: (native) => `Blocks incoming ${native}` },
+  // lsfDisallowXRP asks senders not to pay in the native currency; the ledger does not stop them (a wallet or a service may heed it).
+  { mask: 0x00080000, id: "disallowNative", label: (native) => `Asks not to receive ${native}` },
   { mask: 0x00100000, id: "disableMaster", label: () => "Master key disabled" },
   { mask: 0x00200000, id: "noFreeze", label: () => "No freeze" },
   { mask: 0x00400000, id: "globalFreeze", label: () => "Global freeze" },
@@ -216,25 +217,32 @@ export interface OwnedCount {
   count: number;
 }
 
-const OWNED_LABELS: ReadonlyArray<readonly [type: string, label: string]> = [
-  ["RippleState", "trust lines"],
-  ["Offer", "offers"],
-  ["Escrow", "escrows"],
-  ["Check", "checks"],
-  ["PayChannel", "payment channels"],
-  ["NFTokenPage", "NFT pages"],
-  ["Ticket", "tickets"],
-  ["SignerList", "signer lists"],
-  ["DepositPreauth", "deposit preauthorizations"],
-  ["NFTokenOffer", "NFT offers"],
-  ["URIToken", "URI tokens"],
+const OWNED_LABELS: ReadonlyArray<readonly [type: string, one: string, many: string]> = [
+  ["RippleState", "trust line", "trust lines"],
+  ["Offer", "offer", "offers"],
+  ["Escrow", "escrow", "escrows"],
+  ["Check", "check", "checks"],
+  ["PayChannel", "payment channel", "payment channels"],
+  ["NFTokenPage", "NFT page", "NFT pages"],
+  ["Ticket", "ticket", "tickets"],
+  ["SignerList", "signer list", "signer lists"],
+  ["DepositPreauth", "deposit preauthorization", "deposit preauthorizations"],
+  ["NFTokenOffer", "NFT offer", "NFT offers"],
+  ["URIToken", "URI token", "URI tokens"],
 ];
 
-/** The objects an account owns, counted by type: the known types first, in a fixed order, then any other by name. */
+/**
+ * The objects an account owns, counted by type: the known types first, in a fixed order, then any other by name. A label is in the
+ * singular for one (`1 escrow`) and the plural otherwise; a type with no name here is shown as its own.
+ */
 export function ownedCounts(objects: readonly LedgerObject[]): OwnedCount[] {
   const counts = new Map<string, number>();
   for (const object of objects) counts.set(object.LedgerEntryType, (counts.get(object.LedgerEntryType) ?? 0) + 1);
-  const known = OWNED_LABELS.filter(([type]) => counts.has(type)).map(([type, label]) => ({ type, label, count: counts.get(type)! }));
+  const known = OWNED_LABELS.filter(([type]) => counts.has(type)).map(([type, one, many]) => ({
+    type,
+    label: counts.get(type) === 1 ? one : many,
+    count: counts.get(type)!,
+  }));
   const others = [...counts.keys()]
     .filter((type) => !OWNED_LABELS.some(([known_]) => known_ === type))
     .sort()
@@ -699,7 +707,7 @@ export type TabList =
   | { state: "ok"; tab: "transactions"; rows: TxRow[]; paging: Paging }
   | { state: "ok"; tab: "payments"; rows: PaymentRow[]; paging: Paging; csvHref: string }
   | { state: "ok"; tab: "trades"; rows: TradeRow[]; paging: Paging }
-  | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null }
+  | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean }
   | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null };
 
 /** What each tab is called in "Couldn't load transactions". */
@@ -747,8 +755,21 @@ export function tradesList(page: Page<"exchanges", AccountExchange>, ctx: ListCo
   };
 }
 
+/** The API's default page of orders, which `api.orders` does not change: a list that fills it may go on. */
+const ORDERS_DEFAULT_LIMIT = 200;
+
+/**
+ * The Offers tab. The API gives one page of at most `limit` offers (200 when the request names none, and the answer says), with no
+ * total and no marker, so a list that fills it is cut and the page says "Showing the first N", as it does for tokens.
+ */
 export function offersList(orders: OrdersResponse): TabList {
-  return { state: "ok", tab: "offers", rows: offerRows(orders), ledgerIndex: orders.ledger_index ?? null };
+  return {
+    state: "ok",
+    tab: "offers",
+    rows: offerRows(orders),
+    ledgerIndex: orders.ledger_index ?? null,
+    truncated: orders.orders.length >= (orders.limit ?? ORDERS_DEFAULT_LIMIT),
+  };
 }
 
 /** The Objects tab; `null` for an account that has none to read (it was deleted). */
@@ -770,10 +791,16 @@ export interface HistoryHeader {
   status: "history";
 }
 
-/** The finished QR code of the address, for the page to draw: `path` is the `d` of a `<path>` in module units (see `qrPath`). */
+/**
+ * The finished QR code, for the page to draw: `path` is the `d` of a `<path>` in module units (see `qrPath`). `content` is what it
+ * holds: the classic address, or, when the page was opened with a destination tag, the X-address that is the address with that tag
+ * (`tag`), so that a wallet that scans it fills in both.
+ */
 export interface QrPicture {
   size: number;
   path: string;
+  content: string;
+  tag: number | null;
 }
 
 /**

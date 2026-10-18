@@ -196,9 +196,10 @@ describe("accountFlags", () => {
     expect(accountFlags(0x00020000 | 0x00800000 | 0x01000000, "xrpl").map((f) => f.id)).toEqual(["requireDestTag", "defaultRipple", "depositAuth"]);
   });
 
-  it("names the incoming-blocking flags with the network's own currency", () => {
-    expect(accountFlags(0x00080000, "xrpl")[0]!.label).toBe("Blocks incoming XRP");
-    expect(accountFlags(0x00080000, "xahau")[0]!.label).toBe("Blocks incoming XAH");
+  it("names the flag that asks not to receive the native currency with the network's own", () => {
+    // lsfDisallowXRP asks senders not to pay in the native currency; the ledger does not stop them.
+    expect(accountFlags(0x00080000, "xrpl")[0]!.label).toBe("Asks not to receive XRP");
+    expect(accountFlags(0x00080000, "xahau")[0]!.label).toBe("Asks not to receive XAH");
   });
 
   it("knows the flags only one network has by that network, and says nothing about a bit it does not know", () => {
@@ -241,13 +242,13 @@ describe("ownedCounts", () => {
     ]);
     expect(counts).toEqual([
       { type: "RippleState", label: "trust lines", count: 2 },
-      { type: "Offer", label: "offers", count: 1 },
+      { type: "Offer", label: "offer", count: 1 },
       { type: "Escrow", label: "escrows", count: 2 },
-      { type: "Check", label: "checks", count: 1 },
-      { type: "PayChannel", label: "payment channels", count: 1 },
-      { type: "NFTokenPage", label: "NFT pages", count: 1 },
-      { type: "Ticket", label: "tickets", count: 1 },
-      { type: "SignerList", label: "signer lists", count: 1 },
+      { type: "Check", label: "check", count: 1 },
+      { type: "PayChannel", label: "payment channel", count: 1 },
+      { type: "NFTokenPage", label: "NFT page", count: 1 },
+      { type: "Ticket", label: "ticket", count: 1 },
+      { type: "SignerList", label: "signer list", count: 1 },
       { type: "Hook", label: "Hook", count: 1 },
     ]);
   });
@@ -258,7 +259,7 @@ describe("ownedCounts", () => {
   });
 
   it("counts the one trust line of the recorded XRPL account", () => {
-    expect(ownedCounts(objectsOf("xrpl", XRPL).account_objects)).toEqual([{ type: "RippleState", label: "trust lines", count: 1 }]);
+    expect(ownedCounts(objectsOf("xrpl", XRPL).account_objects)).toEqual([{ type: "RippleState", label: "trust line", count: 1 }]);
   });
 });
 
@@ -322,7 +323,7 @@ describe("accountHeader", () => {
       reserve: { total: "1.2", base: "1", increment: "0.2", objects: 1 },
     });
     expect(header.tokens.state).toBe("ok");
-    expect(header.owned).toEqual({ counts: [{ type: "RippleState", label: "trust lines", count: 1 }], truncated: false });
+    expect(header.owned).toEqual({ counts: [{ type: "RippleState", label: "trust line", count: 1 }], truncated: false });
   });
 
   it("decodes the domain, sees the regular key and the flags of the Xahau account", () => {
@@ -656,8 +657,22 @@ describe("the lists of the tabs", () => {
   });
 
   it("reads the offers live, with the ledger they were read at, and has no paging", () => {
-    expect(offersList({ result: "success", ledger_index: 107721455, orders: [] })).toEqual({ state: "ok", tab: "offers", rows: [], ledgerIndex: 107721455 });
-    expect(offersList({ result: "success", orders: [] })).toMatchObject({ ledgerIndex: null });
+    expect(offersList({ result: "success", ledger_index: 107721455, limit: 200, orders: [] })).toEqual({ state: "ok", tab: "offers", rows: [], ledgerIndex: 107721455, truncated: false });
+    expect(offersList({ result: "success", orders: [] })).toMatchObject({ ledgerIndex: null, truncated: false });
+  });
+
+  it("says the offers may be more than it shows when the API filled the limit it was asked for (200 unless it says), as tokens do", () => {
+    const offer = (sequence: number) => ({
+      specification: { direction: "sell" as const, quantity: { currency: "XRP", value: "1" }, totalPrice: { currency: "USD", value: "2", counterparty: "rI" } },
+      properties: { maker: XRPL, flags: 0, sequence },
+    });
+    const orders = (count: number, limit?: number) => ({ result: "success" as const, ledger_index: 5, ...(limit === undefined ? {} : { limit }), orders: Array.from({ length: count }, (_, i) => offer(i + 1)) });
+    expect(offersList(orders(200, 200))).toMatchObject({ truncated: true });
+    expect(offersList(orders(200))).toMatchObject({ truncated: true }); // no limit in the answer: the API's default is 200
+    expect(offersList(orders(199, 200))).toMatchObject({ truncated: false });
+    expect(offersList(orders(250, 400))).toMatchObject({ truncated: false });
+    expect(offersList(orders(400, 400))).toMatchObject({ truncated: true });
+    expect(offersList(orders(0, 200))).toMatchObject({ truncated: false });
   });
 
   it("lists the objects of the first page, and says when the node had more than that", () => {

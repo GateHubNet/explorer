@@ -19,7 +19,8 @@ const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const POOL = "rAtRwrVakWQaGpzxtqgJZDb3Tg7t32rXT";
 const ISSUER = "rA7wzfRjziBcrbFwErG1t2sdVofKQmg95";
 const TX = "67F91E110D4E3E6C2E6DA3D42EDFB36D9860D024406F58A12CDDF09B65057C31";
-const QR = { size: 25, path: "M0 0h7v1h-7zM0 1h1v1h-1z" };
+const QR = { size: 25, path: "M0 0h7v1h-7zM0 1h1v1h-1z", content: ADDRESS, tag: null };
+const X_ADDRESS = "XVMgJSRJAMekfCw3mHHsRUbqYqWuZ2qXW7DhMWWpGmjhqyr";
 
 const header = (over: Partial<AccountHeader> = {}): AccountHeader => ({
   status: "active",
@@ -46,7 +47,7 @@ const header = (over: Partial<AccountHeader> = {}): AccountHeader => ({
     counts: [
       { type: "RippleState", label: "trust lines", count: 4 },
       { type: "Offer", label: "offers", count: 2 },
-      { type: "Escrow", label: "escrows", count: 1 },
+      { type: "Escrow", label: "escrow", count: 1 },
     ],
     truncated: false,
   },
@@ -105,6 +106,21 @@ describe("the header", () => {
     const identicon = document.querySelector("svg.identicon")!;
     expect(identicon.getAttribute("aria-hidden")).toBe("true");
     expect(identicon.querySelector("path")!.getAttribute("d")).toMatch(/^M\d \dh1v1h-1z/);
+  });
+
+  it("labels the QR code of the address, and says what is in it when it is the X-address of an address with a destination tag", async () => {
+    const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data()} />);
+    await screen.findByRole("heading", { level: 1 });
+    const plain = document.querySelector("details.qr")!;
+    expect(within(plain as HTMLElement).getByRole("img", { name: `QR code of the address ${ADDRESS}` })).toBeTruthy();
+    expect(plain.textContent).toContain("Scan it with a wallet to get the address.");
+    unmount();
+
+    renderInRouter(<AccountPage network={XRPL} data={data({ tag: 104882, qr: { ...QR, content: X_ADDRESS, tag: 104882 } })} />);
+    await screen.findByRole("heading", { level: 1 });
+    const tagged = document.querySelector("details.qr") as HTMLElement;
+    expect(within(tagged).getByRole("img", { name: `QR code of the X-address ${X_ADDRESS}, which is the address with destination tag 104882` })).toBeTruthy();
+    expect(tagged.textContent).toContain("Scan it with a wallet to get the address and destination tag 104882.");
   });
 
   it("says when and by whom it was activated, with its domain as text", async () => {
@@ -250,7 +266,7 @@ describe("the margin", () => {
 
   it("says when the list of tokens may be longer, and when there are none", async () => {
     const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [{ currency: "USD", issuer: ISSUER, value: "1", lp: false }], truncated: true } }) })} />);
-    expect(await screen.findByText("first 1 trust lines")).toBeTruthy();
+    expect(await screen.findByText("first 1 trust line")).toBeTruthy();
     unmount();
     renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ tokens: { state: "ok", items: [], truncated: false } }) })} />);
     expect(await screen.findByText("No tokens.")).toBeTruthy();
@@ -270,7 +286,7 @@ describe("the margin", () => {
     renderInRouter(<AccountPage network={XRPL} data={data()} />);
     const card = (await screen.findByRole("heading", { name: "Owned objects" })).closest("section")!;
     const tiles = [...card.querySelectorAll("li.tile")].map((tile) => tile.textContent);
-    expect(tiles).toEqual(["4trust lines", "2offers", "1escrows"]);
+    expect(tiles).toEqual(["4trust lines", "2offers", "1escrow"]);
     expect(card.textContent).toContain("Read live from the network at ledger #107,695,660.");
   });
 
@@ -429,6 +445,7 @@ describe("the other tabs", () => {
       state: "ok",
       tab: "offers",
       ledgerIndex: 107695660,
+      truncated: false,
       rows: [
         { side: "sell", quantity: { value: "500", currency: "XRP" }, total: { value: "1240.00", currency: "USD", issuer: ISSUER }, rate: { value: "2.48", quote: "USD", per: "XRP" }, sequence: 46118301 },
         { side: "buy", quantity: { value: "0", currency: "XRP" }, total: { value: "5", currency: "USD" }, rate: null, sequence: 3 },
@@ -440,6 +457,18 @@ describe("the other tabs", () => {
     expect(rows[2]!.textContent).toContain("—");
     expect(screen.getByText("Open offers, read live at ledger #107,695,660")).toBeTruthy();
     expect(screen.getByText("All 2 open offers")).toBeTruthy();
+  });
+
+  it("says 'Showing the first N open offers' and gives no total when the API's page was full, and 'All 1 open offer' for one", async () => {
+    const rows = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ side: "sell" as const, quantity: { value: "1", currency: "XRP" }, total: { value: "2", currency: "USD" }, rate: { value: "2", quote: "USD", per: "XRP" }, sequence: i + 1 }));
+    const offers = (n: number, truncated: boolean): TabList => ({ state: "ok", tab: "offers", ledgerIndex: 107695660, rows: rows(n), truncated });
+    const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data({ tab: "offers", list: offers(200, true) })} />);
+    expect(await screen.findByText("Showing the first 200 open offers")).toBeTruthy();
+    expect(screen.queryByText(/All 200/)).toBeNull();
+    unmount();
+    renderInRouter(<AccountPage network={XRPL} data={data({ tab: "offers", list: offers(1, false) })} />);
+    expect(await screen.findByText("All 1 open offer")).toBeTruthy();
   });
 
   it("lists objects with their fields, and says when the node has more than the first page", async () => {
