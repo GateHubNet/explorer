@@ -292,14 +292,43 @@ describe("LedgerPage: the rest", () => {
   it("disables next at the newest ledger and previous at ledger 1", () => {
     const newest = ledger(["Payment"], [], { hasNext: false });
     renderInRouter(<LedgerPage network={XRPL} data={newest} />);
-    expect(screen.queryByRole("link", { name: "Next ledger" })).toBeNull();
-    expect(screen.getByLabelText("Next ledger (not validated yet)").getAttribute("aria-disabled")).toBe("true");
-    expect(screen.getByRole("link", { name: "Previous ledger" }).getAttribute("href")).toBe("/xrpl/ledger/107720687");
+    expect(screen.queryByRole("link", { name: "107,720,689, next ledger" })).toBeNull();
+    expect(screen.getByLabelText("107,720,689, next ledger (not validated yet)").getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("link", { name: "107,720,687, previous ledger" }).getAttribute("href")).toBe("/xrpl/ledger/107720687");
     cleanup();
 
     const first = ledger(["Payment"], [], { header: { ...newest.header, index: 1 } });
     renderInRouter(<LedgerPage network={XRPL} data={first} />);
-    expect(screen.queryByRole("link", { name: "Previous ledger" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Next ledger" }).getAttribute("href")).toBe("/xrpl/ledger/2");
+    expect(screen.queryByRole("link", { name: /previous ledger$/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "2, next ledger" }).getAttribute("href")).toBe("/xrpl/ledger/2");
+  });
+
+  // WCAG 2.5.3 (Label in Name, axe: label-content-name-mismatch): somebody who says what they see ("click 107,720,687") must
+  // reach the control, so the accessible name has to contain the visible text.
+  it("names the previous and next links, and the disabled one, with the number they show in them", () => {
+    renderInRouter(<LedgerPage network={XRPL} data={ledger(["Payment"], [])} />);
+    for (const [name, shown] of [
+      ["107,720,687, previous ledger", "107,720,687"],
+      ["107,720,689, next ledger", "107,720,689"],
+    ] as const) {
+      const link = screen.getByRole("link", { name });
+      expect(link.textContent).toBe(shown);
+    }
+    cleanup();
+
+    renderInRouter(<LedgerPage network={XRPL} data={ledger(["Payment"], [], { hasNext: false })} />);
+    const disabled = screen.getByLabelText("107,720,689, next ledger (not validated yet)");
+    expect(disabled.textContent).toBe("107,720,689");
+    expect(disabled.getAttribute("aria-label")!.startsWith(disabled.textContent!)).toBe(true);
+  });
+
+  // A name cannot be given to an element with no role (axe: aria-prohibited-attr, "needs review"): the one that leads nowhere is a link
+  // that is not available, which is what `role="link"` with `aria-disabled` says, and a screen reader then reads its name.
+  it("is a disabled link, so that its name is read, when the ledger it would lead to is not validated yet", () => {
+    renderInRouter(<LedgerPage network={XRPL} data={ledger(["Payment"], [], { hasNext: false })} />);
+    const disabled = screen.getByRole("link", { name: "107,720,689, next ledger (not validated yet)" });
+    expect(disabled.getAttribute("aria-disabled")).toBe("true");
+    expect(disabled.hasAttribute("href")).toBe(false);
+    expect(disabled.tagName).toBe("SPAN");
   });
 });

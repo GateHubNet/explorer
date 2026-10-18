@@ -28,4 +28,24 @@ describe.each(["xrpl", "xahau"] as const)("the never-funded address on %s", (net
     expect(file).toBe(`${net}/data-api/accounts/${NEVER_FUNDED}/transactions@limit=1.json`);
     expect(JSON.parse(read(file!))).toEqual({ count: 0, result: "success", transactions: [] });
   });
+
+  // As the account objects' file for `limit=400` is a copy of the one without a limit: one answer, two requests that ask for it.
+  it("is a byte copy of the address's history page, which is empty too", () => {
+    const history = `${net}/data-api/accounts/${NEVER_FUNDED}/transactions@descending=true&limit=20.json`;
+    expect(read(`${net}/data-api/accounts/${NEVER_FUNDED}/transactions@limit=1.json`)).toBe(read(history));
+  });
+});
+
+// PROVENANCE.md says where each fixture came from; these two are derived by hand, so it says which they are and what keeps them true.
+describe("PROVENANCE.md", () => {
+  const provenance = readFileSync(new URL("../fixtures/PROVENANCE.md", import.meta.url), "utf8");
+
+  it.each(["rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC", "transactions@limit=1.json", "transactions@descending=true&limit=20.json", "xrpl", "xahau"])(
+    "has a row for the one-row probe of the never-funded address's history (%s)",
+    (word) => {
+      const row = provenance.split("\n").find((line) => line.startsWith("|") && line.includes("transactions@limit=1.json"));
+      expect(row, "a table row naming transactions@limit=1.json").toBeDefined();
+      expect(row).toContain(word);
+    },
+  );
 });

@@ -451,7 +451,7 @@ describe("an address that was never activated", () => {
     const { html } = await page(`/xrpl/account/${a}`);
     const text = textOf(html);
     expect(text).toContain("Deleted This account was deleted from the ledger");
-    expect(text).toContain("Activation is not in the index yet.");
+    expect(text).toContain("Activation is not in the index.");
     expect(text).not.toContain("never been activated");
     expect(text).not.toContain("Live state unavailable");
     expect(tableRows(html, "Transactions")).toHaveLength(5);

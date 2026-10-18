@@ -135,7 +135,7 @@ describe("the header", () => {
 
   it("says nothing of an activation the index does not have but that it does not have", async () => {
     renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ activation: null }) })} />);
-    expect(await screen.findByText("Activation is not in the index yet.")).toBeTruthy();
+    expect(await screen.findByText("Activation is not in the index.")).toBeTruthy();
   });
 
   it("shows the flags, the regular key, the sequence and the last activity, linked to the transaction", async () => {

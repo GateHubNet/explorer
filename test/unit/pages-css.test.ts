@@ -51,3 +51,13 @@ describe("the raw header block", () => {
     expect(summary["min-height"]).toBe("44px");
   });
 });
+
+describe("the list of accounts a ledger created", () => {
+  // axe (WCAG 2.5.8, target-size): a link under 24 px high with less than 24 px between its centre and the next link's box fails. The
+  // short addresses are 13 px text stacked 4 px apart, so each link gets a 24 px row of its own.
+  it("gives every link a target of at least 24 px", () => {
+    const link = rule(pagesCss, ".result__list a");
+    expect(link.display).toMatch(/flex$/);
+    expect(Number.parseFloat(link["min-height"]!)).toBeGreaterThanOrEqual(24);
+  });
+});

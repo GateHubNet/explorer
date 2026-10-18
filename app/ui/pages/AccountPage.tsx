@@ -207,7 +207,7 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
                 <Amount value={activation.initialBalance} currency={network.native} className="plain" />
               </>
             ) : (
-              <span className="faint">Activation is not in the index yet.</span>
+              <span className="faint">Activation is not in the index.</span>
             )}
             {domain && (
               <>

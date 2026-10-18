@@ -199,6 +199,13 @@ a.example:hover {
   font-size: 13px;
 }
 
+/* Links of 13 px text, stacked: each is a 24 px row, the least a target may be (WCAG 2.5.8, axe: target-size). */
+.result__list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
 /* The share of the transactions that succeeded; the numbers beside it say the same in words. */
 .bar {
   display: flex;

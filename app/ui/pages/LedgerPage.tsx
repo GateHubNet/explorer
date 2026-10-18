@@ -227,7 +227,8 @@ function Neighbour({
   direction: "previous" | "next";
   enabled: boolean;
 }) {
-  const label = `${direction === "previous" ? "Previous" : "Next"} ledger`;
+  // The name starts with the number the link shows (WCAG 2.5.3, label in name: a visitor who says what they see must reach it).
+  const label = `${count(index)}, ${direction} ledger`;
   const number = <span className="mono num">{count(index)}</span>;
   const content =
     direction === "previous" ? (
@@ -243,7 +244,8 @@ function Neighbour({
     );
   if (!enabled) {
     return (
-      <span className="btn is-disabled" aria-disabled="true" aria-label={`${label} (not validated yet)`}>
+      // A link that is not available (it has no href): the role is what lets it have a name (a span has none to give).
+      <span className="btn is-disabled" role="link" aria-disabled="true" aria-label={`${label} (not validated yet)`}>
         {content}
       </span>
     );

@@ -337,9 +337,9 @@ describe("DataTable", () => {
     expect(screen.getByText("No transactions.")).toBeTruthy();
   });
 
-  it("is in a region that a keyboard can reach and scroll, named like the table: its rows may hold nothing else to focus (axe: scrollable-region-focusable)", () => {
+  it("is in a region that a keyboard can reach and scroll, named for the table: its rows may hold nothing else to focus (axe: scrollable-region-focusable)", () => {
     render(<DataTable label="Open offers" columns={columns} rows={rows} rowKey={(r) => r.hash} minWidth={900} />);
-    const region = screen.getByRole("region", { name: "Open offers" });
+    const region = screen.getByRole("region", { name: "Open offers, scrollable table" });
     expect(region.getAttribute("tabindex")).toBe("0");
     expect(region.className).toContain("table-scroll");
     expect(within(region).getByRole("table", { name: "Open offers" })).toBeTruthy();
@@ -347,9 +347,23 @@ describe("DataTable", () => {
 
   it("is that region when it is empty too, where the note is what it holds", () => {
     render(<DataTable label="Open offers" columns={columns} rows={[]} rowKey={(r) => r.hash} empty="No offers." />);
-    const region = screen.getByRole("region", { name: "Open offers" });
+    const region = screen.getByRole("region", { name: "Open offers, scrollable table" });
     expect(region.getAttribute("tabindex")).toBe("0");
     expect(within(region).getByText("No offers.")).toBeTruthy();
+  });
+
+  // axe: landmark-unique. A card is a `section` named by its title, which is a region landmark, and the scroll region of a table in it
+  // is one too: two regions with one name, which a screen reader's list of landmarks cannot tell apart.
+  it("does not take the name of the card it is in", () => {
+    render(
+      <Card title="Latest ledgers">
+        <DataTable label="Latest ledgers" columns={columns} rows={rows} rowKey={(r) => r.hash} />
+      </Card>,
+    );
+    expect(screen.getAllByRole("region")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Latest ledgers" }).tagName).toBe("SECTION");
+    expect(screen.getByRole("region", { name: "Latest ledgers, scrollable table" })).toBeTruthy();
+    expect(screen.getAllByRole("table", { name: "Latest ledgers" })).toHaveLength(1);
   });
 });
 

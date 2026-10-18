@@ -165,8 +165,8 @@ describe("a ledger by index", () => {
     mock = mockUpstream("xrpl");
     const { html } = await page("/xrpl/ledger/107720688");
     const links = anchors(html);
-    const previous = links.find((a) => a.attrs.includes('aria-label="Previous ledger"'));
-    const next = links.find((a) => a.attrs.includes('aria-label="Next ledger"'));
+    const previous = links.find((a) => a.attrs.includes('aria-label="107,720,687, previous ledger"'));
+    const next = links.find((a) => a.attrs.includes('aria-label="107,720,689, next ledger"'));
     expect(previous?.attrs).toContain('href="/xrpl/ledger/107720687"');
     expect(previous?.text).toBe("107,720,687");
     expect(next?.attrs).toContain('href="/xrpl/ledger/107720689"');
@@ -259,8 +259,8 @@ describe("the newest ledger", () => {
 
     // Previous is a link; next is there, disabled, and leads nowhere.
     const links = anchors(html);
-    expect(links.find((a) => a.attrs.includes('aria-label="Previous ledger"'))?.attrs).toContain('href="/xrpl/ledger/107721454"');
-    expect(links.some((a) => a.attrs.includes('aria-label="Next ledger"'))).toBe(false);
+    expect(links.find((a) => a.attrs.includes('aria-label="107,721,454, previous ledger"'))?.attrs).toContain('href="/xrpl/ledger/107721454"');
+    expect(links.some((a) => a.attrs.includes("next ledger"))).toBe(false);
     expect(hrefs(html)).not.toContain("/xrpl/ledger/107721456");
     expect(html).toMatch(/<span[^>]*aria-disabled="true"[^>]*>[\s\S]*?107,721,456/);
 

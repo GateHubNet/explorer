@@ -83,6 +83,13 @@ The account page asks the node for `account_objects` with `limit: 400` (the larg
 parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
 and `<ACCOUNT>@limit=400.json` (a byte copy; `test/unit/account-fixtures.test.ts` keeps them equal).
 
+Before the account page says an address was never activated it asks the data API for one row of the address's history
+(`/v2/accounts/<address>/transactions?limit=1`), so the never-funded address has a file for that request too:
+
+| Here | What it is | Derived from | Kept equal by |
+|---|---|---|---|
+| `http/xrpl/data-api/accounts/rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC/transactions@limit=1.json` and the same path under `http/xahau/` | the one-row probe of the history of the never-funded address: an empty page, `{ count: 0, result: "success", transactions: [] }` (written by hand, like the account files; the address is in no recording) | a byte copy of `transactions@descending=true&limit=20.json` in the same directory, which is an empty page too | `test/unit/account-fixtures.test.ts` |
+
 ## Copied for the `?binary=true` fixtures: `definitions/xahau/`
 
 | Here | Source path in `data-api-new` | `data-api-new` commit at copy time | Last changed in |
