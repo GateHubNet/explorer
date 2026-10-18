@@ -11,7 +11,7 @@ import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../s
 // What a Worker stores in the Cache API stays there for the rest of the file, subrequests included, so every scenario that
 // overrides an answer asks for a ledger no other test asks for.
 
-const { page, get, storedAs } = pageClient("192.0.2");
+const { page, get, head, stored, storedAs } = pageClient("192.0.2");
 
 let mock: UpstreamMock | undefined;
 afterEach(() => {
@@ -78,6 +78,27 @@ describe("when an upstream fails", () => {
     expect(html).toContain("Temporarily unavailable");
     expect(statusesOf(mock, "GET /v2/ledgers/107700004?expand=true&transactions=true")).toEqual([503]);
     expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  // A 400 for an index or a hash the page has checked is the API's fault, not a missing ledger: a 503 that is not stored, like the transaction
+  // page's, and not a 404 that would be stored for 30 s. The node is not asked in its place.
+  it.each([
+    ["an index", "107700008"],
+    ["a hash", "AB00000000000000000000000000000000000000000000000000000000000008"],
+  ])("answers 503, not 404, for a 400 of the data API for %s, stores nothing and does not ask the node", async (_what, id) => {
+    const key = `GET /v2/ledgers/${id}?expand=true&transactions=true`;
+    mock = mockUpstream("xrpl", { [key]: () => dataApiError(400, "invalid ledger identifier") });
+    const response = await get(`/xrpl/ledger/${id}`);
+    const html = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(html).toContain("Temporarily unavailable");
+    expect(html).not.toContain("couldn’t find");
+    expect(statusesOf(mock, key)).toEqual([400]);
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(await stored(`/xrpl/ledger/${id}`)).toBeUndefined();
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
@@ -203,6 +224,43 @@ describe("a ledger by index", () => {
     mock = mockUpstream("xrpl");
     const { html } = await page("/xrpl/ledger/107720688");
     expect(textOf(html)).not.toMatch(/\d+ (s|min|h|d) ago/);
+  });
+});
+
+// A HEAD is the GET without the body: the loaders run once for it, on a miss, and never for a hit.
+describe("HEAD", () => {
+  it("runs the loader once, answers without a body, and leaves the page that a GET and a second HEAD are served from", async () => {
+    const { body } = await syntheticLedger(107700020, 3);
+    mock = mockUpstream("xrpl", { "GET /v2/ledgers/107700020?expand=true&transactions=true": body });
+    const first = await head("/xrpl/ledger/107700020");
+    expect(first.status).toBe(200);
+    expect(first.headers.get("X-Cache")).toBe("MISS");
+    expect(first.headers.get("Content-Type")).toContain("text/html");
+    expect(first.headers.get("Cache-Control")).toBe("max-age=60");
+    expect((await first.arrayBuffer()).byteLength).toBe(0);
+    const asked = mock.requests.map((r) => r.key);
+    expect(asked.filter((key) => key === "GET /v2/ledgers/107700020?expand=true&transactions=true")).toHaveLength(1);
+    expect(await storedAs("/xrpl/ledger/107700020")).toEqual({ cls: "immutable", ttl: 31_536_000 });
+
+    const full = await page("/xrpl/ledger/107700020");
+    expect(full.response.headers.get("X-Cache")).toBe("HIT");
+    expect(textOf(full.html)).toContain("Ledger #107,700,020");
+    const second = await head("/xrpl/ledger/107700020");
+    expect(second.headers.get("X-Cache")).toBe("HIT");
+    expect((await second.arrayBuffer()).byteLength).toBe(0);
+    expect(mock.requests.map((r) => r.key)).toEqual(asked);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("is a 404 without a body for a ledger nobody has, and a redirect without one for an index with leading zeros", async () => {
+    mock = mockUpstream("xrpl");
+    const missing = await head("/xrpl/ledger/99999997");
+    expect(missing.status).toBe(404);
+    expect((await missing.arrayBuffer()).byteLength).toBe(0);
+    const moved = await head("/xrpl/ledger/0107720688");
+    expect(moved.status).toBe(302);
+    expect(moved.headers.get("Location")).toBe("/xrpl/ledger/107720688");
+    expect((await moved.arrayBuffer()).byteLength).toBe(0);
   });
 });
 
@@ -401,6 +459,50 @@ describe("a ledger that does not exist", () => {
     const hash = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789";
     const { html } = await page(`/xrpl/ledger/${hash}`, 404);
     expect(textOf(html)).toContain(`We couldn’t find ledger ${shortHash(hash)} on XRPL`);
+  });
+
+  // The transaction page offers the same search on the other network, and so does the ledger page for a hash: a hash that is no ledger here
+  // may be one there. An index is a number on every network, so it gets no offer.
+  it("offers the same search on the other network for a hash, as the transaction page does", async () => {
+    mock = mockUpstream("xrpl");
+    const hash = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456780";
+    const { response, html } = await page(`/xrpl/ledger/${hash}`, 404);
+    expect(anchors(html).find((a) => a.text === "Search on Xahau")?.attrs).toContain(`href="/xahau/search?q=${hash}"`);
+    expect(html).toContain('action="/xrpl/search"');
+    expect(hrefs(html)).toContain("/xrpl");
+    expect(await storedAs(`/xrpl/ledger/${hash}`)).toEqual({ cls: "short", ttl: 30 });
+    expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+  });
+
+  it("offers XRPL's search from Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const hash = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456781";
+    const { html } = await page(`/xahau/ledger/${hash}`, 404);
+    expect(anchors(html).find((a) => a.text === "Search on XRPL")?.attrs).toContain(`href="/xrpl/search?q=${hash}"`);
+  });
+
+  it("offers nothing for an index, which is a number on both networks", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl/ledger/99999998", 404);
+    expect(textOf(html)).toContain("We couldn’t find ledger 99999998 on XRPL");
+    expect(textOf(html)).not.toContain("Search on");
+    expect(anchors(html).map((a) => a.text)).not.toContain("Search on Xahau");
+  });
+
+  it("offers nothing for an id that is neither (no hash to search for)", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl/ledger/not-a-ledger", 404);
+    expect(textOf(html)).not.toContain("Search on");
+  });
+
+  it("offers the search on the client-side navigation to it too, in the loader data", async () => {
+    mock = mockUpstream("xrpl");
+    const hash = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456782";
+    const response = await get(`/xrpl/ledger/${hash}.data`);
+    const body = await response.text();
+    expect(response.status).toBe(404);
+    expect(body).toContain(`/xahau/search?q=${hash}`);
+    expect(body).toContain("Search on Xahau");
   });
 
   it.each(["abc", "12345678901", "0x1F", "11EF780A54D66662233920C6318B19D60DAD5F644E687AAEC0F829B82142BC0", "-5"])(

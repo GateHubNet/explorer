@@ -28,11 +28,13 @@ import { UpstreamError } from "../server/upstream";
 // - The data comes through the same clients and builders as the page: the data API first and, when it says "not found", the network's
 //   node (spec 10); an image drawn from the node is class `short` for 60 s, like the page, so the indexed version takes over.
 // - Class: a transaction and a ledger the index has are `immutable`; an account is `slow` (its card holds its balance, so it is kept for
-//   an hour, as the spec has it). The newest ledger is `short`: its page is live, and the index may not have all of it yet. An account
-//   whose balances could not be read is drawn without them and is `short`, to be tried again soon.
+//   an hour, as the spec has it). The newest ledger is `short`: its page is live, because its "newest" status is about to change (the
+//   next ledger closes within seconds), and an image kept for a year would keep the old status. An account whose balances could not be
+//   read is drawn without them and is `short`, to be tried again soon.
 // - A "not found" (the API's and the node's) is a 404 of class `short`. A failure of an upstream that leaves the question open, and a
 //   card the renderer cannot draw, is a 503 with `Retry-After` that is never stored; the Worker's entry answers it with a stored copy
-//   of the image if there is one, however old.
+//   of the image if there is one, however old. A 400 of the data API for an id the route has checked is such a failure too (the API's
+//   fault, as on the transaction and ledger pages), not a missing image.
 // - Not an indexable page: `X-Robots-Tag: noindex`.
 
 const FROM_NODE_TTL = 60;
@@ -64,14 +66,23 @@ function permanent(to: string): Response {
 }
 
 /**
- * What a failed call to an upstream makes of the answer: "not found" (and a refusal of an id that is well formed) is a 404; every other
- * failure is a 503. With `outage` a "not found" is a 503 too: it is about something the visitor did not ask for (the newest ledger).
- * An error that is not an upstream's is a bug and is thrown again.
+ * What a failed call to an upstream makes of the answer: "not found" is a 404 (so is a node's refusal of the id as malformed: an index
+ * that is no ledger number); every other failure is a 503. With `outage` a "not found" is a 503 too: it is about something the visitor did
+ * not ask for (the newest ledger). An error that is not an upstream's is a bug and is thrown again.
  */
 function failure(err: unknown, outage = false): Response {
   if (!(err instanceof UpstreamError)) throw err;
   if (!outage && (err.kind === "not_found" || err.kind === "bad_request")) return notFound();
   return unavailable(err.retryAfter);
+}
+
+/**
+ * `failure` for a call to the data API whose "not found" has been dealt with already (the caller asks the node for that). What is left is
+ * an outage, a 400 included: the route has checked the id (64 hex digits, an index, a valid address), so a refusal is the API's fault and
+ * not a missing image, and a 404 would be stored for 30 s. The transaction and ledger pages answer it the same way (503).
+ */
+function apiFailure(err: unknown): Response {
+  return failure(err, true);
 }
 
 function isNotFound(err: unknown): boolean {
@@ -131,7 +142,7 @@ async function transactionImage(context: LoaderFunctionArgs["context"], network:
     source = txFromIndex(await api.transaction(hash));
   } catch (err) {
     // Not indexed (yet): the network itself may have it (spec 10). Any other failure is a 503, and the node is not asked in its place.
-    if (!isNotFound(err)) return failure(err);
+    if (!isNotFound(err)) return apiFailure(err);
     try {
       source = txFromNode(await node.tx(hash), hash);
       fromNode = true;
@@ -172,7 +183,7 @@ async function ledgerImage(context: LoaderFunctionArgs["context"], network: Netw
       return failure(err);
     }
   } else {
-    return failure(found.reason);
+    return apiFailure(found.reason);
   }
 
   const last = Number(newest.value.ledger_index);
@@ -207,7 +218,7 @@ async function accountImage(context: LoaderFunctionArgs["context"], network: Net
   }
 
   // The index has no record of it (the account may be older than its first ledger, or newer than its last): the node is asked.
-  if (!isNotFound(created.reason)) return failure(created.reason);
+  if (!isNotFound(created.reason)) return apiFailure(created.reason);
   try {
     const info = await node.accountInfo(address);
     const card = accountCard({ address, native: network.native, activatedAt: null, balance: dropsToNative(info.account_data.Balance) }, network);

@@ -236,14 +236,17 @@ describe("the document shell", () => {
 });
 
 describe("/robots.txt", () => {
-  it("allows everything but the search pages", async () => {
+  it("allows everything but the search pages and the payments CSVs", async () => {
     const response = await get("/robots.txt");
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/plain");
     const body = await response.text();
     expect(body).toContain("User-agent: *");
     expect(body).toContain("Disallow: /*/search");
-    expect(body.match(/^Disallow:/gm)).toHaveLength(1);
+    // Each crawl of a CSV costs an upstream CSV of up to 1000 rows (cached 30 s), and the file is no page to index.
+    expect(body).toContain("Disallow: /*/account/*/payments.csv");
+    expect(body.match(/^Disallow:/gm)).toHaveLength(2);
+    expect(body).not.toMatch(/^Disallow: \/?$/m);
   });
 
   it("is stored under the build id like a page", async () => {

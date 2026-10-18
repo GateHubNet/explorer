@@ -7,7 +7,10 @@ import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { ledgerMeta, metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
+import type { Network } from "../server/networks";
+import { searchOnOther } from "../server/search-view";
 import { UpstreamError } from "../server/upstream";
+import { findNetwork } from "../ui/networks";
 import { LedgerPage } from "../ui/pages/LedgerPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -30,7 +33,9 @@ const FROM_NODE_TTL = 60;
  * - Class `immutable`: a validated ledger is final. `live` while it is the newest, so the page for it is replaced within seconds.
  * - A hash in lower case, or an index with leading zeros, is redirected to the one URL a ledger has.
  * - The data API answers "not found": the node is asked, and a ledger it has validated is shown with a note, as `short` for
- *   60 s. If it has none either, 404. Any other failure of the data API is a 503 (the node is not asked in its place).
+ *   60 s. If it has none either, 404, which for a hash offers the same search on the other network (an index is a number on both,
+ *   so it gets no offer). Any other failure of the data API is a 503 (the node is not asked in its place), a 400 included: the id
+ *   is an index or a hash this loader has checked, so a refusal is the API's fault and not a missing ledger.
  * - Everything is loaded here, never streamed: an `immutable` page is stored for a year, and a section that failed to
  *   stream would be stored with it.
  */
@@ -62,10 +67,10 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     try {
       source = sourceFromNode(await node.ledger(id, { expand: true }));
     } catch (err) {
-      return upstreamFailure(err, what);
+      return upstreamFailure(err, what, LEDGER_HASH.test(id) ? searchOnOther(id, nameOf(network.other)) : undefined);
     }
   } else {
-    return upstreamFailure(found.reason, what);
+    return upstreamOutage(found.reason, what);
   }
 
   const last = Number(newest.value.ledger_index);
@@ -74,6 +79,11 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 
   if (source.origin === "node") return cached(page, "short", { ttl: FROM_NODE_TTL });
   return cached(page, hasNext ? "immutable" : "live");
+}
+
+/** A network as the offer names it. */
+function nameOf(id: Network["other"]) {
+  return { id, name: findNetwork(id)?.name ?? id };
 }
 
 /** A redirect to the one URL of an object. It never changes, and carries the class of the page it leads to. */

@@ -411,6 +411,8 @@ describe("the other tabs", () => {
     const csv = screen.getByRole("link", { name: "Download CSV" });
     expect(csv.getAttribute("href")).toBe(`/xrpl/account/${ADDRESS}/payments.csv`);
     expect(csv.hasAttribute("download")).toBe(true);
+    // A crawler does not follow it: each crawl would cost an upstream CSV of up to 1000 rows.
+    expect(csv.getAttribute("rel")).toBe("nofollow");
     expect(screen.getByRole("link", { name: "Newer" }).getAttribute("href")).toBe(`/xrpl/account/${ADDRESS}?tab=payments`);
   });
 

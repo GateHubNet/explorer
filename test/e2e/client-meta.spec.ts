@@ -77,6 +77,33 @@ test.describe("the tags of a page reached by a link in the page", () => {
     expect(await sameDocument(page)).toBe(true);
   });
 
+  // With lazy route discovery (React Router's default) a link coming into view makes the browser ask `/__manifest?paths=...`, a request the Worker
+  // cannot store and the visitor limit counts. `routeDiscovery: { mode: "initial" }` (react-router.config.ts) puts every route in the first page.
+  test("ask for no route manifest while moving between the routes", async ({ page }) => {
+    const manifests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/__manifest") manifests.push(request.url());
+    });
+    await page.goto("/xahau");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+
+    const ledger = page.locator('a[href^="/xahau/ledger/"]').first();
+    const ledgerHref = (await ledger.getAttribute("href"))!;
+    await ledger.hover();
+    await ledger.click();
+    await page.waitForURL(`**${ledgerHref}`);
+    const tx = page.locator('a[href^="/xahau/tx/"]').first();
+    const txHref = (await tx.getAttribute("href"))!;
+    await tx.click();
+    await page.waitForURL(`**${txHref}`);
+    await page.getByRole("group", { name: "Network" }).getByRole("link", { name: "XRPL" }).click();
+    await page.waitForURL("**/xrpl");
+
+    expect(await sameDocument(page)).toBe(true);
+    expect(manifests).toEqual([]);
+  });
+
   test("lose the canonical link and gain `noindex` on a page behind a marker, and get them back", async ({ page, baseURL }) => {
     const origin = new URL(baseURL!).origin;
     await page.goto(`/xrpl/account/${XRPL_ACCOUNT}`);

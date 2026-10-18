@@ -14,13 +14,15 @@ test.describe("the check of the browser's console", () => {
     await logged;
   });
 
-  test("fails a test for the manifest of the routes that is not answered", async ({ page }) => {
+  // The browser asks for no `/__manifest` (`routeDiscovery: { mode: "initial" }`, react-router.config.ts: the manifest of every route is in the
+  // page). What a client-side navigation to another route fetches is that route's module, a file of the build.
+  test("fails a test for the module of a route that is missing from the build", async ({ page }) => {
     test.fail();
-    await page.route("**/__manifest*", (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "no" }));
-    await page.goto("/xrpl");
+    await page.route("**/assets/net.tx._id-*.js", (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "no" }));
+    await page.goto(`/xahau/ledger/${XAHAU_LEDGER}`);
     await hydrated(page);
     const logged = page.waitForEvent("console", { predicate: (message) => message.type() === "error" });
-    await page.getByRole("group", { name: "Network" }).getByRole("link", { name: "Xahau" }).click();
+    await page.locator('a[href^="/xahau/tx/"]').first().click();
     await logged;
   });
 

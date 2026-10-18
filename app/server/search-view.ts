@@ -51,6 +51,11 @@ export function shownQuery(typed: string): string {
   return trimmed.length > MAX_SHOWN ? `${trimmed.slice(0, MAX_SHOWN)}…` : trimmed;
 }
 
+/** The offer of the same search on the other network (`/{other}/search?q={hash}`), for a hash this network does not have. */
+export function searchOnOther(hash: string, other: NetworkName): { href: string; label: string } {
+  return { href: `/${other.id}/search?q=${hash}`, label: `Search on ${other.name}` };
+}
+
 export function choicePage(hash: string, matches: Required<HashMatches>): SearchPageData {
   return { kind: "choice", hash, tx: matches.tx, ledger: matches.ledger };
 }
@@ -69,7 +74,7 @@ export function hashNotFoundPage(query: string, hash: string, other: NetworkName
     kind: "not-found",
     query,
     what: `transaction or ledger ${shortHash(hash)}`,
-    suggestion: { href: `/${other.id}/search?q=${hash}`, label: `Search on ${other.name}` },
+    suggestion: searchOnOther(hash, other),
   };
 }
 

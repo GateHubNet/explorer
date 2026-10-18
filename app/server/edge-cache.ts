@@ -370,7 +370,9 @@ async function attempt(render: () => Promise<Response>, request: Request): Promi
 }
 
 // The two pages the entry answers with itself. Self-contained, with the page background and text colours of the
-// design tokens (spec 8) inline; the design system replaces them with its own pages.
+// design tokens (spec 8) inline; the design system replaces them with its own pages. The wait is in the page as well as in `Retry-After`:
+// a client-side navigation gets one of these as the text of an ErrorResponse, with no headers, and RouteErrorScreen reads the wait from
+// this meta tag.
 function statusPage(status: 429 | 503, retryAfter: number, title: string, text: string): Response {
   const html = `<!doctype html>
 <html lang="en">
@@ -378,6 +380,7 @@ function statusPage(status: 429 | 503, retryAfter: number, title: string, text: 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<meta name="retry-after" content="${retryAfter}">
 <meta name="color-scheme" content="light dark">
 <title>${title}</title>
 <style>
@@ -426,10 +429,23 @@ const unavailable = () =>
     "The explorer could not get this page's data just now. Try again in a minute.",
   );
 
+/** What the entry renders: the answer for a request, given the degraded mark of this render (and the request to render, see `withEdgeCache`). */
+export type Render = (mark: DegradedMark, request: Request) => Promise<Response>;
+
+/** The same answer without a body, as a HEAD gets it: the status and the headers a GET would have, and nothing after them. */
+function withoutBody(response: Response): Response {
+  // A body that is not read is cancelled, so that nothing is held for it (a copy that is being stored reads its own branch).
+  void response.body?.cancel().catch(() => undefined);
+  return new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers });
+}
+
 /**
  * Answers `request` from the edge cache, or from `render` (React Router) and stores what it answers.
  *
- * - Not cached: anything but GET, and the root (a redirect that depends on a cookie). `X-Cache: BYPASS`.
+ * - Not cached: anything but GET and HEAD, and the root (a redirect that depends on a cookie). `X-Cache: BYPASS`.
+ * - A HEAD is a GET whose answer has no body: it is answered from the stored copy of the GET, or, on a miss, by one render of the page *as
+ *   a GET* (`render` is handed that GET, not the HEAD) that is stored as a GET would store it, and the body is dropped. So a HEAD costs one
+ *   render at most, and the next GET (or HEAD) is a hit. Unfurlers and uptime monitors send HEADs, and so a HEAD of an image draws it once.
  * - A stored copy younger than its TTL is served (`HIT`); one past it but within the class's stale-while-revalidate
  *   window is served too (`STALE`) while one `render` refreshes it in `ctx.waitUntil`.
  * - Otherwise this is a miss: the visitor's limit is checked (60 per 10 s, over it the 429 page), `render` runs and its
@@ -439,18 +455,20 @@ const unavailable = () =>
  *
  * Every answer carries `X-Cache`, the class's `Cache-Control` for the browser and none of the internal headers.
  */
-export async function withEdgeCache(
-  request: Request,
-  env: Env,
-  ctx: ExecutionContext,
-  render: (mark: DegradedMark) => Promise<Response>,
-): Promise<Response> {
+export async function withEdgeCache(request: Request, env: Env, ctx: ExecutionContext, render: Render): Promise<Response> {
   const { pathname } = new URL(request.url);
   const root = UNCACHED_PATHS.has(pathname);
+
+  // A HEAD is the GET of the same URL without the body. `render` gets that GET: React Router would run every loader for a HEAD and
+  // throw the page away, and what it made could not be stored as the page a GET is given.
+  if (request.method === "HEAD" && !root) {
+    return withoutBody(await withEdgeCache(new Request(request, { method: "GET" }), env, ctx, render));
+  }
+
   if (request.method !== "GET" || root) {
     // The redirect at the root costs nothing. Any other request that skips the cache renders on the visitor's account.
     if (!root && !(await withinVisitorLimit(request, env))) return tooManyRequests();
-    const response = await attempt(() => render(createDegradedMark()), request);
+    const response = await attempt(() => render(createDegradedMark(), request), request);
     return response ? answerFor(response, "BYPASS", undefined) : unavailable();
   }
 
@@ -474,7 +492,7 @@ export async function withEdgeCache(
   }
 
   const mark = createDegradedMark();
-  const response = await attempt(() => render(mark), request);
+  const response = await attempt(() => render(mark, request), request);
   if (response && response.status < 500) {
     await copy?.response.body?.cancel();
     // A loader that already knows the answer is degraded spares the copy; one that finds out while the page streams marks
@@ -495,17 +513,11 @@ export async function withEdgeCache(
 }
 
 /** Starts the refresh of a stale copy, unless this Worker instance is already refreshing it. */
-function refresh(
-  cache: Cache,
-  key: Request,
-  request: Request,
-  ctx: ExecutionContext,
-  render: (mark: DegradedMark) => Promise<Response>,
-) {
+function refresh(cache: Cache, key: Request, request: Request, ctx: ExecutionContext, render: Render) {
   if (refreshing.has(key.url)) return;
   const task = (async () => {
     const mark = createDegradedMark();
-    const response = await attempt(() => render(mark), request);
+    const response = await attempt(() => render(mark, request), request);
     const kind = response && response.status < 500 && !mark.degraded ? storableAs(response) : undefined;
     if (response && kind) await store(cache, key, response, kind, request, mark);
     else await response?.body?.cancel();

@@ -32,7 +32,7 @@ import { TypeTag } from "./TypeTag";
 import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { PRODUCT_NAME } from "../brand";
 import { NotFoundPage } from "../pages/NotFoundPage";
-import { RouteErrorScreen } from "../pages/RouteErrorScreen";
+import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
 import { useNetwork } from "../use-network";
 import { DetailList } from "./DetailList";
 
@@ -837,6 +837,27 @@ describe("RouteErrorScreen", () => {
     expect(screen.getByText(/We couldn.t find ledger 99 on XRPL/)).toBeTruthy();
   });
 
+  it("offers the same search on the other network when the loader threw the offer with the 404", () => {
+    const suggestion = { href: `/xahau/search?q=${HASH}`, label: "Search on Xahau" };
+    renderInRouter(<RouteErrorScreen error={response(404, { notFound: "ledger 67F91E…7C31", suggestion })} net={XRPL} />);
+    expect(screen.getByText(/We couldn.t find ledger 67F91E…7C31 on XRPL/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Search on Xahau" }).getAttribute("href")).toBe(`/xahau/search?q=${HASH}`);
+  });
+
+  it.each([
+    ["an address on another site", { href: "https://example.com/x", label: "Search on Xahau" }],
+    ["a protocol-relative address", { href: "//example.com/x", label: "Search on Xahau" }],
+    ["a script", { href: "javascript:alert(1)", label: "Search on Xahau" }],
+    ["no label", { href: "/xahau/search?q=1" }],
+    ["a label that is not text", { href: "/xahau/search?q=1", label: 5 }],
+    ["nothing but text", "/xahau/search?q=1"],
+  ])("leaves out an offer that is %s", (_what, suggestion) => {
+    renderInRouter(<RouteErrorScreen error={response(404, { notFound: "ledger 99", suggestion })} net={XRPL} />);
+    expect(screen.getByText(/We couldn.t find ledger 99 on XRPL/)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Search on|Xahau/ })).toBeNull();
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).not.toContain("https://example.com/x");
+  });
+
   it("shows any other 404 as a page that does not exist", () => {
     renderInRouter(<RouteErrorScreen error={response(404, "Not Found")} net={XRPL} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Page not found");
@@ -853,6 +874,52 @@ describe("RouteErrorScreen", () => {
     renderInRouter(<RouteErrorScreen error={response(503, { unavailable: "ledger 99" })} net={XRPL} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Temporarily unavailable");
     expect(screen.getByRole("link", { name: "Try again" })).toBeTruthy();
+  });
+
+  // A client-side navigation over the visitor limit gets the entry's 429 page for its `.data` URL. It has no X-Remix-Response, so React Router
+  // throws an ErrorResponse(429, ..., the page's text): headers are gone, so the wait travels in the page (a meta tag the entry writes).
+  describe("a 429, the visitor being over the limit", () => {
+    const limitedPage = (seconds: number) =>
+      `<!doctype html><html><head><meta name="robots" content="noindex"><meta name="retry-after" content="${seconds}"><title>Too many requests</title></head><body></body></html>`;
+
+    it("says so, and to try again in a moment, instead of that something went wrong", () => {
+      renderInRouter(<RouteErrorScreen error={response(429, "Too Many Requests")} net={XRPL} />);
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Too many requests");
+      expect(screen.getByText(/Try again in a moment/)).toBeTruthy();
+      expect(document.body.textContent).not.toContain("Something went wrong");
+      expect(screen.getByRole("link", { name: "Try again" })).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Go to the XRPL home" }).getAttribute("href")).toBe("/xrpl");
+    });
+
+    it("names the wait when the entry's page does", () => {
+      renderInRouter(<RouteErrorScreen error={response(429, limitedPage(10))} net={XRPL} />);
+      expect(screen.getByText(/Try again in 10 seconds/)).toBeTruthy();
+      expect(document.body.textContent).not.toContain("Try again in a moment");
+    });
+
+    it("names the wait of a thrown 429 that carries one, and says 1 second in the singular", () => {
+      const first = renderInRouter(<RouteErrorScreen error={response(429, { retryAfter: 30 })} net={XRPL} />);
+      expect(screen.getByText(/Try again in 30 seconds/)).toBeTruthy();
+      first.unmount();
+      renderInRouter(<RouteErrorScreen error={response(429, { retryAfter: 1 })} net={XRPL} />);
+      expect(screen.getByText(/Try again in 1 second\./)).toBeTruthy();
+    });
+
+    it.each([0, -3, 2.5, 100_000, Number.NaN, "10", null, undefined])("does not take %j for a wait, and says a moment", (value) => {
+      renderInRouter(<RouteErrorScreen error={response(429, { retryAfter: value })} net={XRPL} />);
+      expect(screen.getByText(/Try again in a moment/)).toBeTruthy();
+    });
+
+    it("does not take a wait from text that only looks like one", () => {
+      renderInRouter(<RouteErrorScreen error={response(429, '<p>retry-after: 10</p><meta name="retry-after" content="0">')} net={XRPL} />);
+      expect(screen.getByText(/Try again in a moment/)).toBeTruthy();
+    });
+
+    it("titles the page for the tab and keeps it out of the index", () => {
+      const tags = errorMeta(response(429, "x"));
+      expect(tags).toContainEqual({ title: `Too many requests · ${PRODUCT_NAME}` });
+      expect(tags).toContainEqual({ name: "robots", content: "noindex" });
+    });
   });
 
   it("shows anything else as something that went wrong, without the message of the error", () => {

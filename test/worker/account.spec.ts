@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { classicAddressToXAddress, encodeAccountID, xAddressToClassicAddress } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
@@ -813,6 +813,51 @@ describe("the last activity", () => {
     expect(textOf(html)).toContain("Last active 2026-10-17 16:11:02 UTC");
   });
 
+  // The ledger of the last transaction is not in the index while the index is behind the node (it is not yet ingested): that is an ordinary state
+  // of an account that has just been active, not a problem to log for every visit. A failure of the lookup that is one still is.
+  describe("when the lookup does not find a time", () => {
+    const problemsLogged = (spy: { mock: { calls: unknown[][] } }) =>
+      spy.mock.calls.flatMap(([line]) => {
+        try {
+          const parsed = JSON.parse(String(line)) as Record<string, unknown>;
+          return String(parsed.what).includes("last transaction could not be read") ? [parsed] : [];
+        } catch {
+          return [];
+        }
+      });
+
+    it("logs nothing when the ledger is not in the index yet, and the page shows the ledger instead of a time", async () => {
+      const a = account(68);
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        mock = mockUpstream("xrpl", { ...(await withHistory(a, { info: { PreviousTxnLgrSeq: 107700126 } })), "GET /v2/ledgers/107700126": null });
+        const { html } = await page(`/xrpl/account/${a}`);
+        expect(textOf(html)).toContain("Last active ledger #107,700,126");
+        expect(statusesOf(mock, "GET /v2/ledgers/107700126")).toEqual([404]);
+        expect(problemsLogged(logged)).toEqual([]);
+        expect(await storedAs(`/xrpl/account/${a}`)).toEqual(LIVE);
+      } finally {
+        logged.mockRestore();
+      }
+    });
+
+    it("still logs any other failure of the lookup, once, with the path", async () => {
+      const a = account(69);
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        mock = mockUpstream("xrpl", { ...(await withHistory(a, { info: { PreviousTxnLgrSeq: 107700127 } })), "GET /v2/ledgers/107700127": () => dataApiError(500, "boom") });
+        const { html } = await page(`/xrpl/account/${a}`);
+        expect(textOf(html)).toContain("Last active ledger #107,700,127");
+        const lines = problemsLogged(logged);
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toMatchObject({ level: "error", path: `/xrpl/account/${a}` });
+        expect(String(lines[0]!.error)).toContain("500");
+      } finally {
+        logged.mockRestore();
+      }
+    });
+  });
+
   it("gives up on the lookup after 1.5 s: the header shows the ledger instead of a time, and the page is not degraded", async () => {
     const a = account(65);
     mock = mockUpstream("xrpl", {
@@ -855,6 +900,8 @@ describe("the tabs", () => {
     const csv = anchors(html).find((a) => a.text === "Download CSV");
     expect(csv?.attrs).toContain(`href="/xrpl/account/${ACTIVE}/payments.csv"`);
     expect(csv?.attrs).toContain("download");
+    // A crawler does not follow it (each crawl would cost an upstream CSV); robots.txt says the same.
+    expect(csv?.attrs).toContain('rel="nofollow"');
     expect(hrefs(html)).toContain(`/xrpl/account/${ACTIVE}?tab=payments&marker=WzEwNzYzNjY3Myw3OF0`);
     expect(await storedAs(`/xrpl/account/${ACTIVE}?tab=payments`)).toEqual(LIVE);
   });

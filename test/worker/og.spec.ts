@@ -6,7 +6,7 @@ import * as render from "../../app/og/render";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { decodePng, hex, pngSize } from "../support/png";
 import { pageClient } from "../support/pages";
-import { dataApiError, mockUpstream, nodeError, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, nodeError, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The link-preview images, `/og/{net}/{tx|ledger|account}/{id}.png` (spec 2, 9), on the real Worker against the recorded answers of the
 // data API and the nodes (test/fixtures/http/). The image is drawn by workers-og (Satori and resvg-wasm) with the bundled Geist fonts;
@@ -16,7 +16,7 @@ import { dataApiError, mockUpstream, nodeError, type UpstreamMock } from "../sup
 // What a Worker stores in the Cache API stays there for the rest of the file, subrequests included (an error is never stored), so the
 // tests of failing upstreams come first, and each scenario that overrides an answer asks for an object no other scenario asks for.
 
-const { get, stored, storedAs } = pageClient("198.19.0");
+const { get, head, stored, storedAs } = pageClient("198.19.0");
 
 let mock: UpstreamMock | undefined;
 afterEach(() => {
@@ -137,6 +137,45 @@ describe("when an upstream fails", () => {
   });
 });
 
+// A 400 of the data API for an id the route has checked (64 hex digits, an index, a valid address) is the API's fault, not a missing image:
+// the same 503 as the transaction and ledger pages give, and not a 404 that would be stored for 30 s. The node is not asked in its place.
+describe("when the data API refuses an id that is well formed", () => {
+  const hash = "A6D2AB0623B1874F35E0884BC42A82A18389627317EE1A93E61A4CF0B43E915B";
+  // On Xahau: the newest ledger the page asks beside it is kept by the subrequest cache for 5 s, and a later test of XRPL's counts its requests.
+  const ledger = "26540199";
+  const refused = account(0x33);
+
+  it.each([
+    ["xrpl", "a transaction", `/og/xrpl/tx/${hash}.png`, { [`GET /v2/transactions/${hash}`]: () => dataApiError(400, "invalid hash") }],
+    [
+      "xahau",
+      "a ledger",
+      `/og/xahau/ledger/${ledger}.png`,
+      { [`GET /v2/ledgers/${ledger}?expand=true&transactions=true`]: () => dataApiError(400, "invalid ledger identifier") },
+    ],
+    [
+      "xrpl",
+      "an account",
+      `/og/xrpl/account/${refused}.png`,
+      { [`GET /v2/accounts/${refused}`]: () => dataApiError(400, "invalid account"), [`GET /v2/accounts/${refused}/balances`]: null },
+    ],
+  ] as const)("on %s, answers 503 for %s, stores nothing, and does not ask the node", async (net, _what, path, overrides) => {
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream(net, overrides as Overrides);
+      const { response } = await image(path);
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await isStored(path)).toBe(false);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+});
+
 // A card the renderer cannot draw is an outage of this answer, not a missing image: the same 503 as a failing upstream.
 describe("when the card cannot be drawn", () => {
   it("answers 503 with Retry-After, stores nothing, and logs what happened", async () => {
@@ -167,6 +206,104 @@ describe("when the card cannot be drawn", () => {
     } finally {
       drawing.mockRestore();
       logged.mockRestore();
+    }
+  });
+});
+
+// A HEAD (unfurlers and monitors send them) is the GET of the same URL without the body: answered from the stored copy, or, on a miss, by
+// one render as a GET that is stored as a GET would be. It never draws an image only to throw it away.
+describe("HEAD", () => {
+  it("draws the image once, answers without a body, and leaves a copy that a GET and a second HEAD are served from", async () => {
+    const hash = "10CEF6273B6C4476E86169B7BB1723BF3CD2CFD948B1A732450543B2270AD87E";
+    const path = `/og/xrpl/tx/${hash}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const first = await head(path);
+      expect(first.status).toBe(200);
+      expect(first.headers.get("Content-Type")).toBe("image/png");
+      expect(first.headers.get("Cache-Control")).toBe("max-age=31536000, immutable");
+      expect(first.headers.get("X-Robots-Tag")).toBe("noindex");
+      expect(first.headers.get("X-Cache")).toBe("MISS");
+      expect((await first.arrayBuffer()).byteLength).toBe(0);
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(keys(mock)).toEqual([`xrpl GET /v2/transactions/${hash}`]);
+      expect(await storedAs(path)).toEqual(IMMUTABLE);
+
+      // The copy is the image: a GET is a hit, whole, and draws and asks for nothing.
+      const full = await image(path);
+      expectPng(full);
+      expect(full.response.headers.get("X-Cache")).toBe("HIT");
+      expect(full.response.headers.get("Cache-Control")).toBe("max-age=31536000, immutable");
+
+      const again = await head(path);
+      expect(again.status).toBe(200);
+      expect(again.headers.get("X-Cache")).toBe("HIT");
+      expect(again.headers.get("Content-Type")).toBe("image/png");
+      expect(again.headers.get("Content-Length")).toBe(String(full.bytes.length));
+      expect((await again.arrayBuffer()).byteLength).toBe(0);
+
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(keys(mock)).toEqual([`xrpl GET /v2/transactions/${hash}`]);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is served from the copy a GET stored, without drawing or asking anyone", async () => {
+    const hash = "1A00E4CC5EB143E8BFF4578019BDF45ECEA40C37F113D261ECFB276243858872";
+    const path = `/og/xrpl/tx/${hash}.png`;
+    mock = mockUpstream("xrpl");
+    expectPng(await image(path));
+    await storedAs(path);
+    const before = mock.requests.length;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      const response = await head(path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("X-Cache")).toBe("HIT");
+      expect((await response.arrayBuffer()).byteLength).toBe(0);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(mock.requests.length).toBe(before);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("answers a redirect and a 404 as the GET does, without a body, from the copy once there is one", async () => {
+    mock = mockUpstream("xrpl");
+    const lower = `/og/xrpl/tx/${PAYMENT.toLowerCase()}.png`;
+    const redirected = await head(lower);
+    expect(redirected.status).toBe(302);
+    expect(redirected.headers.get("Location")).toBe(`/og/xrpl/tx/${PAYMENT}.png`);
+    expect((await redirected.arrayBuffer()).byteLength).toBe(0);
+    expect(await storedAs(lower)).toEqual(IMMUTABLE);
+    expect((await head(lower)).headers.get("X-Cache")).toBe("HIT");
+
+    const bad = "/og/xrpl/tx/ABC123.png";
+    const missing = await head(bad);
+    expect(missing.status).toBe(404);
+    expect((await missing.arrayBuffer()).byteLength).toBe(0);
+    expect(await storedAs(bad)).toEqual(SHORT);
+    const text = await (await get(bad)).text();
+    expect(text).toContain("There is no such image.");
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("answers 503 without a body and stores nothing when the upstream fails, and does not draw", async () => {
+    const hash = "92EC1EA8B38B7242F07591AB4BF1AAB5E6B2E3015CE6E15AAAADAC05E6B74046";
+    const path = `/og/xrpl/tx/${hash}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: () => dataApiError(500, "boom") });
+      const response = await head(path);
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect((await response.arrayBuffer()).byteLength).toBe(0);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await isStored(path)).toBe(false);
+    } finally {
+      drawing.mockRestore();
     }
   });
 });

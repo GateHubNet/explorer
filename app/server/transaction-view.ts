@@ -12,7 +12,7 @@ import { isPoolAccountRoot, nodesOf } from "../domain/parse/objects";
 import type { BalanceChange, Native, TouchedObject, TxJson, TxMeta } from "../domain/parse/types";
 import type { TxBinary, TxObject, TxStoredJson } from "./api-types";
 import type { NodeTx } from "./node-rpc";
-import type { NetworkName, SearchPageData } from "./search-view";
+import { searchOnOther, type NetworkName, type SearchPageData } from "./search-view";
 import { checkNodeTransaction, isObject, malformed } from "./tx-shape";
 
 // ---- What a transaction is, whichever of the data API and the node it came from -------------------------------------
@@ -289,6 +289,6 @@ export function transactionNotFoundPage(hash: string, other: NetworkName): Searc
     kind: "not-found",
     query: hash,
     what: `transaction ${shortHash(hash)}`,
-    suggestion: { href: `/${other.id}/search?q=${hash}`, label: `Search on ${other.name}` },
+    suggestion: searchOnOther(hash, other),
   };
 }

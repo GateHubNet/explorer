@@ -22,6 +22,14 @@ export function pageClient(addressPrefix: string) {
       redirect: "manual",
     });
 
+  /** The answer to a HEAD of `path`. */
+  const head = (path: string, headers: Record<string, string> = {}) =>
+    exports.default.fetch(`${ORIGIN}${path}`, {
+      method: "HEAD",
+      headers: { "CF-Connecting-IP": `${addressPrefix}.${++visitors}`, ...headers },
+      redirect: "manual",
+    });
+
   /** The HTML of a page; fails with the start of the body when the status is not the expected one. */
   async function page(path: string, status = 200) {
     const response = await get(path);
@@ -48,7 +56,7 @@ export function pageClient(addressPrefix: string) {
     return { cls: copy!.headers.get("X-Edge-Class"), ttl: Number(copy!.headers.get("X-Edge-Ttl")) };
   }
 
-  return { get, page, stored, storedAs };
+  return { get, head, page, stored, storedAs };
 }
 
 /** The anchors of some HTML: their attributes as written and the text inside them. */

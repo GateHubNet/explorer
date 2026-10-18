@@ -82,7 +82,8 @@ function answer({ cls, ttl, status = 200, body = "<html>page</html>", type = "te
 /** A `render` that answers with `answer(spec)` each time (a function gives the n-th answer). */
 function renderOf(spec: Answer | ((call: number) => Answer | Response | Promise<Response>)) {
   let calls = 0;
-  return vi.fn(async () => {
+  // `withEdgeCache` hands `render` the degraded mark and the request to render (a GET, also for a HEAD).
+  return vi.fn(async (_mark?: DegradedMark, _request?: Request) => {
     calls += 1;
     const next = typeof spec === "function" ? await spec(calls) : spec;
     return next instanceof Response ? next : answer(next);
@@ -764,8 +765,225 @@ describe("a degraded answer", () => {
   });
 });
 
+// A HEAD is answered as the GET of the same URL, with the body dropped (unfurlers and monitors send them): from the stored copy when there
+// is one, and otherwise by one render, as a GET, that is stored as a GET's would be. It never renders twice for one request.
+describe("HEAD", () => {
+  const head = (url: string, headers: Record<string, string> = {}) => get(url, headers, "HEAD");
+  /** The headers of an answer as pairs, in a fixed order. */
+  const headersOf = (response: Response, without: string[] = []) =>
+    [...response.headers].filter(([name]) => !without.includes(name)).sort(([a], [b]) => a.localeCompare(b));
+
+  it("is answered from the copy a GET stored: same status and headers, no body, no render, no visitor limit", async () => {
+    const h = harness();
+    const url = pageUrl();
+    const render = renderOf({ cls: "immutable", body: "<html>ledger</html>", headers: { "Content-Language": "en" } });
+    await withEdgeCache(get(url), h.env, h.ctx, render);
+    await h.settle();
+    const limited = h.limit.mock.calls.length;
+    const full = await withEdgeCache(get(url), h.env, h.ctx, render);
+
+    const response = await withEdgeCache(head(url), h.env, h.ctx, render);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Cache")).toBe("HIT");
+    expect(await response.text()).toBe("");
+    expect(response.body === null || (await response.arrayBuffer()).byteLength === 0).toBe(true);
+    expect(headersOf(response)).toEqual(headersOf(full));
+    expectNoInternalHeaders(response);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(h.limit.mock.calls.length).toBe(limited);
+    await full.text();
+  });
+
+  it("on a miss renders once, as a GET, stores what a GET would have stored, and answers without the body", async () => {
+    const h = harness();
+    const url = pageUrl();
+    const render = renderOf({ cls: "immutable", body: "<html>ledger</html>" });
+
+    const response = await withEdgeCache(head(url, { "User-Agent": "an-unfurler", "CF-Connecting-IP": "203.0.113.50" }), h.env, h.ctx, render);
+    await h.settle();
+    expect(render).toHaveBeenCalledTimes(1);
+    const rendered = render.mock.calls[0]![1]!;
+    expect(rendered.method).toBe("GET");
+    expect(rendered.url).toBe(url);
+    expect(rendered.headers.get("User-Agent")).toBe("an-unfurler");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Cache")).toBe("MISS");
+    expect(response.headers.get("Cache-Control")).toBe(CACHE_CLASSES.immutable.browser.html);
+    expect(await response.text()).toBe("");
+    expect(h.limit).toHaveBeenCalledTimes(1);
+    expect(h.limit).toHaveBeenCalledWith({ key: "203.0.113.50" });
+
+    // The copy is the whole page, under the class: a GET is a hit with the body.
+    const next = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(next.headers.get("X-Cache")).toBe("HIT");
+    expect(await next.text()).toBe("<html>ledger</html>");
+    expect(render).toHaveBeenCalledTimes(1);
+    // The HEAD's headers are those a GET's miss of the same page has (the Cache API adds its own to a copy it serves: age, date, ...).
+    const sibling = await withEdgeCache(get(pageUrl()), h.env, h.ctx, render);
+    expect(headersOf(response)).toEqual(headersOf(sibling));
+    await sibling.text();
+    const copy = await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID));
+    expect(copy?.headers.get("X-Edge-Class")).toBe("immutable");
+  });
+
+  it("never runs the render twice for one HEAD, and a second HEAD is a hit", async () => {
+    const h = harness();
+    const url = pageUrl();
+    const render = renderOf({ cls: "live", body: "page" });
+    await withEdgeCache(head(url), h.env, h.ctx, render);
+    await h.settle();
+    expect(render).toHaveBeenCalledTimes(1);
+    const second = await withEdgeCache(head(url), h.env, h.ctx, render);
+    expect(second.headers.get("X-Cache")).toBe("HIT");
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("also renders once, and answers, when the cache cannot be read or written", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(caches.default, "match").mockRejectedValue(new Error("cache read"));
+    vi.spyOn(caches.default, "put").mockRejectedValue(new Error("cache write"));
+    const h = harness();
+    const render = renderOf({ cls: "immutable", body: "page" });
+    const response = await withEdgeCache(head(pageUrl()), h.env, h.ctx, render);
+    await h.settle();
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("");
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores a body that streams in after the answer, and still answers without it", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const render = renderOf(() => {
+      const encoder = new TextEncoder();
+      let sent = 0;
+      const body = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          controller.enqueue(encoder.encode(`part ${++sent};`));
+          if (sent === 3) controller.close();
+        },
+      });
+      return answer({ cls: "live", body });
+    });
+    const response = await withEdgeCache(head(url), h.env, h.ctx, render);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("");
+    await h.settle();
+    const next = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(next.headers.get("X-Cache")).toBe("HIT");
+    expect(await next.text()).toBe("part 1;part 2;part 3;");
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves a stale copy without its body while one GET render refreshes it", async () => {
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    const render = renderOf((call) => ({ cls: "live", body: `render ${call}` }));
+    await withEdgeCache(get(url), h.env, h.ctx, render);
+    await h.settle();
+    advance(10_000);
+
+    const stale = await withEdgeCache(head(url), h.env, h.ctx, render);
+    expect(stale.headers.get("X-Cache")).toBe("STALE");
+    expect(await stale.text()).toBe("");
+    await h.settle();
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(render.mock.calls[1]![1]!.method).toBe("GET");
+    const fresh = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(fresh.headers.get("X-Cache")).toBe("HIT");
+    expect(await fresh.text()).toBe("render 2");
+  });
+
+  it("answers a stored 404 of class short, and a stored redirect, with their status and headers", async () => {
+    const h = harness();
+    const missing = pageUrl("/xrpl/ledger/nope");
+    const moved = pageUrl("/xrpl/tx/abc");
+    const notFound = renderOf({ cls: "short", status: 404, body: "not found" });
+    const redirect = renderOf({ cls: "immutable", status: 302, headers: { Location: "/xrpl/tx/ABC" } });
+    await withEdgeCache(get(missing), h.env, h.ctx, notFound);
+    await withEdgeCache(get(moved), h.env, h.ctx, redirect);
+    await h.settle();
+
+    const a = await withEdgeCache(head(missing), h.env, h.ctx, notFound);
+    const b = await withEdgeCache(head(moved), h.env, h.ctx, redirect);
+    expect([a.status, a.headers.get("X-Cache"), await a.text()]).toEqual([404, "HIT", ""]);
+    expect([b.status, b.headers.get("X-Cache"), b.headers.get("Location")]).toEqual([302, "HIT", "/xrpl/tx/ABC"]);
+    expect(notFound).toHaveBeenCalledTimes(1);
+    expect(redirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores nothing for a degraded answer or an error, and answers without a body", async () => {
+    const h = harness();
+    const degradedUrl = pageUrl("/xrpl/account/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
+    const degraded = vi.fn(async (mark?: DegradedMark) => {
+      mark?.mark("node down");
+      return answer({ cls: "live", body: "partial" });
+    });
+    const response = await withEdgeCache(head(degradedUrl), h.env, h.ctx, degraded);
+    await h.settle();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(await response.text()).toBe("");
+    expect(await caches.default.match(edgeCacheKey(degradedUrl, h.env.BUILD_ID))).toBeUndefined();
+
+    const errorUrl = pageUrl();
+    const failing = renderOf({ cls: "immutable", status: 410, body: "gone" });
+    const gone = await withEdgeCache(head(errorUrl), h.env, h.ctx, failing);
+    await h.settle();
+    expect(gone.status).toBe(410);
+    expect(await gone.text()).toBe("");
+    expect(await caches.default.match(edgeCacheKey(errorUrl, h.env.BUILD_ID))).toBeUndefined();
+  });
+
+  it("is refused with a 429 without a body when the visitor is over the limit, and renders nothing", async () => {
+    const h = harness();
+    h.limit.mockResolvedValue({ success: false });
+    const render = renderOf({ cls: "live" });
+    const response = await withEdgeCache(head(pageUrl()), h.env, h.ctx, render);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("10");
+    expect(await response.text()).toBe("");
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("is answered with the stored copy, however old, when the render fails, and with the 503 page otherwise, both without a body", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const h = harness();
+    const url = pageUrl("/xrpl");
+    await withEdgeCache(get(url), h.env, h.ctx, renderOf({ cls: "live", body: "good page" }));
+    await h.settle();
+    advance(3_600_000);
+    const throwing = vi.fn(async () => {
+      throw new Error("boom");
+    });
+    const stale = await withEdgeCache(head(url), h.env, h.ctx, throwing);
+    expect(stale.status).toBe(200);
+    expect(stale.headers.get("X-Cache")).toBe("STALE");
+    expect(await stale.text()).toBe("");
+
+    const none = await withEdgeCache(head(pageUrl("/xrpl")), h.env, h.ctx, throwing);
+    expect(none.status).toBe(503);
+    expect(none.headers.get("Retry-After")).toBe("30");
+    expect(await none.text()).toBe("");
+  });
+
+  it("is left alone at the root, where the redirect depends on a cookie: it is rendered as the HEAD it is, and not stored", async () => {
+    const h = harness();
+    const url = "https://explorer.test/";
+    const render = renderOf({ cls: "immutable", status: 302, headers: { Location: "/xahau" } });
+    const response = await withEdgeCache(head(url), h.env, h.ctx, render);
+    await h.settle();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("X-Cache")).toBe("BYPASS");
+    expect(render.mock.calls[0]![1]!.method).toBe("HEAD");
+    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(h.limit).not.toHaveBeenCalled();
+  });
+});
+
 describe("what skips the cache", () => {
-  it.each(["POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])("a %s request", async (method) => {
+  it.each(["POST", "PUT", "DELETE", "PATCH", "OPTIONS"])("a %s request", async (method) => {
     const h = harness();
     const url = pageUrl();
     const render = renderOf({ cls: "immutable" });
@@ -873,6 +1091,8 @@ describe("the visitor limit", () => {
     expect(response.headers.get("X-Cache")).toBe("MISS");
     const html = await response.text();
     expect(html).toContain('<meta name="robots" content="noindex">');
+    // A client-side navigation gets this page as the text of an ErrorResponse, without its headers: the wait is in the page too (RouteErrorScreen).
+    expect(html).toContain('<meta name="retry-after" content="10">');
     expect(html).toContain('<a href="/">');
     expect(html).toContain("#F5F6F8");
     expect(html).toContain("#0B0E12");
@@ -897,7 +1117,7 @@ describe("the visitor limit", () => {
     const h = harness();
     h.limit.mockResolvedValue({ success: false });
     const render = renderOf({ cls: "live" });
-    const response = await withEdgeCache(get(pageUrl(), {}, "HEAD"), h.env, h.ctx, render);
+    const response = await withEdgeCache(get(pageUrl(), {}, "POST"), h.env, h.ctx, render);
     expect(response.status).toBe(429);
     expect(render).not.toHaveBeenCalled();
   });

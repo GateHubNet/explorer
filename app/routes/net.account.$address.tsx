@@ -115,9 +115,10 @@ function readList(api: DataApi, tab: AccountTab, ctx: ListContext): Promise<TabL
  *   the node (`account_info`, `account_objects`, `server_state` for the reserves) and awaited. The list of the tab is a promise that
  *   streams in after it, and that never rejects: when it cannot be loaded it is a `failed` list, which the page shows as "Couldn't
  *   load transactions" with a Retry.
- * - **Never funded** (the index has no creation and the node no account) is a 404 of class `short`. **Deleted** (the index knows it, the
- *   node does not) is the history with a "Deleted" banner and is stored as `live`. The node failing is "Live state unavailable". Any of
- *   these, or a section that could not be loaded, marks the request degraded: the page is served and not stored.
+ * - **Never funded** (the index has no creation and the node no account) is a 404 of class `short`, stored for 30 s. **Deleted** (the index
+ *   knows it, the node does not) is the history with a "Deleted" banner and is stored as `live`: neither is degraded, both are the answer.
+ *   What marks the request degraded (the page is served and not stored) is the node failing ("Live state unavailable"), the balances
+ *   failing, and a section (the list) that could not be loaded.
  * - **A page with a marker** is old history and class `MARKER_PAGE_CLASS` (`slow`, not `immutable`: backfill writes history below the
  *   frontier, see cache-class.ts), `noindex, follow`. Everything is awaited (a stored page must be whole), and it carries no live state,
  *   which would be as old as the page. A marker the API refuses is a 404.
@@ -244,7 +245,11 @@ async function firstPage(
         api.ledger(String(seq)).then(
           (ledger) => (Number.isFinite(ledger.close_time) ? ledger.close_time : null),
           (err: unknown) => {
-            logProblem("the ledger of an account's last transaction could not be read", err, request);
+            // A ledger the index does not have yet (it is behind the node) is the ordinary case of an account that has just been active:
+            // no time, and nothing worth a line for every visit. Any other failure is logged.
+            if (!(err instanceof UpstreamError && err.kind === "not_found")) {
+              logProblem("the ledger of an account's last transaction could not be read", err, request);
+            }
             return null;
           },
         ),

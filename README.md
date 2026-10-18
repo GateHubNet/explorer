@@ -93,7 +93,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `logging.ts` | The request id and the one log line per request (`withRequestLog`), and Sentry, loaded only for a Worker that has a `SENTRY_DSN` (`withSentryWhenConfigured`). |
 | `clients.ts` | `clientsFor(context, net)`: the data API client and the node client of a network, over the request's subrequest cache. What a loader calls. |
 | `network-route.ts` | `requireNetwork(context, params)` (the `:net` segment as a `Network`, or a 404 of class `short`), `publicNetwork(net)` (what may go to the browser: no URLs), `readNetworkCookie(header)`. |
-| `loader-errors.ts` | `upstreamFailure(err, what)`: what a loader throws for a failed upstream call: 404 `short` for `not_found`/`bad_request`, 503 with `Retry-After` for the rest, anything else rethrown. |
+| `loader-errors.ts` | `upstreamFailure(err, what, offer?)`: what a loader throws for a failed upstream call: 404 `short` for `not_found`/`bad_request` (with `offer`, a link such as "Search on Xahau", in its data when the caller has one), 503 with `Retry-After` for the rest, anything else rethrown. `upstreamOutage(err, what)` is the same with `not_found` and `bad_request` made 503s too, for what the visitor did not ask for and for a refusal of an id that is well formed. |
 | `capture.ts` | `handleLoaderError`, the `handleError` of `app/entry.server.tsx`: one log line per loader error and, with a `SENTRY_DSN`, Sentry. |
 | `resolve.ts` | What a search input names: `resolveCtid(api, net, ctid)` (the hash at a CTID's place in its ledger, or the other network it belongs to, or `null`) and `findHash(api, node, hash)` (a transaction, a ledger, both or neither; the node is asked when the data API has neither). They return "nothing" for a thing that is not there and throw the `UpstreamError` of a failure, so a caller can tell a 404 from a 503. An answer that cannot be right is a failure too: a 200 for a hash without its `tx`, a ledger's list that is not a list, a hash in it that is not 64 hex digits (it goes into a redirect and a path). |
 | `tx-shape.ts` | The shape checks of a transaction, its binary form and a ledger's list of hashes (`checkIndexTransaction`, `checkBinaryAnswer`, `checkLedgerHashes`; `checkNodeTransaction` for the node's), which the data API client runs inside its cached loads. |
@@ -110,12 +110,18 @@ log line, the edge cache with the visitor limit, React Router.
 - **Request id and log.** Every response has `X-Request-Id` (the request's `CF-Ray` when it has one, else a random id), and
   every request writes one line, `{ id, method, path, status, cache, ms }`. The path only: a query string can hold what a
   visitor typed.
-- **`X-Cache`** is on every response: `HIT`, `MISS`, `STALE`, or `BYPASS` for requests that skip the cache (anything but GET, and
+- **`X-Cache`** is on every response: `HIT`, `MISS`, `STALE`, or `BYPASS` for requests that skip the cache (anything but GET and HEAD, and
   the root `/` and its `/_.data`, a redirect that depends on a cookie).
+- **HEAD** is the GET of the same URL without the body (unfurlers and uptime monitors send them). It is answered from the stored copy of the
+  page, with the same status and headers; on a miss the page is rendered **as a GET** (`render` is handed that GET, not the HEAD), stored as a GET
+  would be, and answered without the body. So a HEAD costs at most one render, never two, the next GET or HEAD is a hit, and a HEAD of an
+  `/og/...png` draws the image once. A HEAD that misses is limited like a GET that misses. (The root `/` is the one HEAD that is not
+  cached: its redirect depends on a cookie and costs nothing.)
 - **Visitor limit.** On a miss only (a hit, and a stale copy being refreshed, cost nothing upstream), the Worker asks
   `VISITOR_LIMITER`, keyed by `CF-Connecting-IP`; over the limit the answer is a small 429 page with `Retry-After: 10` and
-  nothing is rendered. Non-GET requests are always misses and are limited too (a HEAD renders the whole page). A limiter that
-  throws lets the visitor through.
+  nothing is rendered. Requests that are neither GET nor HEAD are always misses and are limited too. A limiter that
+  throws lets the visitor through. The 429 page (and the 503 one) names its wait in a `<meta name="retry-after">` as well as in the header:
+  a client-side navigation gets the page as the text of an `ErrorResponse`, without headers, and `RouteErrorScreen` reads the wait from it.
 - **A failing render** (it throws, or answers 5xx) is replaced by the stored copy, whatever its age (stored copies live
   `max(edge TTL + 30 s, 24 h)`), with `X-Cache: STALE`; without one, a throw or a 503 becomes a small 503 page with
   `Retry-After: 30`. Both pages are `noindex` and self-contained until the design system has its own.
@@ -195,8 +201,14 @@ the browser).
   Transactions links go to the ids `latest-ledgers` and `latest-transactions` (`app/ui/anchors.ts`) on the home page.
 - **Errors.** `net.tsx` and `root.tsx` export an `ErrorBoundary` that shows `RouteErrorScreen` inside the page frame: a 404
   thrown by `cached`/`upstreamFailure`/`requireNetwork` becomes `NotFoundPage` ("We couldn't find {what} on {network}",
-  with the search box and a way home), a 503 a try-again page, anything else a plain apology. `NotFoundPage` takes a
-  `suggestion={{ href, label }}` for the "on the other network" link.
+  with the search box and a way home), a 503 a try-again page, a 429 "Too many requests" with "Try again in a moment" (or in N seconds,
+  when the entry's 429 page names them), anything else a plain apology. `NotFoundPage` takes a
+  `suggestion={{ href, label }}` for the "on the other network" link; a thrown 404 carries it as `{ notFound, suggestion }` (the ledger
+  page's, for a hash), and a `suggestion` that is not a path of this site is left out.
+- **Route discovery.** `react-router.config.ts` sets `routeDiscovery: { mode: "initial" }`: the manifest of all nine routes is in the first
+  page, and the browser never asks `/__manifest?paths=...`, which the default (lazy) mode does as links come into view or are hovered. Each such
+  request was a Worker invocation that could not be stored and counted against the visitor limit. The initial JavaScript per page did not
+  change (`pnpm check:bundle`); `test/e2e/client-meta.spec.ts` checks that moving between the routes asks for no manifest.
 - **Search box.** `SearchBox` is a GET form to `/{net}/search` (`name="q"`). Hints appear as you type (`classify` from
   `app/domain/search.ts`, mapped by `app/ui/search-hints.ts`); that code and the address codec it pulls in are a separate
   chunk, fetched on first focus. `/` focuses the box except while another field has focus.
@@ -217,10 +229,12 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
 
 - **Cache classes.** Home: `live-home`. Ledger: `immutable` unless its index is the newest validated one (then `live`); a ledger
   shown from the node is `short` with a 60 s TTL and the note "Not in the index yet, shown from the network"; a ledger neither
-  has, and an id that is neither an index nor a hash, is a 404 of class `short`. A lower-case or mixed-case hash, and an index with
+  has, and an id that is neither an index nor a hash, is a 404 of class `short` (for a hash it offers "Search on {other network}",
+  `/{other}/search?q={HASH}`, as the transaction page does; an index is a number on both networks and gets no offer). A lower-case or mixed-case hash, and an index with
   leading zeros, are 302 redirects (class `immutable`) to the one URL an object has. Failures of the data API are 503s through
   `upstreamFailure`, so the edge serves a stale copy or its busy page; the node is asked only for "not found", never for an
-  outage. A call a page cannot do without but the visitor did not ask for (the newest ledger, the home page's lists) goes through
+  outage. A 400 of the data API for an index or a hash the loader has checked is the API's fault, not a missing ledger: a 503 through
+  `upstreamOutage`, as on the transaction page (and not stored). A call a page cannot do without but the visitor did not ask for (the newest ledger, the home page's lists) goes through
   `upstreamOutage`, which makes even its "not found" a 503. Both loaders wait for all their side-by-side calls before they throw, so
   nothing is left running behind an answered request.
 - **No deferred data.** An `immutable` page is stored for a year, so everything is loaded in the loader.
@@ -343,7 +357,9 @@ JavaScript); Analytics is a disabled tab that says "soon". Lists are newest firs
   call failing) is a 503, never a page that says it.
 - **Last active.** The time is the close time of the ledger of `PreviousTxnLgrSeq`. The lookup starts as soon as `account_info` has
   answered and has its own deadline of 1.5 s, so the header takes as long as its slowest call and never more than that deadline
-  longer; without a time the flag shows the ledger (`ledger #107,720,688`), and the page is not degraded.
+  longer; without a time the flag shows the ledger (`ledger #107,720,688`), and the page is not degraded. A ledger the index does not have
+  yet (`not_found`: the index is behind the node, the ordinary case of an account that has just been active) is not logged; any other
+  failure of the lookup is.
 - **Reserve.** `reserve_base + owner_count × reserve_inc` from `server_state`'s `validated_ledger` (drops, cached 5 minutes), and
   the available balance is what the balance leaves, never below 0, in `bignumber.js`. Nothing is hard-coded, so a vote of the
   validators shows up. The page prints "Reserve 1.2 XRP = 1 base + 1 object × 0.2".
@@ -376,7 +392,9 @@ The address and the marker are checked before any call (a 404, noindex, class `s
 text/csv`, `Content-Disposition: attachment` with the explorer's own name `<address>-payments.csv`, `X-Robots-Tag: noindex`,
 `X-Content-Type-Options: nosniff` and, when the API says there is a next page, a `Link: </net/account/a/payments.csv?marker=...>;
 rel="next"`: the API's own `Link` names its own URL and is never passed on. The key goes to the API in `X-API-Key` and nowhere else.
-Class `short` (the edge keeps 30 s of it); a failure of the API, or a 200 that is not CSV, is a 503 and is never stored.
+Class `short` (the edge keeps 30 s of it); a failure of the API, or a 200 that is not CSV, is a 503 and is never stored. Each crawl would
+cost an upstream CSV of up to 1000 rows, so crawlers are kept off it twice: the Payments tab's link is `rel="nofollow"`, and `robots.txt`
+disallows `/*/account/*/payments.csv` (as it does `/*/search`).
 
 ## Search
 
@@ -435,14 +453,14 @@ client-side navigation: that file imports nothing heavy, and `test/unit/og-bundl
 | net, kind or id not valid (a transaction: 64 hex digits; a ledger: 1 to 10 digits or 64 hex; an account: a classic address with a valid checksum; a CTID, an X-address, `latest`, a missing `.png`) | 404, class `short`, **no upstream call** |
 | a transaction hash or ledger hash in lower case, a ledger index with leading zeros | 302 to the one URL, class `immutable`, no upstream call |
 | a transaction the data API has; a ledger it has that is not the newest | `immutable` (`max-age=31536000, immutable` for the browser) |
-| the newest ledger | `short` (30 s): its page is `live`, and the index may not have all of it yet |
+| the newest ledger | `short` (30 s): its page is `live`, and its "newest" status changes within seconds (the next ledger closes), which an image kept for a year would keep |
 | an account (data API: creation and balances) | `slow` (1 h, `max-age=300`) |
 | an account whose balances could not be read | drawn without them, `short`: asked again soon |
 | from the node (the API says "not found"; for an account, no creation record) | `short` with a TTL of 60 s, like the page |
 | "not found" at both | 404, class `short` |
-| an upstream failure that leaves the question open (5xx, 429, timeout; `last_validated` for a ledger), or a card the renderer cannot draw | 503, never stored; the entry serves the stored copy, however old, if there is one, and otherwise answers with its own 503 page (`Retry-After: 30`, whatever wait the route or the upstream named). A render failure is logged (`a link-preview image could not be drawn`) |
+| an upstream failure that leaves the question open (5xx, 429, timeout, a 400 for an id the route has checked; `last_validated` for a ledger), or a card the renderer cannot draw | 503, never stored; the entry serves the stored copy, however old, if there is one, and otherwise answers with its own 503 page (`Retry-After: 30`, whatever wait the route or the upstream named). A render failure is logged (`a link-preview image could not be drawn`) |
 
-The data comes through the same clients as the page: `describe` (title, result, sentence, flow) and `headlineAmount` for a transaction
+A HEAD of an image is answered from the stored copy, or draws it once and stores it (see "The Worker entry"). The data comes through the same clients as the page: `describe` (title, result, sentence, flow) and `headlineAmount` for a transaction
 (`transactionFacts` in `app/server/card-data.ts`; the balance changes, objects touched and raw JSON the page also works out are not),
 `ledgerPage` for a ledger, `activationOf` and the native balance of `/balances` for an account. `card-data.ts` makes plain data of it
 (`CardData`, `app/og/types.ts`), `app/og/card.tsx` lays it out (the `LinkPreview` board: the accent bar, logo and pill of the network, the kind
@@ -497,7 +515,7 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   the Worker with `exports.default.fetch(...)` and read bindings with `env`, both from `cloudflare:workers`. (`SELF`
   and `cloudflare:test`'s `env` still exist but are deprecated.)
   `edge-cache.spec.ts` calls `withEdgeCache` and `createSubrequestCache` directly (fake `render`, fake `waitUntil`, a fake clock
-  for `Date` only, the runtime's own Cache API); `route-headers.spec.ts` runs `cached` and `forwardCacheClass` through React
+  for `Date` only, the runtime's own Cache API; the HEAD rules are there, and in `og.spec.ts` and `ledger.spec.ts` on the real Worker); `route-headers.spec.ts` runs `cached` and `forwardCacheClass` through React
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
   Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry); `layout.spec.ts` asks the Worker
   for `/`, the 404 pages, `/:net` (the home page now, so against the recorded upstream), the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
@@ -676,10 +694,10 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `account.spec.ts` | The tabs (Transactions, Payments, Trades, Offers, Objects; Analytics is not a link); Older and Newer on Transactions (four rows, two rows, four rows; the marker page shows no live state) and on Payments, which keep the tab; the balance, the token and the reserve |
 | `network.spec.ts` | The switch goes to the other network's home, changes `data-net` and the title, writes the `net` cookie, and `/` then redirects to it; `/` without a cookie is XRPL; an unknown network is a 404 |
 | `theme.spec.ts` | See below |
-| `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the network switch |
+| `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the network switch, and that moving between the routes asks for no `/__manifest` |
 | `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
 | `assets.spec.ts` | The stylesheet, scripts and font of a page carry `Cache-Control: public, max-age=31536000, immutable` from `public/_headers` (the local runtime applies it); a page and the favicon do not |
-| `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route manifest or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
+| `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route module or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
 | `a11y.spec.ts` | See below |
 
 **Theme, with no flash.** The page is stored once for everybody, so the server cannot name a theme: `THEME_SCRIPT`, a plain inline script in
