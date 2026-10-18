@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type Moc
 import type { TxObject } from "../../app/server/api-types";
 import { CACHE_CLASSES, MARKER_PAGE_CLASS, type CacheClass } from "../../app/server/cache-class";
 import { createDataApi, UpstreamError, type DataApi } from "../../app/server/data-api";
+import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
@@ -149,8 +150,11 @@ type Case = {
 
 const cases: Case[] = [
   {
+    // The home page's three calls (`lastValidated`, `fees`, and `transactions` without a marker) are `live-home`: a second, so that a page
+    // that follows the chain (a ledger every 3-4 s) never builds on an answer much older than the ledger. The ledger page and the image
+    // route read `lastValidated` too, and a second is fine there.
     name: "lastValidated",
-    cls: "live",
+    cls: "live-home",
     call: (a) => a.lastValidated(),
     url: "/v2/last_validated",
     body: lastValidatedBody,
@@ -200,7 +204,7 @@ const cases: Case[] = [
   },
   {
     name: "transactions, first page",
-    cls: "live",
+    cls: "live-home",
     call: (a) => a.transactions({ descending: true, limit: 8 }),
     url: "/v2/transactions?descending=true&limit=8",
     body: transactionsBody,
@@ -292,7 +296,7 @@ const cases: Case[] = [
   },
   {
     name: "fees",
-    cls: "live",
+    cls: "live-home",
     call: (a) => a.fees({ descending: true, limit: 8 }),
     url: "/v2/network/fees?descending=true&limit=8",
     body: feesBody,
@@ -638,7 +642,40 @@ describe("cache", () => {
     await api.transactions({ limit: 20, marker: "m" });
     await api.accountTransactions(ACCOUNT, { descending: false, limit: 20, marker: "m" });
 
-    expect(cache.calls.map((c) => c.cls)).toEqual(["live", "live"]);
+    // The first page of the network-wide list is the home page's (`live-home`); an account's is `live`.
+    expect(cache.calls.map((c) => c.cls)).toEqual(["live-home", "live"]);
+  });
+
+  it("really stores lastValidated, fees and the first page of transactions for one second, and the balances for five", async () => {
+    // The Worker's own subrequest cache, not a recording: the Cache-Control it puts on an entry is what the Cache API expires it by.
+    const puts: Array<string | null> = [];
+    const put = caches.default.put.bind(caches.default);
+    vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
+      puts.push((response as Response).headers.get("Cache-Control"));
+      return put(request, response);
+    });
+    const pending: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} } as unknown as ExecutionContext;
+    // A host of its own: this file's Cache API outlives the test.
+    const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: "https://stored-for-a-second.example.invalid" });
+    const api = createDataApi(network, env, createSubrequestCache(ctx, "ttl-test"));
+    fetchSpy.mockImplementation(async (input) => {
+      const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
+      return json(path.endsWith("/last_validated") ? lastValidatedBody : path.endsWith("/fees") ? feesBody : path.endsWith("/balances") ? balancesBody : transactionsBody);
+    });
+    const storedBy = async (call: () => Promise<unknown>) => {
+      puts.length = 0;
+      await call();
+      await Promise.all(pending.splice(0));
+      return [...puts];
+    };
+
+    expect(await storedBy(() => api.lastValidated())).toEqual(["public, max-age=1"]);
+    expect(await storedBy(() => api.fees({ descending: true, limit: 8 }))).toEqual(["public, max-age=1"]);
+    expect(await storedBy(() => api.transactions({ descending: true, limit: 8 }))).toEqual(["public, max-age=1"]);
+    expect(await storedBy(() => api.balances(ACCOUNT))).toEqual(["public, max-age=5"]);
+    // A page of the list reached with a marker keeps its own class.
+    expect(await storedBy(() => api.transactions({ descending: true, limit: 8, marker: "WzEwNzY3MDM2MCw1XQ" }))).toEqual(["public, max-age=3600"]);
   });
 
   // A deliberate deviation from spec 2 (which has them immutable): data-api-new's range backfill, `--reprocess` and gap repair write history

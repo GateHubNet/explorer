@@ -10,9 +10,11 @@ describe("CACHE_CLASSES", () => {
         swr: 0,
         browser: { html: "max-age=60", image: "max-age=31536000, immutable" },
       },
+      // 1 s fresh and 2 s of stale copy, at the owner's request: the page follows the chain, which closes a ledger every 3-4 s, so a
+      // reload must not show a copy much older than one ledger (spec 4 had 3 s + 30 s).
       "live-home": {
-        edgeTtl: 3,
-        swr: 30,
+        edgeTtl: 1,
+        swr: 2,
         browser: { html: "max-age=0, must-revalidate", image: "max-age=0, must-revalidate" },
       },
       live: {

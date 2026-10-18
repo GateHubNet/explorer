@@ -345,12 +345,13 @@ export interface UpstreamOptions {
   /** The network the unprefixed override keys belong to. */
   primary: NetworkName;
   overrides?: Overrides;
+  /** Where to write down the requests answered, when several upstreams (the fixture server's, as its overrides change) share one list. */
+  requests?: SeenRequest[];
 }
 
-export function createUpstream({ files, bases, primary, overrides = {} }: UpstreamOptions): Upstream {
+export function createUpstream({ files, bases, primary, overrides = {}, requests = [] }: UpstreamOptions): Upstream {
   const keyed = parseOverrides(primary, overrides);
   const used = new Set<string>();
-  const requests: SeenRequest[] = [];
   const hashes = new Map<NetworkName, Promise<Record<string, number>>>();
 
   const targets = NETWORK_NAMES.map((net) => ({

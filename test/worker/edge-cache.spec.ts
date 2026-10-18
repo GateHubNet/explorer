@@ -342,16 +342,32 @@ describe("freshness", () => {
     expect(render).toHaveBeenCalledTimes(2);
   });
 
-  it("serves the home page class stale after 3 s", async () => {
+  it("serves the home page class stale after 1 s, and renders inline once the copy is older than 3 s", async () => {
     const h = harness();
     const url = pageUrl("/xrpl");
     const render = renderOf((n) => ({ cls: "live-home", body: `render ${n}` }));
     await withEdgeCache(get(url), h.env, h.ctx, render);
     await h.settle();
-    advance(2999);
+    advance(999);
     expect((await withEdgeCache(get(url), h.env, h.ctx, render)).headers.get("X-Cache")).toBe("HIT");
     advance(1);
+    // 1 s old: the copy is served at once (a reload does not wait) while one render refreshes it behind the answer.
+    const stale = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(stale.headers.get("X-Cache")).toBe("STALE");
+    expect(await stale.text()).toBe("render 1");
+    await h.settle();
+    expect(render).toHaveBeenCalledTimes(2);
+
+    // The refresh stored a copy at 1 s. It is fresh for 1 s, stale until 3 s old, and after that the visitor waits for a render:
+    // a reload never shows a copy much older than one ledger.
+    advance(2999);
     expect((await withEdgeCache(get(url), h.env, h.ctx, render)).headers.get("X-Cache")).toBe("STALE");
+    await h.settle();
+    expect(render).toHaveBeenCalledTimes(3);
+    advance(3000);
+    const inline = await withEdgeCache(get(url), h.env, h.ctx, render);
+    expect(inline.headers.get("X-Cache")).toBe("MISS");
+    expect(await inline.text()).toBe("render 4");
     await h.settle();
   });
 
@@ -1181,9 +1197,11 @@ describe("createSubrequestCache", () => {
     await cache.json(key("b"), "slow", async () => 2);
     await cache.json(key("c"), "live", async () => 3, 60);
     await cache.json(key("d"), "immutable", async () => 4);
+    // The home page's calls: one second, so that a page that follows the chain reads an answer about as old as the ledger.
+    await cache.json(key("e"), "live-home", async () => 5);
     await h.settle();
     expect(Object.values(stored).sort()).toEqual(
-      ["public, max-age=5", "public, max-age=3600", "public, max-age=60", "public, max-age=31536000"].sort(),
+      ["public, max-age=5", "public, max-age=3600", "public, max-age=60", "public, max-age=31536000", "public, max-age=1"].sort(),
     );
   });
 

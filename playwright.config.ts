@@ -6,6 +6,8 @@ import { chromiumToUse } from "./scripts/e2e-env";
 // fixture server unless E2E_DATA_API_URL and E2E_NODE_URL name a real stack; test/e2e/stack.ts starts and stops all of it, and README.md
 // ("End-to-end tests") has the switches. `E2E_BASE_URL` skips that and tests a Worker that is already running (a deployed staging).
 
+const LIVE_SPEC = "**/live-home.spec.ts";
+
 const port = Number(process.env.E2E_PORT ?? 8832);
 const baseURL = process.env.E2E_BASE_URL || `http://127.0.0.1:${port}`;
 
@@ -34,7 +36,13 @@ export default defineConfig({
     screenshot: "only-on-failure",
     launchOptions: executablePath ? { executablePath } : {},
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: LIVE_SPEC },
+    // The home page follows the chain, and its test moves the fixture server's chain on: for a while every page the Worker renders would show
+    // it, so no other test is running. It runs alone, after the others have passed (`--no-deps` runs it without them). One test at a time:
+    // they share the fixture server.
+    { name: "live", use: { ...devices["Desktop Chrome"] }, testMatch: LIVE_SPEC, fullyParallel: false, dependencies: ["chromium"] },
+  ],
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {

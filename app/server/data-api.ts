@@ -252,9 +252,10 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   /**
    * A page reached with a marker is stable under new data only when the list runs newest first: then it is the
    * history before the marker. An oldest-first list grows at the end. Even so it is only `MARKER_PAGE_CLASS`, which is not
-   * `immutable` while the index can still be backfilled (see there).
+   * `immutable` while the index can still be backfilled (see there). `first` is the class of a list's first page (or of an oldest-first one):
+   * `live` for an account's, `live-home` for the home page's network-wide list.
    */
-  const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : "live");
+  const listClass = (q: ListQuery, first: CacheClass = "live"): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : first);
 
   /**
    * The API adds `transactions` to an expanded ledger only when the ledger has some, unless `transactions=true` is
@@ -286,7 +287,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   };
 
   return {
-    lastValidated: () => get<LastValidated>(PATHS.lastValidated, {}, {}, "live"),
+    // `live-home` (1 s) for the three calls the home page is built from: it follows the chain, so an answer older than a ledger is a stale page.
+    // The ledger page (its Next at the newest ledger) and the image route read `lastValidated` too, and a second is fine there.
+    lastValidated: () => get<LastValidated>(PATHS.lastValidated, {}, {}, "live-home"),
     // The overloads of the interface narrow `transactions` by the options; the answer is the same either way.
     ledger: ledger as DataApi["ledger"],
     // What the pages read of a transaction is checked inside the load, so that an answer that is not one is a failure and not stored.
@@ -300,7 +303,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         checkBinaryAnswer(found, hash);
         return found;
       }),
-    transactions: (q) => get(PATHS.transactions, {}, listQuery(q), listClass(q)),
+    transactions: (q) => get(PATHS.transactions, {}, listQuery(q), listClass(q, "live-home")),
     account: (address) => get<AccountData>(PATHS.account, { address }, {}, "slow", "account_data"),
     balances: (address) => get(PATHS.balances, { address }, {}, "live"),
     orders: (address) => get(PATHS.orders, { address }, {}, "live"),
@@ -313,6 +316,6 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       if (q.marker) search.set("marker", q.marker);
       return fetchCsv(`${path}?${search}`);
     },
-    fees: (q) => get(PATHS.fees, {}, { descending: q.descending, limit: q.limit }, "live"),
+    fees: (q) => get(PATHS.fees, {}, { descending: q.descending, limit: q.limit }, "live-home"),
   };
 }

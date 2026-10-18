@@ -7,12 +7,17 @@ import { NetworkCookie } from "../ui/components/NetworkCookie";
 import { Shell } from "../ui/components/Shell";
 import { DEFAULT_NETWORK, findNetwork } from "../ui/networks";
 import { errorMeta, RouteErrorScreen } from "../ui/pages/RouteErrorScreen";
+import { onlyWhenParamsChange } from "../ui/revalidation";
 import { wantsHeroSearch } from "../ui/route-handle";
 
 import type { Route } from "./+types/net";
 
 // A 404 for a network that does not exist is class short; the route needs this to pass it on (see edge-cache.ts).
 export const headers = forwardCacheClass;
+
+// The layout's data is the network and the origin: nothing a page's revalidation (the home page's, every 4 s) could change. Left out of it,
+// the page's request is for the page alone, and a request that fails cannot take this layout's error boundary with it (revalidation.ts).
+export const shouldRevalidate = onlyWhenParamsChange;
 
 /**
  * The layout of `/:net`. Its loader answers for the whole network: an unknown first segment is a 404, a known one gives the

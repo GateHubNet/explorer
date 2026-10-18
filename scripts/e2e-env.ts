@@ -46,6 +46,19 @@ export function upstreamUrls(env: Record<string, string | undefined>, fixtureUrl
   };
 }
 
+/**
+ * The port of the fixture server in a run that has one. It is fixed, not any free port, so that the tests (other processes than the
+ * stack's) know where to ask it to change what it answers (test/e2e/fixture-control.ts): `E2E_FIXTURE_PORT`, else the Worker's port plus
+ * two (the inspector has the one after it). Never 5173.
+ */
+export function fixturePort(env: Record<string, string | undefined>): number {
+  const worker = Number(env.E2E_PORT ?? 8832);
+  const port = env.E2E_FIXTURE_PORT === undefined ? worker + 2 : Number(env.E2E_FIXTURE_PORT);
+  if (port === 5173) throw new Error("the fixture server's port is 5173, which another dev server keeps");
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`${env.E2E_FIXTURE_PORT ?? worker + 2} is not a port for the fixture server`);
+  return port;
+}
+
 export interface ChromiumChoice {
   /** The browser to launch; absent when Playwright's own choice stands. */
   executablePath?: string;

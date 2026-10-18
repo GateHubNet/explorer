@@ -8,6 +8,7 @@ import { Amount } from "../components/Amount";
 import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
 import { HashLink, LedgerLink } from "../components/HashLink";
+import { LiveValue } from "../components/LiveValue";
 import { ResultPill } from "../components/Pill";
 import { RelativeTime } from "../components/RelativeTime";
 import { SearchBox } from "../components/SearchBox";
@@ -26,11 +27,20 @@ const count = (n: number) => formatAmount(String(n));
  * The home page: the search hero with examples, four tiles, the newest ledgers and the newest transactions. Takes what the
  * loader made of the data API's answers (`homePage`) and never fetches. Ages are worked out in the browser
  * (`RelativeTime`); the HTML itself carries close times, so that one stored copy is right for everybody.
+ *
+ * The page follows the chain: the route asks for its data again every few seconds (`useLiveRefresh`), and what changes in `data` moves.
+ * New rows enter at the top of the two tables and the rows that were there slide down (`DataTable live`); a figure that changed
+ * ticks in (`LiveValue`, with the text it shows as its token, so that a figure that says the same does not move). None of it on the first
+ * render, so the server's HTML and the hydration are the same, and none for a visitor who asked for less motion (see motion.ts).
  */
 export function HomePage({ network, data }: { network: NetworkInfo; data: HomePageData }) {
   const { latest, txCount, average, fees } = data;
   const latestHref = `/${network.id}/ledger/${latest.index}`;
   const whole = latest.supply.split(".")[0]!;
+  // What the tiles say as text: it is also the token of the figure, which ticks in only when it says something else.
+  const txPerLedger = txCount === null ? "—" : count(txCount);
+  const txAverage = average ? `average ${count(average.transactions)} over the last ${count(average.ledgers)}` : "not counted yet";
+  const feeNote = fees ? `average ${formatAmount(fees.average)} · max ${formatAmount(fees.max)} per transaction` : "not counted yet";
 
   const ledgerColumns: Column<HomeLedgerRow>[] = [
     { id: "ledger", header: "Ledger", width: "minmax(100px, 1fr)", cell: (row) => <LedgerLink net={network.id} index={row.index} /> },
@@ -72,8 +82,14 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
         <p className="hero__status">
           <span className="hero__dot" aria-hidden="true" />
           <span>
-            {network.name} mainnet · ledger <LedgerLink net={network.id} index={latest.index} /> validated{" "}
-            <RelativeTime at={latest.closeTime} fallback={`at ${formatUtc(latest.closeTime).slice(11)}`} />
+            {network.name} mainnet · ledger{" "}
+            <LiveValue token={String(latest.index)}>
+              <LedgerLink net={network.id} index={latest.index} />
+            </LiveValue>{" "}
+            validated{" "}
+            <LiveValue token={String(latest.closeTime)}>
+              <RelativeTime at={latest.closeTime} fallback={`at ${formatUtc(latest.closeTime).slice(11)}`} />
+            </LiveValue>
           </span>
         </p>
         <h1 id="hero-title" className="hero__title">
@@ -88,9 +104,10 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
           <div className="examples">
             <span>Try</span>
             {data.examples.map((example) => (
-              <Link key={example.href} to={example.href} className="example" title={example.title}>
+              // Keyed by what the example is, not by where it leads: the chip stays and its label ticks in when the ledger moves on.
+              <Link key={example.kind} to={example.href} className="example" title={example.title}>
                 <span className="sr">{example.kind} </span>
-                {example.label}
+                <LiveValue token={example.href}>{example.label}</LiveValue>
               </Link>
             ))}
           </div>
@@ -100,30 +117,38 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
       <StatGrid label="Network at a glance">
         <StatTile
           label="Latest validated ledger"
-          value={<LedgerLink net={network.id} index={latest.index} />}
+          value={
+            <LiveValue token={String(latest.index)}>
+              <LedgerLink net={network.id} index={latest.index} />
+            </LiveValue>
+          }
           sub={
-            <>
+            <LiveValue token={String(latest.closeTime)}>
               closed <RelativeTime at={latest.closeTime} fallback={`at ${formatUtc(latest.closeTime).slice(11)}`} />
-            </>
+            </LiveValue>
           }
         />
         <StatTile
           label="Transactions per ledger"
-          value={txCount === null ? "—" : count(txCount)}
-          sub={average ? `average ${count(average.transactions)} over the last ${count(average.ledgers)}` : "not counted yet"}
+          value={<LiveValue token={txPerLedger}>{txPerLedger}</LiveValue>}
+          sub={<LiveValue token={txAverage}>{txAverage}</LiveValue>}
         />
         <StatTile
           label="Fees burned, last ledger"
-          value={fees ? <Amount value={fees.total} currency={network.native} /> : "—"}
-          sub={fees ? `average ${formatAmount(fees.average)} · max ${formatAmount(fees.max)} per transaction` : "not counted yet"}
+          value={
+            <LiveValue token={fees ? fees.total : "—"}>{fees ? <Amount value={fees.total} currency={network.native} /> : "—"}</LiveValue>
+          }
+          sub={<LiveValue token={feeNote}>{feeNote}</LiveValue>}
         />
         <StatTile
           label="Total supply"
           // The tile keeps to whole units; the ledger page has every digit.
           value={
-            <span title={`${formatAmount(latest.supply)} ${network.native}`}>
-              <Amount value={whole} currency={network.native} />
-            </span>
+            <LiveValue token={whole}>
+              <span title={`${formatAmount(latest.supply)} ${network.native}`}>
+                <Amount value={whole} currency={network.native} />
+              </span>
+            </LiveValue>
           }
           sub="from the latest ledger header"
         />
@@ -145,6 +170,7 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
             // The tracks at their least, the gaps and the padding of a row (16 px each side, 16 px between).
             minWidth={380}
             empty="No ledgers yet."
+            live
           />
         </Card>
 
@@ -163,6 +189,7 @@ export function HomePage({ network, data }: { network: NetworkInfo; data: HomePa
             // Likewise.
             minWidth={744}
             empty="No transactions yet."
+            live
           />
         </Card>
       </div>

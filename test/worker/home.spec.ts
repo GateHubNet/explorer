@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
 import { shortAddress, shortHash } from "../../app/domain/format";
+import { CACHE_CLASSES } from "../../app/server/cache-class";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 
@@ -132,12 +133,14 @@ describe("the XRPL home", () => {
     expect(textOf(html)).not.toMatch(/\d+ (s|min|h|d) ago/);
   });
 
-  it("is stored as class live-home (3 s), and the browser must revalidate it", async () => {
+  it("is stored as class live-home (1 s fresh, then 2 s of stale copy), and the browser must revalidate it", async () => {
     mock = mockUpstream("xrpl");
     const { response } = await page("/xrpl?case=class");
     expect(response.headers.get("Cache-Control")).toBe("max-age=0, must-revalidate");
     expect(response.headers.has("X-Cache-Class")).toBe(false);
-    expect(await storedAs("/xrpl?case=class")).toEqual({ cls: "live-home", ttl: 3 });
+    expect(await storedAs("/xrpl?case=class")).toEqual({ cls: "live-home", ttl: 1 });
+    // The stale window belongs to the class, not to the copy: it is what a reload may be served while one render refreshes it.
+    expect(CACHE_CLASSES["live-home"]).toMatchObject({ edgeTtl: 1, swr: 2 });
   });
 
   it("has the hero search box and no second one in the header", async () => {

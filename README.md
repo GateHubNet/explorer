@@ -88,7 +88,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. `transaction(hash)` and `transactionBinary(hash)` (`binary=true`: `tx` and `meta` as hex, or as the stored JSON for a type the API's codec cannot serialize) are the same path with and without that flag. What the pages read of a transaction, of its binary form and of a ledger's list of hashes is checked **inside the load the subrequest cache runs** (`tx-shape.ts`): a 200 with the wrong content is an `UpstreamError` of kind `server` and is never stored, where an answer that came back whole would have been kept for a year. |
 | `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds. |
 | `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
-| `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, `MARKER_PAGE_CLASS` (the class of a list page reached with a marker: `slow`, see "The account page"), and the `SubrequestCache` interface both clients take. |
+| `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values (the table under "The Worker entry"), `MARKER_PAGE_CLASS` (the class of a list page reached with a marker: `slow`, see "The account page"), and the `SubrequestCache` interface both clients take. |
 | `edge-cache.ts` | The page-level edge cache and visitor limit (`withEdgeCache`), the subrequest cache the clients take (`createSubrequestCache`), and what loaders and routes use to name a page's class (`cached`, `forwardCacheClass`, `cacheClassHeaders`) or to say it is degraded (`DegradedMark`, `markDegraded` in `env.ts`). |
 | `logging.ts` | The request id and the one log line per request (`withRequestLog`), and Sentry, loaded only for a Worker that has a `SENTRY_DSN` (`withSentryWhenConfigured`). |
 | `clients.ts` | `clientsFor(context, net)`: the data API client and the node client of a network, over the request's subrequest cache. What a loader calls. |
@@ -135,6 +135,21 @@ log line, the edge cache with the visitor limit, React Router.
   (`degraded answer not stored`, with the reason). **The store buffers the whole body in memory** (`arrayBuffer()`) before it decides,
   for every page and CSV it stores: the visitor's copy streams meanwhile, but for a very large page (a ledger with thousands of
   transactions) the Worker holds all of it until the stream ends.
+
+### The cache classes
+
+`app/server/cache-class.ts`. One table for the page in front of the visitor (the edge cache) and the answers under it (the subrequest cache, which the data API and node clients keep their answers in, for the class's fresh time and no longer).
+
+| Class | Fresh at the edge | Then, stale while one render refreshes it | Browser `Cache-Control` (page) | Used for |
+|---|---|---|---|---|
+| `immutable` | 1 year | 0 | `max-age=60` (an image: `max-age=31536000, immutable`) | validated ledgers and transactions, their images |
+| `live-home` | **1 s** | **2 s** | `max-age=0, must-revalidate` | the home page, and its three calls of the data API: `lastValidated()`, `fees(...)` and the first page of `transactions(...)` (no marker) |
+| `live` | 5 s | 30 s | `max-age=0, must-revalidate` | the newest ledger, an account's live state and first pages; balances and orders |
+| `slow` | 1 h | 0 | `max-age=300` | an account's creation, account images, a list page reached with a marker (`MARKER_PAGE_CLASS`) |
+| `short` | 30 s | 0 | `max-age=0` | search pages, a 404 for a well-formed id |
+
+- **`live-home` is 1 s + 2 s, not the 3 s + 30 s of spec 4, at the owner's request.** A ledger closes every 3-4 s and an open home page follows the chain (see "Live updates"), so a reload must never show a copy much older than one ledger: a copy up to 1 s old is served as it is, one 1-3 s old is served at once while one render refreshes it, and an older one is not served (the visitor waits for a render). A render that fails is still replaced by the stored copy, of any age (`max(edge TTL + 30 s, 24 h)`, see above). The browser's `Cache-Control` is unchanged.
+- **The three calls use the class `live-home`** (edge TTL 1 s) and not a TTL override: one place says what "as fresh as the home page" is. `lastValidated` is read by the ledger page (its Next at the newest ledger) and by the image route too, and a second is fine there. Account lists, balances, orders, the node's calls and a list reached with a marker keep their classes. `test/worker/data-api.spec.ts` pins each call's class and, through the Worker's own subrequest cache, the `max-age` it stores.
 
 ### Naming a page's class
 
@@ -214,6 +229,7 @@ the browser).
   chunk, fetched on first focus. `/` focuses the box except while another field has focus.
 - **Amounts.** Always render through `Amount` (`formatAmount` and `formatCurrency`: exponent notation is written out, a
   40-hex currency becomes text or "LP token"). `Sentence` renders the segments of `describe()`.
+- **Live updates** (the home page; see "Live updates" below): `use-live-refresh.ts` (`useLiveRefresh`, the 4 s revalidation), `components/DataTable.tsx` with `live` (rows enter and slide: `use-live-rows.ts`, `motion.ts`), `components/LiveValue.tsx` (a figure that ticks in), `on-screen.ts` (what a page that is on screen hands back when a revalidation fails) and `revalidation.ts` (`onlyWhenParamsChange`, the `shouldRevalidate` of the `/:net` layout).
 
 ## Home and ledger pages
 
@@ -224,10 +240,10 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
 
 | | Loader | View builder | Page |
 |---|---|---|---|
-| Home | `last_validated`, `network/fees` (8) and `transactions` (8) side by side, then `ledgers/{latest}` for the supply | `homePage` (`home-view.ts`): tiles, ledger rows (counts and close times from the fees rows), transaction rows (`headlineAmount`), the hero's examples | `HomePage` |
+| Home | `last_validated`, `network/fees` (8) and `transactions` (8) side by side (class `live-home`, 1 s), then `ledgers/{latest}` for the supply | `homePage` (`home-view.ts`): tiles, ledger rows (counts and close times from the fees rows), transaction rows (`headlineAmount`), the hero's examples | `HomePage` |
 | Ledger | `ledgers/{id}?expand=true` and `last_validated` side by side; the node's `ledger` when the index says not found | `ledgerPage` (`ledger-view.ts`): header, counts by type and result, fees (exact, as drops), accounts created, one row per transaction (`rowSentence` of `describe`), the raw header | `LedgerPage` |
 
-- **Cache classes.** Home: `live-home`. Ledger: `immutable` unless its index is the newest validated one (then `live`); a ledger
+- **Cache classes.** Home: `live-home` (1 s fresh, 2 s stale; the table under "The Worker entry"). Ledger: `immutable` unless its index is the newest validated one (then `live`); a ledger
   shown from the node is `short` with a 60 s TTL and the note "Not in the index yet, shown from the network"; a ledger neither
   has, and an id that is neither an index nor a hash, is a 404 of class `short` (for a hash it offers "Search on {other network}",
   `/{other}/search?q={HASH}`, as the transaction page does; an index is a number on both networks and gets no offer). A lower-case or mixed-case hash, and an index with
@@ -253,6 +269,19 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
   107,720,687" must reach it. The one that leads nowhere is a `span` with `role="link"` and `aria-disabled`, because a
   name cannot be given to an element with no role (axe: `aria-prohibited-attr`), and says why: the next of the newest ledger is "not validated yet"; the
   previous of ledger 1 is "this is the first ledger".
+
+### Live updates
+
+The home page follows the chain: a ledger closes every 3-4 s, and while the page is open a new ledger and its data appear in it, with an animation. (Added at the owner's request; spec 3 has a page that is as old as its stored copy.)
+
+- **The refresh.** `useLiveRefresh` (`app/ui/use-live-refresh.ts`, used by the home route only) calls React Router's `useRevalidator().revalidate()` every 4 s (`LIVE_REFRESH_MS`) while `document.visibilityState` is `visible`. A hidden tab stops the timer and costs nothing; when it is shown again the data is asked for at once and the beat goes on from there. A beat is skipped while a revalidation is running (`revalidator.state`, and a flag of the hook's own for the instant before React has drawn that, because React Router *restarts* a revalidation that is asked for again) or a navigation is in progress. The timer and the `visibilitychange` listener are removed when the page is left. The hook only has effects, so the server's HTML and the first render in the browser are what they were (no hydration mismatch). The browser never calls the data API: the request is the explorer's own `.data` URL for the page's route alone, `/{net}.data?_routes=routes%2Fnet._index`, which the edge cache answers like a page (class `live-home`: a copy up to 3 s old at once, an older one after a render). A tab that is open costs one request per 4 s, which the visitor limit (60 uncached renders per 10 s per address) counts only when it misses the cache.
+- **When a revalidation fails** (a 503 page, which React Router gives a loader as an `ErrorResponse`, or a network error). React Router 8.4 drops the route's data when its loader throws and shows the nearest error boundary in its place (`processRouteLoaderData`: `ResetLoaderDataSymbol`, then `findNearestBoundary`), and it fetches the data of all the routes that revalidate in **one** request, so a failure would also take the `/:net` layout's boundary, and with it the whole page frame. Two things keep the page instead of an error screen: the `/:net` layout (`net.tsx`) says `shouldRevalidate = onlyWhenParamsChange` (`app/ui/revalidation.ts`; its data is the network and the origin, which nothing a revalidation could change), so the request is for the page's route alone; and the home route has a `clientLoader` that runs the server's loader through `createOnScreen().reload` (`app/ui/on-screen.ts`) and, when it fails, hands back what the mounted page already shows (the component tells `show` in an effect and withdraws it when it unmounts). So: **the page stays as it was, its times keep counting up (`RelativeTime`), and the next beat tries again**; an answer that is older than the ledger on screen (the entry replaces a failing render with the stored copy of any age) is ignored as well. A *navigation* to the home page has nothing on screen to keep, so it gets the error screen as before; so does a failure with a redirect (a thrown 3xx `Response` is React Router's to follow). `app/ui/revalidation.test.tsx` shows both the error screen without these two and the kept page with them; `test/e2e/live-home.spec.ts` does it in the browser (the Worker's `.data` answers 503 for two beats, then works again).
+- **What animates** when data changes in the browser: the rows of **Latest ledgers** (keyed by ledger index) and **Latest transactions** (keyed by hash), the four tiles (latest ledger, transactions per ledger, fees burned, total supply) and the notes under three of them, the hero's status line (the ledger, how long ago it closed) and the "Try" examples. Not the ages (`RelativeTime` ticks on its own), the card links, or a figure that says the same as before: each is a `LiveValue` whose `token` is the text it shows, so the supply tile, which keeps to whole units, moves only when a whole unit has burned.
+- **How.** CSS animations and transitions and a little script; no animation library. *Rows* (`DataTable live`, `use-live-rows.ts`): after the first render a key that was not in the list before is `entering` (`.is-entering`: a fade and a slide from -8px, 400 ms after a 120 ms delay, and an accent-tinted highlight that fades out over 1.2 s); the rows that were there and are somewhere else now slide with FLIP (positions measured from the top of the table at the end of each commit, in `useLayoutEffect`; a moved row is put back with an inline `translateY` and no transition, a frame later released with `transform 420ms`, and the transition is taken off at `transitionend`). The row that falls off the bottom is simply gone. *Figures* (`LiveValue`): the new value is in a new element (keyed by its token) that comes up from 0.4em below with a fade and the same highlight (`.is-changed`, 360 ms). Movement is 600 ms at most and runs once, so nothing flashes more than three times a second. There is **no `aria-live`** on any of it: a screen reader is not told every four seconds.
+- **Not on the first render** (the server's, the hydration), and not on a navigation: a switch to the other network's home remounts the page (`key` on `HomePage`), so it is a first render too. An update that brings the same ledger again moves nothing.
+- **`prefers-reduced-motion: reduce`.** `base.css` still turns every animation and transition off (`!important` on `*`); `components.css` gives a new row and a changed figure one exception, the highlight alone (`animation: live-flash 1200ms !important`; a class beats `*` between two `!important`s): a colour fading out, once, with nothing moving. The script moves nothing either (`prefersReducedMotion()` is read when an update arrives, never while rendering): no inline transform or transition. The value still updates at once.
+- **The highlight** is the network's `--accent` at 7% as a translucent colour (`color-mix(in srgb, var(--accent) 7%, transparent)`, fading to `transparent`), so it fades out on whatever is behind it. 7% is the most that leaves every text colour of the page (`--fg`, `--muted`, `--faint` and the link, in light, dark and the system's dark, on both accents) at WCAG AA (4.5:1): the Xahau accent in light mode is 4.51:1 on a surface tinted 8%. `test/unit/live-motion-css.test.ts` reads the percentage and computes the contrast with the tokens, as `tokens.test.ts` does.
+- **Limits.** A slide that is interrupted by the next update (updates are 4 s apart and a slide is 0.4 s) restarts from where the rows would have been, not from where they were drawn. Row heights are fixed (`min-height: 46px`, one line), so positions recorded at the end of a commit are not made stale by a resize. The home page's initial JavaScript stays under the budget (see "The client bundle check").
 
 ## The transaction page
 
@@ -498,7 +527,7 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
   a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/e2e-env.test.ts` the switches of the end-to-end suite
-  (URLs, the browser, the env file read back with wrangler's own loader, which console errors a test lets through); `test/unit/e2e-stack.test.ts`
+  (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
   `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, another environment, workers.dev, the redirect), the
   command through a link, and that the deploy scripts run it between the build and `wrangler deploy` and the environments of `wrangler.jsonc` are not on workers.dev.
@@ -508,6 +537,15 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   (`api-sync-core.ts`, `compare` in `http-fixtures.ts`, `bundle-budget.ts`, `predeploy-guard.ts`), and each is tested as a command through a link.
 - `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
   rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
+- The live home page (see "Live updates") is tested in the `components` project with fake timers and a real data router, and in `unit`:
+  `use-live-refresh.test.tsx` (every 4 s while visible, none while hidden, once on becoming visible, no overlap with a running revalidation or a
+  navigation, cleanup on unmount and when the route is left, nothing on the server), `components/LiveMotion.test.tsx` (`DataTable live`: no
+  animation on the first render, `is-entering` on new keys, a FLIP transform and transition on the others over a mocked layout, reduced motion, off
+  by default; `LiveValue`: only a changed token animates), `pages/HomePage.test.tsx` ("when its data changes": new rows, changed and unchanged
+  figures, reduced motion, no live region), `on-screen.test.ts` and `revalidation.test.tsx` (React Router's own behaviour for a failed
+  revalidation, with and without what keeps the page), and `test/unit/live-motion-css.test.ts` (durations, one run, the highlight's contrast in both
+  themes on both accents, what reduced motion leaves). The Worker specs pin `live-home` at 1 s + 2 s (`cache-class.test.ts`, `home.spec.ts`,
+  `edge-cache.spec.ts`: fresh, stale at 1 s, inline after 3 s) and the three calls' class and stored `max-age` (`data-api.spec.ts`).
 - The projects do not read `vite.config.ts`, so `vitest.config.ts` gives each the `~/` alias (`app/`) itself;
   `app/domain/alias.test.ts` and `test/worker/alias.spec.ts` fail without it. The code of `app/` imports with relative
   paths.
@@ -627,10 +665,18 @@ meant: `statusesOf(mock, "GET /v2/...")` lists the statuses the mock answered a 
 
 **In the end-to-end suite:** `startFixtureServer(port)` (`test/support/fixture-server.ts`, Node only, `port` 0 for any) serves the
 same fixtures at `<url>/xrpl` and `<url>/xahau` (data API) and `<url>/xrpl-node` and `<url>/xahau-node` (JSON-RPC), so the two
-networks differ in URL, and in the Worker's cache keys, even on one origin. It returns `{ url, requests, close() }`. A request
+networks differ in URL, and in the Worker's cache keys, even on one origin. It returns `{ url, requests, override(), close() }`. A request
 reaches a file only through names made of safe pieces (no `.`/`..`, `/`, `\`, `%`, `?`, `#` in a path segment, a node's subject
 or its other parameters: `isSafePart` in `upstream-core.ts`), and the reader (`fileReader`) takes no path that resolves, or links,
 outside `test/fixtures/http/`; either lock alone stops a request from reading another file.
+
+A test that needs the chain to move on (the home page follows it, see "Live updates") changes what the upstreams answer for a while, as
+`mockUpstream` does: `override({ "GET /v2/last_validated": {...} })` in-process, or from another process (the suite's tests are not the
+stack's) `PUT <url>/__fixture/overrides` with that JSON object, `DELETE` to go back to the recorded answers. The control path wants
+`Content-Type: application/json` and `X-Fixture-Control: 1`, which a web page open in the browser under test cannot send to another origin
+without a preflight that the server never answers; keys that are none (`not an override key`) are a 400 and change nothing. The tests find
+it at a port they know, `fixturePort()` (`scripts/e2e-env.ts`): `E2E_FIXTURE_PORT`, else the Worker's port plus two (`test/e2e/fixture-control.ts`,
+`xrplHomeOneLedgerBehind()`: the XRPL home as it was one recorded ledger earlier, made from the recordings).
 
 ## End-to-end tests
 
@@ -642,7 +688,7 @@ fixtures") unless a real stack is named. Nothing in the browser or the Worker re
 `playwright.config.ts` has Playwright start `test/e2e/stack.ts` as its `webServer` and stop it at the end. The stack:
 
 1. builds (`pnpm build`, without `CLOUDFLARE_ENV`; about 1.5 s), unless `E2E_SKIP_BUILD=1`: a stale build would test the code of an hour ago;
-2. starts the fixture server on a free port;
+2. starts the fixture server on its own port (`E2E_FIXTURE_PORT`, default the Worker's port plus two, so that the tests can reach its control path);
 3. makes a temporary directory (`x-explorer-e2e-*` under the system's temp directory, new for every run) with a file `worker.env` (mode 600:
    the four upstream URLs and `DATA_API_KEY`, each in quotes with `$` escaped, because wrangler rewrites `$NAME` in a value) and `state/`;
 4. starts `wrangler dev --config build/server/wrangler.json --persist-to <dir>/state --env-file <dir>/worker.env` on `E2E_PORT` (inspector on the
@@ -653,12 +699,13 @@ fixtures") unless a real stack is named. Nothing in the browser or the Worker re
 The URLs and the key reach the Worker through that file, **never through the repository**: no `.dev.vars` is written, and a developer's own
 (which `pnpm build` copies into `build/server/.dev.vars`, and `wrangler dev` would then read over the variables of the run) is not read,
 because `--env-file` turns that lookup off. The state directory holds the Worker's Cache API, so every run starts without a stored page: an
-immutable page from an earlier run cannot hide what the code does now. The suite uses its own ports (8832 and 8833 unless `E2E_PORT` says
+immutable page from an earlier run cannot hide what the code does now. The suite uses its own ports (8832, 8833 and 8834 unless `E2E_PORT` says
 otherwise; never 5173) and never reuses a server that is already running.
 
 | Variable | Default | |
 |---|---|---|
-| `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one |
+| `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one, the fixture server the one after (`E2E_FIXTURE_PORT`) |
+| `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on (`live-home.spec.ts`) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
 | `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or staging. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
 | `E2E_DATA_API_KEY` | `e2e-fixture-key` (the fixtures take any) | The `X-API-Key` of a real data API; required with `E2E_DATA_API_URL` |
 | `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed staging) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
@@ -702,6 +749,7 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
 | `assets.spec.ts` | The stylesheet, scripts and font of a page carry `Cache-Control: public, max-age=31536000, immutable` from `public/_headers` (the local runtime applies it); a page and the favicon do not |
 | `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route module or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
+| `live-home.spec.ts` | The `live` project of `playwright.config.ts`, which runs alone after the others (what the tests do to the fixture server would show in every page the Worker renders meanwhile; `--no-deps` runs it without them), one test at a time. The fixture server says the newest XRPL ledger is the one before the recordings' newest, the home page is opened, and the fixture server goes back to the recordings: the new ledger appears without a reload (the document is the same; the browser asked only the explorer's own `.data` URL for the page's route), the new rows have `.is-entering` and the rows that were there were sent back to slide (a `MutationObserver` of the page records it), the figures that changed ticked in, and the stylesheet's animations are the ones it names (`getComputedStyle`); under `reducedMotion: "reduce"` nothing is transformed and the animation is the highlight alone; nothing animates when the page is first opened; and when the Worker answers 503 for two beats the page is the page it was (no error screen) and goes on with the new data when the Worker answers again |
 | `a11y.spec.ts` | See below |
 
 **Theme, with no flash.** The page is stored once for everybody, so the server cannot name a theme: `THEME_SCRIPT`, a plain inline script in
@@ -740,8 +788,8 @@ was reached (a link to it included): a gate that cannot tell whether it is being
 - a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction or account route; what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure). Chunks fetched with
-  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Sizes are in kilobytes of 1000 bytes. Today: home 131.1 KB, ledger 133.3,
-  transaction 135.4, account 135.8; 150,000 bytes passes and 150,001 fails;
+  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Sizes are in kilobytes of 1000 bytes. Today: home 132.5 KB, ledger 134.0,
+  transaction 136.1, account 136.5; 150,000 bytes passes and 150,001 fails;
 - any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
   the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
   These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts and images are not read;

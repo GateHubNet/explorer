@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { fileReader, startFixtureServer, type FixtureServer } from "../support/fixture-server";
 
@@ -134,6 +134,73 @@ describe("startFixtureServer", () => {
     const url = another.url;
     await another.close();
     await expect(fetch(`${url}/xrpl/v2/last_validated`, { headers: KEY })).rejects.toThrow();
+  });
+});
+
+// A test of the end-to-end suite that needs the chain to move on (the home page follows it) changes what the upstreams answer for a while: the
+// fixture server takes overrides, as `mockUpstream` does, over HTTP from another process (the suite's tests are not the stack's process) and
+// in-process. Only JSON bodies, which is what a data API answer is.
+describe("overriding what the fixture server answers", () => {
+  const CONTROL = { "Content-Type": "application/json", "X-Fixture-Control": "1" };
+  const control = (method: string, body?: unknown, headers: Record<string, string> = CONTROL) =>
+    fetch(`${server.url}/__fixture/overrides`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const head = async (net = "xrpl") => (await jsonOf(await fetch(`${server.url}/${net}/v2/last_validated`, { headers: KEY }))).ledger_index;
+
+  afterEach(async () => {
+    await control("DELETE");
+  });
+
+  it("answers with the override from the moment it is put, and with the recorded answer again once it is taken away", async () => {
+    expect(await head()).toBe("107721455");
+    const put = await control("PUT", { "GET /v2/last_validated": { result: "success", ledger_index: "107720688", ledger_hash: "A".repeat(64) } });
+    expect(put.status).toBe(204);
+    expect(await head()).toBe("107720688");
+    // The other network is not touched by a key without its prefix; a key with it is.
+    expect(await head("xahau")).toBe("26596843");
+    expect((await control("PUT", { "xahau GET /v2/last_validated": { result: "success", ledger_index: "26596844" } })).status).toBe(204);
+    expect(await head("xahau")).toBe("26596844");
+    // A new PUT replaces the earlier overrides, it does not add to them.
+    expect(await head()).toBe("107721455");
+
+    expect((await control("DELETE")).status).toBe(204);
+    expect(await head("xahau")).toBe("26596843");
+  });
+
+  it("does the same in-process", async () => {
+    server.override({ "GET /v2/last_validated": { result: "success", ledger_index: "1" } });
+    expect(await head()).toBe("1");
+    server.override(null);
+    expect(await head()).toBe("107721455");
+  });
+
+  it("refuses what is not a JSON object of override keys, and keeps what it had", async () => {
+    await control("PUT", { "GET /v2/last_validated": { result: "success", ledger_index: "5" } });
+    const bad = await control("PUT", { "not a key": {} });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toMatch(/not an override key/);
+    expect((await control("PUT", [1, 2])).status).toBe(400);
+    expect((await control("PUT", "text")).status).toBe(400);
+    expect(await head()).toBe("5");
+  });
+
+  it("is not for a web page: it wants a JSON content type and a header a page cannot send without being asked first", async () => {
+    const body = { "GET /v2/last_validated": { result: "success", ledger_index: "9" } };
+    expect((await control("PUT", body, { "Content-Type": "application/json" })).status).toBe(403);
+    expect((await control("PUT", body, { "X-Fixture-Control": "1", "Content-Type": "text/plain" })).status).toBe(403);
+    expect((await control("DELETE", undefined, {})).status).toBe(403);
+    expect(await head()).toBe("107721455");
+  });
+
+  it("knows no other method, and does not write down its own requests as upstream requests", async () => {
+    expect((await control("GET")).status).toBe(405);
+    const before = server.requests.length;
+    await control("PUT", { "GET /v2/last_validated": { result: "success", ledger_index: "7" } });
+    await control("DELETE");
+    expect(server.requests.length).toBe(before);
+    // The requests of the overridden period are in the one list, with where their answers came from.
+    await control("PUT", { "GET /v2/last_validated": { result: "success", ledger_index: "7" } });
+    await head();
+    expect(server.requests.at(-1)).toMatchObject({ key: "GET /v2/last_validated", source: "override" });
   });
 });
 

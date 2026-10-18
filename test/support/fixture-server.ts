@@ -10,14 +10,18 @@
 //   <url>/xrpl-node    XRPL node         (JSON-RPC: POST <url>/xrpl-node)
 //   <url>/xahau-node   Xahau node
 //
+// A test that needs the chain to move on (the home page follows it) changes what the upstreams answer for a while, as `mockUpstream` does:
+// `PUT <url>/__fixture/overrides` with a JSON object of override keys (upstream-core.ts) to the answers to give, `DELETE` to go back to the
+// recorded ones. Another process than the stack's (a test of the suite) asks it over HTTP; `override()` does the same in-process.
+//
 // Node only: it is not imported from anything that runs in the Workers runtime.
 
 import { readFile, realpath } from "node:fs/promises";
-import { createServer, type IncomingMessage } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createUpstream, type FixtureFiles, type SeenRequest, type UpstreamBases } from "./upstream-core";
+import { createUpstream, type FixtureFiles, type Overrides, type SeenRequest, type Upstream, type UpstreamBases } from "./upstream-core";
 
 const ROOT = new URL("../fixtures/http/", import.meta.url);
 
@@ -53,11 +57,18 @@ const onDisk = fileReader(ROOT);
 export interface FixtureServer {
   /** `http://127.0.0.1:<port>`, the origin the base paths above hang from. */
   url: string;
-  /** Every request answered, in order. */
+  /** Every request answered, in order, whichever answers were in force. */
   requests: SeenRequest[];
+  /**
+   * Answers with `overrides` (JSON bodies, keys as for `mockUpstream`, the unprefixed ones XRPL's) instead of the recorded answers
+   * wherever they name one, replacing any earlier ones; `null` goes back to the recorded answers. A key that is none throws.
+   */
+  override(overrides: Overrides | null): void;
   /** Stops listening and drops the open connections. */
   close(): Promise<void>;
 }
+
+const CONTROL_PATH = "/__fixture/overrides";
 
 async function bodyOf(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -67,10 +78,43 @@ async function bodyOf(request: IncomingMessage): Promise<Buffer> {
 
 /** Starts the server on `port` (0 for any free port) on the loopback address. */
 export async function startFixtureServer(port: number): Promise<FixtureServer> {
-  let handle: ReturnType<typeof createUpstream>["handle"] | undefined;
+  let handle: Upstream["handle"] | undefined;
+  /** Set once the server listens, when the bases are known. */
+  let swap: ((overrides: Overrides | null) => void) | undefined;
+
+  /**
+   * The control path. It is for the suite's own tests and nothing else: a web page that was open in the browser under test must not be
+   * able to change what the Worker is told, so it wants a JSON content type and a header, which a page can send to another origin only
+   * after a preflight this server never answers.
+   */
+  async function control(request: IncomingMessage, outgoing: ServerResponse): Promise<void> {
+    const reply = (status: number, message?: string) => {
+      outgoing.writeHead(status, message === undefined ? {} : { "Content-Type": "text/plain" });
+      outgoing.end(message);
+    };
+    const method = request.method ?? "GET";
+    if (method !== "PUT" && method !== "DELETE") return reply(405, "PUT or DELETE");
+    if (request.headers["x-fixture-control"] !== "1") return reply(403, "a fixture control request carries X-Fixture-Control: 1");
+    if (method === "DELETE") {
+      swap!(null);
+      return reply(204);
+    }
+    if (!String(request.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+      return reply(403, "the overrides are application/json");
+    }
+    try {
+      const parsed: unknown = JSON.parse((await bodyOf(request)).toString("utf8"));
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new TypeError("the overrides are a JSON object of override keys");
+      swap!(parsed as Overrides);
+    } catch (error) {
+      return reply(400, error instanceof Error ? error.message : String(error));
+    }
+    return reply(204);
+  }
 
   const server = createServer(async (incoming, outgoing) => {
     try {
+      if (new URL(incoming.url ?? "/", "http://127.0.0.1").pathname === CONTROL_PATH) return await control(incoming, outgoing);
       const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
       const method = incoming.method ?? "GET";
       const body = method === "GET" || method === "HEAD" ? undefined : await bodyOf(incoming);
@@ -101,12 +145,19 @@ export async function startFixtureServer(port: number): Promise<FixtureServer> {
     xrpl: { dataApi: `${url}/xrpl`, node: `${url}/xrpl-node` },
     xahau: { dataApi: `${url}/xahau`, node: `${url}/xahau-node` },
   };
-  const upstream = createUpstream({ files: onDisk, bases, primary: "xrpl" });
-  handle = upstream.handle;
+  const requests: SeenRequest[] = [];
+  const upstreamWith = (overrides?: Overrides) => createUpstream({ files: onDisk, bases, primary: "xrpl", overrides, requests });
+  const recorded = upstreamWith();
+  handle = recorded.handle;
+  swap = (overrides) => {
+    // Made before it is used: a key that is none throws here and leaves the answers as they were.
+    handle = (overrides === null ? recorded : upstreamWith(overrides)).handle;
+  };
 
   return {
     url,
-    requests: upstream.requests,
+    requests,
+    override: (overrides) => swap!(overrides),
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));

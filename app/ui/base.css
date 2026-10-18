@@ -109,6 +109,7 @@ pre {
   top: 8px;
 }
 
+/* Nothing moves for a visitor who asked for less. (The live updates of the home page keep a colour that fades out, once: components.css.) */
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

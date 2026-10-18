@@ -24,6 +24,10 @@ The plan was executed task by task, each task implemented and then reviewed. Whe
    - trust-line limits;
    - the home page's DEX trade count (dropped by the spec);
    - home has no link-preview image.
+9. **The home page follows the chain: 1 s + 2 s at the edge, a live refresh and an animation, not spec §4's 3 s + 30 s.** At the owner's request (the open page was never refreshed, and a low-traffic visitor almost always got the older stored copy).
+   - The class `live-home` is 1 s fresh and 2 s stale-while-revalidate (`app/server/cache-class.ts`); the browser's `Cache-Control` and the stale-if-error copy are unchanged. `lastValidated()`, `fees(...)` and the first page of `transactions(...)` use that class (1 s, was 5 s); every other call keeps its class.
+   - An open home page asks the explorer's own Worker for its data again every 4 s while the tab is visible (never the data API), and when the data changes new rows enter at the top of the two tables, the others slide, and the figures that changed tick in. Nothing moves for `prefers-reduced-motion: reduce` but a colour that fades out, and nothing is in a live region.
+   - A revalidation that fails leaves the page as it was (it does not become the error screen); the next beat tries again. README, "Live updates", has the mechanics.
 
 ## How it behaves
 

@@ -20,8 +20,13 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
     swr: 0,
     browser: { html: "max-age=60", image: "max-age=31536000, immutable" },
   },
-  /** The home page. */
-  "live-home": { edgeTtl: 3, swr: 30, browser: { html: REVALIDATE, image: REVALIDATE } },
+  /**
+   * The home page, and the three calls it is built from (`lastValidated`, `fees`, the first page of `transactions`). A ledger closes every
+   * 3-4 s and the open page follows the chain (see `use-live-refresh.ts`): 1 s fresh, then 2 s during which the stored copy is served while
+   * one render refreshes it, so a reload never shows a copy much older than one ledger. At the owner's request; spec 4 had 3 s + 30 s.
+   * (A copy older than 3 s is not served: the visitor waits for a render. A failing render is still replaced by the stored copy, of any age.)
+   */
+  "live-home": { edgeTtl: 1, swr: 2, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** The newest ledger, an account's live state, the first page of a list. */
   live: { edgeTtl: 5, swr: 30, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** An account's creation info, account images. */

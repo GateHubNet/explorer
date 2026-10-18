@@ -5,6 +5,7 @@
     "test/e2e/**/*.spec.ts",
     "test/e2e/support.ts",
     "test/e2e/fixtures.ts",
+    "test/e2e/fixture-control.ts",
     "scripts/e2e-env.ts"
   ],
   "compilerOptions": {

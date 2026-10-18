@@ -13,7 +13,8 @@
 // API and everything else it keeps) is new for every run and removed at the end, so a page stored by an earlier run cannot hide
 // what the code does now.
 //
-//   E2E_PORT            the Worker's port (default 8832); the inspector takes the next one. Never 5173.
+//   E2E_PORT            the Worker's port (default 8832); the inspector takes the next one, the fixture server the one after (E2E_FIXTURE_PORT).
+//                       Never 5173.
 //   E2E_DATA_API_URL    a real data API instead of the fixtures; both of these or neither. `{net}` stands for `xrpl` / `xahau`:
 //   E2E_NODE_URL        `https://{net}.data.example.com` is two URLs, a URL without it is used for both networks.
 //   E2E_DATA_API_KEY    the key a real data API wants (X-API-Key); the fixtures take any non-empty one.
@@ -29,7 +30,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatEnvFile, isStackWorkdir, upstreamUrls } from "../../scripts/e2e-env";
+import { fixturePort, formatEnvFile, isStackWorkdir, upstreamUrls } from "../../scripts/e2e-env";
 import { type FixtureServer, startFixtureServer } from "../support/fixture-server";
 
 const root = process.env.E2E_STACK_ROOT ?? fileURLToPath(new URL("../../", import.meta.url));
@@ -81,7 +82,8 @@ async function main(): Promise<void> {
 
   try {
     if (!real) {
-      fixtures = await startFixtureServer(0);
+      // A port the suite's tests know (scripts/e2e-env.ts), so that one of them can ask it to change what it answers for a while.
+      fixtures = await startFixtureServer(fixturePort(env));
       log(`fixture server ${fixtures.url}`);
     } else {
       log(`real stack: ${env.E2E_DATA_API_URL} / ${env.E2E_NODE_URL}`);

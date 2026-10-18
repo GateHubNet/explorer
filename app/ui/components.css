@@ -673,6 +673,79 @@ a.btn {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Live updates: the home page follows the chain (README, "Live updates"). A new row enters at the top of a table (`.is-entering`, put on
+   it by DataTable `live`), the rows that were there slide down to their places (inline transforms from use-live-rows.ts, FLIP), and a figure
+   that changed ticks in (`.is-changed`, LiveValue). Both get a highlight: the network's accent, a little of it, fading out over 1.2 s.
+   Movement takes 600 ms at most and runs once, so nothing flashes more than three times a second. Nothing here runs on the first
+   render. The highlight is behind text of every colour the page has, so its strength is bounded by AA contrast on both accents in both
+   themes (test/unit/live-motion-css.test.ts reads the percentage below); it is a translucent colour, not a mix with a surface, so it
+   fades out on whatever is behind it (a hovered row included). */
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes value-in {
+  from {
+    opacity: 0;
+    /* In the figure's own em: a share of its height would, on a value that wraps onto two lines, reach the note below it. */
+    transform: translateY(0.4em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes live-flash {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+/* The new row comes in a moment after the others have set off, so that it does not fade in on top of the row that is sliding out of its place. */
+.table__row.is-entering {
+  animation:
+    row-enter 400ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms backwards,
+    live-flash 1200ms ease-out backwards;
+}
+
+/* A box of its own, so that it can move; `max-width` keeps a long figure inside its tile. */
+.live__value {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+.live__value.is-changed {
+  animation:
+    value-in 360ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards,
+    live-flash 1200ms ease-out backwards;
+}
+
+/* base.css turns every animation off for this setting, `!important` on `*`. A new row and a changed figure keep the quiet half: the colour
+   fading out, once, with nothing moving. (Between two `!important` declarations the class's specificity beats `*`.) */
+@media (prefers-reduced-motion: reduce) {
+  .table__row.is-entering {
+    animation: live-flash 1200ms ease-out !important;
+  }
+
+  .live__value.is-changed {
+    animation: live-flash 1200ms ease-out !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Tabs, pager, breadcrumbs */
 
 .tabs {

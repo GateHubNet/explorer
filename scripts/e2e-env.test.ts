@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { chromiumToUse, formatEnvFile, isExpectedConsoleError, isStackWorkdir, perNetwork, upstreamUrls } from "./e2e-env";
+import { chromiumToUse, fixturePort, formatEnvFile, isExpectedConsoleError, isStackWorkdir, perNetwork, upstreamUrls } from "./e2e-env";
 
 // The two switches of the end-to-end suite that name a real stack, and the browser it launches when the one this Playwright
 // wants is not installed.
@@ -52,6 +52,25 @@ describe("upstreamUrls", () => {
 
   it("treats an empty variable as not set", () => {
     expect(upstreamUrls({ E2E_DATA_API_URL: "", E2E_NODE_URL: "" }, "http://127.0.0.1:4000").XRPL_DATA_API_URL).toBe("http://127.0.0.1:4000/xrpl");
+  });
+});
+
+describe("fixturePort", () => {
+  it("is the port after the inspector's: the Worker's port plus two", () => {
+    expect(fixturePort({})).toBe(8834);
+    expect(fixturePort({ E2E_PORT: "9000" })).toBe(9002);
+  });
+
+  it("is the one E2E_FIXTURE_PORT names", () => {
+    expect(fixturePort({ E2E_FIXTURE_PORT: "9100", E2E_PORT: "9000" })).toBe(9100);
+  });
+
+  it("refuses 5173 (another dev server's), and anything that is not a port", () => {
+    expect(() => fixturePort({ E2E_FIXTURE_PORT: "5173" })).toThrow(/5173/);
+    expect(() => fixturePort({ E2E_PORT: "5171" })).toThrow(/5173/);
+    expect(() => fixturePort({ E2E_FIXTURE_PORT: "abc" })).toThrow(/not a port/);
+    expect(() => fixturePort({ E2E_FIXTURE_PORT: "0" })).toThrow(/not a port/);
+    expect(() => fixturePort({ E2E_FIXTURE_PORT: "70000" })).toThrow(/not a port/);
   });
 });
 
