@@ -9,6 +9,11 @@ import { networkIdOfCtid, type Network, type NetworkId } from "./networks";
 import type { NodeRpc } from "./node-rpc";
 import { UpstreamError } from "./upstream";
 
+const HEX_64 = /^[0-9A-Fa-f]{64}$/;
+
+/** An answer that is not what the upstream's reference promises: its failure, never a page that says "not found". */
+const malformed = (what: string) => new UpstreamError("server", `${what} answered something unexpected`, { status: 200 });
+
 /** Whether an upstream says the thing is not there (or refuses its name as malformed, which for a name we built is the same). */
 function isMissing(err: unknown): boolean {
   return err instanceof UpstreamError && (err.kind === "not_found" || err.kind === "bad_request");
@@ -24,6 +29,8 @@ function isMissing(err: unknown): boolean {
  *   text that is not a CTID, and a network id that is neither XRPL's nor Xahau's: never taken for one of the two.
  *
  * An upstream failure other than "not found" is thrown as it is (an `UpstreamError`): the caller decides what the visitor sees.
+ * So is an answer that cannot be right: a list of hashes that is not a list, or a hash in it that is not 64 hex digits (it goes
+ * into a redirect and a path, and a ledger that has one is the upstream's fault, not a transaction that does not exist).
  */
 export async function resolveCtid(
   api: DataApi,
@@ -45,8 +52,13 @@ export async function resolveCtid(
     throw err;
   }
 
-  const hash: unknown = ledger.transactions[decoded.txIndex];
-  return typeof hash === "string" ? { hash: hash.toUpperCase() } : null;
+  const hashes: unknown = ledger.transactions;
+  if (!Array.isArray(hashes)) throw malformed(`data API ledger ${decoded.ledgerIndex}`);
+  if (decoded.txIndex >= hashes.length) return null;
+
+  const hash: unknown = hashes[decoded.txIndex];
+  if (typeof hash !== "string" || !HEX_64.test(hash)) throw malformed(`data API ledger ${decoded.ledgerIndex}`);
+  return { hash: hash.toUpperCase() };
 }
 
 /** What a hash is, as far as the choice page needs to say. Either part, both or neither is there. */
@@ -62,22 +74,38 @@ interface Asked {
   failures: unknown[];
 }
 
-/** Asks for the transaction and the ledger of a hash side by side, and waits for both, so that nothing runs on after the answer. */
+/**
+ * Asks for the transaction and the ledger of a hash side by side, and waits for both, so that nothing runs on after the answer.
+ * What the answers hold is checked here, because a 200 is not proof of a transaction: one without its `tx` (or a ledger without
+ * its index) is the upstream failing, and is counted as a failure, not read through (a TypeError would be a 500).
+ */
 async function ask(
-  transaction: () => Promise<{ ledger_index: number; tx: { TransactionType: string } }>,
-  ledger: () => Promise<{ ledger_index: number; close_time: number }>,
+  transaction: () => Promise<{ ledger_index: unknown; tx?: unknown }>,
+  ledger: () => Promise<{ ledger_index: unknown; close_time: unknown }>,
 ): Promise<Asked> {
   const [tx, lgr] = await Promise.allSettled([transaction(), ledger()]);
   const matches: HashMatches = {};
   const failures: unknown[] = [];
 
   if (tx.status === "fulfilled") {
-    matches.tx = { ledgerIndex: tx.value.ledger_index, type: tx.value.tx.TransactionType };
+    const { ledger_index: ledgerIndex, tx: body } = tx.value ?? {};
+    const type = typeof body === "object" && body !== null ? (body as { TransactionType?: unknown }).TransactionType : undefined;
+    if (typeof type === "string" && typeof ledgerIndex === "number" && Number.isFinite(ledgerIndex)) {
+      matches.tx = { ledgerIndex, type };
+    } else {
+      failures.push(malformed("transaction lookup"));
+    }
   } else if (!isMissing(tx.reason)) {
     failures.push(tx.reason);
   }
+
   if (lgr.status === "fulfilled") {
-    matches.ledger = { index: lgr.value.ledger_index, closeTime: lgr.value.close_time };
+    const { ledger_index: index, close_time: closeTime } = lgr.value ?? {};
+    if (typeof index === "number" && Number.isFinite(index) && typeof closeTime === "number" && Number.isFinite(closeTime)) {
+      matches.ledger = { index, closeTime };
+    } else {
+      failures.push(malformed("ledger lookup"));
+    }
   } else if (!isMissing(lgr.reason)) {
     failures.push(lgr.reason);
   }

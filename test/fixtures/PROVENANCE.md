@@ -78,3 +78,16 @@ decision was to leave it hand-written), so its tests in `describe.test.ts` use h
 (`pnpm fixtures:sync`, `scripts/http-fixtures.ts`), and, written by hand, the account files and `server_state` (the README's
 "Upstream fixtures" says which is which, and `test/unit/http-fixtures.test.ts` checks the hand-written ones against the
 recordings). Its transactions are the recorded ones; the creation data of its accounts and its `server_state` are invented.
+
+## Copied for the `?binary=true` fixtures: `definitions/xahau/`
+
+| Here | Source path in `data-api-new` | `data-api-new` commit at copy time | Last changed in |
+|---|---|---|---|
+| `definitions/xahau/server_definitions.json` | `packages/shared/test/fixtures/xahau/recorded/server_definitions.json` | `3e5db7073e08425da46a8a0cedcf1c4db2799278` (`git -C ../data-api-new rev-parse HEAD`) | `75bea47e536ce4b0c4ce70d3bc70a40cb6f407d2` |
+
+Copied byte for byte (`cmp` reports no difference). It is the `server_definitions` result of a Xahau node (`wss://xahau.network`,
+recorded 2026-10-15 with the ledgers of `ledgers/xahau/`). `scripts/http-fixtures.ts` builds the codec's `XrplDefinitions` from it
+to serialize the Xahau transactions into `http/xahau/data-api/transactions/<HASH>@binary=true.json`; XRPL uses the definitions
+`ripple-binary-codec` ships. `ripple-binary-codec` (2.11.0) is a devDependency of the generator and its tests: the app and the
+Worker never import it. `scripts/http-fixtures.test.ts` re-hashes every generated blob (SHA-512Half of `54584E00` and the
+serialized transaction) to the transaction's hash, so a blob that is not the real serialization fails the test.

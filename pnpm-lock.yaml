@@ -72,6 +72,9 @@ importers:
       openapi-typescript:
         specifier: ^7.13.0
         version: 7.13.0(typescript@5.9.3)
+      ripple-binary-codec:
+        specifier: ^2.11.0
+        version: 2.11.0
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -938,6 +941,9 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
+  bignumber.js@10.0.2:
+    resolution: {integrity: sha512-E8Wp9O06QA6lneJ4aRUXKYf/1GIomqUEmUMwtIOMtDxf1U52ffJY+y7JBk/8wRafA8qOIqLnXQGqonYXZdBnFQ==}
+
   bignumber.js@11.1.5:
     resolution: {integrity: sha512-6WmzCNtUnfKpbozq+hOgWaZMMzORmYBwF1xZScyoIX3QRYWeKTtxxwDOW5tIz7C9BdjkIYHGTcelCLkXg0mndw==}
 
@@ -1414,6 +1420,10 @@ packages:
 
   ripple-address-codec@5.0.1:
     resolution: {integrity: sha512-JQHLKuVJV8lv9Qobmn4aUM2Dpv9WRRLKnNWfM8tN02fAbUtG8mUPsu9q9UYX8P76G4qzytEc5ZKMp/3JggNYmw==}
+    engines: {node: '>= 18'}
+
+  ripple-binary-codec@2.11.0:
+    resolution: {integrity: sha512-qad61CYAqIi8H7DuPnuDpj40wrXY8wYrc1YbuDcA9G/NZG0Uu8unHNbTC6Itz8SlOSL0P/nF/8HTFW/1caVlTg==}
     engines: {node: '>= 18'}
 
   ripple-lib-transactionparser@0.8.2:
@@ -2392,6 +2402,8 @@ snapshots:
 
   baseline-browser-mapping@2.11.29: {}
 
+  bignumber.js@10.0.2: {}
+
   bignumber.js@11.1.5: {}
 
   bignumber.js@9.3.1: {}
@@ -2817,6 +2829,15 @@ snapshots:
     dependencies:
       '@scure/base': 2.4.0
       '@xrplf/isomorphic': 1.0.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  ripple-binary-codec@2.11.0:
+    dependencies:
+      '@xrplf/isomorphic': 1.0.2
+      bignumber.js: 10.0.2
+      ripple-address-codec: 5.0.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate

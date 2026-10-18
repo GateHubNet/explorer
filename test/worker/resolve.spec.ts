@@ -50,6 +50,57 @@ describe("resolveCtid: when the upstream fails", () => {
   });
 });
 
+describe("resolveCtid: when the ledger lists something that is not a transaction hash", () => {
+  // The hash goes into the Location of a redirect and the path of a page: it must be 64 hex digits, or it is the upstream's fault
+  // (a failure, never stored), not a transaction that does not exist (a 404, stored for 30 s).
+  it.each([
+    ["text", "not-a-hash"],
+    ["a hash of 63 digits", "AB".repeat(31) + "A"],
+    ["a hash of 66 digits", "AB".repeat(33)],
+    ["a path", "../../etc/passwd"],
+    ["a hash with a non-hex digit", `${"AB".repeat(31)}ZZ`],
+    ["an empty string", ""],
+    ["a number", 17],
+    ["null", null],
+  ])("lets %s through as an upstream failure", async (_what, entry) => {
+    mock = mockUpstream("xrpl", {
+      "GET /v2/ledgers/107600005?transactions=true": { result: "success", ledger: { ledger_index: 107600005, transactions: [entry] } },
+    });
+    const { api, network } = clientFor("xrpl");
+    const failure = await resolveCtid(api, network, encodeCtid(107600005, 0, XRPL_NETWORK_ID)).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).kind).toBe("server");
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("lets a list that is not a list through as an upstream failure", async () => {
+    mock = mockUpstream("xrpl", {
+      "GET /v2/ledgers/107600006?transactions=true": { result: "success", ledger: { ledger_index: 107600006, transactions: "oops" } },
+    });
+    const { api, network } = clientFor("xrpl");
+    const failure = await resolveCtid(api, network, encodeCtid(107600006, 0, XRPL_NETWORK_ID)).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).kind).toBe("server");
+  });
+
+  it("checks only the entry it takes: another bad entry in the list does not matter", async () => {
+    const good = "CD".repeat(32);
+    mock = mockUpstream("xrpl", {
+      "GET /v2/ledgers/107600007?transactions=true": { result: "success", ledger: { ledger_index: 107600007, transactions: [good, "junk"] } },
+    });
+    const { api, network } = clientFor("xrpl");
+    expect(await resolveCtid(api, network, encodeCtid(107600007, 0, XRPL_NETWORK_ID))).toEqual({ hash: good });
+  });
+
+  it("still answers null for an index past the end of a list of any content", async () => {
+    mock = mockUpstream("xrpl", {
+      "GET /v2/ledgers/107600008?transactions=true": { result: "success", ledger: { ledger_index: 107600008, transactions: ["junk"] } },
+    });
+    const { api, network } = clientFor("xrpl");
+    expect(await resolveCtid(api, network, encodeCtid(107600008, 1, XRPL_NETWORK_ID))).toBeNull();
+  });
+});
+
 describe("resolveCtid: a CTID of the network asked", () => {
   it("returns the hash at the transaction's place in the ledger", async () => {
     mock = mockUpstream("xrpl");
@@ -208,6 +259,38 @@ describe("findHash: when the upstream fails", () => {
     expect(failure).toBeInstanceOf(UpstreamError);
     expect((failure as UpstreamError).kind).toBe("server");
     expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  // A 200 without the transaction in it (a proxy's page, a changed API) is the upstream's failure, not a TypeError that becomes a 500.
+  it.each([
+    ["no tx at all", { hash: "TXH", ledger_index: 107600011, date: "2026-10-17T16:11:02+00:00" }],
+    ["a tx that is not an object", { hash: "TXH", ledger_index: 107600011, tx: "Payment" }],
+    ["a tx without a type", { hash: "TXH", ledger_index: 107600011, tx: { Account: "rX" } }],
+    ["a tx whose type is not text", { hash: "TXH", ledger_index: 107600011, tx: { TransactionType: 7 } }],
+    ["a tx that is null", { hash: "TXH", ledger_index: 107600011, tx: null }],
+  ])("counts a 200 with %s as an upstream failure, and does not ask the node in its place", async (_what, transaction) => {
+    const hash = "1F".repeat(32);
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: { result: "success", transaction } });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    const failure = await findHash(api, node, hash).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).kind).toBe("server");
+    expect(mock.requests.filter((request) => request.kind === "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("answers with the ledger when the transaction call came back without a transaction in it", async () => {
+    const hash = "1E".repeat(32);
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/transactions/${hash}`]: { result: "success", transaction: { hash, ledger_index: 107600012 } },
+      [`GET /v2/ledgers/${hash}`]: { result: "success", ledger: { ledger_index: 107600013, close_time: 1792253000 } },
+    });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash)).toEqual({ ledger: { index: 107600013, closeTime: 1792253000 } });
   });
 
   it("answers with what was found when the other call failed", async () => {

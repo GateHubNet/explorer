@@ -83,6 +83,19 @@ export interface TxObject {
 }
 
 /**
+ * A transaction as `GET /v2/transactions/{hash}?binary=true` serves it: the same head, and `tx` and `meta` as the upper-case hex
+ * of their serialization (the blob of `tx` is the one the transaction's hash is taken over).
+ */
+export interface TxBinary {
+  hash: string;
+  ledger_index: number;
+  /** `YYYY-MM-DDTHH:mm:ss+00:00`. */
+  date: string;
+  tx: string;
+  meta: string;
+}
+
+/**
  * A list answer: `{ result, count, marker?, <rows> }`. `K` is the key the rows come under (`transactions`,
  * `payments`, `exchanges`, `rows`). `marker` is there when there is a next page; pass it back as `marker` (it is
  * opaque, and works only for the endpoint and sort direction it came from).

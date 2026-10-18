@@ -302,6 +302,252 @@ a.example:hover {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Transaction: the head's time, the summary and its flow, the margin's cards, the memo, the raw tabs */
+
+.page-head__time {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+/* The details and the balance changes, one above the other, in the wide column. It must be allowed to be narrower than its widest
+   content: the balance table has a minimum width of its own and scrolls inside its card, and a column that is as wide as the
+   table pushes the whole page sideways on a phone. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.summary > .card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 22px 20px;
+}
+
+.summary__sentence {
+  font-size: 19px;
+  letter-spacing: -0.005em;
+}
+
+/* Where the money went: boxes joined by arrows. The way through (a pool, an offer) is set apart by a tint that is not plain
+   --sunken: the account link in it is the accent, and the Xahau accent is 4.40:1 on --sunken (the same blend as a hovered row). */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.flow__node {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.flow__node--via {
+  background: color-mix(in srgb, var(--sunken) 60%, var(--surface));
+}
+
+/* The account link stands alone in its box: a 44 px target (spec 8) without a taller box, the padding made up for by the margin. */
+.flow__node > a {
+  align-self: flex-start;
+  padding-block: 12px;
+  margin-block: -12px;
+}
+
+.flow__label {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.flow__sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flow__amount {
+  font-size: 16px;
+}
+
+.flow__arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  color: var(--faint);
+}
+
+/* An account in the balance changes, with what it was in the transaction. */
+.acct {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.acct > a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acct .type {
+  flex: none;
+  font-size: 11px;
+}
+
+.memo {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sunken);
+}
+
+.result__code-big {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Previous and next in the ledger: whole-row targets. */
+.neighbours {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.neighbours__link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+
+.neighbours__link.is-disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.objects {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.objects li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.objects .type {
+  flex: none;
+  font-size: 11px;
+}
+
+.objects li > a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.objects__more summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--link);
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+.objects__more summary::-webkit-details-marker {
+  display: none;
+}
+
+.objects__more .objects {
+  margin-top: 4px;
+}
+
+/* The raw data: stacked sections until the script has run, then a tab list with one panel. */
+.rawtabs__heading {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rawtabs__section + .rawtabs__section .rawtabs__heading {
+  border-top: 1px solid var(--border);
+}
+
+.rawtabs__note {
+  padding: 24px 16px;
+  color: var(--muted);
+}
+
+.rawtabs__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.rawtabs__bar > .btn {
+  margin-bottom: 6px;
+}
+
+.rawtabs__list {
+  display: flex;
+}
+
+.rawtabs__tab {
+  min-height: 46px;
+  margin-right: 18px;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.rawtabs__tab:hover {
+  color: var(--fg);
+}
+
+.rawtabs__tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+
+/* The bar is flush with the card, which clips what is outside its padding box: the global ring, drawn 2px outside, would be cut. */
+.rawtabs__tab:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Hex has no spaces to break at. */
+.code--wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Phones */
 
 @media (max-width: 640px) {
@@ -315,6 +561,23 @@ a.example:hover {
 
   .page-title {
     font-size: 24px;
+  }
+
+  .summary > .card__body {
+    padding: 16px;
+  }
+
+  .summary__sentence {
+    font-size: 17px;
+  }
+
+  /* One box under another, the arrow between them pointing down (the icon turns, not its row). */
+  .flow__arrow {
+    width: 100%;
+  }
+
+  .flow__arrow > svg {
+    transform: rotate(90deg);
   }
 }
 

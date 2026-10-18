@@ -16,6 +16,7 @@ import type {
   OrdersResponse,
   Page,
   Payment,
+  TxBinary,
   TxObject,
 } from "./api-types";
 import type { CacheClass, SubrequestCache } from "./cache-class";
@@ -61,6 +62,11 @@ export interface DataApi {
   ledger(id: string, opts?: { expand?: boolean; transactions?: boolean }): Promise<Ledger>;
   /** One transaction by hash. */
   transaction(hash: string): Promise<TxObject>;
+  /**
+   * The same transaction with `tx` and `meta` as the hex of their serialization (`binary=true`): the blob of `tx` is the one
+   * its hash is taken over. Asked for beside `transaction` by the transaction page, for its Binary tab.
+   */
+  transactionBinary(hash: string): Promise<TxBinary>;
   /** Transactions of all accounts, oldest first unless `descending`. */
   transactions(q: ListQuery): Promise<Page<"transactions", TxObject>>;
   /** How an account was created. 404 (`not_found`) for an address that never was. */
@@ -204,6 +210,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     // The overloads of the interface narrow `transactions` by the options; the answer is the same either way.
     ledger: ledger as DataApi["ledger"],
     transaction: (hash) => get<TxObject>(PATHS.transaction, { tx_hash: hash }, {}, "immutable", "transaction"),
+    transactionBinary: (hash) => get<TxBinary>(PATHS.transaction, { tx_hash: hash }, { binary: true }, "immutable", "transaction"),
     transactions: (q) => get(PATHS.transactions, {}, listQuery(q), listClass(q)),
     account: (address) => get<AccountData>(PATHS.account, { address }, {}, "slow", "account_data"),
     balances: (address) => get(PATHS.balances, { address }, {}, "live"),

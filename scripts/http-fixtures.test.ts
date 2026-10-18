@@ -1,17 +1,22 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  binaryTx,
   dataApiLedger,
   dataApiTx,
   feeRow,
   fixtureText,
   generate,
+  definitionsFor,
   humanTime,
   isHandWritten,
   isoTime,
   nodeLedgerResult,
   nodeTxResult,
   readLedgers,
+  TX_HASH_PREFIX,
   txDate,
   txMarker,
   unixOf,
@@ -164,5 +169,84 @@ describe("shapes", () => {
     expect(typeof hashes.ledger.transactions[0]).toBe("string");
     const expanded = nodeLedgerResult(ledger, "expanded") as { ledger: { transactions: RawTx[] } };
     expect(expanded.ledger.transactions[0]).toHaveProperty("metaData");
+  });
+});
+
+
+// The data API's `?binary=true` answer: `tx` and `meta` as the upper-case hex of the serialization (api-reference.md, "Transactions").
+// ripple-binary-codec is a devDependency used here and nowhere else: the Worker never serializes anything.
+describe("the ?binary=true fixtures", () => {
+  const files = generate();
+  const plain = [...files.keys()].filter((path) => /\/data-api\/transactions\/[0-9A-F]{64}\.json$/.test(path));
+  const binaryOf = (path: string) => path.replace(/\.json$/, "@binary=true.json");
+  const body = (path: string) => JSON.parse(files.get(path)!) as { result: string; transaction: Record<string, any> };
+
+  /** The hash of a transaction: SHA-512Half of "TXN\0" and the serialized transaction. */
+  const rehash = (txBlob: string) =>
+    createHash("sha512")
+      .update(Buffer.from(TX_HASH_PREFIX + txBlob, "hex"))
+      .digest("hex")
+      .slice(0, 64)
+      .toUpperCase();
+
+  it("exist beside every transaction file, and for nothing else", () => {
+    expect(plain.length).toBeGreaterThan(50);
+    const binary = [...files.keys()].filter((path) => path.endsWith("@binary=true.json"));
+    expect(binary.sort()).toEqual(plain.map(binaryOf).sort());
+  });
+
+  it("have the shape the API gives: the hash, the ledger and the date of the transaction beside it, tx and meta as upper-case hex", () => {
+    for (const path of plain) {
+      const { result, transaction } = body(binaryOf(path));
+      const beside = body(path).transaction;
+      expect(result, path).toBe("success");
+      // (A fixture file has its keys sorted, so the order of the API's answer is not kept.)
+      expect(Object.keys(transaction).sort(), path).toEqual(["date", "hash", "ledger_index", "meta", "tx"]);
+      expect(transaction.hash, path).toBe(beside.hash);
+      expect(transaction.ledger_index, path).toBe(beside.ledger_index);
+      expect(transaction.date, path).toBe(beside.date);
+      for (const blob of [transaction.tx, transaction.meta]) expect(blob, path).toMatch(/^(?:[0-9A-F]{2})+$/);
+    }
+  });
+
+  it("re-hash to the hash of their transaction, on both networks (the API's hex is the serialization itself)", () => {
+    const nets = new Set<string>();
+    for (const path of plain) {
+      const { transaction } = body(binaryOf(path));
+      expect(rehash(transaction.tx), path).toBe(transaction.hash);
+      nets.add(path.split("/")[0]!);
+    }
+    expect([...nets].sort()).toEqual(["xahau", "xrpl"]);
+  });
+
+  it("serialize the type the transaction beside them has (a Xahau type needs the recorded definitions of Xahau)", () => {
+    // A blob begins with the field TransactionType (code 0x12) and its two-byte number.
+    const typeCode = (hex: string) => Number.parseInt(hex.slice(2, 6), 16);
+    for (const net of ["xrpl", "xahau"] as const) {
+      const definitions = definitionsFor(net);
+      for (const path of plain.filter((p) => p.startsWith(`${net}/`))) {
+        const { transaction } = body(binaryOf(path));
+        const type = body(path).transaction.tx.TransactionType as string;
+        expect(transaction.tx.slice(0, 2), path).toBe("12");
+        expect(definitions.transactionType.from(type)?.ordinal, `${path} ${type}`).toBe(typeCode(transaction.tx));
+      }
+    }
+  });
+
+  it("are made by binaryTx from the transaction beside them", () => {
+    const [path] = plain;
+    const beside = body(path!).transaction as Parameters<typeof binaryTx>[1];
+    const made = binaryTx(path!.split("/")[0] as "xrpl" | "xahau", beside);
+    expect(made).toEqual(body(binaryOf(path!)).transaction);
+  });
+
+  it("use, for Xahau, the definitions recorded from a Xahau node: the file copied into test/fixtures/definitions", () => {
+    const provenance = readFileSync(new URL("../test/fixtures/PROVENANCE.md", import.meta.url), "utf8");
+    expect(provenance).toContain("definitions/xahau/server_definitions.json");
+    expect(provenance).toMatch(/packages\/shared\/test\/fixtures\/xahau\/recorded\/server_definitions\.json/);
+    expect(provenance).toMatch(/server_definitions[^\n]*\b[0-9a-f]{40}\b/);
+    // Types of Xahau, which the codec's own definitions of the XRP Ledger do not have.
+    expect(definitionsFor("xahau").transactionType.from("URITokenMint")).toBeDefined();
+    expect(definitionsFor("xrpl").transactionType.from("URITokenMint")).toBeUndefined();
   });
 });

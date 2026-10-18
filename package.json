@@ -45,6 +45,7 @@
     "@types/react-dom": "^19.2.7",
     "happy-dom": "^21.0.3",
     "openapi-typescript": "^7.13.0",
+    "ripple-binary-codec": "^2.11.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vite": "^8.0.3",

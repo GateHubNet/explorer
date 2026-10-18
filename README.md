@@ -84,7 +84,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | File | |
 |---|---|
 | `networks.ts` | `xrpl` and `xahau`: name, native currency, CTID network id, and the data API and node URLs from `Env`. The only place that knows a network's URLs. |
-| `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. |
+| `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. `transaction(hash)` and `transactionBinary(hash)` (`binary=true`: `tx` and `meta` as hex) are the same path with and without that flag. |
 | `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds. |
 | `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
 | `cache-class.ts` | The five cache classes with their TTLs and `Cache-Control` values, and the `SubrequestCache` interface both clients take. |
@@ -94,7 +94,8 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `network-route.ts` | `requireNetwork(context, params)` (the `:net` segment as a `Network`, or a 404 of class `short`), `publicNetwork(net)` (what may go to the browser: no URLs), `readNetworkCookie(header)`. |
 | `loader-errors.ts` | `upstreamFailure(err, what)`: what a loader throws for a failed upstream call: 404 `short` for `not_found`/`bad_request`, 503 with `Retry-After` for the rest, anything else rethrown. |
 | `capture.ts` | `handleLoaderError`, the `handleError` of `app/entry.server.tsx`: one log line per loader error and, with a `SENTRY_DSN`, Sentry. |
-| `resolve.ts` | What a search input names: `resolveCtid(api, net, ctid)` (the hash at a CTID's place in its ledger, or the other network it belongs to, or `null`) and `findHash(api, node, hash)` (a transaction, a ledger, both or neither; the node is asked when the data API has neither). They return "nothing" for a thing that is not there and throw the `UpstreamError` of a failure, so a caller can tell a 404 from a 503. |
+| `resolve.ts` | What a search input names: `resolveCtid(api, net, ctid)` (the hash at a CTID's place in its ledger, or the other network it belongs to, or `null`) and `findHash(api, node, hash)` (a transaction, a ledger, both or neither; the node is asked when the data API has neither). They return "nothing" for a thing that is not there and throw the `UpstreamError` of a failure, so a caller can tell a 404 from a 503. An answer that cannot be right is a failure too: a 200 for a hash without its `tx`, a ledger's list that is not a list, a hash in it that is not 64 hex digits (it goes into a redirect and a path). |
+| `transaction-view.ts` | What the transaction page shows (`transactionPage`): worked out from a transaction of the data API (`txFromIndex`) or the node (`txFromNode`), the hashes of its ledger (`neighboursOf`) and the binary form (`binaryOf`). See "The transaction page". |
 
 ## The Worker entry
 
@@ -167,8 +168,8 @@ the browser).
   that sets one. Only `/` reads it (a 302 to `/{net}`, `Cache-Control: no-store`, XRPL without a valid cookie).
 - **Routes** (`app/routes.ts`): `/` (`routes/index.tsx`, the redirect), `/robots.txt`, `/:net` (`routes/net.tsx`, the layout:
   header, footer, search, the network's accent; its loader answers a 404 for an unknown network and gives its children
-  `useNetwork()`) with the home page (`routes/net._index.tsx`), the ledger page (`routes/net.ledger.$id.tsx`) and search (`routes/net.search.tsx`) under it, and `*`
-  (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
+  `useNetwork()`) with the home page (`routes/net._index.tsx`), the ledger page (`routes/net.ledger.$id.tsx`), the transaction page
+  (`routes/net.tx.$id.tsx`) and search (`routes/net.search.tsx`) under it, and `*` (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
   network with `requireNetwork(context, params)` and the clients with `clientsFor(context, net)`, names its cache class with
   `cached(...)`, turns upstream failures into responses with `upstreamFailure(err, what)`, and its module exports
   `headers = forwardCacheClass` (see above; `test/unit/route-headers.test.ts` enforces it). A page with its own big search box
@@ -212,6 +213,40 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
   the browser (one shared timer, none while the tab is hidden), because a page is stored for seconds or for a year.
 - **Tables** (`DataTable`) scroll inside their card below their `minWidth`, which must be at least the sum of the tracks, the gaps
   and the padding of a row, or the rows' borders and hover end early.
+
+## The transaction page
+
+`/{net}/tx/{hash|ctid}` (`routes/net.tx.$id.tsx`) is a child of the `/:net` layout like the ledger page: the loader asks the clients, `app/server/transaction-view.ts` (`transactionPage`) works the page out, `cached(...)` names the class, and `app/ui/pages/TransactionPage.tsx` draws it
+(with `Flow` for the money's way and `RawTabs` for the raw data). The page data holds the sentence (segments), the flow, the
+details, the balance changes, the objects touched and the neighbours; the transaction's own JSON reaches the browser only as the
+text of the raw tabs (`raw.tx`, `raw.meta`), so `describe/` and `parse/` stay in the Worker (`test/unit/transaction-bundle.test.ts`
+fails if the page's files import them as values).
+
+| Request | Answer | Class |
+|---|---|---|
+| a hash in upper case, found by the data API | the page; the transaction, `?binary=true` and `/v2/ledgers/{index}?transactions=true` (for the neighbours) are asked for | `immutable` |
+| the same, and the binary call failed | the page, its Binary tab saying "The binary form could not be loaded just now." | `short` (30 s), never `immutable` |
+| the same, and the ledger's list failed, was "not found", or does not hold the transaction at its place | 503 (`upstreamOutage`): a missing neighbour would be stored for a year | not stored |
+| the data API says "not found" | the node's `tx`; a transaction in a validated ledger is shown with "Not in the index yet, shown from the network", **without** previous/next and Binary (they say they appear once it is indexed) | `short`, TTL 60 s |
+| neither has it, or the node's answer is not validated | 404 with the search box and "Search on {other network}" (`/{other}/search?q={HASH}`) | `short` (30 s), `noindex` |
+| any other failure of the data API (5xx, 429, timeout, a 200 without a usable transaction) | 503, the node is not asked | not stored |
+| a hash in another case | 302 to the upper-case URL, nobody asked | `immutable` |
+| a CTID of this network | 302 to `/{net}/tx/{HASH}` (`resolveCtid`); a CTID that names nothing, or of a network id that is neither XRPL's nor Xahau's, is a 404 | `immutable` redirect, `short` 404 |
+| a CTID of the other network | 200: the page the search shows ("That CTID is on Xahau", with the link), nobody asked; `noindex, follow` | `short` |
+| anything else (also `0x` + hash) | 404, nobody asked | `short` |
+
+- **Position.** "transaction 12 of 66" uses the number the ledger page's `#` column shows (`TransactionIndex`, counted from 0), and
+  Previous / Next are `#11` and `#13`. They link to `/{net}/tx/{HASH}` of the neighbours in the ledger's list, which has only
+  hashes, so a link shows a position and no type. At either end of the ledger the link is shown disabled ("first in ledger").
+- **Binary.** The API's hex is the serialization itself (it re-hashes to the transaction hash), so the Worker never encodes: the
+  Binary tab shows the hex of the transaction (the blob the hash is taken over) and of its metadata.
+- **Raw tabs without JavaScript.** All three panels are in the page, one under the other, each under a heading; once the script has
+  run they become a tablist (real buttons, arrow keys, Home and End) with one panel and a Copy button. The server's markup and the
+  first client render are the same, so nothing mismatches.
+- **The sender's native change** in Balance changes is the whole change of its balance, fee included (the page says so; the fee has
+  a row of its own). A change shows a plus sign in the success colour or a minus sign; the roles (sender, destination, AMM pool)
+  are tags beside the account.
+- **No age** is in the stored page (`RelativeTime` fills it in in the browser), and nothing is streamed.
 
 ## Search
 
@@ -259,9 +294,9 @@ cost a render each.
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
   Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry); `layout.spec.ts` asks the Worker
   for `/`, the 404 pages, `/:net` (the home page now, so against the recorded upstream), the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
-  that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures"). `home.spec.ts`, `ledger.spec.ts` and `search.spec.ts` ask for the pages
+  that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures"). `home.spec.ts`, `ledger.spec.ts`, `search.spec.ts` and `transaction.spec.ts` ask for the pages
   through `pageClient` (`test/support/pages.ts`: the page, the HTML as text, anchors, table rows, the class and TTL the entry stored a
-  page under); `resolve.spec.ts` calls `resolveCtid` and `findHash` with a data API client and a node client of its own. The
+  page under); `resolve.spec.ts` calls `resolveCtid` and `findHash` with a data API client and a node client of its own. `transaction.spec.ts` covers the transaction page and its redirects, 404s, node fallback and 503s (failures first, one transaction per override); `app/server/transaction-view.test.ts` the view builder over recorded transactions; `test/unit/transaction-bundle.test.ts` and `transaction-css.test.ts` what the page may import and what its stylesheet must keep. The
   hashes of a recorded ledger come from `test/support/ledger-hashes.ts`, read from the fixture files and not through a client. What a spec file's Worker puts in the Cache API stays there for the rest of the file, edge pages and subrequests
   alike (and an error is never stored): a test that overrides an upstream answer asks for a URL, a ledger or a network no other test
   of the file asks for, and a test that needs a failing `last_validated` goes first.
@@ -289,6 +324,7 @@ rippled's from API v1), plus the accounts, which are written by hand.
 | `data-api/ledgers/<index>.json`, `...@transactions=true.json` | every recorded ledger, plain and with its hashes in ledger order | generator |
 | `data-api/ledgers/<index>@expand=true&transactions=true.json` | in full: XRPL 107720688 (two accounts created) and 107721455; Xahau 26540187, 26540188 (the only consecutive ledgers of the recordings, for previous and next), 26596843 | generator |
 | `data-api/transactions/<HASH>.json` | one per type the recordings looked for (the manifests' `found` and `cases`: XRPL 29, Xahau 7), the 8 newest, and every transaction an account list names | generator |
+| `data-api/transactions/<HASH>@binary=true.json` | the same transactions with `tx` and `meta` as the hex of their serialization (`?binary=true`); every blob re-hashes to its transaction hash (`scripts/http-fixtures.test.ts`). Made with `ripple-binary-codec` (a devDependency of the generator and its tests, never imported by `app/` or `workers/`); Xahau with its recorded `server_definitions.json` (`test/fixtures/definitions/xahau/`, see `test/fixtures/PROVENANCE.md`) | generator |
 | `data-api/transactions@descending=true&limit=8.json`, `data-api/network/fees@descending=true&limit=8.json` | the home page's lists | generator |
 | `node/tx/<HASH>.json`, `node/ledger/<index>[@...].json` | the same transactions and the expanded ledgers, as the node answers (Ripple-epoch times) | generator |
 | `ledger-hashes.json` | ledger hash to index, so that a ledger is stored once and found by either | generator |

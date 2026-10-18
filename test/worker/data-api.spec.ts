@@ -103,6 +103,8 @@ const txObject = {
 const expandedLedgerBody = { ...ledgerBody, ledger: { ...ledgerBody.ledger, transactions: [txObject] } };
 const hashedLedgerBody = { ...ledgerBody, ledger: { ...ledgerBody.ledger, transactions: [HASH] } };
 const transactionBody = { result: "success", transaction: txObject };
+const binaryObject = { hash: HASH, ledger_index: 107671558, date: "2026-10-13T09:04:30+00:00", tx: "120000220000000024", meta: "201C0000000C" };
+const binaryBody = { result: "success", transaction: binaryObject };
 const transactionsBody = { result: "success", count: 1, marker: "WzEwNzY3MDM2MCw1XQ", transactions: [txObject] };
 const accountBody = {
   result: "success",
@@ -186,6 +188,15 @@ const cases: Case[] = [
     url: `/v2/transactions/${HASH}`,
     body: transactionBody,
     result: txObject,
+  },
+  {
+    // The serialization, as hex, of the transaction and its metadata (`binary=true`): for the page's Binary tab.
+    name: "transaction, binary",
+    cls: "immutable",
+    call: (a) => a.transactionBinary(HASH),
+    url: `/v2/transactions/${HASH}?binary=true`,
+    body: binaryBody,
+    result: binaryObject,
   },
   {
     name: "transactions, first page",

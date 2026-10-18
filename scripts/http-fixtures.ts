@@ -9,11 +9,17 @@
 //
 // Files with account data (test/fixtures/http/<net>/data-api/accounts/, node/account_info, node/account_objects and
 // node/server_state.json) are written by hand and left alone; the transactions they name are served here too.
+//
+// `?binary=true` answers (`transactions/<HASH>@binary=true.json`) hold `tx` and `meta` as the hex of their serialization,
+// made here with ripple-binary-codec (a devDependency: the Worker never serializes). XRPL uses the codec's own definitions,
+// Xahau the ones recorded from a Xahau node (test/fixtures/definitions/xahau/server_definitions.json, see PROVENANCE.md).
 
 import { readdirSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 
-import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerWithHashes, Page, TxObject } from "../app/server/api-types";
+import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase } from "ripple-binary-codec";
+
+import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 
 export const LEDGERS = new URL("../test/fixtures/ledgers/", import.meta.url);
@@ -27,6 +33,17 @@ export const SETS: Record<NetworkName, string[]> = {
   xrpl: ["xrpl", "xrpl-amm", "xrpl-extra"],
   xahau: ["xahau", "xahau-extra"],
 };
+
+/** The prefix a transaction's hash is taken over, `TXN\0`: SHA-512Half of it and the serialized transaction is the hash. */
+export const TX_HASH_PREFIX = "54584E00";
+
+/** The binary codec's definitions of a network: the codec's own for XRPL, the recorded ones for Xahau (which has types XRPL has not). */
+export function definitionsFor(net: NetworkName): XrplDefinitionsBase {
+  if (net === "xrpl") return DEFAULT_DEFINITIONS;
+  const recorded = readFileSync(new URL("../test/fixtures/definitions/xahau/server_definitions.json", import.meta.url), "utf8");
+  return (xahauDefinitions ??= new XrplDefinitions(JSON.parse(recorded)));
+}
+let xahauDefinitions: XrplDefinitions | undefined;
 
 /**
  * The ledgers served with their transactions in full (`?expand=true`) by the data API and by the node: the newest one,
@@ -146,6 +163,21 @@ export function dataApiTx(raw: RawLedger, tx: RawTx, withLedgerHash = false): Tx
     ...(withLedgerHash && { ledger_hash: raw.ledger_hash }),
   };
   return object as unknown as TxObject;
+}
+
+/**
+ * A transaction as `?binary=true` serves it: the same head, `tx` and `meta` as the upper-case hex of their serialization.
+ * The blob of `tx` is the serialization the hash is taken over, so it re-hashes to `hash` (`TX_HASH_PREFIX`).
+ */
+export function binaryTx(net: NetworkName, served: TxObject): TxBinary {
+  const definitions = definitionsFor(net);
+  return {
+    hash: served.hash,
+    ledger_index: served.ledger_index,
+    date: served.date,
+    tx: encode(served.tx, definitions),
+    meta: encode(served.meta, definitions),
+  };
 }
 
 /** A ledger as the data API serves it, without its transactions. */
@@ -379,7 +411,9 @@ export function generate(): Map<string, string> {
     for (const hash of served) {
       const found = byHash.get(hash);
       if (!found) throw new Error(`${net}: no recorded transaction ${hash}`);
-      api(net, `/v2/transactions/${hash}`, "", { result: "success", transaction: dataApiTx(found.raw, found.tx) });
+      const served = dataApiTx(found.raw, found.tx);
+      api(net, `/v2/transactions/${hash}`, "", { result: "success", transaction: served });
+      api(net, `/v2/transactions/${hash}`, "binary=true", { result: "success", transaction: binaryTx(net, served) });
       put(nodeFile(net, "tx", { transaction: hash }), { result: nodeTxResult(found.raw, found.tx) });
     }
   }

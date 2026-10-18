@@ -270,3 +270,26 @@ describe("the accounts written by hand", () => {
     }
   });
 });
+
+describe("the binary codec", () => {
+  it("is imported by scripts and tests only, never by the app or the Worker (a devDependency)", () => {
+    const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(pkg.devDependencies).toHaveProperty("ripple-binary-codec");
+    expect(pkg.dependencies).not.toHaveProperty("ripple-binary-codec");
+
+    const roots = ["../../app/", "../../workers/"];
+    const offenders: string[] = [];
+    const walk = (dir: URL) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const child = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
+        if (entry.isDirectory()) walk(child);
+        else if (/\.(ts|tsx)$/.test(entry.name) && /ripple-binary-codec/.test(readFileSync(child, "utf8"))) offenders.push(child.pathname);
+      }
+    };
+    for (const root of roots) walk(new URL(root, import.meta.url));
+    expect(offenders).toEqual([]);
+  });
+});
