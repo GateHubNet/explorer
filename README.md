@@ -94,6 +94,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 | `network-route.ts` | `requireNetwork(context, params)` (the `:net` segment as a `Network`, or a 404 of class `short`), `publicNetwork(net)` (what may go to the browser: no URLs), `readNetworkCookie(header)`. |
 | `loader-errors.ts` | `upstreamFailure(err, what)`: what a loader throws for a failed upstream call: 404 `short` for `not_found`/`bad_request`, 503 with `Retry-After` for the rest, anything else rethrown. |
 | `capture.ts` | `handleLoaderError`, the `handleError` of `app/entry.server.tsx`: one log line per loader error and, with a `SENTRY_DSN`, Sentry. |
+| `resolve.ts` | What a search input names: `resolveCtid(api, net, ctid)` (the hash at a CTID's place in its ledger, or the other network it belongs to, or `null`) and `findHash(api, node, hash)` (a transaction, a ledger, both or neither; the node is asked when the data API has neither). They return "nothing" for a thing that is not there and throw the `UpstreamError` of a failure, so a caller can tell a 404 from a 503. |
 
 ## The Worker entry
 
@@ -166,7 +167,7 @@ the browser).
   that sets one. Only `/` reads it (a 302 to `/{net}`, `Cache-Control: no-store`, XRPL without a valid cookie).
 - **Routes** (`app/routes.ts`): `/` (`routes/index.tsx`, the redirect), `/robots.txt`, `/:net` (`routes/net.tsx`, the layout:
   header, footer, search, the network's accent; its loader answers a 404 for an unknown network and gives its children
-  `useNetwork()`) with the home page (`routes/net._index.tsx`) and the ledger page (`routes/net.ledger.$id.tsx`) under it, and `*`
+  `useNetwork()`) with the home page (`routes/net._index.tsx`), the ledger page (`routes/net.ledger.$id.tsx`) and search (`routes/net.search.tsx`) under it, and `*`
   (`routes/not-found.tsx`). A page is a child of `routes/net.tsx` in `routes.ts`. Its loader gets the
   network with `requireNetwork(context, params)` and the clients with `clientsFor(context, net)`, names its cache class with
   `cached(...)`, turns upstream failures into responses with `upstreamFailure(err, what)`, and its module exports
@@ -212,6 +213,30 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
 - **Tables** (`DataTable`) scroll inside their card below their `minWidth`, which must be at least the sum of the tracks, the gaps
   and the padding of a row, or the rows' borders and hover end early.
 
+## Search
+
+`/{net}/search?q=...` (`routes/net.search.tsx`) is what the search box submits, so it works before JavaScript loads. Its loader says what
+the input is with `classify` (`app/domain/search.ts`, the rules of spec 6) and either redirects or answers with a page. Every answer
+is class `short` (30 s), redirects included (`cacheClassHeaders("short")`), and the pages are `noindex, follow`. The page data comes
+from `app/server/search-view.ts` and `app/ui/pages/SearchPage.tsx` draws it.
+
+| Input | Answer |
+|---|---|
+| `107695660`, `107,695,660`, `107 695 660` (an index grouped by thousands is what the explorer shows, so it is what visitors copy) | 302 to `/{net}/ledger/{n}`, without asking anyone |
+| an address, an X-address | 302 to `/{net}/account/{address}`, with `?tag=` for an X-address that carries one |
+| 64 hex digits (with or without `0x`, in either case) | the data API is asked for `/v2/transactions/{h}` and `/v2/ledgers/{h}`, and when it has neither, the node for `tx` and `ledger` (spec 10: history before the backfill, the seconds before ingest). One found: 302 to `/{net}/tx/{HASH}` or `/{net}/ledger/{HASH}`. Both: a 200 page with both links (`SearchChoicePage`). Neither: a 404 that offers "Search on {other network}" (`/{other}/search?q={HASH}`) |
+| a CTID | `resolveCtid`: of this network, 302 to `/{net}/tx/{hash}`, or a 404 when the ledger or the index in it is not there; of the other network, a 200 page that offers `/{other}/tx/{ctid}`; a network id that is neither XRPL's (0) nor Xahau's (21337) is a 404 that says so, never taken for one of the two |
+| anything else, nothing | a 200 page with the help text (what can be searched for), the box holding what was typed |
+
+An upstream failure that leaves the question open is a 503 through `upstreamFailure` (the node is not asked in place of a data API
+that failed), never a "not found" that would be stored. Something found wins over the failure of the other question (a hash is a
+transaction or a ledger, practically never both). The pages repeat what was typed cut to 200 characters. A client-side search (the
+`.data` URL) redirects the same way, but React Router's answer for a redirect there (a 202) is not stored by the edge, so those
+cost a render each.
+
+`NotFoundPage` is the frame of the help, the 404s and the other-network offer: its `title`, `message`, `children` (the help list),
+`query` and `suggestion` carry what differs.
+
 ## Tests
 
 - `unit` project: `app/**/*.test.ts` (not under `app/ui`), `scripts/**/*.test.ts` and `test/unit/**/*.test.ts`, in Node.
@@ -234,9 +259,10 @@ gets a transaction's JSON, only what a row shows, so the parsing and summary cod
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
   Worker through `exports.default.fetch` (id, log line, the real `VISITOR_LIMITER`, Sentry); `layout.spec.ts` asks the Worker
   for `/`, the 404 pages, `/:net` (the home page now, so against the recorded upstream), the document shell and `robots.txt`. A 404 page is class `short`, so it is stored: a test
-  that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures"). `home.spec.ts` and `ledger.spec.ts` ask for the pages
+  that needs a cache miss asks for a path nobody else does. `upstream.spec.ts` tests the upstream mock (see "Upstream fixtures"). `home.spec.ts`, `ledger.spec.ts` and `search.spec.ts` ask for the pages
   through `pageClient` (`test/support/pages.ts`: the page, the HTML as text, anchors, table rows, the class and TTL the entry stored a
-  page under). What a spec file's Worker puts in the Cache API stays there for the rest of the file, edge pages and subrequests
+  page under); `resolve.spec.ts` calls `resolveCtid` and `findHash` with a data API client and a node client of its own. The
+  hashes of a recorded ledger come from `test/support/ledger-hashes.ts`, read from the fixture files and not through a client. What a spec file's Worker puts in the Cache API stays there for the rest of the file, edge pages and subrequests
   alike (and an error is never stored): a test that overrides an upstream answer asks for a URL, a ledger or a network no other test
   of the file asks for, and a test that needs a failing `last_validated` goes first.
 - Recorded mainnet ledgers (XRPL, XRPL AMM cases, Xahau), copied from `data-api-new` and kept as `.json.gz`, are in

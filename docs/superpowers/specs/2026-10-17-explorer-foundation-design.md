@@ -163,7 +163,7 @@ Behind Cloudflare, every visitor's request reaches the data API from Cloudflare'
 
 | Input (trimmed) | Classified as | Resolution in the Worker |
 |---|---|---|
-| 1 to 10 digits | ledger index | redirect to `/{net}/ledger/{n}` |
+| 1 to 10 digits, or grouped by thousands with commas or single spaces (`107,695,660`, as the explorer shows an index) | ledger index | redirect to `/{net}/ledger/{n}` |
 | 64 hex digits | transaction or ledger hash | try `/v2/transactions/{h}`, then `/v2/ledgers/{h}`; redirect to the one that exists; if both exist, a page with both; if neither, the not-found flow of section 10 |
 | `C` or `c` + 15 hex digits | CTID | section 3 |
 | classic address with a valid checksum | account | redirect to `/{net}/account/{a}` |

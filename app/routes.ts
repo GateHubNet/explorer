@@ -8,6 +8,7 @@ export default [
   route(":net", "routes/net.tsx", [
     index("routes/net._index.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
+    route("search", "routes/net.search.tsx"),
   ]),
   // Anything else.
   route("*", "routes/not-found.tsx"),

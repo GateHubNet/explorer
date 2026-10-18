@@ -11,12 +11,14 @@ export interface NotFoundSuggestion {
 
 /**
  * The page for something that does not exist (spec 10): what was asked for, the search box with what was typed in it, and a
- * way home. Used by the `*` route, by the unknown-network 404, and by the error boundaries for a 404 that a loader threw.
+ * way home. Used by the `*` route, by the unknown-network 404, by the error boundaries for a 404 that a loader threw, and by
+ * the search page for what it has nothing to redirect to (the help text, a hash or CTID that is not there, a CTID of the other
+ * network).
  *
  * - `what` is the thing as a phrase (`ledger 107695660`, `transaction 67F91E…7C31`): "We couldn't find {what} on {network}."
  *   `message` replaces that sentence.
- * - `suggestion` is one more link, for "the same search on the other network".
- * - `children` follow the message, for anything the case needs besides.
+ * - `suggestion` is one more link, for "the same search on the other network" or "open it on the other network".
+ * - `children` follow the message, for anything the case needs besides (the search page's list of what can be searched).
  */
 export function NotFoundPage({
   net,

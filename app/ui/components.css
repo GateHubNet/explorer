@@ -836,6 +836,16 @@ a.tabs__item:hover {
   align-self: stretch;
 }
 
+/* What the search takes, on the page for an input it does not know. */
+.notfound__help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 20px;
+  color: var(--muted);
+  list-style: disc;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Phones */
 

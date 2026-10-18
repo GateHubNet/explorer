@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Env } from "./env";
-import { isNetworkId, networkOf } from "./networks";
+import { isNetworkId, networkIdOfCtid, networkOf } from "./networks";
 
 const env: Env = {
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
@@ -67,4 +67,22 @@ describe("isNetworkId", () => {
       expect(isNetworkId(segment)).toBe(false);
     },
   );
+});
+
+describe("networkIdOfCtid", () => {
+  it("names the network a CTID's network id belongs to", () => {
+    expect(networkIdOfCtid(0)).toBe("xrpl");
+    expect(networkIdOfCtid(21337)).toBe("xahau");
+  });
+
+  it("agrees with the network ids of networkOf", () => {
+    for (const id of ["xrpl", "xahau"] as const) {
+      expect(networkIdOfCtid(networkOf(id, env).ctidNetworkId)).toBe(id);
+    }
+  });
+
+  // Testnets and sidechains have their own ids (1, 2, 21338, ...): the explorer does not cover them, and must not guess.
+  it.each([1, 2, 21336, 21338, 65535, -1, 0.5, Number.NaN])("knows no network for %j", (networkId) => {
+    expect(networkIdOfCtid(networkId)).toBeUndefined();
+  });
 });

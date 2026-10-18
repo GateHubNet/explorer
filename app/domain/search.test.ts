@@ -31,12 +31,43 @@ describe("classify: ledger index", () => {
     expect(classify("99999999999999999999")).toEqual({ kind: "none" });
   });
 
-  it("finds nothing in a number that is not plain digits", () => {
+  it("finds nothing in a number that is not plain digits or grouped by thousands", () => {
     expect(classify("-5")).toEqual({ kind: "none" });
     expect(classify("1.5")).toEqual({ kind: "none" });
-    expect(classify("1,000")).toEqual({ kind: "none" });
     expect(classify("1e6")).toEqual({ kind: "none" });
-    expect(classify("107 695 660")).toEqual({ kind: "none" });
+  });
+
+  // The explorer shows a ledger index grouped (`#107,695,660`), and visitors copy it as it is shown.
+  it("reads an index grouped by thousands with commas or single spaces", () => {
+    expect(classify("107,695,660")).toEqual({ kind: "ledger-index", index: 107695660 });
+    expect(classify("107 695 660")).toEqual({ kind: "ledger-index", index: 107695660 });
+    expect(classify("  107,695,660\n")).toEqual({ kind: "ledger-index", index: 107695660 });
+    expect(classify("1,000")).toEqual({ kind: "ledger-index", index: 1000 });
+    expect(classify("12 345")).toEqual({ kind: "ledger-index", index: 12345 });
+    expect(classify("4,294,967,295")).toEqual({ kind: "ledger-index", index: 4294967295 });
+  });
+
+  it("finds nothing in a grouping that is not by thousands from the first group on", () => {
+    expect(classify("1,000,0")).toEqual({ kind: "none" });
+    expect(classify("1,0000")).toEqual({ kind: "none" });
+    expect(classify("1,00")).toEqual({ kind: "none" });
+    expect(classify("1000,000")).toEqual({ kind: "none" });
+    expect(classify(",000")).toEqual({ kind: "none" });
+    expect(classify("1,000,")).toEqual({ kind: "none" });
+    expect(classify("107 695 66")).toEqual({ kind: "none" });
+    expect(classify("107  695  660")).toEqual({ kind: "none" });
+  });
+
+  it("finds nothing in groups that mix separators", () => {
+    expect(classify("107,695 660")).toEqual({ kind: "none" });
+    expect(classify("107 695,660")).toEqual({ kind: "none" });
+    expect(classify("1,000 000")).toEqual({ kind: "none" });
+  });
+
+  it("finds nothing in a grouped number outside the range of ledger indexes", () => {
+    expect(classify("0,000")).toEqual({ kind: "none" });
+    expect(classify("4,294,967,296")).toEqual({ kind: "none" });
+    expect(classify("99,999,999,999,999")).toEqual({ kind: "none" });
   });
 });
 

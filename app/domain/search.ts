@@ -19,6 +19,11 @@ const MAX_LEDGER_INDEX = 4294967295;
 /** 64 hex digits, with or without the `0x` some tools put in front. */
 const HASH = /^(?:0x)?([0-9a-f]{64})$/i;
 const DIGITS = /^\d{1,10}$/;
+/**
+ * A ledger index grouped by thousands, the way the explorer shows one (`107,695,660`) and visitors copy it: one to three digits,
+ * then groups of exactly three, all separated by the same comma or the same single space.
+ */
+const GROUPED = /^\d{1,3}([, ])\d{3}(?:\1\d{3})*$/;
 
 /**
  * Tells what a search input is. The input is trimmed; hashes and CTIDs come back in upper case, an
@@ -36,8 +41,8 @@ export function classify(input: string): SearchKind {
   const ctid = decodeCtid(s);
   if (ctid) return { kind: "ctid", ctid: s.toUpperCase(), ...ctid };
 
-  if (DIGITS.test(s)) {
-    const index = Number(s);
+  if (DIGITS.test(s) || GROUPED.test(s)) {
+    const index = Number(s.replace(/[, ]/g, ""));
     return index >= 1 && index <= MAX_LEDGER_INDEX ? { kind: "ledger-index", index } : { kind: "none" };
   }
 

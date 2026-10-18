@@ -325,3 +325,41 @@ a.example:hover {
     min-height: 44px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Search: the page that asks which of two things a hash is */
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 640px;
+  padding-block: 32px 0;
+}
+
+.choice h1 {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.choice p {
+  color: var(--muted);
+}
+
+.choice__hash {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.choice .hits {
+  align-self: stretch;
+}
+
+/* The hint rows cut a long line short; here the line is what the choice is made from, so it wraps. */
+.choice .hit__detail {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}

@@ -53,6 +53,11 @@ export function isNetworkId(s: string): s is NetworkId {
   return Object.hasOwn(NETWORKS, s);
 }
 
+/** The network a CTID's network id belongs to, or `undefined` for any other (a testnet, a sidechain): never a guess. */
+export function networkIdOfCtid(networkId: number): NetworkId | undefined {
+  return (Object.keys(NETWORKS) as NetworkId[]).find((id) => NETWORKS[id].ctidNetworkId === networkId);
+}
+
 /** The network `id` with the URLs this deployment is configured with. */
 export function networkOf(id: NetworkId, env: Env): Network {
   const { dataApiUrlVar, nodeUrlVar, ...entry } = NETWORKS[id];
