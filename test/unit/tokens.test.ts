@@ -115,6 +115,28 @@ describe("tokens.css", () => {
     expect(light["--series-other"]).toMatch(/^#[0-9a-f]{6}$/);
     expect(darkByAttribute["--series-other"]).toMatch(/^#[0-9a-f]{6}$/);
   });
+
+  // Spec section 2.10: the grid, the axis, the meter's track and the two washes of the order book's depth.
+  const CHART_LIGHT = {
+    "--grid": "#eef0f3",
+    "--axis": "#cdd2d9",
+    "--track": "#cde2fb",
+    "--up-wash": "rgba(42,120,214,.13)",
+    "--down-wash": "rgba(227,73,72,.12)",
+  };
+  const CHART_DARK = {
+    "--grid": "#1d232b",
+    "--axis": "#323b46",
+    "--track": "#0d366b",
+    "--up-wash": "rgba(57,135,229,.18)",
+    "--down-wash": "rgba(230,103,103,.16)",
+  };
+
+  it("defines the grid, axis, track and wash tokens of spec section 2.10 in all three blocks", () => {
+    expect(light).toMatchObject(CHART_LIGHT);
+    expect(darkByAttribute).toMatchObject(CHART_DARK);
+    expect(darkByMedia).toMatchObject(CHART_DARK);
+  });
 });
 
 // --- Contrast ---------------------------------------------------------------------------------------------------
@@ -133,6 +155,18 @@ function contrast(a: Rgb, b: Rgb): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
   return (hi + 0.05) / (lo + 0.05);
 }
+
+/** `rgba(42,120,214,.13)` as its colour and its opacity. */
+function rgba(text: string): { color: Rgb; alpha: number } {
+  const match = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)$/.exec(text);
+  if (!match) throw new Error(`not an rgba() colour: ${text}`);
+  return { color: [Number(match[1]), Number(match[2]), Number(match[3])], alpha: Number(match[4]) };
+}
+/** A translucent colour painted over an opaque one. Each channel is rounded to an 8-bit integer, as a browser paints it. */
+const over = (text: string, backdrop: Rgb): Rgb => {
+  const { color, alpha } = rgba(text);
+  return color.map((v, i) => Math.round(v * alpha + backdrop[i]! * (1 - alpha))) as Rgb;
+};
 
 const ACCENTS = { xrpl: "#2f5bea", xahau: "#b45309" };
 const WHITE = rgb("#ffffff");
@@ -198,5 +232,25 @@ describe.each([
     expect(opacity).toBeGreaterThan(0);
     const shown = mix(c(fg), c(bg), opacity); // the text colour blended into the pill's background
     expect(contrast(shown, c(bg))).toBeGreaterThanOrEqual(AA);
+  });
+
+  // The charts' tokens (spec section 2.10). Their figures are the spec's, to 2 decimals.
+  const chart = mode === "light" ? light : darkByAttribute;
+  const TRACK = { light: 3.34, dark: 3.28 }[mode];
+  const WASH = { light: { "--up-wash": 6.1, "--down-wash": 6.17 }, dark: { "--up-wash": 6.33, "--down-wash": 6.46 } }[mode];
+
+  it(`the meter's fill (--series-1) on its track is at least 3:1 (${TRACK}:1)`, () => {
+    const ratio = contrast(rgb(chart["--series-1"]!), rgb(chart["--track"]!));
+    expect(ratio).toBeGreaterThanOrEqual(3);
+    expect(ratio.toFixed(2)).toBe(TRACK.toFixed(2));
+  });
+
+  it.each([
+    ["--up-wash", "bids"],
+    ["--down-wash", "asks"],
+  ] as const)("--muted on %s (the depth of the %s) over --surface is at least 4.5:1, the spec's figure to 2 decimals", (wash, depth) => {
+    const painted = over(chart[wash]!, c("--surface"));
+    expect(contrast(c("--muted"), painted).toFixed(2), depth).toBe(WASH[wash].toFixed(2));
+    expect(contrast(c("--muted"), painted), depth).toBeGreaterThanOrEqual(AA);
   });
 });

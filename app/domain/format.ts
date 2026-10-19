@@ -6,6 +6,7 @@
 import BigNumber from "bignumber.js";
 
 const MINUS = "\u2212";
+const EM_DASH = "\u2014";
 const ELLIPSIS = "\u2026";
 
 /** Every decimal notation a number can come in: `12`, `-1.50`, `.5`, `5.`, `1e-15`, `-1.5E+21`. */
@@ -55,6 +56,57 @@ export function dropsToNative(drops: string): string {
   if (!DECIMAL.test(drops)) return drops;
   const native = new BigNumber(drops).shiftedBy(-6);
   return native.isZero() ? "0" : native.toFixed();
+}
+
+const COMPACT_SUFFIXES = ["K", "M", "B", "T"] as const;
+
+/** A plain decimal (`1234.57`, no exponent, no sign) with its integer part grouped. */
+function groupDecimal(plain: string): string {
+  const [integer = "0", fraction] = plain.split(".");
+  return fraction ? `${groupThousands(integer)}.${fraction}` : groupThousands(integer);
+}
+
+/** The size of a number without its sign, in few characters: see `compactNumber`. */
+function compactMagnitude(abs: BigNumber): string {
+  if (abs.isZero()) return "0";
+  if (abs.lt(1)) return abs.precision(3, BigNumber.ROUND_HALF_UP).toFixed();
+  if (abs.lt(10_000)) return groupDecimal(abs.decimalPlaces(2, BigNumber.ROUND_HALF_UP).toFixed());
+
+  let rank = abs.lt(1e6) ? 0 : abs.lt(1e9) ? 1 : abs.lt(1e12) ? 2 : 3; // K, M, B, T
+  let digits = abs.shiftedBy(-3 * (rank + 1)).precision(3, BigNumber.ROUND_HALF_UP);
+  if (digits.gte(1000) && rank < COMPACT_SUFFIXES.length - 1) {
+    // 999,950 is 1000K at 3 significant digits: it is 1M.
+    rank += 1;
+    digits = abs.shiftedBy(-3 * (rank + 1)).precision(3, BigNumber.ROUND_HALF_UP);
+  }
+  return `${groupDecimal(digits.toFixed())}${COMPACT_SUFFIXES[rank]}`;
+}
+
+/**
+ * A number in few characters, half up, for the labels of a chart: from 10,000, 3 significant digits and a K, M, B or T
+ * (`12.9K`, `4.2M`, `1.24B`; it rolls to the next letter at 1000); from 1 to 9,999.99, grouped with at most 2 decimals;
+ * under 1, 3 significant digits. Trailing zeros are dropped, U+2212 is the sign of a negative, and exponent notation is
+ * read, never written. A value that is not a number is returned as it came.
+ */
+export function compactNumber(value: string): string {
+  if (!DECIMAL.test(value)) return value;
+  const number = new BigNumber(value);
+  const abs = number.abs();
+  return `${number.isNegative() && !abs.isZero() ? MINUS : ""}${compactMagnitude(abs)}`;
+}
+
+/**
+ * `part` as a whole percent of `whole`, half up, exactly (`58%`), and `<1%` below one half of a percent. A share of nothing
+ * (a `whole` that is not above 0) or of what is not a number is a dash.
+ */
+export function sharePercent(part: string, whole: string): string {
+  if (!DECIMAL.test(part) || !DECIMAL.test(whole)) return EM_DASH;
+  const share = new BigNumber(part);
+  const total = new BigNumber(whole);
+  if (share.lt(0) || !total.gt(0)) return EM_DASH;
+  // floor(100 × part ÷ whole + ½), without a division that rounds: (200 × part + whole) ÷ (2 × whole), whole part.
+  const percent = share.times(200).plus(total).idiv(total.times(2));
+  return percent.isZero() ? "<1%" : `${percent.toFixed()}%`;
 }
 
 const HEX_CURRENCY = /^[0-9A-Fa-f]{40}$/;

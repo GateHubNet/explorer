@@ -34,6 +34,12 @@
   --series-other: #8b94a1;
   --up: #2a78d6;
   --down: #e34948;
+  /* Gridlines, the baseline and the zero line, the meter's track, and the washes of the order book's depth (bids, asks). */
+  --grid: #EEF0F3;
+  --axis: #CDD2D9;
+  --track: #cde2fb;
+  --up-wash: rgba(42,120,214,.13);
+  --down-wash: rgba(227,73,72,.12);
 
   /* Which icon of the theme toggle shows: the moon (go dark) in light, the sun (go light) in dark. */
   --moon-display: inline;
@@ -66,6 +72,11 @@
     --series-other: #6b7380;
     --up: #3987e5;
     --down: #e66767;
+    --grid: #1D232B;
+    --axis: #323B46;
+    --track: #0d366b;
+    --up-wash: rgba(57,135,229,.18);
+    --down-wash: rgba(230,103,103,.16);
 
     --moon-display: none;
     --sun-display: inline;
@@ -97,6 +108,11 @@
   --series-other: #6b7380;
   --up: #3987e5;
   --down: #e66767;
+  --grid: #1D232B;
+  --axis: #323B46;
+  --track: #0d366b;
+  --up-wash: rgba(57,135,229,.18);
+  --down-wash: rgba(230,103,103,.16);
 
   --moon-display: none;
   --sun-display: inline;

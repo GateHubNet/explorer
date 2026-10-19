@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compactNumber,
   dropsToNative,
   formatAmount,
   formatCurrency,
   formatUtc,
   formatUtcDay,
   relativeTime,
+  sharePercent,
   shortAddress,
   shortHash,
 } from "./format";
@@ -213,5 +215,98 @@ describe("formatUtcDay", () => {
     expect(formatUtcDay("")).toBe("");
     expect(formatUtcDay("soon")).toBe("soon");
     expect(formatUtcDay("2026-13-01")).toBe("2026-13-01");
+  });
+});
+
+describe("compactNumber", () => {
+  it("keeps 3 significant digits and a K, M, B or T from 10,000", () => {
+    expect(compactNumber("10000")).toBe("10K");
+    expect(compactNumber("12900")).toBe("12.9K");
+    expect(compactNumber("4200000")).toBe("4.2M");
+    expect(compactNumber("1240000000")).toBe("1.24B");
+    expect(compactNumber("2310000")).toBe("2.31M");
+    expect(compactNumber("2104331")).toBe("2.1M");
+    expect(compactNumber("45500000")).toBe("45.5M");
+    expect(compactNumber("3500000000000")).toBe("3.5T");
+  });
+
+  it("rolls to the next suffix when the rounded digits reach 1000", () => {
+    expect(compactNumber("999950")).toBe("1M");
+    expect(compactNumber("999500")).toBe("1M");
+    expect(compactNumber("999499")).toBe("999K");
+    expect(compactNumber("999500000")).toBe("1B");
+    expect(compactNumber("999499999")).toBe("999M");
+    expect(compactNumber("999500000000")).toBe("1T");
+  });
+
+  it("goes on in T past a thousand of them, grouped", () => {
+    expect(compactNumber("1500000000000000")).toBe("1,500T");
+  });
+
+  it("writes from 1 to 9,999.99 grouped, with at most 2 decimals, half up", () => {
+    expect(compactNumber("9999.99")).toBe("9,999.99");
+    expect(compactNumber("1234.567")).toBe("1,234.57");
+    expect(compactNumber("999.995")).toBe("1,000");
+    expect(compactNumber("1")).toBe("1");
+    expect(compactNumber("7500")).toBe("7,500");
+    expect(compactNumber("1.50")).toBe("1.5");
+    expect(compactNumber("2.005")).toBe("2.01");
+  });
+
+  it("keeps 3 significant digits under 1", () => {
+    expect(compactNumber("0.000123456")).toBe("0.000123");
+    expect(compactNumber("0.5")).toBe("0.5");
+    expect(compactNumber("0.123456")).toBe("0.123");
+    expect(compactNumber("0.0000005")).toBe("0.0000005");
+  });
+
+  it("writes 0 as 0, whatever its spelling", () => {
+    expect(compactNumber("0")).toBe("0");
+    expect(compactNumber("0.00")).toBe("0");
+    expect(compactNumber("-0")).toBe("0");
+  });
+
+  it("shows a negative number with U+2212, not a hyphen", () => {
+    expect(compactNumber("-12900")).toBe("\u221212.9K");
+    expect(compactNumber("-1234.567")).toBe("\u22121,234.57");
+    expect(compactNumber("-0.5")).toBe("\u22120.5");
+  });
+
+  it("reads exponent notation and writes it out in full", () => {
+    expect(compactNumber("1e-7")).toBe("0.0000001");
+    expect(compactNumber("2.5e6")).toBe("2.5M");
+    expect(compactNumber("1.5E3")).toBe("1,500");
+  });
+
+  it("returns what is not a number as it came", () => {
+    expect(compactNumber("")).toBe("");
+    expect(compactNumber("soon")).toBe("soon");
+  });
+});
+
+describe("sharePercent", () => {
+  it("gives whole percents, half up", () => {
+    expect(sharePercent("900", "1300.4")).toBe("69%");
+    expect(sharePercent("400", "1300.4")).toBe("31%");
+    expect(sharePercent("1", "200")).toBe("1%");
+    expect(sharePercent("1", "3")).toBe("33%");
+    expect(sharePercent("2", "3")).toBe("67%");
+    expect(sharePercent("5", "5")).toBe("100%");
+  });
+
+  it("says <1% below one half of a percent", () => {
+    expect(sharePercent("0.4", "1300.4")).toBe("<1%");
+    expect(sharePercent("0.99", "200")).toBe("<1%");
+  });
+
+  it("is exact on a half, whatever the digits", () => {
+    expect(sharePercent("0.5", "100")).toBe("1%");
+    expect(sharePercent("0.4999999999999999999999", "100")).toBe("<1%");
+  });
+
+  it("says nothing of a share of nothing", () => {
+    expect(sharePercent("1", "0")).toBe("\u2014");
+    expect(sharePercent("soon", "10")).toBe("\u2014");
+    expect(sharePercent("1", "soon")).toBe("\u2014");
   });
 });
