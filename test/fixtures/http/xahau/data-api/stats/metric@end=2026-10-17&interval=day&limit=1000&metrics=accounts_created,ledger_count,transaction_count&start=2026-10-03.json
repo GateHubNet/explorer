@@ -1,0 +1,96 @@
+{
+  "count": 15,
+  "result": "success",
+  "stats": [
+    {
+      "accounts_created": 187,
+      "date": "2026-10-03T00:00:00Z",
+      "ledger_count": 21719,
+      "transaction_count": 312354
+    },
+    {
+      "accounts_created": 153,
+      "date": "2026-10-04T00:00:00Z",
+      "ledger_count": 21482,
+      "transaction_count": 317764
+    },
+    {
+      "accounts_created": 182,
+      "date": "2026-10-05T00:00:00Z",
+      "ledger_count": 21736,
+      "transaction_count": 329413
+    },
+    {
+      "accounts_created": 144,
+      "date": "2026-10-06T00:00:00Z",
+      "ledger_count": 21679,
+      "transaction_count": 332587
+    },
+    {
+      "accounts_created": 162,
+      "date": "2026-10-07T00:00:00Z",
+      "ledger_count": 21602,
+      "transaction_count": 349232
+    },
+    {
+      "accounts_created": 152,
+      "date": "2026-10-08T00:00:00Z",
+      "ledger_count": 21502,
+      "transaction_count": 336997
+    },
+    {
+      "accounts_created": 182,
+      "date": "2026-10-09T00:00:00Z",
+      "ledger_count": 21695,
+      "transaction_count": 331084
+    },
+    {
+      "accounts_created": 132,
+      "date": "2026-10-10T00:00:00Z",
+      "ledger_count": 21489,
+      "transaction_count": 315515
+    },
+    {
+      "accounts_created": 146,
+      "date": "2026-10-11T00:00:00Z",
+      "ledger_count": 21464,
+      "transaction_count": 295534
+    },
+    {
+      "accounts_created": 177,
+      "date": "2026-10-12T00:00:00Z",
+      "ledger_count": 21532,
+      "transaction_count": 316224
+    },
+    {
+      "accounts_created": 140,
+      "date": "2026-10-13T00:00:00Z",
+      "ledger_count": 21702,
+      "transaction_count": 351164
+    },
+    {
+      "accounts_created": 177,
+      "date": "2026-10-14T00:00:00Z",
+      "ledger_count": 21591,
+      "transaction_count": 337644
+    },
+    {
+      "accounts_created": 139,
+      "date": "2026-10-15T00:00:00Z",
+      "ledger_count": 21727,
+      "transaction_count": 332853
+    },
+    {
+      "accounts_created": 148,
+      "date": "2026-10-16T00:00:00Z",
+      "ledger_count": 21651,
+      "transaction_count": 306504
+    },
+    {
+      "accounts_created": 99,
+      "date": "2026-10-17T00:00:00Z",
+      "ledger_count": 16083,
+      "transaction_count": 238903
+    }
+  ]
+}

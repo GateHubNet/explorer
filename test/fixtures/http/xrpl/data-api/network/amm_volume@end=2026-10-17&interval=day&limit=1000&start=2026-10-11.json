@@ -1,0 +1,60 @@
+{
+  "count": 6,
+  "result": "success",
+  "rows": [
+    {
+      "components": [{"amm_account":"rKpwDijZdUF9QvDgyWKfZjpYCNtDEemitL","amount":"4631806.5873","base":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},"converted_amount":"1842905.110815","count":4292,"counter":{"currency":"XRP"},"rate":"2.5133180"},{"amm_account":"rfC9hCgDAg5sYyhhPrVpfi25d4Wgo5nNU1","amount":"3900892.3502","base":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"},"converted_amount":"1552088.653416","count":4396,"counter":{"currency":"XRP"},"rate":"2.5133180"},{"amm_account":"raWSkK2Sm5HJUxNPrFRRcfFncXAJj5nqNv","amount":"9.08271246","base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"converted_amount":"346928.003765","count":203,"counter":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"rate":"0.000026180396"}],
+      "count": 8891,
+      "end_time": "2026-10-12T00:00:00Z",
+      "exchange": {"currency":"XRP"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-11T00:00:00Z",
+      "total": "3741921.767996"
+    },
+    {
+      "components": [{"amm_account":"rKpwDijZdUF9QvDgyWKfZjpYCNtDEemitL","amount":"7789801.7967","base":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},"converted_amount":"3192337.619702","count":7024,"counter":{"currency":"XRP"},"rate":"2.4401560"},{"amm_account":"rfC9hCgDAg5sYyhhPrVpfi25d4Wgo5nNU1","amount":"3659628.5582","base":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"},"converted_amount":"1499751.883996","count":4163,"counter":{"currency":"XRP"},"rate":"2.4401560"},{"amm_account":"raWSkK2Sm5HJUxNPrFRRcfFncXAJj5nqNv","amount":"13.225625","base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"converted_amount":"520319.192647","count":355,"counter":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"rate":"0.000025418292"}],
+      "count": 11542,
+      "end_time": "2026-10-13T00:00:00Z",
+      "exchange": {"currency":"XRP"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-12T00:00:00Z",
+      "total": "5212408.696345"
+    },
+    {
+      "components": [{"amm_account":"rKpwDijZdUF9QvDgyWKfZjpYCNtDEemitL","amount":"8212576.0091","base":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},"converted_amount":"3246875.717713","count":7233,"counter":{"currency":"XRP"},"rate":"2.5293780"},{"amm_account":"rfC9hCgDAg5sYyhhPrVpfi25d4Wgo5nNU1","amount":"3079315.4213","base":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"},"converted_amount":"1217420.022345","count":3540,"counter":{"currency":"XRP"},"rate":"2.5293780"},{"amm_account":"raWSkK2Sm5HJUxNPrFRRcfFncXAJj5nqNv","amount":"12.76079086","base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"converted_amount":"484322.992652","count":361,"counter":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"rate":"0.000026347688"}],
+      "count": 11134,
+      "end_time": "2026-10-14T00:00:00Z",
+      "exchange": {"currency":"XRP"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-13T00:00:00Z",
+      "total": "4948618.73271"
+    },
+    {
+      "components": [{"amm_account":"rKpwDijZdUF9QvDgyWKfZjpYCNtDEemitL","amount":"6513758.5272","base":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},"converted_amount":"2502522.603721","count":6540,"counter":{"currency":"XRP"},"rate":"2.6028770"},{"amm_account":"rfC9hCgDAg5sYyhhPrVpfi25d4Wgo5nNU1","amount":"4149750.4668","base":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"},"converted_amount":"1594293.724534","count":3846,"counter":{"currency":"XRP"},"rate":"2.6028770"},{"amm_account":"raWSkK2Sm5HJUxNPrFRRcfFncXAJj5nqNv","amount":"13.95443853","base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"converted_amount":"514671.303765","count":321,"counter":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"rate":"0.000027113302"}],
+      "count": 10707,
+      "end_time": "2026-10-15T00:00:00Z",
+      "exchange": {"currency":"XRP"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-14T00:00:00Z",
+      "total": "4611487.63202"
+    },
+    {
+      "components": [{"amm_account":"rKpwDijZdUF9QvDgyWKfZjpYCNtDEemitL","amount":"7504185.6495","base":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},"converted_amount":"2943717.178518","count":6296,"counter":{"currency":"XRP"},"rate":"2.5492210"},{"amm_account":"rfC9hCgDAg5sYyhhPrVpfi25d4Wgo5nNU1","amount":"6340028.9423","base":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"},"converted_amount":"2487045.627785","count":5789,"counter":{"currency":"XRP"},"rate":"2.5492210"},{"amm_account":"raWSkK2Sm5HJUxNPrFRRcfFncXAJj5nqNv","amount":"12.81847271","base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"converted_amount":"482725.263915","count":311,"counter":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"rate":"0.000026554385"}],
+      "count": 12396,
+      "end_time": "2026-10-16T00:00:00Z",
+      "exchange": {"currency":"XRP"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-15T00:00:00Z",
+      "total": "5913488.070218"
+    },
+    {
+      "components": [{"amm_account":"rKpwDijZdUF9QvDgyWKfZjpYCNtDEemitL","amount":"5959949.7229","base":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},"converted_amount":"2350637.506531","count":5405,"counter":{"currency":"XRP"},"rate":"2.5354610"},{"amm_account":"rfC9hCgDAg5sYyhhPrVpfi25d4Wgo5nNU1","amount":"4022657.6277","base":{"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"},"converted_amount":"1586558.668315","count":4067,"counter":{"currency":"XRP"},"rate":"2.5354610"},{"amm_account":"raWSkK2Sm5HJUxNPrFRRcfFncXAJj5nqNv","amount":"9.08557543","base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"converted_amount":"344006.569745","count":239,"counter":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},"rate":"0.000026411052"}],
+      "count": 9711,
+      "end_time": "2026-10-17T00:00:00Z",
+      "exchange": {"currency":"XRP"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-16T00:00:00Z",
+      "total": "4281202.744591"
+    }
+  ]
+}

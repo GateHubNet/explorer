@@ -772,7 +772,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   (`test/unit` is typechecked with `scripts/` by `tsconfig.node.json`, which has the Node types; `tsconfig.cloudflare.json`
   leaves it out. A test that reads files, such as the route scan and the token check, goes there. The same Node config also
   holds the few `app/` and `test/support/` files that `scripts/` and the Node tests import: `upstream-core.ts`, `fixture-server.ts`, `switches.ts`,
-  `app/server/api-types.ts`, `app/ui/features.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
+  `app/server/api-types.ts`, `app/server/aggregate-shape.ts` (with `tx-shape.ts` and `upstream.ts`, which it imports: the checks the data API client runs on the
+  network page's answers, which `test/unit/network-fixtures.test.ts` runs on the fixtures), `app/ui/features.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
   `test/e2e/stack.ts`, which starts the end-to-end stack, is in that config too; the Playwright config and specs are `tsconfig.e2e.json`'s, with
   the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
@@ -857,20 +858,30 @@ last release, 0.23.0, only accepts Vitest 4). The API and configuration are the 
 Loader tests and the end-to-end suite never reach the network: they run against recorded answers of the data API and of the
 nodes, `test/fixtures/http/<net>/` for `xrpl` and `xahau`. The answers are the recorded mainnet ledgers (`test/fixtures/ledgers/`)
 shaped as the servers shape them (`scripts/http-fixtures.ts`: the data API's from its reference and `app/server/api-types.ts`,
-rippled's from API v1), plus the accounts, which are written by hand.
+rippled's from API v1), plus the network page's aggregates, fee snapshots and validations, which the recordings cannot give and a seeded
+generator makes up (`scripts/network-fixtures.ts`), plus the accounts, which are written by hand.
 
 | Path below `<net>/` | Holds | By |
 |---|---|---|
-| `data-api/last_validated.json` | the newest recorded ledger (XRPL 107721455, Xahau 26596843) | generator |
-| `data-api/ledgers/<index>.json`, `...@transactions=true.json` | every recorded ledger, plain and with its hashes in ledger order | generator |
-| `data-api/ledgers/<index>@expand=true&transactions=true.json` | in full: XRPL 107720688 (two accounts created) and 107721455; Xahau 26540187, 26540188 (the only consecutive ledgers of the recordings, for previous and next), 26596843 | generator |
-| `data-api/transactions/<HASH>.json` | one per type the recordings looked for (the manifests' `found` and `cases`: XRPL 29, Xahau 7), the 8 newest, and every transaction an account list names | generator |
-| `data-api/transactions/<HASH>@binary=true.json` | the same transactions with `tx` and `meta` as the hex of their serialization (`?binary=true`); every blob re-hashes to its transaction hash (`scripts/http-fixtures.test.ts`). Made with `ripple-binary-codec` (a devDependency of the generator and its tests, never imported by `app/` or `workers/`); Xahau with its recorded `server_definitions.json` (`test/fixtures/definitions/xahau/`, see `test/fixtures/PROVENANCE.md`) | generator |
-| `data-api/transactions@descending=true&limit=8.json`, `data-api/network/fees@descending=true&limit=8.json` | the home page's lists | generator |
-| `node/tx/<HASH>.json`, `node/ledger/<index>[@...].json` | the same transactions and the expanded ledgers, as the node answers (Ripple-epoch times) | generator |
-| `ledger-hashes.json` | ledger hash to index, so that a ledger is stored once and found by either | generator |
+| `data-api/last_validated.json` | the newest recorded ledger (XRPL 107721455, Xahau 26596843) | generator (derived) |
+| `data-api/ledgers/<index>.json`, `...@transactions=true.json` | every recorded ledger, plain and with its hashes in ledger order | generator (derived) |
+| `data-api/ledgers/<index>@expand=true&transactions=true.json` | in full: XRPL 107720688 (two accounts created) and 107721455; Xahau 26540187, 26540188 (the only consecutive ledgers of the recordings, for previous and next), 26596843 | generator (derived) |
+| `data-api/transactions/<HASH>.json` | one per type the recordings looked for (the manifests' `found` and `cases`: XRPL 29, Xahau 7), the 8 newest, and every transaction an account list names | generator (derived) |
+| `data-api/transactions/<HASH>@binary=true.json` | the same transactions with `tx` and `meta` as the hex of their serialization (`?binary=true`); every blob re-hashes to its transaction hash (`scripts/http-fixtures.test.ts`). Made with `ripple-binary-codec` (a devDependency of the generator and its tests, never imported by `app/` or `workers/`); Xahau with its recorded `server_definitions.json` (`test/fixtures/definitions/xahau/`, see `test/fixtures/PROVENANCE.md`) | generator (derived) |
+| `data-api/transactions@descending=true&limit=8.json`, `data-api/network/fees@descending=true&limit=8.json` | the home page's lists | generator (derived) |
+| `node/tx/<HASH>.json`, `node/ledger/<index>[@...].json` | the same transactions and the expanded ledgers, as the node answers (Ripple-epoch times) | generator (derived) |
+| `ledger-hashes.json` | ledger hash to index, so that a ledger is stored once and found by either | generator (derived) |
 | `data-api/accounts/<address>.json` and `/balances`, `/orders`, `/transactions@...`, `/payments@...`, `/exchanges@...` | an account's creation, live state and lists (see below) | by hand |
+| `data-api/ledgers/<HASH>/validations@limit=1000.json` | the validations of the two newest recorded ledgers (the end-to-end suite moves the chain back by one): 35 validators on XRPL, 25 on Xahau, node public keys encoded from seeded bytes, the first seen 0 to 400 ms after the close | generator (synthetic) |
+| `data-api/network/fee_stats@descending=true&limit=1&start=2026-10-17.json` | one fee snapshot, 2 s before the close of the newest ledger (XRPL: open ledger fee 10 drops, queue 0, 84 of 96 expected) | generator (synthetic) |
+| `data-api/stats/type@...`, `data-api/stats/metric@...` | transactions by type, and `accounts_created`, `ledger_count` and `transaction_count`, for the page's four periods (days; weeks for `1y`). A zero count is left out; `transaction_count` is the sum of the type columns; the running day is the day so far | generator (synthetic) |
+| `data-api/network/fees@end=2026-10-17&interval=day&...` | the daily fees of each window, the running day included | generator (synthetic) |
+| `data-api/network/payment_volume@...`, `exchange_volume@...`, and on XRPL `amm_volume@...` | the volumes of the four periods, and on XRPL in USD too (`exchange_currency=USD&exchange_issuer=rhub8...`); the day files end on 2026-10-16 and a running week has the days so far | generator (synthetic) |
 | `node/account_info/<address>.json`, `node/account_objects/<address>.json`, `node/server_state.json` | the node's view of the active accounts and the reserves | by hand |
+
+The "By" column says how a file came to be. **generator (derived)**: worked out from the recordings by `scripts/http-fixtures.ts`. **generator (synthetic)**: made up by the
+seeded generator `scripts/network-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. (The fourth kind, **recorder**, is the ledgers under
+`test/fixtures/ledgers/`, which are not files of this table.)
 
 A file is named by its request: the path after `/v2/`, then `@` and the query with its parameters sorted (`transactions=true&expand=true`
 is `expand=true&transactions=true`); a node file by method, subject (the transaction, ledger or account asked for) and the other
@@ -883,6 +894,23 @@ node's `txnNotFound`, `lgrNotFound`, `actNotFound` at HTTP 200. A path that has 
 node"). So a test that relies on a path being `not_found` needs the not-found body of that path's API in `dataApiAbsent`, as ledgers, transactions and accounts have; it never
 weakens the rule. A data API request without `X-API-Key` is a 401. The key is
 never in a fixture.
+
+**The synthetic aggregates.** Aggregates over months, the syncer's fee snapshots and the validations stream cannot be worked out from a few recorded
+ledgers, so `scripts/network-fixtures.ts` makes them up: `networkFixtures(net, last, newest)` gives each answer as a path, a query and a body, and `generate()` writes
+them as it writes the rest. The numbers are drawn from `mulberry32(seedOf(net, endpoint))` (`scripts/synthetic.ts`, which the generators of the later pages reuse),
+one stream for each network and endpoint, from the first day any window needs to the running one, so a day is the same in every file that has it, a week is the sum of
+its days, and a second run writes the same bytes. The shapes follow the data API's reference (`test/fixtures/PROVENANCE.md`, "Synthetic aggregates", names the commits);
+the volume components are the network's markets config, copied into the generator with its source. Nothing in them is real: only a run of the end-to-end suite against a
+real stack (`E2E_DATA_API_URL`) checks them against real answers.
+
+A file is found by the request the page's loader makes, whatever the order of its parameters, and the files are named by those requests (`dataApiFile`): for each of the
+four periods, `T` the index day, `W₀` the first bucket of the window, `P₀` the first bucket of the window the deltas compare against (spec 1.5), and `u` `day` (`week` for `1y`):
+`stats/type` from `W₀`; `stats/metric` (with `metrics=accounts_created,ledger_count,transaction_count`) and `payment_volume` from `P₀`; `exchange_volume` and `amm_volume`
+from `W₀`; `fees` from `W₀` with `interval=day`, always; all with `end=T` and `limit=1000`. XRPL's volumes are there twice, in the native currency and in USD
+(`exchange_currency=USD&exchange_issuer=rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq`); Xahau has no USD and no `amm_volume`. `test/unit/network-fixtures.test.ts` works the requests out from
+`windowOf` and the spec's table of calls, asks the fixture server for each, and fails for a file that is written and never asked for, or asked for and not written.
+The default fixtures include `amm_volume` (the post-merge API), which the top level's `AMM_DATA: "on"` reads; the `worker-off` project does not ask for it. The synthetic files
+(`isSynthetic`) are about 2.6 MiB and have a size budget of their own (`test/unit/http-fixtures.test.ts`).
 
 **The accounts.** The addresses and their transactions are real; what is not in the recordings is not invented beyond what a
 page needs.
@@ -1192,6 +1220,6 @@ staging before production:
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.
 The pipeline's `pnpm verify` runs `pnpm api:check`, which regenerates the types from the committed copy and fails if they differ.
 
-**Fixtures** are copied or derived, never invented without saying so: `test/fixtures/PROVENANCE.md` records, for every copied file, the source repository,
-path and commit, and what was recorded, from where and when; "Upstream fixtures" says which of `test/fixtures/http/` is generated (`pnpm fixtures:sync`)
-and which was written by hand.
+**Fixtures** are copied, derived or synthetic, never invented without saying so: `test/fixtures/PROVENANCE.md` records, for every copied file, the source repository,
+path and commit, and what was recorded, from where and when, and, for the synthetic aggregates, the generator, the seeds and the reference they follow; "Upstream
+fixtures" says which of `test/fixtures/http/` is generated (`pnpm fixtures:sync`), derived or synthetic, and which was written by hand.

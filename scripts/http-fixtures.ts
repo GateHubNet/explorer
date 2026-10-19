@@ -10,6 +10,9 @@
 // Files with account data (test/fixtures/http/<net>/data-api/accounts/, node/account_info, node/account_objects and
 // node/server_state.json) are written by hand and left alone; the transactions they name are served here too.
 //
+// What the recordings cannot give, the network page's aggregates over months, fee snapshots and validations, is synthetic: a seeded
+// generator in network-fixtures.ts, called from `generate` below (README.md, "Upstream fixtures"; PROVENANCE.md, "Synthetic aggregates").
+//
 // `?binary=true` answers (`transactions/<HASH>@binary=true.json`) hold `tx` and `meta` as the hex of their serialization,
 // made here with ripple-binary-codec (a devDependency: the Worker never serializes). XRPL uses the codec's own definitions,
 // Xahau the ones recorded from a Xahau node (test/fixtures/definitions/xahau/server_definitions.json, see PROVENANCE.md).
@@ -21,6 +24,7 @@ import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase 
 
 import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
+import { networkFixtures } from "./network-fixtures";
 
 export const LEDGERS = new URL("../test/fixtures/ledgers/", import.meta.url);
 export const HTTP = new URL("../test/fixtures/http/", import.meta.url);
@@ -315,6 +319,15 @@ export function isHandWritten(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/accounts\//.test(path) || /^(xrpl|xahau)\/node\/(account_info|account_objects)\//.test(path) || /^(xrpl|xahau)\/node\/server_state\.json$/.test(path);
 }
 
+/**
+ * Paths (below test/fixtures/http/) of the synthetic aggregates, fee snapshots and validations that network-fixtures.ts writes: reviewed in the
+ * generator and not in the files, they have a size budget of their own (test/unit/http-fixtures.test.ts), and `network-fixtures.test.ts` keeps
+ * this in step with the generator.
+ */
+export function isSynthetic(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/(stats\/|ledgers\/[0-9A-F]{64}\/validations@|network\/(fee_stats@|fees@end=|(payment|exchange|amm)_volume@))/.test(path);
+}
+
 /** The hashes of the transactions the hand-written account lists name, so that every row can be opened. */
 function accountListHashes(net: NetworkName): string[] {
   const dir = new URL(`${net}/data-api/accounts/`, HTTP);
@@ -450,6 +463,11 @@ export function generate(): Map<string, string> {
     const rows = [...ledgers].reverse().slice(0, LATEST).map(feeRow);
     const fees: Page<"rows", FeeRow> = { result: "success", count: rows.length, marker: String(rows.at(-1)!.ledger_index), rows };
     api(net, "/v2/network/fees", "descending=true&limit=8", fees);
+
+    // The network page's aggregates, fee snapshot and validations: synthetic. The validations are of the two newest ledgers (the end-to-end suite
+    // moves the chain back by one), which are the first two rows of the list above.
+    const newestTwo = rows.slice(0, 2).map((row, at) => ({ index: row.ledger_index, hash: ledgers[ledgers.length - 1 - at]!.ledger_hash, date: row.date }));
+    for (const { path, query, value } of networkFixtures(net, dataApiLastValidated(head), newestTwo)) api(net, path, query, value);
 
     // Single transactions: one per type the recordings looked for, the newest ones, and those the account lists show.
     const served = new Set([...manifestHashes(net), ...newest.map(({ tx }) => tx.hash), ...accountListHashes(net)]);

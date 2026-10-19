@@ -1,0 +1,474 @@
+{
+  "count": 52,
+  "result": "success",
+  "rows": [
+    {
+      "components": [{"amount":"771502.077587","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3451443.79755","count":7980,"counter":{"currency":"XAH"},"rate":"0.22353024"}],
+      "count": 7980,
+      "end_time": "2025-10-27T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-10-20T00:00:00Z",
+      "total": "3451443.79755"
+    },
+    {
+      "components": [{"amount":"823903.430094","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3771701.018268","count":9016,"counter":{"currency":"XAH"},"rate":"0.21844346"}],
+      "count": 9016,
+      "end_time": "2025-11-03T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-10-27T00:00:00Z",
+      "total": "3771701.018268"
+    },
+    {
+      "components": [{"amount":"716152.695785","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3203295.755021","count":8184,"counter":{"currency":"XAH"},"rate":"0.22356746"}],
+      "count": 8184,
+      "end_time": "2025-11-10T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-11-03T00:00:00Z",
+      "total": "3203295.755021"
+    },
+    {
+      "components": [{"amount":"555878.461883","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"2579623.916779","count":6143,"counter":{"currency":"XAH"},"rate":"0.21548818"}],
+      "count": 6143,
+      "end_time": "2025-11-17T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-11-10T00:00:00Z",
+      "total": "2579623.916779"
+    },
+    {
+      "components": [{"amount":"714992.719277","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3409201.213259","count":8337,"counter":{"currency":"XAH"},"rate":"0.20972441"}],
+      "count": 8337,
+      "end_time": "2025-11-24T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-11-17T00:00:00Z",
+      "total": "3409201.213259"
+    },
+    {
+      "components": [{"amount":"771969.110773","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3317229.04069","count":8585,"counter":{"currency":"XAH"},"rate":"0.23271505"}],
+      "count": 8585,
+      "end_time": "2025-12-01T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-11-24T00:00:00Z",
+      "total": "3317229.04069"
+    },
+    {
+      "components": [{"amount":"884392.650044","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3447703.577961","count":8548,"counter":{"currency":"XAH"},"rate":"0.25651644"}],
+      "count": 8548,
+      "end_time": "2025-12-08T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-12-01T00:00:00Z",
+      "total": "3447703.577961"
+    },
+    {
+      "components": [{"amount":"830189.766868","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3249744.210275","count":7491,"counter":{"currency":"XAH"},"rate":"0.25546311"}],
+      "count": 7491,
+      "end_time": "2025-12-15T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-12-08T00:00:00Z",
+      "total": "3249744.210275"
+    },
+    {
+      "components": [{"amount":"743184.575052","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3037445.278701","count":8144,"counter":{"currency":"XAH"},"rate":"0.24467423"}],
+      "count": 8144,
+      "end_time": "2025-12-22T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-12-15T00:00:00Z",
+      "total": "3037445.278701"
+    },
+    {
+      "components": [{"amount":"890550.842313","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3455630.802154","count":8388,"counter":{"currency":"XAH"},"rate":"0.25771007"}],
+      "count": 8388,
+      "end_time": "2025-12-29T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-12-22T00:00:00Z",
+      "total": "3455630.802154"
+    },
+    {
+      "components": [{"amount":"912542.074638","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3379430.959066","count":7660,"counter":{"currency":"XAH"},"rate":"0.27002832"}],
+      "count": 7660,
+      "end_time": "2026-01-05T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2025-12-29T00:00:00Z",
+      "total": "3379430.959066"
+    },
+    {
+      "components": [{"amount":"948994.120341","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3443354.053936","count":9041,"counter":{"currency":"XAH"},"rate":"0.27560167"}],
+      "count": 9041,
+      "end_time": "2026-01-12T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-01-05T00:00:00Z",
+      "total": "3443354.053936"
+    },
+    {
+      "components": [{"amount":"910859.806536","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3582130.263296","count":8764,"counter":{"currency":"XAH"},"rate":"0.25427881"}],
+      "count": 8764,
+      "end_time": "2026-01-19T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-01-12T00:00:00Z",
+      "total": "3582130.263296"
+    },
+    {
+      "components": [{"amount":"830363.065224","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3463660.464945","count":8542,"counter":{"currency":"XAH"},"rate":"0.23973570"}],
+      "count": 8542,
+      "end_time": "2026-01-26T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-01-19T00:00:00Z",
+      "total": "3463660.464945"
+    },
+    {
+      "components": [{"amount":"982746.939065","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3736465.096416","count":9220,"counter":{"currency":"XAH"},"rate":"0.26301515"}],
+      "count": 9220,
+      "end_time": "2026-02-02T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-01-26T00:00:00Z",
+      "total": "3736465.096416"
+    },
+    {
+      "components": [{"amount":"889521.269259","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3185773.732886","count":7625,"counter":{"currency":"XAH"},"rate":"0.27921671"}],
+      "count": 7625,
+      "end_time": "2026-02-09T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-02-02T00:00:00Z",
+      "total": "3185773.732886"
+    },
+    {
+      "components": [{"amount":"1212912.516236","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"4100991.628544","count":11015,"counter":{"currency":"XAH"},"rate":"0.29576079"}],
+      "count": 11015,
+      "end_time": "2026-02-16T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-02-09T00:00:00Z",
+      "total": "4100991.628544"
+    },
+    {
+      "components": [{"amount":"1179870.759108","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"4170746.863269","count":10268,"counter":{"currency":"XAH"},"rate":"0.28289196"}],
+      "count": 10268,
+      "end_time": "2026-02-23T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-02-16T00:00:00Z",
+      "total": "4170746.863269"
+    },
+    {
+      "components": [{"amount":"959421.999976","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3568997.133441","count":7941,"counter":{"currency":"XAH"},"rate":"0.26882117"}],
+      "count": 7941,
+      "end_time": "2026-03-02T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-02-23T00:00:00Z",
+      "total": "3568997.133441"
+    },
+    {
+      "components": [{"amount":"1083588.077553","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3757253.278183","count":9204,"counter":{"currency":"XAH"},"rate":"0.28839900"}],
+      "count": 9204,
+      "end_time": "2026-03-09T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-03-02T00:00:00Z",
+      "total": "3757253.278183"
+    },
+    {
+      "components": [{"amount":"1083913.192385","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3814681.068086","count":9107,"counter":{"currency":"XAH"},"rate":"0.28414255"}],
+      "count": 9107,
+      "end_time": "2026-03-16T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-03-09T00:00:00Z",
+      "total": "3814681.068086"
+    },
+    {
+      "components": [{"amount":"1001083.523032","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3309267.410579","count":8307,"counter":{"currency":"XAH"},"rate":"0.30250911"}],
+      "count": 8307,
+      "end_time": "2026-03-23T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-03-16T00:00:00Z",
+      "total": "3309267.410579"
+    },
+    {
+      "components": [{"amount":"974526.665113","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3276559.48018","count":8547,"counter":{"currency":"XAH"},"rate":"0.29742377"}],
+      "count": 8547,
+      "end_time": "2026-03-30T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-03-23T00:00:00Z",
+      "total": "3276559.48018"
+    },
+    {
+      "components": [{"amount":"968868.055665","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3197127.516206","count":8399,"counter":{"currency":"XAH"},"rate":"0.30304329"}],
+      "count": 8399,
+      "end_time": "2026-04-06T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-03-30T00:00:00Z",
+      "total": "3197127.516206"
+    },
+    {
+      "components": [{"amount":"940764.064053","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"2966166.766404","count":7162,"counter":{"currency":"XAH"},"rate":"0.31716493"}],
+      "count": 7162,
+      "end_time": "2026-04-13T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-04-06T00:00:00Z",
+      "total": "2966166.766404"
+    },
+    {
+      "components": [{"amount":"1168868.987464","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3817895.561061","count":9147,"counter":{"currency":"XAH"},"rate":"0.30615531"}],
+      "count": 9147,
+      "end_time": "2026-04-20T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-04-13T00:00:00Z",
+      "total": "3817895.561061"
+    },
+    {
+      "components": [{"amount":"1020428.553224","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3388882.243226","count":8353,"counter":{"currency":"XAH"},"rate":"0.30111066"}],
+      "count": 8353,
+      "end_time": "2026-04-27T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-04-20T00:00:00Z",
+      "total": "3388882.243226"
+    },
+    {
+      "components": [{"amount":"1095276.511285","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3714689.486434","count":9516,"counter":{"currency":"XAH"},"rate":"0.29485009"}],
+      "count": 9516,
+      "end_time": "2026-05-04T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-04-27T00:00:00Z",
+      "total": "3714689.486434"
+    },
+    {
+      "components": [{"amount":"935913.47829","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3323035.206755","count":8074,"counter":{"currency":"XAH"},"rate":"0.28164417"}],
+      "count": 8074,
+      "end_time": "2026-05-11T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-05-04T00:00:00Z",
+      "total": "3323035.206755"
+    },
+    {
+      "components": [{"amount":"985810.315063","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3704146.573031","count":9401,"counter":{"currency":"XAH"},"rate":"0.26613696"}],
+      "count": 9401,
+      "end_time": "2026-05-18T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-05-11T00:00:00Z",
+      "total": "3704146.573031"
+    },
+    {
+      "components": [{"amount":"1082971.306211","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"4009425.135902","count":10343,"counter":{"currency":"XAH"},"rate":"0.27010638"}],
+      "count": 10343,
+      "end_time": "2026-05-25T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-05-18T00:00:00Z",
+      "total": "4009425.135902"
+    },
+    {
+      "components": [{"amount":"910714.825595","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3268285.925699","count":8355,"counter":{"currency":"XAH"},"rate":"0.27865213"}],
+      "count": 8355,
+      "end_time": "2026-06-01T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-05-25T00:00:00Z",
+      "total": "3268285.925699"
+    },
+    {
+      "components": [{"amount":"1173352.937401","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"4421553.123564","count":10782,"counter":{"currency":"XAH"},"rate":"0.26537122"}],
+      "count": 10782,
+      "end_time": "2026-06-08T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-06-01T00:00:00Z",
+      "total": "4421553.123564"
+    },
+    {
+      "components": [{"amount":"1078116.823664","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"4198601.520956","count":10400,"counter":{"currency":"XAH"},"rate":"0.25677998"}],
+      "count": 10400,
+      "end_time": "2026-06-15T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-06-08T00:00:00Z",
+      "total": "4198601.520956"
+    },
+    {
+      "components": [{"amount":"995077.757522","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3724469.514525","count":8747,"counter":{"currency":"XAH"},"rate":"0.26717302"}],
+      "count": 8747,
+      "end_time": "2026-06-22T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-06-15T00:00:00Z",
+      "total": "3724469.514525"
+    },
+    {
+      "components": [{"amount":"924904.752372","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3504940.809795","count":8750,"counter":{"currency":"XAH"},"rate":"0.26388598"}],
+      "count": 8750,
+      "end_time": "2026-06-29T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-06-22T00:00:00Z",
+      "total": "3504940.809795"
+    },
+    {
+      "components": [{"amount":"844476.090136","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3198243.106683","count":8112,"counter":{"currency":"XAH"},"rate":"0.26404375"}],
+      "count": 8112,
+      "end_time": "2026-07-06T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-06-29T00:00:00Z",
+      "total": "3198243.106683"
+    },
+    {
+      "components": [{"amount":"1016932.486053","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3692390.952488","count":8549,"counter":{"currency":"XAH"},"rate":"0.27541300"}],
+      "count": 8549,
+      "end_time": "2026-07-13T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-07-06T00:00:00Z",
+      "total": "3692390.952488"
+    },
+    {
+      "components": [{"amount":"900294.199659","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3168242.9683","count":7781,"counter":{"currency":"XAH"},"rate":"0.28416198"}],
+      "count": 7781,
+      "end_time": "2026-07-20T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-07-13T00:00:00Z",
+      "total": "3168242.9683"
+    },
+    {
+      "components": [{"amount":"1091815.115","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3654019.502592","count":9102,"counter":{"currency":"XAH"},"rate":"0.29879838"}],
+      "count": 9102,
+      "end_time": "2026-07-27T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-07-20T00:00:00Z",
+      "total": "3654019.502592"
+    },
+    {
+      "components": [{"amount":"825238.821377","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"2869552.388748","count":7928,"counter":{"currency":"XAH"},"rate":"0.28758451"}],
+      "count": 7928,
+      "end_time": "2026-08-03T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-07-27T00:00:00Z",
+      "total": "2869552.388748"
+    },
+    {
+      "components": [{"amount":"819414.153983","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"2970898.039767","count":7426,"counter":{"currency":"XAH"},"rate":"0.27581362"}],
+      "count": 7426,
+      "end_time": "2026-08-10T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-08-03T00:00:00Z",
+      "total": "2970898.039767"
+    },
+    {
+      "components": [{"amount":"742117.495396","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"2794864.044638","count":7254,"counter":{"currency":"XAH"},"rate":"0.26552901"}],
+      "count": 7254,
+      "end_time": "2026-08-17T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-08-10T00:00:00Z",
+      "total": "2794864.044638"
+    },
+    {
+      "components": [{"amount":"783895.186036","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3063578.126762","count":8116,"counter":{"currency":"XAH"},"rate":"0.25587570"}],
+      "count": 8116,
+      "end_time": "2026-08-24T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-08-17T00:00:00Z",
+      "total": "3063578.126762"
+    },
+    {
+      "components": [{"amount":"909456.741516","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3423641.109317","count":8009,"counter":{"currency":"XAH"},"rate":"0.26564021"}],
+      "count": 8009,
+      "end_time": "2026-08-31T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-08-24T00:00:00Z",
+      "total": "3423641.109317"
+    },
+    {
+      "components": [{"amount":"864904.457444","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3235366.968324","count":7881,"counter":{"currency":"XAH"},"rate":"0.26732809"}],
+      "count": 7881,
+      "end_time": "2026-09-07T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-08-31T00:00:00Z",
+      "total": "3235366.968324"
+    },
+    {
+      "components": [{"amount":"1031001.168998","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3909500.604984","count":9706,"counter":{"currency":"XAH"},"rate":"0.26371685"}],
+      "count": 9706,
+      "end_time": "2026-09-14T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-09-07T00:00:00Z",
+      "total": "3909500.604984"
+    },
+    {
+      "components": [{"amount":"1038804.358176","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3806677.499253","count":9579,"counter":{"currency":"XAH"},"rate":"0.27289004"}],
+      "count": 9579,
+      "end_time": "2026-09-21T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-09-14T00:00:00Z",
+      "total": "3806677.499253"
+    },
+    {
+      "components": [{"amount":"1090476.714877","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3870442.532627","count":10385,"counter":{"currency":"XAH"},"rate":"0.28174471"}],
+      "count": 10385,
+      "end_time": "2026-09-28T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-09-21T00:00:00Z",
+      "total": "3870442.532627"
+    },
+    {
+      "components": [{"amount":"1021188.353173","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"3558344.908965","count":9410,"counter":{"currency":"XAH"},"rate":"0.28698408"}],
+      "count": 9410,
+      "end_time": "2026-10-05T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-09-28T00:00:00Z",
+      "total": "3558344.908965"
+    },
+    {
+      "components": [{"amount":"1283624.937369","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"4050595.418531","count":10195,"counter":{"currency":"XAH"},"rate":"0.31689784"}],
+      "count": 10195,
+      "end_time": "2026-10-12T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-05T00:00:00Z",
+      "total": "4050595.418531"
+    },
+    {
+      "components": [{"amount":"892692.658222","base":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8"},"converted_amount":"2810033.80218","count":7063,"counter":{"currency":"XAH"},"rate":"0.31768040"}],
+      "count": 7063,
+      "end_time": "2026-10-19T00:00:00Z",
+      "exchange": {"currency":"XAH"},
+      "exchange_rate": "1.0000000",
+      "start_time": "2026-10-12T00:00:00Z",
+      "total": "2810033.80218"
+    }
+  ]
+}

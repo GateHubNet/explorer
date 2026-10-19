@@ -1,0 +1,546 @@
+{
+  "count": 60,
+  "result": "success",
+  "rows": [
+    {
+      "components": [{"amount":"47891308.417151","converted_amount":"125621583.891458","count":762268,"currency":"XRP","rate":"0.38123471"},{"amount":"23759387.8983","converted_amount":"23759387.898308","count":58254,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"16199404.6146","converted_amount":"16199404.614591","count":44914,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11628840.8064","converted_amount":"11628840.806392","count":29160,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"55.89354065","converted_amount":"5365779.902388","count":9356,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"},{"amount":"4490338.1014","converted_amount":"4880802.284122","count":22140,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"}],
+      "count": 963666,
+      "end_time": "2026-08-19T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6230560",
+      "start_time": "2026-08-18T00:00:00Z",
+      "total": "187455799.397259"
+    },
+    {
+      "components": [{"amount":"43051384.454726","converted_amount":"116487359.772986","count":843243,"currency":"XRP","rate":"0.36957988"},{"amount":"34112409.4561","converted_amount":"34112409.456128","count":64740,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17275395.052","converted_amount":"17275395.052003","count":43142,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8512485.8538","converted_amount":"8512485.853848","count":29262,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4620864.4758","converted_amount":"5022678.777994","count":18503,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"33.51958381","converted_amount":"3217880.045657","count":9354,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1052772,
+      "end_time": "2026-08-20T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.7057750",
+      "start_time": "2026-08-19T00:00:00Z",
+      "total": "184628208.958616"
+    },
+    {
+      "components": [{"amount":"32848676.612373","converted_amount":"90635707.173417","count":871292,"currency":"XRP","rate":"0.36242534"},{"amount":"41855471.6553","converted_amount":"41855471.655286","count":60651,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"13254461.9051","converted_amount":"13254461.905115","count":38879,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8141482.5901","converted_amount":"8141482.590122","count":29331,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"7033816.0316","converted_amount":"7645452.208214","count":21886,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"31.86489184","converted_amount":"3059029.616473","count":10642,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1073198,
+      "end_time": "2026-08-21T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.7591890",
+      "start_time": "2026-08-20T00:00:00Z",
+      "total": "164591605.148627"
+    },
+    {
+      "components": [{"amount":"25851082.528441","converted_amount":"69434766.819431","count":748856,"currency":"XRP","rate":"0.37230747"},{"amount":"36170808.7832","converted_amount":"36170808.783173","count":54996,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14065351.6355","converted_amount":"14065351.635494","count":39389,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"6442512.8779","converted_amount":"6442512.877878","count":30024,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"45.59572208","converted_amount":"4377189.319283","count":9180,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"},{"amount":"3900081.3648","converted_amount":"4239218.874767","count":20361,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"}],
+      "count": 945324,
+      "end_time": "2026-08-22T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6859520",
+      "start_time": "2026-08-21T00:00:00Z",
+      "total": "134729848.310026"
+    },
+    {
+      "components": [{"amount":"42274983.877623","converted_amount":"110453245.451534","count":739572,"currency":"XRP","rate":"0.38274098"},{"amount":"24188526.784","converted_amount":"24188526.783951","count":54596,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14273417.2399","converted_amount":"14273417.239864","count":37191,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"6601026.8219","converted_amount":"6601026.821891","count":25969,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5966304.7948","converted_amount":"6485113.907365","count":18058,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"45.69139645","converted_amount":"4386374.059007","count":9175,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 914891,
+      "end_time": "2026-08-23T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6127330",
+      "start_time": "2026-08-22T00:00:00Z",
+      "total": "166387704.263612"
+    },
+    {
+      "components": [{"amount":"40328597.935508","converted_amount":"102576797.063913","count":846451,"currency":"XRP","rate":"0.39315517"},{"amount":"20078961.4678","converted_amount":"20078961.467788","count":64645,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17800539.0889","converted_amount":"17800539.088911","count":41424,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7020383.5811","converted_amount":"7020383.581059","count":29212,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4063076.6631","converted_amount":"4416387.677289","count":20967,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"41.53368254","converted_amount":"3987233.523635","count":9214,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1054796,
+      "end_time": "2026-08-24T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5435250",
+      "start_time": "2026-08-23T00:00:00Z",
+      "total": "155880302.402595"
+    },
+    {
+      "components": [{"amount":"37875677.219512","converted_amount":"94966215.751964","count":773152,"currency":"XRP","rate":"0.39883317"},{"amount":"34643682.0002","converted_amount":"34643682.000194","count":69513,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17793042.0251","converted_amount":"17793042.025147","count":40354,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"6675854.199","converted_amount":"6675854.199047","count":32630,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5062129.0643","converted_amount":"5502314.200374","count":22476,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"45.04661789","converted_amount":"4324475.317461","count":9694,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 987861,
+      "end_time": "2026-08-25T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5073140",
+      "start_time": "2026-08-24T00:00:00Z",
+      "total": "163905583.494187"
+    },
+    {
+      "components": [{"amount":"36841495.824517","converted_amount":"93422001.964885","count":839052,"currency":"XRP","rate":"0.39435567"},{"amount":"35764384.7558","converted_amount":"35764384.755827","count":55968,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"11991602.0798","converted_amount":"11991602.079793","count":41676,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11353784.1254","converted_amount":"11353784.125433","count":28312,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5586318.9527","converted_amount":"6072085.818171","count":18553,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"42.70839357","converted_amount":"4100005.782818","count":9196,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1034329,
+      "end_time": "2026-08-26T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5357820",
+      "start_time": "2026-08-25T00:00:00Z",
+      "total": "162703864.526927"
+    },
+    {
+      "components": [{"amount":"33014689.642242","converted_amount":"82812693.896325","count":869663,"currency":"XRP","rate":"0.39866702"},{"amount":"21544658.6364","converted_amount":"21544658.636382","count":62970,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"19022065.921","converted_amount":"19022065.920959","count":37814,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11059477.3286","converted_amount":"11059477.328563","count":33509,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5010784.3642","converted_amount":"5446504.743701","count":21537,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"30.51508131","converted_amount":"2929447.805488","count":9467,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1074076,
+      "end_time": "2026-08-27T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5083590",
+      "start_time": "2026-08-26T00:00:00Z",
+      "total": "142814848.331418"
+    },
+    {
+      "components": [{"amount":"46901880.038794","converted_amount":"118059020.43777","count":904376,"currency":"XRP","rate":"0.39727485"},{"amount":"31349650.071","converted_amount":"31349650.071","count":67051,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"13957424.4758","converted_amount":"13957424.475779","count":44527,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10183058.1228","converted_amount":"10183058.122845","count":29449,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5660895.0727","converted_amount":"6153146.818141","count":21482,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"29.83244282","converted_amount":"2863914.511146","count":11110,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1126657,
+      "end_time": "2026-08-28T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5171490",
+      "start_time": "2026-08-27T00:00:00Z",
+      "total": "182566214.436681"
+    },
+    {
+      "components": [{"amount":"36823967.646276","converted_amount":"95941459.897349","count":824309,"currency":"XRP","rate":"0.38381705"},{"amount":"34153233.924","converted_amount":"34153233.924033","count":59183,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"10785910.8623","converted_amount":"10785910.862321","count":40280,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9472762.735","converted_amount":"9472762.734981","count":32537,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4635033.9254","converted_amount":"5038080.35371","count":19164,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"43.05844445","converted_amount":"4133610.666855","count":10205,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1026384,
+      "end_time": "2026-08-29T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6054080",
+      "start_time": "2026-08-28T00:00:00Z",
+      "total": "159525058.439249"
+    },
+    {
+      "components": [{"amount":"37453080.062742","converted_amount":"95645615.944827","count":696217,"currency":"XRP","rate":"0.39158178"},{"amount":"27666576.4908","converted_amount":"27666576.490833","count":57035,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14596543.5684","converted_amount":"14596543.568433","count":36283,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10092223.2733","converted_amount":"10092223.273301","count":27575,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6565021.6366","converted_amount":"7135893.083228","count":19591,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"29.5865656","converted_amount":"2840310.297439","count":10327,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 886888,
+      "end_time": "2026-08-30T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5537450",
+      "start_time": "2026-08-29T00:00:00Z",
+      "total": "157977162.658061"
+    },
+    {
+      "components": [{"amount":"42964011.203655","converted_amount":"109104700.467054","count":804081,"currency":"XRP","rate":"0.39378699"},{"amount":"26696119.6291","converted_amount":"26696119.629102","count":58784,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15310364.9596","converted_amount":"15310364.959557","count":38567,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10267454.0001","converted_amount":"10267454.000066","count":29126,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4299890.5985","converted_amount":"4673794.12879","count":18931,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"44.36413347","converted_amount":"4258956.813584","count":9255,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 992337,
+      "end_time": "2026-08-31T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5394440",
+      "start_time": "2026-08-30T00:00:00Z",
+      "total": "170311389.998153"
+    },
+    {
+      "components": [{"amount":"41410149.574927","converted_amount":"108254661.479672","count":860303,"currency":"XRP","rate":"0.38252533"},{"amount":"26714459.3121","converted_amount":"26714459.312053","count":59576,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"16564203.2415","converted_amount":"16564203.241496","count":37195,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"12220984.7711","converted_amount":"12220984.771119","count":31678,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4736234.5854","converted_amount":"5148081.0711","count":20273,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"46.12169992","converted_amount":"4427683.192582","count":10213,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1053121,
+      "end_time": "2026-09-01T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6142060",
+      "start_time": "2026-08-31T00:00:00Z",
+      "total": "173330073.068022"
+    },
+    {
+      "components": [{"amount":"46969557.056984","converted_amount":"126385120.494248","count":812508,"currency":"XRP","rate":"0.37163835"},{"amount":"39914571.3081","converted_amount":"39914571.308144","count":68182,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14464116.742","converted_amount":"14464116.741951","count":43911,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10574320.633","converted_amount":"10574320.633047","count":33684,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"7419355.2463","converted_amount":"8064516.572103","count":20298,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"39.27117616","converted_amount":"3770032.911351","count":11433,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1039884,
+      "end_time": "2026-09-02T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6907880",
+      "start_time": "2026-09-01T00:00:00Z",
+      "total": "203172678.660844"
+    },
+    {
+      "components": [{"amount":"52403859.456414","converted_amount":"140823529.016875","count":936904,"currency":"XRP","rate":"0.37212432"},{"amount":"44605887.4654","converted_amount":"44605887.46543","count":61245,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15388322.8899","converted_amount":"15388322.889913","count":47207,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8689310.2742","converted_amount":"9444902.471933","count":22044,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"7574040.4945","converted_amount":"7574040.494519","count":31318,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"59.36099018","converted_amount":"5698655.057326","count":11512,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1151860,
+      "end_time": "2026-09-03T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6872740",
+      "start_time": "2026-09-02T00:00:00Z",
+      "total": "223535337.395996"
+    },
+    {
+      "components": [{"amount":"34330902.490032","converted_amount":"89777781.836413","count":784131,"currency":"XRP","rate":"0.38239865"},{"amount":"31626588.3384","converted_amount":"31626588.338416","count":67020,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"16506675.8948","converted_amount":"16506675.89484","count":39254,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11683241.3567","converted_amount":"11683241.356708","count":32113,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4818066.832","converted_amount":"5237029.165213","count":21131,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"29.75213299","converted_amount":"2856204.767085","count":9526,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1000230,
+      "end_time": "2026-09-04T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6150720",
+      "start_time": "2026-09-03T00:00:00Z",
+      "total": "157687521.358675"
+    },
+    {
+      "components": [{"amount":"33196807.898233","converted_amount":"85707352.647618","count":806349,"currency":"XRP","rate":"0.38732742"},{"amount":"26206093.4889","converted_amount":"26206093.488887","count":64596,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17182141.7727","converted_amount":"17182141.772702","count":43425,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11243747.3297","converted_amount":"11243747.329654","count":35764,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6004935.9347","converted_amount":"6527104.276841","count":20106,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"42.4892978","converted_amount":"4078972.588778","count":11559,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1031689,
+      "end_time": "2026-09-05T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5817950",
+      "start_time": "2026-09-04T00:00:00Z",
+      "total": "150945412.10448"
+    },
+    {
+      "components": [{"amount":"48042075.313488","converted_amount":"123617544.409889","count":840965,"currency":"XRP","rate":"0.38863476"},{"amount":"30896033.6104","converted_amount":"30896033.610369","count":63267,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14796890.9422","converted_amount":"14796890.942224","count":37692,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8717318.0364","converted_amount":"8717318.036422","count":27418,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5578664.9361","converted_amount":"6063766.234888","count":19975,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"45.19855224","converted_amount":"4339061.015268","count":10615,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1041349,
+      "end_time": "2026-09-06T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5731100",
+      "start_time": "2026-09-05T00:00:00Z",
+      "total": "188430614.24906"
+    },
+    {
+      "components": [{"amount":"38484734.752864","converted_amount":"98969152.672998","count":827660,"currency":"XRP","rate":"0.38885586"},{"amount":"22356367.7361","converted_amount":"22356367.736102","count":55677,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"13526708.2643","converted_amount":"13526708.264317","count":43920,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"6390189.4961","converted_amount":"6390189.496143","count":32406,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4413922.268","converted_amount":"4797741.595663","count":20295,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"45.9360807","converted_amount":"4409863.746976","count":9178,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1025424,
+      "end_time": "2026-09-07T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5716470",
+      "start_time": "2026-09-06T00:00:00Z",
+      "total": "150450023.512199"
+    },
+    {
+      "components": [{"amount":"36582649.058406","converted_amount":"90456160.359566","count":858830,"currency":"XRP","rate":"0.40442408"},{"amount":"34427591.6881","converted_amount":"34427591.688101","count":66908,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14955253.6169","converted_amount":"14955253.616872","count":40154,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"5528238.8611","converted_amount":"6008955.283834","count":23069,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"5940340.554","converted_amount":"5940340.553963","count":32333,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"39.03459286","converted_amount":"3747320.914285","count":11058,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1069769,
+      "end_time": "2026-09-08T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4726520",
+      "start_time": "2026-09-07T00:00:00Z",
+      "total": "155535622.416621"
+    },
+    {
+      "components": [{"amount":"35886604.51175","converted_amount":"89152948.042122","count":791736,"currency":"XRP","rate":"0.40252852"},{"amount":"27668049.2254","converted_amount":"27668049.225373","count":66249,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14875782.8323","converted_amount":"14875782.832306","count":39270,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"5823924.5908","converted_amount":"5823924.590795","count":30367,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4921198.2425","converted_amount":"5349128.524506","count":21170,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"33.52726072","converted_amount":"3218617.02948","count":11333,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1000914,
+      "end_time": "2026-09-09T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4842960",
+      "start_time": "2026-09-08T00:00:00Z",
+      "total": "146088450.244582"
+    },
+    {
+      "components": [{"amount":"41356226.153653","converted_amount":"101864727.420193","count":899272,"currency":"XRP","rate":"0.40599162"},{"amount":"19463560.642","converted_amount":"19463560.641953","count":65327,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14433193.2466","converted_amount":"14433193.24657","count":41175,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9054235.8743","converted_amount":"9054235.874284","count":36084,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5970934.0858","converted_amount":"6490145.745393","count":23524,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"36.88328577","converted_amount":"3540795.433817","count":12015,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1113715,
+      "end_time": "2026-09-10T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4631050",
+      "start_time": "2026-09-09T00:00:00Z",
+      "total": "154846658.36221"
+    },
+    {
+      "components": [{"amount":"52581379.512115","converted_amount":"126794633.392755","count":876151,"currency":"XRP","rate":"0.41469720"},{"amount":"30705460.5778","converted_amount":"30705460.577779","count":63534,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15790286.3797","converted_amount":"15790286.37965","count":43430,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7152092.346","converted_amount":"7152092.346046","count":30399,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6256297.0392","converted_amount":"6800322.868667","count":19883,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"43.43623077","converted_amount":"4169878.153957","count":10419,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1079993,
+      "end_time": "2026-09-11T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4113980",
+      "start_time": "2026-09-10T00:00:00Z",
+      "total": "191412673.718854"
+    },
+    {
+      "components": [{"amount":"40878948.68665","converted_amount":"100941897.444561","count":909972,"currency":"XRP","rate":"0.40497504"},{"amount":"28855710.0557","converted_amount":"28855710.055723","count":59709,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15656405.8215","converted_amount":"15656405.82152","count":41628,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8441181.9101","converted_amount":"8441181.910126","count":28902,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5651279.6175","converted_amount":"6142695.236365","count":20959,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"31.10233748","converted_amount":"2985824.397892","count":10582,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1116186,
+      "end_time": "2026-09-12T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4692880",
+      "start_time": "2026-09-11T00:00:00Z",
+      "total": "163023714.866187"
+    },
+    {
+      "components": [{"amount":"33548798.457658","converted_amount":"80315420.922052","count":696278,"currency":"XRP","rate":"0.41771304"},{"amount":"28821450.4372","converted_amount":"28821450.43724","count":59575,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14323199.8433","converted_amount":"14323199.843296","count":39535,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10484606.5109","converted_amount":"10484606.510874","count":31003,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"7036266.826","converted_amount":"7648116.115221","count":17543,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"29.07944445","converted_amount":"2791626.667012","count":10065,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 889199,
+      "end_time": "2026-09-13T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3939880",
+      "start_time": "2026-09-12T00:00:00Z",
+      "total": "144384420.495695"
+    },
+    {
+      "components": [{"amount":"46096197.187407","converted_amount":"111486925.727744","count":874467,"currency":"XRP","rate":"0.41346729"},{"amount":"26196784.3313","converted_amount":"26196784.331345","count":63945,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"14204397.6739","converted_amount":"14204397.673872","count":41056,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8423119.8688","converted_amount":"8423119.868794","count":31609,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4203032.1768","converted_amount":"4568513.235648","count":19108,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"44.30456621","converted_amount":"4253238.355784","count":9894,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1078658,
+      "end_time": "2026-09-14T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4185710",
+      "start_time": "2026-09-13T00:00:00Z",
+      "total": "169132979.193187"
+    },
+    {
+      "components": [{"amount":"39049327.967323","converted_amount":"93165214.34159","count":741266,"currency":"XRP","rate":"0.41914064"},{"amount":"21711111.4381","converted_amount":"21711111.438075","count":63962,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"11799861.3536","converted_amount":"11799861.353636","count":40919,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9716943.743","converted_amount":"9716943.742969","count":32392,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5479392.6652","converted_amount":"5955861.592598","count":19780,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"41.2990795","converted_amount":"3964711.632056","count":10492,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 942293,
+      "end_time": "2026-09-15T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3858340",
+      "start_time": "2026-09-14T00:00:00Z",
+      "total": "146313704.100924"
+    },
+    {
+      "components": [{"amount":"59198017.908845","converted_amount":"139928663.653835","count":807870,"currency":"XRP","rate":"0.42305855"},{"amount":"29440791.6258","converted_amount":"29440791.625765","count":59907,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"18619017.8136","converted_amount":"18619017.813577","count":40274,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8934737.0948","converted_amount":"8934737.094779","count":34270,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6192642.4213","converted_amount":"6731133.066635","count":22466,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"36.86311766","converted_amount":"3538859.295003","count":11574,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1012029,
+      "end_time": "2026-09-16T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3637390",
+      "start_time": "2026-09-15T00:00:00Z",
+      "total": "207193202.549594"
+    },
+    {
+      "components": [{"amount":"54224077.626693","converted_amount":"125244605.53903","count":913577,"currency":"XRP","rate":"0.43294541"},{"amount":"35863607.1101","converted_amount":"35863607.110075","count":68810,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15500074.5957","converted_amount":"15500074.595746","count":41254,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9341394.9056","converted_amount":"9341394.905603","count":31552,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"7685584.5365","converted_amount":"8353896.235277","count":23042,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"34.41944989","converted_amount":"3304267.189835","count":10018,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1125870,
+      "end_time": "2026-09-17T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3097600",
+      "start_time": "2026-09-16T00:00:00Z",
+      "total": "197607845.575566"
+    },
+    {
+      "components": [{"amount":"44510902.091603","converted_amount":"105496179.26535","count":820833,"currency":"XRP","rate":"0.42191957"},{"amount":"22104024.0393","converted_amount":"22104024.039328","count":71112,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"13857221.7596","converted_amount":"13857221.759648","count":46633,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10764395.8401","converted_amount":"10764395.840091","count":32788,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6214343.1418","converted_amount":"6754720.806327","count":23839,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"33.37631433","converted_amount":"3204126.175426","count":11953,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1043320,
+      "end_time": "2026-09-18T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3701200",
+      "start_time": "2026-09-17T00:00:00Z",
+      "total": "162180667.88617"
+    },
+    {
+      "components": [{"amount":"40554145.635831","converted_amount":"95141282.840174","count":874391,"currency":"XRP","rate":"0.42625183"},{"amount":"20416548.4884","converted_amount":"20416548.488375","count":62480,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15424627.0636","converted_amount":"15424627.063593","count":39778,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"6769786.3227","converted_amount":"6769786.322715","count":33773,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4063370.9497","converted_amount":"4416707.554012","count":21381,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"33.10766791","converted_amount":"3178336.119722","count":10451,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1083271,
+      "end_time": "2026-09-19T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3460310",
+      "start_time": "2026-09-18T00:00:00Z",
+      "total": "145347288.388591"
+    },
+    {
+      "components": [{"amount":"48065074.983677","converted_amount":"114437175.727137","count":844305,"currency":"XRP","rate":"0.42001277"},{"amount":"26247716.5152","converted_amount":"26247716.51521","count":60860,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"19685314.8041","converted_amount":"19685314.804104","count":36726,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11201420.3832","converted_amount":"11201420.383199","count":31769,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"51.51769707","converted_amount":"4945698.918832","count":10201,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"},{"amount":"4111589.1048","converted_amount":"4469118.592186","count":21569,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"}],
+      "count": 1048263,
+      "end_time": "2026-09-20T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3808800",
+      "start_time": "2026-09-19T00:00:00Z",
+      "total": "180986444.940668"
+    },
+    {
+      "components": [{"amount":"40427022.768229","converted_amount":"96309781.465025","count":698660,"currency":"XRP","rate":"0.41976030"},{"amount":"28773652.7579","converted_amount":"28773652.757947","count":54659,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15725571.6785","converted_amount":"15725571.67854","count":41210,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"6851174.045","converted_amount":"6851174.044951","count":30953,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"42.40059798","converted_amount":"4070457.405921","count":10346,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"},{"amount":"3613148.1848","converted_amount":"3927334.983443","count":20165,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"}],
+      "count": 898210,
+      "end_time": "2026-09-21T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3823120",
+      "start_time": "2026-09-20T00:00:00Z",
+      "total": "155657972.335827"
+    },
+    {
+      "components": [{"amount":"33013301.187221","converted_amount":"78679346.214059","count":990402,"currency":"XRP","rate":"0.41959298"},{"amount":"39070761.9748","converted_amount":"39070761.974806","count":75883,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"16255298.1362","converted_amount":"16255298.136213","count":45830,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10835386.8174","converted_amount":"10835386.817427","count":37349,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5409616.8808","converted_amount":"5880018.34866","count":23695,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"28.56942807","converted_amount":"2742665.095044","count":12449,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1237043,
+      "end_time": "2026-09-22T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3832620",
+      "start_time": "2026-09-21T00:00:00Z",
+      "total": "153463476.586209"
+    },
+    {
+      "components": [{"amount":"38678616.753111","converted_amount":"89832015.695902","count":836975,"currency":"XRP","rate":"0.43056606"},{"amount":"29969864.5322","converted_amount":"29969864.532195","count":62041,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"11081313.3719","converted_amount":"11081313.371906","count":47666,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7402001.3431","converted_amount":"7402001.343133","count":33485,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5148160.7286","converted_amount":"5595826.878889","count":23449,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"39.59456784","converted_amount":"3801078.512819","count":11032,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1057435,
+      "end_time": "2026-09-23T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.3225240",
+      "start_time": "2026-09-22T00:00:00Z",
+      "total": "147682100.334844"
+    },
+    {
+      "components": [{"amount":"43238045.396744","converted_amount":"103802137.678553","count":1017534,"currency":"XRP","rate":"0.41654292"},{"amount":"36593852.2232","converted_amount":"36593852.223199","count":79938,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"11959086.7769","converted_amount":"11959086.776895","count":45770,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10294218.942","converted_amount":"10294218.942008","count":37255,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5931048.3787","converted_amount":"6446791.715958","count":23068,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"30.05333992","converted_amount":"2885120.632375","count":11827,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1261204,
+      "end_time": "2026-09-24T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4007130",
+      "start_time": "2026-09-23T00:00:00Z",
+      "total": "171981207.968988"
+    },
+    {
+      "components": [{"amount":"32757483.826953","converted_amount":"80856411.084518","count":863150,"currency":"XRP","rate":"0.40513156"},{"amount":"33696760.3988","converted_amount":"33696760.398809","count":65628,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15541807.2602","converted_amount":"15541807.260159","count":45996,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9755912.375","converted_amount":"9755912.375034","count":31942,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"3933534.4579","converted_amount":"4275580.932493","count":21627,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"38.33697503","converted_amount":"3680349.60278","count":11029,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1088911,
+      "end_time": "2026-09-25T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4683340",
+      "start_time": "2026-09-24T00:00:00Z",
+      "total": "147806821.653793"
+    },
+    {
+      "components": [{"amount":"47166038.6083","converted_amount":"120738361.259766","count":789699,"currency":"XRP","rate":"0.39064667"},{"amount":"22577780.7709","converted_amount":"22577780.770939","count":62279,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"12832445.474","converted_amount":"12832445.473983","count":41040,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10484271.5636","converted_amount":"10484271.56362","count":34159,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6915428.3747","converted_amount":"7516769.972508","count":21573,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"35.14306101","converted_amount":"3373733.856488","count":10938,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 998239,
+      "end_time": "2026-09-26T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5598580",
+      "start_time": "2026-09-25T00:00:00Z",
+      "total": "177523362.897304"
+    },
+    {
+      "components": [{"amount":"35167923.597989","converted_amount":"89670116.552444","count":960394,"currency":"XRP","rate":"0.39219224"},{"amount":"32422543.3317","converted_amount":"32422543.331738","count":77341,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"13942671.9072","converted_amount":"13942671.907203","count":42874,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9939130.2083","converted_amount":"9939130.208337","count":38558,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6246463.4394","converted_amount":"6789634.173266","count":23024,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"45.2884534","converted_amount":"4347691.526378","count":12579,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1200420,
+      "end_time": "2026-09-27T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5497700",
+      "start_time": "2026-09-26T00:00:00Z",
+      "total": "157111787.699366"
+    },
+    {
+      "components": [{"amount":"35305503.475233","converted_amount":"87468961.193848","count":745994,"currency":"XRP","rate":"0.40363465"},{"amount":"30173087.0247","converted_amount":"30173087.024714","count":54249,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17008268.1838","converted_amount":"17008268.183807","count":37488,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"6812469.0824","converted_amount":"6812469.082412","count":30776,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5405449.0242","converted_amount":"5875488.069813","count":21434,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"41.62420838","converted_amount":"3995924.004833","count":10160,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 935588,
+      "end_time": "2026-09-28T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4774880",
+      "start_time": "2026-09-27T00:00:00Z",
+      "total": "151334197.559427"
+    },
+    {
+      "components": [{"amount":"51179028.719024","converted_amount":"127301487.739011","count":862485,"currency":"XRP","rate":"0.40203009"},{"amount":"41102329.7337","converted_amount":"41102329.733749","count":63150,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"15032690.1559","converted_amount":"15032690.155947","count":48195,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7061316.4326","converted_amount":"7061316.432633","count":33522,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4637773.3609","converted_amount":"5041058.000944","count":22799,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"42.14010277","converted_amount":"4045449.865513","count":11652,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1092661,
+      "end_time": "2026-09-29T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4873760",
+      "start_time": "2026-09-28T00:00:00Z",
+      "total": "199584331.927797"
+    },
+    {
+      "components": [{"amount":"53092686.353125","converted_amount":"131458924.912869","count":872488,"currency":"XRP","rate":"0.40387282"},{"amount":"38303714.0511","converted_amount":"38303714.051068","count":67989,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"12775804.8264","converted_amount":"12775804.82644","count":40650,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"12454448.1459","converted_amount":"12454448.14589","count":33171,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6638850.8184","converted_amount":"7216142.193956","count":21991,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"34.04183129","converted_amount":"3268015.804168","count":10595,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1086331,
+      "end_time": "2026-09-30T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4760270",
+      "start_time": "2026-09-29T00:00:00Z",
+      "total": "205477049.934391"
+    },
+    {
+      "components": [{"amount":"56077330.114287","converted_amount":"144094737.296429","count":1024475,"currency":"XRP","rate":"0.38916987"},{"amount":"24966043.0888","converted_amount":"24966043.088803","count":71622,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"16243334.64","converted_amount":"16243334.639976","count":47933,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"10444885.652","converted_amount":"10444885.652045","count":34070,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4968255.5553","converted_amount":"5400277.777454","count":24715,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"34.24769263","converted_amount":"3287778.492129","count":11960,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1254741,
+      "end_time": "2026-10-01T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5695720",
+      "start_time": "2026-09-30T00:00:00Z",
+      "total": "204437056.946836"
+    },
+    {
+      "components": [{"amount":"41692749.493388","converted_amount":"107128852.739269","count":888098,"currency":"XRP","rate":"0.38918320"},{"amount":"29315889.2161","converted_amount":"29315889.216112","count":79661,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"23088117.6288","converted_amount":"23088117.628767","count":47079,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"12586709.838","converted_amount":"12586709.838035","count":34326,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5478912.4843","converted_amount":"5955339.656802","count":26362,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"53.18198458","converted_amount":"5105470.519358","count":11632,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1127557,
+      "end_time": "2026-10-02T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5694840",
+      "start_time": "2026-10-01T00:00:00Z",
+      "total": "183180379.598343"
+    },
+    {
+      "components": [{"amount":"49950395.655616","converted_amount":"130148802.854842","count":936397,"currency":"XRP","rate":"0.38379451"},{"amount":"43207085.8648","converted_amount":"43207085.864807","count":61216,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"18922028.9614","converted_amount":"18922028.961435","count":45967,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8144735.6377","converted_amount":"8852973.519287","count":23249,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"7556004.8041","converted_amount":"7556004.804123","count":34524,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"43.08720461","converted_amount":"4136371.642297","count":10534,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1155433,
+      "end_time": "2026-10-03T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6055610",
+      "start_time": "2026-10-02T00:00:00Z",
+      "total": "212823267.646791"
+    },
+    {
+      "components": [{"amount":"42299601.634784","converted_amount":"110519976.155347","count":809538,"currency":"XRP","rate":"0.38273263"},{"amount":"42123448.9099","converted_amount":"42123448.909886","count":69290,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"20488739.0358","converted_amount":"20488739.035759","count":39893,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7940656.5835","converted_amount":"7940656.58351","count":31461,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"59.84946728","converted_amount":"5745548.859123","count":11263,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"},{"amount":"5284877.0807","converted_amount":"5744431.60947","count":20133,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"}],
+      "count": 1030124,
+      "end_time": "2026-10-04T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6127900",
+      "start_time": "2026-10-03T00:00:00Z",
+      "total": "192562801.153095"
+    },
+    {
+      "components": [{"amount":"51244128.951589","converted_amount":"137363372.255503","count":783563,"currency":"XRP","rate":"0.37305526"},{"amount":"28041406.148","converted_amount":"28041406.147972","count":55877,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"16666396.566","converted_amount":"16666396.565965","count":38275,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8219896.0112","converted_amount":"8219896.011228","count":26973,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5876342.8074","converted_amount":"6387329.138532","count":19060,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"41.38378595","converted_amount":"3972843.451553","count":9244,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 965870,
+      "end_time": "2026-10-05T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6805680",
+      "start_time": "2026-10-04T00:00:00Z",
+      "total": "200651243.570753"
+    },
+    {
+      "components": [{"amount":"49635739.53991","converted_amount":"131235158.092638","count":845729,"currency":"XRP","rate":"0.37821983"},{"amount":"23115018.3616","converted_amount":"23115018.361622","count":73206,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"19229851.0283","converted_amount":"19229851.028333","count":47158,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9683965.2832","converted_amount":"9683965.283227","count":36932,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"5331634.517","converted_amount":"5795254.909814","count":22384,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"39.70195366","converted_amount":"3811387.550881","count":11348,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1075868,
+      "end_time": "2026-10-06T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6439650",
+      "start_time": "2026-10-05T00:00:00Z",
+      "total": "192870635.226515"
+    },
+    {
+      "components": [{"amount":"36608437.64168","converted_amount":"95684425.283438","count":1012600,"currency":"XRP","rate":"0.38259557"},{"amount":"26120397.4797","converted_amount":"26120397.479651","count":65531,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17390299.3183","converted_amount":"17390299.318307","count":47482,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9437006.6859","converted_amount":"9437006.685868","count":37415,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"7467301.6611","converted_amount":"8116632.240348","count":22614,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"50.96886361","converted_amount":"4893010.906675","count":11787,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1241469,
+      "end_time": "2026-10-07T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6137260",
+      "start_time": "2026-10-06T00:00:00Z",
+      "total": "161641771.914287"
+    },
+    {
+      "components": [{"amount":"39110481.359308","converted_amount":"102091693.021937","count":1097573,"currency":"XRP","rate":"0.38309171"},{"amount":"33418039.2526","converted_amount":"33418039.252627","count":87177,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"21517348.5974","converted_amount":"21517348.59739","count":52299,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11671529.7661","converted_amount":"11671529.766083","count":40967,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"7856577.7216","converted_amount":"8539758.393026","count":26895,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"43.73556626","converted_amount":"4198614.360757","count":13001,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1371151,
+      "end_time": "2026-10-08T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6103410",
+      "start_time": "2026-10-07T00:00:00Z",
+      "total": "181436983.39182"
+    },
+    {
+      "components": [{"amount":"52273040.029181","converted_amount":"136126471.280711","count":791457,"currency":"XRP","rate":"0.38400349"},{"amount":"30242561.7437","converted_amount":"30242561.743692","count":65296,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"13710358.1458","converted_amount":"13710358.145849","count":43736,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7138176.7933","converted_amount":"7758887.818774","count":20459,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"7059049.0785","converted_amount":"7059049.078453","count":31528,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"41.98931322","converted_amount":"4030974.069003","count":10293,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1013605,
+      "end_time": "2026-10-09T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6041430",
+      "start_time": "2026-10-08T00:00:00Z",
+      "total": "198928302.136482"
+    },
+    {
+      "components": [{"amount":"36381734.607486","converted_amount":"91912995.225622","count":932065,"currency":"XRP","rate":"0.39582797"},{"amount":"20749183.0853","converted_amount":"20749183.085281","count":64986,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"18155846.0227","converted_amount":"18155846.022689","count":49822,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9742121.5019","converted_amount":"9742121.501917","count":32398,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"7321307.2568","converted_amount":"7957942.670484","count":21765,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"40.53056123","converted_amount":"3890933.878246","count":11110,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1160712,
+      "end_time": "2026-10-10T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5263500",
+      "start_time": "2026-10-09T00:00:00Z",
+      "total": "152409022.384239"
+    },
+    {
+      "components": [{"amount":"35833247.151684","converted_amount":"88326195.06887","count":930947,"currency":"XRP","rate":"0.40569219"},{"amount":"28951102.866","converted_amount":"28951102.865965","count":70014,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"12387569.8945","converted_amount":"12387569.894517","count":43074,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"9674947.7769","converted_amount":"9674947.776873","count":35121,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4693866.2277","converted_amount":"5102028.508342","count":23857,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"36.04262861","converted_amount":"3460092.346948","count":11318,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1157712,
+      "end_time": "2026-10-11T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4649230",
+      "start_time": "2026-10-10T00:00:00Z",
+      "total": "147901936.461515"
+    },
+    {
+      "components": [{"amount":"50422521.007818","converted_amount":"126727829.654327","count":866396,"currency":"XRP","rate":"0.39788041"},{"amount":"39315090.7445","converted_amount":"39315090.74448","count":71028,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"20027233.4401","converted_amount":"20027233.440123","count":40954,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"11291452.4574","converted_amount":"11291452.457448","count":32884,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"4278145.4695","converted_amount":"4650158.119046","count":23009,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"30.82955841","converted_amount":"2959637.607676","count":11016,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1086704,
+      "end_time": "2026-10-12T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5133180",
+      "start_time": "2026-10-11T00:00:00Z",
+      "total": "204971402.0231"
+    },
+    {
+      "components": [{"amount":"38984066.718289","converted_amount":"95127204.307033","count":878048,"currency":"XRP","rate":"0.40980986"},{"amount":"26795393.5439","converted_amount":"26795393.543888","count":61924,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17493107.9717","converted_amount":"17493107.971662","count":43435,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8473277.8932","converted_amount":"8473277.893228","count":32231,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6255591.8159","converted_amount":"6799556.321606","count":21061,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"38.57513798","converted_amount":"3703213.245816","count":9908,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1090202,
+      "end_time": "2026-10-13T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.4401560",
+      "start_time": "2026-10-12T00:00:00Z",
+      "total": "158391753.283233"
+    },
+    {
+      "components": [{"amount":"53859884.397468","converted_amount":"136232006.677499","count":970645,"currency":"XRP","rate":"0.39535411"},{"amount":"31474009.3816","converted_amount":"31474009.381617","count":68007,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"17219489.5605","converted_amount":"17219489.560509","count":49757,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"12285084.3322","converted_amount":"12285084.332213","count":35853,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"8566835.537","converted_amount":"9311777.757596","count":21705,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"59.40122444","converted_amount":"5702517.546298","count":10511,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1198538,
+      "end_time": "2026-10-14T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5293780",
+      "start_time": "2026-10-13T00:00:00Z",
+      "total": "212224885.255732"
+    },
+    {
+      "components": [{"amount":"38588713.577753","converted_amount":"100441675.031121","count":806985,"currency":"XRP","rate":"0.38419026"},{"amount":"26775976.4626","converted_amount":"26775976.462571","count":63377,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"21829833.7266","converted_amount":"21829833.72662","count":46290,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"8429079.0213","converted_amount":"8429079.021334","count":30254,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6217045.9312","converted_amount":"6757658.620865","count":23434,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"56.57981182","converted_amount":"5431661.934982","count":12111,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1027925,
+      "end_time": "2026-10-15T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.6028770",
+      "start_time": "2026-10-14T00:00:00Z",
+      "total": "169665884.797493"
+    },
+    {
+      "components": [{"amount":"33813782.159745","converted_amount":"86198803.571047","count":966132,"currency":"XRP","rate":"0.39227670"},{"amount":"27763563.1115","converted_amount":"27763563.111542","count":76633,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"13519029.0826","converted_amount":"13519029.082618","count":46320,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7567391.2929","converted_amount":"8225425.318373","count":23772,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"6901753.3753","converted_amount":"6901753.375323","count":34346,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"31.8695676","converted_amount":"3059478.489373","count":11484,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1202849,
+      "end_time": "2026-10-16T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5492210",
+      "start_time": "2026-10-15T00:00:00Z",
+      "total": "145668052.948276"
+    },
+    {
+      "components": [{"amount":"53803986.665376","converted_amount":"136417909.834581","count":865908,"currency":"XRP","rate":"0.39440559"},{"amount":"23664753.2599","converted_amount":"23664753.259943","count":64579,"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","rate":"1.0000000"},{"amount":"11853578.4316","converted_amount":"11853578.431645","count":43047,"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"1.0000000"},{"amount":"7996270.1674","converted_amount":"7996270.167394","count":34710,"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"1.0000000"},{"amount":"6069439.6709","converted_amount":"6597217.033627","count":20668,"currency":"EUR","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","rate":"0.92000000"},{"amount":"51.43884652","converted_amount":"4938129.265479","count":9699,"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","rate":"0.000010416667"}],
+      "count": 1082372,
+      "end_time": "2026-10-17T00:00:00Z",
+      "exchange": {"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"},
+      "exchange_rate": "2.5354610",
+      "start_time": "2026-10-16T00:00:00Z",
+      "total": "191467857.992669"
+    }
+  ]
+}

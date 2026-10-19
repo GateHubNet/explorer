@@ -3,7 +3,7 @@ import { gunzipSync } from "node:zlib";
 import { isValidClassicAddress } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
-import { dataApiTx, HTTP, inLedgerOrder, LEDGERS, isoTime, readLedgers, txMarker, unixOf, type RawLedger, type RawTx } from "../../scripts/http-fixtures";
+import { dataApiTx, HTTP, inLedgerOrder, isSynthetic, LEDGERS, isoTime, readLedgers, txMarker, unixOf, type RawLedger, type RawTx } from "../../scripts/http-fixtures";
 import { canonicalQuery, dataApiFile } from "../support/upstream-core";
 
 // What the fixtures of test/fixtures/http/ promise the tests that use them. The generated files are checked against
@@ -66,8 +66,11 @@ describe("every fixture file", () => {
   });
 
   it("stays within the budget that keeps the set reviewable", () => {
-    const bytes = files.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
-    expect(bytes).toBeLessThan(3.5 * 1024 * 1024);
+    const bytes = (names: string[]) => names.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
+    expect(bytes(files.filter((file) => !isSynthetic(file)))).toBeLessThan(3.5 * 1024 * 1024);
+    // The synthetic aggregates of the network page (about 2.6 MiB: four periods, two display currencies, three volumes) are generated and reviewed
+    // as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
+    expect(bytes(files.filter(isSynthetic))).toBeLessThan(3 * 1024 * 1024);
   });
 });
 

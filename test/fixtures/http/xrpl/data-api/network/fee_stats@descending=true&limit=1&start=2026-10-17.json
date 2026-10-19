@@ -1,0 +1,16 @@
+{
+  "count": 1,
+  "result": "success",
+  "rows": [
+    {
+      "current_ledger_size": 84,
+      "current_queue_size": 0,
+      "date": "2026-10-17T17:01:10Z",
+      "expected_ledger_size": 96,
+      "median_fee": 0.000005,
+      "minimum_fee": 0.00001,
+      "open_ledger_fee": 0.00001,
+      "pct_max_queue_size": 0
+    }
+  ]
+}
