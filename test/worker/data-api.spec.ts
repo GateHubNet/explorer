@@ -773,6 +773,49 @@ describe("errors", () => {
       expect(second).toBe(first);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
+
+    // A failure that takes the whole 5 s deadline to come: while the probe of an expired hold waits for it, every render that starts is held,
+    // so the API is asked once in a hold cycle and not by every render of the 5 s in which the call is out.
+    it("asks an API that never answers once in a hold cycle: the calls that start while the probe waits get the held error", async () => {
+      vi.useFakeTimers();
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}));
+      const api = apiAt("timeout-probe");
+      const ask = () => failureOf(api.lastValidated({ ttl: 0, holdFailure: true }));
+
+      const first = ask();
+      await vi.advanceTimersByTimeAsync(5_000);
+      const timedOut = await first;
+      expect(timedOut.kind).toBe("timeout");
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Held for 5 s from the failure.
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(await ask()).toBe(timedOut);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Over: the next call is the probe, and waits out its own 5 s. A beat of every tab in that time is held.
+      await vi.advanceTimersByTimeAsync(1);
+      const probe = ask();
+      const beats: Promise<UpstreamError>[] = [];
+      for (let beat = 0; beat < 9; beat += 1) {
+        await vi.advanceTimersByTimeAsync(500);
+        beats.push(ask());
+      }
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      for (const beat of beats) expect(await beat).toBe(timedOut);
+
+      // The probe times out in turn: its failure is held for 5 s more, and nothing is asked.
+      await vi.advanceTimersByTimeAsync(500);
+      const found = await probe;
+      expect(found.kind).toBe("timeout");
+      expect(await ask()).toBe(found);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      // And the cycle goes on: held to 5 s, a probe after it.
+      await vi.advanceTimersByTimeAsync(5_001);
+      void ask().catch(() => {});
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
   });
 
   it("400 is bad_request", async () => {

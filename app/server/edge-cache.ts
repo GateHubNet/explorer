@@ -162,18 +162,34 @@ function holdSeconds(error: UpstreamError): number {
     : FAILURE_HOLD_SECONDS;
 }
 
-/** Runs `load` unless the key's failure is held, in which case that error is thrown again; remembers the failure of a `load` that fails. */
+/**
+ * Runs `load` unless the key's failure is held, in which case that error is thrown again; remembers the failure of a `load` that fails.
+ *
+ * Once a hold is over, the first call that finds it is the probe: it runs `load`, and until it has settled (or for the hold's length again, if it
+ * does not) the entry stays, so that every other call keeps getting the held error and the upstream is asked by one call, not by every render
+ * that starts while the probe waits. That matters for an upstream that times out: its probe takes the whole deadline (5 s), and a hold that simply
+ * lapsed would leave every render of those 5 s calling it. What the probe finds decides the entry: an answer deletes it; a held failure sets it
+ * again, for a full hold from now; any other outcome (a thing that is not there, a request that was refused, an error that is not an upstream's)
+ * deletes it. The entry is all that is shared: a call never gets another request's response or stream, which a Worker may not read.
+ */
 async function loadHoldingFailures<T>(key: string, load: () => Promise<T>): Promise<T> {
   const held = heldFailures.get(key);
-  if (held && held.until > Date.now()) throw held.error;
+  if (held) {
+    if (held.until > Date.now()) throw held.error;
+    held.until = Date.now() + holdSeconds(held.error) * 1000;
+  }
   try {
-    return await load();
+    const value = await load();
+    heldFailures.delete(key);
+    return value;
   } catch (error) {
     if (error instanceof UpstreamError && HELD_KINDS.has(error.kind)) {
       // Delete before setting, so that a key that fails again is the newest and not the next to go.
       heldFailures.delete(key);
       heldFailures.set(key, { error, until: Date.now() + holdSeconds(error) * 1000 });
       while (heldFailures.size > FAILURE_HOLD_KEYS) heldFailures.delete(heldFailures.keys().next().value!);
+    } else {
+      heldFailures.delete(key);
     }
     throw error;
   }

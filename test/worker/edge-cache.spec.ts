@@ -1756,6 +1756,176 @@ describe("the failure hold", () => {
     expect(h.waiting).toBe(0);
   });
 
+  // The probe: once a hold is over, one call goes to the upstream and the others keep the held error until it has settled. A TTL of zero, so
+  // that `load` is called in the same turn as `json` and nothing but the hold decides who calls (the Cache API is covered by the cases above).
+  describe("when the hold is over", () => {
+    const probing = (cache: ReturnType<typeof createSubrequestCache>, k: string, load: () => Promise<number>) =>
+      cache.json(k, "live", load, 0, hold);
+    /** A `load` that settles when the test says so. */
+    function pending() {
+      let resolve!: (value: number) => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<number>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { load: vi.fn(() => promise), resolve, reject };
+    }
+    /** Fails once, then lets the hold lapse. */
+    async function lapsed(cache: ReturnType<typeof createSubrequestCache>, k: string, error: UpstreamError) {
+      await expect(probing(cache, k, failing(error))).rejects.toBe(error);
+      advance(5_001);
+    }
+
+    it("lets one call through to an upstream that is slow to fail, and the others keep the held error until it has settled", async () => {
+      const cache = createSubrequestCache(harness().ctx, "build-1");
+      const k = key("probe");
+      const error = new UpstreamError("timeout");
+      await lapsed(cache, k, error);
+
+      const probe = pending();
+      const first = probing(cache, k, probe.load);
+      expect(probe.load).toHaveBeenCalledTimes(1);
+
+      // The probe is still waiting, as an upstream that times out does for 5 s: every call in that time gets the held error, and none calls.
+      const others = Array.from({ length: 12 }, () => failing(new UpstreamError("server")));
+      for (const load of others) {
+        advance(300);
+        await expect(probing(cache, k, load)).rejects.toBe(error);
+      }
+      for (const load of others) expect(load).not.toHaveBeenCalled();
+      expect(probe.load).toHaveBeenCalledTimes(1);
+
+      const failed = new UpstreamError("timeout", "the probe's own");
+      probe.reject(failed);
+      await expect(first).rejects.toBe(failed);
+    });
+
+    it("holds the failure the probe found for a full hold from the moment it failed, and probes again after it", async () => {
+      const cache = createSubrequestCache(harness().ctx, "build-1");
+      const k = key("probe-fails");
+      await lapsed(cache, k, new UpstreamError("timeout"));
+
+      const probe = pending();
+      const first = probing(cache, k, probe.load);
+      advance(4_000);
+      const found = new UpstreamError("server", "found by the probe");
+      probe.reject(found);
+      await expect(first).rejects.toBe(found);
+
+      // Held for 5 s from now, with the error the probe found.
+      const later = failing(new UpstreamError("timeout"));
+      advance(4_999);
+      await expect(probing(cache, k, later)).rejects.toBe(found);
+      expect(later).not.toHaveBeenCalled();
+
+      // And then the next call is a probe again.
+      advance(2);
+      const next = pending();
+      const second = probing(cache, k, next.load);
+      expect(next.load).toHaveBeenCalledTimes(1);
+      await expect(probing(cache, k, later)).rejects.toBe(found);
+      expect(later).not.toHaveBeenCalled();
+      next.resolve(1);
+      expect(await second).toBe(1);
+    });
+
+    it("forgets the failure when the probe is answered: the next call is not held", async () => {
+      const cache = createSubrequestCache(harness().ctx, "build-1");
+      const k = key("probe-answers");
+      await lapsed(cache, k, new UpstreamError("server"));
+
+      const probe = pending();
+      const first = probing(cache, k, probe.load);
+      probe.resolve(3);
+      expect(await first).toBe(3);
+
+      const next = vi.fn(async () => 4);
+      expect(await probing(cache, k, next)).toBe(4);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["a thing that is not there", new UpstreamError("not_found")],
+      ["a request that was refused", new UpstreamError("bad_request")],
+      ["an error that is not an upstream's", new TypeError("a bug")],
+    ])("forgets the failure when the probe finds %s", async (_name, error) => {
+      const cache = createSubrequestCache(harness().ctx, "build-1");
+      const k = key("probe-other");
+      await lapsed(cache, k, new UpstreamError("server"));
+
+      await expect(probing(cache, k, failing(error))).rejects.toBe(error);
+
+      const next = vi.fn(async () => 5);
+      expect(await probing(cache, k, next)).toBe(5);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it("lets another call probe when the probe has not settled within a hold's length, so that a load that never ends does not close the key for good", async () => {
+      const cache = createSubrequestCache(harness().ctx, "build-1");
+      const k = key("probe-hangs");
+      const error = new UpstreamError("timeout");
+      await lapsed(cache, k, error);
+
+      const hung = pending();
+      void probing(cache, k, hung.load).catch(() => {});
+      advance(4_999);
+      const early = failing(new UpstreamError("server"));
+      await expect(probing(cache, k, early)).rejects.toBe(error);
+      expect(early).not.toHaveBeenCalled();
+
+      advance(2);
+      const second = pending();
+      const next = probing(cache, k, second.load);
+      expect(second.load).toHaveBeenCalledTimes(1);
+      await expect(probing(cache, k, early)).rejects.toBe(error);
+      expect(early).not.toHaveBeenCalled();
+      second.resolve(6);
+      expect(await next).toBe(6);
+    });
+
+    it("gives a rate-limited key its Retry-After again as the probe's window, and not less than 5 s", async () => {
+      const cache = createSubrequestCache(harness().ctx, "build-1");
+      const k = key("probe-limited");
+      const error = new UpstreamError("rate_limited", "x", { retryAfter: 12 });
+      await expect(probing(cache, k, failing(error))).rejects.toBe(error);
+      advance(12_001);
+
+      const probe = pending();
+      const first = probing(cache, k, probe.load);
+      advance(11_999);
+      const early = failing(new UpstreamError("server"));
+      await expect(probing(cache, k, early)).rejects.toBe(error);
+      expect(early).not.toHaveBeenCalled();
+      probe.resolve(7);
+      expect(await first).toBe(7);
+    });
+
+    it("probes through the Cache API too: the call that finds a stored answer takes it, and the one that does not is the probe", async () => {
+      const h = harness();
+      const cache = createSubrequestCache(h.ctx, "build-1");
+      const k = key("probe-kept");
+      const error = new UpstreamError("timeout");
+      await expect(held(cache, k, failing(error))).rejects.toBe(error);
+      advance(5_001);
+
+      const probe = pending();
+      const first = held(cache, k, probe.load);
+      await vi.waitFor(() => expect(probe.load).toHaveBeenCalledTimes(1), { interval: 1 });
+      const others = [failing(new UpstreamError("server")), failing(new UpstreamError("server"))];
+      for (const load of others) await expect(held(cache, k, load)).rejects.toBe(error);
+      for (const load of others) expect(load).not.toHaveBeenCalled();
+
+      probe.resolve(8);
+      expect(await first).toBe(8);
+      await h.settle();
+      // Answered and stored: the next call is the Cache API's.
+      const next = vi.fn(async () => 9);
+      expect(await held(cache, k, next)).toBe(8);
+      expect(next).not.toHaveBeenCalled();
+    });
+  });
+
   it("reads the Cache API first: an answer stored by a call that did not ask for the hold is what a call that asks gets, while the hold lasts", async () => {
     const h = harness();
     const cache = createSubrequestCache(h.ctx, "build-1");

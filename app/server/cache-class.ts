@@ -82,8 +82,10 @@ export interface SubrequestOptions {
    * Hold this call's failure (spec 1.7): when `load` throws an `UpstreamError` of kind `server`, `timeout`, `network` or `rate_limited`, the error is
    * remembered in memory, and for `FAILURE_HOLD_SECONDS` (a 429: its `Retry-After`, from `FAILURE_HOLD_SECONDS` to `FAILURE_HOLD_MAX_SECONDS`) a call for the same key with this
    * option throws it again without calling `load`. A page that polls (an open tab asks again by itself) asks for it on every upstream call it makes,
-   * so that a failing upstream is not asked by every beat of every tab. It is not part of the key: a call that does not ask neither reads nor makes a
-   * hold. Never stored in the Cache API; never for `not_found` or `bad_request`.
+   * so that a failing upstream is not asked by every beat of every tab. When the hold is over, the first call is a probe: it runs `load`, and until
+   * it has settled (or a hold's length has passed) the other calls still get the held error, so that an upstream that takes seconds to fail is asked
+   * once in a hold cycle, not by every call in those seconds. An answer, or a failure that is not held, ends the hold. It is not part of the key: a
+   * call that does not ask neither reads nor makes a hold. Never stored in the Cache API; never for `not_found` or `bad_request`.
    */
   holdFailure?: boolean;
 }
