@@ -210,6 +210,20 @@ a.nav-item:hover {
   background: var(--accent-xahau);
 }
 
+/* A segmented control of links with a visible label before it (SegmentedLinks): the label, and the network switch's pill of segments. On a
+   screen too narrow for both, the pill goes under its label. */
+.seglinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.seglinks__label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Search box and its hints */
 
@@ -819,6 +833,85 @@ a.btn {
     value-mark 1200ms ease-out backwards;
 }
 
+/* ---------------------------------------------------------------------------------------------------------------
+   Chips: the strip of the newest ledgers on the network page (NetworkPage; README, "Live updates"). A list of links on `--sunken`, in rows
+   of 6 on a wide screen and 3 on a narrower one, one under another on a phone, where only the newest 3 show. The text is --fg and --muted
+   only: light --faint on --sunken is 4.59:1 and falls under 4.5:1 with the live wash, and the Xahau link is 4.40:1 on it.
+
+   A new chip (`.is-entering`, put on it by `useLiveRows`) slides in from 8 px to its left, which is where the chips are lined up, as a new row
+   slides in from above. Its wash and its mark are on its link, not on the chip: the wash is an animated `background-color`, and on the chip
+   it would take the place of `--sunken` for the 1.2 s it runs. The link has no background, so the wash lies over the chip's, and the bar of the
+   mark sits in the link's padding (14 px, wider than the 3 px bar), behind no letter. */
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (min-width: 1180px) {
+  .chips {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.chip {
+  min-width: 0;
+  border-radius: 10px;
+  background: var(--sunken);
+}
+
+/* The whole chip is the link, so it is a target of 44 px or more. */
+.chip__link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  padding: 10px 14px;
+  border-radius: inherit;
+  color: var(--fg);
+}
+
+.chip__link:hover {
+  text-decoration: none;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.chip__index {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* One line: the chip is as high with the time of day the stored page has as with the age the browser puts there. */
+.chip__meta {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes chip-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.chip.is-entering {
+  animation: chip-enter 400ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms backwards;
+}
+
+.chip.is-entering > .chip__link {
+  animation:
+    live-flash 1200ms ease-out backwards,
+    row-mark 1200ms ease-out backwards;
+}
+
 /* base.css turns every animation off for this setting, `!important` on `*`. A new row and a changed figure keep the quiet half: the colours
    fading out, once, with nothing moving. (Between two `!important` declarations the class's specificity beats `*`.) */
 @media (prefers-reduced-motion: reduce) {
@@ -832,6 +925,13 @@ a.btn {
     animation:
       live-flash 1200ms ease-out,
       value-mark 1200ms ease-out !important;
+  }
+
+  /* A new chip does not slide in (base.css's `none` takes the chip's own animation); its link keeps the colours. */
+  .chip.is-entering > .chip__link {
+    animation:
+      live-flash 1200ms ease-out,
+      row-mark 1200ms ease-out !important;
   }
 }
 
@@ -1102,6 +1202,24 @@ a.tabs__item:hover {
 @media (max-width: 640px) {
   .kv {
     grid-template-columns: 1fr;
+  }
+
+  /* The newest 3 chips, one under another, each a line: the ledger, and what it held and when on the right. */
+  .chips {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .chip:nth-child(n + 4) {
+    display: none;
+  }
+
+  .chip__link {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
   }
 
   .card__body {

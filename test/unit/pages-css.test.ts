@@ -61,3 +61,52 @@ describe("the list of accounts a ledger created", () => {
     expect(Number.parseFloat(link["min-height"]!)).toBeGreaterThanOrEqual(24);
   });
 });
+
+describe("the network dashboard", () => {
+  it("is one column of rows 18 px apart, as the board is", () => {
+    expect(rule(pagesCss, ".network")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });
+  });
+
+  it("lays the cards out in pairs that fold on a phone: a half is 420 px at least, the wide one 520 px, the validators' 300 px, each able to shrink", () => {
+    expect(rule(pagesCss, ".network__pair")).toMatchObject({ display: "flex", "flex-wrap": "wrap", gap: "18px" });
+    expect(rule(pagesCss, ".network__half")).toMatchObject({ flex: "1 1 420px", "min-width": "0" });
+    expect(rule(pagesCss, ".network__wide")).toMatchObject({ flex: "999 1 520px", "min-width": "0" });
+    expect(rule(pagesCss, ".network__side")).toMatchObject({ flex: "1 1 300px", "min-width": "0" });
+  });
+
+  it("keeps the open ledger beside the chips while there is room for 220 px, and under them when there is not", () => {
+    expect(rule(pagesCss, ".network__ledgers")).toMatchObject({ display: "flex", "flex-wrap": "wrap" });
+    expect(rule(pagesCss, ".network__open").flex).toBe("1 1 220px");
+    // The chips take what is left.
+    expect(rule(pagesCss, ".network__chips").flex).toMatch(/^999 1 /);
+  });
+
+  it("writes its notes in --faint and the open ledger's lines in --muted, with the figures in --fg: text colours only", () => {
+    expect(rule(pagesCss, ".network__note").color).toBe("var(--faint)");
+    expect(rule(pagesCss, ".network__open").color).toBe("var(--muted)");
+    expect(rule(pagesCss, ".network__open b").color).toBe("var(--fg)");
+    expect(rule(pagesCss, ".network__count").color).toBe("var(--fg)");
+  });
+
+  it("holds the five first-seen keys as one block, so that the list is what rings when the ledger changes", () => {
+    expect(pagesCss).toMatch(/\.network__first \.live,\s*\.network__first \.live__value\s*\{[^}]*display:\s*block/);
+  });
+
+  it("gives the link of the validators card a 32 px target, 44 px on a phone or a touch screen", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".network__all")["min-height"]!)).toBeGreaterThanOrEqual(32);
+    expect(pagesCss).toMatch(/@media \(pointer: coarse\), \(max-width: 720px\) \{[^@]*\.network__all[^@]*min-height: 44px/);
+  });
+});
+
+describe("the segmented links of a filter row", () => {
+  it("has its label visible, in --faint, before the network switch's pill, which wraps under it on a screen too narrow for both", () => {
+    expect(rule(componentsCss, ".seglinks__label").color).toBe("var(--faint)");
+    expect(rule(componentsCss, ".seglinks")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "align-items": "center" });
+  });
+
+  it("is the network switch's own segments: 32 px to look at, a 44 px target around them, the current one raised", () => {
+    expect(rule(componentsCss, ".netswitch__item")["min-height"]).toBe("32px");
+    expect(rule(componentsCss, ".netswitch__item::after").inset).toBe("-6px 0");
+    expect(rule(componentsCss, ".netswitch__item[aria-current]").background).toBe("var(--surface)");
+  });
+});

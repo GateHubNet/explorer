@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// What the home page's live updates (a new row, a changed figure) may do in the stylesheet: how long they move, that they run once, that the
+// What the live pages' updates (a new row or chip, a changed figure) may do in the stylesheet: how long they move, that they run once, that the
 // highlight leaves every text of the page at WCAG AA (4.5:1) in both themes and on both networks' accents, and that a visitor who asked for
 // less motion gets none (README, "Live updates").
 
@@ -60,6 +60,14 @@ describe("the keyframes", () => {
     expect(enter).toMatch(/from\s*\{[^}]*opacity:\s*0/);
     expect(enter).toMatch(/from\s*\{[^}]*translateY\(-8px\)/);
     expect(enter).toMatch(/to\s*\{[^}]*opacity:\s*1/);
+  });
+
+  it("bring a new chip in with a fade and a slide of 8 px from the left, the way the strip's chips are lined up", () => {
+    const enter = keyframes("chip-enter");
+    expect(enter).toMatch(/from\s*\{[^}]*opacity:\s*0/);
+    expect(enter).toMatch(/from\s*\{[^}]*translateX\(-8px\)/);
+    expect(enter).toMatch(/to\s*\{[^}]*opacity:\s*1/);
+    expect(enter).not.toMatch(/translateY/);
   });
 
   it("bring a changed figure in from below", () => {
@@ -130,6 +138,54 @@ describe("the classes", () => {
   });
 });
 
+describe("the chips of the network page's strip", () => {
+  // A new chip runs the three: it comes in (`chip-enter`, on the chip), and its link, which is on top of the chip's `--sunken` and has no
+  // background of its own, gets the wash and the mark. They are not on the chip itself, because the wash is an animated `background-color`: on
+  // the chip it would replace `--sunken` for the 1.2 s it runs, and the chip would flash to the card's colour and back.
+  const chip = animations(rule(components, ".chip.is-entering").animation!);
+  const link = animations(rule(components, ".chip.is-entering > .chip__link").animation!);
+  const all = [...chip, ...link];
+
+  it("play a slide, a wash and a mark, once each", () => {
+    expect(chip.map((a) => a.name)).toEqual(["chip-enter"]);
+    expect(link.map((a) => a.name)).toEqual(["live-flash", "row-mark"]);
+    for (const a of all) {
+      expect(a.words.join(" "), a.name).not.toMatch(/infinite|alternate/);
+      expect(a.words.filter((word) => /^\d+$/.test(word)), a.name).toEqual([]);
+    }
+  });
+
+  it("move for 600 ms at most, the delay included, and fade the wash and the mark out in about 1.2 s", () => {
+    expect(chip[0]!.duration + chip[0]!.delay).toBeLessThanOrEqual(600);
+    for (const a of link) {
+      expect(a.duration, a.name).toBeGreaterThanOrEqual(1000);
+      expect(a.duration, a.name).toBeLessThanOrEqual(1500);
+    }
+  });
+
+  it("are kept on a chip by the script (ENTER_MS) for as long as the longest of them runs", () => {
+    const longest = Math.max(...all.map((a) => a.duration + a.delay));
+    expect(ENTER_MS).toBeGreaterThanOrEqual(longest);
+    expect(ENTER_MS).toBeLessThanOrEqual(longest + 500);
+  });
+
+  it("have their own background, --sunken, on the chip, and text in --fg and --muted only", () => {
+    expect(rule(components, ".chip").background).toBe("var(--sunken)");
+    expect(rule(components, ".chip__link").color).toBe("var(--fg)");
+    expect(rule(components, ".chip__meta").color).toBe("var(--muted)");
+    // The link has none: the wash is over the chip's, and the mark is not behind a letter (its padding is wider than the 3 px bar).
+    expect(rule(components, ".chip__link").background).toBeUndefined();
+    expect(Number.parseFloat(rule(components, ".chip__link").padding!.split(" ").at(-1)!)).toBeGreaterThan(3);
+  });
+
+  it("show the newest 3 under 640 px: the 4th chip on is hidden", () => {
+    const phone = braces(components, "@media (max-width: 640px)");
+    expect(rule(phone, ".chip:nth-child(n + 4)").display).toBe("none");
+    // Not hidden above it.
+    expect(components.match(/\.chip:nth-child\(n \+ 4\)/g)).toHaveLength(1);
+  });
+});
+
 describe("contrast under the highlight", () => {
   type Rgb = [number, number, number];
   const rgb = (hex: string): Rgb => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16)) as Rgb;
@@ -162,9 +218,17 @@ describe("contrast under the highlight", () => {
   const accents = { xrpl: rgb(tokensOf(":root", tokens)["--accent-xrpl"]!), xahau: rgb(tokensOf(":root", tokens)["--accent-xahau"]!) };
   const share = Number(/color-mix\(in srgb, var\(--accent\) ([\d.]+)%, transparent\)/.exec(keyframes("live-flash"))![1]) / 100;
 
-  // What is behind a highlighted element: the page (`--bg`, where the hero's status line and its examples' labels are) or a card, a tile, a
-  // chip (`--surface`). The animation replaces a hovered row's colour, so a row's backdrop is its card's.
-  const BACKDROPS = ["--bg", "--surface"] as const;
+  // What is behind a highlighted element, and the text colours that can be inside it. The page (`--bg`, where the hero's status line and its
+  // examples' labels are) or a card or a tile (`--surface`) holds text of every colour the page has. The animation replaces a hovered row's
+  // colour, so a row's backdrop is its card's. A chip of the network page's strip is on `--sunken`, and its text is `--fg` and `--muted` only:
+  // light `--faint` on `--sunken` is 4.59:1 and falls to 4.47:1 under the wash, and the Xahau link on it is 4.40:1 (spec 1.3).
+  type Text = "--fg" | "--muted" | "--faint" | "--link";
+  const EVERY_TEXT: readonly Text[] = ["--fg", "--muted", "--faint", "--link"];
+  const BACKDROPS: Record<"--bg" | "--surface" | "--sunken", readonly Text[]> = {
+    "--bg": EVERY_TEXT,
+    "--surface": EVERY_TEXT,
+    "--sunken": ["--fg", "--muted"],
+  };
 
   /** The lowest contrast of any text colour that can be inside a highlighted element, on the highlight at `at`, over every backdrop, theme and accent. */
   function worst(at: number): { ratio: number; where: string } {
@@ -172,9 +236,10 @@ describe("contrast under the highlight", () => {
     for (const [name, t] of Object.entries(themes)) {
       for (const [net, accent] of Object.entries(accents)) {
         const link = name === "light" ? accent : mix(accent, [255, 255, 255], 0.55);
-        for (const backdrop of BACKDROPS) {
+        for (const [backdrop, texts] of Object.entries(BACKDROPS)) {
           const peak = mix(accent, rgb(t[backdrop]!), at);
-          for (const [token, colour] of [["--fg", rgb(t["--fg"]!)], ["--muted", rgb(t["--muted"]!)], ["--faint", rgb(t["--faint"]!)], ["--link", link]] as const) {
+          for (const token of texts) {
+            const colour = token === "--link" ? link : rgb(t[token]!);
             const ratio = contrast(colour, peak);
             if (ratio < found.ratio) found = { ratio, where: `${token} on ${backdrop}, ${name}, ${net}` };
           }
@@ -193,20 +258,24 @@ describe("contrast under the highlight", () => {
     describe.each(Object.entries(accents))("with the %s accent", (_net, accent) => {
       const link = name === "light" ? accent : mix(accent, [255, 255, 255], 0.55);
 
-      describe.each(BACKDROPS)("on %s", (backdrop) => {
+      describe.each(Object.entries(BACKDROPS))("on %s", (backdrop, texts) => {
         // The highlight is the accent at `share` over what is behind the element.
         const peak = mix(accent, rgb(t[backdrop]!), share);
 
-        it.each([
-          ["--fg", () => rgb(t["--fg"]!)],
-          ["--muted", () => rgb(t["--muted"]!)],
-          ["--faint", () => rgb(t["--faint"]!)],
-          ["--link", () => link],
-        ] as const)("%s on the strongest moment of the highlight is at least 4.5:1", (_token, colour) => {
-          expect(contrast(colour(), peak)).toBeGreaterThanOrEqual(4.5);
+        it.each(texts)("%s on the strongest moment of the highlight is at least 4.5:1", (token) => {
+          const colour = token === "--link" ? link : rgb(t[token]!);
+          expect(contrast(colour, peak)).toBeGreaterThanOrEqual(4.5);
         });
       });
     });
+  });
+
+  it("leaves --faint and the link out of the chips because they would not do on --sunken: light --faint falls under 4.5:1 with the wash, the Xahau link is under it without", () => {
+    const light = themes.light;
+    const sunken = rgb(light["--sunken"]!);
+    expect(contrast(rgb(light["--faint"]!), sunken)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(rgb(light["--faint"]!), mix(accents.xrpl, sunken, share))).toBeLessThan(4.5);
+    expect(contrast(accents.xahau, sunken)).toBeLessThan(4.5);
   });
 
   it("is the strongest wash that keeps all of them at 4.5:1: a whole percent more would not (the Xahau link in light mode, on the page's own background)", () => {
@@ -224,6 +293,16 @@ describe("prefers-reduced-motion: reduce", () => {
     const all = braces(base, "@media (prefers-reduced-motion: reduce)");
     expect(all).toMatch(/animation:\s*none\s*!important/);
     expect(all).toMatch(/transition:\s*none\s*!important/);
+  });
+
+  it("leaves a new chip's link the highlight and the mark only, and the chip itself no slide", () => {
+    const declarations = rule(reduced, ".chip.is-entering > .chip__link");
+    const kept = animations(declarations.animation!.replace(/\s*!important$/, ""));
+    expect(kept.map((a) => a.name)).toEqual(["live-flash", "row-mark"]);
+    expect(declarations.animation).toMatch(/!important$/);
+    expect(declarations.transform).toBeUndefined();
+    // The slide stays off: base.css's `animation: none !important` takes it, and nothing here gives the chip an animation back.
+    expect(() => rule(reduced, ".chip.is-entering")).toThrow("no rule");
   });
 
   it("leaves a new row and a changed figure the highlight and the mark only: colours fading out, nothing moves", () => {

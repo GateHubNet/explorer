@@ -1,5 +1,5 @@
 /* What the pages of app/ui/pages lay out for themselves: the home hero, the two-column rows, the page head, the result
-   cards of the ledger page, the filter buttons and the raw block. Colours, borders and radii come from the tokens; nothing
+   cards of the ledger page, the filter buttons, the raw block and the network dashboard. Colours, borders and radii come from the tokens; nothing
    here knows a theme or a network. */
 
 .muted {
@@ -1014,11 +1014,181 @@ a.example:hover {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Network: the dashboard of /{net}/network (the board's layout: one column of rows, the cards in pairs that fold on a phone). The classes
+   of the chart kit (charts.css, which comes before this sheet) are never defined here: a rule of this sheet would win over the kit's. */
+
+.network {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.network__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+.network__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+/* The strip: the chips, and the open ledger beside them (under them when there is not room for both). */
+.network__ledgers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px 16px;
+  padding: 14px 16px;
+}
+
+.network__chips {
+  flex: 999 1 420px;
+  align-self: center;
+}
+
+.network__open {
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.network__open b {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.network__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+
+/* The period's words, and the notes of a card: faint, 12 px. */
+.network__note {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The cards in pairs: each is 420 px at least, so two fit in a row and one folds under the other on a phone. */
+.network__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.network__half {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.network__wide {
+  flex: 999 1 520px;
+  min-width: 0;
+}
+
+.network__side {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+/* The validators card is not a chart: its own head (the kit's title and source line, in the card's padding) and a column of lines. */
+.network__validators {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+}
+
+.network__signed {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.network__count {
+  color: var(--fg);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.network__first {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.network__first-label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* The five keys are one `LiveValue`: a block, so that it holds the whole list, and it rings the list, not a line of it. */
+.network__first .live,
+.network__first .live__value {
+  display: block;
+}
+
+.network__first ol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.network__first li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.network__first li > .mono {
+  color: var(--muted);
+}
+
+.network__first li > :last-child {
+  color: var(--faint);
+}
+
+.network__all {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The header's "soon" style, as a line of the card: it starts at the card's text, not 10 px in. */
+.network__validators > .nav-item {
+  width: fit-content;
+  padding-inline: 0;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Phones */
 
 @media (max-width: 640px) {
   .hero {
     padding-block: 16px 8px;
+  }
+
+  .network__title {
+    font-size: 24px;
   }
 
   .hero__title {
@@ -1071,7 +1241,8 @@ a.example:hover {
 /* Touch targets: 44 px (spec 8) on touch screens and phones. */
 @media (pointer: coarse), (max-width: 720px) {
   .example,
-  .fchip {
+  .fchip,
+  .network__all {
     min-height: 44px;
   }
 }
