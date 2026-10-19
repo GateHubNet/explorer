@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomePageData } from "../../server/home-view";
-import type { LiveControls } from "../use-home-live";
+import type { LiveControls } from "../use-live-controls";
 import { HomePage } from "./HomePage";
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
@@ -179,11 +179,11 @@ describe("HomePage, when its data changes", () => {
     expect(newLedger!.classList.contains("is-entering")).toBe(true);
     for (const row of oldLedgers) {
       expect(row.classList.contains("is-entering")).toBe(false);
-      expect(row.style.transform).toBe(`translateY(-${ROW}px)`);
+      expect(row.style.transform).toBe(`translate(0px, -${ROW}px)`);
     }
     const [newTx, ...oldTxs] = txRows();
     expect(newTx!.classList.contains("is-entering")).toBe(true);
-    expect(oldTxs.every((row) => !row.classList.contains("is-entering") && row.style.transform === `translateY(-${ROW}px)`)).toBe(true);
+    expect(oldTxs.every((row) => !row.classList.contains("is-entering") && row.style.transform === `translate(0px, -${ROW}px)`)).toBe(true);
     // Rows are keyed by ledger index and by transaction hash.
     expect(newLedger!.getAttribute("data-key")).toBe("107695661");
     expect(newTx!.getAttribute("data-key")).toBe("DD".repeat(32));

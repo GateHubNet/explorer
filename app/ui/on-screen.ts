@@ -19,6 +19,12 @@ export interface OnScreenOptions<T> {
    * counts as one that did not work. Asked only when a page of the same scope is on screen.
    */
   refuse?: (next: T, shown: T) => boolean;
+  /**
+   * What the page of the same scope shows for an answer that is accepted: `next` is the answer, `shown` what is on screen. A page made of parts
+   * that can fail on their own keeps the loaded ones (`keepLoaded`, live-page.ts). Never asked for an answer that is refused, for a page that
+   * is not on screen (a navigation to it), or for a load that failed.
+   */
+  merge?: (next: T, shown: T) => T;
   /** `REFRESH_TIMEOUT_MS`. */
   timeoutMs?: number;
 }
@@ -29,7 +35,7 @@ export interface OnScreen<T> {
   /**
    * `load()`, or what the page of `scope` shows when `load` fails or takes more than `timeoutMs` (and that page is on screen: a navigation
    * to the page waits for the load as long as it takes). A redirect (a thrown `Response` with a 3xx status) and an abort are React Router's
-   * own business and are never swallowed. An answer that `refuse` says no to is not taken.
+   * own business and are never swallowed. An answer that `refuse` says no to is not taken; one that is taken is `merge`d with what is shown.
    */
   reload(scope: string, load: () => Promise<T>): Promise<T>;
   /** How many refreshes in a row did not work: failed, timed out, or were refused. Zero after one that did, and when a page appears or leaves. */
@@ -104,7 +110,7 @@ export function createOnScreen<T>(options: OnScreenOptions<T> = {}): OnScreen<T>
         return current.data;
       }
       count(0);
-      return next;
+      return options.merge ? options.merge(next, current.data) : next;
     },
     failures: () => failed,
     subscribe(listener) {

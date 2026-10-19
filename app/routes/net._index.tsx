@@ -8,10 +8,10 @@ import { homePage, latestLedgerIndex, type HomeLoaderData } from "../server/home
 import { upstreamOutage } from "../server/loader-errors";
 import { homeMeta, metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
-import { createHomeOnScreen } from "../ui/home-live";
+import { createLiveOnScreen } from "../ui/live-page";
 import { HOME_TITLES, HomePage } from "../ui/pages/HomePage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
-import { useHomeLive } from "../ui/use-home-live";
+import { useLiveControls } from "../ui/use-live-controls";
 import { useNetwork } from "../ui/use-network";
 
 import type { Route } from "./+types/net._index";
@@ -44,7 +44,7 @@ function valueOf<T>(result: PromiseSettledResult<T>): T {
  * is read is `latestLedgerIndex`'s, so that the tiles and the hero say one ledger even when `last_validated` is ahead of the fees list.
  * The page polls (an open tab asks again every 4 s), so all four calls ask for the failure hold: a failure of the data API is remembered for
  * 5 s (a 429: its `Retry-After`) and thrown again without a call, instead of being asked again by every beat of every tab (spec 1.7).
- * The data carries the Worker's `BUILD_ID`, for an open page to tell a deploy (`home-live.ts`).
+ * The data carries the Worker's `BUILD_ID`, for an open page to tell a deploy (`live-page.ts`).
  */
 export async function loader({ params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
@@ -75,9 +75,9 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
  * What the home page on screen shows, and what happens when its refresh does not work: React Router would answer a revalidation that fails
  * (a 503 once) by dropping the page's data and showing the error boundary in its place, so the page keeps what it shows instead, counts the
  * failures (the polling slows down, the hero says so after two), gives up on a refresh that takes more than 10 s, and refuses an answer that
- * is older than the ledger it shows or of another build than it is (a deploy: it reloads, once). See `app/ui/home-live.ts` and `on-screen.ts`.
+ * is older than the ledger it shows or of another build than it is (a deploy: it reloads, once). See `app/ui/live-page.ts` and `on-screen.ts`.
  */
-const onScreen = createHomeOnScreen();
+const onScreen = createLiveOnScreen<HomeLoaderData>({ order: (d) => d.latest.index });
 
 /**
  * In the browser only, and only after the first render (the document and the first hydration use the server's data as it came): runs the
@@ -91,7 +91,7 @@ export function clientLoader({ params, serverLoader }: Route.ClientLoaderArgs) {
 
 export default function Home({ loaderData, params }: Route.ComponentProps) {
   const network = useNetwork();
-  const live = useHomeLive(onScreen);
+  const live = useLiveControls(onScreen);
   useEffect(() => onScreen.show(params.net, loaderData), [params.net, loaderData]);
   // Keyed by the network: switching to the other network's home is a navigation, and is not animated as a ledger closing.
   return <HomePage key={network.id} network={network} data={loaderData} live={live} />;

@@ -1,13 +1,13 @@
-// The home page's own `onScreen` (on-screen.ts): what the page keeps when a refresh does not work, and the two answers it will not draw: one
-// that is older than the ledger on screen, and one from another build than the page's own (README, "Live updates").
+// The `onScreen` of a live page (on-screen.ts): what the page keeps when a refresh does not work, and the two answers it will not draw: one
+// that is older than what is on screen (the page says how old with its `order`), and one from another build than the page's own (README,
+// "Live updates"). The home page and the network page share it; so will every live page after them.
 
-import type { HomeLoaderData } from "../server/home-view";
 import { createOnScreen, type OnScreen } from "./on-screen";
 
 /** Where this tab remembers the pairs of builds it has reloaded for (`sessionStorage`, a JSON list of `from>to`). */
 const MARKER = "explorer:build-reloads";
 
-export interface HomeLiveDeps {
+export interface LivePageDeps {
   /** `window.location.reload()`. */
   reload?: () => void;
   /** `window.sessionStorage`: it may throw, or be absent, where the visitor blocks storage. */
@@ -58,7 +58,7 @@ function reloadedFor(storage: () => Storage | undefined): { box: Storage; done: 
 }
 
 /** Notes that the page reloads for `pair` and reloads. Not where the note cannot be made. */
-function reloadNow(pair: string, { reload, storage }: Required<HomeLiveDeps>): void {
+function reloadNow(pair: string, { reload, storage }: Required<LivePageDeps>): void {
   const known = reloadedFor(storage);
   if (!known || known.done.includes(pair)) return;
   try {
@@ -79,7 +79,7 @@ function reloadNow(pair: string, { reload, storage }: Required<HomeLiveDeps>): v
  * until no field has focus and all are empty, or until the tab is hidden, and then reloads. The wait is one for each pair of builds however
  * many answers of the new build come meanwhile, and ends when it has reloaded.
  */
-function reloadOnce(from: string, to: string, deps: Required<HomeLiveDeps>, waiting: Set<string>): void {
+function reloadOnce(from: string, to: string, deps: Required<LivePageDeps>, waiting: Set<string>): void {
   const pair = `${from}>${to}`;
   if (waiting.has(pair) || reloadedFor(deps.storage)?.done.includes(pair)) return;
   if (document.visibilityState === "hidden" || !visitorIsTyping(document.activeElement)) {
@@ -102,22 +102,58 @@ function reloadOnce(from: string, to: string, deps: Required<HomeLiveDeps>, wait
   document.addEventListener("visibilitychange", check);
 }
 
-export function createHomeOnScreen(deps: HomeLiveDeps = {}): OnScreen<HomeLoaderData> {
-  const resolved: Required<HomeLiveDeps> = {
+export interface LiveOnScreenOptions<T> {
+  /**
+   * How far along the chain the data is (the ledger it shows, or the last validated one it was built from). An answer with a lower
+   * `order` than what is on screen is older, and is not drawn: the edge serves a stored copy, whatever its age, when a render fails.
+   */
+  order: (data: T) => number;
+  /**
+   * What to show for an answer that is accepted, when the page of its scope is on screen: `next` is the answer, `shown` what is on screen.
+   * A page made of parts that can fail on their own keeps the ones it has with `keepLoaded`. Without it the answer is shown as it is.
+   */
+  merge?: (next: T, shown: T) => T;
+  /** What the browser gives (`window.location.reload`, `window.sessionStorage`); a test gives its own. */
+  deps?: LivePageDeps;
+}
+
+/**
+ * The `OnScreen` of a page that follows the chain. The data says which build made it (`build`: the Worker's, a short git commit).
+ */
+export function createLiveOnScreen<T extends { build: string }>({ order, merge, deps = {} }: LiveOnScreenOptions<T>): OnScreen<T> {
+  const resolved: Required<LivePageDeps> = {
     reload: deps.reload ?? (() => window.location.reload()),
     storage: deps.storage ?? (() => window.sessionStorage),
   };
   /** The pairs of builds the page is waiting to reload for, until the visitor has stopped typing. */
   const waiting = new Set<string>();
-  return createOnScreen<HomeLoaderData>({
-    // Not to be drawn: an answer of another build (the document is reloaded, once), and an older one (the edge serves a stored copy, whatever
-    // its age, when a render fails; the scope of `reload` is the network, so another network's ledger is not compared).
+  return createOnScreen<T>({
+    // Not to be drawn: an answer of another build (the document is reloaded, once), and an older one (the scope of `reload` is the page's own,
+    // so another network's ledger, or another view of the page, is not compared).
     refuse: (next, shown) => {
       if (next.build !== shown.build) {
         reloadOnce(shown.build, next.build, resolved, waiting);
         return true;
       }
-      return next.latest.index < shown.latest.index;
+      return order(next) < order(shown);
     },
+    merge,
   });
+}
+
+/** A part of a page's data that a beat may keep: a value with a `state`. "failed" is a failure; every other state is an answer. */
+export type LivePart = { readonly state: string };
+
+/**
+ * The page to show for a beat's answer `next`, when `shown` is on screen: each part named in `parts` that is "failed" in `next` and
+ * not "failed" in `shown` is taken from `shown`. Everything else comes from `next`. Returns `next` itself when nothing is kept.
+ */
+export function keepLoaded<K extends string, T extends Record<K, LivePart>>(next: T, shown: T, parts: readonly K[]): T {
+  let kept: T | undefined;
+  for (const part of parts) {
+    if (next[part].state !== "failed" || shown[part].state === "failed") continue;
+    kept ??= { ...next };
+    kept[part] = shown[part];
+  }
+  return kept ?? next;
 }

@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeLoaderData } from "../server/home-view";
-import { createHomeOnScreen } from "./home-live";
+import { createLiveOnScreen, keepLoaded, type LivePart } from "./live-page";
 
-// A deploy while the home page is open: the Worker answering is of a new build, the code in the browser is the old one. Data of a new shape
-// must not be drawn by old code, so the page reloads, once. (The data says which build made it, `HomeLoaderData.build`.)
+// A deploy while a live page is open: the Worker answering is of a new build, the code in the browser is the old one. Data of a new shape
+// must not be drawn by old code, so the page reloads, once. (The data says which build made it, `HomeLoaderData.build`.) The home page is the
+// live page these cases run against: its `order` is the ledger it shows.
 
 const page = (build: string, index: number) => ({ build, latest: { index } }) as HomeLoaderData;
 
@@ -22,7 +23,7 @@ afterEach(() => {
 
 function setup(storage: () => Storage | undefined = () => sessionStorage) {
   const reload = vi.fn();
-  const onScreen = createHomeOnScreen({ reload, storage });
+  const onScreen = createLiveOnScreen<HomeLoaderData>({ order: (data) => data.latest.index, deps: { reload, storage } });
   return { onScreen, reload };
 }
 
@@ -256,5 +257,137 @@ describe("a deploy while the visitor is typing", () => {
     onScreen.show("xrpl", page("abc1234", 100));
     await refused(onScreen);
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+// What a live page says is older: the `order` it was made with. The home page's is its ledger, the network page's the last validated ledger.
+describe("a refresh of a live page: what is older", () => {
+  type Data = { build: string; order: number; label: string };
+  const data = (order: number, label = "", build = "abc1234"): Data => ({ build, order, label });
+  const make = (merge?: (next: Data, shown: Data) => Data) => {
+    const reload = vi.fn();
+    const onScreen = createLiveOnScreen<Data>({
+      order: (d) => d.order,
+      merge,
+      deps: { reload, storage: () => sessionStorage },
+    });
+    return { onScreen, reload };
+  };
+
+  it("refuses an answer with a lower order, and counts it as a refresh that did not work", async () => {
+    const { onScreen, reload } = make();
+    const shown = data(100);
+    onScreen.show("xrpl", shown);
+    expect(await onScreen.reload("xrpl", async () => data(99))).toBe(shown);
+    expect(onScreen.failures()).toBe(1);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("accepts an answer with an equal order", async () => {
+    const { onScreen } = make();
+    onScreen.show("xrpl", data(100));
+    const same = data(100, "again");
+    expect(await onScreen.reload("xrpl", async () => same)).toBe(same);
+    expect(onScreen.failures()).toBe(0);
+  });
+
+  it("compares nothing for a scope that is not on screen", async () => {
+    const { onScreen } = make();
+    onScreen.show("xrpl?period=30d", data(100));
+    const other = data(5);
+    expect(await onScreen.reload("xrpl?period=1y", async () => other)).toBe(other);
+  });
+
+  describe("the merge", () => {
+    const merged = data(0, "merged");
+
+    it("is called with (next, shown) for an accepted answer of the scope on screen, and what it returns is what reload returns", async () => {
+      const merge = vi.fn(() => merged);
+      const { onScreen } = make(merge);
+      const shown = data(100, "shown");
+      const next = data(101, "next");
+      onScreen.show("xrpl", shown);
+      expect(await onScreen.reload("xrpl", async () => next)).toBe(merged);
+      expect(merge).toHaveBeenCalledTimes(1);
+      expect(merge).toHaveBeenCalledWith(next, shown);
+      expect(onScreen.failures()).toBe(0);
+    });
+
+    it("is not called for an answer that is refused: not for a lower order, not for another build", async () => {
+      const merge = vi.fn(() => merged);
+      const { onScreen } = make(merge);
+      const shown = data(100, "shown");
+      onScreen.show("xrpl", shown);
+      expect(await onScreen.reload("xrpl", async () => data(99))).toBe(shown);
+      expect(await onScreen.reload("xrpl", async () => data(101, "", "def5678"))).toBe(shown);
+      expect(merge).not.toHaveBeenCalled();
+    });
+
+    it("is not called for a scope that is not on screen (a navigation), nor for a failed load", async () => {
+      const merge = vi.fn(() => merged);
+      const { onScreen } = make(merge);
+      const next = data(101, "next");
+      expect(await onScreen.reload("xrpl", async () => next)).toBe(next);
+      onScreen.show("xrpl", data(100, "shown"));
+      expect(await onScreen.reload("xahau", async () => next)).toBe(next);
+      await onScreen.reload("xrpl", () => Promise.reject(new Error("503")));
+      expect(merge).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// The merge of every live page whose parts can fail on their own (spec 6.3).
+describe("keepLoaded", () => {
+  type D = { a: LivePart; b: LivePart; x: LivePart };
+  const part = (state: string, v?: number): LivePart & { v?: number } => ({ state, v });
+  const page = (a: LivePart, b: LivePart, x: LivePart = part("ok")): D => ({ a, b, x });
+
+  it("takes a part that failed in the answer from the page on screen, and the rest from the answer", () => {
+    const next = page(part("failed"), part("ok", 2));
+    const shown = page(part("ok", 1), part("ok", 1));
+    const kept = keepLoaded(next, shown, ["a", "b"]);
+    expect(kept.a).toBe(shown.a);
+    expect(kept.b).toBe(next.b);
+    expect(kept.x).toBe(next.x);
+    expect(kept).not.toBe(next);
+  });
+
+  it("shows the failure of a part that has never loaded: it failed in both", () => {
+    const next = page(part("failed"), part("ok", 2));
+    const shown = page(part("failed"), part("ok", 1));
+    const kept = keepLoaded(next, shown, ["a", "b"]);
+    expect(kept.a).toBe(next.a);
+  });
+
+  it("leaves a part alone that `parts` does not name", () => {
+    const next = page(part("ok", 2), part("ok", 2), part("failed"));
+    const shown = page(part("ok", 1), part("ok", 1), part("ok", 1));
+    const kept = keepLoaded(next, shown, ["a", "b"]);
+    expect(kept.x).toBe(next.x);
+  });
+
+  it("returns the answer itself when nothing is kept", () => {
+    const next = page(part("ok", 2), part("ok", 2));
+    expect(keepLoaded(next, page(part("ok", 1), part("failed")), ["a", "b"])).toBe(next);
+    // Failed in the answer and in nothing else but a part that is not named.
+    const unnamed = page(part("ok", 2), part("ok", 2), part("failed"));
+    expect(keepLoaded(unnamed, page(part("ok"), part("ok"), part("ok")), ["a", "b"])).toBe(unnamed);
+    expect(keepLoaded(next, next, [])).toBe(next);
+  });
+
+  it.each(["off", "missing"])("takes %s for an answer that replaces a part that was loaded", (state) => {
+    const next = page(part(state), part("ok", 2));
+    const shown = page(part("ok", 1), part("ok", 1));
+    const kept = keepLoaded(next, shown, ["a", "b"]);
+    expect(kept.a).toBe(next.a);
+    expect(kept).toBe(next);
+  });
+
+  it("keeps a part that is missing, which is an answer, when the next one failed", () => {
+    const next = page(part("failed"), part("ok", 2));
+    const shown = page(part("missing"), part("ok", 1));
+    const kept = keepLoaded(next, shown, ["a", "b"]);
+    expect(kept.a).toBe(shown.a);
+    expect(kept.a.state).toBe("missing");
   });
 });

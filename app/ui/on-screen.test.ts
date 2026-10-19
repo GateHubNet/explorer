@@ -87,6 +87,55 @@ describe("refusing an answer", () => {
   });
 });
 
+describe("merging an answer", () => {
+  // The page is made of parts that can fail on their own; `merge` is how a page keeps the ones it has when the next answer lacks them.
+  const merge = (next: string, shown: string) => `${next}+${shown}`;
+
+  it("hands the page the merge of the answer and what it shows, when the answer is accepted and its page is on screen", async () => {
+    const onScreen = createOnScreen<string>({ merge });
+    onScreen.show("xrpl", "shown");
+    expect(await onScreen.reload("xrpl", async () => "fresh")).toBe("fresh+shown");
+    expect(onScreen.failures()).toBe(0);
+  });
+
+  it("merges with what the page shows, not with the page that was shown before it", async () => {
+    const onScreen = createOnScreen<string>({ merge });
+    onScreen.show("xrpl", "old");
+    onScreen.show("xrpl", "new");
+    expect(await onScreen.reload("xrpl", async () => "fresh")).toBe("fresh+new");
+  });
+
+  it("does not merge an answer that `refuse` says no to: the page keeps what it shows", async () => {
+    const mine = vi.fn((next: number, shown: number) => Math.max(next, shown));
+    const onScreen = createOnScreen<number>({ refuse: (next, shown) => next < shown, merge: mine });
+    onScreen.show("xrpl", 107);
+    expect(await onScreen.reload("xrpl", async () => 100)).toBe(107);
+    expect(mine).not.toHaveBeenCalled();
+  });
+
+  it("does not merge for a page that is not on screen (a navigation, another scope), nor for a load that failed", async () => {
+    const mine = vi.fn(merge);
+    const onScreen = createOnScreen<string>({ merge: mine });
+    expect(await onScreen.reload("xrpl", async () => "fresh")).toBe("fresh");
+    onScreen.show("xahau", "another network's page");
+    expect(await onScreen.reload("xrpl", async () => "fresh")).toBe("fresh");
+    expect(await onScreen.reload("xahau", failure)).toBe("another network's page");
+    expect(mine).not.toHaveBeenCalled();
+  });
+
+  it("asks for the merge after the refusal, so that a refused answer is never merged and an accepted one is merged once", async () => {
+    const calls: string[] = [];
+    const onScreen = createOnScreen<number>({
+      refuse: (next, shown) => (calls.push(`refuse ${next}`), next < shown),
+      merge: (next, shown) => (calls.push(`merge ${next}`), Math.max(next, shown)),
+    });
+    onScreen.show("xrpl", 10);
+    await onScreen.reload("xrpl", async () => 9);
+    await onScreen.reload("xrpl", async () => 11);
+    expect(calls).toEqual(["refuse 9", "refuse 11", "merge 11"]);
+  });
+});
+
 describe("counting the refreshes that did not work", () => {
   it("counts consecutive failures, and a success starts the count again", async () => {
     const onScreen = createOnScreen<string>();

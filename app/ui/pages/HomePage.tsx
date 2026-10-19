@@ -1,4 +1,3 @@
-import { useEffect, useRef, type FocusEvent, type PointerEvent } from "react";
 import { Link } from "react-router";
 
 import { formatAmount, formatUtc } from "../../domain/format";
@@ -17,8 +16,9 @@ import { SearchBox } from "../components/SearchBox";
 import { StatGrid, StatTile } from "../components/StatTile";
 import { TypeTag } from "../components/TypeTag";
 import type { NetworkInfo } from "../networks";
-import type { LiveControls } from "../use-home-live";
 import { cx } from "../cx";
+import { useHolds } from "../use-hold";
+import type { LiveControls } from "../use-live-controls";
 
 /** The headline of each network's home page (also its title). */
 export const HOME_TITLES = { xrpl: "Explore the XRP Ledger", xahau: "Explore Xahau" } as const;
@@ -26,23 +26,6 @@ export const HOME_TITLES = { xrpl: "Explore the XRP Ledger", xahau: "Explore Xah
 /** `17:01:12`, from unix seconds. */
 const timeOfDay = (at: number) => formatUtc(at).slice(11, 19);
 const count = (n: number) => formatAmount(String(n));
-
-/**
- * Whether focus on `target` holds the updates while it is in a table: a link or a button in it (it is about to be pressed, and a row that moved
- * would take it away), or anything that shows a focus ring, which is how a keyboard has focus (`:focus-visible`: the table's scroll region
- * has tabindex 0 so that a keyboard can scroll it). A click on a spot of the table that is not a link also focuses the scroll region, but that
- * is not keyboard focus and must not hold the page after the pointer has left.
- */
-function holdsFocus(target: EventTarget): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.closest("a[href], button") !== null) return true;
-  try {
-    return target.matches(":focus-visible");
-  } catch {
-    // A browser that does not know the selector says nothing of keyboard focus: no hold, which is the safe side (the page goes on).
-    return false;
-  }
-}
 
 /**
  * The home page: the search hero with examples, four tiles, the newest ledgers and the newest transactions. Takes what the
@@ -69,38 +52,9 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
   const feeNote = fees ? `average ${formatAmount(fees.average)} · max ${formatAmount(fees.max)} per transaction` : "not counted yet";
   const stopped = live !== undefined && (live.paused || live.held || live.failures >= PAUSED_AFTER_FAILURES);
 
-  // A hold for each table and each way of being on it; the page is held while any is.
-  const holds = useRef(new Set<string>());
-  const hold = (id: string, on: boolean) => {
-    if (on) holds.current.add(id);
-    else holds.current.delete(id);
-    live?.onHold(holds.current.size > 0);
-  };
-  const holding = (table: string) => ({
-    // A finger is not a pointer that stays over a table: only a mouse or a pen holds.
-    onPointerEnter: (event: PointerEvent) => {
-      if (event.pointerType !== "touch") hold(`${table}:pointer`, true);
-    },
-    onPointerLeave: () => hold(`${table}:pointer`, false),
-    // What focus does is decided each time it moves, so that a mouse that focuses the scroll region after a link had focus lets go of it.
-    onFocus: (event: FocusEvent<HTMLElement>) => hold(`${table}:focus`, holdsFocus(event.target)),
-    // Focus moving inside the table is not leaving it.
-    onBlur: (event: FocusEvent<HTMLElement>) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hold(`${table}:focus`, false);
-    },
-  });
-  // A hold must not outlive the page that made it: the page is remounted for the other network's home, and the hook that polls is not.
-  const currentLive = useRef(live);
-  useEffect(() => {
-    currentLive.current = live;
-  });
-  useEffect(
-    () => () => {
-      holds.current.clear();
-      currentLive.current?.onHold(false);
-    },
-    [],
-  );
+  // A hold for each table and each way of being on it; the page is held while any is, and a hold does not outlive the page (it is remounted
+  // for the other network's home, and the hook that polls is not).
+  const holds = useHolds(live?.onHold);
 
   const ledgerColumns: Column<HomeLedgerRow>[] = [
     { id: "ledger", header: "Ledger", width: "minmax(100px, 1fr)", cell: (row) => <LedgerLink net={network.id} index={row.index} /> },
@@ -227,7 +181,7 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
           flush
           className="cols__narrow"
         >
-          <div {...holding("ledgers")}>
+          <div {...holds("ledgers")}>
             <DataTable
               label="Latest ledgers"
               columns={ledgerColumns}
@@ -248,7 +202,7 @@ export function HomePage({ network, data, live }: { network: NetworkInfo; data: 
           flush
           className="cols__wide"
         >
-          <div {...holding("transactions")}>
+          <div {...holds("transactions")}>
             <DataTable
               label="Latest transactions"
               columns={txColumns}

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { OnScreen } from "./on-screen";
 import { useLiveRefresh } from "./use-live-refresh";
 
-/** What the home page is given to show and to tell about the live updates (`HomePage`'s `live`). */
+/** What a live page is given to show and to tell about the live updates (`HomePage`'s `live`). */
 export interface LiveControls {
   /** The visitor paused the updates. */
   paused: boolean;
@@ -46,12 +46,12 @@ function writePaused(paused: boolean): void {
 }
 
 /**
- * The home page's live updates as the route wires them: the polling (`useLiveRefresh`) with what the page knows that it must obey, and the
+ * A live page's updates as the route wires them: the polling (`useLiveRefresh`) with what the page knows that it must obey, and the
  * `LiveControls` the page shows. The failures are the page's `OnScreen` store's. Whether it is paused is the visitor's, read from the tab's
  * storage after the first render (so that the server's HTML and the hydration do not depend on it, and a paused tab does not ask before it
- * has been read: the first beat is 4 s after the page is up).
+ * has been read: the first beat is 4 s after the page is up). One key serves the whole tab, so a pause on one live page holds on the other.
  */
-export function useHomeLive(store: Pick<OnScreen<unknown>, "failures" | "subscribe">): LiveControls {
+export function useLiveControls(store: Pick<OnScreen<unknown>, "failures" | "subscribe">): LiveControls {
   const failures = useSyncExternalStore(store.subscribe, store.failures, () => 0);
   const [paused, setPaused] = useState(false);
   const [holding, setHolding] = useState(false);

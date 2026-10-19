@@ -12,12 +12,16 @@ import { LiveValue } from "./LiveValue";
 
 const ROW = 46;
 
-/** happy-dom has no layout: every row sits at its place in its parent, a row high each, and the table itself at the top. */
+/** How far from the left of the table a row is, by key (the rows of a table are in one column; the chips of the network page sit side by side). */
+let lefts = new Map<string, number>();
+
+/** happy-dom has no layout: every row sits at its place in its parent, a row high each, and the table itself at the top left. */
 function mockLayout() {
   return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     const siblings = this.parentElement ? Array.from(this.parentElement.children) : [];
     const top = this.getAttribute("role") === "table" ? 0 : siblings.indexOf(this) * ROW;
-    return { top, bottom: top + ROW, left: 0, right: 0, width: 0, height: ROW, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    const left = lefts.get(this.dataset.key ?? "") ?? 0;
+    return { top, bottom: top + ROW, left, right: left, width: 0, height: ROW, x: left, y: top, toJSON: () => ({}) } as DOMRect;
   });
 }
 
@@ -39,6 +43,7 @@ function reduceMotion(reduce: boolean) {
 
 beforeEach(() => {
   frames = [];
+  lefts = new Map();
   vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => frames.push(frame));
   reduceMotion(false);
   mockLayout();
@@ -89,7 +94,7 @@ describe("DataTable, live", () => {
     expect(rowOf(container, "d").style.transform).toBe("");
     // The rows that were there are put back where they were (one row up), without a transition...
     for (const id of ["a", "b", "c"]) {
-      expect(rowOf(container, id).style.transform, id).toBe(`translateY(-${ROW}px)`);
+      expect(rowOf(container, id).style.transform, id).toBe(`translate(0px, -${ROW}px)`);
       expect(rowOf(container, id).style.transition, id).toBe("none");
     }
     // ...and the same elements: React moved them, it did not make new ones.
@@ -114,7 +119,7 @@ describe("DataTable, live", () => {
     rerender(<Table ids={["d", "a", "b"]} />);
     expect(container.querySelector('[data-key="c"]')).toBeNull();
     expect(entering(container)).toEqual(["d"]);
-    expect(rowOf(container, "a").style.transform).toBe(`translateY(-${ROW}px)`);
+    expect(rowOf(container, "a").style.transform).toBe(`translate(0px, -${ROW}px)`);
   });
 
   it("does not move a row that did not move, and animates nothing when only the objects are new", () => {
@@ -134,8 +139,48 @@ describe("DataTable, live", () => {
     const { container, rerender } = render(<Table ids={["a", "b", "c"]} />);
     rerender(<Table ids={["c", "a", "b"]} />);
     expect(entering(container)).toEqual([]);
-    expect(rowOf(container, "c").style.transform).toBe(`translateY(${2 * ROW}px)`);
-    expect(rowOf(container, "a").style.transform).toBe(`translateY(-${ROW}px)`);
+    expect(rowOf(container, "c").style.transform).toBe(`translate(0px, ${2 * ROW}px)`);
+    expect(rowOf(container, "a").style.transform).toBe(`translate(0px, -${ROW}px)`);
+  });
+
+  it("slides a child that moved on x, from the left of the container: a chip moved right by a chip coming in before it", () => {
+    const { container, rerender } = render(<Table ids={["a", "b", "c"]} />);
+    // Measured from the container's box, not the page's: only `left` differs, the order of the children does not.
+    lefts.set("a", 120);
+    lefts.set("b", 120);
+    rerender(<Table ids={["a", "b", "c"]} />);
+    for (const id of ["a", "b"]) {
+      expect(rowOf(container, id).style.transform, id).toBe("translate(-120px, 0px)");
+      expect(rowOf(container, id).style.transition, id).toBe("none");
+    }
+    expect(rowOf(container, "c").style.transform).toBe("");
+    playFrames();
+    for (const id of ["a", "b"]) {
+      expect(rowOf(container, id).style.transform, id).toBe("");
+      expect(rowOf(container, id).style.transition, id).toMatch(/^transform \d+ms /);
+    }
+  });
+
+  it("slides a child that moved on both axes with both differences", () => {
+    const { container, rerender } = render(<Table ids={["a", "b"]} />);
+    lefts.set("b", -30);
+    rerender(<Table ids={["c", "a", "b"]} />);
+    expect(rowOf(container, "a").style.transform).toBe(`translate(0px, -${ROW}px)`);
+    expect(rowOf(container, "b").style.transform).toBe(`translate(30px, -${ROW}px)`);
+  });
+
+  it("counts a child as moved when either difference is 1 px or more, and a move of less than 1 px on both as none", () => {
+    const { container, rerender } = render(<Table ids={["a", "b"]} />);
+    lefts.set("a", 0.5);
+    rerender(<Table ids={["a", "b"]} />);
+    expect(rowOf(container, "a").style.transform).toBe("");
+    expect(frames).toHaveLength(0);
+
+    // The positions are those of the last commit: 0.5, and now 1.5.
+    lefts.set("a", 1.5);
+    rerender(<Table ids={["a", "b"]} />);
+    expect(rowOf(container, "a").style.transform).toBe("translate(-1px, 0px)");
+    expect(rowOf(container, "b").style.transform).toBe("");
   });
 
   it("enters every row of a list that is all new, as the transactions of a new ledger are", () => {
