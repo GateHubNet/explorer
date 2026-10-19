@@ -4,7 +4,7 @@ import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { reactRouter } from "@react-router/dev/vite";
 import { configDefaults, defineConfig } from "vitest/config";
 
-import { FEATURE_VARS, type FeatureVar } from "./app/ui/features";
+import { FEATURE_VARS, type FeatureVar } from "./app/ui/features.ts";
 
 // The switches at the top level of wrangler.jsonc, which the `worker` project runs with (README, "Switches"). A switch is "on" here from
 // the moment the code it gates is built; `VALIDATORS` is "off" until E6 builds its pages. The `satisfies` fails until a new switch is

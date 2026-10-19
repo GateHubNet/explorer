@@ -607,7 +607,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   holds the few `app/` and `test/support/` files that `scripts/` and the Node tests import: `upstream-core.ts`, `fixture-server.ts`, `switches.ts`,
   `app/server/api-types.ts`, `app/ui/features.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
   `test/e2e/stack.ts`, which starts the end-to-end stack, is in that config too; the Playwright config and specs are `tsconfig.e2e.json`'s, with
-  the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out.)
+  the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
+  because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
   a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through); `test/unit/e2e-stack.test.ts`

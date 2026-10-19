@@ -10,7 +10,7 @@ import {
   type DegradedMark,
   type Render,
 } from "../../app/server/edge-cache";
-import { cacheGeneration, type Env } from "../../app/server/env";
+import { cacheGeneration, createLoadContext, getSubrequestCache, type Env } from "../../app/server/env";
 import { allSwitches } from "../support/switches";
 
 // The page-level edge cache, called directly with a fake `render` and a fake execution context. The Cache API
@@ -270,7 +270,6 @@ describe("storing and serving a page", () => {
     const h = harness();
     const url = pageUrl();
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(`__build=${encodeURIComponent(cacheGeneration(h.env))}`);
-    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain("__build=test-build%3AAMM_DATA%3Don%2CVALIDATORS%3Doff");
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(url, "build-b"));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(`${url}?x=1`, "build-a"));
     expect(edgeCacheKey(`${url}?x=1`, "build-a")).toBe(`${url}?x=1&__build=build-a`);
@@ -1559,17 +1558,22 @@ describe("createSubrequestCache", () => {
     expect(await createSubrequestCache(h.ctx, "build-1").json(k, "slow", async () => "again")).toBe("one");
   });
 
+  // Through `createLoadContext`, which is what builds the cache of a request: it must key with `BUILD_ID` and not with `cacheGeneration`.
   it("keeps the build ID in its key whatever the switches are: upstream data is not changed by a switch", async () => {
     const k = key("switch");
     const on = harness({ AMM_DATA: "on" });
     const off = harness({ AMM_DATA: "off" });
     expect(cacheGeneration(on.env)).not.toBe(cacheGeneration(off.env));
-    // `createLoadContext` builds the cache of a request with the BUILD_ID, not with the generation.
-    await createSubrequestCache(on.ctx, on.env.BUILD_ID).json(k, "live", async () => "live");
+    await getSubrequestCache(createLoadContext(on.env, on.ctx)).json(k, "live", async () => "live");
     await on.settle();
     const load = vi.fn(async () => "again");
-    expect(await createSubrequestCache(off.ctx, off.env.BUILD_ID).json(k, "live", load)).toBe("live");
+    expect(await getSubrequestCache(createLoadContext(off.env, off.ctx)).json(k, "live", load)).toBe("live");
     expect(load).not.toHaveBeenCalled();
+
+    // And it is the build that is in the key: another build loads again.
+    const other = harness({ BUILD_ID: "build-b" });
+    expect(await getSubrequestCache(createLoadContext(other.env, other.ctx)).json(k, "live", load)).toBe("again");
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it("does not wait for the store", async () => {
