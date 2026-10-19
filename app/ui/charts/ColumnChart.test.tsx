@@ -114,7 +114,7 @@ describe("ColumnChart as the Worker prints it and the browser takes it over", ()
     // A band's label is at the middle of its band: the newest of 30 is at 98.33%.
     expect(Array.from(container.querySelectorAll<HTMLElement>(".plot__x--wide > *"), (label) => label.style.left).at(-1)).toBe("98.33%");
     expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe(
-      "Transactions by type, per day, Sep 18 to Oct 17, 2026. Highest Sep 30, 18; latest Oct 17, 15. Choose Table for every value.",
+      "Transactions by type, per day, Sep 18 to Oct 17, 2026. Highest Sep 30, 18; latest Oct 17, so far, 15. Choose Table for every value.",
     );
     expect(errors).toEqual([]);
   });

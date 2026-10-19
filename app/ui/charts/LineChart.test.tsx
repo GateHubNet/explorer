@@ -89,7 +89,7 @@ describe("LineChart as the Worker prints it and the browser takes it over", () =
     expect(Array.from(container.querySelectorAll<HTMLElement>(".plot__x--wide > *"), (label) => label.style.left).at(-1)).toBe("100%");
     expect(container.querySelector('[role="region"]')).toBeNull();
     expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe(
-      "Volume per day, in XRP, Sep 17 to Oct 16, 2026. Highest Oct 16, 45.5M XRP; latest Oct 16, 45.5M XRP. Choose Table for every value.",
+      "Volume per day, in XRP, Sep 17 to Oct 16, 2026. Highest Payments Oct 16, 45.5M XRP; latest Payments Oct 16, 45.5M XRP. Choose Table for every value.",
     );
     expect(errors).toEqual([]);
   });

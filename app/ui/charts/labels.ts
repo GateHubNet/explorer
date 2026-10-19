@@ -142,12 +142,17 @@ function summaryDate(bucket: string, unit: TimeAxis["unit"], withYear: boolean):
 /**
  * The text of a plot for a screen reader (the `aria-label` of its `role="img"`): "Transactions by type per day, Sep 17 to Oct 16,
  * 2026. Highest Oct 3, 2.31M; latest Oct 16, 2.1M. Choose Table for every value." It reads the totals when there are some, else the
- * first series, with compact values. The year is on the last date only, and on both when the years differ. The highest is the earliest
- * of equal highs, the latest the newest bucket with a value. With no value at all it is "{title}: {emptyText}.".
+ * first series, with compact values. With more than one series and no totals the figures are the first series' alone, so it is named:
+ * "Highest Payments Oct 3, 45.5M XRP; latest Payments Oct 17, so far, 12.1M XRP" (the other lines are in the table). The year is on the
+ * last date only, and on both when the years differ. The highest is the earliest of equal highs, the latest the newest bucket with a
+ * value; a bucket that is the running one (`forming`, the newest of the axis) adds ", so far" to its date, as the tooltip does. With no
+ * value at all it is "{title}: {emptyText}.".
  */
 export function plotSummary(title: string, data: TimeSeriesData): string {
   const { axis, format } = data;
   const values = data.totals ?? data.series[0]?.values ?? [];
+  // The figures of a chart of several lines with no totals belong to its first line: say which.
+  const named = data.totals === undefined && data.series.length > 1 ? `${data.series[0]!.label} ` : "";
 
   let highest = -1;
   let latest = -1;
@@ -161,7 +166,8 @@ export function plotSummary(title: string, data: TimeSeriesData): string {
 
   const [first = "", last = ""] = [axis.buckets[0], axis.buckets.at(-1)];
   const sameYear = first.slice(0, 4) === last.slice(0, 4);
-  const at = (i: number) => `${summaryDate(axis.buckets[i]!, axis.unit, false)}, ${valueText(values[i]!, format, "compact")}`;
+  const running = (i: number) => (data.forming === true && i === axis.buckets.length - 1 ? ", so far" : "");
+  const at = (i: number) => `${named}${summaryDate(axis.buckets[i]!, axis.unit, false)}${running(i)}, ${valueText(values[i]!, format, "compact")}`;
   return (
     `${title}, ${summaryDate(first, axis.unit, !sameYear)} to ${summaryDate(last, axis.unit, true)}. ` +
     `Highest ${at(highest)}; latest ${at(latest)}. Choose Table for every value.`

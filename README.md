@@ -418,6 +418,9 @@ running one, and `pending` how many of the newest buckets are not computed yet (
   (`defaultChecked`), so a beat of the live page leaves the visitor's choice alone. The hidden view is `display: none`.
 - **A chart is one image to a screen reader.** The marks are in a `role="img"` whose label is the kit's own summary ("Transactions by type per
   day, Sep 17 to Oct 16, 2026. Highest Oct 3, 2.31M; latest Oct 16, 2.1M. Choose Table for every value."). The marks inside are `aria-hidden`.
+  It reads the totals when there are some, else the first series. A chart of several lines with no totals (the volume card) names that first line,
+  because the figures are its alone ("Highest Payments Oct 3, 45.5M XRP; latest Payments Oct 17, so far, 12.1M XRP"); the other lines are in the
+  table. A running bucket (`forming`, the newest of the axis) that the summary names says "so far" after its date, as the tooltip does.
   `Sparkline` and `Meter` are one image named by the label the builder wrote. `BarList` is a list: its bars are `aria-hidden` and its text is read.
 - **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore`) a `Cursor` adds a transparent
   `role="slider"` over the plot with `aria-valuetext` for the bucket, so a screen reader hears each step with no live region. A pointer selects

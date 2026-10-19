@@ -244,6 +244,100 @@ describe("plotSummary", () => {
     );
   });
 
+  // The figures of the first line alone: the three-line volume chart must not give Payments' highs as if they were the volume.
+  describe("with several series and no totals", () => {
+    const lines = (over: Partial<TimeSeriesData> = {}): TimeSeriesData => ({
+      axis,
+      series: [
+        { id: "payments", label: "Payments", short: "payments", slot: 1, values: totals.map((t) => String(Number(t) * 20)) },
+        { id: "dex", label: "DEX trades, tracked markets", slot: 2, values: totals },
+        { id: "amm", label: "AMM swaps, all pools", slot: 3, values: totals.map((t) => String(Number(t) / 2)) },
+      ],
+      format: { kind: "amount", unit: "XRP" },
+      token: "t",
+      ...over,
+    });
+
+    it("names the first series the highest and the latest belong to", () => {
+      expect(plotSummary("Volume per day, in XRP", lines())).toBe(
+        "Volume per day, in XRP, Sep 17 to Oct 16, 2026. Highest Payments Oct 3, 46.2M XRP; latest Payments Oct 16, 42.1M XRP. Choose Table for every value.",
+      );
+    });
+
+    it("names it on a week and an hour axis as well", () => {
+      const weeks = lines({ axis: { unit: "week", buckets: ["2026-09-28", "2026-10-05", "2026-10-12"] } });
+      weeks.series = weeks.series.map((s) => ({ ...s, values: ["5", "9", "7"] }));
+      expect(plotSummary("Volume per week", weeks)).toBe(
+        "Volume per week, Sep 28 to Oct 12, 2026. Highest Payments Oct 5, 9 XRP; latest Payments Oct 12, 7 XRP. Choose Table for every value.",
+      );
+    });
+
+    it("does not name a series when it reads the totals", () => {
+      expect(plotSummary("Transactions by type per day", stack(totals))).not.toContain("Payment ");
+      expect(plotSummary("Volume", lines({ totals }))).toContain("Highest Oct 3, 2.31M XRP; latest Oct 16, 2.1M XRP.");
+    });
+
+    it("does not name the only series", () => {
+      const only = lines();
+      only.series = [only.series[0]!];
+      expect(plotSummary("Volume", only)).toContain("Highest Oct 3, 46.2M XRP; latest Oct 16, 42.1M XRP.");
+    });
+  });
+
+  // The running bucket reads as it does in the tooltip, the slider and the table (spec 6.6): "so far".
+  describe("when the newest bucket is the running one", () => {
+    it("adds so far to the latest date, before its value", () => {
+      expect(plotSummary("Transactions by type per day", stack(totals, { forming: true }))).toBe(
+        "Transactions by type per day, Sep 17 to Oct 16, 2026. Highest Oct 3, 2.31M; latest Oct 16, so far, 2.1M. Choose Table for every value.",
+      );
+    });
+
+    it("says so after the name of a series, and for a highest that is the running bucket too", () => {
+      const rising = totals.map((_, i) => String(1_000_000 + i * 1_000_000));
+      const data: TimeSeriesData = {
+        axis,
+        series: [
+          { id: "payments", label: "Payments", slot: 1, values: rising },
+          { id: "dex", label: "DEX trades", slot: 2, values: rising },
+        ],
+        format: { kind: "amount", unit: "XRP" },
+        forming: true,
+        token: "t",
+      };
+      expect(plotSummary("Volume", data)).toContain("Highest Payments Oct 16, so far, 30M XRP; latest Payments Oct 16, so far, 30M XRP.");
+    });
+
+    it("adds it to a week and to an hour", () => {
+      const weeks: TimeSeriesData = {
+        axis: { unit: "week", buckets: ["2026-09-28", "2026-10-05", "2026-10-12"] },
+        series: [{ id: "a", label: "A", slot: 1, values: ["5", "9", "7"] }],
+        format: { kind: "count" },
+        forming: true,
+        token: "t",
+      };
+      expect(plotSummary("Transactions per week", weeks)).toContain("Highest Oct 5, 9; latest Oct 12, so far, 7.");
+      const hours: TimeSeriesData = {
+        axis: { unit: "hour", buckets: ["2026-10-17T15:00:00Z", "2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"] },
+        series: [{ id: "a", label: "A", slot: 1, values: ["5", "9", "7"] }],
+        format: { kind: "count" },
+        forming: true,
+        token: "t",
+      };
+      expect(plotSummary("Ledgers per hour", hours)).toContain("Highest Oct 17, 16:00, 9; latest Oct 17, 17:00, so far, 7.");
+    });
+
+    it("leaves it out when the newest bucket has no value yet (pending): the latest is a closed bucket", () => {
+      const pending = totals.map((t, i) => (i >= 28 ? null : t));
+      expect(plotSummary("Volume", stack(pending, { forming: true, pending: 2 }))).toContain("latest Oct 14, ");
+      expect(plotSummary("Volume", stack(pending, { forming: true, pending: 2 }))).not.toContain("so far");
+    });
+
+    it("leaves it out of a chart that is not forming", () => {
+      expect(plotSummary("Volume", stack(totals, { forming: false }))).not.toContain("so far");
+      expect(plotSummary("Volume", stack(totals))).not.toContain("so far");
+    });
+  });
+
   it("reads the newest bucket with a value as the latest, and skips a null for the highest", () => {
     const some = totals.map(() => null as string | null);
     some[5] = "10";
