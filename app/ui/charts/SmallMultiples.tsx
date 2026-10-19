@@ -1,7 +1,7 @@
 import { memo } from "react";
 
 import { cellOf, lastOf, type Cell } from "./cells";
-import { HoverGroup, useHoverGroup } from "./Cursor";
+import { HoverGroup, useHoverGroup } from "./cursor-state";
 import { emptyText, valueText } from "./labels";
 import { LinePlot } from "./LineChart";
 import type { SmallMultiplesData, TimeSeriesData } from "./types";

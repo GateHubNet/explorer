@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, type ReactNode } from "react";
 
 import { formatAmount } from "../../domain/format";
 import { cellOf, type Cell } from "./cells";
-import { HoverGroup, useHoverGroup } from "./Cursor";
+import { HoverGroup, useHoverGroup } from "./cursor-state";
 import { fitScale, fractionOf, niceScale, percent } from "./geometry";
 import { emptyText, plotSummary, sliderLabel, tickLabel, valueText } from "./labels";
 import type { LegendItem } from "./Legend";

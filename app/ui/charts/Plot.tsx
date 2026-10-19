@@ -1,22 +1,15 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type CSSProperties,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 import { cx } from "../cx";
-import { createTipSlot, Cursor, TipSlotContext, type CursorProps, type TipSlot } from "./Cursor";
-import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, percent, tooltipSide, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
+import type { CursorProps } from "./Cursor";
+import { createTipSlot, TipHost, TipSlotContext } from "./cursor-slot-state";
+import { CursorSlot } from "./CursorSlot";
+import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, percent, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
 import { bucketLabel, tickLabel } from "./labels";
 import type { TimeAxis, ValueKind } from "./types";
 
-// Defined beside the cursor, which is what needs it: Plot imports Cursor, and Cursor importing Plot back would be a cycle.
-export { useHydrated } from "./Cursor";
+// Defined with what a plot needs of its cursor (cursor-slot-state.tsx), which imports nothing of the plot: Plot re-exports it for the forms that have none of their own.
+export { useHydrated } from "./cursor-slot-state";
 
 export interface PlotProps {
   /** The scroll region's name: "{title}, scrollable chart". */
@@ -48,7 +41,10 @@ export interface PlotProps {
   yChars?: number;
   /** "chart" is 200 px, 160 under a 480 px container; "pane" (the volume pane) and "panel" (a small multiple) have their own. */
   height?: "chart" | "pane" | "panel";
-  /** The hover and keyboard layer, added once the page is hydrated. The plot gives it its own box. */
+  /**
+   * The hover and keyboard layer, added once the page is hydrated. The plot gives it its own box. It is `CursorSlot`'s: the layer is there from
+   * hydration, and the cursor (Cursor.tsx, with the tooltip's code) is loaded when a pointer or the keyboard first reaches it (spec 2.1).
+   */
   cursor?: Omit<CursorProps, "plot">;
   /** The marks. Each bucket's marks carry `data-bucket={i}`, which is how the cursor marks the active ones. */
   children: ReactNode;
@@ -185,7 +181,7 @@ export function Plot({
           )}
           {cursor && !empty && (
             <TipSlotContext value={tips}>
-              <Cursor plot={plot} {...cursor} />
+              <CursorSlot plot={plot} {...cursor} />
             </TipSlotContext>
           )}
           {xLabels === "none" ? null : xLabels === "ends" ? (
@@ -199,77 +195,12 @@ export function Plot({
         </div>
       </div>
       {yAxis === "right" && gutter}
-      {cursor && !empty && <PlotTip slot={tips} frame={frame} region={region} plot={plot} count={cursor.count} placement={cursor.placement} />}
+      {cursor && !empty && <TipHost slot={tips} frame={frame} region={region} plot={plot} count={cursor.count} placement={cursor.placement} />}
       {endLabels ? (
         <div className="plot__end" style={{ width: END_LABEL_GUTTER_PX }} aria-hidden="true">
           {endLabels}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * The cursor's tooltip, drawn in the frame and not in the plot: the region of a plot that scrolls clips what is in it, and a tooltip must
- * not be cut at its edge or at the bottom of a short plot. It is placed from the boxes of the page (`getBoundingClientRect`) when it is
- * shown, and again when the region scrolls under one that a touch kept: its anchor is the bucket's x in the frame, the class gives the
- * side (spec 2.6: right under 22%, left over 78%, else centred, of the part of the plot in view) and a shift keeps it inside the region's box.
- *
- * Only this is rendered when the tooltip changes (the cursor hands it over through the slot), so a pointer move does not render the marks.
- */
-function PlotTip({
-  slot,
-  frame,
-  region,
-  plot,
-  count,
-  placement,
-}: {
-  slot: TipSlot;
-  frame: RefObject<HTMLDivElement | null>;
-  region: RefObject<HTMLDivElement | null>;
-  plot: RefObject<HTMLDivElement | null>;
-  count: number;
-  placement: Placement;
-}) {
-  const tip = useSyncExternalStore(slot.subscribe, slot.get, () => null);
-  const bubble = useRef<HTMLDivElement>(null);
-  const bucket = tip?.bucket ?? null;
-
-  const place = () => {
-    const el = bubble.current;
-    const inFrame = frame.current?.getBoundingClientRect();
-    const view = region.current?.getBoundingClientRect();
-    const whole = plot.current?.getBoundingClientRect();
-    if (!el || bucket === null || !inFrame || !view || !whole) return;
-    // The part of the plot in view: all of it, for a plot that does not scroll.
-    const from = Math.max(whole.left, view.left);
-    const to = Math.min(whole.right, view.right);
-    const x = whole.left + xOf(bucket, count, placement) * whole.width;
-    const side = tooltipSide(to > from ? Math.min(1, Math.max(0, (x - from) / (to - from))) : xOf(bucket, count, placement));
-    const width = el.offsetWidth;
-    const natural = side === "right" ? x + 8 : side === "left" ? x - 8 - width : x - width / 2;
-    // Inside the box in view, and at its left edge when the tooltip is wider than that.
-    const inside = Math.max(from, Math.min(natural, to - width));
-    el.classList.remove("right", "left", "center");
-    el.classList.add(side);
-    el.style.left = `${x - inFrame.left}px`;
-    el.style.marginLeft = `${inside - natural}px`;
-  };
-
-  // After every render: the content may be another width.
-  useLayoutEffect(place);
-  // The region scrolling moves the bucket from under a tooltip that a touch has kept.
-  useEffect(() => {
-    const scroller = region.current;
-    if (!scroller || bucket === null) return;
-    scroller.addEventListener("scroll", place, { passive: true });
-    return () => scroller.removeEventListener("scroll", place);
-  }, [bucket, count, placement]);
-
-  return tip && (
-    <div ref={bubble} className="plot__tip" aria-hidden="true">
-      {tip.node}
     </div>
   );
 }

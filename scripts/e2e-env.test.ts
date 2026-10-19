@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { chromiumToUse, fixturePort, formatEnvFile, isExpectedConsoleError, isStackWorkdir, perNetwork, upstreamUrls } from "./e2e-env";
+import { FEATURE_VARS } from "../app/ui/features";
+import { chromiumToUse, featuresOff, fixturePort, formatEnvFile, isExpectedConsoleError, isStackWorkdir, perNetwork, upstreamUrls } from "./e2e-env";
 
 // The two switches of the end-to-end suite that name a real stack, and the browser it launches when the one this Playwright
 // wants is not installed.
@@ -77,6 +78,34 @@ describe("fixturePort", () => {
     expect(() => fixturePort({ E2E_FIXTURE_PORT: "abc" })).toThrow(/not a port/);
     expect(() => fixturePort({ E2E_FIXTURE_PORT: "0" })).toThrow(/not a port/);
     expect(() => fixturePort({ E2E_FIXTURE_PORT: "70000" })).toThrow(/not a port/);
+  });
+});
+
+describe("featuresOff", () => {
+  it("is empty when E2E_FEATURES_OFF is not there, or there and empty", () => {
+    expect(featuresOff({}).size).toBe(0);
+    expect(featuresOff({ E2E_FEATURES_OFF: "" }).size).toBe(0);
+    expect(featuresOff({ E2E_FEATURES_OFF: "  , ," }).size).toBe(0);
+  });
+
+  it("holds each switch the comma list names, trimmed, with the empty names left out", () => {
+    const [first, second] = FEATURE_VARS;
+    expect(featuresOff({ E2E_FEATURES_OFF: ` ${first}, ,${second}` })).toEqual(new Set([first, second]));
+    expect(featuresOff({ E2E_FEATURES_OFF: `${second}` })).toEqual(new Set([second]));
+    expect(featuresOff({ E2E_FEATURES_OFF: `${first},${first}` })).toEqual(new Set([first]));
+  });
+
+  it("is written with the names of the switches (a literal of this commit's), which the tests of later pages read with has()", () => {
+    expect(featuresOff({ E2E_FEATURES_OFF: " AMM_DATA, ,VALIDATORS" })).toEqual(new Set(["AMM_DATA", "VALIDATORS"]));
+    expect(featuresOff({ E2E_FEATURES_OFF: "AMM_DATA" }).has("AMM_DATA")).toBe(true);
+    expect(featuresOff({ E2E_FEATURES_OFF: "AMM_DATA" }).has("VALIDATORS")).toBe(false);
+  });
+
+  it("throws for a name that is not a switch, naming it and the switches there are: a misspelt name would silently turn nothing off", () => {
+    expect(() => featuresOff({ E2E_FEATURES_OFF: "MARKET" })).toThrow(/MARKET/);
+    expect(() => featuresOff({ E2E_FEATURES_OFF: `${FEATURE_VARS[0]},MARKET` })).toThrow(new RegExp(FEATURE_VARS.join(", ")));
+    // The names are the switches' exactly.
+    expect(() => featuresOff({ E2E_FEATURES_OFF: "amm_data" })).toThrow(/amm_data/);
   });
 });
 

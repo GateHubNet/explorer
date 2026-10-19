@@ -6,6 +6,10 @@ import { areaPath, fractionOf, linePath, niceScale, percent, xOf } from "./geome
 import { LineChart } from "./LineChart";
 import type { Series, TimeAxis, TimeSeriesData } from "./types";
 
+// These tests are about what the cursor does, not about when it arrives: a plot's layer is the cursor itself here. CursorSlot.test.tsx has the layer
+// that loads it.
+vi.mock("./CursorSlot", async () => ({ CursorSlot: (await vi.importActual<typeof import("./Cursor")>("./Cursor")).Cursor }));
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();

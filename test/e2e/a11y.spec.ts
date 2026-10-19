@@ -1,11 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
+import { fixtures, unavailable } from "./fixture-control";
 import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_ACCOUNT, XAHAU_LEDGER, XRPL_ACCOUNT, XRPL_HEAD_LEDGER, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
 import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
-// ledger, transaction, account and 404 pages, in light and in dark, on a desktop and on a 375 px phone. Dark is reached both ways it
+// ledger, transaction, account, network and 404 pages, in light and in dark, on a desktop and on a 375 px phone. Dark is reached both ways it
 // can be: the system's (`prefers-color-scheme`) and the visitor's (the theme toggle, which wins over the system).
 
 type Theme = "light" | "dark";
@@ -15,11 +16,21 @@ interface PageUnderTest {
   path: string;
   /** What shows that the page is whole: the lists a streamed page draws last. */
   ready: (page: Page) => Promise<void>;
+  /** What a visitor does to the page before it is looked at: a view they switch on, a control they focus. */
+  act?: (page: Page) => Promise<void>;
 }
 
 const visible = (name: string) => async (page: Page) => {
   await expect(page.getByRole("table", { name })).toBeVisible();
 };
+
+/** The network page is whole when its first chart is drawn and the script has given the plots their sliders. */
+const networkReady = async (page: Page) => {
+  await expect(page.locator("#network-types-title")).toBeVisible();
+  await expect(page.getByRole("slider").first()).toBeAttached();
+};
+
+const NETWORK: PageUnderTest = { name: "network", path: "/xrpl/network", ready: networkReady };
 
 /** The pages the spec names, and the matrix below runs all of them in every setting. */
 const MAIN: PageUnderTest[] = [
@@ -28,6 +39,7 @@ const MAIN: PageUnderTest[] = [
   { name: "transaction", path: `/xrpl/tx/${XRPL_PAYMENT}`, ready: async (page) => void (await expect(page.getByRole("tablist", { name: "Raw data" })).toBeVisible()) },
   { name: "account", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions") },
   { name: "404", path: "/xrpl/nothing-here", ready: async (page) => void (await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible()) },
+  NETWORK,
 ];
 
 /** More of what a visitor sees, in light and dark (the system's) only. */
@@ -49,6 +61,28 @@ const MORE: PageUnderTest[] = [
       ]),
   { name: "transaction not found", path: `/xrpl/tx/${NO_SUCH_TRANSACTION}`, ready: async (page) => void (await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible()) },
   { name: "search help", path: "/xrpl/search?q=", ready: async (page) => void (await expect(page.getByRole("main")).toBeVisible()) },
+  // The network page in its other forms: a year in USD (weeks, another currency), the other network, every chart as a table, and a slider with
+  // its tooltip. (The one with a card that could not be loaded needs the fixture server to fail a call: it is below.)
+  { name: "network, a year in USD", path: "/xrpl/network?period=1y&in=usd", ready: networkReady },
+  { name: "Xahau network", path: "/xahau/network", ready: networkReady },
+  {
+    name: "network, every table view",
+    path: "/xrpl/network",
+    ready: networkReady,
+    act: async (page) => {
+      for (const radio of await page.getByRole("radio", { name: "Table" }).all()) await radio.check();
+      await expect(page.locator(".chart__table").first()).toBeVisible();
+    },
+  },
+  {
+    name: "network, a slider focused",
+    path: "/xrpl/network",
+    ready: networkReady,
+    act: async (page) => {
+      await page.getByRole("slider").first().focus();
+      await expect(page.locator(".plot__tip").first()).toBeVisible();
+    },
+  },
 ];
 
 const VIEWPORTS = [
@@ -67,6 +101,7 @@ async function open(page: Page, under: PageUnderTest, setting: (typeof SETTINGS)
   await page.goto(under.path);
   await hydrated(page);
   await under.ready(page);
+  await under.act?.(page);
   if (setting.toggle) {
     await page.getByRole("button", { name: "Dark theme" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", setting.toggle);
@@ -116,7 +151,7 @@ test.describe("landmarks", () => {
 // axe reports a name on an element that cannot have one (`aria-label` on a `span` with no role) not as a violation but as "needs review",
 // so the gate above does not see it: the controls the pages draw are looked at for it.
 test.describe("names", () => {
-  for (const under of [MORE[0]!, ...MAIN.slice(0, 4), ...MORE.filter((page) => page.name.startsWith("newest ledger"))]) {
+  for (const under of [MORE[0]!, ...MAIN.slice(0, 4), NETWORK, ...MORE.filter((page) => page.name.startsWith("newest ledger"))]) {
     test(`${under.name}: nothing is given a name it cannot have`, async ({ page }) => {
       await page.goto(under.path);
       await hydrated(page);
@@ -174,4 +209,44 @@ test.describe("the gate", () => {
     const ran = [...results.passes, ...results.violations, ...results.incomplete, ...results.inapplicable].map((rule) => rule.id);
     for (const id of ["color-contrast", "label-content-name-mismatch", "target-size", "scrollable-region-focusable"]) expect(ran).toContain(id);
   });
+});
+
+// A network page with a card that could not be loaded: its error, its Retry button and the rest of the page beside it. The fixture server is
+// made to fail one call, and what it answers shows in every page the Worker renders meanwhile; these tests run in the `chromium` project with the
+// others, so the call is one that no other spec asks for (`stats/type` of the 7 days on XRPL: the other specs open the 30 days, the year and USD,
+// and the `live` project runs alone, after them), the four tests of the group run one after another in one worker, and the override is taken away
+// when the last of them is done.
+const TYPES_SEVEN_DAYS = "GET /v2/stats/type?end=2026-10-17&interval=day&limit=1000&start=2026-10-11";
+
+test.describe("a network page with a card that failed", () => {
+  test.skip(LIVE, "fails a call of the fixture server: it needs the fixture server of the stack, not a real stack or a deployed Worker");
+  test.describe.configure({ mode: "serial" });
+
+  test.beforeAll(async () => {
+    await fixtures.override({ [TYPES_SEVEN_DAYS]: unavailable() });
+  });
+  test.afterAll(async () => {
+    await fixtures.reset();
+  });
+
+  const failed: PageUnderTest = {
+    name: "network, a card that failed",
+    path: "/xrpl/network?period=7d",
+    ready: async (page) => {
+      await expect(page.getByText("Couldn’t load transactions by type")).toBeVisible();
+      await expect(page.getByRole("slider").first()).toBeAttached();
+    },
+  };
+
+  for (const viewport of VIEWPORTS) {
+    for (const setting of SETTINGS.filter((candidate) => candidate.toggle === undefined)) {
+      test.describe(`${viewport.name}, ${setting.name}`, () => {
+        test.use({ viewport: viewport.size, colorScheme: setting.system });
+        test(`${failed.name} has no serious or critical violation`, async ({ page }) => {
+          await open(page, failed, setting);
+          expect(await seriousViolations(page)).toEqual([]);
+        });
+      });
+    }
+  }
 });

@@ -10,6 +10,10 @@ import { fractionOf, niceScale, percent } from "./geometry";
 import { Legend } from "./Legend";
 import type { CandleData, TimeAxis } from "./types";
 
+// These tests are about what the cursor does, not about when it arrives: a plot's layer is the cursor itself here. CursorSlot.test.tsx has the layer
+// that loads it.
+vi.mock("./CursorSlot", async () => ({ CursorSlot: (await vi.importActual<typeof import("./Cursor")>("./Cursor")).Cursor }));
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();

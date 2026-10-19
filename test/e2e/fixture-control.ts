@@ -18,6 +18,13 @@ async function send(method: "PUT" | "DELETE", body?: unknown): Promise<void> {
   if (!response.ok) throw new Error(`the fixture server refused ${method}: ${response.status} ${await response.text()}`);
 }
 
+/**
+ * An override that makes the call fail the way the data API does: `fixtures.override({ "GET /v2/stats/type?…": unavailable() })` answers 503
+ * (`{ result: "error", message }`, not cacheable) until the overrides are reset. JSON cannot carry a `Response`, so the control path takes this
+ * object and builds the answer (test/support/fixture-server.ts).
+ */
+export const unavailable = (status = 503, message = "unavailable") => ({ $error: { status, message } });
+
 export const fixtures = {
   /** Answers with these (override keys as for `mockUpstream`, the unprefixed ones XRPL's; JSON bodies) instead of the recorded answers. */
   override: (overrides: Record<string, unknown>) => send("PUT", overrides),
@@ -60,5 +67,23 @@ export function xrplHomeOneLedgerBehind(): Record<string, unknown> {
     },
     "GET /v2/network/fees?descending=true&limit=8": { ...fees, rows: fees.rows.slice(1), count: fees.rows.length - 1 },
     "GET /v2/transactions?descending=true&limit=8": { result: "success", count: newestFirst.length, transactions: newestFirst },
+  };
+}
+
+/**
+ * What the data API says when the chain has crossed midnight UTC since the recordings: the newest ledger is the next one (107,721,456), closed
+ * at 00:00:05 on Oct 18, so the index day is Oct 18 and every key a view asks for over a period (its `start` and `end`) is new. None of them has
+ * a fixture, so each of those calls fails ("Cannot GET"), while the fees list, which has no dates in its query, is the recording's. Put it in
+ * with `fixtures.override`, and the next beat of an open network page fails every part.
+ */
+export function xrplNextDay(): Record<string, unknown> {
+  return {
+    "GET /v2/last_validated": {
+      result: "success",
+      ledger_index: "107721456",
+      ledger_hash: "C".repeat(64),
+      parent_hash: "68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092",
+      close_time: "2026-10-18T00:00:05Z",
+    },
   };
 }

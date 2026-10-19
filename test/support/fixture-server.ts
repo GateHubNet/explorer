@@ -12,7 +12,9 @@
 //
 // A test that needs the chain to move on (the home page follows it) changes what the upstreams answer for a while, as `mockUpstream` does:
 // `PUT <url>/__fixture/overrides` with a JSON object of override keys (upstream-core.ts) to the answers to give, `DELETE` to go back to the
-// recorded ones. Another process than the stack's (a test of the suite) asks it over HTTP; `override()` does the same in-process.
+// recorded ones. Another process than the stack's (a test of the suite) asks it over HTTP; `override()` does the same in-process. JSON cannot
+// carry a failing `Response`, so over HTTP an error is written `{ "$error": { "status": 503, "message": "unavailable" } }`, and the control
+// path turns it into the data API's own error answer (`dataApiError`); test/e2e/fixture-control.ts has it as `unavailable()`.
 //
 // Node only: it is not imported from anything that runs in the Workers runtime.
 
@@ -21,7 +23,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createUpstream, type FixtureFiles, type Overrides, type SeenRequest, type Upstream, type UpstreamBases } from "./upstream-core";
+import { createUpstream, dataApiError, type FixtureFiles, type Overrides, type SeenRequest, type Upstream, type UpstreamBases } from "./upstream-core";
 
 const ROOT = new URL("../fixtures/http/", import.meta.url);
 
@@ -70,6 +72,27 @@ export interface FixtureServer {
 
 const CONTROL_PATH = "/__fixture/overrides";
 
+/** What an override that is an error is written as over HTTP, where it cannot be a `Response`: `{ "$error": { status, message?, headers? } }`. */
+interface ErrorOverride {
+  $error: { status: number; message?: string; headers?: Record<string, string> };
+}
+
+function isErrorOverride(value: unknown): value is ErrorOverride {
+  if (typeof value !== "object" || value === null || !("$error" in value)) return false;
+  const { $error } = value;
+  return typeof $error === "object" && $error !== null && "status" in $error && Number.isInteger($error.status) && ($error.status as number) >= 400 && ($error.status as number) <= 599;
+}
+
+/** The overrides as they came over HTTP, with each error written as above made the `Response` the data API would give. */
+function revived(overrides: Overrides): Overrides {
+  return Object.fromEntries(
+    Object.entries(overrides).map(([key, value]) => [
+      key,
+      isErrorOverride(value) ? dataApiError(value.$error.status, value.$error.message ?? "unavailable", value.$error.headers) : value,
+    ]),
+  );
+}
+
 async function bodyOf(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(chunk as Buffer);
@@ -105,7 +128,7 @@ export async function startFixtureServer(port: number): Promise<FixtureServer> {
     try {
       const parsed: unknown = JSON.parse((await bodyOf(request)).toString("utf8"));
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new TypeError("the overrides are a JSON object of override keys");
-      swap!(parsed as Overrides);
+      swap!(revived(parsed as Overrides));
     } catch (error) {
       return reply(400, error instanceof Error ? error.message : String(error));
     }

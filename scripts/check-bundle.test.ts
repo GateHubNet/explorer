@@ -11,6 +11,9 @@ import { BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES
 // A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the five pages' and
 // whose chunks are bytes of no pattern (they do not compress, so a chunk's gzipped size is known to within a few bytes).
 
+/** The route manifest of the fake build: every page loads it. */
+const MANIFEST = "manifest-abc123.js";
+
 const IMMUTABLE_HEADERS = "/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n";
 
 interface FakeChunk {
@@ -76,7 +79,9 @@ function fakeBuild(options: {
       url: "/assets/manifest-abc123.js",
       version: "abc123",
     };
-    writeFileSync(join(dir, "assets", "manifest-abc123.js"), `window.__reactRouterManifest=${JSON.stringify(manifest)};`);
+    const text = `window.__reactRouterManifest=${JSON.stringify(manifest)};`;
+    writeFileSync(join(dir, "assets", MANIFEST), text);
+    sizes.set(MANIFEST, gz(text));
   }
   if (options.headers !== null) writeFileSync(join(dir, "_headers"), options.headers ?? IMMUTABLE_HEADERS);
   for (const [path, content] of Object.entries(options.extra ?? {})) {
@@ -94,7 +99,7 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.tx.$id", parentId: "routes/net", module: "tx.js", imports: ["shared.js"] },
   { id: "routes/net.account.$address", parentId: "routes/net", module: "account.js", imports: ["shared.js", "table.js", "qr-picture.js"] },
   { id: "routes/net.network", parentId: "routes/net", module: "network.js", imports: ["shared.js", "charts.js"] },
-  // Not one of the four pages: its chunk is loaded only when somebody goes there.
+  // Not one of the five pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
 ];
 const CHUNKS: FakeChunk[] = [
@@ -138,7 +143,8 @@ describe("checkBundle: what a page loads", () => {
     expect(report.problems).toEqual([]);
 
     const sum = (names: string[]) => names.reduce((total, name) => total + sizes.get(name)!, 0);
-    const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js"];
+    // The route manifest is one of the files every page loads, and counts like the others.
+    const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js", MANIFEST];
     const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
     expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network"]);
     expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
@@ -149,7 +155,30 @@ describe("checkBundle: what a page loads", () => {
     // The chunk of a route that is not a page, and the ones only it imports, are in none of the five.
     expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
     expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
-    expect(byPage.home!.files).toHaveLength(7);
+    expect(byPage.home!.files).toHaveLength(8);
+  });
+
+  it("counts the route manifest in the figure of every page, once, and says how much it is", () => {
+    const { dir, sizes } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
+    const report = checkBundle(dir);
+    expect(report.manifestBytes).toBe(sizes.get(MANIFEST));
+    expect(report.manifestBytes).toBeGreaterThan(0);
+    for (const page of report.pages) expect(page.files.filter((file) => file === MANIFEST), page.name).toHaveLength(1);
+    // Without it a page is lighter by what it weighs.
+    const without = report.pages.map((page) => page.bytes - report.manifestBytes);
+    expect(without.every((bytes) => bytes > 0)).toBe(true);
+    const table = formatReport(report);
+    expect(table).toContain(MANIFEST);
+    expect(table).toMatch(new RegExp(`${report.manifestBytes.toLocaleString("en-US")} bytes`));
+  });
+
+  it("holds a page to the budget with the manifest in it: a page that is under it without the manifest, and over it with it, fails", () => {
+    const over = homeAt(BUDGET_BYTES + 1);
+    const home = over.pages.find((page) => page.name === "home")!;
+    expect(home.bytes).toBe(BUDGET_BYTES + 1);
+    // Its other files alone are under the budget: it is over it by the manifest.
+    expect(home.bytes - over.manifestBytes).toBeLessThan(BUDGET_BYTES);
+    expect(over.problems.filter((problem) => problem.includes("the home page"))).toHaveLength(1);
   });
 
   it("passes a page under the budget and says so in a table", () => {

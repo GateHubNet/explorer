@@ -3,20 +3,23 @@
 // command is check-bundle.ts, which always runs it. (The command used to decide whether it was being run by comparing this module's URL
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
-//   - the JavaScript a page loads first, gzipped, is over 150 KB on the home, ledger, transaction, account or network page;
+//   - the JavaScript a page loads first, gzipped, is over 150 KB on the home, ledger, transaction, account or network page (the route manifest
+//     is in it: see below);
 //   - a file of the build holds something that belongs to the Worker alone: the image renderer, the transaction parser's vocabulary,
 //     the binary codec or the QR encoder (they would weigh on every visitor, and the pages are drawn from data that is ready);
 //   - the build has no `_headers` rule that keeps the hashed assets in `assets/` for a year.
 //
 // What a page loads first is what the browser fetches before the page works: the entry, the root route, the `/:net` layout, the
-// page's route and every chunk those import statically (the `imports` of the build's manifest, which are the whole closure).
-// Chunks that are loaded when needed (`import()`) are not in it. Each file counts once, at its `gzip -9` size.
+// page's route and every chunk those import statically (the `imports` of the build's manifest, which are the whole closure), and the
+// manifest itself (`assets/manifest-*.js`, `window.__reactRouterManifest`), which every page loads and which lists every route of the app: it
+// grows with each route, so it is in each page's figure. Chunks that are loaded when needed (`import()`: the search box's classifier, the
+// chart cursor) are not in it. Each file counts once, at its `gzip -9` size.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { gzipSync } from "node:zlib";
 
-/** 150 KB of 1000 bytes. The pages stand at about 130 KB. */
+/** 150 KB of 1000 bytes. The pages stand between 137 and 148 KB, the route manifest (about 1 KB) included. */
 export const BUDGET_BYTES = 150_000;
 
 /** The pages the budget is kept for, by their route in the manifest. */
@@ -66,6 +69,10 @@ export interface PageReport {
 
 export interface BundleReport {
   pages: PageReport[];
+  /** The `gzip -9` size of the route manifest, which is in the figure of every page; 0 when there is none. */
+  manifestBytes: number;
+  /** The manifest's file name below `assets/`, when there is one. */
+  manifestFile?: string;
   problems: string[];
 }
 
@@ -107,7 +114,7 @@ function filesBelow(dir: string): string[] {
     .sort();
 }
 
-function readManifest(dir: string, problems: string[]): Manifest | undefined {
+function readManifest(dir: string, problems: string[]): { manifest: Manifest; file: string } | undefined {
   let names: string[];
   try {
     names = readdirSync(join(dir, "assets")).filter((name) => /^manifest-.*\.js$/.test(name));
@@ -123,7 +130,7 @@ function readManifest(dir: string, problems: string[]): Manifest | undefined {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   try {
-    return JSON.parse(text.slice(start, end + 1)) as Manifest;
+    return { manifest: JSON.parse(text.slice(start, end + 1)) as Manifest, file: names[0]! };
   } catch {
     problems.push(`the manifest ${names[0]} is not the JSON after window.__reactRouterManifest=`);
     return undefined;
@@ -143,16 +150,26 @@ function chainOf(manifest: Manifest, id: string): ManifestRoute[] {
 export function checkBundle(dir: string): BundleReport {
   const problems: string[] = [];
   const pages: PageReport[] = [];
-  const manifest = readManifest(dir, problems);
+  const found = readManifest(dir, problems);
+  const manifest = found?.manifest;
+  let manifestBytes = 0;
+  if (found) {
+    try {
+      manifestBytes = gzipSize(join(dir, "assets", found.file));
+    } catch {
+      problems.push(`cannot read assets/${found.file}`);
+    }
+  }
 
-  if (manifest) {
+  if (manifest && found) {
     for (const page of PAGES) {
       const chain = chainOf(manifest, page.route);
       if (chain.length === 0 || chain.at(-1)!.id !== page.route) {
         problems.push(`the ${page.name} page: no route ${page.route} in the manifest`);
         continue;
       }
-      const urls = [manifest.entry.module, ...(manifest.entry.imports ?? [])];
+      // The manifest is loaded by every page, after the entry: it names the route modules the entry then fetches.
+      const urls = [manifest.entry.module, ...(manifest.entry.imports ?? []), found.file];
       for (const route of chain) urls.push(route.module, ...(route.imports ?? []));
       const files = [...new Set(urls.map((url) => url.replace(/^\/?assets\//, "")))];
       let bytes = 0;
@@ -199,18 +216,25 @@ export function checkBundle(dir: string): BundleReport {
     }
   }
 
-  return { pages, problems };
+  return { pages, manifestBytes, manifestFile: found?.file, problems };
 }
 
 const kb = (bytes: number) => `${(bytes / 1000).toFixed(1)} KB`;
 
 /** The table printed after the check, and the problems below it. */
 export function formatReport(report: BundleReport): string {
-  const lines = [`Initial JavaScript per page, gzip -9, each file once (budget ${kb(BUDGET_BYTES)})`, "", "page          files        bytes         gzip  status"];
+  const lines = [
+    `Initial JavaScript per page, gzip -9, each file once, the route manifest included (budget ${kb(BUDGET_BYTES)})`,
+    "",
+    "page          files        bytes         gzip  status",
+  ];
   for (const page of report.pages) {
     lines.push(
       `${page.name.padEnd(12)}${String(page.files.length).padStart(7)}${page.bytes.toLocaleString("en-US").padStart(13)}${kb(page.bytes).padStart(13)}  ${page.bytes > BUDGET_BYTES ? "OVER" : "ok"}`,
     );
+  }
+  if (report.manifestFile !== undefined) {
+    lines.push("", `Every figure includes the route manifest, ${report.manifestFile}: ${report.manifestBytes.toLocaleString("en-US")} bytes. It lists every route, so it grows with each.`);
   }
   if (report.problems.length > 0) {
     lines.push("", "Problems:", ...report.problems.map((problem) => `  - ${problem}`));

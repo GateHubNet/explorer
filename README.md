@@ -128,7 +128,8 @@ on the next document load. `env.ts` and `edge-cache.ts` import each other for th
 **Tests.** `vitest.config.ts` pins the top-level switches for the `worker` project (`TOP_LEVEL_SWITCHES`). The `worker-off` project pins every switch `"off"`, and runs
 the files named `test/worker/*-off.spec.ts`, which the `worker` project leaves out: the off-case of a page or a feature goes in such a file (`pnpm test --project worker-off`).
 A loader's unit test builds its context with the switch values it needs. The tests build their expectations from `FEATURE_VARS` and `allSwitches(value)`
-(`test/support/switches.ts`), so a new switch does not change them.
+(`test/support/switches.ts`), so a new switch does not change them. The end-to-end suite runs against a Worker whose switches it does not set: `E2E_FEATURES_OFF` tells it which are off (a comma list of `FEATURE_VARS`
+names, read by `featuresOff(process.env)` in `scripts/e2e-env.ts`; "End-to-end tests"), and a spec that needs a switch on skips itself when it is listed.
 
 **Adding a switch.**
 
@@ -137,7 +138,7 @@ A loader's unit test builds its context with the switch values it needs. The tes
 3. Add an entry to every block of `wrangler.jsonc` (top level, `staging`, `production`).
 4. Add it to `TOP_LEVEL_SWITCHES` in `vitest.config.ts` (its `satisfies` fails until you do). The `worker-off` project follows from `FEATURE_VARS`.
 5. Add its row to the tables above.
-6. Write its own tests: a guard case that refuses the misspelt name, and its case in a `*-off.spec.ts`.
+6. Write its own tests: a guard case that refuses the misspelt name, its case in a `*-off.spec.ts`, and, in the end-to-end specs of the page it gates, the skip and the off-case (`featuresOff(process.env).has("NAME")`).
 
 The hand-built `Env`s of the tests, the passing configs of `scripts/predeploy-check.test.ts`, and the expectations of `features.test.ts`, `env.test.ts`, `networks.test.ts`,
 `edge-cache.spec.ts` and `features-off.spec.ts` are built on `allSwitches` and `FEATURE_VARS`, so they need no edit.
@@ -226,7 +227,7 @@ log line, the edge cache with the visitor limit, React Router.
   - **The order** is: the Cache API; then, for a call that asks, a failure that is held; then `load`. A stored answer is therefore the answer even while a hold lasts (a call that did not ask loaded it), and a call with a TTL of zero (not kept) is held too.
   - **The key** is the subrequest key the client gave, so the `[kept 2 s]` entry of the home page's `last_validated` has a hold of its own, and pages that read the same entry share its hold. `holdFailure` is never part of a key: a call that asks and one that does not read the same entries, and one that does not ask neither reads nor makes a hold.
   - **Where**: in memory, per Worker instance (a module-level `Map` in `edge-cache.ts`), at most `FAILURE_HOLD_KEYS` = 256 keys, the oldest going first (a key that fails again becomes the newest); never in the Cache API.
-  - **Who asks: every page that polls, for every upstream call it makes** (an open tab asks again by itself). Today that is the home page (all four of its calls). A page that does not poll (a ledger, a transaction, an account) need not: a visitor's reload is not a herd. A Retry pressed within the hold gets the held failure; the next beat after it gets a fresh answer.
+  - **Who asks: every page that polls, for every upstream call it makes** (an open tab asks again by itself). Today that is the home page (all four of its calls) and the network page (all eleven). A page that does not poll (a ledger, a transaction, an account) need not: a visitor's reload is not a herd. A Retry pressed within the hold gets the held failure; the next beat after it gets a fresh answer.
   - **Tests**: `test/worker/edge-cache.spec.ts` ("the failure hold"), `test/worker/data-api.spec.ts` (what each call passes, and that the option is no part of a key) and, on the real Worker, `test/worker/network-hold.spec.ts` (a file of its own: it needs an isolate nobody has held a failure in). A spec that meets held failures fakes `Date` only (`vi.useFakeTimers({ toFake: ["Date"] })`: the hold reads nothing else, and the Cache API and the streams need the real timers) and moves it past the hold, as `home.spec.ts` and `network-hold.spec.ts` do after each test.
 
 ### Single flight
@@ -417,15 +418,16 @@ running one, and `pending` how many of the newest buckets are not computed yet (
 - **A chart is one image to a screen reader.** The marks are in a `role="img"` whose label is the kit's own summary ("Transactions by type per
   day, Sep 17 to Oct 16, 2026. Highest Oct 3, 2.31M; latest Oct 16, 2.1M. Choose Table for every value."). The marks inside are `aria-hidden`.
   `Sparkline` and `Meter` are one image named by the label the builder wrote. `BarList` is a list: its bars are `aria-hidden` and its text is read.
-- **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore`) a `Cursor` adds a transparent
-  `role="slider"` over the plot with `aria-valuetext` for the bucket, so a screen reader hears each step with no live region. A pointer selects
+- **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore`) a plot has a transparent
+  `role="slider"` over it (`CursorSlot`) with `aria-valuetext` for the bucket, so a screen reader hears each step with no live region. The layer is there from
+  hydration; the cursor itself, `Cursor`, is loaded by the first `pointerenter` or `focusin` that reaches a plot, and takes the layer's place ("The kit's boundaries"). A pointer selects
   the nearest bucket; focus the newest; Left and Right, Home and End move; Escape and blur hide. The tooltip is `aria-hidden`, at most
   `min(260px, 90%)` wide, to the right of the cursor under 22% of the plot, to the left over 78%, else centred. The active mark is marked in the DOM
   (`data-active`, `is-active`), so a pointer move renders the overlay and not the marks. `HoverGroup` gives small multiples and candles one bucket.
   The Worker's HTML has none of this. `Sparkline`, `InlineBar` and `Meter` have no hover: the row or tile around them says the values.
 - **The tooltip is drawn outside the scrolling region.** A column plot with more buckets than its width holds at 5 px each (a slot is 5 px at
   the least) scrolls sideways inside a focusable region ("{title}, scrollable chart"), which would clip a tooltip drawn inside it, so `Plot` draws it
-  beside the region. On touch, `.plot__cursor` has `touch-action: pan-y`, so the page scrolls; in a region that scrolls it has `pan-x pan-y`, so a
+  beside the region (`TipHost`, with the code that places it, which is in `Cursor.tsx` and comes with the cursor). On touch, `.plot__cursor` has `touch-action: pan-y`, so the page scrolls; in a region that scrolls it has `pan-x pan-y`, so a
   sideways swipe scrolls the plot and a tap still selects. A tap keeps the tooltip until a touch lands elsewhere.
 - **Sizes.** The plot is 200 px high, 160 px under 480 px of card (the card is the container, not the window). The line chart's end labels have
   a gutter of 112 px, which is left out under 480 px: the legend and the tooltip carry them. A later end label is dropped when it would sit within
@@ -452,8 +454,23 @@ memo'd: they have no token and cost almost nothing.
   own files (`./…`), `app/domain/format` (`bignumber.js` is in the bundle already), `app/ui/cx` and `app/ui/components/*`; nothing from
   `app/server`, no charting package in `package.json`, and **no barrel file**: a page imports the modules it draws, so it loads only those. Type
   imports are erased and are free. The spec's estimate for what the network page loads of the kit is about 7 KB gzipped, and the page's target
-  is 145,000 bytes (the budget is 150,000); if its build says more, `Cursor` and the tooltip load with `import()` on the first `pointerenter` or
-  `focusin` of a plot, as the search classifier does.
+  is 145,000 bytes (the budget is 150,000). The page measured 146,616 bytes, so the fallback the spec decided was applied (next bullet), and the target was
+  still missed: 146,466 bytes ("The client bundle check").
+- **The cursor loads when it is needed.** A plot draws `CursorSlot` (`CursorSlot.tsx`): the cursor's own layer as it is before anything is done to it (the same
+  transparent `role="slider"`, named as the cursor names it, on the newest bucket, which it says in words). The first `pointerenter` or `focusin` loads `Cursor.tsx` with
+  `import()` (`React.lazy`'s state without its Suspense, which would put a boundary in the hydration), and `Cursor` renders in the layer's place with every prop the slot was
+  given, unchanged: `CursorProps` is the contract, and a prop a later plan adds goes through. What the visitor did meanwhile is done again to the new layer: a focus focuses it, so
+  that the first focus already shows the newest bucket, and a pointer selects the bucket under it, where it is now (a touch that has lifted is the tap it was and keeps the
+  tooltip). A mouse that has left, a focus that has gone and a touch the browser took for a scroll are not replayed. **A key pressed before the cursor is there is lost**; it comes a few
+  milliseconds after the focus, from a file of the page's own origin. A failed load leaves the layer as it is and the next pointer or focus asks again. The tooltip's code (`PlotTip`) is
+  in `Cursor.tsx` and comes with it: it tells the plot how to draw a tooltip when it loads (`setTipView`), and the plot's `TipHost` draws what the cursor hands it.
+  What loads with the page and what loads with the cursor are in different files, so that the cursor's import does not pull the page's modules into a shared chunk
+  (and the page's into the cursor's): `cursor-slot-state.tsx` has what a plot needs (`useHydrated`, `createTipSlot`, `TipSlotContext`, `TipHost`), `cursor-state.tsx` what the cursors share
+  (`steppedKey`, `useCursorState`, `HoverGroup`: the cursor, the share bars and the groups of plots import it, a plot does not), and `placement.ts` the four small functions of the geometry that
+  the cursor needs (geometry re-exports them). `test/unit/charts-bundle.test.ts` fails when a file of the kit other than `CursorSlot.tsx` imports `Cursor.tsx` as a value, or
+  when `CursorSlot.tsx` does other than with `import()`. A test of a chart that looks at what the cursor does, not at when it arrives, replaces `./CursorSlot` with the cursor itself
+  (`vi.mock("./CursorSlot", …)`, at the top of `Plot.test.tsx`, `ColumnChart.test.tsx`, `LineChart.test.tsx`, `SmallMultiples.test.tsx` and `Candles.test.tsx`: copy it into the test of
+  a form that has a cursor); `CursorSlot.test.tsx` has the layer, with the module held back or failing.
 - **The kit's classes are its own.** They live in `charts.css`, which `styles.css` imports after `components.css` and before `pages.css`. A class
   of the kit's is never defined in `pages.css`, which loads later and would override it: the pages' `.cols` once made every column of a chart 0 px
   high on a real page, where the tests, which have no stylesheet, saw nothing wrong. The kit's row of columns is `.plot__cols`, and
@@ -518,15 +535,15 @@ The network page (`/{net}/network`) is the second live page and shares everythin
 
 - **The refresh.** `useLiveRefresh` (`app/ui/use-live-refresh.ts`, used by each live route through `useLiveControls`) calls React Router's `useRevalidator().revalidate()` every 4 s (`LIVE_REFRESH_MS`) while `document.visibilityState` is `visible`. A hidden tab stops the timer and costs nothing; when it is shown again the data is asked for at once and the beat goes on from there. A beat is skipped while a revalidation is running (`revalidator.state`, and a flag of the hook's own for the instant before React has drawn that, because React Router *restarts* a revalidation that is asked for again) or a navigation is in progress. The timer and the `visibilitychange` listener are removed when the page is left. The hook only has effects, so the server's HTML and the first render in the browser are what they were (no hydration mismatch). The browser never calls the data API: the request is the explorer's own `.data` URL for the page's route alone, `/{net}.data?_routes=routes%2Fnet._index`, which the edge cache answers like a page (class `live-home`: a copy up to 1 s old as it is, one up to 3 s old at once while one render refreshes it, an older one after a render; and one render at a time for any number of visitors, see "Single flight"). A tab that is open costs one request per 4 s, which the visitor limit (60 uncached renders per 10 s per address) counts only when it misses the cache. **How old the page can be** when it is drawn: the copy at the edge is at most 1 s fresh plus 2 s stale, and what it was rendered from (the home page's three calls, kept 2 s) was at most 2 s old when it was: about 5 s in the worst case, a ledger and a little, and usually much less.
 - **One ledger on the page.** `last_validated` and the fees list are read from different places and can disagree for a moment (the list is computed from the ledger table, which may not have the ledger `last_validated` names yet): the tiles used to say "—" for that ledger for a beat. The loader takes as the latest the newest ledger the fees list has when `last_validated` is ahead of it (`latestLedgerIndex`, `home-view.ts`), and asks for that ledger's header, so the page is at most a ledger behind and the tiles and the hero always say the same ledger.
-- **When a refresh does not work** (a 503 page, which React Router gives a loader as an `ErrorResponse`, a network error, an answer that never comes, an answer the page will not draw). React Router 8.4 drops the route's data when its loader throws and shows the nearest error boundary in its place (`processRouteLoaderData`: `ResetLoaderDataSymbol`, then `findNearestBoundary`). It asks the Worker for a route that has a `clientLoader` (the home route) **in a request of its own**, `?_routes=routes/net._index`, made when the `clientLoader` calls `serverLoader()`; the routes that have none (the `/:net` layout) are batched into another request, in parallel (`singleFetchLoaderNavigationStrategy` in `dom/ssr/single-fetch.js`: `if (shouldAllowOptOut(m) && hasClientLoader)` at line 131, `routesParams.size === 0` at 165). So a refresh that fails would, left alone, also fail the layout and put *its* boundary, the whole page frame, in place of the page. Two things keep the page: the `/:net` layout (`net.tsx`) says `shouldRevalidate = onlyWhenParamsChange` (`app/ui/revalidation.ts`; its data is the network and the origin, which nothing a revalidation could change), so no request is made for it and a refresh is one request, for the page's route; and the home route's `clientLoader` runs the server's loader through the page's `OnScreen` (`app/ui/on-screen.ts`, made by `createLiveOnScreen` in `app/ui/live-page.ts`), which hands back what the mounted page already shows when the loader fails (the component tells `show` in an effect and withdraws it when it unmounts). A navigation to the *other* network's home does change the layout's parameter, and makes the two requests in parallel; it has nothing of that page on screen to keep, so it gets the error screen as before, as does a navigation to the home page from another page. A thrown 3xx `Response` (a redirect) and an abort are React Router's and pass through. **The page stays as it was and its times keep counting up (`RelativeTime`).** What the polling then does:
+- **When a refresh does not work** (a 503 page, which React Router gives a loader as an `ErrorResponse`, a network error, an answer that never comes, an answer the page will not draw). React Router 8.4 drops the route's data when its loader throws and shows the nearest error boundary in its place (`processRouteLoaderData`: `ResetLoaderDataSymbol`, then `findNearestBoundary`). It asks the Worker for a route that has a `clientLoader` (the home route, and the network route) **in a request of its own**, `?_routes=routes/net._index` (the network page's is `/{net}/network.data?…&_routes=routes%2Fnet.network`), made when the `clientLoader` calls `serverLoader()`; the routes that have none (the `/:net` layout) are batched into another request, in parallel (`singleFetchLoaderNavigationStrategy` in `dom/ssr/single-fetch.js`: `if (shouldAllowOptOut(m) && hasClientLoader)` at line 131, `routesParams.size === 0` at 165). So a refresh that fails would, left alone, also fail the layout and put *its* boundary, the whole page frame, in place of the page. Two things keep the page: the `/:net` layout (`net.tsx`) says `shouldRevalidate = onlyWhenParamsChange` (`app/ui/revalidation.ts`; its data is the network and the origin, which nothing a revalidation could change), so no request is made for it and a refresh is one request, for the page's route; and the route's `clientLoader` (the home route's, and the network route's) runs the server's loader through the page's `OnScreen` (`app/ui/on-screen.ts`, made by `createLiveOnScreen` in `app/ui/live-page.ts`), which hands back what the mounted page already shows when the loader fails (the component tells `show` in an effect and withdraws it when it unmounts). A navigation to the *other* network's home does change the layout's parameter, and makes the two requests in parallel; it has nothing of that page on screen to keep, so it gets the error screen as before, as does a navigation to the home page from another page. A thrown 3xx `Response` (a redirect) and an abort are React Router's and pass through. **The page stays as it was and its times keep counting up (`RelativeTime`).** What the polling then does:
   - **Backoff:** each refresh in a row that did not work (failed, took more than 10 s, or was not drawn) doubles the wait, 4, 8, 16, 32 s and then 60 at the most (`refreshInterval`); the first one that works starts it again at 4 s. `OnScreen.failures()` is the count, `useLiveControls` reads it with `useSyncExternalStore`, and the hook restarts its timer when it changes.
   - **Timeout:** a refresh that has not settled after 10 s (`REFRESH_TIMEOUT_MS`) is given up on, as a failure, and a late answer is ignored: a fetch that hangs cannot stop the beat. (React Router gives a `clientLoader` no way to abort the server fetch itself; the page races it.)
   - **Signal:** after two failures in a row the hero says, in visible text, "Live updates paused, retrying…", and when they work again "Live updates reconnected" for 4 s (`LiveStatus`). It is a `role="status"` element that is always in the page, and changes its text only on these transitions, so a screen reader hears it once for each and not every beat. The green dot of the line goes quiet while the updates are stopped.
   - **Refused answers:** an answer with a lower `order` than the page on screen (the edge replaces a failing render with the stored copy of any age) is not drawn; it counts as a failure. An equal `order` is drawn: a beat inside one ledger is an answer.
   - **A deploy:** the loader data carries the Worker's `BUILD_ID` (`HomeLoaderData.build`, a short git commit, not a secret; every live page's data has a `build`). An answer of another build than the page's own is not drawn (code of the old build must not draw data of a new shape): the document is reloaded, **once for each pair of builds** in a tab (`explorer:build-reloads` in `sessionStorage`, noted when it reloads; where it cannot be written the page does not reload, because a loop is worse than an old page), and the refresh counts as a failure until it does. **Not while the visitor is typing:** a reload throws the text away, so the page waits while any field for text (the hero's search box, any other `input`, `textarea` or editable element; not a button, a checkbox...) has focus or holds text, and reloads when none has focus and all are empty (`focusout`, `input`, `change`), or when the tab is hidden. It is one wait for each pair of builds however many answers of the new build come meanwhile.
   - `app/ui/revalidation.test.tsx` shows both the error screen without these and the kept page with them; `app/ui/routes-wiring.test.tsx` runs the real `net.tsx` and `net._index.tsx` through a data router for all of the above (deleting `shouldRevalidate` or `clientLoader` fails it); `test/e2e/live-home.spec.ts` does it in the browser (the Worker's `.data` answers 503, the page stays, the hero says so, then it works again).
-- **Pausing, and not moving a row under a click** (WCAG 2.2.2: content that moves by itself for more than five seconds can be paused). A button next to the hero's status (`LiveToggle`, a real `<button>`, 44 px) stops the polling and starts it again, asking at once when it is resumed. **Its label says what it will do, "Pause live updates" / "Resume live updates", and it is not also `aria-pressed`** (a name that changes with the state plus a pressed state would be read "Resume live updates, pressed"); a paused one is `.live-toggle.is-paused`. What the visitor has just done is said by the `role="status"` line, "Live updates paused" / "Live updates resumed", for 4 s: they asked for it, so once for each press is right (a pause read back from the tab's storage is silent). The choice is kept for the tab in `sessionStorage` (`explorer:live-paused`; read after the first render, with try/catch). The button is not in the server's HTML (without the script there is nothing to pause); its row has the height of the button (44 px) from the start, so adding it moves nothing. While the visitor has paused it nothing is retried, and the line does not say "retrying". The page is also **held** while a mouse or pen is over either table or **keyboard focus** is in one, so that rows do not move under a click (a finger does not hold; `useHolds` in `app/ui/use-hold.ts` keeps one hold for each part and each way, and the network page uses it for its strip of chips): the beat goes on and is skipped, and letting go costs at most the wait for the next one. Focus holds (`holdsFocus`) only if the focused element is a link or a button in the table, or matches `:focus-visible` (the table's scroll region has `tabindex="0"` so that a keyboard can scroll it; a *click* on a spot of the table that is not a link also focuses it, which is not keyboard focus and must not hold the page after the pointer has left). What focus does is decided each time it moves, so a click on the region lets go of the hold a link had. While the page is held the hero's row says, in visible text and not in the status line (a pointer moving over the tables is not announced), "Paused while you look at the table", and the dot goes quiet. A hold does not outlive its page: `useHolds` releases it when the page unmounts (the page is remounted for the other network's home; the hook that polls is not). The "All in ledger #N →" link of a card head is not animated.
-- **What animates** when data changes in the browser: the rows of **Latest ledgers** (keyed by ledger index) and **Latest transactions** (keyed by hash), the four tiles (latest ledger, transactions per ledger, fees burned, total supply) and the notes under three of them, the hero's status line (the ledger, how long ago it closed) and the "Try" examples. Not the ages (`RelativeTime` ticks on its own), the card links, or a figure that says the same as before: each is a `LiveValue` whose `token` is the text it shows, so the supply tile, which keeps to whole units, moves only when a whole unit has burned.
+- **Pausing, and not moving a row under a click** (WCAG 2.2.2: content that moves by itself for more than five seconds can be paused). A button next to the hero's status (`LiveToggle`, a real `<button>`, 44 px) stops the polling and starts it again, asking at once when it is resumed. **Its label says what it will do, "Pause live updates" / "Resume live updates", and it is not also `aria-pressed`** (a name that changes with the state plus a pressed state would be read "Resume live updates, pressed"); a paused one is `.live-toggle.is-paused`. What the visitor has just done is said by the `role="status"` line, "Live updates paused" / "Live updates resumed", for 4 s: they asked for it, so once for each press is right (a pause read back from the tab's storage is silent). The choice is kept for the tab in `sessionStorage` (`explorer:live-paused`; read after the first render, with try/catch). The button is not in the server's HTML (without the script there is nothing to pause); its row has the height of the button (44 px) from the start, so adding it moves nothing. While the visitor has paused it nothing is retried, and the line does not say "retrying". The page is also **held** while a mouse or pen is over either table or **keyboard focus** is in one, so that rows do not move under a click (a finger does not hold; `useHolds` in `app/ui/use-hold.ts` keeps one hold for each part and each way, and the network page uses it for its strip of chips): the beat goes on and is skipped, and letting go costs at most the wait for the next one. Focus holds (`holdsFocus`) only if the focused element is a link or a button in the table, or matches `:focus-visible` (the table's scroll region has `tabindex="0"` so that a keyboard can scroll it; a *click* on a spot of the table that is not a link also focuses it, which is not keyboard focus and must not hold the page after the pointer has left). What focus does is decided each time it moves, so a click on the region lets go of the hold a link had. While the page is held the hero's row says, in visible text and not in the status line (a pointer moving over the tables is not announced), "Paused while you look at the table", and the dot goes quiet. A hold does not outlive its page: `useHolds` releases it when the page unmounts (the page is remounted for the other network's home; the hook that polls is not). The "All in ledger #N →" link of a card head is not animated. **On the network page** the hold is on the strip of ledger chips (a mouse or pen over it, or keyboard focus on a chip), and the row says "Paused while you look at the ledgers". The charts do not hold: their data moves at most every 300 s, and a change redraws in place under the cursor.
+- **What animates** when data changes in the browser: the rows of **Latest ledgers** (keyed by ledger index) and **Latest transactions** (keyed by hash), the four tiles (latest ledger, transactions per ledger, fees burned, total supply) and the notes under three of them, the hero's status line (the ledger, how long ago it closed) and the "Try" examples. Not the ages (`RelativeTime` ticks on its own), the card links, or a figure that says the same as before: each is a `LiveValue` whose `token` is the text it shows, so the supply tile, which keeps to whole units, moves only when a whole unit has burned. **On the network page** the chips of the strip (keyed by ledger index: a new chip enters at the front and the others slide along x), the open ledger's fee, queue and size, the tiles' figures and notes, the validators' count, ledger and five keys, and a chart whose data changed (its box gets the ring of a changed figure, once; nothing in it moves).
 - **How.** CSS animations and transitions and a little script; no animation library. *Rows* (`DataTable live`, `use-live-rows.ts`): after the first render a key that was not in the list before is `entering` (`.is-entering`: a fade and a slide from -8px, 400 ms after a 120 ms delay, an accent wash that fades out over 1.2 s and a mark that does too, see "The highlight"); **the class stays on the row for `ENTER_MS` (1.3 s) from the commit that brought it, through any renders in between (the next beat renders the page again), and the script takes it off the row itself** (a timer, cleared with the table); the rows that were there and are somewhere else now slide with FLIP (positions measured from the top left of the table at the end of each commit, in `useLayoutEffect`; a row counts as moved when it is 1 px or more away on either axis, and is put back with an inline `translate(dx, dy)` and no transition, a frame later released with `transform 420ms`, and the transition is taken off at `transitionend`; the rows of a table only ever move on y, the chips of the network page move on x). The row that falls off the bottom is simply gone. *Figures* (`LiveValue`): the new value is in a new element (keyed by its token) that comes up from 0.4em below with a fade and the same highlight (`.is-changed`, 360 ms); the element, and so its animation, stays through renders with the same token. Movement is 600 ms at most and runs once, so nothing flashes more than three times a second. There is **no `aria-live`** on any of it: a screen reader is not told every four seconds.
 - **Not on the first render** (the server's, the hydration), and not on a navigation: a switch to the other network's home remounts the page (`key` on `HomePage`), so it is a first render too. An update that brings the same ledger again moves nothing.
 - **`prefers-reduced-motion: reduce`.** `base.css` still turns every animation and transition off (`!important` on `*`); `components.css` gives a new row and a changed figure one exception, the colours alone (`animation: live-flash 1200ms ease-out, row-mark 1200ms ease-out !important`, or `value-mark` for a figure; a class beats `*` between two `!important`s): a wash and a mark fading out, once, with nothing moving. The script moves nothing either (`prefersReducedMotion()` is read when an update arrives, never while rendering): no inline transform or transition. The value still updates at once.
@@ -675,6 +692,84 @@ Class `short` (the edge keeps 30 s of it); a failure of the API, or a 200 that i
 cost an upstream CSV of up to 1000 rows, so crawlers are kept off it twice: the Payments tab's link is `rel="nofollow"`, and `robots.txt`
 disallows `/*/account/*/payments.csv` (as it does `/*/search`).
 
+## The network page
+
+`/{net}/network` is the dashboard of a network, made from the data API alone (the node is not called). The route is `app/routes/net.network.tsx`, the page
+`app/ui/pages/NetworkPage.tsx`, the view builder `app/server/network-view.ts` (pure: it makes `NetworkPageData` from the answers) and the charts are the kit
+("The chart kit"). The header's Network item leads to it (`handle = { navSection: "network" }`: `.is-current`, and `aria-current="page"` here, `"true"` on a
+later page of the section). From the top: the heading with its live row, the six newest ledgers as chips beside the open ledger, the filters, six tiles, then the cards:
+transactions by type, the average fee, volume (payments, DEX and AMM), payments by currency, and the validators.
+
+**Views.** The URL names the view, with two parameters.
+
+| Parameter | Values | Default | |
+|---|---|---|---|
+| `period` | `7d`, `30d`, `90d`, `1y` | `30d` | days, except `1y`, which is 52 weeks from Monday |
+| `in` | `usd` | the native currency | XRPL only: USD issued by GateHub (`rhub8V…`), one of the API's tracked markets. Xahau has no USD market and no "Amounts in" |
+
+A query string that is not the canonical form of its view (`period`, then `in`; defaults, unknown values, repeats and other parameters dropped) is a 302 to it,
+class `short`, before any call: a made-up query string would otherwise be a stored page and a set of upstream calls. The default view has a canonical link and
+`og:*`; every other view is `noindex, follow` with neither. The selectors are links (`SegmentedLinks`), so they work without JavaScript, and a click is a client-side
+navigation that keeps the scroll position. `networkHref` and `parseNetworkParams` (`app/domain/network-params.ts`) make and read them.
+
+**The window.** `T` is the UTC day of `last_validated`'s close time (`utcDayOf`), not the clock: the window follows the index. `windowOf(T, period)`
+(`app/domain/window.ts`) gives the buckets of the charts and totals (W: `T` and the days before it, or the 52 weeks up to the week of `T`), the full buckets
+before `T` that the deltas use (F) and the same number before them (P). The newest bucket is the running one: it is drawn, and its tooltip, slider text and table say
+"so far". The volumes count a day only once it has closed an hour, so their running day is *pending*: a gap, "Not computed yet" in the tooltip, and the card's note "Oct 17 is not
+computed yet." A delta compares full buckets only and is left out when one is missing: "+3.2%, 30 full days to Oct 16 vs the 30 before".
+
+**Calls.** All of them go to the data API; the loader asks for them side by side and waits for all. Every call asks for the failure hold.
+
+| # | Call | Kept | Feeds | If it fails |
+|---|---|---|---|---|
+| 1 | `last_validated` | 2 s, the home page's entry | the anchor: `T`, the order of the data | 503 |
+| 2 | `network/fees?descending=true&limit=8` | 2 s, the home page's entry | the chips | 503, once everything else has settled |
+| 3 | `ledgers/{latest}` | immutable | the hash for #4, only when #1 is ahead of #2's newest | the validators card |
+| 4 | `ledgers/{hash}/validations?limit=1000` | 5 s | the validators card | the validators card |
+| 5 | `network/fee_stats?descending=true&limit=1&start={T}` | 2 s | the open ledger, the fee note | the open ledger block |
+| 6 | `stats/type` | 300 s | transactions by type | that card |
+| 7 | `stats/metric` (from the start of P) | 300 s | tiles 1 to 4 | those tiles show "—" |
+| 8 | `network/fees?interval=day` | 300 s | the fee chart | that card |
+| 9 | `network/payment_volume` (from the start of P) | 300 s | the payment tile, the Payments line, payments by currency | those cards, the tile |
+| 10 | `network/exchange_volume` | 300 s | the DEX tile and line | the volume card, the tile |
+| 11 | `network/amm_volume`, only with `AMM_DATA` on and on a network with pools | 300 s | the AMM line, the DEX tile's note | the line is left out, and the card says so |
+
+Calls 6 to 11 are class `slow` asked for with `{ ttl: PERIOD_CALL_TTL_SECONDS }` (300 s): their keys change once a day, and 5 minutes bound how late the running bucket
+or a day the aggregator finalises late shows. With USD the volumes ask in USD (`exchange_currency`, `exchange_issuer`). The browser never calls the data API.
+
+**Caching.** The page and its `.data` URL are class `live-home` (1 s fresh, 2 s stale: "The cache classes"), so an open tab is at most about 5 s behind. A request that
+fails is the stored copy of the page when there is one. A malformed `last_validated` (a ledger or close time that is not a number, from which no window can be made) is a 503 too.
+
+**Failures, card by card.** A page-level failure (#1, #2) is a 503 with `Retry-After`, never stored. Every other call fails its card or tile alone, and the card says so in its
+place, with its title, its source line and a Retry (`SectionError`, "Couldn’t load transactions by type"); the rest of the page stands. Such a page is a 200 and is *degraded*:
+`Cache-Control: no-store`, not stored (`markDegraded`), and each failure is logged (`logProblem`). A card or the chain of #2, #3 and #4 that has not answered 4.5 s after the loader
+began (`CARD_DEADLINE_MS`) has failed with "took too long", so one slow call cannot hold the page. A failure is also *held*: the call is remembered as failed for 5 s (a 429 for its `Retry-After`),
+so that the beats of every open tab do not each ask a failing upstream again ("The cache classes", "The failure hold"). Retry is `revalidate()` on the explorer's own `.data` URL; it
+works while the visitor has paused the updates, and a Retry within the hold gets the held failure. The AMM line has four states, which the wording of the DEX tile, the legend and the
+volume card's note follow:
+
+| State | When | The card says |
+|---|---|---|
+| `ok` | `AMM_DATA` on, #11 answered | "DEX trades, tracked markets, AMM swaps included", "AMM swaps, all pools", and that the lines are not parts of one total |
+| `failed` | `AMM_DATA` on, #11 failed (a "Cannot GET" 404 too) | the same two lines, "AMM swaps couldn’t be loaded." and Retry |
+| `off` | `AMM_DATA` off | "Payments" and "DEX trades, tracked markets": the explorer does not know whether the DEX line holds swaps, and says neither |
+| `none` | Xahau | the same, and that Xahau has no AMM |
+
+**Live updates and `keepLoaded`.** The page follows the chain like the home page ("Live updates"): `useLiveControls`, the 4 s beat, the backoff, the pause. What it brings of its
+own is in the route: `createLiveOnScreen` with `order: (d) => d.anchor.lastValidated` and `merge: keepLoaded(next, shown, NETWORK_PARTS)`. `NETWORK_PARTS` is the page's parts, one for each call or
+chain: `openLedger`, `validators`, `types`, `metrics`, `fees`, `payments`, `exchanges` and `amm`. A beat whose answer has a part `failed` that the page shows loaded keeps the part it shows, so a
+failing beat, or a day that has turned and has no answers yet, does not put an error in place of a card every 4 s; the window's words come from the anchor and move on. A part that has never loaded
+shows its error. The scope of the page on screen is the network and the canonical search of its view, so a refresh of another view never stands in for it, and the page is keyed by it (`<NetworkPage key={scope}>`):
+another period, currency or network is a navigation and a first render, which is not animated, and a chart that changes after it is mounted gets the ring of a changed figure.
+
+**Switches.** `AMM_DATA` gates #11 and the AMM wording. `VALIDATORS` gates the card's "All validators" link (`/{net}/validators?scope=all`): while it is off, the link is the header's "soon" style.
+The view builder puts the link in the card's data, so the stored HTML and the data agree. Both are in "Switches".
+
+**Tests.** `app/server/network-view.test.ts` (the view builder, in exact arithmetic), `app/domain/window.test.ts`, `network-params.test.ts` and `type-groups.test.ts`;
+`NetworkPage.test.tsx` and `routes-wiring.test.tsx` (the cards, the chips, the hold, the scope per view, `keepLoaded`); in the Worker, `test/worker/network-page.spec.ts` (failures first, then the class,
+the redirects, the page without JavaScript), `network-calls.spec.ts` (the exact calls of each view), `network-hold.spec.ts` and, with every switch off, `network-off.spec.ts`; in the browser,
+`network-page.spec.ts`, `network-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The synthetic aggregates the Worker and the browser read are in "Upstream fixtures".
+
 ## Search
 
 `/{net}/search?q=...` (`routes/net.search.tsx`) is what the search box submits, so it works before JavaScript loads. Its loader says what
@@ -775,11 +870,11 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `app/server/api-types.ts`, `app/server/aggregate-shape.ts` (with `tx-shape.ts` and `upstream.ts`, which it imports: the checks the data API client runs on the
   network page's answers, which `test/unit/network-fixtures.test.ts` runs on the fixtures), `app/ui/features.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
   `test/e2e/stack.ts`, which starts the end-to-end stack, is in that config too; the Playwright config and specs are `tsconfig.e2e.json`'s, with
-  the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
+  the DOM types their `page.evaluate` callbacks need (and `app/ui/features.ts`, which `scripts/e2e-env.ts` imports), and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
   a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/e2e-env.test.ts` the switches of the end-to-end suite
-  (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through); `test/unit/e2e-stack.test.ts`
+  (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through, `E2E_FEATURES_OFF`); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
   `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, the switches, another environment, workers.dev, the redirect), the
   command through a link, and that the deploy scripts run it between the build and `wrangler deploy` and the environments of `wrangler.jsonc` are not on workers.dev.
@@ -799,8 +894,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   line that says the page waits), `on-screen.test.ts` (what is kept, the failure count, the 10 s limit, refused answers, redirects and
   aborts, the merge of an answer that is taken and only of that), `live-page.test.ts` (a deploy: the reload once for a pair of builds, no reload where nothing can remember it, none while a field has focus or holds text, one when the tab is hidden; an answer with a lower `order` refused and an equal one taken; the merge; `keepLoaded`), `use-hold.test.tsx` (`useHolds`: a hold for each name and way, released when the page unmounts; `holdsFocus`),
   `revalidation.test.tsx` (React Router's own behaviour for a failed revalidation, with and without what keeps the page),
-  **`routes-wiring.test.tsx` (the real `net.tsx` and `net._index.tsx` through a data router: `shouldRevalidate`, the `clientLoader`, the hook, the
-  controls; deleting either export fails it)**, and `test/unit/live-motion-css.test.ts` (durations, one run, the wash's contrast on `--bg` and
+  **`routes-wiring.test.tsx` (the real `net.tsx`, `net._index.tsx` and `net.network.tsx` through a data router: `shouldRevalidate`, the `clientLoader`, the scope per view, the hook, the
+  controls, `keepLoaded`; deleting either export fails it)**, and `test/unit/live-motion-css.test.ts` (durations, one run, the wash's contrast on `--bg` and
   `--surface` in both themes on both accents and that a whole percent more would fail, that the marks reach no text, what reduced motion leaves, the
   button's 44 px). The Worker specs pin `live-home` at 1 s + 2 s (`cache-class.test.ts`, `home.spec.ts`, `edge-cache.spec.ts`: fresh, stale at 1 s,
   inline after 3 s), the three calls' class and their `ttl` (`data-api.spec.ts`), single flight (`edge-cache.spec.ts`, "many requests for one page at
@@ -1004,13 +1099,14 @@ otherwise; never 5173) and never reuses a server that is already running.
 | Variable | Default | |
 |---|---|---|
 | `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one, the fixture server the one after (`E2E_FIXTURE_PORT`) |
-| `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on (`live-home.spec.ts`) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
+| `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on or take an answer away (`live-home.spec.ts`, `network-live.spec.ts`) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
 | `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or staging. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
 | `E2E_DATA_API_KEY` | `e2e-fixture-key` (the fixtures take any) | The `X-API-Key` of a real data API; required with `E2E_DATA_API_URL` |
 | `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed staging) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
 | `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:staging` leaves) is refused |
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
+| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`AMM_DATA`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
 | `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
@@ -1043,13 +1139,17 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `ledger.spec.ts` | Xahau 26540187 → next (26540188) → previous, in the page (no new document), by the links named `26,540,188, next ledger`; the type filter |
 | `account.spec.ts` | The tabs (Transactions, Payments, Trades, Offers, Objects; Analytics is not a link); Older and Newer on Transactions (four rows, two rows, four rows; the marker page shows no live state) and on Payments, which keep the tab; the balance, the token and the reserve |
 | `network.spec.ts` | The switch goes to the other network's home, changes `data-net` and the title, writes the `net` cookie, and `/` then redirects to it; `/` without a cookie is XRPL; an unknown network is a 404 |
+| `network-page.spec.ts` | The network page, reading the fixtures and changing none: "Network" in the header leads to `/xrpl/network` in one document and is the current item (`aria-current="page"`); with JavaScript off the 30 columns are drawn and checking Table hides the chart and shows 31 rows; "1 year" changes the URL to `?period=1y`, draws 52 columns, adds `noindex`, drops the canonical link and Back restores them; "USD" sets `in=usd`, and `/xahau/network` has no "Amounts in"; a pointer over the stacked chart shows a tooltip with the date and "total", and Tab to its slider then Arrow Left changes `aria-valuenow` and the text it says; the AMM line and its legend entry are there (or, with `AMM_DATA` in `E2E_FEATURES_OFF`, the `off` wording); the newest column's tooltip reads "Oct 17, 2026, so far" and the volume card notes "Oct 17 is not computed yet." (skipped against a real stack, which has another day) |
 | `theme.spec.ts` | See below |
 | `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the network switch, and that moving between the routes asks for no `/__manifest` |
 | `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
 | `assets.spec.ts` | The stylesheet, scripts and font of a page carry `Cache-Control: public, max-age=31536000, immutable` from `public/_headers` (the local runtime applies it); a page and the favicon do not |
 | `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route module or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
 | `live-home.spec.ts` | The `live` project of `playwright.config.ts`, which runs alone after the others (what the tests do to the fixture server would show in every page the Worker renders meanwhile; `--no-deps` runs it without them), one test at a time, each `test.slow()`. The fixture server says the newest XRPL ledger is the one before the recordings' newest, the home page is opened, and the fixture server goes back to the recordings: the new ledger appears without a reload (the document is the same; the browser asked only the explorer's own `.data` URL for the page's route), the new rows have `.is-entering` and the rows that were there were sent back to slide (a `MutationObserver` of the page records it, and the `animation-name` of each row and figure *as it was added*, so that the next beat is no race), the figures that changed ticked in; under `reducedMotion: "reduce"` nothing is transformed and the animation is the wash and the mark alone; nothing animates when the page is first opened; the pause button pauses and resumes (its label switches, it is not `aria-pressed`, the status line says what was done), is 44 px, and the choice survives a reload of the tab; the hero says the page waits while the mouse is over a table, and a real click on a spot of a table (which focuses its scroll region) does not leave the page held once the mouse has left; and when the Worker answers 503 the page is the page it was (no error screen), the hero says "Live updates paused, retrying…" after two refusals (the second 8 s after the first), and "Live updates reconnected" when the Worker answers again |
+| `network-live.spec.ts` | In the `live` project too (`*-live.spec.ts`, below). A card that cannot be loaded: `stats/type` of `?period=90d&in=usd` answers 503 (`unavailable()`), the card says "Couldn’t load transactions by type" in its place with a Retry, and after `fixtures.reset()` it is back by itself within 10 s (the hold, then a beat); `amm_volume` of `?period=7d&in=usd` has no route (`null`), the volume card says "AMM swaps couldn’t be loaded." with a Retry and the line comes back when the route does. The chain moves on (`xrplHomeOneLedgerBehind()`, then `fixtures.reset()`) under `?period=90d`: the new chip has `.is-entering`, the chips that were there get a transform, the validators card follows, the document is the same and the only request is `/xrpl/network.data?…&_routes=routes%2Fnet.network`; with `reducedMotion: "reduce"` there is no transform and the chip does not slide; nothing animates when the page is opened; the pause button pauses (the status line says so, the choice survives a reload) and resuming asks at once; a mouse over the strip says "Paused while you look at the ledgers" in the row and not in the status line; with the browser's `.data` requests answered 503 the page stays and says "Live updates paused, retrying…" after two refusals, and "reconnected" when they work; and with `xrplNextDay()` in (the newest ledger closed after midnight, so every call over a period has no answer) the window's words move on to Oct 18, and the AMM line and every card the page had stay (`keepLoaded`), for two beats, with nothing said |
 | `a11y.spec.ts` | See below |
+
+**Changing what the fixture server answers.** `test/e2e/fixture-control.ts` puts answers into the fixture server from the tests' process (`fixtures.override`, a JSON object of override keys, each `GET /v2/…` with the query sorted by name; one `PUT` replaces the overrides before it; `fixtures.reset` goes back to the recordings). JSON cannot carry a failing `Response`, so an error is written `unavailable()` (`{ $error: { status: 503, message: "unavailable" } }`) and the control path turns it into the data API's own error answer (`test/support/fixture-server.ts`); `null` is the API's "Cannot GET" 404. `xrplHomeOneLedgerBehind()` says the chain is one ledger behind the recordings (the home page's and the network page's tests move it on), and `xrplNextDay()` says the newest ledger closed after midnight UTC, so that no call over a period has a fixture. A change shows in every page the Worker renders meanwhile, so the specs that make one are the `live` project's (`LIVE_SPECS` in `playwright.config.ts`: `live-home.spec.ts` and every `*-live.spec.ts`, so a later plan's needs no edit there), which runs alone after the `chromium` project and with **one worker**, across its files as well as in each (`fullyParallel: false` only keeps the tests of a file together; two files would otherwise put their overrides over each other's). The Worker keeps a period's answers for 300 s, so a test that takes one away has to be the first of the run to ask for it: `network-live.spec.ts` uses views no other spec opens (`?period=90d&in=usd`, `?period=7d&in=usd`, every 90-day view), in the order that keeps it so. The one spec of the `chromium` project that fails a call, `a11y.spec.ts`, fails `stats/type` of `?period=7d`, which nothing else asks for, in a group of four tests that run in one worker, and takes the override away after them.
 
 **Theme, with no flash.** The page is stored once for everybody, so the server cannot name a theme: `THEME_SCRIPT`, a plain inline script in
 `<head>` before the stylesheet, puts the stored choice on `<html data-theme>`. The spec checks that three ways. (1) The stored HTML, parsed as a
@@ -1069,12 +1169,12 @@ after the stylesheet fails (1) and (3).
 
 **Accessibility.** `@axe-core/playwright` with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` (the rules of WCAG 2.2 AA, including
 `color-contrast`, `target-size` and `label-content-name-mismatch`, which the spec checks ran). The gate is no violation of impact `serious` or
-`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account and 404 pages
+`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account, 404 and network (`/xrpl/network`) pages
 × a 1280 px desktop and a 375 px phone × four settings: light and dark by `prefers-color-scheme`, and dark and light chosen with the toggle
-(against the opposite system theme; the spec checks the page really has that `color-scheme`). Twelve more pages (the other tabs of an account, a page
+(against the opposite system theme; the spec checks the page really has that `color-scheme`). Sixteen more pages (the other tabs of an account, a page
 behind a marker, a never-activated account, a missing transaction, the search help, the newest ledger, the Xahau home and account, a ledger of 66
-transactions) run in
-the two system themes. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
+transactions, and the network page in a year in USD, on Xahau, with every Table radio checked and with a slider focused and its tooltip shown) run in
+the two system themes, and the network page with a card that failed (`stats/type` of the 7 days, failed through the fixture server) in the two system themes at both widths. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
 about ARIA attributes with "needs review" results counted as failures (axe reports a name on an element that cannot have one that way, so the gate
 above does not see it).
 
@@ -1084,21 +1184,50 @@ above does not see it).
 `scripts/check-bundle.test.ts`) on `build/client` after the build and exits 1 when it finds a problem. The command always runs the check, however it
 was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
-- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction or account route; what it loads
+- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction, account or network route; what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
-  layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure). Chunks fetched with
-  `import()` (the search box's classifier) are not in it. Each file counts once, at its `gzip -9` size. Sizes are in kilobytes of 1000 bytes. Today: home 133.8 KB, ledger 134.1,
-  transaction 136.2, account 136.6; 150,000 bytes passes and 150,001 fails;
+  layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
+  and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier, the chart cursor) are not in it. Each file counts once, at its
+  `gzip -9` size. Sizes are in kilobytes of 1000 bytes. 150,000 bytes passes and 150,001 fails;
 - any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
   the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
   These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts and images are not read;
 - `build/client/_headers` is missing or lacks the rule that keeps `/assets/*` for a year;
 - the manifest or a file it names is missing.
 
-It prints a table (page, files, bytes, KB, `ok` or `OVER`) and the problems.
+It prints a table (page, files, bytes, KB, `ok` or `OVER`), the manifest's size and the problems.
 
-Before the network page (E2, at `c05ca58`): home 134,450 bytes, ledger 134,134, transaction 136,253, account 136,647 (the budget's own sums, `gzip -9`, each file once); the
-manifest `assets/manifest-*.js` 959 bytes; and the base every page shares, the 12 files that all four load, 129,879 bytes.
+**The figures of E2** (gzip -9 bytes, each file once). *Before* is `c05ca58`, the commit E2 started from. *After* is the commit that added the network page's end-to-end tests,
+with the chart cursor loaded when it is needed. The check counts the manifest since that commit; the middle column is the figure without it, as the spec's target of 145,000 bytes and the
+earlier measurements are.
+
+| | Before | After, without the manifest | After, as the check counts it (with the manifest) |
+|---|---|---|---|
+| home | 134,450 | 136,954 | 138,027 |
+| ledger | 134,134 | 136,127 | 137,200 |
+| transaction | 136,253 | 138,260 | 139,333 |
+| account | 136,647 | 138,941 | 140,014 |
+| network | | 146,466 | 147,539 |
+| manifest `assets/manifest-*.js` | 959 | 1,101 | |
+| shared base (the files every page loads) | 129,879 (12 files, the four pages) | 131,824 (14 files, the four) and 131,032 (13 files, the five) | |
+
+The manifest is measured with `gzip -9 -c build/client/assets/manifest-*.js | wc -c`, which stores the file's name (959 and 1,101 bytes); the check's own `gzipSync` stores none and says 935 before and
+1,073 after. The shared base is the summed size of the files that every page loads (the intersection of the `files` of `checkBundle("build/client").pages`).
+
+- **Growth.** The four older pages grew by 2.0 to 2.5 KB. Of that, 1.7 to 2.2 KB is E2's shared code, in the chunks every page loads (the shell with the header's sections, `format.ts` and its new formatters, `RelativeTime`, the layout with
+  the switches), measured before the cursor was made lazy (home 136,627, ledger 135,790, transaction 137,933, account 138,604), and 0.33 KB is the lazy cursor: a chunk
+  that is loaded on its own gives the build a runtime chunk of its own (512 bytes, of which 359 left the React chunk), which every page loads. The manifest grew **142 bytes for the one route** (12 routes to 13).
+  The network page is 15.4 KB above the base the five pages share.
+- **The target.** The spec wants the network page at 145,000 bytes or less. It measured 146,616, and the fallback it decided on (the cursor and the tooltip with `import()`, "The chart kit") brought it to **146,466**:
+  150 bytes. The cursor and its tooltip are 1.8 KB gzipped, but a file of their own costs about 1.65 KB: the slot that stands in for them, a shared chunk for what the plot and the cursor both
+  import (0.55 KB), the imports between the chunks, and the runtime chunk. The target is missed by 1,466 bytes, and the budget (150,000) has 2,461 bytes left with the manifest counted. The fallback pays
+  when more pages draw charts, since each would otherwise carry the cursor, and not on one page.
+- **The projection for E3 to E6** (nine more routes), from these figures. The manifest grows about 142 bytes for each route: +1,278, to about 2,380 bytes. The base every page shares takes no route's own code
+  (a route is a chunk of its own), only what its layout and entry reach; assume at most 100 bytes for each route (a formatter, a header item: the items and the switches are there already): +900.
+  If the network page stays the heaviest, it ends at 147,539 + 1,278 + 900 = **149,717 bytes, 283 under the budget**. A later page that has more of its own than the network page (15.4 KB over the base: a
+  pair page with candles, a book and trades) would be over 150,000. So the manifest is **part of every page's figure from now on** (`scripts/bundle-budget.ts`, with its test): left out, 1 to 2.4 KB of what
+  every visitor loads would be in nobody's figure. What to do when a page fails the check: load more with `import()` (what only an interaction needs), draw less on first load, or give the kit's
+  modules a shared chunk once two pages draw them.
 
 ## The parsing libraries in the Workers runtime
 
@@ -1216,6 +1345,17 @@ staging before production:
 - [ ] **Run the end-to-end suite against staging**: `E2E_BASE_URL=https://<staging host> E2E_WORKERS=1 pnpm test:e2e` (see "End-to-end tests"; the suite catches drift in
   the data API's response bodies that `app/server/api-types.ts` cannot see), and, once, `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` against
   the staging stack.
+
+- [ ] **The network page's views, against the staging stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`) and `?in=usd` on XRPL: the
+  window's words ("Totals and charts cover the 30 days from … to …, today so far") must be anchored to the staging stack's own `last_validated` and name the running day, and the volume
+  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; staging does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=AMM_DATA,VALIDATORS` while those switches are off there.
+- [ ] **The failure hold, in `wrangler tail`.** With one card failing (the data API refusing one route, or its key revoked for it), `wrangler tail --env staging --format json` should show one
+  failing call per 5 s per Worker instance for the network page and for the home page, and not one per beat of every open tab (`holdFailure`, "The cache classes"); and the card comes back by itself within the hold and a beat
+  when the route answers again.
+- [ ] **A switch flip is a miss at the edge.** Deploy the same commit with `AMM_DATA` `"on"` in the environment's `vars` (README, "Switches"): the first request for each view after the deploy is a miss (`X-Cache: MISS`: the cache
+  generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
+- [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: the network page and every other page are under 150,000 bytes with the manifest counted, and the manifest's
+  size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,101 bytes at E2) and the network page's figure (147,539 with it, 146,466 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

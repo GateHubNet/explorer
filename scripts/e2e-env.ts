@@ -4,6 +4,8 @@
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 
+import { FEATURE_VARS, type FeatureVar } from "../app/ui/features";
+
 type NetworkId = "xrpl" | "xahau";
 
 /** The URL of one network from the URL the environment gives: `{net}` is the network's id (`xrpl`, `xahau`). */
@@ -63,6 +65,25 @@ export function fixturePort(env: Record<string, string | undefined>): number {
     throw new Error(`${given === undefined ? `E2E_PORT + 2 (${port})` : `E2E_FIXTURE_PORT=${given}`} is not a port for the fixture server`);
   }
   return port;
+}
+
+/**
+ * The switches the Worker under test has off, from `E2E_FEATURES_OFF`: a comma list of names from `FEATURE_VARS`, trimmed, with the empty
+ * ones left out. The suite does not set them (the Worker's own `vars` do); it is told, so that a run against staging or production, where a
+ * switch is still off, does not look for what the switch gates. A test that needs a switch on skips itself when it is in the set, and runs
+ * its off-case where it has one. A name that is not a switch is an error: a misspelt name would turn nothing off and the run would fail
+ * on the page, a long way from the cause.
+ */
+export function featuresOff(env: Record<string, string | undefined>): ReadonlySet<FeatureVar> {
+  const names = (env.E2E_FEATURES_OFF ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+  const known: readonly string[] = FEATURE_VARS;
+  for (const name of names) {
+    if (!known.includes(name)) throw new Error(`E2E_FEATURES_OFF names ${name}, which is not a switch: the switches are ${FEATURE_VARS.join(", ")}`);
+  }
+  return new Set(names as FeatureVar[]);
 }
 
 export interface ChromiumChoice {

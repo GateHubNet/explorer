@@ -166,6 +166,31 @@ describe("overriding what the fixture server answers", () => {
     expect(await head("xahau")).toBe("26596843");
   });
 
+  it("answers an error written as `$error` with the data API's own error body and status, with its headers, and not stored", async () => {
+    const path = "GET /v2/network/fees?descending=true&limit=8";
+    const asked = () => fetch(`${server.url}/xrpl/v2/network/fees?descending=true&limit=8`, { headers: KEY });
+    expect((await asked()).status).toBe(200);
+
+    expect((await control("PUT", { [path]: { $error: { status: 503, message: "busy", headers: { "Retry-After": "7" } } } })).status).toBe(204);
+    const failing = await asked();
+    expect(failing.status).toBe(503);
+    expect(failing.headers.get("Retry-After")).toBe("7");
+    expect(failing.headers.get("Cache-Control")).toBe("no-store");
+    expect(await jsonOf(failing)).toEqual({ result: "error", message: "busy" });
+    // The same answer for every request, and the message has a default.
+    expect((await asked()).status).toBe(503);
+    await control("PUT", { [path]: { $error: { status: 502 } } });
+    expect(await jsonOf(await asked())).toEqual({ result: "error", message: "unavailable" });
+
+    // Taken away, the recording is back. A body that merely looks like it (a status that is no error's) is a body.
+    await control("DELETE");
+    expect((await asked()).status).toBe(200);
+    await control("PUT", { [path]: { $error: { status: 200 } } });
+    const body = await asked();
+    expect(body.status).toBe(200);
+    expect(await jsonOf(body)).toEqual({ $error: { status: 200 } });
+  });
+
   it("does the same in-process", async () => {
     server.override({ "GET /v2/last_validated": { result: "success", ledger_index: "1" } });
     expect(await head()).toBe("1");

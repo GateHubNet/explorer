@@ -6,7 +6,8 @@
     "test/e2e/support.ts",
     "test/e2e/fixtures.ts",
     "test/e2e/fixture-control.ts",
-    "scripts/e2e-env.ts"
+    "scripts/e2e-env.ts",
+    "app/ui/features.ts"
   ],
   "compilerOptions": {
     "composite": true,
