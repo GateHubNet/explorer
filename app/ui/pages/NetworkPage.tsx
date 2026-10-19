@@ -222,6 +222,8 @@ function TypesCard({ data, onRetry }: { data: NetworkPageData; onRetry: () => vo
 
 function FeesCard({ data, native, onRetry }: { data: NetworkPageData; native: string; onRetry: () => void }) {
   const { fees, openLedger } = data;
+  // The fee axis is the window's, weekly for a year: a pending week is told as one.
+  const unit = data.window.unit;
   const title = "Average fee per transaction, in drops";
   const chart = fees.state === "ok" ? fees.chart : null;
   const note = `1 ${native} = 1,000,000 drops. Spikes mean the open ledger was busy.`;
@@ -236,7 +238,7 @@ function FeesCard({ data, native, onRetry }: { data: NetworkPageData; native: st
       state={chart ? "ok" : "failed"}
       onRetry={onRetry}
       table={chart && <ChartTable title={title} data={chart} />}
-      notes={chart ? notesOf(`${note}${minimum}`, pendingNote(chart.axis.buckets, chart.pending ?? 0, "day")) : undefined}
+      notes={chart ? notesOf(`${note}${minimum}`, pendingNote(chart.axis.buckets, chart.pending ?? 0, unit)) : undefined}
       className="network__half"
     >
       {chart && <LineChart title={title} data={chart} area />}

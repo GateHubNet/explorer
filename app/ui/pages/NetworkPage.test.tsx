@@ -589,6 +589,30 @@ describe("NetworkPage, the chart cards", () => {
     expect(card("Volume per day, in XRP").querySelector(".chart__notes")!.textContent).toContain("Oct 17 is not computed yet.");
   });
 
+  // The year is drawn by week: a bucket that is not computed yet is a week, and every card says so.
+  it("says a pending week on the weekly axis of the year, in the types, the fee and the volume cards", () => {
+    const WEEKS = ["2026-10-05", "2026-10-12"];
+    const weekly = { unit: "week", buckets: WEEKS } as const;
+    mount(
+      page({
+        view: { period: "1y", display: "native" },
+        window: { unit: "week", note: "Totals and charts cover the 52 weeks from Oct 20, 2025 to Oct 12, 2026 (UTC), this week so far" },
+        types: {
+          state: "ok",
+          chart: { ...typesChart(), axis: weekly, series: [{ id: "payment", label: "Payment", slot: 1, values: ["7000", "700"] }], totals: ["7000", "700"], pending: 1 },
+          note: "AMM adds up its transaction types; Other is every other type.",
+        },
+        fees: { state: "ok", chart: { ...feesChart, axis: weekly, series: [{ id: "fee", label: "Average fee", slot: 1, values: ["12", null] }], pending: 1 } },
+        payments: { ...(page().payments as object), series: seriesView(["40000000", null], { buckets: WEEKS, unit: "week", pending: 1 }) } as NetworkPageData["payments"],
+        exchanges: { state: "ok", series: seriesView(["8000000", null], { buckets: WEEKS, unit: "week", pending: 1 }), total: "8000000", pendingWords: "to Oct 11; the week of Oct 12 not computed yet" },
+      }),
+    );
+    for (const title of ["Transactions by type, per week", "Average fee per transaction, in drops", "Volume per week, in XRP"]) {
+      const notes = card(title).querySelector(".chart__notes")!.textContent!;
+      expect(notes, title).toContain("The week of Oct 12 is not computed yet.");
+    }
+  });
+
   it("draws the payments by currency as a bar list, with the data's note", () => {
     mount(page());
     const bars = card(/^Payment volume by currency/);
