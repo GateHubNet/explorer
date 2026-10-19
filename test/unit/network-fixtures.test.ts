@@ -507,6 +507,43 @@ describe("isSynthetic", () => {
   });
 });
 
+describe("the text of the synthetic files", () => {
+  // Spec 4: one line per row, sorted keys, as a transaction is one line in the recorded files.
+  const synthetic = [...generate()].filter(([path]) => isSynthetic(path));
+  /** The lists the data API keeps its rows under in these answers. */
+  const isRows = (name: string, value: unknown) => ["stats", "rows", "validations"].includes(name) && Array.isArray(value);
+
+  it("has one line for each row, and the lines of the envelope around them", () => {
+    expect(synthetic).toHaveLength(62);
+    for (const [path, text] of synthetic) {
+      const body = JSON.parse(text) as Record<string, unknown>;
+      const names = Object.keys(body).filter((name) => isRows(name, body[name]));
+      expect(names, path).toHaveLength(1);
+      const rows = body[names[0]!] as unknown[];
+      expect(rows.length, path).toBeGreaterThan(0);
+      // `{`, the other keys, `"rows": [`, the rows, `]`, `}`, and the final newline.
+      const lines = text.split("\n");
+      expect(lines, path).toHaveLength(rows.length + Object.keys(body).length + 3 + 1);
+      expect(lines.at(-1)).toBe("");
+    }
+  });
+
+  it("writes each row as the compact JSON of itself with its keys sorted, components and all", () => {
+    for (const [path, text] of synthetic) {
+      const body = JSON.parse(text) as Record<string, unknown>;
+      const rows = Object.entries(body).find(([name, value]) => isRows(name, value))![1] as Array<Record<string, unknown>>;
+      const lines = text.split("\n");
+      const first = lines.findIndex((line) => /^ {2}"(stats|rows|validations)": \[$/.test(line)) + 1;
+      rows.forEach((row, at) => {
+        const line = lines[first + at]!;
+        expect(line, path).toBe(`    ${JSON.stringify(row)}${at < rows.length - 1 ? "," : ""}`);
+        const keys = Object.keys(row);
+        expect(keys, path).toEqual([...keys].sort());
+      });
+    }
+  });
+});
+
 describe("synthetic.ts", () => {
   it("is mulberry32: the first numbers of seed 1 are the algorithm's", () => {
     const next = mulberry32(1);

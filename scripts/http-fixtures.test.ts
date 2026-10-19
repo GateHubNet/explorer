@@ -71,6 +71,22 @@ describe("fixtureText", () => {
   it("writes empty containers compactly and ends with a newline", () => {
     expect(fixtureText({ rows: [], none: {} })).toBe('{\n  "none": {},\n  "rows": []\n}\n');
   });
+
+  // The synthetic files (network-fixtures.ts) have a row to a line, sorted keys and all; the recorded ones keep their layout.
+  it("writes the rows of the lists it is told to one to a line, at the root too, and any other list as before", () => {
+    const value = { rows: [{ b: { c: [1, { d: 2 }] }, a: 1 }, { a: 2 }], other: [{ a: { b: { c: 1 } } }], count: 2 };
+    expect(fixtureText(value, ["rows"])).toBe(
+      ['{', '  "count": 2,', '  "other": [', '    {', '      "a": {"b":{"c":1}}', '    }', '  ],', '  "rows": [', '    {"a":1,"b":{"c":[1,{"d":2}]}},', '    {"a":2}', '  ]', '}', ''].join("\n"),
+    );
+    // Without the list named, the rows keep the layout every other file has.
+    expect(fixtureText(value)).toBe(fixtureText(value, []));
+    expect(fixtureText(value).split("\n").length).toBeGreaterThan(fixtureText(value, ["rows", "other"]).split("\n").length);
+  });
+
+  it("leaves the layout of every generated file that is not synthetic as it is: a list called rows is not one line a row unless it is told to be", () => {
+    const fees = generate().get("xrpl/data-api/network/fees@descending=true&limit=8.json")!;
+    expect(fees.split("\n").length).toBeGreaterThan(8 * 3);
+  });
 });
 
 describe("times", () => {

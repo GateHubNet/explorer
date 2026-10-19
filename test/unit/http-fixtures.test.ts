@@ -68,9 +68,9 @@ describe("every fixture file", () => {
   it("stays within the budget that keeps the set reviewable", () => {
     const bytes = (names: string[]) => names.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
     expect(bytes(files.filter((file) => !isSynthetic(file)))).toBeLessThan(3.5 * 1024 * 1024);
-    // The synthetic aggregates of the network page (about 2.6 MiB: four periods, two display currencies, three volumes) are generated and reviewed
-    // as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
-    expect(bytes(files.filter(isSynthetic))).toBeLessThan(3 * 1024 * 1024);
+    // The synthetic aggregates of the network page (about 2.3 MiB, a row to a line: four periods, two display currencies, three volumes) are
+    // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
+    expect(bytes(files.filter(isSynthetic))).toBeLessThan(2.7 * 1024 * 1024);
   });
 });
 

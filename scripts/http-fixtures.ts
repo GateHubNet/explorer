@@ -276,9 +276,13 @@ export function nodeLedgerResult(raw: RawLedger, transactions: "none" | "hashes"
 
 /**
  * Containers nested this deep (counting the root as 0) are written on one line, and a list of transactions
- * (`transactions`, wherever it is) is written one transaction to a line: a transaction is one line.
+ * (`transactions`, wherever it is) is written one transaction to a line: a transaction is one line. The same holds for the lists a
+ * file names in `rowLists` (`fixtureText`): a row is one line.
  */
 const INLINE_DEPTH = 3;
+
+/** The lists of the synthetic files (network-fixtures.ts) whose rows are one line each: the rows of `stats`, of the fees and volumes, and the validations. */
+export const SYNTHETIC_ROW_LISTS: readonly string[] = ["stats", "rows", "validations"];
 
 function sorted(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sorted);
@@ -289,27 +293,36 @@ function sorted(value: unknown): unknown {
   return value;
 }
 
-function layout(value: unknown, depth: number, indent: string): string {
+function layout(value: unknown, depth: number, indent: string, rowLists: readonly string[]): string {
   if (typeof value !== "object" || value === null) return JSON.stringify(value);
   if (depth >= INLINE_DEPTH) return JSON.stringify(value);
   const inner = `${indent}  `;
   if (Array.isArray(value)) {
     if (value.length === 0) return "[]";
-    return `[\n${value.map((item) => `${inner}${layout(item, depth + 1, inner)}`).join(",\n")}\n${indent}]`;
+    return `[\n${value.map((item) => `${inner}${layout(item, depth + 1, inner, rowLists)}`).join(",\n")}\n${indent}]`;
   }
   const entries = Object.entries(value);
   if (entries.length === 0) return "{}";
   const lines = entries.map(([key, item]) => {
-    // The list of transactions breaks at the level of the ledger's own, however deep the ledger lies.
-    const childDepth = key === "transactions" && Array.isArray(item) ? Math.min(depth + 1, INLINE_DEPTH - 1) : depth + 1;
-    return `${inner}${JSON.stringify(key)}: ${layout(item, childDepth, inner)}`;
+    // The list of transactions breaks at the level of the ledger's own, however deep the ledger lies. A list named in `rowLists` breaks at the
+    // level of the root's own: its rows are one line each, wherever the list is.
+    const childDepth =
+      Array.isArray(item) && rowLists.includes(key)
+        ? INLINE_DEPTH - 1
+        : key === "transactions" && Array.isArray(item)
+          ? Math.min(depth + 1, INLINE_DEPTH - 1)
+          : depth + 1;
+    return `${inner}${JSON.stringify(key)}: ${layout(item, childDepth, inner, rowLists)}`;
   });
   return `{\n${lines.join(",\n")}\n${indent}}`;
 }
 
-/** A fixture file's text: keys sorted, two-space indent down to the transactions, one line each below, a final newline. */
-export function fixtureText(value: unknown): string {
-  return `${layout(sorted(value), 0, "")}\n`;
+/**
+ * A fixture file's text: keys sorted, two-space indent down to the transactions, one line each below, a final newline. The lists named in
+ * `rowLists` are written the same way, one row to a line (the synthetic files of network-fixtures.ts, spec 4: a row is one line, with sorted keys).
+ */
+export function fixtureText(value: unknown, rowLists: readonly string[] = []): string {
+  return `${layout(sorted(value), 0, "", rowLists)}\n`;
 }
 
 // ---- Which files are written by hand ---------------------------------------------------------------------------------
@@ -406,9 +419,9 @@ export function compare(generated: Map<string, string>): Differences {
 /** Every generated file of the fixtures: path below test/fixtures/http/ and text. */
 export function generate(): Map<string, string> {
   const files = new Map<string, string>();
-  const put = (path: string | undefined, value: unknown) => {
+  const put = (path: string | undefined, value: unknown, rowLists?: readonly string[]) => {
     if (path === undefined) throw new Error("no file for a fixture");
-    files.set(path, fixtureText(value));
+    files.set(path, fixtureText(value, rowLists));
   };
   const api = (net: NetworkName, path: string, query: string, value: unknown) => put(dataApiFile(net, path, query), value);
 
@@ -467,7 +480,7 @@ export function generate(): Map<string, string> {
     // The network page's aggregates, fee snapshot and validations: synthetic. The validations are of the two newest ledgers (the end-to-end suite
     // moves the chain back by one), which are the first two rows of the list above.
     const newestTwo = rows.slice(0, 2).map((row, at) => ({ index: row.ledger_index, hash: ledgers[ledgers.length - 1 - at]!.ledger_hash, date: row.date }));
-    for (const { path, query, value } of networkFixtures(net, dataApiLastValidated(head), newestTwo)) api(net, path, query, value);
+    for (const { path, query, value } of networkFixtures(net, dataApiLastValidated(head), newestTwo)) put(dataApiFile(net, path, query), value, SYNTHETIC_ROW_LISTS);
 
     // Single transactions: one per type the recordings looked for, the newest ones, and those the account lists show.
     const served = new Set([...manifestHashes(net), ...newest.map(({ tx }) => tx.hash), ...accountListHashes(net)]);

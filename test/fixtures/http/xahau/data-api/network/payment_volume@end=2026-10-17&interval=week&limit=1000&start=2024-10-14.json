@@ -2,950 +2,110 @@
   "count": 105,
   "result": "success",
   "rows": [
-    {
-      "components": [{"amount":"95286914.50644","converted_amount":"95286914.50644","count":594025,"currency":"XAH","rate":"1.0000000"},{"amount":"2653949.679304","converted_amount":"9246042.666301","count":102998,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28703628"},{"amount":"228520.4368","converted_amount":"6194280.093475","count":52594,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036892170"},{"amount":"3723212.805389","converted_amount":"2783060.587419","count":34915,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3378123"}],
-      "count": 850705,
-      "end_time": "2024-10-21T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-10-14T00:00:00Z",
-      "total": "113510297.853635"
-    },
-    {
-      "components": [{"amount":"117281856.203204","converted_amount":"117281856.203204","count":585613,"currency":"XAH","rate":"1.0000000"},{"amount":"2530435.9178","converted_amount":"9173194.46184","count":107945,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27585111"},{"amount":"201676.2889","converted_amount":"5685540.043739","count":52664,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035471791"},{"amount":"3985413.554192","converted_amount":"3101621.555213","count":34501,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2849451"}],
-      "count": 847842,
-      "end_time": "2024-10-28T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-10-21T00:00:00Z",
-      "total": "135242212.263996"
-    },
-    {
-      "components": [{"amount":"98744702.665354","converted_amount":"98744702.665354","count":588948,"currency":"XAH","rate":"1.0000000"},{"amount":"2699290.598719","converted_amount":"9602961.21731","count":97346,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28108940"},{"amount":"215213.6627","converted_amount":"5941889.577672","count":50737,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036219734"},{"amount":"4101778.44978","converted_amount":"3122805.20321","count":32568,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3134916"}],
-      "count": 836580,
-      "end_time": "2024-11-04T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-10-28T00:00:00Z",
-      "total": "117412358.663546"
-    },
-    {
-      "components": [{"amount":"100319259.106383","converted_amount":"100319259.106383","count":556650,"currency":"XAH","rate":"1.0000000"},{"amount":"2213144.153875","converted_amount":"8286332.203282","count":98891,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26708369"},{"amount":"194897.127","converted_amount":"5649362.578171","count":45723,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034498959"},{"amount":"3299924.703756","converted_amount":"2643073.461565","count":32834,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2485180"}],
-      "count": 800209,
-      "end_time": "2024-11-11T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-11-04T00:00:00Z",
-      "total": "116898027.349401"
-    },
-    {
-      "components": [{"amount":"97311566.03304","converted_amount":"97311566.03304","count":554136,"currency":"XAH","rate":"1.0000000"},{"amount":"1877438.383424","converted_amount":"7235742.095231","count":98339,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25946729"},{"amount":"162076.5466","converted_amount":"4875614.387575","count":50085,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033242282"},{"amount":"3461549.214935","converted_amount":"2856184.035068","count":31872,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2119489"}],
-      "count": 797094,
-      "end_time": "2024-11-18T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-11-11T00:00:00Z",
-      "total": "112279106.550914"
-    },
-    {
-      "components": [{"amount":"83691123.462327","converted_amount":"83691123.462327","count":578041,"currency":"XAH","rate":"1.0000000"},{"amount":"2263508.945165","converted_amount":"8057974.539318","count":100411,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28090297"},{"amount":"180864.1359","converted_amount":"5008879.347982","count":48527,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036108703"},{"amount":"3867307.411644","converted_amount":"2955318.818542","count":33104,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3085923"}],
-      "count": 824000,
-      "end_time": "2024-11-25T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-11-18T00:00:00Z",
-      "total": "99713296.168169"
-    },
-    {
-      "components": [{"amount":"93935043.818735","converted_amount":"93935043.818735","count":530011,"currency":"XAH","rate":"1.0000000"},{"amount":"2277471.264861","converted_amount":"8288713.782006","count":89113,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27476775"},{"amount":"179052.9725","converted_amount":"5060399.777073","count":42905,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035383167"},{"amount":"3154098.824376","converted_amount":"2467079.459775","count":28705,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2784748"}],
-      "count": 747656,
-      "end_time": "2024-12-02T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-11-25T00:00:00Z",
-      "total": "109751236.837589"
-    },
-    {
-      "components": [{"amount":"84730439.769476","converted_amount":"84730439.769476","count":494909,"currency":"XAH","rate":"1.0000000"},{"amount":"2200942.473808","converted_amount":"7281474.312001","count":88668,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30226605"},{"amount":"208576.1733","converted_amount":"5362820.902532","count":44097,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038892996"},{"amount":"3276970.322468","converted_amount":"2313963.600486","count":29264,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4161719"}],
-      "count": 710750,
-      "end_time": "2024-12-09T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-12-02T00:00:00Z",
-      "total": "99688698.584495"
-    },
-    {
-      "components": [{"amount":"94934610.939537","converted_amount":"94934610.939537","count":508974,"currency":"XAH","rate":"1.0000000"},{"amount":"2301957.46175","converted_amount":"7837257.55022","count":90590,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29371977"},{"amount":"187974.5352","converted_amount":"4976837.311036","count":43787,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037769877"},{"amount":"3539000.722107","converted_amount":"2592497.479437","count":29163,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3650932"}],
-      "count": 727769,
-      "end_time": "2024-12-16T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-12-09T00:00:00Z",
-      "total": "110341203.28023"
-    },
-    {
-      "components": [{"amount":"83909679.184233","converted_amount":"83909679.184233","count":521544,"currency":"XAH","rate":"1.0000000"},{"amount":"2224916.561551","converted_amount":"8023568.623256","count":86169,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27729763"},{"amount":"180161.298","converted_amount":"5048711.09931","count":42947,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035684612"},{"amount":"3353678.860102","converted_amount":"2587982.511928","count":28900,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2958661"}],
-      "count": 739217,
-      "end_time": "2024-12-23T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-12-16T00:00:00Z",
-      "total": "99569941.418727"
-    },
-    {
-      "components": [{"amount":"89927843.261646","converted_amount":"89927843.261646","count":544641,"currency":"XAH","rate":"1.0000000"},{"amount":"2455476.554362","converted_amount":"8666144.444726","count":91755,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28334129"},{"amount":"179554.7779","converted_amount":"4917869.406856","count":45709,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036510684"},{"amount":"3705828.591678","converted_amount":"2806769.846741","count":30167,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3203179"}],
-      "count": 774949,
-      "end_time": "2024-12-30T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-12-23T00:00:00Z",
-      "total": "106318626.959969"
-    },
-    {
-      "components": [{"amount":"102675497.292492","converted_amount":"102675497.292492","count":549416,"currency":"XAH","rate":"1.0000000"},{"amount":"2314875.594997","converted_amount":"8322944.257142","count":91588,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27813182"},{"amount":"191696.5258","converted_amount":"5347168.271857","count":47586,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035850102"},{"amount":"3617630.183854","converted_amount":"2790112.374939","count":32944,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2965894"}],
-      "count": 786576,
-      "end_time": "2025-01-06T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2024-12-30T00:00:00Z",
-      "total": "119135722.19643"
-    },
-    {
-      "components": [{"amount":"89495024.942476","converted_amount":"89495024.942476","count":504617,"currency":"XAH","rate":"1.0000000"},{"amount":"2065768.213008","converted_amount":"7950757.037972","count":94266,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25982032"},{"amount":"181696.9443","converted_amount":"5404309.23284","count":46145,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033620753"},{"amount":"3373256.448115","converted_amount":"2782990.236225","count":30716,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2120978"}],
-      "count": 737524,
-      "end_time": "2025-01-13T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-01-06T00:00:00Z",
-      "total": "105633081.449513"
-    },
-    {
-      "components": [{"amount":"93914361.515524","converted_amount":"93914361.515524","count":540633,"currency":"XAH","rate":"1.0000000"},{"amount":"2136035.411372","converted_amount":"8933727.571186","count":94192,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.23909789"},{"amount":"156226.4575","converted_amount":"5058954.034563","count":47982,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030881177"},{"amount":"3087682.841558","converted_amount":"2772309.643977","count":32079,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1137583"}],
-      "count": 778902,
-      "end_time": "2025-01-20T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-01-13T00:00:00Z",
-      "total": "110679352.76525"
-    },
-    {
-      "components": [{"amount":"106836742.532435","converted_amount":"106836742.532435","count":558923,"currency":"XAH","rate":"1.0000000"},{"amount":"2062236.975374","converted_amount":"8207648.567965","count":100161,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25125795"},{"amount":"184898.0344","converted_amount":"5707871.036796","count":50315,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032393520"},{"amount":"3422116.82988","converted_amount":"2918981.221972","count":32733,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1723669"}],
-      "count": 808218,
-      "end_time": "2025-01-27T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-01-20T00:00:00Z",
-      "total": "123671243.359168"
-    },
-    {
-      "components": [{"amount":"93423143.243117","converted_amount":"93423143.243117","count":609597,"currency":"XAH","rate":"1.0000000"},{"amount":"2190355.416012","converted_amount":"8496221.327053","count":98377,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25780348"},{"amount":"198239.2507","converted_amount":"5981974.246339","count":47071,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033139436"},{"amount":"3712154.855703","converted_amount":"3082592.375404","count":33954,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2042315"}],
-      "count": 854850,
-      "end_time": "2025-02-03T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-01-27T00:00:00Z",
-      "total": "110983931.191913"
-    },
-    {
-      "components": [{"amount":"110490863.360131","converted_amount":"110490863.360131","count":634929,"currency":"XAH","rate":"1.0000000"},{"amount":"2691474.229081","converted_amount":"9663731.87275","count":106684,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27851292"},{"amount":"218478.8817","converted_amount":"6081706.7089","count":52581,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035923942"},{"amount":"4547207.784501","converted_amount":"3496865.831159","count":35128,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3003667"}],
-      "count": 900484,
-      "end_time": "2025-02-10T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-02-03T00:00:00Z",
-      "total": "129733167.77294"
-    },
-    {
-      "components": [{"amount":"115141981.405987","converted_amount":"115141981.405987","count":567243,"currency":"XAH","rate":"1.0000000"},{"amount":"2931343.356893","converted_amount":"9818089.699148","count":97063,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29856555"},{"amount":"258982.2166","converted_amount":"6729299.517546","count":51168,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038485762"},{"amount":"4254046.280886","converted_amount":"3039809.366583","count":32519,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3994451"}],
-      "count": 816114,
-      "end_time": "2025-02-17T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-02-10T00:00:00Z",
-      "total": "134729179.989264"
-    },
-    {
-      "components": [{"amount":"106094234.992734","converted_amount":"106094234.992734","count":610325,"currency":"XAH","rate":"1.0000000"},{"amount":"2909281.046539","converted_amount":"9179415.693701","count":104009,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31693532"},{"amount":"265889.1926","converted_amount":"6504751.758755","count":50903,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040876148"},{"amount":"4618557.365802","converted_amount":"3120757.287774","count":34283,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4799476"}],
-      "count": 869638,
-      "end_time": "2025-02-24T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-02-17T00:00:00Z",
-      "total": "124899159.732964"
-    },
-    {
-      "components": [{"amount":"97256517.768593","converted_amount":"97256517.768593","count":588842,"currency":"XAH","rate":"1.0000000"},{"amount":"2413821.610465","converted_amount":"7853304.493908","count":100555,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30736381"},{"amount":"211164.038","converted_amount":"5340850.573401","count":49070,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039537530"},{"amount":"4203159.976637","converted_amount":"2937532.93731","count":34510,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4308469"}],
-      "count": 838520,
-      "end_time": "2025-03-03T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-02-24T00:00:00Z",
-      "total": "113388205.773212"
-    },
-    {
-      "components": [{"amount":"109573170.124799","converted_amount":"109573170.124799","count":574776,"currency":"XAH","rate":"1.0000000"},{"amount":"2587753.601857","converted_amount":"8131552.354047","count":94666,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31823611"},{"amount":"263356.9628","converted_amount":"6416544.575423","count":50189,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041043424"},{"amount":"4131312.615867","converted_amount":"2770988.877564","count":32000,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4909163"}],
-      "count": 817922,
-      "end_time": "2025-03-10T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-03-03T00:00:00Z",
-      "total": "126892255.931833"
-    },
-    {
-      "components": [{"amount":"107457988.46928","converted_amount":"107457988.46928","count":546446,"currency":"XAH","rate":"1.0000000"},{"amount":"2968693.820401","converted_amount":"9063088.196439","count":97642,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32755875"},{"amount":"218343.3188","converted_amount":"5178159.542131","count":46290,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.042166202"},{"amount":"4516260.954768","converted_amount":"2958684.988309","count":31454,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5264420"}],
-      "count": 785895,
-      "end_time": "2025-03-17T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-03-10T00:00:00Z",
-      "total": "124657921.196159"
-    },
-    {
-      "components": [{"amount":"105441502.452094","converted_amount":"105441502.452094","count":559675,"currency":"XAH","rate":"1.0000000"},{"amount":"2428507.493447","converted_amount":"8094017.494321","count":97595,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30003734"},{"amount":"214858.3214","converted_amount":"5572909.944126","count":45334,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038554063"},{"amount":"3680700.379113","converted_amount":"2643165.438658","count":31243,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3925350"}],
-      "count": 799008,
-      "end_time": "2025-03-24T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-03-17T00:00:00Z",
-      "total": "121751595.329199"
-    },
-    {
-      "components": [{"amount":"89898156.174872","converted_amount":"89898156.174872","count":542744,"currency":"XAH","rate":"1.0000000"},{"amount":"1890786.475873","converted_amount":"6727496.33884","count":93843,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28105351"},{"amount":"191124.075","converted_amount":"5282894.573699","count":44535,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036177908"},{"amount":"3641365.598787","converted_amount":"2771315.294047","count":31339,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3139485"}],
-      "count": 771534,
-      "end_time": "2025-03-31T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-03-24T00:00:00Z",
-      "total": "104679862.381458"
-    },
-    {
-      "components": [{"amount":"90579178.520844","converted_amount":"90579178.520844","count":523592,"currency":"XAH","rate":"1.0000000"},{"amount":"2305400.608623","converted_amount":"7991676.021008","count":88113,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28847523"},{"amount":"200579.6402","converted_amount":"5401641.508702","count":44889,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037133090"},{"amount":"3463990.446654","converted_amount":"2575764.90879","count":29061,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3448395"}],
-      "count": 746176,
-      "end_time": "2025-04-07T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-03-31T00:00:00Z",
-      "total": "106548260.959344"
-    },
-    {
-      "components": [{"amount":"86760074.690752","converted_amount":"86760074.690752","count":486230,"currency":"XAH","rate":"1.0000000"},{"amount":"2108703.295735","converted_amount":"7357213.047336","count":90294,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28661713"},{"amount":"162230.7522","converted_amount":"4391829.220876","count":42679,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036939221"},{"amount":"3694453.118388","converted_amount":"2763087.376873","count":29096,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3370743"}],
-      "count": 709658,
-      "end_time": "2025-04-14T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-04-07T00:00:00Z",
-      "total": "101272204.335837"
-    },
-    {
-      "components": [{"amount":"89169404.198768","converted_amount":"89169404.198768","count":516207,"currency":"XAH","rate":"1.0000000"},{"amount":"2233789.73636","converted_amount":"7381937.385662","count":88688,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30260210"},{"amount":"197505.504","converted_amount":"5040355.897345","count":42405,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039184833"},{"amount":"3992428.114249","converted_amount":"2820923.443198","count":28567,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4152912"}],
-      "count": 738080,
-      "end_time": "2025-04-21T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-04-14T00:00:00Z",
-      "total": "104412620.924973"
-    },
-    {
-      "components": [{"amount":"85305250.996493","converted_amount":"85305250.996493","count":544820,"currency":"XAH","rate":"1.0000000"},{"amount":"2630564.139028","converted_amount":"8112522.214424","count":97917,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32425971"},{"amount":"187276.0173","converted_amount":"4480878.249091","count":48833,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041794489"},{"amount":"3903191.843145","converted_amount":"2581429.609892","count":31691,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5120272"}],
-      "count": 784843,
-      "end_time": "2025-04-28T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-04-21T00:00:00Z",
-      "total": "100480081.0699"
-    },
-    {
-      "components": [{"amount":"92279248.106421","converted_amount":"92279248.106421","count":548139,"currency":"XAH","rate":"1.0000000"},{"amount":"2577807.372254","converted_amount":"7996139.666117","count":94406,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32238148"},{"amount":"225513.2376","converted_amount":"5422804.402744","count":47189,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041586091"},{"amount":"3907435.401968","converted_amount":"2602159.502119","count":31886,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5016126"}],
-      "count": 781612,
-      "end_time": "2025-05-05T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-04-28T00:00:00Z",
-      "total": "108300351.677401"
-    },
-    {
-      "components": [{"amount":"92203859.226359","converted_amount":"92203859.226359","count":551183,"currency":"XAH","rate":"1.0000000"},{"amount":"2742024.405277","converted_amount":"8454862.401483","count":96787,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32431331"},{"amount":"248401.9689","converted_amount":"5956559.453536","count":48440,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041702256"},{"amount":"4069989.860347","converted_amount":"2690543.303956","count":32147,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5127019"}],
-      "count": 796407,
-      "end_time": "2025-05-12T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-05-05T00:00:00Z",
-      "total": "109305824.385334"
-    },
-    {
-      "components": [{"amount":"91037166.543089","converted_amount":"91037166.543089","count":554280,"currency":"XAH","rate":"1.0000000"},{"amount":"2398272.507775","converted_amount":"7724356.706504","count":97710,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31048184"},{"amount":"219834.6747","converted_amount":"5533543.877487","count":48206,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039727646"},{"amount":"3720652.596571","converted_amount":"2578467.412842","count":31727,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4429706"}],
-      "count": 796027,
-      "end_time": "2025-05-19T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-05-12T00:00:00Z",
-      "total": "106873534.539922"
-    },
-    {
-      "components": [{"amount":"110645640.061994","converted_amount":"110645640.061994","count":579256,"currency":"XAH","rate":"1.0000000"},{"amount":"2550616.872401","converted_amount":"8523687.56132","count":94193,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29923866"},{"amount":"241031.7571","converted_amount":"6248894.15017","count":50417,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038571906"},{"amount":"4118060.80661","converted_amount":"2939242.1494","count":32841,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4010621"}],
-      "count": 823791,
-      "end_time": "2025-05-26T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-05-19T00:00:00Z",
-      "total": "128357463.922884"
-    },
-    {
-      "components": [{"amount":"93241384.698917","converted_amount":"93241384.698917","count":596122,"currency":"XAH","rate":"1.0000000"},{"amount":"2386993.349873","converted_amount":"7996557.100276","count":100188,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29850263"},{"amount":"193766.7294","converted_amount":"5055974.439085","count":51231,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038324310"},{"amount":"4232722.104477","converted_amount":"3044931.269225","count":34156,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3900879"}],
-      "count": 851046,
-      "end_time": "2025-06-02T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-05-26T00:00:00Z",
-      "total": "109338847.507503"
-    },
-    {
-      "components": [{"amount":"105351420.142062","converted_amount":"105351420.142062","count":612517,"currency":"XAH","rate":"1.0000000"},{"amount":"2689361.563215","converted_amount":"9405650.469309","count":108031,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28593042"},{"amount":"227965.0686","converted_amount":"6187845.745793","count":51491,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036840781"},{"amount":"3993223.58776","converted_amount":"2994715.022104","count":34516,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3334236"}],
-      "count": 875011,
-      "end_time": "2025-06-09T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-06-02T00:00:00Z",
-      "total": "123939631.379268"
-    },
-    {
-      "components": [{"amount":"127322006.793371","converted_amount":"127322006.793371","count":613942,"currency":"XAH","rate":"1.0000000"},{"amount":"2927016.417811","converted_amount":"9700304.154936","count":100481,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30174481"},{"amount":"238988.3467","converted_amount":"6127099.645793","count":53047,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039005135"},{"amount":"4701790.728358","converted_amount":"3332023.398475","count":36049,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4110917"}],
-      "count": 869821,
-      "end_time": "2025-06-16T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-06-09T00:00:00Z",
-      "total": "146481433.992575"
-    },
-    {
-      "components": [{"amount":"102274475.440326","converted_amount":"102274475.440326","count":593265,"currency":"XAH","rate":"1.0000000"},{"amount":"2559636.719133","converted_amount":"8275575.848218","count":98688,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30930013"},{"amount":"230301.1536","converted_amount":"5783380.15227","count":50176,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039821203"},{"amount":"4473773.524482","converted_amount":"3105879.414476","count":33648,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4404209"}],
-      "count": 846663,
-      "end_time": "2025-06-23T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-06-16T00:00:00Z",
-      "total": "119439310.85529"
-    },
-    {
-      "components": [{"amount":"110355664.407858","converted_amount":"110355664.407858","count":587638,"currency":"XAH","rate":"1.0000000"},{"amount":"3022241.024119","converted_amount":"9834545.07408","count":100271,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30730868"},{"amount":"209226.5842","converted_amount":"5295576.641455","count":52367,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039509689"},{"amount":"4088572.636648","converted_amount":"2856232.418996","count":33716,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4314566"}],
-      "count": 838645,
-      "end_time": "2025-06-30T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-06-23T00:00:00Z",
-      "total": "128342018.542389"
-    },
-    {
-      "components": [{"amount":"102591517.887907","converted_amount":"102591517.887907","count":555906,"currency":"XAH","rate":"1.0000000"},{"amount":"2537200.92785","converted_amount":"8415869.862298","count":97742,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30147816"},{"amount":"243902.5871","converted_amount":"6290274.713047","count":49747,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038774552"},{"amount":"3979229.528169","converted_amount":"2832370.735893","count":31712,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4049113"}],
-      "count": 799938,
-      "end_time": "2025-07-07T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-06-30T00:00:00Z",
-      "total": "120130033.199145"
-    },
-    {
-      "components": [{"amount":"80203812.774915","converted_amount":"80203812.774915","count":539755,"currency":"XAH","rate":"1.0000000"},{"amount":"2509818.174532","converted_amount":"8439111.307262","count":90428,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29740314"},{"amount":"217879.3186","converted_amount":"5675804.578864","count":46113,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038387389"},{"amount":"3512935.26304","converted_amount":"2531064.996585","count":31291,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3879277"}],
-      "count": 765568,
-      "end_time": "2025-07-14T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-07-07T00:00:00Z",
-      "total": "96849793.657626"
-    },
-    {
-      "components": [{"amount":"90492379.327886","converted_amount":"90492379.327886","count":580279,"currency":"XAH","rate":"1.0000000"},{"amount":"2050257.054621","converted_amount":"7054509.320003","count":97544,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29063071"},{"amount":"218456.3496","converted_amount":"5827694.853204","count":48540,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037485894"},{"amount":"3297696.672256","converted_amount":"2429491.664047","count":32007,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3573608"}],
-      "count": 821739,
-      "end_time": "2025-07-21T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-07-14T00:00:00Z",
-      "total": "105804075.16514"
-    },
-    {
-      "components": [{"amount":"90035068.390796","converted_amount":"90035068.390796","count":519131,"currency":"XAH","rate":"1.0000000"},{"amount":"2296030.103851","converted_amount":"7821415.385124","count":92631,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29355686"},{"amount":"209917.988","converted_amount":"5546016.679337","count":47014,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037850227"},{"amount":"3459060.061766","converted_amount":"2515952.300974","count":31079,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3748512"}],
-      "count": 748724,
-      "end_time": "2025-07-28T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-07-21T00:00:00Z",
-      "total": "105918452.756231"
-    },
-    {
-      "components": [{"amount":"93637314.657015","converted_amount":"93637314.657015","count":514635,"currency":"XAH","rate":"1.0000000"},{"amount":"2666898.568537","converted_amount":"8697047.798729","count":90699,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30664412"},{"amount":"179001.6111","converted_amount":"4536054.117886","count":45862,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039461965"},{"amount":"3881843.759284","converted_amount":"2718078.069378","count":30286,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4281576"}],
-      "count": 737401,
-      "end_time": "2025-08-04T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-07-28T00:00:00Z",
-      "total": "109588494.643008"
-    },
-    {
-      "components": [{"amount":"88017879.427236","converted_amount":"88017879.427236","count":504015,"currency":"XAH","rate":"1.0000000"},{"amount":"2304336.960486","converted_amount":"7554208.35212","count":81857,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30504016"},{"amount":"204380.2118","converted_amount":"5222424.661037","count":45055,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039135119"},{"amount":"3233426.143092","converted_amount":"2281015.151932","count":29539,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4175382"}],
-      "count": 716393,
-      "end_time": "2025-08-11T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-08-04T00:00:00Z",
-      "total": "103075527.592325"
-    },
-    {
-      "components": [{"amount":"72876193.832826","converted_amount":"72876193.832826","count":503222,"currency":"XAH","rate":"1.0000000"},{"amount":"2374411.767163","converted_amount":"8476322.635017","count":84741,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28012286"},{"amount":"199214.1346","converted_amount":"5490341.851559","count":43831,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036284468"},{"amount":"3166452.251778","converted_amount":"2415074.067209","count":29104,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3111201"}],
-      "count": 717989,
-      "end_time": "2025-08-18T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-08-11T00:00:00Z",
-      "total": "89257932.386611"
-    },
-    {
-      "components": [{"amount":"98280549.639073","converted_amount":"98280549.639073","count":513436,"currency":"XAH","rate":"1.0000000"},{"amount":"2127575.636997","converted_amount":"8216611.341117","count":88112,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25893590"},{"amount":"163095.6901","converted_amount":"4898140.224646","count":43430,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033297473"},{"amount":"3066857.9736","converted_amount":"2540371.632749","count":30081,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2072478"}],
-      "count": 734408,
-      "end_time": "2025-08-25T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-08-18T00:00:00Z",
-      "total": "113935672.837585"
-    },
-    {
-      "components": [{"amount":"94343321.34477","converted_amount":"94343321.34477","count":519044,"currency":"XAH","rate":"1.0000000"},{"amount":"2162633.363338","converted_amount":"8011966.759277","count":93466,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26992540"},{"amount":"202069.0803","converted_amount":"5821220.334228","count":45524,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034712495"},{"amount":"3404594.352484","converted_amount":"2702386.103027","count":31579,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2598475"}],
-      "count": 751415,
-      "end_time": "2025-09-01T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-08-25T00:00:00Z",
-      "total": "110878894.541302"
-    },
-    {
-      "components": [{"amount":"103482381.343961","converted_amount":"103482381.343961","count":524549,"currency":"XAH","rate":"1.0000000"},{"amount":"2685400.625126","converted_amount":"9497018.369888","count":91004,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28276250"},{"amount":"204150.5002","converted_amount":"5591529.876585","count":46062,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036510670"},{"amount":"3708747.428155","converted_amount":"2808242.336022","count":30186,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3206650"}],
-      "count": 750739,
-      "end_time": "2025-09-08T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-09-01T00:00:00Z",
-      "total": "121379171.926456"
-    },
-    {
-      "components": [{"amount":"101507544.479414","converted_amount":"101507544.479414","count":565758,"currency":"XAH","rate":"1.0000000"},{"amount":"2196549.88453","converted_amount":"7919356.773733","count":101449,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27736468"},{"amount":"214417.8672","converted_amount":"6020697.335473","count":50264,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035613461"},{"amount":"3712878.966577","converted_amount":"2873890.031384","count":32011,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2919349"}],
-      "count": 816260,
-      "end_time": "2025-09-15T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-09-08T00:00:00Z",
-      "total": "118321488.620004"
-    },
-    {
-      "components": [{"amount":"93219620.19977","converted_amount":"93219620.19977","count":610775,"currency":"XAH","rate":"1.0000000"},{"amount":"1924869.699023","converted_amount":"7450143.511638","count":102537,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25836679"},{"amount":"180636.8289","converted_amount":"5410997.98686","count":51383,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033383274"},{"amount":"3144803.316889","converted_amount":"2608163.739067","count":35657,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2057538"}],
-      "count": 867222,
-      "end_time": "2025-09-22T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-09-15T00:00:00Z",
-      "total": "108688925.437335"
-    },
-    {
-      "components": [{"amount":"112415359.707441","converted_amount":"112415359.707441","count":593582,"currency":"XAH","rate":"1.0000000"},{"amount":"2197828.031287","converted_amount":"8626905.468683","count":104174,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25476436"},{"amount":"185917.7055","converted_amount":"5680534.595922","count":51112,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032728910"},{"amount":"3432309.526403","converted_amount":"2899483.311425","count":33108,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1837659"}],
-      "count": 846829,
-      "end_time": "2025-09-29T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-09-22T00:00:00Z",
-      "total": "129622283.083471"
-    },
-    {
-      "components": [{"amount":"113697844.55689","converted_amount":"113697844.55689","count":582439,"currency":"XAH","rate":"1.0000000"},{"amount":"1990672.599858","converted_amount":"8943485.625719","count":101223,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22258353"},{"amount":"169111.667","converted_amount":"5846571.235923","count":51142,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028924931"},{"amount":"2923157.287442","converted_amount":"2817581.747413","count":32991,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0374703"}],
-      "count": 837413,
-      "end_time": "2025-10-06T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-09-29T00:00:00Z",
-      "total": "131305483.165945"
-    },
-    {
-      "components": [{"amount":"113515120.792649","converted_amount":"113515120.792649","count":661465,"currency":"XAH","rate":"1.0000000"},{"amount":"2239716.265935","converted_amount":"9800199.605593","count":107350,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22853782"},{"amount":"188602.078","converted_amount":"6423059.955105","count":54900,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.029363275"},{"amount":"3161279.912992","converted_amount":"2963470.387022","count":35980,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0667493"}],
-      "count": 937319,
-      "end_time": "2025-10-13T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-10-06T00:00:00Z",
-      "total": "132701850.740369"
-    },
-    {
-      "components": [{"amount":"95382569.338735","converted_amount":"95382569.338735","count":586386,"currency":"XAH","rate":"1.0000000"},{"amount":"2249556.000198","converted_amount":"9574275.786651","count":100962,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.23495835"},{"amount":"178968.3431","converted_amount":"5912223.033091","count":50965,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030270905"},{"amount":"2750955.935551","converted_amount":"2506320.958877","count":35269,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0976072"}],
-      "count": 847937,
-      "end_time": "2025-10-20T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-10-13T00:00:00Z",
-      "total": "113375389.117354"
-    },
-    {
-      "components": [{"amount":"99963911.538593","converted_amount":"99963911.538593","count":642756,"currency":"XAH","rate":"1.0000000"},{"amount":"2100517.624116","converted_amount":"9428710.04123","count":106946,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22277890"},{"amount":"172367.2096","converted_amount":"5983005.660361","count":51323,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028809468"},{"amount":"2838183.128834","converted_amount":"2733230.723637","count":35117,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0383987"}],
-      "count": 903810,
-      "end_time": "2025-10-27T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-10-20T00:00:00Z",
-      "total": "118108857.963821"
-    },
-    {
-      "components": [{"amount":"99249115.819371","converted_amount":"99249115.819371","count":548182,"currency":"XAH","rate":"1.0000000"},{"amount":"1798352.98803","converted_amount":"8231979.418282","count":92821,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.21845936"},{"amount":"161996.7694","converted_amount":"5768190.600875","count":48367,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028084504"},{"amount":"2818628.888892","converted_amount":"2772352.314719","count":31200,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0166922"}],
-      "count": 782772,
-      "end_time": "2025-11-03T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-10-27T00:00:00Z",
-      "total": "116021638.153247"
-    },
-    {
-      "components": [{"amount":"95373933.855608","converted_amount":"95373933.855608","count":538178,"currency":"XAH","rate":"1.0000000"},{"amount":"1634396.866436","converted_amount":"7300891.02631","count":95643,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22386266"},{"amount":"163193.8472","converted_amount":"5663609.625155","count":50460,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028814459"},{"amount":"3015262.323082","converted_amount":"2881852.106493","count":32644,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0462932"}],
-      "count": 779370,
-      "end_time": "2025-11-10T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-11-03T00:00:00Z",
-      "total": "111220286.613566"
-    },
-    {
-      "components": [{"amount":"97022437.148674","converted_amount":"97022437.148674","count":556433,"currency":"XAH","rate":"1.0000000"},{"amount":"1941592.518291","converted_amount":"9011989.988268","count":91664,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.21544548"},{"amount":"169004.2381","converted_amount":"6098276.271077","count":48016,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.027713444"},{"amount":"2954176.918447","converted_amount":"2938390.002315","count":31632,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0053726"}],
-      "count": 785977,
-      "end_time": "2025-11-17T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-11-10T00:00:00Z",
-      "total": "115071093.410334"
-    },
-    {
-      "components": [{"amount":"91156344.486782","converted_amount":"91156344.486782","count":554524,"currency":"XAH","rate":"1.0000000"},{"amount":"1711710.025552","converted_amount":"8158622.048017","count":89190,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.20980381"},{"amount":"149732.5603","converted_amount":"5535800.884947","count":48227,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.027048039"},{"amount":"2198643.268153","converted_amount":"2242690.826029","count":31479,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"0.98035951"}],
-      "count": 780225,
-      "end_time": "2025-11-24T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-11-17T00:00:00Z",
-      "total": "107093458.245775"
-    },
-    {
-      "components": [{"amount":"90810168.740288","converted_amount":"90810168.740288","count":531813,"currency":"XAH","rate":"1.0000000"},{"amount":"1845632.300791","converted_amount":"7937211.021441","count":91959,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.23252907"},{"amount":"165774.5925","converted_amount":"5513700.291248","count":44126,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030065942"},{"amount":"2887092.941608","converted_amount":"2648476.637581","count":30616,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0900957"}],
-      "count": 761293,
-      "end_time": "2025-12-01T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-11-24T00:00:00Z",
-      "total": "106909556.690558"
-    },
-    {
-      "components": [{"amount":"83553187.409626","converted_amount":"83553187.409626","count":497705,"currency":"XAH","rate":"1.0000000"},{"amount":"1894230.191444","converted_amount":"7384192.584044","count":87728,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25652503"},{"amount":"166707.4658","converted_amount":"5042384.812396","count":43204,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033061234"},{"amount":"2962917.880499","converted_amount":"2478929.137404","count":28962,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1952411"}],
-      "count": 718305,
-      "end_time": "2025-12-08T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-12-01T00:00:00Z",
-      "total": "98458693.94347"
-    },
-    {
-      "components": [{"amount":"91825342.017668","converted_amount":"91825342.017668","count":499405,"currency":"XAH","rate":"1.0000000"},{"amount":"2032942.669259","converted_amount":"7956905.798585","count":86115,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25549412"},{"amount":"163522.1897","converted_amount":"4963381.023891","count":42634,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032945726"},{"amount":"3237355.690149","converted_amount":"2712945.277019","count":29682,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1932993"}],
-      "count": 714590,
-      "end_time": "2025-12-15T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-12-08T00:00:00Z",
-      "total": "107458574.117163"
-    },
-    {
-      "components": [{"amount":"93932648.190095","converted_amount":"93932648.190095","count":516683,"currency":"XAH","rate":"1.0000000"},{"amount":"1892974.727309","converted_amount":"7713072.980166","count":90554,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.24542420"},{"amount":"162057.1369","converted_amount":"5127119.334602","count":44098,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.031607834"},{"amount":"3141509.051438","converted_amount":"2739542.874196","count":28877,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1467275"}],
-      "count": 736253,
-      "end_time": "2025-12-22T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-12-15T00:00:00Z",
-      "total": "109512383.379059"
-    },
-    {
-      "components": [{"amount":"98565204.883451","converted_amount":"98565204.883451","count":545596,"currency":"XAH","rate":"1.0000000"},{"amount":"2058555.901474","converted_amount":"7971759.607079","count":94682,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25823106"},{"amount":"177877.4692","converted_amount":"5327844.16246","count":47274,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033386387"},{"amount":"3040677.799691","converted_amount":"2519406.101166","count":30308,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2069026"}],
-      "count": 777754,
-      "end_time": "2025-12-29T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-12-22T00:00:00Z",
-      "total": "114384214.754156"
-    },
-    {
-      "components": [{"amount":"89772254.467216","converted_amount":"89772254.467216","count":522423,"currency":"XAH","rate":"1.0000000"},{"amount":"2216252.503995","converted_amount":"8219003.024253","count":88925,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26964980"},{"amount":"188582.8661","converted_amount":"5415870.693528","count":44830,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034820415"},{"amount":"3391158.593661","converted_amount":"2685036.208204","count":30137,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2629843"}],
-      "count": 744415,
-      "end_time": "2026-01-05T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2025-12-29T00:00:00Z",
-      "total": "106092164.393201"
-    },
-    {
-      "components": [{"amount":"86952678.248553","converted_amount":"86952678.248553","count":567160,"currency":"XAH","rate":"1.0000000"},{"amount":"2358434.810674","converted_amount":"8562625.819993","count":95196,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27543359"},{"amount":"180643.1609","converted_amount":"5136364.39427","count":49929,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035169460"},{"amount":"3520978.327143","converted_amount":"2749798.925817","count":31747,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2804494"}],
-      "count": 804935,
-      "end_time": "2026-01-12T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-01-05T00:00:00Z",
-      "total": "103401467.388633"
-    },
-    {
-      "components": [{"amount":"92270820.801323","converted_amount":"92270820.801323","count":594962,"currency":"XAH","rate":"1.0000000"},{"amount":"2196180.384347","converted_amount":"8641070.076068","count":95434,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25415607"},{"amount":"175177.3196","converted_amount":"5354856.633964","count":48106,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032713727"},{"amount":"3543472.045092","converted_amount":"2983500.489907","count":32441,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1876894"}],
-      "count": 833626,
-      "end_time": "2026-01-19T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-01-12T00:00:00Z",
-      "total": "109250248.001262"
-    },
-    {
-      "components": [{"amount":"103064493.701821","converted_amount":"103064493.701821","count":546813,"currency":"XAH","rate":"1.0000000"},{"amount":"2171734.39206","converted_amount":"9037636.484257","count":96040,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.24029893"},{"amount":"181614.419","converted_amount":"5890881.683106","count":47640,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030829752"},{"amount":"3210346.196876","converted_amount":"2870078.28569","count":32637,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1185570"}],
-      "count": 788292,
-      "end_time": "2026-01-26T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-01-19T00:00:00Z",
-      "total": "120863090.154874"
-    },
-    {
-      "components": [{"amount":"115310673.304659","converted_amount":"115310673.304659","count":605679,"currency":"XAH","rate":"1.0000000"},{"amount":"2413187.733978","converted_amount":"9248418.525888","count":105196,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26092977"},{"amount":"210981.573","converted_amount":"6278403.214885","count":52366,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033604336"},{"amount":"4151639.447928","converted_amount":"3391535.015985","count":34121,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2241181"}],
-      "count": 869878,
-      "end_time": "2026-02-02T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-01-26T00:00:00Z",
-      "total": "134229030.061417"
-    },
-    {
-      "components": [{"amount":"102978608.434374","converted_amount":"102978608.434374","count":575449,"currency":"XAH","rate":"1.0000000"},{"amount":"2380143.9835","converted_amount":"8521114.079026","count":101868,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27932310"},{"amount":"234801.0352","converted_amount":"6525506.804322","count":50328,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035982038"},{"amount":"3750879.262498","converted_amount":"2871514.384893","count":32474,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3062373"}],
-      "count": 825277,
-      "end_time": "2026-02-09T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-02-02T00:00:00Z",
-      "total": "120896743.702615"
-    },
-    {
-      "components": [{"amount":"109041012.66266","converted_amount":"109041012.66266","count":610738,"currency":"XAH","rate":"1.0000000"},{"amount":"2356682.330053","converted_amount":"7956669.012237","count":101331,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29618956"},{"amount":"230720.0366","converted_amount":"6033753.824503","count":49542,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038238225"},{"amount":"3928600.742685","converted_amount":"2836495.40306","count":32322,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3850193"}],
-      "count": 864167,
-      "end_time": "2026-02-16T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-02-09T00:00:00Z",
-      "total": "125867930.90246"
-    },
-    {
-      "components": [{"amount":"107852734.683691","converted_amount":"107852734.683691","count":601627,"currency":"XAH","rate":"1.0000000"},{"amount":"2205884.899727","converted_amount":"7812807.65014","count":100703,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28234215"},{"amount":"209714.4619","converted_amount":"5761230.044643","count":51062,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036400987"},{"amount":"4069092.918674","converted_amount":"3083108.072463","count":34395,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3198022"}],
-      "count": 859043,
-      "end_time": "2026-02-23T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-02-16T00:00:00Z",
-      "total": "124509880.450937"
-    },
-    {
-      "components": [{"amount":"106808884.767713","converted_amount":"106808884.767713","count":551176,"currency":"XAH","rate":"1.0000000"},{"amount":"2508318.531306","converted_amount":"9328571.279323","count":101111,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26888560"},{"amount":"194508.1075","converted_amount":"5631192.29896","count":50514,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034541194"},{"amount":"3624855.389175","converted_amount":"2889378.494376","count":32194,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2545450"}],
-      "count": 803250,
-      "end_time": "2026-03-02T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-02-23T00:00:00Z",
-      "total": "124658026.840372"
-    },
-    {
-      "components": [{"amount":"107784342.554699","converted_amount":"107784342.554699","count":525177,"currency":"XAH","rate":"1.0000000"},{"amount":"2316375.223818","converted_amount":"8029614.575923","count":91292,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28847901"},{"amount":"200779.327","converted_amount":"5415519.84556","count":44960,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037074802"},{"amount":"3551456.895372","converted_amount":"2641994.917681","count":32102,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3442331"}],
-      "count": 755160,
-      "end_time": "2026-03-09T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-03-02T00:00:00Z",
-      "total": "123871471.893863"
-    },
-    {
-      "components": [{"amount":"86759743.086703","converted_amount":"86759743.086703","count":601619,"currency":"XAH","rate":"1.0000000"},{"amount":"2089440.900497","converted_amount":"7379161.040894","count":98851,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28315426"},{"amount":"201240.4254","converted_amount":"5503659.682736","count":49262,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036564838"},{"amount":"3692236.572587","converted_amount":"2786673.749133","count":32909,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3249619"}],
-      "count": 846594,
-      "end_time": "2026-03-16T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-03-09T00:00:00Z",
-      "total": "102429237.559466"
-    },
-    {
-      "components": [{"amount":"93039173.97238","converted_amount":"93039173.97238","count":500911,"currency":"XAH","rate":"1.0000000"},{"amount":"2679552.201635","converted_amount":"8869974.43782","count":92248,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30209244"},{"amount":"203190.466","converted_amount":"5209313.368738","count":44705,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039005230"},{"amount":"3652141.471353","converted_amount":"2585369.358586","count":29134,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4126188"}],
-      "count": 725180,
-      "end_time": "2026-03-23T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-03-16T00:00:00Z",
-      "total": "109703831.137524"
-    },
-    {
-      "components": [{"amount":"92910608.058447","converted_amount":"92910608.058447","count":525898,"currency":"XAH","rate":"1.0000000"},{"amount":"2510791.083146","converted_amount":"8444425.98948","count":90231,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29733117"},{"amount":"207812.1989","converted_amount":"5425642.199702","count":45041,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038301862"},{"amount":"3833148.856394","converted_amount":"2764201.72307","count":30881,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3867110"}],
-      "count": 752871,
-      "end_time": "2026-03-30T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-03-23T00:00:00Z",
-      "total": "109544877.970699"
-    },
-    {
-      "components": [{"amount":"88329873.515869","converted_amount":"88329873.515869","count":528953,"currency":"XAH","rate":"1.0000000"},{"amount":"2272268.712049","converted_amount":"7506230.375271","count":90418,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30271769"},{"amount":"217108.3978","converted_amount":"5570180.773025","count":46059,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038976903"},{"amount":"3114110.480213","converted_amount":"2208644.61552","count":28606,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4099645"}],
-      "count": 754166,
-      "end_time": "2026-04-06T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-03-30T00:00:00Z",
-      "total": "103614929.279685"
-    },
-    {
-      "components": [{"amount":"90123441.247646","converted_amount":"90123441.247646","count":498419,"currency":"XAH","rate":"1.0000000"},{"amount":"2436289.438652","converted_amount":"7716706.652094","count":83538,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31571622"},{"amount":"223255.5429","converted_amount":"5478624.004454","count":41794,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040750295"},{"amount":"3427155.537619","converted_amount":"2318973.791461","count":28195,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4778759"}],
-      "count": 711147,
-      "end_time": "2026-04-13T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-04-06T00:00:00Z",
-      "total": "105637745.695655"
-    },
-    {
-      "components": [{"amount":"89229864.972315","converted_amount":"89229864.972315","count":520654,"currency":"XAH","rate":"1.0000000"},{"amount":"2404030.283799","converted_amount":"7853960.795035","count":92600,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30609145"},{"amount":"177967.3938","converted_amount":"4516945.160847","count":45375,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039399946"},{"amount":"3683467.222719","converted_amount":"2579592.770919","count":29589,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4279259"}],
-      "count": 750191,
-      "end_time": "2026-04-20T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-04-13T00:00:00Z",
-      "total": "104180363.699116"
-    },
-    {
-      "components": [{"amount":"86087305.625854","converted_amount":"86087305.625854","count":533326,"currency":"XAH","rate":"1.0000000"},{"amount":"2695316.433168","converted_amount":"8975516.266816","count":92839,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30029653"},{"amount":"197762.9763","converted_amount":"5100887.665013","count":45134,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038770306"},{"amount":"3480270.392518","converted_amount":"2482735.318005","count":30187,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4017887"}],
-      "count": 762394,
-      "end_time": "2026-04-27T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-04-20T00:00:00Z",
-      "total": "102646444.875688"
-    },
-    {
-      "components": [{"amount":"81464009.532915","converted_amount":"81464009.532915","count":551391,"currency":"XAH","rate":"1.0000000"},{"amount":"2562510.790422","converted_amount":"8693332.422654","count":89988,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29476738"},{"amount":"195659.1292","converted_amount":"5151921.320081","count":43729,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037977895"},{"amount":"3789354.528319","converted_amount":"2754389.979425","count":30732,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3757509"}],
-      "count": 781703,
-      "end_time": "2026-05-04T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-04-27T00:00:00Z",
-      "total": "98063653.255075"
-    },
-    {
-      "components": [{"amount":"108660556.947253","converted_amount":"108660556.947253","count":570675,"currency":"XAH","rate":"1.0000000"},{"amount":"2273775.745968","converted_amount":"8086745.523928","count":95876,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28117315"},{"amount":"208866.5367","converted_amount":"5757909.496155","count":48853,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036274717"},{"amount":"3271383.289106","converted_amount":"2497060.537605","count":31934,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3100937"}],
-      "count": 808979,
-      "end_time": "2026-05-11T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-05-04T00:00:00Z",
-      "total": "125002272.504941"
-    },
-    {
-      "components": [{"amount":"98230235.389406","converted_amount":"98230235.389406","count":581222,"currency":"XAH","rate":"1.0000000"},{"amount":"2309365.568375","converted_amount":"8636144.854993","count":97761,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26740700"},{"amount":"168480.0391","converted_amount":"4901504.234079","count":52405,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034373129"},{"amount":"3775463.824716","converted_amount":"3032428.222959","count":33921,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2450299"}],
-      "count": 830980,
-      "end_time": "2026-05-18T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-05-11T00:00:00Z",
-      "total": "114800312.701437"
-    },
-    {
-      "components": [{"amount":"101617946.562965","converted_amount":"101617946.562965","count":552074,"currency":"XAH","rate":"1.0000000"},{"amount":"2149502.292038","converted_amount":"7986326.144617","count":91919,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26914782"},{"amount":"202788.8975","converted_amount":"5830118.265541","count":48557,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034782982"},{"amount":"3407947.689029","converted_amount":"2701225.316911","count":31702,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2616303"}],
-      "count": 779752,
-      "end_time": "2026-05-25T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-05-18T00:00:00Z",
-      "total": "118135616.290034"
-    },
-    {
-      "components": [{"amount":"93471735.421191","converted_amount":"93471735.421191","count":622858,"currency":"XAH","rate":"1.0000000"},{"amount":"2321392.379453","converted_amount":"8338092.248146","count":103597,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27840810"},{"amount":"219813.1167","converted_amount":"6126624.947396","count":54009,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035878337"},{"amount":"4316607.371673","converted_amount":"3322948.50311","count":34566,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2990293"}],
-      "count": 884556,
-      "end_time": "2026-06-01T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-05-25T00:00:00Z",
-      "total": "111259401.119843"
-    },
-    {
-      "components": [{"amount":"110583834.163761","converted_amount":"110583834.163761","count":605243,"currency":"XAH","rate":"1.0000000"},{"amount":"2270869.856296","converted_amount":"8634251.772435","count":105470,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26300714"},{"amount":"199227.489","converted_amount":"5886432.784996","count":51875,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033845199"},{"amount":"3585873.175575","converted_amount":"2923087.674187","count":34790,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2267416"}],
-      "count": 861643,
-      "end_time": "2026-06-08T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-06-01T00:00:00Z",
-      "total": "128027606.395379"
-    },
-    {
-      "components": [{"amount":"120837542.013013","converted_amount":"120837542.013013","count":615614,"currency":"XAH","rate":"1.0000000"},{"amount":"2282911.669279","converted_amount":"8873492.147482","count":103465,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25727319"},{"amount":"181435.515","converted_amount":"5500402.897596","count":52649,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032985859"},{"amount":"3473013.847897","converted_amount":"2914388.687954","count":35498,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1916783"}],
-      "count": 874445,
-      "end_time": "2026-06-15T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-06-08T00:00:00Z",
-      "total": "138125825.746045"
-    },
-    {
-      "components": [{"amount":"88321956.382855","converted_amount":"88321956.382855","count":588678,"currency":"XAH","rate":"1.0000000"},{"amount":"2399312.399635","converted_amount":"8975812.764628","count":102226,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26730865"},{"amount":"183042.7715","converted_amount":"5313139.037587","count":50803,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034450966"},{"amount":"3619490.495329","converted_amount":"2898568.832113","count":33899,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2487164"}],
-      "count": 847120,
-      "end_time": "2026-06-22T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-06-15T00:00:00Z",
-      "total": "105509477.017183"
-    },
-    {
-      "components": [{"amount":"107810805.194194","converted_amount":"107810805.194194","count":586537,"currency":"XAH","rate":"1.0000000"},{"amount":"2315314.155306","converted_amount":"8771248.743231","count":107405,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26396631"},{"amount":"193404.1542","converted_amount":"5674649.285199","count":50125,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034082133"},{"amount":"4028833.610423","converted_amount":"3269854.850301","count":34200,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2321139"}],
-      "count": 848564,
-      "end_time": "2026-06-29T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-06-22T00:00:00Z",
-      "total": "125526558.072925"
-    },
-    {
-      "components": [{"amount":"100790783.620543","converted_amount":"100790783.620543","count":581029,"currency":"XAH","rate":"1.0000000"},{"amount":"2273301.378427","converted_amount":"8623301.793398","count":96125,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26362308"},{"amount":"171835.8904","converted_amount":"5050772.731159","count":49480,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034021703"},{"amount":"3519642.224306","converted_amount":"2858670.355905","count":32005,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2312165"}],
-      "count": 820859,
-      "end_time": "2026-07-06T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-06-29T00:00:00Z",
-      "total": "117323528.501005"
-    },
-    {
-      "components": [{"amount":"95478817.054699","converted_amount":"95478817.054699","count":551380,"currency":"XAH","rate":"1.0000000"},{"amount":"2126641.404537","converted_amount":"7678351.908687","count":92808,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27696587"},{"amount":"194565.2953","converted_amount":"5441358.095064","count":48819,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035756753"},{"amount":"3180674.426463","converted_amount":"2449585.047708","count":32801,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2984544"}],
-      "count": 786718,
-      "end_time": "2026-07-13T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-07-06T00:00:00Z",
-      "total": "111048112.106158"
-    },
-    {
-      "components": [{"amount":"95409032.478","converted_amount":"95409032.478","count":532686,"currency":"XAH","rate":"1.0000000"},{"amount":"2307094.747924","converted_amount":"8092813.43475","count":90334,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28507944"},{"amount":"177827.4241","converted_amount":"4849930.018879","count":45349,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036665977"},{"amount":"3531575.553529","converted_amount":"2658867.002328","count":30993,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3282257"}],
-      "count": 766504,
-      "end_time": "2026-07-20T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-07-13T00:00:00Z",
-      "total": "111010642.933957"
-    },
-    {
-      "components": [{"amount":"96920404.929528","converted_amount":"96920404.929528","count":545822,"currency":"XAH","rate":"1.0000000"},{"amount":"2553476.771059","converted_amount":"8577265.43139","count":91901,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29770290"},{"amount":"199459.3626","converted_amount":"5191814.458826","count":45757,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038418045"},{"amount":"4029686.927108","converted_amount":"2898084.999485","count":30159,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3904654"}],
-      "count": 776312,
-      "end_time": "2026-07-27T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-07-20T00:00:00Z",
-      "total": "113587569.819229"
-    },
-    {
-      "components": [{"amount":"95253421.060079","converted_amount":"95253421.060079","count":543177,"currency":"XAH","rate":"1.0000000"},{"amount":"2297698.710563","converted_amount":"7985289.69628","count":91779,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28774143"},{"amount":"208278.205","converted_amount":"5615191.957008","count":44548,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037091912"},{"amount":"3403790.785573","converted_amount":"2534194.880018","count":30201,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3431448"}],
-      "count": 766939,
-      "end_time": "2026-08-03T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-07-27T00:00:00Z",
-      "total": "111388097.593385"
-    },
-    {
-      "components": [{"amount":"96257538.126457","converted_amount":"96257538.126457","count":515606,"currency":"XAH","rate":"1.0000000"},{"amount":"1911859.991378","converted_amount":"6973632.228994","count":88618,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27415555"},{"amount":"193498.5502","converted_amount":"5476934.309651","count":42899,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035329719"},{"amount":"2978501.950227","converted_amount":"2318118.439258","count":28066,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2848791"}],
-      "count": 731723,
-      "end_time": "2026-08-10T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-08-03T00:00:00Z",
-      "total": "111026223.10436"
-    },
-    {
-      "components": [{"amount":"86131054.169912","converted_amount":"86131054.169912","count":515912,"currency":"XAH","rate":"1.0000000"},{"amount":"1814186.30866","converted_amount":"6816717.086467","count":87418,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26613783"},{"amount":"189146.7157","converted_amount":"5533987.447247","count":43437,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034179101"},{"amount":"3116780.36956","converted_amount":"2515205.983741","count":28361,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2391750"}],
-      "count": 733091,
-      "end_time": "2026-08-17T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-08-10T00:00:00Z",
-      "total": "100996964.687367"
-    },
-    {
-      "components": [{"amount":"99242530.372548","converted_amount":"99242530.372548","count":547104,"currency":"XAH","rate":"1.0000000"},{"amount":"2173351.094009","converted_amount":"8478481.113211","count":91862,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25633732"},{"amount":"178262.2958","converted_amount":"5402708.57069","count":46135,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032994986"},{"amount":"3489314.574798","converted_amount":"2916738.220149","count":31156,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1963071"}],
-      "count": 775544,
-      "end_time": "2026-08-24T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-08-17T00:00:00Z",
-      "total": "116040458.276598"
-    },
-    {
-      "components": [{"amount":"95217925.919003","converted_amount":"95217925.919003","count":541632,"currency":"XAH","rate":"1.0000000"},{"amount":"2513332.515163","converted_amount":"9457841.424133","count":93766,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26574061"},{"amount":"178096.5098","converted_amount":"5205432.201093","count":49098,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034213587"},{"amount":"3539655.580325","converted_amount":"2857959.213902","count":30810,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2385256"}],
-      "count": 781297,
-      "end_time": "2026-08-31T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-08-24T00:00:00Z",
-      "total": "112739158.758131"
-    },
-    {
-      "components": [{"amount":"95061988.347201","converted_amount":"95061988.347201","count":557984,"currency":"XAH","rate":"1.0000000"},{"amount":"2085938.398079","converted_amount":"7838878.646809","count":94079,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26610163"},{"amount":"193554.94","converted_amount":"5636437.538741","count":48602,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034339942"},{"amount":"3292629.863533","converted_amount":"2643794.411972","count":31784,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2454183"}],
-      "count": 794703,
-      "end_time": "2026-09-07T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-08-31T00:00:00Z",
-      "total": "111181098.944723"
-    },
-    {
-      "components": [{"amount":"109266893.518198","converted_amount":"109266893.518198","count":569725,"currency":"XAH","rate":"1.0000000"},{"amount":"2390979.307625","converted_amount":"9048016.270457","count":94363,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26425453"},{"amount":"199667.5398","converted_amount":"5866810.801137","count":47907,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034033404"},{"amount":"4057269.75104","converted_amount":"3290689.071326","count":32564,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2329545"}],
-      "count": 812034,
-      "end_time": "2026-09-14T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-09-07T00:00:00Z",
-      "total": "127472409.661118"
-    },
-    {
-      "components": [{"amount":"107733324.421195","converted_amount":"107733324.421195","count":575776,"currency":"XAH","rate":"1.0000000"},{"amount":"2242729.476389","converted_amount":"8187493.096243","count":97422,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27392139"},{"amount":"206147.2593","converted_amount":"5833953.210235","count":49144,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035335775"},{"amount":"3849574.246137","converted_amount":"3012216.806699","count":32233,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2779871"}],
-      "count": 815195,
-      "end_time": "2026-09-21T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-09-14T00:00:00Z",
-      "total": "124766987.534372"
-    },
-    {
-      "components": [{"amount":"98228511.720744","converted_amount":"98228511.720744","count":584991,"currency":"XAH","rate":"1.0000000"},{"amount":"2601369.912408","converted_amount":"9248659.333693","count":100267,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28126995"},{"amount":"218169.168","converted_amount":"6017173.908604","count":50380,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036257747"},{"amount":"3945135.559656","converted_amount":"3008927.577654","count":32509,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3111434"}],
-      "count": 835158,
-      "end_time": "2026-09-28T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-09-21T00:00:00Z",
-      "total": "116503272.540695"
-    },
-    {
-      "components": [{"amount":"107881096.194061","converted_amount":"107881096.194061","count":631358,"currency":"XAH","rate":"1.0000000"},{"amount":"2441078.061621","converted_amount":"8519187.356619","count":105880,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28653884"},{"amount":"232871.1552","converted_amount":"6301773.307887","count":51942,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036953274"},{"amount":"3858261.875116","converted_amount":"2882316.657017","count":35010,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3385975"}],
-      "count": 899449,
-      "end_time": "2026-10-05T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-09-28T00:00:00Z",
-      "total": "125584373.515584"
-    },
-    {
-      "components": [{"amount":"95893438.108392","converted_amount":"95893438.108392","count":619904,"currency":"XAH","rate":"1.0000000"},{"amount":"3330121.857296","converted_amount":"10505503.160812","count":105596,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31698833"},{"amount":"235806.1087","converted_amount":"5768249.580938","count":51907,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040880011"},{"amount":"4551762.718948","converted_amount":"3079571.293475","count":33948,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4780508"}],
-      "count": 880346,
-      "end_time": "2026-10-12T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-10-05T00:00:00Z",
-      "total": "115246762.143617"
-    },
-    {
-      "components": [{"amount":"65419510.233801","converted_amount":"65419510.233801","count":439851,"currency":"XAH","rate":"1.0000000"},{"amount":"1910853.522562","converted_amount":"6028464.22665","count":71960,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31697186"},{"amount":"176642.9164","converted_amount":"4323076.042703","count":36732,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040860469"},{"amount":"3145867.716321","converted_amount":"2126582.97546","count":24462,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4793064"}],
-      "count": 620808,
-      "end_time": "2026-10-19T00:00:00Z",
-      "exchange": {"currency":"XAH"},
-      "exchange_rate": "1.0000000",
-      "start_time": "2026-10-12T00:00:00Z",
-      "total": "77897633.478614"
-    }
+    {"components":[{"amount":"95286914.50644","converted_amount":"95286914.50644","count":594025,"currency":"XAH","rate":"1.0000000"},{"amount":"2653949.679304","converted_amount":"9246042.666301","count":102998,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28703628"},{"amount":"228520.4368","converted_amount":"6194280.093475","count":52594,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036892170"},{"amount":"3723212.805389","converted_amount":"2783060.587419","count":34915,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3378123"}],"count":850705,"end_time":"2024-10-21T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-10-14T00:00:00Z","total":"113510297.853635"},
+    {"components":[{"amount":"117281856.203204","converted_amount":"117281856.203204","count":585613,"currency":"XAH","rate":"1.0000000"},{"amount":"2530435.9178","converted_amount":"9173194.46184","count":107945,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27585111"},{"amount":"201676.2889","converted_amount":"5685540.043739","count":52664,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035471791"},{"amount":"3985413.554192","converted_amount":"3101621.555213","count":34501,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2849451"}],"count":847842,"end_time":"2024-10-28T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-10-21T00:00:00Z","total":"135242212.263996"},
+    {"components":[{"amount":"98744702.665354","converted_amount":"98744702.665354","count":588948,"currency":"XAH","rate":"1.0000000"},{"amount":"2699290.598719","converted_amount":"9602961.21731","count":97346,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28108940"},{"amount":"215213.6627","converted_amount":"5941889.577672","count":50737,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036219734"},{"amount":"4101778.44978","converted_amount":"3122805.20321","count":32568,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3134916"}],"count":836580,"end_time":"2024-11-04T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-10-28T00:00:00Z","total":"117412358.663546"},
+    {"components":[{"amount":"100319259.106383","converted_amount":"100319259.106383","count":556650,"currency":"XAH","rate":"1.0000000"},{"amount":"2213144.153875","converted_amount":"8286332.203282","count":98891,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26708369"},{"amount":"194897.127","converted_amount":"5649362.578171","count":45723,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034498959"},{"amount":"3299924.703756","converted_amount":"2643073.461565","count":32834,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2485180"}],"count":800209,"end_time":"2024-11-11T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-11-04T00:00:00Z","total":"116898027.349401"},
+    {"components":[{"amount":"97311566.03304","converted_amount":"97311566.03304","count":554136,"currency":"XAH","rate":"1.0000000"},{"amount":"1877438.383424","converted_amount":"7235742.095231","count":98339,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25946729"},{"amount":"162076.5466","converted_amount":"4875614.387575","count":50085,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033242282"},{"amount":"3461549.214935","converted_amount":"2856184.035068","count":31872,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2119489"}],"count":797094,"end_time":"2024-11-18T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-11-11T00:00:00Z","total":"112279106.550914"},
+    {"components":[{"amount":"83691123.462327","converted_amount":"83691123.462327","count":578041,"currency":"XAH","rate":"1.0000000"},{"amount":"2263508.945165","converted_amount":"8057974.539318","count":100411,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28090297"},{"amount":"180864.1359","converted_amount":"5008879.347982","count":48527,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036108703"},{"amount":"3867307.411644","converted_amount":"2955318.818542","count":33104,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3085923"}],"count":824000,"end_time":"2024-11-25T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-11-18T00:00:00Z","total":"99713296.168169"},
+    {"components":[{"amount":"93935043.818735","converted_amount":"93935043.818735","count":530011,"currency":"XAH","rate":"1.0000000"},{"amount":"2277471.264861","converted_amount":"8288713.782006","count":89113,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27476775"},{"amount":"179052.9725","converted_amount":"5060399.777073","count":42905,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035383167"},{"amount":"3154098.824376","converted_amount":"2467079.459775","count":28705,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2784748"}],"count":747656,"end_time":"2024-12-02T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-11-25T00:00:00Z","total":"109751236.837589"},
+    {"components":[{"amount":"84730439.769476","converted_amount":"84730439.769476","count":494909,"currency":"XAH","rate":"1.0000000"},{"amount":"2200942.473808","converted_amount":"7281474.312001","count":88668,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30226605"},{"amount":"208576.1733","converted_amount":"5362820.902532","count":44097,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038892996"},{"amount":"3276970.322468","converted_amount":"2313963.600486","count":29264,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4161719"}],"count":710750,"end_time":"2024-12-09T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-12-02T00:00:00Z","total":"99688698.584495"},
+    {"components":[{"amount":"94934610.939537","converted_amount":"94934610.939537","count":508974,"currency":"XAH","rate":"1.0000000"},{"amount":"2301957.46175","converted_amount":"7837257.55022","count":90590,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29371977"},{"amount":"187974.5352","converted_amount":"4976837.311036","count":43787,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037769877"},{"amount":"3539000.722107","converted_amount":"2592497.479437","count":29163,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3650932"}],"count":727769,"end_time":"2024-12-16T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-12-09T00:00:00Z","total":"110341203.28023"},
+    {"components":[{"amount":"83909679.184233","converted_amount":"83909679.184233","count":521544,"currency":"XAH","rate":"1.0000000"},{"amount":"2224916.561551","converted_amount":"8023568.623256","count":86169,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27729763"},{"amount":"180161.298","converted_amount":"5048711.09931","count":42947,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035684612"},{"amount":"3353678.860102","converted_amount":"2587982.511928","count":28900,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2958661"}],"count":739217,"end_time":"2024-12-23T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-12-16T00:00:00Z","total":"99569941.418727"},
+    {"components":[{"amount":"89927843.261646","converted_amount":"89927843.261646","count":544641,"currency":"XAH","rate":"1.0000000"},{"amount":"2455476.554362","converted_amount":"8666144.444726","count":91755,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28334129"},{"amount":"179554.7779","converted_amount":"4917869.406856","count":45709,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036510684"},{"amount":"3705828.591678","converted_amount":"2806769.846741","count":30167,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3203179"}],"count":774949,"end_time":"2024-12-30T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-12-23T00:00:00Z","total":"106318626.959969"},
+    {"components":[{"amount":"102675497.292492","converted_amount":"102675497.292492","count":549416,"currency":"XAH","rate":"1.0000000"},{"amount":"2314875.594997","converted_amount":"8322944.257142","count":91588,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27813182"},{"amount":"191696.5258","converted_amount":"5347168.271857","count":47586,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035850102"},{"amount":"3617630.183854","converted_amount":"2790112.374939","count":32944,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2965894"}],"count":786576,"end_time":"2025-01-06T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2024-12-30T00:00:00Z","total":"119135722.19643"},
+    {"components":[{"amount":"89495024.942476","converted_amount":"89495024.942476","count":504617,"currency":"XAH","rate":"1.0000000"},{"amount":"2065768.213008","converted_amount":"7950757.037972","count":94266,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25982032"},{"amount":"181696.9443","converted_amount":"5404309.23284","count":46145,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033620753"},{"amount":"3373256.448115","converted_amount":"2782990.236225","count":30716,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2120978"}],"count":737524,"end_time":"2025-01-13T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-01-06T00:00:00Z","total":"105633081.449513"},
+    {"components":[{"amount":"93914361.515524","converted_amount":"93914361.515524","count":540633,"currency":"XAH","rate":"1.0000000"},{"amount":"2136035.411372","converted_amount":"8933727.571186","count":94192,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.23909789"},{"amount":"156226.4575","converted_amount":"5058954.034563","count":47982,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030881177"},{"amount":"3087682.841558","converted_amount":"2772309.643977","count":32079,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1137583"}],"count":778902,"end_time":"2025-01-20T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-01-13T00:00:00Z","total":"110679352.76525"},
+    {"components":[{"amount":"106836742.532435","converted_amount":"106836742.532435","count":558923,"currency":"XAH","rate":"1.0000000"},{"amount":"2062236.975374","converted_amount":"8207648.567965","count":100161,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25125795"},{"amount":"184898.0344","converted_amount":"5707871.036796","count":50315,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032393520"},{"amount":"3422116.82988","converted_amount":"2918981.221972","count":32733,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1723669"}],"count":808218,"end_time":"2025-01-27T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-01-20T00:00:00Z","total":"123671243.359168"},
+    {"components":[{"amount":"93423143.243117","converted_amount":"93423143.243117","count":609597,"currency":"XAH","rate":"1.0000000"},{"amount":"2190355.416012","converted_amount":"8496221.327053","count":98377,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25780348"},{"amount":"198239.2507","converted_amount":"5981974.246339","count":47071,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033139436"},{"amount":"3712154.855703","converted_amount":"3082592.375404","count":33954,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2042315"}],"count":854850,"end_time":"2025-02-03T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-01-27T00:00:00Z","total":"110983931.191913"},
+    {"components":[{"amount":"110490863.360131","converted_amount":"110490863.360131","count":634929,"currency":"XAH","rate":"1.0000000"},{"amount":"2691474.229081","converted_amount":"9663731.87275","count":106684,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27851292"},{"amount":"218478.8817","converted_amount":"6081706.7089","count":52581,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035923942"},{"amount":"4547207.784501","converted_amount":"3496865.831159","count":35128,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3003667"}],"count":900484,"end_time":"2025-02-10T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-02-03T00:00:00Z","total":"129733167.77294"},
+    {"components":[{"amount":"115141981.405987","converted_amount":"115141981.405987","count":567243,"currency":"XAH","rate":"1.0000000"},{"amount":"2931343.356893","converted_amount":"9818089.699148","count":97063,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29856555"},{"amount":"258982.2166","converted_amount":"6729299.517546","count":51168,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038485762"},{"amount":"4254046.280886","converted_amount":"3039809.366583","count":32519,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3994451"}],"count":816114,"end_time":"2025-02-17T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-02-10T00:00:00Z","total":"134729179.989264"},
+    {"components":[{"amount":"106094234.992734","converted_amount":"106094234.992734","count":610325,"currency":"XAH","rate":"1.0000000"},{"amount":"2909281.046539","converted_amount":"9179415.693701","count":104009,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31693532"},{"amount":"265889.1926","converted_amount":"6504751.758755","count":50903,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040876148"},{"amount":"4618557.365802","converted_amount":"3120757.287774","count":34283,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4799476"}],"count":869638,"end_time":"2025-02-24T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-02-17T00:00:00Z","total":"124899159.732964"},
+    {"components":[{"amount":"97256517.768593","converted_amount":"97256517.768593","count":588842,"currency":"XAH","rate":"1.0000000"},{"amount":"2413821.610465","converted_amount":"7853304.493908","count":100555,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30736381"},{"amount":"211164.038","converted_amount":"5340850.573401","count":49070,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039537530"},{"amount":"4203159.976637","converted_amount":"2937532.93731","count":34510,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4308469"}],"count":838520,"end_time":"2025-03-03T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-02-24T00:00:00Z","total":"113388205.773212"},
+    {"components":[{"amount":"109573170.124799","converted_amount":"109573170.124799","count":574776,"currency":"XAH","rate":"1.0000000"},{"amount":"2587753.601857","converted_amount":"8131552.354047","count":94666,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31823611"},{"amount":"263356.9628","converted_amount":"6416544.575423","count":50189,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041043424"},{"amount":"4131312.615867","converted_amount":"2770988.877564","count":32000,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4909163"}],"count":817922,"end_time":"2025-03-10T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-03-03T00:00:00Z","total":"126892255.931833"},
+    {"components":[{"amount":"107457988.46928","converted_amount":"107457988.46928","count":546446,"currency":"XAH","rate":"1.0000000"},{"amount":"2968693.820401","converted_amount":"9063088.196439","count":97642,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32755875"},{"amount":"218343.3188","converted_amount":"5178159.542131","count":46290,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.042166202"},{"amount":"4516260.954768","converted_amount":"2958684.988309","count":31454,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5264420"}],"count":785895,"end_time":"2025-03-17T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-03-10T00:00:00Z","total":"124657921.196159"},
+    {"components":[{"amount":"105441502.452094","converted_amount":"105441502.452094","count":559675,"currency":"XAH","rate":"1.0000000"},{"amount":"2428507.493447","converted_amount":"8094017.494321","count":97595,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30003734"},{"amount":"214858.3214","converted_amount":"5572909.944126","count":45334,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038554063"},{"amount":"3680700.379113","converted_amount":"2643165.438658","count":31243,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3925350"}],"count":799008,"end_time":"2025-03-24T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-03-17T00:00:00Z","total":"121751595.329199"},
+    {"components":[{"amount":"89898156.174872","converted_amount":"89898156.174872","count":542744,"currency":"XAH","rate":"1.0000000"},{"amount":"1890786.475873","converted_amount":"6727496.33884","count":93843,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28105351"},{"amount":"191124.075","converted_amount":"5282894.573699","count":44535,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036177908"},{"amount":"3641365.598787","converted_amount":"2771315.294047","count":31339,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3139485"}],"count":771534,"end_time":"2025-03-31T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-03-24T00:00:00Z","total":"104679862.381458"},
+    {"components":[{"amount":"90579178.520844","converted_amount":"90579178.520844","count":523592,"currency":"XAH","rate":"1.0000000"},{"amount":"2305400.608623","converted_amount":"7991676.021008","count":88113,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28847523"},{"amount":"200579.6402","converted_amount":"5401641.508702","count":44889,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037133090"},{"amount":"3463990.446654","converted_amount":"2575764.90879","count":29061,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3448395"}],"count":746176,"end_time":"2025-04-07T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-03-31T00:00:00Z","total":"106548260.959344"},
+    {"components":[{"amount":"86760074.690752","converted_amount":"86760074.690752","count":486230,"currency":"XAH","rate":"1.0000000"},{"amount":"2108703.295735","converted_amount":"7357213.047336","count":90294,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28661713"},{"amount":"162230.7522","converted_amount":"4391829.220876","count":42679,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036939221"},{"amount":"3694453.118388","converted_amount":"2763087.376873","count":29096,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3370743"}],"count":709658,"end_time":"2025-04-14T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-04-07T00:00:00Z","total":"101272204.335837"},
+    {"components":[{"amount":"89169404.198768","converted_amount":"89169404.198768","count":516207,"currency":"XAH","rate":"1.0000000"},{"amount":"2233789.73636","converted_amount":"7381937.385662","count":88688,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30260210"},{"amount":"197505.504","converted_amount":"5040355.897345","count":42405,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039184833"},{"amount":"3992428.114249","converted_amount":"2820923.443198","count":28567,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4152912"}],"count":738080,"end_time":"2025-04-21T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-04-14T00:00:00Z","total":"104412620.924973"},
+    {"components":[{"amount":"85305250.996493","converted_amount":"85305250.996493","count":544820,"currency":"XAH","rate":"1.0000000"},{"amount":"2630564.139028","converted_amount":"8112522.214424","count":97917,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32425971"},{"amount":"187276.0173","converted_amount":"4480878.249091","count":48833,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041794489"},{"amount":"3903191.843145","converted_amount":"2581429.609892","count":31691,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5120272"}],"count":784843,"end_time":"2025-04-28T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-04-21T00:00:00Z","total":"100480081.0699"},
+    {"components":[{"amount":"92279248.106421","converted_amount":"92279248.106421","count":548139,"currency":"XAH","rate":"1.0000000"},{"amount":"2577807.372254","converted_amount":"7996139.666117","count":94406,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32238148"},{"amount":"225513.2376","converted_amount":"5422804.402744","count":47189,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041586091"},{"amount":"3907435.401968","converted_amount":"2602159.502119","count":31886,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5016126"}],"count":781612,"end_time":"2025-05-05T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-04-28T00:00:00Z","total":"108300351.677401"},
+    {"components":[{"amount":"92203859.226359","converted_amount":"92203859.226359","count":551183,"currency":"XAH","rate":"1.0000000"},{"amount":"2742024.405277","converted_amount":"8454862.401483","count":96787,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.32431331"},{"amount":"248401.9689","converted_amount":"5956559.453536","count":48440,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.041702256"},{"amount":"4069989.860347","converted_amount":"2690543.303956","count":32147,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.5127019"}],"count":796407,"end_time":"2025-05-12T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-05-05T00:00:00Z","total":"109305824.385334"},
+    {"components":[{"amount":"91037166.543089","converted_amount":"91037166.543089","count":554280,"currency":"XAH","rate":"1.0000000"},{"amount":"2398272.507775","converted_amount":"7724356.706504","count":97710,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31048184"},{"amount":"219834.6747","converted_amount":"5533543.877487","count":48206,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039727646"},{"amount":"3720652.596571","converted_amount":"2578467.412842","count":31727,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4429706"}],"count":796027,"end_time":"2025-05-19T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-05-12T00:00:00Z","total":"106873534.539922"},
+    {"components":[{"amount":"110645640.061994","converted_amount":"110645640.061994","count":579256,"currency":"XAH","rate":"1.0000000"},{"amount":"2550616.872401","converted_amount":"8523687.56132","count":94193,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29923866"},{"amount":"241031.7571","converted_amount":"6248894.15017","count":50417,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038571906"},{"amount":"4118060.80661","converted_amount":"2939242.1494","count":32841,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4010621"}],"count":823791,"end_time":"2025-05-26T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-05-19T00:00:00Z","total":"128357463.922884"},
+    {"components":[{"amount":"93241384.698917","converted_amount":"93241384.698917","count":596122,"currency":"XAH","rate":"1.0000000"},{"amount":"2386993.349873","converted_amount":"7996557.100276","count":100188,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29850263"},{"amount":"193766.7294","converted_amount":"5055974.439085","count":51231,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038324310"},{"amount":"4232722.104477","converted_amount":"3044931.269225","count":34156,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3900879"}],"count":851046,"end_time":"2025-06-02T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-05-26T00:00:00Z","total":"109338847.507503"},
+    {"components":[{"amount":"105351420.142062","converted_amount":"105351420.142062","count":612517,"currency":"XAH","rate":"1.0000000"},{"amount":"2689361.563215","converted_amount":"9405650.469309","count":108031,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28593042"},{"amount":"227965.0686","converted_amount":"6187845.745793","count":51491,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036840781"},{"amount":"3993223.58776","converted_amount":"2994715.022104","count":34516,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3334236"}],"count":875011,"end_time":"2025-06-09T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-06-02T00:00:00Z","total":"123939631.379268"},
+    {"components":[{"amount":"127322006.793371","converted_amount":"127322006.793371","count":613942,"currency":"XAH","rate":"1.0000000"},{"amount":"2927016.417811","converted_amount":"9700304.154936","count":100481,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30174481"},{"amount":"238988.3467","converted_amount":"6127099.645793","count":53047,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039005135"},{"amount":"4701790.728358","converted_amount":"3332023.398475","count":36049,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4110917"}],"count":869821,"end_time":"2025-06-16T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-06-09T00:00:00Z","total":"146481433.992575"},
+    {"components":[{"amount":"102274475.440326","converted_amount":"102274475.440326","count":593265,"currency":"XAH","rate":"1.0000000"},{"amount":"2559636.719133","converted_amount":"8275575.848218","count":98688,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30930013"},{"amount":"230301.1536","converted_amount":"5783380.15227","count":50176,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039821203"},{"amount":"4473773.524482","converted_amount":"3105879.414476","count":33648,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4404209"}],"count":846663,"end_time":"2025-06-23T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-06-16T00:00:00Z","total":"119439310.85529"},
+    {"components":[{"amount":"110355664.407858","converted_amount":"110355664.407858","count":587638,"currency":"XAH","rate":"1.0000000"},{"amount":"3022241.024119","converted_amount":"9834545.07408","count":100271,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30730868"},{"amount":"209226.5842","converted_amount":"5295576.641455","count":52367,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039509689"},{"amount":"4088572.636648","converted_amount":"2856232.418996","count":33716,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4314566"}],"count":838645,"end_time":"2025-06-30T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-06-23T00:00:00Z","total":"128342018.542389"},
+    {"components":[{"amount":"102591517.887907","converted_amount":"102591517.887907","count":555906,"currency":"XAH","rate":"1.0000000"},{"amount":"2537200.92785","converted_amount":"8415869.862298","count":97742,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30147816"},{"amount":"243902.5871","converted_amount":"6290274.713047","count":49747,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038774552"},{"amount":"3979229.528169","converted_amount":"2832370.735893","count":31712,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4049113"}],"count":799938,"end_time":"2025-07-07T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-06-30T00:00:00Z","total":"120130033.199145"},
+    {"components":[{"amount":"80203812.774915","converted_amount":"80203812.774915","count":539755,"currency":"XAH","rate":"1.0000000"},{"amount":"2509818.174532","converted_amount":"8439111.307262","count":90428,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29740314"},{"amount":"217879.3186","converted_amount":"5675804.578864","count":46113,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038387389"},{"amount":"3512935.26304","converted_amount":"2531064.996585","count":31291,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3879277"}],"count":765568,"end_time":"2025-07-14T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-07-07T00:00:00Z","total":"96849793.657626"},
+    {"components":[{"amount":"90492379.327886","converted_amount":"90492379.327886","count":580279,"currency":"XAH","rate":"1.0000000"},{"amount":"2050257.054621","converted_amount":"7054509.320003","count":97544,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29063071"},{"amount":"218456.3496","converted_amount":"5827694.853204","count":48540,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037485894"},{"amount":"3297696.672256","converted_amount":"2429491.664047","count":32007,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3573608"}],"count":821739,"end_time":"2025-07-21T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-07-14T00:00:00Z","total":"105804075.16514"},
+    {"components":[{"amount":"90035068.390796","converted_amount":"90035068.390796","count":519131,"currency":"XAH","rate":"1.0000000"},{"amount":"2296030.103851","converted_amount":"7821415.385124","count":92631,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29355686"},{"amount":"209917.988","converted_amount":"5546016.679337","count":47014,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037850227"},{"amount":"3459060.061766","converted_amount":"2515952.300974","count":31079,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3748512"}],"count":748724,"end_time":"2025-07-28T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-07-21T00:00:00Z","total":"105918452.756231"},
+    {"components":[{"amount":"93637314.657015","converted_amount":"93637314.657015","count":514635,"currency":"XAH","rate":"1.0000000"},{"amount":"2666898.568537","converted_amount":"8697047.798729","count":90699,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30664412"},{"amount":"179001.6111","converted_amount":"4536054.117886","count":45862,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039461965"},{"amount":"3881843.759284","converted_amount":"2718078.069378","count":30286,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4281576"}],"count":737401,"end_time":"2025-08-04T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-07-28T00:00:00Z","total":"109588494.643008"},
+    {"components":[{"amount":"88017879.427236","converted_amount":"88017879.427236","count":504015,"currency":"XAH","rate":"1.0000000"},{"amount":"2304336.960486","converted_amount":"7554208.35212","count":81857,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30504016"},{"amount":"204380.2118","converted_amount":"5222424.661037","count":45055,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039135119"},{"amount":"3233426.143092","converted_amount":"2281015.151932","count":29539,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4175382"}],"count":716393,"end_time":"2025-08-11T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-08-04T00:00:00Z","total":"103075527.592325"},
+    {"components":[{"amount":"72876193.832826","converted_amount":"72876193.832826","count":503222,"currency":"XAH","rate":"1.0000000"},{"amount":"2374411.767163","converted_amount":"8476322.635017","count":84741,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28012286"},{"amount":"199214.1346","converted_amount":"5490341.851559","count":43831,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036284468"},{"amount":"3166452.251778","converted_amount":"2415074.067209","count":29104,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3111201"}],"count":717989,"end_time":"2025-08-18T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-08-11T00:00:00Z","total":"89257932.386611"},
+    {"components":[{"amount":"98280549.639073","converted_amount":"98280549.639073","count":513436,"currency":"XAH","rate":"1.0000000"},{"amount":"2127575.636997","converted_amount":"8216611.341117","count":88112,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25893590"},{"amount":"163095.6901","converted_amount":"4898140.224646","count":43430,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033297473"},{"amount":"3066857.9736","converted_amount":"2540371.632749","count":30081,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2072478"}],"count":734408,"end_time":"2025-08-25T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-08-18T00:00:00Z","total":"113935672.837585"},
+    {"components":[{"amount":"94343321.34477","converted_amount":"94343321.34477","count":519044,"currency":"XAH","rate":"1.0000000"},{"amount":"2162633.363338","converted_amount":"8011966.759277","count":93466,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26992540"},{"amount":"202069.0803","converted_amount":"5821220.334228","count":45524,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034712495"},{"amount":"3404594.352484","converted_amount":"2702386.103027","count":31579,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2598475"}],"count":751415,"end_time":"2025-09-01T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-08-25T00:00:00Z","total":"110878894.541302"},
+    {"components":[{"amount":"103482381.343961","converted_amount":"103482381.343961","count":524549,"currency":"XAH","rate":"1.0000000"},{"amount":"2685400.625126","converted_amount":"9497018.369888","count":91004,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28276250"},{"amount":"204150.5002","converted_amount":"5591529.876585","count":46062,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036510670"},{"amount":"3708747.428155","converted_amount":"2808242.336022","count":30186,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3206650"}],"count":750739,"end_time":"2025-09-08T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-09-01T00:00:00Z","total":"121379171.926456"},
+    {"components":[{"amount":"101507544.479414","converted_amount":"101507544.479414","count":565758,"currency":"XAH","rate":"1.0000000"},{"amount":"2196549.88453","converted_amount":"7919356.773733","count":101449,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27736468"},{"amount":"214417.8672","converted_amount":"6020697.335473","count":50264,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035613461"},{"amount":"3712878.966577","converted_amount":"2873890.031384","count":32011,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2919349"}],"count":816260,"end_time":"2025-09-15T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-09-08T00:00:00Z","total":"118321488.620004"},
+    {"components":[{"amount":"93219620.19977","converted_amount":"93219620.19977","count":610775,"currency":"XAH","rate":"1.0000000"},{"amount":"1924869.699023","converted_amount":"7450143.511638","count":102537,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25836679"},{"amount":"180636.8289","converted_amount":"5410997.98686","count":51383,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033383274"},{"amount":"3144803.316889","converted_amount":"2608163.739067","count":35657,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2057538"}],"count":867222,"end_time":"2025-09-22T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-09-15T00:00:00Z","total":"108688925.437335"},
+    {"components":[{"amount":"112415359.707441","converted_amount":"112415359.707441","count":593582,"currency":"XAH","rate":"1.0000000"},{"amount":"2197828.031287","converted_amount":"8626905.468683","count":104174,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25476436"},{"amount":"185917.7055","converted_amount":"5680534.595922","count":51112,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032728910"},{"amount":"3432309.526403","converted_amount":"2899483.311425","count":33108,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1837659"}],"count":846829,"end_time":"2025-09-29T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-09-22T00:00:00Z","total":"129622283.083471"},
+    {"components":[{"amount":"113697844.55689","converted_amount":"113697844.55689","count":582439,"currency":"XAH","rate":"1.0000000"},{"amount":"1990672.599858","converted_amount":"8943485.625719","count":101223,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22258353"},{"amount":"169111.667","converted_amount":"5846571.235923","count":51142,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028924931"},{"amount":"2923157.287442","converted_amount":"2817581.747413","count":32991,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0374703"}],"count":837413,"end_time":"2025-10-06T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-09-29T00:00:00Z","total":"131305483.165945"},
+    {"components":[{"amount":"113515120.792649","converted_amount":"113515120.792649","count":661465,"currency":"XAH","rate":"1.0000000"},{"amount":"2239716.265935","converted_amount":"9800199.605593","count":107350,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22853782"},{"amount":"188602.078","converted_amount":"6423059.955105","count":54900,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.029363275"},{"amount":"3161279.912992","converted_amount":"2963470.387022","count":35980,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0667493"}],"count":937319,"end_time":"2025-10-13T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-10-06T00:00:00Z","total":"132701850.740369"},
+    {"components":[{"amount":"95382569.338735","converted_amount":"95382569.338735","count":586386,"currency":"XAH","rate":"1.0000000"},{"amount":"2249556.000198","converted_amount":"9574275.786651","count":100962,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.23495835"},{"amount":"178968.3431","converted_amount":"5912223.033091","count":50965,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030270905"},{"amount":"2750955.935551","converted_amount":"2506320.958877","count":35269,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0976072"}],"count":847937,"end_time":"2025-10-20T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-10-13T00:00:00Z","total":"113375389.117354"},
+    {"components":[{"amount":"99963911.538593","converted_amount":"99963911.538593","count":642756,"currency":"XAH","rate":"1.0000000"},{"amount":"2100517.624116","converted_amount":"9428710.04123","count":106946,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22277890"},{"amount":"172367.2096","converted_amount":"5983005.660361","count":51323,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028809468"},{"amount":"2838183.128834","converted_amount":"2733230.723637","count":35117,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0383987"}],"count":903810,"end_time":"2025-10-27T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-10-20T00:00:00Z","total":"118108857.963821"},
+    {"components":[{"amount":"99249115.819371","converted_amount":"99249115.819371","count":548182,"currency":"XAH","rate":"1.0000000"},{"amount":"1798352.98803","converted_amount":"8231979.418282","count":92821,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.21845936"},{"amount":"161996.7694","converted_amount":"5768190.600875","count":48367,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028084504"},{"amount":"2818628.888892","converted_amount":"2772352.314719","count":31200,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0166922"}],"count":782772,"end_time":"2025-11-03T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-10-27T00:00:00Z","total":"116021638.153247"},
+    {"components":[{"amount":"95373933.855608","converted_amount":"95373933.855608","count":538178,"currency":"XAH","rate":"1.0000000"},{"amount":"1634396.866436","converted_amount":"7300891.02631","count":95643,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.22386266"},{"amount":"163193.8472","converted_amount":"5663609.625155","count":50460,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.028814459"},{"amount":"3015262.323082","converted_amount":"2881852.106493","count":32644,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0462932"}],"count":779370,"end_time":"2025-11-10T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-11-03T00:00:00Z","total":"111220286.613566"},
+    {"components":[{"amount":"97022437.148674","converted_amount":"97022437.148674","count":556433,"currency":"XAH","rate":"1.0000000"},{"amount":"1941592.518291","converted_amount":"9011989.988268","count":91664,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.21544548"},{"amount":"169004.2381","converted_amount":"6098276.271077","count":48016,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.027713444"},{"amount":"2954176.918447","converted_amount":"2938390.002315","count":31632,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0053726"}],"count":785977,"end_time":"2025-11-17T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-11-10T00:00:00Z","total":"115071093.410334"},
+    {"components":[{"amount":"91156344.486782","converted_amount":"91156344.486782","count":554524,"currency":"XAH","rate":"1.0000000"},{"amount":"1711710.025552","converted_amount":"8158622.048017","count":89190,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.20980381"},{"amount":"149732.5603","converted_amount":"5535800.884947","count":48227,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.027048039"},{"amount":"2198643.268153","converted_amount":"2242690.826029","count":31479,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"0.98035951"}],"count":780225,"end_time":"2025-11-24T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-11-17T00:00:00Z","total":"107093458.245775"},
+    {"components":[{"amount":"90810168.740288","converted_amount":"90810168.740288","count":531813,"currency":"XAH","rate":"1.0000000"},{"amount":"1845632.300791","converted_amount":"7937211.021441","count":91959,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.23252907"},{"amount":"165774.5925","converted_amount":"5513700.291248","count":44126,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030065942"},{"amount":"2887092.941608","converted_amount":"2648476.637581","count":30616,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0900957"}],"count":761293,"end_time":"2025-12-01T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-11-24T00:00:00Z","total":"106909556.690558"},
+    {"components":[{"amount":"83553187.409626","converted_amount":"83553187.409626","count":497705,"currency":"XAH","rate":"1.0000000"},{"amount":"1894230.191444","converted_amount":"7384192.584044","count":87728,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25652503"},{"amount":"166707.4658","converted_amount":"5042384.812396","count":43204,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033061234"},{"amount":"2962917.880499","converted_amount":"2478929.137404","count":28962,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1952411"}],"count":718305,"end_time":"2025-12-08T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-12-01T00:00:00Z","total":"98458693.94347"},
+    {"components":[{"amount":"91825342.017668","converted_amount":"91825342.017668","count":499405,"currency":"XAH","rate":"1.0000000"},{"amount":"2032942.669259","converted_amount":"7956905.798585","count":86115,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25549412"},{"amount":"163522.1897","converted_amount":"4963381.023891","count":42634,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032945726"},{"amount":"3237355.690149","converted_amount":"2712945.277019","count":29682,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1932993"}],"count":714590,"end_time":"2025-12-15T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-12-08T00:00:00Z","total":"107458574.117163"},
+    {"components":[{"amount":"93932648.190095","converted_amount":"93932648.190095","count":516683,"currency":"XAH","rate":"1.0000000"},{"amount":"1892974.727309","converted_amount":"7713072.980166","count":90554,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.24542420"},{"amount":"162057.1369","converted_amount":"5127119.334602","count":44098,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.031607834"},{"amount":"3141509.051438","converted_amount":"2739542.874196","count":28877,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1467275"}],"count":736253,"end_time":"2025-12-22T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-12-15T00:00:00Z","total":"109512383.379059"},
+    {"components":[{"amount":"98565204.883451","converted_amount":"98565204.883451","count":545596,"currency":"XAH","rate":"1.0000000"},{"amount":"2058555.901474","converted_amount":"7971759.607079","count":94682,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25823106"},{"amount":"177877.4692","converted_amount":"5327844.16246","count":47274,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033386387"},{"amount":"3040677.799691","converted_amount":"2519406.101166","count":30308,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2069026"}],"count":777754,"end_time":"2025-12-29T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-12-22T00:00:00Z","total":"114384214.754156"},
+    {"components":[{"amount":"89772254.467216","converted_amount":"89772254.467216","count":522423,"currency":"XAH","rate":"1.0000000"},{"amount":"2216252.503995","converted_amount":"8219003.024253","count":88925,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26964980"},{"amount":"188582.8661","converted_amount":"5415870.693528","count":44830,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034820415"},{"amount":"3391158.593661","converted_amount":"2685036.208204","count":30137,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2629843"}],"count":744415,"end_time":"2026-01-05T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2025-12-29T00:00:00Z","total":"106092164.393201"},
+    {"components":[{"amount":"86952678.248553","converted_amount":"86952678.248553","count":567160,"currency":"XAH","rate":"1.0000000"},{"amount":"2358434.810674","converted_amount":"8562625.819993","count":95196,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27543359"},{"amount":"180643.1609","converted_amount":"5136364.39427","count":49929,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035169460"},{"amount":"3520978.327143","converted_amount":"2749798.925817","count":31747,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2804494"}],"count":804935,"end_time":"2026-01-12T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-01-05T00:00:00Z","total":"103401467.388633"},
+    {"components":[{"amount":"92270820.801323","converted_amount":"92270820.801323","count":594962,"currency":"XAH","rate":"1.0000000"},{"amount":"2196180.384347","converted_amount":"8641070.076068","count":95434,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25415607"},{"amount":"175177.3196","converted_amount":"5354856.633964","count":48106,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032713727"},{"amount":"3543472.045092","converted_amount":"2983500.489907","count":32441,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1876894"}],"count":833626,"end_time":"2026-01-19T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-01-12T00:00:00Z","total":"109250248.001262"},
+    {"components":[{"amount":"103064493.701821","converted_amount":"103064493.701821","count":546813,"currency":"XAH","rate":"1.0000000"},{"amount":"2171734.39206","converted_amount":"9037636.484257","count":96040,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.24029893"},{"amount":"181614.419","converted_amount":"5890881.683106","count":47640,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.030829752"},{"amount":"3210346.196876","converted_amount":"2870078.28569","count":32637,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1185570"}],"count":788292,"end_time":"2026-01-26T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-01-19T00:00:00Z","total":"120863090.154874"},
+    {"components":[{"amount":"115310673.304659","converted_amount":"115310673.304659","count":605679,"currency":"XAH","rate":"1.0000000"},{"amount":"2413187.733978","converted_amount":"9248418.525888","count":105196,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26092977"},{"amount":"210981.573","converted_amount":"6278403.214885","count":52366,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033604336"},{"amount":"4151639.447928","converted_amount":"3391535.015985","count":34121,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2241181"}],"count":869878,"end_time":"2026-02-02T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-01-26T00:00:00Z","total":"134229030.061417"},
+    {"components":[{"amount":"102978608.434374","converted_amount":"102978608.434374","count":575449,"currency":"XAH","rate":"1.0000000"},{"amount":"2380143.9835","converted_amount":"8521114.079026","count":101868,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27932310"},{"amount":"234801.0352","converted_amount":"6525506.804322","count":50328,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035982038"},{"amount":"3750879.262498","converted_amount":"2871514.384893","count":32474,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3062373"}],"count":825277,"end_time":"2026-02-09T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-02-02T00:00:00Z","total":"120896743.702615"},
+    {"components":[{"amount":"109041012.66266","converted_amount":"109041012.66266","count":610738,"currency":"XAH","rate":"1.0000000"},{"amount":"2356682.330053","converted_amount":"7956669.012237","count":101331,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29618956"},{"amount":"230720.0366","converted_amount":"6033753.824503","count":49542,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038238225"},{"amount":"3928600.742685","converted_amount":"2836495.40306","count":32322,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3850193"}],"count":864167,"end_time":"2026-02-16T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-02-09T00:00:00Z","total":"125867930.90246"},
+    {"components":[{"amount":"107852734.683691","converted_amount":"107852734.683691","count":601627,"currency":"XAH","rate":"1.0000000"},{"amount":"2205884.899727","converted_amount":"7812807.65014","count":100703,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28234215"},{"amount":"209714.4619","converted_amount":"5761230.044643","count":51062,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036400987"},{"amount":"4069092.918674","converted_amount":"3083108.072463","count":34395,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3198022"}],"count":859043,"end_time":"2026-02-23T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-02-16T00:00:00Z","total":"124509880.450937"},
+    {"components":[{"amount":"106808884.767713","converted_amount":"106808884.767713","count":551176,"currency":"XAH","rate":"1.0000000"},{"amount":"2508318.531306","converted_amount":"9328571.279323","count":101111,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26888560"},{"amount":"194508.1075","converted_amount":"5631192.29896","count":50514,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034541194"},{"amount":"3624855.389175","converted_amount":"2889378.494376","count":32194,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2545450"}],"count":803250,"end_time":"2026-03-02T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-02-23T00:00:00Z","total":"124658026.840372"},
+    {"components":[{"amount":"107784342.554699","converted_amount":"107784342.554699","count":525177,"currency":"XAH","rate":"1.0000000"},{"amount":"2316375.223818","converted_amount":"8029614.575923","count":91292,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28847901"},{"amount":"200779.327","converted_amount":"5415519.84556","count":44960,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037074802"},{"amount":"3551456.895372","converted_amount":"2641994.917681","count":32102,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3442331"}],"count":755160,"end_time":"2026-03-09T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-03-02T00:00:00Z","total":"123871471.893863"},
+    {"components":[{"amount":"86759743.086703","converted_amount":"86759743.086703","count":601619,"currency":"XAH","rate":"1.0000000"},{"amount":"2089440.900497","converted_amount":"7379161.040894","count":98851,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28315426"},{"amount":"201240.4254","converted_amount":"5503659.682736","count":49262,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036564838"},{"amount":"3692236.572587","converted_amount":"2786673.749133","count":32909,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3249619"}],"count":846594,"end_time":"2026-03-16T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-03-09T00:00:00Z","total":"102429237.559466"},
+    {"components":[{"amount":"93039173.97238","converted_amount":"93039173.97238","count":500911,"currency":"XAH","rate":"1.0000000"},{"amount":"2679552.201635","converted_amount":"8869974.43782","count":92248,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30209244"},{"amount":"203190.466","converted_amount":"5209313.368738","count":44705,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039005230"},{"amount":"3652141.471353","converted_amount":"2585369.358586","count":29134,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4126188"}],"count":725180,"end_time":"2026-03-23T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-03-16T00:00:00Z","total":"109703831.137524"},
+    {"components":[{"amount":"92910608.058447","converted_amount":"92910608.058447","count":525898,"currency":"XAH","rate":"1.0000000"},{"amount":"2510791.083146","converted_amount":"8444425.98948","count":90231,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29733117"},{"amount":"207812.1989","converted_amount":"5425642.199702","count":45041,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038301862"},{"amount":"3833148.856394","converted_amount":"2764201.72307","count":30881,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3867110"}],"count":752871,"end_time":"2026-03-30T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-03-23T00:00:00Z","total":"109544877.970699"},
+    {"components":[{"amount":"88329873.515869","converted_amount":"88329873.515869","count":528953,"currency":"XAH","rate":"1.0000000"},{"amount":"2272268.712049","converted_amount":"7506230.375271","count":90418,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30271769"},{"amount":"217108.3978","converted_amount":"5570180.773025","count":46059,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038976903"},{"amount":"3114110.480213","converted_amount":"2208644.61552","count":28606,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4099645"}],"count":754166,"end_time":"2026-04-06T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-03-30T00:00:00Z","total":"103614929.279685"},
+    {"components":[{"amount":"90123441.247646","converted_amount":"90123441.247646","count":498419,"currency":"XAH","rate":"1.0000000"},{"amount":"2436289.438652","converted_amount":"7716706.652094","count":83538,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31571622"},{"amount":"223255.5429","converted_amount":"5478624.004454","count":41794,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040750295"},{"amount":"3427155.537619","converted_amount":"2318973.791461","count":28195,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4778759"}],"count":711147,"end_time":"2026-04-13T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-04-06T00:00:00Z","total":"105637745.695655"},
+    {"components":[{"amount":"89229864.972315","converted_amount":"89229864.972315","count":520654,"currency":"XAH","rate":"1.0000000"},{"amount":"2404030.283799","converted_amount":"7853960.795035","count":92600,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30609145"},{"amount":"177967.3938","converted_amount":"4516945.160847","count":45375,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.039399946"},{"amount":"3683467.222719","converted_amount":"2579592.770919","count":29589,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4279259"}],"count":750191,"end_time":"2026-04-20T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-04-13T00:00:00Z","total":"104180363.699116"},
+    {"components":[{"amount":"86087305.625854","converted_amount":"86087305.625854","count":533326,"currency":"XAH","rate":"1.0000000"},{"amount":"2695316.433168","converted_amount":"8975516.266816","count":92839,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.30029653"},{"amount":"197762.9763","converted_amount":"5100887.665013","count":45134,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038770306"},{"amount":"3480270.392518","converted_amount":"2482735.318005","count":30187,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4017887"}],"count":762394,"end_time":"2026-04-27T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-04-20T00:00:00Z","total":"102646444.875688"},
+    {"components":[{"amount":"81464009.532915","converted_amount":"81464009.532915","count":551391,"currency":"XAH","rate":"1.0000000"},{"amount":"2562510.790422","converted_amount":"8693332.422654","count":89988,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29476738"},{"amount":"195659.1292","converted_amount":"5151921.320081","count":43729,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037977895"},{"amount":"3789354.528319","converted_amount":"2754389.979425","count":30732,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3757509"}],"count":781703,"end_time":"2026-05-04T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-04-27T00:00:00Z","total":"98063653.255075"},
+    {"components":[{"amount":"108660556.947253","converted_amount":"108660556.947253","count":570675,"currency":"XAH","rate":"1.0000000"},{"amount":"2273775.745968","converted_amount":"8086745.523928","count":95876,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28117315"},{"amount":"208866.5367","converted_amount":"5757909.496155","count":48853,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036274717"},{"amount":"3271383.289106","converted_amount":"2497060.537605","count":31934,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3100937"}],"count":808979,"end_time":"2026-05-11T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-05-04T00:00:00Z","total":"125002272.504941"},
+    {"components":[{"amount":"98230235.389406","converted_amount":"98230235.389406","count":581222,"currency":"XAH","rate":"1.0000000"},{"amount":"2309365.568375","converted_amount":"8636144.854993","count":97761,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26740700"},{"amount":"168480.0391","converted_amount":"4901504.234079","count":52405,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034373129"},{"amount":"3775463.824716","converted_amount":"3032428.222959","count":33921,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2450299"}],"count":830980,"end_time":"2026-05-18T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-05-11T00:00:00Z","total":"114800312.701437"},
+    {"components":[{"amount":"101617946.562965","converted_amount":"101617946.562965","count":552074,"currency":"XAH","rate":"1.0000000"},{"amount":"2149502.292038","converted_amount":"7986326.144617","count":91919,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26914782"},{"amount":"202788.8975","converted_amount":"5830118.265541","count":48557,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034782982"},{"amount":"3407947.689029","converted_amount":"2701225.316911","count":31702,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2616303"}],"count":779752,"end_time":"2026-05-25T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-05-18T00:00:00Z","total":"118135616.290034"},
+    {"components":[{"amount":"93471735.421191","converted_amount":"93471735.421191","count":622858,"currency":"XAH","rate":"1.0000000"},{"amount":"2321392.379453","converted_amount":"8338092.248146","count":103597,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27840810"},{"amount":"219813.1167","converted_amount":"6126624.947396","count":54009,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035878337"},{"amount":"4316607.371673","converted_amount":"3322948.50311","count":34566,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2990293"}],"count":884556,"end_time":"2026-06-01T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-05-25T00:00:00Z","total":"111259401.119843"},
+    {"components":[{"amount":"110583834.163761","converted_amount":"110583834.163761","count":605243,"currency":"XAH","rate":"1.0000000"},{"amount":"2270869.856296","converted_amount":"8634251.772435","count":105470,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26300714"},{"amount":"199227.489","converted_amount":"5886432.784996","count":51875,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.033845199"},{"amount":"3585873.175575","converted_amount":"2923087.674187","count":34790,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2267416"}],"count":861643,"end_time":"2026-06-08T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-06-01T00:00:00Z","total":"128027606.395379"},
+    {"components":[{"amount":"120837542.013013","converted_amount":"120837542.013013","count":615614,"currency":"XAH","rate":"1.0000000"},{"amount":"2282911.669279","converted_amount":"8873492.147482","count":103465,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25727319"},{"amount":"181435.515","converted_amount":"5500402.897596","count":52649,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032985859"},{"amount":"3473013.847897","converted_amount":"2914388.687954","count":35498,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1916783"}],"count":874445,"end_time":"2026-06-15T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-06-08T00:00:00Z","total":"138125825.746045"},
+    {"components":[{"amount":"88321956.382855","converted_amount":"88321956.382855","count":588678,"currency":"XAH","rate":"1.0000000"},{"amount":"2399312.399635","converted_amount":"8975812.764628","count":102226,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26730865"},{"amount":"183042.7715","converted_amount":"5313139.037587","count":50803,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034450966"},{"amount":"3619490.495329","converted_amount":"2898568.832113","count":33899,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2487164"}],"count":847120,"end_time":"2026-06-22T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-06-15T00:00:00Z","total":"105509477.017183"},
+    {"components":[{"amount":"107810805.194194","converted_amount":"107810805.194194","count":586537,"currency":"XAH","rate":"1.0000000"},{"amount":"2315314.155306","converted_amount":"8771248.743231","count":107405,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26396631"},{"amount":"193404.1542","converted_amount":"5674649.285199","count":50125,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034082133"},{"amount":"4028833.610423","converted_amount":"3269854.850301","count":34200,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2321139"}],"count":848564,"end_time":"2026-06-29T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-06-22T00:00:00Z","total":"125526558.072925"},
+    {"components":[{"amount":"100790783.620543","converted_amount":"100790783.620543","count":581029,"currency":"XAH","rate":"1.0000000"},{"amount":"2273301.378427","converted_amount":"8623301.793398","count":96125,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26362308"},{"amount":"171835.8904","converted_amount":"5050772.731159","count":49480,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034021703"},{"amount":"3519642.224306","converted_amount":"2858670.355905","count":32005,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2312165"}],"count":820859,"end_time":"2026-07-06T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-06-29T00:00:00Z","total":"117323528.501005"},
+    {"components":[{"amount":"95478817.054699","converted_amount":"95478817.054699","count":551380,"currency":"XAH","rate":"1.0000000"},{"amount":"2126641.404537","converted_amount":"7678351.908687","count":92808,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27696587"},{"amount":"194565.2953","converted_amount":"5441358.095064","count":48819,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035756753"},{"amount":"3180674.426463","converted_amount":"2449585.047708","count":32801,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2984544"}],"count":786718,"end_time":"2026-07-13T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-07-06T00:00:00Z","total":"111048112.106158"},
+    {"components":[{"amount":"95409032.478","converted_amount":"95409032.478","count":532686,"currency":"XAH","rate":"1.0000000"},{"amount":"2307094.747924","converted_amount":"8092813.43475","count":90334,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28507944"},{"amount":"177827.4241","converted_amount":"4849930.018879","count":45349,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036665977"},{"amount":"3531575.553529","converted_amount":"2658867.002328","count":30993,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3282257"}],"count":766504,"end_time":"2026-07-20T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-07-13T00:00:00Z","total":"111010642.933957"},
+    {"components":[{"amount":"96920404.929528","converted_amount":"96920404.929528","count":545822,"currency":"XAH","rate":"1.0000000"},{"amount":"2553476.771059","converted_amount":"8577265.43139","count":91901,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.29770290"},{"amount":"199459.3626","converted_amount":"5191814.458826","count":45757,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.038418045"},{"amount":"4029686.927108","converted_amount":"2898084.999485","count":30159,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3904654"}],"count":776312,"end_time":"2026-07-27T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-07-20T00:00:00Z","total":"113587569.819229"},
+    {"components":[{"amount":"95253421.060079","converted_amount":"95253421.060079","count":543177,"currency":"XAH","rate":"1.0000000"},{"amount":"2297698.710563","converted_amount":"7985289.69628","count":91779,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28774143"},{"amount":"208278.205","converted_amount":"5615191.957008","count":44548,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.037091912"},{"amount":"3403790.785573","converted_amount":"2534194.880018","count":30201,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3431448"}],"count":766939,"end_time":"2026-08-03T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-07-27T00:00:00Z","total":"111388097.593385"},
+    {"components":[{"amount":"96257538.126457","converted_amount":"96257538.126457","count":515606,"currency":"XAH","rate":"1.0000000"},{"amount":"1911859.991378","converted_amount":"6973632.228994","count":88618,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27415555"},{"amount":"193498.5502","converted_amount":"5476934.309651","count":42899,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035329719"},{"amount":"2978501.950227","converted_amount":"2318118.439258","count":28066,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2848791"}],"count":731723,"end_time":"2026-08-10T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-08-03T00:00:00Z","total":"111026223.10436"},
+    {"components":[{"amount":"86131054.169912","converted_amount":"86131054.169912","count":515912,"currency":"XAH","rate":"1.0000000"},{"amount":"1814186.30866","converted_amount":"6816717.086467","count":87418,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26613783"},{"amount":"189146.7157","converted_amount":"5533987.447247","count":43437,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034179101"},{"amount":"3116780.36956","converted_amount":"2515205.983741","count":28361,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2391750"}],"count":733091,"end_time":"2026-08-17T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-08-10T00:00:00Z","total":"100996964.687367"},
+    {"components":[{"amount":"99242530.372548","converted_amount":"99242530.372548","count":547104,"currency":"XAH","rate":"1.0000000"},{"amount":"2173351.094009","converted_amount":"8478481.113211","count":91862,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.25633732"},{"amount":"178262.2958","converted_amount":"5402708.57069","count":46135,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.032994986"},{"amount":"3489314.574798","converted_amount":"2916738.220149","count":31156,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.1963071"}],"count":775544,"end_time":"2026-08-24T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-08-17T00:00:00Z","total":"116040458.276598"},
+    {"components":[{"amount":"95217925.919003","converted_amount":"95217925.919003","count":541632,"currency":"XAH","rate":"1.0000000"},{"amount":"2513332.515163","converted_amount":"9457841.424133","count":93766,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26574061"},{"amount":"178096.5098","converted_amount":"5205432.201093","count":49098,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034213587"},{"amount":"3539655.580325","converted_amount":"2857959.213902","count":30810,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2385256"}],"count":781297,"end_time":"2026-08-31T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-08-24T00:00:00Z","total":"112739158.758131"},
+    {"components":[{"amount":"95061988.347201","converted_amount":"95061988.347201","count":557984,"currency":"XAH","rate":"1.0000000"},{"amount":"2085938.398079","converted_amount":"7838878.646809","count":94079,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26610163"},{"amount":"193554.94","converted_amount":"5636437.538741","count":48602,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034339942"},{"amount":"3292629.863533","converted_amount":"2643794.411972","count":31784,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2454183"}],"count":794703,"end_time":"2026-09-07T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-08-31T00:00:00Z","total":"111181098.944723"},
+    {"components":[{"amount":"109266893.518198","converted_amount":"109266893.518198","count":569725,"currency":"XAH","rate":"1.0000000"},{"amount":"2390979.307625","converted_amount":"9048016.270457","count":94363,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.26425453"},{"amount":"199667.5398","converted_amount":"5866810.801137","count":47907,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.034033404"},{"amount":"4057269.75104","converted_amount":"3290689.071326","count":32564,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2329545"}],"count":812034,"end_time":"2026-09-14T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-09-07T00:00:00Z","total":"127472409.661118"},
+    {"components":[{"amount":"107733324.421195","converted_amount":"107733324.421195","count":575776,"currency":"XAH","rate":"1.0000000"},{"amount":"2242729.476389","converted_amount":"8187493.096243","count":97422,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.27392139"},{"amount":"206147.2593","converted_amount":"5833953.210235","count":49144,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.035335775"},{"amount":"3849574.246137","converted_amount":"3012216.806699","count":32233,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.2779871"}],"count":815195,"end_time":"2026-09-21T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-09-14T00:00:00Z","total":"124766987.534372"},
+    {"components":[{"amount":"98228511.720744","converted_amount":"98228511.720744","count":584991,"currency":"XAH","rate":"1.0000000"},{"amount":"2601369.912408","converted_amount":"9248659.333693","count":100267,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28126995"},{"amount":"218169.168","converted_amount":"6017173.908604","count":50380,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036257747"},{"amount":"3945135.559656","converted_amount":"3008927.577654","count":32509,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3111434"}],"count":835158,"end_time":"2026-09-28T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-09-21T00:00:00Z","total":"116503272.540695"},
+    {"components":[{"amount":"107881096.194061","converted_amount":"107881096.194061","count":631358,"currency":"XAH","rate":"1.0000000"},{"amount":"2441078.061621","converted_amount":"8519187.356619","count":105880,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.28653884"},{"amount":"232871.1552","converted_amount":"6301773.307887","count":51942,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.036953274"},{"amount":"3858261.875116","converted_amount":"2882316.657017","count":35010,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.3385975"}],"count":899449,"end_time":"2026-10-05T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-09-28T00:00:00Z","total":"125584373.515584"},
+    {"components":[{"amount":"95893438.108392","converted_amount":"95893438.108392","count":619904,"currency":"XAH","rate":"1.0000000"},{"amount":"3330121.857296","converted_amount":"10505503.160812","count":105596,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31698833"},{"amount":"235806.1087","converted_amount":"5768249.580938","count":51907,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040880011"},{"amount":"4551762.718948","converted_amount":"3079571.293475","count":33948,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4780508"}],"count":880346,"end_time":"2026-10-12T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-10-05T00:00:00Z","total":"115246762.143617"},
+    {"components":[{"amount":"65419510.233801","converted_amount":"65419510.233801","count":439851,"currency":"XAH","rate":"1.0000000"},{"amount":"1910853.522562","converted_amount":"6028464.22665","count":71960,"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","rate":"0.31697186"},{"amount":"176642.9164","converted_amount":"4323076.042703","count":36732,"currency":"4555525100000000000000000000000000000000","issuer":"rDk1xiArDMjDqnrR2yWypwQAKg4mKnQYvs","rate":"0.040860469"},{"amount":"3145867.716321","converted_amount":"2126582.97546","count":24462,"currency":"RVN","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.4793064"}],"count":620808,"end_time":"2026-10-19T00:00:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-10-12T00:00:00Z","total":"77897633.478614"}
   ]
 }

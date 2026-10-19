@@ -886,7 +886,8 @@ seeded generator `scripts/network-fixtures.ts`. **by hand**: written by hand and
 A file is named by its request: the path after `/v2/`, then `@` and the query with its parameters sorted (`transactions=true&expand=true`
 is `expand=true&transactions=true`); a node file by method, subject (the transaction, ledger or account asked for) and the other
 parameters, the default `ledger_index=validated` left out. Data API files hold the response body, node files the whole JSON-RPC
-answer (`{ "result": ... }`). Keys are sorted and a transaction is one line, so a change shows as a one-line diff. Anything
+answer (`{ "result": ... }`). Keys are sorted and a transaction is one line, so a change shows as a one-line diff; in the synthetic files a row is one line too (a stats
+row, a day's fees, a volume row with its components, a validation: `fixtureText`'s `rowLists`, `SYNTHETIC_ROW_LISTS`), `test/unit/network-fixtures.test.ts` counts the lines. Anything
 without a file is answered as the real server answers a thing that does not exist: the API's `404 { "result": "error",
 "message": ... }` (`ledger not found`, `transaction not found`, `Account not found`, `account not found`) and the
 node's `txnNotFound`, `lgrNotFound`, `actNotFound` at HTTP 200. A path that has no file and no such not-found answer is the API's `Cannot GET ...`
@@ -910,7 +911,7 @@ from `W₀`; `fees` from `W₀` with `interval=day`, always; all with `end=T` an
 (`exchange_currency=USD&exchange_issuer=rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq`); Xahau has no USD and no `amm_volume`. `test/unit/network-fixtures.test.ts` works the requests out from
 `windowOf` and the spec's table of calls, asks the fixture server for each, and fails for a file that is written and never asked for, or asked for and not written.
 The default fixtures include `amm_volume` (the post-merge API), which the top level's `AMM_DATA: "on"` reads; the `worker-off` project does not ask for it. The synthetic files
-(`isSynthetic`) are about 2.6 MiB and have a size budget of their own (`test/unit/http-fixtures.test.ts`).
+(`isSynthetic`) are about 2.3 MiB and have a size budget of their own (`test/unit/http-fixtures.test.ts`).
 
 **The accounts.** The addresses and their transactions are real; what is not in the recordings is not invented beyond what a
 page needs.

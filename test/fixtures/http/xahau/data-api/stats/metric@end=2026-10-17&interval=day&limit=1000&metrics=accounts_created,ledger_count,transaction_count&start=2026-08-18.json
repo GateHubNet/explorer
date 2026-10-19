@@ -2,371 +2,66 @@
   "count": 61,
   "result": "success",
   "stats": [
-    {
-      "accounts_created": 141,
-      "date": "2026-08-18T00:00:00Z",
-      "ledger_count": 21548,
-      "transaction_count": 284870
-    },
-    {
-      "accounts_created": 165,
-      "date": "2026-08-19T00:00:00Z",
-      "ledger_count": 21628,
-      "transaction_count": 306180
-    },
-    {
-      "accounts_created": 129,
-      "date": "2026-08-20T00:00:00Z",
-      "ledger_count": 21665,
-      "transaction_count": 307316
-    },
-    {
-      "accounts_created": 120,
-      "date": "2026-08-21T00:00:00Z",
-      "ledger_count": 21504,
-      "transaction_count": 299592
-    },
-    {
-      "accounts_created": 119,
-      "date": "2026-08-22T00:00:00Z",
-      "ledger_count": 21544,
-      "transaction_count": 270143
-    },
-    {
-      "accounts_created": 121,
-      "date": "2026-08-23T00:00:00Z",
-      "ledger_count": 21610,
-      "transaction_count": 260468
-    },
-    {
-      "accounts_created": 127,
-      "date": "2026-08-24T00:00:00Z",
-      "ledger_count": 21536,
-      "transaction_count": 306572
-    },
-    {
-      "accounts_created": 146,
-      "date": "2026-08-25T00:00:00Z",
-      "ledger_count": 21645,
-      "transaction_count": 284739
-    },
-    {
-      "accounts_created": 164,
-      "date": "2026-08-26T00:00:00Z",
-      "ledger_count": 21495,
-      "transaction_count": 317613
-    },
-    {
-      "accounts_created": 182,
-      "date": "2026-08-27T00:00:00Z",
-      "ledger_count": 21745,
-      "transaction_count": 282000
-    },
-    {
-      "accounts_created": 127,
-      "date": "2026-08-28T00:00:00Z",
-      "ledger_count": 21678,
-      "transaction_count": 287058
-    },
-    {
-      "accounts_created": 129,
-      "date": "2026-08-29T00:00:00Z",
-      "ledger_count": 21525,
-      "transaction_count": 277330
-    },
-    {
-      "accounts_created": 155,
-      "date": "2026-08-30T00:00:00Z",
-      "ledger_count": 21633,
-      "transaction_count": 272921
-    },
-    {
-      "accounts_created": 135,
-      "date": "2026-08-31T00:00:00Z",
-      "ledger_count": 21688,
-      "transaction_count": 278069
-    },
-    {
-      "accounts_created": 161,
-      "date": "2026-09-01T00:00:00Z",
-      "ledger_count": 21679,
-      "transaction_count": 330256
-    },
-    {
-      "accounts_created": 128,
-      "date": "2026-09-02T00:00:00Z",
-      "ledger_count": 21693,
-      "transaction_count": 290743
-    },
-    {
-      "accounts_created": 159,
-      "date": "2026-09-03T00:00:00Z",
-      "ledger_count": 21749,
-      "transaction_count": 317403
-    },
-    {
-      "accounts_created": 156,
-      "date": "2026-09-04T00:00:00Z",
-      "ledger_count": 21473,
-      "transaction_count": 301263
-    },
-    {
-      "accounts_created": 157,
-      "date": "2026-09-05T00:00:00Z",
-      "ledger_count": 21467,
-      "transaction_count": 276340
-    },
-    {
-      "accounts_created": 124,
-      "date": "2026-09-06T00:00:00Z",
-      "ledger_count": 21620,
-      "transaction_count": 281559
-    },
-    {
-      "accounts_created": 149,
-      "date": "2026-09-07T00:00:00Z",
-      "ledger_count": 21595,
-      "transaction_count": 318436
-    },
-    {
-      "accounts_created": 180,
-      "date": "2026-09-08T00:00:00Z",
-      "ledger_count": 21649,
-      "transaction_count": 320940
-    },
-    {
-      "accounts_created": 193,
-      "date": "2026-09-09T00:00:00Z",
-      "ledger_count": 21479,
-      "transaction_count": 303221
-    },
-    {
-      "accounts_created": 162,
-      "date": "2026-09-10T00:00:00Z",
-      "ledger_count": 21707,
-      "transaction_count": 330616
-    },
-    {
-      "accounts_created": 181,
-      "date": "2026-09-11T00:00:00Z",
-      "ledger_count": 21526,
-      "transaction_count": 305386
-    },
-    {
-      "accounts_created": 125,
-      "date": "2026-09-12T00:00:00Z",
-      "ledger_count": 21655,
-      "transaction_count": 275529
-    },
-    {
-      "accounts_created": 151,
-      "date": "2026-09-13T00:00:00Z",
-      "ledger_count": 21727,
-      "transaction_count": 271230
-    },
-    {
-      "accounts_created": 158,
-      "date": "2026-09-14T00:00:00Z",
-      "ledger_count": 21455,
-      "transaction_count": 302043
-    },
-    {
-      "accounts_created": 168,
-      "date": "2026-09-15T00:00:00Z",
-      "ledger_count": 21604,
-      "transaction_count": 325019
-    },
-    {
-      "accounts_created": 146,
-      "date": "2026-09-16T00:00:00Z",
-      "ledger_count": 21544,
-      "transaction_count": 313355
-    },
-    {
-      "accounts_created": 157,
-      "date": "2026-09-17T00:00:00Z",
-      "ledger_count": 21622,
-      "transaction_count": 311574
-    },
-    {
-      "accounts_created": 185,
-      "date": "2026-09-18T00:00:00Z",
-      "ledger_count": 21674,
-      "transaction_count": 307227
-    },
-    {
-      "accounts_created": 140,
-      "date": "2026-09-19T00:00:00Z",
-      "ledger_count": 21613,
-      "transaction_count": 286253
-    },
-    {
-      "accounts_created": 181,
-      "date": "2026-09-20T00:00:00Z",
-      "ledger_count": 21463,
-      "transaction_count": 292803
-    },
-    {
-      "accounts_created": 158,
-      "date": "2026-09-21T00:00:00Z",
-      "ledger_count": 21634,
-      "transaction_count": 321846
-    },
-    {
-      "accounts_created": 167,
-      "date": "2026-09-22T00:00:00Z",
-      "ledger_count": 21688,
-      "transaction_count": 317406
-    },
-    {
-      "accounts_created": 188,
-      "date": "2026-09-23T00:00:00Z",
-      "ledger_count": 21492,
-      "transaction_count": 323398
-    },
-    {
-      "accounts_created": 147,
-      "date": "2026-09-24T00:00:00Z",
-      "ledger_count": 21579,
-      "transaction_count": 329019
-    },
-    {
-      "accounts_created": 150,
-      "date": "2026-09-25T00:00:00Z",
-      "ledger_count": 21610,
-      "transaction_count": 325698
-    },
-    {
-      "accounts_created": 177,
-      "date": "2026-09-26T00:00:00Z",
-      "ledger_count": 21519,
-      "transaction_count": 294510
-    },
-    {
-      "accounts_created": 124,
-      "date": "2026-09-27T00:00:00Z",
-      "ledger_count": 21504,
-      "transaction_count": 288483
-    },
-    {
-      "accounts_created": 152,
-      "date": "2026-09-28T00:00:00Z",
-      "ledger_count": 21565,
-      "transaction_count": 333412
-    },
-    {
-      "accounts_created": 159,
-      "date": "2026-09-29T00:00:00Z",
-      "ledger_count": 21569,
-      "transaction_count": 347484
-    },
-    {
-      "accounts_created": 197,
-      "date": "2026-09-30T00:00:00Z",
-      "ledger_count": 21686,
-      "transaction_count": 332032
-    },
-    {
-      "accounts_created": 144,
-      "date": "2026-10-01T00:00:00Z",
-      "ledger_count": 21646,
-      "transaction_count": 332797
-    },
-    {
-      "accounts_created": 143,
-      "date": "2026-10-02T00:00:00Z",
-      "ledger_count": 21732,
-      "transaction_count": 340571
-    },
-    {
-      "accounts_created": 187,
-      "date": "2026-10-03T00:00:00Z",
-      "ledger_count": 21719,
-      "transaction_count": 312354
-    },
-    {
-      "accounts_created": 153,
-      "date": "2026-10-04T00:00:00Z",
-      "ledger_count": 21482,
-      "transaction_count": 317764
-    },
-    {
-      "accounts_created": 182,
-      "date": "2026-10-05T00:00:00Z",
-      "ledger_count": 21736,
-      "transaction_count": 329413
-    },
-    {
-      "accounts_created": 144,
-      "date": "2026-10-06T00:00:00Z",
-      "ledger_count": 21679,
-      "transaction_count": 332587
-    },
-    {
-      "accounts_created": 162,
-      "date": "2026-10-07T00:00:00Z",
-      "ledger_count": 21602,
-      "transaction_count": 349232
-    },
-    {
-      "accounts_created": 152,
-      "date": "2026-10-08T00:00:00Z",
-      "ledger_count": 21502,
-      "transaction_count": 336997
-    },
-    {
-      "accounts_created": 182,
-      "date": "2026-10-09T00:00:00Z",
-      "ledger_count": 21695,
-      "transaction_count": 331084
-    },
-    {
-      "accounts_created": 132,
-      "date": "2026-10-10T00:00:00Z",
-      "ledger_count": 21489,
-      "transaction_count": 315515
-    },
-    {
-      "accounts_created": 146,
-      "date": "2026-10-11T00:00:00Z",
-      "ledger_count": 21464,
-      "transaction_count": 295534
-    },
-    {
-      "accounts_created": 177,
-      "date": "2026-10-12T00:00:00Z",
-      "ledger_count": 21532,
-      "transaction_count": 316224
-    },
-    {
-      "accounts_created": 140,
-      "date": "2026-10-13T00:00:00Z",
-      "ledger_count": 21702,
-      "transaction_count": 351164
-    },
-    {
-      "accounts_created": 177,
-      "date": "2026-10-14T00:00:00Z",
-      "ledger_count": 21591,
-      "transaction_count": 337644
-    },
-    {
-      "accounts_created": 139,
-      "date": "2026-10-15T00:00:00Z",
-      "ledger_count": 21727,
-      "transaction_count": 332853
-    },
-    {
-      "accounts_created": 148,
-      "date": "2026-10-16T00:00:00Z",
-      "ledger_count": 21651,
-      "transaction_count": 306504
-    },
-    {
-      "accounts_created": 99,
-      "date": "2026-10-17T00:00:00Z",
-      "ledger_count": 16083,
-      "transaction_count": 238903
-    }
+    {"accounts_created":141,"date":"2026-08-18T00:00:00Z","ledger_count":21548,"transaction_count":284870},
+    {"accounts_created":165,"date":"2026-08-19T00:00:00Z","ledger_count":21628,"transaction_count":306180},
+    {"accounts_created":129,"date":"2026-08-20T00:00:00Z","ledger_count":21665,"transaction_count":307316},
+    {"accounts_created":120,"date":"2026-08-21T00:00:00Z","ledger_count":21504,"transaction_count":299592},
+    {"accounts_created":119,"date":"2026-08-22T00:00:00Z","ledger_count":21544,"transaction_count":270143},
+    {"accounts_created":121,"date":"2026-08-23T00:00:00Z","ledger_count":21610,"transaction_count":260468},
+    {"accounts_created":127,"date":"2026-08-24T00:00:00Z","ledger_count":21536,"transaction_count":306572},
+    {"accounts_created":146,"date":"2026-08-25T00:00:00Z","ledger_count":21645,"transaction_count":284739},
+    {"accounts_created":164,"date":"2026-08-26T00:00:00Z","ledger_count":21495,"transaction_count":317613},
+    {"accounts_created":182,"date":"2026-08-27T00:00:00Z","ledger_count":21745,"transaction_count":282000},
+    {"accounts_created":127,"date":"2026-08-28T00:00:00Z","ledger_count":21678,"transaction_count":287058},
+    {"accounts_created":129,"date":"2026-08-29T00:00:00Z","ledger_count":21525,"transaction_count":277330},
+    {"accounts_created":155,"date":"2026-08-30T00:00:00Z","ledger_count":21633,"transaction_count":272921},
+    {"accounts_created":135,"date":"2026-08-31T00:00:00Z","ledger_count":21688,"transaction_count":278069},
+    {"accounts_created":161,"date":"2026-09-01T00:00:00Z","ledger_count":21679,"transaction_count":330256},
+    {"accounts_created":128,"date":"2026-09-02T00:00:00Z","ledger_count":21693,"transaction_count":290743},
+    {"accounts_created":159,"date":"2026-09-03T00:00:00Z","ledger_count":21749,"transaction_count":317403},
+    {"accounts_created":156,"date":"2026-09-04T00:00:00Z","ledger_count":21473,"transaction_count":301263},
+    {"accounts_created":157,"date":"2026-09-05T00:00:00Z","ledger_count":21467,"transaction_count":276340},
+    {"accounts_created":124,"date":"2026-09-06T00:00:00Z","ledger_count":21620,"transaction_count":281559},
+    {"accounts_created":149,"date":"2026-09-07T00:00:00Z","ledger_count":21595,"transaction_count":318436},
+    {"accounts_created":180,"date":"2026-09-08T00:00:00Z","ledger_count":21649,"transaction_count":320940},
+    {"accounts_created":193,"date":"2026-09-09T00:00:00Z","ledger_count":21479,"transaction_count":303221},
+    {"accounts_created":162,"date":"2026-09-10T00:00:00Z","ledger_count":21707,"transaction_count":330616},
+    {"accounts_created":181,"date":"2026-09-11T00:00:00Z","ledger_count":21526,"transaction_count":305386},
+    {"accounts_created":125,"date":"2026-09-12T00:00:00Z","ledger_count":21655,"transaction_count":275529},
+    {"accounts_created":151,"date":"2026-09-13T00:00:00Z","ledger_count":21727,"transaction_count":271230},
+    {"accounts_created":158,"date":"2026-09-14T00:00:00Z","ledger_count":21455,"transaction_count":302043},
+    {"accounts_created":168,"date":"2026-09-15T00:00:00Z","ledger_count":21604,"transaction_count":325019},
+    {"accounts_created":146,"date":"2026-09-16T00:00:00Z","ledger_count":21544,"transaction_count":313355},
+    {"accounts_created":157,"date":"2026-09-17T00:00:00Z","ledger_count":21622,"transaction_count":311574},
+    {"accounts_created":185,"date":"2026-09-18T00:00:00Z","ledger_count":21674,"transaction_count":307227},
+    {"accounts_created":140,"date":"2026-09-19T00:00:00Z","ledger_count":21613,"transaction_count":286253},
+    {"accounts_created":181,"date":"2026-09-20T00:00:00Z","ledger_count":21463,"transaction_count":292803},
+    {"accounts_created":158,"date":"2026-09-21T00:00:00Z","ledger_count":21634,"transaction_count":321846},
+    {"accounts_created":167,"date":"2026-09-22T00:00:00Z","ledger_count":21688,"transaction_count":317406},
+    {"accounts_created":188,"date":"2026-09-23T00:00:00Z","ledger_count":21492,"transaction_count":323398},
+    {"accounts_created":147,"date":"2026-09-24T00:00:00Z","ledger_count":21579,"transaction_count":329019},
+    {"accounts_created":150,"date":"2026-09-25T00:00:00Z","ledger_count":21610,"transaction_count":325698},
+    {"accounts_created":177,"date":"2026-09-26T00:00:00Z","ledger_count":21519,"transaction_count":294510},
+    {"accounts_created":124,"date":"2026-09-27T00:00:00Z","ledger_count":21504,"transaction_count":288483},
+    {"accounts_created":152,"date":"2026-09-28T00:00:00Z","ledger_count":21565,"transaction_count":333412},
+    {"accounts_created":159,"date":"2026-09-29T00:00:00Z","ledger_count":21569,"transaction_count":347484},
+    {"accounts_created":197,"date":"2026-09-30T00:00:00Z","ledger_count":21686,"transaction_count":332032},
+    {"accounts_created":144,"date":"2026-10-01T00:00:00Z","ledger_count":21646,"transaction_count":332797},
+    {"accounts_created":143,"date":"2026-10-02T00:00:00Z","ledger_count":21732,"transaction_count":340571},
+    {"accounts_created":187,"date":"2026-10-03T00:00:00Z","ledger_count":21719,"transaction_count":312354},
+    {"accounts_created":153,"date":"2026-10-04T00:00:00Z","ledger_count":21482,"transaction_count":317764},
+    {"accounts_created":182,"date":"2026-10-05T00:00:00Z","ledger_count":21736,"transaction_count":329413},
+    {"accounts_created":144,"date":"2026-10-06T00:00:00Z","ledger_count":21679,"transaction_count":332587},
+    {"accounts_created":162,"date":"2026-10-07T00:00:00Z","ledger_count":21602,"transaction_count":349232},
+    {"accounts_created":152,"date":"2026-10-08T00:00:00Z","ledger_count":21502,"transaction_count":336997},
+    {"accounts_created":182,"date":"2026-10-09T00:00:00Z","ledger_count":21695,"transaction_count":331084},
+    {"accounts_created":132,"date":"2026-10-10T00:00:00Z","ledger_count":21489,"transaction_count":315515},
+    {"accounts_created":146,"date":"2026-10-11T00:00:00Z","ledger_count":21464,"transaction_count":295534},
+    {"accounts_created":177,"date":"2026-10-12T00:00:00Z","ledger_count":21532,"transaction_count":316224},
+    {"accounts_created":140,"date":"2026-10-13T00:00:00Z","ledger_count":21702,"transaction_count":351164},
+    {"accounts_created":177,"date":"2026-10-14T00:00:00Z","ledger_count":21591,"transaction_count":337644},
+    {"accounts_created":139,"date":"2026-10-15T00:00:00Z","ledger_count":21727,"transaction_count":332853},
+    {"accounts_created":148,"date":"2026-10-16T00:00:00Z","ledger_count":21651,"transaction_count":306504},
+    {"accounts_created":99,"date":"2026-10-17T00:00:00Z","ledger_count":16083,"transaction_count":238903}
   ]
 }
