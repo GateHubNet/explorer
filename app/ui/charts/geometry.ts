@@ -19,6 +19,8 @@ export interface ValueScale {
 export const MIN_SLOT_PX = 5;
 /** The plot's height in px: 160 under a 480 px container (spec 2.7). */
 export const PLOT_HEIGHT = { wide: 200, narrow: 160 } as const;
+/** The plot of a small multiple is this high at any width, in px (charts.css: `.plot__frame--panel`). */
+export const PANEL_HEIGHT = 110;
 /** The room right of a line chart for its end labels, on wide plots (spec 2.7). */
 export const END_LABEL_GUTTER_PX = 112;
 
@@ -43,6 +45,18 @@ function niceStep(atLeast: number, limit: number, accept: (step: number) => bool
   }
 }
 
+/** The largest whole step of the set that is below `span`, or `undefined` for a span of 1 or less. */
+function wholeStepBelow(span: number): number | undefined {
+  const largestFirst = [...STEP_MANTISSAS].reverse();
+  for (let exponent = Math.ceil(Math.log10(span)); exponent >= 0; exponent -= 1) {
+    for (const mantissa of largestFirst) {
+      const step = Number(`${mantissa}e${exponent}`);
+      if (isWhole(step) && step < span * (1 - EPSILON)) return step;
+    }
+  }
+  return undefined;
+}
+
 /** How many `step`s it takes to cover `distance`. */
 const stepsIn = (distance: number, step: number): number => Math.ceil(distance / step - EPSILON);
 
@@ -58,7 +72,8 @@ function scaleOf(min: number, step: number, steps: number): ValueScale {
  * top tick at or above the largest value. The step is the smallest of {1, 2, 2.5, 5} × 10ⁿ that gives 4 or 5 ticks (`ticks: 5`, the
  * default: at least a quarter of the span) or 3 or 4 (`ticks: 3`: at least half of it).
  *
- * - `integer`: only whole steps, and never less than 0 to 4 (a count of 2 is not stretched over 0 to 2).
+ * - `integer`: only whole steps, and never less than 0 to 4 (a count of 2 is not stretched over 0 to 2). With `ticks: 3` the step is
+ *   below the span, so that a count of 5 is 0, 2, 4, 6 and not 0, 5, which is two ticks and nothing between them.
  * - `from`, `to`: the domain of a line. The scale starts at `from`. It ends at `to` when a step divides `from` to `to` evenly, else at the
  *   first tick above it; a value above `to` is still on the scale.
  * - `symmetric`: the positive side, mirrored about 0, for the columns that go up and down.
@@ -81,6 +96,8 @@ export function niceScale(
   const high = Math.max(...numbers, to ?? -Infinity, from ?? 0);
   const span = high - low;
   const share = tickCount === 3 ? 2 : 4;
+  // One step over all of the span is 2 ticks. A count takes a whole step under it instead: there may be none (a span of 1).
+  const under = integer && tickCount === 3 ? span * (1 - EPSILON) : Infinity;
 
   // The scale of nothing to draw, and the least a count is spread over: a count of 2 is 0 to 4, not 0 to 2.
   const smallest = (): ValueScale => {
@@ -91,12 +108,13 @@ export function niceScale(
 
   // A line that ends at `to`: the largest value is `to` itself, so the step has to divide the domain.
   if (to !== undefined && high === to && (from !== undefined || low === 0)) {
-    const step = niceStep(span / share, span, (s) => (!integer || isWhole(s)) && Math.abs(span / s - Math.round(span / s)) < EPSILON);
+    const step = niceStep(span / share, span, (s) => (!integer || isWhole(s)) && s < under && Math.abs(span / s - Math.round(span / s)) < EPSILON);
     if (step !== undefined) return scaleOf(low, step, Math.round(span / step));
   }
 
   // Counts take the next whole step when none in the usual range is whole: 10 is 0, 5, 10 (not eleven ticks), 9 is 0, 5, 10.
-  const step = niceStep(span / share, Infinity, integer ? isWhole : () => true)!;
+  const found = niceStep(span / share, Infinity, integer ? isWhole : () => true)!;
+  const step = found < under ? found : (wholeStepBelow(span) ?? found);
   const min = from ?? clean(Math.floor(low / step) * step);
   const scale = scaleOf(min, step, stepsIn(high - min, step));
   return integer && scale.min === 0 && scale.max < 4 ? smallest() : scale;
@@ -107,6 +125,9 @@ export function fractionOf(value: number, scale: ValueScale): number {
   const range = scale.max - scale.min;
   return range > 0 ? (value - scale.min) / range : 0;
 }
+
+/** A fraction of a plot as a percent for its `style`: `51.72%`, rounded to `decimals` (2) and with no trailing zeros. A segment that is an exact share has 3. */
+export const percent = (fraction: number, decimals = 2): string => `${Math.round(fraction * 10 ** (decimals + 2)) / 10 ** decimals}%`;
 
 /** The fraction of the plot's width that bucket `i` of `n` is at: points on i/(n−1) (the middle for a lone one), bands at their centres. */
 export function xOf(i: number, n: number, placement: Placement): number {
@@ -163,7 +184,10 @@ function outline(run: Point[], curve: PathOptions["curve"]): Point[] {
 /** At most 2 decimals, trailing zeros trimmed (`333.33`, `100`). */
 const num = (value: number): string => String(Math.round(value * 100) / 100);
 
-/** `M x,y L x,y …` with no spaces, leaving out a point that is where the one before it is. */
+/**
+ * `M x,y L x,y …` with no spaces, leaving out a point that is where the one before it is. A lone point is `M x,y L x,y`, a segment of no
+ * length: with round caps that is a dot, where `M x,y` alone draws nothing.
+ */
 function commands(points: Point[]): string {
   let text = "";
   let previous = "";
@@ -173,10 +197,13 @@ function commands(points: Point[]): string {
     text += `${previous ? "L" : "M"}${here}`;
     previous = here;
   }
-  return text;
+  return previous && !text.includes("L") ? `${text}L${previous}` : text;
 }
 
-/** The path of a line in a `1000 × height` box. `fractions` are 0 to 1 (`fractionOf`); a `null` breaks the line, and the next point starts with `M`. */
+/**
+ * The path of a line in a `1000 × height` box. `fractions` are 0 to 1 (`fractionOf`); a `null` breaks the line, and the next point starts
+ * with `M`. A value between two `null`s is a zero-length segment, which a round cap draws as a dot.
+ */
 export function linePath(fractions: readonly (number | null)[], opts: PathOptions): string {
   return runsOf(fractions, opts).map((run) => commands(outline(run, opts.curve))).join("");
 }
@@ -205,9 +232,13 @@ export function keptEndLabels(ys: readonly (number | null)[], minGap = 16): bool
   });
 }
 
-/** Which buckets of an axis of `n` get an x label: every k-th counting back from the newest, k = ⌈n/6⌉ wide and ⌈n/3⌉ narrow. Oldest first. */
-export function xLabelPicks(n: number, width: "wide" | "narrow"): number[] {
+/**
+ * Which buckets of an axis of `n` get an x label: every k-th counting back from the newest, k = ⌈n/6⌉ wide and ⌈n/3⌉ narrow; the two
+ * ends only for `"ends"`, which is a small multiple's. Oldest first.
+ */
+export function xLabelPicks(n: number, width: "wide" | "narrow" | "ends"): number[] {
   if (!(n > 0)) return [];
+  if (width === "ends") return n > 1 ? [0, n - 1] : [0];
   const every = Math.ceil(n / (width === "wide" ? 6 : 3));
   const picks: number[] = [];
   for (let i = n - 1; i >= 0; i -= every) picks.unshift(i);

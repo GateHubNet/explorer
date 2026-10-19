@@ -131,6 +131,35 @@ describe("Plot's frame, as the Worker prints it and the browser takes it over", 
     expect(wide[0]).toBe("15%");
   });
 
+  it("labels the two ends only when asked, in one set that is shown at any width, and no other (a small multiple)", async () => {
+    const { html, container, errors } = await serverThenHydrated(plot({ xLabels: "ends" }));
+    expect(html).not.toContain("plot__x--wide");
+    expect(html).not.toContain("plot__x--narrow");
+    const sets = container.querySelectorAll(".plot__x");
+    expect(sets).toHaveLength(1);
+    expect(sets[0]!.classList.contains("plot__x--ends")).toBe(true);
+    expect(sets[0]!.getAttribute("aria-hidden")).toBe("true");
+    expect(texts(sets[0]!.children)).toEqual(["Sep 18", "Oct 17"]);
+    // A point's label is on the point: the first at the start of the plot and the last at its end.
+    expect(Array.from(sets[0]!.children, (label) => (label as HTMLElement).style.left)).toEqual(["0%", "100%"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("labels the one bucket of a lone axis once, in the middle, and nothing for an axis with none", async () => {
+    const lone = await serverThenHydrated(plot({ xLabels: "ends", axis: { unit: "day", buckets: ["2026-10-17"] } }));
+    expect(texts(lone.container.querySelector(".plot__x--ends")!.children)).toEqual(["Oct 17"]);
+    expect((lone.container.querySelector(".plot__x--ends")!.children[0] as HTMLElement).style.left).toBe("50%");
+    cleanup();
+    const none = await serverThenHydrated(plot({ xLabels: "ends", axis: { unit: "day", buckets: [] } }));
+    expect(none.container.querySelector(".plot__x--ends")!.children).toHaveLength(0);
+  });
+
+  it("spreads the labels by default, which is both sets", async () => {
+    const { container } = await serverThenHydrated(plot({ xLabels: "spread" }));
+    expect(container.querySelectorAll(".plot__x")).toHaveLength(2);
+    expect(container.querySelector(".plot__x--ends")).toBeNull();
+  });
+
   it("labels an axis of hours with the time", async () => {
     const hours: TimeAxis = { unit: "hour", buckets: Array.from({ length: 6 }, (_, i) => `2026-10-17T${String(12 + i).padStart(2, "0")}:00:00Z`) };
     const { container } = await serverThenHydrated(plot({ axis: hours }));

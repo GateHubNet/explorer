@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bucketLabel, cellText, emptyText, gapText, plotSummary, sliderLabel, tableHeading, tickLabel, valueText } from "./labels";
+import { bucketLabel, cellText, emptyText, endLabelValue, gapText, plotSummary, sliderLabel, tableHeading, tickLabel, valueText } from "./labels";
 import type { TimeAxis, TimeSeriesData } from "./types";
 
 /** `count` days from `first` (UTC `YYYY-MM-DD`), oldest first. */
@@ -69,6 +69,22 @@ describe("valueText", () => {
     expect(valueText("99.31", { kind: "percent" }, "full")).toBe("99.31%");
     expect(valueText("99.31", { kind: "percent" }, "compact")).toBe("99.31%");
     expect(valueText("3.4", { kind: "seconds" }, "full")).toBe("3.4 s");
+  });
+});
+
+describe("endLabelValue", () => {
+  it("writes the figure with no unit, since the card names it and the label has 112 px: `45.5M` for `45.5M XRP`", () => {
+    expect(endLabelValue("45500000", { kind: "amount", unit: "XRP" })).toBe("45.5M");
+    expect(endLabelValue("12100000", { kind: "price", unit: "USD" })).toBe("12.1M");
+    expect(endLabelValue("1284331", { kind: "count", unit: "transactions" })).toBe("1.28M");
+    expect(endLabelValue("1284", { kind: "count" })).toBe("1,284");
+    expect(endLabelValue("113", { kind: "drops", unit: "drops" })).toBe("113");
+    expect(endLabelValue("0.5", { kind: "amount", unit: "XRP" })).toBe("0.5");
+  });
+
+  it("keeps the sign of a percent and of seconds, which are not a unit to leave out", () => {
+    expect(endLabelValue("99.31", { kind: "percent" })).toBe("99.31%");
+    expect(endLabelValue("3.4", { kind: "seconds" })).toBe("3.4 s");
   });
 });
 

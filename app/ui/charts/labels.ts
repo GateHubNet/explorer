@@ -40,6 +40,14 @@ export function valueText(value: string, format: ValueFormat, style: "compact" |
   }
 }
 
+/**
+ * The figure of a line's end label (spec 2.11: "**45.5M** payments"): `compactNumber` with no unit, since the card's title names it and the
+ * label has 112 px, a count compact too. A percent and seconds keep their sign (`99.31%`, `3.4 s`): it is part of the figure.
+ */
+export function endLabelValue(value: string, format: ValueFormat): string {
+  return format.kind === "percent" || format.kind === "seconds" ? valueText(value, format, "compact") : compactNumber(value);
+}
+
 /** A cell of the table view: the exact value (with a `%` or an `s`, no unit: the column heading names it), and a dash for none. */
 export function cellText(value: string | null, format: ValueFormat): string {
   if (value === null) return DASH;

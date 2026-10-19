@@ -14,7 +14,7 @@ import {
 } from "react";
 
 import { cx } from "../cx";
-import { bucketAt, tooltipSide, xOf, type Placement } from "./geometry";
+import { bucketAt, percent, tooltipSide, xOf, type Placement } from "./geometry";
 import type { Slot } from "./types";
 
 const noSubscription = () => () => {};
@@ -26,9 +26,6 @@ const noSubscription = () => () => {};
 export function useHydrated(): boolean {
   return useSyncExternalStore(noSubscription, () => true, () => false);
 }
-
-/** `51.72%`: at most 2 decimals, and no trailing zeros. */
-const percent = (fraction: number): string => `${Math.round(fraction * 10000) / 100}%`;
 
 export interface CursorProps {
   /** The plot's box, which the cursor measures, and marks: it gets `data-active="{i}"`, and its `[data-bucket="{i}"]` marks get `is-active`. */

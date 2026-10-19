@@ -9,6 +9,8 @@ import {
   linePath,
   MIN_SLOT_PX,
   niceScale,
+  PANEL_HEIGHT,
+  percent,
   PLOT_HEIGHT,
   stackOf,
   tooltipSide,
@@ -74,6 +76,27 @@ describe("niceScale", () => {
     expect(ticks([1], { ticks: 3, integer: true })).toEqual([0, 2, 4]);
   });
 
+  it("never gives a count 2 ticks on the 3-tick path: the step is below the span, so that a count of 5 is 0 to 6 by 2", () => {
+    expect(ticks([5], { integer: true, ticks: 3 })).toEqual([0, 2, 4, 6]);
+    expect(ticks([5], { integer: true, ticks: 3, from: 0, to: 5 })).toEqual([0, 2, 4, 6]);
+    // The same count on the 5-tick path and the others on this one were never at fault.
+    expect(ticks([5], { integer: true })).toEqual([0, 2, 4, 6]);
+    expect(ticks([6], { integer: true, ticks: 3 })).toEqual([0, 5, 10]);
+    expect(ticks([25], { integer: true, ticks: 3 })).toEqual([0, 20, 40]);
+    expect(ticks([50], { integer: true, ticks: 3 })).toEqual([0, 25, 50]);
+    expect(ticks([-5, 3], { integer: true, ticks: 3 })).toEqual([-5, 0, 5]);
+    expect(ticks([5], { integer: true, ticks: 3, symmetric: true })).toEqual([-6, -4, -2, 0, 2, 4, 6]);
+  });
+
+  it("gives every whole maximum 3 or 4 ticks on the 3-tick path, with a whole step, covering the maximum", () => {
+    for (let max = 1; max <= 2000; max += 1) {
+      const scale = niceScale([max], { integer: true, ticks: 3 });
+      expect([3, 4], `${max}: ${scale.ticks.join(",")}`).toContain(scale.ticks.length);
+      expect(Number.isInteger(scale.step), String(max)).toBe(true);
+      expect(scale.max, String(max)).toBeGreaterThanOrEqual(max);
+    }
+  });
+
   it("reaches below 0 for a negative value, with 0 a tick", () => {
     const scale = niceScale([-50, 120], { ticks: 3 });
     expect(scale.ticks[0]).toBeLessThanOrEqual(-50);
@@ -106,6 +129,31 @@ describe("niceScale", () => {
       expect(scale.ticks.length, String(top)).toBeGreaterThanOrEqual(4);
       expect(scale.ticks.length, String(top)).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe("percent", () => {
+  it("writes a fraction as a percent of at most 2 decimals, with no trailing zeros", () => {
+    expect(percent(0.5172)).toBe("51.72%");
+    expect(percent(0.51724)).toBe("51.72%");
+    expect(percent(0.5)).toBe("50%");
+    expect(percent(0)).toBe("0%");
+    expect(percent(1)).toBe("100%");
+    expect(percent(1 / 3)).toBe("33.33%");
+    expect(percent(0.98333)).toBe("98.33%");
+  });
+
+  it("takes the decimals to keep: 3 for a segment that is an exact share, so that three thirds show all three", () => {
+    expect(percent(2 / 3, 3)).toBe("66.667%");
+    expect(percent(1 / 3, 3)).toBe("33.333%");
+    expect(percent(0.75, 3)).toBe("75%");
+    expect(percent(0.1234, 0)).toBe("12%");
+  });
+
+  it("rounds half up and keeps below 0 and above 1, which a mark outside its scale has", () => {
+    expect(percent(0.12345)).toBe("12.35%");
+    expect(percent(-0.25)).toBe("-25%");
+    expect(percent(1.5)).toBe("150%");
   });
 });
 
@@ -189,7 +237,7 @@ describe("stackOf", () => {
 
 describe("linePath", () => {
   it("draws in a 1000-wide box, y = height * (1 - f), a null starting a new run", () => {
-    expect(linePath([0, 0.5, null, 1], { height: 200, placement: "points" })).toBe("M0,200L333.33,100M1000,0");
+    expect(linePath([0, 0.5, null, 1, 0], { height: 200, placement: "points" })).toBe("M0,200L250,100M750,0L1000,200");
   });
 
   it("trims the numbers to 2 decimals, without trailing zeros", () => {
@@ -210,7 +258,19 @@ describe("linePath", () => {
   });
 
   it("puts a lone point in the middle", () => {
-    expect(linePath([0.5], { height: 100, placement: "points" })).toBe("M500,50");
+    expect(linePath([0.5], { height: 100, placement: "points" })).toMatch(/^M500,50/);
+  });
+
+  it("gives a value that has a null on each side a zero-length segment, which a round cap draws as a dot: `M x,y` alone draws nothing", () => {
+    expect(linePath([0.5], { height: 100, placement: "points" })).toBe("M500,50L500,50");
+    expect(linePath([0, null, 1, null, 0], { height: 100, placement: "points" })).toBe("M0,100L0,100M500,0L500,0M1000,100L1000,100");
+    // Each run that has a line keeps it as it was.
+    expect(linePath([0, 1, null, 0.5, null, null, 0], { height: 100, placement: "points" })).toBe("M0,100L166.67,0M500,50L500,50M1000,100L1000,100");
+  });
+
+  it("gives a lone point of a step line the same mark, and a run of two the step it always had", () => {
+    expect(linePath([null, 0.5, null], { height: 100, placement: "points", curve: "step" })).toBe("M500,50L500,50");
+    expect(linePath([null, 1, 0, null], { height: 100, placement: "points", curve: "step" })).toBe("M333.33,0L666.67,0L666.67,100");
   });
 
   it("is empty when there is nothing to draw", () => {
@@ -237,6 +297,27 @@ describe("areaPath", () => {
   it("is empty when there is nothing to fill", () => {
     expect(areaPath([], { height: 100, placement: "points" })).toBe("");
     expect(areaPath([null], { height: 100, placement: "points" })).toBe("");
+  });
+
+  it("starts at the first value after a leading null, and not at the left edge", () => {
+    expect(areaPath([null, null, 0.5, 1], { height: 100, placement: "points" })).toBe("M666.67,50L1000,0L1000,100L666.67,100Z");
+    expect(areaPath([null, 1, 0.5], { height: 100, placement: "points", curve: "step" })).toBe("M500,0L1000,0L1000,50L1000,100L500,100Z");
+  });
+
+  it("ends at the last value before a trailing null, and not at the right edge", () => {
+    expect(areaPath([1, 0.5, null, null], { height: 100, placement: "points" })).toBe("M0,0L333.33,50L333.33,100L0,100Z");
+    expect(areaPath([0.5, 1, null], { height: 100, placement: "points", curve: "step" })).toBe("M0,50L500,50L500,0L500,100L0,100Z");
+  });
+
+  it("is a closed sliver of no width for a single point, which fills nothing: the line's own mark is what shows", () => {
+    expect(areaPath([null, 0.5, null], { height: 100, placement: "points" })).toBe("M500,50L500,100Z");
+    expect(areaPath([0.5], { height: 100, placement: "points" })).toBe("M500,50L500,100Z");
+  });
+
+  it("keeps a run of one point between two runs as the sliver it is, and the runs on each side whole", () => {
+    expect(areaPath([1, 1, null, 0.5, null, 1, 1], { height: 100, placement: "points" })).toBe(
+      "M0,0L166.67,0L166.67,100L0,100Z" + "M500,50L500,100Z" + "M833.33,0L1000,0L1000,100L833.33,100Z",
+    );
   });
 });
 
@@ -280,6 +361,13 @@ describe("xLabelPicks", () => {
 
   it("labels nothing on an empty axis", () => {
     expect(xLabelPicks(0, "wide")).toEqual([]);
+    expect(xLabelPicks(0, "ends")).toEqual([]);
+  });
+
+  it("labels the two ends only when asked (a small multiple), the one bucket of a lone axis, and at any width the same", () => {
+    expect(xLabelPicks(30, "ends")).toEqual([0, 29]);
+    expect(xLabelPicks(2, "ends")).toEqual([0, 1]);
+    expect(xLabelPicks(1, "ends")).toEqual([0]);
   });
 });
 
@@ -299,5 +387,6 @@ describe("the constants of the spec", () => {
     expect(MIN_SLOT_PX).toBe(5);
     expect(PLOT_HEIGHT).toEqual({ wide: 200, narrow: 160 });
     expect(END_LABEL_GUTTER_PX).toBe(112);
+    expect(PANEL_HEIGHT).toBe(110);
   });
 });

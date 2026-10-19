@@ -1,9 +1,11 @@
 import { memo, type CSSProperties, type ReactNode } from "react";
 
-import { fractionOf, niceScale, stackOf } from "./geometry";
-import { bucketLabel, emptyText, gapText, plotSummary, sliderLabel, valueText } from "./labels";
+import { cellOf, type Cell } from "./cells";
+import { fractionOf, niceScale, percent, stackOf } from "./geometry";
+import { emptyText, plotSummary, sliderLabel, valueText } from "./labels";
 import { Plot } from "./Plot";
 import type { Slot, TimeSeriesData, ValueFormat } from "./types";
+import { bucketWords, DASH } from "./words";
 
 export interface ColumnChartProps {
   /** One series; the series bottom up; or the first series up and the second down from the zero line. */
@@ -13,22 +15,8 @@ export interface ColumnChartProps {
   data: TimeSeriesData;
 }
 
-const DASH = "—";
-
-/** A value the kit can draw: the view builder's decimal string and its number. A missing or unreadable value is `null`. */
-interface Cell {
-  text: string;
-  value: number;
-}
-
-function cellOf(text: string | null | undefined): Cell | null {
-  if (text === null || text === undefined || text.trim() === "") return null;
-  const value = Number(text);
-  return Number.isFinite(value) ? { text, value } : null;
-}
-
-/** `66.667%`: at most 3 decimals, and no trailing zeros. A segment is its exact share, so a stack of three thirds shows all three. */
-const pct = (fraction: number): string => `${Math.round(fraction * 100000) / 1000}%`;
+/** A segment is its exact share, so a stack of three thirds shows all three: `66.667%`, at most 3 decimals. */
+const pct = (fraction: number): string => percent(fraction, 3);
 
 /** A total with what it counts, when `valueText` leaves that out: `15 transactions`. An amount already has its unit (`45.5M XRP`). */
 function quantity(text: string, format: ValueFormat): string {
@@ -120,14 +108,12 @@ export const ColumnChart = memo(
     }
 
     // The words. The running bucket is "so far" in a tooltip and to the slider, never on the axis (Plot's labels are the axis').
-    const dateOf = (i: number): string => bucketLabel(axis.buckets[i] ?? "", axis.unit, "tooltip", forming && i === last);
-    const isPending = (i: number): boolean => pending > 0 && i >= count - pending;
+    const { date: dateOf, gapReadOut, gapTip } = bucketWords(axis, forming, pending);
     const full = (cell: Cell): string => valueText(cell.text, format, "full");
 
     /** The slider's text for bucket `i`: the date, then the total, then each series with its value; or why there is none. */
     const readOut = (i: number): string => {
-      const date = dateOf(i);
-      if (!has(i)) return `${date}: ${isPending(i) ? "not computed yet" : "no data"}`;
+      if (!has(i)) return gapReadOut(i);
       const sum = cellOf(totals?.[i]);
       const named = series.flatMap((s, k) => {
         const cell = at(k, i);
@@ -137,23 +123,12 @@ export const ColumnChart = memo(
       if (layout === "single") parts = [quantity(at(0, i)?.text ?? "", format)];
       else if (layout === "stacked") parts = [...(sum ? [quantity(sum.text, format)] : []), ...named];
       else parts = [...named, ...(sum ? [`Net ${full(sum)}`] : [])];
-      return `${date}: ${[...parts, ...(noted.get(i) ?? []).map((note) => note.label)].join("; ")}`;
+      return `${dateOf(i)}: ${[...parts, ...(noted.get(i) ?? []).map((note) => note.label)].join("; ")}`;
     };
 
     /** The tooltip's content for bucket `i` (spec 2.6): the date, a row for each series, the total (or the net), the annotations. */
     const tooltip = (i: number): ReactNode => {
-      if (!has(i)) {
-        // "No data for Oct 3" names its day; "Not computed yet" does not.
-        const note = <span className="plot__tip-note">{gapText(axis, i, pending)}</span>;
-        return isPending(i) ? (
-          <>
-            <span className="plot__tip-date">{dateOf(i)}</span>
-            {note}
-          </>
-        ) : (
-          note
-        );
-      }
+      if (!has(i)) return gapTip(i);
       const sum = cellOf(totals?.[i]);
       return (
         <>

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 // What the stylesheet of the chart kit (app/ui/charts.css) must keep, rule by rule: the card's toggle works without script and without
 // hiding anything from a browser that cannot do it, targets are 44 px, a refetching page dims its charts, and under forced colours the
 // marks and the legend's keys keep their colours, since that is all they say. The plot has its frame here: the gridlines, the labels, the
-// heights, the cursor and its ring. Every later task of the kit adds the rules of its own marks.
+// heights, the cursor and its ring. Every later task of the kit adds the rules of its own marks: the columns, the lines and the panels.
 
 const read = (name: string) => readFileSync(new URL(`../../app/ui/${name}`, import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const chartsCss = read("charts.css");
@@ -411,6 +411,105 @@ describe("the columns (ColumnChart)", () => {
     for (const selector of [".col__bar", ".col__seg", ".plot__tip-key"]) {
       expect(rule(chartsCss, selector, ["@media (forced-colors: active)"])["forced-color-adjust"], selector).toBe("none");
     }
+  });
+});
+
+describe("the lines (LineChart)", () => {
+  it("draws a line 2 px wide at any width: the svg is stretched, so the stroke does not scale with it", () => {
+    expect(rule(chartsCss, ".line")).toMatchObject({
+      "stroke-width": "2",
+      "vector-effect": "non-scaling-stroke",
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round",
+      fill: "none",
+    });
+  });
+
+  it("draws a line in the colour of its slot, and an area in the same colour at 10%", () => {
+    expect(rule(chartsCss, ".line").stroke).toBe("var(--mark)");
+    expect(rule(chartsCss, ".area")).toMatchObject({ fill: "var(--mark)", "fill-opacity": "0.1" });
+    // An area has no outline: the line over it is the edge.
+    expect(rule(chartsCss, ".area")["vector-effect"]).toBeUndefined();
+    expect(rule(chartsCss, ".area").stroke).toBeUndefined();
+  });
+
+  it("stretches the svg over the plot and lets the line at the edge of the scale keep its whole width, which the box would cut by half", () => {
+    expect(rule(chartsCss, ".lines")).toMatchObject({ position: "absolute", inset: "0", width: "100%", height: "100%", overflow: "visible" });
+  });
+
+  it("draws a reference as a line of 1.5 px dashed in --muted across the plot, which takes no pointer", () => {
+    const reference = rule(chartsCss, ".ref");
+    expect(reference).toMatchObject({ position: "absolute", left: "0", right: "0", "border-top": "1.5px dashed var(--muted)", "pointer-events": "none" });
+  });
+
+  it("keeps dashes for references: no other rule of the stylesheet has them, and the gridlines are solid", () => {
+    const dashed = parse(chartsCss).filter((r) => Object.values(r.declarations).some((value) => /\bdash(ed)?\b/.test(value)));
+    expect(dashed.map((r) => r.selectors)).toEqual([[".ref"]]);
+    expect(rule(chartsCss, ".plot__grid")["border-top"]).toBe("1px solid var(--grid)");
+  });
+
+  it("labels a reference in --fg on a --surface chip, on the line, inside the plot", () => {
+    expect(rule(chartsCss, ".ref__label")).toMatchObject({ position: "absolute", color: "var(--fg)", background: "var(--surface)", "white-space": "nowrap" });
+    expect(rule(chartsCss, ".ref__label").transform).toBe("translateY(-50%)");
+  });
+
+  it("writes an end label in --muted at 12 px, level with its dot, with the figure strong in --fg", () => {
+    expect(rule(chartsCss, ".plot__end-label")).toMatchObject({ position: "absolute", left: "8px", transform: "translateY(-50%)", "white-space": "nowrap" });
+    expect(rule(chartsCss, ".plot__end-label b")).toMatchObject({ color: "var(--fg)", "font-weight": "600" });
+    // The gutter has the colour and the size, which Plot's frame sets.
+    expect(rule(chartsCss, ".plot__end")).toMatchObject({ color: "var(--muted)", "font-size": "12px" });
+  });
+
+  it("keeps the colours of the lines and the areas under forced colours, since that is what identifies a series", () => {
+    for (const selector of [".line", ".area"]) {
+      expect(rule(chartsCss, selector, ["@media (forced-colors: active)"])["forced-color-adjust"], selector).toBe("none");
+    }
+  });
+
+  it("has no transition or animation on a line: it redraws in place", () => {
+    for (const selector of [".line", ".area", ".ref"]) {
+      expect(rule(chartsCss, selector).transition, selector).toBeUndefined();
+      expect(rule(chartsCss, selector).animation, selector).toBeUndefined();
+    }
+  });
+});
+
+describe("the small multiples (SmallMultiples)", () => {
+  it("is a grid of panels at least 240 px wide, as many as fit", () => {
+    expect(rule(chartsCss, ".multiples")).toMatchObject({ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(240px, 1fr))" });
+  });
+
+  it("lets a panel shrink with its track, and stacks its header over its plot", () => {
+    expect(rule(chartsCss, ".panel")).toMatchObject({ display: "flex", "flex-direction": "column", "min-width": "0" });
+  });
+
+  it("puts the label at the start of a panel's header and the readout at the end, on the baseline", () => {
+    expect(rule(chartsCss, ".panel__head")).toMatchObject({ display: "flex", "justify-content": "space-between", "align-items": "baseline" });
+    expect(rule(chartsCss, ".panel__name")["font-weight"]).toBe("600");
+    expect(rule(chartsCss, ".panel__value")).toMatchObject({ color: "var(--fg)", "font-weight": "600", "font-variant-numeric": "tabular-nums" });
+  });
+
+  it("clips nothing and makes no stacking context, so that a panel's tooltip is not cut at the panel's edge or hidden under the next panel (the card clips at its own edge)", () => {
+    const clipping = ["overflow", "overflow-x", "overflow-y", "contain", "clip-path", "z-index", "transform", "opacity", "isolation", "filter", "will-change"];
+    for (const selector of [".multiples", ".panel", ".panel__head"]) {
+      const declarations = rule(chartsCss, selector);
+      for (const property of clipping) expect(declarations[property], `${selector} ${property}`).toBeUndefined();
+    }
+    // The tooltip is in the panel's frame, near its top, and above the plots that follow it.
+    expect(rule(chartsCss, ".plot__tip")).toMatchObject({ top: "6px", "z-index": "3" });
+    expect(rule(chartsCss, ".plot__frame--panel :is(.plot, .plot__y, .plot__end)").height).toBe("110px");
+  });
+
+  it("keeps the panels' x labels at the plot's two ends inside it: the first starts at the left and the last ends at the right, a lone one is centred", () => {
+    expect(rule(chartsCss, ".plot__x--ends span:first-child").transform).toBe("none");
+    expect(rule(chartsCss, ".plot__x--ends span:last-child").transform).toBe("translateX(-100%)");
+    expect(rule(chartsCss, ".plot__x--ends span:only-child").transform).toBe("translateX(-50%)");
+    // The set is shown at any width: it has no display rule, as the wide and narrow sets have.
+    expect(parse(chartsCss).filter((r) => r.selectors.includes(".plot__x--ends") && r.declarations.display !== undefined)).toEqual([]);
+  });
+
+  it("says that there is nothing to show in the grid's whole width, in --muted", () => {
+    expect(rule(chartsCss, ".multiples__empty")).toMatchObject({ color: "var(--muted)", "grid-column": "1 / -1" });
   });
 });
 

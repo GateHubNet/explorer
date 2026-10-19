@@ -11,15 +11,12 @@ import {
 
 import { cx } from "../cx";
 import { createTipSlot, Cursor, TipSlotContext, type CursorProps, type TipSlot } from "./Cursor";
-import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, tooltipSide, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
+import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, percent, tooltipSide, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
 import { bucketLabel, tickLabel } from "./labels";
 import type { TimeAxis, ValueKind } from "./types";
 
 // Defined beside the cursor, which is what needs it: Plot imports Cursor, and Cursor importing Plot back would be a cycle.
 export { useHydrated } from "./Cursor";
-
-/** `51.72%`: at most 2 decimals, and no trailing zeros (the same as the cursor's). */
-const percent = (fraction: number): string => `${Math.round(fraction * 10000) / 100}%`;
 
 export interface PlotProps {
   /** The scroll region's name: "{title}, scrollable chart". */
@@ -33,6 +30,8 @@ export interface PlotProps {
   kind: ValueKind;
   /** The x labels: both sets (`xLabelPicks` wide and narrow) are rendered, and the card's width picks one. */
   axis: TimeAxis;
+  /** `"ends"` has one set, the first and the last bucket, at any width: a small multiple has no room for more. */
+  xLabels?: "spread" | "ends";
   placement: Placement;
   /** Columns: the plot is at least `MIN_SLOT_PX` for each bucket, and scrolls sideways in a region a keyboard can reach. */
   slots?: boolean;
@@ -71,9 +70,9 @@ export function usePlotMark(token: string): boolean {
  * forms bring the marks and the text; this has nothing of a form.
  *
  * Everything is positioned in percent of the plot, so the Worker prints the finished chart and CSS lays it out (charts.css). Both sets of
- * x labels are in the HTML, since the Worker cannot know the width: the card's width picks one. The y gutter is `Nch + 8px` wide for the
- * longest label, so nothing is measured. With `slots` the plot scrolls sideways in a region of its own, with the x labels, and the y
- * labels stay where they are.
+ * x labels are in the HTML, since the Worker cannot know the width: the card's width picks one (`xLabels="ends"` is the one set that needs
+ * no picking). The y gutter is `Nch + 8px` wide for the longest label, so nothing is measured. With `slots` the plot scrolls sideways in
+ * a region of its own, with the x labels, and the y labels stay where they are.
  *
  * The marks are in an image box, `aria-hidden` inside it. The cursor is beside that box and never in it: it is the one thing in the plot
  * that a screen reader should find.
@@ -85,6 +84,7 @@ export function Plot({
   scale,
   kind,
   axis,
+  xLabels = "spread",
   placement,
   slots = false,
   empty,
@@ -130,7 +130,7 @@ export function Plot({
     </div>
   );
 
-  const xLabels = (width: "wide" | "narrow") => (
+  const labelsOf = (width: "wide" | "narrow" | "ends") => (
     <div className={`plot__x plot__x--${width}`} aria-hidden="true">
       {xLabelPicks(count, width).map((i) => (
         <span key={i} style={{ left: percent(xOf(i, count, placement)) }}>
@@ -174,8 +174,14 @@ export function Plot({
               <Cursor plot={plot} {...cursor} />
             </TipSlotContext>
           )}
-          {xLabels("wide")}
-          {xLabels("narrow")}
+          {xLabels === "ends" ? (
+            labelsOf("ends")
+          ) : (
+            <>
+              {labelsOf("wide")}
+              {labelsOf("narrow")}
+            </>
+          )}
         </div>
       </div>
       {yAxis === "right" && gutter}

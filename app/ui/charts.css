@@ -364,6 +364,20 @@
   display: none;
 }
 
+/* The labels of a small multiple: the first and the last bucket, at any width, so the set has no display rule. They sit inside the plot's
+   edges, the first starting at the left and the last ending at the right, as the plot is narrow and half a label is no room to spare. */
+.plot__x--ends span:first-child {
+  transform: none;
+}
+
+.plot__x--ends span:last-child {
+  transform: translateX(-100%);
+}
+
+.plot__x--ends span:only-child {
+  transform: translateX(-50%);
+}
+
 /* Under 480 px of card (spec 2.7): a plot of 160 px with three x labels, and no room for the end labels (the legend and the tooltip say them). */
 @container (width < 480px) {
   .plot,
@@ -588,6 +602,116 @@
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Lines (LineChart): the lines and the area are one SVG stretched over the plot (spec 2.2), so a stroke that scaled with it would be as thick
+   as the plot is wide: `non-scaling-stroke` keeps it 2 px at any width. The dots, the end labels and the references are HTML boxes in
+   percent, which a stretched viewBox would distort (a circle) or could not place (a label). A mark wears the colour of its slot (`--mark`). */
+
+.lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.line {
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The wash under a line: the series colour at 10% down to the baseline, with no edge of its own. */
+.area {
+  fill: var(--mark);
+  fill-opacity: 0.1;
+}
+
+/* A reference (a threshold): a line of 1.5 px across the plot, the only thing in the kit that is dashed, since the gridlines are solid. Its
+   label is a chip of the card's colour on the line, in the text colour. */
+.ref {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px dashed var(--muted);
+  pointer-events: none;
+}
+
+.ref__label {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+/* An end label stands beside the line's end dot, in the gutter on the right: `top` is the dot's, in percent of the gutter's height, which
+   is the plot's. The figure is strong and in the text colour, the name after it muted (the gutter's). */
+.plot__end-label {
+  position: absolute;
+  left: 8px;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+.plot__end-label b {
+  color: var(--fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Small multiples (SmallMultiples): a grid of panels, each a heading with its readout over a plot of 110 px. A panel clips nothing and is no
+   stacking context, so that its tooltip (in the plot's frame, z-index 3) is whole at the panel's edge and over the panels that follow; the
+   card clips at its own edge, where the panel is well inside it. */
+
+.multiples {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px 22px;
+}
+
+.multiples__empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 8px;
+}
+
+.panel__name {
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.panel__value {
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    A chart that a beat of the page redrew gets the ring of a changed figure (value-mark, components.css): 3 px of the accent outside the
    plot, fading out in 1.2 s. The marks do not move. */
 
@@ -614,7 +738,9 @@
   .plot__dot,
   .plot__tip-key,
   .col__bar,
-  .col__seg {
+  .col__seg,
+  .line,
+  .area {
     forced-color-adjust: none;
   }
 
