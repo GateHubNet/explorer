@@ -1,10 +1,11 @@
 import { env } from "cloudflare:workers";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { USD_ISSUER } from "../../app/domain/network-params";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
 import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
+import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 
@@ -13,12 +14,16 @@ import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../su
 // What the page asks the data API for is test/worker/network-calls.spec.ts (a file of its own, because it counts calls that are not yet in the
 // cache), and what is held when a call fails is network-hold.spec.ts.
 //
-// What a Worker stores in the Cache API stays there for the rest of the file, so the tests that fail a call come first and a failed page is
-// never stored. But the calls of one network that every view shares (`last_validated`, the fees list, `fee_stats`, the validations of the newest
-// ledger) are kept for 2 s and 5 s of the real clock, whatever `Date` says, and a test that fails one of them would find an earlier test's
-// copy and never reach its override. So the subrequest cache is read as empty for the whole file (`beforeEach` below): every call reaches the
-// mock, and the pages are still stored and served by the edge cache as they are. `Date` alone is faked and moved 31 s on after each test,
-// past the failure hold (the holds are per isolate, and a key held by one test must not be the next test's).
+// What a Worker stores in the Cache API stays there for the rest of the file, subrequests included (and an error is never stored), so the
+// tests that fail a call come first, and each of them overrides a key that no test before it stored: the calls over a period are kept 300 s and
+// are told apart by the view (its period and display), while the calls every view of a network shares (`last_validated`, the fees list,
+// `fee_stats`, the validations of the newest ledger) are kept 2 s and 5 s of the real clock, whatever `Date` says, so each of those is failed
+// by the first test of its network that reaches it: `last_validated` and the fees list by the two on Xahau's default view (the second fails
+// before the chain asks for the validations), the validations of Xahau's newest ledger by the test of the 7 days there, `fee_stats` of XRPL by
+// the first test on XRPL. The two tests of a `last_validated` that is not a number cannot have a key of their own (the answer is stored whole),
+// so they come last, after a wait for what the tests before them kept. The afterEach below fails a test whose override no request used, which
+// is how a key that an earlier test stored shows. `Date` alone is faked and moved 31 s on after each test, past the failure hold (the holds are
+// per isolate, and a key held by one test must not be the next test's).
 
 const { get, storedAs } = pageClient("198.51.104");
 
@@ -26,15 +31,6 @@ let mock: UpstreamMock | undefined;
 
 beforeAll(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-});
-
-beforeEach(() => {
-  // The subrequest cache reads nothing (see above); the edge cache is the one under test.
-  const match = caches.default.match.bind(caches.default);
-  vi.spyOn(caches.default, "match").mockImplementation((request, options) => {
-    const url = request instanceof Request ? request.url : String(request);
-    return url.startsWith("https://subrequest-cache.invalid/") ? Promise.resolve(undefined) : match(request, options);
-  });
 });
 
 afterEach(() => {
@@ -87,7 +83,7 @@ const unavailable = () => dataApiError(503, "unavailable");
 
 const LAST_VALIDATED = "GET /v2/last_validated";
 const FEES_LIST = "GET /v2/network/fees?descending=true&limit=8";
-const XRPL_VALIDATIONS = "GET /v2/ledgers/68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092/validations?limit=1000";
+const XAHAU_VALIDATIONS = "GET /v2/ledgers/EFA9CD5F98635E5E505EF63AECEF1576D324AF95BED7D3C3897B2BB20203E0B5/validations?limit=1000";
 const FEE_STATS = "GET /v2/network/fee_stats?descending=true&limit=1&start=2026-10-17";
 const USD = `&exchange_currency=USD&exchange_issuer=${USD_ISSUER}`;
 
@@ -123,21 +119,6 @@ describe("a call the page cannot be built without", () => {
       ]),
     );
   });
-
-  it.each([
-    ["a close time that is not a time", { close_time: "yesterday" }],
-    ["a ledger index that is not a number", { ledger_index: "latest" }],
-  ])("answers 503, and not 500, when last_validated has %s: no window can be worked out from it", async (_what, broken) => {
-    mock = mockUpstream("xahau", { [LAST_VALIDATED]: { ...xahauLastValidated, ...broken } });
-    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { response } = await render("/xahau/network?period=7d");
-
-    expect(response.status).toBe(503);
-    expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(await isStored("/xahau/network?period=7d")).toBe(false);
-    expect(mock.requests.map((request) => request.key)).toEqual([LAST_VALIDATED]);
-    expect(errors.mock.calls.some(([line]) => String(line).includes("the network page has no anchor"))).toBe(true);
-  });
 });
 
 describe("a call that is one card of the page", () => {
@@ -149,15 +130,15 @@ describe("a call that is one card of the page", () => {
   }
 
   it("fails the validators card alone when the validations fail (#4)", async () => {
-    mock = mockUpstream("xrpl", { [XRPL_VALIDATIONS]: unavailable() });
-    const path = "/xrpl/network?period=7d";
+    mock = mockUpstream("xahau", { [XAHAU_VALIDATIONS]: unavailable() });
+    const path = "/xahau/network?period=7d";
     const { response, html, text } = await render(path);
 
     await expectDegraded(path, response);
     expect(text).toContain("Couldn’t load the validators.");
     expect(alerts(html)).toBe(1);
     // The rest of the page is there.
-    expect(text).toContain("Open ledger fee 10 drops");
+    expect(text).toContain("Open ledger fee");
     expect(text).toContain("Transactions by type, per day");
     expect(tile(html, "Transactions").value).not.toBe("—");
   });
@@ -449,5 +430,32 @@ describe("the tags of the page", () => {
     expect(html).not.toContain('rel="canonical"');
     expect(html).not.toContain("og:title");
     expect(html).not.toContain("twitter:card");
+  });
+});
+
+// ---- A last_validated that is not a number --------------------------------------------------------------------------------------------------
+// Last, because the answer cannot have a key of its own: `last_validated` is one key for every view of a network, a malformed 200 is kept like
+// any other for 2 s, and the tests above kept good ones (and the test below would be given this one). So the block waits for what is kept to
+// expire, and each of its tests is on another network, so that neither finds the other's. The views are ones that no test above has a stored
+// page of: a failed render is answered with the stored copy of its page, if there is one.
+
+describe("a last_validated that the window cannot be worked out from", () => {
+  beforeAll(() => sleep(2_100));
+
+  it.each([
+    ["xahau", "a close time that is not a time", { close_time: "yesterday" }, xahauLastValidated],
+    ["xrpl", "a ledger index that is not a number", { ledger_index: "latest" }, xrplLastValidated],
+  ] as const)("answers 503, and not 500, on %s when last_validated has %s", async (net, _what, broken, recorded) => {
+    mock = mockUpstream(net, { [LAST_VALIDATED]: { ...recorded, ...broken } });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const path = `/${net}/network?period=1y`;
+    const { response } = await render(path);
+
+    expect(response.status).toBe(503);
+    expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(await isStored(path)).toBe(false);
+    // Without an anchor nothing else is asked, and the problem is logged.
+    expect(mock.requests.map((request) => request.key)).toEqual([LAST_VALIDATED]);
+    expect(errors.mock.calls.some(([line]) => String(line).includes("the network page has no anchor"))).toBe(true);
   });
 });
