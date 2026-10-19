@@ -55,8 +55,7 @@ values there replace the `vars` of `wrangler.jsonc` locally.
 
 Run one project or one file with `pnpm test --project worker` or `pnpm test app/server`. Do not put `--` after
 `pnpm test`: pnpm hands it to Vitest, which then treats everything after it as literal arguments and runs
-everything. `--project unit` alone ends with a 10 s wait and a "close timed out" notice, because the React Router
-plugin of the other project keeps a file watcher open; a path filter does not.
+everything.
 
 ## Configuration
 
@@ -673,6 +672,12 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   the Worker with `exports.default.fetch(...)` and read bindings with `env`, both from `cloudflare:workers`. (`SELF`
   and `cloudflare:test`'s `env` still exist but are deprecated.)
   The `worker-off` project is the same Worker with every switch `"off"`, for the files `test/worker/*-off.spec.ts` (which `worker` leaves out; see "Switches").
+  The two share one Vite server, the root config's of `vitest.config.ts`, and so one Workers plugin and one React Router plugin, and each is `provide`d its own
+  `workerBindings`, which the Workers plugin reads for its Miniflare (`unit` and `components` have servers of their own: `extends: false`). It is one server on
+  purpose: the React Router plugin removes and rewrites `.react-router/types` each time a server starts, and two of them starting together raced on that
+  directory (`ENOTEMPTY`, `EINVAL`, so that `pnpm test` sometimes failed to start). Another Worker project is another child with its own `provide`d bindings, never a
+  server of its own with the plugin. The root sets `server.deps.inline` itself, because the children read the root's options and `@sentry/cloudflare` cannot load
+  in workerd without it.
   `edge-cache.spec.ts` calls `withEdgeCache` and `createSubrequestCache` directly (fake `render`, fake `waitUntil`, a fake clock
   for `Date` only, the runtime's own Cache API; the HEAD rules are there, and in `og.spec.ts` and `ledger.spec.ts` on the real Worker); `route-headers.spec.ts` runs `cached` and `forwardCacheClass` through React
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the

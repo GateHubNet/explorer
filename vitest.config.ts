@@ -28,39 +28,40 @@ const testBindings = {
 // they do not see its `resolve.tsconfigPaths`; each lists the alias itself.
 const resolve = { alias: { "~": fileURLToPath(new URL("./app", import.meta.url)) } };
 
-/** A project that runs its specs on the real Worker in workerd, with `bindings` instead of the vars of wrangler.jsonc. */
-function workerProject({ name, bindings, include, exclude }: { name: string; bindings: Record<string, string>; include: string[]; exclude?: string[] }) {
-  return {
-    plugins: [
-      cloudflareTest({
-        wrangler: { configPath: "./wrangler.jsonc" },
-        miniflare: { bindings },
-      }),
-      reactRouter(),
-    ],
-    resolve,
-    test: {
-      name,
-      include,
-      ...(exclude ? { exclude } : {}),
-      // Process the stylesheet, so that `styles.css?url` in root.tsx is a real URL as it is in the build.
-      css: true,
-      // CommonJS packages that require() ES modules cannot be loaded as they are in workerd, so
-      // Vite pre-bundles them, as it does in the production build.
-      deps: {
-        optimizer: {
-          ssr: { enabled: true, include: ["ripple-address-codec"] },
-        },
-      },
-    },
-  };
-}
+// The `worker-off` project's bindings: the same, with every switch of `FEATURE_VARS` "off".
+const offBindings = { ...testBindings, ...Object.fromEntries(FEATURE_VARS.map((name) => [name, "off"])) };
 
 export default defineConfig({
+  // The root config is the Worker projects' (`worker` and `worker-off`, below): they share its one Vite server, and so its one React Router
+  // plugin. That plugin removes and rewrites `.react-router/types` each time a server starts, and two of them starting together raced on the
+  // directory (ENOTEMPTY, EINVAL: `pnpm test` sometimes failed to start). What tells the two projects apart is the `workerBindings` each is
+  // `provide`d, which the Workers plugin reads for its Miniflare. `unit` and `components` have servers of their own and do not extend this.
+  plugins: [
+    cloudflareTest(({ inject }) => ({
+      wrangler: { configPath: "./wrangler.jsonc" },
+      miniflare: { bindings: inject<Record<string, string>>("workerBindings") },
+    })),
+    reactRouter(),
+  ],
+  resolve,
   test: {
+    // Process the stylesheet, so that `styles.css?url` in root.tsx is a real URL as it is in the build.
+    css: true,
+    // Every dependency goes through Vite: workerd cannot load what Node would (extensionless imports inside node_modules, such as
+    // @opentelemetry/api's, which @sentry/cloudflare needs). The Workers plugin sets this on its own project; the children here share the
+    // root's server and read the root's test options, so it is written out.
+    server: { deps: { inline: true } },
+    // CommonJS packages that require() ES modules cannot be loaded as they are in workerd, so
+    // Vite pre-bundles them, as it does in the production build.
+    deps: {
+      optimizer: {
+        ssr: { enabled: true, include: ["ripple-address-codec"] },
+      },
+    },
     projects: [
       {
         // Pure code: Node. (The components of app/ui need a DOM and are the `components` project.)
+        extends: false,
         resolve,
         test: {
           name: "unit",
@@ -71,6 +72,7 @@ export default defineConfig({
       },
       {
         // Components and the browser-side code of app/ui: happy-dom.
+        extends: false,
         resolve,
         test: {
           name: "components",
@@ -78,20 +80,24 @@ export default defineConfig({
           include: ["app/ui/**/*.test.{ts,tsx}"],
         },
       },
-      workerProject({
+      {
         // Loaders and the Worker entry: the Workers runtime (workerd), on the app's own Worker config.
-        name: "worker",
-        bindings: testBindings,
-        include: ["test/worker/**/*.spec.ts"],
-        // The files of the project below.
-        exclude: [...configDefaults.exclude, "test/worker/**/*-off.spec.ts"],
-      }),
-      workerProject({
+        test: {
+          name: "worker",
+          include: ["test/worker/**/*.spec.ts"],
+          // The files of the project below.
+          exclude: [...configDefaults.exclude, "test/worker/**/*-off.spec.ts"],
+          provide: { workerBindings: testBindings },
+        },
+      },
+      {
         // The same Worker with every switch "off" (spec 6.1): the off-case of a page or a feature, in files named `*-off.spec.ts`.
-        name: "worker-off",
-        bindings: { ...testBindings, ...Object.fromEntries(FEATURE_VARS.map((name) => [name, "off"])) },
-        include: ["test/worker/**/*-off.spec.ts"],
-      }),
+        test: {
+          name: "worker-off",
+          include: ["test/worker/**/*-off.spec.ts"],
+          provide: { workerBindings: offBindings },
+        },
+      },
     ],
   },
 });
