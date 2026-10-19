@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import type { CursorProps } from "./Cursor";
+import { steppedKey } from "./cursor-state";
 import { niceScale } from "./geometry";
-import type { TimeAxis } from "./types";
+import type { CandleData, SmallMultiplesData, TimeAxis } from "./types";
 
 // The layer a plot has until its cursor is needed (spec 2.1): the same transparent slider, which the first pointer or focus that reaches it
 // replaces with `Cursor`, loaded with `import()`. `./Cursor` is replaced here by a module that counts how often it was loaded, can be held
@@ -13,6 +14,8 @@ import type { TimeAxis } from "./types";
 // the first import in it is the first.
 
 const gate = {
+  /** How often the module was asked for, and how often it came. */
+  asked: 0,
   loads: 0,
   /** Every set of props the cursor was rendered with. */
   given: [] as unknown[],
@@ -48,12 +51,14 @@ type Props = Partial<Omit<CursorProps, "plot">> & Record<string, unknown>;
  */
 async function setup() {
   vi.resetModules();
+  gate.asked = 0;
   gate.loads = 0;
   gate.given = [];
   gate.held = undefined;
   gate.release = undefined;
   gate.failing = false;
   vi.doMock("./Cursor", async () => {
+    gate.asked += 1;
     if (gate.failing) {
       gate.failing = false;
       throw new Error("Failed to fetch dynamically imported module");
@@ -71,6 +76,8 @@ async function setup() {
   });
   const { CursorSlot } = await import("./CursorSlot");
   const { Plot } = await import("./Plot");
+  const { SmallMultiples } = await import("./SmallMultiples");
+  const { Candles } = await import("./Candles");
 
   function StubPlot({ id = "plot", ...props }: Props & { id?: string }) {
     const plot = useRef<HTMLDivElement>(null);
@@ -105,7 +112,7 @@ async function setup() {
     };
   }
 
-  return { StubPlot, mounted, Plot };
+  return { StubPlot, mounted, Plot, SmallMultiples, Candles };
 }
 
 const mouse = (x: number) => ({ clientX: x, pointerType: "mouse" });
@@ -154,13 +161,14 @@ describe("the layer a plot has before its cursor is loaded", () => {
     expect(container.querySelector('[role="slider"]')).toBeNull();
   });
 
-  it("does not load the module for a pointer that moves, presses or leaves without having entered, or for a key", async () => {
+  it("does not load the module for a pointer that moves, presses or leaves without having entered, or for a key that is not the cursor's", async () => {
     const { StubPlot, mounted } = await setup();
     const { slider } = await mounted(<StubPlot />);
-    fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+    fireEvent.keyDown(slider(), { key: "a" });
+    fireEvent.keyDown(slider(), { key: "ArrowLeft", altKey: true });
     fireEvent.pointerLeave(slider(), mouse(10));
     await arrived();
-    expect(gate.loads).toBe(0);
+    expect(gate.asked).toBe(0);
   });
 });
 
@@ -290,6 +298,69 @@ describe("the first focus to reach it", () => {
   });
 });
 
+describe("the keys pressed while the cursor loads", () => {
+  it("are pressed again on the cursor when it is there: ArrowLeft after the focus is the bucket before the newest", async () => {
+    const { StubPlot, mounted } = await setup();
+    holdBack();
+    const { slider, tip } = await mounted(<StubPlot />);
+    act(() => slider().focus());
+    fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+    gate.release!();
+    await arrived();
+    expect(gate.loads).toBe(1);
+    expect(document.activeElement).toBe(slider());
+    expect(slider().getAttribute("aria-valuenow")).toBe("28");
+    expect(slider().getAttribute("aria-valuetext")).toBe("Day 28");
+    expect(tip()!.textContent).toBe("28 transactions");
+  });
+
+  it("are pressed in the order they came, each against the bucket the one before has moved to", async () => {
+    const { StubPlot, mounted } = await setup();
+    holdBack();
+    const { slider } = await mounted(<StubPlot />);
+    act(() => slider().focus());
+    for (const key of ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowRight"]) fireEvent.keyDown(slider(), { key });
+    gate.release!();
+    await arrived();
+    expect(slider().getAttribute("aria-valuenow")).toBe("27");
+    // Home and Escape too: the tooltip is hidden, and the slider says where it was.
+    const again = await setup();
+    holdBack();
+    const second = await again.mounted(<again.StubPlot />);
+    act(() => second.slider().focus());
+    for (const key of ["Home", "Escape"]) fireEvent.keyDown(second.slider(), { key });
+    gate.release!();
+    await arrived();
+    expect(second.slider().getAttribute("aria-valuenow")).toBe("0");
+    expect(second.tip()).toBeNull();
+  });
+
+  it("do not scroll the region while they wait, as the cursor's do not", async () => {
+    const { StubPlot, mounted } = await setup();
+    holdBack();
+    const { slider } = await mounted(<StubPlot />);
+    for (const key of ["ArrowLeft", "ArrowRight", "Home", "End"]) expect(fireEvent.keyDown(slider(), { key }), key).toBe(false);
+    for (const key of ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Tab", "a", "Escape"]) expect(fireEvent.keyDown(slider(), { key }), key).toBe(true);
+    expect(fireEvent.keyDown(slider(), { key: "ArrowLeft", altKey: true })).toBe(true);
+    expect(fireEvent.keyDown(slider(), { key: "Home", ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(slider(), { key: "End", metaKey: true })).toBe(true);
+  });
+
+  // The keys the slot waits for are the cursor's (`steppedKey`): a key the cursor takes is not lost, and one it does not take loads nothing.
+  it.each(["ArrowLeft", "ArrowRight", "Home", "End", "Escape", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Tab", "Enter", " ", "a"])(
+    "ask for the cursor exactly when the cursor takes the key: %s",
+    async (key) => {
+      const { StubPlot, mounted } = await setup();
+      holdBack();
+      const { slider } = await mounted(<StubPlot />);
+      fireEvent.keyDown(slider(), { key });
+      await arrived();
+      const taken = steppedKey({ key, altKey: false, ctrlKey: false, metaKey: false }, 5, 9) !== null;
+      expect(gate.asked > 0).toBe(taken);
+    },
+  );
+});
+
 describe("the cursor it renders", () => {
   it("is given every prop of the layer unchanged, the ones a later kit adds too", async () => {
     const { StubPlot, mounted } = await setup();
@@ -326,21 +397,49 @@ describe("the cursor it renders", () => {
     expect(slider().getAttribute("aria-label")).toBe("Second");
   });
 
-  it("loads the module once for every plot, and a second plot's first pointer finds it there", async () => {
+  it("loads the module once for every plot, and every other plot of the page has the cursor in the same commit, not waiting for its own pointer", async () => {
     const { StubPlot, mounted } = await setup();
-    const { slider } = await mounted(
+    const { slider, container } = await mounted(
       <>
         <StubPlot id="a" />
         <StubPlot id="b" />
       </>,
     );
+    const bare = slider("b");
     fireEvent.pointerEnter(slider("a"), mouse(100));
-    await arrived();
-    fireEvent.pointerEnter(slider("b"), mouse(900));
     await arrived();
     expect(gate.loads).toBe(1);
     expect(slider("a").getAttribute("aria-valuenow")).toBe("3");
+    // The other plot's layer is the cursor now (a pointer that never entered it), and it selects at the first move.
+    expect(slider("b")).not.toBe(bare);
+    expect(container.querySelectorAll('[role="slider"]')).toHaveLength(2);
+    expect(slider("b").getAttribute("aria-valuenow")).toBe("29");
+    fireEvent.pointerMove(slider("b"), mouse(900));
     expect(slider("b").getAttribute("aria-valuenow")).toBe("26");
+    expect(gate.asked).toBe(1);
+  });
+
+  it("is the cursor from its first render for a plot that mounts after the cursor has been loaded", async () => {
+    const { StubPlot, mounted } = await setup();
+    let showLater!: () => void;
+    function Page() {
+      const [later, set] = useState(false);
+      showLater = () => set(true);
+      return (
+        <>
+          <StubPlot id="a" />
+          {later && <StubPlot id="b" />}
+        </>
+      );
+    }
+    const { slider, container } = await mounted(<Page />);
+    fireEvent.pointerEnter(slider("a"), mouse(100));
+    await arrived();
+    act(() => showLater());
+    for (const plot of container.querySelectorAll<HTMLElement>(".plot")) vi.spyOn(plot, "getBoundingClientRect").mockReturnValue(BOX);
+    fireEvent.pointerMove(slider("b"), mouse(900));
+    expect(slider("b").getAttribute("aria-valuenow")).toBe("26");
+    expect(gate.asked).toBe(1);
   });
 });
 
@@ -382,6 +481,91 @@ describe("in a plot", () => {
     expect(container.querySelector(".plot__scroll .plot__tip")).toBeNull();
     fireEvent.pointerLeave(slider(), mouse(100));
     expect(container.querySelector(".plot__tip")).toBeNull();
+  });
+});
+
+// A group of plots shows the bucket one of them is on in all of them: a crosshair and dots, the others dimmed. Only a cursor does that, so a plot that
+// has not been entered must have its cursor as soon as another has loaded it. These run with the real slot, which the tests of the charts do not.
+describe("in a group of plots (the real slot, as the page has it)", () => {
+  const day = (i: number) => new Date(Date.UTC(2026, 8, 17 + i)).toISOString().slice(0, 10);
+  const AXIS30: TimeAxis = { unit: "day", buckets: Array.from({ length: 30 }, (_, i) => day(i)) };
+  const multiples: SmallMultiplesData = {
+    axis: AXIS30,
+    panels: [
+      { id: "xrp", label: "XRP", values: AXIS30.buckets.map((_, i) => String(10_000_000 + i * 50_000)), format: { kind: "amount", unit: "XRP" } },
+      { id: "rlusd", label: "RLUSD", values: AXIS30.buckets.map((_, i) => String(500 + i * 25)), format: { kind: "amount", unit: "RLUSD" } },
+    ],
+    token: "g1",
+  };
+  const AXIS5: TimeAxis = { unit: "day", buckets: ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"] };
+  const candles: CandleData = {
+    axis: AXIS5,
+    candles: [
+      { o: "2.40", h: "2.46", l: "2.38", c: "2.44", v: "1200000", n: "310" },
+      { o: "2.44", h: "2.45", l: "2.39", c: "2.41", v: "900000", n: "250" },
+      null,
+      { o: "2.41", h: "2.43", l: "2.41", c: "2.41", v: "500000", n: "1" },
+      { o: "2.41", h: "2.48", l: "2.40", c: "2.47", v: "1500000", n: "402" },
+    ],
+    format: { kind: "price", unit: "USD" },
+    volume: { kind: "amount", unit: "XRP" },
+    token: "g2",
+  };
+
+  /** Mounts `ui` with each of its plots 1000 px wide, and finds its layers. */
+  async function mountedGroup(ui: ReactElement) {
+    const result = await serverThenHydrated(ui);
+    for (const plot of result.container.querySelectorAll<HTMLElement>(".plot")) {
+      vi.spyOn(plot, "getBoundingClientRect").mockReturnValue({ ...BOX, bottom: 110, height: 110 });
+    }
+    return {
+      ...result,
+      sliders: () => Array.from(result.container.querySelectorAll<HTMLElement>('[role="slider"]')),
+      plots: () => Array.from(result.container.querySelectorAll<HTMLElement>(".plot")),
+    };
+  }
+
+  it("shows a panel of small multiples the bucket of the panel the pointer is in, with its crosshair and dot, though it was never entered itself", async () => {
+    const { SmallMultiples } = await setup();
+    const { sliders, plots, container } = await mountedGroup(<SmallMultiples title="Balance history, per currency" data={multiples} />);
+    const [first, second] = sliders();
+    expect(container.querySelector(".plot__crosshair")).toBeNull();
+
+    fireEvent.pointerEnter(first!, mouse(500));
+    await arrived();
+    expect(gate.loads).toBe(1);
+    expect(plots().map((plot) => plot.getAttribute("data-active"))).toEqual(["15", "15"]);
+    expect(container.querySelectorAll(".plot__crosshair")).toHaveLength(2);
+    expect(container.querySelectorAll(".plot__cursor .plot__dot")).toHaveLength(2);
+    // The second panel's layer is the cursor's, replaced in the same commit.
+    expect(sliders()[1]).not.toBe(second);
+    // The tooltip is in the panel with the pointer, and in no other.
+    expect(container.querySelectorAll(".plot__tip")).toHaveLength(1);
+
+    fireEvent.pointerLeave(sliders()[0]!, mouse(500));
+    expect(plots().map((plot) => plot.getAttribute("data-active"))).toEqual([null, null]);
+    expect(container.querySelector(".plot__crosshair")).toBeNull();
+  });
+
+  it("shows the other pane of candles over volume the bucket the pointer is on, in the pane it never entered, and moves the readout", async () => {
+    const { Candles } = await setup();
+    const { sliders, plots, container } = await mountedGroup(<Candles title="Price, XRP/USD" data={candles} />);
+    const readout = () => Array.from(container.querySelector(".candles__readout")!.children, (node) => node.textContent);
+    const before = readout();
+
+    // The volume pane's pointer, at the first of the five buckets.
+    fireEvent.pointerEnter(sliders()[1]!, mouse(100));
+    await arrived();
+    expect(gate.loads).toBe(1);
+    expect(plots().map((plot) => plot.getAttribute("data-active"))).toEqual(["0", "0"]);
+    expect(container.querySelectorAll('.col[data-bucket="0"].is-active')).toHaveLength(2);
+    expect(container.querySelectorAll(".col.is-active")).toHaveLength(2);
+    expect(readout()).not.toEqual(before);
+    expect(container.querySelectorAll(".plot__tip")).toHaveLength(1);
+
+    fireEvent.pointerLeave(sliders()[1]!, mouse(100));
+    expect(plots().map((plot) => plot.getAttribute("data-active"))).toEqual([null, null]);
+    expect(readout()).toEqual(before);
   });
 });
 

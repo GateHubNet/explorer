@@ -170,11 +170,12 @@ test.describe("hover and keyboard", () => {
     const newest = Number(await slider.getAttribute("aria-valuenow"));
     expect(newest).toBe(Number(await slider.getAttribute("aria-valuemax")));
     const said = await slider.getAttribute("aria-valuetext");
-    await expect(card.locator(".plot__tip")).toBeVisible();
 
+    // The key comes as soon as the focus: the cursor may still be loading, and a key pressed meanwhile is pressed again when it is there.
     await page.keyboard.press("ArrowLeft");
     await expect(slider).toHaveAttribute("aria-valuenow", String(newest - 1));
     await expect(slider).not.toHaveAttribute("aria-valuetext", said!);
+    await expect(card.locator(".plot__tip")).toBeVisible();
 
     await page.keyboard.press("Home");
     await expect(slider).toHaveAttribute("aria-valuenow", "0");

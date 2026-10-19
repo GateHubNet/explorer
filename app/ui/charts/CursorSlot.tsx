@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react";
 
 import type { Cursor, CursorProps } from "./Cursor";
 import { useHydrated } from "./cursor-slot-state";
@@ -7,7 +7,24 @@ import { useHydrated } from "./cursor-slot-state";
 interface Pending {
   pointer?: { x: number; y: number; type: string };
   focus?: boolean;
+  /** The keys of the cursor that were pressed, in order. */
+  keys: string[];
 }
+
+// The cursor, once any plot of the page has loaded it. It is the module's and not a plot's: a plot in a `HoverGroup` (the panels of small
+// multiples, the price and volume panes of candles) shows the group's bucket with a crosshair, dots and the others dimmed, which only a cursor
+// does, so every plot on the page takes it the moment the first one has it, in the same commit, and the group works with no replay.
+let cursor: typeof Cursor | null = null;
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+};
+const loadedCursor = () => cursor;
+
+/** The keys the cursor takes (`steppedKey`, cursor-state.tsx): the arrows, Home and End move it, Escape hides it. The browser's own shortcuts are not its. */
+const KEYS = new Set(["ArrowLeft", "ArrowRight", "Home", "End", "Escape"]);
+const takes = (event: KeyboardEvent) => !event.altKey && !event.ctrlKey && !event.metaKey && KEYS.has(event.key);
 
 /**
  * The layer a plot has until its cursor is needed (spec 2.1). The cursor (`Cursor.tsx`: the pointer, the tooltip and the keys) is more of the
@@ -16,26 +33,28 @@ interface Pending {
  * cursor names it, on the newest bucket, which it says in words. It is not in the Worker's HTML, as the cursor's is not (`useHydrated`).
  *
  * The first `pointerenter` or `focusin` loads the cursor with `import()`, which renders in the layer's place with every prop this was given,
- * unchanged (`CursorProps` is the contract, and a prop a later kit adds to it goes through). What the visitor did meanwhile is done again to the new
- * layer: a focus focuses it, so the first focus already shows the newest bucket, and a pointer selects the bucket under it, where it is now. A mouse
- * that has left, a focus that has gone and a touch the browser took for a scroll are not replayed. A key pressed before the cursor is there is lost;
- * it comes a few milliseconds after the focus, from a file the page's own origin serves.
+ * unchanged (`CursorProps` is the contract, and a prop a later kit adds to it goes through), and in the place of every other plot's layer too. What
+ * the visitor did meanwhile is done again to the new layer, in the order they did it: a focus focuses it, so the first focus already shows the newest
+ * bucket; a pointer selects the bucket under it, where it is now; and each key of the cursor's (an arrow, Home, End, Escape) is pressed again, one
+ * after a render of the one before. A mouse that has left, a focus that has gone and a touch the browser took for a scroll are not replayed.
  *
  * The state is `React.lazy`'s without its Suspense, which would put a boundary in the page's hydration. A failed load leaves this layer as it is and
  * the next pointer or focus asks again.
  */
 export function CursorSlot(props: CursorProps) {
   const hydrated = useHydrated();
-  const [loaded, setLoaded] = useState<typeof Cursor | null>(null);
-  const pending = useRef<Pending>({});
+  const loaded = useSyncExternalStore(subscribe, loadedCursor, () => null);
+  const pending = useRef<Pending>({ keys: [] });
   const asked = useRef(false);
 
   const load = () => {
     if (asked.current) return;
     asked.current = true;
     import("./Cursor").then(
-      // A component is a function, which a state setter would call.
-      (module) => setLoaded(() => module.Cursor),
+      (module) => {
+        cursor = module.Cursor;
+        for (const listener of listeners) listener();
+      },
       () => void (asked.current = false),
     );
   };
@@ -45,14 +64,22 @@ export function CursorSlot(props: CursorProps) {
     if (!loaded) return;
     const layer = props.plot.current?.querySelector<HTMLElement>(".plot__cursor");
     if (!layer) return;
-    const { focus, pointer } = pending.current;
-    pending.current = {};
+    const { focus, pointer, keys } = pending.current;
+    pending.current = { keys: [] };
     if (focus) layer.focus();
     // The pointer after the focus, so that where it is wins when the keyboard and the pointer both reached the plot.
     if (pointer) {
       const touch = pointer.type === "touch";
       layer.dispatchEvent(new PointerEvent(touch ? "pointerdown" : "pointermove", { bubbles: true, clientX: pointer.x, clientY: pointer.y, pointerType: pointer.type }));
     }
+    // The keys last, each after a render of the one before: a key is read against the bucket the cursor is on, which the one before has moved.
+    const press = (rest: string[]) => {
+      const [key, ...later] = rest;
+      if (key === undefined || !layer.isConnected) return;
+      layer.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      if (later.length > 0) setTimeout(() => press(later));
+    };
+    press(keys);
   }, [loaded]);
 
   if (!hydrated || props.count <= 0) return null;
@@ -90,6 +117,13 @@ export function CursorSlot(props: CursorProps) {
         load();
       }}
       onBlur={() => void delete pending.current.focus}
+      // Kept from scrolling the region while the cursor loads, as the cursor keeps them, and pressed again when it is there.
+      onKeyDown={(event) => {
+        if (!takes(event)) return;
+        if (event.key !== "Escape") event.preventDefault();
+        pending.current.keys.push(event.key);
+        load();
+      }}
     />
   );
 }
