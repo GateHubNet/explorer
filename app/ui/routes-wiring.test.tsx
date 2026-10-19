@@ -413,7 +413,7 @@ const NETWORK_CURRENCIES: BarListData = {
   token: "by-currency",
 };
 const AMM_SHOWN: AmmPart = { state: "ok", series: VOLUME(["1000000", "1100000", "900000", "1200000", "1100000", "1300000", null]), total: "1200000000" };
-const AMM_UNAVAILABLE = { state: "failed", reason: "data API GET /v2/network/amm_volume answered 404: Cannot GET /v2/network/amm_volume" } as const;
+const AMM_UNAVAILABLE = { state: "failed", reason: "could not be loaded" } as const;
 
 /** The network page's data at ledger `index` for `view`, every part loaded, made by build `build`. */
 function networkAt(index: number, over: Partial<NetworkLoaderData> = {}, build = "abc1234"): NetworkLoaderData {

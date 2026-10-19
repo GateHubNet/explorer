@@ -24,6 +24,7 @@ import type {
   StatsRow,
   VolumeRow,
 } from "./api-types";
+import { TooLate } from "./deadline";
 import { latestLedgerIndex } from "./home-view";
 import type { Network } from "./networks";
 
@@ -187,11 +188,16 @@ export function contextOf(input: Pick<NetworkInput, "net" | "view" | "last">): V
   };
 }
 
-const reasonOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+/**
+ * What a failed part says of itself. The page data is served to browsers and the page never shows it, so it is two fixed words and not the error's
+ * message, which holds the upstream's path and query, the API's own text or the runtime's: a call that was too late "took too long" (spec 1.6),
+ * anything else, a builder that throws included, "could not be loaded". The error itself stays in the context's failures, which the loader logs.
+ */
+const reasonOf = (error: unknown): string => (error instanceof TooLate ? "took too long" : "could not be loaded");
 
 /**
- * A part from a call's outcome. A rejection fails the part with its message (a `TooLate` says "took too long"), and so does an answer the
- * builder cannot use: one broken part does not make a 500 of the page. Each failure is reported to the context.
+ * A part from a call's outcome. A rejection fails the part (see `reasonOf`), and so does an answer the builder cannot use: one broken part does
+ * not make a 500 of the page. Each failure is reported to the context with its error.
  */
 function settle<V, X extends object>(ctx: ViewContext, part: string, result: PromiseSettledResult<V>, build: (value: V) => X): Part<X> {
   const failed = (error: unknown): Part<X> => {

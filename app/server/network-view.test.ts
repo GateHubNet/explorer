@@ -245,8 +245,10 @@ describe("openLedgerOf", () => {
 
   it("has failed when the list has no snapshot", () => {
     const context = ctxOf();
-    expect(openLedgerOf(context, fulfilled(page("rows", [])))).toEqual({ state: "failed", reason: "the data API has no fee snapshot" });
+    // A builder that throws: the part says the fixed words, and the failure keeps the error.
+    expect(openLedgerOf(context, fulfilled(page("rows", [])))).toEqual({ state: "failed", reason: "could not be loaded" });
     expect(context.failures.map((failure) => failure.part)).toEqual(["openLedger"]);
+    expect(context.failures[0]?.error).toEqual(new Error("the data API has no fee snapshot"));
   });
 });
 
@@ -676,10 +678,10 @@ describe("ammOf", () => {
     expect(part.state === "ok" && part.series.values[0]).toBe("75.125");
   });
 
-  it("is failed, with the error's message, when the call was rejected, a missing route included", () => {
+  it("is failed, with the fixed reason and the error kept, when the call was rejected, a missing route included", () => {
     const context = ctxOf();
     const error = new UpstreamError("server", "data API GET /v2/network/amm_volume answered 404: Cannot GET /v2/network/amm_volume (the data API has no such route)");
-    expect(ammOf(context, rejected(error))).toEqual({ state: "failed", reason: error.message });
+    expect(ammOf(context, rejected(error))).toEqual({ state: "failed", reason: "could not be loaded" });
     expect(context.failures).toEqual([{ part: "amm", error }]);
   });
 
@@ -805,7 +807,7 @@ describe("networkPage", () => {
     it.each(cases)("a rejected %s fails %s and nothing else, and is in the failures", (call, part) => {
       const error = new UpstreamError("server", `data API GET /v2/${call} answered 503`);
       const { page: data, failures } = networkPage(input({ [call]: rejected(error) } as Partial<NetworkInput>));
-      expect(data[part]).toEqual({ state: "failed", reason: error.message });
+      expect(data[part]).toEqual({ state: "failed", reason: "could not be loaded" });
       expect(failures).toEqual([{ part, error }]);
       for (const [, other] of cases) if (other !== part) expect(data[other]).not.toMatchObject({ state: "failed" });
     });
@@ -819,17 +821,34 @@ describe("networkPage", () => {
       expect(failures.every((failure) => failure.error === late)).toBe(true);
     });
 
-    it("gives the text of what is not an error", () => {
-      expect(networkPage(input({ types: rejected("gone") })).page.types).toEqual({ state: "failed", reason: "gone" });
+    it("gives the fixed reason to what is not an error too, and keeps it in the failures", () => {
+      const { page: data, failures } = networkPage(input({ types: rejected("gone") }));
+      expect(data.types).toEqual({ state: "failed", reason: "could not be loaded" });
+      expect(failures).toEqual([{ part: "types", error: "gone" }]);
+    });
+
+    // The page data goes to browsers, in the HTML and in the `.data` payload: nothing of the error reaches it, only the log.
+    it("sends nothing of the error to the page: not its message, the upstream's path or query, nor the API's words", () => {
+      const secret = "data API GET /v2/stats/type?end=2026-10-17&start=2026-10-11 answered 500: unable to query the cluster at db-7.internal";
+      const calls: (keyof NetworkInput)[] = ["types", "metrics", "feeDays", "payments", "exchanges", "feeStats", "validators", "amm"];
+      const rejections = Object.fromEntries(calls.map((call) => [call, rejected(new UpstreamError("server", secret))])) as Partial<NetworkInput>;
+      const { page: data, failures } = networkPage(input(rejections));
+      const sent = JSON.stringify(data);
+      expect(sent).not.toContain("db-7.internal");
+      expect(sent).not.toContain("/v2/");
+      expect(sent).not.toContain("answered 500");
+      expect(sent.match(/"reason":"could not be loaded"/g)).toHaveLength(calls.length);
+      expect(failures.every((failure) => (failure.error as Error).message === secret)).toBe(true);
     });
 
     it("fails a part whose answer the builder cannot use, rather than the page", () => {
       const broken = fulfilled({ result: "success", count: 1, rows: null }) as unknown as NetworkInput["payments"];
       const { page: data, failures } = networkPage(input({ payments: broken }));
-      expect(data.payments.state).toBe("failed");
+      expect(data.payments).toEqual({ state: "failed", reason: "could not be loaded" });
       expect(data.types.state).toBe("ok");
       expect(failures.map((failure) => failure.part)).toEqual(["payments"]);
       expect(failures[0]?.error).toBeInstanceOf(Error);
+      expect(JSON.stringify(data)).not.toContain((failures[0]!.error as Error).message);
     });
   });
 

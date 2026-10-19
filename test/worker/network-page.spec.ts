@@ -242,8 +242,13 @@ describe("a call that is one card of the page", () => {
     expect(tile(html, "DEX volume").sub).toBe("tracked markets, AMM swaps included; to Oct 16; Oct 17 not computed yet");
     expect(text).toContain("DEX trades, tracked markets, AMM swaps included");
     expect(text).not.toContain("AMM swaps, all pools");
-    // It was logged (the answer was marked degraded for the edge: `no-store` and not stored, above).
-    expect(errors.mock.calls.some(([line]) => String(line).includes("the network page's amm could not be loaded"))).toBe(true);
+    // It was logged, with the error itself (the answer was marked degraded for the edge: `no-store` and not stored, above).
+    const logged = errors.mock.calls.map(([line]) => String(line)).find((line) => line.includes("the network page's amm could not be loaded"));
+    expect(logged).toContain("Cannot GET /v2/network/amm_volume");
+    // And nothing of the error is in the page, whose data goes to the browser as well: the part says two fixed words.
+    expect(html).not.toContain("Cannot GET");
+    expect(html).not.toContain("/v2/network/amm_volume");
+    expect(html).toContain("could not be loaded");
 
     // A second render a moment later does not ask the API for the route again: the failure is held.
     const second = await render(path);

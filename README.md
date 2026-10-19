@@ -729,7 +729,7 @@ fails is the stored copy of the page when there is one. A malformed `last_valida
 **Failures, card by card.** A page-level failure (#1, #2) is a 503 with `Retry-After`, never stored. Every other call fails its card or tile alone, and the card says so in its
 place, with its title, its source line and a Retry (`SectionError`, "Couldn’t load transactions by type"); the rest of the page stands. Such a page is a 200 and is *degraded*:
 `Cache-Control: no-store`, not stored (`markDegraded`), and each failure is logged (`logProblem`). A card or the chain of #2, #3 and #4 that has not answered 4.5 s after the loader
-began (`CARD_DEADLINE_MS`) has failed with "took too long", so one slow call cannot hold the page. A failure is also *held*: the call is remembered as failed for 5 s (a 429 for its `Retry-After`),
+began (`CARD_DEADLINE_MS`) has failed with "took too long", so one slow call cannot hold the page. The page data is served to browsers, so a failed part's `reason` is only "took too long" or the fixed "could not be loaded" (the page does not show it); the error itself, with the upstream's path and the API's own words, goes to the log and nowhere else. A failure is also *held*: the call is remembered as failed for 5 s (a 429 for its `Retry-After`),
 so that the beats of every open tab do not each ask a failing upstream again ("The cache classes", "The failure hold"). Retry is `revalidate()` on the explorer's own `.data` URL; it
 works while the visitor has paused the updates, and a Retry within the hold gets the held failure. The AMM line has four states, which the wording of the DEX tile, the legend and the
 volume card's note follow:

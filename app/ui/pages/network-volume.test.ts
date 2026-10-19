@@ -51,7 +51,7 @@ describe("ammWording", () => {
   });
 
   it("failed: the same labels and note, no AMM line, and the problem to report", () => {
-    expect(ammWording({ state: "failed", reason: "data API GET /v2/network/amm_volume answered 503" })).toEqual({
+    expect(ammWording({ state: "failed", reason: "could not be loaded" })).toEqual({
       dexLabel: "DEX trades, tracked markets, AMM swaps included",
       dexShort: "DEX trades",
       dexSub: "tracked markets, AMM swaps included",
