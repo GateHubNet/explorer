@@ -94,6 +94,12 @@ a.nav-item:hover {
   text-decoration: none;
 }
 
+/* The item of the section the page is in (a route's `navSection`): the colours of the hover, kept. */
+.nav-item.is-current {
+  background: var(--sunken);
+  color: var(--fg);
+}
+
 .nav-item.is-soon {
   cursor: default;
 }
