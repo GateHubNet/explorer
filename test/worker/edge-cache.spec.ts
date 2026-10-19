@@ -11,6 +11,7 @@ import {
   type Render,
 } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, getSubrequestCache, type Env } from "../../app/server/env";
+import { UpstreamError, type UpstreamErrorKind } from "../../app/server/upstream";
 import { allSwitches } from "../support/switches";
 
 // The page-level edge cache, called directly with a fake `render` and a fake execution context. The Cache API
@@ -1605,5 +1606,153 @@ describe("createSubrequestCache", () => {
     expect(await cache.json(key("big"), "slow", async () => 10n)).toBe(10n);
     expect(await cache.json(key("undef"), "slow", async () => undefined)).toBeUndefined();
     await h.settle();
+  });
+});
+
+// The failure hold (spec 1.7): a polled call that failed is remembered in memory for a few seconds, so that the open tabs' next beats do not
+// all reach an upstream that is down. The clock is `Date` only (the top of the file); a key of its own for each case, because the hold is
+// per Worker instance and the Cache API outlives a test.
+describe("the failure hold", () => {
+  const key = (name: string) => `GET https://xrpl.data.example.invalid/v2/hold/${name}-${++pages}`;
+  const hold = { holdFailure: true };
+  const failing = (error: unknown) =>
+    vi.fn(async (): Promise<number> => {
+      throw error;
+    });
+  const held = (cache: ReturnType<typeof createSubrequestCache>, k: string, load: () => Promise<number>) =>
+    cache.json(k, "live", load, undefined, hold);
+
+  it.each<UpstreamErrorKind>(["server", "timeout", "network", "rate_limited"])("holds a %s failure for 5 s: the same error, and the upstream is not asked", async (kind) => {
+    const cache = createSubrequestCache(harness().ctx, "build-1");
+    const k = key(kind);
+    const error = new UpstreamError(kind);
+    const load = failing(error);
+
+    await expect(held(cache, k, load)).rejects.toBe(error);
+    advance(4_999);
+    await expect(held(cache, k, load)).rejects.toBe(error);
+    expect(load).toHaveBeenCalledTimes(1);
+
+    advance(2);
+    await expect(held(cache, k, load)).rejects.toBe(error);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("holds a rate-limited answer for its Retry-After, at most 30 s", async () => {
+    const cache = createSubrequestCache(harness().ctx, "build-1");
+    const short = failing(new UpstreamError("rate_limited", "x", { retryAfter: 12 }));
+    const long = failing(new UpstreamError("rate_limited", "x", { retryAfter: 90 }));
+    const [a, b] = [key("retry-12"), key("retry-90")];
+
+    await expect(held(cache, a, short)).rejects.toThrow("x");
+    await expect(held(cache, b, long)).rejects.toThrow("x");
+    advance(11_999);
+    await expect(held(cache, a, short)).rejects.toThrow("x");
+    expect(short).toHaveBeenCalledTimes(1);
+    advance(2);
+    await expect(held(cache, a, short)).rejects.toThrow("x");
+    expect(short).toHaveBeenCalledTimes(2);
+
+    // 30 s after the first failure of b (12 s in, now): held to 29,999 ms, free at 30,001 ms.
+    advance(17_998);
+    await expect(held(cache, b, long)).rejects.toThrow("x");
+    expect(long).toHaveBeenCalledTimes(1);
+    advance(2);
+    await expect(held(cache, b, long)).rejects.toThrow("x");
+    expect(long).toHaveBeenCalledTimes(2);
+  });
+
+  it("never holds a thing that is not there, a request that was refused, or an error that is not an upstream's", async () => {
+    const cache = createSubrequestCache(harness().ctx, "build-1");
+    for (const error of [new UpstreamError("not_found"), new UpstreamError("bad_request"), new TypeError("a bug")]) {
+      const load = failing(error);
+      const k = key("never");
+      await expect(held(cache, k, load)).rejects.toBe(error);
+      await expect(held(cache, k, load)).rejects.toBe(error);
+      expect(load, String(error)).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("holds nothing for a call that did not ask for it, not even for a later call that does", async () => {
+    const cache = createSubrequestCache(harness().ctx, "build-1");
+    const k = key("not-asked");
+    const load = failing(new UpstreamError("server"));
+
+    await expect(cache.json(k, "live", load)).rejects.toThrow();
+    await expect(held(cache, k, load)).rejects.toThrow();
+    expect(load).toHaveBeenCalledTimes(2);
+    // The call that asked for it is held now.
+    await expect(held(cache, k, load)).rejects.toThrow();
+    expect(load).toHaveBeenCalledTimes(2);
+    // And the one that does not ask still goes through.
+    await expect(cache.json(k, "live", load)).rejects.toThrow();
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it("holds at the most 256 keys, the oldest going first", async () => {
+    const cache = createSubrequestCache(harness().ctx, "build-1");
+    const keys = Array.from({ length: 257 }, (_, i) => key(`many-${i}`));
+    const loads = keys.map(() => failing(new UpstreamError("server")));
+    for (const [i, k] of keys.entries()) await expect(held(cache, k, loads[i]!)).rejects.toThrow();
+
+    // The last is still held; the first has been forgotten and loads again.
+    await expect(held(cache, keys[256]!, loads[256]!)).rejects.toThrow();
+    expect(loads[256]).toHaveBeenCalledTimes(1);
+    await expect(held(cache, keys[0]!, loads[0]!)).rejects.toThrow();
+    expect(loads[0]).toHaveBeenCalledTimes(2);
+  });
+
+  it("makes a key that fails again the newest, so that a full table forgets another first", async () => {
+    const cache = createSubrequestCache(harness().ctx, "build-1");
+    const first = key("renewed");
+    const firstLoad = failing(new UpstreamError("server"));
+    // The others are held 30 s, so that they are still held when `first` fails again: what is forgotten is told by the table, not by the clock.
+    const fillers = Array.from({ length: 255 }, (_, i) => ({
+      k: key(`filler-${i}`),
+      load: failing(new UpstreamError("rate_limited", "x", { retryAfter: 30 })),
+    }));
+    // 256 keys, `first` the oldest (every key held before is gone).
+    await expect(held(cache, first, firstLoad)).rejects.toThrow();
+    for (const { k, load } of fillers) await expect(held(cache, k, load)).rejects.toThrow();
+
+    // It fails again once its hold is over: it moves to the end, and one more key then pushes out the oldest of the others.
+    advance(6_000);
+    await expect(held(cache, first, firstLoad)).rejects.toThrow();
+    expect(firstLoad).toHaveBeenCalledTimes(2);
+    await expect(held(cache, key("one-more"), failing(new UpstreamError("server")))).rejects.toThrow();
+
+    await expect(held(cache, first, firstLoad)).rejects.toThrow();
+    expect(firstLoad).toHaveBeenCalledTimes(2);
+    await expect(held(cache, fillers[1]!.k, fillers[1]!.load)).rejects.toThrow();
+    expect(fillers[1]!.load).toHaveBeenCalledTimes(1);
+    await expect(held(cache, fillers[0]!.k, fillers[0]!.load)).rejects.toThrow();
+    expect(fillers[0]!.load).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies on a call that is not kept too (a TTL of zero), and writes nothing to the Cache API", async () => {
+    const h = harness();
+    const cache = createSubrequestCache(h.ctx, "build-1");
+    const k = key("zero");
+    const load = failing(new UpstreamError("timeout"));
+
+    await expect(cache.json(k, "live", load, 0, hold)).rejects.toThrow();
+    await expect(cache.json(k, "live", load, 0, hold)).rejects.toThrow();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(h.waiting).toBe(0);
+  });
+
+  it("reads the Cache API first: an answer stored by a call that did not ask for the hold is what a call that asks gets, while the hold lasts", async () => {
+    const h = harness();
+    const cache = createSubrequestCache(h.ctx, "build-1");
+    const k = key("answered");
+
+    await expect(held(cache, k, failing(new UpstreamError("server")))).rejects.toThrow();
+    // Not asked to hold: it loads, and stores its answer.
+    expect(await cache.json(k, "live", async () => 7)).toBe(7);
+    await h.settle();
+
+    const load = failing(new UpstreamError("server"));
+    expect(await held(cache, k, load)).toBe(7);
+    expect(load).not.toHaveBeenCalled();
   });
 });

@@ -67,9 +67,13 @@ export interface CsvPage {
 /**
  * `ttl`: keep the answer this many seconds instead of the call's class's. It has a cache entry of its own (the key says so), so that an
  * answer kept longer for another caller is not what this one reads. The home page asks for `HOME_CALL_TTL_SECONDS`.
+ *
+ * `holdFailure`: remember this call's failure for a few seconds (`SubrequestOptions` in cache-class.ts). A page that polls asks for it on
+ * every call it makes. It is not part of the key.
  */
 export interface FreshOptions {
   ttl?: number;
+  holdFailure?: boolean;
 }
 
 export interface DataApi {
@@ -79,9 +83,9 @@ export interface DataApi {
    * A validated ledger by index, hash or date. `expand` adds its transactions in full, `transactions` their hashes
    * (`expand` wins). Either way `transactions` is always a list, empty for a ledger with no transactions.
    */
-  ledger(id: string, opts: { expand: true; transactions?: boolean }): Promise<LedgerExpanded>;
-  ledger(id: string, opts: { transactions: true; expand?: false }): Promise<LedgerWithHashes>;
-  ledger(id: string, opts?: { expand?: boolean; transactions?: boolean }): Promise<Ledger>;
+  ledger(id: string, opts: { expand: true; transactions?: boolean; holdFailure?: boolean }): Promise<LedgerExpanded>;
+  ledger(id: string, opts: { transactions: true; expand?: false; holdFailure?: boolean }): Promise<LedgerWithHashes>;
+  ledger(id: string, opts?: { expand?: boolean; transactions?: boolean; holdFailure?: boolean }): Promise<Ledger>;
   /**
    * One transaction by hash. An answer that is not a transaction of that hash, with its type, account and metadata, is an
    * `UpstreamError` of kind `server` (a 200 with the wrong content is the API failing), and is not stored.
@@ -178,8 +182,12 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     if (response.status >= 200 && response.status <= 299) return;
     const { status } = response;
     const reason = await reasonOf(response);
-    const kind = status === 404 ? "not_found" : status === 400 ? "bad_request" : status === 429 ? "rate_limited" : "server";
-    throw new UpstreamError(kind, `${what} answered ${status}${reason ? `: ${reason}` : ""}`, {
+    // The API's framework answers a path it has no route for with `Cannot GET …` (an API deployed without the sub-project that adds the route,
+    // spec 6.4). That is an outage and not a thing that does not exist: kind `server`, so never a stored 404 page, and held when the call asks.
+    // Every other 404, each route's own not-found message included, stays `not_found`. This is the one place that tells the two apart.
+    const missingRoute = status === 404 && reason?.startsWith("Cannot GET ") === true;
+    const kind = missingRoute ? "server" : status === 404 ? "not_found" : status === 400 ? "bad_request" : status === 429 ? "rate_limited" : "server";
+    throw new UpstreamError(kind, `${what} answered ${status}${reason ? `: ${reason}` : ""}${missingRoute ? " (the data API has no such route)" : ""}`, {
       status,
       retryAfter: retryAfterOf(response.headers),
     });
@@ -206,7 +214,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   /**
    * One cached GET. `template` is a key of `PATHS`' values, `params` fill its `{name}`s; with `unwrap`, the part
    * of the answer under that key is what is returned (and cached), otherwise the whole answer. `finish` shapes
-   * the unwrapped part before it is cached.
+   * the unwrapped part before it is cached. `holdFailure` is the cache's option (cache-class.ts), and no part of the key.
    */
   async function get<T>(
     template: (typeof PATHS)[keyof typeof PATHS],
@@ -216,6 +224,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     unwrap?: string,
     finish?: (part: T) => T,
     ttl?: number,
+    holdFailure?: boolean,
   ): Promise<T> {
     const path = template.replace(/\{(\w+)\}/g, (_match, name: string) => segment(name, params[name] ?? ""));
     const search = new URLSearchParams();
@@ -240,6 +249,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         return finish ? finish(part as T) : (part as T);
       },
       ttl,
+      { holdFailure },
     );
   }
 
@@ -284,7 +294,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
    * a page that took it for one would have every transaction of the ledger fail (and the answer would be stored for a year). The
    * list must be a list of hashes, or the answer is a failure (`checkLedgerHashes`) and nothing is stored.
    */
-  const ledger = (id: string, opts?: { expand?: boolean; transactions?: boolean }) => {
+  const ledger = (id: string, opts?: { expand?: boolean; transactions?: boolean; holdFailure?: boolean }) => {
     const withTransactions = Boolean(opts?.expand || opts?.transactions);
     const hashesOnly = Boolean(opts?.transactions && !opts.expand);
     return get<Ledger>(
@@ -301,13 +311,15 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         : withTransactions
           ? (found) => ({ ...found, transactions: found.transactions ?? [] })
           : undefined,
+      undefined,
+      opts?.holdFailure,
     );
   };
 
   return {
     // The home page follows the chain and asks for these three at `HOME_CALL_TTL_SECONDS` (`opts.ttl`); the ledger page (its Next at the
     // newest ledger) and the image route read `lastValidated` at its class, 5 s, and are not asked to be any fresher.
-    lastValidated: (opts) => get<LastValidated>(PATHS.lastValidated, {}, {}, "live", undefined, undefined, opts?.ttl),
+    lastValidated: (opts) => get<LastValidated>(PATHS.lastValidated, {}, {}, "live", undefined, undefined, opts?.ttl, opts?.holdFailure),
     // The overloads of the interface narrow `transactions` by the options; the answer is the same either way.
     ledger: ledger as DataApi["ledger"],
     // What the pages read of a transaction is checked inside the load, so that an answer that is not one is a failure and not stored.
@@ -322,7 +334,8 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         return found;
       }),
     // The TTL is for a first page only: a list reached with a marker, in either direction, is the class it has.
-    transactions: (q, opts) => get(PATHS.transactions, {}, listQuery(q), listClass(q), undefined, undefined, q.marker ? undefined : opts?.ttl),
+    transactions: (q, opts) =>
+      get(PATHS.transactions, {}, listQuery(q), listClass(q), undefined, undefined, q.marker ? undefined : opts?.ttl, opts?.holdFailure),
     account: (address) => get<AccountData>(PATHS.account, { address }, {}, "slow", "account_data"),
     balances: (address) => get(PATHS.balances, { address }, {}, "live"),
     orders: (address) => get(PATHS.orders, { address }, {}, "live"),
@@ -335,6 +348,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       if (q.marker) search.set("marker", q.marker);
       return fetchCsv(`${path}?${search}`);
     },
-    fees: (q, opts) => get(PATHS.fees, {}, { descending: q.descending, limit: q.limit }, "live", undefined, undefined, opts?.ttl),
+    fees: (q, opts) =>
+      get(PATHS.fees, {}, { descending: q.descending, limit: q.limit }, "live", undefined, undefined, opts?.ttl, opts?.holdFailure),
   };
 }

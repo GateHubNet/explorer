@@ -13,9 +13,18 @@
 import { data } from "react-router";
 import type { HeadersFunction } from "react-router";
 
-import { CACHE_CLASSES, type CacheClass, type SubrequestCache } from "./cache-class";
+import {
+  CACHE_CLASSES,
+  FAILURE_HOLD_KEYS,
+  FAILURE_HOLD_MAX_SECONDS,
+  FAILURE_HOLD_SECONDS,
+  type CacheClass,
+  type SubrequestCache,
+  type SubrequestOptions,
+} from "./cache-class";
 import { cacheGeneration, type Env } from "./env";
 import { logProblem } from "./logging";
+import { UpstreamError, type UpstreamErrorKind } from "./upstream";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Loaders and routes
@@ -133,16 +142,54 @@ async function subrequestKey(key: string, buildId: string): Promise<Request> {
   return new Request(`https://subrequest-cache.invalid/${encodeURIComponent(buildId)}/${hex}`);
 }
 
+/** The failures a call that asks for the hold remembers. A thing that is not there, or a request that was refused, is the answer and is not held. */
+const HELD_KINDS: ReadonlySet<UpstreamErrorKind> = new Set(["server", "timeout", "network", "rate_limited"]);
+
+/**
+ * The failure hold (spec 1.7): the errors of the calls that asked for it, by the subrequest key the client gave (so a key kept `[kept N s]` is its
+ * own), each until a time. Per Worker instance: it is a module's variable, shared by every request this instance serves, and it never goes into
+ * the Cache API. A `Map` keeps the order of insertion, which is the order of eviction.
+ */
+const heldFailures = new Map<string, { error: UpstreamError; until: number }>();
+
+/** Seconds a failure is held: its `Retry-After` for a 429 that gave one (at most `FAILURE_HOLD_MAX_SECONDS`), else `FAILURE_HOLD_SECONDS`. */
+function holdSeconds(error: UpstreamError): number {
+  return error.kind === "rate_limited" && error.retryAfter !== undefined
+    ? Math.min(error.retryAfter, FAILURE_HOLD_MAX_SECONDS)
+    : FAILURE_HOLD_SECONDS;
+}
+
+/** Runs `load` unless the key's failure is held, in which case that error is thrown again; remembers the failure of a `load` that fails. */
+async function loadHoldingFailures<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const held = heldFailures.get(key);
+  if (held && held.until > Date.now()) throw held.error;
+  try {
+    return await load();
+  } catch (error) {
+    if (error instanceof UpstreamError && HELD_KINDS.has(error.kind)) {
+      // Delete before setting, so that a key that fails again is the newest and not the next to go.
+      heldFailures.delete(key);
+      heldFailures.set(key, { error, until: Date.now() + holdSeconds(error) * 1000 });
+      while (heldFailures.size > FAILURE_HOLD_KEYS) heldFailures.delete(heldFailures.keys().next().value!);
+    }
+    throw error;
+  }
+}
+
 /**
  * The cache the data API and node clients keep their answers in, in the Cache API of the data centre, so every
  * request there shares it. The key is the clients' own (their full upstream URL, a node's with its JSON-RPC body)
  * plus the build ID; a `load` that throws stores nothing. The value is stored behind the answer, in `ctx.waitUntil`.
+ *
+ * With `opts.holdFailure` a call is also held to its failures (`SubrequestOptions`). The order is: the Cache API (a stored answer is the
+ * answer, whatever failed before), then a failure that is held, then `load`. That is the order for a call that is not kept (a TTL of zero) too.
  */
 export function createSubrequestCache(ctx: ExecutionContext, buildId: string): SubrequestCache {
   return {
-    async json<T>(key: string, cls: CacheClass, load: () => Promise<T>, ttlOverride?: number): Promise<T> {
+    async json<T>(key: string, cls: CacheClass, load: () => Promise<T>, ttlOverride?: number, opts?: SubrequestOptions): Promise<T> {
       const ttl = ttlOverride ?? CACHE_CLASSES[cls].edgeTtl;
-      if (!(ttl > 0)) return load();
+      const loadIt = opts?.holdFailure ? () => loadHoldingFailures(key, load) : load;
+      if (!(ttl > 0)) return loadIt();
 
       const cacheKey = await subrequestKey(key, buildId);
       const cache = caches.default;
@@ -154,7 +201,7 @@ export function createSubrequestCache(ctx: ExecutionContext, buildId: string): S
         logProblem("subrequest cache read failed", error);
       }
 
-      const value = await load();
+      const value = await loadIt();
 
       let body: string | undefined;
       try {

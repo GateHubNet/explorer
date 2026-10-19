@@ -42,12 +42,15 @@ function valueOf<T>(result: PromiseSettledResult<T>): T {
  * visitor's next try, and no request is left running behind a page that has already been answered. They are asked for at
  * `HOME_CALL_TTL_SECONDS` (2 s), a little longer than the page's 1 s at the edge, so that a refresh finds them warm. The ledger whose header
  * is read is `latestLedgerIndex`'s, so that the tiles and the hero say one ledger even when `last_validated` is ahead of the fees list.
+ * The page polls (an open tab asks again every 4 s), so all four calls ask for the failure hold: a failure of the data API is remembered for
+ * 5 s (a 429: its `Retry-After`) and thrown again without a call, instead of being asked again by every beat of every tab (spec 1.7).
  * The data carries the Worker's `BUILD_ID`, for an open page to tell a deploy (`home-live.ts`).
  */
 export async function loader({ params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
   const { api } = clientsFor(context, network);
-  const fresh = { ttl: HOME_CALL_TTL_SECONDS };
+  // The page polls, so every call of it holds its failure (spec 1.7): a failing upstream is not asked again by every beat of every open tab.
+  const fresh = { ttl: HOME_CALL_TTL_SECONDS, holdFailure: true };
 
   const [last, fees, transactions] = await Promise.allSettled([
     api.lastValidated(fresh),
@@ -55,7 +58,9 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     api.transactions({ descending: true, limit: LIST_SIZE }, fresh),
   ]).then((results) => [valueOf(results[0]), valueOf(results[1]), valueOf(results[2])] as const);
 
-  const ledger = await api.ledger(String(latestLedgerIndex(last, fees.rows))).catch((err: unknown) => upstreamOutage(err, WHAT));
+  const ledger = await api
+    .ledger(String(latestLedgerIndex(last, fees.rows)), { holdFailure: true })
+    .catch((err: unknown) => upstreamOutage(err, WHAT));
   const page = homePage({ network, ledger, fees: fees.rows, transactions: transactions.transactions });
   return cached({ ...page, build: getEnv(context).BUILD_ID } satisfies HomeLoaderData, "live-home");
 }

@@ -60,11 +60,31 @@ export const HOME_CALL_TTL_SECONDS = 2;
 export const MARKER_PAGE_CLASS: CacheClass = "slow";
 
 /**
+ * The failure hold (spec 1.7): how long a polled call's failure is remembered, in seconds. A `rate_limited` answer is held for its `Retry-After`
+ * instead, at most `FAILURE_HOLD_MAX_SECONDS`. The table keeps at most `FAILURE_HOLD_KEYS` keys, the oldest going first.
+ */
+export const FAILURE_HOLD_SECONDS = 5;
+export const FAILURE_HOLD_MAX_SECONDS = 30;
+export const FAILURE_HOLD_KEYS = 256;
+
+/** What a call may ask of the subrequest cache beyond its class and TTL. A later spec adds its options here (E4: `shareInFlight`). */
+export interface SubrequestOptions {
+  /**
+   * Hold this call's failure (spec 1.7): when `load` throws an `UpstreamError` of kind `server`, `timeout`, `network` or `rate_limited`, the error is
+   * remembered in memory, and for `FAILURE_HOLD_SECONDS` (a 429: its `Retry-After`, at most `FAILURE_HOLD_MAX_SECONDS`) a call for the same key with this
+   * option throws it again without calling `load`. A page that polls (an open tab asks again by itself) asks for it on every upstream call it makes,
+   * so that a failing upstream is not asked by every beat of every tab. It is not part of the key: a call that does not ask neither reads nor makes a
+   * hold. Never stored in the Cache API; never for `not_found` or `bad_request`.
+   */
+  holdFailure?: boolean;
+}
+
+/**
  * The cache the Worker keeps its data API and node answers in, so that pages share them (a ledger header
  * is read by the home page and by the ledger page). `load` runs on a miss; what it returns is stored under
  * `key` for the class's edge TTL, or for `ttlOverride` seconds. A `load` that throws stores nothing: an
- * error is never kept. Implemented in `edge-cache.ts`.
+ * error is never kept (`opts.holdFailure` remembers it for a few seconds, in memory). Implemented in `edge-cache.ts`.
  */
 export interface SubrequestCache {
-  json<T>(key: string, cls: CacheClass, load: () => Promise<T>, ttlOverride?: number): Promise<T>;
+  json<T>(key: string, cls: CacheClass, load: () => Promise<T>, ttlOverride?: number, opts?: SubrequestOptions): Promise<T>;
 }

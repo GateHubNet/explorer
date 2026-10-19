@@ -447,6 +447,84 @@ describe("errors", () => {
     expect(error).toBeInstanceOf(Error);
   });
 
+  // The data API's framework answers a path it has no route for (an API deployed without the sub-project that adds it) with this 404. It is
+  // the API missing, not a thing that does not exist: an outage (spec 6.4), never a stored 404 page.
+  it("a 404 'Cannot GET …' is server, whatever the route: the API has no such route", async () => {
+    const path = "/v2/network/fees?descending=true&limit=8";
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: `Cannot GET ${path}` }, { status: 404 }));
+
+    const error = await failureOf(api().fees({ descending: true, limit: 8 }));
+
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(404);
+    expect(error.message).toBe(`data API GET ${path} answered 404: Cannot GET ${path} (the data API has no such route)`);
+
+    // A route with an id in it too: the rule is about the message, not about which routes may be missing.
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: `Cannot GET /v2/transactions/${HASH}` }, { status: 404 }));
+    expect((await failureOf(api().transaction(HASH))).kind).toBe("server");
+  });
+
+  it.each([
+    ["ledger not found", () => api().ledger("1")],
+    ["Account not found", () => api().account(ACCOUNT)],
+    ["validation not found", () => api().ledger(HASH)],
+    ["transaction not found: Cannot GET", () => api().transaction(HASH)],
+  ])("a 404 '%s' is still not_found: only a message that starts with 'Cannot GET ' means a missing route", async (message, call) => {
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message }, { status: 404 }));
+
+    const error = await failureOf(call());
+
+    expect(error.kind).toBe("not_found");
+    expect(error.status).toBe(404);
+    expect(error.message).not.toContain("no such route");
+  });
+
+  it("a 404 without a message, or with one that is not text, is still not_found", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response("<html>Not Found</html>", { status: 404, headers: { "Content-Type": "text/html" } }));
+    expect((await failureOf(api().lastValidated())).kind).toBe("not_found");
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: { text: "Cannot GET /v2/last_validated" } }, { status: 404 }));
+    expect((await failureOf(api().lastValidated())).kind).toBe("not_found");
+  });
+
+  it("the words 'Cannot GET' make only a 404 the missing-route outage: any other status keeps its own kind", async () => {
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "Cannot GET /v2/last_validated" }, { status: 400 }));
+    expect((await failureOf(api().lastValidated())).kind).toBe("bad_request");
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "Cannot GET /v2/last_validated" }, { status: 500 }));
+    const error = await failureOf(api().lastValidated());
+    expect(error.kind).toBe("server");
+    expect(error.message).not.toContain("no such route");
+  });
+
+  describe("through the Worker's subrequest cache", () => {
+    // A host of its own for each case: this file's Cache API and the hold outlive a test.
+    const apiAt = (host: string) => {
+      const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+      return createDataApi(networkOf("xrpl", { ...env, XRPL_DATA_API_URL: `https://${host}.example.invalid` }), env, createSubrequestCache(ctx, "cannot-get"));
+    };
+    const cannotGet = async () => json({ result: "error", message: "Cannot GET /v2/last_validated" }, { status: 404 });
+
+    it("is never stored: the next call asks the API again", async () => {
+      fetchSpy.mockImplementation(cannotGet);
+      const api = apiAt("cannot-get-stored");
+
+      expect((await failureOf(api.lastValidated())).kind).toBe("server");
+      expect((await failureOf(api.lastValidated())).kind).toBe("server");
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("is held with holdFailure: one request, and both calls throw", async () => {
+      fetchSpy.mockImplementation(cannotGet);
+      const api = apiAt("cannot-get-held");
+
+      const first = await failureOf(api.lastValidated({ holdFailure: true }));
+      const second = await failureOf(api.lastValidated({ holdFailure: true }));
+
+      expect(first.kind).toBe("server");
+      expect(second).toBe(first);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("400 is bad_request", async () => {
     fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid marker" }, { status: 400 }));
 
@@ -632,6 +710,72 @@ describe("cache", () => {
     expect(cache.calls[0]!.ttlOverride).toBeUndefined();
     // The key is the request, so equal requests share an entry.
     expect(cache.calls[0]!.key).toContain(`${BASE}${c.url}`);
+  });
+
+  // The polling pages (the home page, the network page) ask for the failure hold on their calls (spec 1.7). It is the cache's option, not a part of
+  // the call's key: a call that asks and one that does not share their entries.
+  describe("the failure hold, which a polled call asks for", () => {
+    const answer = async (input: RequestInfo | URL) => {
+      const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
+      return json(
+        path.endsWith("/last_validated") ? lastValidatedBody : path.endsWith("/fees") ? feesBody : path.includes("/ledgers/") ? ledgerBody : transactionsBody,
+      );
+    };
+    const q = { descending: true, limit: 8 };
+
+    it("is passed to the cache by lastValidated, fees, transactions and ledger when asked, and by nothing else", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockImplementation(answer);
+      const api = createDataApi(xrpl, env, cache);
+
+      await api.lastValidated({ ttl: 2, holdFailure: true });
+      await api.fees(q, { holdFailure: true });
+      await api.transactions(q, { holdFailure: true });
+      await api.ledger("1", { holdFailure: true });
+      expect(cache.calls.map((call) => call.holdFailure)).toEqual([true, true, true, true]);
+      expect(cache.calls[0]!.ttlOverride).toBe(2);
+
+      cache.calls.length = 0;
+      await api.lastValidated({ ttl: 2 });
+      await api.fees(q, { ttl: 2 });
+      await api.transactions(q);
+      await api.ledger("1");
+      await api.lastValidated({ holdFailure: false });
+      expect(cache.calls.map((call) => "holdFailure" in call)).toEqual([false, false, false, false, false]);
+    });
+
+    it("is not part of a key: the same call, with it and without, is the same entry", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockImplementation(answer);
+      const api = createDataApi(xrpl, env, cache);
+
+      await api.lastValidated({ ttl: 2 });
+      await api.lastValidated({ ttl: 2, holdFailure: true });
+      await api.fees(q);
+      await api.fees(q, { holdFailure: true });
+      await api.transactions(q);
+      await api.transactions(q, { holdFailure: true });
+      await api.ledger("1");
+      await api.ledger("1", { holdFailure: true });
+
+      const keys = cache.calls.map((call) => call.key);
+      expect(keys[0]).toBe(keys[1]);
+      expect(keys[2]).toBe(keys[3]);
+      expect(keys[4]).toBe(keys[5]);
+      expect(keys[6]).toBe(keys[7]);
+      expect(new Set(keys).size).toBe(4);
+    });
+
+    it("is passed on for a page after a marker too, whose TTL it ignores", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockImplementation(answer);
+
+      await createDataApi(xrpl, env, cache).transactions({ ...q, marker: "m" }, { ttl: 2, holdFailure: true });
+
+      expect(cache.calls).toHaveLength(1);
+      expect(cache.calls[0]!.ttlOverride).toBeUndefined();
+      expect(cache.calls[0]!.holdFailure).toBe(true);
+    });
   });
 
   it("a page after a marker is kept longer than a first page only when the list is newest first", async () => {

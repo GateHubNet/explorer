@@ -21,7 +21,8 @@ export type UpstreamErrorKind =
   | "network";
 
 /**
- * A failed call to the data API or to a node. Never cached: a `SubrequestCache` stores only what `load` returns.
+ * A failed call to the data API or to a node. Never cached: a `SubrequestCache` stores only what `load` returns. (A call that asks for the
+ * failure hold has its error remembered in memory for a few seconds, never in the Cache API: `SubrequestOptions` in cache-class.ts.)
  * Loaders turn it into a 404 page (`not_found`), a stale copy or a 503 page with `Retry-After` (the rest, see spec 10).
  */
 export class UpstreamError extends Error {

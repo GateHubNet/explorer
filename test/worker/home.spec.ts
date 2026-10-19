@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
 import { shortAddress, shortHash } from "../../app/domain/format";
@@ -13,13 +13,26 @@ import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages"
 // Everything a Worker stores in the Cache API stays there for the rest of the file, subrequests included, and an error is
 // never stored: so the failing request goes first, before any test has put its answer in the cache, and each test asks for
 // its own URL (the query string is part of the edge cache key; the page ignores it).
+//
+// The page holds a failed call for 5 s (spec 1.7: it polls), so the test that fails `fees` would hold it for the XRPL tests after it. The hold
+// reads `Date` only, so `Date` alone is faked here (the Cache API and the streams need the real timers) and moved past the hold after each test.
 
 const { page, get, storedAs } = pageClient("198.51.100");
 
 let mock: UpstreamMock | undefined;
+
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+});
+
 afterEach(() => {
   mock?.restore();
   mock = undefined;
+  vi.setSystemTime(Date.now() + 31_000);
+});
+
+afterAll(() => {
+  vi.useRealTimers();
 });
 
 describe("when the data API fails", () => {

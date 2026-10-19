@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CACHE_CLASSES, type CacheClass } from "./cache-class";
+import { CACHE_CLASSES, FAILURE_HOLD_KEYS, FAILURE_HOLD_MAX_SECONDS, FAILURE_HOLD_SECONDS, type CacheClass } from "./cache-class";
 
 describe("CACHE_CLASSES", () => {
   it("holds the five classes, with the TTLs and Cache-Control values of the design (spec 4)", () => {
@@ -25,5 +25,13 @@ describe("CACHE_CLASSES", () => {
       slow: { edgeTtl: 3600, swr: 0, browser: { html: "max-age=300", image: "max-age=300" } },
       short: { edgeTtl: 30, swr: 0, browser: { html: "max-age=0", image: "max-age=0" } },
     } satisfies Record<CacheClass, unknown>);
+  });
+});
+
+describe("the failure hold", () => {
+  it("is 5 s, at most 30 s for a Retry-After, and at most 256 keys (spec 1.7)", () => {
+    expect(FAILURE_HOLD_SECONDS).toBe(5);
+    expect(FAILURE_HOLD_MAX_SECONDS).toBe(30);
+    expect(FAILURE_HOLD_KEYS).toBe(256);
   });
 });
