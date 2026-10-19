@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 // What the stylesheet of the chart kit (app/ui/charts.css) must keep, rule by rule: the card's toggle works without script and without
 // hiding anything from a browser that cannot do it, targets are 44 px, a refetching page dims its charts, and under forced colours the
-// marks and the legend's keys keep their colours, since that is all they say. Every later task of the kit adds the rules of its own marks.
+// marks and the legend's keys keep their colours, since that is all they say. The plot has its frame here: the gridlines, the labels, the
+// heights, the cursor and its ring. Every later task of the kit adds the rules of its own marks.
 
 const read = (name: string) => readFileSync(new URL(`../../app/ui/${name}`, import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const chartsCss = read("charts.css");
@@ -82,6 +83,9 @@ function parse(css: string, at: string[] = []): Rule[] {
 }
 
 const SUPPORTS_HAS = "@supports selector(:has(*))";
+/** The card is the container; a plot narrower than this has fewer labels and a lower height (spec 2.7). */
+const NARROW = "@container (width < 480px)";
+const REDUCED = "@media (prefers-reduced-motion: reduce)";
 
 /** The declarations of the rules for exactly `selector`, in the at-rules `at` (none by default), later ones over earlier ones. */
 function rule(css: string, selector: string, at: string[] = []): Record<string, string> {
@@ -203,5 +207,150 @@ describe("the tables of the charts (components.css)", () => {
   it("keeps the header row in view inside a region with a height cap, on an opaque ground", () => {
     expect(rule(componentsCss, ".table-scroll--capped")["overflow-y"]).toBe("auto");
     expect(rule(componentsCss, ".table-scroll--capped .table__head")).toMatchObject({ position: "sticky", top: "0", background: "var(--surface)" });
+  });
+});
+
+describe("the plot", () => {
+  it("is 200 px high, and 160 px under a 480 px container (geometry.ts: PLOT_HEIGHT)", () => {
+    expect(rule(chartsCss, ".plot").height).toBe("200px");
+    expect(rule(chartsCss, ".plot", [NARROW]).height).toBe("160px");
+  });
+
+  it("has the gutters of the y labels and the end labels as high as the plot, at every width, so that a label is level with its line", () => {
+    for (const selector of [".plot__y", ".plot__end"]) {
+      expect(rule(chartsCss, selector).height, selector).toBe("200px");
+      expect(rule(chartsCss, selector, [NARROW]).height, selector).toBe("160px");
+    }
+    // Not stretched to the region beside them, which a scrollbar can make higher than the plot.
+    expect(rule(chartsCss, ".plot__frame")["align-items"]).toBe("flex-start");
+  });
+
+  it("is 64 px for the volume pane and 110 px for a small multiple at any width, in the plot and in the gutters", () => {
+    for (const [kind, px] of [["pane", "64px"], ["panel", "110px"]] as const) {
+      const selector = `.plot__frame--${kind} :is(.plot, .plot__y, .plot__end)`;
+      expect(rule(chartsCss, selector).height, kind).toBe(px);
+      // Over the container's rule by specificity, not by where it is written.
+      expect(parse(chartsCss).filter((r) => r.selectors.includes(selector) && r.at.length > 0), kind).toEqual([]);
+    }
+  });
+
+  it("is a box that its marks and labels are positioned in", () => {
+    expect(rule(chartsCss, ".plot").position).toBe("relative");
+    expect(rule(chartsCss, ".plot__marks").position).toBe("absolute");
+  });
+
+  it("draws a gridline of 1 px --grid, and the 0 line in --axis", () => {
+    expect(rule(chartsCss, ".plot__grid")["border-top"]).toBe("1px solid var(--grid)");
+    expect(rule(chartsCss, ".plot__grid.is-base")["border-top-color"]).toBe("var(--axis)");
+  });
+
+  it("puts the y labels in a gutter of the longest label's characters and 8 px, sized with nothing measured", () => {
+    expect(rule(chartsCss, ".plot__y").width).toBe("calc(var(--chars) * 1ch + 8px)");
+    expect(rule(chartsCss, ".plot__y")["font-variant-numeric"]).toBe("tabular-nums");
+    expect(rule(chartsCss, ".plot__y")["font-size"]).toBe("11px");
+    expect(rule(chartsCss, ".plot__y")["color"]).toBe("var(--faint)");
+    expect(rule(chartsCss, ".plot__y span")["transform"]).toBe("translateY(50%)");
+  });
+
+  it("shows the wide set of x labels, and the narrow set under a 480 px container", () => {
+    expect(rule(chartsCss, ".plot__x--narrow").display).toBe("none");
+    // The wide set is the default, so a browser without container queries still has labels.
+    expect(parse(chartsCss).filter((r) => r.selectors.includes(".plot__x--wide") && r.at.length === 0)).toEqual([]);
+    expect(rule(chartsCss, ".plot__x--wide", [NARROW]).display).toBe("none");
+    expect(rule(chartsCss, ".plot__x--narrow", [NARROW]).display).toBe("block");
+  });
+
+  it("writes the x labels in --faint 11 px, centred on their place", () => {
+    expect(rule(chartsCss, ".plot__x")).toMatchObject({ color: "var(--faint)", "font-size": "11px", position: "absolute" });
+    expect(rule(chartsCss, ".plot__x span")).toMatchObject({ transform: "translateX(-50%)", "white-space": "nowrap" });
+  });
+
+  it("scrolls sideways for slots only, in a region whose focus ring is drawn inside it", () => {
+    expect(rule(chartsCss, ".plot__scroll")["overflow-x"]).toBeUndefined();
+    expect(rule(chartsCss, ".plot__scroll--slots")["overflow-x"]).toBe("auto");
+    expect(rule(chartsCss, ".plot__scroll--slots")["overflow-y"]).toBe("hidden");
+    expect(rule(chartsCss, ".plot__scroll:focus-visible")["outline-offset"]).toBe("-2px");
+  });
+
+  it("leaves room in the scroll region for the ring, which it would clip, without moving the plot", () => {
+    const region = rule(chartsCss, ".plot__scroll--slots");
+    expect(region.margin).toBe("-3px");
+    expect(region.padding).toBe("3px 3px calc(var(--x-band) + 3px)");
+  });
+
+  it("leaves the end labels' gutter out under a 480 px container (its width is Plot's, from END_LABEL_GUTTER_PX)", () => {
+    expect(rule(chartsCss, ".plot__end", [NARROW]).display).toBe("none");
+    expect(rule(chartsCss, ".plot__end").flex).toBe("none");
+  });
+
+  it("leaves the room of the x labels under the plot, in the region that scrolls with them", () => {
+    expect(rule(chartsCss, ".plot__scroll")["padding-bottom"]).toBe("var(--x-band)");
+    expect(rule(chartsCss, ".plot__x").height).toBe("var(--x-band)");
+    expect(rule(chartsCss, ".plot__frame")["--x-band"]).toBe("24px");
+  });
+
+  it("centres the empty text in --muted", () => {
+    expect(rule(chartsCss, ".plot__empty")).toMatchObject({ position: "absolute", color: "var(--muted)", "text-align": "center" });
+  });
+});
+
+describe("the cursor", () => {
+  it("lets a finger scroll the page up and down and takes the sideways drag", () => {
+    expect(rule(chartsCss, ".plot__cursor")["touch-action"]).toBe("pan-y");
+  });
+
+  it("covers the whole plot, a hit area larger than any mark", () => {
+    expect(rule(chartsCss, ".plot__cursor")).toMatchObject({ position: "absolute", inset: "0" });
+  });
+
+  it("draws its focus ring inside, where a scroll region or the card around the plot does not clip it", () => {
+    expect(rule(chartsCss, ".plot__cursor:focus-visible")["outline-offset"]).toBe("-2px");
+  });
+
+  it("draws a crosshair of 1 px --border-strong", () => {
+    expect(rule(chartsCss, ".plot__crosshair")).toMatchObject({ width: "1px", background: "var(--border-strong)" });
+  });
+
+  it("draws a dot of 8 px in its slot's colour, with a ring of 2 px --surface", () => {
+    expect(rule(chartsCss, ".plot__dot")).toMatchObject({
+      width: "8px",
+      height: "8px",
+      "border-radius": "50%",
+      background: "var(--mark)",
+      "box-shadow": "0 0 0 2px var(--surface)",
+    });
+  });
+
+  it("keeps the crosshair, the dots and the tooltip from taking the pointer", () => {
+    for (const selector of [".plot__crosshair", ".plot__dot", ".plot__tip"]) expect(rule(chartsCss, selector)["pointer-events"], selector).toBe("none");
+  });
+
+  it("opens the tooltip at most min(260px, 90%) wide, on the right, on the left, or centred", () => {
+    expect(rule(chartsCss, ".plot__tip")["max-width"]).toBe("min(260px, 90%)");
+    expect(rule(chartsCss, ".plot__tip")["position"]).toBe("absolute");
+    expect(rule(chartsCss, ".plot__tip.right").transform).toBe("translateX(8px)");
+    expect(rule(chartsCss, ".plot__tip.left").transform).toBe("translateX(calc(-100% - 8px))");
+    expect(rule(chartsCss, ".plot__tip.center").transform).toBe("translateX(-50%)");
+  });
+
+  it("keeps the dots' colours under forced colours, as identity is all they say", () => {
+    expect(rule(chartsCss, ".plot__dot", ["@media (forced-colors: active)"])["forced-color-adjust"]).toBe("none");
+  });
+});
+
+describe("the ring after a change", () => {
+  it("is the figure mark of the live values: value-mark, 1200 ms, once", () => {
+    expect(rule(chartsCss, ".plot.is-changed").animation).toBe("value-mark 1200ms ease-out");
+    expect(parse(componentsCss).some((r) => r.selectors.includes("@keyframes value-mark"))).toBe(true);
+  });
+
+  it("stays under prefers-reduced-motion: reduce, a colour that fades and nothing that moves", () => {
+    expect(rule(chartsCss, ".plot.is-changed", [REDUCED]).animation).toBe("value-mark 1200ms ease-out !important");
+  });
+
+  it("is outside the plot, and never moves it", () => {
+    const frames = /@keyframes value-mark\s*\{[^]*?\}\s*\}/.exec(readFileSync(new URL("../../app/ui/components.css", import.meta.url), "utf8"))![0];
+    expect(frames).toContain("box-shadow: 0 0 0 3px");
+    expect(frames).not.toMatch(/transform|top|left|width|height/);
   });
 });

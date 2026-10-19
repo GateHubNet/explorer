@@ -237,12 +237,255 @@
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
-   Forced colours (spec 2.10): the keys keep their own colours, since identity is all they say; the table view stays for the rest. The
-   checked segment is the system's highlight, as a background drawn in the page's colours would be gone. */
+   The plot (Plot): the frame every plotted form draws its marks in. Three columns: the y labels, the plot with its x labels, the end
+   labels. The plot and the two gutters have one height, so that a label is level with its line; the x labels are in the 24 px band under
+   the plot, and a scrollbar under that is not the gutters' business. Everything inside the plot is positioned in percent, by the style
+   the Worker prints. */
+
+.plot__frame {
+  --x-band: 24px;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.plot,
+.plot__y,
+.plot__end {
+  height: 200px;
+}
+
+.plot__scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-bottom: var(--x-band);
+}
+
+/* The plot of columns that are at least 5 px each is as wide as they are (the style has its min-width) and scrolls sideways in here, x labels
+   with it; the y labels do not. The region clips what is outside its padding box, which the ring of a change would be: the padding gives
+   it room, and the margin takes the room back, so that the plot is where it was. */
+.plot__scroll--slots {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: -3px;
+  padding: 3px 3px calc(var(--x-band) + 3px);
+}
+
+/* A keyboard scrolls the region, and the card around it clips a ring drawn outside: the ring is drawn inside, as the table's is. */
+.plot__scroll:focus-visible {
+  outline-offset: -2px;
+}
+
+.plot {
+  position: relative;
+}
+
+/* The y labels: the gutter is as wide as the longest label has characters, and 8 px (spec 2.4), so nothing is measured. */
+.plot__y {
+  position: relative;
+  flex: none;
+  width: calc(var(--chars) * 1ch + 8px);
+  color: var(--faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plot__y span {
+  position: absolute;
+  right: 8px;
+  transform: translateY(50%);
+  white-space: nowrap;
+}
+
+.plot__y--right span {
+  right: auto;
+  left: 8px;
+}
+
+/* The room for a line's end labels, which the forms place in it. Its width is END_LABEL_GUTTER_PX, which Plot sets. */
+.plot__end {
+  position: relative;
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plot__grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--grid);
+}
+
+.plot__grid.is-base {
+  border-top-color: var(--axis);
+}
+
+/* The marks are in the image box, and the forms lay them out in the second box, which is the plot's own size. */
+.plot__marks,
+.plot__marks-in {
+  position: absolute;
+  inset: 0;
+}
+
+.plot__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Both sets of x labels are in the HTML, and the card's width shows one: the Worker cannot know it. */
+.plot__x {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: var(--x-band);
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.plot__x span {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.plot__x--narrow {
+  display: none;
+}
+
+/* Under 480 px of card (spec 2.7): a plot of 160 px with three x labels, and no room for the end labels (the legend and the tooltip say them). */
+@container (width < 480px) {
+  .plot,
+  .plot__y,
+  .plot__end {
+    height: 160px;
+  }
+
+  .plot__x--wide {
+    display: none;
+  }
+
+  .plot__x--narrow {
+    display: block;
+  }
+
+  .plot__end {
+    display: none;
+  }
+}
+
+/* The volume pane under the candles, and a small multiple: their own heights at any width, which they win over the rules above for
+   having a class more. The frame says which it is, since the gutters are beside the plot and not in it. */
+.plot__frame--pane :is(.plot, .plot__y, .plot__end) {
+  height: 64px;
+}
+
+.plot__frame--panel :is(.plot, .plot__y, .plot__end) {
+  height: 110px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   The cursor (Cursor): a transparent slider over the whole plot, which is its hit area, and what it shows at the bucket. It is not in the
+   HTML the Worker prints; the style is the same for it, and it is drawn in the plot's own box. */
+
+.plot__cursor {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The ring is drawn inside the plot: the region around it, or the card, would clip one outside. */
+.plot__cursor:focus-visible {
+  outline-offset: -2px;
+}
+
+.plot__crosshair {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-strong);
+  pointer-events: none;
+}
+
+/* A dot wears the colour of its slot, with a ring in the card's own colour that sets it off from a line under it. */
+.plot__dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mark);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translate(-50%, 50%);
+  pointer-events: none;
+}
+
+/* The tooltip opens to the right of the cursor near the start of the plot, to the left near the end, and is centred between (the cursor
+   picks the class, from tooltipSide). It is as wide as its content, to a limit. */
+.plot__tip {
+  position: absolute;
+  z-index: 3;
+  top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: min(260px, 90%);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.plot__tip.right {
+  transform: translateX(8px);
+}
+
+.plot__tip.left {
+  transform: translateX(calc(-100% - 8px));
+}
+
+.plot__tip.center {
+  transform: translateX(-50%);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   A chart that a beat of the page redrew gets the ring of a changed figure (value-mark, components.css): 3 px of the accent outside the
+   plot, fading out in 1.2 s. The marks do not move. */
+
+.plot.is-changed {
+  animation: value-mark 1200ms ease-out;
+}
+
+/* base.css turns every animation off for this setting, `!important` on `*`. The ring is a colour that fades, once, with nothing moving, so
+   it stays, as the changed figure's does. */
+@media (prefers-reduced-motion: reduce) {
+  .plot.is-changed {
+    animation: value-mark 1200ms ease-out !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Forced colours (spec 2.10): the keys and the dots keep their own colours, since identity is all they say; the table view stays for the
+   rest. The checked segment is the system's highlight, as a background drawn in the page's colours would be gone. */
 
 @media (forced-colors: active) {
   .legend__swatch,
-  .legend__line {
+  .legend__line,
+  .plot__dot {
     forced-color-adjust: none;
   }
 
