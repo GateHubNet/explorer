@@ -152,10 +152,13 @@ const HELD_KINDS: ReadonlySet<UpstreamErrorKind> = new Set(["server", "timeout",
  */
 const heldFailures = new Map<string, { error: UpstreamError; until: number }>();
 
-/** Seconds a failure is held: its `Retry-After` for a 429 that gave one (at most `FAILURE_HOLD_MAX_SECONDS`), else `FAILURE_HOLD_SECONDS`. */
+/**
+ * Seconds a failure is held: `FAILURE_HOLD_SECONDS`, or for a 429 that gave a `Retry-After` that many seconds, at most `FAILURE_HOLD_MAX_SECONDS`
+ * and never less than `FAILURE_HOLD_SECONDS`: a rate-limited upstream is held at least as long as any other failure.
+ */
 function holdSeconds(error: UpstreamError): number {
   return error.kind === "rate_limited" && error.retryAfter !== undefined
-    ? Math.min(error.retryAfter, FAILURE_HOLD_MAX_SECONDS)
+    ? Math.max(FAILURE_HOLD_SECONDS, Math.min(error.retryAfter, FAILURE_HOLD_MAX_SECONDS))
     : FAILURE_HOLD_SECONDS;
 }
 

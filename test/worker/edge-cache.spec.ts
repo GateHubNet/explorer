@@ -1662,6 +1662,21 @@ describe("the failure hold", () => {
     expect(long).toHaveBeenCalledTimes(2);
   });
 
+  // A 429 is held at least as long as any other failure: a Retry-After of 0 or 1 s must not leave a failing upstream open to every beat.
+  it.each([0, 1])("holds a rate-limited answer with a Retry-After of %i s for 5 s, as long as any other failure", async (retryAfter) => {
+    const cache = createSubrequestCache(harness().ctx, "build-1");
+    const load = failing(new UpstreamError("rate_limited", "x", { retryAfter }));
+    const k = key(`retry-${retryAfter}`);
+
+    await expect(held(cache, k, load)).rejects.toThrow("x");
+    advance(4_999);
+    await expect(held(cache, k, load)).rejects.toThrow("x");
+    expect(load).toHaveBeenCalledTimes(1);
+    advance(2);
+    await expect(held(cache, k, load)).rejects.toThrow("x");
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
   it("never holds a thing that is not there, a request that was refused, or an error that is not an upstream's", async () => {
     const cache = createSubrequestCache(harness().ctx, "build-1");
     for (const error of [new UpstreamError("not_found"), new UpstreamError("bad_request"), new TypeError("a bug")]) {

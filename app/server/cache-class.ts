@@ -61,7 +61,7 @@ export const MARKER_PAGE_CLASS: CacheClass = "slow";
 
 /**
  * The failure hold (spec 1.7): how long a polled call's failure is remembered, in seconds. A `rate_limited` answer is held for its `Retry-After`
- * instead, at most `FAILURE_HOLD_MAX_SECONDS`. The table keeps at most `FAILURE_HOLD_KEYS` keys, the oldest going first.
+ * instead, at most `FAILURE_HOLD_MAX_SECONDS` and at least `FAILURE_HOLD_SECONDS`. The table keeps at most `FAILURE_HOLD_KEYS` keys, the oldest going first.
  */
 export const FAILURE_HOLD_SECONDS = 5;
 export const FAILURE_HOLD_MAX_SECONDS = 30;
@@ -71,7 +71,7 @@ export const FAILURE_HOLD_KEYS = 256;
 export interface SubrequestOptions {
   /**
    * Hold this call's failure (spec 1.7): when `load` throws an `UpstreamError` of kind `server`, `timeout`, `network` or `rate_limited`, the error is
-   * remembered in memory, and for `FAILURE_HOLD_SECONDS` (a 429: its `Retry-After`, at most `FAILURE_HOLD_MAX_SECONDS`) a call for the same key with this
+   * remembered in memory, and for `FAILURE_HOLD_SECONDS` (a 429: its `Retry-After`, from `FAILURE_HOLD_SECONDS` to `FAILURE_HOLD_MAX_SECONDS`) a call for the same key with this
    * option throws it again without calling `load`. A page that polls (an open tab asks again by itself) asks for it on every upstream call it makes,
    * so that a failing upstream is not asked by every beat of every tab. It is not part of the key: a call that does not ask neither reads nor makes a
    * hold. Never stored in the Cache API; never for `not_found` or `bad_request`.
