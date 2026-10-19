@@ -21,10 +21,11 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
     browser: { html: "max-age=60", image: "max-age=31536000, immutable" },
   },
   /**
-   * The home page. A ledger closes every 3-4 s and the open page follows the chain (see `use-live-refresh.ts`): 1 s fresh, then 2 s during
-   * which the stored copy is served while one render refreshes it, so a reload never shows a copy much older than one ledger. At the owner's
-   * request; spec 4 had 3 s + 30 s. (A copy older than 3 s is not served: the visitor waits for a render. A failing render is still
-   * replaced by the stored copy, of any age.) The calls the page is built from are kept `HOME_CALL_TTL_SECONDS`, below.
+   * The home page, the network page, and their `.data` URLs. A ledger closes every 3-4 s and an open page follows the chain (see
+   * `use-live-refresh.ts`): 1 s fresh, then 2 s during which the stored copy is served while one render refreshes it, so a reload never shows
+   * a copy much older than one ledger. At the owner's request; spec 4 had 3 s + 30 s. (A copy older than 3 s is not served: the visitor waits
+   * for a render. A failing render is still replaced by the stored copy, of any age.) The home page's calls are kept `HOME_CALL_TTL_SECONDS`,
+   * below, and the network page's calls over a period `PERIOD_CALL_TTL_SECONDS`.
    */
   "live-home": { edgeTtl: 1, swr: 2, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** The newest ledger, an account's live state, the first page of a list. */
@@ -42,6 +43,14 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
  * little. The home loader asks for it (`{ ttl }` on those calls); every other caller keeps the class's 5 s and its own cache entry.
  */
 export const HOME_CALL_TTL_SECONDS = 2;
+
+/**
+ * How long the network page keeps the calls it makes over a period (`stats`, `fees` by day and the three volumes: class `slow`, which would
+ * keep them an hour) in the subrequest cache. Their keys change once a day, when the index day does. The running bucket moves on within the day,
+ * and the API's aggregator can still finalise the newest closed day in the first hour or two after midnight UTC: 5 minutes bound how late either
+ * shows. The network loader asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }` on them, and so has cache entries of its own (the key says `[kept 300 s]`).
+ */
+export const PERIOD_CALL_TTL_SECONDS = 300;
 
 /**
  * The class of a list page reached with a marker, and of the account page that shows it. A DELIBERATE DEVIATION from spec 2, which has

@@ -10,6 +10,7 @@
     "test/support/fixture-server.ts",
     "test/support/switches.ts",
     "app/server/api-types.ts",
+    "app/server/pending-paths.ts",
     "app/ui/features.ts",
     "app/domain/parse/types.ts"
   ],

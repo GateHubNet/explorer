@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CACHE_CLASSES, FAILURE_HOLD_KEYS, FAILURE_HOLD_MAX_SECONDS, FAILURE_HOLD_SECONDS, type CacheClass } from "./cache-class";
+import { CACHE_CLASSES, FAILURE_HOLD_KEYS, FAILURE_HOLD_MAX_SECONDS, FAILURE_HOLD_SECONDS, PERIOD_CALL_TTL_SECONDS, type CacheClass } from "./cache-class";
 
 describe("CACHE_CLASSES", () => {
   it("holds the five classes, with the TTLs and Cache-Control values of the design (spec 4)", () => {
@@ -33,5 +33,12 @@ describe("the failure hold", () => {
     expect(FAILURE_HOLD_SECONDS).toBe(5);
     expect(FAILURE_HOLD_MAX_SECONDS).toBe(30);
     expect(FAILURE_HOLD_KEYS).toBe(256);
+  });
+});
+
+describe("PERIOD_CALL_TTL_SECONDS", () => {
+  it("is 300 s (spec 1.4): the network page's calls over a period are kept that long, in a class that would keep them an hour", () => {
+    expect(PERIOD_CALL_TTL_SECONDS).toBe(300);
+    expect(PERIOD_CALL_TTL_SECONDS).toBeLessThan(CACHE_CLASSES.slow.edgeTtl);
   });
 });

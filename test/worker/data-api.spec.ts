@@ -1,8 +1,20 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type MockInstance } from "vitest";
 
-import type { TxObject } from "../../app/server/api-types";
-import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS, type CacheClass } from "../../app/server/cache-class";
-import { createDataApi, UpstreamError, type DataApi } from "../../app/server/data-api";
+import type {
+  AmmVolumeComponent,
+  ExchangeVolumeComponent,
+  FeeBucketRow,
+  FeeRow,
+  FeeStatsRow,
+  LedgerValidations,
+  Page,
+  PaymentVolumeComponent,
+  StatsRow,
+  TxObject,
+  VolumeRow,
+} from "../../app/server/api-types";
+import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS, PERIOD_CALL_TTL_SECONDS, type CacheClass } from "../../app/server/cache-class";
+import { createDataApi, UpstreamError, type DataApi, type FreshOptions } from "../../app/server/data-api";
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
@@ -137,9 +149,111 @@ const feesBody = {
   ],
 };
 
+// The calls of the network page. Bodies in the shapes of the reference's sections "Network", "Validations" and "Stats", and of "amm_volume" on feat/amm-data.
+const statsTypeBody = {
+  result: "success",
+  count: 2,
+  stats: [
+    { OfferCreate: 4000, Payment: 3000, date: "2026-10-16T00:00:00Z" },
+    { OfferCreate: 3800, Payment: 3100, TrustSet: 12, date: "2026-10-17T00:00:00Z" },
+  ],
+};
+const statsMetricBody = {
+  result: "success",
+  count: 1,
+  stats: [{ accounts_created: 12, date: "2026-10-17T00:00:00Z", ledger_count: 24000, payments_count: 2900, transaction_count: 7000 }],
+};
+const feeBucketsBody = {
+  result: "success",
+  count: 2,
+  rows: [
+    { avg: 0.010615, max: 0.011, min: 0.00001, total: 0.138, tx_count: 13, date: "2026-10-16T00:00:00Z" },
+    { avg: 0.00001, max: 0.00001, min: 0.00001, total: 0.0001, tx_count: 10, date: "2026-10-17T00:00:00Z" },
+  ],
+};
+const feeStatsBody = {
+  result: "success",
+  count: 1,
+  rows: [
+    {
+      current_ledger_size: 54,
+      current_queue_size: 0,
+      date: "2026-10-17T12:00:05Z",
+      expected_ledger_size: 53,
+      median_fee: 0.000005,
+      minimum_fee: 0.00001,
+      open_ledger_fee: 0.00001,
+      pct_max_queue_size: 0,
+    },
+  ],
+};
+const USD_ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+const LEDGER_HASH = "68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092";
+const volumeRow = (components: unknown[]) => ({
+  components,
+  count: 120,
+  exchange: { currency: "XRP" },
+  total: "45454.545",
+  exchange_rate: "1.0000000",
+  start_time: "2026-10-16T00:00:00Z",
+  end_time: "2026-10-17T00:00:00Z",
+});
+const paymentVolumeBody = {
+  result: "success",
+  count: 1,
+  rows: [volumeRow([{ currency: "USD", issuer: USD_ISSUER, amount: "5000", count: 100, rate: "0.0090909091", converted_amount: "45454.545" }])],
+};
+const exchangeVolumeBody = {
+  result: "success",
+  count: 1,
+  rows: [
+    volumeRow([
+      { count: 120, rate: "0.0090909091", amount: "5000", base: { currency: "USD", issuer: USD_ISSUER }, counter: { currency: "XRP" }, converted_amount: "45454.545" },
+    ]),
+  ],
+};
+const ammVolumeBody = {
+  result: "success",
+  count: 1,
+  rows: [
+    volumeRow([
+      {
+        amm_account: "rhWj9gtLMopk5vs8Hwuw5kVRLEuPGnq3Yi",
+        base: { currency: "USD", issuer: USD_ISSUER },
+        counter: { currency: "XRP" },
+        count: 31,
+        amount: "1500.25",
+        rate: "0.5",
+        converted_amount: "3000.5",
+      },
+    ]),
+  ],
+};
+const validationsBody = {
+  result: "success",
+  ledger_hash: LEDGER_HASH,
+  count: 1,
+  validations: [
+    {
+      count: 3,
+      first_datetime: "2026-10-16T12:00:01.123Z",
+      flags: "2147483649",
+      full: "true",
+      last_datetime: "2026-10-16T12:00:02.456Z",
+      ledger_hash: LEDGER_HASH,
+      ledger_index: "107695660",
+      reporter_public_key: "n9KDJnd1X4fG7sdzDV7SWGnkJ2YsqnEcnXJ3GMBGX1kJUVHJr3NP",
+      signing_time: "814567890",
+      validation_public_key: "n9KDJnd1X4fG7sdzDV7SWGnkJ2YsqnEcnXJ3GMBGX1kJUVHJr3NP",
+    },
+  ],
+};
+/** The window the network page asks for on 2026-10-17 (the index day): 30 days of buckets, up to and with that day. */
+const PERIOD = { start: "2026-09-18", end: "2026-10-17" };
+
 type Case = {
   name: string;
-  call: (api: DataApi) => Promise<unknown>;
+  call: (api: DataApi, opts?: FreshOptions) => Promise<unknown>;
   /** Path and query of the request, after the host. */
   url: string;
   /** What the data API answers. */
@@ -148,6 +262,8 @@ type Case = {
   result: unknown;
   /** The cache class the answer is stored under. */
   cls: CacheClass;
+  /** The call takes the options every call of a polled page does (`FreshOptions`) and passes them on. */
+  fresh?: true;
 };
 
 const cases: Case[] = [
@@ -302,6 +418,107 @@ const cases: Case[] = [
     body: feesBody,
     result: feesBody,
   },
+  {
+    // The same path with an interval: a row per day, a list that changes once a day, so it is `slow`.
+    name: "fees by day",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.fees({ interval: "day", ...PERIOD, limit: 1000 }, o),
+    url: "/v2/network/fees?interval=day&start=2026-09-18&end=2026-10-17&limit=1000",
+    body: feeBucketsBody,
+    result: feeBucketsBody,
+  },
+  {
+    name: "feeStats",
+    cls: "live",
+    fresh: true,
+    call: (a, o) => a.feeStats({ descending: true, limit: 1, start: "2026-10-17" }, o),
+    url: "/v2/network/fee_stats?descending=true&limit=1&start=2026-10-17",
+    body: feeStatsBody,
+    result: feeStatsBody,
+  },
+  {
+    name: "stats of the transaction types",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.stats("type", { interval: "day", ...PERIOD, limit: 1000 }, o),
+    url: "/v2/stats/type?interval=day&start=2026-09-18&end=2026-10-17&limit=1000",
+    body: statsTypeBody,
+    result: statsTypeBody,
+  },
+  {
+    name: "stats of the metrics",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.stats("metric", { interval: "week", start: "2024-10-14", end: "2026-10-17", limit: 1000, metrics: ["accounts_created", "ledger_count", "transaction_count"] }, o),
+    url: "/v2/stats/metric?interval=week&start=2024-10-14&end=2026-10-17&limit=1000&metrics=accounts_created%2Cledger_count%2Ctransaction_count",
+    body: statsMetricBody,
+    result: statsMetricBody,
+  },
+  {
+    name: "paymentVolume",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.paymentVolume({ interval: "day", ...PERIOD, limit: 1000 }, o),
+    url: "/v2/network/payment_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000",
+    body: paymentVolumeBody,
+    result: paymentVolumeBody,
+  },
+  {
+    name: "paymentVolume, in another currency",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.paymentVolume({ interval: "week", start: "2024-10-14", end: "2026-10-17", limit: 1000, exchangeCurrency: "USD", exchangeIssuer: USD_ISSUER }, o),
+    url: `/v2/network/payment_volume?interval=week&start=2024-10-14&end=2026-10-17&limit=1000&exchange_currency=USD&exchange_issuer=${USD_ISSUER}`,
+    body: paymentVolumeBody,
+    result: paymentVolumeBody,
+  },
+  {
+    name: "exchangeVolume",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.exchangeVolume({ interval: "day", ...PERIOD, limit: 1000 }, o),
+    url: "/v2/network/exchange_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000",
+    body: exchangeVolumeBody,
+    result: exchangeVolumeBody,
+  },
+  {
+    name: "exchangeVolume, in another currency",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.exchangeVolume({ interval: "week", start: "2024-10-14", end: "2026-10-17", limit: 1000, exchangeCurrency: "USD", exchangeIssuer: USD_ISSUER }, o),
+    url: `/v2/network/exchange_volume?interval=week&start=2024-10-14&end=2026-10-17&limit=1000&exchange_currency=USD&exchange_issuer=${USD_ISSUER}`,
+    body: exchangeVolumeBody,
+    result: exchangeVolumeBody,
+  },
+  {
+    // Its path is in PENDING_PATHS: openapi.yaml has no `amm_volume` yet.
+    name: "ammVolume",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.ammVolume({ interval: "day", ...PERIOD, limit: 1000 }, o),
+    url: "/v2/network/amm_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000",
+    body: ammVolumeBody,
+    result: ammVolumeBody,
+  },
+  {
+    name: "ammVolume, in another currency",
+    cls: "slow",
+    fresh: true,
+    call: (a, o) => a.ammVolume({ interval: "week", start: "2024-10-14", end: "2026-10-17", limit: 1000, exchangeCurrency: "USD", exchangeIssuer: USD_ISSUER }, o),
+    url: `/v2/network/amm_volume?interval=week&start=2024-10-14&end=2026-10-17&limit=1000&exchange_currency=USD&exchange_issuer=${USD_ISSUER}`,
+    body: ammVolumeBody,
+    result: ammVolumeBody,
+  },
+  {
+    name: "ledgerValidations",
+    cls: "live",
+    fresh: true,
+    call: (a, o) => a.ledgerValidations(LEDGER_HASH, { limit: 1000 }, o),
+    url: `/v2/ledgers/${LEDGER_HASH}/validations?limit=1000`,
+    body: validationsBody,
+    result: validationsBody,
+  },
 ];
 
 describe("requests", () => {
@@ -423,11 +640,43 @@ describe("requests", () => {
     expect(sentRequest().url).toBe(`${BASE}/v2/transactions/AB%2FCD%3Fx%23y`);
   });
 
+  it("leaves out what a query does not name: no metrics for an empty list, no display currency", async () => {
+    fetchSpy.mockResolvedValue(json(statsMetricBody));
+    await createDataApi(xrpl, env, passThroughCache).stats("metric", { interval: "day", ...PERIOD, limit: 1000, metrics: [] });
+    expect(sentRequest().url).toBe(`${BASE}/v2/stats/metric?interval=day&start=2026-09-18&end=2026-10-17&limit=1000`);
+
+    fetchSpy.mockResolvedValue(json(paymentVolumeBody));
+    await createDataApi(xrpl, env, passThroughCache).paymentVolume({ interval: "day", ...PERIOD, limit: 1000 });
+    expect(sentRequest().url).toBe(`${BASE}/v2/network/payment_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000`);
+  });
+
+  it("escapes the hash of the validations it puts in a path", async () => {
+    fetchSpy.mockResolvedValueOnce(json(validationsBody));
+    await createDataApi(xrpl, env, passThroughCache).ledgerValidations("AB/CD?x#y", { limit: 1000 });
+    expect(sentRequest().url).toBe(`${BASE}/v2/ledgers/AB%2FCD%3Fx%23y/validations?limit=1000`);
+  });
+
+  it("types the rows of each call by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+    const period = { interval: "day", ...PERIOD, limit: 1000 } as const;
+
+    expectTypeOf(api.fees({ descending: true, limit: 8 })).toEqualTypeOf<Promise<Page<"rows", FeeRow>>>();
+    expectTypeOf(api.fees({ interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 })).toEqualTypeOf<Promise<Page<"rows", FeeBucketRow>>>();
+    expectTypeOf(api.feeStats({ descending: true, limit: 1, start: "2026-10-17" })).toEqualTypeOf<Promise<Page<"rows", FeeStatsRow>>>();
+    expectTypeOf(api.stats("type", period)).toEqualTypeOf<Promise<Page<"stats", StatsRow>>>();
+    expectTypeOf(api.paymentVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<PaymentVolumeComponent>>>>();
+    expectTypeOf(api.exchangeVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<ExchangeVolumeComponent>>>>();
+    expectTypeOf(api.ammVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<AmmVolumeComponent>>>>();
+    expectTypeOf(api.ledgerValidations(HASH, { limit: 1000 })).toEqualTypeOf<Promise<LedgerValidations>>();
+  });
+
   it.each(["..", ".", ""])("refuses %j as an identifier without sending anything", async (id) => {
     const api = createDataApi(xrpl, env, passThroughCache);
     expect((await failureOf(api.ledger(id))).kind).toBe("bad_request");
     expect((await failureOf(api.transaction(id))).kind).toBe("bad_request");
     expect((await failureOf(api.account(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.ledgerValidations(id, { limit: 1000 }))).kind).toBe("bad_request");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
@@ -450,10 +699,11 @@ describe("errors", () => {
   // The data API's framework answers a path it has no route for (an API deployed without the sub-project that adds it) with this 404. It is
   // the API missing, not a thing that does not exist: an outage (spec 6.4), never a stored 404 page.
   it("a 404 'Cannot GET …' is server, whatever the route: the API has no such route", async () => {
-    const path = "/v2/network/fees?descending=true&limit=8";
+    // amm_volume is the route an API without feat/amm-data lacks.
+    const path = "/v2/network/amm_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000";
     fetchSpy.mockResolvedValueOnce(json({ result: "error", message: `Cannot GET ${path}` }, { status: 404 }));
 
-    const error = await failureOf(api().fees({ descending: true, limit: 8 }));
+    const error = await failureOf(api().ammVolume({ interval: "day", ...PERIOD, limit: 1000 }));
 
     expect(error.kind).toBe("server");
     expect(error.status).toBe(404);
@@ -467,7 +717,7 @@ describe("errors", () => {
   it.each([
     ["ledger not found", () => api().ledger("1")],
     ["Account not found", () => api().account(ACCOUNT)],
-    ["validation not found", () => api().ledger(HASH)],
+    ["validation not found", () => api().ledgerValidations(LEDGER_HASH, { limit: 1000 })],
     ["transaction not found: Cannot GET", () => api().transaction(HASH)],
   ])("a 404 '%s' is still not_found: only a message that starts with 'Cannot GET ' means a missing route", async (message, call) => {
     fetchSpy.mockResolvedValueOnce(json({ result: "error", message }, { status: 404 }));
@@ -862,6 +1112,95 @@ describe("cache", () => {
     });
   });
 
+  // The network page's calls: the home page's kind of call (`holdFailure`, and `ttl` for the two it keeps 2 s), and the six over a period, kept
+  // PERIOD_CALL_TTL_SECONDS (spec 1.4). Each keeps the class it has and overrides only the TTL, in an entry of its own.
+  describe("the network page's calls", () => {
+    const freshCases = cases.filter((c) => c.fresh);
+    const periodCases = freshCases.filter((c) => c.cls === "slow");
+
+    it("keep the class of the call, whatever TTL they are asked for, and pass the failure hold on", async () => {
+      for (const c of freshCases) {
+        const cache = recordingCache();
+        fetchSpy.mockResolvedValueOnce(json(c.body));
+
+        await c.call(createDataApi(xrpl, env, cache), { ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: true });
+
+        expect(cache.calls, c.name).toHaveLength(1);
+        expect(cache.calls[0]!.cls, c.name).toBe(c.cls);
+        expect(cache.calls[0]!.ttlOverride, c.name).toBe(300);
+        expect(cache.calls[0]!.holdFailure, c.name).toBe(true);
+        expect(cache.calls[0]!.key, c.name).toBe(`GET ${BASE}${c.url} [kept 300 s]`);
+      }
+    });
+
+    it("send the failure hold to the cache only when it is asked for, and it is no part of a key", async () => {
+      for (const c of freshCases) {
+        const cache = recordingCache();
+        fetchSpy.mockImplementation(async () => json(c.body));
+        const api = createDataApi(xrpl, env, cache);
+
+        await c.call(api);
+        await c.call(api, { holdFailure: false });
+        await c.call(api, { holdFailure: true });
+        await c.call(api, { ttl: 2 });
+        await c.call(api, { ttl: 2, holdFailure: true });
+
+        expect(cache.calls.map((call) => call.holdFailure), c.name).toEqual([undefined, undefined, true, undefined, true]);
+        const keys = cache.calls.map((call) => call.key);
+        expect(new Set(keys.slice(0, 3)).size, c.name).toBe(1);
+        expect(new Set(keys.slice(3)).size, c.name).toBe(1);
+        // The answer kept for the call's own class is not what a call with a TTL of its own reads.
+        expect(keys[3], c.name).not.toBe(keys[0]);
+        expect(keys[3], c.name).toBe(`${keys[0]} [kept 2 s]`);
+      }
+    });
+
+    it("are `slow` for the six over a period (the stats, the fees by day and the three volumes) and `live` for the snapshot and the validations", () => {
+      expect(periodCases.map((c) => c.name)).toEqual([
+        "fees by day",
+        "stats of the transaction types",
+        "stats of the metrics",
+        "paymentVolume",
+        "paymentVolume, in another currency",
+        "exchangeVolume",
+        "exchangeVolume, in another currency",
+        "ammVolume",
+        "ammVolume, in another currency",
+      ]);
+      expect(freshCases.filter((c) => c.cls === "live").map((c) => c.name)).toEqual(["feeStats", "ledgerValidations"]);
+    });
+
+    it("are really stored for 300 s (the period calls) or 2 s (the snapshot), and the validations for 5 s by class", async () => {
+      const puts: Array<string | null> = [];
+      const put = caches.default.put.bind(caches.default);
+      vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
+        puts.push((response as Response).headers.get("Cache-Control"));
+        return put(request, response);
+      });
+      const pending: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} } as unknown as ExecutionContext;
+      // A host of its own: this file's Cache API outlives the test.
+      const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: "https://stored-for-five-minutes.example.invalid" });
+      const api = createDataApi(network, env, createSubrequestCache(ctx, "period-ttl-test"));
+      fetchSpy.mockImplementation(async (input) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        return json(freshCases.find((c) => c.url === url.pathname + url.search)!.body);
+      });
+      const storedBy = async (c: Case, opts?: FreshOptions) => {
+        puts.length = 0;
+        await c.call(api, opts);
+        await Promise.all(pending.splice(0));
+        return [...puts];
+      };
+
+      for (const c of periodCases) expect(await storedBy(c, { ttl: PERIOD_CALL_TTL_SECONDS }), c.name).toEqual(["public, max-age=300"]);
+      const snapshot = freshCases.find((c) => c.name === "feeStats")!;
+      const validations = freshCases.find((c) => c.name === "ledgerValidations")!;
+      expect(await storedBy(snapshot, { ttl: HOME_CALL_TTL_SECONDS })).toEqual(["public, max-age=2"]);
+      expect(await storedBy(validations)).toEqual(["public, max-age=5"]);
+    });
+  });
+
   it("really stores the answers for the TTL the call asks for: 5 s by class, 2 s for the home page's, an hour after a marker", async () => {
     // The Worker's own subrequest cache, not a recording: the Cache-Control it puts on an entry is what the Cache API expires it by.
     const puts: Array<string | null> = [];
@@ -1081,6 +1420,94 @@ describe("an answer that is not what the reference promises", () => {
       fetchSpy.mockResolvedValueOnce(json(withList([HASH.toLowerCase()])));
       const ledger = await createDataApi(xrpl, env, passThroughCache).ledger("107695660", { transactions: true });
       expect(ledger.transactions).toEqual([HASH.toLowerCase()]);
+    });
+  });
+
+  // The aggregates of the network page (aggregate-shape.ts): a list where a list belongs, dates as ISO text, amounts as decimal strings.
+  describe("for the aggregates of the network page", () => {
+    const period = { interval: "day", ...PERIOD, limit: 1000 } as const;
+    /** A copy of `body` that `change` has broken. */
+    const broken = (body: unknown, change: (copy: any) => void) => {
+      const copy = structuredClone(body);
+      change(copy);
+      return copy;
+    };
+    const volumes: Array<[string, (api: DataApi) => Promise<unknown>, any]> = [
+      ["payment volume", (api) => api.paymentVolume(period), paymentVolumeBody],
+      ["exchange volume", (api) => api.exchangeVolume(period), exchangeVolumeBody],
+      ["AMM volume", (api) => api.ammVolume(period), ammVolumeBody],
+    ];
+
+    it.each<[string, unknown, (api: DataApi) => Promise<unknown>, unknown]>([
+      ["stats that are not a list", broken(statsTypeBody, (b) => (b.stats = { 0: b.stats[0] })), (api) => api.stats("type", period), statsTypeBody],
+      ["no stats at all", broken(statsTypeBody, (b) => delete b.stats), (api) => api.stats("type", period), statsTypeBody],
+      ["a stats row with a count that is text", broken(statsTypeBody, (b) => (b.stats[0].Payment = "12")), (api) => api.stats("type", period), statsTypeBody],
+      ["a stats row whose date is not ISO", broken(statsTypeBody, (b) => (b.stats[1].date = "2026-10-17")), (api) => api.stats("type", period), statsTypeBody],
+      ["a metric that is text", broken(statsMetricBody, (b) => (b.stats[0].ledger_count = "24000")), (api) => api.stats("metric", period), statsMetricBody],
+      ["a fee row whose avg is text", broken(feeBucketsBody, (b) => (b.rows[0].avg = "0.01")), (api) => api.fees({ interval: "day", ...PERIOD, limit: 1000 }), feeBucketsBody],
+      ["fee rows that are not a list", broken(feeBucketsBody, (b) => (b.rows = "none")), (api) => api.fees({ interval: "day", ...PERIOD, limit: 1000 }), feeBucketsBody],
+      [
+        "a fee_stats row whose open_ledger_fee is text",
+        broken(feeStatsBody, (b) => (b.rows[0].open_ledger_fee = "0.00001")),
+        (api) => api.feeStats({ descending: true, limit: 1, start: "2026-10-17" }),
+        feeStatsBody,
+      ],
+      ...volumes.flatMap(([name, call, good]): Array<[string, unknown, (api: DataApi) => Promise<unknown>, unknown]> => [
+        [`a ${name} row whose total is a number`, broken(good, (b) => (b.rows[0].total = 12.5)), call, good],
+        [`a ${name} row without components`, broken(good, (b) => delete b.rows[0].components), call, good],
+        [`a ${name} component whose converted_amount is "1e3"`, broken(good, (b) => (b.rows[0].components[0].converted_amount = "1e3")), call, good],
+      ]),
+      ["validations that are not a list", broken(validationsBody, (b) => (b.validations = {})), (api) => api.ledgerValidations(LEDGER_HASH, { limit: 1000 }), validationsBody],
+      [
+        "a validation without validation_public_key",
+        broken(validationsBody, (b) => delete b.validations[0].validation_public_key),
+        (api) => api.ledgerValidations(LEDGER_HASH, { limit: 1000 }),
+        validationsBody,
+      ],
+    ])("is a failure for %s, is not stored, and the good answer after it is", async (_what, body, call, good) => {
+      await failsWithoutStoring(body, call, good);
+    });
+
+    it("is not kept by the Worker's subrequest cache either: the next call asks the API again", async () => {
+      const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+      const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: "https://malformed-aggregate.example.invalid" });
+      const api = createDataApi(network, env, createSubrequestCache(ctx, "malformed"));
+      fetchSpy.mockImplementation(async () => json({ ...statsTypeBody, stats: "none" }));
+
+      expect((await failureOf(api.stats("type", period))).kind).toBe("server");
+      expect((await failureOf(api.stats("type", period))).kind).toBe("server");
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("is held with holdFailure, as any other failure of the API: one request, and both calls throw", async () => {
+      const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+      const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: "https://malformed-aggregate-held.example.invalid" });
+      const api = createDataApi(network, env, createSubrequestCache(ctx, "malformed-held"));
+      fetchSpy.mockImplementation(async () => json({ ...feeStatsBody, rows: "none" }));
+      const q = { descending: true, limit: 1, start: "2026-10-17" };
+
+      const first = await failureOf(api.feeStats(q, { holdFailure: true }));
+      const second = await failureOf(api.feeStats(q, { holdFailure: true }));
+
+      expect(first.kind).toBe("server");
+      expect(second).toBe(first);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("takes the good answers, each as it came", async () => {
+      for (const [name, call, good] of volumes) {
+        fetchSpy.mockResolvedValueOnce(json(good));
+        expect(await call(createDataApi(xrpl, env, passThroughCache)), name).toEqual(good);
+      }
+    });
+
+    it("takes an answer with no rows, which is a window the API has no data for", async () => {
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", count: 0, stats: [] }));
+      expect((await createDataApi(xrpl, env, passThroughCache).stats("type", period)).stats).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", count: 0, rows: [] }));
+      expect((await createDataApi(xrpl, env, passThroughCache).ammVolume(period)).rows).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", ledger_hash: LEDGER_HASH, count: 0, validations: [] }));
+      expect((await createDataApi(xrpl, env, passThroughCache).ledgerValidations(LEDGER_HASH, { limit: 1000 })).validations).toEqual([]);
     });
   });
 });

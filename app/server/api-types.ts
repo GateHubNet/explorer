@@ -260,9 +260,8 @@ export interface AccountExchange {
 // ---- Network: GET /v2/network/fees --------------------------------------------------------------------------------
 
 /**
- * A row of `/v2/network/fees` with `interval=ledger` (the default, and the only one the explorer asks for):
- * the fees paid by the transactions of one ledger. Amounts are JSON numbers, whole units of the native currency.
- * (Rows of `interval=hour` and `day` have no `ledger_index`; they are not modelled.)
+ * A row of `/v2/network/fees` with `interval=ledger` (the default): the fees paid by the transactions of one
+ * ledger. Amounts are JSON numbers, whole units of the native currency. (Rows of `interval=hour` and `day` are `FeeBucketRow`.)
  */
 export interface FeeRow {
   avg: number;
@@ -273,4 +272,134 @@ export interface FeeRow {
   /** `YYYY-MM-DDTHH:mm:ssZ`, the close time of the ledger. */
   date: string;
   ledger_index: number;
+}
+
+/**
+ * A row of `/v2/network/fees` with `interval=hour` or `day`: what the transactions of the hour or day paid, all its ledgers counted. Keys and
+ * numbers as in `FeeRow`, without `ledger_index`. A bucket without transactions has `avg` 0.
+ */
+export interface FeeBucketRow {
+  avg: number;
+  max: number;
+  min: number;
+  total: number;
+  tx_count: number;
+  /** `YYYY-MM-DDTHH:mm:ssZ`, the start of the hour or day. */
+  date: string;
+}
+
+// ---- Network: GET /v2/network/fee_stats ---------------------------------------------------------------------------
+
+/**
+ * A row of `/v2/network/fee_stats`: a snapshot of the node's `fee` command, taken every 5 s by the data API's syncer. Fees are JSON
+ * numbers in whole units of the native currency, `pct_max_queue_size` is `current_queue_size / (expected_ledger_size × 20) × 100`.
+ */
+export interface FeeStatsRow {
+  current_ledger_size: number;
+  current_queue_size: number;
+  /** `YYYY-MM-DDTHH:mm:ssZ`, when the snapshot was taken. */
+  date: string;
+  expected_ledger_size: number;
+  median_fee: number;
+  minimum_fee: number;
+  open_ledger_fee: number;
+  pct_max_queue_size: number;
+}
+
+// ---- Stats: GET /v2/stats/{family} --------------------------------------------------------------------------------
+
+/**
+ * A flat row of `/v2/stats/{family}` (`type`, `result` or `metric`): the start of the bucket, and a JSON number for each name of the family
+ * (`Payment: 3000`, `ledger_count: 24000`). A zero count is left out, so a name can be missing; a bucket with none is not a row. Without a family
+ * the API nests the families in a row, which the client never asks for.
+ */
+export type StatsRow = { date: string } & Record<string, number | string>;
+
+// ---- Network: GET /v2/network/{payment,exchange,amm}_volume ------------------------------------------------------
+
+/** A currency: `issuer` is absent for the native one. */
+export interface AssetRef {
+  currency: string;
+  issuer?: string;
+}
+
+/** What one tracked currency was paid in a bucket. `amount` is in the currency, `converted_amount` in the row's `exchange`, `rate` is the units of the currency one native coin buys. */
+export interface PaymentVolumeComponent {
+  currency: string;
+  issuer?: string;
+  amount: string;
+  count: number;
+  rate: string;
+  converted_amount: string;
+}
+
+/** What one tracked market traded in a bucket. `amount` is the volume of `base`. */
+export interface ExchangeVolumeComponent {
+  count: number;
+  rate: string;
+  amount: string;
+  base: AssetRef;
+  counter: AssetRef;
+  converted_amount: string;
+}
+
+/** What one AMM pool swapped in a bucket (`feat/amm-data`). `amount` is the volume of `base`. */
+export interface AmmVolumeComponent {
+  amm_account: string;
+  base: AssetRef;
+  counter: AssetRef;
+  count: number;
+  amount: string;
+  rate: string;
+  converted_amount: string;
+}
+
+/**
+ * A row of the historical volume routes (`start` or `end` given): one `interval` (`day`, `week` from Monday, UTC). Amounts are decimal strings,
+ * `total` and `converted_amount` in `exchange` (the native currency unless asked for another), `count` the number of trades or payments, the
+ * components sorted by converted amount, largest first. `end_time` is the start of the next bucket.
+ */
+export interface VolumeRow<C> {
+  components: C[];
+  count: number;
+  exchange: AssetRef;
+  total: string;
+  exchange_rate: string;
+  start_time: string;
+  end_time: string;
+}
+
+// ---- Validations: GET /v2/ledgers/{ledger_hash}/validations -------------------------------------------------------
+
+/**
+ * A validation of a ledger by one validator. Values are text except `count` (how often a collector saw it); an empty column is absent. The
+ * times are `YYYY-MM-DDTHH:mm:ss.SSSZ`, the first and last time a collector saw it.
+ */
+export interface Validation {
+  count: number;
+  first_datetime: string;
+  flags: string;
+  last_datetime: string;
+  ledger_hash: string;
+  ledger_index: string;
+  signing_time: string;
+  validation_public_key: string;
+  amendments?: string;
+  base_fee?: string;
+  ephemeral_public_key?: string;
+  full?: string;
+  load_fee?: string;
+  reporter_public_key?: string;
+  reserve_base?: string;
+  reserve_inc?: string;
+  signature?: string;
+}
+
+/** `GET /v2/ledgers/{ledger_hash}/validations`: the validations of one ledger, one per validator, sorted by validator key. `marker` is there when there are more. */
+export interface LedgerValidations {
+  result: "success";
+  ledger_hash: string;
+  count: number;
+  marker?: string;
+  validations: Validation[];
 }
