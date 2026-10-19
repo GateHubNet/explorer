@@ -339,7 +339,7 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 | Component | Draws |
 |---|---|
 | `ChartCard` | The card: title, source line (a path, never a host), the Chart/Table toggle, the legend, both views and the notes. `state="failed"` puts a `SectionError` with Retry in place of the views and the toggle |
-| `Legend` (`legendOf`, `shareLegend`, `candleLegend`) | 10 × 10 px swatches for columns and areas, 14 × 2 px keys for lines, a symbol with its words for an annotation; none for one series |
+| `Legend` | 10 × 10 px swatches for columns and areas, 14 × 2 px keys for lines, a symbol with its words for an annotation; none for one series. Its items come from `legendOf(data, "swatch" or "line")` (`Legend.tsx`, for a `TimeSeriesData`), `shareLegend(data)` (`ShareBar.tsx`) and `candleLegend(data)` (`Candles.tsx`) |
 | `ChartTable` | The table view of any form below: a compact `DataTable`, 300 px high at most, newest first, exact values, "—" (heard as "no data") for a gap |
 | `ColumnChart` | `layout="single"`, `"stacked"` (the series bottom up, each segment its exact share) or `"diverging"` (in up, out down, from a zero line); `annotations` put a symbol over a column |
 | `LineChart` | 1 to 3 lines, with `area`, `curve="step"`, a `domain` and `references` (dashed thresholds), and end labels |
@@ -348,7 +348,7 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 | `ShareBar` | 100% stacked horizontal rows, a label under a segment of 18% or more |
 | `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%" |
 | `Meter` | One ratio on a track, 12 px (6 px `small`), with a threshold tick and its label |
-| `InlineBar` | A depth wash behind a table row (bids, asks), or an out/in bar in a cell |
+| `InlineBar` | A depth wash behind a table row (bids, asks), or an out/in bar in a cell. The depth form needs the row to be `position: relative`, the bar to be the row's first child and the cells after it to be elements: the stylesheet puts those above the wash, so the text keeps its contrast on it, and a bare text node in the row would sit under it |
 | `Sparkline` | A trend of 100 × 28 px with no axes, for a row or a `StatTile` |
 
 `StatTile` and `StatGrid` (`components/StatTile.tsx`) are the home page's tiles, which stay mono at 22 px. `figure` gives a tile the network
@@ -356,11 +356,31 @@ pages' style (sans, proportional figures, 24 px, weight 600), `StatGrid narrow` 
 (`{ text, sign }`) a triangle for 1 or -1 (none for 0) and the signed text in `--muted`, after the value and before the note, and `trend` a
 `Sparkline` after the note. The sign picks the triangle and the text is the view builder's.
 
+### Data shapes
+
+View builders import the shapes from `types.ts` (type-only) and hand the kit **exact decimal strings** (spec 2.3). A JSON number becomes a string in
+the view builder, with `String(n)` for an integer or `BigNumber(String(n))`: nothing computed in floating point reaches a label.
+
+| Component | Takes | The fields that matter |
+|---|---|---|
+| `ColumnChart`, `LineChart` | `TimeSeriesData` | `axis` (`unit`: `day`, `week`, `hour` or `flag`; `buckets`: UTC, oldest first), `series` (`id`, `label`, `short` for an end label, `slot`, `values`: strings, `null` for none), `format` (`kind`: `count`, `amount`, `drops`, `percent`, `seconds` or `price`; `unit`), `token`. Optional: `totals` (a stack's exact totals), `domain` and `references` (lines), `annotations` (columns), `forming`, `pending` |
+| `SmallMultiples` | `SmallMultiplesData` | `axis` (shared), `panels` (6 at most: `id`, `label`, `sublabel`, `values`, a `format` of its own), `forming`, `pending`, `token` |
+| `Candles` | `CandleData` | `axis`, `candles` (one for each bucket: `o`, `h`, `l`, `c`, `v`, `n`, or `null`), `format` (of the prices), `volume` (the format of the volume), `token` |
+| `ShareBar` | `ShareData` | `rows` (`id`, `label`, `total`, `segments`: `id`, `label`, `slot`, `value`), `token` |
+| `BarList` | `BarListData` | `items` (`id`, `label`, `sublabel`, `value`, `share`: the whole text, "58%" or "<1%", `count`: only for the table), `format`, `token` |
+| `Meter` | `MeterData` | `value`, `max`, `threshold` (`value`, `label`), and `label`, which is the `aria-label` of the image: the view builder writes it, since the numbers are its |
+| `ChartTable` | any of the five above | the data of the chart it is the table of |
+| `StatTile` | `Delta` for `delta` | `text` (signed, the builder's) and `sign` (1, -1 or 0) |
+| `InlineBar`, `Sparkline` | strings | `value`, `max` and `tone`, or `diverging`, `out`, `in` and `max`; `values` and `label` |
+
+`token` is a string the view builder makes from what the chart shows (see "Live updates: memo by token"). `forming` says the newest bucket is the
+running one, and `pending` how many of the newest buckets are not computed yet (0 to 2).
+
 ### Data and words
 
-- **Strings.** `types.ts` is type-only, and view builders import it. A value is an exact decimal string. The kit parses it with `Number()` for
-  geometry and for nothing else; every text a chart shows is made from the string (`labels.ts`, with the formatters of `app/domain/format.ts`).
-  A JSON number becomes a string in the view builder. A `null` is "no value"; a string that is not a number is read as `null`.
+- **Strings.** The kit parses a value (an exact decimal string, see "Data shapes") with `Number()` for geometry and for nothing else; every text
+  a chart shows is made from the string (`labels.ts`, with the formatters of `app/domain/format.ts`). A `null` is "no value"; a string that is not
+  a number is read as `null`.
 - **Where the chart draws.** SVG for the lines, areas and steps (one `viewBox="0 0 1000 H"` stretched to the plot, `vector-effect:
   non-scaling-stroke`, so a line is 2 px at any width). HTML boxes in percent for columns, segments, candles, bars, dots, labels, the crosshair and
   the tooltip, because a stretched viewBox cannot keep a column at most 24 px wide or a dot round. There is no `Intl`, locale or clock (month
@@ -369,14 +389,16 @@ pages' style (sans, proportional figures, 24 px, weight 600), `StatGrid narrow` 
 - **Scales.** Columns, bars and areas start at 0, always. Ticks are a step of 1, 2, 2.5 or 5 × 10ⁿ that gives 4 or 5 (`niceScale`), the top
   tick at or above the largest value. A count has whole steps: where none is in range (maxima 9 and 10) the scale takes the smallest whole step
   that is at least a quarter of the maximum (0, 5, 10), and a count of 2 is 0 to 4. A diverging chart is symmetric about 0. Nothing to draw is 0
-  to 4 for a count, else 0 to 1. A line may take a `domain`; **a domain must cover its data** (a value outside it is drawn outside the plot,
-  not cut), and the card's note must say that the axis does not start at 0. Candles use `fitScale`, which does not start at 0.
+  to 4 for a count, else 0 to 1. A line may take a `domain`, `min` and `max`; **a domain must cover its data**: a value below `domain.min` is drawn
+  outside the plot, not cut, and one above `domain.max` raises the top of the scale. The
+  card's note must say that the axis does not start at 0. Candles use `fitScale`, which does not start at 0.
 - **Words.** A tick is `tickLabel` (`500K`, `1.2B`; in full under 10,000). **Tooltips and the slider's `aria-valuetext` use `valueText(v,
   format, "full")`**: a count in full (`1,284,331`), an amount, drops or a price compact with its unit (`45.5M XRP`, `113 drops`), a percent and
   seconds exact. An end label is the compact figure and the series' `short` name, with no unit: "**45.5M** payments" (the card's title names the
   currency). The table has the exact string. A `BarList` tip is compact with the unit, then the share text the builder wrote ("58%", "<1%").
-- **Time.** Every bucket is UTC. An axis writes "Oct 16" (a week: its Monday), a tooltip or table "Oct 16, 2026" ("Week of Oct 12, 2026"),
-  hours "17:00". `forming: true` marks the newest bucket as the running one and adds ", so far" to the tooltip, the slider text and the table, never
+- **Time.** Every bucket is UTC. An axis writes "Oct 16" (a week: its Monday, "Oct 12"), "17:00" for an hour and the day for a flag ledger. A tooltip or a table
+  cell writes "Oct 16, 2026", and "Oct 17, 2026, 17:00" for an hour or a flag ledger. A week is "Week of Oct 12, 2026" in a tooltip only; its table cell is
+  "Oct 12, 2026" under the heading "Week of (UTC)". `forming: true` marks the newest bucket as the running one and adds ", so far" to the tooltip, the slider text and the table, never
   to the axis. `pending: n` says the newest `n` buckets have no value yet: their values are `null`, and the tooltip says "Not computed yet".
   The card's note must say which day is not computed. x labels are every k-th bucket counting back from the newest: k = ⌈n/6⌉ on a wide plot,
   ⌈n/3⌉ under 480 px of card. Both sets are in the HTML and a container query shows one, since the Worker cannot know the width.
