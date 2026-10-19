@@ -60,7 +60,7 @@ export interface HomePageData {
 /**
  * What the home route's loader returns: the page, and the `BUILD_ID` of the Worker that made it (a short git commit, not a secret). An open
  * page compares it with the build it was loaded with: after a deploy, data of a new shape must not be drawn by the old code, so it reloads
- * (`app/ui/home-live.ts`).
+ * (`app/ui/live-page.ts`).
  */
 export interface HomeLoaderData extends HomePageData {
   build: string;
