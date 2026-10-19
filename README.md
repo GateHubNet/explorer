@@ -418,16 +418,15 @@ running one, and `pending` how many of the newest buckets are not computed yet (
 - **A chart is one image to a screen reader.** The marks are in a `role="img"` whose label is the kit's own summary ("Transactions by type per
   day, Sep 17 to Oct 16, 2026. Highest Oct 3, 2.31M; latest Oct 16, 2.1M. Choose Table for every value."). The marks inside are `aria-hidden`.
   `Sparkline` and `Meter` are one image named by the label the builder wrote. `BarList` is a list: its bars are `aria-hidden` and its text is read.
-- **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore`) a plot has a transparent
-  `role="slider"` over it (`CursorSlot`) with `aria-valuetext` for the bucket, so a screen reader hears each step with no live region. The layer is there from
-  hydration; the cursor itself, `Cursor`, is loaded by the first `pointerenter` or `focusin` that reaches a plot, and takes the layer's place ("The kit's boundaries"). A pointer selects
+- **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore`) a `Cursor` adds a transparent
+  `role="slider"` over the plot with `aria-valuetext` for the bucket, so a screen reader hears each step with no live region. A pointer selects
   the nearest bucket; focus the newest; Left and Right, Home and End move; Escape and blur hide. The tooltip is `aria-hidden`, at most
   `min(260px, 90%)` wide, to the right of the cursor under 22% of the plot, to the left over 78%, else centred. The active mark is marked in the DOM
   (`data-active`, `is-active`), so a pointer move renders the overlay and not the marks. `HoverGroup` gives small multiples and candles one bucket.
   The Worker's HTML has none of this. `Sparkline`, `InlineBar` and `Meter` have no hover: the row or tile around them says the values.
 - **The tooltip is drawn outside the scrolling region.** A column plot with more buckets than its width holds at 5 px each (a slot is 5 px at
   the least) scrolls sideways inside a focusable region ("{title}, scrollable chart"), which would clip a tooltip drawn inside it, so `Plot` draws it
-  beside the region (`TipHost`, with the code that places it, which is in `Cursor.tsx` and comes with the cursor). On touch, `.plot__cursor` has `touch-action: pan-y`, so the page scrolls; in a region that scrolls it has `pan-x pan-y`, so a
+  beside the region. On touch, `.plot__cursor` has `touch-action: pan-y`, so the page scrolls; in a region that scrolls it has `pan-x pan-y`, so a
   sideways swipe scrolls the plot and a tap still selects. A tap keeps the tooltip until a touch lands elsewhere.
 - **Sizes.** The plot is 200 px high, 160 px under 480 px of card (the card is the container, not the window). The line chart's end labels have
   a gutter of 112 px, which is left out under 480 px: the legend and the tooltip carry them. A later end label is dropped when it would sit within
@@ -454,29 +453,9 @@ memo'd: they have no token and cost almost nothing.
   own files (`./…`), `app/domain/format` (`bignumber.js` is in the bundle already), `app/ui/cx` and `app/ui/components/*`; nothing from
   `app/server`, no charting package in `package.json`, and **no barrel file**: a page imports the modules it draws, so it loads only those. Type
   imports are erased and are free. The spec's estimate for what the network page loads of the kit is about 7 KB gzipped, and the page's target
-  is 145,000 bytes (the budget is 150,000). The page measured 146,616 bytes, so the fallback the spec decided was applied (next bullet), and the target was
-  still missed: 146,700 bytes ("The client bundle check").
-- **The cursor loads when it is needed.** A plot draws `CursorSlot` (`CursorSlot.tsx`): the cursor's own layer as it is before anything is done to it (the same
-  transparent `role="slider"`, named as the cursor names it, on the newest bucket, which it says in words). The first `pointerenter` or `focusin` loads `Cursor.tsx` with
-  `import()` (`React.lazy`'s state without its Suspense, which would put a boundary in the hydration), and `Cursor` renders in the layer's place with every prop the slot was
-  given, unchanged: `CursorProps` is the contract, and a prop a later plan adds goes through. **Every other plot of the page takes the cursor in the same commit**: the loaded cursor is
-  the module's (`useSyncExternalStore`), not one plot's, because the plots of a `HoverGroup` (the panels of small multiples, the price and volume panes of candles) show the group's bucket with
-  a crosshair, dots and the others dimmed, which only a cursor does, and a panel the pointer has not entered must not stay bare. A plot that mounts later has it from its first render. What the
-  visitor did meanwhile is done again to the new layer, in the order they did it: a focus focuses it, so that the first focus already shows the newest bucket; a pointer selects the bucket
-  under it, where it is now (a touch that has lifted is the tap it was and keeps the tooltip); and each key the cursor takes (the arrows, Home, End, Escape: `steppedKey`) is pressed again, one after a render of
-  the one before, and kept from scrolling the region while it waits. A mouse that has left, a focus that has gone and a touch the browser took for a scroll are not replayed. A failed load leaves
-  the layer as it is and the next pointer or focus asks again. The tooltip's code (`PlotTip`) is
-  in `Cursor.tsx` and comes with it: it tells the plot how to draw a tooltip when it loads (`setTipView`), and the plot's `TipHost` draws what the cursor hands it.
-  What loads with the page and what loads with the cursor are in different files, so that the cursor's import does not pull the page's modules into a shared chunk
-  (and the page's into the cursor's): `cursor-slot-state.tsx` has what a plot needs (`useHydrated`, `createTipSlot`, `TipSlotContext`, `TipHost`), `cursor-state.tsx` what the cursors share
-  (`steppedKey`, `useCursorState`, `HoverGroup`: the cursor, the share bars and the groups of plots import it, a plot does not), and `placement.ts` the four small functions of the geometry that
-  the cursor needs (geometry re-exports them). `test/unit/charts-bundle.test.ts` fails when a file of the kit other than `CursorSlot.tsx` imports `Cursor.tsx` as a value, or
-  when `CursorSlot.tsx` does other than with `import()`.
-  **What the chart tests hide.** A test of a chart that looks at what the cursor does, not at when it arrives, replaces `./CursorSlot` with the cursor itself
-  (`vi.mock("./CursorSlot", …)`, at the top of `Plot.test.tsx`, `ColumnChart.test.tsx`, `LineChart.test.tsx`, `SmallMultiples.test.tsx` and `Candles.test.tsx`; copy it into the test of
-  a form that has a cursor), because it fires events at the slider straight after hydration. The mock hides the layer a plot has until a pointer or the keyboard reaches it, and that the other plots of a group
-  get their cursor from the first one's: a group whose peers stayed bare passes every one of those tests. `CursorSlot.test.tsx` has both with the real slot and no mock (a bare plot, a pointer,
-  a focus, the keys pressed while the module is held back, a failing import, and small multiples and candles, where the pointer enters one panel or pane and the other must show the bucket).
+  is 145,000 bytes (the budget is 150,000). The page measured 146,616 bytes, over the target, so the fallback the spec decided on was tried and taken out again: `Cursor` and the tooltip
+  loaded with `import()` on the first `pointerenter` or `focusin` of a plot (a `CursorSlot` layer in their place until then). It did not make any page lighter, and every page was heavier for
+  it ("The client bundle check" has the figures), so a plot draws `Cursor` directly and the cursor is in the page's first JavaScript. What the page needs to lose is elsewhere in its route chunk.
 - **The kit's classes are its own.** They live in `charts.css`, which `styles.css` imports after `components.css` and before `pages.css`. A class
   of the kit's is never defined in `pages.css`, which loads later and would override it: the pages' `.cols` once made every column of a chart 0 px
   high on a real page, where the tests, which have no stylesheet, saw nothing wrong. The kit's row of columns is `.plot__cols`, and
@@ -1193,7 +1172,7 @@ was reached (a link to it included): a gate that cannot tell whether it is being
 - a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction, account or network route; what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
-  and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier, the chart cursor) are not in it. Each file counts once, at its
+  and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its
   `gzip -9` size. Sizes are in kilobytes of 1000 bytes. 150,000 bytes passes and 150,001 fails;
 - any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
   the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
@@ -1203,41 +1182,47 @@ was reached (a link to it included): a gate that cannot tell whether it is being
 
 It prints a table (page, files, bytes, KB, `ok` or `OVER`), the manifest's size and the problems.
 
-**The figures of E2** (gzip -9 bytes, each file once). *Before* is `c05ca58`, the commit E2 started from. *After* is the commit that added the network page's end-to-end tests and the
-fix after its review, with the chart cursor loaded when it is needed. The check counts the manifest since that commit; the middle column is the figure without it, as the spec's target of 145,000 bytes and the
-earlier measurements are.
+**The figures of E2** (gzip -9 bytes, each file once). *Before* is `c05ca58`, the commit E2 started from; *after* is the end of E2. The check counts the manifest since the commit that added the
+network page's end-to-end tests; the middle column is the figure without it, as the spec's target of 145,000 bytes and the earlier measurements are.
 
 | | Before | After, without the manifest | After, as the check counts it (with the manifest) |
 |---|---|---|---|
-| home | 134,450 | 136,954 | 138,026 |
-| ledger | 134,134 | 136,127 | 137,199 |
-| transaction | 136,253 | 138,260 | 139,332 |
-| account | 136,647 | 138,941 | 140,013 |
-| network | | 146,700 (146,616 before the cursor was made lazy) | 147,772 |
-| manifest `assets/manifest-*.js` | 959 | 1,100 | |
-| shared base (the files every page loads, the manifest not counted) | 129,879 (12 files, the four pages) | 131,824 (14 files, the four) and 131,032 (13 files, the five) | |
+| home | 134,450 | 136,627 | 137,651 |
+| ledger | 134,134 | 135,790 | 136,814 |
+| transaction | 136,253 | 137,933 | 138,957 |
+| account | 136,647 | 138,604 | 139,628 |
+| network | | 146,616 | 147,640 |
+| manifest `assets/manifest-*.js` | 959 | 1,052 | |
+| shared base (the files every page loads, the manifest not counted) | 129,879 (12 files, the four pages) | 131,532 (13 files, the four) and 130,761 (12 files, the five) | |
 
-The manifest is measured with `gzip -9 -c build/client/assets/manifest-*.js | wc -c`, which stores the file's name (959 and 1,100 bytes); the check's own `gzipSync` stores none and says 935 before and
-1,072 after. The shared base is the summed size of the files that every page loads (the intersection of the `files` of `checkBundle("build/client").pages`, less the manifest).
+The manifest is measured with `gzip -9 -c build/client/assets/manifest-*.js | wc -c`, which stores the file's name (959 and 1,052 bytes); the check's own `gzipSync` stores none and says 935 before and
+1,024 after. The shared base is the summed size of the files that every page loads (the intersection of the `files` of `checkBundle("build/client").pages`, less the manifest).
 
-- **Growth.** The four older pages grew by 2.0 to 2.5 KB. Of that, 1.7 to 2.2 KB is E2's shared code, in the chunks every page loads (the shell with the header's sections, `format.ts` and its new
-  formatters, `RelativeTime`, the layout with the switches), measured before the cursor was made lazy (home 136,627, ledger 135,790, transaction 137,933, account 138,604), and 0.33 KB is the lazy cursor.
-  A chunk that is loaded on its own gives the build a runtime chunk of its own: 512 bytes, of which 359 left the React chunk (+153), and the `import` statements that the other chunks now have to
-  reach it by (+174, in 13 of the home page's 18 files: 15 to 25 bytes in each of `entry.client`, `format`, the shell, `RelativeTime`, `SearchBox`, the layout and a few more). The manifest names the runtime chunk in the `imports` of
-  every route, which is +48 bytes of it, once. The manifest grew 89 bytes for the one route (935 to 1,024, 12 routes to 13), and 48 for that.
-  The network page is 15.7 KB above the base the five pages share.
-- **The target.** The spec wants the network page at 145,000 bytes or less. It measured 146,616, and the fallback it decided on (the cursor and the tooltip with `import()`, "The chart kit") left it at
-  **146,700**: the cursor and its tooltip are 1.8 KB gzipped, but a file of their own costs as much as it takes out. The slot that stands in for them (with the keys and the focus it replays, and
-  the loaded cursor every plot shares) is eager, a shared chunk holds what the plot and the cursor both import (0.55 KB), and there are the imports between the chunks and the runtime chunk.
-  The target is missed by 1,700 bytes, and the budget (150,000) has 2,228 bytes left with the manifest counted. The spec decided the fallback and it stays, because it pays when more pages draw
-  charts, each of which would otherwise carry the cursor; it does not pay on one page.
-- **The projection for E3 to E6** (nine more routes), from these figures. The manifest grows about 90 bytes for each route (the network route's 89 and a few for the runtime chunk it
-  names, the one-off 48 being already in the figure): I take 100, +900, to about 1,970 bytes. The base every page shares takes no route's own code (a route is a chunk of its own), only what its layout
-  and entry reach; assume at most 100 bytes for each route (a formatter, a header item: the items and the switches are there already): +900.
-  If the network page stays the heaviest, it ends at 147,772 + 900 + 900 = **149,572 bytes, 428 under the budget**. A later page that has more of its own than the network page (15.7 KB over the base: a
-  pair page with candles, a book and trades) would be over 150,000. So the manifest is **part of every page's figure from now on** (`scripts/bundle-budget.ts`, with its test): left out, 1 to 2 KB of what
-  every visitor loads would be in nobody's figure. What to do when a page fails the check: load more with `import()` (what only an interaction needs), draw less on first load, or give the kit's
-  modules a shared chunk once two pages draw them.
+- **Growth.** The four older pages grew by 1.7 to 2.2 KB: E2's shared code, in the chunks every page loads (the shell with the header's sections, `format.ts` and its new formatters,
+  `RelativeTime`, the layout with the switches). The manifest grew **89 bytes for the one route** (935 to 1,024, 12 routes to 13). The network page is 15.9 KB above the base the five pages share.
+- **The target, and the fallback that was tried.** The spec wants the network page at 145,000 bytes or less. It measured 146,616, so the fallback the spec decided on was applied: `Cursor` and
+  the tooltip loaded with `import()` on the first `pointerenter` or `focusin` of a plot, a `CursorSlot` layer in their place until then, with the files that keep what the page needs out of the lazy chunk.
+  It was measured twice and taken out.
+
+  | | Network page, without the manifest | Every other page |
+  |---|---|---|
+  | no fallback (Task 17, and now) | 146,616 | home 136,627 |
+  | the fallback, first version (`50956e4`) | 146,466 (-150) | +327 to +337 |
+  | the fallback with every plot of a group taking the cursor, and the keys pressed while it loads replayed (`7e8ffc4`) | 146,700 (+84) | +327 to +337 |
+
+  The cursor and its tooltip are 1.8 KB gzipped, and a chunk of their own costs as much as it takes out: the slot that stands in for them (eager, with the focus, pointer and keys it replays and the
+  loaded cursor every plot shares), a 0.55 KB shared chunk for what the plot and the cursor both import, and, in every page, a runtime chunk the build makes for any chunk loaded on its own (512
+  bytes, of which 359 left the React chunk: +153) with the `import` statements that reach it (+174 in 13 of the home page's 18 files) and its name in the manifest's `imports` of every route (+48). Correct
+  behaviour for a group of plots needed the slot to be the module's (a plot that was not entered must still show the group's bucket), and for the keyboard it needed the keys replayed: the two
+  things that made the network page heavier than with no fallback at all. So the premise of the fallback, that it lightens a page that is over its target, did not hold, and it went.
+  **The target is missed by 1,616 bytes** (146,616 against 145,000), and what the page needs to lose is elsewhere in its route chunk; the budget is not the target:
+  **150,000 holds with the manifest counted**, with 2,360 bytes to spare on the network page.
+- **The projection for E3 to E6** (nine more routes), from these figures. The manifest grows about 90 bytes for each route (the network route's 89): I take 100, +900, to about 1,920 bytes. The base every page shares
+  takes no route's own code (a route is a chunk of its own), only what its layout and entry reach; assume at most 100 bytes for each route (a formatter, a header item: the items and the switches are there
+  already): +900. If the network page stays the heaviest, it ends at 147,640 + 900 + 900 = **149,440 bytes, 560 under the budget**. A later page that has more of its own than the network page (15.9 KB over the
+  base: a pair page with candles, a book and trades) would be over 150,000. So the manifest is **part of every page's figure from now on** (`scripts/bundle-budget.ts`, with its test): left out, 1 to 2 KB of what
+  every visitor loads would be in nobody's figure. What to do when a page fails the check: load less on first load, load what only an interaction needs with `import()` (the cursor is not that: see above), or
+  give the kit's modules a shared chunk once two pages draw them.
 
 ## The parsing libraries in the Workers runtime
 
@@ -1365,7 +1350,7 @@ staging before production:
 - [ ] **A switch flip is a miss at the edge.** Deploy the same commit with `AMM_DATA` `"on"` in the environment's `vars` (README, "Switches"): the first request for each view after the deploy is a miss (`X-Cache: MISS`: the cache
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
 - [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: the network page and every other page are under 150,000 bytes with the manifest counted, and the manifest's
-  size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,100 bytes at E2) and the network page's figure (147,772 with it, 146,700 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
+  size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

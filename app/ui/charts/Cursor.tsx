@@ -1,14 +1,31 @@
-import { useContext, useEffect, useLayoutEffect, useRef, type PointerEvent, type ReactNode, type RefObject } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { cx } from "../cx";
-import { setTipView, TipSlotContext, useHydrated, type TipViewProps } from "./cursor-slot-state";
-import { useCursorState, useHoverGroup } from "./cursor-state";
-import { bucketAt, percent, tooltipSide, xOf, type Placement } from "./placement";
+import { bucketAt, percent, tooltipSide, xOf, type Placement } from "./geometry";
 import type { Slot } from "./types";
 
-// The hover and keyboard layer itself, with the tooltip's code (`PlotTip`). It is loaded with `import()` when the first pointer or focus reaches a
-// plot (`CursorSlot.tsx`, spec 2.1), so nothing that is in a page's first JavaScript imports this file: what it shares with the files that are is in
-// `cursor-slot-state.tsx` (what a plot needs of it) and `cursor-state.tsx` (what the cursors share), and the geometry it needs is `placement.ts`.
+const noSubscription = () => () => {};
+
+/**
+ * False in the Worker's HTML and during hydration, true from the render after: a thing that only a script can do is left out of both, so
+ * that they match (the same rule as `LiveToggle`). `Plot.tsx` exports it for the forms; it lives here because the cursor is what needs it.
+ */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(noSubscription, () => true, () => false);
+}
 
 export interface CursorProps {
   /** The plot's box, which the cursor measures, and marks: it gets `data-active="{i}"`, and its `[data-bucket="{i}"]` marks get `is-active`. */
@@ -27,6 +44,159 @@ export interface CursorProps {
   dots?: (i: number) => readonly { y: number; slot: Slot }[];
   /** Told the bucket this plot shows, or `null`: for the readouts (a panel's header, the candle readout) that follow the cursor. */
   onChange?: (i: number | null) => void;
+}
+
+/** What a cursor has to show as its tooltip: the bucket, and the content `tooltip(bucket)` gave. */
+export interface Tip {
+  bucket: number;
+  node: ReactNode;
+}
+
+/**
+ * A place outside the cursor to draw its tooltip in. A plot whose region scrolls clips whatever is inside it, the tooltip with it, so the
+ * plot (Plot.tsx) draws the tooltip beside the region and the cursor hands it over here. A cursor with none draws it in the plot, as the
+ * mock does.
+ */
+export interface TipSlot {
+  show(tip: Tip | null): void;
+  get(): Tip | null;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createTipSlot(): TipSlot {
+  let tip: Tip | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    show(next) {
+      if (next === null && tip === null) return;
+      tip = next;
+      for (const listener of listeners) listener();
+    },
+    get: () => tip,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+}
+
+export const TipSlotContext = createContext<TipSlot | null>(null);
+
+interface Group {
+  active: number | null;
+  set(i: number | null): void;
+}
+
+const HoverContext = createContext<Group | null>(null);
+
+/**
+ * The plots in it share the bucket the visitor is on: small multiples, and candles over volume. Each draws its own crosshair and dots, and
+ * the one with the pointer or focus shows the tooltip.
+ */
+export function HoverGroup({ children }: { children: ReactNode }) {
+  const [active, set] = useState<number | null>(null);
+  const group = useMemo(() => ({ active, set }), [active]);
+  return <HoverContext value={group}>{children}</HoverContext>;
+}
+
+/** The group a plot is in: the bucket it is on, and how to move it. `null` for a plot of its own. */
+export function useHoverGroup(): Group | null {
+  return useContext(HoverContext);
+}
+
+/** What `steppedKey` reads of a key press: React's `KeyboardEvent` has it, and so has a plain object. */
+interface KeyPress {
+  key: string;
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+}
+
+/**
+ * The keys of a cursor (spec 2.6), for every form that has one: the bucket (or segment) a key moves to from `index`, among `last + 1`, as
+ * the arrow keys, Home and End say it and stopping at the ends; `"hide"` for Escape; `null` for a key that is not the cursor's, and for the
+ * browser's own shortcuts (Alt+Left is Back). Pure: the caller prevents the default and selects, or hides.
+ */
+export function steppedKey(event: KeyPress, index: number, last: number): number | "hide" | null {
+  if (event.altKey || event.ctrlKey || event.metaKey) return null;
+  switch (event.key) {
+    case "ArrowLeft":
+      return Math.min(last, Math.max(0, index - 1));
+    case "ArrowRight":
+      return Math.min(last, Math.max(0, index + 1));
+    case "Home":
+      return 0;
+    case "End":
+      return Math.max(0, last);
+    case "Escape":
+      return "hide";
+    default:
+      return null;
+  }
+}
+
+/**
+ * What every cursor keeps (spec 2.6), so that the forms do not each keep it: where its own input put it (`index`, among `last + 1`) and
+ * whether that shows (`open`); hidden, it stays where it was, so that a slider has a value to say. `select` puts it somewhere and shows
+ * it, `hide` stops showing it, and `onKeyDown` is `steppedKey` acted on. `pin` is for a touch: it keeps what was selected until a touch
+ * lands outside `inside` (a finger that lifts is not a pointer that leaves), which is caught in the capture phase so that it runs before
+ * the touched cursor's own handler: a plot of the same group that is touched next sets the bucket after this one has cleared it.
+ *
+ * `setGroup` is the group's (`useHoverGroup().set`): a selection is told to it, and a cursor that is not showing owns nothing in the
+ * group and leaves what another plot is showing alone.
+ */
+export function useCursorState({
+  initial,
+  last,
+  inside,
+  setGroup,
+}: {
+  initial: number;
+  last: number;
+  inside: RefObject<Element | null>;
+  setGroup?: (i: number | null) => void;
+}) {
+  const [at, setAt] = useState(initial);
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const index = Math.min(at, Math.max(last, 0));
+
+  const select = (i: number) => {
+    setAt(i);
+    setOpen(true);
+    setGroup?.(i);
+  };
+  const hide = () => {
+    setPinned(false);
+    if (!open) return;
+    setOpen(false);
+    setGroup?.(null);
+  };
+
+  useEffect(() => {
+    if (!pinned) return;
+    const away = (event: Event) => {
+      if (event.target instanceof Node && inside.current?.contains(event.target)) return;
+      setPinned(false);
+      setOpen(false);
+      setGroup?.(null);
+    };
+    document.addEventListener("pointerdown", away, true);
+    return () => document.removeEventListener("pointerdown", away, true);
+  }, [pinned, setGroup]);
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    const next = steppedKey(event, index, last);
+    if (next === null) return;
+    if (next === "hide") {
+      hide();
+      return;
+    }
+    event.preventDefault();
+    select(next);
+  };
+
+  return { index, open, select, hide, pin: () => setPinned(true), onKeyDown };
 }
 
 /**
@@ -137,57 +307,3 @@ function CursorLayer({ plot, count, placement, label, valueText, tooltip, crossh
     </div>
   );
 }
-
-/**
- * The cursor's tooltip, drawn in the frame and not in the plot: the region of a plot that scrolls clips what is in it, and a tooltip must
- * not be cut at its edge or at the bottom of a short plot. It is placed from the boxes of the page (`getBoundingClientRect`) when it is
- * shown, and again when the region scrolls under one that a touch kept: its anchor is the bucket's x in the frame, the class gives the
- * side (spec 2.6: right under 22%, left over 78%, else centred, of the part of the plot in view) and a shift keeps it inside the region's box.
- *
- * Only this is rendered when the tooltip changes (the cursor hands it over through the slot, and the plot's `TipHost` draws it), so a pointer
- * move does not render the marks. It is part of the cursor's file, loaded with it (spec 2.1: "Cursor.tsx and the tooltip"), and the plot has
- * it from the moment the cursor does (`setTipView`, below).
- */
-function PlotTip({ tip, frame, region, plot, count, placement }: TipViewProps) {
-  const bubble = useRef<HTMLDivElement>(null);
-  const bucket = tip.bucket;
-
-  const place = () => {
-    const el = bubble.current;
-    const inFrame = frame.current?.getBoundingClientRect();
-    const view = region.current?.getBoundingClientRect();
-    const whole = plot.current?.getBoundingClientRect();
-    if (!el || !inFrame || !view || !whole) return;
-    // The part of the plot in view: all of it, for a plot that does not scroll.
-    const from = Math.max(whole.left, view.left);
-    const to = Math.min(whole.right, view.right);
-    const x = whole.left + xOf(bucket, count, placement) * whole.width;
-    const side = tooltipSide(to > from ? Math.min(1, Math.max(0, (x - from) / (to - from))) : xOf(bucket, count, placement));
-    const width = el.offsetWidth;
-    const natural = side === "right" ? x + 8 : side === "left" ? x - 8 - width : x - width / 2;
-    // Inside the box in view, and at its left edge when the tooltip is wider than that.
-    const inside = Math.max(from, Math.min(natural, to - width));
-    el.classList.remove("right", "left", "center");
-    el.classList.add(side);
-    el.style.left = `${x - inFrame.left}px`;
-    el.style.marginLeft = `${inside - natural}px`;
-  };
-
-  // After every render: the content may be another width.
-  useLayoutEffect(place);
-  // The region scrolling moves the bucket from under a tooltip that a touch has kept.
-  useEffect(() => {
-    const scroller = region.current;
-    if (!scroller) return;
-    scroller.addEventListener("scroll", place, { passive: true });
-    return () => scroller.removeEventListener("scroll", place);
-  }, [bucket, count, placement]);
-
-  return (
-    <div ref={bubble} className="plot__tip" aria-hidden="true">
-      {tip.node}
-    </div>
-  );
-}
-
-setTipView(PlotTip);

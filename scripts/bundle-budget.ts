@@ -12,8 +12,8 @@
 // What a page loads first is what the browser fetches before the page works: the entry, the root route, the `/:net` layout, the
 // page's route and every chunk those import statically (the `imports` of the build's manifest, which are the whole closure), and the
 // manifest itself (`assets/manifest-*.js`, `window.__reactRouterManifest`), which every page loads and which lists every route of the app: it
-// grows with each route, so it is in each page's figure. Chunks that are loaded when needed (`import()`: the search box's classifier, the
-// chart cursor) are not in it. Each file counts once, at its `gzip -9` size.
+// grows with each route, so it is in each page's figure. Chunks that are loaded when needed (`import()`: the search box's classifier) are
+// not in it. Each file counts once, at its `gzip -9` size.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";

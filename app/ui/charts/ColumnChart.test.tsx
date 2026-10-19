@@ -6,11 +6,6 @@ import { ChartTable } from "./ChartTable";
 import { ColumnChart } from "./ColumnChart";
 import type { TimeAxis, TimeSeriesData } from "./types";
 
-// These tests are about what the cursor does, not about when it arrives: a plot's layer is the cursor itself here. That hides the layer a plot has until
-// a pointer or the keyboard reaches it, and how the other plots of a group get their cursor from the first one's: CursorSlot.test.tsx has both, with
-// the real slot (a bare plot, a pointer, a focus and keys while it loads, small multiples and candles).
-vi.mock("./CursorSlot", async () => ({ CursorSlot: (await vi.importActual<typeof import("./Cursor")>("./Cursor")).Cursor }));
-
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();

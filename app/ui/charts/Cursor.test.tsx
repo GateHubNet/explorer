@@ -4,9 +4,7 @@ import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { Cursor, type CursorProps } from "./Cursor";
-import { createTipSlot, TipSlotContext } from "./cursor-slot-state";
-import { HoverGroup, steppedKey, useHoverGroup } from "./cursor-state";
+import { createTipSlot, Cursor, HoverGroup, steppedKey, TipSlotContext, useHoverGroup, type CursorProps } from "./Cursor";
 
 afterEach(() => {
   cleanup();

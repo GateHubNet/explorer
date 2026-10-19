@@ -54,39 +54,6 @@ describe("the files of the chart kit", () => {
   });
 });
 
-// The cursor (Cursor.tsx: the pointer, the tooltip and the keys) is loaded when a pointer or the keyboard first reaches a plot (spec 2.1), so it is in
-// a chunk of its own and not in the page's first JavaScript. What it shares with the files that load with the page is in cursor-state.tsx.
-describe("the cursor is loaded when it is needed", () => {
-  const namesCursor = (from: string) => from === "./Cursor";
-
-  it("is imported as a value by no file of the kit but CursorSlot, and by that one with import() alone", () => {
-    const naming = kitFiles.filter((file) => file !== "Cursor.tsx" && valueImports(readFileSync(new URL(file, chartsDir), "utf8")).some(namesCursor));
-    expect(naming).toEqual(["CursorSlot.tsx"]);
-    const slot = readFileSync(new URL("CursorSlot.tsx", chartsDir), "utf8");
-    expect(slot).toMatch(/\bimport\(\s*["']\.\/Cursor["']\s*\)/);
-    // Not `import … from "./Cursor"` or `export … from "./Cursor"`, which would take it into the page's first JavaScript: a type is erased.
-    expect(slot.match(/^(?:import|export)\s+(?!type\b)[^;]*?\s+from\s+["']\.\/Cursor["']/gms) ?? []).toEqual([]);
-  });
-
-  it("keeps what a plot needs of its cursor, and what the cursors share, in two files that import react alone and so never the cursor", () => {
-    for (const file of ["cursor-slot-state.tsx", "cursor-state.tsx"]) expect(valueImports(readFileSync(new URL(file, chartsDir), "utf8")), file).toEqual(["react"]);
-  });
-
-  it("has the cursor's geometry in a file of its own, which geometry re-exports, so that the cursor does not load the rest of geometry", () => {
-    expect(valueImports(readFileSync(new URL("placement.ts", chartsDir), "utf8"))).toEqual([]);
-    const cursor = valueImports(readFileSync(new URL("Cursor.tsx", chartsDir), "utf8"));
-    expect(cursor).toContain("./placement");
-    expect(cursor).not.toContain("./geometry");
-  });
-
-  it("has a layer to stand in for it, which the plot draws", () => {
-    expect(kitFiles).toEqual(expect.arrayContaining(["Cursor.tsx", "CursorSlot.tsx", "cursor-slot-state.tsx", "cursor-state.tsx", "placement.ts"]));
-    const plot = readFileSync(new URL("Plot.tsx", chartsDir), "utf8");
-    expect(valueImports(plot)).toContain("./CursorSlot");
-    expect(valueImports(plot)).not.toContain("./Cursor");
-  });
-});
-
 describe("the dependencies", () => {
   it("hold no charting library", () => {
     const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as Record<string, Record<string, string> | undefined>;

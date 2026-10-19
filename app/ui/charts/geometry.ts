@@ -1,12 +1,9 @@
 // The geometry of the chart kit (spec sections 2.2, 2.4 and 2.7): value scales with nice ticks, where a bucket sits along the x axis,
 // stacks, the path data of lines, areas and steps, and which end labels and x labels fit. Pure functions of numbers: no DOM, no
 // clock, no `Intl`, so the Worker and the browser draw the same marks. The kit parses the view builder's decimal strings with
-// `Number()` for this and for nothing else; every text a chart shows is made from the strings (labels.ts). Where a bucket sits, and the tooltip's
-// side, are in placement.ts, which the cursor loads on its own (they are re-exported here).
+// `Number()` for this and for nothing else; every text a chart shows is made from the strings (labels.ts).
 
-import { xOf, type Placement } from "./placement";
-
-export { bucketAt, percent, tooltipSide, xOf, type Placement } from "./placement";
+export type Placement = "points" | "bands";
 
 export interface ValueScale {
   /** The bottom of the scale: 0 unless a value is below it, or the line takes a domain. */
@@ -156,6 +153,22 @@ export function fractionOf(value: number, scale: ValueScale): number {
   return range > 0 ? (value - scale.min) / range : 0;
 }
 
+/** A fraction of a plot as a percent for its `style`: `51.72%`, rounded to `decimals` (2) and with no trailing zeros. A segment that is an exact share has 3. */
+export const percent = (fraction: number, decimals = 2): string => `${Math.round(fraction * 10 ** (decimals + 2)) / 10 ** decimals}%`;
+
+/** The fraction of the plot's width that bucket `i` of `n` is at: points on i/(n−1) (the middle for a lone one), bands at their centres. */
+export function xOf(i: number, n: number, placement: Placement): number {
+  if (placement === "points") return n > 1 ? i / (n - 1) : 0.5;
+  return (i + 0.5) / Math.max(n, 1);
+}
+
+/** The bucket nearest `fraction` of the plot's width, from 0 to n−1: the inverse of `xOf`. */
+export function bucketAt(fraction: number, n: number, placement: Placement): number {
+  if (!(n > 0) || Number.isNaN(fraction)) return 0;
+  const nearest = placement === "points" ? Math.round(fraction * (n - 1)) : Math.floor(fraction * n);
+  return Math.min(n - 1, Math.max(0, nearest));
+}
+
 /** One bucket of a stacked column: the span of each series from the bottom up, in value units. A `null` has no height. */
 export function stackOf(values: readonly (number | null)[]): { from: number; to: number }[] {
   let top = 0;
@@ -259,4 +272,10 @@ export function xLabelPicks(n: number, width: "wide" | "narrow" | "ends"): numbe
   const picks: number[] = [];
   for (let i = n - 1; i >= 0; i -= every) picks.unshift(i);
   return picks;
+}
+
+/** Which side of the cursor the tooltip opens on: right under 22% of the plot's width, left over 78%, else centred. */
+export function tooltipSide(fraction: number): "right" | "left" | "center" {
+  if (fraction < 0.22) return "right";
+  return fraction > 0.78 ? "left" : "center";
 }
