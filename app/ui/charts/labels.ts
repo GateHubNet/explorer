@@ -108,6 +108,12 @@ const NOUNS = {
   flag: ["flag ledger", "flag ledgers"],
 } as const;
 
+/** The name of a plot's slider (the `aria-label` of its cursor): the chart and the step it moves by, `Transactions by type, per day, day by day`. */
+export function sliderLabel(title: string, unit: TimeAxis["unit"]): string {
+  const [one] = NOUNS[unit];
+  return `${title}, ${one} by ${one}`;
+}
+
 /** What a plot with no value in any bucket says in its middle: `No data for these 30 days`. */
 export function emptyText(axis: TimeAxis): string {
   const count = axis.buckets.length;

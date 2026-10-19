@@ -275,8 +275,17 @@ describe("the plot", () => {
 
   it("leaves room in the scroll region for the ring, which it would clip, without moving the plot", () => {
     const region = rule(chartsCss, ".plot__scroll--slots");
-    expect(region.margin).toBe("-3px");
-    expect(region.padding).toBe("3px 3px calc(var(--x-band) + 3px)");
+    expect(region.margin).toBe("-3px -16px -3px -3px");
+    expect(region.padding).toBe("3px 16px calc(var(--x-band) + 3px) 3px");
+  });
+
+  it("leaves room at the end of the scroll region for the newest x label, half of which is past the last band: 16 px, inside the card's 18", () => {
+    const region = rule(chartsCss, ".plot__scroll--slots");
+    // The padding gives it and the margin takes it back, so that the plot is where it was; the room is in the card's padding, not past its edge.
+    const end = parseInt(region.padding!.split(" ")[1]!, 10);
+    expect(end).toBe(16);
+    expect(region.margin!.split(" ")[1]).toBe(`-${end}px`);
+    expect(end).toBeLessThanOrEqual(parseInt(rule(chartsCss, ".chart").padding!.split(" ")[1]!, 10));
   });
 
   it("leaves the end labels' gutter out under a 480 px container (its width is Plot's, from END_LABEL_GUTTER_PX)", () => {
@@ -342,6 +351,83 @@ describe("the cursor", () => {
 
   it("keeps the dots' colours under forced colours, as identity is all they say", () => {
     expect(rule(chartsCss, ".plot__dot", ["@media (forced-colors: active)"])["forced-color-adjust"]).toBe("none");
+  });
+});
+
+describe("the columns (ColumnChart)", () => {
+  it("lays the slots of a plot out as equal shares of its width, which are the bands the cursor reads", () => {
+    expect(rule(chartsCss, ".cols")).toMatchObject({ position: "absolute", inset: "0", display: "flex" });
+    expect(rule(chartsCss, ".col")).toMatchObject({ position: "relative", flex: "1 1 0", "min-width": "0" });
+  });
+
+  it("makes a bar at most 24 px wide, at most 72% of its slot, and 2 px short of it: the gap", () => {
+    expect(rule(chartsCss, ".col__bar").width).toBe("min(24px, 72%, calc(100% - 2px))");
+  });
+
+  it("stands a bar on the bottom of its slot, in the middle of it, with no tween", () => {
+    expect(rule(chartsCss, ".col__bar")).toMatchObject({ position: "absolute", bottom: "0", left: "0", right: "0", margin: "0 auto" });
+    for (const selector of [".col", ".col__bar", ".col__seg"]) {
+      expect(rule(chartsCss, selector).transition, selector).toBeUndefined();
+      expect(rule(chartsCss, selector).animation, selector).toBeUndefined();
+    }
+  });
+
+  it("rounds the top of a stack by 4 px and leaves its base square, and rounds the bottom of a diverging down bar instead", () => {
+    expect(rule(chartsCss, ".col__bar")["border-radius"]).toBe("4px 4px 0 0");
+    expect(rule(chartsCss, ".col__bar--down")["border-radius"]).toBe("0 0 4px 4px");
+    // The segments are cut at the radius.
+    expect(rule(chartsCss, ".col__bar").overflow).toBe("hidden");
+  });
+
+  it("stacks the segments from the bottom, so that the first in the DOM is the lowest", () => {
+    expect(rule(chartsCss, ".col__bar")).toMatchObject({ display: "flex", "flex-direction": "column-reverse" });
+    expect(rule(chartsCss, ".col__seg").flex).toBe("none");
+  });
+
+  it("draws a bar and a segment in the colour of its slot", () => {
+    expect(rule(chartsCss, ".col__seg").background).toBe("var(--mark)");
+    expect(rule(chartsCss, ".col__bar[data-slot]").background).toBe("var(--mark)");
+  });
+
+  it("insets every segment but the highest by 2 px of --surface at its top, so that the totals stay exact", () => {
+    expect(rule(chartsCss, ".col__seg:not(:last-child)")["box-shadow"]).toBe("inset 0 2px 0 var(--surface)");
+    // The highest has none, and neither has a rule that would give one to all.
+    expect(parse(chartsCss).filter((r) => r.selectors.includes(".col__seg") && r.declarations["box-shadow"] !== undefined)).toEqual([]);
+  });
+
+  it("dims the other columns to 45% while one is hovered, and not the hovered one", () => {
+    expect(rule(chartsCss, ".plot[data-active] .col:not(.is-active)").opacity).toBe("0.45");
+  });
+
+  it("writes an annotation in --bad above its column, keeping it inside the plot", () => {
+    const note = rule(chartsCss, ".col__note");
+    expect(note.color).toBe("var(--bad)");
+    expect(note.position).toBe("absolute");
+    expect(note.bottom).toBe("min(calc(var(--top) + 2px), calc(100% - 12px))");
+    expect(note["pointer-events"]).toBe("none");
+  });
+
+  it("keeps the colours of the bars, the segments and the tooltip's keys under forced colours, since that is what they say", () => {
+    for (const selector of [".col__bar", ".col__seg", ".plot__tip-key"]) {
+      expect(rule(chartsCss, selector, ["@media (forced-colors: active)"])["forced-color-adjust"], selector).toBe("none");
+    }
+  });
+});
+
+describe("the rows of a tooltip", () => {
+  it("has the date in --faint, the name and the notes in --muted, and the value strong", () => {
+    expect(rule(chartsCss, ".plot__tip-date").color).toBe("var(--faint)");
+    expect(rule(chartsCss, ".plot__tip-name").color).toBe("var(--muted)");
+    expect(rule(chartsCss, ".plot__tip-note").color).toBe("var(--muted)");
+    expect(rule(chartsCss, ".plot__tip b")).toMatchObject({ "font-weight": "600", "font-variant-numeric": "tabular-nums" });
+  });
+
+  it("draws the key of a series as a line of 12 × 2 px in the colour of its slot", () => {
+    expect(rule(chartsCss, ".plot__tip-key")).toMatchObject({ width: "12px", height: "2px", background: "var(--mark)" });
+  });
+
+  it("sets a total off from the rows above it with a line", () => {
+    expect(rule(chartsCss, ".plot__tip-total")["border-top"]).toBe("1px solid var(--border)");
   });
 });
 

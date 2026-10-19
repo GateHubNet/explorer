@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bucketLabel, cellText, emptyText, gapText, plotSummary, tableHeading, tickLabel, valueText } from "./labels";
+import { bucketLabel, cellText, emptyText, gapText, plotSummary, sliderLabel, tableHeading, tickLabel, valueText } from "./labels";
 import type { TimeAxis, TimeSeriesData } from "./types";
 
 /** `count` days from `first` (UTC `YYYY-MM-DD`), oldest first. */
@@ -171,6 +171,15 @@ describe("emptyText", () => {
 
   it("is singular for one bucket", () => {
     expect(emptyText({ unit: "day", buckets: ["2026-10-17"] })).toBe("No data for this day");
+  });
+});
+
+describe("sliderLabel", () => {
+  it("names the slider after the chart and the step it moves by", () => {
+    expect(sliderLabel("Transactions by type, per day", "day")).toBe("Transactions by type, per day, day by day");
+    expect(sliderLabel("Validator agreement", "week")).toBe("Validator agreement, week by week");
+    expect(sliderLabel("Ledgers", "hour")).toBe("Ledgers, hour by hour");
+    expect(sliderLabel("Votes", "flag")).toBe("Votes, flag ledger by flag ledger");
   });
 });
 
