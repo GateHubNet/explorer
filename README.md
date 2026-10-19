@@ -319,6 +319,129 @@ the browser).
   40-hex currency becomes text or "LP token"). `Sentence` renders the segments of `describe()`.
 - **Live updates** (the home page and the network page; see "Live updates" below): `use-live-refresh.ts` (`useLiveRefresh`, the 4 s revalidation), `live-page.ts` (`createLiveOnScreen`, the `OnScreen` of a live page, and `keepLoaded`, its merge), `use-live-controls.ts` (`useLiveControls`, the pause and the `LiveControls` a page is given), `use-hold.ts` (`useHolds`, `holdsFocus`: a part with links holds the page), `components/DataTable.tsx` with `live` (rows enter and slide: `use-live-rows.ts`, `motion.ts`), `components/LiveValue.tsx` (a figure that ticks in), `on-screen.ts` (what a page that is on screen hands back when a revalidation fails, and the `merge` of an answer it takes) and `revalidation.ts` (`onlyWhenParamsChange`, the `shouldRevalidate` of the `/:net` layout).
 
+## The chart kit
+
+`app/ui/charts/` draws every chart of the explorer by hand: React components, pure geometry and one stylesheet (`app/ui/charts.css`). Nothing
+comes from a charting library. The ones that were weighed cost 20 KB gzipped and more, or draw to a canvas, which cannot be printed into the
+cached HTML. The Worker prints each chart with every mark in place, and the browser takes it over. (Section 2 of
+`docs/superpowers/specs/2026-10-19-network-dashboard-design.md` has the reasons and the sizes.)
+
+A page composes a card and its parts. The view builder in `app/server/` makes the data. The kit never fetches, and a number it shows (a total, a share, a
+delta) is the view builder's: the kit measures numbers and does not compute them.
+
+```tsx
+<ChartCard id="tx-by-type" title="Transactions by type, per day" source="/v2/stats/type?interval=day" what="transactions by type"
+  legend={<Legend items={legendOf(data, "swatch")} />} table={<ChartTable title="Transactions by type" data={data} />} notes={[…]}>
+  <ColumnChart layout="stacked" title="Transactions by type per day" data={data} />
+</ChartCard>
+```
+
+| Component | Draws |
+|---|---|
+| `ChartCard` | The card: title, source line (a path, never a host), the Chart/Table toggle, the legend, both views and the notes. `state="failed"` puts a `SectionError` with Retry in place of the views and the toggle |
+| `Legend` (`legendOf`, `shareLegend`, `candleLegend`) | 10 × 10 px swatches for columns and areas, 14 × 2 px keys for lines, a symbol with its words for an annotation; none for one series |
+| `ChartTable` | The table view of any form below: a compact `DataTable`, 300 px high at most, newest first, exact values, "—" (heard as "no data") for a gap |
+| `ColumnChart` | `layout="single"`, `"stacked"` (the series bottom up, each segment its exact share) or `"diverging"` (in up, out down, from a zero line); `annotations` put a symbol over a column |
+| `LineChart` | 1 to 3 lines, with `area`, `curve="step"`, a `domain` and `references` (dashed thresholds), and end labels |
+| `SmallMultiples` | A grid of one-series lines (6 at most), each on a scale of its own, one cursor for all |
+| `Candles` | Candlesticks over a volume pane that share one cursor and one readout |
+| `ShareBar` | 100% stacked horizontal rows, a label under a segment of 18% or more |
+| `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%" |
+| `Meter` | One ratio on a track, 12 px (6 px `small`), with a threshold tick and its label |
+| `InlineBar` | A depth wash behind a table row (bids, asks), or an out/in bar in a cell |
+| `Sparkline` | A trend of 100 × 28 px with no axes, for a row or a `StatTile` |
+
+`StatTile` and `StatGrid` (`components/StatTile.tsx`) are the home page's tiles, which stay mono at 22 px. `figure` gives a tile the network
+pages' style (sans, proportional figures, 24 px, weight 600), `StatGrid narrow` a grid of tiles of 150 px (two in a row on a phone), `delta`
+(`{ text, sign }`) a triangle for 1 or -1 (none for 0) and the signed text in `--muted`, after the value and before the note, and `trend` a
+`Sparkline` after the note. The sign picks the triangle and the text is the view builder's.
+
+### Data and words
+
+- **Strings.** `types.ts` is type-only, and view builders import it. A value is an exact decimal string. The kit parses it with `Number()` for
+  geometry and for nothing else; every text a chart shows is made from the string (`labels.ts`, with the formatters of `app/domain/format.ts`).
+  A JSON number becomes a string in the view builder. A `null` is "no value"; a string that is not a number is read as `null`.
+- **Where the chart draws.** SVG for the lines, areas and steps (one `viewBox="0 0 1000 H"` stretched to the plot, `vector-effect:
+  non-scaling-stroke`, so a line is 2 px at any width). HTML boxes in percent for columns, segments, candles, bars, dots, labels, the crosshair and
+  the tooltip, because a stretched viewBox cannot keep a column at most 24 px wide or a dot round. There is no `Intl`, locale or clock (month
+  names are a fixed table), so the Worker's HTML and the first render in the browser are the same: the kit's tests render with `renderToString`
+  and hydrate (`test/support/hydrate.tsx`), and a mismatch fails them.
+- **Scales.** Columns, bars and areas start at 0, always. Ticks are a step of 1, 2, 2.5 or 5 × 10ⁿ that gives 4 or 5 (`niceScale`), the top
+  tick at or above the largest value. A count has whole steps: where none is in range (maxima 9 and 10) the scale takes the smallest whole step
+  that is at least a quarter of the maximum (0, 5, 10), and a count of 2 is 0 to 4. A diverging chart is symmetric about 0. Nothing to draw is 0
+  to 4 for a count, else 0 to 1. A line may take a `domain`; **a domain must cover its data** (a value outside it is drawn outside the plot,
+  not cut), and the card's note must say that the axis does not start at 0. Candles use `fitScale`, which does not start at 0.
+- **Words.** A tick is `tickLabel` (`500K`, `1.2B`; in full under 10,000). **Tooltips and the slider's `aria-valuetext` use `valueText(v,
+  format, "full")`**: a count in full (`1,284,331`), an amount, drops or a price compact with its unit (`45.5M XRP`, `113 drops`), a percent and
+  seconds exact. An end label is the compact figure and the series' `short` name, with no unit: "**45.5M** payments" (the card's title names the
+  currency). The table has the exact string. A `BarList` tip is compact with the unit, then the share text the builder wrote ("58%", "<1%").
+- **Time.** Every bucket is UTC. An axis writes "Oct 16" (a week: its Monday), a tooltip or table "Oct 16, 2026" ("Week of Oct 12, 2026"),
+  hours "17:00". `forming: true` marks the newest bucket as the running one and adds ", so far" to the tooltip, the slider text and the table, never
+  to the axis. `pending: n` says the newest `n` buckets have no value yet: their values are `null`, and the tooltip says "Not computed yet".
+  The card's note must say which day is not computed. x labels are every k-th bucket counting back from the newest: k = ⌈n/6⌉ on a wide plot,
+  ⌈n/3⌉ under 480 px of card. Both sets are in the HTML and a container query shows one, since the Worker cannot know the width.
+- **Colour.** A mark's slot (`1` to `5`, `other`, `up`, `down`, `neutral`) reaches CSS as `data-slot`, which `charts.css` turns into `--mark`; the
+  slots are the tokens `--series-1` to `--series-5`, `--series-other`, `--up` and `--down`, and `neutral` is drawn in `--series-other`. Slots go
+  by entity in a fixed order, never by rank. **Text never wears a series colour**: labels and values are `--fg`, `--muted` and `--faint`. Three
+  slots miss 3:1 on white, so every chart has the table, a chart of several series has a legend, and lines of 4 or fewer have end labels. Under
+  `forced-colors: active` the marks and swatches keep their colours (`forced-color-adjust: none`).
+
+### What a visitor can do
+
+- **The toggle works without JavaScript.** The Chart/Table switch is a `<fieldset>` of two native radios named `{id}-view`, Chart checked in
+  the HTML. Where `:has()` works, `.chart:has(input[value="table"]:checked)` hides the chart view and shows the table view. Where it does not,
+  both views show and the toggle is not drawn, since a switch that changed nothing would be a dead control. The radios are uncontrolled
+  (`defaultChecked`), so a beat of the live page leaves the visitor's choice alone. The hidden view is `display: none`.
+- **A chart is one image to a screen reader.** The marks are in a `role="img"` whose label is the kit's own summary ("Transactions by type per
+  day, Sep 17 to Oct 16, 2026. Highest Oct 3, 2.31M; latest Oct 16, 2.1M. Choose Table for every value."). The marks inside are `aria-hidden`.
+  `Sparkline` and `Meter` are one image named by the label the builder wrote. `BarList` is a list: its bars are `aria-hidden` and its text is read.
+- **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore`) a `Cursor` adds a transparent
+  `role="slider"` over the plot with `aria-valuetext` for the bucket, so a screen reader hears each step with no live region. A pointer selects
+  the nearest bucket; focus the newest; Left and Right, Home and End move; Escape and blur hide. The tooltip is `aria-hidden`, at most
+  `min(260px, 90%)` wide, to the right of the cursor under 22% of the plot, to the left over 78%, else centred. The active mark is marked in the DOM
+  (`data-active`, `is-active`), so a pointer move renders the overlay and not the marks. `HoverGroup` gives small multiples and candles one bucket.
+  The Worker's HTML has none of this. `Sparkline`, `InlineBar` and `Meter` have no hover: the row or tile around them says the values.
+- **The tooltip is drawn outside the scrolling region.** A column plot with more buckets than its width holds at 5 px each (a slot is 5 px at
+  the least) scrolls sideways inside a focusable region ("{title}, scrollable chart"), which would clip a tooltip drawn inside it, so `Plot` draws it
+  beside the region. On touch, `.plot__cursor` has `touch-action: pan-y`, so the page scrolls; in a region that scrolls it has `pan-x pan-y`, so a
+  sideways swipe scrolls the plot and a tap still selects. A tap keeps the tooltip until a touch lands elsewhere.
+- **Sizes.** The plot is 200 px high, 160 px under 480 px of card (the card is the container, not the window). The line chart's end labels have
+  a gutter of 112 px, which is left out under 480 px: the legend and the tooltip carry them. A later end label is dropped when it would sit within
+  16 px of one that is drawn.
+- **States.** A `null` is a gap (a line breaks, a column slot is empty, a table cell is "—", the tooltip says "No data for Oct 3"). A 0 is drawn
+  at 0. With no value at all the plot has its empty scale and says "No data for these 30 days". A series that is left out is not in `series`: no
+  legend entry, end label or column. The CSS dims a card to 55% under `.is-refetching`, with no skeleton: the page puts that class on an element
+  above the cards while it fetches another period or currency.
+  A reference's label is drawn and is in neither the summary, the slider nor the table, so the card's note must say the threshold.
+
+### Live updates: memo by token
+
+Each chart is `memo`'d on its data's `token`, a string the view builder makes from what the chart shows, and on the props that change what it
+draws (`title`, `layout`, `area`, `curve`, `dense`). A beat of the live page that brings the same token renders nothing and moves nothing, though
+the page's data object is new. A new token redraws the chart in place and, when it changes after the first render, gives its box the ring of a
+changed figure: 3 px of `--accent` outside it, fading out over 1.2 s, once (`value-mark`, the animation of `LiveValue`; it stays under
+`prefers-reduced-motion: reduce`, as a colour that fades). There is no ring on the server's render, on hydration or on a navigation, so a page
+that shows another view must remount (`key`) or the ring runs on the way in. Marks do not tween. `Sparkline`, `Meter` and `InlineBar` are not
+memo'd: they have no token and cost almost nothing.
+
+### The kit's boundaries
+
+- **The bundle rule.** `test/unit/charts-bundle.test.ts` reads every file of `app/ui/charts/` and allows as value imports only `react`, the kit's
+  own files (`./…`), `app/domain/format` (`bignumber.js` is in the bundle already), `app/ui/cx` and `app/ui/components/*`; nothing from
+  `app/server`, no charting package in `package.json`, and **no barrel file**: a page imports the modules it draws, so it loads only those. Type
+  imports are erased and are free. The spec's estimate for what the network page loads of the kit is about 7 KB gzipped, and the page's target
+  is 145,000 bytes (the budget is 150,000); if its build says more, `Cursor` and the tooltip load with `import()` on the first `pointerenter` or
+  `focusin` of a plot, as the search classifier does.
+- **The kit's classes are its own.** They live in `charts.css`, which `styles.css` imports after `components.css` and before `pages.css`. A class
+  of the kit's is never defined in `pages.css`, which loads later and would override it: the pages' `.cols` once made every column of a chart 0 px
+  high on a real page, where the tests, which have no stylesheet, saw nothing wrong. The kit's row of columns is `.plot__cols`, and
+  `test/unit/charts-css.test.ts` fails when `pages.css` shares a class with it.
+- **What the tests cannot see is pinned in the CSS.** The same file reads `charts.css` and `components.css` rule by rule (sizes, radii, the tokens a
+  mark wears, the toggle's `:has()` and its fallback, the 44 px targets, the touch rules, forced colours, the rings), and `tokens.test.ts` checks
+  the contrast of `--muted` on each depth wash and of the meter's fill on its track. A new form adds its rules to both.
+- **Tests.** Each component has a `*.test.tsx` beside it that renders it as the Worker prints it, hydrates it, and checks the marks, the words,
+  the states and the memo. `geometry.test.ts` and `labels.test.ts` are the pure functions.
+
 ## Home and ledger pages
 
 `/{net}` (`routes/net._index.tsx`) and `/{net}/ledger/{index|hash}` (`routes/net.ledger.$id.tsx`) are children of the `/:net`

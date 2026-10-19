@@ -119,6 +119,14 @@ describe("ColumnChart as the Worker prints it and the browser takes it over", ()
     expect(errors).toEqual([]);
   });
 
+  it("lays the columns out in the plot's own row class, which no page's columns share", async () => {
+    // `.cols`, a page's columns, was the kit's row too, and over the kit's rule it made every column 0 px high on a real page (charts.css has
+    // the rule of the plot's own, and test/unit/charts-css.test.ts that the pages' sheet does not share a class with it).
+    const { container } = await serverThenHydrated(<ColumnChart layout="stacked" title={TITLE} data={STACKED} />);
+    expect(container.querySelectorAll(".plot__cols > .col")).toHaveLength(30);
+    expect(container.querySelector(".cols")).toBeNull();
+  });
+
   it("is one image of marks that a screen reader does not enter: the columns are hidden inside it", async () => {
     const { container } = await serverThenHydrated(<ColumnChart layout="stacked" title={TITLE} data={STACKED} />);
     for (const col of container.querySelectorAll(".col")) expect(col.closest('[aria-hidden="true"]')).not.toBeNull();

@@ -329,6 +329,12 @@ describe("linePath", () => {
     expect(linePath([], { height: 100, placement: "points" })).toBe("");
     expect(linePath([null, null], { height: 100, placement: "points" })).toBe("");
   });
+
+  it("draws in a box of the width it is given when there is one (a sparkline's is its own), x = width * the place", () => {
+    expect(linePath([0, 0.5, 1], { height: 16, width: 88, placement: "points" })).toBe("M0,16L44,8L88,0");
+    expect(linePath([0, null, 1], { height: 16, width: 88, placement: "points" })).toBe("M0,16L0,16M88,0L88,0");
+    expect(linePath([0, 1], { height: 16, width: 88, placement: "points", curve: "step" })).toBe("M0,16L88,16L88,0");
+  });
 });
 
 describe("areaPath", () => {
@@ -370,6 +376,12 @@ describe("areaPath", () => {
     expect(areaPath([1, 1, null, 0.5, null, 1, 1], { height: 100, placement: "points" })).toBe(
       "M0,0L166.67,0L166.67,100L0,100Z" + "M500,50L500,100Z" + "M833.33,0L1000,0L1000,100L833.33,100Z",
     );
+  });
+});
+
+describe("areaPath's width", () => {
+  it("is the width of the box it is given, as the line's is", () => {
+    expect(areaPath([0, 1], { height: 16, width: 88, placement: "points" })).toBe("M0,16L88,0L88,16L0,16Z");
   });
 });
 

@@ -24,7 +24,7 @@ export const PANEL_HEIGHT = 110;
 /** The room right of a line chart for its end labels, on wide plots (spec 2.7). */
 export const END_LABEL_GUTTER_PX = 112;
 
-/** The width of the box the paths are drawn in: `<svg viewBox="0 0 1000 H" preserveAspectRatio="none">`. */
+/** The width of the box the paths of the plots are drawn in: `<svg viewBox="0 0 1000 H" preserveAspectRatio="none">`. */
 const BOX_WIDTH = 1000;
 /** The nice steps are these times a power of ten. */
 const STEP_MANTISSAS = [1, 2, 2.5, 5] as const;
@@ -181,15 +181,17 @@ export function stackOf(values: readonly (number | null)[]): { from: number; to:
 
 type Point = readonly [x: number, y: number];
 export interface PathOptions {
-  /** The height of the box the path is drawn in, which is 1000 wide. */
+  /** The height of the box the path is drawn in. */
   height: number;
+  /** Its width: 1000, the plots' box, unless the form draws in a box of its own (a sparkline). */
+  width?: number;
   placement: Placement;
   /** `"step"` is step-after: level to the next bucket, then up or down to its value. */
   curve?: "linear" | "step";
 }
 
 /** The points of each run of buckets without a `null`, in the box: `y = height × (1 − f)`. */
-function runsOf(fractions: readonly (number | null)[], { height, placement }: PathOptions): Point[][] {
+function runsOf(fractions: readonly (number | null)[], { height, width = BOX_WIDTH, placement }: PathOptions): Point[][] {
   const runs: Point[][] = [];
   let run: Point[] | undefined;
   for (const [i, f] of fractions.entries()) {
@@ -197,7 +199,7 @@ function runsOf(fractions: readonly (number | null)[], { height, placement }: Pa
       run = undefined;
     } else {
       if (!run) runs.push((run = []));
-      run.push([xOf(i, fractions.length, placement) * BOX_WIDTH, height * (1 - f)]);
+      run.push([xOf(i, fractions.length, placement) * width, height * (1 - f)]);
     }
   }
   return runs;
@@ -208,8 +210,8 @@ function outline(run: Point[], curve: PathOptions["curve"]): Point[] {
   return run.flatMap((point, i) => (i === 0 ? [point] : [[point[0], run[i - 1]![1]] as const, point]));
 }
 
-/** At most 2 decimals, trailing zeros trimmed (`333.33`, `100`). */
-const num = (value: number): string => String(Math.round(value * 100) / 100);
+/** At most 2 decimals, trailing zeros trimmed (`333.33`, `100`): a coordinate of a path, and of a mark that is drawn beside one. */
+export const num = (value: number): string => String(Math.round(value * 100) / 100);
 
 /**
  * `M x,y L x,y …` with no spaces, leaving out a point that is where the one before it is. A lone point is `M x,y L x,y`, a segment of no
@@ -228,7 +230,7 @@ function commands(points: Point[]): string {
 }
 
 /**
- * The path of a line in a `1000 × height` box. `fractions` are 0 to 1 (`fractionOf`); a `null` breaks the line, and the next point starts
+ * The path of a line in a `width × height` box (1000 wide unless asked). `fractions` are 0 to 1 (`fractionOf`); a `null` breaks the line, and the next point starts
  * with `M`. A value between two `null`s is a zero-length segment, which a round cap draws as a dot.
  */
 export function linePath(fractions: readonly (number | null)[], opts: PathOptions): string {

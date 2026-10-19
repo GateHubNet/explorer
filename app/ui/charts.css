@@ -972,11 +972,238 @@
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Sparkline: a trend with no axes in a box of 100 × 28 px (the svg's own size: its viewBox is its px, so nothing is scaled and a stroke is the
+   width it says). The line is the quiet colour and the end dot the network's, with a ring of the surface's colour round it. */
+
+.spark {
+  flex: none;
+}
+
+.spark__line {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.spark__ring {
+  fill: var(--surface);
+}
+
+.spark__dot {
+  fill: var(--accent);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Bar list (BarList): rows of a label, a bar and its tip. A row is a column for the label, as wide as the longest of them (the list's
+   `--label`, which the Worker writes from the characters it has: this is mono, so a character is a known width), and a lane for the bar. The
+   lane keeps room for the longest tip after the widest bar (`--tip`, the characters of that text, in the lane's own 12 px sans), so a bar is as
+   wide as its share of what is left and the tip follows its end without ever being cut. The bar is square at its start and has a 4 px radius at its end. */
+
+.barlist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.barlist--dense {
+  gap: 6px;
+}
+
+.barlist__item {
+  display: grid;
+  grid-template-columns: var(--label, 56px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.barlist__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.barlist__sub {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.barlist__lane {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-right: var(--tip, 0px);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.barlist__bar {
+  flex: none;
+  height: 18px;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+  background: var(--series-1);
+}
+
+.barlist--dense .barlist__bar {
+  height: 12px;
+}
+
+.barlist__tip {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.barlist__tip b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Meter: a track and a fill, 12 px high (6 px small: `--meter` is the one size). A threshold has a tick of 2 px in the text colour that
+   reaches 5 px past the track, on both sides, and its label under it, so that the box has 5 px above the track and a line under the tick's
+   end: only then. The label opens to the side of its tick that has room (Meter picks it, as the tooltip does). */
+
+.meter {
+  --meter: 12px;
+  position: relative;
+}
+
+.meter--small {
+  --meter: 6px;
+}
+
+.meter--threshold {
+  padding-top: 5px;
+  padding-bottom: 22px;
+}
+
+.meter__track {
+  position: relative;
+  height: var(--meter);
+  border-radius: 999px;
+  background: var(--track);
+}
+
+.meter__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--series-1);
+}
+
+.meter__tick {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--fg);
+}
+
+.meter__label {
+  position: absolute;
+  top: calc(5px + var(--meter) + 5px + 3px);
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.meter__label[data-side="center"] {
+  transform: translateX(-50%);
+}
+
+.meter__label[data-side="left"] {
+  transform: translateX(-100%);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Inline bars (InlineBar). The depth form is a wash behind a row's text, from the row's end (the row is `position: relative`, and the bar is
+   its first child): the cells after it are put above it, so that the text is on the wash, which is how its contrast was worked out (tokens.test.ts).
+   The diverging form is in a cell: 14 px high, out to the left in --down and in to the right in --up of a centre line, each as wide as the
+   Worker's style says in percent of the cell (the largest of all rows reaches 50%). */
+
+.inline-bar--up,
+.inline-bar--down {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  right: 0;
+  z-index: 0;
+  border-radius: 3px 0 0 3px;
+  pointer-events: none;
+}
+
+.inline-bar--up {
+  background: var(--up-wash);
+}
+
+.inline-bar--down {
+  background: var(--down-wash);
+}
+
+.inline-bar--up ~ *,
+.inline-bar--down ~ * {
+  position: relative;
+  z-index: 1;
+}
+
+.inline-bar--diverging {
+  position: relative;
+  display: block;
+  height: 14px;
+}
+
+.inline-bar--diverging::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--axis);
+}
+
+.inline-bar__out,
+.inline-bar__in {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.inline-bar__out {
+  right: calc(50% + 0.5px);
+  border-radius: 3px 0 0 3px;
+  background: var(--down);
+}
+
+.inline-bar__in {
+  left: calc(50% + 0.5px);
+  border-radius: 0 3px 3px 0;
+  background: var(--up);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    A chart that a beat of the page redrew gets the ring of a changed figure (value-mark, components.css): 3 px of the accent outside the
    plot, fading out in 1.2 s. The marks do not move. */
 
 .plot.is-changed,
-.share.is-changed {
+.share.is-changed,
+.barlist.is-changed {
   animation: value-mark 1200ms ease-out;
 }
 
@@ -984,7 +1211,8 @@
    it stays, as the changed figure's does. */
 @media (prefers-reduced-motion: reduce) {
   .plot.is-changed,
-  .share.is-changed {
+  .share.is-changed,
+  .barlist.is-changed {
     animation: value-mark 1200ms ease-out !important;
   }
 }
@@ -1005,7 +1233,16 @@
   .candle__body,
   .share__seg,
   .line,
-  .area {
+  .area,
+  .spark__line,
+  .spark__ring,
+  .spark__dot,
+  .barlist__bar,
+  .meter__track,
+  .meter__fill,
+  .meter__tick,
+  .inline-bar__out,
+  .inline-bar__in {
     forced-color-adjust: none;
   }
 

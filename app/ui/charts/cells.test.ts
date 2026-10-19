@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cellOf, lastOf } from "./cells";
+import { cellOf, lastOf, shareOf } from "./cells";
 
 describe("cellOf", () => {
   it("keeps the exact text and reads its number: the text is what a label says, the number is for the geometry only", () => {
@@ -28,5 +28,25 @@ describe("lastOf", () => {
     expect(lastOf([null, cell("0"), null])).toBe(1);
     expect(lastOf([null, null])).toBe(-1);
     expect(lastOf([])).toBe(-1);
+  });
+});
+
+describe("shareOf", () => {
+  it("is the size over the maximum", () => {
+    expect(shareOf("84", "100")).toBe(0.84);
+    expect(shareOf("1", "4")).toBe(0.25);
+    expect(shareOf("100", "100")).toBe(1);
+    expect(shareOf("0", "100")).toBe(0);
+  });
+
+  it("holds a size past the ends at them", () => {
+    expect(shareOf("120", "100")).toBe(1);
+    expect(shareOf("-5", "100")).toBe(0);
+  });
+
+  it("is 0 for a size or a maximum that is not a number, and for a maximum that is not above 0", () => {
+    for (const [size, max] of [["n/a", "100"], ["", "100"], ["5", "n/a"], ["5", ""], ["5", "0"], ["5", "-10"]]) {
+      expect(shareOf(size!, max!), `${size} of ${max}`).toBe(0);
+    }
   });
 });

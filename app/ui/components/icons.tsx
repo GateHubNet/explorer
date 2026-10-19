@@ -72,6 +72,20 @@ export const AlertIcon = icon(
 );
 export const DownloadIcon = icon(<path d="M12 4v11M7 10l5 5 5-5M5 20h14" />, { strokeWidth: 2, size: 14 });
 
+/** A filled shape on the board's 10 px grid, not a stroke: the triangles of a tile's delta (an up or a down). */
+function triangle(path: string) {
+  return function Triangle({ size = 10, className }: IconProps) {
+    return (
+      <svg className={className} width={size} height={size} viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+        <path d={path} fill="currentColor" />
+      </svg>
+    );
+  };
+}
+
+export const TriangleUpIcon = triangle("M5 1.5 9 8H1z");
+export const TriangleDownIcon = triangle("M5 8.5 1 2h8z");
+
 /** The mark of the header. The square takes the network's accent. */
 export function LogoMark({ size = 28 }: { size?: number }) {
   return (

@@ -692,6 +692,214 @@ describe("the share bars (ShareBar)", () => {
   });
 });
 
+describe("the sparkline (Sparkline)", () => {
+  it("is a box that does not shrink in a row: its size is the svg's own, 100 × 28 px", () => {
+    expect(rule(chartsCss, ".spark").flex).toBe("none");
+    expect(rule(chartsCss, ".spark").width).toBeUndefined();
+  });
+
+  it("draws the line 1.5 px wide in --faint, with round joins and caps", () => {
+    expect(rule(chartsCss, ".spark__line")).toMatchObject({
+      fill: "none",
+      stroke: "var(--faint)",
+      "stroke-width": "1.5",
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round",
+    });
+  });
+
+  it("draws the end dot in --accent, with a ring in the colour of the surface under it", () => {
+    expect(rule(chartsCss, ".spark__dot").fill).toBe("var(--accent)");
+    expect(rule(chartsCss, ".spark__ring").fill).toBe("var(--surface)");
+  });
+
+  it("keeps the colours of the line and the dot under forced colours", () => {
+    for (const selector of [".spark__line", ".spark__ring", ".spark__dot"]) {
+      expect(rule(chartsCss, selector, ["@media (forced-colors: active)"])["forced-color-adjust"], selector).toBe("none");
+    }
+  });
+});
+
+describe("the bar list (BarList)", () => {
+  it("is a column of rows 10 px apart, and 6 px apart when dense", () => {
+    expect(rule(chartsCss, ".barlist")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "10px", "font-family": "var(--font-mono)", "font-size": "13px" });
+    expect(rule(chartsCss, ".barlist--dense").gap).toBe("6px");
+  });
+
+  it("has a column for the label, as wide as the longest (the list's --label, 56px when it does not say), and one for the bar and its tip", () => {
+    expect(rule(chartsCss, ".barlist__item")).toMatchObject({ display: "grid", "grid-template-columns": "var(--label, 56px) minmax(0, 1fr)", "align-items": "center" });
+    expect(rule(chartsCss, ".barlist__name")).toMatchObject({ "min-width": "0", "overflow-wrap": "anywhere" });
+    expect(rule(chartsCss, ".barlist__sub")).toMatchObject({ color: "var(--faint)", "font-size": "11px" });
+  });
+
+  it("draws the bar 18 px thick, 12 px when dense, in --series-1, with a 4 px radius at its end and a square start", () => {
+    expect(rule(chartsCss, ".barlist__bar")).toMatchObject({ height: "18px", background: "var(--series-1)", "border-radius": "0 4px 4px 0", flex: "none" });
+    expect(rule(chartsCss, ".barlist--dense .barlist__bar").height).toBe("12px");
+  });
+
+  it("leaves room after the longest bar for its tip (the list's --tip), so that the bar's width is a share of the rest and the tip follows the bar", () => {
+    // The room is in the lane's own characters, which are those of the tip's font: sans at 12 px.
+    expect(rule(chartsCss, ".barlist__lane")).toMatchObject({
+      display: "flex",
+      "align-items": "center",
+      gap: "10px",
+      "padding-right": "var(--tip, 0px)",
+      "min-width": "0",
+      "font-family": "var(--font-sans)",
+      "font-size": "12px",
+    });
+  });
+
+  it("writes the tip in --muted at 12 px on one line, with the value strong in --fg", () => {
+    expect(rule(chartsCss, ".barlist__tip")).toMatchObject({ color: "var(--muted)", "white-space": "nowrap", flex: "none", "font-variant-numeric": "tabular-nums" });
+    expect(rule(chartsCss, ".barlist__tip b")).toMatchObject({ color: "var(--fg)", "font-weight": "600" });
+  });
+
+  it("rings once after a change, as the plot does, and the ring stays under prefers-reduced-motion: reduce", () => {
+    expect(rule(chartsCss, ".barlist.is-changed").animation).toBe("value-mark 1200ms ease-out");
+    expect(rule(chartsCss, ".barlist.is-changed", [REDUCED]).animation).toBe("value-mark 1200ms ease-out !important");
+  });
+
+  it("keeps the colour of the bars under forced colours", () => {
+    expect(rule(chartsCss, ".barlist__bar", ["@media (forced-colors: active)"])["forced-color-adjust"]).toBe("none");
+  });
+});
+
+describe("the meter (Meter)", () => {
+  it("is 12 px high, and 6 px when small, as one size the track and the tick's room are made from", () => {
+    expect(rule(chartsCss, ".meter")["--meter"]).toBe("12px");
+    expect(rule(chartsCss, ".meter--small")["--meter"]).toBe("6px");
+    expect(rule(chartsCss, ".meter__track")).toMatchObject({ height: "var(--meter)", background: "var(--track)", "border-radius": "999px", position: "relative" });
+  });
+
+  it("fills the track from its start in --series-1, with full radius", () => {
+    expect(rule(chartsCss, ".meter__fill")).toMatchObject({ position: "absolute", left: "0", top: "0", bottom: "0", background: "var(--series-1)", "border-radius": "999px" });
+  });
+
+  it("draws the threshold's tick 2 px wide in --fg, centred on its place and reaching 5 px past the track on both sides", () => {
+    expect(rule(chartsCss, ".meter__tick")).toMatchObject({
+      position: "absolute",
+      top: "-5px",
+      bottom: "-5px",
+      width: "2px",
+      "margin-left": "-1px",
+      background: "var(--fg)",
+    });
+  });
+
+  it("makes room for the tick above the track and the label under it, and only when there is a threshold", () => {
+    expect(rule(chartsCss, ".meter--threshold")).toMatchObject({ "padding-top": "5px", "padding-bottom": "22px" });
+    expect(rule(chartsCss, ".meter")["padding-top"]).toBeUndefined();
+  });
+
+  it("writes the label in --fg at 11 px under the tick's end, to the right of it near the start of the track, to the left near its end, else centred on it", () => {
+    expect(rule(chartsCss, ".meter__label")).toMatchObject({
+      position: "absolute",
+      top: "calc(5px + var(--meter) + 5px + 3px)",
+      color: "var(--fg)",
+      "font-size": "11px",
+      "line-height": "14px",
+      "white-space": "nowrap",
+    });
+    expect(rule(chartsCss, '.meter__label[data-side="center"]').transform).toBe("translateX(-50%)");
+    expect(rule(chartsCss, '.meter__label[data-side="left"]').transform).toBe("translateX(-100%)");
+    // Opening to the right is where it starts: no transform.
+    expect(rule(chartsCss, ".meter__label").transform).toBeUndefined();
+  });
+
+  it("keeps the colours of the fill and the tick under forced colours", () => {
+    for (const selector of [".meter__track", ".meter__fill", ".meter__tick"]) {
+      expect(rule(chartsCss, selector, ["@media (forced-colors: active)"])["forced-color-adjust"], selector).toBe("none");
+    }
+  });
+});
+
+describe("the inline bars (InlineBar)", () => {
+  it("grows the depth from the row's end, 2 px in from the row's top and bottom, with a 3 px radius at its open end, and takes no pointer", () => {
+    for (const selector of [".inline-bar--up", ".inline-bar--down"]) {
+      expect(rule(chartsCss, selector), selector).toMatchObject({
+        position: "absolute",
+        top: "2px",
+        bottom: "2px",
+        right: "0",
+        "z-index": "0",
+        "border-radius": "3px 0 0 3px",
+        "pointer-events": "none",
+      });
+    }
+  });
+
+  it("washes bids with --up-wash and asks with --down-wash", () => {
+    expect(rule(chartsCss, ".inline-bar--up").background).toBe("var(--up-wash)");
+    expect(rule(chartsCss, ".inline-bar--down").background).toBe("var(--down-wash)");
+  });
+
+  it("puts what follows the depth bar in its row above it, so that the text is on the wash and not under it: the wash's contrast is computed with the text over it", () => {
+    for (const selector of [".inline-bar--up ~ *", ".inline-bar--down ~ *"]) {
+      expect(rule(chartsCss, selector), selector).toMatchObject({ position: "relative", "z-index": "1" });
+    }
+  });
+
+  it("draws the diverging form 14 px high with a centre line of 1 px in --axis", () => {
+    expect(rule(chartsCss, ".inline-bar--diverging")).toMatchObject({ position: "relative", display: "block", height: "14px" });
+    expect(rule(chartsCss, ".inline-bar--diverging::before")).toMatchObject({
+      position: "absolute",
+      left: "50%",
+      top: "0",
+      bottom: "0",
+      width: "1px",
+      background: "var(--axis)",
+    });
+  });
+
+  it("draws out in --down to the left of the centre, with its radius on the left end, and in in --up to the right, with its radius on the right", () => {
+    expect(rule(chartsCss, ".inline-bar__out")).toMatchObject({
+      position: "absolute",
+      top: "0",
+      bottom: "0",
+      right: "calc(50% + 0.5px)",
+      background: "var(--down)",
+      "border-radius": "3px 0 0 3px",
+    });
+    expect(rule(chartsCss, ".inline-bar__in")).toMatchObject({
+      position: "absolute",
+      top: "0",
+      bottom: "0",
+      left: "calc(50% + 0.5px)",
+      background: "var(--up)",
+      "border-radius": "0 3px 3px 0",
+    });
+  });
+
+  it("keeps the colours of out and in under forced colours, since that is what they say", () => {
+    for (const selector of [".inline-bar__out", ".inline-bar__in"]) {
+      expect(rule(chartsCss, selector, ["@media (forced-colors: active)"])["forced-color-adjust"], selector).toBe("none");
+    }
+  });
+});
+
+describe("the tiles (components.css)", () => {
+  it("keep the home page's grid of 220 px tiles, and the narrow grid is of 150 px", () => {
+    expect(rule(componentsCss, ".stat-grid")["grid-template-columns"]).toBe("repeat(auto-fit, minmax(220px, 1fr))");
+    expect(rule(componentsCss, ".stat-grid--narrow")["grid-template-columns"]).toBe("repeat(auto-fit, minmax(150px, 1fr))");
+  });
+
+  it("keep the home page's tile mono at 22 px, and the figure tile is sans, proportional, 24 px and weight 600", () => {
+    expect(rule(componentsCss, ".stat__value")).toMatchObject({ "font-family": "var(--font-mono)", "font-size": "22px", "font-weight": "500" });
+    expect(rule(componentsCss, ".stat--figure .stat__value")).toMatchObject({
+      "font-family": "var(--font-sans)",
+      "font-size": "24px",
+      "font-weight": "600",
+      "font-variant-numeric": "proportional-nums",
+    });
+  });
+
+  it("write the delta in --muted at 12 px, the triangle beside its first line", () => {
+    expect(rule(componentsCss, ".stat__delta")).toMatchObject({ display: "flex", "align-items": "flex-start", gap: "4px", color: "var(--muted)", "font-size": "12px" });
+    expect(rule(componentsCss, ".stat__delta svg")).toMatchObject({ flex: "none" });
+  });
+});
+
 describe("the rows of a tooltip", () => {
   it("has the date in --faint, the name and the notes in --muted, and the value strong", () => {
     expect(rule(chartsCss, ".plot__tip-date").color).toBe("var(--faint)");

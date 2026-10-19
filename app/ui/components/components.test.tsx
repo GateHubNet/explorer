@@ -301,6 +301,60 @@ describe("Card and StatTile", () => {
     expect(container.textContent).toContain("0.001284 XRP");
     expect(container.textContent).toContain("base fee 0.00001 XRP");
   });
+
+  it("keeps the home page's tile as it was: the mono 22 px style, no figure class, no delta, no trend", () => {
+    const { container } = render(<StatTile label="Fees burned" value="0.001284 XRP" sub="base fee 0.00001 XRP" />);
+    const tile = container.firstElementChild!;
+    expect(tile.className).toBe("stat");
+    expect(Array.from(tile.children, (part) => part.className)).toEqual(["stat__label", "stat__value", "stat__sub"]);
+  });
+
+  it("is a figure tile with the sans style of the network pages when asked", () => {
+    const { container } = render(<StatTile figure label="Transactions" value="45.5M" />);
+    expect(container.firstElementChild!.className).toBe("stat stat--figure");
+    expect(container.querySelector(".stat__value")!.textContent).toBe("45.5M");
+  });
+
+  it("shows a delta after the value and before the sub: an up triangle, hidden from a screen reader, then the signed text", () => {
+    const text = "+3.2%, 30 full days to Oct 16 vs the 30 before";
+    const { container } = render(<StatTile figure label="Transactions" value="45.5M" delta={{ text, sign: 1 }} sub="in the window" />);
+    expect(Array.from(container.firstElementChild!.children, (part) => part.className)).toEqual(["stat__label", "stat__value", "stat__delta", "stat__sub"]);
+    const delta = container.querySelector(".stat__delta")!;
+    expect(delta.textContent).toBe(text);
+    const icons = delta.querySelectorAll("svg");
+    expect(icons).toHaveLength(1);
+    expect(icons[0]!.getAttribute("aria-hidden")).toBe("true");
+    expect(icons[0]!.getAttribute("viewBox")).toBe("0 0 10 10");
+    // Up is the triangle with its point at the top (the board's path).
+    expect(icons[0]!.querySelector("path")!.getAttribute("d")).toBe("M5 1.5 9 8H1z");
+  });
+
+  it("points the triangle down for a fall", () => {
+    const { container } = render(<StatTile figure label="Transactions" value="45.5M" delta={{ text: "−1.8%, 30 full days to Oct 16 vs the 30 before", sign: -1 }} />);
+    const icons = container.querySelectorAll(".stat__delta svg");
+    expect(icons).toHaveLength(1);
+    expect(icons[0]!.querySelector("path")!.getAttribute("d")).toBe("M5 8.5 1 2h8z");
+    expect(container.querySelector(".stat__delta")!.textContent).toBe("−1.8%, 30 full days to Oct 16 vs the 30 before");
+  });
+
+  it("shows no triangle for a delta of 0: the text alone", () => {
+    const { container } = render(<StatTile figure label="Transactions" value="45.5M" delta={{ text: "0.0%, 30 full days to Oct 16 vs the 30 before", sign: 0 }} />);
+    expect(container.querySelector(".stat__delta")!.textContent).toBe("0.0%, 30 full days to Oct 16 vs the 30 before");
+    expect(container.querySelector(".stat__delta svg")).toBeNull();
+  });
+
+  it("shows no delta element without a delta", () => {
+    const { container } = render(<StatTile figure label="Transactions" value="45.5M" sub="in the window" />);
+    expect(container.querySelector(".stat__delta")).toBeNull();
+  });
+
+  it("puts a trend last, after the sub, as it is given", () => {
+    const { container } = render(
+      <StatTile figure label="Price" value="2.44" delta={{ text: "+2.5%", sign: 1 }} sub="7 days" trend={<svg role="img" aria-label="7-day price" />} />,
+    );
+    expect(Array.from(container.firstElementChild!.children, (part) => part.className)).toEqual(["stat__label", "stat__value", "stat__delta", "stat__sub", "stat__trend"]);
+    expect(container.querySelector(".stat__trend [role='img']")!.getAttribute("aria-label")).toBe("7-day price");
+  });
 });
 
 describe("DataTable", () => {
@@ -909,6 +963,25 @@ describe("StatGrid and DetailList", () => {
       </StatGrid>,
     );
     expect(within(screen.getByRole("region", { name: "Network at a glance" })).getByText("Total supply")).toBeTruthy();
+  });
+
+  it("is the home page's grid unless it is narrow", () => {
+    const { container } = render(
+      <StatGrid label="Network at a glance">
+        <StatTile label="Total supply" value="99,985,312,446 XRP" />
+      </StatGrid>,
+    );
+    expect(container.firstElementChild!.className).toBe("stat-grid");
+  });
+
+  it("is narrow for tiles of a figure each: more of them in a row", () => {
+    const { container } = render(
+      <StatGrid label="Totals" narrow>
+        <StatTile figure label="Transactions" value="45.5M" />
+      </StatGrid>,
+    );
+    expect(container.firstElementChild!.className).toBe("stat-grid stat-grid--narrow");
+    expect(screen.getByRole("region", { name: "Totals" })).toBe(container.firstElementChild);
   });
 
   it("lists labels and values as a description list", () => {
