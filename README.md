@@ -36,6 +36,10 @@ The data API hosts in `wrangler.jsonc` are placeholders that never resolve (`*.e
 are decided. To develop against a running data API, put its address in `.dev.vars` (`XRPL_DATA_API_URL=...`);
 values there replace the `vars` of `wrangler.jsonc` locally.
 
+A data API on `main` has no `amm_volume` route yet, and the top level of `wrangler.jsonc` has `AMM_DATA` `"on"` (see "Switches"). Against such an API every render of the
+network page has its AMM part failed: the volume card says "AMM swaps couldn’t be loaded.", and the page is degraded and never stored. For that API put `AMM_DATA=off` in `.dev.vars`
+as well; the card then draws Payments and DEX trades only, with nothing failed.
+
 ## Scripts
 
 | Script | |
@@ -100,6 +104,7 @@ Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). T
 The conditions for turning a switch on in `staging` or `production` (by a commit and a deploy):
 
 - `AMM_DATA`: the environment's data API has merged `feat/amm-data`, has re-ingested and back-filled, and D2b is deployed (`syncer_markets_live_amm_share_known` is 1).
+  (Locally the top level has it `"on"`: against a data API that has not merged it, set `AMM_DATA=off` in `.dev.vars`, see "Getting started".)
 - `VALIDATORS`: E6, the validators and amendments pages.
 
 **A switch is never set in the Cloudflare dashboard.** The Cloudflare Vite plugin writes the build's vars, so the next deploy would undo it.
@@ -1221,7 +1226,7 @@ The manifest is measured with `gzip -9 -c build/client/assets/manifest-*.js | wc
   things that made the network page heavier than with no fallback at all. So the premise of the fallback, that it lightens a page that is over its target, did not hold, and it went.
   **The target is missed by 1,616 bytes** (146,616 against 145,000), and what the page needs to lose is elsewhere in its route chunk; the budget is not the target:
   **150,000 holds with the manifest counted**, with 2,360 bytes to spare on the network page.
-- **The projection for E3 to E6** (nine more routes), from these figures. The manifest grows about 90 bytes for each route (the network route's 89): I take 100, +900, to about 1,920 bytes. The base every page shares
+- **The projection for E3 to E6** (nine more routes), from these figures. The manifest grows about 90 bytes for each route (the network route's 89): 100 is taken, +900, to about 1,920 bytes. The base every page shares
   takes no route's own code (a route is a chunk of its own), only what its layout and entry reach; assume at most 100 bytes for each route (a formatter, a header item: the items and the switches are there
   already): +900. If the network page stays the heaviest, it ends at 147,640 + 900 + 900 = **149,440 bytes, 560 under the budget**. A later page that has more of its own than the network page (15.9 KB over the
   base: a pair page with candles, a book and trades) would be over 150,000. So the manifest is **part of every page's figure from now on** (`scripts/bundle-budget.ts`, with its test): left out, 1 to 2 KB of what
@@ -1351,6 +1356,14 @@ staging before production:
 - [ ] **The failure hold, in `wrangler tail`.** With one card failing (the data API refusing one route, or its key revoked for it), `wrangler tail --env staging --format json` should show one
   failing call per 5 s per Worker instance for the network page and for the home page, and not one per beat of every open tab (`holdFailure`, "The cache classes"); and the card comes back by itself within the hold and a beat
   when the route answers again.
+- [ ] **The failure hold under a slow upstream, not a failing one.** Make one route slow instead of refusing it (for example by delaying it in a proxy in front of the staging data API, past its
+  5 s limit, so that the call times out), open the network page in a few tabs, and watch `wrangler tail`: the calls to that route should be one for each hold cycle per Worker instance (about one every 10 s: the
+  5 s the call takes, then the 5 s hold), and not one for every beat of every tab in the seconds the call is out (the probe, "The cache classes"). The card of that route says it could not be loaded after
+  4.5 s and the rest of the page is there; the card comes back within a cycle of the route answering again.
+- [ ] **The validations of the newest ledger, against the staging stack.** The validators card counts the validations of the newest ledger the page shows, and asks for them as soon as that ledger is the
+  newest. Open `/xrpl/network` and `/xahau/network` right after a ledger closes and read the count: it should be about the size of the network's validator list (the fixtures say 35 and 25) when it is first
+  asked for, and not a handful that grows over the next beats. If the data API has only some of a ledger's validations in the first seconds, the card shows a low count (kept 5 s, class `live`) until a later
+  beat; write down for how long, and whether that needs a follow-up.
 - [ ] **A switch flip is a miss at the edge.** Deploy the same commit with `AMM_DATA` `"on"` in the environment's `vars` (README, "Switches"): the first request for each view after the deploy is a miss (`X-Cache: MISS`: the cache
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
 - [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: the network page and every other page are under 150,000 bytes with the manifest counted, and the manifest's
