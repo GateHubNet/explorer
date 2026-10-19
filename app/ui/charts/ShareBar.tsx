@@ -1,9 +1,9 @@
-import { memo, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { memo, useRef, type PointerEvent } from "react";
 
 import { formatAmount, sharePercent } from "../../domain/format";
 import { cx } from "../cx";
 import { cellOf } from "./cells";
-import { useHydrated } from "./Cursor";
+import { useCursorState, useHydrated } from "./Cursor";
 import { percent, tooltipSide } from "./geometry";
 import { tickLabel } from "./labels";
 import type { LegendItem } from "./Legend";
@@ -79,8 +79,9 @@ export function shareLegend(data: ShareData): LegendItem[] {
  *
  * The cursor (after hydration) steps through the segments in reading order, a row and then the next: the arrow keys, Home and End, or the
  * pointer over a segment. It dims the other segments, shows a tooltip under the row it is on, and its slider says "UNL: 3.4.1, 12 of 35
- * (34%)". It is this form's own, since a plot's cursor finds a bucket by its x and these segments are as wide as their values. A touch
- * keeps what it selected until a touch lands elsewhere.
+ * (34%)". A touch keeps what it selected until a touch lands elsewhere. The keys, what is selected and shown, and the touch's pin are the
+ * plot cursor's (`useCursorState` in Cursor.tsx), so that they do not differ between forms; only the pointer is this form's own, since a
+ * plot's cursor finds a bucket by its x and these segments are as wide as their values.
  *
  * Memoised on `title` and the data's `token` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the rows.
  */
@@ -95,65 +96,15 @@ export const ShareBar = memo(
     const ring = usePlotRing(data.token, root);
     const hydrated = useHydrated();
 
-    // Where this cursor's own input put it, and whether that shows; hidden, it stays where it was, so the slider has a value to say.
-    const [at, setAt] = useState(0);
-    const [open, setOpen] = useState(false);
-    // A touch put it there: it stays until a touch lands elsewhere, since a finger that lifts is not a pointer that leaves.
-    const [pinned, setPinned] = useState(false);
-    const index = Math.min(at, Math.max(last, 0));
+    // Where this cursor's own input put it, whether that shows, the keys, and what a touch keeps: the protocol of every cursor (Cursor.tsx).
+    const { index, open, select, hide, pin, onKeyDown } = useCursorState({ initial: 0, last, inside: rows });
     const current = open ? parts[index] : undefined;
-
-    const select = (i: number) => {
-      setAt(i);
-      setOpen(true);
-    };
-    const hide = () => {
-      setPinned(false);
-      setOpen(false);
-    };
-
-    useEffect(() => {
-      if (!pinned) return;
-      const away = (event: Event) => {
-        if (event.target instanceof Node && rows.current?.contains(event.target)) return;
-        hide();
-      };
-      document.addEventListener("pointerdown", away, true);
-      return () => document.removeEventListener("pointerdown", away, true);
-    }, [pinned]);
 
     /** The segment under the pointer: the one that has `data-bucket` at or above the target. */
     const partAt = (event: PointerEvent): number | null => {
       const mark = event.target instanceof Element ? event.target.closest("[data-bucket]") : null;
       const i = mark ? Number(mark.getAttribute("data-bucket")) : NaN;
       return Number.isInteger(i) && i >= 0 && i <= last ? i : null;
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      // The browser's own shortcuts (Alt+Left is Back) are not the cursor's.
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
-      let next: number;
-      switch (event.key) {
-        case "ArrowLeft":
-          next = index - 1;
-          break;
-        case "ArrowRight":
-          next = index + 1;
-          break;
-        case "Home":
-          next = 0;
-          break;
-        case "End":
-          next = last;
-          break;
-        case "Escape":
-          hide();
-          return;
-        default:
-          return;
-      }
-      event.preventDefault();
-      select(Math.min(last, Math.max(0, next)));
     };
 
     const drawn = last >= 0;
@@ -180,7 +131,7 @@ export const ShareBar = memo(
             const i = partAt(event);
             if (i === null) return;
             select(i);
-            if (event.pointerType === "touch") setPinned(true);
+            if (event.pointerType === "touch") pin();
           }}
           onPointerLeave={(event) => {
             if (event.pointerType !== "touch") hide();

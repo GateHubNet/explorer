@@ -4,7 +4,7 @@ import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { createTipSlot, Cursor, HoverGroup, TipSlotContext, useHoverGroup, type CursorProps } from "./Cursor";
+import { createTipSlot, Cursor, HoverGroup, steppedKey, TipSlotContext, useHoverGroup, type CursorProps } from "./Cursor";
 
 afterEach(() => {
   cleanup();
@@ -173,6 +173,36 @@ describe("Cursor, from the keyboard", () => {
     fireEvent.focus(slider());
     expect(slider().getAttribute("aria-valuenow")).toBe("29");
     expect(tip()).not.toBeNull();
+  });
+});
+
+describe("steppedKey: the keys of every cursor (spec 2.6), which Cursor and ShareBar both read", () => {
+  const press = (key: string, index: number, last: number, modifiers: { altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {}) =>
+    steppedKey({ key, altKey: false, ctrlKey: false, metaKey: false, ...modifiers }, index, last);
+
+  it("moves one step with the arrow keys, to the ends with Home and End", () => {
+    expect(press("ArrowLeft", 5, 9)).toBe(4);
+    expect(press("ArrowRight", 5, 9)).toBe(6);
+    expect(press("Home", 5, 9)).toBe(0);
+    expect(press("End", 5, 9)).toBe(9);
+  });
+
+  it("stops at the ends: no step before the first or past the last", () => {
+    expect(press("ArrowLeft", 0, 9)).toBe(0);
+    expect(press("ArrowRight", 9, 9)).toBe(9);
+    // One bucket: every key lands on it.
+    for (const key of ["ArrowLeft", "ArrowRight", "Home", "End"]) expect(press(key, 0, 0), key).toBe(0);
+  });
+
+  it("says to hide for Escape", () => {
+    expect(press("Escape", 5, 9)).toBe("hide");
+  });
+
+  it("is not the cursor's for any other key, or for the browser's own shortcuts (Alt+Left is Back)", () => {
+    for (const key of ["a", "Enter", "Tab", "ArrowUp", "ArrowDown", " ", "PageDown"]) expect(press(key, 5, 9), key).toBeNull();
+    for (const modifier of ["altKey", "ctrlKey", "metaKey"] as const) {
+      for (const key of ["ArrowLeft", "ArrowRight", "Home", "End", "Escape"]) expect(press(key, 5, 9, { [modifier]: true }), `${modifier} ${key}`).toBeNull();
+    }
   });
 });
 
