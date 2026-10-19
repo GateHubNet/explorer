@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowStep } from "../domain/describe";
-import { accountMeta, homeMeta, imageUrl, ledgerMeta, metaContext, transactionDescription, transactionMeta, type MetaContext } from "./meta";
+import { accountMeta, homeMeta, imageUrl, ledgerMeta, metaContext, networkMeta, transactionDescription, transactionMeta, type MetaContext } from "./meta";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
 // view builders return for the fields the tags read; the worker specs (test/worker/meta.spec.ts) check the whole way from a
@@ -248,6 +248,57 @@ describe("homeMeta", () => {
     expect(keys(list)).not.toContain("twitter:image");
     expect(keys(list)).not.toContain("robots");
     expect(link(homeMeta("Explore Xahau", XAHAU), "canonical")).toBe("https://explorer.test/xahau");
+  });
+});
+
+describe("networkMeta", () => {
+  const DESCRIPTION = (name: string) => `Transactions by type, fees, payment and DEX volume, and the validators of ${name}, updated with every ledger.`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("has the tags of the default view: a canonical URL, Open Graph, a summary card and no image", () => {
+    const list = networkMeta({ period: "30d", display: "native" }, XRPL);
+    expect(title(list)).toBe("XRPL network · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/network");
+    expect(content(list, "og:title")).toBe("XRPL network · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/network");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau", () => {
+    const list = networkMeta({ period: "30d", display: "native" }, XAHAU);
+    expect(title(list)).toBe("Xahau network · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("Xahau"));
+    expect(link(list, "canonical")).toBe("https://explorer.test/xahau/network");
+  });
+
+  it("names the view in the title of any other: the period, then the currency", () => {
+    expect(title(networkMeta({ period: "90d", display: "usd" }, XRPL))).toBe("XRPL network · last 90 days · in USD · explorer");
+    expect(title(networkMeta({ period: "7d", display: "native" }, XRPL))).toBe("XRPL network · last 7 days · explorer");
+    expect(title(networkMeta({ period: "1y", display: "native" }, XRPL))).toBe("XRPL network · last 52 weeks · explorer");
+    // The default period is not named: the view differs by its currency only.
+    expect(title(networkMeta({ period: "30d", display: "usd" }, XRPL))).toBe("XRPL network · in USD · explorer");
+    expect(title(networkMeta({ period: "1y", display: "native" }, XAHAU))).toBe("Xahau network · last 52 weeks · explorer");
+  });
+
+  it.each([
+    { period: "90d", display: "usd" },
+    { period: "7d", display: "native" },
+    { period: "1y", display: "native" },
+    { period: "30d", display: "usd" },
+  ] as const)("is noindex, follow, with no canonical URL and no Open Graph or card tags, on the view $period $display", (view) => {
+    const list = networkMeta(view, XRPL);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
   });
 });
 

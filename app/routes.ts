@@ -7,6 +7,7 @@ export default [
   // `/:net`: the layout every page of a network sits in (header, footer, the network's accent). The pages are its children.
   route(":net", "routes/net.tsx", [
     index("routes/net._index.tsx"),
+    route("network", "routes/net.network.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

@@ -11,7 +11,8 @@ import { pageClient } from "../support/pages";
 // `Date` is the one clock the hold reads, so it alone is faked (the Cache API and the streams need the real timers), and it is moved 31 s on
 // after each test, past the longest hold: no test meets an earlier one's. The Cache API keeps what a test's calls answered for 2 s of the
 // real clock, whatever `Date` says, so a test that fails one call makes the other two fail as well (`down`): an answer one of them kept would
-// stand in for the next test's failure. Task 17 adds the network page's cases below.
+// stand in for the next test's failure. The network page's cases are at the end: each fails a call of a view of its own (the calls over a
+// period are kept 300 s, and every view of a network shares `last_validated`, so the views are told apart by their period).
 
 const { get } = pageClient("198.51.103");
 
@@ -24,6 +25,7 @@ beforeAll(() => {
 afterEach(() => {
   mock?.restore();
   mock = undefined;
+  vi.restoreAllMocks();
   vi.setSystemTime(Date.now() + 31_000);
 });
 
@@ -112,5 +114,75 @@ describe("the home page's calls", () => {
     expect((await get("/xahau?hold=gone-2")).status).toBe(503);
 
     expect(statusesOf(mock, ledger)).toEqual([404, 404]);
+  });
+});
+
+// ---- The network page --------------------------------------------------------------------------------------------------------------------
+
+const TYPES_7D = "GET /v2/stats/type?end=2026-10-17&interval=day&limit=1000&start=2026-10-11";
+const TYPES_90D = "GET /v2/stats/type?end=2026-10-17&interval=day&limit=1000&start=2026-07-20";
+
+/** The page at `path`, its body read to the end: the status, and the render is over. */
+async function statusOf(path: string, headers: Record<string, string> = {}): Promise<number> {
+  const response = await get(path, headers);
+  await response.text();
+  return response.status;
+}
+
+describe("the network page's calls", () => {
+  it("holds a failing stats/type: two renders a second apart make one call, and the one 5.001 s after the failure calls again", async () => {
+    mock = mockUpstream("xrpl", { [TYPES_7D]: dataApiError(503, "unavailable") });
+    const path = "/xrpl/network?period=7d";
+
+    // A card that failed is a page that is served and not stored, so each render is a render.
+    expect(await statusOf(path)).toBe(200);
+    advance(1_000);
+    expect(await statusOf(path)).toBe(200);
+    expect(statusesOf(mock, TYPES_7D)).toEqual([503]);
+
+    // Held until 5 s after the failure, not a moment longer.
+    advance(3_999);
+    expect(await statusOf(path)).toBe(200);
+    expect(statusesOf(mock, TYPES_7D)).toEqual([503]);
+    advance(2);
+    expect(await statusOf(path)).toBe(200);
+    expect(statusesOf(mock, TYPES_7D)).toEqual([503, 503]);
+  });
+
+  it("holds a rate-limited call for its Retry-After, 12 s, not for 5", async () => {
+    mock = mockUpstream("xrpl", { [TYPES_90D]: dataApiError(429, "Rate limit exceeded", { "Retry-After": "12" }) });
+    const path = "/xrpl/network?period=90d";
+
+    expect(await statusOf(path)).toBe(200);
+    advance(11_000);
+    expect(await statusOf(path)).toBe(200);
+    expect(statusesOf(mock, TYPES_90D)).toEqual([429]);
+
+    advance(2_000);
+    expect(await statusOf(path)).toBe(200);
+    expect(statusesOf(mock, TYPES_90D)).toEqual([429, 429]);
+  });
+
+  it("shares a held last_validated with the home page, which is one key: a /xahau render that failed holds it for /xahau/network", async () => {
+    mock = mockUpstream("xahau", { [LAST_VALIDATED]: dataApiError(503, "unavailable") });
+    // `last_validated` of Xahau was kept 2 s by the tests above: this one must reach the mock.
+    const match = caches.default.match.bind(caches.default);
+    vi.spyOn(caches.default, "match").mockImplementation((request, options) =>
+      (request instanceof Request ? request.url : String(request)).startsWith("https://subrequest-cache.invalid/") ? Promise.resolve(undefined) : match(request, options),
+    );
+
+    expect(await statusOf("/xahau?hold=shared-1")).toBe(503);
+    advance(1_000);
+    const network = await get("/xahau/network");
+    await network.text();
+
+    expect(network.status).toBe(503);
+    expect(Number(network.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(statusesOf(mock, LAST_VALIDATED)).toEqual([503]);
+
+    // Once the hold is over the page asks again.
+    advance(5_000);
+    expect(await statusOf("/xahau/network")).toBe(503);
+    expect(statusesOf(mock, LAST_VALIDATED)).toEqual([503, 503]);
   });
 });
