@@ -120,6 +120,33 @@ export function niceScale(
   return integer && scale.min === 0 && scale.max < 4 ? smallest() : scale;
 }
 
+/**
+ * The scale of a price (spec 2.11, candles): it fits the values and does not start at 0, since a price moves by a few percent of itself.
+ * The step is the smallest of {1, 2, 2.5, 5} × 10ⁿ that, with the bottom at the step below the lowest value and the top at the step above
+ * the highest, gives 5 ticks or fewer. A step is one that the labels can write: `compactNumber` keeps 2 decimals from 1 up and 3 significant
+ * digits under it, so on a price of 2.4 a step of 0.025 would write 2.375 as 2.38, and a range finer than the labels tell apart has fewer
+ * ticks instead. Values that do not vary (or none) have `niceScale`'s scale, from 0.
+ */
+export function fitScale(values: readonly (number | null)[]): ValueScale {
+  const numbers = values.filter((v): v is number => v !== null && Number.isFinite(v));
+  const low = Math.min(...numbers);
+  const high = Math.max(...numbers);
+  if (!(high > low)) return niceScale(numbers);
+
+  const span = high - low;
+  const reach = Math.max(Math.abs(low), Math.abs(high));
+  const finest = 10 ** -(reach >= 1 ? 2 : 2 - Math.floor(Math.log10(reach)));
+  const bottomOf = (step: number): number => clean(Math.floor(low / step + EPSILON) * step);
+  const fits = (step: number): boolean => {
+    const times = step / finest;
+    return Math.abs(times - Math.round(times)) <= EPSILON * Math.max(1, times) && stepsIn(high - bottomOf(step), step) <= 4;
+  };
+  // The search ends at the first power of ten at or above the span and the finest step, which has 2 ticks and which the labels can write.
+  const step = niceStep(span / 4, 10 ** Math.ceil(Math.log10(Math.max(span, finest))) * 10, fits) ?? span;
+  const min = bottomOf(step);
+  return scaleOf(min, step, stepsIn(high - min, step));
+}
+
 /** Where `value` is on `scale`: 0 at `scale.min`, 1 at `scale.max`. */
 export function fractionOf(value: number, scale: ValueScale): number {
   const range = scale.max - scale.min;

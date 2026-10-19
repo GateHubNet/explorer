@@ -30,8 +30,11 @@ export interface PlotProps {
   kind: ValueKind;
   /** The x labels: both sets (`xLabelPicks` wide and narrow) are rendered, and the card's width picks one. */
   axis: TimeAxis;
-  /** `"ends"` has one set, the first and the last bucket, at any width: a small multiple has no room for more. */
-  xLabels?: "spread" | "ends";
+  /**
+   * `"ends"` has one set, the first and the last bucket, at any width: a small multiple has no room for more. `"none"` has no labels and no
+   * room for them under the plot: the upper pane of two that share an axis, whose labels are under the lower one.
+   */
+  xLabels?: "spread" | "ends" | "none";
   placement: Placement;
   /** Columns: the plot is at least `MIN_SLOT_PX` for each bucket, and scrolls sideways in a region a keyboard can reach. */
   slots?: boolean;
@@ -41,6 +44,8 @@ export interface PlotProps {
   endLabels?: ReactNode;
   /** Where the y labels go: "right" for the candles. */
   yAxis?: "left" | "right";
+  /** The gutter of the y labels is at least this many characters wide: two plots that are one chart (the candles and their volume) have the same, so that their buckets line up. */
+  yChars?: number;
   /** "chart" is 200 px, 160 under a 480 px container; "pane" (the volume pane) and "panel" (a small multiple) have their own. */
   height?: "chart" | "pane" | "panel";
   /** The hover and keyboard layer, added once the page is hydrated. The plot gives it its own box. */
@@ -61,6 +66,28 @@ export function usePlotMark(token: string): boolean {
     setSeen(token);
     setChanged(true);
   }
+  return changed;
+}
+
+/**
+ * `usePlotMark`, and the ring itself on `box`: the class `is-changed` that `charts.css` animates, which the token's change puts on (React
+ * does, through the `changed` this returns), and each change after the first runs again. The class stays after the first change, and a CSS
+ * animation that has finished cannot be started again from script (it is no longer there to ask for), so a later change does it with the
+ * class: off, a reflow so that the browser sees it off, and on. The first change starts the ring by itself, with the class. For the plot,
+ * and for a form that has none (the share bars): `box` is where the class goes.
+ */
+export function usePlotRing(token: string, box: RefObject<HTMLElement | null>): boolean {
+  const changed = usePlotMark(token);
+  const marked = useRef(false);
+  useEffect(() => {
+    const el = box.current;
+    if (marked.current && el) {
+      el.classList.remove("is-changed");
+      void el.offsetWidth;
+      el.classList.add("is-changed");
+    }
+    marked.current = changed;
+  }, [token]);
   return changed;
 }
 
@@ -90,26 +117,13 @@ export function Plot({
   empty,
   endLabels,
   yAxis = "left",
+  yChars = 0,
   height = "chart",
   cursor,
   children,
 }: PlotProps) {
   const plot = useRef<HTMLDivElement>(null);
-  const changed = usePlotMark(token);
-
-  // The class stays after the first change, and a CSS animation that has finished cannot be started again from script (it is no longer
-  // there to ask for), so a later change does it with the class: off, a reflow so that the browser sees it off, and on. The first change
-  // starts the ring by itself, with the class.
-  const marked = useRef(false);
-  useEffect(() => {
-    const box = plot.current;
-    if (marked.current && box) {
-      box.classList.remove("is-changed");
-      void box.offsetWidth;
-      box.classList.add("is-changed");
-    }
-    marked.current = changed;
-  }, [token]);
+  const changed = usePlotRing(token, plot);
 
   // Where the cursor's tooltip is drawn: beside the region that scrolls, which would clip it, and not in it.
   const [tips] = useState(createTipSlot);
@@ -117,7 +131,7 @@ export function Plot({
   const region = useRef<HTMLDivElement>(null);
 
   const labels = scale.ticks.map((tick) => tickLabel(tick, kind));
-  const chars = Math.max(1, ...labels.map((label) => label.length));
+  const chars = Math.max(1, yChars, ...labels.map((label) => label.length));
   const count = axis.buckets.length;
 
   const gutter = (
@@ -141,7 +155,7 @@ export function Plot({
   );
 
   return (
-    <div ref={frame} className={cx("plot__frame", height !== "chart" && `plot__frame--${height}`)}>
+    <div ref={frame} className={cx("plot__frame", height !== "chart" && `plot__frame--${height}`, xLabels === "none" && "plot__frame--bare")}>
       {yAxis === "left" && gutter}
       <div
         ref={region}
@@ -174,7 +188,7 @@ export function Plot({
               <Cursor plot={plot} {...cursor} />
             </TipSlotContext>
           )}
-          {xLabels === "ends" ? (
+          {xLabels === "none" ? null : xLabels === "ends" ? (
             labelsOf("ends")
           ) : (
             <>

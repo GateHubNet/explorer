@@ -4,6 +4,7 @@ import {
   areaPath,
   bucketAt,
   END_LABEL_GUTTER_PX,
+  fitScale,
   fractionOf,
   keptEndLabels,
   linePath,
@@ -129,6 +130,57 @@ describe("niceScale", () => {
       expect(scale.ticks.length, String(top)).toBeGreaterThanOrEqual(4);
       expect(scale.ticks.length, String(top)).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe("fitScale", () => {
+  const ticks = (values: (number | null)[]) => fitScale(values).ticks;
+
+  it("fits the values and does not start at 0: a price moves by a few percent of itself", () => {
+    // 2.38 to 2.48: steps of 0.02 would be 2.38 to 2.48 in six ticks, and 0.025 would label 2.375 as 2.38, so 0.05.
+    expect(ticks([2.38, 2.46, 2.39, 2.45, 2.48, 2.4])).toEqual([2.35, 2.4, 2.45, 2.5]);
+    expect(ticks([98, 140])).toEqual([80, 100, 120, 140]);
+  });
+
+  it("takes the nearest step below the lowest value and above the highest, and at most 5 ticks", () => {
+    const scale = fitScale([2.3813, 2.4605]);
+    expect(scale.min).toBeLessThanOrEqual(2.3813);
+    expect(scale.max).toBeGreaterThanOrEqual(2.4605);
+    expect(scale.ticks.length).toBeLessThanOrEqual(5);
+    expect(scale.ticks.length).toBeGreaterThanOrEqual(3);
+    expect(scale.ticks).toEqual([2.35, 2.4, 2.45, 2.5]);
+    // Every tick is a multiple of the step, with no floating point noise.
+    for (const tick of scale.ticks) expect(Math.abs(tick / scale.step - Math.round(tick / scale.step))).toBeLessThan(1e-9);
+  });
+
+  it("uses the same steps as niceScale (1, 2, 2.5 or 5 times a power of ten) over a wide range", () => {
+    expect(ticks([100, 180])).toEqual([100, 120, 140, 160, 180]);
+    expect(ticks([0.9, 3.1])).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("never asks the labels for a digit they do not show: 2 decimals from 1 up, 3 significant digits under it", () => {
+    // From 1 up compactNumber keeps 2 decimals, so a step of 0.025 (2.375) would read as another number.
+    for (const tick of ticks([2.3813, 2.4605])) expect(Math.abs(tick * 100 - Math.round(tick * 100))).toBeLessThan(1e-9);
+    // Under 1 it keeps 3 significant digits: 0.0315 has them, 0.03125 would not.
+    expect(ticks([0.03104, 0.0322])).toEqual([0.031, 0.0315, 0.032, 0.0325]);
+  });
+
+  it("settles for fewer ticks when the range is finer than the labels can tell apart", () => {
+    // 2.431 to 2.4339 is a range of 0.003 at a price of 2.4: the finest step the labels show is 0.01.
+    const scale = fitScale([2.431, 2.4339]);
+    expect(scale.ticks).toEqual([2.43, 2.44]);
+    expect(fitScale([2.43101, 2.43102]).ticks).toEqual([2.43, 2.44]);
+  });
+
+  it("is niceScale's for values that do not vary: one value, none, or only nulls", () => {
+    expect(fitScale([2.4, 2.4])).toEqual(niceScale([2.4, 2.4]));
+    expect(fitScale([5])).toEqual(niceScale([5]));
+    expect(fitScale([])).toEqual(niceScale([]));
+    expect(fitScale([null, null])).toEqual(niceScale([]));
+  });
+
+  it("leaves out a null and a value that is not a number", () => {
+    expect(fitScale([null, 2.38, NaN, 2.48, null]).ticks).toEqual([2.35, 2.4, 2.45, 2.5]);
   });
 });
 

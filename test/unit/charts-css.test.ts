@@ -356,7 +356,7 @@ describe("the cursor", () => {
 
 describe("the columns (ColumnChart)", () => {
   it("lays the slots of a plot out as equal shares of its width, which are the bands the cursor reads", () => {
-    expect(rule(chartsCss, ".cols")).toMatchObject({ position: "absolute", inset: "0", display: "flex" });
+    expect(rule(chartsCss, ".plot__cols")).toMatchObject({ position: "absolute", inset: "0", display: "flex" });
     expect(rule(chartsCss, ".col")).toMatchObject({ position: "relative", flex: "1 1 0", "min-width": "0" });
   });
 
@@ -510,6 +510,185 @@ describe("the small multiples (SmallMultiples)", () => {
 
   it("says that there is nothing to show in the grid's whole width, in --muted", () => {
     expect(rule(chartsCss, ".multiples__empty")).toMatchObject({ color: "var(--muted)", "grid-column": "1 / -1" });
+  });
+});
+
+describe("the stylesheets of the document", () => {
+  /** The class names of the selectors of a sheet's style rules. */
+  const classesOf = (css: string) => {
+    const selectors = parse(css).flatMap((r) => r.selectors).filter((selector) => !selector.startsWith("@"));
+    return new Set(selectors.flatMap((selector) => [...selector.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((match) => match[1]!)));
+  };
+
+  it("do not define a class of the kit's in the pages' sheet: pages.css comes after charts.css and would override its rules", () => {
+    // `.cols`, a page's columns (wrap, a 20 px gap, top-aligned), was the kit's row of column slots too, and over the kit's rule it made every
+    // slot 0 px high and the bars of a chart invisible: jsdom has no stylesheet to show it.
+    const pages = classesOf(read("pages.css"));
+    expect([...classesOf(chartsCss)].filter((name) => pages.has(name))).toEqual([]);
+  });
+
+  it("lays the slots of a plot out in a class of the plot's own, which the pages' columns do not share", () => {
+    expect(classesOf(chartsCss).has("plot__cols")).toBe(true);
+    expect(classesOf(read("pages.css")).has("cols")).toBe(true);
+    expect(classesOf(chartsCss).has("cols")).toBe(false);
+  });
+});
+
+describe("the candles (Candles)", () => {
+  it("has no scrollbar on the upper pane, whose region follows the lower one's, which has it under the x labels", () => {
+    const upper = rule(chartsCss, ".candles .plot__frame--bare .plot__scroll");
+    expect(upper["scrollbar-width"]).toBe("none");
+    expect(rule(chartsCss, ".candles .plot__frame--bare .plot__scroll::-webkit-scrollbar").display).toBe("none");
+  });
+
+  it("fills the slot of the plot with the candle, so that its wick and body are placed in percent of the plot's height", () => {
+    expect(rule(chartsCss, ".candle")).toMatchObject({ position: "absolute", inset: "0" });
+  });
+
+  it("draws the wick 1 px wide, in the middle of its slot, in the candle's colour", () => {
+    expect(rule(chartsCss, ".candle__wick")).toMatchObject({
+      position: "absolute",
+      left: "50%",
+      width: "1px",
+      transform: "translateX(-50%)",
+      background: "var(--mark)",
+    });
+  });
+
+  it("draws the body min(9px, 62%) wide, at least 1 px high, in the middle of its slot, in the candle's colour", () => {
+    expect(rule(chartsCss, ".candle__body")).toMatchObject({
+      position: "absolute",
+      left: "50%",
+      width: "min(9px, 62%)",
+      "min-height": "1px",
+      transform: "translateX(-50%)",
+      background: "var(--mark)",
+    });
+  });
+
+  it("colours a candle by its slot: --up for one that closed higher (or where it opened), --down for one that closed lower", () => {
+    expect(rule(chartsCss, '[data-slot="up"]')["--mark"]).toBe("var(--up)");
+    expect(rule(chartsCss, '[data-slot="down"]')["--mark"]).toBe("var(--down)");
+    // The slot is the candle's: nothing in the stylesheet gives a wick or a body a colour of its own.
+    for (const selector of [".candle", ".candle__wick", ".candle__body"]) {
+      expect(rule(chartsCss, selector).color, selector).toBeUndefined();
+    }
+  });
+
+  it("dims the other candles to 45% while one is hovered, as the columns are: the slot is the column's", () => {
+    expect(rule(chartsCss, ".plot[data-active] .col:not(.is-active)").opacity).toBe("0.45");
+  });
+
+  it("draws the volume columns as wide as the bodies above them, with a 2 px radius at the top, in the colour of the slot", () => {
+    expect(rule(chartsCss, ".col__bar--volume")).toMatchObject({ width: "min(9px, 62%)", "border-radius": "2px 2px 0 0" });
+    expect(rule(chartsCss, '[data-slot="other"]')["--mark"]).toBe("var(--series-other)");
+    // It wins over the column's own width by coming after it.
+    const order = parse(chartsCss).findIndex((r) => r.selectors.includes(".col__bar--volume")) - parse(chartsCss).findIndex((r) => r.selectors.includes(".col__bar"));
+    expect(order).toBeGreaterThan(0);
+  });
+
+  it("stacks the readout over the price pane and the volume pane, which are one chart: no gap that would read as two", () => {
+    expect(rule(chartsCss, ".candles")).toMatchObject({ display: "flex", "flex-direction": "column", "min-width": "0" });
+    expect(rule(chartsCss, ".candles__readout")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "font-variant-numeric": "tabular-nums", color: "var(--muted)" });
+    expect(rule(chartsCss, ".candles__time").color).toBe("var(--fg)");
+  });
+
+  it("keeps the colours of the candles and the volume columns under forced colours, since up and down is all they say", () => {
+    for (const selector of [".candle__wick", ".candle__body", ".col__bar"]) {
+      expect(rule(chartsCss, selector, ["@media (forced-colors: active)"])["forced-color-adjust"], selector).toBe("none");
+    }
+  });
+});
+
+describe("the right axis (Plot yAxis right)", () => {
+  it("puts the labels 8 px from the plot's end, not from the gutter's right edge", () => {
+    expect(rule(chartsCss, ".plot__y--right span")).toMatchObject({ right: "auto", left: "8px" });
+  });
+
+  it("leaves the room of the x labels out of a frame that has none: the upper pane of two", () => {
+    expect(rule(chartsCss, ".plot__frame--bare")["--x-band"]).toBe("0px");
+  });
+
+  it("covers the end room of the scroll region, which the region extends under the gutter, so that a plot scrolled under it does not show through the labels", () => {
+    const gutter = rule(chartsCss, ".plot__y--right");
+    expect(gutter.background).toBe("var(--surface)");
+    // The ring of a change is 3 px outside the plot, and the gutter starts after it.
+    expect(gutter["margin-left"]).toBe("3px");
+  });
+});
+
+describe("the share bars (ShareBar)", () => {
+  it("has rows of a column for the label and a column for the bar, and a gap between them", () => {
+    expect(rule(chartsCss, ".share__row")).toMatchObject({ display: "grid", "grid-template-columns": "72px minmax(0, 1fr)" });
+    // A long label breaks inside its 72 px.
+    expect(rule(chartsCss, ".share__name")).toMatchObject({ "min-width": "0", "overflow-wrap": "anywhere" });
+  });
+
+  it("puts the label and the total over the bar under 480 px of card, so that the bars have the card's width and a segment of 18% holds its label", () => {
+    expect(rule(chartsCss, ".share__row", [NARROW])["grid-template-columns"]).toBe("minmax(0, 1fr)");
+    expect(rule(chartsCss, ".share__name", [NARROW])["flex-direction"]).toBe("row");
+    // The axis has no column to keep, so its spacer goes.
+    expect(rule(chartsCss, ".share__row--axis > :first-child", [NARROW]).display).toBe("none");
+    // Over 480 px the column is there: nothing outside the container query changes the grid.
+    expect(rule(chartsCss, ".share__row")["grid-template-columns"]).toBe("72px minmax(0, 1fr)");
+  });
+
+  it("draws a bar 28 px high with a 4 px radius at the ends of the row, which clips the segments", () => {
+    expect(rule(chartsCss, ".share__bar")).toMatchObject({ display: "flex", height: "28px", "border-radius": "4px", overflow: "hidden" });
+  });
+
+  it("draws a segment in the colour of its slot, as wide as the style says, a sliver at the least, and not shrunk past it", () => {
+    const segment = rule(chartsCss, ".share__seg");
+    expect(segment).toMatchObject({ background: "var(--mark)", "min-width": "3px", height: "100%" });
+    expect(segment.flex).toBe("0 1 auto");
+  });
+
+  it("draws the 2 px gap inside the end of each segment but the last, in --surface, so that the widths stay exact shares", () => {
+    expect(rule(chartsCss, ".share__seg:not(:last-child)")["box-shadow"]).toBe("inset -2px 0 0 var(--surface)");
+    expect(parse(chartsCss).filter((r) => r.selectors.includes(".share__seg") && r.declarations["box-shadow"] !== undefined)).toEqual([]);
+  });
+
+  it("dims the other segments to 45% while one is hovered, in every row, and not the hovered one", () => {
+    expect(rule(chartsCss, ".share[data-active] .share__seg:not(.is-active)").opacity).toBe("0.45");
+  });
+
+  it("puts a segment's label under it, in the 22 px band under the bar, at its own place: the name strong in --fg, the rest in --muted", () => {
+    expect(rule(chartsCss, ".share__labels")).toMatchObject({ position: "relative", height: "22px" });
+    expect(rule(chartsCss, ".share__label")).toMatchObject({ position: "absolute", color: "var(--muted)", "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" });
+    expect(rule(chartsCss, ".share__label b")).toMatchObject({ color: "var(--fg)", "font-weight": "600" });
+  });
+
+  it("draws the % axis as a line of 1 px --axis under the rows with its labels in --faint 11 px, the ends inside the bar's edges", () => {
+    expect(rule(chartsCss, ".share__axis")).toMatchObject({ position: "relative", "border-top": "1px solid var(--axis)" });
+    expect(rule(chartsCss, ".share__axis span")).toMatchObject({ position: "absolute", color: "var(--faint)", "font-size": "11px", transform: "translateX(-50%)" });
+    expect(rule(chartsCss, ".share__axis span:first-child").transform).toBe("none");
+    expect(rule(chartsCss, ".share__axis span:last-child").transform).toBe("translateX(-100%)");
+  });
+
+  it("lays the cursor over the rows without taking the pointer, which the segments take, and draws its ring inside", () => {
+    expect(rule(chartsCss, ".share__cursor")).toMatchObject({ position: "absolute", inset: "0", "pointer-events": "none" });
+    expect(rule(chartsCss, ".share__cursor:focus-visible")["outline-offset"]).toBe("-2px");
+  });
+
+  it("lets a finger scroll the page over the bars, and a tap select", () => {
+    expect(rule(chartsCss, ".share__rows")["touch-action"]).toBe("pan-y");
+  });
+
+  it("opens the tooltip under the row it is for, as the board does, over the label band", () => {
+    expect(rule(chartsCss, ".share__tip").top).toBe("34px");
+  });
+
+  it("is the one thing in the kit with the ring of a change besides the plot: value-mark, once", () => {
+    expect(rule(chartsCss, ".share.is-changed").animation).toBe("value-mark 1200ms ease-out");
+    expect(rule(chartsCss, ".share.is-changed", [REDUCED]).animation).toBe("value-mark 1200ms ease-out !important");
+  });
+
+  it("keeps the colours of the segments under forced colours", () => {
+    expect(rule(chartsCss, ".share__seg", ["@media (forced-colors: active)"])["forced-color-adjust"]).toBe("none");
+  });
+
+  it("says that there is nothing to show in --muted", () => {
+    expect(rule(chartsCss, ".share__empty").color).toBe("var(--muted)");
   });
 });
 

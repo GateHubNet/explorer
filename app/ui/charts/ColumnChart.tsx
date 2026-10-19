@@ -174,7 +174,7 @@ export const ColumnChart = memo(
         empty={axis.buckets.some((_, i) => has(i)) ? null : emptyText(axis)}
         cursor={{ count, placement: "bands", label: sliderLabel(title, axis.unit), valueText: readOut, tooltip }}
       >
-        <div className="cols">
+        <div className="plot__cols">
           {axis.buckets.map((_, i) => (
             <div key={i} className="col" data-bucket={i}>
               {bars(i)}

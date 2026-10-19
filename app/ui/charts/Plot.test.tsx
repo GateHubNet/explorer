@@ -1,10 +1,12 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
+import { useRef } from "react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { END_LABEL_GUTTER_PX, niceScale } from "./geometry";
-import { Plot, useHydrated, usePlotMark, type PlotProps } from "./Plot";
+import { cx } from "../cx";
+import { Plot, useHydrated, usePlotMark, usePlotRing, type PlotProps } from "./Plot";
 import { tickLabel } from "./labels";
 import type { TimeAxis } from "./types";
 
@@ -95,6 +97,19 @@ describe("Plot's frame, as the Worker prints it and the browser takes it over", 
     expect(wide.container.querySelector<HTMLElement>(".plot__y")!.style.getPropertyValue("--chars")).toBe("4");
   });
 
+  it("makes the gutter at least as wide as yChars, for plots that are one chart and have to be as wide as each other; longer labels still win", async () => {
+    const chars = async (extra: Partial<PlotProps>) => {
+      const { container } = await serverThenHydrated(plot(extra));
+      const value = container.querySelector<HTMLElement>(".plot__y")!.style.getPropertyValue("--chars");
+      cleanup();
+      return value;
+    };
+    // The labels of the count scale are at most 2 characters ("20").
+    expect(await chars({})).toBe("2");
+    expect(await chars({ yChars: 6 })).toBe("6");
+    expect(await chars({ yChars: 1 })).toBe("2");
+  });
+
   it("uses the unit sign of the kind in the labels", async () => {
     const { container } = await serverThenHydrated(plot({ scale: niceScale([99.5], { from: 98, to: 100 }), kind: "percent" }));
     for (const label of texts(container.querySelector(".plot__y")!.children)) expect(label).toMatch(/%$/);
@@ -152,6 +167,24 @@ describe("Plot's frame, as the Worker prints it and the browser takes it over", 
     cleanup();
     const none = await serverThenHydrated(plot({ xLabels: "ends", axis: { unit: "day", buckets: [] } }));
     expect(none.container.querySelector(".plot__x--ends")!.children).toHaveLength(0);
+  });
+
+  it("leaves the x labels out when asked, and the room they take under the plot: the upper pane of two that share an axis", async () => {
+    const { html, container, errors } = await serverThenHydrated(plot({ xLabels: "none" }));
+    expect(html).not.toContain("plot__x");
+    expect(container.querySelectorAll(".plot__x")).toHaveLength(0);
+    // The frame says so, and CSS takes the x band's height (charts.css) out of the region's padding.
+    expect(container.querySelector(".plot__frame")!.className).toBe("plot__frame plot__frame--bare");
+    expect(container.querySelectorAll(".plot__grid")).toHaveLength(5);
+    expect(errors).toEqual([]);
+  });
+
+  it("keeps the room of the x labels in a frame that has them", async () => {
+    for (const xLabels of [undefined, "spread", "ends"] as const) {
+      const { container } = await serverThenHydrated(plot({ xLabels }));
+      expect(container.querySelector(".plot__frame")!.classList.contains("plot__frame--bare"), String(xLabels)).toBe(false);
+      cleanup();
+    }
   });
 
   it("spreads the labels by default, which is both sets", async () => {
@@ -481,6 +514,38 @@ describe("Plot's ring after a change (spec 2.9)", () => {
     expect(container.querySelector(".plot")!.className).toBe("plot is-changed");
     rerender(plot({ token: "c", summary: "another summary" }));
     expect(container.querySelector(".plot")!.className).toBe("plot is-changed");
+  });
+});
+
+describe("usePlotRing", () => {
+  // The ring of a form that has no `Plot` (the share bars): the class on any element, replayed by taking it off, a reflow, and putting it on.
+  function Ringed({ token }: { token: string }) {
+    const box = useRef<HTMLDivElement>(null);
+    const changed = usePlotRing(token, box);
+    return <div ref={box} className={cx("ringed", changed && "is-changed")} />;
+  }
+
+  it("is false until the token changes after mount, as usePlotMark is, and puts the class on the element it is given", () => {
+    const { container, rerender } = render(<Ringed token="a" />);
+    expect(container.querySelector(".ringed.is-changed")).toBeNull();
+    rerender(<Ringed token="a" />);
+    expect(container.querySelector(".ringed.is-changed")).toBeNull();
+    rerender(<Ringed token="b" />);
+    expect(container.querySelectorAll(".ringed.is-changed")).toHaveLength(1);
+  });
+
+  it("runs the ring again for each change that follows: off, a reflow that sees it off, on", () => {
+    const seen: boolean[] = [];
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("ringed")) seen.push(this.classList.contains("is-changed"));
+      return 0;
+    });
+    const { container, rerender } = render(<Ringed token="a" />);
+    rerender(<Ringed token="b" />);
+    expect(seen).toEqual([]);
+    rerender(<Ringed token="c" />);
+    expect(seen).toEqual([false]);
+    expect(container.querySelector(".ringed")!.className).toBe("ringed is-changed");
   });
 });
 
