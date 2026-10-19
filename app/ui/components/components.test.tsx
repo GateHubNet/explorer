@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { renderToString } from "react-dom/server";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, Outlet, RouterProvider, type UIMatch } from "react-router";
 import { classicAddressToXAddress } from "ripple-address-codec";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -33,7 +33,9 @@ import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { PRODUCT_NAME } from "../brand";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
-import { useNetwork } from "../use-network";
+import { FEATURE_VARS, featuresOf } from "../features";
+import { navSectionOf, type NetworkRouteHandle } from "../route-handle";
+import { NETWORK_ROUTE_ID, useNetwork } from "../use-network";
 import { DetailList } from "./DetailList";
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
@@ -684,15 +686,149 @@ describe("Header and Shell", () => {
     expect(header.querySelector("form")!.getAttribute("action")).toBe("/xahau/search");
   });
 
-  it("shows Network, Markets and AMM as labels with a soon tag, not as links", () => {
-    renderInRouter(<Header net={XRPL} />);
-    const nav = screen.getByRole("navigation", { name: "Main" });
-    for (const label of ["Network", "Markets", "AMM"]) {
-      const item = within(nav).getByText(label);
-      expect(item.closest("a")).toBeNull();
-      expect(item.closest("li")!.textContent).toContain("soon");
+  describe("the navigation", () => {
+    /** The header at `path`, under a route whose `handle` is the one given: how a page says which section of the header it is in. */
+    function renderHeaderAt(path: string, handle?: NetworkRouteHandle, net: typeof XRPL | typeof XAHAU = XRPL) {
+      const router = createMemoryRouter([{ path: "*", element: <Header net={net} />, handle }], { initialEntries: [path] });
+      render(<RouterProvider router={router} />);
+      return within(screen.getByRole("navigation", { name: "Main" }));
     }
-    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).not.toContain("Network");
+
+    /** The header as the `/:net` layout renders it, with the layout's data holding every switch on, or every one off. */
+    async function renderHeaderWithLayout(on: boolean) {
+      const features = featuresOf(Object.fromEntries(FEATURE_VARS.map((name) => [name, on ? "on" : "off"])));
+      const router = createMemoryRouter(
+        [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network: { ...XRPL, features } }), element: <Header net={XRPL} /> }],
+        { initialEntries: ["/xrpl"] },
+      );
+      render(<RouterProvider router={router} />);
+      return within(await screen.findByRole("navigation", { name: "Main" }));
+    }
+
+    function expectSoon(nav: ReturnType<typeof within>, label: string) {
+      const item = nav.getByText(label).closest(".nav-item")!;
+      expect(item.classList.contains("is-soon")).toBe(true);
+      expect(item.tagName).not.toBe("A");
+      expect(item.getAttribute("aria-disabled")).toBe("true");
+      expect(item.textContent).toContain("soon");
+      expect(nav.queryByRole("link", { name: new RegExp(`^${label}`) })).toBeNull();
+    }
+
+    it("links Network to the network page and marks it as the current page there", () => {
+      const nav = renderHeaderAt("/xrpl/network", { navSection: "network" });
+      const link = nav.getByRole("link", { name: "Network" });
+      expect(link.getAttribute("href")).toBe("/xrpl/network");
+      expect(link.getAttribute("aria-current")).toBe("page");
+      expect(link.classList.contains("is-current")).toBe(true);
+      expect(link.classList.contains("is-soon")).toBe(false);
+    });
+
+    it("links Network to the page of the network the header is on", () => {
+      const nav = renderHeaderAt("/xahau/network", { navSection: "network" }, XAHAU);
+      expect(nav.getByRole("link", { name: "Network" }).getAttribute("href")).toBe("/xahau/network");
+    });
+
+    it("keeps the network page current under any query", () => {
+      const nav = renderHeaderAt("/xrpl/network?period=1y", { navSection: "network" });
+      const link = nav.getByRole("link", { name: "Network" });
+      expect(link.getAttribute("aria-current")).toBe("page");
+      expect(link.classList.contains("is-current")).toBe(true);
+    });
+
+    it('names the section on its other pages with aria-current="true"', () => {
+      const nav = renderHeaderAt("/xrpl/validators", { navSection: "network" });
+      const link = nav.getByRole("link", { name: "Network" });
+      expect(link.getAttribute("href")).toBe("/xrpl/network");
+      expect(link.getAttribute("aria-current")).toBe("true");
+      expect(link.classList.contains("is-current")).toBe(true);
+    });
+
+    it("leaves Network a plain link on a page that names no section", () => {
+      const nav = renderHeaderAt("/xrpl/ledger/1");
+      const link = nav.getByRole("link", { name: "Network" });
+      expect(link.getAttribute("href")).toBe("/xrpl/network");
+      expect(link.hasAttribute("aria-current")).toBe(false);
+      expect(link.classList.contains("is-current")).toBe(false);
+    });
+
+    it("takes the section from a parent route when the deepest route names none", () => {
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/xrpl",
+            handle: { navSection: "network" } satisfies NetworkRouteHandle,
+            element: (
+              <>
+                <Header net={XRPL} />
+                <Outlet />
+              </>
+            ),
+            children: [{ path: "deeper", element: <p>deeper</p>, handle: { heroSearch: false } satisfies NetworkRouteHandle }],
+          },
+        ],
+        { initialEntries: ["/xrpl/deeper"] },
+      );
+      render(<RouterProvider router={router} />);
+      const link = within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Network" });
+      expect(link.classList.contains("is-current")).toBe(true);
+      expect(link.getAttribute("aria-current")).toBe("true");
+    });
+
+    it("marks no section by the path alone: a route has to say so", () => {
+      const nav = renderHeaderAt("/xrpl/network");
+      const link = nav.getByRole("link", { name: "Network" });
+      expect(link.hasAttribute("aria-current")).toBe(false);
+      expect(link.classList.contains("is-current")).toBe(false);
+    });
+
+    it("keeps the hrefs of Ledgers and Transactions, and marks neither as current", () => {
+      const nav = renderHeaderAt("/xrpl/network", { navSection: "network" });
+      const ledgers = nav.getByRole("link", { name: "Ledgers" });
+      const transactions = nav.getByRole("link", { name: "Transactions" });
+      expect(ledgers.getAttribute("href")).toBe(`/xrpl#${LATEST_LEDGERS_ID}`);
+      expect(transactions.getAttribute("href")).toBe(`/xrpl#${LATEST_TRANSACTIONS_ID}`);
+      for (const link of [ledgers, transactions]) {
+        expect(link.hasAttribute("aria-current")).toBe(false);
+        expect(link.classList.contains("is-current")).toBe(false);
+      }
+    });
+
+    it("shows Markets as a label with a soon tag, not as a link, without the layout's data and with every switch on", async () => {
+      expectSoon(renderHeaderAt("/xrpl"), "Markets");
+      cleanup();
+      expectSoon(await renderHeaderWithLayout(true), "Markets");
+    });
+
+    it("shows AMM as a label with a soon tag, not as a link, without the layout's data and with every switch on", async () => {
+      expectSoon(renderHeaderAt("/xrpl"), "AMM");
+      cleanup();
+      expectSoon(await renderHeaderWithLayout(true), "AMM");
+    });
+
+    it("links Network with every switch off, since it has none", async () => {
+      const nav = await renderHeaderWithLayout(false);
+      expect(nav.getByRole("link", { name: "Network" }).getAttribute("href")).toBe("/xrpl/network");
+    });
+  });
+
+  describe("navSectionOf", () => {
+    const match = (handle: unknown): UIMatch => ({ id: "route", pathname: "/", params: {}, loaderData: undefined, handle });
+
+    it("is undefined without matches", () => {
+      expect(navSectionOf([])).toBeUndefined();
+    });
+
+    it("is undefined when no match names a section, whatever its handle is", () => {
+      expect(navSectionOf([match(undefined), match(null), match("network"), match({}), match({ heroSearch: true })])).toBeUndefined();
+    });
+
+    it("is the section of the deepest match that names one", () => {
+      expect(navSectionOf([match({ navSection: "network" }), match(undefined), match({ heroSearch: true })])).toBe("network");
+      expect(navSectionOf([match(undefined), match({ navSection: "network" })])).toBe("network");
+      // Two different names (the second is a later sub-project's), so that the order shows.
+      expect(navSectionOf([match({ navSection: "network" }), match({ navSection: "markets" })])).toBe("markets");
+      expect(navSectionOf([match({ navSection: "markets" }), match({ navSection: "network" })])).toBe("network");
+    });
   });
 
   it("can leave the search out (the home page has its own)", () => {
