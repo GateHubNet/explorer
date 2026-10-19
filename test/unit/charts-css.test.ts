@@ -234,7 +234,8 @@ describe("the plot", () => {
     }
   });
 
-  it("is a box that its marks and labels are positioned in", () => {
+  it("is a box that its marks and labels are positioned in, and so is the frame, for the tooltip that the region cannot clip", () => {
+    expect(rule(chartsCss, ".plot__frame").position).toBe("relative");
     expect(rule(chartsCss, ".plot").position).toBe("relative");
     expect(rule(chartsCss, ".plot__marks").position).toBe("absolute");
   });
@@ -296,6 +297,12 @@ describe("the plot", () => {
 
 describe("the cursor", () => {
   it("lets a finger scroll the page up and down and takes the sideways drag", () => {
+    expect(rule(chartsCss, ".plot__cursor")["touch-action"]).toBe("pan-y");
+  });
+
+  it("lets a finger scroll a region that scrolls sideways, and still select with a tap: that is what the region is for", () => {
+    expect(rule(chartsCss, ".plot__scroll--slots .plot__cursor")["touch-action"]).toBe("pan-x pan-y");
+    // Anywhere else a drag along the plot is the cursor's.
     expect(rule(chartsCss, ".plot__cursor")["touch-action"]).toBe("pan-y");
   });
 

@@ -1,8 +1,17 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { cx } from "../cx";
-import { Cursor, type CursorProps } from "./Cursor";
-import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
+import { createTipSlot, Cursor, TipSlotContext, type CursorProps, type TipSlot } from "./Cursor";
+import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, tooltipSide, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
 import { bucketLabel, tickLabel } from "./labels";
 import type { TimeAxis, ValueKind } from "./types";
 
@@ -88,18 +97,24 @@ export function Plot({
   const plot = useRef<HTMLDivElement>(null);
   const changed = usePlotMark(token);
 
-  // The class stays after the first change and so cannot start the ring again: each later change does it by hand, in the effect that runs
-  // for a new token (with that render's `changed`). The first change starts the ring by itself, with the class.
+  // The class stays after the first change, and a CSS animation that has finished cannot be started again from script (it is no longer
+  // there to ask for), so a later change does it with the class: off, a reflow so that the browser sees it off, and on. The first change
+  // starts the ring by itself, with the class.
   const marked = useRef(false);
   useEffect(() => {
-    if (marked.current) {
-      for (const animation of plot.current?.getAnimations?.() ?? []) {
-        animation.cancel();
-        animation.play();
-      }
+    const box = plot.current;
+    if (marked.current && box) {
+      box.classList.remove("is-changed");
+      void box.offsetWidth;
+      box.classList.add("is-changed");
     }
     marked.current = changed;
   }, [token]);
+
+  // Where the cursor's tooltip is drawn: beside the region that scrolls, which would clip it, and not in it.
+  const [tips] = useState(createTipSlot);
+  const frame = useRef<HTMLDivElement>(null);
+  const region = useRef<HTMLDivElement>(null);
 
   const labels = scale.ticks.map((tick) => tickLabel(tick, kind));
   const chars = Math.max(1, ...labels.map((label) => label.length));
@@ -126,9 +141,10 @@ export function Plot({
   );
 
   return (
-    <div className={cx("plot__frame", height !== "chart" && `plot__frame--${height}`)}>
+    <div ref={frame} className={cx("plot__frame", height !== "chart" && `plot__frame--${height}`)}>
       {yAxis === "left" && gutter}
       <div
+        ref={region}
         className={cx("plot__scroll", slots && "plot__scroll--slots")}
         role={slots ? "region" : undefined}
         tabIndex={slots ? 0 : undefined}
@@ -153,17 +169,87 @@ export function Plot({
               {empty}
             </p>
           )}
-          {cursor && !empty && <Cursor plot={plot} {...cursor} />}
+          {cursor && !empty && (
+            <TipSlotContext value={tips}>
+              <Cursor plot={plot} {...cursor} />
+            </TipSlotContext>
+          )}
           {xLabels("wide")}
           {xLabels("narrow")}
         </div>
       </div>
       {yAxis === "right" && gutter}
+      {cursor && !empty && <PlotTip slot={tips} frame={frame} region={region} plot={plot} count={cursor.count} placement={cursor.placement} />}
       {endLabels ? (
         <div className="plot__end" style={{ width: END_LABEL_GUTTER_PX }} aria-hidden="true">
           {endLabels}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The cursor's tooltip, drawn in the frame and not in the plot: the region of a plot that scrolls clips what is in it, and a tooltip must
+ * not be cut at its edge or at the bottom of a short plot. It is placed from the boxes of the page (`getBoundingClientRect`) when it is
+ * shown, and again when the region scrolls under one that a touch kept: its anchor is the bucket's x in the frame, the class gives the
+ * side (spec 2.6: right under 22%, left over 78%, else centred, of the part of the plot in view) and a shift keeps it inside the region's box.
+ *
+ * Only this is rendered when the tooltip changes (the cursor hands it over through the slot), so a pointer move does not render the marks.
+ */
+function PlotTip({
+  slot,
+  frame,
+  region,
+  plot,
+  count,
+  placement,
+}: {
+  slot: TipSlot;
+  frame: RefObject<HTMLDivElement | null>;
+  region: RefObject<HTMLDivElement | null>;
+  plot: RefObject<HTMLDivElement | null>;
+  count: number;
+  placement: Placement;
+}) {
+  const tip = useSyncExternalStore(slot.subscribe, slot.get, () => null);
+  const bubble = useRef<HTMLDivElement>(null);
+  const bucket = tip?.bucket ?? null;
+
+  const place = () => {
+    const el = bubble.current;
+    const inFrame = frame.current?.getBoundingClientRect();
+    const view = region.current?.getBoundingClientRect();
+    const whole = plot.current?.getBoundingClientRect();
+    if (!el || bucket === null || !inFrame || !view || !whole) return;
+    // The part of the plot in view: all of it, for a plot that does not scroll.
+    const from = Math.max(whole.left, view.left);
+    const to = Math.min(whole.right, view.right);
+    const x = whole.left + xOf(bucket, count, placement) * whole.width;
+    const side = tooltipSide(to > from ? Math.min(1, Math.max(0, (x - from) / (to - from))) : xOf(bucket, count, placement));
+    const width = el.offsetWidth;
+    const natural = side === "right" ? x + 8 : side === "left" ? x - 8 - width : x - width / 2;
+    // Inside the box in view, and at its left edge when the tooltip is wider than that.
+    const inside = Math.max(from, Math.min(natural, to - width));
+    el.classList.remove("right", "left", "center");
+    el.classList.add(side);
+    el.style.left = `${x - inFrame.left}px`;
+    el.style.marginLeft = `${inside - natural}px`;
+  };
+
+  // After every render: the content may be another width.
+  useLayoutEffect(place);
+  // The region scrolling moves the bucket from under a tooltip that a touch has kept.
+  useEffect(() => {
+    const scroller = region.current;
+    if (!scroller || bucket === null) return;
+    scroller.addEventListener("scroll", place, { passive: true });
+    return () => scroller.removeEventListener("scroll", place);
+  }, [bucket, count, placement]);
+
+  return tip && (
+    <div ref={bubble} className="plot__tip" aria-hidden="true">
+      {tip.node}
     </div>
   );
 }

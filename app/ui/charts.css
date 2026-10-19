@@ -244,6 +244,7 @@
 
 .plot__frame {
   --x-band: 24px;
+  position: relative;
   display: flex;
   align-items: flex-start;
   min-width: 0;
@@ -409,6 +410,13 @@
   outline-offset: -2px;
 }
 
+/* In a region that scrolls sideways a swipe along the plot is the region's, which is what the region is for (90 days on a phone), and a tap
+   still selects. What a touch may do is what the element it lands on and every element up to the scroller allow, so a `pan-y` layer over
+   the whole plot would keep the region from panning sideways. */
+.plot__scroll--slots .plot__cursor {
+  touch-action: pan-x pan-y;
+}
+
 .plot__crosshair {
   position: absolute;
   top: 0;
@@ -430,8 +438,9 @@
   pointer-events: none;
 }
 
-/* The tooltip opens to the right of the cursor near the start of the plot, to the left near the end, and is centred between (the cursor
-   picks the class, from tooltipSide). It is as wide as its content, to a limit. */
+/* The tooltip opens to the right of the cursor near the start of the plot, to the left near the end, and is centred between (Plot picks the
+   class, from tooltipSide, and sets `left` and a shift that keeps it in the region's box; a cursor with no plot draws it in itself, with
+   `left` in percent). It is as wide as its content, to a limit. */
 .plot__tip {
   position: absolute;
   z-index: 3;

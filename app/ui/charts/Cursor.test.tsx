@@ -4,7 +4,7 @@ import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { Cursor, HoverGroup, useHoverGroup, type CursorProps } from "./Cursor";
+import { createTipSlot, Cursor, HoverGroup, TipSlotContext, useHoverGroup, type CursorProps } from "./Cursor";
 
 afterEach(() => {
   cleanup();
@@ -386,6 +386,81 @@ describe("Cursor, told what the visitor does", () => {
     fireEvent.pointerMove(container.querySelector('[role="slider"]')!, mouse(500));
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledWith(15);
+  });
+});
+
+describe("Cursor, given a place for its tooltip", () => {
+  it("hands the tooltip to the place and draws none of its own, and takes it back when it hides", async () => {
+    const slot = createTipSlot();
+    const { slider, tip, plot } = await mounted(
+      <TipSlotContext value={slot}>
+        <StubPlot />
+      </TipSlotContext>,
+    );
+    expect(slot.get()).toBeNull();
+    fireEvent.pointerMove(slider(), mouse(500));
+    expect(tip()).toBeNull();
+    expect(slot.get()?.bucket).toBe(15);
+    expect(render(<div>{slot.get()?.node}</div>).container.textContent).toBe("Oct 15" + "15 transactions");
+    // The rest of what the cursor does is the same.
+    expect(plot().getAttribute("data-active")).toBe("15");
+    fireEvent.pointerMove(slider(), mouse(100));
+    expect(slot.get()?.bucket).toBe(3);
+    fireEvent.pointerLeave(slider(), mouse(100));
+    expect(slot.get()).toBeNull();
+  });
+
+  it("gives the place nothing for a plot that has no tooltip, or is only showing the bucket of another plot of its group", async () => {
+    const slots = { price: createTipSlot(), volume: createTipSlot() };
+    const { slider } = await mounted(
+      <HoverGroup>
+        <TipSlotContext value={slots.price}>
+          <StubPlot id="price" />
+        </TipSlotContext>
+        <TipSlotContext value={slots.volume}>
+          <StubPlot id="volume" tooltip={undefined} />
+        </TipSlotContext>
+      </HoverGroup>,
+    );
+    fireEvent.pointerMove(slider("price"), mouse(500));
+    expect(slots.price.get()?.bucket).toBe(15);
+    expect(slots.volume.get()).toBeNull();
+    fireEvent.pointerMove(slider("volume"), mouse(100));
+    expect(slots.price.get()).toBeNull();
+    expect(slots.volume.get()).toBeNull();
+  });
+
+  it("gives the place back when the plot goes", () => {
+    const slot = createTipSlot();
+    const { container, unmount } = render(
+      <TipSlotContext value={slot}>
+        <StubPlot />
+      </TipSlotContext>,
+    );
+    vi.spyOn(container.querySelector(".plot")!, "getBoundingClientRect").mockReturnValue(BOX);
+    fireEvent.pointerMove(container.querySelector('[role="slider"]')!, mouse(500));
+    expect(slot.get()).not.toBeNull();
+    unmount();
+    expect(slot.get()).toBeNull();
+  });
+});
+
+describe("a place for a tooltip", () => {
+  it("holds what it is given, tells whoever is listening when it changes, and not when it does not", () => {
+    const slot = createTipSlot();
+    const heard = vi.fn();
+    const stop = slot.subscribe(heard);
+    slot.show(null);
+    expect(heard).not.toHaveBeenCalled();
+    slot.show({ bucket: 2, node: "two" });
+    expect(slot.get()).toEqual({ bucket: 2, node: "two" });
+    slot.show({ bucket: 3, node: "three" });
+    slot.show(null);
+    expect(heard).toHaveBeenCalledTimes(3);
+    expect(slot.get()).toBeNull();
+    stop();
+    slot.show({ bucket: 4, node: "four" });
+    expect(heard).toHaveBeenCalledTimes(3);
   });
 });
 

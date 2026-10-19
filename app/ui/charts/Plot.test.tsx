@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -250,6 +250,148 @@ describe("Plot's cursor", () => {
   });
 });
 
+describe("Plot's tooltip, drawn outside the region that scrolls", () => {
+  const box = (left: number, width: number) =>
+    ({ left, right: left + width, top: 0, bottom: 200, width, height: 200, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+  const mouse = (x: number) => ({ clientX: x, pointerType: "mouse" });
+  const finger = (x: number) => ({ clientX: x, pointerType: "touch" });
+  const TIP_WIDTH = 260;
+
+  const cursor = {
+    count: 30,
+    placement: "points" as const,
+    label: "Transactions, day by day",
+    valueText: (i: number) => `bucket ${i}`,
+    tooltip: (i: number) => <b>{`bucket ${i}`}</b>,
+  };
+
+  /** A plot of `slots` in a region `view` px wide that is scrolled to show the part of a 450 px plot that starts `scrolled` px in. */
+  async function scrolled({ scrolled: offset = 120, view = 280, extra = {} }: { scrolled?: number; view?: number; extra?: Partial<PlotProps> } = {}) {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("plot__tip") ? TIP_WIDTH : 0;
+    });
+    const result = await serverThenHydrated(plot({ slots: true, cursor, ...extra }));
+    const find = (selector: string) => result.container.querySelector<HTMLElement>(selector)!;
+    // The frame starts at 0, the region 10 px in (the y labels), and the plot is the width of 90 buckets at 5 px, `offset` px of it scrolled out.
+    vi.spyOn(find(".plot__frame"), "getBoundingClientRect").mockReturnValue(box(0, 10 + view));
+    vi.spyOn(find(".plot__scroll"), "getBoundingClientRect").mockReturnValue(box(10, view));
+    const plotBox = vi.spyOn(find(".plot"), "getBoundingClientRect").mockReturnValue(box(10 - offset, 450));
+    const tip = () => result.container.querySelector<HTMLElement>(".plot__tip");
+    /** The tooltip's left and right edges: where the class puts it from `left`, and the shift that keeps it in view. */
+    const edges = () => {
+      const bubble = tip()!;
+      const anchor = parseFloat(bubble.style.left);
+      const natural = bubble.classList.contains("right") ? anchor + 8 : bubble.classList.contains("left") ? anchor - 8 - TIP_WIDTH : anchor - TIP_WIDTH / 2;
+      const start = natural + parseFloat(bubble.style.marginLeft);
+      return [start, start + TIP_WIDTH];
+    };
+    return { ...result, find, tip, edges, plotBox, slider: () => find('[role="slider"]'), at: (i: number) => 10 - offset + (i / 29) * 450 };
+  }
+
+  it("is in the frame, beside the region and not in it, so that the region cannot clip it, and is hidden from assistive technology", async () => {
+    const { slider, tip, find, errors } = await scrolled();
+    expect(tip()).toBeNull();
+    fireEvent.pointerMove(slider(), mouse(100));
+    const bubble = tip()!;
+    expect(bubble.textContent).toBe("bucket 14");
+    expect(bubble.getAttribute("aria-hidden")).toBe("true");
+    expect(bubble.parentElement).toBe(find(".plot__frame"));
+    expect(bubble.closest(".plot__scroll")).toBeNull();
+    // Not a second one inside the cursor.
+    expect(find(".plot__cursor").querySelector(".plot__tip")).toBeNull();
+    expect(errors).toEqual([]);
+  });
+
+  it("leaves with the pointer, and when the plot has no tooltip there is none", async () => {
+    const { slider, tip } = await scrolled();
+    fireEvent.pointerMove(slider(), mouse(100));
+    fireEvent.pointerLeave(slider(), mouse(100));
+    expect(tip()).toBeNull();
+
+    cleanup();
+    const without = await scrolled({ extra: { cursor: { ...cursor, tooltip: undefined } } });
+    fireEvent.pointerMove(without.slider(), mouse(100));
+    expect(without.tip()).toBeNull();
+  });
+
+  it("takes its side from the part of the plot in view: a bucket at the left edge of the region opens to the right, though it is 28% in", async () => {
+    const { slider, tip, at, edges } = await scrolled();
+    // Bucket 8 is 8/29 = 27.6% along the whole plot, which has it centred, and 15 px in from the region's edge.
+    fireEvent.pointerMove(slider(), mouse(12));
+    expect(slider().getAttribute("aria-valuenow")).toBe("8");
+    expect(at(8)).toBeCloseTo(14.14, 1);
+    expect(tip()!.classList.contains("right")).toBe(true);
+    expect(tip()!.classList.contains("center")).toBe(false);
+    const [start, end] = edges();
+    expect(start).toBeGreaterThanOrEqual(10);
+    expect(end).toBeLessThanOrEqual(290);
+  });
+
+  it("keeps a centred tooltip inside the region when the bucket is close to its edge", async () => {
+    const { slider, tip, edges, at } = await scrolled();
+    fireEvent.pointerMove(slider(), mouse(100));
+    // Bucket 14 is at 107 px: a tooltip of 260 px centred on it would start 23 px left of the region.
+    expect(slider().getAttribute("aria-valuenow")).toBe("14");
+    expect(at(14)).toBeCloseTo(107.24, 1);
+    expect(tip()!.classList.contains("center")).toBe(true);
+    const [start, end] = edges();
+    expect(start).toBeCloseTo(10, 5);
+    expect(end).toBeLessThanOrEqual(290);
+    expect(parseFloat(tip()!.style.left)).toBeCloseTo(107.24, 1);
+  });
+
+  it("keeps a tooltip that opens to the left inside the region too", async () => {
+    const { slider, tip, edges } = await scrolled();
+    fireEvent.pointerMove(slider(), mouse(232));
+    // Bucket 22 is 79% of the way across what is in view: it opens to the left, and 260 px of room for it is not there.
+    expect(slider().getAttribute("aria-valuenow")).toBe("22");
+    expect(tip()!.classList.contains("left")).toBe(true);
+    const [start, end] = edges();
+    expect(start).toBeGreaterThanOrEqual(10);
+    expect(end).toBeLessThanOrEqual(290);
+  });
+
+  it("does not move a tooltip that fits: no shift", async () => {
+    const { slider, tip } = await scrolled({ scrolled: 0, view: 450 });
+    fireEvent.pointerMove(slider(), mouse(10 + 225));
+    expect(parseFloat(tip()!.style.marginLeft)).toBeCloseTo(0, 5);
+    expect(tip()!.classList.contains("center")).toBe(true);
+  });
+
+  it("is placed by the plot's own box for a plot that does not scroll", async () => {
+    const result = await serverThenHydrated(plot({ cursor }));
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("plot__tip") ? TIP_WIDTH : 0;
+    });
+    const find = (selector: string) => result.container.querySelector<HTMLElement>(selector)!;
+    vi.spyOn(find(".plot__frame"), "getBoundingClientRect").mockReturnValue(box(0, 330));
+    vi.spyOn(find(".plot__scroll"), "getBoundingClientRect").mockReturnValue(box(30, 300));
+    vi.spyOn(find(".plot"), "getBoundingClientRect").mockReturnValue(box(30, 300));
+    // 25% along a plot of 300 px: the side is a right one by the 22% rule only above that, so it is centred, and 260 px do not fit.
+    fireEvent.pointerMove(find('[role="slider"]'), mouse(30 + 75));
+    const bubble = find(".plot__tip");
+    const anchor = parseFloat(bubble.style.left);
+    const start = anchor - TIP_WIDTH / 2 + parseFloat(bubble.style.marginLeft);
+    expect(bubble.classList.contains("center")).toBe(true);
+    expect(start).toBeGreaterThanOrEqual(30);
+    expect(start + TIP_WIDTH).toBeLessThanOrEqual(330);
+  });
+
+  it("follows the bucket when the region scrolls under a tooltip that a touch kept", async () => {
+    const { slider, tip, find, plotBox } = await scrolled();
+    fireEvent.pointerDown(slider(), finger(100));
+    fireEvent.pointerUp(slider(), finger(100));
+    const before = tip()!.style.left;
+    plotBox.mockReturnValue(box(10 - 60, 450));
+    fireEvent.scroll(find(".plot__scroll"));
+    expect(tip()!.style.left).not.toBe(before);
+    expect(parseFloat(tip()!.style.left)).toBeCloseTo(10 - 60 + (14 / 29) * 450, 1);
+    // And it stops listening when the tooltip is gone.
+    fireEvent.pointerDown(document.body, finger(0));
+    expect(tip()).toBeNull();
+  });
+});
+
 describe("Plot's ring after a change (spec 2.9)", () => {
   it("is not there on the server's render, on hydration, or after a render with the same token", async () => {
     const { html, container, errors } = await serverThenHydrated(plot());
@@ -281,31 +423,35 @@ describe("Plot's ring after a change (spec 2.9)", () => {
     expect(container.querySelector(".plot")).toBe(frame);
   });
 
-  it("is run again for each change that follows, since the class stays", () => {
-    const run = vi.fn();
-    const animations = vi.fn(() => [{ cancel: run, play: run }]);
-    Object.defineProperty(HTMLElement.prototype, "getAnimations", { configurable: true, value: animations });
-    try {
-      const { container, rerender } = render(plot({ token: "a" }));
-      rerender(plot({ token: "b" }));
-      // The first change starts the animation by itself, with the class.
-      expect(run).not.toHaveBeenCalled();
-      rerender(plot({ token: "b", summary: "another summary" }));
-      expect(run).not.toHaveBeenCalled();
-      rerender(plot({ token: "c" }));
-      expect(animations).toHaveBeenCalledTimes(1);
-      expect(run.mock.calls.length).toBe(2);
-      expect(container.querySelectorAll(".plot.is-changed")).toHaveLength(1);
-    } finally {
-      delete (HTMLElement.prototype as { getAnimations?: unknown }).getAnimations;
-    }
-  });
-
-  it("copes with a browser that cannot list animations", () => {
+  it("is run again for each change that follows, by taking the class off, letting the browser see it off, and putting it back", () => {
+    // The class stays after the first change, and a finished animation cannot be restarted through `getAnimations()` (it is no longer
+    // there to ask for), so the restart is the class itself: off, a reflow, on.
+    const seen: boolean[] = [];
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("plot")) seen.push(this.classList.contains("is-changed"));
+      return 0;
+    });
     const { container, rerender } = render(plot({ token: "a" }));
     rerender(plot({ token: "b" }));
-    expect(() => rerender(plot({ token: "c" }))).not.toThrow();
-    expect(container.querySelector(".plot.is-changed")).not.toBeNull();
+    // The first change starts the animation by itself, with the class.
+    expect(seen).toEqual([]);
+    rerender(plot({ token: "b", summary: "another summary" }));
+    expect(seen).toEqual([]);
+    rerender(plot({ token: "c" }));
+    expect(seen).toEqual([false]);
+    expect(container.querySelectorAll(".plot.is-changed")).toHaveLength(1);
+    rerender(plot({ token: "d" }));
+    expect(seen).toEqual([false, false]);
+    expect(container.querySelectorAll(".plot.is-changed")).toHaveLength(1);
+  });
+
+  it("has the class on again when the effect is done, as React left it: the next render does not disturb it", () => {
+    const { container, rerender } = render(plot({ token: "a" }));
+    rerender(plot({ token: "b" }));
+    rerender(plot({ token: "c" }));
+    expect(container.querySelector(".plot")!.className).toBe("plot is-changed");
+    rerender(plot({ token: "c", summary: "another summary" }));
+    expect(container.querySelector(".plot")!.className).toBe("plot is-changed");
   });
 });
 

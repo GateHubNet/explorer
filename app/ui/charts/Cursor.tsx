@@ -49,6 +49,42 @@ export interface CursorProps {
   onChange?: (i: number | null) => void;
 }
 
+/** What a cursor has to show as its tooltip: the bucket, and the content `tooltip(bucket)` gave. */
+export interface Tip {
+  bucket: number;
+  node: ReactNode;
+}
+
+/**
+ * A place outside the cursor to draw its tooltip in. A plot whose region scrolls clips whatever is inside it, the tooltip with it, so the
+ * plot (Plot.tsx) draws the tooltip beside the region and the cursor hands it over here. A cursor with none draws it in the plot, as the
+ * mock does.
+ */
+export interface TipSlot {
+  show(tip: Tip | null): void;
+  get(): Tip | null;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createTipSlot(): TipSlot {
+  let tip: Tip | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    show(next) {
+      if (next === null && tip === null) return;
+      tip = next;
+      for (const listener of listeners) listener();
+    },
+    get: () => tip,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+}
+
+export const TipSlotContext = createContext<TipSlot | null>(null);
+
 interface Group {
   active: number | null;
   set(i: number | null): void;
@@ -87,6 +123,7 @@ export function Cursor(props: CursorProps) {
 function CursorLayer({ plot, count, placement, label, valueText, tooltip, crosshair, dots, onChange }: CursorProps) {
   const group = useHoverGroup();
   const setGroup = group?.set;
+  const slot = useContext(TipSlotContext);
   const layer = useRef<HTMLDivElement>(null);
   // Where this cursor's own input put it, and whether that shows. Hidden, it stays where it was, so the slider has a value to say.
   const [at, setAt] = useState(count - 1);
@@ -178,6 +215,13 @@ function CursorLayer({ plot, count, placement, label, valueText, tooltip, crossh
     };
   });
 
+  // The tooltip, where the plot has a place for it: told every render (it may have new content), and taken back when the cursor goes.
+  const tip = tipped && bucket !== null && tooltip ? { bucket, node: tooltip(bucket) } : null;
+  useLayoutEffect(() => {
+    slot?.show(tip);
+  });
+  useLayoutEffect(() => () => slot?.show(null), [slot]);
+
   // The readouts: told when the bucket changes, with the callback it has now.
   const current = useRef(onChange);
   const told = useRef<number | null>(null);
@@ -221,9 +265,9 @@ function CursorLayer({ plot, count, placement, label, valueText, tooltip, crossh
       {bucket !== null && crosshair && <span className="plot__crosshair" style={{ left }} />}
       {bucket !== null &&
         dots?.(bucket).map((dot, k) => <span key={k} className="plot__dot" data-slot={dot.slot} style={{ left, bottom: percent(dot.y) }} />)}
-      {bucket !== null && tipped && tooltip && (
-        <div className={cx("plot__tip", tooltipSide(xOf(bucket, count, placement)))} style={{ left }} aria-hidden="true">
-          {tooltip(bucket)}
+      {!slot && tip && (
+        <div className={cx("plot__tip", tooltipSide(xOf(tip.bucket, count, placement)))} style={{ left }} aria-hidden="true">
+          {tip.node}
         </div>
       )}
     </div>
