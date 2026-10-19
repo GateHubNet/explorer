@@ -1,0 +1,254 @@
+/* The chart kit (spec section 2; imported by styles.css). The charts are drawn by CSS from marks the server prints, so that the cached HTML
+   shows them with no script: this file has the card, its Chart/Table toggle and the legend, and the marks of each form come with the form.
+   A class is the component's (`.chart`), its parts (`.chart__head`), its states (`.is-refetching`). Colours are the tokens of tokens.css;
+   no text wears a series colour. test/unit/charts-css.test.ts keeps the rules that matter. */
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Slots: a mark wears the colour of its slot (spec 2.10), which the kit puts on it as `data-slot` and CSS reads as `--mark`. "Neutral" is
+   the grey of "Other": a series that is neither up nor down nor one of the five. */
+
+[data-slot="1"] {
+  --mark: var(--series-1);
+}
+
+[data-slot="2"] {
+  --mark: var(--series-2);
+}
+
+[data-slot="3"] {
+  --mark: var(--series-3);
+}
+
+[data-slot="4"] {
+  --mark: var(--series-4);
+}
+
+[data-slot="5"] {
+  --mark: var(--series-5);
+}
+
+[data-slot="other"] {
+  --mark: var(--series-other);
+}
+
+[data-slot="up"] {
+  --mark: var(--up);
+}
+
+[data-slot="down"] {
+  --mark: var(--down);
+}
+
+[data-slot="neutral"] {
+  --mark: var(--series-other);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   The card (ChartCard): a head, a legend, the chart view and the table view, notes. It is a container, so the plot can ask for the width of
+   its card and not of the window (the board's pairs of cards fold to one column with it). */
+
+.chart {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 14px;
+}
+
+/* Refetching (a period or a currency was chosen): the previous render stays, dimmed, with no skeleton (spec 2.8). */
+.is-refetching .chart {
+  opacity: 0.55;
+}
+
+.chart__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chart__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chart__title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chart__source {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+
+.chart__view,
+.chart__table {
+  min-width: 0;
+}
+
+/* The table view sits under the line the board draws over it. Its region is DataTable's, inside the card's padding. */
+.chart__table {
+  border-top: 1px solid var(--border);
+}
+
+.chart__table .table__cell {
+  white-space: nowrap;
+}
+
+/* A total, and a sublabel (the short issuer) beside a label: in a cell, and in a heading. */
+.chart__total {
+  font-weight: 600;
+}
+
+.chart__sub {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.chart__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   The Chart/Table toggle: a fieldset of two native radios drawn as segments, the choice kept by the browser and read by the CSS below. The
+   radios are out of sight but in the page (a keyboard reaches them, a screen reader names them); the label is the target, 44 px high. */
+
+.segs {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--sunken);
+}
+
+/* Where :has() is missing the toggle could change nothing, so it is not shown, and both views are. */
+.chart__toggle {
+  display: none;
+}
+
+.chart__toggle label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.chart__toggle label:hover {
+  color: var(--fg);
+}
+
+.chart__toggle input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+@supports selector(:has(*)) {
+  .chart__toggle {
+    display: flex;
+  }
+
+  .chart__toggle label:has(input:checked) {
+    background: var(--surface);
+    color: var(--fg);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 0 0 1px var(--border);
+  }
+
+  /* The ring is drawn inside the label, where the trough around it does not clip it. */
+  .chart__toggle label:has(input:focus-visible) {
+    outline: 2px solid var(--link);
+    outline-offset: -2px;
+  }
+
+  /* The views. Chart is the one the radio checked in the HTML shows; Table hides the chart and shows the table. */
+  .chart .chart__table {
+    display: none;
+  }
+
+  .chart:has(input[value="table"]:checked) .chart__view {
+    display: none;
+  }
+
+  .chart:has(input[value="table"]:checked) .chart__table {
+    display: block;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   The legend: a swatch of 10 × 10 px for what is drawn as an area, a key of 14 × 2 px for a line, and a symbol with its words for an
+   annotation. The words are in the page's text colour; only the key wears the slot's. */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend__swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--mark);
+}
+
+.legend__line {
+  flex: none;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--mark);
+}
+
+.legend__symbol {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Forced colours (spec 2.10): the keys keep their own colours, since identity is all they say; the table view stays for the rest. The
+   checked segment is the system's highlight, as a background drawn in the page's colours would be gone. */
+
+@media (forced-colors: active) {
+  .legend__swatch,
+  .legend__line {
+    forced-color-adjust: none;
+  }
+
+  .chart__toggle label:has(input:checked) {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}

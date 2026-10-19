@@ -354,6 +354,26 @@ describe("DataTable", () => {
     expect(within(region).getByText("No offers.")).toBeTruthy();
   });
 
+  it("has rows of 34 px when compact, the header row among them, and none of that when it is not", () => {
+    const { rerender } = render(<DataTable label="Transactions" columns={columns} rows={rows} rowKey={(r) => r.hash} />);
+    expect(document.querySelectorAll(".table--compact")).toHaveLength(0);
+    rerender(<DataTable label="Transactions" columns={columns} rows={rows} rowKey={(r) => r.hash} compact />);
+    const table = screen.getByRole("table", { name: "Transactions" });
+    expect(within(table).getAllByRole("row").map((row) => row.classList.contains("table--compact"))).toEqual([true, true, true]);
+    expect(within(table).getAllByRole("row")[0]!.className).toContain("table__head");
+  });
+
+  it("scrolls up and down in a region of the height asked for, and without a cap is as it was", () => {
+    const { rerender } = render(<DataTable label="Transactions" columns={columns} rows={rows} rowKey={(r) => r.hash} />);
+    const region = screen.getByRole("region", { name: "Transactions, scrollable table" });
+    expect(region.getAttribute("style")).toBeNull();
+    expect(region.classList.contains("table-scroll--capped")).toBe(false);
+    rerender(<DataTable label="Transactions" columns={columns} rows={rows} rowKey={(r) => r.hash} maxHeight={300} />);
+    expect(region.style.maxHeight).toBe("300px");
+    expect(region.classList.contains("table-scroll--capped")).toBe(true);
+    expect(region.getAttribute("tabindex")).toBe("0");
+  });
+
   // axe: landmark-unique. A card is a `section` named by its title, which is a region landmark, and the scroll region of a table in it
   // is one too: two regions with one name, which a screen reader's list of landmarks cannot tell apart.
   it("does not take the name of the card it is in", () => {
@@ -436,6 +456,14 @@ describe("Notice and SectionError", () => {
     expect(alert.textContent).toContain("Couldn’t load transactions");
     fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("says what it is told to, in place of the words it makes from what failed", () => {
+    render(<SectionError what="AMM swaps" message="AMM swaps couldn’t be loaded." onRetry={() => {}} />);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("AMM swaps couldn’t be loaded.");
+    expect(alert.textContent).not.toContain("Couldn’t load AMM swaps");
+    expect(within(alert).getByRole("button", { name: "Retry" })).toBeTruthy();
   });
 
   it("disables Retry while it is retrying", () => {

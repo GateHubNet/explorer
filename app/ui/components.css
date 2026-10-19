@@ -652,6 +652,31 @@ a.btn {
   font-weight: 500;
 }
 
+/* Compact (DataTable `compact`, the table view of the charts): the mock's .trow, 34 px rows with 12 px of padding and gap, and figures that line up. */
+.table__row.table--compact {
+  min-height: 34px;
+  padding-inline: 12px;
+  column-gap: 12px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.table__head.table--compact {
+  min-height: 34px;
+}
+
+/* A region with a height cap (DataTable `maxHeight`) scrolls on y too, and keeps its header row in view, on a ground of its own as the rows go under it. */
+.table-scroll--capped {
+  overflow-y: auto;
+}
+
+.table-scroll--capped .table__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
 /* Not plain --sunken as in the mock: the Xahau accent in light mode is 4.40:1 on it, under AA for the links in the row. */
 .table__row:not(.table__head):hover {
   background: color-mix(in srgb, var(--sunken) 60%, var(--surface));
