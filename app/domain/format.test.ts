@@ -5,6 +5,7 @@ import {
   formatAmount,
   formatCurrency,
   formatUtc,
+  formatUtcDay,
   relativeTime,
   shortAddress,
   shortHash,
@@ -188,5 +189,29 @@ describe("shortHash and shortAddress", () => {
     expect(shortHash("ABCDEF1234")).toBe("ABCDEF1234");
     expect(shortAddress("rShort")).toBe("rShort");
     expect(shortHash("")).toBe("");
+  });
+});
+
+describe("formatUtcDay", () => {
+  it("writes a UTC day as the month and the day", () => {
+    expect(formatUtcDay("2026-10-17")).toBe("Oct 17");
+  });
+
+  it("adds the year when asked, with no leading zero on the day", () => {
+    expect(formatUtcDay("2026-01-05", true)).toBe("Jan 5, 2026");
+    expect(formatUtcDay("2026-10-17", true)).toBe("Oct 17, 2026");
+  });
+
+  it("names each of the twelve months", () => {
+    const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (const [i, name] of names.entries()) {
+      expect(formatUtcDay(`2026-${String(i + 1).padStart(2, "0")}-01`)).toBe(`${name} 1`);
+    }
+  });
+
+  it("returns what is not a day as it came", () => {
+    expect(formatUtcDay("")).toBe("");
+    expect(formatUtcDay("soon")).toBe("soon");
+    expect(formatUtcDay("2026-13-01")).toBe("2026-13-01");
   });
 });

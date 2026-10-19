@@ -117,6 +117,20 @@ export function formatUtc(at: string | number): string {
   return `${date.toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+const UTC_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * A UTC day (`YYYY-MM-DD`) as `Oct 17`, or as `Oct 17, 2026` with the year. The month names are a fixed table, so the text is the same
+ * in every browser and on the server (no `Intl`, no locale). What is not a day is returned as it came.
+ */
+export function formatUtcDay(day: string, withYear = false): string {
+  const parts = UTC_DAY.exec(day);
+  const month = parts ? MONTHS[Number(parts[2]) - 1] : undefined;
+  if (!parts || !month) return day;
+  return `${month} ${Number(parts[3])}${withYear ? `, ${parts[1]}` : ""}`;
+}
+
 /** How long before `nowMs` the moment `atMs` was: `3 s ago`, `4 min ago`, `2 h ago`, `5 d ago`. */
 export function relativeTime(atMs: number, nowMs: number): string {
   // A clock a little ahead of the moment's source makes a negative difference: show it as now.
