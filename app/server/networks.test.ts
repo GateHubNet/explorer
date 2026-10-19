@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { allSwitches } from "../../test/support/switches";
+import { featuresOf } from "../ui/features";
 import type { Env } from "./env";
 import { isNetworkId, networkIdOfCtid, networkOf } from "./networks";
 
@@ -10,6 +12,8 @@ const env: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
+  AMM_DATA: "on",
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 
@@ -23,6 +27,8 @@ describe("networkOf", () => {
       dataApiUrl: "https://xrpl.data.example.invalid",
       nodeUrl: "https://s1.ripple.com:51234/",
       other: "xahau",
+      hasAmm: true,
+      features: { ...featuresOf(allSwitches("off")), ammData: true },
     });
   });
 
@@ -37,7 +43,16 @@ describe("networkOf", () => {
       dataApiUrl: "https://xahau.data.example.invalid/",
       nodeUrl: "https://xahau.network/",
       other: "xrpl",
+      hasAmm: false,
+      features: { ...featuresOf(allSwitches("off")), ammData: true },
     });
+  });
+
+  it("carries the switches of the env it is given, the same for both networks", () => {
+    expect(networkOf("xrpl", { ...env, VALIDATORS: "on" }).features.validators).toBe(true);
+    expect(networkOf("xrpl", env).features.validators).toBe(false);
+    expect(networkOf("xahau", { ...env, VALIDATORS: "on" }).features).toEqual(networkOf("xrpl", { ...env, VALIDATORS: "on" }).features);
+    expect(networkOf("xrpl", { ...env, AMM_DATA: "off" }).features.ammData).toBe(false);
   });
 
   it("points each network at the other", () => {

@@ -1,6 +1,8 @@
 import { isRouteErrorResponse } from "react-router";
 import { describe, expect, it } from "vitest";
 
+import { allSwitches } from "../../test/support/switches";
+import { featuresOf } from "../ui/features";
 import { createLoadContext, type Env } from "./env";
 import { networkOf } from "./networks";
 import { publicNetwork, readNetworkCookie, requireNetwork } from "./network-route";
@@ -12,6 +14,7 @@ const env: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
@@ -45,7 +48,7 @@ describe("requireNetwork", () => {
 describe("publicNetwork", () => {
   it("is what may be sent to the browser: no data API URL, no node URL", () => {
     const shown = publicNetwork(networkOf("xrpl", env));
-    expect(shown).toEqual({ id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" });
+    expect(shown).toEqual({ id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", hasAmm: true, features: featuresOf(allSwitches("off")) });
     expect(JSON.stringify(shown)).not.toContain("invalid");
   });
 });

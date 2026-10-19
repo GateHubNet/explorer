@@ -5,6 +5,7 @@ import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { createNodeRpc, RIPPLE_EPOCH_OFFSET, UpstreamError } from "../../app/server/node-rpc";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
+import { allSwitches } from "../support/switches";
 
 // The node client, in the Workers runtime. `fetch` is replaced in every test; nothing reaches a node.
 
@@ -19,6 +20,7 @@ const env: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const xrpl = networkOf("xrpl", env);

@@ -1,6 +1,7 @@
 import { useRouteLoaderData } from "react-router";
 
 import type { PublicNetwork } from "../server/network-route";
+import { NO_FEATURES, type Features } from "./features";
 
 /** The loader data of the `/:net` layout (app/routes/net.tsx). */
 export type NetworkLoaderData = { network: PublicNetwork };
@@ -16,4 +17,18 @@ export function useNetwork(): PublicNetwork {
   const data = useRouteLoaderData<NetworkLoaderData>(NETWORK_ROUTE_ID);
   if (!data) throw new Error("useNetwork() needs the /:net layout (app/routes/net.tsx) above it");
   return data.network;
+}
+
+/**
+ * The switches (app/ui/features.ts) of this deployment, for components that are not drawn from page data (the header, a sentence's link).
+ * They come with the network, in the `/:net` layout's data. Where that data is missing (an unknown network's error page, a test without
+ * the layout, a component rendered on its own) every switch is off, and this never throws.
+ */
+export function useFeatures(): Features {
+  try {
+    return useRouteLoaderData<NetworkLoaderData>(NETWORK_ROUTE_ID)?.network?.features ?? NO_FEATURES;
+  } catch {
+    // Not under a data router at all: `useRouteLoaderData` throws there.
+    return NO_FEATURES;
+  }
 }

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { encodeAccountID } from "ripple-address-codec";
 
 import { edgeCacheKey } from "../../app/server/edge-cache";
+import { cacheGeneration } from "../../app/server/env";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { pageClient } from "../support/pages";
 
@@ -42,7 +43,7 @@ describe("when the API fails", () => {
     expect(statusesOf(mock, key(address))).toEqual([500]);
     // Give a store that should not happen the time to happen.
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(await caches.default.match(edgeCacheKey(`https://explorer.test/xrpl/account/${address}/payments.csv`, env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(`https://explorer.test/xrpl/account/${address}/payments.csv`, cacheGeneration(env)))).toBeUndefined();
 
     const good = await get(`/xrpl/account/${address}/payments.csv`);
     expect(good.status).toBe(200);

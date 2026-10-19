@@ -10,7 +10,8 @@ import {
   type DegradedMark,
   type Render,
 } from "../../app/server/edge-cache";
-import type { Env } from "../../app/server/env";
+import { cacheGeneration, type Env } from "../../app/server/env";
+import { allSwitches } from "../support/switches";
 
 // The page-level edge cache, called directly with a fake `render` and a fake execution context. The Cache API
 // is the Workers runtime's own (workerd), so what is stored is what a deployed Worker would store.
@@ -24,6 +25,8 @@ const baseEnv: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
+  AMM_DATA: "on",
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 
@@ -236,23 +239,42 @@ describe("storing and serving a page", () => {
     expect((await withEdgeCache(get(`${base}?x=1`), h.env, h.ctx, other)).headers.get("X-Cache")).toBe("MISS");
   });
 
-  it("includes the build ID in the key: another build misses", async () => {
+  it("includes the cache generation in the key: another switch value, or another build, misses", async () => {
     const url = pageUrl();
-    const one = harness({ BUILD_ID: "build-a" });
-    const two = harness({ BUILD_ID: "build-b" });
+    const on = harness({ AMM_DATA: "on" });
+    const off = harness({ AMM_DATA: "off" });
     const render = renderOf((n) => ({ cls: "immutable", body: `render ${n}` }));
 
-    await withEdgeCache(get(url), one.env, one.ctx, render);
-    await one.settle();
-    const sameBuild = await withEdgeCache(get(url), one.env, one.ctx, render);
-    const otherBuild = await withEdgeCache(get(url), two.env, two.ctx, render);
-    await two.settle();
-    expect(sameBuild.headers.get("X-Cache")).toBe("HIT");
-    expect(await sameBuild.text()).toBe("render 1");
-    expect(otherBuild.headers.get("X-Cache")).toBe("MISS");
-    expect(await otherBuild.text()).toBe("render 2");
+    await withEdgeCache(get(url), on.env, on.ctx, render);
+    await on.settle();
+    const again = harness({ AMM_DATA: "on" });
+    const sameValues = await withEdgeCache(get(url), again.env, again.ctx, render);
+    const otherValue = await withEdgeCache(get(url), off.env, off.ctx, render);
+    await off.settle();
+    expect(sameValues.headers.get("X-Cache")).toBe("HIT");
+    expect(await sameValues.text()).toBe("render 1");
+    expect(otherValue.headers.get("X-Cache")).toBe("MISS");
+    expect(await otherValue.text()).toBe("render 2");
+
+    // The page a flip back finds is the first one: each value keeps its own copy.
+    const backOn = await withEdgeCache(get(url), again.env, again.ctx, render);
+    expect(backOn.headers.get("X-Cache")).toBe("HIT");
+    expect(await backOn.text()).toBe("render 1");
+
+    const otherBuild = harness({ BUILD_ID: "build-b" });
+    expect((await withEdgeCache(get(url), otherBuild.env, otherBuild.ctx, render)).headers.get("X-Cache")).toBe("MISS");
+    await otherBuild.settle();
+  });
+
+  it("keys the page with the generation: the build ID and every switch, and nothing else of the key changes", () => {
+    const h = harness();
+    const url = pageUrl();
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(`__build=${encodeURIComponent(cacheGeneration(h.env))}`);
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain("__build=test-build%3AAMM_DATA%3Don%2CVALIDATORS%3Doff");
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(url, "build-b"));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(`${url}?x=1`, "build-a"));
+    expect(edgeCacheKey(`${url}?x=1`, "build-a")).toBe(`${url}?x=1&__build=build-a`);
+    expect(edgeCacheKey(`${url}#top`, "build-a")).toBe(`${url}?__build=build-a`);
   });
 
   it("keeps a stored copy for the longer of the edge TTL plus 30 s and 24 hours", async () => {
@@ -261,7 +283,7 @@ describe("storing and serving a page", () => {
       const url = pageUrl();
       await withEdgeCache(get(url), h.env, h.ctx, renderOf(spec));
       await h.settle();
-      const stored = await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID));
+      const stored = await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)));
       expect(stored, JSON.stringify(spec)).toBeDefined();
       return stored!.headers.get("Cache-Control");
     };
@@ -525,7 +547,7 @@ describe("when the render fails", () => {
     const url = pageUrl();
     await withEdgeCache(get(url), h.env, h.ctx, renderOf({ cls: "live", status: 503 }));
     await h.settle();
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
   });
 
   it("logs why the render failed, with the path and without the query", async () => {
@@ -554,7 +576,7 @@ describe("what is never stored", () => {
         const render = renderOf({ cls, status });
         const first = await withEdgeCache(get(url), h.env, h.ctx, render);
         await h.settle();
-        expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID)), `${status} ${cls}`).toBeUndefined();
+        expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env))), `${status} ${cls}`).toBeUndefined();
         expect(first.headers.get("X-Cache")).toBe("MISS");
         if (status !== 503) expect(first.headers.get("Cache-Control")).toBe("no-store");
         const second = await withEdgeCache(get(url), h.env, h.ctx, render);
@@ -611,7 +633,7 @@ describe("what is never stored", () => {
     expect(first.headers.get("Set-Cookie")).toBe("net=xahau; Path=/");
     // Not even for the browser's cache: the class's Cache-Control is for a page everyone shares.
     expect(first.headers.get("Cache-Control")).toBe("no-store");
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
     expect((await withEdgeCache(get(url), h.env, h.ctx, render)).headers.get("X-Cache")).toBe("MISS");
   });
 
@@ -621,7 +643,7 @@ describe("what is never stored", () => {
     const render = renderOf({ cls: "immutable", status: 206 });
     await withEdgeCache(get(url), h.env, h.ctx, render);
     await h.settle();
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
   });
 });
 
@@ -667,7 +689,7 @@ describe("a degraded answer", () => {
     expectNoInternalHeaders(first);
     expect(await first.text()).toBe("<html>live state unavailable</html>");
     await h.settle();
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
 
     const second = await withEdgeCache(get(url), h.env, h.ctx, render);
     await second.text();
@@ -709,7 +731,7 @@ describe("a degraded answer", () => {
     expect(rest).toBe(" couldn't load transactions</html>");
     await h.settle();
     expect(render.seen[0]!.degraded).toBe(true);
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
 
     const again = await withEdgeCache(get(url), h.env, h.ctx, render);
     await again.text();
@@ -1116,7 +1138,7 @@ describe("HEAD", () => {
     const sibling = await withEdgeCache(get(pageUrl()), h.env, h.ctx, render);
     expect(headersOf(response)).toEqual(headersOf(sibling));
     await sibling.text();
-    const copy = await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID));
+    const copy = await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)));
     expect(copy?.headers.get("X-Edge-Class")).toBe("immutable");
   });
 
@@ -1219,7 +1241,7 @@ describe("HEAD", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(await response.text()).toBe("");
-    expect(await caches.default.match(edgeCacheKey(degradedUrl, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(degradedUrl, cacheGeneration(h.env)))).toBeUndefined();
 
     const errorUrl = pageUrl();
     const failing = renderOf({ cls: "immutable", status: 410, body: "gone" });
@@ -1227,7 +1249,7 @@ describe("HEAD", () => {
     await h.settle();
     expect(gone.status).toBe(410);
     expect(await gone.text()).toBe("");
-    expect(await caches.default.match(edgeCacheKey(errorUrl, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(errorUrl, cacheGeneration(h.env)))).toBeUndefined();
   });
 
   it("is refused with a 429 without a body when the visitor is over the limit, and renders nothing", async () => {
@@ -1271,7 +1293,7 @@ describe("HEAD", () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("X-Cache")).toBe("BYPASS");
     expect(render.mock.calls[0]![1]!.method).toBe("HEAD");
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
     expect(h.limit).not.toHaveBeenCalled();
   });
 });
@@ -1288,7 +1310,7 @@ describe("what skips the cache", () => {
     }
     await h.settle();
     expect(render).toHaveBeenCalledTimes(2);
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
     // It cannot be answered from a copy a GET stored, either.
     await withEdgeCache(get(url), h.env, h.ctx, render);
     await h.settle();
@@ -1308,7 +1330,7 @@ describe("what skips the cache", () => {
     }
     await h.settle();
     expect(render).toHaveBeenCalledTimes(2);
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
     // And no visitor limit: a redirect costs nothing.
     expect(h.limit).not.toHaveBeenCalled();
   });
@@ -1391,7 +1413,7 @@ describe("the visitor limit", () => {
     expect(html).toContain("#F5F6F8");
     expect(html).toContain("#0B0E12");
     expect(render).not.toHaveBeenCalled();
-    expect(await caches.default.match(edgeCacheKey(url, h.env.BUILD_ID))).toBeUndefined();
+    expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
   });
 
   it("refuses a visitor whose stored copy is too old to serve stale, and renders nothing for them", async () => {
@@ -1535,6 +1557,19 @@ describe("createSubrequestCache", () => {
     await h.settle();
     expect(await createSubrequestCache(h.ctx, "build-2").json(k, "slow", async () => "two")).toBe("two");
     expect(await createSubrequestCache(h.ctx, "build-1").json(k, "slow", async () => "again")).toBe("one");
+  });
+
+  it("keeps the build ID in its key whatever the switches are: upstream data is not changed by a switch", async () => {
+    const k = key("switch");
+    const on = harness({ AMM_DATA: "on" });
+    const off = harness({ AMM_DATA: "off" });
+    expect(cacheGeneration(on.env)).not.toBe(cacheGeneration(off.env));
+    // `createLoadContext` builds the cache of a request with the BUILD_ID, not with the generation.
+    await createSubrequestCache(on.ctx, on.env.BUILD_ID).json(k, "live", async () => "live");
+    await on.settle();
+    const load = vi.fn(async () => "again");
+    expect(await createSubrequestCache(off.ctx, off.env.BUILD_ID).json(k, "live", load)).toBe("live");
+    expect(load).not.toHaveBeenCalled();
   });
 
   it("does not wait for the store", async () => {

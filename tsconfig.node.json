@@ -8,7 +8,9 @@
     "test/e2e/stack.ts",
     "test/support/upstream-core.ts",
     "test/support/fixture-server.ts",
+    "test/support/switches.ts",
     "app/server/api-types.ts",
+    "app/ui/features.ts",
     "app/domain/parse/types.ts"
   ],
   "compilerOptions": {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { allSwitches } from "../../test/support/switches";
 import { clientsFor } from "./clients";
 import { createLoadContext, type Env } from "./env";
 import { networkOf } from "./networks";
@@ -11,6 +12,7 @@ const env: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 

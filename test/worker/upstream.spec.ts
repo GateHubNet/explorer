@@ -6,6 +6,7 @@ import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { createNodeRpc } from "../../app/server/node-rpc";
 import { passThroughCache } from "../support/subrequest-cache";
+import { allSwitches } from "../support/switches";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type UpstreamMock } from "../support/upstream";
 
 // The upstream mock: the data API and the nodes of both networks, answered from test/fixtures/http/.
@@ -17,6 +18,7 @@ const env: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const xrpl = networkOf("xrpl", env);

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CACHE_CLASSES } from "../../app/server/cache-class";
 import { cached, cacheClassHeaders, forwardCacheClass, withEdgeCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
+import { allSwitches } from "../support/switches";
 
 // How a loader's cache class gets from `cached()` to the Worker entry, on React Router 8's own request
 // handler: a tiny hand-made server build (a root with an error boundary, a leaf with a loader), asked for its
@@ -158,6 +159,7 @@ const baseEnv: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "route-headers",
+  ...allSwitches("off"),
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 

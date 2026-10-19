@@ -1,6 +1,7 @@
 // The networks the explorer shows and where each one is reached. The only place that knows a network's
 // URLs: adding a network is one entry in NETWORKS (and its two variables in `Env` and wrangler.jsonc).
 
+import { featuresOf, type Features } from "../ui/features";
 import type { Env } from "./env";
 
 export type NetworkId = "xrpl" | "xahau";
@@ -19,9 +20,13 @@ export interface Network {
   nodeUrl: string;
   /** The network the switch leads to. */
   other: NetworkId;
+  /** Whether the network's ledger has automated market makers (XRPL does, Xahau does not). */
+  hasAmm: boolean;
+  /** The switches of this deployment (`featuresOf(env)`: the same for both networks). */
+  features: Features;
 }
 
-type NetworkEntry = Omit<Network, "dataApiUrl" | "nodeUrl"> & {
+type NetworkEntry = Omit<Network, "dataApiUrl" | "nodeUrl" | "features"> & {
   /** The `Env` variables that hold this network's URLs. */
   dataApiUrlVar: "XRPL_DATA_API_URL" | "XAHAU_DATA_API_URL";
   nodeUrlVar: "XRPL_NODE_URL" | "XAHAU_NODE_URL";
@@ -34,6 +39,7 @@ const NETWORKS: Record<NetworkId, NetworkEntry> = {
     native: "XRP",
     ctidNetworkId: 0,
     other: "xahau",
+    hasAmm: true,
     dataApiUrlVar: "XRPL_DATA_API_URL",
     nodeUrlVar: "XRPL_NODE_URL",
   },
@@ -43,6 +49,7 @@ const NETWORKS: Record<NetworkId, NetworkEntry> = {
     native: "XAH",
     ctidNetworkId: 21337,
     other: "xrpl",
+    hasAmm: false,
     dataApiUrlVar: "XAHAU_DATA_API_URL",
     nodeUrlVar: "XAHAU_NODE_URL",
   },
@@ -61,5 +68,5 @@ export function networkIdOfCtid(networkId: number): NetworkId | undefined {
 /** The network `id` with the URLs this deployment is configured with. */
 export function networkOf(id: NetworkId, env: Env): Network {
   const { dataApiUrlVar, nodeUrlVar, ...entry } = NETWORKS[id];
-  return { ...entry, dataApiUrl: env[dataApiUrlVar], nodeUrl: env[nodeUrlVar] };
+  return { ...entry, dataApiUrl: env[dataApiUrlVar], nodeUrl: env[nodeUrlVar], features: featuresOf(env) };
 }

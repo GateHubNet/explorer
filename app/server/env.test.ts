@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { allSwitches } from "../../test/support/switches";
+import { FEATURE_VARS } from "../ui/features";
 import { createDegradedMark } from "./edge-cache";
-import { createLoadContext, getEnv, getExecutionContext, getSubrequestCache, markDegraded, type Env } from "./env";
+import { cacheGeneration, createLoadContext, getEnv, getExecutionContext, getSubrequestCache, markDegraded, type Env } from "./env";
 
 const env: Env = {
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
@@ -10,6 +12,8 @@ const env: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
+  AMM_DATA: "on",
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
@@ -58,5 +62,29 @@ describe("the degraded mark of the loader context", () => {
 
   it("says what is wrong when the context did not come from the Worker entry", () => {
     expect(() => markDegraded({}, "x")).toThrow(/createLoadContext/);
+  });
+});
+
+describe("cacheGeneration", () => {
+  it("is the build ID, a colon, and every switch as NAME=value, sorted by name", () => {
+    const generation = cacheGeneration(env);
+    expect(generation).toBe("test-build:" + [...FEATURE_VARS].sort().map((name) => `${name}=${env[name]}`).join(","));
+    expect(generation).toMatch(/^test-build:[A-Z_]+=(on|off)(,[A-Z_]+=(on|off))*$/);
+    expect(generation).toContain("AMM_DATA=on");
+    expect(generation).toContain("VALIDATORS=off");
+  });
+
+  it("changes when a switch is flipped, and when the build is", () => {
+    const flipped = cacheGeneration({ ...env, AMM_DATA: "off" });
+    expect(flipped).not.toBe(cacheGeneration(env));
+    expect(flipped).toContain("AMM_DATA=off");
+    expect(cacheGeneration({ ...env, VALIDATORS: "on" })).not.toBe(cacheGeneration(env));
+    expect(cacheGeneration({ ...env, BUILD_ID: "other-build" })).not.toBe(cacheGeneration(env));
+  });
+
+  it("names each switch once", () => {
+    const entries = cacheGeneration(env).slice(cacheGeneration(env).indexOf(":") + 1).split(",");
+    for (const name of FEATURE_VARS) expect(entries.filter((entry) => entry.startsWith(`${name}=`)), name).toHaveLength(1);
+    expect(entries).toHaveLength(FEATURE_VARS.length);
   });
 });

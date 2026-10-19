@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { unstable_readConfig } from "wrangler";
 
+import { FEATURE_VARS } from "../app/ui/features";
+import { allSwitches } from "../test/support/switches";
 import { checkBuild, deployProblems } from "./predeploy-guard";
 
 // The guard that stands between `react-router build` and `wrangler deploy` (README, "The pipeline and deploying"). It reads the config the
@@ -27,6 +29,7 @@ function good(env = "staging", overrides: Config = {}): Config {
       XAHAU_DATA_API_URL: "https://xahau.data.example.com",
       XRPL_NODE_URL: "https://s1.ripple.com:51234/",
       XAHAU_NODE_URL: "https://xahau.network/",
+      ...allSwitches("off"),
       BUILD_ID: "abc1234",
     },
     ...overrides,
@@ -102,6 +105,65 @@ describe("deployProblems", () => {
     });
   });
 
+  // The switches (spec 6.1, README "Switches"): a Worker variable each, "on" or "off", in every environment. A build with one missing,
+  // misspelt as a value or set under a wrong name would serve the other page than the one the owner decided on.
+  describe("the switches", () => {
+    it("passes a build whose switches are each on or off, whichever", () => {
+      expect(deployProblems(withVars(allSwitches("on")), "staging")).toEqual([]);
+      expect(deployProblems(withVars({ ...allSwitches("off"), [FEATURE_VARS[0]]: "on" }, "production"), "production")).toEqual([]);
+    });
+
+    it.each(FEATURE_VARS)("refuses %s missing, and names it", (name) => {
+      const vars = { ...(good().vars as Config) };
+      delete vars[name];
+      const problems = deployProblems(good("staging", { vars }), "staging");
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain(name);
+      expect(problems[0]).toContain('"on" or "off"');
+    });
+
+    it.each(["yes", "ON", "On", "true", "1", "", " on", "on ", true, 1, null, {}])("refuses the value %j of a switch", (value) => {
+      for (const name of FEATURE_VARS) {
+        const problems = deployProblems(withVars({ [name]: value }), "staging");
+        expect(problems, name).toHaveLength(1);
+        expect(problems[0]).toContain(name);
+        expect(problems[0]).toContain('"on" or "off"');
+      }
+    });
+
+    it('refuses a var that is not a switch but is "on" or "off", which is a misspelt switch', () => {
+      for (const value of ["on", "off"]) {
+        const problems = deployProblems(withVars({ MARKET: value }), "staging");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("MARKET");
+        expect(problems[0]).toContain('"on" or "off"');
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain(`the switches are ${FEATURE_VARS.join(", ")}`);
+        expect(problems[0]).toContain("a misspelt one?");
+      }
+    });
+
+    it("lets a var that is not a switch have any other value", () => {
+      expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "staging")).toEqual([]);
+    });
+
+    it("says every problem at once, in the order: missing, not on or off, not a switch", () => {
+      const vars: Config = { ...(good().vars as Config), ...allSwitches("off"), VALIDATORS: "yes", MARKET: "on" };
+      delete vars.AMM_DATA;
+      const problems = deployProblems(good("staging", { vars }), "staging");
+      expect(problems).toHaveLength(3);
+      expect(problems[0]).toContain("AMM_DATA");
+      expect(problems[1]).toContain("VALIDATORS");
+      expect(problems[2]).toContain("MARKET");
+    });
+
+    it("refuses every switch of a config with no vars at all", () => {
+      const { vars: _gone, ...bare } = good();
+      const problems = deployProblems(bare, "staging").join("\n");
+      for (const name of FEATURE_VARS) expect(problems).toContain(name);
+    });
+  });
+
   describe("the environment", () => {
     it("refuses a build for another environment than the one asked for", () => {
       const problems = deployProblems(good("production"), "staging");
@@ -169,6 +231,14 @@ describe("checkBuild", () => {
     const result = checkBuild(root(), "staging");
     expect(result.problems).toEqual([]);
     expect(result.summary).toContain("x-explorer-staging");
+  });
+
+  it("refuses a build with a switch missing", () => {
+    const vars = { ...(good().vars as Config) };
+    delete vars.AMM_DATA;
+    const problems = checkBuild(root({ config: good("staging", { vars }) }), "staging").problems;
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("AMM_DATA");
   });
 
   it("refuses a build with a placeholder, and one for another environment", () => {

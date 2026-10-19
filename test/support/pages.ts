@@ -6,6 +6,7 @@ import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
 
 import { edgeCacheKey } from "../../app/server/edge-cache";
+import { cacheGeneration } from "../../app/server/env";
 
 const ORIGIN = "https://explorer.test";
 
@@ -40,7 +41,7 @@ export function pageClient(addressPrefix: string) {
 
   /** The copy the edge cache stored for `path` (it is stored behind the answer, in waitUntil). */
   async function stored(path: string): Promise<Response | undefined> {
-    const key = edgeCacheKey(`${ORIGIN}${path}`, env.BUILD_ID);
+    const key = edgeCacheKey(`${ORIGIN}${path}`, cacheGeneration(env));
     for (let tries = 0; tries < 80; tries += 1) {
       const hit = await caches.default.match(key);
       if (hit) return hit;

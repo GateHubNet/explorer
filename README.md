@@ -69,14 +69,79 @@ per request, over the data centre's Cache API, built with `BUILD_ID`).
 |---|---|---|
 | `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL` | var | `wrangler.jsonc`, per environment (placeholders for now) |
 | `XRPL_NODE_URL`, `XAHAU_NODE_URL` | var | `wrangler.jsonc`, per environment (`https://s1.ripple.com:51234/`, `https://xahau.network/`) |
+| `VALIDATORS`, `AMM_DATA` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
 | `VISITOR_LIMITER` | `ratelimits` binding, 60 per 10 s | `wrangler.jsonc`, per environment (own namespace each) |
 | `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-staging` and `x-explorer-production` as a secret |
 | `SENTRY_DSN` | secret, optional | the same |
-| `BUILD_ID` | var | added to every build by `vite.config.ts` (`scripts/build-id.ts`): the short git commit, plus `-dirty` when the tree has uncommitted changes. `BUILD_ID=... pnpm build` overrides it. Without git it is `dev`, but a build for a Cloudflare environment (`CLOUDFLARE_ENV`, so every deploy) fails instead, because the edge cache key includes it |
+| `BUILD_ID` | var | added to every build by `vite.config.ts` (`scripts/build-id.ts`): the short git commit, plus `-dirty` when the tree has uncommitted changes. `BUILD_ID=... pnpm build` overrides it. Without git it is `dev`, but a build for a Cloudflare environment (`CLOUDFLARE_ENV`, so every deploy) fails instead, because the edge cache key includes it (as the first part of the cache generation, see "Switches") |
 
 The Cloudflare Vite plugin flattens one Cloudflare environment into the build, chosen at build time with
 `CLOUDFLARE_ENV` (`pnpm deploy:staging` and `pnpm deploy:production` set it). `vars` and `ratelimits` are not
 inherited, so each environment repeats them. The top level of `wrangler.jsonc` is local development and the tests.
+
+### Switches
+
+A switch turns a page, or a part of one, on or off for one environment, from one commit. It is a Worker variable, `"on"` or `"off"`, set per environment in
+`wrangler.jsonc`. `app/ui/features.ts` is the one list of them (`FEATURE_VARS`), and nothing else lists their names. It is pure, with no React and no server import,
+so the Worker, the browser, the scripts and the tests all import it. `featuresOf(vars)` turns the variables into `Features` (`validators`, `ammData`): `"on"` is
+`true`, and anything else, a missing value too, is `false`. `NO_FEATURES` (frozen) is every switch off.
+
+| Variable | In `Features` | Gates |
+|---|---|---|
+| `VALIDATORS` | `validators` | every link into the validators and amendments pages (the network page's "All validators") and those pages' routes |
+| `AMM_DATA` | `ammData` | every part derived from the AMM data in the index: the network page's AMM volume series and its "AMM swaps included" wording |
+
+Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). The values:
+
+| Variable | Top level (local development and the tests) | `staging` | `production` |
+|---|---|---|---|
+| `VALIDATORS` | `"off"` until E6 builds its pages: a link to a route that does not exist yet would only be a 404 | `"off"` | `"off"` |
+| `AMM_DATA` | `"on"` | `"off"` | `"off"` |
+
+The conditions for turning a switch on in `staging` or `production` (by a commit and a deploy):
+
+- `AMM_DATA`: the environment's data API has merged `feat/amm-data`, has re-ingested and back-filled, and D2b is deployed (`syncer_markets_live_amm_share_known` is 1).
+- `VALIDATORS`: E6, the validators and amendments pages.
+
+**A switch is never set in the Cloudflare dashboard.** The Cloudflare Vite plugin writes the build's vars, so the next deploy would undo it.
+
+How a switch reaches the code:
+
+- `Env` (`app/server/env.ts`) types each as `"on" | "off"`. `networkOf(id, env)` adds `features: featuresOf(env)` to the `Network`, and `PublicNetwork` carries it to the
+  browser in the `/:net` layout's data (the values only, never an upstream URL or key). Loaders read `net.features` from `requireNetwork`.
+- A page's links and labels that depend on a switch come from its view builder, in its data, so that the stored HTML and the data agree.
+- A component that is not drawn from page data (the header, a link inside a sentence) calls `useFeatures()` (`app/ui/use-network.ts`). It reads `network.features` of the
+  `/:net` layout, gives every switch off where that data is missing (an unknown network's error page, a test without the layout, no router at all), and never throws.
+- A page-level switch that is off: the routes it gates answer the not-found page, a 404 of class `short`, before any upstream call, and every link into them is the
+  header's "soon" style, not a link. A feature-level switch that is off: the parts it gates are left out, the calls that feed only them are not made, and the wording
+  that depends on them takes its "off" form.
+
+**The cache generation.** `cacheGeneration(env)` (`app/server/env.ts`) is `BUILD_ID`, a colon, and every switch as `NAME=value`, sorted by name and joined by commas:
+`3f2a9c1:AMM_DATA=on,VALIDATORS=off`. The edge cache keys every page, image and `.data` URL with it (`edgeCacheKey(url, cacheGeneration(env))`, the `__build` parameter of
+the key). A flip is a deploy of the same commit with another value, and it is a new key for everything, so a copy stored under the other value is never served. The
+subrequest cache keeps `BUILD_ID` alone, because it holds upstream data, which no switch changes. The live pages' `build` field keeps `BUILD_ID` too, because it says
+which code drew the page: a flip does not reload an open tab. Its route's data follows on the next beat (the `.data` key changed), and the layout's data (the header)
+on the next document load. `env.ts` and `edge-cache.ts` import each other for this. It is safe because neither uses the other's exports until a request is served; keep it so.
+
+**The pre-deploy guard** refuses a build where a switch is missing, where its value is not exactly `"on"` or `"off"`, or where a var that is not a switch has the value
+`"on"` or `"off"` (a misspelt switch, such as `MARKET`). See "The pipeline and deploying".
+
+**Tests.** `vitest.config.ts` pins the top-level switches for the `worker` project (`TOP_LEVEL_SWITCHES`). The `worker-off` project pins every switch `"off"`, and runs
+the files named `test/worker/*-off.spec.ts`, which the `worker` project leaves out: the off-case of a page or a feature goes in such a file (`pnpm test --project worker-off`).
+A loader's unit test builds its context with the switch values it needs. The tests build their expectations from `FEATURE_VARS` and `allSwitches(value)`
+(`test/support/switches.ts`), so a new switch does not change them.
+
+**Adding a switch.**
+
+1. Append its name LAST to `FEATURE_VARS` and its key LAST to `FEATURE_NAME` in `app/ui/features.ts` (`Object.keys(FEATURE_NAME)` must equal `FEATURE_VARS`).
+2. Add the field to `Env` (`NAME: "on" | "off"`).
+3. Add an entry to every block of `wrangler.jsonc` (top level, `staging`, `production`).
+4. Add it to `TOP_LEVEL_SWITCHES` in `vitest.config.ts` (its `satisfies` fails until you do). The `worker-off` project follows from `FEATURE_VARS`.
+5. Add its row to the tables above.
+6. Write its own tests: a guard case that refuses the misspelt name, and its case in a `*-off.spec.ts`.
+
+The hand-built `Env`s of the tests, the passing configs of `scripts/predeploy-check.test.ts`, and the expectations of `features.test.ts`, `env.test.ts`, `networks.test.ts`,
+`edge-cache.spec.ts` and `features-off.spec.ts` are built on `allSwitches` and `FEATURE_VARS`, so they need no edit.
 
 ## The data API and the node
 
@@ -177,7 +242,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 
 React Router builds the headers of the document and those of the `.data` URL a client-side navigation fetches from the same
 route `headers` functions, so both carry the class. They are stored under their own URLs (the key is the URL, `.data` and
-`_routes` included, plus `BUILD_ID`). Every route with such a loader needs the export, and so does the root route when its
+`_routes` included, plus the cache generation: `BUILD_ID` and the switches, see "Switches"). Every route with such a loader needs the export, and so does the root route when its
 error boundary shows a thrown 404. A route without it is not "uncached": React Router gives it its parent's headers, so the
 class its loader named is dropped and the page takes the parent's class (or none, when no parent names one). The deepest route
 that names a class decides. `test/unit/route-headers.test.ts` fails when a file under `app/routes` (or `app/root.tsx`) imports
@@ -539,15 +604,15 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
 - `unit` project: `app/**/*.test.ts` (not under `app/ui`), `scripts/**/*.test.ts` and `test/unit/**/*.test.ts`, in Node.
   (`test/unit` is typechecked with `scripts/` by `tsconfig.node.json`, which has the Node types; `tsconfig.cloudflare.json`
   leaves it out. A test that reads files, such as the route scan and the token check, goes there. The same Node config also
-  holds the few `app/` and `test/support/` files that `scripts/` and the Node tests import: `upstream-core.ts`, `fixture-server.ts`,
-  `app/server/api-types.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
+  holds the few `app/` and `test/support/` files that `scripts/` and the Node tests import: `upstream-core.ts`, `fixture-server.ts`, `switches.ts`,
+  `app/server/api-types.ts`, `app/ui/features.ts` and `app/domain/parse/types.ts`; `fixture-server.ts` is the one file `tsconfig.cloudflare.json` leaves out.
   `test/e2e/stack.ts`, which starts the end-to-end stack, is in that config too; the Playwright config and specs are `tsconfig.e2e.json`'s, with
   the DOM types their `page.evaluate` callbacks need, and `tsconfig.cloudflare.json` leaves `test/e2e` out.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
   a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
-  `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, another environment, workers.dev, the redirect), the
+  `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, the switches, another environment, workers.dev, the redirect), the
   command through a link, and that the deploy scripts run it between the build and `wrangler deploy` and the environments of `wrangler.jsonc` are not on workers.dev.
   **The commands run every time they are run**, however they were reached (`scripts/api-sync.ts`, `scripts/make-http-fixtures.ts`, `scripts/check-bundle.ts`,
   `scripts/predeploy-check.ts`, `test/e2e/stack.ts`): none decides whether it is "the script" by comparing the URL of its module with `process.argv[1]`, which differ
@@ -579,10 +644,11 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
 - The end-to-end suite is not part of `pnpm test`: it needs a browser and a running Worker, and has its own command (`pnpm test:e2e`, see
   "End-to-end tests"). `test/e2e/*.spec.ts` are Playwright's, not Vitest's.
 - `worker` project: `test/worker/**/*.spec.ts`, in workerd on the real Worker (`workers/app.ts`, the React Router
-  plugin and `wrangler.jsonc`; the vars, secrets and `BUILD_ID` are pinned in `vitest.config.ts`, so a developer's
+  plugin and `wrangler.jsonc`; the vars, secrets, `BUILD_ID` and switches are pinned in `vitest.config.ts`, so a developer's
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call
   the Worker with `exports.default.fetch(...)` and read bindings with `env`, both from `cloudflare:workers`. (`SELF`
   and `cloudflare:test`'s `env` still exist but are deprecated.)
+  The `worker-off` project is the same Worker with every switch `"off"`, for the files `test/worker/*-off.spec.ts` (which `worker` leaves out; see "Switches").
   `edge-cache.spec.ts` calls `withEdgeCache` and `createSubrequestCache` directly (fake `render`, fake `waitUntil`, a fake clock
   for `Date` only, the runtime's own Cache API; the HEAD rules are there, and in `og.spec.ts` and `ledger.spec.ts` on the real Worker); `route-headers.spec.ts` runs `cached` and `forwardCacheClass` through React
   Router's own request handler on a hand-made server build, for a document and for its `.data` URL; `entry.spec.ts` calls the
@@ -825,6 +891,9 @@ was reached (a link to it included): a gate that cannot tell whether it is being
 
 It prints a table (page, files, bytes, KB, `ok` or `OVER`) and the problems.
 
+Before the network page (E2, at `c05ca58`): home 134,450 bytes, ledger 134,134, transaction 136,253, account 136,647 (the budget's own sums, `gzip -9`, each file once); the
+manifest `assets/manifest-*.js` 959 bytes; and the base every page shares, the 12 files that all four load, 129,879 bytes.
+
 ## The parsing libraries in the Workers runtime
 
 `test/worker/runtime.spec.ts` runs `ripple-lib-transactionparser` 0.8.2, `ripple-address-codec` 5 and
@@ -861,7 +930,7 @@ follows. So the deploy scripts build with `CLOUDFLARE_ENV` and run a plain `wran
 comes to here. Checked with `wrangler deploy --dry-run`: after a `CLOUDFLARE_ENV=staging` build, `--env staging` is accepted and `--env production` is an
 error ("does not match the target environment"); after a build with no `CLOUDFLARE_ENV`, `--env staging` is accepted without a warning and **selects nothing**: the generated file is
 named `x-explorer` and holds the vars of local development, and it has no environment for the flag to pick. So never build without `CLOUDFLARE_ENV` and deploy; use the scripts.
-A build for an environment also needs a commit to name it (`BUILD_ID`, see "Configuration"): the edge cache key includes it. The deploy builds
+A build for an environment also needs a commit to name it (`BUILD_ID`, see "Configuration"): the edge cache key includes it, with the switches ("Switches"). The deploy builds
 again for its environment: the code is the commit `verify` and the end-to-end suite looked at, the vars and the rate-limit namespace are the environment's.
 `wrangler deploy` needs `CLOUDFLARE_API_TOKEN` (and `CLOUDFLARE_ACCOUNT_ID`) in the pipeline's secrets.
 
@@ -871,6 +940,8 @@ its exit code stops the deploy. It reads the config the plugin wrote (`build/ser
 
 - an upstream var (`XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL`, `XAHAU_NODE_URL`) is a placeholder (a host under `.invalid`, which is what
   `wrangler.jsonc` holds until the hosts are decided: a Worker deployed with them answers every page with a 503), is not an `https` URL, or is missing;
+- a switch (`VALIDATORS`, `AMM_DATA`; the list is `FEATURE_VARS` in `app/ui/features.ts`) is missing from the build's vars, or its value is not exactly `"on"` or `"off"`, or a var
+  that is not a switch has the value `"on"` or `"off"` (a misspelt switch, such as `MARKET`: see "Switches");
 - the build is not for the environment asked for, or for none (a build without `CLOUDFLARE_ENV` is the top level, local development);
 - `workers_dev` or `preview_urls` is not `false` in the build, so that the Worker would be reachable on `*.workers.dev`;
 - `.wrangler/deploy/config.json`, the redirect `wrangler deploy` follows, is missing or does not lead to that very file (it would then deploy
@@ -932,7 +1003,7 @@ staging before production:
 - [ ] **IPv6 visitors.** `VISITOR_LIMITER` is keyed by `CF-Connecting-IP`, and one IPv6 visitor holds a whole /64 (or larger) of addresses, so the limit of 60 renders per
   10 s is easy to step around by rotating addresses within it. Follow-up: key an IPv6 address by its /64 prefix. Look at the limiter's rejections in the logs (`429`) with real
   traffic before deciding.
-- [ ] **The edge cache can be filled through query strings.** Its key is the whole URL and the build ID, so every made-up query string (`?x=1`, `?x=2`, ...) on an
+- [ ] **The edge cache can be filled through query strings.** Its key is the whole URL and the cache generation (the build ID and the switches), so every made-up query string (`?x=1`, `?x=2`, ...) on an
   existing page is a render, an upstream call and a stored copy of its own, kept as long as the page's class says (a year for an immutable ledger or transaction). Only an unknown `?tab=`, a `marker` where there are none, and an image's query are
   tidied into redirects. The visitor limit (renders per address) is the only brake. Watch the cache hit ratio and the data API's load on staging; if it matters, drop unknown
   parameters from the key, or redirect them away as the image route does.

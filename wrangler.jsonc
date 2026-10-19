@@ -6,6 +6,11 @@
  * the Cloudflare Vite plugin writes a flattened config for the selected environment.
  *
  * `vars` and `ratelimits` are not inherited, so each environment repeats them.
+ * `VALIDATORS` and `AMM_DATA` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
+ * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` stays
+ * "off" until the validators pages exist); `staging` and `production` are "off" until their data API serves what the switch needs. Set
+ * one by a commit and a deploy, never in the Cloudflare dashboard: the next deploy would undo it. The predeploy guard refuses a build
+ * where one is missing, is anything but "on" or "off", or is misspelt.
  * `BUILD_ID` is not listed here: vite.config.ts adds the git commit to the vars of every build.
  * Secrets (`DATA_API_KEY`, `SENTRY_DSN`) are never listed: `.dev.vars` locally,
  * `wrangler secret put --env <env>` when deployed.
@@ -38,7 +43,9 @@
 		"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
 		"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
 		"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
-		"XAHAU_NODE_URL": "https://xahau.network/"
+		"XAHAU_NODE_URL": "https://xahau.network/",
+		"VALIDATORS": "off",
+		"AMM_DATA": "on"
 	},
 	"ratelimits": [
 		{
@@ -56,7 +63,9 @@
 				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
 				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
 				"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
-				"XAHAU_NODE_URL": "https://xahau.network/"
+				"XAHAU_NODE_URL": "https://xahau.network/",
+				"VALIDATORS": "off",
+				"AMM_DATA": "off"
 			},
 			"ratelimits": [
 				{
@@ -74,7 +83,9 @@
 				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
 				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
 				"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
-				"XAHAU_NODE_URL": "https://xahau.network/"
+				"XAHAU_NODE_URL": "https://xahau.network/",
+				"VALIDATORS": "off",
+				"AMM_DATA": "off"
 			},
 			"ratelimits": [
 				{

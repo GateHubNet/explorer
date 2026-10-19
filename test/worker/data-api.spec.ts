@@ -7,6 +7,7 @@ import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
+import { allSwitches } from "../support/switches";
 
 // The Data API client, in the Workers runtime. Nothing here reaches the network: `fetch` is replaced in every
 // test, and the data API hosts of the env are `.invalid` anyway.
@@ -18,6 +19,7 @@ const env: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const xrpl = networkOf("xrpl", env);

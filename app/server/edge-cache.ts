@@ -14,7 +14,7 @@ import { data } from "react-router";
 import type { HeadersFunction } from "react-router";
 
 import { CACHE_CLASSES, type CacheClass, type SubrequestCache } from "./cache-class";
-import type { Env } from "./env";
+import { cacheGeneration, type Env } from "./env";
 import { logProblem } from "./logging";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -207,14 +207,14 @@ const UNCACHED_PATHS = new Set(["/", "/_.data"]);
 type CacheLabel = "HIT" | "MISS" | "MISS-SHARED" | "STALE" | "BYPASS";
 
 /**
- * The key a page is stored under: its URL, and the build ID so that a deploy replaces every entry at once.
- * The query string is part of the URL, so `.data` URLs (with their `_routes`) and pages with a marker are their own
- * entries.
+ * The key a page is stored under: its URL, and the cache generation (`cacheGeneration` in env.ts: the build ID and every switch's
+ * value) so that a deploy, or a switch flipped by one, replaces every entry at once. The query string is part of the URL, so `.data`
+ * URLs (with their `_routes`) and pages with a marker are their own entries.
  */
-export function edgeCacheKey(url: string, buildId: string): string {
+export function edgeCacheKey(url: string, generation: string): string {
   const key = new URL(url);
   key.hash = "";
-  key.search = `${key.search ? `${key.search}&` : "?"}__build=${encodeURIComponent(buildId)}`;
+  key.search = `${key.search ? `${key.search}&` : "?"}__build=${encodeURIComponent(generation)}`;
   return key.toString();
 }
 
@@ -567,7 +567,7 @@ export async function withEdgeCache(request: Request, env: Env, ctx: ExecutionCo
   }
 
   const cache = caches.default;
-  const key = new Request(edgeCacheKey(request.url, env.BUILD_ID));
+  const key = new Request(edgeCacheKey(request.url, cacheGeneration(env)));
   const copy = await readStored(cache, key, request);
 
   if (copy) {

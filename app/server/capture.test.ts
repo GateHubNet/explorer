@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { allSwitches } from "../../test/support/switches";
 import { handleLoaderError, reportLoaderError } from "./capture";
 import { createLoadContext, type Env } from "./env";
 
@@ -10,6 +11,7 @@ const baseEnv: Env = {
   XAHAU_NODE_URL: "https://xahau.network/",
   DATA_API_KEY: "test-key",
   BUILD_ID: "test-build",
+  ...allSwitches("off"),
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;

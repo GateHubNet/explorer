@@ -4,6 +4,7 @@ import { encodeAccountID } from "ripple-address-codec";
 
 import * as render from "../../app/og/render";
 import { edgeCacheKey } from "../../app/server/edge-cache";
+import { cacheGeneration } from "../../app/server/env";
 import { decodePng, hex, pngSize } from "../support/png";
 import { pageClient } from "../support/pages";
 import { dataApiError, mockUpstream, nodeError, type Overrides, type UpstreamMock } from "../support/upstream";
@@ -52,7 +53,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Whether the edge cache holds a copy of `path` now (for after the answer has been read; waits a moment for a store that is not wanted). */
 async function isStored(path: string) {
   await sleep(120);
-  return (await caches.default.match(edgeCacheKey(`https://explorer.test${path}`, env.BUILD_ID))) !== undefined;
+  return (await caches.default.match(edgeCacheKey(`https://explorer.test${path}`, cacheGeneration(env)))) !== undefined;
 }
 
 /** The answer for `path`, its body read whole. */

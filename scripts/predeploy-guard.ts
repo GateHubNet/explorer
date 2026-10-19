@@ -7,6 +7,8 @@
 //
 //  - an upstream URL is a placeholder (`*.invalid`: wrangler.jsonc holds `*.example.invalid` until the hosts are decided, and a Worker
 //    deployed with them answers every page with a 503) or is not an https URL, or is missing;
+//  - a switch (app/ui/features.ts, README "Switches") is missing from the build's vars, is not exactly "on" or "off", or a var that is not a
+//    switch has the value "on" or "off" (a misspelt switch, such as `MARKET`: the page it should gate would be served as if it were off);
 //  - the build is not for the environment asked for (or for none: the top level is local development);
 //  - the Worker would be served from workers.dev (`workers_dev`, `preview_urls`), where the Cache API does nothing;
 //  - `wrangler deploy` would not be sent to this build file, in which case it would deploy something else (wrangler.jsonc's top level).
@@ -16,6 +18,8 @@
 
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+
+import { FEATURE_VARS } from "../app/ui/features";
 
 /** The environments of wrangler.jsonc that are deployed. */
 export const ENVIRONMENTS = ["staging", "production"] as const;
@@ -54,6 +58,28 @@ function urlProblem(name: string, value: unknown, environment: string): string |
   return undefined;
 }
 
+const SWITCH_VALUES = '"on" or "off"';
+
+/** The reasons the switches among `vars` are wrong, in the order: missing, not exactly "on" or "off", a var that is not a switch but has such a value. */
+function switchProblems(vars: Record<string, unknown>, environment: string): string[] {
+  const where = `Put ${SWITCH_VALUES} in env.${environment}.vars of wrangler.jsonc.`;
+  const names: readonly string[] = FEATURE_VARS;
+  const isOnOff = (value: unknown) => value === "on" || value === "off";
+  return [
+    ...FEATURE_VARS.filter((name) => !Object.hasOwn(vars, name)).map((name) => `${name} is not set: every switch must be ${SWITCH_VALUES}. ${where}`),
+    ...FEATURE_VARS.filter((name) => Object.hasOwn(vars, name) && !isOnOff(vars[name])).map(
+      (name) => `${name} is ${quoted(vars[name])}, not exactly ${SWITCH_VALUES}. ${where}`,
+    ),
+    ...Object.keys(vars)
+      .filter((name) => isOnOff(vars[name]) && !names.includes(name))
+      .map(
+        (name) =>
+          `${name} is ${quoted(vars[name])} (${SWITCH_VALUES} is what a switch is set to), but it is not a switch; the switches are ${FEATURE_VARS.join(", ")}: a misspelt one? ` +
+          `Rename it in env.${environment}.vars of wrangler.jsonc, or give it another value.`,
+      ),
+  ];
+}
+
 /**
  * Every reason the config of a build must not be deployed as the Worker of `asked`; empty when it may be. `config` is whatever the build file
  * parsed to, `asked` whatever the command was given: neither is trusted.
@@ -84,6 +110,9 @@ export function deployProblems(config: unknown, asked: unknown): string[] {
     const problem = urlProblem(name, vars[name], environment);
     if (problem) problems.push(problem);
   }
+
+  // The switches: a Worker variable each, "on" or "off", in every environment.
+  problems.push(...switchProblems(vars, environment));
 
   // Reachable on <name>.<subdomain>.workers.dev, the Worker would be a second site that renders every request and calls the data API
   // (the Cache API does nothing there). Both must be false in the build, not merely not true.
@@ -151,5 +180,5 @@ export function checkBuild(root: string, asked: unknown): BuildCheck {
   }
 
   const name = isObject(config) && typeof config.name === "string" ? config.name : "?";
-  return { problems, summary: `${shown} is the Worker ${name} for ${String(asked)}; its upstream URLs are https hosts that can resolve, and it is not served from workers.dev` };
+  return { problems, summary: `${shown} is the Worker ${name} for ${String(asked)}; its upstream URLs are https hosts that can resolve, every switch is on or off, and it is not served from workers.dev` };
 }
