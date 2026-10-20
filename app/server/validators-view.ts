@@ -16,6 +16,7 @@ import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, AmendmentsList, NativeFees, NegativeUnlMember, NextFlagLedger, UnlPublisher, ValidatorRow, ValidatorsList, ValidatorsSummary } from "./api-types";
 import {
+  clock,
   compareFee,
   count,
   DASH,
@@ -194,9 +195,6 @@ function negativeUnlSub(members: readonly NegativeUnlMember[], pending: Validato
 const bare = (text: string): string => (text === DASH ? text : text.slice(0, text.lastIndexOf(" ")));
 
 const COUNTED = "fee and amendment votes are counted there";
-
-/** The UTC time of a moment, `HH:MM`. */
-const clock = (atSeconds: number): string => new Date(atSeconds * 1000).toISOString().slice(11, 16);
 
 function reservesTile(native: string, fees: NativeFees | undefined): Tile {
   const label = "Base / owner reserve";

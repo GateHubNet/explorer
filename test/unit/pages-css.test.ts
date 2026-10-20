@@ -173,3 +173,56 @@ describe("the validator page", () => {
     expect(pagesCss).toMatch(/@media \(pointer: coarse\), \(max-width: 720px\) \{[^@]*\.validator__cross[^@]*min-height: 44px/);
   });
 });
+
+describe("the amendments list", () => {
+  it("is one column of rows 18 px apart, as the board is", () => {
+    expect(rule(pagesCss, ".amendments")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });
+  });
+
+  it("has the board's accent border on the card of the amendments about to activate", () => {
+    expect(rule(pagesCss, ".amendments__soon")["border-color"]).toBe("color-mix(in srgb, var(--accent) 40%, var(--border))");
+  });
+
+  it("makes the table's scroll region a containing block, so that the visually hidden words of a cell (`.sr`, absolute) stay inside it and do not widen the page", () => {
+    expect(rule(baseCss, ".sr").position).toBe("absolute");
+    expect(rule(pagesCss, ".amendments__table").position).toBe("relative");
+  });
+
+  it("makes its rows 56 px high and keeps the header row at the table's own 36 px, after the rule for the rows (the head is a row too)", () => {
+    expect(rule(pagesCss, ".amendments__table .table__row")["min-height"]).toBe("56px");
+    expect(rule(pagesCss, ".amendments__table .table__head")["min-height"]).toBe("36px");
+    expect(pagesCss.indexOf(".amendments__table .table__head")).toBeGreaterThan(pagesCss.indexOf(".amendments__table .table__row"));
+  });
+
+  it("lets the status chips wrap, so that six of them fit a phone", () => {
+    expect(rule(pagesCss, ".amendments__cardhead .netswitch")).toMatchObject({ "flex-wrap": "wrap", "max-width": "100%" });
+  });
+
+  it("puts no link on --sunken: an XLS tag with a link in it is on the page's ground", () => {
+    expect(rule(componentsCss, ".tag").background).toBe("var(--sunken)");
+    expect(rule(pagesCss, ".amendments__xls--link").background).toBe("transparent");
+  });
+
+  it("gives the links of the table a target of at least 24 px (WCAG 2.5.8), and the links out of the heading and the card 32 px, 44 px on a phone or a touch screen", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".amendments__name")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    expect(Number.parseFloat(rule(pagesCss, ".amendments__cross")["min-height"]!)).toBeGreaterThanOrEqual(32);
+    expect(Number.parseFloat(rule(pagesCss, ".amendments__soonlink")["min-height"]!)).toBeGreaterThanOrEqual(32);
+    expect(pagesCss).toMatch(/@media \(pointer: coarse\), \(max-width: 720px\) \{[^@]*\.amendments__cross,\s*\.amendments__soonlink[^@]*min-height: 44px/);
+  });
+
+  it("wraps a status that is longer than its column inside its pill, which is nowrap elsewhere, and keeps the space before the arrow of the card's link", () => {
+    expect(rule(componentsCss, ".pill")["white-space"]).toBe("nowrap");
+    expect(rule(pagesCss, ".amendments__table .pill")).toMatchObject({ "max-width": "100%", "white-space": "normal" });
+    // A flex box would make an item of each run of the link's text and drop the space before the arrow.
+    expect(rule(pagesCss, ".amendments__soonlink").display).toBe("inline-block");
+  });
+
+  it("underlines the name that is a link inside the sentence of the activating card: its colour alone would not tell it from the words around it (axe: link-in-text-block)", () => {
+    expect(rule(pagesCss, ".amendments__soonname")["text-decoration"]).toBe("underline");
+  });
+
+  it("keeps the bar's box the width of its column, at most 220 px (the board's)", () => {
+    expect(rule(pagesCss, ".amendments__bar")).toMatchObject({ width: "100%", "max-width": "220px" });
+  });
+});
+

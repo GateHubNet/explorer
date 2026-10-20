@@ -44,6 +44,9 @@ export function unixOf(iso: string): number {
   return moment === undefined ? Number.NaN : Math.floor(moment.getTime() / 1000);
 }
 
+/** The UTC time of a moment (unix seconds) as `HH:MM`: the server's text of a countdown to an estimate, `expected 16:05 UTC`. */
+export const clock = (atSeconds: number): string => new Date(atSeconds * 1000).toISOString().slice(11, 16);
+
 // ---- Numbers (2.6) -----------------------------------------------------------------------------------------------------------------------------
 
 /** A plain decimal (`0.2`, `10000`, `1e-5`), exactly; `null` for anything else, which `BigNumber` would partly read (`0x10`, `Infinity`, `NaN`). */

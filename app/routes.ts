@@ -17,6 +17,7 @@ export default [
     route("search", "routes/net.search.tsx"),
     route("validators", "routes/net.validators.tsx"),
     route("validators/:key", "routes/net.validators.$key.tsx"),
+    route("amendments", "routes/net.amendments.tsx"),
   ]),
   // A resource route: the link-preview image of a transaction, ledger or account (`/og/xrpl/tx/{hash}.png`). Outside `:net`: no layout.
   route("og/:net/:kind/:id.png", "routes/og.$net.$kind.$id[.png].tsx"),

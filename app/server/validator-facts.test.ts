@@ -7,6 +7,7 @@ import type { AmendmentRow, DomainVerification } from "./api-types";
 import {
   accountLinks,
   amendmentStatusView,
+  clock,
   compareFee,
   count,
   DASH,
@@ -52,6 +53,14 @@ describe("unixOf", () => {
 
   it.each(["", "soon", "12", "Oct 23", "2026-13-45", "2026-10-23T25:00:00Z"])("is NaN for %j, which is not a time", (text) => {
     expect(unixOf(text)).toBeNaN();
+  });
+});
+
+describe("clock", () => {
+  it("is the UTC time of a moment as HH:MM, the server's text of a countdown to an estimate", () => {
+    expect(clock(unixOf("2026-10-19T16:05:28Z"))).toBe("16:05");
+    expect(clock(unixOf("2026-10-19T00:00:00Z"))).toBe("00:00");
+    expect(clock(unixOf("2026-10-19T23:59:59.999Z"))).toBe("23:59");
   });
 });
 

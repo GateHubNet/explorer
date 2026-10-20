@@ -498,6 +498,45 @@ describe("a validator's page", () => {
   });
 });
 
+describe("the amendments page", () => {
+  const DESCRIPTION = (name: string) => `Every amendment of ${name}: which are enabled, which have a majority and when they activate, and how the default UNL votes on the rest.`;
+
+  it("has the tags of its network on the default view: a description with no numbers, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amendments")).html);
+    expect(tags.titles).toEqual(["Amendments · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amendments`]);
+    expect(tags.content("og:title")).toBe("Amendments · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/amendments`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow on a status view, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amendments?status=voting")).html);
+    expect(tags.titles).toEqual(["Amendments · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/amendments")).html);
+    expect(tags.titles).toEqual(["Amendments · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/amendments`]);
+  });
+});
+
 describe("the pages that are not for a search engine", () => {
   it("keeps a search page noindex, follow, without a canonical URL or sharing tags", async () => {
     mock = mockUpstream("xrpl");
