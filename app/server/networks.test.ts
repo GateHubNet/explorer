@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { allSwitches } from "../../test/support/switches";
 import { featuresOf } from "../ui/features";
 import type { Env } from "./env";
+import { publicNetwork } from "./network-route";
 import { isNetworkId, networkIdOfCtid, networkOf } from "./networks";
 
 const env: Env = {
@@ -28,6 +29,7 @@ describe("networkOf", () => {
       nodeUrl: "https://s1.ripple.com:51234/",
       other: "xahau",
       hasAmm: true,
+      software: "rippled",
       features: { ...featuresOf(allSwitches("off")), ammData: true },
     });
   });
@@ -44,8 +46,17 @@ describe("networkOf", () => {
       nodeUrl: "https://xahau.network/",
       other: "xrpl",
       hasAmm: false,
+      software: "xahaud",
       features: { ...featuresOf(allSwitches("off")), ammData: true },
     });
+  });
+
+  it("names the software each network runs, which decides the file a validator's domain publishes", () => {
+    expect(networkOf("xrpl", env).software).toBe("rippled");
+    expect(networkOf("xahau", env).software).toBe("xahaud");
+    // It is a fact the browser may have, so the public network carries it too.
+    expect(publicNetwork(networkOf("xrpl", env)).software).toBe("rippled");
+    expect(publicNetwork(networkOf("xahau", env)).software).toBe("xahaud");
   });
 
   it("carries the switches of the env it is given, the same for both networks", () => {

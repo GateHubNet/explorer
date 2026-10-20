@@ -10,8 +10,8 @@ import { OBJECTS_SHOWN, TransactionPage } from "./TransactionPage";
 
 afterEach(cleanup);
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const POOL = "rAtRwrVakWQaGpzxtqgJZDb3Tg7t32rXT";

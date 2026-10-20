@@ -22,6 +22,8 @@ export interface Network {
   other: NetworkId;
   /** Whether the network's ledger has automated market makers (XRPL does, Xahau does not). */
   hasAmm: boolean;
+  /** The server software the network's validators run: it names the file their domains publish (`xrp-ledger.toml` or `xahau.toml`). */
+  software: "rippled" | "xahaud";
   /** The switches of this deployment (`featuresOf(env)`: the same for both networks). */
   features: Features;
 }
@@ -40,6 +42,7 @@ const NETWORKS: Record<NetworkId, NetworkEntry> = {
     ctidNetworkId: 0,
     other: "xahau",
     hasAmm: true,
+    software: "rippled",
     dataApiUrlVar: "XRPL_DATA_API_URL",
     nodeUrlVar: "XRPL_NODE_URL",
   },
@@ -50,6 +53,7 @@ const NETWORKS: Record<NetworkId, NetworkEntry> = {
     ctidNetworkId: 21337,
     other: "xrpl",
     hasAmm: false,
+    software: "xahaud",
     dataApiUrlVar: "XAHAU_DATA_API_URL",
     nodeUrlVar: "XAHAU_NODE_URL",
   },

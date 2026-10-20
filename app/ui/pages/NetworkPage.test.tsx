@@ -18,8 +18,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
 const HASH = "2F7C1D5A9B3E4F60A8D2C71B5E9F3A4D6C8B0E1F2A3B4C5D6E7F8A9B0C1D2E3F";
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 

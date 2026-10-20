@@ -48,7 +48,7 @@ describe("requireNetwork", () => {
 describe("publicNetwork", () => {
   it("is what may be sent to the browser: no data API URL, no node URL", () => {
     const shown = publicNetwork(networkOf("xrpl", env));
-    expect(shown).toEqual({ id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", hasAmm: true, features: featuresOf(allSwitches("off")) });
+    expect(shown).toEqual({ id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", hasAmm: true, software: "rippled", features: featuresOf(allSwitches("off")) });
     expect(JSON.stringify(shown)).not.toContain("invalid");
   });
 });

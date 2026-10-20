@@ -11,8 +11,8 @@ import { AccountPage, NeverActivatedPage } from "./AccountPage";
 
 afterEach(cleanup);
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
 const ADDRESS = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const PARENT = "rYogZ7oXMbYEWXrCQXHDKwe8mLqLDoaWm";
 const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";

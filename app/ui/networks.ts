@@ -6,8 +6,8 @@ import type { PublicNetwork } from "../server/network-route";
 /** The part of a network the chrome (header, switch, search box, 404 page) needs. */
 export type NetworkBrief = Pick<PublicNetwork, "id" | "name">;
 
-/** What a page needs of its network besides the chrome: the native currency, for fees and supply. */
-export type NetworkInfo = Pick<PublicNetwork, "id" | "name" | "native">;
+/** What a page needs of its network besides the chrome: the native currency, for fees and supply, and the software, for the file a validator's domain publishes. */
+export type NetworkInfo = Pick<PublicNetwork, "id" | "name" | "native" | "software">;
 
 /** In the order the switch shows them. */
 export const NETWORK_CHOICES = [

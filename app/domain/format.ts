@@ -202,7 +202,7 @@ const ISO_START = /^\d{4}-\d{2}-\d{2}/;
  * a date alone (UTC midnight). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since 2000-01-01) must be
  * converted before it gets here, as the size of a number cannot tell the two epochs apart.
  */
-function utcMoment(at: string | number): Date | undefined {
+export function utcMoment(at: string | number): Date | undefined {
   let date: Date;
   if (typeof at === "number") {
     date = new Date(at * 1000);
