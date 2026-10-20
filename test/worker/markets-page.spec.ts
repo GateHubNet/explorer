@@ -19,7 +19,7 @@ import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../su
 // days) that no later test asks for. The afterEach below fails a test whose override no request used, which is how a key an earlier test stored
 // shows.
 
-const { get, storedAs } = pageClient("198.51.107");
+const { get, stored, storedAs } = pageClient("198.51.107");
 
 let mock: UpstreamMock | undefined;
 
@@ -179,14 +179,26 @@ describe("the query of the URL", () => {
     expect(await storedAs(from)).toEqual({ cls: "short", ttl: 30 });
   });
 
-  it("tidies the .data URL the same way: a redirect for React Router to follow, with no call", async () => {
+  it("tidies the .data URL the same way: a redirect for React Router to follow, class short, with no call", async () => {
     mock = mockUpstream("xrpl");
-    const tidied = await get("/xrpl/markets.data?_routes=routes%2Fnet.markets&period=24h");
+    const path = "/xrpl/markets.data?_routes=routes%2Fnet.markets&period=24h";
+    const tidied = await get(path);
     const body = await tidied.text();
     expect(tidied.status).toBe(202);
     expect(body).toContain("SingleFetchRedirect");
     expect(body).toContain("/xrpl/markets");
     expect(mock.requests).toEqual([]);
+    // Its class is short: the browser is told short's `max-age=0`, which the edge cache gives only an answer it takes as that class.
+    expect(tidied.headers.get("Cache-Control")).toBe("max-age=0");
+    // The Cache API keeps no 202, whatever its class (HTTP caches understand no such status: miniflare's http-cache-semantics, as an HTTP
+    // cache does), so the copy is not there to read its class from: each such redirect is made again, and asks nothing upstream.
+    expect(await stored(path)).toBeUndefined();
+    // The loader's own answer to that request names the class.
+    const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+    const own = (await loader({ request: new Request(`https://explorer.test${path}`), params: { net: "xrpl" }, context: createLoadContext(env as unknown as Env, ctx) } as never)) as Response;
+    expect(own.status).toBe(302);
+    expect(own.headers.get("Location")).toBe("/xrpl/markets");
+    expect(own.headers.get("X-Cache-Class")).toBe("short");
   });
 
   it("is a 404 for a network that does not exist, before any call", async () => {
@@ -270,6 +282,16 @@ describe("the page without JavaScript", () => {
     expect(current.map((a) => a.text)).toEqual(["24 h", "All", "All"]);
     expect(current.every((a) => /href="\/xrpl\/markets"/.test(a.attrs))).toBe(true);
     expect(hrefs(html)).toEqual(expect.arrayContaining(["/xrpl/markets?period=7d", "/xrpl/markets?quote=usd", "/xrpl/markets?trades=amm"]));
+  });
+
+  it("holds the first 100 rows of a longer set, and no 'Show all', which would do nothing without the script", async () => {
+    mock = mockUpstream("xrpl");
+    const { response, html } = await render("/xrpl/markets?period=30d");
+    expect(response.status).toBe(200);
+    // The 30 days list 159 pairs: the HTML holds the first 100, the loader's data all of them.
+    expect(pairRows(html)).toHaveLength(101);
+    expect(elementText(html, "markets__count")).toBe("159 pairs, by volume, largest first");
+    expect(html).not.toContain("Show all");
   });
 
   it("is a page of the section: the header marks Markets as the current page", async () => {

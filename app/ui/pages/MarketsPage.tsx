@@ -1,19 +1,17 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { formatAmount } from "../../domain/format";
 import type { MarketRowView, MarketsPageData } from "../../server/markets-view";
+import { useHydrated } from "../charts/Cursor";
 import { Meter } from "../charts/Meter";
-import { useHydrated } from "../charts/Plot";
 import { Sparkline } from "../charts/Sparkline";
 import { Card } from "../components/Card";
-import { DataTable, FIRST_ROWS, type Column } from "../components/DataTable";
+import { count, DataTable, FIRST_ROWS, type Column } from "../components/DataTable";
 import { SearchIcon, TriangleDownIcon, TriangleUpIcon } from "../components/icons";
 import { SegmentedLinks } from "../components/SegmentedLinks";
 import { StatGrid, StatTile } from "../components/StatTile";
 import type { NetworkInfo } from "../networks";
 
-const count = (n: number) => formatAmount(String(n));
 const pairs = (n: number) => `${count(n)} ${n === 1 ? "pair" : "pairs"}`;
 
 /** The columns the rows can be sorted by, by their key in `MarketRowView.ranks`, and how the count line names each. */
@@ -100,9 +98,10 @@ function AmmCell({ amm }: { amm: MarketRowView["amm"] }) {
  * and the footnote). Takes what the view builder made of the data API's one answer (`marketsPage`) and never fetches: every label, href and
  * figure is text in `data`.
  *
- * The HTML holds the first `FIRST_ROWS` rows (the ledger page's), and "Show all" shows the rest of the rows the loader served, without a
- * request. What only a script can do is drawn after hydration (`useHydrated`) and is left out of the server's HTML: the text filter, whose row
- * is there from the start so that adding it moves nothing, and the sort buttons, where the server prints plain headers with `aria-sort`. The
+ * The HTML holds the first `FIRST_ROWS` rows (the ledger page's). What only a script can do is drawn after hydration (`useHydrated`, from the
+ * kit's Cursor.tsx, which defines it) and is left out of the server's HTML, since no control may do nothing without JavaScript (spec 2.2):
+ * "Show all", which shows the rest of the rows the loader served without a request; the text filter, whose row is there from the start so
+ * that adding it moves nothing; and the sort buttons, where the server prints plain headers with `aria-sort`. The
  * text filter narrows the rows to those whose search text holds what is typed; a sort orders them by the view builder's ranks. The tiles stay
  * those of the view: the count line, the page's one `role="status"`, says what is shown.
  */
@@ -148,19 +147,22 @@ export function MarketsPage({ network, data }: { network: NetworkInfo; data: Mar
     return { header, sort: sort.key === key ? sort.dir : "none" };
   };
 
-  // The board's tracks. `minWidth` is the tracks at their least, the gaps (16 px) and the padding (2 × 16 px) of a row.
+  // The board's columns, weighted so that a range of two prices of 16 characters ("0.00000032329039 – 0.00000037729557", 273 px of 13 px
+  // mono) holds on one line at the page's widest (a table of 1,198 px), and a price of 16 characters (134 px of 14 px mono) fits its track.
+  // Narrower, a range wraps at its dash. `minWidth` is the tracks at their least, the gaps (16 px) and the padding (2 × 16 px) of a row:
+  // 1,060 px with the AMM column, 948 px without.
   const columns: Column<MarketRowView>[] = [
     { id: "place", header: "#", width: "30px", align: "end", cell: (_row, index) => <span className="mono num faint">{index + 1}</span> },
-    { id: "pair", header: "Pair", width: "minmax(160px, 1.5fr)", cell: (row) => <PairCell row={row} /> },
-    { id: "last", ...sortable("last", "Last price"), width: "120px", align: "end", cell: (row) => <span className="mono num">{row.last}</span> },
-    { id: "change", ...sortable("change", "Change"), width: "84px", align: "end", cell: (row) => <ChangeCell change={row.change} /> },
-    { id: "range", header: "Low – high", width: "minmax(150px, 1fr)", align: "end", cell: (row) => <span className="mono num muted markets__range">{row.range}</span> },
-    { id: "volume", ...sortable("volume", `Volume (${network.native})`), width: "96px", align: "end", cell: (row) => <span className="mono num">{row.volume}</span> },
+    { id: "pair", header: "Pair", width: "minmax(160px, 1fr)", cell: (row) => <PairCell row={row} /> },
+    { id: "last", ...sortable("last", "Last price"), width: "136px", align: "end", cell: (row) => <span className="mono num">{row.last}</span> },
+    { id: "change", ...sortable("change", "Change"), width: "80px", align: "end", cell: (row) => <ChangeCell change={row.change} /> },
+    { id: "range", header: "Low – high", width: "minmax(150px, 1.6fr)", align: "end", cell: (row) => <span className="mono num muted markets__range">{row.range}</span> },
+    { id: "volume", ...sortable("volume", `Volume (${network.native})`), width: "92px", align: "end", cell: (row) => <span className="mono num">{row.volume}</span> },
     { id: "trades", ...sortable("trades", "Trades"), width: "56px", align: "end", cell: (row) => <span className="num muted">{row.trades}</span> },
-    ...(data.ammColumn ? [{ id: "amm", header: "AMM share", width: "104px", cell: (row: MarketRowView) => <AmmCell amm={row.amm} /> }] : []),
+    ...(data.ammColumn ? [{ id: "amm", header: "AMM share", width: "96px", cell: (row: MarketRowView) => <AmmCell amm={row.amm} /> }] : []),
     { id: "spark", header: "7 days", width: "100px", cell: (row) => <Sparkline values={row.spark.closes} label={row.spark.label} /> },
   ];
-  const minWidth = data.ammColumn ? 1060 : 940;
+  const minWidth = data.ammColumn ? 1060 : 948;
 
   return (
     <div className="markets">
@@ -206,7 +208,7 @@ export function MarketsPage({ network, data }: { network: NetworkInfo; data: Mar
         </StatGrid>
       )}
 
-      <Card title="Pairs" flush className="markets__pairs" action={<span className="chart__source">{data.source}</span>}>
+      <Card title="Pairs" flush action={<span className="chart__source">{data.source}</span>}>
         <DataTable
           label="Pairs"
           columns={columns}
@@ -220,7 +222,7 @@ export function MarketsPage({ network, data }: { network: NetworkInfo; data: Mar
           <p role="status" className="markets__count">
             {countLine}
           </p>
-          {matching.length > FIRST_ROWS && (
+          {hydrated && matching.length > FIRST_ROWS && (
             <button type="button" className="btn" onClick={() => setShowAll((all) => !all)}>
               {showAll ? `Show first ${count(FIRST_ROWS)}` : `Show all ${count(matching.length)}`}
             </button>

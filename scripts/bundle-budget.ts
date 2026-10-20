@@ -19,7 +19,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { gzipSync } from "node:zlib";
 
-/** 150 KB of 1000 bytes. The pages stand between 137 and 148 KB, the route manifest (about 1 KB) included. */
+/** 150 KB of 1000 bytes. The pages stand between 137.5 and 149.5 KB (network the heaviest), the route manifest (about 1.1 KB) included. */
 export const BUDGET_BYTES = 150_000;
 
 /** The pages the budget is kept for, by their route in the manifest. */

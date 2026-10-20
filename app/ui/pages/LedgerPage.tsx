@@ -9,7 +9,7 @@ import { Amount } from "../components/Amount";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { Card } from "../components/Card";
 import { CopyButton } from "../components/CopyButton";
-import { DataTable, FIRST_ROWS, type Column } from "../components/DataTable";
+import { count, DataTable, FIRST_ROWS, type Column } from "../components/DataTable";
 import { DetailList, type DetailRow } from "../components/DetailList";
 import { HashLink } from "../components/HashLink";
 import { ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
@@ -27,8 +27,6 @@ export { FIRST_ROWS };
 const MAX_TYPE_FILTERS = 7;
 /** Accounts listed under "Accounts created"; the rest are counted. */
 const MAX_ACCOUNTS_LISTED = 5;
-
-const count = (n: number) => formatAmount(String(n));
 
 type Filter = { kind: "all" } | { kind: "type"; type: string } | { kind: "other" };
 type FilterChip = { key: string; label: string; n: number; filter: Filter };

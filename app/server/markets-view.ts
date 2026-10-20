@@ -73,6 +73,8 @@ export interface MarketsPageData {
   ammColumn: boolean;
   /** The words a non-default view adds to the page title ("last 7 days", "USD", "AMM swaps"). */
   view: string[];
+  /** The view's period as the page's sentences say it: "last 24 hours", "last 7 days", "last 30 days" (the description of its tags). */
+  periodWords: string;
   indexable: boolean;
 }
 
@@ -362,10 +364,15 @@ function emptyOf(input: MarketsInput, listed: number): string | null {
   return `No ${quote}pairs with at least 10 trades in the last ${PERIODS[params.period].words}.${servedNote(answer)}`;
 }
 
+/** A period in words: "last 24 hours", "last 7 days". */
+function periodWordsOf(period: MarketsParams["period"]): string {
+  return `last ${PERIODS[period].words}`;
+}
+
 /** The title words of a view that is not the default: "last 7 days", "USD", "AMM swaps". */
 function viewWords(params: MarketsParams): string[] {
   const words: string[] = [];
-  if (params.period !== "24h") words.push(`last ${PERIODS[params.period].words}`);
+  if (params.period !== "24h") words.push(periodWordsOf(params.period));
   if (params.quote !== null) words.push(params.quote.toUpperCase());
   if (params.trades !== null) words.push(params.trades === "amm" ? "AMM swaps" : "order-book trades");
   return words;
@@ -462,6 +469,7 @@ export function marketsPage(input: MarketsInput): MarketsPageData {
     },
     ammColumn: ammState === "on",
     view,
+    periodWords: periodWordsOf(params.period),
     indexable: view.length === 0,
   };
 }

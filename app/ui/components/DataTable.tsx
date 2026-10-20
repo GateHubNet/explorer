@@ -1,10 +1,14 @@
 import { useRef, type CSSProperties, type ReactNode } from "react";
 
+import { formatAmount } from "../../domain/format";
 import { cx } from "../cx";
 import { useLiveRows } from "../use-live-rows";
 
 /** Rows a long table shows before its "Show all" (the ledger page's transactions, the markets page's pairs): the rest wait for a press. */
 export const FIRST_ROWS = 100;
+
+/** A count of rows (or of anything whole) as the pages write it: its thousands grouped, "1,500". */
+export const count = (n: number) => formatAmount(String(n));
 
 export interface Column<Row> {
   id: string;

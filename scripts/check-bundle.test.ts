@@ -99,6 +99,7 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.tx.$id", parentId: "routes/net", module: "tx.js", imports: ["shared.js"] },
   { id: "routes/net.account.$address", parentId: "routes/net", module: "account.js", imports: ["shared.js", "table.js", "qr-picture.js"] },
   { id: "routes/net.network", parentId: "routes/net", module: "network.js", imports: ["shared.js", "charts.js"] },
+  // No heavier than home's: the 150,000 B pin test sizes the home page to the limit and needs it to be the heaviest page of the build.
   { id: "routes/net.markets", parentId: "routes/net", module: "markets.js", imports: ["shared.js", "table.js"] },
   // Not one of the six pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },

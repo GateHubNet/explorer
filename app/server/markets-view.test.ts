@@ -774,6 +774,14 @@ describe("marketsPage: links and text", () => {
     expect(pageOf([usdXrp()], { params: { period: "30d" } })).toMatchObject({ view: ["last 30 days"], indexable: false });
   });
 
+  it("says the view's period in words, the default's too (the description of the page's tags)", () => {
+    expect(pageOf([usdXrp()]).periodWords).toBe("last 24 hours");
+    expect(pageOf([usdXrp()], { params: { period: "7d", quote: "usd" } }).periodWords).toBe("last 7 days");
+    expect(pageOf([usdXrp()], { params: { period: "30d" } }).periodWords).toBe("last 30 days");
+    // An empty set has a period too.
+    expect(pageOf([], { params: { period: "7d" } }).periodWords).toBe("last 7 days");
+  });
+
   it("keeps the API's order of the rows", () => {
     const rows = pageOf([eurUsd({ count: 1 }), usdXrp({ count: 2 }), rlusdXrp({ count: 3 })]).rows;
     expect(rows.map((row) => row.trades)).toEqual(["1", "2", "3"]);

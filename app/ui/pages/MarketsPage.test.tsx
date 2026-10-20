@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import type { MarketRowView, MarketsPageData } from "../../server/markets-view";
-import { DataTable, FIRST_ROWS } from "../components/DataTable";
+import { count, DataTable, FIRST_ROWS } from "../components/DataTable";
 import { FIRST_ROWS as LEDGER_FIRST_ROWS } from "./LedgerPage";
 import { MarketsPage } from "./MarketsPage";
 
@@ -134,6 +134,7 @@ function page(over: Partial<MarketsPageData> = {}): MarketsPageData {
     },
     ammColumn: true,
     view: [],
+    periodWords: "last 24 hours",
     indexable: true,
     ...over,
   };
@@ -348,10 +349,24 @@ describe("MarketsPage, the rows the HTML holds", () => {
     expect(bodyRows()).toHaveLength(100);
   });
 
-  it("prints the first 100 rows on the server too, with the button", () => {
+  it("prints the first 100 rows on the server, and no button: a control that would do nothing without the script (spec 2.2)", () => {
     const html = serverHtml(page({ rows: MANY }));
     expect((html.match(/<div role="row"/g) ?? []).length).toBe(101);
-    expect(html).toContain("Show all 214");
+    expect(html).not.toContain("Show all");
+    expect(html).not.toContain("<button");
+  });
+
+  it("has 'Show all 214' after hydration, with no mismatch, and it shows every row without a request", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const { container, errors } = await serverThenHydrated(routed(<MarketsPage network={XRPL} data={page({ rows: MANY })} />));
+    expect(errors).toEqual([]);
+    const rows = () => within(container).getByRole("table", { name: "Pairs" }).querySelectorAll('[role="row"]:not(.table__head)');
+    expect(rows()).toHaveLength(100);
+
+    fireEvent.click(within(container).getByRole("button", { name: "Show all 214" }));
+    expect(rows()).toHaveLength(214);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("has no button for a table of 100 rows or fewer", () => {
@@ -506,6 +521,10 @@ describe("MarketsPage, sorting", () => {
 });
 
 describe("DataTable, the props the markets page grows it by", () => {
+  it("writes a count as the pages do, its thousands grouped: the one helper the ledger and markets pages share", () => {
+    expect([count(0), count(7), count(214), count(1500), count(1_000_000)]).toEqual(["0", "7", "214", "1,500", "1,000,000"]);
+  });
+
   const columns = [
     { id: "a", header: "A", width: "1fr", cell: (r: { k: string }) => r.k },
     { id: "b", header: "B", width: "1fr", cell: (r: { k: string }) => r.k, sort: "descending" as const },

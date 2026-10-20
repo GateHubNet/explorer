@@ -306,7 +306,7 @@ describe("marketsMeta", () => {
   const DESCRIPTION = (dex: string, period = "last 24 hours") =>
     `Every pair traded on ${dex} with at least 10 trades in the ${period}: last price, change, range, volume and a 7-day trend.`;
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
-  const DEFAULT = { view: [], indexable: true };
+  const DEFAULT = { view: [], periodWords: "last 24 hours", indexable: true };
 
   it("has the tags of the default view: a canonical URL, Open Graph, a summary card and no image", () => {
     const list = marketsMeta(DEFAULT, XRPL);
@@ -331,13 +331,18 @@ describe("marketsMeta", () => {
     expect(link(list, "canonical")).toBe("https://explorer.test/xahau/markets");
   });
 
-  it("names the view in the title of any other, in the view builder's words, and its period in the description", () => {
-    const list = marketsMeta({ view: ["last 7 days", "USD", "AMM swaps"], indexable: false }, XRPL);
+  it("names the view in the title of any other, in the view builder's words, and its period (periodWords) in the description", () => {
+    const list = marketsMeta({ view: ["last 7 days", "USD", "AMM swaps"], periodWords: "last 7 days", indexable: false }, XRPL);
     expect(title(list)).toBe("XRPL markets · last 7 days · USD · AMM swaps · explorer");
     expect(content(list, "description")).toBe(DESCRIPTION("the XRP Ledger DEX", "last 7 days"));
-    expect(title(marketsMeta({ view: ["EUR"], indexable: false }, XRPL))).toBe("XRPL markets · EUR · explorer");
-    expect(content(marketsMeta({ view: ["EUR"], indexable: false }, XRPL), "description")).toBe(DESCRIPTION("the XRP Ledger DEX"));
-    expect(content(marketsMeta({ view: ["last 30 days", "order-book trades"], indexable: false }, XAHAU), "description")).toBe(
+    // The period is the builder's `periodWords`, not a title word read back.
+    expect(content(marketsMeta({ view: ["USD"], periodWords: "last 30 days", indexable: false }, XRPL), "description")).toBe(
+      DESCRIPTION("the XRP Ledger DEX", "last 30 days"),
+    );
+    const eur = { view: ["EUR"], periodWords: "last 24 hours", indexable: false };
+    expect(title(marketsMeta(eur, XRPL))).toBe("XRPL markets · EUR · explorer");
+    expect(content(marketsMeta(eur, XRPL), "description")).toBe(DESCRIPTION("the XRP Ledger DEX"));
+    expect(content(marketsMeta({ view: ["last 30 days", "order-book trades"], periodWords: "last 30 days", indexable: false }, XAHAU), "description")).toBe(
       DESCRIPTION("the Xahau DEX", "last 30 days"),
     );
   });
@@ -345,7 +350,7 @@ describe("marketsMeta", () => {
   it.each([[["last 7 days", "USD", "AMM swaps"]], [["USD"]], [["last 30 days"]], [["order-book trades"]]])(
     "is noindex, follow, with no canonical URL and no Open Graph or card tags, on the view %j",
     (view) => {
-      const list = marketsMeta({ view, indexable: false }, XRPL);
+      const list = marketsMeta({ view, periodWords: "last 24 hours", indexable: false }, XRPL);
       expect(content(list, "robots")).toBe("noindex, follow");
       expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
       expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
