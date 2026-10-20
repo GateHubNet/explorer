@@ -50,6 +50,19 @@ interface Answered extends Recording {
   at: Date;
 }
 
+/**
+ * Why a call failed, in words: its message, and what caused it when there is a cause (Node's `fetch failed` says why only in `cause`: its
+ * code, `ENOTFOUND`, `ECONNREFUSED`, or its message).
+ */
+function reasonOf(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const { cause } = error;
+  if (cause === undefined) return error.message;
+  const code = typeof cause === "object" && cause !== null && "code" in cause ? String((cause as { code: unknown }).code) : undefined;
+  const because = code ?? (cause instanceof Error ? cause.message : String(cause));
+  return `${error.message} (${because})`;
+}
+
 /** One `book_offers` call. Whatever goes wrong is thrown as `<node url> <file>: <cause>`. */
 async function record(book: Book): Promise<Answered> {
   const path = bookFile(book);
@@ -65,7 +78,7 @@ async function record(book: Book): Promise<Answered> {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return { net: book.net, path, answer: acceptAnswer(await response.json()), at };
   } catch (error) {
-    throw new Error(`${url} ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${url} ${path}: ${reasonOf(error)}`);
   }
 }
 
