@@ -136,6 +136,7 @@ export function canonicalPair(a: Asset, b: Asset): [Asset, Asset] {
   return orderKey(b) < orderKey(a) ? [b, a] : [a, b];
 }
 
+/** An equal currency and issuer; an absent issuer is the same as an empty one. */
 export function sameAsset(a: Asset, b: Asset): boolean {
   return a.currency === b.currency && (a.issuer ?? "") === (b.issuer ?? "");
 }

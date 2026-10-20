@@ -19,6 +19,12 @@ const XRP: Asset = { currency: "XRP" };
 const RLUSD: Asset = { currency: RLUSD_HEX, issuer: RL };
 const LIONS: Asset = { currency: LIONS_HEX, issuer: LIONS_ISSUER };
 
+/** The ledger's standard form of the three characters: zero bytes, the characters, zero bytes. */
+function standardHexOf(characters: string): string {
+  const hex = [...characters].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+  return `${"0".repeat(24)}${hex}${"0".repeat(10)}`;
+}
+
 /** An asset text that must be one, on XRPL. */
 function parsed(text: string, network: { native: "XRP" | "XAH" } = XRPL): Asset {
   const asset = parseAssetText(text, network);
@@ -168,12 +174,9 @@ describe("parseAssetText: 40 hex digits", () => {
     expect(parseAssetText(`${USD_STANDARD_HEX}.${GH}`, XRPL)).toEqual(USD);
     expect(assetText(parsed(`${USD_STANDARD_HEX}.${GH}`))).toBe(`USD.${GH}`);
     // The bytes of `usd` give the upper-case code, as `usd.r…` does.
-    expect(parseAssetText(`0000000000000000000000007573640000000000.${GH}`, XRPL)).toEqual(USD);
+    expect(parseAssetText(`${standardHexOf("usd")}.${GH}`, XRPL)).toEqual(USD);
     // The symbols of the set are standard in hex too.
-    expect(parseAssetText(`000000000000000000000000${"<3!".split("").map((c) => c.charCodeAt(0).toString(16)).join("")}0000000000.${GH}`, XRPL)).toEqual({
-      currency: "<3!",
-      issuer: GH,
-    });
+    expect(parseAssetText(`${standardHexOf("<3!")}.${GH}`, XRPL)).toEqual({ currency: "<3!", issuer: GH });
   });
 
   it("keeps an LP token's hex in upper case, and writes it so", () => {
@@ -193,10 +196,11 @@ describe("parseAssetText: 40 hex digits", () => {
       `555344${"0".repeat(34)}`,
       // A zero byte inside the text.
       `41420043${"0".repeat(32)}`,
-      // Bytes 12 to 14 not a standard code (a space; a pipe; a zero).
-      "0000000000000000000000005520440000000000",
-      "00000000000000000000000055" + "7C" + "440000000000",
-      "0000000000000000000000005500440000000000",
+      // Bytes 12 to 14 not a standard code (a space; a pipe; a zero; a character outside the set).
+      standardHexOf("U D"),
+      standardHexOf("U|D"),
+      standardHexOf("U\0D"),
+      standardHexOf("U-D"),
       // A standard code with something after it, or before it.
       "0000000000000000000000005553440000000001",
       "0100000000000000000000005553440000000000",
