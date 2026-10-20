@@ -839,8 +839,8 @@ chunk on the tab's `pointerenter` and `focus`, not React Router's `prefetch="int
 `AccountAnalytics.tsx` and the kit load with `React.lazy`, as a chunk of their own. On the server the lazy module resolves during the render, so the stored HTML
 has every tile, mark and table, and the Chart/Table radios work by CSS before any script runs; in the browser, hydration leaves the server's HTML in place until
 the chunk is there, and a client-side navigation to the tab shows a waiting frame (`aria-hidden`) until the chunk and the data arrive. The two gates of
-`pnpm check:bundle` (spec 5): the account route's first load is at most 150,000 bytes (138,015 at the end of E4; the spec's target is 138,500), and so is the
-view's total, that first load with the chunk and its static imports, each file once (the row `account analytics`: 149,908, 92 bytes under). The view has its own
+`pnpm check:bundle` (spec 5): the account route's first load is at most 150,000 bytes (138,035 at the end of E4; the spec's target is 138,500), and so is the
+view's total, that first load with the chunk and its static imports, each file once (the row `account analytics`: 149,933, 67 bytes under). The view has its own
 copy of the kit to fit: "The client bundle check" has the figures, the copy and its cost (about 8.5 KB more for a visitor who saw the network page first).
 `test/unit/analytics-bundle.test.ts` pins that the view imports nothing from `app/server` at run time and that `AccountPage.tsx` imports it only through `import()`.
 
@@ -1322,8 +1322,10 @@ otherwise; never 5173) and never reuses a server that is already running.
 **Against a real stack** the suite reads recorded mainnet ledgers and transactions (final, so the same there as in the fixtures), which the
 stack must have. What the fixtures hold by hand is not an account's today (`test/e2e/fixtures.ts` `LIVE`): the tests that read the account
 files (their pages of four and two rows, a balance, an address nobody funded) are skipped when `E2E_DATA_API_URL` or `E2E_BASE_URL` is set, and so
-are the tests of the analytics view that read the synthetic files (its figures, its columns, its days); one test of the view runs everywhere and asserts
-no figure: each tile and card shows its data, its empty state or its error. It has not been run against a real stack from this repository.
+are the tests of the analytics view that read the synthetic files (its figures, its columns, its days); two tests of the view run everywhere and assert
+no figure (`account-analytics.spec.ts`): the tab opens the view with its filter row, and each tile and card shows its data, its empty state or its error.
+So does the test of the kit's two copies in one document (`analytics-kit-copy.spec.ts`), which reads no figure either. It has not been run against a
+real stack from this repository.
 
 **The browser.** `pnpm exec playwright install chromium` fetches the revision this Playwright wants, and it is what a pipeline needs. In this order
 (`chromiumToUse` in `scripts/e2e-env.ts`): `E2E_CHROMIUM`, if set; the headless shell of the wanted revision, if installed; the full Chromium of the wanted
@@ -1536,10 +1538,11 @@ where the real page will. Measured and not taken (every page's figure at `3d4986
 modules that both reach left the network route's chunk for files the two share: `LineChart-*.js` (the plot, the cursor, the line and column
 charts, the table, the labels and words: 7,896 bytes gzipped), `use-hydrated-*.js` (1,680) and `StatTile-*.js` (401). Each such file costs its
 gzip context and its `import`/`export` lines, on the network page (797 bytes, measured at `4d8f6ea` against a build without the analytics chunk)
-and in the analytics view's total, which was 151,275 bytes, over the budget. So the view has a copy of the kit: what it imports of
-`app/ui/charts/*` (all but `types.ts`), `app/ui/use-hydrated.ts` and `app/ui/components/StatTile.tsx`, and what those import of it in turn,
-resolves to the same file with the query `?analytics-kit`, another module, which only the view's chunk reaches. **The build has two copies of
-the kit**: the one every other page loads, as before E4, and the view's, inside `AccountAnalytics-*.js` (11,893 bytes, 3,322 without the copy).
+and in the analytics view's total, which was 151,371 bytes (at `4d8f6ea`: the table's *Before* below; 151,275 with the frame's sources), over the
+budget. So the view has a copy of the kit: what it imports of `app/ui/charts/*` (all but `types.ts`), `app/ui/use-hydrated.ts` and
+`app/ui/components/StatTile.tsx`, and what those import of it in turn, resolves to the same file with the query `?analytics-kit`, another
+module, which only the view's chunk reaches. **The build has two copies of the kit**: the one every other page loads, as before E4, and the
+view's, inside `AccountAnalytics-*.js` (11,893 bytes, 3,322 without the copy).
 The view's first load is the account page's files and that one chunk, and the network route has its kit in its own chunk again.
 
 - **What a visitor pays for it.** The network page and the view do not share the kit any more, so a visitor who sees both downloads it twice:
@@ -1581,15 +1584,18 @@ counted it); *after* is the copy of the kit and the frame's sources (`74a694b`; 
 | manifest `assets/manifest-*.js` | 1,074 | 1,057 | −17 |
 
 The −17 of every page is the manifest: the network and account routes no longer import the kit's shared files, so their `imports` are shorter.
-The network page is 14 bytes from where it is without any analytics chunk (146,196 at `4d8f6ea`). The view's total is 201 bytes under the
-budget; a route adds about 21 bytes to it through the manifest (measured with an empty route). Of the spec's two rungs for a view over the
+The network page is 14 bytes from where it is without any analytics chunk (146,196 at `4d8f6ea`), and 15 at the end of E4 (146,211, below). The view's
+total is 201 bytes under the budget; a route adds about 21 bytes to it through the manifest (measured with an empty route). Of the spec's two rungs for a view over the
 budget, the first (E2's cursor fallback) does not exist (it was measured and taken out at E2, see above), and the second (the account page's
 list panels in a lazy chunk) was not taken; the copy of the kit was, with the frame's sources (R18). The view's total with the frame's sources
-and without the copy is 151,275.
+and without the copy is 151,275 (the table's *Before*, 151,371, has neither the sources nor the copy).
 
-**At the end of E4** (`c9f9e8b`, the views' `noindex` tags; the commit of the end-to-end tests after it changes no file of the build): home 134,373, ledger 133,438,
-transaction 135,691, **account 138,015**, network 146,209, markets 133,379 and **account analytics 149,908**, 92 bytes under the budget. The account route grew
-109 bytes with the views' tags (`ANALYTICS_META` in `app/domain/analytics-params.ts`, which `meta-account.ts` imports alone), and the view's total with it.
+**At the end of E4** (`93bd856`, the fixes of the final review; the commit of this README after it changes no file of the build): home 134,392, ledger 133,457,
+transaction 135,709, **account 138,035**, network 146,211, markets 133,400 and **account analytics 149,933**, 67 bytes under the budget. The account route grew
+109 bytes with the views' tags (`c9f9e8b`: `ANALYTICS_META` in `app/domain/analytics-params.ts`, which `meta-account.ts` imports alone), and the view's total with
+it, to 138,015 and 149,908. The final fixes added 18 to 21 bytes to every page but the network page, and 25 to the view's total: `Card`'s `busy` (the
+table cards are `aria-busy` while their part has not come), which every page loads but the network page, whose 2 bytes are the manifest's (it names
+`Card`'s file, whose hash changed).
 
 ## The parsing libraries in the Workers runtime
 
@@ -1745,8 +1751,8 @@ E4 §8 step 3), and before it is turned on in production:
   failure), and the card back with the first Retry after the route answers again and the hold is over.
 - [ ] **`robots.txt`.** `https://<staging host>/robots.txt` (the Worker's route, on the custom domain) has `Disallow: /*/account/*tab=analytics` beside the search and CSV rules, and a
   robots.txt tester (Google Search Console's report) reads `…/account/r…?tab=analytics&period=1y` and the other order of the query as disallowed, and `…/account/r…` as allowed.
-- [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,015 at the end of E4; the spec's
-  target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 150,000 (149,908 at the end of E4, 92 under), both written down beside "The client bundle
+- [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,035 at the end of E4; the spec's
+  target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 150,000 (149,933 at the end of E4, 67 under), both written down beside "The client bundle
   check" (its E4 table), so that the growth of each later sub-project shows. The view is that close to the gate; a route adds about 21 bytes to it through the manifest.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
