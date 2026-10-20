@@ -276,6 +276,11 @@ describe("sliderLabel", () => {
     expect(sliderLabel("Votes", "flag")).toBe("Votes, flag ledger by flag ledger");
     expect(sliderLabel("Price", "minute")).toBe("Price, quarter hour by quarter hour");
   });
+
+  it("names the step after the words of one bucket when it is given one: a 4-hour candle on an axis of hours", () => {
+    expect(sliderLabel("XRP/RLUSD price", "hour", "4 hours")).toBe("XRP/RLUSD price, 4 hours by 4 hours");
+    expect(sliderLabel("XRP/RLUSD price", "hour", undefined)).toBe("XRP/RLUSD price, hour by hour");
+  });
 });
 
 describe("plotSummary", () => {

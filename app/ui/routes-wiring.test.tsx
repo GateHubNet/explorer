@@ -729,6 +729,7 @@ const PAIR_TRADES: LivePairData["trades"] = {
   ],
   paging: { newerHref: null, olderHref: `${PAIR_PATH}?marker=M1` },
   source: "/v2/exchanges/{base}/{counter}?descending=true",
+  empty: "No trades yet.",
 };
 
 /** The pair's parts as a beat that failed them gives them (`pairPage`): each part's failed form. */
@@ -763,11 +764,12 @@ function pairAt(index: number, over: Partial<LivePairData> = {}, build = "abc123
         { label: "4 h", href: `${PAIR_PATH}?interval=4h`, current: false },
       ],
     },
-    price: { text: `2.${index}`, unit: "USD per XRP", note: null, change: { text: "+1.84%", dir: "up" }, token: `price-${index}` },
+    price: { text: `2.${index}`, unit: "USD per XRP", note: null, token: `price-${index}` },
     stats: {
       state: "ok",
       items: PAIR_FAILED.stats.labels.map((label, at) => ({ label, value: `${at + 1}.5` })),
       note: null,
+      change: { text: "+1.84%", dir: "up" },
       token: "stats",
     },
     candles: { state: "ok", data: PAIR_CANDLES, source: "/v2/exchanges/{base}/{counter}?interval=1hour", empty: null },
@@ -951,6 +953,18 @@ describe("net.markets.$base.$counter.tsx", () => {
     expect(card("Most active traders, 24 h").querySelector("a")).toBeTruthy();
     expect(document.querySelectorAll(".candle").length).toBeGreaterThan(0);
     expect(screen.getByText("24 h high").closest("div")!.textContent).toContain("1.5");
+  });
+
+  it("keeps the summary's change with the 24 h figures through a beat that failed them: no dash beside figures that look loaded", async () => {
+    mountPair(async () => pairAt(101, { stats: PAIR_FAILED.stats }));
+    const delta = () => document.querySelector(".pair__delta")!.textContent;
+    expect(delta()).toBe("+1.84%");
+    await pass(4000);
+    // The answer was taken (the price moved on); its 24 h figures failed, and the change is the kept figures' own.
+    expect(lastPrice()).toBe("2.101");
+    expect(screen.queryByText(/Couldn’t load the 24 h figures/)).toBeNull();
+    expect(screen.getByText("24 h high").closest("div")!.textContent).toContain("1.5");
+    expect(delta()).toBe("+1.84%");
   });
 
   it("shows the error of a part that was never loaded, beat after beat", async () => {

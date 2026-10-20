@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { shortAddress } from "../../domain/format";
-import type { BookLevel, LivePairData, OlderPairData, PairHead, PairPageData, TradeRowView } from "../../server/pair-view";
+import type { BookLevel, LivePairData, OlderPairData, PairHead, PairPageData, PriceChange, TradeRowView } from "../../server/pair-view";
 import type { CandleData } from "../charts/types";
 import type { LiveControls } from "../use-live-controls";
 import { MarketPairPage } from "./MarketPairPage";
@@ -121,6 +121,9 @@ const STATS = [
   { label: "Trades 24 h", value: "8,412" },
 ];
 
+/** The summary's change, which the 24 h figures carry. */
+const CHANGE: PriceChange = { text: "+1.84%", dir: "up" };
+
 const BOOK_SOURCE = "live from the node · book_offers · ledger #";
 const TRADERS_SOURCE = "/v2/active_accounts/{base}/{counter}";
 const TRADERS_NOTE = "2 of 1,204 accounts that traded XRP/USD in the last 24 hours, by XRP volume. A trade counts for its buyer and its seller.";
@@ -144,10 +147,10 @@ function page(over: Partial<LivePairData> = {}): LivePairData {
         link("1 w", `${PAIR}?interval=1w`),
       ],
     },
-    price: { text: "2.4395", unit: "USD per XRP", note: null, change: { text: "+1.84%", dir: "up" }, token: "price-1" },
-    stats: { state: "ok", items: STATS, note: null, token: "stats-1" },
+    price: { text: "2.4395", unit: "USD per XRP", note: null, token: "price-1" },
+    stats: { state: "ok", items: STATS, note: null, change: CHANGE, token: "stats-1" },
     candles: { state: "ok", data: candleData(), source: "/v2/exchanges/{base}/{counter}?interval=1hour", empty: null },
-    trades: { rows: TRADES, paging: { newerHref: null, olderHref: `${PAIR}?marker=M1` }, source: "/v2/exchanges/{base}/{counter}?descending=true" },
+    trades: { rows: TRADES, paging: { newerHref: null, olderHref: `${PAIR}?marker=M1` }, source: "/v2/exchanges/{base}/{counter}?descending=true", empty: "No trades yet." },
     book: { state: "ok", source: BOOK_SOURCE, ledger: "107,721,455", asks: ASKS, bids: BIDS, spread: "0.05", token: "book-1" },
     pool: {
       state: "ok",
@@ -219,10 +222,14 @@ function older(over: Partial<OlderPairData> = {}): OlderPairData {
       rows: TRADES,
       paging: { newerHref: PAIR, olderHref: `${PAIR}?marker=M2&back=M1` },
       source: "/v2/exchanges/{base}/{counter}?descending=true",
+      empty: "No trades yet.",
     },
     ...over,
   };
 }
+
+/** The loaded 24 h figures with another change of the summary (which they carry). */
+const withChange = (change: PriceChange | null): LivePairData["stats"] => ({ state: "ok", items: STATS, note: null, change, token: `stats:${change?.text}` });
 
 /** Every card failed, each with what the view builder gives a failed card (`pairPage`). */
 const FAILED_STATS = { state: "failed", labels: STATS.map((s) => s.label) } as const satisfies LivePairData["stats"];
@@ -379,16 +386,16 @@ describe("MarketPairPage, the pair summary", () => {
   });
 
   it("points the triangle down for a fall and draws none for no change", () => {
-    mount(page({ price: { ...page().price, change: { text: "−1.84%", dir: "down" } } }));
+    mount(page({ stats: withChange({ text: "−1.84%", dir: "down" }) }));
     expect(summary().querySelector(".pair__delta")!.textContent).toBe("−1.84%");
     expect(summary().querySelectorAll(".pair__delta svg")).toHaveLength(1);
     cleanup();
-    mount(page({ price: { ...page().price, change: { text: "0.00%", dir: "flat" } } }));
+    mount(page({ stats: withChange({ text: "0.00%", dir: "flat" }) }));
     expect(summary().querySelector(".pair__delta svg")).toBeNull();
   });
 
   it("says the price's note: no trade yet, or the day of an old last trade", () => {
-    mount(page({ price: { text: "—", unit: "USD per XRP", note: "No trades yet", change: null, token: "p" } }));
+    mount(page({ price: { text: "—", unit: "USD per XRP", note: "No trades yet", token: "p" }, stats: withChange(null) }));
     expect(summary().querySelector(".pair__figure")!.textContent).toBe("—");
     expect(summary().querySelector(".pair__note")!.textContent).toBe("No trades yet");
     expect(summary().querySelector(".pair__delta")!.textContent).toBe("—");
@@ -407,13 +414,13 @@ describe("MarketPairPage, the pair summary", () => {
   });
 
   it("says when the 24 hours had no trade", () => {
-    mount(page({ stats: { state: "ok", items: STATS, note: "No trades in the last 24 hours.", token: "s" } }));
+    mount(page({ stats: { state: "ok", items: STATS, note: "No trades in the last 24 hours.", change: null, token: "s" } }));
     expect(within(summary()).getByText("No trades in the last 24 hours.")).toBeTruthy();
   });
 
   it("reads '—' in the six figures and the change when the 24 h figures failed, with one error and a Retry that asks the route again", async () => {
     const loader = vi.fn(() => null);
-    mount(page({ stats: FAILED_STATS, price: { ...page().price, change: null } }), { loader });
+    mount(page({ stats: FAILED_STATS }), { loader });
     expect(["24 h high", "24 h low", "VWAP 24 h", "Volume XRP", "Volume USD", "Trades 24 h"].map(stat)).toEqual(Array(6).fill("—"));
     const alerts = within(summary()).getAllByRole("alert");
     expect(alerts).toHaveLength(1);
@@ -571,9 +578,13 @@ describe("MarketPairPage, the recent trades", () => {
     expect(tradesTable().querySelector(".tag")).toBeNull();
   });
 
-  it("says so when the list has no trade", () => {
+  it("says so when the list has no trade, in the view data's words", () => {
     mount(page({ trades: { ...page().trades, rows: [], paging: { newerHref: null, olderHref: null } } }));
     expect(within(card("Recent trades")).getByText("No trades yet.")).toBeTruthy();
+    cleanup();
+    mount(page({ trades: { ...page().trades, rows: [], paging: { newerHref: null, olderHref: null }, empty: "No AMM swaps yet." } }));
+    expect(within(card("Recent trades")).getByText("No AMM swaps yet.")).toBeTruthy();
+    expect(within(card("Recent trades")).queryByText("No trades yet.")).toBeNull();
   });
 });
 
@@ -890,7 +901,7 @@ describe("MarketPairPage, what a beat moves", () => {
   it("ticks in the change, and only the 24 h figure that moved", () => {
     const { container } = mountHost();
     const items = STATS.map((s) => (s.label === "Trades 24 h" ? { ...s, value: "8,413" } : s));
-    update(page({ price: { ...page().price, change: { text: "+1.90%", dir: "up" } }, stats: { state: "ok", items, note: null, token: "stats-2" } }));
+    update(page({ stats: { state: "ok", items, note: null, change: { text: "+1.90%", dir: "up" }, token: "stats-2" } }));
     expect(changed(container).sort()).toEqual(["+1.90%", "8,413"]);
   });
 
@@ -917,10 +928,10 @@ describe("MarketPairPage, what a beat moves", () => {
     expect(card("Price").querySelector(".candles__readout")!.textContent).toContain("C 2.47 USD");
   });
 
-  it("ticks in a 24 h figure that comes back after failing", () => {
+  it("ticks in a 24 h figure that comes back after failing, and the change that comes back with them", () => {
     const { container } = mountHost(page({ stats: FAILED_STATS }));
     update(page());
-    expect(changed(container)).toEqual(STATS.map((s) => s.value));
+    expect(changed(container)).toEqual([CHANGE.text, ...STATS.map((s) => s.value)]);
     expect(within(summary()).queryByRole("alert")).toBeNull();
   });
 });

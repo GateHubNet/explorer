@@ -413,7 +413,9 @@ describe("whether the market exists", () => {
     // The market exists; its other calls have no fixture (the API's "Cannot GET"), so its cards failed, and the page is degraded.
     await expectDegraded(path, response);
     expect(statusesOf(mock, probeKey(`XRP/${AUD}`))).toEqual([200]);
-    expect(text).toContain("No trades yet.");
+    // The pair has traded; the filter's list is what is empty, and the page says so in its words.
+    expect(text).toContain("No order-book trades yet.");
+    expect(text).not.toContain("No trades yet");
     // #10 has no `amm` and no TTL of its own: class `live`, 5 s.
     expect(await watched.keptFor(apiKey("xrpl", `/v2/exchanges/XRP/${encodeURIComponent(AUD)}`, "descending=true&limit=1"))).toBe("public, max-age=5");
   });
@@ -451,10 +453,30 @@ describe("whether the market exists", () => {
 });
 
 // The cards fail on LIONS/XRP in both orientations and on EVR/XAH, in an order that needs no wait: each test fails keys that no test before it
-// kept. The first gives the node a pool of LIONS/XRP (a 200, kept 5 s): the tests that follow it within 5 s draw that pool and none of them
+// kept. The second gives the node a pool of LIONS/XRP (a 200, kept 5 s): the tests that follow it within 5 s draw that pool and none of them
 // says anything of the pool card; the one that fails amm_info, which must reach the node, comes after the two that wait out the node's 3 s
-// and the card's 4.5 s.
+// and the card's 4.5 s. The one that fails #9 beside no pool comes first of all, before the node is given a pool.
 describe("a call that is one card of the page", () => {
+  it("stores a pair without a pool as live-home when #9 fails: the share is a line of the pool card, so nothing on the page failed", async () => {
+    // First of the block: the node's own answer for LIONS/XRP (no pool, which is not stored) is what this test reads, before the next test gives
+    // it a pool; the failed #9 is not stored either, so the next test's override of it reaches the mock.
+    const pair = `${L}/XRP`;
+    const path = `${LIONS}?interval=1d`;
+    mock = mockUpstream("xrpl", { [reduceKey(pair, T1.xrpl, "only")]: unavailable() });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { response, html, text } = await render(path);
+
+    expect(statusesOf(mock, reduceKey(pair, T1.xrpl, "only"))).toEqual([503]);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("max-age=0, must-revalidate");
+    expect(await storedAs(path)).toEqual({ cls: "live-home", ttl: 1 });
+    expect(text).not.toContain("LIONS/XRP AMM pool");
+    expect(text).not.toContain("Couldn’t load");
+    expect(alerts(html)).toBe(0);
+    // Nothing is logged as a failure of the page.
+    expect(errors.mock.calls.filter(([line]) => String(line).includes("the market pair page's"))).toEqual([]);
+  });
+
   it("reads — Couldn’t load beside a pool when #9 fails, marks the page degraded, and holds the failure", async () => {
     const pair = `${L}/XRP`;
     const path = `${LIONS}?interval=15m`;

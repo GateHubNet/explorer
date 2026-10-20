@@ -54,18 +54,19 @@ export const QUOTES: Record<NativeCode, readonly Quote[]> = {
 export const TRADES_API: Record<TradesFilter, "exclude" | "only"> = { book: "exclude", amm: "only" };
 
 /**
- * `label` is the selector's text, `api` the data API's `interval`, `unit` the chart's axis unit, `span` the words of the 60 buckets
- * ("No trades in these 60 hours"), `long` whether the candles of 60 such buckets are a large read (subrequest class `minute`, not `live`).
+ * `label` is the selector's text, `api` the data API's `interval`, `unit` the chart's axis unit, `step` the words of one bucket (the slider's
+ * "4 hours by 4 hours"), `span` the words of the 60 buckets ("No trades in these 60 hours"), `long` whether the candles of 60 such buckets are a
+ * large read (subrequest class `minute`, not `live`).
  */
 export const INTERVALS: Record<
   Interval,
-  { label: string; api: CandleApiInterval; unit: "minute" | "hour" | "day" | "week"; span: string; long: boolean }
+  { label: string; api: CandleApiInterval; unit: "minute" | "hour" | "day" | "week"; step: string; span: string; long: boolean }
 > = {
-  "15m": { label: "15 m", api: "15minute", unit: "minute", span: "15 hours", long: false },
-  "1h": { label: "1 h", api: "1hour", unit: "hour", span: "60 hours", long: false },
-  "4h": { label: "4 h", api: "4hour", unit: "hour", span: "10 days", long: true },
-  "1d": { label: "1 d", api: "1day", unit: "day", span: "60 days", long: true },
-  "1w": { label: "1 w", api: "7day", unit: "week", span: "60 weeks", long: true },
+  "15m": { label: "15 m", api: "15minute", unit: "minute", step: "quarter hour", span: "15 hours", long: false },
+  "1h": { label: "1 h", api: "1hour", unit: "hour", step: "hour", span: "60 hours", long: false },
+  "4h": { label: "4 h", api: "4hour", unit: "hour", step: "4 hours", span: "10 days", long: true },
+  "1d": { label: "1 d", api: "1day", unit: "day", step: "day", span: "60 days", long: true },
+  "1w": { label: "1 w", api: "7day", unit: "week", step: "week", span: "60 weeks", long: true },
 };
 
 /** The buckets of a candle chart; the call asks for one more (`limit=61`) and ignores the one that falls outside the axis. */

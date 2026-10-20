@@ -90,9 +90,13 @@ function Title({ head, invert }: { head: PairHead; invert: boolean }) {
 // ---------------------------------------------------------------------------------------------------------------------------
 // The summary: the price, the change, the 24 h figures
 
-/** The last price at the board's size with its unit, then the change after a triangle (a picture: the text says the sign) and "24 h". */
-function Quote({ price }: { price: LivePairData["price"] }) {
-  const change = price.change?.text ?? DASH;
+/**
+ * The last price at the board's size with its unit, then the change after a triangle (a picture: the text says the sign) and "24 h". The change is
+ * the 24 h figures' (`stats.change`), kept with them through a beat that failed them.
+ */
+function Quote({ price, stats }: { price: LivePairData["price"]; stats: LivePairData["stats"] }) {
+  const delta = stats.state === "ok" ? stats.change : null;
+  const change = delta?.text ?? DASH;
   return (
     <div className="pair__quote">
       <p className="pair__line">
@@ -105,8 +109,8 @@ function Quote({ price }: { price: LivePairData["price"] }) {
         <span className="pair__change">
           <span className="pair__delta">
             <LiveValue token={change}>
-              {price.change?.dir === "up" && <TriangleUpIcon />}
-              {price.change?.dir === "down" && <TriangleDownIcon />}
+              {delta?.dir === "up" && <TriangleUpIcon />}
+              {delta?.dir === "down" && <TriangleDownIcon />}
               {change}
             </LiveValue>
           </span>
@@ -249,7 +253,7 @@ function TradesCard({
           rowKey={(row) => row.key}
           minWidth={720}
           live={live}
-          empty="No trades yet."
+          empty={trades.empty}
           className="pair__trades"
         />
       </div>
@@ -305,7 +309,7 @@ function LivePair({ network, data, live }: { network: NetworkInfo; data: LivePai
       <section className="card pair__summary" aria-label="Pair summary">
         <div className="pair__lead">
           <Title head={head} invert />
-          <Quote price={data.price} />
+          <Quote price={data.price} stats={data.stats} />
         </div>
         <Stats stats={data.stats} onRetry={retry} retrying={retrying} />
       </section>

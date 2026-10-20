@@ -57,6 +57,7 @@ export interface CandleData {
   format: ValueFormat;
   volume: ValueFormat;
   forming?: boolean;                                                 // true: the newest bucket is the running one ("so far")
+  step?: string;                                                     // the words of one bucket ("4 hours"), which the slider moves by; default: the axis unit's
   token: string;
 }
 

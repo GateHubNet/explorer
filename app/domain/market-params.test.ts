@@ -41,13 +41,13 @@ describe("the tables", () => {
     expect(TRADES_API).toEqual({ book: "exclude", amm: "only" });
   });
 
-  it("has the label, API value, axis unit, span and cost class of each candle interval", () => {
+  it("has the label, API value, axis unit, step, span and cost class of each candle interval", () => {
     expect(INTERVALS).toEqual({
-      "15m": { label: "15 m", api: "15minute", unit: "minute", span: "15 hours", long: false },
-      "1h": { label: "1 h", api: "1hour", unit: "hour", span: "60 hours", long: false },
-      "4h": { label: "4 h", api: "4hour", unit: "hour", span: "10 days", long: true },
-      "1d": { label: "1 d", api: "1day", unit: "day", span: "60 days", long: true },
-      "1w": { label: "1 w", api: "7day", unit: "week", span: "60 weeks", long: true },
+      "15m": { label: "15 m", api: "15minute", unit: "minute", step: "quarter hour", span: "15 hours", long: false },
+      "1h": { label: "1 h", api: "1hour", unit: "hour", step: "hour", span: "60 hours", long: false },
+      "4h": { label: "4 h", api: "4hour", unit: "hour", step: "4 hours", span: "10 days", long: true },
+      "1d": { label: "1 d", api: "1day", unit: "day", step: "day", span: "60 days", long: true },
+      "1w": { label: "1 w", api: "7day", unit: "week", step: "week", span: "60 weeks", long: true },
     });
     expect(CANDLE_COUNT).toBe(60);
   });

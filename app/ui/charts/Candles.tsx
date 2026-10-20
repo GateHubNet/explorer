@@ -228,7 +228,7 @@ export const Candles = memo(
             yAxis="right"
             yChars={chars}
             empty={drawn ? null : (empty ?? emptyText(axis))}
-            cursor={{ count, placement: "bands", label: sliderLabel(title, axis.unit), valueText: readOut(true), tooltip: tooltip(true) }}
+            cursor={{ count, placement: "bands", label: sliderLabel(title, axis.unit, data.step), valueText: readOut(true), tooltip: tooltip(true) }}
           >
             <div className="plot__cols">
               {bars.map((bar, i) => (
@@ -265,7 +265,7 @@ export const Candles = memo(
             yAxis="right"
             yChars={chars}
             height="pane"
-            cursor={drawn ? { count, placement: "bands", label: sliderLabel(`${title}, volume`, axis.unit), valueText: readOut(false), tooltip: tooltip(false) } : undefined}
+            cursor={drawn ? { count, placement: "bands", label: sliderLabel(`${title}, volume`, axis.unit, data.step), valueText: readOut(false), tooltip: tooltip(false) } : undefined}
           >
             <div className="plot__cols">
               {bars.map((bar, i) => (

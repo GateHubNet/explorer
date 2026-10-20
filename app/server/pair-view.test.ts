@@ -508,6 +508,11 @@ describe("candlesOf", () => {
     expect(data.axis).toEqual({ unit: "hour", buckets: window.buckets });
   });
 
+  it("names the step of the slider after one bucket of the interval: 4 hours on the 4 h axis of hours", () => {
+    const step = (interval: Interval) => candlesOf(page([]), candleWindow(T, interval), interval, CODES).data.step;
+    expect((["15m", "1h", "4h", "1d", "1w"] as const).map(step)).toEqual(["quarter hour", "hour", "4 hours", "day", "week"]);
+  });
+
   it("aligns candles given in any order, the first bucket and the last included", () => {
     const { data } = candlesOf(page([candle(window.buckets[59]!), candle(window.buckets[0]!), candle(window.buckets[30]!)]), window, "1h", CODES);
     expect(data.candles.flatMap((slot, at) => (slot === null ? [] : [at]))).toEqual([0, 30, 59]);
@@ -977,7 +982,13 @@ describe("tradesOf", () => {
       rows: [],
       paging: { newerHref: null, olderHref: null },
       source: "/v2/exchanges/{base}/{counter}?descending=true",
+      empty: "No trades yet.",
     });
+  });
+
+  it("words the empty table after the Trades filter: a pair with only order-book trades has no AMM swap yet", () => {
+    expect(tradesOf(tradePage([]), { ...CTX, params: { ...DEFAULT_PARAMS, trades: "amm" } }).empty).toBe("No AMM swaps yet.");
+    expect(tradesOf(tradePage([]), { ...CTX, params: { ...DEFAULT_PARAMS, trades: "book" } }).empty).toBe("No order-book trades yet.");
   });
 });
 
@@ -1378,14 +1389,18 @@ describe("pairPage", () => {
   });
 
   describe("the price and the change", () => {
-    it("is the newest trade's price in the counter per base, with the change from the 24 h open", () => {
-      const { price } = build().page;
+    /** The change of the summary, which the 24 h figures carry (so that a beat that failed them keeps it with them). */
+    const changeIn = (page: ReturnType<typeof build>["page"]) => (page.stats.state === "ok" ? page.stats.change : null);
+
+    it("is the newest trade's price in the counter per base, with the change from the 24 h open in the 24 h figures", () => {
+      const { page } = build();
+      expect(page.price).toEqual({ text: "2.4393", unit: "USD per XRP", note: null, token: expect.stringMatching(/^[0-9a-f]{8}$/) });
       // 2.4393 ÷ 2.3952 − 1 = +1.8412%.
-      expect(price).toEqual({ text: "2.4393", unit: "USD per XRP", note: null, change: { text: "+1.84%", dir: "up" }, token: expect.stringMatching(/^[0-9a-f]{8}$/) });
+      expect(changeIn(page)).toEqual({ text: "+1.84%", dir: "up" });
     });
 
     it("signs a fall with U+2212 and calls an unchanged price flat", () => {
-      const change = (last: string, open: string) => build({ trades: tradePage([trade({ rate: last })]), stats: ok(reduced({ open })) }).page.price.change;
+      const change = (last: string, open: string) => changeIn(build({ trades: tradePage([trade({ rate: last })]), stats: ok(reduced({ open })) }).page);
       expect(change("1.5", "2")).toEqual({ text: "−25.00%", dir: "down" });
       expect(change("2", "2")).toEqual({ text: "0.00%", dir: "flat" });
       // +0.0005% rounds to nothing: no sign, flat.
@@ -1395,28 +1410,32 @@ describe("pairPage", () => {
 
     it("rounds the change half up to two decimals", () => {
       // 1.00005 ÷ 1 − 1 = 0.005% → +0.01 half up at two places of a percent (0.005 → 0.01).
-      const change = (last: string, open: string) => build({ trades: tradePage([trade({ rate: last })]), stats: ok(reduced({ open })) }).page.price.change;
+      const change = (last: string, open: string) => changeIn(build({ trades: tradePage([trade({ rate: last })]), stats: ok(reduced({ open })) }).page);
       expect(change("1.0000500", "1")).toEqual({ text: "+0.01%", dir: "up" });
       expect(change("0.9999500", "1")).toEqual({ text: "−0.01%", dir: "down" });
     });
 
     it("has no change for a window without a trade, or one whose open is not above 0, or with its figures missing", () => {
-      expect(build({ stats: ok(nothing()) }).page.price.change).toBeNull();
-      expect(build({ stats: ok(reduced({ open: "0" })) }).page.price.change).toBeNull();
+      expect(changeIn(build({ stats: ok(nothing()) }).page)).toBeNull();
+      expect(changeIn(build({ stats: ok(reduced({ open: "0" })) }).page)).toBeNull();
       // A count of 0 is no change, whatever open says.
-      expect(build({ stats: ok(reduced({ count: 0 })) }).page.price.change).toBeNull();
-      expect(build({ stats: FAILED }).page.price.change).toBeNull();
-      expect(build({ stats: ok(reduced({ open: "x" })) }).page.price.change).toBeNull();
+      expect(changeIn(build({ stats: ok(reduced({ count: 0 })) }).page)).toBeNull();
+      expect(build({ stats: FAILED }).page.stats).not.toHaveProperty("change");
+      expect(changeIn(build({ stats: ok(reduced({ open: "x" })) }).page)).toBeNull();
+      // No trade at all: no newest rate to measure from.
+      expect(changeIn(build({ trades: tradePage([]), hasTrade: false }).page)).toBeNull();
     });
 
     it("reads a price in exponent form: the price shows in plain digits and the change is of the exact figures", () => {
-      const { price } = build({ trades: tradePage([trade({ rate: "1.2000000e-7" })]), stats: ok(reduced({ open: "1.0000000e-7" })) }).page;
-      expect(price).toMatchObject({ text: "0.00000012", change: { text: "+20.00%", dir: "up" } });
+      const { page } = build({ trades: tradePage([trade({ rate: "1.2000000e-7" })]), stats: ok(reduced({ open: "1.0000000e-7" })) });
+      expect(page.price).toMatchObject({ text: "0.00000012" });
+      expect(changeIn(page)).toEqual({ text: "+20.00%", dir: "up" });
     });
 
     it("is a dash and \"No trades yet\" for a pair with no trade", () => {
-      const { price } = build({ trades: tradePage([]), hasTrade: false, stats: ok(nothing()) }).page;
-      expect(price).toMatchObject({ text: "—", unit: "USD per XRP", note: "No trades yet", change: null });
+      const { page } = build({ trades: tradePage([]), hasTrade: false, stats: ok(nothing()) });
+      expect(page.price).toMatchObject({ text: "—", unit: "USD per XRP", note: "No trades yet" });
+      expect(changeIn(page)).toBeNull();
     });
 
     it("keeps the price and notes when the newest trade is more than 24 hours before the close time", () => {
@@ -1424,18 +1443,29 @@ describe("pairPage", () => {
       const note = (executed_time: string) => build({ trades: tradePage([trade({ executed_time })]), stats: ok(nothing()) }).page.price;
       expect(note("2026-10-16T17:01:12Z").note).toBeNull();
       expect(note("2026-10-16T17:01:11Z")).toMatchObject({ text: "2.4393", note: "last trade 2026-10-16" });
-      expect(note("2026-10-03T09:00:00Z")).toMatchObject({ text: "2.4393", note: "last trade 2026-10-03", change: null });
+      expect(note("2026-10-03T09:00:00Z")).toMatchObject({ text: "2.4393", note: "last trade 2026-10-03" });
       // A trade a moment after the close time (the index is ahead of the anchor) is not old.
       expect(note("2026-10-17T17:01:30Z").note).toBeNull();
     });
 
-    it("carries a token of what it draws", () => {
+    it("carries a token of what it draws: the price's of the price, the 24 h figures' of the change with them", () => {
       const token = (over: Partial<PairInput>) => build(over).page.price.token;
       const base = token({});
       expect(token({})).toBe(base);
       expect(token({ trades: tradePage([trade({ rate: "2.4394" })]) })).not.toBe(base);
-      expect(token({ stats: ok(reduced({ open: "2.4000" })) })).not.toBe(base);
-      expect(token({ stats: ok(nothing()) })).not.toBe(base);
+      expect(token({ trades: tradePage([trade({ executed_time: "2026-10-03T09:00:00Z" })]) })).not.toBe(base);
+      const statsToken = (over: Partial<PairInput>) => {
+        const { stats } = build(over).page;
+        return stats.state === "ok" ? stats.token : null;
+      };
+      expect(statsToken({ trades: tradePage([trade({ rate: "2.4394" })]) })).not.toBe(statsToken({}));
+      expect(statsToken({ stats: ok(reduced({ open: "2.4000" })) })).not.toBe(statsToken({}));
+    });
+
+    it("words the empty price after the Trades filter: the pair may have traded otherwise", () => {
+      const empty = (trades: "amm" | "book") => build({ trades: tradePage([]), params: { ...DEFAULT_PARAMS, trades } }).page.price.note;
+      expect(empty("amm")).toBe("No AMM swaps yet");
+      expect(empty("book")).toBe("No order-book trades yet");
     });
   });
 
@@ -1543,6 +1573,15 @@ describe("pairPage", () => {
     it("is off when it was not asked for", () => {
       expect(share({ share: null })).toEqual({ state: "off" });
     });
+
+    it("is off, and no problem, for a pair whose pool card is not shown: a failed #9 fails nothing on screen (spec 3.7 step 6)", () => {
+      // A pool-less pair (most of them) while #9 is down: nothing on the page failed, so it is not degraded.
+      expect(build({ pool: MISSING, share: FAILED })).toMatchObject({ page: { pool: { state: "missing" }, share: { state: "off" } }, problems: [] });
+      expect(build({ pool: MISSING, stats: FAILED })).toMatchObject({ page: { share: { state: "off" } }, problems: ["stats"] });
+      // A pool that failed is its own problem, and the share it would have shown is not another.
+      expect(build({ pool: FAILED, share: FAILED })).toMatchObject({ page: { pool: { state: "failed" }, share: { state: "off" } }, problems: ["pool"] });
+      expect(share({ pool: MISSING })).toEqual({ state: "off" });
+    });
   });
 
   describe("the pool card", () => {
@@ -1623,7 +1662,9 @@ describe("pairPage", () => {
       });
       expect(problems).toEqual([]);
       expect(built.trades.rows).toEqual([]);
-      expect(built.price).toMatchObject({ text: "—", note: "No trades yet", change: null });
+      // The pair has traded: the empty summary and table say what the filter keeps.
+      expect(built.price).toMatchObject({ text: "—", note: "No AMM swaps yet" });
+      expect(built.trades.empty).toBe("No AMM swaps yet.");
       expect(built.stats).toMatchObject({ state: "ok", note: "No trades in the last 24 hours." });
       expect(built.candles).toMatchObject({ state: "ok", empty: "No trades in these 60 hours" });
       expect(built.indexable).toBe(false);
@@ -1646,8 +1687,10 @@ describe("pairPage", () => {
     });
 
     it("lists the failed parts once each, in the order of the page's parts", () => {
-      const { problems } = build({ share: FAILED, pool: FAILED, bids: FAILED, traders: FAILED, candles: FAILED, stats: FAILED });
-      expect(problems).toEqual(["stats", "candles", "traders", "book", "pool", "share"]);
+      // The share is a line of the pool card: it can fail only beside a pool that did not.
+      const { problems } = build({ share: FAILED, bids: FAILED, traders: FAILED, candles: FAILED, stats: FAILED });
+      expect(problems).toEqual(["stats", "candles", "traders", "book", "share"]);
+      expect(build({ share: FAILED, pool: FAILED, bids: FAILED, traders: FAILED, candles: FAILED, stats: FAILED }).problems).toEqual(["stats", "candles", "traders", "book", "pool"]);
     });
 
     it("fails the share too when the 24 h figures it needs are what failed: it shows its error, so it is named", () => {

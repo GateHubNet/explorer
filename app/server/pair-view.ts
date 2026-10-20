@@ -216,6 +216,8 @@ export function candlesOf(
     format: { kind: "price", unit: codes.counter },
     volume: { kind: "amount", unit: codes.base },
     forming: true,
+    // The slider moves a bucket at a time: "4 hours", where the axis unit (hour) would say one.
+    step: INTERVALS[interval].step,
   };
   return {
     data: { ...data, token: tokenOf(data) },
@@ -272,6 +274,14 @@ export interface TradesView {
   paging: Paging;
   /** The route the list came from. */
   source: string;
+  /** What the table says without a row, in the words of the Trades filter: "No trades yet.", "No AMM swaps yet.", "No order-book trades yet.". */
+  empty: string;
+}
+
+/** The change of the summary: "+1.84%" and its direction. */
+export interface PriceChange {
+  text: string;
+  dir: "up" | "down" | "flat";
 }
 
 /** What the answers say of whether the market exists: see `existenceOf`. */
@@ -288,9 +298,14 @@ export interface LivePairData {
   /** Whether the AMM parts exist on this page: XRPL with `AMM_DATA` on. */
   ammParts: boolean;
   filters: { trades: SegmentLink[] | null; interval: SegmentLink[] };
-  price: { text: string; unit: string; note: string | null; change: { text: string; dir: "up" | "down" | "flat" } | null; token: string };
-  /** A part that failed keeps its six labels (`statLabels`, the loaded part's own): the page shows them with a dash each. */
-  stats: { state: "ok"; items: { label: string; value: string }[]; note: string | null; token: string } | { state: "failed"; labels: string[] };
+  price: { text: string; unit: string; note: string | null; token: string };
+  /**
+   * A part that failed keeps its six labels (`statLabels`, the loaded part's own): the page shows them with a dash each. `change` is the summary's
+   * change of 24 h, from the 24 h open: it is carried here, with the figures it is worked out from, so that a beat that failed #3 keeps both.
+   */
+  stats:
+    | { state: "ok"; items: { label: string; value: string }[]; note: string | null; change: PriceChange | null; token: string }
+    | { state: "failed"; labels: string[] };
   /** The source names the interval and the Trades filter in either state: the card keeps its head when it fails. */
   candles: { state: "ok"; data: CandleData; source: string; empty: string | null } | { state: "failed"; source: string };
   trades: TradesView;
@@ -398,6 +413,11 @@ function summaryText(text: string | undefined): string {
   return isNumberText(text) ? compactNumber(text) : DASH;
 }
 
+/** "No trades yet" in the words of the Trades filter: the trades it keeps may be none while the pair has traded otherwise. */
+function noTradesYet(trades: TradesFilter | null): string {
+  return trades === "amm" ? "No AMM swaps yet" : trades === "book" ? "No order-book trades yet" : "No trades yet";
+}
+
 /** The data API's `amm` parameter of a Trades filter, as it follows the other parameters of a source line. */
 function ammQuery(trades: TradesFilter | null): string {
   return trades === null ? "" : `&amm=${TRADES_API[trades]}`;
@@ -474,7 +494,7 @@ export function tradesOf(
   const paging = trailPaging({ marker: params.marker, back: params.back, next: page.marker }, (to) =>
     marketHref(net, base, counter, { trades: params.trades, ...to }),
   );
-  return { rows, paging, source: `/v2/exchanges/{base}/{counter}?descending=true${ammQuery(params.trades)}` };
+  return { rows, paging, source: `/v2/exchanges/{base}/{counter}?descending=true${ammQuery(params.trades)}`, empty: `${noTradesYet(params.trades)}.` };
 }
 
 // ---- The 24 h figures and the price ---------------------------------------------------------------------------------------------------------
@@ -489,9 +509,10 @@ export function statLabels(codes: { base: string; counter: string }): string[] {
 
 /**
  * The six figures of the 24 hours (spec 3.1) from the one row of `reduce=true`: high, low and VWAP with `formatPrice`, the two volumes compact, the
- * trades grouped. A window with no trade has dashes for the prices and "0" for the rest (its row is all zeros), and a note that says so.
+ * trades grouped. A window with no trade has dashes for the prices and "0" for the rest (its row is all zeros), and a note that says so. `last` is
+ * the newest trade's rate, when there is one: the summary's change is from the window's open to it, so it exists only when the window has a trade.
  */
-export function statsOf(row: ReducedRow, codes: { base: string; counter: string }): Extract<LivePairData["stats"], { state: "ok" }> {
+export function statsOf(row: ReducedRow, codes: { base: string; counter: string }, last?: string): Extract<LivePairData["stats"], { state: "ok" }> {
   const traded = row.count > 0;
   const values = [
     traded ? priceText(row.high) : DASH,
@@ -503,13 +524,14 @@ export function statsOf(row: ReducedRow, codes: { base: string; counter: string 
   ];
   const items = statLabels(codes).map((label, at) => ({ label, value: values[at]! }));
   const note = traded ? null : "No trades in the last 24 hours.";
-  return { state: "ok", items, note, token: tokenOf({ items, note }) };
+  const change = traded && last !== undefined ? changeOf(last, row.open) : null;
+  return { state: "ok", items, note, change, token: tokenOf({ items, note, change }) };
 }
 
 const DAY_SECONDS = 86_400;
 
 /** `(last ÷ open − 1) × 100` as the page shows it (2 decimals, half up, signed), or `null` where either price is not a number or `open` is not above 0. */
-function changeOf(last: string, open: string): NonNullable<LivePairData["price"]["change"]> | null {
+function changeOf(last: string, open: string): PriceChange | null {
   const [now, then] = [decimalOf(last), decimalOf(open)];
   if (now === null || then === null || !then.gt(0)) return null;
   const change = now.div(then).minus(1).times(100);
@@ -518,27 +540,20 @@ function changeOf(last: string, open: string): NonNullable<LivePairData["price"]
 }
 
 /**
- * The price of the summary (spec 3.7): the newest trade's rate, a dash and "No trades yet" without one, and "last trade 2026-10-03" when that trade is
- * more than 24 hours before the close time. The change is from the 24 h open, so it exists only when the window has a trade; both prices follow the
- * Trades filter, and so describe the same trades.
+ * The price of the summary (spec 3.7): the newest trade's rate, a dash and "No trades yet" (in the words of the Trades filter) without one, and "last
+ * trade 2026-10-03" when that trade is more than 24 hours before the close time. The change beside it is the 24 h figures' (`statsOf`); both follow
+ * the Trades filter, and so describe the same trades.
  */
-function priceOf(
-  trades: readonly PairExchange[],
-  stats: Loaded<ReducedRow>,
-  closeTime: number,
-  head: PairHead,
-): LivePairData["price"] {
+function priceOf(trades: readonly PairExchange[], closeTime: number, head: PairHead, filter: TradesFilter | null): LivePairData["price"] {
   const unit = `${head.counter} per ${head.base}`;
   const newest = trades[0];
   let text = DASH;
-  let note: string | null = "No trades yet";
-  let change: LivePairData["price"]["change"] = null;
+  let note: string | null = noTradesYet(filter);
   if (newest !== undefined) {
     text = priceText(newest.rate);
     note = Date.parse(newest.executed_time) / 1000 < closeTime - DAY_SECONDS ? `last trade ${newest.executed_time.slice(0, 10)}` : null;
-    if (stats.state === "ok" && stats.value.count > 0) change = changeOf(newest.rate, stats.value.open);
   }
-  return { text, unit, note, change, token: tokenOf({ text, unit, note, change }) };
+  return { text, unit, note, token: tokenOf({ text, unit, note }) };
 }
 
 // ---- The pool -------------------------------------------------------------------------------------------------------------------------------
@@ -697,7 +712,7 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
 
   // A failed card keeps what its head and its words need (the labels, the title, the source line): the page writes none of them.
   const stats: LivePairData["stats"] =
-    input.stats.state === "ok" ? statsOf(input.stats.value, codes) : { state: "failed", labels: statLabels(codes) };
+    input.stats.state === "ok" ? statsOf(input.stats.value, codes, input.trades.exchanges[0]?.rate) : { state: "failed", labels: statLabels(codes) };
   const candlesSource = `/v2/exchanges/{base}/{counter}?interval=${INTERVALS[params.interval].api}${ammQuery(params.trades)}`;
   const candles: LivePairData["candles"] =
     input.candles.state === "ok"
@@ -723,8 +738,10 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
     input.asks.state === "ok" && input.bids.state === "ok"
       ? { state: "ok", source: `${BOOK_SOURCE}${LEDGER_WORDS}`, ...bookOf(input.asks.value, input.bids.value) }
       : { state: "failed", source: BOOK_SOURCE };
+  // The share is a line of the pool card: a pair whose pool is not shown (none, mostly, or one that failed) shows no share, so a failed #9 is no
+  // problem of its page (spec 3.7 step 6: an absent pool is an answer).
   let share: LivePairData["share"] = { state: "off" };
-  if (ammParts && input.share !== null) {
+  if (ammParts && input.share !== null && pool.state === "ok") {
     const text = input.share.state === "ok" && input.stats.state === "ok" ? shareText(params.trades, input.stats.value, input.share.value) : null;
     share = text === null ? FAILED_PART : { state: "ok", text };
   }
@@ -753,7 +770,7 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
         current: params.interval === interval,
       })),
     },
-    price: priceOf(input.trades.exchanges, input.stats, input.closeTime, head),
+    price: priceOf(input.trades.exchanges, input.closeTime, head, params.trades),
     stats,
     candles,
     trades,

@@ -480,6 +480,15 @@ describe("Candles' time axes, and the bucket that is still running", () => {
     expect(errors).toEqual([]);
   });
 
+  it("names both sliders after the data's step when it has one: a 4-hour candle on an axis of hours moves 4 hours by 4 hours", async () => {
+    const { container } = await serverThenHydrated(<Candles title={TITLE} data={hourly({ step: "4 hours" })} />);
+    expect(sliders(container).map((slider) => slider.getAttribute("aria-label"))).toEqual(["Price, XRP/USD, 4 hours by 4 hours", "Price, XRP/USD, volume, 4 hours by 4 hours"]);
+    cleanup();
+    // Without one, the axis unit's words, as before.
+    const plain = await serverThenHydrated(<Candles title={TITLE} data={hourly()} />);
+    expect(sliders(plain.container).map((slider) => slider.getAttribute("aria-label"))).toEqual(["Price, XRP/USD, hour by hour", "Price, XRP/USD, volume, hour by hour"]);
+  });
+
   it("says a quarter hour's tooltip with its day and time, and 'No data for' the one with no candle", async () => {
     const { container } = await mounted(<Candles title={TITLE} data={quarterly()} />);
     fireEvent.pointerMove(sliders(container)[0]!, mouse(100));

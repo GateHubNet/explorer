@@ -62,6 +62,7 @@ test.describe("the views are URLs", () => {
     const slider = card.getByRole("slider").first();
     if (!LIVE) await expect(time).toHaveText("Oct 17, 2026, 17:00 UTC · so far");
     const hourly = await slider.getAttribute("aria-valuetext");
+    await expect(slider).toHaveAttribute("aria-label", "XRP/RLUSD price, hour by hour");
 
     await interval.getByRole("link", { name: "4 h" }).click();
     await page.waitForURL(`**${PAIR}?interval=4h`);
@@ -70,6 +71,8 @@ test.describe("the views are URLs", () => {
     // The newest bucket is the 4 hours that hold the newest ledger (16:00 to 20:00 UTC on the fixtures' index day), still forming.
     if (!LIVE) await expect(time).toHaveText("Oct 17, 2026, 16:00 UTC · so far");
     await expect(slider).not.toHaveAttribute("aria-valuetext", hourly!);
+    // An Arrow press moves a 4-hour bucket, and the slider's name says so.
+    await expect(slider).toHaveAttribute("aria-label", "XRP/RLUSD price, 4 hours by 4 hours");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
     await expect(page).toHaveTitle(/ · XRPL market · 4 h candles · explorer$/);

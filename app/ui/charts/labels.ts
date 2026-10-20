@@ -138,9 +138,12 @@ const NOUNS = {
   flag: ["flag ledger", "flag ledgers"],
 } as const;
 
-/** The name of a plot's slider (the `aria-label` of its cursor): the chart and the step it moves by, `Transactions by type, per day, day by day`. */
-export function sliderLabel(title: string, unit: TimeAxis["unit"]): string {
-  const [one] = NOUNS[unit];
+/**
+ * The name of a plot's slider (the `aria-label` of its cursor): the chart and the step it moves by, `Transactions by type, per day, day by day`.
+ * `step` names one bucket where the axis unit does not (a 4-hour bucket on an axis of hours: `4 hours by 4 hours`); by default it is the unit's.
+ */
+export function sliderLabel(title: string, unit: TimeAxis["unit"], step?: string): string {
+  const one = step ?? NOUNS[unit][0];
   return `${title}, ${one} by ${one}`;
 }
 
