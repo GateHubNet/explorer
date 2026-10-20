@@ -105,6 +105,20 @@ function timeSeries(title: string, data: TimeSeriesData, totalLabel: string) {
       cell: (i) => <span className="chart__total">{figure(totals[i] ?? null, format)}</span>,
     });
   }
+  // An extra's cell is the text as given, or by its format; it is not data, so it does not keep a table with no value of its own.
+  for (const extra of data.extras ?? []) {
+    cols.push({
+      id: `extra-${extra.id}`,
+      header: extra.label,
+      min: FIGURE,
+      figure: true,
+      grow: true,
+      cell: (i) => {
+        const text = extra.values[i] ?? null;
+        return text !== null && !extra.format ? text : figure(text, extra.format);
+      },
+    });
+  }
   const empty = !data.series.some((series) => hasValue(series.values)) && !hasValue(totals);
   return <Grid title={title} cols={cols} rows={empty ? [] : newestFirst(axis.buckets.length)} rowKey={(i) => axis.buckets[i] ?? String(i)} />;
 }
@@ -191,7 +205,7 @@ function candles(title: string, data: CandleData) {
 /**
  * The table view of every chart form (spec 2.5): a compact `DataTable`, 300 px high at most, named `title`, with the exact values as the
  * view builder made them. A form over time lists the newest bucket first, its date in UTC ("Oct 17, 2026, so far" while it runs, which the
- * candles' `forming` says too), one column for each series or panel and, for stacks, `totalLabel` after them. A bar list has its name, value,
+ * candles' `forming` says too), one column for each series or panel and, for stacks, `totalLabel` after them, then one for each of the data's `extras`. A bar list has its name, value,
  * share (when any item has one) and count; shares have the row, its total and a column for each segment; candles have open, high, low, close
  * (`formatPrice` text), volume and trades. A value that is missing is a dash that
  * screen readers hear as "no data"; with no value at all there are no rows and the table says "No data". The unit is not in a cell: the

@@ -2,13 +2,21 @@
 // strings; the kit parses them with `Number()` for geometry and nothing else. Every text a chart shows is made from the strings.
 
 export type Slot = 1 | 2 | 3 | 4 | 5 | "other" | "up" | "down" | "neutral";
-export type ValueKind = "count" | "amount" | "drops" | "percent" | "seconds" | "price";
+export type ValueKind = "count" | "amount" | "drops" | "percent" | "seconds" | "price" | "value";   // "value": an estimate in the native currency
 export interface ValueFormat { kind: ValueKind; unit?: string }             // unit: "XRP", "USD", "drops"
 export interface TimeAxis {
-  unit: "day" | "week" | "hour" | "minute" | "flag";                 // "minute": 15-minute buckets ("17:15"); "flag": one point per flag ledger, evenly spaced
+  unit: "day" | "week" | "month" | "hour" | "minute" | "flag";       // "month": YYYY-MM-01; "minute": 15-minute buckets ("17:15"); "flag": one point per flag ledger, evenly spaced
   buckets: string[];                                                 // UTC: YYYY-MM-DD, or YYYY-MM-DDTHH:mm:ssZ; oldest first
 }
 export interface Series { id: string; label: string; short?: string; slot: Slot; values: (string | null)[] }  // null: no value
+/** A per-bucket figure that is shown in the tooltip, the slider and the table, and never drawn. */
+export interface TimeSeriesExtra {
+  id: string;
+  label: string;
+  values: (string | null)[];                                         // one per bucket of the axis; null is "no data"
+  format?: ValueFormat;
+  tooltip?: "value-label" | "value";                                 // the tooltip row's form; default "value-label"
+}
 export interface TimeSeriesData {
   axis: TimeAxis;
   series: Series[];                                                  // in their fixed order; stacks bottom up
@@ -19,6 +27,7 @@ export interface TimeSeriesData {
   annotations?: { bucket: number; symbol: string; label: string }[];
   forming?: boolean;                                                 // true: the newest bucket is the running one ("so far")
   pending?: number;                                                  // how many of the newest buckets are not computed yet (0 to 2)
+  extras?: TimeSeriesExtra[];                                        // never part of the scales, the legend or the summary; the token must cover them
   token: string;
 }
 export interface SmallMultiplesData {
