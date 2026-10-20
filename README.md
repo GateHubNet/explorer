@@ -1004,8 +1004,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
 - **WebAssembly.** `workers-og` imports its two `.wasm` files itself (`import x from "./resvg.wasm"`), which the Cloudflare Vite plugin
   and the Vitest plugin both turn into compiled modules: no configuration was needed.
 - **Size and loading.** `workers-og` and the fonts are imported with `import()` on the first image drawn, so they are separate chunks that
-  no other route loads, and `test/unit/og-bundle.test.ts` checks that nothing of the renderer is named outside `app/og/render.ts`, that
-  `app/server/meta.ts` (which the browser runs) cannot reach it, and, when a build exists, that `build/client` holds none of it.
+  no other route loads, and `test/unit/og-bundle.test.ts` checks that nothing of the renderer is named outside `app/og/render.ts` and that
+  `app/server/meta.ts` (which the browser runs) cannot reach it; `pnpm check:bundle` checks that `build/client` holds none of it.
   Worker upload (`wrangler deploy --dry-run`, 14 modules): 5105 KiB / **1556 KiB gzip** (was 2486 / 548 KiB): the renderer chunk 503 KiB, the
   resvg and yoga wasm 1428 KiB, the fonts 663 KiB. The limit is 10 MB gzip. (The initial JavaScript of the pages is not repeated here: `pnpm check:bundle`
   prints it, and "The client bundle check" has the budget and the figures of the day.)
@@ -1027,9 +1027,10 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   the DOM types their `page.evaluate` callbacks need (and `app/ui/features.ts`, which `scripts/e2e-env.ts` imports), and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
-  a missing file) and the command (`scripts/check-bundle.ts`, which also reads the `vendor` and `shell` chunks in the manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and
-  `shell` chunks (the closure over a made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest; no test
-  reads `build/`);
+  a `.wasm`, `.ttf` or `.bin` file in `assets/`, a missing file) and the command (`scripts/check-bundle.ts`, which also reads the `vendor` and `shell`
+  chunks in the manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and `shell` chunks (the closure over a
+  made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest). No test reads `build/`: what the build
+  holds is `pnpm check:bundle`'s;
   `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through, `E2E_FEATURES_OFF`); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
@@ -1372,9 +1373,11 @@ was reached (a link to it included): a gate that cannot tell whether it is being
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
   and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its
   `gzip -9` size. Sizes are in kilobytes of 1000 bytes. 150,000 bytes passes and 150,001 fails;
-- any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
-  the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
-  These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts and images are not read;
+- any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `yoga-wasm`, `Geist-Regular.bin`, `AffectedNodes`, `TransactionType`,
+  `FinalFields`, `ripple-binary` or the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps
+  and its names it does not). These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts
+  and images are not read;
+- `build/client/assets` holds a `.wasm`, `.ttf` or `.bin` file: WebAssembly, or a font that is not the pages' own WOFF2 (the image renderer's);
 - `build/client/_headers` is missing or lacks the rule that keeps `/assets/*` for a year;
 - the manifest or a file it names is missing.
 

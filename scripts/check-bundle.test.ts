@@ -313,10 +313,26 @@ describe("checkBundle: what must not be in the build", () => {
     expect(checkBundle(dir).problems).toHaveLength(1);
   });
 
-  it("forbids the renderer, the transaction parser's vocabulary, the binary codec and the QR encoder's tables", () => {
+  it("forbids the renderer and its font, the transaction parser's vocabulary, the binary codec and the QR encoder's tables", () => {
     expect(FORBIDDEN.map((forbidden) => forbidden.label).sort()).toEqual(
-      ["AffectedNodes", "FinalFields", "QR encoder tables", "TransactionType", "resvg", "ripple-binary", "satori", "workers-og"].sort(),
+      ["AffectedNodes", "FinalFields", "Geist-Regular.bin", "QR encoder tables", "TransactionType", "resvg", "ripple-binary", "satori", "workers-og", "yoga-wasm"].sort(),
     );
+  });
+
+  it.each(["assets/yoga.wasm", "assets/resvg-AbC123.wasm", "assets/Geist-Regular.ttf", "assets/Geist-Regular-abc123.bin", "assets/FONT.TTF"])(
+    "fails on %s: WebAssembly or a font that is not the pages' WOFF2 is the image renderer's",
+    (file) => {
+      const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, extra: { [file]: Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]) } });
+      const problems = checkBundle(dir).problems;
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain(file);
+      expect(problems[0]).toContain("the image renderer's");
+    },
+  );
+
+  it("takes the pages' own WOFF2 fonts", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, extra: { "assets/Geist-Regular-abc123.woff2": Buffer.from("wOF2"), "assets/GeistMono-Regular-abc123.woff2": Buffer.from("wOF2") } });
+    expect(checkBundle(dir).problems).toEqual([]);
   });
 
   it("has a QR needle that finds the tables in the encoder's own source, spaced or minified", () => {

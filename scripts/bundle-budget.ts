@@ -7,6 +7,7 @@
 //     page (the route manifest is in it: see below);
 //   - a file of the build holds something that belongs to the Worker alone: the image renderer, the transaction parser's vocabulary,
 //     the binary codec or the QR encoder (they would weigh on every visitor, and the pages are drawn from data that is ready);
+//   - `assets/` holds WebAssembly or a font that is not the pages' own WOFF2 (`.wasm`, `.ttf`, `.bin`: the image renderer's);
 //   - the build has no `_headers` rule that keeps the hashed assets in `assets/` for a year.
 //
 // What a page loads first is what the browser fetches before the page works: the entry, the root route, the `/:net` layout, the
@@ -45,13 +46,16 @@ export interface Forbidden {
 }
 
 /**
- * Names that must not appear anywhere in `build/client`. The first four are what the Worker alone uses to read a transaction and to
- * draw an image; the QR encoder is found by its tables, because the names of a minified bundle are gone and its numbers are not.
+ * Names that must not appear anywhere in `build/client`. The image renderer (workers-og: Satori, resvg-wasm, yoga-wasm and the font it
+ * draws with) and the transaction parser's vocabulary are what the Worker alone uses to draw an image and to read a transaction; the QR
+ * encoder is found by its tables, because the names of a minified bundle are gone and its numbers are not.
  */
 export const FORBIDDEN: readonly Forbidden[] = [
   { label: "workers-og", pattern: /workers-og/, sample: 'import("workers-og")' },
   { label: "satori", pattern: /satori/, sample: "satori" },
   { label: "resvg", pattern: /resvg/, sample: "resvg" },
+  { label: "yoga-wasm", pattern: /yoga-wasm/, sample: 'import("yoga-wasm-web")' },
+  { label: "Geist-Regular.bin", pattern: /Geist-Regular\.bin/, sample: '"./Geist-Regular.bin"' },
   { label: "AffectedNodes", pattern: /AffectedNodes/, sample: "t.AffectedNodes" },
   { label: "TransactionType", pattern: /TransactionType/, sample: "t.TransactionType" },
   { label: "FinalFields", pattern: /FinalFields/, sample: "n.FinalFields" },
@@ -62,6 +66,9 @@ export const FORBIDDEN: readonly Forbidden[] = [
 
 /** What is not text and is not read: a font or an image cannot hold a name by accident worth failing a build for. */
 const BINARY = /\.(woff2?|ttf|otf|ico|png|jpe?g|gif|webp|avif|wasm)$/i;
+
+/** What `assets/` never holds: WebAssembly, and a font that is not the pages' WOFF2 (the image renderer's TTF, or its font as `.bin`). */
+const WORKER_FILE = /^assets\/[^/]+\.(wasm|ttf|bin)$/i;
 
 export interface PageReport {
   name: string;
@@ -200,6 +207,7 @@ export function checkBundle(dir: string): BundleReport {
     if (manifest) problems.push(`cannot list ${dir}`);
   }
   for (const file of all) {
+    if (WORKER_FILE.test(file)) problems.push(`${file} is WebAssembly or a font that is not the pages' WOFF2: the image renderer's, which belongs to the Worker alone`);
     if (BINARY.test(file)) continue;
     const text = readFileSync(join(dir, file), "latin1");
     for (const forbidden of FORBIDDEN) {
