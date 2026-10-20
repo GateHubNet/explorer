@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 
+import { featuresOff } from "../../scripts/e2e-env";
 import { count, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRPL_ACCOUNT } from "./fixtures";
 import { expect, hydrated, test } from "./support";
 
@@ -127,6 +128,50 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await page.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
     await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
     expect((await head(page)).robots).toBeNull();
+    expect(await sameDocument(page)).toBe(true);
+  });
+
+  test("lose the canonical link and the sharing tags and gain `noindex` on the Analytics tab, and get them back", async ({ page, baseURL }) => {
+    test.skip(featuresOff(process.env).has("ACCOUNT_ANALYTICS"), "ACCOUNT_ANALYTICS is off in the Worker under test: the tab is not a link");
+    const origin = new URL(baseURL!).origin;
+    const account = `/xrpl/account/${XRPL_ACCOUNT}`;
+    await page.goto(account);
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+    const first = await head(page);
+    expect(first.canonical).toBe(`${origin}${account}`);
+    expect(first.robots).toBeNull();
+    expect(first.ogImage).toBe(`${origin}/og/xrpl/account/${XRPL_ACCOUNT}.png`);
+
+    // The tab: a view kept out of the index (spec 4), with nothing to share and no canonical URL.
+    await page.getByRole("navigation", { name: "Account activity" }).getByRole("link", { name: "Analytics" }).click();
+    await page.waitForURL(`**${account}?tab=analytics`);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
+    expect(await head(page)).toEqual({
+      title: "Analytics · Account rBbW6i…W5jh · XRPL · explorer",
+      canonical: null,
+      robots: "noindex, follow",
+      ogTitle: null,
+      ogUrl: null,
+      ogImage: null,
+      twitterCard: null,
+    });
+
+    // Another period of it: the period in the title, and the same tags.
+    await page.getByRole("group", { name: "Analytics filters" }).getByRole("link", { name: "1 year" }).click();
+    await page.waitForURL(`**${account}?tab=analytics&period=1y`);
+    await expect(page).toHaveTitle("Analytics, last 52 weeks · Account rBbW6i…W5jh · XRPL · explorer");
+    expect((await head(page)).robots).toBe("noindex, follow");
+    expect((await head(page)).canonical).toBeNull();
+
+    // Back twice with the browser's button, to the account page: its own tags again, in the same document.
+    await page.goBack();
+    await page.waitForURL(`**${account}?tab=analytics`);
+    await expect(page).toHaveTitle("Analytics · Account rBbW6i…W5jh · XRPL · explorer");
+    await page.goBack();
+    await page.waitForURL((url) => url.pathname === account && url.search === "");
+    await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
+    expect(await head(page)).toEqual(first);
     expect(await sameDocument(page)).toBe(true);
   });
 

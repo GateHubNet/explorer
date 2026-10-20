@@ -24,6 +24,9 @@ export const XRPL_ACCOUNT = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
 /** An active Xahau account. */
 export const XAHAU_ACCOUNT = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 
+/** A deleted XRPL account: the index has its creation and its recorded AccountDelete, the node has no account (README "Upstream fixtures"). */
+export const XRPL_DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
+
 /** Valid, and in no recording: neither the index nor the node has it. */
 export const NEVER_FUNDED = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
 

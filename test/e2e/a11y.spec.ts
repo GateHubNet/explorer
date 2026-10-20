@@ -1,13 +1,25 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
+import { featuresOff } from "../../scripts/e2e-env";
 import { fixtures, unavailable } from "./fixture-control";
-import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_ACCOUNT, XAHAU_LEDGER, XRPL_ACCOUNT, XRPL_HEAD_LEDGER, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
+import {
+  LIVE,
+  NEVER_FUNDED,
+  NO_SUCH_TRANSACTION,
+  XAHAU_ACCOUNT,
+  XAHAU_LEDGER,
+  XRPL_ACCOUNT,
+  XRPL_DELETED,
+  XRPL_HEAD_LEDGER,
+  XRPL_LEDGER,
+  XRPL_PAYMENT,
+} from "./fixtures";
 import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
-// ledger, transaction, account, network and 404 pages, in light and in dark, on a desktop and on a 375 px phone. Dark is reached both ways it
-// can be: the system's (`prefers-color-scheme`) and the visitor's (the theme toggle, which wins over the system).
+// ledger, transaction, account, network and 404 pages and the account's analytics view, in light and in dark, on a desktop and on a 375 px phone.
+// Dark is reached both ways it can be: the system's (`prefers-color-scheme`) and the visitor's (the theme toggle, which wins over the system).
 
 type Theme = "light" | "dark";
 
@@ -32,6 +44,21 @@ const networkReady = async (page: Page) => {
 
 const NETWORK: PageUnderTest = { name: "network", path: "/xrpl/network", ready: networkReady };
 
+/**
+ * The account's analytics view is whole when its frame and every part have streamed in (nothing in it is `aria-busy`) and, with the fixtures,
+ * whose charts all have data, the script has given its plots their sliders: the view is a lazy chunk, which hydrates after the page.
+ */
+const analyticsReady = async (page: Page) => {
+  await expect(page.getByRole("group", { name: "Analytics filters" }).getByRole("status")).not.toHaveText("Loading analytics…");
+  await expect(page.locator(".analytics [aria-busy]")).toHaveCount(0);
+  if (!LIVE) await expect(page.locator(".analytics").getByRole("slider").first()).toBeAttached();
+};
+
+const ANALYTICS: PageUnderTest = { name: "account analytics", path: `/xrpl/account/${XRPL_ACCOUNT}?tab=analytics`, ready: analyticsReady };
+
+/** The analytics views, while ACCOUNT_ANALYTICS is on in the Worker under test; with it off they are redirects to the account page, which is above. */
+const analyticsViews = (pages: PageUnderTest[]): PageUnderTest[] => (featuresOff(process.env).has("ACCOUNT_ANALYTICS") ? [] : pages);
+
 /** The pages the spec names, and the matrix below runs all of them in every setting. */
 const MAIN: PageUnderTest[] = [
   { name: "home", path: "/xrpl", ready: visible("Latest ledgers") },
@@ -40,6 +67,7 @@ const MAIN: PageUnderTest[] = [
   { name: "account", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions") },
   { name: "404", path: "/xrpl/nothing-here", ready: async (page) => void (await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible()) },
   NETWORK,
+  ...analyticsViews([ANALYTICS]),
 ];
 
 /** More of what a visitor sees, in light and dark (the system's) only. */
@@ -83,6 +111,33 @@ const MORE: PageUnderTest[] = [
       await expect(page.locator(".plot__tip").first()).toBeVisible();
     },
   },
+  // The analytics view in its other forms: a year (weeks), All (months), the other network, a deleted account (made of the fixtures by hand),
+  // every chart as a table, and a slider with its tooltip. (The one with a card that failed needs the fixture server to fail a call: it is below.)
+  ...analyticsViews([
+    { name: "account analytics, a year", path: `${ANALYTICS.path}&period=1y`, ready: analyticsReady },
+    { name: "account analytics, all", path: `${ANALYTICS.path}&period=all`, ready: analyticsReady },
+    { name: "Xahau account analytics", path: `/xahau/account/${XAHAU_ACCOUNT}?tab=analytics`, ready: analyticsReady },
+    ...(LIVE ? [] : [{ name: "deleted account analytics", path: `/xrpl/account/${XRPL_DELETED}?tab=analytics`, ready: analyticsReady }]),
+    {
+      name: "account analytics, every table view",
+      path: ANALYTICS.path,
+      ready: analyticsReady,
+      act: async (page) => {
+        for (const radio of await page.locator(".analytics").getByRole("radio", { name: "Table" }).all()) await radio.check();
+        await expect(page.locator(".analytics .chart__table").first()).toBeVisible();
+        await expect(page.locator(".analytics .chart__view").first()).toBeHidden();
+      },
+    },
+    {
+      name: "account analytics, a slider focused",
+      path: ANALYTICS.path,
+      ready: analyticsReady,
+      act: async (page) => {
+        await page.locator(".analytics").getByRole("slider").first().focus();
+        await expect(page.locator(".analytics .plot__tip").first()).toBeVisible();
+      },
+    },
+  ]),
 ];
 
 const VIEWPORTS = [
@@ -151,7 +206,7 @@ test.describe("landmarks", () => {
 // axe reports a name on an element that cannot have one (`aria-label` on a `span` with no role) not as a violation but as "needs review",
 // so the gate above does not see it: the controls the pages draw are looked at for it.
 test.describe("names", () => {
-  for (const under of [MORE[0]!, ...MAIN.slice(0, 4), NETWORK, ...MORE.filter((page) => page.name.startsWith("newest ledger"))]) {
+  for (const under of [MORE[0]!, ...MAIN.slice(0, 4), NETWORK, ...analyticsViews([ANALYTICS]), ...MORE.filter((page) => page.name.startsWith("newest ledger"))]) {
     test(`${under.name}: nothing is given a name it cannot have`, async ({ page }) => {
       await page.goto(under.path);
       await hydrated(page);
@@ -211,41 +266,57 @@ test.describe("the gate", () => {
   });
 });
 
-// A network page with a card that could not be loaded: its error, its Retry button and the rest of the page beside it. The fixture server is
-// made to fail one call, and what it answers shows in every page the Worker renders meanwhile; these tests run in the `chromium` project with the
-// others, so the call is one that no other spec asks for (`stats/type` of the 7 days on XRPL: the other specs open the 30 days, the year and USD,
-// and the `live` project runs alone, after them), the four tests of the group run one after another in one worker, and the override is taken away
-// when the last of them is done.
+// A network page and an analytics view with a card that could not be loaded: its error, its Retry button and the rest of the page beside it. The
+// fixture server is made to fail one call of each, and what it answers shows in every page the Worker renders meanwhile; these tests run in the
+// `chromium` project with the others, so each call is one that no other spec asks for (`stats/type` of the 7 days on XRPL: the other specs open the
+// 30 days, the year and USD; `stats/transactions` of the Xahau account's 90 days: the other specs open its default view, and the `live` project,
+// which runs alone after them, its year), the tests of the group run one after another in one worker, and the override is taken away when the
+// last of them is done. Both calls are in the one override: a `PUT` replaces the overrides before it.
 const TYPES_SEVEN_DAYS = "GET /v2/stats/type?end=2026-10-17&interval=day&limit=1000&start=2026-10-11";
+const XAHAU_SENT_NINETY_DAYS = `xahau GET /v2/accounts/${XAHAU_ACCOUNT}/stats/transactions?interval=day&limit=1000&start=2026-07-20`;
 
-test.describe("a network page with a card that failed", () => {
+test.describe("pages with a card that failed", () => {
   test.skip(LIVE, "fails a call of the fixture server: it needs the fixture server of the stack, not a real stack or a deployed Worker");
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    await fixtures.override({ [TYPES_SEVEN_DAYS]: unavailable() });
+    await fixtures.override({ [TYPES_SEVEN_DAYS]: unavailable(), [XAHAU_SENT_NINETY_DAYS]: unavailable() });
   });
   test.afterAll(async () => {
     await fixtures.reset();
   });
 
-  const failed: PageUnderTest = {
-    name: "network, a card that failed",
-    path: "/xrpl/network?period=7d",
-    ready: async (page) => {
-      await expect(page.getByText("Couldn’t load transactions by type")).toBeVisible();
-      await expect(page.getByRole("slider").first()).toBeAttached();
+  const failed: PageUnderTest[] = [
+    {
+      name: "network, a card that failed",
+      path: "/xrpl/network?period=7d",
+      ready: async (page) => {
+        await expect(page.getByText("Couldn’t load transactions by type")).toBeVisible();
+        await expect(page.getByRole("slider").first()).toBeAttached();
+      },
     },
-  };
+    ...analyticsViews([
+      {
+        name: "account analytics, a card that failed",
+        path: `/xahau/account/${XAHAU_ACCOUNT}?tab=analytics&period=90d`,
+        ready: async (page) => {
+          await analyticsReady(page);
+          await expect(page.locator('section[aria-labelledby="analytics-sent-title"]').getByRole("alert")).toContainText("Couldn’t load the transactions sent.");
+        },
+      },
+    ]),
+  ];
 
   for (const viewport of VIEWPORTS) {
     for (const setting of SETTINGS.filter((candidate) => candidate.toggle === undefined)) {
       test.describe(`${viewport.name}, ${setting.name}`, () => {
         test.use({ viewport: viewport.size, colorScheme: setting.system });
-        test(`${failed.name} has no serious or critical violation`, async ({ page }) => {
-          await open(page, failed, setting);
-          expect(await seriousViolations(page)).toEqual([]);
-        });
+        for (const under of failed) {
+          test(`${under.name} has no serious or critical violation`, async ({ page }) => {
+            await open(page, under, setting);
+            expect(await seriousViolations(page)).toEqual([]);
+          });
+        }
       });
     }
   }

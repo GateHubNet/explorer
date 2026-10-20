@@ -639,7 +639,7 @@ is off. Lists are newest first, 20 a page, with Newer and Older.
 | an unknown `?tab=`, or a `marker` on Offers or Objects (they have no pages) | 302 to the URL without it | `short` |
 | `?tab=analytics…` with `ACCOUNT_ANALYTICS` off | 302 to `/{net}/account/{address}`, without a call | `short` |
 | `?tab=analytics…` with it on, in any query but the view's canonical one (`tab=analytics`, then `period` when it is not `30d`; compared as it came, so an escaped spelling is redirected too; the `_routes` that React Router's client adds to a client-side navigation's `.data` request is not part of it, or the canonical URL would redirect to itself) | 302 to the canonical URL, without a call | `short` |
-| `?tab=analytics…`'s canonical URL | the analytics view: the header (without the tokens and owned objects, so no `balances` or `account_objects` call) awaited, the frame and six cards **streamed** after it, each by the 4.5 s deadline; a failed or late card is served and not stored | `live` |
+| `?tab=analytics…`'s canonical URL | the analytics view: the header without the holdings awaited, the frame and six cards **streamed** after it (see "Account analytics" below) | `live`; with a part that failed or came late, served and not stored |
 | the first page of a tab | the page; header read from the data API (creation, balances) and the node (`account_info`, `account_objects` with `limit: 400`, `server_state`), the list **streamed** after it | `live` |
 | a page reached with a `marker` | the page, awaited whole: the list and nothing else (no live state, no activation, and the creation record is not asked for); `noindex, follow` | `slow` (`MARKER_PAGE_CLASS`, see below) |
 | a marker the API refuses (400), that is not base64url, or that has nothing behind it (an empty list) | 404 | `short` |
@@ -720,6 +720,141 @@ rel="next"`: the API's own `Link` names its own URL and is never passed on. The 
 Class `short` (the edge keeps 30 s of it); a failure of the API, or a 200 that is not CSV, is a 503 and is never stored. Each crawl would
 cost an upstream CSV of up to 1000 rows, so crawlers are kept off it twice: the Payments tab's link is `rel="nofollow"`, and `robots.txt`
 disallows `/*/account/*/payments.csv` (as it does `/*/search`).
+
+### Account analytics
+
+`/{net}/account/{address}?tab=analytics[&period=90d|1y|all]` (E4, `docs/superpowers/specs/2026-10-19-account-analytics-design.md`): the account's value, the
+transactions it sent, its balances, its money in and out, where its balance changes come from, its counterparties and its DEX trading, from D2's
+`stats/{family}?interval=` and `analytics/*` routes of the data API. The pieces: `app/domain/analytics-params.ts` (the periods, `parseAnalyticsQuery`,
+`analyticsHref`, the period phrases), `app/server/analytics-load.ts` (the calls, the deadline, the background completion and the marks),
+`app/server/analytics-view.ts` (the frame and one pure builder per card: every sum, difference and quotient in `bignumber.js`, handed on as strings),
+`app/server/analytics-shape.ts` (the checks of D2's answers), `app/ui/pages/AnalyticsFilters.tsx` (the filter row, drawn with the account page) and
+`app/ui/pages/AccountAnalytics.tsx` (the four tiles and seven cards, a lazy chunk). From the top: the header of the other tabs, the tabs with the filter row
+under them (the period links, "Values in XRP: tokens at each day's DEX rate, and 0 without one", the period note), the four tiles, then the account value
+and the transactions sent side by side, the balance history, the money in and out, where balance changes come from, and the counterparties and the DEX
+trading side by side. There is no Holdings margin.
+
+**The switch.** `ACCOUNT_ANALYTICS` ("Switches"): `"on"` at the top level (development and every test suite), `"off"` in `staging` and `production` until D2
+is live there. Every account page's data carries `analyticsTab`, read from it, so the stored HTML, the server's tab bar and the browser's agree. On, the tab is
+a `rel="nofollow"` link to the default view from every page of the account (a page behind a marker too: the view is live mode); off, it is the "soon" tab,
+and every `?tab=analytics…` URL is a 302 to `/{net}/account/{address}` (class `short`, without a call). The switch is in the cache generation, so the first
+request after a flip renders afresh and no stored page keeps the other tab bar. **Rolling back** is `ACCOUNT_ANALYTICS` `"off"` in the environment's block of
+`wrangler.jsonc` and a deploy, and nothing else. The tab stays off by configuration until D2 is live rather than detecting 404s, which would cost a probe call on
+every account page; a 404 of an analytics route while the tab is on is a card that failed.
+
+**The URL.** One URL per view: the canonical query is `tab=analytics`, then `period` when it is not `30d`, compared as it came. Anything else (`period=30d`, an
+unknown period, a repeat, the other order, `marker`, `back`, `tag`, `in`, an unknown parameter, an escaped spelling) is a 302 to it, class `short`, before any
+call (the table above). The period links ("30 days", "90 days", "1 year", "All", `SegmentedLinks`) are those URLs, each `rel="nofollow"`, and work without
+JavaScript; with it a click is a client-side navigation that keeps the scroll position. The view is keyed by its period, so another period mounts afresh, with
+its placeholders and its charts on Chart, and never shows one period's numbers under another's words. Values are in the native currency only: there is no `in=`.
+
+| Period | Bucket | Window (`T` is the UTC day of `last_validated`'s close time) | `S` with the fixtures (`T` Oct 17, 2026) |
+|---|---|---|---|
+| `30d` (the default) | day | T−29 … T | 2026-09-18 |
+| `90d` | day | T−89 … T | 2026-07-20 |
+| `1y` | week from Monday | the Monday 51 weeks before the Monday of T's week, to T's week | 2025-10-20 |
+| `all` | month | from the month of the account's `inception`, else of its oldest transaction in the index, else T's month; never after T's month | 2025-07-01 (the XRPL active account) |
+
+The last bucket is the running one ("…, so far" in the tooltip, the slider and the table). The period note says the exact dates ("The 30 days from Sep 18
+to Oct 17, 2026 (UTC), per day. The last day is counted up to now."), with a sentence more for a deleted account ("This account was deleted; All covers its whole
+history.") and for an All of fewer than three months.
+
+**The calls.** The header is the other tabs' without the holdings (`accountHeader(…, { holdings: false })`: no `balances` and no `account_objects` call, and no
+Tokens or Owned objects card); its node calls are as on the other tabs. Beside it:
+
+| # | Call | Kept (class) | Timeout | Feeds |
+|---|---|---|---|---|
+| 0 | `/v2/last_validated` | 5 s (`live`), the ledger page's and the image route's key | 5 s | `T`: the window |
+| A | `/v2/accounts/{a}` | 1 h (`slow`), the header's own promise | 5 s | the header; All's `S` |
+| P | `/v2/accounts/{a}/transactions?limit=1` | 5 s (`live`), the existence probe's own promise and key | 5 s | All's `S`, only when A has no creation record |
+| 1 | `…/stats/value?interval={u}&limit=1000&start={S}` | 60 s (`minute`) | 5 s | tile 1 and the account value |
+| 2 | `…/stats/transactions?interval={u}&limit=1000&start={S}` | 60 s | 5 s | tile 2 and the transactions sent |
+| 3 | `…/analytics/balance_changes?interval={u}&start={S}` | 60 s | 5 s | tile 3, the money in and out, and where balance changes come from |
+| 4 | `…/analytics/counterparties?limit=6&start={S}` | 60 s | **15 s** (`ANALYTICS_SLOW_TIMEOUT_MS`) | tile 4 and the top counterparties |
+| 5 | `…/analytics/balances?interval={u}&limit=4&start={S}` | 60 s | 5 s | the balance history |
+| 6 | `…/analytics/exchanges?limit=6&start={S}` | 60 s | 5 s | the DEX trading |
+
+Calls 1 to 6 start as soon as the window is known (call 0, and for All A, then P when it is needed), beside the header and not after it, with the same
+`start` and `interval` and no `end`, and each asks for `holdFailure` and `shareInFlight`. The four `analytics/*` paths are in `PENDING_PATHS` until D2's
+`openapi.yaml` is synced. The view never calls `/balances`, `account_objects` or `amm_volume`. The DEX wording needs no call: it follows `AMM_DATA` (on XRPL the
+hint "order book and AMM" and "Includes swaps against AMM pools." while it is on, "on the DEX" and no AMM sentence while it is off; on Xahau "order book" and
+"Order-book trades only; Xahau has no AMM."), and a pair, in E3's natural orientation, links to E3's pair page while `MARKETS` is on. `minute` is the API's own
+freshness for these answers: the running bucket moves with each transaction of the account, and a heavy account's reads take seconds, so the data API sees about
+one set of calls 1 to 6 per account and period per minute per data centre. The page and its `.data` URL are `live`, as every account first page (its header is
+live state): a stored view is at most 35 s old in its header and about 95 s in its analytics.
+
+**Streaming and the deadline.** The loader awaits the header (and the existence check) and returns the frame and the six cards as promises that never reject
+(`AnalyticsData`). The HTML holds the header first; then the cards' frames with their placeholders, as soon as the window is known (until then the period note's
+slot, the view's one `role="status"`, says "Loading analytics…"); then each card in place of its placeholder as its call settles. Bots get the whole document.
+Each card is its call and its builder raced against one deadline, the loader's start + 4.5 s (E2's `CARD_DEADLINE_MS` and `byDeadline`), so it has settled
+before `streamTimeout` (5 s) ends the stream. A card that misses it is `late`: its tile reads "—" over "Still working on it", the card "Still working on {what}.
+Retry in a few seconds.", and its call is handed to `ctx.waitUntil`, so it finishes in the background within its own timeout and the subrequest cache keeps
+its answer for 60 s. A late frame hands on its whole chain: once call 0 answers, calls 1 to 6 start in the background and warm the cache. A page that turns out a
+404 or a 503 abandons the analytics: their deadlines are cleared, and nothing is logged, marked or handed to `waitUntil`.
+
+**The 15 s call.** D2 gives `analytics/counterparties` 15 s, for the heaviest accounts at 1 year and All. The page cannot wait that long: `streamTimeout` settles
+every deferred promise at 5 s, and raising it would hold every streamed page (the account lists too) and every bot that long, keep the edge from storing a page
+until its stream ends, and send single-flight waiters (who give up at 15 s) onto the slow call. So the card waits for the deadline like the others, and a late call
+goes on under `waitUntil`: it ends at most 25 s after the request (calls 0 and A, 5 s side by side; P, 5 s more; then 15 s), inside the 30 s the runtime gives
+`waitUntil` after the response. The card says "Still working on the counterparties. Retry in a few seconds." (tile 4 "—" over "Still working on it"), and a
+Retry a few seconds later finds the answer in the subrequest cache, or joins the call that is still running.
+
+**In-flight sharing and the hold.** A degraded answer is never stored and never shared by the page's single flight, so without more every visitor's render of a
+popular heavy account would start its own 10 s call. With `shareInFlight` (`createSubrequestCache().json`, `loadsInFlight` in `edge-cache.ts`), while one
+request's load of a key runs, a load of the same key by another request in the same Worker instance waits for it and is given the same answer or the same error,
+without a fetch of its own; a waiter still races its own page's deadline. A flight is in memory and per instance, by build ID and key; it holds the answer's JSON
+text (plain data, which a Worker may hand from one request to another, as the page flights do), is removed when it settles, and is not joined once it is 30 s old
+(`SHARED_LOAD_MAX_AGE_MS`). With `holdFailure` (E2's, "The cache classes") a `server`, `timeout`, `network` or `rate_limited` failure is held for 5 s (a 429 for
+its `Retry-After`, at most 30 s), so a failing route is called once per 5 s per instance and not once per render: a Retry within the hold is given the held
+failure, and the first after it calls again. A call looks at the Cache API, then at a held failure, then at the flight of its key, and only then calls.
+
+**Failures.** Each part stands on its own. A failed or late one is logged (`logProblem`) and marks the request degraded (`markDegraded(context, "analytics {card} …")`):
+the page is served with `Cache-Control: no-store` and is not stored, and a Retry reaches a fresh render.
+
+| Case | What the view shows |
+|---|---|
+| call 0 failed, or, for All, P | one `SectionError` in place of the tiles and cards, "Couldn’t load the analytics." with a Retry; the period note is left out |
+| the frame is late | in the same place, "Still working on the analytics. Retry in a few seconds."; the calls go on in the background |
+| a call failed: a 5xx, a 429, a timeout, a network error, a 400, a 404, a malformed 200 | its tiles "—" over "Couldn’t load"; its cards, in place of the views and the toggle, "Couldn’t load {what}." (the account value, the transactions sent, the balance changes, the counterparties, the balance history, the DEX trading) with a Retry |
+| a call is late | its tiles "—" over "Still working on it"; its cards "Still working on {what}. Retry in a few seconds." with a Retry |
+| the node did not answer | the header says "Live state unavailable" (and, without `balances`, "The balance could not be read."), and the analytics are as usual |
+| never activated, or the index failing on the account | the 404 or the 503 of the other tabs, before any card is drawn |
+
+An analytics route that answers "Cannot GET …" (an API without D2) is an outage by E2's route-missing rule, held and never stored, so it fails its card; D2 answers
+an unknown address with empty answers, so a `not_found` from these routes fails its card too. `analytics-shape.ts` checks each answer inside its cached load: lists
+are lists; dates are on a start of the interval asked for (a Monday, the first of a month), so an API that ignores `interval` and answers days fails; the echoed
+`interval` is the one asked for; amounts and values are decimal strings and counts whole numbers; an account is a classic address; a currency is 3 characters or
+40 hex digits; `stats/{family}` has no `marker`. So a wrong 200 is kind `server` and is not kept. Retry is `useRetry()` (`app/ui/use-retry.ts`), the route's own
+`.data` URL again: the calls that loaded are warm for 60 s, and only the failed or late one is asked again.
+
+**SEO.** The views are `noindex, follow`, with no canonical link and no `og:*` or `twitter:*` tags (`accountMeta` in `app/server/meta-account.ts`). The title is
+"Analytics · Account rBbW6i…W5jh · XRPL · explorer", with ", last 90 days", ", last 52 weeks" or ", all time" after "Analytics" for the other periods
+(`ANALYTICS_META`); the description names the cards and has no figures. Crawlers are kept off the views twice, as off the payments CSV: the tab's link and every
+period link are `rel="nofollow"`, and `robots.txt` has `Disallow: /*/account/*tab=analytics`, which matches either order of the query. The reason is cost: a bot
+waits for the whole document, so a crawl of a view is six aggregate reads of an account nobody else is looking at. An address's search result is its account page,
+which stays indexable.
+
+**JavaScript.** `AnalyticsFilters.tsx`, the tab's link and its `onIntent` load with the account page, on every tab. `onIntent` is one `import()` of the view's
+chunk on the tab's `pointerenter` and `focus`, not React Router's `prefetch="intent"`, which would also fetch the view's data (a render and six calls per hover).
+`AccountAnalytics.tsx` and the kit load with `React.lazy`, as a chunk of their own. On the server the lazy module resolves during the render, so the stored HTML
+has every tile, mark and table, and the Chart/Table radios work by CSS before any script runs; in the browser, hydration leaves the server's HTML in place until
+the chunk is there, and a client-side navigation to the tab shows a waiting frame (`aria-hidden`) until the chunk and the data arrive. The two gates of
+`pnpm check:bundle` (spec 5): the account route's first load is at most 150,000 bytes (138,015 at the end of E4; the spec's target is 138,500), and so is the
+view's total, that first load with the chunk and its static imports, each file once (the row `account analytics`: 149,908, 92 bytes under). The view has its own
+copy of the kit to fit: "The client bundle check" has the figures, the copy and its cost (about 8.5 KB more for a visitor who saw the network page first).
+`test/unit/analytics-bundle.test.ts` pins that the view imports nothing from `app/server` at run time and that `AccountPage.tsx` imports it only through `import()`.
+
+**Fixtures.** The answers are synthetic (`scripts/analytics-fixtures.ts`, seeded per network, account and endpoint): the six calls of the four periods for the
+active, the deleted and the never-funded account of each network, anchored to the hand-written header files so that the view and the header agree ("Upstream
+fixtures", "The accounts' analytics"). Only a run against a real stack checks them against real answers.
+
+**Tests.** `app/domain/analytics-params.test.ts` (the canonical form of every query, the phrases), `app/server/analytics-view.test.ts` (the frame of each period
+and every builder, in exact arithmetic), `analytics-shape.test.ts`, `analytics-load.test.ts` (the order of the calls, the deadline, the background completion, the
+abandoned page), `test/unit/analytics-fixtures.test.ts` and `analytics-bundle.test.ts`; `AccountAnalytics.test.tsx` and `AnalyticsFilters.test.tsx` (each state of
+each part, the server HTML and its hydration); in the Worker, `test/worker/account-analytics.spec.ts` (failures first, the redirects, the exact calls of each view,
+the classes, the stream, the deadline and the background completion), `account-analytics-flight.spec.ts` (the in-flight sharing and the hold, in an isolate of
+its own) and, with every switch off, `account-analytics-off.spec.ts`; in the browser, `account-analytics.spec.ts`, `account-analytics-live.spec.ts`,
+`analytics-kit-copy.spec.ts`, `client-meta.spec.ts` and `a11y.spec.ts` ("End-to-end tests").
 
 ## The network page
 
@@ -1173,21 +1308,22 @@ otherwise; never 5173) and never reuses a server that is already running.
 | Variable | Default | |
 |---|---|---|
 | `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one, the fixture server the one after (`E2E_FIXTURE_PORT`) |
-| `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on or take an answer away (`live-home.spec.ts`, `network-live.spec.ts`) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
+| `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on or take an answer away (`live-home.spec.ts`, `network-live.spec.ts`, `account-analytics-live.spec.ts`, and the group of `a11y.spec.ts` with a card that failed) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
 | `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or staging. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
 | `E2E_DATA_API_KEY` | `e2e-fixture-key` (the fixtures take any) | The `X-API-Key` of a real data API; required with `E2E_DATA_API_URL` |
 | `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed staging) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
 | `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:staging` leaves) is refused |
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
-| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
+| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`, and `a11y.spec.ts` leaves the analytics views out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
 | `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
 **Against a real stack** the suite reads recorded mainnet ledgers and transactions (final, so the same there as in the fixtures), which the
 stack must have. What the fixtures hold by hand is not an account's today (`test/e2e/fixtures.ts` `LIVE`): the tests that read the account
-files (their pages of four and two rows, a balance, an address nobody funded) are skipped when `E2E_DATA_API_URL` or `E2E_BASE_URL` is set.
-It has not been run against a real stack from this repository.
+files (their pages of four and two rows, a balance, an address nobody funded) are skipped when `E2E_DATA_API_URL` or `E2E_BASE_URL` is set, and so
+are the tests of the analytics view that read the synthetic files (its figures, its columns, its days); one test of the view runs everywhere and asserts
+no figure: each tile and card shows its data, its empty state or its error. It has not been run against a real stack from this repository.
 
 **The browser.** `pnpm exec playwright install chromium` fetches the revision this Playwright wants, and it is what a pipeline needs. In this order
 (`chromiumToUse` in `scripts/e2e-env.ts`): `E2E_CHROMIUM`, if set; the headless shell of the wanted revision, if installed; the full Chromium of the wanted
@@ -1212,19 +1348,22 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `search.spec.ts` | A pasted hash with its noise (`0x`, lower case, spaces) shows its hint and leads to the transaction; a hint leads to an account and `/` focuses the header's box; a grouped ledger index (`107,720,688`); the box as a plain form with JavaScript off; a hash of the other network, the 404 and the "Search on Xahau" offer; an address never activated |
 | `ledger.spec.ts` | Xahau 26540187 → next (26540188) → previous, in the page (no new document), by the links named `26,540,188, next ledger`; the type filter |
 | `account.spec.ts` | The tabs (Transactions, Payments, Trades, Offers, Objects; Analytics is a `rel="nofollow"` link, the "soon" label when `E2E_FEATURES_OFF` lists `ACCOUNT_ANALYTICS`); Older and Newer on Transactions (four rows, two rows, four rows; the marker page shows no live state) and on Payments, which keep the tab; the balance, the token and the reserve |
+| `account-analytics.spec.ts` | The account's analytics view ("Account analytics"), reading the fixtures and changing none: the Analytics tab is a `rel="nofollow"` link that opens the view in one document, with the four period links (each `rel="nofollow"`, "30 days" current) and no Tokens or Owned objects card; each tile and card shows its data, its empty state or its error (the one test that also runs against a real stack); the four tiles of the fixtures ("17.54 XRP", "−12.4% over the last 30 days", 17 sent and "2 failed, fee still paid", the fees, 2 counterparties) and the seven cards (a line, 30 stacked columns with the "×" legend, three balance panels, 30 diverging columns with their summary line, the seven named causes, two counterparties with links, three pairs); "90 days", "1 year" and "All" change the URL, draw 90 columns, 52 weeks and 16 months (the table's first column "Day (UTC)", "Week of (UTC)", "Month (UTC)"; the axis's last label "Oct 17", "Oct 12", "Oct 2026"), keep the scroll position, and Back restores each view and its period note; with every `/assets/*.js` aborted the streamed tiles and cards are there and checking Table shows a card's 31 rows; a pointer over the transactions sent shows a tooltip with the date, "total" and "failed", and "Oct 17, 2026, so far" on the newest column; Tab to its slider, then Arrow Left, changes its `aria-valuetext` (which reads the failed count); the deleted account's tile 1 is "—" with "Deleted accounts hold nothing" and its period note says "This account was deleted; All covers its whole history."; the never-funded address is the 404 page. With `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF` the rest skips and the off case runs: the tab is "soon" and the view's URLs are redirected to the account page |
 | `network.spec.ts` | The switch goes to the other network's home, changes `data-net` and the title, writes the `net` cookie, and `/` then redirects to it; `/` without a cookie is XRPL; an unknown network is a 404 |
 | `network-page.spec.ts` | The network page, reading the fixtures and changing none: "Network" in the header leads to `/xrpl/network` in one document and is the current item (`aria-current="page"`); with JavaScript off the 30 columns are drawn and checking Table hides the chart and shows 31 rows; "1 year" changes the URL to `?period=1y`, draws 52 columns, adds `noindex`, drops the canonical link and Back restores them; "USD" sets `in=usd`, and `/xahau/network` has no "Amounts in"; a pointer over the stacked chart shows a tooltip with the date and "total", and Tab to its slider then Arrow Left changes `aria-valuenow` and the text it says; the AMM line and its legend entry are there (or, with `AMM_DATA` in `E2E_FEATURES_OFF`, the `off` wording); the newest column's tooltip reads "Oct 17, 2026, so far" and the volume card notes "Oct 17 is not computed yet." (skipped against a real stack, which has another day) |
 | `analytics-kit-copy.spec.ts` | The analytics view after the network page, in one document (the header's search to the account, its Analytics tab, then Back twice): each copy of the chart kit draws with its own contexts, the tooltip of a plot in that plot's slot (beside its scroll region, not in it) and the panels of the balance history on one bucket, and the network page's chart after it the same (skipped when `E2E_FEATURES_OFF` lists `ACCOUNT_ANALYTICS`) |
 | `theme.spec.ts` | See below |
-| `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the network switch, and that moving between the routes asks for no `/__manifest` |
+| `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the same on the Analytics tab (no canonical, `og:*` or `twitter:card`; the title of the view and of its year) and their return on the way back,
+the network switch, and that moving between the routes asks for no `/__manifest` |
 | `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
 | `assets.spec.ts` | The stylesheet, scripts and font of a page carry `Cache-Control: public, max-age=31536000, immutable` from `public/_headers` (the local runtime applies it); a page and the favicon do not |
 | `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route module or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
 | `live-home.spec.ts` | The `live` project of `playwright.config.ts`, which runs alone after the others (what the tests do to the fixture server would show in every page the Worker renders meanwhile; `--no-deps` runs it without them), one test at a time, each `test.slow()`. The fixture server says the newest XRPL ledger is the one before the recordings' newest, the home page is opened, and the fixture server goes back to the recordings: the new ledger appears without a reload (the document is the same; the browser asked only the explorer's own `.data` URL for the page's route), the new rows have `.is-entering` and the rows that were there were sent back to slide (a `MutationObserver` of the page records it, and the `animation-name` of each row and figure *as it was added*, so that the next beat is no race), the figures that changed ticked in; under `reducedMotion: "reduce"` nothing is transformed and the animation is the wash and the mark alone; nothing animates when the page is first opened; the pause button pauses and resumes (its label switches, it is not `aria-pressed`, the status line says what was done), is 44 px, and the choice survives a reload of the tab; the hero says the page waits while the mouse is over a table, and a real click on a spot of a table (which focuses its scroll region) does not leave the page held once the mouse has left; and when the Worker answers 503 the page is the page it was (no error screen), the hero says "Live updates paused, retrying…" after two refusals (the second 8 s after the first), and "Live updates reconnected" when the Worker answers again |
 | `network-live.spec.ts` | In the `live` project too (`*-live.spec.ts`, below). A card that cannot be loaded: `stats/type` of `?period=90d&in=usd` answers 503 (`unavailable()`), the card says "Couldn’t load transactions by type" in its place with a Retry, and after `fixtures.reset()` it is back by itself within 10 s (the hold, then a beat); `amm_volume` of `?period=7d&in=usd` has no route (`null`), the volume card says "AMM swaps couldn’t be loaded." with a Retry and the line comes back when the route does. The chain moves on (`xrplHomeOneLedgerBehind()`, then `fixtures.reset()`) under `?period=90d`: the new chip has `.is-entering`, the chips that were there get a transform, the validators card follows, the document is the same and the only request is `/xrpl/network.data?…&_routes=routes%2Fnet.network`; with `reducedMotion: "reduce"` there is no transform and the chip does not slide; nothing animates when the page is opened; the pause button pauses (the status line says so, the choice survives a reload) and resuming asks at once; a mouse over the strip says "Paused while you look at the ledgers" in the row and not in the status line; with the browser's `.data` requests answered 503 the page stays and says "Live updates paused, retrying…" after two refusals, and "reconnected" when they work; and with `xrplNextDay()` in (the newest ledger closed after midnight, so every call over a period has no answer) the window's words move on to Oct 18, and the AMM line and every card the page had stay (`keepLoaded`), for two beats, with nothing said |
+| `account-analytics-live.spec.ts` | In the `live` project too. A card of the analytics view whose call fails: `stats/transactions` of the Xahau account's year (a view no other spec opens; the Worker keeps an analytics call 60 s) answers 503, the card says "Couldn’t load the transactions sent." in its place with a Retry (its title and source stay; its tile is "—" over "Couldn’t load"), and the other cards are drawn; after `fixtures.reset()`, Retry brings the card's 52 columns back (it is pressed until it does: a Retry within the 5 s hold is given the held failure), and the view has no error left |
 | `a11y.spec.ts` | See below |
 
-**Changing what the fixture server answers.** `test/e2e/fixture-control.ts` puts answers into the fixture server from the tests' process (`fixtures.override`, a JSON object of override keys, each `GET /v2/…` with the query sorted by name; one `PUT` replaces the overrides before it; `fixtures.reset` goes back to the recordings). JSON cannot carry a failing `Response`, so an error is written `unavailable()` (`{ $error: { status: 503, message: "unavailable" } }`) and the control path turns it into the data API's own error answer (`test/support/fixture-server.ts`); `null` is the API's "Cannot GET" 404. `xrplHomeOneLedgerBehind()` says the chain is one ledger behind the recordings (the home page's and the network page's tests move it on), and `xrplNextDay()` says the newest ledger closed after midnight UTC, so that no call over a period has a fixture. A change shows in every page the Worker renders meanwhile, so the specs that make one are the `live` project's (`LIVE_SPECS` in `playwright.config.ts`: `live-home.spec.ts` and every `*-live.spec.ts`, so a later plan's needs no edit there), which runs alone after the `chromium` project and with **one worker**, across its files as well as in each (`fullyParallel: false` only keeps the tests of a file together; two files would otherwise put their overrides over each other's). The Worker keeps a period's answers for 300 s, so a test that takes one away has to be the first of the run to ask for it: `network-live.spec.ts` uses views no other spec opens (`?period=90d&in=usd`, `?period=7d&in=usd`, every 90-day view), in the order that keeps it so. The one spec of the `chromium` project that fails a call, `a11y.spec.ts`, fails `stats/type` of `?period=7d`, which nothing else asks for, in a group of four tests that run in one worker, and takes the override away after them.
+**Changing what the fixture server answers.** `test/e2e/fixture-control.ts` puts answers into the fixture server from the tests' process (`fixtures.override`, a JSON object of override keys, each `GET /v2/…` with the query sorted by name; one `PUT` replaces the overrides before it; `fixtures.reset` goes back to the recordings). JSON cannot carry a failing `Response`, so an error is written `unavailable()` (`{ $error: { status: 503, message: "unavailable" } }`) and the control path turns it into the data API's own error answer (`test/support/fixture-server.ts`); `null` is the API's "Cannot GET" 404. `xrplHomeOneLedgerBehind()` says the chain is one ledger behind the recordings (the home page's and the network page's tests move it on), and `xrplNextDay()` says the newest ledger closed after midnight UTC, so that no call over a period has a fixture. A change shows in every page the Worker renders meanwhile, so the specs that make one are the `live` project's (`LIVE_SPECS` in `playwright.config.ts`: `live-home.spec.ts` and every `*-live.spec.ts`, so a later plan's needs no edit there), which runs alone after the `chromium` project and with **one worker**, across its files as well as in each (`fullyParallel: false` only keeps the tests of a file together; two files would otherwise put their overrides over each other's). The Worker keeps a period's answers for 300 s, so a test that takes one away has to be the first of the run to ask for it: `network-live.spec.ts` uses views no other spec opens (`?period=90d&in=usd`, `?period=7d&in=usd`, every 90-day view), in the order that keeps it so. The Worker keeps an analytics call 60 s, so `account-analytics-live.spec.ts` fails a call of the Xahau account's year, which no other spec opens. The one spec of the `chromium` project that fails calls, `a11y.spec.ts`, fails `stats/type` of the network page's `?period=7d` and `stats/transactions` of the Xahau account's `?tab=analytics&period=90d`, which nothing else asks for, in one override (a `PUT` replaces the one before it) for a group of eight tests that run in one worker, and takes the override away after them.
 
 **Theme, with no flash.** The page is stored once for everybody, so the server cannot name a theme: `THEME_SCRIPT`, a plain inline script in
 `<head>` before the stylesheet, puts the stored choice on `<html data-theme>`. The spec checks that three ways. (1) The stored HTML, parsed as a
@@ -1244,13 +1383,16 @@ after the stylesheet fails (1) and (3).
 
 **Accessibility.** `@axe-core/playwright` with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` (the rules of WCAG 2.2 AA, including
 `color-contrast`, `target-size` and `label-content-name-mismatch`, which the spec checks ran). The gate is no violation of impact `serious` or
-`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account, 404 and network (`/xrpl/network`) pages
+`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account, 404 and network (`/xrpl/network`) pages and the XRPL active account's analytics view (`?tab=analytics`)
 × a 1280 px desktop and a 375 px phone × four settings: light and dark by `prefers-color-scheme`, and dark and light chosen with the toggle
-(against the opposite system theme; the spec checks the page really has that `color-scheme`). Sixteen more pages (the other tabs of an account, a page
+(against the opposite system theme; the spec checks the page really has that `color-scheme`). Twenty-two more pages (the other tabs of an account, a page
 behind a marker, a never-activated account, a missing transaction, the search help, the newest ledger, the Xahau home and account, a ledger of 66
-transactions, and the network page in a year in USD, on Xahau, with every Table radio checked and with a slider focused and its tooltip shown) run in
-the two system themes, and the network page with a card that failed (`stats/type` of the 7 days, failed through the fixture server) in the two system themes at both widths. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
-about ARIA attributes with "needs review" results counted as failures (axe reports a name on an element that cannot have one that way, so the gate
+transactions, the network page in a year in USD, on Xahau, with every Table radio checked and with a slider focused and its tooltip shown, and the analytics
+view's year and All, the Xahau account's view, the deleted account's, every Table radio of the view checked and a slider of it focused with its tooltip) run in
+the two system themes, and the network page and the analytics view with a card that failed (`stats/type` of the 7 days, `stats/transactions` of the Xahau account's 90 days, failed
+through the fixture server) in the two system themes at both widths. An analytics view is whole when nothing in it is `aria-busy` and, with the fixtures, the script has given its
+plots their sliders (the view is a lazy chunk and hydrates after the page); with `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF` the views are left out. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, the analytics view among them, and another the rules
+about ARIA attributes with "needs review" results counted as failures, the analytics view among its pages (axe reports a name on an element that cannot have one that way, so the gate
 above does not see it).
 
 ## The client bundle check
@@ -1444,6 +1586,10 @@ budget, the first (E2's cursor fallback) does not exist (it was measured and tak
 list panels in a lazy chunk) was not taken; the copy of the kit was, with the frame's sources (R18). The view's total with the frame's sources
 and without the copy is 151,275.
 
+**At the end of E4** (`c9f9e8b`, the views' `noindex` tags; the commit of the end-to-end tests after it changes no file of the build): home 134,373, ledger 133,438,
+transaction 135,691, **account 138,015**, network 146,209, markets 133,379 and **account analytics 149,908**, 92 bytes under the budget. The account route grew
+109 bytes with the views' tags (`ANALYTICS_META` in `app/domain/analytics-params.ts`, which `meta-account.ts` imports alone), and the view's total with it.
+
 ## The parsing libraries in the Workers runtime
 
 `test/worker/runtime.spec.ts` runs `ripple-lib-transactionparser` 0.8.2, `ripple-address-codec` 5 and
@@ -1557,13 +1703,13 @@ staging before production:
   existing page is a render, an upstream call and a stored copy of its own, kept as long as the page's class says (a year for an immutable ledger or transaction). Only an unknown `?tab=`, a `marker` where there are none, and an image's query are
   tidied into redirects. The visitor limit (renders per address) is the only brake. Watch the cache hit ratio and the data API's load on staging; if it matters, drop unknown
   parameters from the key, or redirect them away as the image route does.
-- [ ] **Run the end-to-end suite against staging**: `E2E_BASE_URL=https://<staging host> E2E_WORKERS=1 pnpm test:e2e` (see "End-to-end tests"; the suite catches drift in
+- [ ] **Run the end-to-end suite against staging**: `E2E_BASE_URL=https://<staging host> E2E_WORKERS=1 pnpm test:e2e`, with `E2E_FEATURES_OFF` naming the switches that are off there (see "End-to-end tests"; the suite catches drift in
   the data API's response bodies that `app/server/api-types.ts` cannot see), and, once, `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` against
   the staging stack.
 
 - [ ] **The network page's views, against the staging stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`) and `?in=usd` on XRPL: the
   window's words ("Totals and charts cover the 30 days from … to …, today so far") must be anchored to the staging stack's own `last_validated` and name the running day, and the volume
-  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; staging does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=AMM_DATA,MARKETS,VALIDATORS` while those switches are off there.
+  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; staging does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=ACCOUNT_ANALYTICS,AMM_DATA,MARKETS,VALIDATORS` while those switches are off there (a switch leaves the list once it is on: `ACCOUNT_ANALYTICS` with E4 §8 step 3, below).
 - [ ] **The failure hold, in `wrangler tail`.** With one card failing (the data API refusing one route, or its key revoked for it), `wrangler tail --env staging --format json` should show one
   failing call per 5 s per Worker instance for the network page and for the home page, and not one per beat of every open tab (`holdFailure`, "The cache classes"); and the card comes back by itself within the hold and a beat
   when the route answers again.
@@ -1579,6 +1725,28 @@ staging before production:
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
 - [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: the network page and every other page are under 150,000 bytes with the manifest counted, and the manifest's
   size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
+
+The account's analytics view (E4, "Account analytics") is checked on staging once D2 is live there and `ACCOUNT_ANALYTICS` is `"on"` in the `staging` block (a deploy:
+E4 §8 step 3), and before it is turned on in production:
+
+- [ ] **The four periods of a heavy account, against the staging stack.** Open the Analytics tab of a heavy account (an exchange's hot wallet) and of an ordinary one, on XRPL and
+  Xahau, at `?tab=analytics`, `&period=90d`, `&period=1y` and `&period=all`. The period note must be anchored to the staging stack's own `last_validated` and name the running
+  bucket; every tile and card has its data, its empty state or its own error, and no card but the counterparties' (below) says "Still working …"; tile 1 and the native
+  panel of the balance history end at the header's balance. Write down how long each call takes (`wrangler tail --env staging --format json`) for the heavy account at
+  1 year and All. Run `account-analytics.spec.ts` against staging without `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF`: its structural test runs there.
+- [ ] **The late-counterparties path.** On an account whose `analytics/counterparties` takes more than 4.5 s (D2 §13: 2 to 10 s for the heaviest, at 1 year and All; a cold
+  60 s cache), the card says "Still working on the counterparties. Retry in a few seconds." and tile 4 "—" over "Still working on it", and the page is served with `no-store`.
+  A Retry a few seconds later shows the card: the call went on under `waitUntil` (it ends within its 15 s) and its answer was kept 60 s, or the Retry joined the call still
+  running. In `wrangler tail`, the Retry's render makes no counterparties call of its own: it finds the stored answer, or joins the running call on the same instance.
+- [ ] **In-flight sharing and the failure hold, in `wrangler tail`.** Open one heavy account's slow view in a few tabs at once, on a cold cache: `wrangler tail` shows one call of each
+  analytics key per Worker instance for the renders that overlap, not one per render (`shareInFlight`). Then with one analytics route failing (refused for the key, or a proxy in
+  front of the staging data API answering 503 for it), one call of it per 5 s per instance however often the tabs Retry (`holdFailure`; a Retry within the hold is given the held
+  failure), and the card back with the first Retry after the route answers again and the hold is over.
+- [ ] **`robots.txt`.** `https://<staging host>/robots.txt` (the Worker's route, on the custom domain) has `Disallow: /*/account/*tab=analytics` beside the search and CSV rules, and a
+  robots.txt tester (Google Search Console's report) reads `…/account/r…?tab=analytics&period=1y` and the other order of the query as disallowed, and `…/account/r…` as allowed.
+- [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,015 at the end of E4; the spec's
+  target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 150,000 (149,908 at the end of E4, 92 under), both written down beside "The client bundle
+  check" (its E4 table), so that the growth of each later sub-project shows. The view is that close to the gate; a route adds about 21 bytes to it through the manifest.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.
