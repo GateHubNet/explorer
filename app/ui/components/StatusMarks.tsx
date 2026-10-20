@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { statusWord } from "../../domain/amendments-params";
-import { joinAnd } from "../../domain/format";
+import { joinAnd } from "../../domain/time-words";
 import type { AmendmentStatusView, DomainStatusKind, TextPart } from "../../server/validator-facts";
 import { Countdown } from "./Countdown";
 import { CrossIcon, InfoIcon } from "./icons";

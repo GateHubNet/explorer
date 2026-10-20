@@ -2,6 +2,10 @@
 //
 // Amounts are exact decimal strings, handled as text or with bignumber.js, never as JavaScript
 // numbers, and are never written in exponent notation.
+//
+// This file is in the closure of the root route's static imports, so the build puts it in the shell chunk every page loads, and whatever of
+// it a page imports is in that chunk for every page. The words only some pages use (dates, countdowns, a list as a sentence) are in
+// time-words.ts, so that a page that draws one pays for it alone.
 
 import BigNumber from "bignumber.js";
 
@@ -241,23 +245,6 @@ export function formatUtcDay(day: string, withYear = false): string {
   return `${month} ${Number(parts[3])}${withYear ? `, ${parts[1]}` : ""}`;
 }
 
-/**
- * The UTC date of a moment as `Oct 9, 2026`. Takes what `formatUtc` takes (an ISO date or date and time, read as UTC; a number is Unix
- * seconds) and returns what is not a moment as it came.
- */
-export function formatDate(at: string | number): string {
-  const date = utcMoment(at);
-  return date ? formatUtcDay(date.toISOString().slice(0, 10), true) : String(at);
-}
-
-/** The UTC date and minute of a moment as `Oct 9, 2026, 09:34 UTC`; takes and returns what `formatDate` does. */
-export function formatDateTime(at: string | number): string {
-  const date = utcMoment(at);
-  if (!date) return String(at);
-  const iso = date.toISOString();
-  return `${formatUtcDay(iso.slice(0, 10), true)}, ${iso.slice(11, 16)} UTC`;
-}
-
 /** How long before `nowMs` the moment `atMs` was: `3 s ago`, `4 min ago`, `2 h ago`, `5 d ago`. */
 export function relativeTime(atMs: number, nowMs: number): string {
   // A clock a little ahead of the moment's source makes a negative difference: show it as now.
@@ -268,27 +255,6 @@ export function relativeTime(atMs: number, nowMs: number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} h ago`;
   return `${Math.floor(hours / 24)} d ago`;
-}
-
-/**
- * How long until the moment `atMs`, seen at `nowMs`: `under a minute`, `11 min` (rounded up), `5 h` (rounded down) or `4 days` (to the
- * nearest day, half up). `null` when the moment is now or has gone, so that the caller says its own past text. With `approx` the number
- * has a `~` before it: the moment is an estimate.
- */
-export function untilText(atMs: number, nowMs: number, opts: { approx?: boolean } = {}): string | null {
-  const seconds = (atMs - nowMs) / 1000;
-  if (!(seconds > 0)) return null;
-  if (seconds < 60) return "under a minute";
-  const tilde = opts.approx ? "~" : "";
-  if (seconds < 3600) return `${tilde}${Math.ceil(seconds / 60)} min`;
-  if (seconds < 48 * 3600) return `${tilde}${Math.floor(seconds / 3600)} h`;
-  return `${tilde}${Math.round(seconds / 86_400)} days`;
-}
-
-/** A list as a sentence does it: `a`, `a and b`, `a, b and c` (no comma before the `and`). */
-export function joinAnd(items: readonly string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]!}`;
 }
 
 function shorten(text: string): string {

@@ -6,14 +6,15 @@
 import BigNumber from "bignumber.js";
 import { isValidClassicAddress } from "ripple-address-codec";
 
-import { formatAmount, formatDateTime, formatUtcDay, utcMoment } from "../domain/format";
+import { formatAmount, formatUtcDay, utcMoment } from "../domain/format";
+import { formatDateTime } from "../domain/time-words";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
 
-// `joinAnd` and `statusWord` are words the status marks (browser files) need too, so they live in the domain files a browser file may import; they are the interface of this
-// file as well.
+// `joinAnd` and `statusWord` are words the status marks (browser files) need too, so they live in the domain files a browser file may import (`joinAnd` in time-words.ts, apart from format.ts, which
+// the shell chunk holds; `statusWord` in amendments-params.ts); they are the interface of this file as well.
 export { statusWord } from "../domain/amendments-params";
-export { joinAnd } from "../domain/format";
+export { joinAnd } from "../domain/time-words";
 
 const DASH = "—";
 const HALF_UP = BigNumber.ROUND_HALF_UP;

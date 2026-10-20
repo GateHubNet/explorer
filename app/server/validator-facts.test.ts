@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, validatorRowSample } from "../../test/support/d1-samples";
 import { statusWord as domainStatusWord } from "../domain/amendments-params";
-import { joinAnd as domainJoinAnd } from "../domain/format";
+import { joinAnd as domainJoinAnd } from "../domain/time-words";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import {
   accountLinks,

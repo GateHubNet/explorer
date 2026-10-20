@@ -1,4 +1,4 @@
-import { formatDateTime, untilText } from "../../domain/format";
+import { formatDateTime, untilText } from "../../domain/time-words";
 import { useClockSeconds } from "./RelativeTime";
 
 export interface CountdownProps {
