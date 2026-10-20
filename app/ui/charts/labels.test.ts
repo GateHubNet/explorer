@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatDateTime } from "../../domain/time-words";
-import { bucketLabel, cellText, emptyText, endLabelValue, gapText, plotSummary, sliderLabel, tableHeading, tickLabel, valueText } from "./labels";
+import { axisLabels, bucketLabel, cellText, emptyText, endLabelValue, gapText, plotSummary, sliderLabel, tableHeading, tickLabel, valueText } from "./labels";
 import type { TimeAxis, TimeSeriesData } from "./types";
 
 /** `count` days from `first` (UTC `YYYY-MM-DD`), oldest first. */
@@ -241,6 +241,50 @@ describe("bucketLabel", () => {
     expect(bucketLabel("soon", "hour", "axis")).toBe("soon");
     expect(bucketLabel("soon", "month", "axis")).toBe("soon");
     expect(bucketLabel("soon", "month", "tooltip")).toBe("soon");
+  });
+});
+
+describe("axisLabels", () => {
+  /** Flag ledgers every 6 hours from Oct 15, 2026, 00:30 UTC: four a day. */
+  const flags = (count: number): TimeAxis => ({
+    unit: "flag",
+    buckets: Array.from({ length: count }, (_, i) => new Date(Date.UTC(2026, 9, 15, 6 * i, 30)).toISOString().replace(".000Z", "Z")),
+  });
+
+  it("labels each picked bucket of an axis, oldest first", () => {
+    const axis: TimeAxis = { unit: "day", buckets: ["2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"] };
+    expect(axisLabels(axis, [0, 2, 3])).toEqual([
+      { i: 0, text: "Oct 15" },
+      { i: 2, text: "Oct 17" },
+      { i: 3, text: "Oct 18" },
+    ]);
+  });
+
+  it("names each UTC day of a flag axis once, at the first of the picks that fall on it", () => {
+    // Twelve flag ledgers over three days, every second one picked: two picks a day.
+    expect(axisLabels(flags(12), [1, 3, 5, 7, 9, 11])).toEqual([
+      { i: 1, text: "Oct 15" },
+      { i: 5, text: "Oct 16" },
+      { i: 9, text: "Oct 17" },
+    ]);
+    // Picks a day or more apart are all kept.
+    expect(axisLabels(flags(12), [0, 4, 8]).map((label) => label.text)).toEqual(["Oct 15", "Oct 16", "Oct 17"]);
+  });
+
+  it("tells the days apart by the date, not by the label's words: Oct 15 of two years is two days", () => {
+    const axis: TimeAxis = { unit: "flag", buckets: ["2025-10-15T10:00:00Z", "2025-10-15T22:00:00Z", "2026-10-15T10:00:00Z"] };
+    expect(axisLabels(axis, [0, 1, 2])).toEqual([
+      { i: 0, text: "Oct 15" },
+      { i: 2, text: "Oct 15" },
+    ]);
+  });
+
+  it("leaves the other units as they are, a time of day that repeats on an hour axis too", () => {
+    const hours: TimeAxis = { unit: "hour", buckets: ["2026-10-16T17:00:00Z", "2026-10-17T17:00:00Z"] };
+    expect(axisLabels(hours, [0, 1])).toEqual([
+      { i: 0, text: "17:00" },
+      { i: 1, text: "17:00" },
+    ]);
   });
 });
 

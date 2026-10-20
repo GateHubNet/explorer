@@ -114,6 +114,22 @@ export function bucketLabel(bucket: string, unit: TimeAxis["unit"], where: Bucke
   return where === "readout" ? `${text} \u00b7 so far` : `${text}, so far`;
 }
 
+/**
+ * The x labels of an axis at the buckets `picks` names (`xLabelPicks`, oldest first): each bucket's axis label. A flag axis labels days and its buckets are moments,
+ * so two picks of a few days of rounds can fall on one UTC day: that day is named once, at the first of them. The other units are labelled as they are picked.
+ */
+export function axisLabels(axis: TimeAxis, picks: readonly number[]): { i: number; text: string }[] {
+  const labels = picks.map((i) => ({ i, text: bucketLabel(axis.buckets[i]!, axis.unit, "axis") }));
+  if (axis.unit !== "flag") return labels;
+  const named = new Set<string>();
+  return labels.filter(({ i }) => {
+    const day = MOMENT.exec(axis.buckets[i]!)?.[1] ?? axis.buckets[i]!;
+    if (named.has(day)) return false;
+    named.add(day);
+    return true;
+  });
+}
+
 const HEADINGS = {
   day: "Day (UTC)",
   week: "Week of (UTC)",
