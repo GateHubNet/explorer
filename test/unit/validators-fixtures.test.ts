@@ -402,6 +402,17 @@ describe("the synthetic answers of D1's validators and amendments routes", () =>
     expect(Math.round((Date.parse(detail.majority!.expected_activation) - anchor) / DAY_MS)).toBe(4);
   });
 
+  it.each(NETS)("%s: a tally holds from round to round, with a handful of changes in its rounds (spec 6.3 and 7)", (net) => {
+    // A validator changes its vote, or misses a round, now and then: the yes-votes chart is a few steps and its table of changes a few rows. The 30 days of
+    // XRPL's majority, about 2,600 rounds, change at the runs of its got/lost/got history and little more.
+    const withRounds = amendmentsOf(net).amendments.map((row) => ({ row, rounds: amendmentOf(net, row.name ?? row.id).rounds })).filter(({ rounds }) => rounds.length > 0);
+    expect(withRounds.length).toBeGreaterThan(0);
+    for (const { row, rounds } of withRounds) {
+      const changes = rounds.filter((round, at) => at > 0 && round.yes !== rounds[at - 1]!.yes).length;
+      expect(changes, row.name ?? row.id).toBeLessThanOrEqual(row.status === "majority" && rounds.length > 1_000 ? 10 : 6);
+    }
+  });
+
   it("Xahau's majority amendment has no majority.ledger_index or tx_hash", () => {
     const detail = amendmentOf("xahau", "Remit");
     expect(detail.status).toBe("majority");

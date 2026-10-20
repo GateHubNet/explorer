@@ -815,17 +815,33 @@ function amendmentsOf(net: NetworkName, profile: Profile, clock: Clock, members:
     const newest = ledgers.length - 1;
     const at = (days: number) => ledgers.findIndex((ledger) => clock.closeOf(ledger) >= clock.close - days * DAY);
     const [got, lost, regot] = spec.majority === "got-lost-got" ? [at(25), at(20), at(10)] : [-1, -1, -1];
+    // A tally holds from one flag ledger to the next: a validator changes its vote, or misses a round, now and then, not at every flag ledger (spec 6.3 and 7: about
+    // 2,600 rounds with a handful of changes). So the story's draw is taken at a few change points and held until the next: at the start of each run of a got/lost/got
+    // majority, half-way through the rounds of a majority got before the history, at a third and two thirds of a vote's climb. Every round still takes its draw, so
+    // the stream, and so every answer made from it, is as it was. The yes count also moves where the trusted count does, the threshold with it.
+    const points = new Set(
+      spec.majority === "got-lost-got"
+        ? [0, got, lost, regot]
+        : spec.majority === "before-history"
+          ? [0, Math.floor(newest / 2)]
+          : [0, Math.floor(newest / 3), Math.floor((2 * newest) / 3)],
+    );
+    let held = 0;
     const rounds = ledgers.map((ledger, index): AmendmentRoundPoint => {
       const roundTrusted = trustedAt(ledger);
       const threshold = thresholdOf(roundTrusted);
       const margin = Math.min(4, roundTrusted - threshold);
+      /** The draw at a change point, else the one held since the last. */
+      const hold = (draw: number) => (held = points.has(index) ? draw : held);
       let yes = 0;
       if (index === newest) yes = spec.yes ?? 0;
-      else if (spec.majority === "got-lost-got") yes = (index >= got && index < lost) || index >= regot ? threshold + 1 + below(next, margin) : threshold - below(next, 6);
-      else if (spec.majority === "before-history") yes = threshold + 1 + below(next, margin);
+      else if (spec.majority === "got-lost-got") {
+        const passing = (index >= got && index < lost) || index >= regot;
+        yes = passing ? threshold + 1 + hold(below(next, margin)) : threshold - hold(below(next, 6));
+      } else if (spec.majority === "before-history") yes = threshold + 1 + hold(below(next, margin));
       else if (spec.status === "voting") {
         const start = Math.floor(spec.yes! / 2);
-        yes = Math.min(threshold, Math.max(0, start + Math.floor(((spec.yes! - start) * index) / newest) + below(next, 3) - 1));
+        yes = Math.min(threshold, Math.max(0, hold(start + Math.floor(((spec.yes! - start) * index) / newest) + below(next, 3) - 1)));
       }
       return { ledger_index: ledger, flag_ledger: ledger + 1, date: time(clock.closeOf(ledger)), yes, trusted: roundTrusted, threshold, passes: passesOf(yes, roundTrusted) };
     });
