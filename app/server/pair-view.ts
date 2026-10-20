@@ -738,10 +738,11 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
     input.asks.state === "ok" && input.bids.state === "ok"
       ? { state: "ok", source: `${BOOK_SOURCE}${LEDGER_WORDS}`, ...bookOf(input.asks.value, input.bids.value) }
       : { state: "failed", source: BOOK_SOURCE };
-  // The share is a line of the pool card: a pair whose pool is not shown (none, mostly, or one that failed) shows no share, so a failed #9 is no
-  // problem of its page (spec 3.7 step 6: an absent pool is an answer).
+  // The share is a line of the pool card: a pair with no pool (most of them) shows no share, so a failed #9 is no problem of its page (spec 3.7
+  // step 6: an absent pool is an answer). A pool that failed keeps its card, and so its share: a beat that failed the pool keeps the card shown
+  // with its share (`keepLoaded`, spec 3.10), which an "off" share in that beat would have dropped.
   let share: LivePairData["share"] = { state: "off" };
-  if (ammParts && input.share !== null && pool.state === "ok") {
+  if (ammParts && input.share !== null && pool.state !== "missing") {
     const text = input.share.state === "ok" && input.stats.state === "ok" ? shareText(params.trades, input.stats.value, input.share.value) : null;
     share = text === null ? FAILED_PART : { state: "ok", text };
   }

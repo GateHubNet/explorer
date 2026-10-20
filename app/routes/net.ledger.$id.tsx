@@ -52,7 +52,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     const canonical = String(Number(id));
     if (id !== canonical) return canonicalRedirect(`/${network.id}/ledger/${canonical}`);
   } else {
-    throw cached({ notFound: `ledger ${echoOf(id)}` }, "short", { status: 404 });
+    throw cached({ notFound: `ledger ${echoOf(id, 80)}` }, "short", { status: 404 });
   }
 
   const what = `ledger ${LEDGER_HASH.test(id) ? shortHash(id) : id}`;

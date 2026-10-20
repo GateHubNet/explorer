@@ -37,6 +37,15 @@ describe("echoOf", () => {
     expect(echoOf("‮a".repeat(50))).toBe(`"${"a".repeat(40)}"`);
   });
 
+  it("cuts to the length it is given: the ledger's and the transaction's 80 keep a hash of 64 with a character too many whole", () => {
+    const id = `${"A".repeat(64)}Z`;
+    expect(id).toHaveLength(65);
+    expect(echoOf(id, 80)).toBe(`"${id}"`);
+    expect(echoOf("z".repeat(100), 80)).toBe(`"${"z".repeat(80)}"`);
+    // The default is 40: the account's and the pair's.
+    expect(echoOf(id)).toBe(`"${"A".repeat(40)}"`);
+  });
+
   it("keeps the letters of any script, and the marks that belong to them", () => {
     expect(echoOf("مرحبا")).toBe('"مرحبا"');
     expect(echoOf("é")).toBe('"é"');

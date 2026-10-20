@@ -9,6 +9,7 @@ import { compactNumber, dropsToNative } from "../domain/format";
 import { candleWindow as marketParamsWindow, INTERVALS, type Interval, type PairParams } from "../domain/market-params";
 import type { Loaded } from "./account-view";
 import type { ActiveAccount, ActiveAccounts, Candle, Page, PairExchange, ReducedRow } from "./api-types";
+import { keepLoaded } from "../ui/live-page";
 import type { AmmInfo, Book, BookOffer, NodeAmount } from "./node-rpc";
 import {
   BOOK_LEVELS,
@@ -681,6 +682,8 @@ const DEFAULT_PARAMS: PairParams = { interval: "1h", trades: null, back: [] };
 const usd = (value: string): NodeAmount => ({ currency: "USD", issuer: GH, value });
 
 const ok = <T>(value: T): Loaded<T> => ({ state: "ok", value });
+/** The parts a beat may keep: the pair route's `PAIR_PARTS` (pinned in app/ui/routes-wiring.test.tsx), written out: a Node test does not import a route module. */
+const PAIR_PARTS = ["stats", "candles", "traders", "book", "pool", "share"] as const;
 const FAILED: Loaded<never> = { state: "failed" };
 const MISSING: Loaded<never> = { state: "missing" };
 
@@ -1574,13 +1577,29 @@ describe("pairPage", () => {
       expect(share({ share: null })).toEqual({ state: "off" });
     });
 
-    it("is off, and no problem, for a pair whose pool card is not shown: a failed #9 fails nothing on screen (spec 3.7 step 6)", () => {
+    it("is off, and no problem, for a pair with no pool: a failed #9 fails nothing on screen (spec 3.7 step 6)", () => {
       // A pool-less pair (most of them) while #9 is down: nothing on the page failed, so it is not degraded.
       expect(build({ pool: MISSING, share: FAILED })).toMatchObject({ page: { pool: { state: "missing" }, share: { state: "off" } }, problems: [] });
       expect(build({ pool: MISSING, stats: FAILED })).toMatchObject({ page: { share: { state: "off" } }, problems: ["stats"] });
-      // A pool that failed is its own problem, and the share it would have shown is not another.
-      expect(build({ pool: FAILED, share: FAILED })).toMatchObject({ page: { pool: { state: "failed" }, share: { state: "off" } }, problems: ["pool"] });
       expect(share({ pool: MISSING })).toEqual({ state: "off" });
+    });
+
+    it("is there beside a pool that failed, which keeps its card: worked out, or failed and a problem of its own", () => {
+      expect(share({ pool: FAILED })).toEqual({ state: "ok", text: "34%" });
+      expect(build({ pool: FAILED, share: FAILED })).toMatchObject({ page: { pool: { state: "failed" }, share: { state: "failed" } }, problems: ["pool", "share"] });
+    });
+
+    it("keeps the share shown with the pool card through a beat that failed the pool (keepLoaded, spec 3.10)", () => {
+      const shown = build().page;
+      expect(shown.share).toEqual({ state: "ok", text: "34%" });
+      // amm_info and #9 failed: both parts are kept as they were shown.
+      const bothFailed = keepLoaded(build({ pool: FAILED, share: FAILED }).page, shown, PAIR_PARTS);
+      expect(bothFailed.pool).toBe(shown.pool);
+      expect(bothFailed.share).toBe(shown.share);
+      // amm_info alone failed: the kept card shows the share of the beat, worked out from #3 and #9 as ever.
+      const poolFailed = keepLoaded(build({ pool: FAILED, share: ok(reduced({ base_volume: "500" })) }).page, shown, PAIR_PARTS);
+      expect(poolFailed.pool).toBe(shown.pool);
+      expect(poolFailed.share).toEqual({ state: "ok", text: "50%" });
     });
   });
 
@@ -1687,10 +1706,8 @@ describe("pairPage", () => {
     });
 
     it("lists the failed parts once each, in the order of the page's parts", () => {
-      // The share is a line of the pool card: it can fail only beside a pool that did not.
-      const { problems } = build({ share: FAILED, bids: FAILED, traders: FAILED, candles: FAILED, stats: FAILED });
-      expect(problems).toEqual(["stats", "candles", "traders", "book", "share"]);
-      expect(build({ share: FAILED, pool: FAILED, bids: FAILED, traders: FAILED, candles: FAILED, stats: FAILED }).problems).toEqual(["stats", "candles", "traders", "book", "pool"]);
+      const { problems } = build({ share: FAILED, pool: FAILED, bids: FAILED, traders: FAILED, candles: FAILED, stats: FAILED });
+      expect(problems).toEqual(["stats", "candles", "traders", "book", "pool", "share"]);
     });
 
     it("fails the share too when the 24 h figures it needs are what failed: it shows its error, so it is named", () => {

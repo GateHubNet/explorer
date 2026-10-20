@@ -1,6 +1,7 @@
 // What the routes under `/:net` share on the server: the network of the URL, the part of it that may go to the
 // browser, and the cookie the root redirect reads. Worker-only code, for loaders.
 
+import { echoOf } from "./echo";
 import { cached } from "./edge-cache";
 import { getEnv } from "./env";
 import { isNetworkId, networkOf, type Network, type NetworkId } from "./networks";
@@ -28,7 +29,7 @@ export function publicNetwork(net: Network): PublicNetwork {
  */
 export function requireNetwork(context: unknown, params: { net?: string }): Network {
   const segment = params.net ?? "";
-  if (!isNetworkId(segment)) throw cached({ notFound: `network ${JSON.stringify(segment)}` }, "short", { status: 404 });
+  if (!isNetworkId(segment)) throw cached({ notFound: `network ${echoOf(segment)}` }, "short", { status: 404 });
   return networkOf(segment, getEnv(context));
 }
 

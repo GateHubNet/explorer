@@ -1,7 +1,7 @@
 // What a not-found page repeats of what the visitor asked for (`We couldn't find account "…" on XRPL`): the text of a URL, which anyone can
 // write and link to. Worker-only code, no I/O.
 
-/** How much of what was asked the not-found page repeats, in code points. */
+/** How much of what was asked the not-found page repeats, in code points, unless the route says otherwise. */
 export const ECHO_LENGTH = 40;
 
 /**
@@ -12,10 +12,11 @@ export const ECHO_LENGTH = 40;
 const UNSHOWN = /[\p{Cf}\u0080-\u009F]/gu;
 
 /**
- * What was asked as the not-found page says it: without the characters that change how a sentence is drawn (`UNSHOWN`), cut to `ECHO_LENGTH`
- * code points (between characters: a surrogate pair is one), in quotes, escaped as `JSON.stringify` escapes a string. The one echo of the
- * account, ledger, transaction and market pair routes.
+ * What was asked as the not-found page says it: without the characters that change how a sentence is drawn (`UNSHOWN`), cut to `max` code
+ * points (between characters: a surrogate pair is one), in quotes, escaped as `JSON.stringify` escapes a string. The one echo of the network,
+ * account, ledger, transaction and market pair routes; the ledger and the transaction routes pass 80, so that a hash of 64 with a character
+ * too many is still repeated whole.
  */
-export function echoOf(asked: string): string {
-  return JSON.stringify([...asked.replace(UNSHOWN, "")].slice(0, ECHO_LENGTH).join(""));
+export function echoOf(asked: string, max = ECHO_LENGTH): string {
+  return JSON.stringify([...asked.replace(UNSHOWN, "")].slice(0, max).join(""));
 }

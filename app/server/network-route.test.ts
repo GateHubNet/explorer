@@ -40,6 +40,16 @@ describe("requireNetwork", () => {
     expect(data).toEqual({ notFound: `network ${JSON.stringify(segment)}` });
   });
 
+  it("leaves a bidi control out of the segment it says was asked for (echoOf)", () => {
+    let thrown: unknown;
+    try {
+      requireNetwork(context, { net: "\u202Eltpx\u0085" });
+    } catch (error) {
+      thrown = error;
+    }
+    expect((thrown as { data: unknown }).data).toEqual({ notFound: 'network "ltpx"' });
+  });
+
   it("throws the same 404 when the route has no :net at all", () => {
     expect(() => requireNetwork(context, {})).toThrow();
   });

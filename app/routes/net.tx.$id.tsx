@@ -83,7 +83,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const ctid = decodeCtid(id);
   if (ctid) return ctidAnswer(context, network, id, ctid.networkId);
 
-  throw cached({ notFound: `transaction ${echoOf(id)}` }, "short", { status: 404 });
+  throw cached({ notFound: `transaction ${echoOf(id, 80)}` }, "short", { status: 404 });
 }
 
 async function ctidAnswer(context: Route.LoaderArgs["context"], network: Network, ctid: string, ctidNetworkId: number) {
