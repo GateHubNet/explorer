@@ -60,6 +60,22 @@ export interface AnalyticsFrame {
   /** The whole period note. */
   note: string;
   deleted: boolean;
+  /**
+   * The route each part of the view is made from, with the period's interval where the call takes one: the `source` its builder gives, and the
+   * source line of a part that has not come or could not be drawn, so that a card's source line does not change when its data arrives.
+   */
+  sources: AnalyticsSources;
+}
+
+/** The routes of the parts of the view: the tiles and the cards that read a call each, and "Where balance changes come from" (`sources`). */
+export interface AnalyticsSources {
+  value: string;
+  sent: string;
+  changes: string;
+  sources: string;
+  counterparties: string;
+  balances: string;
+  pairs: string;
 }
 
 export interface ValueCard {
@@ -238,6 +254,21 @@ export function analyticsFrame(window: AnalyticsWindow, opts: { deleted: boolean
     phrase: analyticsPhrases(period, bucketLabel(start, "month", "axis")),
     note,
     deleted: opts.deleted,
+    sources: sourcesOfUnit(unit),
+  };
+}
+
+/** The routes of the view's parts for a unit of the buckets. */
+function sourcesOfUnit(unit: TimeAxis["unit"]): AnalyticsSources {
+  const account = "/v2/accounts/{a}";
+  return {
+    value: `${account}/stats/value?interval=${unit}`,
+    sent: `${account}/stats/transactions?interval=${unit}`,
+    changes: `${account}/analytics/balance_changes?interval=${unit}`,
+    sources: `${account}/analytics/balance_changes`,
+    counterparties: `${account}/analytics/counterparties`,
+    balances: `${account}/analytics/balances?interval=${unit}`,
+    pairs: `${account}/analytics/exchanges`,
   };
 }
 
@@ -287,7 +318,7 @@ function valueFloor(values: readonly (BigNumber | null)[]): BigNumber | null {
  */
 export function valueCard(frame: AnalyticsFrame, page: Page<"rows", AccountValueRow>, native: Native): ValueCard {
   const { axis, phrase } = frame;
-  const source = `/v2/accounts/{a}/stats/value?interval=${axis.unit}`;
+  const source = frame.sources.value;
   const values = aligned(axis.buckets, page.rows).map((row) => (row ? numberOf(row.account_value, "account_value") : null));
 
   const change = values.map((value, i) => {
@@ -335,7 +366,7 @@ function failedIn(row: AccountTxStatsRow): BigNumber {
  */
 export function sentCard(frame: AnalyticsFrame, page: Page<"rows", AccountTxStatsRow>, network: NetworkId): SentCard {
   const { axis, phrase } = frame;
-  const source = `/v2/accounts/{a}/stats/transactions?interval=${axis.unit}`;
+  const source = frame.sources.sent;
   const rows = aligned(axis.buckets, page.rows);
   const any = rows.some((row) => row !== null);
 
@@ -524,8 +555,7 @@ function sourcesOf(
  * bucket; and the totals by cause.
  */
 export function changesCard(frame: AnalyticsFrame, answer: AnalyticsBalanceChanges, native: Native, dex: DexWording): ChangesCard {
-  const route = "/v2/accounts/{a}/analytics/balance_changes";
-  const source = `${route}?interval=${frame.axis.unit}`;
+  const source = frame.sources.changes;
   const { rows, fees, max, empty } = sourcesOf(frame, answer, dex);
 
   const drops = fees.out.shiftedBy(6).integerValue(BigNumber.ROUND_HALF_UP);
@@ -546,7 +576,7 @@ export function changesCard(frame: AnalyticsFrame, answer: AnalyticsBalanceChang
       note:
         "Every balance change of the period, grouped by what caused it. " +
         "Passed through: payments that rippled through this account's trust lines on their way to someone else.",
-      source: route,
+      source: frame.sources.sources,
     },
   };
 }
@@ -561,7 +591,7 @@ function valueOrDash(value: string, field: string): string {
 
 /** Tile 4 and the top counterparties (spec 3.3 and 3.9): by value sent plus received, as the API ranks them. */
 export function counterpartiesCard(frame: AnalyticsFrame, answer: AnalyticsCounterparties): CounterpartiesCard {
-  const source = "/v2/accounts/{a}/analytics/counterparties";
+  const source = frame.sources.counterparties;
   const { total, count } = answer;
   const rows = answer.counterparties.map((counterparty) => ({
     account: counterparty.account,
@@ -595,7 +625,7 @@ export function counterpartiesCard(frame: AnalyticsFrame, answer: AnalyticsCount
  */
 export function balancesCard(frame: AnalyticsFrame, answer: AnalyticsBalances): BalancesCard {
   const { axis, phrase } = frame;
-  const source = `/v2/accounts/{a}/analytics/balances?interval=${axis.unit}`;
+  const source = frame.sources.balances;
   const { lines } = answer;
   if (lines.length === 0) return { chart: null, notes: [], empty: `No balances in ${phrase.empty}`, source };
 
@@ -647,7 +677,7 @@ export function pairsCard(
   ctx: { net: NetworkId; native: Native; markets: boolean; dex: DexWording },
 ): PairsCard {
   const { net, native, markets, dex } = ctx;
-  const source = "/v2/accounts/{a}/analytics/exchanges";
+  const source = frame.sources.pairs;
 
   const rows = answer.pairs.map((pair): PairRow => {
     const stored = { base: assetOf(pair.base_currency, pair.base_issuer), counter: assetOf(pair.counter_currency, pair.counter_issuer) };

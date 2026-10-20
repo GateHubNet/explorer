@@ -490,6 +490,12 @@ memo'd: they have no token and cost almost nothing.
   is 145,000 bytes (the budget is 150,000). The page measured 146,616 bytes, over the target, so the fallback the spec decided on was tried and taken out again: `Cursor` and the tooltip
   loaded with `import()` on the first `pointerenter` or `focusin` of a plot (a `CursorSlot` layer in their place until then). It did not make any page lighter, and every page was heavier for
   it ("The client bundle check" has the figures), so a plot draws `Cursor` directly and the cursor is in the page's first JavaScript. What the page needs to lose is elsewhere in its route chunk.
+- **The kit's contexts stay inside it.** `Cursor.tsx`'s two React contexts, `TipSlotContext` (the slot a plot draws its cursor's tooltip in) and
+  `HoverContext` (the bucket a `HoverGroup` shares), are provided and read by the kit's own components (`Plot`, `Cursor`, `SmallMultiples`,
+  `Candles`): no module outside the kit imports a module of it that creates a context, and no module of the kit keeps state of its own at module
+  level. The analytics view has a copy of the kit of its own ("The client bundle check"), and these two rules are what make two copies in one
+  browser safe: the build fails when the first is broken (`scripts/analytics-kit-copy.ts`), and `scripts/analytics-kit-copy.test.ts` holds the
+  sources to both.
 - **The kit's classes are its own.** They live in `charts.css`, which `styles.css` imports after `components.css` and before `pages.css`. A class
   of the kit's is never defined in `pages.css`, which loads later and would override it: the pages' `.cols` once made every column of a chart 0 px
   high on a real page, where the tests, which have no stylesheet, saw nothing wrong. The kit's row of columns is `.plot__cols`, and
@@ -905,7 +911,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
   a missing file) and the command (`scripts/check-bundle.ts`, which also reads the `vendor` and `shell` chunks in the manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and
   `shell` chunks (the closure over a made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest; no test
-  reads `build/`);
+  reads `build/`); `scripts/analytics-kit-copy.test.ts` the analytics view's own copy of the kit (what the kit is, what an import resolves to, the
+  check of a made-up module graph and bundle in each way it fails, the plugin's hooks, and the same check on the module graph of the app's sources);
   `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through, `E2E_FEATURES_OFF`); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
@@ -1206,6 +1213,7 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `account.spec.ts` | The tabs (Transactions, Payments, Trades, Offers, Objects; Analytics is a `rel="nofollow"` link, the "soon" label when `E2E_FEATURES_OFF` lists `ACCOUNT_ANALYTICS`); Older and Newer on Transactions (four rows, two rows, four rows; the marker page shows no live state) and on Payments, which keep the tab; the balance, the token and the reserve |
 | `network.spec.ts` | The switch goes to the other network's home, changes `data-net` and the title, writes the `net` cookie, and `/` then redirects to it; `/` without a cookie is XRPL; an unknown network is a 404 |
 | `network-page.spec.ts` | The network page, reading the fixtures and changing none: "Network" in the header leads to `/xrpl/network` in one document and is the current item (`aria-current="page"`); with JavaScript off the 30 columns are drawn and checking Table hides the chart and shows 31 rows; "1 year" changes the URL to `?period=1y`, draws 52 columns, adds `noindex`, drops the canonical link and Back restores them; "USD" sets `in=usd`, and `/xahau/network` has no "Amounts in"; a pointer over the stacked chart shows a tooltip with the date and "total", and Tab to its slider then Arrow Left changes `aria-valuenow` and the text it says; the AMM line and its legend entry are there (or, with `AMM_DATA` in `E2E_FEATURES_OFF`, the `off` wording); the newest column's tooltip reads "Oct 17, 2026, so far" and the volume card notes "Oct 17 is not computed yet." (skipped against a real stack, which has another day) |
+| `analytics-kit-copy.spec.ts` | The analytics view after the network page, in one document (the header's search to the account, its Analytics tab, then Back twice): each copy of the chart kit draws with its own contexts, the tooltip of a plot in that plot's slot (beside its scroll region, not in it) and the panels of the balance history on one bucket, and the network page's chart after it the same (skipped when `E2E_FEATURES_OFF` lists `ACCOUNT_ANALYTICS`) |
 | `theme.spec.ts` | See below |
 | `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the network switch, and that moving between the routes asks for no `/__manifest` |
 | `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
@@ -1371,6 +1379,40 @@ where the real page will. Measured and not taken (every page's figure at `3d4986
   more on the search and not-found pages, and the rule would have to know the gate's pages;
 - `routeDiscovery: { mode: "lazy" }`: the figures do not move. The build still writes `assets/manifest-*.js` and the check counts it; the browser would
   not load it first (the matched routes come in the HTML), but would ask `/__manifest` for the rest, the Worker invocations the setting avoids.
+
+**The analytics view's own copy of the kit** (E4: `scripts/analytics-kit-copy.ts`, registered in `vite.config.ts`, tested in
+`scripts/analytics-kit-copy.test.ts` and `test/e2e/analytics-kit-copy.spec.ts`). The account page loads the analytics view
+(`app/ui/pages/AccountAnalytics.tsx`) with `import()`, and the view draws with the kit, as the network page does. Left to Rolldown, the kit's
+modules that both reach left the network route's chunk for files the two share: `LineChart-*.js` (the plot, the cursor, the line and column
+charts, the table, the labels and words: 7,896 bytes gzipped), `use-hydrated-*.js` (1,680) and `StatTile-*.js` (401). Each such file costs its
+gzip context and its `import`/`export` lines, on the network page (797 bytes, measured at `4d8f6ea` against a build without the analytics chunk)
+and in the analytics view's total, which was 151,275 bytes, over the budget. So the view has a copy of the kit: what it imports of
+`app/ui/charts/*` (all but `types.ts`), `app/ui/use-hydrated.ts` and `app/ui/components/StatTile.tsx`, and what those import of it in turn,
+resolves to the same file with the query `?analytics-kit`, another module, which only the view's chunk reaches. **The build has two copies of
+the kit**: the one every other page loads, as before E4, and the view's, inside `AccountAnalytics-*.js` (11,893 bytes, 3,322 without the copy).
+The view's first load is the account page's files and that one chunk, and the network route has its kit in its own chunk again.
+
+- **What a visitor pays for it.** The network page and the view do not share the kit any more, so a visitor who sees both downloads it twice:
+  **8,517 bytes (about 8.5 KB) more on a first analytics view after the network page**, 9,211 more on the network page after an analytics view,
+  and 2,081 more on the markets page after one (`use-hydrated` and `StatTile`). The usual way in, the account page and then its Analytics tab,
+  downloads 1,406 bytes less: one file instead of four. (Each figure is the gzipped size of what the second page loads first and the first did
+  not, with the copy and without it.)
+- **Why two copies are safe.** A browser that has run both pages holds two instances of the kit's modules, and nothing joins them: no module of
+  the kit keeps state of its own (no top-level `let` or `var`), and its React contexts (`Cursor.tsx`'s `TipSlotContext` and `HoverContext`) are
+  provided and read by its own components alone (see "The kit's boundaries"), so every provider and consumer in the view is the copy's, and every
+  one on the network page is the other copy's. `test/e2e/analytics-kit-copy.spec.ts` runs the two in one document (the network page, the view
+  by a client-side navigation, then Back): the tooltip of each copy's plot is drawn in that plot's slot, and the panels of the balance history
+  share one bucket.
+- **The checks.** The plugin checks what it has made in every client build, a deploy's too, and fails the build otherwise, so that a renamed
+  file cannot quietly bring the shared files back. On the module graph: the view is in the build, and so are `use-hydrated.ts` and
+  `StatTile.tsx`; every module of the kit that the view loads is its copy, the chart kit's directory among them; nothing but the view and the
+  copies imports a copy; the page that imports the view (`AccountPage.tsx`) loads none of the kit; and no module outside the kit imports one of
+  its modules that creates a React context. On the bundle: the view's chunk holds the copies and no other chunk does, it holds no module of the
+  kit as it is, and no chunk it imports, directly or through another, holds one. `scripts/analytics-kit-copy.test.ts` runs the same check on
+  the app's own sources (made into the module graph the build reads) and on made-up graphs and bundles, one for each way it fails.
+- **The sources of the cards.** The seven routes the view's parts are made from are in the frame (`frame.sources`, made by
+  `app/server/analytics-view.ts`, whose card builders read them too), where the view had a table of its own of the same paths (93 bytes of its
+  total).
 
 ## The parsing libraries in the Workers runtime
 

@@ -526,6 +526,22 @@ describe("a card before its data", () => {
     expect(container.querySelectorAll('[role="status"], [aria-live], [role="alert"]')).toHaveLength(0);
   });
 
+  it("takes the source line of a part that has not come from the frame, which names the routes as the cards do", async () => {
+    const frame = frameOf("30d");
+    const sources: AnalyticsFrame["sources"] = { value: "frame:value", sent: "frame:sent", changes: "frame:changes", sources: "frame:sources", counterparties: "frame:counterparties", balances: "frame:balances", pairs: "frame:pairs" };
+    await show(analytics("30d", { frame: ok({ ...frame, sources }), ...everyCard("pending") }));
+    expect(tiles().map((element) => text(element.querySelector(".stat__source")))).toEqual(["frame:value", "frame:sent", "frame:changes", "frame:counterparties"]);
+    expect(TITLES.map((title) => card(title).querySelector(".chart__source")!.textContent)).toEqual([
+      "frame:value",
+      "frame:sent",
+      "frame:balances",
+      "frame:changes",
+      "frame:sources",
+      "frame:counterparties",
+      "frame:pairs",
+    ]);
+  });
+
   it("is drawn with the same sources whether it has come or not", async () => {
     const { unmount } = await show(analytics("1y", everyCard("pending")));
     const sources = () => Array.from(document.querySelectorAll(".chart__source, .stat__source")).map((element) => element.textContent);

@@ -47,23 +47,6 @@ type Retry = ReturnType<typeof useRetry>;
 const stillWorking = (what: string) => `Still working on ${what}. Retry in a few seconds.`;
 
 /**
- * The routes the parts are made from, for a part that has not come or could not be drawn: the same paths the builders give with their data, so
- * that a card's source line does not change when its data arrives.
- */
-function sourcesOf(unit: AnalyticsFrame["axis"]["unit"]) {
-  const account = "/v2/accounts/{a}";
-  return {
-    value: `${account}/stats/value?interval=${unit}`,
-    sent: `${account}/stats/transactions?interval=${unit}`,
-    changes: `${account}/analytics/balance_changes?interval=${unit}`,
-    sources: `${account}/analytics/balance_changes`,
-    counterparties: `${account}/analytics/counterparties`,
-    balances: `${account}/analytics/balances?interval=${unit}`,
-    pairs: `${account}/analytics/exchanges`,
-  };
-}
-
-/**
  * One promise of the page data as a part: a `Suspense` and an `Await` of its own, so that a slow call holds up its card and nothing else. `draw`
  * is called with `null` for the placeholder, and with the settled state after. The promises never reject; one that did would be a failed part.
  */
@@ -124,7 +107,8 @@ function FrameProblem({ late, retry }: { late: boolean; retry: Retry }) {
 function Cards({ network, frame, analytics, retry }: { network: NetworkInfo; frame: AnalyticsFrame; analytics: AnalyticsData; retry: Retry }) {
   const { native } = network;
   const { unit } = frame.axis;
-  const sources = sourcesOf(unit);
+  // The routes of the parts, for the source line of a part that has not come or could not be drawn: the builders give the same with their data.
+  const { sources } = frame;
   const view = { native, retry };
 
   return (

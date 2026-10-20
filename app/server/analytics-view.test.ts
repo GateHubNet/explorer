@@ -84,6 +84,22 @@ describe("analyticsFrame", () => {
     expect(frame.deleted).toBe(false);
   });
 
+  it("names the routes the view's parts are made from, with the interval of its unit where the call takes one", () => {
+    const of = (unit: string) => ({
+      value: `/v2/accounts/{a}/stats/value?interval=${unit}`,
+      sent: `/v2/accounts/{a}/stats/transactions?interval=${unit}`,
+      changes: `/v2/accounts/{a}/analytics/balance_changes?interval=${unit}`,
+      sources: "/v2/accounts/{a}/analytics/balance_changes",
+      counterparties: "/v2/accounts/{a}/analytics/counterparties",
+      balances: `/v2/accounts/{a}/analytics/balances?interval=${unit}`,
+      pairs: "/v2/accounts/{a}/analytics/exchanges",
+    });
+    expect(frameOf("30d").sources).toEqual(of("day"));
+    expect(frameOf("90d").sources).toEqual(of("day"));
+    expect(frameOf("1y").sources).toEqual(of("week"));
+    expect(frameOf("all", { first: { day: "2025-07-15", from: "activation" } }).sources).toEqual(of("month"));
+  });
+
   it("notes the 30 days, with the year once, and says the last day is running", () => {
     expect(frameOf("30d").note).toBe("The 30 days from Sep 18 to Oct 17, 2026 (UTC), per day. The last day is counted up to now.");
   });
@@ -1388,6 +1404,24 @@ describe("the text of the later builders", () => {
     expect(isPlain(counterpartiesCard(frame, counterpartiesAnswer(1, [counterparty(ADDRESS_A, "1", "2", 3, 4)])))).toBe(true);
     expect(isPlain({ notes: balances.notes, empty: balances.empty, source: balances.source })).toBe(true);
     expect(isPlain(pairs)).toBe(true);
+  });
+});
+
+describe("the sources of the cards", () => {
+  it("are the frame's: each card names the route of its part as the frame does, so that its source line is the same before and after its data", () => {
+    const sources: AnalyticsFrame["sources"] = { value: "frame:value", sent: "frame:sent", changes: "frame:changes", sources: "frame:sources", counterparties: "frame:counterparties", balances: "frame:balances", pairs: "frame:pairs" };
+    const frame: AnalyticsFrame = { ...frameOf("30d"), sources };
+    const value = valueCard(frame, thirtyDays("1", "2"), "XRP");
+    const sent = sentCard(frame, page("rows", [sentRow(T, { Payment: 1 })]), "xrpl");
+    const changes = changesCard(frame, changesAnswer([], TOTALS), "XRP", XRPL_DEX);
+    const counterparties = counterpartiesCard(frame, counterpartiesAnswer(1, [counterparty(ADDRESS_A, "1", "2", 3, 4)]));
+    expect([value.source, value.tile.source]).toEqual(["frame:value", "frame:value"]);
+    expect([sent.source, sent.tile.source]).toEqual(["frame:sent", "frame:sent"]);
+    expect([changes.tile.source, changes.money.source, changes.sources.source]).toEqual(["frame:changes", "frame:changes", "frame:sources"]);
+    expect([counterparties.source, counterparties.tile.source]).toEqual(["frame:counterparties", "frame:counterparties"]);
+    expect(balancesCard(frame, balancesAnswer([], [])).source).toBe("frame:balances");
+    expect(balancesCard(frame, balancesAnswer([balanceLine("XRP", "5")], [balanceRow(T, "XRP", "5")])).source).toBe("frame:balances");
+    expect(pairsCard(frame, exchangesAnswer([]), { net: "xrpl", native: "XRP", markets: true, dex: XRPL_DEX }).source).toBe("frame:pairs");
   });
 });
 

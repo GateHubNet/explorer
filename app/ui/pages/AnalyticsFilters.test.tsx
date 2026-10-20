@@ -25,6 +25,15 @@ const FRAME: AnalyticsFrame = {
   phrase: { title: "last 30 days", empty: "these 30 days", meta: null },
   note: NOTE,
   deleted: false,
+  sources: {
+    value: "/v2/accounts/{a}/stats/value?interval=day",
+    sent: "/v2/accounts/{a}/stats/transactions?interval=day",
+    changes: "/v2/accounts/{a}/analytics/balance_changes?interval=day",
+    sources: "/v2/accounts/{a}/analytics/balance_changes",
+    counterparties: "/v2/accounts/{a}/analytics/counterparties",
+    balances: "/v2/accounts/{a}/analytics/balances?interval=day",
+    pairs: "/v2/accounts/{a}/analytics/exchanges",
+  },
 };
 
 /** A promise that never settles: the frame of a stream that has not come yet. */
