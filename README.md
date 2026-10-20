@@ -92,7 +92,7 @@ so the Worker, the browser, the scripts and the tests all import it. `featuresOf
 | Variable | In `Features` | Gates |
 |---|---|---|
 | `VALIDATORS` | `validators` | every link into the validators and amendments pages (the network page's "All validators") and those pages' routes |
-| `AMM_DATA` | `ammData` | every part derived from the AMM data in the index: the network page's AMM volume series and its "AMM swaps included" wording |
+| `AMM_DATA` | `ammData` | every part derived from the AMM data in the index: the network page's AMM volume series and its "AMM swaps included" wording; on the markets pages (XRPL only), the Trades filter of each page, the Via column, the AMM share tile and column, the pool card's share and the intro's words about swaps |
 | `MARKETS` | `markets` | the markets pages (E3), the header's Markets link and every link into them |
 
 Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). The values:
@@ -226,7 +226,7 @@ log line, the edge cache with the visitor limit, React Router.
 | `immutable` | 1 year | 0 | `max-age=60` (an image: `max-age=31536000, immutable`) | validated ledgers and transactions, their images |
 | `live-home` | **1 s** | **2 s** | `max-age=0, must-revalidate` | the home page, the network page, the market pair page, and their `.data` URLs (the route's own request of an open page) |
 | `live` | 5 s | 30 s | `max-age=0, must-revalidate` | the newest ledger, an account's live state and first pages; balances and orders |
-| `minute` | 60 s | 30 s | `max-age=0, must-revalidate` | what the data API changes every minute: the markets table (`networkMarkets`), a pair's active accounts and its long-interval candles; the markets pages will use it for themselves |
+| `minute` | 60 s | 30 s | `max-age=0, must-revalidate` | what the data API changes every minute: the markets table (`networkMarkets`), a pair's active accounts and its long-interval candles; and the markets page and its `.data` URL |
 | `slow` | 1 h | 0 | `max-age=300` | an account's creation, account images, a list page reached with a marker (`MARKER_PAGE_CLASS`), the network page's calls over a period (kept 300 s, below) |
 | `short` | 30 s | 0 | `max-age=0` | search pages, a 404 for a well-formed id |
 
@@ -798,7 +798,9 @@ high, the volume in the native currency, the trades, the AMM share and a sparkli
 1,000 at most; what only a script can do is drawn after hydration (`useHydrated`, `app/ui/use-hydrated.ts`), since no control may do nothing without
 JavaScript: "Show all N", which shows the rest of the rows the page already has; the text filter, which matches a substring of each row's search text (its codes,
 raw and shown, and its issuers in full) and leaves the tiles alone; and the sort buttons (last price, change, volume, trades: largest first, a second press
-reverses), which order the rows by the ranks the view builder wrote, so the browser compares no decimal. The count line under the table, the page's one
+reverses), which order the rows by the ranks the view builder wrote, so the browser compares no decimal (equal values share a rank, and keep the API's
+order in both directions). The Trades filter is offered once the window's AMM data is complete (`totals.amm_share`), and always on a view it filters, so
+that a bookmarked `?trades=amm` is named and can be left. The count line under the table, the page's one
 `role="status"`, says what is shown: "Showing 2 of 40 pairs, by volume, largest first". The page does not refresh itself (no `clientLoader`, no pause control):
 a table of hundreds of rows that moves while it is sorted and filtered is worse than one that says how old it is.
 
@@ -857,8 +859,11 @@ high from `1/low`, the low from `1/high`, the change from the API's own strings,
 | 1 | `/v2/network/markets?period={p}&limit=1000[&amm=exclude\|only]` (`networkMarkets`, still in `PENDING_PATHS`) | 60 s, class `minute` | 503 (`upstreamOutage`), not stored; an API without the route ("Cannot GET") is one too |
 
 The page and its `.data` URL are class `minute` (60 s fresh, 30 s stale: the data API rewrites the 24-hour set every minute and the others every five), so
-the 24 hours are at most about 3.5 minutes old, and the window's words say how old. The page does not poll, so the call does not ask for the failure hold.
-A malformed 200 is kind `server` and not stored. `min_trades` is not sent: the API's 10 is what the footnote says.
+the 24 hours are at most about 3.5 minutes old in the worst case (the set's minute, 60 s kept, 60 s + 30 s at the edge), usually within about two, and the
+window's words say how old. The page does not poll, so the call does not ask for the failure hold. A malformed 200 is kind `server` and not stored. The
+AMM fields are the exception (D2: absent = not known): a share that is not decimal text from 0 to 1, or a pool that is not a boolean, is dropped from the
+answer and reads "—", and an unfiltered answer's `amm` is not read, so a change of their format never takes the table down; a filtered answer must still
+echo its filter. `min_trades` is not sent: the API's 10 is what the footnote says.
 
 **The pair page's calls** (`T` is the close time of `last_validated`, `T₁` the start of its minute less 24 hours; `{b}/{c}` the pair as the URL has it;
 `[&amm=]` the Trades filter). They are made side by side and all are awaited (`Promise.allSettled`); every one asks for the failure hold, the node's
@@ -885,7 +890,8 @@ stored (`markDegraded`). The page and its `.data` URL are class `live-home` (1 s
 no node call; a marker the API refuses, or nothing behind it, is a 404.
 
 **The node calls** (`app/server/node-rpc.ts`). `bookOffers(gets, pays)` asks `book_offers` for the best 60 offers (`BOOK_OFFERS_LIMIT`) of the validated ledger,
-the native side `{ currency: "XRP" }` (`"XAH"` on Xahau) and drops converted to whole units at the boundary, `validated` required; `ammInfoByPair(asset, asset2)`
+the native side `{ currency: "XRP" }` (`"XAH"` on Xahau) and drops converted to whole units at the boundary, `validated` true or absent (Clio's
+`book_offers` has none), never `false`; `ammInfoByPair(asset, asset2)`
 and `ammInfo(pool)` (E5's) are one reader of `amm_info`: drops to whole units, `vote_slots` and `auth_accounts` defaulted to `[]`, the pool's assets checked
 against the pair asked for, `actNotFound` and `actMalformed` read as `not_found`. Both orientations of a pair share the node's answers: the asks of one are the
 bids of the other, and the pool is asked for in the natural orientation.
@@ -1651,8 +1657,8 @@ staging before production:
 - [ ] **The node's call rate with pair pages open.** With a pair page open in a few tabs, `wrangler tail` shows about two `book_offers` per 2 s per watched pair per Worker
   instance (the two sides, kept 2 s), not two per beat of every tab; and with the node failing (a node URL that refuses, for a while), one failing call per side per 5 s per instance (the failure hold),
   the book saying "Live state unavailable" on a fresh load and an open page keeping the book it showed.
-- [ ] **The markets page's age.** On `/xrpl/markets` (the 24 hours) the period's window ends within about two minutes of now (the data API's minute, 60 s kept, the page's 60 s
-  and 30 s), and on `?period=7d` and `30d` within about seven.
+- [ ] **The markets page's age.** On `/xrpl/markets` (the 24 hours) the period's window is at most about 3.5 minutes old in the worst case (the set's minute, 60 s kept,
+  60 s + 30 s at the edge), usually within about two, and on `?period=7d` and `30d` within about seven.
 - [ ] **The HTML weight of `/xrpl/markets?period=30d`**, the biggest set (up to 1,000 rows in the page's data, 100 in its table): write down the size of the document and of its
   `.data` URL, gzipped and not, beside the ledger page's of a large ledger.
 - [ ] **The AMM parts after `AMM_DATA` is turned on** (rollout step 7 of the markets spec): the Trades filter on both pages, the Via column, the AMM share tile and column (or "—" for
