@@ -1,6 +1,7 @@
-// How a pair is shown and linked (spec 1.5 and 1.3): the natural orientation, and the canonical link to a market. Pure and safe for the
-// browser. The markets table, the pair page, the DEX table of E4 and the pool cards of E5 all order a pair with `naturalOrientation`;
-// `canonicalPair` (asset.ts) is for talking to the data API only.
+// How a pair is shown and linked (spec 1.5 and 1.3): the natural orientation, and the canonical link to a market. Pure; for the Worker, the
+// scripts and the tests only. It value-imports asset.ts, which checks issuer checksums with `ripple-address-codec`, so a page never imports
+// it: the pages get every href and label as a string in their data. The markets table, the pair page, the DEX table of E4 and the pool
+// cards of E5 all order a pair with `naturalOrientation`; `canonicalPair` (asset.ts) is for talking to the data API only.
 
 import { assetText, type Asset, type NativeCode } from "./asset";
 import { formatCurrency } from "./format";

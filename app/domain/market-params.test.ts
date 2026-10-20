@@ -228,6 +228,25 @@ describe("pairQuery", () => {
     expect(pairQuery({ marker: "M3", back: ["A+B=", "C/D"] })).toBe("?marker=M3&back=A%2BB%3D.C%2FD");
   });
 
+  it("writes a query that a URL parser leaves as it is, for any character of a marker or of a trail", () => {
+    // A request's URL is serialized before the loader sees it, which rewrites `'` in a query to `%27`: a canonical query that kept it
+    // raw would never equal the request's, and a loader that redirects before it validates the marker would loop.
+    const serialized = (query: string) => new URL(`https://h/p${query}`).search;
+    const characters = [..."'\"<> #%&+=?/\\^`{|}~!$()*,:;@[]-_.é\u{1F600}"];
+    for (let code = 0x20; code < 0x7f; code++) characters.push(String.fromCharCode(code));
+    for (const character of characters) {
+      const marker = `a${character}b`;
+      const forMarker = pairQuery({ marker });
+      expect(forMarker).toBe(serialized(forMarker));
+      const forTrail = pairQuery({ marker: "M3", back: [marker, "M1"] });
+      expect(forTrail).toBe(serialized(forTrail));
+      // and what a loader reads from the serialized query is the same query again
+      expect(pairOf(forMarker.slice(1)).canonical).toBe(forMarker);
+    }
+    expect(pairQuery({ marker: "a'b" })).toBe("?marker=a%27b");
+    expect(pairQuery({ marker: "M3", back: ["x'y", "M1"] })).toBe("?marker=M3&back=x%27y.M1");
+  });
+
   it("does not change the trail it is given", () => {
     const back = ["M2", "M1"];
     pairQuery({ marker: "M3", back });

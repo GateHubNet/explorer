@@ -109,6 +109,13 @@ describe("parsePairPath: the canonical path of what is typed, pasted or linked",
     expect(parsed.canonicalPath).toBe(canonicalPath);
   });
 
+  it.each(rows)("has a canonical path for %s that reads as itself", (_what, raw, canonicalPath) => {
+    // A fixed point: the redirect lands on a path that is not redirected again.
+    const again = pairOf(XRPL, pairOf(XRPL, raw).canonicalPath);
+    expect(again.canonicalPath).toBe(canonicalPath);
+    expect(redirectToCanonical({ path: canonicalPath, search: "" }, { path: again.canonicalPath, search: "" })).toBeNull();
+  });
+
   it.each(rows)("redirects %s to the canonical path, or does not when it is that", (_what, raw, canonicalPath) => {
     const response = redirectToCanonical({ path: raw, search: "" }, { path: canonicalPath, search: "" });
     if (raw === canonicalPath) {

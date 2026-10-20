@@ -124,9 +124,18 @@ export function marketsHref(net: string, params: Partial<MarketsParams> = {}): s
 }
 
 /**
+ * A marker as a value of the query: `encodeURIComponent`, and `'` too, which that leaves as it is and a URL parser rewrites to `%27` in a
+ * query. The canonical query must be what the request's URL says once it is serialized, or a redirect to it would not end.
+ */
+function queryValue(text: string): string {
+  return encodeURIComponent(text).replace(/'/g, "%27");
+}
+
+/**
  * `?…`, or the empty text for the default view, in the canonical order: `interval` (not the default, and not behind a marker, where there
  * is no chart), `trades`, `marker`, `back` (only behind a marker, and only a trail that is not empty). An absent `marker` is the first
- * page, which is how `trailPaging` asks for it. The markers are written as given: a caller checks `isMarker` before it builds a link.
+ * page, which is how `trailPaging` asks for it. The markers are written as given (escaped for a query): a caller checks `isMarker` before
+ * it builds a link, and a loader before it redirects to one.
  */
 export function pairQuery(params: Partial<PairParams>): string {
   const { interval, trades, marker, back } = params;
@@ -134,8 +143,8 @@ export function pairQuery(params: Partial<PairParams>): string {
   if (marker === undefined && interval !== undefined && interval !== DEFAULT_INTERVAL) pairs.push(`interval=${interval}`);
   if (trades) pairs.push(`trades=${trades}`);
   if (marker !== undefined) {
-    pairs.push(`marker=${encodeURIComponent(marker)}`);
-    if (back !== undefined && back.length > 0) pairs.push(`back=${back.map(encodeURIComponent).join(".")}`);
+    pairs.push(`marker=${queryValue(marker)}`);
+    if (back !== undefined && back.length > 0) pairs.push(`back=${back.map(queryValue).join(".")}`);
   }
   return pairs.length > 0 ? `?${pairs.join("&")}` : "";
 }
@@ -143,7 +152,7 @@ export function pairQuery(params: Partial<PairParams>): string {
 /**
  * The view of the pair page a query names, and its canonical query (`""` or `"?…"`). Behind a marker the interval is the default's (that
  * page has no chart), and the trail is what `parseTrail` accepts; without a marker there is no trail. The raw `marker` is returned as it
- * was given, whatever it is: the route checks `isMarker` and answers a 404.
+ * was given, whatever it is: the loader checks `isMarker` on it, and answers a 404, before it compares the query or redirects.
  */
 export function parsePairParams(search: URLSearchParams, ctx: ParamsContext): { params: PairParams; canonical: string } {
   const interval = search.get("interval");
