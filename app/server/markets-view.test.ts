@@ -165,7 +165,7 @@ describe("marketsPage: a pair shown the other way round from the stored order", 
 
   it("describes the inverted line from its own first and last close", () => {
     // 1.25 to 1.3333333: (1.3333333 / 1.25 - 1) * 100 = 6.666664
-    expect(view.spark.label).toBe("7-day price, from 1.25 to 1.3333333, +6.7%");
+    expect(view.spark.label).toBe("7-day price, from 1.25 to 1.3333333 (today so far), +6.7%");
   });
 
   it("recomputes the change of an inverted row whose stored change is missing (P4: a recomputed value is there)", () => {
@@ -207,12 +207,28 @@ describe("marketsPage: a pair shown the other way round from the stored order", 
     expect(row.last).not.toMatch(EXPONENT);
   });
 
-  it("shows a dash for a price that cannot be inverted, and still ranks the row", () => {
+  it("shows a dash for a price that cannot be inverted, and gives it no price rank", () => {
     const view = pageOf([rlusdXrp({ last: "0", low: "0", change: "-100" })]).rows[0]!;
     expect(view.last).toBe("—");
     expect(view.range).toBe("—");
     expect(view.change).toEqual({ text: "—", dir: "flat" });
-    expect(Number.isInteger(view.ranks.last)).toBe(true);
+    expect(view.ranks.last).toBeNull();
+  });
+
+  it("puts a row with no usable price last in both directions: the others are ranked among themselves", () => {
+    const rows = pageOf([rlusdXrp({ last: "0", low: "0" }), eurUsd({ last: "1.5" }), eurUsd({ last: "1.2" })]).rows;
+    expect(rows.map((row) => row.ranks.last)).toEqual([null, 1, 0]);
+  });
+
+  it("shows a dash, and does not throw, for a price that is not a number", () => {
+    // bignumber.js throws on text that is not a number (strict mode); the page's data never does
+    const inverted = pageOf([rlusdXrp({ last: "abc", low: "abc", high: "x1", open: "abc", sparkline: days(["abc", "0.8", "oops", null, "0.7", "1e", "0.75"]) })]).rows[0]!;
+    expect(inverted.last).toBe("—");
+    expect(inverted.range).toBe("—");
+    expect(inverted.change).toEqual({ text: "—", dir: "flat" });
+    expect(inverted.ranks.last).toBeNull();
+    expect(inverted.spark.closes).toEqual([null, "1.25", null, null, "1.4285714", null, "1.3333333"]);
+    expect(inverted.spark.label).toBe("7-day price, from 1.25 to 1.3333333 (today so far), +6.7%");
   });
 });
 
@@ -248,6 +264,20 @@ describe("marketsPage: a pair shown as it is stored", () => {
   it("shows a missing change as a dash, flat (P4)", () => {
     const { change: _dropped, ...stored } = eurUsd();
     expect(pageOf([stored]).rows[0]!.change).toEqual({ text: "—", dir: "flat" });
+  });
+
+  it("shows a dash, and does not throw, for stored prices that are not numbers", () => {
+    const bad = eurUsd({ last: "abc", low: "n/a", change: "abc", native_volume: "abc", sparkline: days(["abc", "1.07", null, null, null, null, "oops"]), amm_share: "abc" });
+    // built by hand: the test helper that sums the volumes is bignumber.js too
+    const { markets: _none, ...bare } = answerOf([]);
+    const row = marketsPage({ network: XRPL, params: DEFAULT, answer: { ...bare, markets: [bad], count: 1 } }).rows[0]!;
+    expect(row.last).toBe("—");
+    expect(row.range).toBe("—");
+    expect(row.change).toEqual({ text: "—", dir: "flat" });
+    expect(row.ranks).toMatchObject({ last: null, change: null, volume: null });
+    expect(row.spark.closes).toEqual([null, "1.07", null, null, null, null, null]);
+    expect(row.volume).toBe("—");
+    expect(row.amm).toEqual({ text: "—", meter: null });
   });
 
   it("shows a price in exponent text as a plain number", () => {
@@ -415,6 +445,26 @@ describe("marketsPage: the totals", () => {
     expect(data.note).toBeNull();
     expect(data.rows).toEqual([]);
     expect(data.empty).toBe("No market figures yet for this period. The data API computes them every minute.");
+  });
+
+  it("names the cadence of the period in the no-set message: every five minutes for 7 and 30 days (D2)", () => {
+    for (const period of ["7d", "30d"] as const) {
+      const answer: MarketsResponse = { ...NO_SET, period: period === "7d" ? "7day" : "30day" };
+      expect(marketsPage({ network: XRPL, params: { ...DEFAULT, period }, answer }).empty).toBe(
+        "No market figures yet for this period. The data API computes them every five minutes.",
+      );
+    }
+  });
+
+  it("says in an empty Quote view that only the pairs served were looked at, when more qualify", () => {
+    const thousand = Array.from({ length: 1000 }, () => usdXrp());
+    const data = pageOf(thousand, { params: { quote: "eur" }, totals: { pairs: 2140 } });
+    expect(data.empty).toBe("No EUR pairs with at least 10 trades in the last 24 hours. The 1,000 pairs with the most volume of 2,140.");
+    // everything that qualifies was served: the plain message
+    expect(pageOf(thousand, { params: { quote: "eur" } }).empty).toBe("No EUR pairs with at least 10 trades in the last 24 hours.");
+    expect(pageOf([usdXrp()], { params: { quote: "eur" }, totals: { pairs: 2140 } }).empty).toBe(
+      "No EUR pairs with at least 10 trades in the last 24 hours. The 1 pairs with the most volume of 2,140.",
+    );
   });
 
   it("says nothing is listed, for a set in which no pair qualifies", () => {
@@ -637,15 +687,20 @@ describe("marketsPage: links and text", () => {
 
   it("describes the sparkline with its first and last close and the change between them, to one decimal, half up", () => {
     expect(pageOf([eurUsd({ sparkline: days(["2.38", null, null, null, null, null, "2.44"]) })]).rows[0]!.spark.label).toBe(
-      "7-day price, from 2.38 to 2.44, +2.5%",
+      "7-day price, from 2.38 to 2.44 (today so far), +2.5%",
     );
     expect(pageOf([eurUsd({ sparkline: days(["2.44", "2.1", "2.2", "2.3", "2.3", "2.35", "2.38"]) })]).rows[0]!.spark.label).toBe(
-      "7-day price, from 2.44 to 2.38, \u22122.5%",
+      "7-day price, from 2.44 to 2.38 (today so far), \u22122.5%",
     );
     // +2.25% rounds half up to +2.3%
     expect(pageOf([eurUsd({ sparkline: days(["100", "100", "100", "100", "100", "100", "102.25"]) })]).rows[0]!.spark.label).toBe(
-      "7-day price, from 100 to 102.25, +2.3%",
+      "7-day price, from 100 to 102.25 (today so far), +2.3%",
     );
+  });
+
+  it("marks the running day only when the last close is that day's (the last day of the sparkline)", () => {
+    // the newest close is from an earlier day: nothing is said about today
+    expect(pageOf([eurUsd({ sparkline: days(["2.38", "2.4", null, null, null, null, null]) })]).rows[0]!.spark.label).toBe("7-day price, from 2.38 to 2.4, +0.8%");
   });
 
   it("says there were no trades when no day has a close", () => {

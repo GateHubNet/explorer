@@ -23,6 +23,7 @@ import { marketHref, naturalOrientation } from "../domain/market-pair";
 import { marketsHref, PERIODS, QUOTES, TRADES_API, type MarketsParams, type Quote } from "../domain/market-params";
 import type { MeterData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
+import { isNumberText } from "./aggregate-shape";
 import type { MarketRow, MarketsResponse } from "./api-types";
 import type { Network } from "./networks";
 
@@ -53,10 +54,11 @@ export interface MarketRowView {
   /** Lower case: the pair as "base/counter", the raw codes and the issuers. The text filter matches a substring of it. */
   search: string;
   /**
-   * Each row's place (from 0) in an exact ascending sort of what the row shows, a tie keeping the API's order. `change` and `volume` are `null`
-   * for a row without one, which the browser puts last in both directions. The browser sorts by these integers and compares no decimal.
+   * Each row's place (from 0) in an exact ascending sort of what the row shows, a tie keeping the API's order. `last`, `change` and `volume`
+   * are `null` for a row without one (a price that cannot be inverted, a missing change, a pair with no native volume), which the browser puts
+   * last in both directions. The browser sorts by these integers and compares no decimal.
    */
-  ranks: { last: number; change: number | null; volume: number | null; trades: number };
+  ranks: { last: number | null; change: number | null; volume: number | null; trades: number };
 }
 
 export interface MarketsPageData {
@@ -93,18 +95,23 @@ const PLAIN_DECIMAL = /^-?\d+(?:\.\d+)?$/;
 
 // ---- Numbers --------------------------------------------------------------------------------------------------------------------------
 
-/** A number the API wrote (decimal or exponent text), or `null` where it is not one. */
+/**
+ * A number the API wrote (decimal or exponent text, `isNumberText`), or `null` where it is not one. The text is tested first: bignumber.js is
+ * strict, so `new BigNumber("abc")` throws instead of giving NaN.
+ */
 function numberOf(text: string | undefined): BigNumber | null {
-  if (text === undefined) return null;
-  const value = new BN(text);
-  return value.isFinite() ? value : null;
+  return isNumberText(text) ? new BN(text) : null;
 }
 
-/** A plain decimal text: as it was written when it already is one, and written out in full when it is in exponent form. */
-function plainText(text: string): string {
+/** A plain decimal text: as it was written when it already is one, and written out in full when it is in exponent form; `null` for no number. */
+function plainText(text: string): string | null {
   if (PLAIN_DECIMAL.test(text)) return text;
-  const value = numberOf(text);
-  return value === null ? text : value.toFixed();
+  return numberOf(text)?.toFixed() ?? null;
+}
+
+/** A price as the page shows it: `formatPrice`, or a dash where the text is no number. */
+function priceText(text: string): string {
+  return numberOf(text) === null ? DASH : formatPrice(text);
 }
 
 /**
@@ -176,7 +183,8 @@ function orientationOf(
 /** What a row shows of its prices: all of it in the orientation it is displayed in, before the page's formatting of the AMM and the ranks. */
 interface Prices {
   last: string;
-  lastValue: BigNumber;
+  /** The price as it is shown, for the rank; `null` where there is none. */
+  lastValue: BigNumber | null;
   change: { text: string; dir: "up" | "down" | "flat" };
   /** The change as it is shown (2 decimals), for the rank. */
   changeValue: BigNumber | null;
@@ -204,12 +212,13 @@ function invertedChange(open: string, last: string): BigNumber | null {
 function storedPrices(row: MarketRow): Prices {
   const last = numberOf(row.last);
   const change = numberOf(row.change);
+  const [low, high] = [priceText(row.low), priceText(row.high)];
   return {
-    last: formatPrice(row.last),
-    lastValue: last === null ? new BN(0) : last.precision(8, HALF_UP),
+    last: priceText(row.last),
+    lastValue: last === null ? null : last.precision(8, HALF_UP),
     change: changeOf(change),
     changeValue: change === null ? null : change.decimalPlaces(2, HALF_UP),
-    range: `${formatPrice(row.low)} ${RANGE_DASH} ${formatPrice(row.high)}`,
+    range: low === DASH || high === DASH ? DASH : `${low} ${RANGE_DASH} ${high}`,
     closes: row.sparkline.map(({ close }) => (close === undefined ? null : plainText(close))),
   };
 }
@@ -221,7 +230,7 @@ function invertedPrices(row: MarketRow): Prices {
   const change = invertedChange(row.open, row.last);
   return {
     last: last === null ? DASH : formatPrice(eightDigits(last)),
-    lastValue: last === null ? new BN(0) : last.precision(8, HALF_UP),
+    lastValue: last === null ? null : last.precision(8, HALF_UP),
     change: changeOf(change),
     changeValue: change === null ? null : change.decimalPlaces(2, HALF_UP),
     range: low === null || high === null ? DASH : `${formatPrice(eightDigits(low))} ${RANGE_DASH} ${formatPrice(eightDigits(high))}`,
@@ -232,14 +241,18 @@ function invertedPrices(row: MarketRow): Prices {
   };
 }
 
-/** "7-day price, from 2.38 to 2.44, +2.5%": the first and the last close there is, and the change between them to one decimal, half up. */
+/**
+ * "7-day price, from 2.38 to 2.44 (today so far), +2.5%": the first and the last close there is, and the change between them to one decimal,
+ * half up. The last day of a sparkline is the running one (R5), so a last close that is that day's says "(today so far)".
+ */
 function sparkLabel(closes: readonly (string | null)[]): string {
   const seen = closes.filter((close): close is string => close !== null);
   const [first, last] = [seen[0], seen[seen.length - 1]];
   if (first === undefined || last === undefined) return "No trades in the last 7 days";
   const from = numberOf(first);
   const to = numberOf(last);
-  const head = `7-day price, from ${formatPrice(first)} to ${formatPrice(last)}`;
+  const running = closes[closes.length - 1] === last ? " (today so far)" : "";
+  const head = `7-day price, from ${priceText(first)} to ${priceText(last)}${running}`;
   if (from === null || to === null || !from.gt(0)) return head;
   const change = to.div(from).minus(1).times(100).decimalPlaces(1, HALF_UP);
   const text = change.isZero() ? "0.0" : `${change.isNegative() ? MINUS : "+"}${formatAmount(change.abs().toFixed(1))}`;
@@ -284,10 +297,15 @@ function momentText(time: string): string {
   return `${formatUtcDay(time.slice(0, 10))}, ${time.slice(11, 16)}`;
 }
 
+/** How often the data API computes a period's set (D2 3.3): the 24 hours every minute, 7 and 30 days every five minutes. */
+function cadenceOf(period: MarketsParams["period"]): string {
+  return period === "24h" ? "minute" : "five minutes";
+}
+
 function noteOf(answer: MarketsResponse, period: MarketsParams["period"]): string | null {
   const { start_time: start, end_time: end } = answer;
   if (start === undefined || end === undefined) return null;
-  const cadence = period === "24h" ? "minute" : "five minutes";
+  const cadence = cadenceOf(period);
   return `Figures cover ${momentText(start)} to ${momentText(end)} UTC: the ${PERIODS[period].words} from the start of an hour, recomputed every ${cadence}.`;
 }
 
@@ -324,13 +342,24 @@ function introOf(ammState: AmmState): string {
     : "Trades on the XRP Ledger DEX.";
 }
 
+/** " The 1,000 pairs with the most volume of 2,140." when the API served fewer pairs than qualify (the footnote's sentence), else nothing. */
+function servedNote(answer: MarketsResponse): string {
+  const served = answer.markets.length;
+  return answer.totals !== undefined && served > 0 && answer.totals.pairs > served
+    ? ` The ${groupedCount(served)} pairs with the most volume of ${groupedCount(answer.totals.pairs)}.`
+    : "";
+}
+
 function emptyOf(input: MarketsInput, listed: number): string | null {
   const { answer, params } = input;
   if (listed > 0) return null;
   // The API has no set yet: no window, no totals, no pair at all.
-  if (answer.totals === undefined && answer.markets.length === 0) return "No market figures yet for this period. The data API computes them every minute.";
+  if (answer.totals === undefined && answer.markets.length === 0) {
+    return `No market figures yet for this period. The data API computes them every ${cadenceOf(params.period)}.`;
+  }
   const quote = params.quote === null ? "" : `${params.quote.toUpperCase()} `;
-  return `No ${quote}pairs with at least 10 trades in the last ${PERIODS[params.period].words}.`;
+  // Only the pairs served were looked at: "No USD pairs" must not read as a fact about pairs the API did not send.
+  return `No ${quote}pairs with at least 10 trades in the last ${PERIODS[params.period].words}.${servedNote(answer)}`;
 }
 
 /** The title words of a view that is not the default: "last 7 days", "USD", "AMM swaps". */
@@ -386,17 +415,15 @@ export function marketsPage(input: MarketsInput): MarketsPageData {
       last: price.last,
       change: price.change,
       range: price.range,
-      volume: row.native_volume === undefined ? DASH : compactNumber(row.native_volume),
+      volume: numberOf(row.native_volume) === null ? DASH : compactNumber(row.native_volume!),
       trades: groupedCount(row.count),
       amm: ammState === "on" ? ammCell(row) : null,
       spark: { closes: price.closes, label, token: tokenOf(price.closes) },
       search: [`${codes[0]}/${codes[1]}`, shown.base.currency, shown.counter.currency, ...issuers].join(" ").toLowerCase(),
-      ranks: { last: lastRanks[at]!, change: changeRanks[at] ?? null, volume: volumeRanks[at] ?? null, trades: tradesRanks[at]! },
+      ranks: { last: lastRanks[at] ?? null, change: changeRanks[at] ?? null, volume: volumeRanks[at] ?? null, trades: tradesRanks[at]! },
     };
   });
 
-  const served = answer.markets.length;
-  const more = answer.totals !== undefined && answer.totals.pairs > served ? ` The ${groupedCount(served)} pairs with the most volume of ${groupedCount(answer.totals.pairs)}.` : "";
   const view = viewWords(params);
   const tradesLinks: SegmentLink[] | null = tradesShown
     ? [
@@ -430,7 +457,7 @@ export function marketsPage(input: MarketsInput): MarketsPageData {
     rows,
     empty: emptyOf({ ...input, params }, rows.length),
     footnote: {
-      left: `Pairs with at least 10 trades in the period. Volume in ${native}: the ${native} side of pairs against ${native}, other pairs at the period's rate.${more}`,
+      left: `Pairs with at least 10 trades in the period. Volume in ${native}: the ${native} side of pairs against ${native}, other pairs at the period's rate.${servedNote(answer)}`,
       right: "Prices are counter per base.",
     },
     ammColumn: ammState === "on",
