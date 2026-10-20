@@ -5,6 +5,7 @@ import {
   createDegradedMark,
   createSubrequestCache,
   edgeCacheKey,
+  SHARED_LOAD_MAX_AGE_MS,
   SINGLE_FLIGHT_WAIT_MS,
   withEdgeCache,
   type DegradedMark,
@@ -1943,5 +1944,363 @@ describe("the failure hold", () => {
     const load = failing(new UpstreamError("server"));
     expect(await held(cache, k, load)).toBe(7);
     expect(load).not.toHaveBeenCalled();
+  });
+});
+
+// In-flight sharing (E4 spec 2.7): a call that asks for `shareInFlight` waits for the load of its key that another request of this Worker instance is
+// already running, and starts no load of its own. Each case has a key of its own (the flights and the hold are per instance, and the Cache API
+// outlives a test), and each request has its own cache, as the Worker gives it: only the module's table of flights is shared.
+describe("in-flight sharing", () => {
+  const key = (name: string) => `GET https://xrpl.data.example.invalid/v2/accounts/rShared/analytics/${name}-${++pages}`;
+  const share = { shareInFlight: true };
+  const both = { holdFailure: true, shareInFlight: true };
+
+  /** A request of the Worker: its own execution context and its own cache. */
+  function request(buildId = "build-1") {
+    const h = harness();
+    return { cache: createSubrequestCache(h.ctx, buildId), settle: h.settle, get waiting() { return h.waiting; } };
+  }
+
+  /** A `load` that settles when the test says so. */
+  function pending<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { load: vi.fn(() => promise), resolve, reject };
+  }
+
+  const failing = (error: unknown) =>
+    vi.fn(async (): Promise<number> => {
+      throw error;
+    });
+
+  /**
+   * Counts the reads of the Cache API that have been answered. Waiting for `calls` of them is waiting until that many calls have read the cache,
+   * missed, and so have joined the flight of their key or started it: a call that has not yet got that far cannot be told from one that never will.
+   */
+  function reads() {
+    const match = caches.default.match.bind(caches.default);
+    let answered = 0;
+    vi.spyOn(caches.default, "match").mockImplementation(async (request, options) => {
+      try {
+        return await match(request, options);
+      } finally {
+        answered += 1;
+      }
+    });
+    return async (calls: number) => {
+      await vi.waitFor(() => expect(answered).toBe(calls), { interval: 1 });
+      // One turn more: what a call does after its read is done in microtasks, which have run by the next timer.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+  }
+
+  it("calls load once for two concurrent loads of one key, and gives each caller equal values that are not the same object", async () => {
+    const [a, b] = [request(), request()];
+    const answered = reads();
+    const k = key("two");
+    const gate = pending<{ rows: number[]; total: { value: string } }>();
+    const other = vi.fn(async () => ({ rows: [9], total: { value: "9" } }));
+
+    const first = a.cache.json(k, "minute", gate.load, undefined, share);
+    const second = b.cache.json(k, "minute", other, undefined, share);
+    await answered(2);
+    expect(gate.load).toHaveBeenCalledTimes(1);
+    gate.resolve({ rows: [1, 2], total: { value: "3" } });
+
+    const [x, y] = await Promise.all([first, second]);
+    expect(x).toEqual({ rows: [1, 2], total: { value: "3" } });
+    expect(y).toEqual(x);
+    expect(y).not.toBe(x);
+    expect(y.rows).not.toBe(x.rows);
+    expect(other).not.toHaveBeenCalled();
+    // One write, by the load that was made.
+    await Promise.all([a.settle(), b.settle()]);
+  });
+
+  it("rejects both callers of a load that throws with the same UpstreamError, stores nothing, and loads again on the next call", async () => {
+    const [a, b] = [request(), request()];
+    const answered = reads();
+    const k = key("throws");
+    const error = new UpstreamError("server", "the analytics call failed");
+    const gate = pending<number>();
+    const other = vi.fn(async () => 2);
+
+    const first = a.cache.json(k, "minute", gate.load, undefined, share);
+    const second = b.cache.json(k, "minute", other, undefined, share);
+    await answered(2);
+    gate.reject(error);
+
+    const outcomes = await Promise.allSettled([first, second]);
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(["rejected", "rejected"]);
+    for (const outcome of outcomes) expect((outcome as PromiseRejectedResult).reason).toBe(error);
+    expect(other).not.toHaveBeenCalled();
+    // Nothing was handed to `waitUntil`, so nothing was written.
+    expect([a.waiting, b.waiting]).toEqual([0, 0]);
+
+    const next = vi.fn(async () => 3);
+    expect(await a.cache.json(k, "minute", next, undefined, share)).toBe(3);
+    expect(next).toHaveBeenCalledTimes(1);
+    await a.settle();
+  });
+
+  it("forgets a flight when it has settled: a later call reads the stored entry without calling load", async () => {
+    const [a, b] = [request(), request()];
+    const k = key("settled");
+    const load = vi.fn(async () => ({ n: 1 }));
+
+    expect(await a.cache.json(k, "minute", load, undefined, share)).toEqual({ n: 1 });
+    await a.settle();
+
+    const later = vi.fn(async () => ({ n: 2 }));
+    expect(await b.cache.json(k, "minute", later, undefined, share)).toEqual({ n: 1 });
+    expect(later).not.toHaveBeenCalled();
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls load twice for two concurrent loads of one key that do not ask to share", async () => {
+    const [a, b] = [request(), request()];
+    const answered = reads();
+    const k = key("not-asked");
+    const [one, two] = [pending<number>(), pending<number>()];
+
+    const first = a.cache.json(k, "minute", one.load);
+    const second = b.cache.json(k, "minute", two.load);
+    await answered(2);
+    expect(one.load).toHaveBeenCalledTimes(1);
+    expect(two.load).toHaveBeenCalledTimes(1);
+    one.resolve(1);
+    two.resolve(2);
+    expect(await Promise.all([first, second])).toEqual([1, 2]);
+    await Promise.all([a.settle(), b.settle()]);
+  });
+
+  it("neither joins a flight nor is joined, for a call that does not ask to share", async () => {
+    const [a, b, c] = [request(), request(), request()];
+    const answered = reads();
+    const k = key("one-sided");
+    const flight = pending<number>();
+    const alone = pending<number>();
+    const joiner = vi.fn(async () => 99);
+
+    const first = a.cache.json(k, "minute", flight.load, undefined, share);
+    const unshared = b.cache.json(k, "minute", alone.load);
+    const second = c.cache.json(k, "minute", joiner, undefined, share);
+    await answered(3);
+    expect(alone.load).toHaveBeenCalledTimes(1);
+    expect(joiner).not.toHaveBeenCalled();
+    flight.resolve(1);
+    alone.resolve(2);
+    expect(await Promise.all([first, unshared, second])).toEqual([1, 2, 1]);
+    await Promise.all([a.settle(), b.settle(), c.settle()]);
+  });
+
+  it("shares a call that is not kept (a TTL of zero) too, writes nothing, and forgets the flight when it settles", async () => {
+    const [a, b] = [request(), request()];
+    const k = key("zero");
+    const gate = pending<number>();
+    const other = vi.fn(async () => 2);
+
+    const first = a.cache.json(k, "minute", gate.load, 0, share);
+    const second = b.cache.json(k, "minute", other, 0, share);
+    expect(gate.load).toHaveBeenCalledTimes(1);
+    gate.resolve(1);
+    expect(await Promise.all([first, second])).toEqual([1, 1]);
+    expect(other).not.toHaveBeenCalled();
+    expect([a.waiting, b.waiting]).toEqual([0, 0]);
+
+    // Nothing is stored and the flight is gone: the next call loads.
+    const next = vi.fn(async () => 3);
+    expect(await a.cache.json(k, "minute", next, 0, share)).toBe(3);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves a stored answer at once, ahead of a flight of the same key", async () => {
+    const [a, b, c] = [request(), request(), request()];
+    const answered = reads();
+    const k = key("stored-first");
+    const gate = pending<number>();
+
+    // A flight of the key is running (its call asked to share, and was not stored yet) when another call stores an answer.
+    const running = a.cache.json(k, "minute", gate.load, undefined, share);
+    await answered(1);
+    expect(await b.cache.json(k, "minute", async () => 5)).toBe(5);
+    await b.settle();
+
+    const load = vi.fn(async () => 6);
+    expect(await c.cache.json(k, "minute", load, undefined, share)).toBe(5);
+    expect(load).not.toHaveBeenCalled();
+    gate.resolve(1);
+    expect(await running).toBe(1);
+    await a.settle();
+  });
+
+  it("throws a held failure on a miss without joining a flight or loading", async () => {
+    const [a, b, c] = [request(), request(), request()];
+    const answered = reads();
+    const k = key("held");
+    const error = new UpstreamError("timeout");
+    await expect(a.cache.json(k, "minute", failing(error), undefined, both)).rejects.toBe(error);
+
+    // A flight of the key is running (a call that does not ask for the hold made it).
+    const gate = pending<number>();
+    const running = b.cache.json(k, "minute", gate.load, undefined, share);
+    await answered(2);
+    expect(gate.load).toHaveBeenCalledTimes(1);
+
+    const load = vi.fn(async () => 2);
+    await expect(c.cache.json(k, "minute", load, undefined, both)).rejects.toBe(error);
+    expect(load).not.toHaveBeenCalled();
+    // It did not wait for the flight, which is still running.
+    expect(gate.load).toHaveBeenCalledTimes(1);
+    gate.resolve(1);
+    expect(await running).toBe(1);
+    await b.settle();
+  });
+
+  it("serves a stored answer during a hold, with shareInFlight set too", async () => {
+    const [a, b] = [request(), request()];
+    const k = key("stored-during-hold");
+    expect(await a.cache.json(k, "minute", async () => ({ n: 1 }), undefined, share)).toEqual({ n: 1 });
+    await a.settle();
+
+    // A later load of the key fails (a call that is not kept does not read the Cache API) and the failure is held.
+    const error = new UpstreamError("server");
+    await expect(a.cache.json(k, "minute", failing(error), 0, both)).rejects.toBe(error);
+    const held = vi.fn(async () => ({ n: 2 }));
+    await expect(a.cache.json(k, "minute", held, 0, both)).rejects.toBe(error);
+    expect(held).not.toHaveBeenCalled();
+
+    const load = vi.fn(async () => ({ n: 3 }));
+    expect(await b.cache.json(k, "minute", load, undefined, both)).toEqual({ n: 1 });
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("holds the failure of a shared load once, for every caller that joined it", async () => {
+    const [a, b, c] = [request(), request(), request()];
+    const answered = reads();
+    const k = key("held-once");
+    const error = new UpstreamError("server");
+    const gate = pending<number>();
+    const other = vi.fn(async () => 2);
+
+    const first = a.cache.json(k, "minute", gate.load, undefined, both);
+    const second = b.cache.json(k, "minute", other, undefined, both);
+    await answered(2);
+    gate.reject(error);
+    const outcomes = await Promise.allSettled([first, second]);
+    for (const outcome of outcomes) expect((outcome as PromiseRejectedResult).reason).toBe(error);
+
+    const next = vi.fn(async () => 3);
+    await expect(c.cache.json(k, "minute", next, undefined, both)).rejects.toBe(error);
+    expect(next).not.toHaveBeenCalled();
+    expect(gate.load).toHaveBeenCalledTimes(1);
+    expect(other).not.toHaveBeenCalled();
+  });
+
+  it("keeps the probe of a hold: when it is over one call loads, and the others keep the held error until it has settled", async () => {
+    const [a, b] = [request(), request()];
+    const k = key("probe");
+    const error = new UpstreamError("timeout");
+    await expect(a.cache.json(k, "minute", failing(error), undefined, both)).rejects.toBe(error);
+    advance(5_001);
+
+    const probe = pending<number>();
+    const first = a.cache.json(k, "minute", probe.load, undefined, both);
+    await vi.waitFor(() => expect(probe.load).toHaveBeenCalledTimes(1), { interval: 1 });
+
+    // The probe is still waiting, as an upstream that times out does for 5 s: the others get the held error, and none loads or joins.
+    const others = [failing(new UpstreamError("server")), failing(new UpstreamError("server"))];
+    for (const load of others) await expect(b.cache.json(k, "minute", load, undefined, both)).rejects.toBe(error);
+    for (const load of others) expect(load).not.toHaveBeenCalled();
+    expect(probe.load).toHaveBeenCalledTimes(1);
+
+    probe.resolve(8);
+    expect(await first).toBe(8);
+    await a.settle();
+    // Answered and stored: the hold is gone, and the next call is the Cache API's.
+    const next = vi.fn(async () => 9);
+    expect(await b.cache.json(k, "minute", next, undefined, both)).toBe(8);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("holds the failure the probe found, for the callers that joined it too", async () => {
+    const [a, b] = [request(), request()];
+    const k = key("probe-fails");
+    await expect(a.cache.json(k, "minute", failing(new UpstreamError("timeout")), undefined, both)).rejects.toThrow();
+    advance(5_001);
+
+    // The hold is over, so the probe is the one call that goes on: a call that asked for no hold joins its flight.
+    const probe = pending<number>();
+    const answered = reads();
+    const first = a.cache.json(k, "minute", probe.load, undefined, both);
+    const joined = b.cache.json(k, "minute", vi.fn(async () => 1), undefined, share);
+    await answered(2);
+    const found = new UpstreamError("server", "found by the probe");
+    probe.reject(found);
+    const outcomes = await Promise.allSettled([first, joined]);
+    for (const outcome of outcomes) expect((outcome as PromiseRejectedResult).reason).toBe(found);
+
+    const later = vi.fn(async () => 2);
+    await expect(a.cache.json(k, "minute", later, undefined, both)).rejects.toBe(found);
+    expect(later).not.toHaveBeenCalled();
+  });
+
+  it("does not share between keys that differ by their TTL override, or between build ids", async () => {
+    const answered = reads();
+    const k = key("distinct");
+    const calls = [
+      { cache: request("build-1").cache, key: k },
+      { cache: request("build-1").cache, key: `${k} [kept 300 s]` },
+      { cache: request("build-2").cache, key: k },
+    ];
+    const gates = calls.map(() => pending<string>());
+
+    const results = calls.map(({ cache, key: callKey }, i) => cache.json(callKey, "minute", gates[i]!.load, undefined, share));
+    await answered(3);
+    for (const gate of gates) expect(gate.load).toHaveBeenCalledTimes(1);
+    gates.forEach((gate, i) => gate.resolve(`answer ${i}`));
+    expect(await Promise.all(results)).toEqual(["answer 0", "answer 1", "answer 2"]);
+  });
+
+  // A load whose request is gone never settles. It must not close its key for good (nor the probe of a hold, which `holdFailure` promises is not so).
+  it("stops joining a flight that has not settled in 30 s: the next call starts its own, and the old flight's end does not remove it", async () => {
+    const [a, b, c, d] = [request(), request(), request(), request()];
+    const k = key("hung");
+    // A TTL of zero: no read of the Cache API stands between a call and its flight, so that the calls below are in order.
+    const hung = pending<number>();
+    const first = a.cache.json(k, "minute", hung.load, 0, share);
+
+    // At the limit it is still joined.
+    advance(SHARED_LOAD_MAX_AGE_MS);
+    const early = vi.fn(async () => 1);
+    const second = b.cache.json(k, "minute", early, 0, share);
+    expect(early).not.toHaveBeenCalled();
+
+    advance(1);
+    const fresh = pending<number>();
+    const third = c.cache.json(k, "minute", fresh.load, 0, share);
+    expect(fresh.load).toHaveBeenCalledTimes(1);
+
+    // The old flight ends at last. The newer one is still in the table: the next call joins it.
+    hung.resolve(1);
+    expect(await Promise.all([first, second])).toEqual([1, 1]);
+    const joiner = vi.fn(async () => 9);
+    const fourth = d.cache.json(k, "minute", joiner, 0, share);
+    expect(joiner).not.toHaveBeenCalled();
+    fresh.resolve(2);
+    expect(await Promise.all([third, fourth])).toEqual([2, 2]);
+    expect(early).not.toHaveBeenCalled();
+  });
+
+  it("rejects a shared answer that JSON cannot carry, and stores nothing", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const a = request();
+    await expect(a.cache.json(key("big"), "minute", async () => 10n, undefined, share)).rejects.toThrow();
+    await expect(a.cache.json(key("undefined"), "minute", async () => undefined, undefined, share)).rejects.toThrow(TypeError);
+    expect(a.waiting).toBe(0);
   });
 });
