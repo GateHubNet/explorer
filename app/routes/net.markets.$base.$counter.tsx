@@ -6,11 +6,11 @@ import { naturalOrientation } from "../domain/market-pair";
 import { candleWindow, CANDLE_COUNT, dayWindowStart, INTERVALS, parsePairParams, TRADES_API, type PairParams } from "../domain/market-params";
 import { queryOf } from "../domain/network-params";
 import type { Loaded } from "../server/account-view";
-import { anchorOf, type Anchor } from "../server/anchor";
-import type { LastValidated, Page, PairExchange } from "../server/api-types";
+import { anchorOrThrow, type Anchor } from "../server/anchor";
+import type { Page, PairExchange } from "../server/api-types";
 import { HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
-import { byDeadline, CARD_DEADLINE_MS, TooLate } from "../server/deadline";
+import { byDeadline, CARD_DEADLINE_MS, outcome, TooLate } from "../server/deadline";
 import { cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv, markDegraded } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
@@ -50,7 +50,13 @@ export const PAIR_PARTS = ["stats", "candles", "traders", "book", "pool", "share
 const TRADES_PAGE = 20;
 
 /** What the not-found page says of a page of older trades that is not there (a marker that is none, or one the API refuses or has nothing behind). */
-const OLDER_NOT_FOUND = "that page of the market's trades";
+const OLDER_NOT_FOUND = "that page of the market’s trades";
+
+/** Why a part whose calls answered failed all the same (`pairPage`): what its log line says in place of an upstream's error. */
+const UNREAD_PARTS: Record<string, string> = {
+  pool: "the pool's assets are not the pair's",
+  share: "no figure to work the share out from",
+};
 
 /** The page's pair and its view, once the URL is the one canonical URL of the view. */
 interface PairView {
@@ -134,22 +140,6 @@ async function olderTrades(context: Route.LoaderArgs["context"], { net, base, co
   const page = olderPage({ network: net, base, counter, params: view, trades });
   return cached({ ...page, build: getEnv(context).BUILD_ID } satisfies OlderPairData, MARKER_PAGE_CLASS);
 }
-
-/** The anchor of `last` (#1), or the API failing: a ledger or a close time that is not a number, from which no window can be worked out. */
-function anchorOrThrow(last: LastValidated): Anchor {
-  const anchor = anchorOf(last);
-  if (!Number.isFinite(anchor.lastValidated) || !Number.isFinite(anchor.closeTime)) {
-    throw new UpstreamError("server", "data API GET /v2/last_validated answered a ledger_index or close_time that is not a number", { status: 200 });
-  }
-  return anchor;
-}
-
-/** What `Promise.allSettled` says of one promise; it never rejects. */
-const outcome = <T,>(work: Promise<T>): Promise<PromiseSettledResult<T>> =>
-  work.then(
-    (value) => ({ status: "fulfilled", value }),
-    (reason: unknown) => ({ status: "rejected", reason }),
-  );
 
 /** The live page (spec 3.7): every call side by side, then the existence of the market, then the page from what came. */
 async function livePage(context: Route.LoaderArgs["context"], request: Request, started: number, { net, base, counter, view }: PairView) {
@@ -270,8 +260,9 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
     share: share === null ? null : settle("share", share),
   });
   for (const part of problems) {
-    // A share whose own call answered failed with the 24 h figures it is worked out from, which are logged as the stats'.
-    const found = errors.get(part) ?? [new Error(`no figure to work the ${part} out from`)];
+    // A part whose calls answered failed in the view builder: a pool of other assets than the pair's (`poolSides`), or a share whose 24 h
+    // figures failed (logged as the stats') or are no number.
+    const found = errors.get(part) ?? [new Error(UNREAD_PARTS[part] ?? `the ${part} could not be read`)];
     for (const error of found) {
       logProblem(`the market pair page's ${part} ${error instanceof TooLate ? "took too long" : "could not be loaded"}`, error, request);
     }

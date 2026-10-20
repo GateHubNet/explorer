@@ -5,9 +5,10 @@
 // A page's `meta` is part of its route module, so the browser runs these too (a client-side navigation sets the tags of the page it lands
 // on): this file imports only light, pure code, and the renderer of the images is not reachable from it (test/unit/og-bundle.test.ts).
 //
-// This file holds what every page's tags are made with: the context, the absolute URLs and `sharing`. Each page's builder is in a module of
-// its own, `meta-<page>.ts`, which that page's route alone imports: a module that every route imports is in a chunk that every page loads, so
-// a builder here would be in every page's JavaScript, with what it imports (test/unit/meta-bundle.test.ts).
+// This file holds what every page's tags are made with: the context, the absolute URLs and `sharing`, and the one name of each network's DEX,
+// which the markets pages' descriptions share. Each page's builder is in a module of its own, `meta-<page>.ts`, which that page's route alone
+// imports: a module that every route imports is in a chunk that every page loads, so a builder here would be in every page's JavaScript, with
+// what it imports (test/unit/meta-bundle.test.ts).
 //
 // Nothing here depends on who asks or when: no age, no "n minutes ago". The absolute URLs are on the origin of the request, which
 // the `/:net` layout's loader hands to `meta` (the edge cache's key holds the host, so each stored page names its own).
@@ -97,3 +98,6 @@ export function sharing(share: Share): MetaDescriptor[] {
 
 /** The end of the title of a page of one object: `XRPL · explorer`. */
 export const suffixOf = (network: NetworkBrief) => `${network.name} · ${PRODUCT_NAME}`;
+
+/** The DEX of each network, as the descriptions of the markets page and the market pair page name it. */
+export const DEX_NAMES = { xrpl: "the XRP Ledger DEX", xahau: "the Xahau DEX" } as const satisfies Record<NetworkBrief["id"], string>;

@@ -3,10 +3,10 @@ import { redirect } from "react-router";
 
 import { networkHref, networkScope, parseNetworkParams, queryOf, USD_ISSUER } from "../domain/network-params";
 import { utcDayOf, windowOf } from "../domain/window";
-import { anchorOf } from "../server/anchor";
+import { anchorOrThrow, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS, PERIOD_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
-import { byDeadline, CARD_DEADLINE_MS } from "../server/deadline";
+import { byDeadline, CARD_DEADLINE_MS, outcome } from "../server/deadline";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv, markDegraded } from "../server/env";
 import { latestLedgerIndex } from "../server/home-view";
@@ -38,13 +38,6 @@ const NETWORK_PARTS = ["openLedger", "validators", "types", "metrics", "fees", "
 
 /** The rows a series call asks for: the API's page maximum, far above the most buckets of a window (365 days for the daily fees of a year). */
 const SERIES_LIMIT = 1000;
-
-/** What `Promise.allSettled` says of one promise. */
-const outcome = <T,>(work: Promise<T>): Promise<PromiseSettledResult<T>> =>
-  work.then(
-    (value) => ({ status: "fulfilled", value }),
-    (reason: unknown) => ({ status: "rejected", reason }),
-  );
 
 /**
  * `/{net}/network` (spec 1): the dashboard of a network, from the data API alone. The class is `live-home`, as the home page's: it follows the
@@ -83,10 +76,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const hold = { holdFailure: true };
 
   const last = await api.lastValidated(live).catch((err: unknown) => upstreamOutage(err, "the network"));
-  const anchor = anchorOf(last);
-  if (!Number.isFinite(anchor.lastValidated) || !Number.isFinite(anchor.closeTime)) {
+  let anchor: Anchor;
+  try {
+    anchor = anchorOrThrow(last);
+  } catch (error) {
     // A 200 whose ledger or close time is not a number, which the window cannot be worked out from (`utcDayOf` would throw): the API failing.
-    const error = new UpstreamError("server", "data API GET /v2/last_validated answered a ledger_index or close_time that is not a number", { status: 200 });
     logProblem("the network page has no anchor", error, request);
     return upstreamOutage(error, "the network");
   }

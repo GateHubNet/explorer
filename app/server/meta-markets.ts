@@ -5,12 +5,8 @@
 import type { MetaDescriptor } from "react-router";
 
 import { PRODUCT_NAME } from "../ui/brand";
-import type { NetworkBrief } from "../ui/networks";
 import type { MarketsPageData } from "./markets-view";
-import { absolute, sharing, type MetaContext } from "./meta";
-
-/** The DEX of each network, as the markets page's description names it. */
-const DEX_NAMES = { xrpl: "the XRP Ledger DEX", xahau: "the Xahau DEX" } as const satisfies Record<NetworkBrief["id"], string>;
+import { absolute, DEX_NAMES, sharing, type MetaContext } from "./meta";
 
 /**
  * The tags of `/{net}/markets` (markets spec 4.5). The title adds the words a view that is not the default has (`view`, which the view builder

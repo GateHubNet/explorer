@@ -52,10 +52,11 @@ const isBuilder = (name: string) => /^[a-z][\w$]*Meta$/.test(name);
 const buildsTags = (source: string) => exportedNames(source).some(isBuilder);
 
 /**
- * What meta.ts may export: what every page's tags are made with. A name that is not here is a builder that belongs in a `meta-<page>.ts`, or
- * a helper that one page alone uses and that belongs beside its builder.
+ * What meta.ts may export: what every page's tags are made with, and `DEX_NAMES`, the words two pages' descriptions share (the markets page's
+ * and the market pair page's: one definition, not a copy in each builder). A name that is not here is a builder that belongs in a
+ * `meta-<page>.ts`, or a helper that one page alone uses and that belongs beside its builder.
  */
-const META_EXPORTS = ["MetaContext", "metaContext", "ImageKind", "absolute", "imageUrl", "Share", "sharing", "suffixOf"];
+const META_EXPORTS = ["MetaContext", "metaContext", "ImageKind", "absolute", "imageUrl", "Share", "sharing", "suffixOf", "DEX_NAMES"];
 
 /** Every module a source names: value and type imports, re-exports, side-effect and dynamic imports. */
 function namedModules(source: string): string[] {

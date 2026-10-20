@@ -19,13 +19,15 @@ import { dataApiError, mockUpstream, nodeError, statusesOf, type SeenRequest, ty
 // market-pair-live.spec.ts.
 //
 // What a Worker stores in the Cache API stays there for the rest of the file, subrequests included, by the real clock (2 s for #1, #2, #6, #7;
-// 5 s for #3, #8, #9 and the short candles; 60 s for the traders and the long candles), and an error is never stored. So the tests that fail a
-// call come first, and each overrides a key that no test before it stored: the failures are on LIONS/XRP in either orientation and on EVR/XAH
-// (the pages of the later tests are XRP/RLUSD's), whether a market exists is asked of pairs that have no fixture at all (XRP/USD, XRP/EUR,
-// XRP/GBP and XRP/JPY of rhub8V…F3wq, which nothing else asks for), and where a test needs a key of a pair an earlier test kept for a few
-// seconds, its block waits that out first. The afterEach below fails a test whose override no request used, which is how a key that an earlier
-// test stored shows. `Date` alone is faked and moved 31 s on after each test, past the failure hold (the holds are per isolate, and a key held
-// by one test must not be the next test's); within a test it stands still, so a second render is within the hold of the first.
+// 5 s for #3, #8, #9, #10 and the short candles; 60 s for the traders and the long candles), and an error is never stored. So the tests that fail
+// a call come first, and each overrides a key that no test before it stored: the cards fail on LIONS/XRP in either orientation and on EVR/XAH
+// (the pages of the later tests are XRP/RLUSD's), in an order that needs no wait; the page that cannot be built, and whether a market exists,
+// are asked of pairs that have no fixture at all (XAH/USD on Xahau; XRP/CAD, XRP/USD, XRP/EUR, XRP/AUD, XRP/CHF, XRP/GBP and XRP/JPY of
+// rhub8V…F3wq on XRPL, one test each, their books given). One override is an answer the tests after it read: the pool of LIONS/XRP that the
+// share's test gives the node is kept 5 s (see "a call that is one card of the page"). The last block waits out a `last_validated` the tests
+// before it kept. The afterEach below fails a test whose override no request used, which is how a key that an earlier test stored shows.
+// `Date` alone is faked and moved 31 s on after each test, past the failure hold (the holds are per isolate, and a key held by one test must not
+// be the next test's); within a test it stands still, so a second render is within the hold of the first.
 
 const { get, storedAs } = pageClient("198.51.109");
 
@@ -95,6 +97,9 @@ const USD = `USD+${USD_ISSUER}`;
 const EUR = `EUR+${USD_ISSUER}`;
 const GBP = `GBP+${USD_ISSUER}`;
 const JPY = `JPY+${USD_ISSUER}`;
+const AUD = `AUD+${USD_ISSUER}`;
+const CAD = `CAD+${USD_ISSUER}`;
+const CHF = `CHF+${USD_ISSUER}`;
 
 /** XRP/RLUSD in its natural orientation (RLUSD ranks as a quote, XRP does not) and the other way round. */
 const PAIR = `/xrpl/markets/XRP/RLUSD.${RLUSD_ISSUER}`;
@@ -232,10 +237,13 @@ function watchSubrequests() {
     if (url.startsWith(SUBREQUESTS)) kept.set(url, (response as Response).headers.get("Cache-Control"));
     return put(request, response);
   });
-  /** The keys looked up, by the names `keys` gives them; an entry of no key among them is shown by its URL. */
-  async function lookedUp(keys: readonly string[]): Promise<string[]> {
+  /**
+   * The keys looked up (those from the `from`th lookup to the `to`th: one render's, where a test makes two), by the names `keys` gives them; an
+   * entry of no key among them is shown by its URL.
+   */
+  async function lookedUp(keys: readonly string[], from = 0, to = looked.length): Promise<string[]> {
     const names = new Map(await Promise.all(keys.map(async (key) => [await entryOf(key), key] as const)));
-    return looked.map((url) => names.get(url) ?? `an entry of another key: ${url}`);
+    return looked.slice(from, to).map((url) => names.get(url) ?? `an entry of another key: ${url}`);
   }
   /** How long the entry of `key` was stored for (`max-age=N`), once it has been. */
   async function keptFor(key: string): Promise<string | null | undefined> {
@@ -243,7 +251,7 @@ function watchSubrequests() {
     await vi.waitFor(() => expect(kept.has(entry), `nothing stored for ${key}`).toBe(true), { timeout: 5_000 });
     return kept.get(entry);
   }
-  return { lookedUp, keptFor };
+  return { lookedUp, keptFor, lookups: () => looked.length };
 }
 
 /** The page data a loader run directly answers with (`cached`: React Router's `data()`). */
@@ -264,11 +272,15 @@ const LIONS_POOL = {
   validated: true,
 };
 
-/** A list with no trade, as the data API answers it. */
+/** A list with no trade, and a pair nobody traded, as the data API answers them. */
 const NO_TRADES = { count: 0, exchanges: [], result: "success" };
+const NO_TRADERS = { accounts: [], count: 0, exchanges_count: 0, result: "success" };
 
-/** One trade of XRP/USD (rhub8V…F3wq), as the data API writes it: what #10 finds when the filtered list is empty and the market is not. */
-const ONE_USD_TRADE = {
+/** A side of a book with no offer in it, as the node answers it (its `result`). */
+const EMPTY_BOOK = { ledger_index: 107721455, offers: [], validated: true };
+
+/** One trade of XRP/AUD (rhub8V…F3wq), as the data API writes it: what #10 finds when the filtered list is empty and the market is not. */
+const ONE_AUD_TRADE = {
   count: 1,
   exchanges: [
     {
@@ -276,7 +288,7 @@ const ONE_USD_TRADE = {
       base_currency: "XRP",
       buyer: "rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy",
       counter_amount: "245",
-      counter_currency: "USD",
+      counter_currency: "AUD",
       counter_issuer: USD_ISSUER,
       executed_time: "2026-10-17T16:40:00Z",
       ledger_index: 107721100,
@@ -298,31 +310,43 @@ const ONE_USD_TRADE = {
 
 describe("a call the page cannot be built without", () => {
   it("answers 503 with Retry-After, not stored, when last_validated fails: the rest was asked and settled, no chain went on, and the failure is held", async () => {
-    mock = mockUpstream("xahau", { [LAST_VALIDATED]: unavailable() });
-    const { response } = await render(EVR);
+    // XAH/USD of rhub8V…F3wq on Xahau: a pair of its own (its book is no later test's), every other call of it answered by an override.
+    const pair = `XAH/${USD}`;
+    const path = `/xahau/markets/XAH/USD.${USD_ISSUER}`;
+    mock = mockUpstream("xahau", {
+      [LAST_VALIDATED]: unavailable(),
+      [tradesKey(pair)]: NO_TRADES,
+      [accountsKey(pair)]: NO_TRADERS,
+      [bookKey("XAH", USD)]: EMPTY_BOOK,
+      [bookKey(USD, "XAH")]: EMPTY_BOOK,
+    });
+    const { response } = await render(path);
 
     expect(response.status).toBe(503);
     expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(await isStored(EVR)).toBe(false);
+    expect(await isStored(path)).toBe(false);
     // #2, #5, #6 and #7 were asked side by side and answered; #3 and #4 follow the anchor and were not asked; Xahau has no #8 or #9.
-    const pair = `${E}/XAH`;
-    expect(callsOf(mock.requests).sort()).toEqual([LAST_VALIDATED, tradesKey(pair), accountsKey(pair), bookKey(E, "XAH"), bookKey("XAH", E)].sort());
+    expect(callsOf(mock.requests).sort()).toEqual([LAST_VALIDATED, tradesKey(pair), accountsKey(pair), bookKey("XAH", USD), bookKey(USD, "XAH")].sort());
     expect(mock.requests.filter((request) => request.key !== LAST_VALIDATED).map((request) => request.status)).toEqual([200, 200, 200, 200]);
 
     // A second render a moment later is given the held failure: last_validated is not asked again.
-    expect((await render(EVR)).response.status).toBe(503);
+    expect((await render(path)).response.status).toBe(503);
     expect(statusesOf(mock, LAST_VALIDATED)).toEqual([503]);
   });
 
   it("answers 503 when the trades fail, once every other call has settled, and holds that failure too", async () => {
-    const pair = `${L}/XRP`;
-    mock = mockUpstream("xrpl", { [tradesKey(pair)]: unavailable() });
-    const { response } = await render(LIONS);
+    // XRP/CAD of rhub8V…F3wq: no fixture, so its other calls answer what the API says of a pair it has nothing of ("Cannot GET", an empty
+    // book, no pool). They are answered all the same, and awaited.
+    const pair = `XRP/${CAD}`;
+    const path = `/xrpl/markets/XRP/CAD.${USD_ISSUER}`;
+    mock = mockUpstream("xrpl", { [tradesKey(pair)]: unavailable(), [bookKey("XRP", CAD)]: EMPTY_BOOK, [bookKey(CAD, "XRP")]: EMPTY_BOOK });
+    const watched = watchSubrequests();
+    const { response } = await render(path);
 
     expect(response.status).toBe(503);
     expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(await isStored(LIONS)).toBe(false);
-    // Every call of the view was made and awaited (nothing runs on behind an answered request): #1, the two chains, the cards, the node's.
+    expect(await isStored(path)).toBe(false);
+    // Every call of the view was made and answered (nothing runs on behind an answered request): #1, the two chains, the cards, the node's.
     expect(callsOf(mock.requests).sort()).toEqual(
       [
         LAST_VALIDATED,
@@ -330,24 +354,27 @@ describe("a call the page cannot be built without", () => {
         reduceKey(pair, T1.xrpl),
         candlesKey(pair, "1h", START.xrpl["1h"]),
         accountsKey(pair),
-        bookKey(L, "XRP"),
-        bookKey("XRP", L),
-        poolKey(L, "XRP"),
+        bookKey("XRP", CAD),
+        bookKey(CAD, "XRP"),
+        poolKey("XRP", CAD),
         reduceKey(pair, T1.xrpl, "only"),
       ].sort(),
     );
-    expect(mock.requests.filter((request) => request.key !== tradesKey(pair)).every((request) => request.status === 200)).toBe(true);
+    expect(mock.requests.every((request) => request.status > 0)).toBe(true);
+    // The first render of XRPL in the file: #1 is stored here, under the home page's key, for 2 s.
+    expect(await watched.keptFor(apiKey("xrpl", "/v2/last_validated", "", true))).toBe("public, max-age=2");
 
-    expect((await render(LIONS)).response.status).toBe(503);
+    expect((await render(path)).response.status).toBe(503);
     expect(statusesOf(mock, tradesKey(pair))).toEqual([503]);
   });
 });
 
 describe("whether the market exists", () => {
+  // Each test is a pair of its own that has no fixture, its two book sides given empty, so that no test reads a book an earlier one kept.
+
   it("is a 404 of class short, with the search box, for a pair with no trade and an empty book, and asks for no unfiltered trade", async () => {
     const path = `/xrpl/markets/XRP/USD.${USD_ISSUER}`;
-    // No fixture of the pair: the books are empty (the mock's answer for a book nobody offers in), and the list says no trade.
-    mock = mockUpstream("xrpl", { [tradesKey(`XRP/${USD}`)]: NO_TRADES });
+    mock = mockUpstream("xrpl", { [tradesKey(`XRP/${USD}`)]: NO_TRADES, [bookKey("XRP", USD)]: EMPTY_BOOK, [bookKey(USD, "XRP")]: EMPTY_BOOK });
     const { response, html, text } = await render(path);
 
     expect(response.status).toBe(404);
@@ -363,7 +390,7 @@ describe("whether the market exists", () => {
 
   it("is a 503, not stored, for a pair with no trade whose book could not be read: an empty market cannot be told from a failed node", async () => {
     const path = `/xrpl/markets/XRP/EUR.${USD_ISSUER}`;
-    mock = mockUpstream("xrpl", { [tradesKey(`XRP/${EUR}`)]: NO_TRADES, [bookKey("XRP", EUR)]: nodeError("noNetwork") });
+    mock = mockUpstream("xrpl", { [tradesKey(`XRP/${EUR}`)]: NO_TRADES, [bookKey("XRP", EUR)]: nodeError("noNetwork"), [bookKey(EUR, "XRP")]: EMPTY_BOOK });
     const { response, text } = await render(path);
 
     expect(response.status).toBe(503);
@@ -372,30 +399,48 @@ describe("whether the market exists", () => {
     expect(await isStored(path)).toBe(false);
   });
 
-  it("asks for the first unfiltered trade (#10) when a filtered list and the book are empty, and is the page when there is one", async () => {
-    const path = `/xrpl/markets/XRP/USD.${USD_ISSUER}?trades=book`;
-    mock = mockUpstream("xrpl", { [tradesKey(`XRP/${USD}`, "exclude")]: NO_TRADES, [probeKey(`XRP/${USD}`)]: ONE_USD_TRADE });
+  it("asks for the first unfiltered trade (#10, live: kept 5 s) when a filtered list and the book are empty, and is the page when there is one", async () => {
+    const path = `/xrpl/markets/XRP/AUD.${USD_ISSUER}?trades=book`;
+    mock = mockUpstream("xrpl", {
+      [tradesKey(`XRP/${AUD}`, "exclude")]: NO_TRADES,
+      [probeKey(`XRP/${AUD}`)]: ONE_AUD_TRADE,
+      [bookKey("XRP", AUD)]: EMPTY_BOOK,
+      [bookKey(AUD, "XRP")]: EMPTY_BOOK,
+    });
+    const watched = watchSubrequests();
     const { response, text } = await render(path);
 
     // The market exists; its other calls have no fixture (the API's "Cannot GET"), so its cards failed, and the page is degraded.
     await expectDegraded(path, response);
-    expect(statusesOf(mock, probeKey(`XRP/${USD}`))).toEqual([200]);
+    expect(statusesOf(mock, probeKey(`XRP/${AUD}`))).toEqual([200]);
     expect(text).toContain("No trades yet.");
+    // #10 has no `amm` and no TTL of its own: class `live`, 5 s.
+    expect(await watched.keptFor(apiKey("xrpl", `/v2/exchanges/XRP/${encodeURIComponent(AUD)}`, "descending=true&limit=1"))).toBe("public, max-age=5");
   });
 
   it("is a 404 when the first unfiltered trade is not there either", async () => {
-    const path = `/xrpl/markets/XRP/EUR.${USD_ISSUER}?trades=amm`;
-    mock = mockUpstream("xrpl", { [tradesKey(`XRP/${EUR}`, "only")]: NO_TRADES, [probeKey(`XRP/${EUR}`)]: NO_TRADES });
+    const path = `/xrpl/markets/XRP/CHF.${USD_ISSUER}?trades=amm`;
+    mock = mockUpstream("xrpl", {
+      [tradesKey(`XRP/${CHF}`, "only")]: NO_TRADES,
+      [probeKey(`XRP/${CHF}`)]: NO_TRADES,
+      [bookKey("XRP", CHF)]: EMPTY_BOOK,
+      [bookKey(CHF, "XRP")]: EMPTY_BOOK,
+    });
     const { response, text } = await render(path);
 
     expect(response.status).toBe(404);
-    expect(text).toContain("We couldn’t find a market for XRP/EUR (EUR issued by rhub8V…F3wq) on XRPL.");
-    expect(statusesOf(mock, probeKey(`XRP/${EUR}`))).toEqual([200]);
+    expect(text).toContain("We couldn’t find a market for XRP/CHF (CHF issued by rhub8V…F3wq) on XRPL.");
+    expect(statusesOf(mock, probeKey(`XRP/${CHF}`))).toEqual([200]);
   });
 
   it("is a 503 when the first unfiltered trade could not be asked for, and holds that failure", async () => {
     const path = `/xrpl/markets/XRP/GBP.${USD_ISSUER}?trades=book`;
-    mock = mockUpstream("xrpl", { [tradesKey(`XRP/${GBP}`, "exclude")]: NO_TRADES, [probeKey(`XRP/${GBP}`)]: unavailable() });
+    mock = mockUpstream("xrpl", {
+      [tradesKey(`XRP/${GBP}`, "exclude")]: NO_TRADES,
+      [probeKey(`XRP/${GBP}`)]: unavailable(),
+      [bookKey("XRP", GBP)]: EMPTY_BOOK,
+      [bookKey(GBP, "XRP")]: EMPTY_BOOK,
+    });
     const { response } = await render(path);
 
     expect(response.status).toBe(503);
@@ -405,7 +450,28 @@ describe("whether the market exists", () => {
   });
 });
 
+// The cards fail on LIONS/XRP in both orientations and on EVR/XAH, in an order that needs no wait: each test fails keys that no test before it
+// kept. The first gives the node a pool of LIONS/XRP (a 200, kept 5 s): the tests that follow it within 5 s draw that pool and none of them
+// says anything of the pool card; the one that fails amm_info, which must reach the node, comes after the two that wait out the node's 3 s
+// and the card's 4.5 s.
 describe("a call that is one card of the page", () => {
+  it("reads — Couldn’t load beside a pool when #9 fails, marks the page degraded, and holds the failure", async () => {
+    const pair = `${L}/XRP`;
+    const path = `${LIONS}?interval=15m`;
+    mock = mockUpstream("xrpl", { [poolKey(L, "XRP")]: LIONS_POOL, [reduceKey(pair, T1.xrpl, "only")]: unavailable() });
+    const { response, html, text } = await render(path);
+
+    await expectDegraded(path, response);
+    expect(text).toContain("LIONS/XRP AMM pool");
+    expect(text).toContain("Share of pair volume, 24 h — Couldn’t load");
+    expect(text).toContain("Trading fee 0.300%");
+    expect(alerts(html)).toBe(0);
+    expect(text).not.toContain("Couldn’t load the 24 h figures.");
+
+    await render(path);
+    expect(statusesOf(mock, reduceKey(pair, T1.xrpl, "only"))).toEqual([503]);
+  });
+
   it("fails the 24 h figures and the traders alone, logs each, says nothing of the error in the page, and holds both failures", async () => {
     const pair = `XRP/${L}`;
     mock = mockUpstream("xrpl", { [reduceKey(pair, T1.xrpl)]: unavailable(), [accountsKey(pair)]: unavailable() });
@@ -454,81 +520,37 @@ describe("a call that is one card of the page", () => {
     expect(statusesOf(mock, candlesKey(pair, "4h", START.xrpl["4h"]))).toEqual([503]);
   });
 
-  it("keeps the pool card with its title and the node's notice when amm_info fails, and asks the node once in the hold", async () => {
-    const path = `${LIONS}?interval=4h`;
-    mock = mockUpstream("xrpl", { [poolKey(L, "XRP")]: nodeError("internal") });
+  it("says Live state unavailable in place of the whole book when the node fails, never half a book, and holds both sides", async () => {
+    const path = `${EVR}?interval=1d`;
+    mock = mockUpstream("xahau", { [bookKey(E, "XAH")]: nodeError("noNetwork"), [bookKey("XAH", E)]: nodeError("slowDown") });
     const { response, html, text } = await render(path);
 
     await expectDegraded(path, response);
-    expect(text).toContain("LIONS/XRP AMM pool");
-    expect(text).toContain("The network node did not answer, so the pool’s reserves and fee are missing.");
+    expect(text).toContain("The network node did not answer, so the order book is missing.");
     expect(notices(text)).toBe(1);
-    expect(alerts(html)).toBe(0);
-    // The book is another call's.
-    expect(html).toContain('aria-label="Order book"');
+    expect(html).not.toContain('aria-label="Order book"');
+    expect(text).not.toContain("No asks");
+    // The trades and the price are the index's.
+    expect(tableRows(html, "Recent trades").length).toBeGreaterThan(1);
 
     await render(path);
-    expect(timesAsked(poolKey(L, "XRP"))).toBe(1);
+    expect(timesAsked(bookKey(E, "XAH"))).toBe(1);
+    expect(timesAsked(bookKey("XAH", E))).toBe(1);
   });
 
-  describe("the node's order book", () => {
-    // The books of EVR/XAH were kept 2 s by the first test of the file.
-    beforeAll(() => sleep(2_100));
+  it("says the same when one side has not answered in the node's 3 s, and the page does not wait for the card's 4.5 s", async () => {
+    const path = `${EVR}?interval=1w`;
+    mock = mockUpstream("xahau", { [bookKey(E, "XAH")]: () => new Promise<Response>(() => {}) });
+    const started = performance.now();
+    const { response, html, text } = await render(path);
+    const took = performance.now() - started;
 
-    it("says Live state unavailable in place of the whole book when the node fails, never half a book, and holds both sides", async () => {
-      const path = `${EVR}?interval=1d`;
-      mock = mockUpstream("xahau", { [bookKey(E, "XAH")]: nodeError("noNetwork"), [bookKey("XAH", E)]: nodeError("slowDown") });
-      const { response, html, text } = await render(path);
-
-      await expectDegraded(path, response);
-      expect(text).toContain("The network node did not answer, so the order book is missing.");
-      expect(notices(text)).toBe(1);
-      expect(html).not.toContain('aria-label="Order book"');
-      expect(text).not.toContain("No asks");
-      // The trades and the price are the index's.
-      expect(tableRows(html, "Recent trades").length).toBeGreaterThan(1);
-
-      await render(path);
-      expect(timesAsked(bookKey(E, "XAH"))).toBe(1);
-      expect(timesAsked(bookKey("XAH", E))).toBe(1);
-    });
-
-    it("says the same when one side has not answered in the node's 3 s, and the page does not wait for the card's 4.5 s", async () => {
-      const path = `${EVR}?interval=1w`;
-      mock = mockUpstream("xahau", { [bookKey(E, "XAH")]: () => new Promise<Response>(() => {}) });
-      const started = performance.now();
-      const { response, html, text } = await render(path);
-      const took = performance.now() - started;
-
-      await expectDegraded(path, response);
-      expect(took).toBeGreaterThanOrEqual(2_900);
-      expect(took).toBeLessThan(4_400);
-      expect(text).toContain("The network node did not answer, so the order book is missing.");
-      expect(html).not.toContain('aria-label="Order book"');
-    }, 15_000);
-  });
-
-  describe("the pool's share of the volume", () => {
-    // The 24 h figures of XRP/LIONS (#9's key among them) were kept 5 s by the tests above.
-    beforeAll(() => sleep(5_100));
-
-    it("reads — Couldn’t load beside a pool when #9 fails, marks the page degraded, and holds the failure", async () => {
-      const pair = `XRP/${L}`;
-      const path = `${XRP_LIONS}?interval=15m`;
-      mock = mockUpstream("xrpl", { [poolKey(L, "XRP")]: LIONS_POOL, [reduceKey(pair, T1.xrpl, "only")]: unavailable() });
-      const { response, html, text } = await render(path);
-
-      await expectDegraded(path, response);
-      expect(text).toContain("XRP/LIONS AMM pool");
-      expect(text).toContain("Share of pair volume, 24 h — Couldn’t load");
-      expect(text).toContain("Trading fee 0.300%");
-      expect(alerts(html)).toBe(0);
-      expect(text).not.toContain("Couldn’t load the 24 h figures.");
-
-      await render(path);
-      expect(statusesOf(mock, reduceKey(pair, T1.xrpl, "only"))).toEqual([503]);
-    });
-  });
+    await expectDegraded(path, response);
+    expect(took).toBeGreaterThanOrEqual(2_900);
+    expect(took).toBeLessThan(4_400);
+    expect(text).toContain("The network node did not answer, so the order book is missing.");
+    expect(html).not.toContain('aria-label="Order book"');
+  }, 15_000);
 
   it("gives up on a card that has not answered 4.5 s after the loader began, logs that it took too long, and answers 200 all the same", async () => {
     const pair = `XRP/${L}`;
@@ -546,6 +568,23 @@ describe("a call that is one card of the page", () => {
     expect(text).toContain("Couldn’t load the price chart.");
     expect(errors.mock.calls.some(([line]) => String(line).includes("the market pair page's candles took too long"))).toBe(true);
   }, 15_000);
+
+  it("keeps the pool card with its title and the node's notice when amm_info fails, and asks the node once in the hold", async () => {
+    const path = `${LIONS}?interval=4h`;
+    mock = mockUpstream("xrpl", { [poolKey(L, "XRP")]: nodeError("internal") });
+    const { response, html, text } = await render(path);
+
+    await expectDegraded(path, response);
+    expect(text).toContain("LIONS/XRP AMM pool");
+    expect(text).toContain("The network node did not answer, so the pool’s reserves and fee are missing.");
+    expect(notices(text)).toBe(1);
+    expect(alerts(html)).toBe(0);
+    // The book is another call's.
+    expect(html).toContain('aria-label="Order book"');
+
+    await render(path);
+    expect(timesAsked(poolKey(L, "XRP"))).toBe(1);
+  });
 });
 
 // ---- Validation and redirects: before any call ------------------------------------------------------------------------------------------
@@ -586,13 +625,15 @@ describe("what is not a pair", () => {
     expect(mock.requests).toEqual([]);
   });
 
-  it("is a 404 for a marker that is not one, before the query is tidied and before any call", async () => {
+  it("is a 404 of class short for a marker that is not one, before the query is tidied and before any call", async () => {
     mock = mockUpstream("xrpl");
     const path = `/xrpl/markets/xrp/RLUSD.${RLUSD_ISSUER}?interval=4h&marker=%21%21`;
-    const { response, html } = await render(path);
+    const { response, html, text } = await render(path);
     expect(response.status).toBe(404);
+    expect(text).toContain("We couldn’t find that page of the market’s trades on XRPL.");
     expect(html).toMatch(/<meta name="robots" content="noindex"\/?>/);
     expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });
 });
 
@@ -673,14 +714,20 @@ describe("the calls of a view", () => {
   it("are spec 3.3's on a first render of XRP/RLUSD, each kept as long as the table says; the inverted pair finds the book and the pool where it kept them", async () => {
     mock = mockUpstream("xrpl");
     const watched = watchSubrequests();
-    const { response, text } = await render(PAIR);
-    expect(response.status).toBe(200);
-    expect(text).not.toContain("Couldn’t load");
+    const natural = await render(PAIR);
+    const [asked, looked] = [mock.requests.length, watched.lookups()];
+    // The inverted pair at once, while the natural page's entries of 2 s are surely there.
+    const inverted = await render(INVERTED);
+    for (const { response, text } of [natural, inverted]) {
+      expect(response.status).toBe(200);
+      expect(text).not.toContain("Couldn’t load");
+    }
 
+    // Every call of the view reached the API, but #1, which an earlier render of the file may have kept (it is every XRPL page's key; how long
+    // it is kept is pinned where it is first asked for, in the test of failing trades).
     const pair = `XRP/${R}`;
-    expect(callsOf(mock.requests).sort()).toEqual(
+    expect(callsOf(mock.requests.slice(0, asked)).filter((call) => call !== LAST_VALIDATED).sort()).toEqual(
       [
-        LAST_VALIDATED,
         tradesKey(pair),
         reduceKey(pair, T1.xrpl),
         candlesKey(pair, "1h", START.xrpl["1h"]),
@@ -692,25 +739,18 @@ describe("the calls of a view", () => {
       ].sort(),
     );
     expect(mock.requests.every((request) => request.source === "fixture")).toBe(true);
-
     const keys = viewKeys("xrpl", ["XRP", R], { amm: true, natural: ["XRP", R] });
-    expect((await watched.lookedUp(keys)).sort()).toEqual([...keys].sort());
-    // #1 and #2 under keys of their own, kept 2 s (`[kept 2 s]`: the home page's key for #1), and the two sides of the book; #3, #4 (1 h), #8
-    // and #9 at their class, live, 5 s; #5 at minute's 60 s.
-    const [lastValidated, trades, stats, candles, traders, asks, bids, pool, share] = keys as [string, string, string, string, string, string, string, string, string];
-    for (const key of [lastValidated, trades, asks, bids]) expect(await watched.keptFor(key), key).toBe("public, max-age=2");
-    for (const key of [stats, candles, pool, share]) expect(await watched.keptFor(key), key).toBe("public, max-age=5");
-    expect(await watched.keptFor(traders)).toBe("public, max-age=60");
+    expect((await watched.lookedUp(keys, 0, looked)).sort()).toEqual([...keys].sort());
 
-    // The inverted pair at once: its own index calls, and the node's answers the natural page kept (its asks are the natural page's bids).
-    const before = mock.requests.length;
-    const inverted = await render(INVERTED);
-    expect(inverted.response.status).toBe(200);
-    const invertedKeys = viewKeys("xrpl", [R, "XRP"], { amm: true, natural: ["XRP", R] });
-    expect(invertedKeys.filter((key) => key.startsWith("POST ")).sort()).toEqual(keys.filter((key) => key.startsWith("POST ")).sort());
-    expect(callsOf(mock.requests.slice(before)).filter((call) => call.startsWith("node "))).toEqual([]);
+    // The inverted page looked up its own index calls and the node's entries the natural page had stored (its asks are the natural page's
+    // bids, its pool the same pair's), and asked the node nothing.
     const invertedPair = `${R}/XRP`;
-    expect(callsOf(mock.requests.slice(before)).filter((call) => call !== LAST_VALIDATED).sort()).toEqual(
+    const invertedKeys = viewKeys("xrpl", [R, "XRP"], { amm: true, natural: ["XRP", R] });
+    const invertedLooked = await watched.lookedUp(invertedKeys, looked);
+    expect([...invertedLooked].sort()).toEqual([...invertedKeys].sort());
+    expect(invertedLooked.filter((key) => key.startsWith("POST ")).sort()).toEqual(keys.filter((key) => key.startsWith("POST ")).sort());
+    expect(callsOf(mock.requests.slice(asked)).filter((call) => call.startsWith("node "))).toEqual([]);
+    expect(callsOf(mock.requests.slice(asked)).filter((call) => call !== LAST_VALIDATED).sort()).toEqual(
       [
         tradesKey(invertedPair),
         reduceKey(invertedPair, T1.xrpl),
@@ -719,6 +759,13 @@ describe("the calls of a view", () => {
         reduceKey(invertedPair, T1.xrpl, "only"),
       ].sort(),
     );
+
+    // #1 is looked up under the home page's key (`[kept 2 s]`, above); #2 under a key of its own, kept 2 s, and so are the two sides of the book;
+    // #3, #4 (1 h), #8 and #9 at their class, live, 5 s; #5 at minute's 60 s.
+    const [, trades, stats, candles, traders, asks, bids, pool, share] = keys as [string, string, string, string, string, string, string, string, string];
+    for (const key of [trades, asks, bids]) expect(await watched.keptFor(key), key).toBe("public, max-age=2");
+    for (const key of [stats, candles, pool, share]) expect(await watched.keptFor(key), key).toBe("public, max-age=5");
+    expect(await watched.keptFor(traders)).toBe("public, max-age=60");
   });
 
   it.each([
@@ -826,8 +873,9 @@ describe("the class of the page", () => {
   ])("is a 404 of class short behind a marker when %s", async (_what, marker, answer) => {
     mock = mockUpstream("xrpl", { [tradesKey(`${L}/XRP`, undefined, marker)]: answer });
     const path = `${LIONS}?marker=${marker}`;
-    const { response, html } = await render(path);
+    const { response, html, text } = await render(path);
     expect(response.status).toBe(404);
+    expect(text).toContain("We couldn’t find that page of the market’s trades on XRPL.");
     expect(html).toMatch(/<meta name="robots" content="noindex"\/?>/);
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });
@@ -972,7 +1020,8 @@ describe("the tags of the page", () => {
     };
     mock = mockUpstream("xrpl", {
       [tradesKey(`XRP/${JPY}`)]: NO_TRADES,
-      [bookKey("XRP", JPY)]: { ledger_index: 107721455, offers: [offer], validated: true },
+      [bookKey("XRP", JPY)]: { ...EMPTY_BOOK, offers: [offer] },
+      [bookKey(JPY, "XRP")]: EMPTY_BOOK,
     });
     const path = `/xrpl/markets/XRP/JPY.${USD_ISSUER}`;
     const { response, html, text } = await render(path);

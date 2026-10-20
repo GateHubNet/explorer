@@ -1,5 +1,6 @@
 // The deadline of a card of the live pages (spec 1.6, step 3): a card whose call has not answered by then is `failed`, so that one slow call
-// cannot hold the whole page. Worker-only, with no import: the loader of the network page and the later live pages use it.
+// cannot hold the whole page; and `outcome`, the settled result of one call, for the cards a page asks for only in some cases. Worker-only, with
+// no import: the loaders of the network page, the market pair page and the later live pages use it.
 
 /** What a card of a live page may take, from the start of its loader: under the data API's own 5 s, so that the page is sure to have its words. */
 export const CARD_DEADLINE_MS = 4_500;
@@ -30,4 +31,15 @@ export function byDeadline<T>(work: Promise<T>, at: number): Promise<T> {
       },
     );
   });
+}
+
+/**
+ * What `Promise.allSettled` says of one promise, as a promise that never rejects: a card that is asked for only in some cases (a switch, a
+ * network without pools) is awaited beside the others, and settles like them.
+ */
+export function outcome<T>(work: Promise<T>): Promise<PromiseSettledResult<T>> {
+  return work.then(
+    (value) => ({ status: "fulfilled", value }),
+    (reason: unknown) => ({ status: "rejected", reason }),
+  );
 }

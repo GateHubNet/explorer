@@ -5,12 +5,8 @@
 import type { MetaDescriptor } from "react-router";
 
 import { PRODUCT_NAME } from "../ui/brand";
-import type { NetworkBrief } from "../ui/networks";
-import { absolute, sharing, type MetaContext } from "./meta";
+import { absolute, DEX_NAMES, sharing, type MetaContext } from "./meta";
 import type { PairPageData } from "./pair-view";
-
-/** The DEX of each network, as the pair page's description names it (the markets page's words, meta-markets.ts). */
-const DEX_NAMES = { xrpl: "the XRP Ledger DEX", xahau: "the Xahau DEX" } as const satisfies Record<NetworkBrief["id"], string>;
 
 /**
  * The tags of `/{net}/markets/{base}/{counter}` (markets spec 4.5). The title is the pair, each issued side's code and short issuer, and the

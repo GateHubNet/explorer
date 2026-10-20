@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { byDeadline, CARD_DEADLINE_MS, TooLate } from "./deadline";
+import { byDeadline, CARD_DEADLINE_MS, outcome, TooLate } from "./deadline";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -56,5 +56,21 @@ describe("byDeadline", () => {
     finish("late");
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("outcome", () => {
+  it("says what a promise came to, as Promise.allSettled does, and never rejects", async () => {
+    const error = new Error("no");
+    expect(await outcome(Promise.resolve(7))).toEqual({ status: "fulfilled", value: 7 });
+    expect(await outcome(Promise.reject(error))).toEqual({ status: "rejected", reason: error });
+    const [settled] = await Promise.allSettled([Promise.reject(error)]);
+    expect(await outcome(Promise.reject(error))).toEqual(settled);
+  });
+
+  it("settles a card that missed its deadline as rejected with the TooLate", async () => {
+    const late = await outcome(byDeadline(new Promise(() => {}), Date.now() - 1));
+    expect(late.status).toBe("rejected");
+    expect((late as PromiseRejectedResult).reason).toBeInstanceOf(TooLate);
   });
 });
