@@ -6,6 +6,7 @@ import xrplSummary from "../fixtures/http/xrpl/data-api/network/validators/summa
 import xahauAmendments from "../fixtures/http/xahau/data-api/network/amendments.json";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
+import { AMENDMENTS, LAST_VALIDATED, LIST, SUMMARY } from "../support/validators-calls";
 
 // The validators list, `/{net}/validators`, on the real Worker against the generated D1 answers (test/fixtures/http/{net}/data-api/network/
 // validators…): the calls it makes, for how long each is kept and under which class the page is stored, the redirects that make one URL of a
@@ -22,11 +23,6 @@ afterEach(() => {
   mock = undefined;
   vi.restoreAllMocks();
 });
-
-const LAST_VALIDATED = "GET /v2/last_validated";
-const SUMMARY = "GET /v2/network/validators/summary";
-const LIST = "GET /v2/network/validators?limit=1000&scope=all";
-const AMENDMENTS = "GET /v2/network/amendments";
 
 const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { SAMPLE_KEYS, validationsSample, validatorDetailSample } from "../../test/support/d1-samples";
 import type { FlowStep } from "../domain/describe";
+import { shortHash } from "../domain/format";
 import type { ValidatorsParams } from "../domain/validators-params";
+import type { NetworkInfo } from "../ui/networks";
 import { imageUrl, metaContext, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
 import { homeMeta } from "./meta-home";
@@ -9,7 +12,9 @@ import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
 import { networkMeta } from "./meta-network";
 import { transactionDescription, transactionMeta } from "./meta-transaction";
+import { validatorMeta } from "./meta-validator";
 import { validatorsMeta } from "./meta-validators";
+import { validatorHistoryPage, validatorPage } from "./validator-view";
 import { validatorsPage } from "./validators-view";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
@@ -381,6 +386,7 @@ describe("imageUrl", () => {
   it("is the URL of the image route on the origin", () => {
     expect(imageUrl("https://explorer.test", "xrpl", "tx", HASH)).toBe(`https://explorer.test/og/xrpl/tx/${HASH}.png`);
     expect(imageUrl("https://explorer.test", "xahau", "ledger", "26540187")).toBe("https://explorer.test/og/xahau/ledger/26540187.png");
+    expect(imageUrl("https://explorer.test", "xrpl", "validator", SAMPLE_KEYS[0])).toBe(`https://explorer.test/og/xrpl/validator/${SAMPLE_KEYS[0]}.png`);
   });
 });
 
@@ -457,5 +463,65 @@ describe("validatorsMeta", () => {
 
   it("puts no number of the data in the description: the page is stored for seconds", () => {
     for (const ctx of [XRPL, XAHAU]) expect(content(validatorsMeta(DEFAULT, ctx), "description")!.match(/\d+/g)).toEqual(["24"]);
+  });
+});
+
+describe("validatorMeta", () => {
+  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const live = (validator = validatorDetailSample(), network = NET) =>
+    validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 } });
+  const KEY = SAMPLE_KEYS[0];
+  const TAIL = "Agreement, fee and amendment votes, and recent validations.";
+
+  it("has the tags of the live view: the title, a canonical URL on the origin, Open Graph and the validator's image", () => {
+    const list = validatorMeta(live(), XRPL);
+    expect(title(list)).toBe("Validator northpeak.example · XRPL · explorer");
+    const description = `northpeak.example is a validator of XRPL, on the default UNL (listed by unl.xrplf.org and vl.ripple.com), running rippled 3.4.1. Its domain is verified. ${TAIL}`;
+    expect(content(list, "description")).toBe(description);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/validators/${KEY}`);
+    expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/validators/${KEY}`);
+    expect(content(list, "og:title")).toBe("Validator northpeak.example · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(description);
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/validator/${KEY}.png`);
+    expect(content(list, "og:image:alt")).toBe("Validator northpeak.example on XRPL");
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("says 'not verified', and nothing for a domain not checked yet or for no domain", () => {
+    const toml_url = "https://northpeak.example/.well-known/xrp-ledger.toml";
+    const unverified = validatorDetailSample({ domain_verification: { status: "unverified", reason: "not_listed", toml_url } });
+    expect(content(validatorMeta(live(unverified), XRPL), "description")).toContain("running rippled 3.4.1. Its domain is not verified. Agreement");
+    const pending = validatorDetailSample({ domain_verification: { status: "pending", toml_url } });
+    expect(content(validatorMeta(live(pending), XRPL), "description")).toContain(`running rippled 3.4.1. ${TAIL}`);
+    const nameless = live({ ...validatorDetailSample(), domain: undefined, domain_verification: undefined });
+    const list = validatorMeta(nameless, XRPL);
+    expect(title(list)).toBe(`Validator ${shortHash(KEY)} · XRPL · explorer`);
+    expect(content(list, "description")).toBe(`${shortHash(KEY)} is a validator of XRPL, on the default UNL (listed by unl.xrplf.org and vl.ripple.com), running rippled 3.4.1. ${TAIL}`);
+  });
+
+  it("leaves out the UNL off it, and the software without a version", () => {
+    const off = validatorDetailSample({ unl: false, unl_lists: [], version: undefined, version_latest: undefined });
+    expect(content(validatorMeta(live(off), XRPL), "description")).toBe(`northpeak.example is a validator of XRPL. Its domain is verified. ${TAIL}`);
+    const one = validatorDetailSample({ unl_lists: ["vl.xahau.org"], version: "2026.10.13", version_build: 4119 });
+    expect(content(validatorMeta(live(one, { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" }), XAHAU), "description")).toBe(
+      `northpeak.example is a validator of Xahau, on the default UNL (listed by vl.xahau.org), running xahaud 2026.10.13. Its domain is verified. ${TAIL}`,
+    );
+  });
+
+  it("is noindex, follow on a page of older validations, with no canonical URL and no Open Graph or card tags", () => {
+    const history = validatorHistoryPage({ network: NET, validator: validatorDetailSample(), recent: validationsSample(), marker: "M1", back: [] });
+    const list = validatorMeta(history, XRPL);
+    expect(title(list)).toBe("Validator northpeak.example · XRPL · explorer");
+    expect(content(list, "description")).toBe("Older validations of the validator northpeak.example on XRPL.");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("puts no age and no number that moves with the chain in the description", () => {
+    // The version's figures are the only digits: no agreement, no ledger, no time.
+    expect(content(validatorMeta(live(), XRPL), "description")!.match(/\d+/g)).toEqual(["3", "4", "1"]);
   });
 });

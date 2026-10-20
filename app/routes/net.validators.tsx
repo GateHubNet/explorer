@@ -3,11 +3,10 @@ import { redirect } from "react-router";
 
 import { queryOf } from "../domain/query-of";
 import { canonicalValidatorsParams, parseValidatorsParams, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
-import { loaded, type Loaded } from "../server/account-view";
 import { anchorOf, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
-import { byDeadline, CARD_DEADLINE_MS, TooLate } from "../server/deadline";
+import { asOutage, byDeadline, CARD_DEADLINE_MS, partOf } from "../server/deadline";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv, markDegraded } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
@@ -15,7 +14,6 @@ import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { validatorsMeta } from "../server/meta-validators";
 import { requireNetwork } from "../server/network-route";
-import { UpstreamError } from "../server/upstream";
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
 import { findNetwork } from "../ui/networks";
@@ -44,15 +42,6 @@ const LIST_LIMIT = 1000;
 
 /** The scope of a view for the live page (`OnScreen`): the network and the canonical query, so that a refresh of one view never stands in for another. */
 const scopeOf = (net: string, params: ValidatorsParams): string => validatorsHref(net, params).slice(1);
-
-/**
- * `Promise.allSettled`'s result for the view builder. A card past its deadline (`TooLate`) has failed like one the upstream failed; what is
- * neither is a bug, and `loaded` throws it again.
- */
-const partOf = <T,>(result: PromiseSettledResult<T>): Loaded<T> => (result.status === "rejected" && result.reason instanceof TooLate ? { state: "failed" } : loaded(result));
-
-/** A card's failure as `upstreamOutage` reads it: a call that missed the deadline is an upstream that did not answer in time, a 503 like the others. */
-const asOutage = (reason: unknown): unknown => (reason instanceof TooLate ? new UpstreamError("timeout", reason.message, { cause: reason }) : reason);
 
 /**
  * `/{net}/validators` (validators spec 2.2 and 3.2): the validators of a network, from the data API's D1 routes alone. The class is `live` (5 s + 30 s): what

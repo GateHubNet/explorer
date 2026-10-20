@@ -8,6 +8,7 @@ import xahauSummary from "../fixtures/http/xahau/data-api/network/validators/sum
 import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
+import { AMENDMENTS, LAST_VALIDATED, LIST, SUMMARY } from "../support/validators-calls";
 
 // The validators list, `/{net}/validators`, when a call fails (validators spec 3.3), on the real Worker against the generated D1 answers
 // (test/fixtures/http/{net}/data-api/network/validators…): which failures are a page that is not there (a 503), and which are a card of it that
@@ -69,11 +70,6 @@ const alerts = (html: string) => (html.match(/role="alert"/g) ?? []).length;
 const hasField = (html: string, label: string) => new RegExp(`<label[^>]*>${label}</label>`).test(html);
 
 const unavailable = () => dataApiError(503, "unavailable");
-
-const LAST_VALIDATED = "GET /v2/last_validated";
-const SUMMARY = "GET /v2/network/validators/summary";
-const LIST = "GET /v2/network/validators?limit=1000&scope=all";
-const AMENDMENTS = "GET /v2/network/amendments";
 
 /** A degraded page: served, never kept by the browser or the edge. */
 async function expectDegraded(path: string, response: Response) {

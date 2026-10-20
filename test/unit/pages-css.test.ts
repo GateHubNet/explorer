@@ -137,3 +137,39 @@ describe("the validators list", () => {
     expect(rule(pagesCss, ".validators__swatch").background).toBe("var(--mark)");
   });
 });
+
+describe("the validator page", () => {
+  it("is one column of rows 18 px apart, as the board is, with the facts in as many columns as fit at 240 px", () => {
+    expect(rule(pagesCss, ".validator")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });
+    expect(rule(pagesCss, ".validator__grid")).toMatchObject({ display: "grid", "grid-template-columns": "repeat(auto-fit, minmax(min(240px, 100%), 1fr))" });
+  });
+
+  it("lays the cards out in pairs that fold on a phone: the tiles 260 px at least beside the chart's 600 px, the votes' cards 420 px, each able to shrink", () => {
+    expect(rule(pagesCss, ".validator__pair")).toMatchObject({ display: "flex", "flex-wrap": "wrap", gap: "18px" });
+    expect(rule(pagesCss, ".validator__tiles")).toMatchObject({ flex: "1 1 260px", "min-width": "0" });
+    expect(rule(pagesCss, ".validator__daily")).toMatchObject({ flex: "999 1 600px", "min-width": "0" });
+    expect(rule(pagesCss, ".validator__pair > .validator__card")).toMatchObject({ flex: "1 1 420px", "min-width": "0" });
+  });
+
+  it("makes the recent validations' scroll region a containing block, so that the visually hidden words of a cell (`.sr`, absolute) stay inside it and do not widen the page", () => {
+    expect(rule(baseCss, ".sr").position).toBe("absolute");
+    expect(rule(pagesCss, ".validator__table").position).toBe("relative");
+  });
+
+  it("keeps the icon of a link to another site in the line of its words (the TOML file in the note), where base.css would make it a block", () => {
+    expect(rule(baseCss, "img,\nsvg").display).toBe("block");
+    expect(rule(componentsCss, ".extlink__icon").display).toBe("inline-block");
+  });
+
+  it("breaks the master key and a long domain anywhere, so that a phone does not scroll sideways", () => {
+    expect(rule(pagesCss, ".validator__master")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".validator__title")["overflow-wrap"]).toBe("anywhere");
+  });
+
+  it("gives the links of a list a target of at least 24 px (WCAG 2.5.8), and the link to the amendments 32 px, 44 px on a phone or a touch screen", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".validator__account")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    expect(Number.parseFloat(rule(pagesCss, ".validator__amendment")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    expect(Number.parseFloat(rule(pagesCss, ".validator__cross")["min-height"]!)).toBeGreaterThanOrEqual(32);
+    expect(pagesCss).toMatch(/@media \(pointer: coarse\), \(max-width: 720px\) \{[^@]*\.validator__cross[^@]*min-height: 44px/);
+  });
+});

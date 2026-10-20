@@ -221,7 +221,7 @@ log line, the edge cache with the visitor limit, React Router.
 | Class | Fresh at the edge | Then, stale while one render refreshes it | Browser `Cache-Control` (page) | Used for |
 |---|---|---|---|---|
 | `immutable` | 1 year | 0 | `max-age=60` (an image: `max-age=31536000, immutable`) | validated ledgers and transactions, their images |
-| `live-home` | **1 s** | **2 s** | `max-age=0, must-revalidate` | the home page, the network page, and their `.data` URLs (the route's own request of an open page) |
+| `live-home` | **1 s** | **2 s** | `max-age=0, must-revalidate` | the home page, the network page, a validator's page (not its pages of older validations, `slow` for 300 s), and their `.data` URLs (the route's own request of an open page) |
 | `live` | 5 s | 30 s | `max-age=0, must-revalidate` | the newest ledger, an account's live state and first pages; balances and orders |
 | `minute` | 60 s | 30 s | `max-age=0, must-revalidate` | what the data API changes every minute: the markets table (`networkMarkets`), a pair's active accounts and its long-interval candles; the markets pages will use it for themselves |
 | `slow` | 1 h | 0 | `max-age=300` | an account's creation, account images, a list page reached with a marker (`MARKER_PAGE_CLASS`), the network page's calls over a period (kept 300 s, below) |

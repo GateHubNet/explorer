@@ -66,6 +66,9 @@ export async function validatorCase(net: NetworkId, which: ValidatorCase): Promi
   return { key: row.validation_public_key, ...(signing !== undefined && { signing }), ...(row.domain !== undefined && { domain: row.domain }) };
 }
 
+/** D's answer for `key` as the fixtures hold it (what the pages are drawn from): for a spec that checks a figure of the page against its source. */
+export const fixtureValidator = (net: NetworkId, key: string): Promise<ValidatorDetail> => detailOf(net, key);
+
 /** Every master key that has a validator file, in D1's order: a spec takes a new one for each test that must not meet another's cached answers. */
 export async function fixtureValidatorKeys(net: NetworkId): Promise<string[]> {
   const named = new Set(fileKeys(net));

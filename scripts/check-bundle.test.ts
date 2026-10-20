@@ -113,6 +113,7 @@ const ROUTES: FakeRoute[] = [
   // No heavier than home's: the 150,000 B pin test sizes the home page to the limit and needs it to be the heaviest page of the build.
   { id: "routes/net.markets", parentId: "routes/net", module: "markets.js", imports: ["shared.js", "table.js"] },
   { id: "routes/net.validators", parentId: "routes/net", module: "validators.js", imports: ["shared.js", "table.js"] },
+  { id: "routes/net.validators.$key", parentId: "routes/net", module: "validator.js", imports: ["shared.js", "table.js"] },
   // Not one of the pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
 ];
@@ -130,6 +131,7 @@ const CHUNKS: FakeChunk[] = [
   { name: "network.js", size: 1400 },
   { name: "markets.js", size: 1500 },
   { name: "validators.js", size: 1600 },
+  { name: "validator.js", size: 1700 },
   { name: "charts.js", size: 6000 },
   { name: "qr-picture.js", size: 700 },
   { name: "search.js", size: 500 },
@@ -137,7 +139,7 @@ const CHUNKS: FakeChunk[] = [
 ];
 
 describe("the pages", () => {
-  it("are home, ledger, transaction, account, network, markets and validators, by their routes", () => {
+  it("are home, ledger, transaction, account, network, markets, validators and validator, by their routes", () => {
     expect(PAGES).toEqual([
       { name: "home", route: "routes/net._index" },
       { name: "ledger", route: "routes/net.ledger.$id" },
@@ -146,6 +148,7 @@ describe("the pages", () => {
       { name: "network", route: "routes/net.network" },
       { name: "markets", route: "routes/net.markets" },
       { name: "validators", route: "routes/net.validators" },
+      { name: "validator", route: "routes/net.validators.$key" },
     ]);
   });
 
@@ -164,7 +167,7 @@ describe("checkBundle: what a page loads", () => {
     // The route manifest is one of the files every page loads, and counts like the others.
     const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js", MANIFEST];
     const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
-    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "validators"]);
+    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "validators", "validator"]);
     expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
     expect(byPage.ledger!.bytes).toBe(sum([...common, "table.js", "ledger.js"]));
     expect(byPage.transaction!.bytes).toBe(sum([...common, "tx.js"]));
@@ -172,6 +175,7 @@ describe("checkBundle: what a page loads", () => {
     expect(byPage.network!.bytes).toBe(sum([...common, "charts.js", "network.js"]));
     expect(byPage.markets!.bytes).toBe(sum([...common, "table.js", "markets.js"]));
     expect(byPage.validators!.bytes).toBe(sum([...common, "table.js", "validators.js"]));
+    expect(byPage.validator!.bytes).toBe(sum([...common, "table.js", "validator.js"]));
     // The chunk of a route that is not a page, and the ones only it imports, are in none of the pages.
     expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
     expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
@@ -211,8 +215,9 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/network\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/markets\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/validators\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/validator\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toContain("150.0 KB");
-    expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|validators)\s/.test(line))).toHaveLength(7);
+    expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|validators|validator)\s/.test(line))).toHaveLength(8);
   });
 
   it("fails a page over 150 KB gzipped, and only that page", () => {
@@ -275,7 +280,7 @@ describe("checkBundle: what a page loads", () => {
     });
     const report = checkBundle(dir);
     expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
-    expect(report.problems).toHaveLength(7);
+    expect(report.problems).toHaveLength(8);
   });
 });
 

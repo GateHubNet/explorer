@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
+import { validationsMarker, validatorCase } from "../support/validators-cases";
 
 // The tags of the pages (spec 9) on the real Worker against the recorded answers of the data API and the nodes: a `<title>`, a
 // description built from the page's data, a canonical URL, Open Graph and Twitter card tags with the image on the origin of the
@@ -452,6 +453,48 @@ describe("the validators page", () => {
     expect(tags.titles).toEqual(["Validators · Xahau · explorer"]);
     expect(tags.content("description")).toBe(DESCRIPTION("Xahau"));
     expect(tags.canonical).toEqual([`${ORIGIN}/xahau/validators`]);
+  });
+});
+
+describe("a validator's page", () => {
+  it("has a title and a description built from D, a canonical URL on the master key, and the validator's image", async () => {
+    mock = mockUpstream("xrpl");
+    const { key } = await validatorCase("xrpl", "verified-unl");
+    const tags = head((await page(`/xrpl/validators/${key}`)).html);
+
+    // birchyard.example: on both lists, running the latest rippled, its domain verified (the fixture's).
+    const description =
+      "birchyard.example is a validator of XRPL, on the default UNL (listed by unl.xrplf.org and vl.ripple.com), running rippled 3.4.1. Its domain is verified. Agreement, fee and amendment votes, and recent validations.";
+    expect(tags.titles).toEqual(["Validator birchyard.example · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/validators/${key}`]);
+    expect(tags.content("og:title")).toBe("Validator birchyard.example · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/validators/${key}`);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/validator/${key}.png`);
+    expect(tags.content("og:image:alt")).toBe("Validator birchyard.example on XRPL");
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("names a validator with no domain by its short key, and says nothing of a domain", async () => {
+    mock = mockUpstream("xahau");
+    const { key } = await validatorCase("xahau", "no-domain");
+    const tags = head((await page(`/xahau/validators/${key}`)).html);
+    expect(tags.titles).toEqual([`Validator ${shortHash(key)} · Xahau · explorer`]);
+    expect(tags.content("description")).toMatch(new RegExp(`^${shortHash(key)} is a validator of Xahau[,.]`));
+    expect(tags.content("description")).not.toMatch(/Its domain/);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/validator/${key}.png`);
+  });
+
+  it("is noindex, follow on a page of older validations, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const { key, marker } = await validationsMarker("xrpl");
+    const tags = head((await page(`/xrpl/validators/${key}?marker=${marker}`)).html);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.content("description")).toMatch(/^Older validations of the validator .+ on XRPL\.$/);
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
   });
 });
 

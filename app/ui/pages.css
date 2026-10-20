@@ -2191,3 +2191,232 @@ a.markets__pair:hover .markets__name {
     font-size: 24px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Validator: /{net}/validators/{key} (the board's layout: the identity card, the agreement tiles beside the 30-day chart, the fee votes beside the
+   amendment votes, the recent validations; each pair folds into one column on a phone, and the tables scroll sideways inside their cards). The chart kit's
+   classes (charts.css) are never defined here: the cards that are not charts use its title and source line. */
+
+.validator {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.validator__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.validator__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.validator__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.validator__kind,
+.validator__label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* The name and its marks on a line that wraps; a long domain breaks inside it. */
+.validator__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.validator__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.validator__note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The facts: as many columns as fit at 240 px (the board's), one on a phone. */
+.validator__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 16px 24px;
+}
+
+.validator__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.validator__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.validator__sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The master key in full: it wraps anywhere, with its copy button after it. */
+.validator__master {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* A publisher of UNL membership: a line of its own, its status after it. */
+.validator__member {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  font-size: 13px;
+}
+
+/* An account the domain lists: a link of at least 24 px (WCAG 2.5.8). */
+.validator__account {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* Two cards side by side, under each other on a phone. */
+.validator__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+/* The three agreement tiles: a column beside the chart, as tall as it. */
+.validator__tiles {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.validator__tiles .stat {
+  flex: 1 1 auto;
+}
+
+.validator__daily {
+  flex: 999 1 600px;
+  min-width: 0;
+}
+
+.validator__pair > .validator__card {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+/* A card that is not a chart: the kit's title and source line in its head, an action at the end of it. */
+.validator__cardhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.validator__daily .validator__cardhead {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.validator__cross {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.validator__empty {
+  padding: 16px;
+  color: var(--faint);
+}
+
+.validator__daily .validator__empty {
+  padding: 0;
+}
+
+.validator__foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.validator__now,
+.validator__word,
+.validator__hash {
+  color: var(--muted);
+}
+
+.validator__now {
+  font-weight: 400;
+}
+
+.validator__amendment {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+/* The table's scroll region is a containing block for what is positioned inside it: the visually hidden words of a cell (`.sr` is `position: absolute`)
+   would otherwise sit at their place in the unscrolled table, out to the right of a phone, and the page would scroll sideways to reach them. */
+.validator__table {
+  position: relative;
+}
+
+.validator__failed {
+  padding: 16px;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .validator__cross {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .validator__identity {
+    padding: 16px;
+  }
+
+  .validator__title {
+    font-size: 22px;
+  }
+}

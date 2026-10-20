@@ -40,14 +40,14 @@ export function metaContext(
 }
 
 /** The kinds of object that have a link-preview image (`/og/{net}/{kind}/{id}.png`). */
-export type ImageKind = "tx" | "ledger" | "account";
+export type ImageKind = "tx" | "ledger" | "account" | "validator";
 
 /** The absolute URL of a path on the origin. */
 export function absolute(origin: string, path: string): string {
   return `${origin.replace(/\/+$/, "")}${path}`;
 }
 
-/** The absolute URL of the link-preview image of a transaction, ledger or account. */
+/** The absolute URL of the link-preview image of a transaction, ledger, account or validator. */
 export function imageUrl(origin: string, net: string, kind: ImageKind, id: string): string {
   return absolute(origin, `/og/${net}/${kind}/${id}.png`);
 }

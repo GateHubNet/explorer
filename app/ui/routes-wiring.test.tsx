@@ -5,24 +5,35 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "../domain/network-params";
 import { validatorsHref, type ValidatorsParams } from "../domain/validators-params";
-import { amendmentsSample, summarySample, validatorRowSample } from "../../test/support/d1-samples";
+import {
+  amendmentsSample,
+  SAMPLE_KEYS,
+  SAMPLE_SIGNING_KEYS,
+  summarySample,
+  validationsSample,
+  validatorDetailSample,
+  validatorRowSample,
+} from "../../test/support/d1-samples";
 import type { Loaded } from "../server/account-view";
 import { forwardCacheClass } from "../server/edge-cache";
 import type { HomeLoaderData } from "../server/home-view";
 import type { AmmPart, NetworkLoaderData, SeriesView } from "../server/network-view";
+import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../server/validator-view";
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
 import type { BarListData, TimeSeriesData } from "./charts/types";
 import * as home from "../routes/net._index";
 import * as net from "../routes/net";
 import * as network from "../routes/net.network";
 import * as validators from "../routes/net.validators";
+import * as validator from "../routes/net.validators.$key";
 
 // The real route modules, not stand-ins: `net.tsx` and `net._index.tsx` as React Router's own build would load them. What these tests pin is
 // the wiring that no other test can see because it lives between files: the layout that must not revalidate, the home route's `clientLoader`
 // that keeps the page, the page's shared `onScreen`, the hook that polls and the controls (pause, hold, status). Deleting `shouldRevalidate`
 // from net.tsx or `clientLoader` from net._index.tsx fails here (and in the browser, test/e2e/live-home.spec.ts). The network page's route,
 // `net.network.tsx`, is wired the same way and is run the same way after it: its scope per view, its merge (`keepLoaded`) and the page keyed by
-// its scope. The validators list's route, `net.validators.tsx`, comes last, with its own beat (10 s) and its three parts.
+// its scope. The validators list's route, `net.validators.tsx`, comes next, with its own beat (10 s) and its three parts, and the validator page's,
+// `net.validators.$key.tsx`, last: live every ledger, and a page of older validations that never polls.
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
 const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl" } as const;
@@ -930,6 +941,185 @@ describe("net.validators.tsx", () => {
       expect(screen.getByRole("button", { name: "Resume live updates" })).toBeTruthy();
       await pass(60_000);
       expect(answer).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---- The validator page's route ---------------------------------------------------------------------------------------------------------
+
+type ValidatorData = ValidatorLiveData & { anchor: { lastValidated: number; closeTime: number }; build: string };
+
+const VALIDATOR_KEY: string = SAMPLE_KEYS[0];
+
+/**
+ * The validator page's data at ledger `index`, every part loaded, made by build `build`: its newest validation is of ledger `index - 1`, the figure that says which
+ * answer is on screen.
+ */
+function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "abc1234"): ValidatorData {
+  const page = validationsSample();
+  const [first, ...rest] = page.validations;
+  return {
+    ...validatorPage({
+      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      validator: validatorDetailSample(),
+      recent: ok({ ...page, validations: [{ ...first!, ledger_index: index - 1 }, ...rest] }),
+      summary: ok(summarySample()),
+      amendments: ok(amendmentsSample()),
+      anchor: { lastValidated: index, closeTime: 1792252452 + index },
+    }),
+    anchor: { lastValidated: index, closeTime: 1792252452 + index },
+    build,
+    ...over,
+  };
+}
+
+/** A page of the validator's older validations, behind the sample's marker. */
+const validatorHistory = (): ValidatorHistoryData =>
+  validatorHistoryPage({
+    network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+    validator: validatorDetailSample(),
+    recent: validationsSample(),
+    marker: "M1",
+    back: [],
+  });
+
+describe("net.validators.$key.tsx", () => {
+  /** The first ledger of the recent validations: which answer the page shows. */
+  const newestRow = () => within(screen.getByRole("table", { name: "Recent validations" })).getAllByRole("link")[0]!.textContent;
+  /** The status line of the live row (the copy buttons have theirs too). */
+  const liveStatus = () => document.querySelector(".hero__status [role='status']")!.textContent;
+  const REQUEST = (path: string) => new Request(`https://explorer.test${path}`);
+
+  /** The data a `.data` request for `url` is answered with. */
+  type Answer = (url: URL) => Promise<ValidatorData | ValidatorHistoryData>;
+
+  function ValidatorRoute() {
+    return createElement(validator.default, { loaderData: useLoaderData() as ValidatorData, params: useParams() as { net: string; key: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the validator as `net.validators.$key.tsx` has it, in a data router, on the data the server rendered. */
+  function mountValidator(answer: Answer, first: ValidatorData | ValidatorHistoryData = validatorAt(100), path = `/xrpl/validators/${VALIDATOR_KEY}`) {
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test" }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [
+            {
+              id: "routes/net.validators.$key",
+              path: "validators/:key",
+              loader: (args) =>
+                validator.clientLoader({ params: args.params, request: args.request, serverLoader: () => answer(new URL(args.request.url)) } as never),
+              Component: ValidatorRoute,
+            },
+          ],
+        },
+      ],
+      {
+        initialEntries: [path],
+        hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test" }, "routes/net.validators.$key": first } },
+      },
+    );
+    return { router, ...render(<RouterProvider router={router} />) };
+  }
+
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
+    expect(validator.clientLoader).toBeTypeOf("function");
+    expect(validator.default).toBeTypeOf("function");
+    expect(validator.headers).toBe(forwardCacheClass);
+    expect(validator.handle).toEqual({ navSection: "network" });
+  });
+
+  it("asks the server's loader again every ledger (4 s), and shows what it answers", async () => {
+    let at = 100;
+    const answer = vi.fn<Answer>(async () => validatorAt(++at));
+    mountValidator(answer);
+    expect(newestRow()).toBe("#99");
+    expect(screen.getByText("Live · updates every ledger")).toBeTruthy();
+    await pass(3999);
+    expect(answer).not.toHaveBeenCalled();
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(newestRow()).toBe("#100");
+    await pass(4000);
+    expect(newestRow()).toBe("#101");
+  });
+
+  it("keeps the recent validations when a beat has them failed while the page shows them loaded, and takes the rest of the answer", async () => {
+    const answer = vi.fn<Answer>(async () => validatorAt(101, { recent: { state: "failed" }, summary: { state: "failed" } }));
+    mountValidator(answer);
+    await pass(4000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    // The table is the one on screen (no error in its place), and the summary's part too: the fee votes are still compared with the fees now.
+    expect(newestRow()).toBe("#99");
+    expect(screen.queryByText("Couldn’t load the recent validations.")).toBeNull();
+    expect(screen.queryByText(/could not be loaded/)).toBeNull();
+    expect(screen.getAllByText("Same").length).toBe(3);
+  });
+
+  it("refuses an answer with a lower last validated ledger than the page's, and keeps the page when a refresh fails", async () => {
+    let failing = true;
+    const answer = vi.fn<Answer>(async () => {
+      if (failing) throw new Response("unavailable", { status: 503 });
+      return validatorAt(90);
+    });
+    mountValidator(answer);
+    await pass(4000); // a failure: the next try is in 8 s
+    expect(newestRow()).toBe("#99");
+    await pass(8000);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(liveStatus()).toBe("Live updates paused, retrying…");
+    failing = false;
+    await pass(16_000);
+    // Answered, but behind the page: not drawn.
+    expect(answer).toHaveBeenCalledTimes(3);
+    expect(newestRow()).toBe("#99");
+  });
+
+  describe("its clientLoader", () => {
+    const rejecting = (error: unknown) => () => Promise.reject(error);
+    const reload = (path: string, serverLoader: () => Promise<ValidatorData | ValidatorHistoryData>, key = VALIDATOR_KEY) =>
+      validator.clientLoader({ params: { net: "xrpl", key }, request: REQUEST(path), serverLoader } as never);
+
+    it("hands back what the page of that validator shows when a load fails, and nothing for another validator or network", async () => {
+      mountValidator(async () => validatorAt(101));
+      expect(await reload(`/xrpl/validators/${VALIDATOR_KEY}`, rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      await expect(reload(`/xrpl/validators/${SAMPLE_KEYS[1]}`, rejecting(new Error("503")), SAMPLE_KEYS[1])).rejects.toThrow("503");
+      await expect(
+        validator.clientLoader({ params: { net: "xahau", key: VALIDATOR_KEY }, request: REQUEST(`/xahau/validators/${VALIDATOR_KEY}`), serverLoader: rejecting(new Error("503")) } as never),
+      ).rejects.toThrow("503");
+    });
+
+    it("goes straight to the server's loader for a page of older validations, even with the live page of that validator on screen", async () => {
+      mountValidator(async () => validatorAt(101));
+      // Nothing is handed back and nothing compared: a marker page is history.
+      await expect(reload(`/xrpl/validators/${VALIDATOR_KEY}?marker=M1`, rejecting(new Error("503")))).rejects.toThrow("503");
+      const older = validatorHistory();
+      expect(await reload(`/xrpl/validators/${VALIDATOR_KEY}?marker=M1`, async () => older)).toBe(older);
+    });
+
+    it("lets a redirect through (a signing key, a hex key)", async () => {
+      mountValidator(async () => validatorAt(101));
+      const redirect = new Response(null, { status: 302, headers: { Location: `/xrpl/validators/${VALIDATOR_KEY}` } });
+      await expect(reload(`/xrpl/validators/${SAMPLE_SIGNING_KEYS[0]}`, rejecting(redirect), SAMPLE_SIGNING_KEYS[0])).rejects.toBe(redirect);
+    });
+  });
+
+  describe("the page of older validations", () => {
+    it("never polls, has no live row, and keeps no page for the live view", async () => {
+      const answer = vi.fn<Answer>(async () => validatorAt(101));
+      const { container } = mountValidator(answer, validatorHistory(), `/xrpl/validators/${VALIDATOR_KEY}?marker=M1`);
+      expect(screen.getByRole("table", { name: "Recent validations" })).toBeTruthy();
+      expect(container.querySelector(".hero__status-row")).toBeNull();
+      await pass(60_000);
+      expect(answer).not.toHaveBeenCalled();
+      // `onScreen` was never told of it: a failed live load of the same validator has no page to fall back on.
+      await expect(
+        validator.clientLoader({ params: { net: "xrpl", key: VALIDATOR_KEY }, request: REQUEST(`/xrpl/validators/${VALIDATOR_KEY}`), serverLoader: () => Promise.reject(new Error("503")) } as never),
+      ).rejects.toThrow("503");
     });
   });
 });

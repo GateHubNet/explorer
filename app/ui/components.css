@@ -647,8 +647,9 @@ a.nav-item:hover {
   margin-inline-start: 4px;
 }
 
-/* The icon of a link that opens a new tab. */
+/* The icon of a link that opens a new tab, in the line of its words (base.css makes every svg a block). */
 .extlink__icon {
+  display: inline-block;
   margin-inline-start: 3px;
   vertical-align: -1px;
 }
