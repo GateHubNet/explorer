@@ -1,0 +1,21 @@
+{
+  "count": 15,
+  "result": "success",
+  "rows": [
+    {"date":"2025-08-01T00:00:00Z","result":{"tecPATH_PARTIAL":1,"tesSUCCESS":2},"transaction_count":3,"type":{"AccountSet":1,"Payment":2}},
+    {"date":"2025-09-01T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"AccountSet":1,"Payment":1}},
+    {"date":"2025-10-01T00:00:00Z","result":{"tesSUCCESS":7},"transaction_count":7,"type":{"OfferCancel":1,"OfferCreate":1,"Payment":4,"TrustSet":1}},
+    {"date":"2025-11-01T00:00:00Z","result":{"tecKILLED":1,"tecPATH_PARTIAL":1,"tesSUCCESS":2},"transaction_count":4,"type":{"OfferCancel":1,"OfferCreate":1,"Payment":2}},
+    {"date":"2025-12-01T00:00:00Z","result":{"tesSUCCESS":4},"transaction_count":4,"type":{"OfferCancel":1,"OfferCreate":1,"Payment":2}},
+    {"date":"2026-01-01T00:00:00Z","result":{"tesSUCCESS":4},"transaction_count":4,"type":{"OfferCreate":1,"Payment":3}},
+    {"date":"2026-02-01T00:00:00Z","result":{"tesSUCCESS":4},"transaction_count":4,"type":{"AccountSet":1,"EscrowCreate":1,"OfferCreate":1,"Payment":1}},
+    {"date":"2026-03-01T00:00:00Z","result":{"tesSUCCESS":4},"transaction_count":4,"type":{"EscrowFinish":1,"OfferCancel":2,"Payment":1}},
+    {"date":"2026-04-01T00:00:00Z","result":{"tecPATH_DRY":1,"tesSUCCESS":6},"transaction_count":7,"type":{"EscrowCreate":1,"EscrowFinish":1,"OfferCancel":1,"OfferCreate":3,"Payment":1}},
+    {"date":"2026-05-01T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"Payment":2}},
+    {"date":"2026-06-01T00:00:00Z","result":{"tesSUCCESS":5},"transaction_count":5,"type":{"OfferCreate":1,"Payment":3,"TrustSet":1}},
+    {"date":"2026-07-01T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"Payment":2}},
+    {"date":"2026-08-01T00:00:00Z","result":{"tesSUCCESS":4},"transaction_count":4,"type":{"EscrowCreate":1,"EscrowFinish":1,"OfferCancel":1,"Payment":1}},
+    {"date":"2026-09-01T00:00:00Z","result":{"tecPATH_DRY":1,"tesSUCCESS":12},"transaction_count":13,"type":{"AccountSet":1,"OfferCreate":4,"Payment":6,"SetRegularKey":1,"TrustSet":1}},
+    {"date":"2026-10-01T00:00:00Z","result":{"tecUNFUNDED_OFFER":1,"tesSUCCESS":7},"transaction_count":8,"type":{"OfferCreate":7,"Payment":1}}
+  ]
+}

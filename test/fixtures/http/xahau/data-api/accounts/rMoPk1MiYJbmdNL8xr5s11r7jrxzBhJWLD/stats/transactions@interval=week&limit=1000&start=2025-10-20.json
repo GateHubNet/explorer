@@ -1,0 +1,16 @@
+{
+  "count": 10,
+  "result": "success",
+  "rows": [
+    {"date":"2026-07-13T00:00:00Z","result":{"tesSUCCESS":3},"transaction_count":3,"type":{"ClaimReward":2,"Invoke":1}},
+    {"date":"2026-07-20T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"Payment":1,"URITokenMint":1}},
+    {"date":"2026-08-03T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-08-24T00:00:00Z","result":{"tecPATH_PARTIAL":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-08-31T00:00:00Z","result":{"tecPATH_PARTIAL":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-07T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-21T00:00:00Z","result":{"tesSUCCESS":3},"transaction_count":3,"type":{"Invoke":1,"Payment":2}},
+    {"date":"2026-09-28T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Invoke":1}},
+    {"date":"2026-10-05T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-10-12T00:00:00Z","result":{"tecPATH_PARTIAL":1,"tesSUCCESS":1},"transaction_count":2,"type":{"AccountDelete":1,"Payment":1}}
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "count": 23,
+  "result": "success",
+  "rows": [
+    {"date":"2026-07-22T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-08-04T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"EscrowCreate":1}},
+    {"date":"2026-08-15T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCancel":1}},
+    {"date":"2026-08-19T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"EscrowFinish":1}},
+    {"date":"2026-08-30T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-01T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"Payment":1,"SetRegularKey":1}},
+    {"date":"2026-09-02T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-03T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"TrustSet":1}},
+    {"date":"2026-09-06T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCreate":1}},
+    {"date":"2026-09-11T00:00:00Z","result":{"tecPATH_DRY":1,"tesSUCCESS":1},"transaction_count":2,"type":{"OfferCreate":1,"Payment":1}},
+    {"date":"2026-09-12T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-13T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-18T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCreate":1}},
+    {"date":"2026-09-21T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-23T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCreate":1}},
+    {"date":"2026-09-25T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"AccountSet":1}},
+    {"date":"2026-10-01T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCreate":1}},
+    {"date":"2026-10-03T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCreate":1}},
+    {"date":"2026-10-04T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCreate":1}},
+    {"date":"2026-10-09T00:00:00Z","result":{"tecUNFUNDED_OFFER":1},"transaction_count":1,"type":{"OfferCreate":1}},
+    {"date":"2026-10-10T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-10-13T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"OfferCreate":2}},
+    {"date":"2026-10-14T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"OfferCreate":1}}
+  ]
+}

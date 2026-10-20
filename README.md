@@ -983,7 +983,8 @@ Loader tests and the end-to-end suite never reach the network: they run against 
 nodes, `test/fixtures/http/<net>/` for `xrpl` and `xahau`. The answers are the recorded mainnet ledgers (`test/fixtures/ledgers/`)
 shaped as the servers shape them (`scripts/http-fixtures.ts`: the data API's from its reference and `app/server/api-types.ts`,
 rippled's from API v1), plus the network page's aggregates, fee snapshots and validations, which the recordings cannot give and a seeded
-generator makes up (`scripts/network-fixtures.ts`), plus the accounts, which are written by hand, plus the order books of the markets pages, which are recorded from the
+generator makes up (`scripts/network-fixtures.ts`), plus the accounts, which are written by hand, plus the accounts' Analytics tab answers, which a seeded generator makes up
+around them (`scripts/analytics-fixtures.ts`), plus the order books of the markets pages, which are recorded from the
 public nodes (`scripts/record-node-fixtures.ts`), plus the markets pages' data API answers and the pools' `amm_info` answers (`scripts/market-fixtures.ts`,
 `scripts/amm-info-fixtures.ts`): XRPL's pairs worked out from the recorded trades (`scripts/derived-trades.ts`), Xahau's pair and the markets tables seeded around them.
 
@@ -998,6 +999,8 @@ public nodes (`scripts/record-node-fixtures.ts`), plus the markets pages' data A
 | `node/tx/<HASH>.json`, `node/ledger/<index>[@...].json` | the same transactions and the expanded ledgers, as the node answers (Ripple-epoch times) | generator (derived) |
 | `ledger-hashes.json` | ledger hash to index, so that a ledger is stored once and found by either | generator (derived) |
 | `data-api/accounts/<address>.json` and `/balances`, `/orders`, `/transactions@...`, `/payments@...`, `/exchanges@...` | an account's creation, live state and lists (see below) | by hand |
+| `data-api/accounts/<address>/stats/value@...`, `.../stats/transactions@...` (`interval=<u>&limit=1000&start=<S>`) | the Analytics tab's account value and transactions sent, for the four periods (days; weeks for `1y`; months for All, from the month of the `inception`), of the active, the deleted and the never-funded account (empty) of each network | generator (synthetic) |
+| `data-api/accounts/<address>/analytics/balance_changes@...`, `/balances@...`, `/counterparties@...`, `/exchanges@...` | the Analytics tab's other four calls for the same views: one history per account, anchored to the files above (the active account's balances end at its `account_info` and `balances.json`; the deleted one's is 0 from its deletion on 2026-10-15) | generator (synthetic) |
 | `data-api/ledgers/<HASH>/validations@limit=1000.json` | the validations of the two newest recorded ledgers (the end-to-end suite moves the chain back by one): 35 validators on XRPL, 25 on Xahau, node public keys encoded from seeded bytes, the first seen 0 to 400 ms after the close | generator (synthetic) |
 | `data-api/network/fee_stats@descending=true&limit=1&start=2026-10-17.json` | one fee snapshot, 2 s before the close of the newest ledger (XRPL: open ledger fee 10 drops, queue 0, 84 of 96 expected) | generator (synthetic) |
 | `data-api/stats/type@...`, `data-api/stats/metric@...` | transactions by type, and `accounts_created`, `ledger_count` and `transaction_count`, for the page's four periods (days; weeks for `1y`). A zero count is left out; `transaction_count` is the sum of the type columns; the running day is the day so far | generator (synthetic) |
@@ -1012,7 +1015,7 @@ public nodes (`scripts/record-node-fixtures.ts`), plus the markets pages' data A
 
 The "By" column says how a file came to be. **generator (derived)**: worked out from the recordings by `scripts/http-fixtures.ts` (and, for the markets pages' XRPL pairs and
 the pools, by `scripts/derived-trades.ts`, `scripts/market-fixtures.ts` (with the rules of `scripts/market-aggregates.ts`) and `scripts/amm-info-fixtures.ts`, which it calls). **generator (synthetic)**: made up by the
-seeded generators `scripts/network-fixtures.ts` and `scripts/market-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. **recorder**: an answer recorded from a public node by
+seeded generators `scripts/network-fixtures.ts`, `scripts/market-fixtures.ts` and `scripts/analytics-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. **recorder**: an answer recorded from a public node by
 `scripts/record-node-fixtures.ts` (`pnpm exec tsx scripts/record-node-fixtures.ts`, which needs network access and only reads), never edited by hand, and left alone by
 `pnpm fixtures:sync` too (`isHandWritten`). The recorded ledgers under `test/fixtures/ledgers/` are of the same kind, but they are not files of this table.
 A re-recording changes the files and the table of `test/fixtures/PROVENANCE.md` together, and `test/unit/market-fixtures.test.ts` fails when they part ways.
@@ -1049,6 +1052,15 @@ from `W₀`; `fees` from `W₀` with `interval=day`, always; all with `end=T` an
 `windowOf` and the spec's table of calls, asks the fixture server for each, and fails for a file that is written and never asked for, or asked for and not written.
 The default fixtures include `amm_volume` (the post-merge API), which the top level's `AMM_DATA: "on"` reads; the `worker-off` project does not ask for it. The synthetic files
 (`isSynthetic`) are about 2.3 MiB and have a size budget of their own (`test/unit/http-fixtures.test.ts`).
+
+**The accounts' analytics.** The Analytics tab of the account page asks D2's `stats/{family}?interval=` and `analytics/*` routes for months of an account's aggregates, so
+`scripts/analytics-fixtures.ts` makes them up (`analyticsFixtures(net, T)`, joined into `generate()`): for the active, the deleted and the never-funded account of each network, the
+six calls of each of the four periods at T (`analyticsWindow`), 144 files. Each account has one history, drawn from `mulberry32(seedOf(net, account, endpoint))` day by day from its
+`inception` to T and made backwards from what the hand-written files say it holds (the active account's native line ends at its `account_info` balance and its LIONS or EVR line
+at its `balances.json` value; the deleted account's native balance is 0 from its deletion on 2026-10-15), so the six answers and the four periods agree with each other and with
+the header. The shapes follow D2's reference at the commit `test/fixtures/PROVENANCE.md` ("Synthetic aggregates") names; the never-funded address has D2's empty answers.
+`test/unit/analytics-fixtures.test.ts` works the requests out from the spec's table of calls and checks the files against the reference's rules and the anchors. They are about
+0.31 MiB (`isAnalyticsGenerated`) and count against the synthetic files' budget.
 
 **The markets pages' files.** `scripts/market-fixtures.ts` (`marketFixtures()`, joined into `generate()` with `ammInfoFixtures()`) makes them all by the data API's rules (`scripts/market-aggregates.ts`)
 (test/fixtures/PROVENANCE.md, "Synthetic aggregates" and "Derived trades and pool states", names the commits): the candles, 24-hour rows, active accounts and markets rows are

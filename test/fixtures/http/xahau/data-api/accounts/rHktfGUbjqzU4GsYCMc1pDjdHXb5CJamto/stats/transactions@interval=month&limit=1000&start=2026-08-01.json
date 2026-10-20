@@ -1,0 +1,9 @@
+{
+  "count": 3,
+  "result": "success",
+  "rows": [
+    {"date":"2026-08-01T00:00:00Z","result":{"tesSUCCESS":5},"transaction_count":5,"type":{"ClaimReward":2,"OfferCreate":1,"TrustSet":1,"URITokenMint":1}},
+    {"date":"2026-09-01T00:00:00Z","result":{"tecUNFUNDED_OFFER":1,"tesSUCCESS":11},"transaction_count":12,"type":{"ClaimReward":2,"Invoke":1,"OfferCreate":5,"Payment":2,"TrustSet":1,"URITokenMint":1}},
+    {"date":"2026-10-01T00:00:00Z","result":{"tecUNFUNDED_OFFER":2,"tesSUCCESS":5},"transaction_count":7,"type":{"AccountSet":1,"Invoke":2,"OfferCreate":3,"Payment":1}}
+  ]
+}

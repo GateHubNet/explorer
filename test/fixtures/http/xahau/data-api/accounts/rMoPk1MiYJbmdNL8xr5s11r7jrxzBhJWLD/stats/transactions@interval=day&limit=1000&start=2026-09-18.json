@@ -1,0 +1,11 @@
+{
+  "count": 5,
+  "result": "success",
+  "rows": [
+    {"date":"2026-09-21T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-09-22T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"Invoke":1,"Payment":1}},
+    {"date":"2026-10-04T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Invoke":1}},
+    {"date":"2026-10-09T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-10-15T00:00:00Z","result":{"tecPATH_PARTIAL":1,"tesSUCCESS":1},"transaction_count":2,"type":{"AccountDelete":1,"Payment":1}}
+  ]
+}

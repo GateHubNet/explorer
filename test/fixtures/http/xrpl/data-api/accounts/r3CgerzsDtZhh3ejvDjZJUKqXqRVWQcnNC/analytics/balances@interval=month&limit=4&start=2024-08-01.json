@@ -1,0 +1,40 @@
+{
+  "count": 27,
+  "end": "2026-11-01T00:00:00Z",
+  "interval": "month",
+  "lines": [
+    {"balance":"0","currency":"XRP"}
+  ],
+  "lines_total": 1,
+  "result": "success",
+  "rows": [
+    {"balance":"20.190952","currency":"XRP","date":"2024-08-01T00:00:00Z"},
+    {"balance":"20.190952","currency":"XRP","date":"2024-09-01T00:00:00Z"},
+    {"balance":"20.190927","currency":"XRP","date":"2024-10-01T00:00:00Z"},
+    {"balance":"17.536037","currency":"XRP","date":"2024-11-01T00:00:00Z"},
+    {"balance":"19.836194","currency":"XRP","date":"2024-12-01T00:00:00Z"},
+    {"balance":"17.142596","currency":"XRP","date":"2025-01-01T00:00:00Z"},
+    {"balance":"16.433656","currency":"XRP","date":"2025-02-01T00:00:00Z"},
+    {"balance":"12.07048","currency":"XRP","date":"2025-03-01T00:00:00Z"},
+    {"balance":"10.949077","currency":"XRP","date":"2025-04-01T00:00:00Z"},
+    {"balance":"8.287462","currency":"XRP","date":"2025-05-01T00:00:00Z"},
+    {"balance":"8.013164","currency":"XRP","date":"2025-06-01T00:00:00Z"},
+    {"balance":"7.848908","currency":"XRP","date":"2025-07-01T00:00:00Z"},
+    {"balance":"9.608277","currency":"XRP","date":"2025-08-01T00:00:00Z"},
+    {"balance":"9.608277","currency":"XRP","date":"2025-09-01T00:00:00Z"},
+    {"balance":"9.381916","currency":"XRP","date":"2025-10-01T00:00:00Z"},
+    {"balance":"6.585477","currency":"XRP","date":"2025-11-01T00:00:00Z"},
+    {"balance":"6.585465","currency":"XRP","date":"2025-12-01T00:00:00Z"},
+    {"balance":"5.782945","currency":"XRP","date":"2026-01-01T00:00:00Z"},
+    {"balance":"3.563789","currency":"XRP","date":"2026-02-01T00:00:00Z"},
+    {"balance":"3.563777","currency":"XRP","date":"2026-03-01T00:00:00Z"},
+    {"balance":"2.943068","currency":"XRP","date":"2026-04-01T00:00:00Z"},
+    {"balance":"4.765315","currency":"XRP","date":"2026-05-01T00:00:00Z"},
+    {"balance":"6.356013","currency":"XRP","date":"2026-06-01T00:00:00Z"},
+    {"balance":"6.356013","currency":"XRP","date":"2026-07-01T00:00:00Z"},
+    {"balance":"6.506908","currency":"XRP","date":"2026-08-01T00:00:00Z"},
+    {"balance":"4.798691","currency":"XRP","date":"2026-09-01T00:00:00Z"},
+    {"balance":"0","currency":"XRP","date":"2026-10-01T00:00:00Z"}
+  ],
+  "start": "2024-08-01T00:00:00Z"
+}

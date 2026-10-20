@@ -1,0 +1,29 @@
+{
+  "count": 16,
+  "end": "2026-10-19T00:00:00Z",
+  "interval": "week",
+  "lines": [
+    {"balance":"0","currency":"XAH"}
+  ],
+  "lines_total": 1,
+  "result": "success",
+  "rows": [
+    {"balance":"8.776417","currency":"XAH","date":"2026-06-29T00:00:00Z"},
+    {"balance":"8.776417","currency":"XAH","date":"2026-07-06T00:00:00Z"},
+    {"balance":"9.419461","currency":"XAH","date":"2026-07-13T00:00:00Z"},
+    {"balance":"6.739941","currency":"XAH","date":"2026-07-20T00:00:00Z"},
+    {"balance":"6.739941","currency":"XAH","date":"2026-07-27T00:00:00Z"},
+    {"balance":"6.01679","currency":"XAH","date":"2026-08-03T00:00:00Z"},
+    {"balance":"6.858142","currency":"XAH","date":"2026-08-10T00:00:00Z"},
+    {"balance":"9.865993","currency":"XAH","date":"2026-08-17T00:00:00Z"},
+    {"balance":"9.86598","currency":"XAH","date":"2026-08-24T00:00:00Z"},
+    {"balance":"9.865966","currency":"XAH","date":"2026-08-31T00:00:00Z"},
+    {"balance":"10.337119","currency":"XAH","date":"2026-09-07T00:00:00Z"},
+    {"balance":"14.725024","currency":"XAH","date":"2026-09-14T00:00:00Z"},
+    {"balance":"8.028898","currency":"XAH","date":"2026-09-21T00:00:00Z"},
+    {"balance":"8.028886","currency":"XAH","date":"2026-09-28T00:00:00Z"},
+    {"balance":"7.13414","currency":"XAH","date":"2026-10-05T00:00:00Z"},
+    {"balance":"0","currency":"XAH","date":"2026-10-12T00:00:00Z"}
+  ],
+  "start": "2025-10-20T00:00:00Z"
+}

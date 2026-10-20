@@ -1,0 +1,40 @@
+{
+  "count": 25,
+  "end": "2026-10-19T00:00:00Z",
+  "interval": "week",
+  "lines": [
+    {"balance":"9351.039221","currency":"XAH"},
+    {"balance":"28437367.3675102","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR"},
+    {"balance":"0","counterparty":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","currency":"USD"}
+  ],
+  "lines_total": 3,
+  "result": "success",
+  "rows": [
+    {"balance":"9083.231307","currency":"XAH","date":"2026-08-10T00:00:00Z"},
+    {"balance":"9103.875695","currency":"XAH","date":"2026-08-17T00:00:00Z"},
+    {"balance":"28437407.9349892","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-08-17T00:00:00Z"},
+    {"balance":"9111.76545","currency":"XAH","date":"2026-08-24T00:00:00Z"},
+    {"balance":"28437408.2005202","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-08-24T00:00:00Z"},
+    {"balance":"9087.27291","currency":"XAH","date":"2026-08-31T00:00:00Z"},
+    {"balance":"28437409.2154182","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-08-31T00:00:00Z"},
+    {"balance":"9106.885306","currency":"XAH","date":"2026-09-07T00:00:00Z"},
+    {"balance":"28437409.7528112","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-09-07T00:00:00Z"},
+    {"balance":"1.479825","counterparty":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","currency":"USD","date":"2026-09-07T00:00:00Z"},
+    {"balance":"9175.056106","currency":"XAH","date":"2026-09-14T00:00:00Z"},
+    {"balance":"28437390.0624482","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-09-14T00:00:00Z"},
+    {"balance":"1.743908","counterparty":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","currency":"USD","date":"2026-09-14T00:00:00Z"},
+    {"balance":"9213.571227","currency":"XAH","date":"2026-09-21T00:00:00Z"},
+    {"balance":"28437390.6121602","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-09-21T00:00:00Z"},
+    {"balance":"0.50991","counterparty":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","currency":"USD","date":"2026-09-21T00:00:00Z"},
+    {"balance":"9100.100948","currency":"XAH","date":"2026-09-28T00:00:00Z"},
+    {"balance":"28437427.0082372","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-09-28T00:00:00Z"},
+    {"balance":"0.518403","counterparty":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","currency":"USD","date":"2026-09-28T00:00:00Z"},
+    {"balance":"9126.342833","currency":"XAH","date":"2026-10-05T00:00:00Z"},
+    {"balance":"28437423.2506892","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-10-05T00:00:00Z"},
+    {"balance":"0","counterparty":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","currency":"USD","date":"2026-10-05T00:00:00Z"},
+    {"balance":"9351.039221","currency":"XAH","date":"2026-10-12T00:00:00Z"},
+    {"balance":"28437367.3675102","counterparty":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","currency":"EVR","date":"2026-10-12T00:00:00Z"},
+    {"balance":"0","counterparty":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","currency":"USD","date":"2026-10-12T00:00:00Z"}
+  ],
+  "start": "2025-10-20T00:00:00Z"
+}

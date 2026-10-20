@@ -1,0 +1,33 @@
+{
+  "count": 27,
+  "result": "success",
+  "rows": [
+    {"account_value":"20.190952","balance_change_count":2,"date":"2024-08-01T00:00:00Z"},
+    {"account_value":"20.190952","balance_change_count":0,"date":"2024-09-01T00:00:00Z"},
+    {"account_value":"20.190927","balance_change_count":0,"date":"2024-10-01T00:00:00Z"},
+    {"account_value":"17.536037","balance_change_count":4,"date":"2024-11-01T00:00:00Z"},
+    {"account_value":"19.836194","balance_change_count":4,"date":"2024-12-01T00:00:00Z"},
+    {"account_value":"17.142596","balance_change_count":2,"date":"2025-01-01T00:00:00Z"},
+    {"account_value":"16.433656","balance_change_count":2,"date":"2025-02-01T00:00:00Z"},
+    {"account_value":"12.07048","balance_change_count":2,"date":"2025-03-01T00:00:00Z"},
+    {"account_value":"10.949077","balance_change_count":3,"date":"2025-04-01T00:00:00Z"},
+    {"account_value":"8.287462","balance_change_count":3,"date":"2025-05-01T00:00:00Z"},
+    {"account_value":"8.013164","balance_change_count":1,"date":"2025-06-01T00:00:00Z"},
+    {"account_value":"7.848908","balance_change_count":1,"date":"2025-07-01T00:00:00Z"},
+    {"account_value":"9.608277","balance_change_count":2,"date":"2025-08-01T00:00:00Z"},
+    {"account_value":"9.608277","balance_change_count":0,"date":"2025-09-01T00:00:00Z"},
+    {"account_value":"9.381916","balance_change_count":2,"date":"2025-10-01T00:00:00Z"},
+    {"account_value":"6.585477","balance_change_count":2,"date":"2025-11-01T00:00:00Z"},
+    {"account_value":"6.585465","balance_change_count":0,"date":"2025-12-01T00:00:00Z"},
+    {"account_value":"5.782945","balance_change_count":3,"date":"2026-01-01T00:00:00Z"},
+    {"account_value":"3.563789","balance_change_count":1,"date":"2026-02-01T00:00:00Z"},
+    {"account_value":"3.563777","balance_change_count":0,"date":"2026-03-01T00:00:00Z"},
+    {"account_value":"2.943068","balance_change_count":2,"date":"2026-04-01T00:00:00Z"},
+    {"account_value":"4.765315","balance_change_count":1,"date":"2026-05-01T00:00:00Z"},
+    {"account_value":"6.356013","balance_change_count":1,"date":"2026-06-01T00:00:00Z"},
+    {"account_value":"6.356013","balance_change_count":0,"date":"2026-07-01T00:00:00Z"},
+    {"account_value":"6.506908","balance_change_count":1,"date":"2026-08-01T00:00:00Z"},
+    {"account_value":"4.798691","balance_change_count":2,"date":"2026-09-01T00:00:00Z"},
+    {"account_value":"0","balance_change_count":1,"date":"2026-10-01T00:00:00Z"}
+  ]
+}

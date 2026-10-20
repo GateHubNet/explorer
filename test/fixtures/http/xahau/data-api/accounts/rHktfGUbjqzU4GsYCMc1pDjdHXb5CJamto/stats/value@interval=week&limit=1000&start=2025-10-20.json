@@ -1,0 +1,16 @@
+{
+  "count": 10,
+  "result": "success",
+  "rows": [
+    {"account_value":"9083.231307","balance_change_count":10,"date":"2026-08-10T00:00:00Z"},
+    {"account_value":"96419188.988028411","balance_change_count":18,"date":"2026-08-17T00:00:00Z"},
+    {"account_value":"101029741.17891638","balance_change_count":14,"date":"2026-08-24T00:00:00Z"},
+    {"account_value":"101021825.89610668","balance_change_count":16,"date":"2026-08-31T00:00:00Z"},
+    {"account_value":"91766699.235129536713249","balance_change_count":20,"date":"2026-09-07T00:00:00Z"},
+    {"account_value":"92896330.537691339818732","balance_change_count":17,"date":"2026-09-14T00:00:00Z"},
+    {"account_value":"94439803.860985532574571","balance_change_count":20,"date":"2026-09-21T00:00:00Z"},
+    {"account_value":"104976803.890415986669607","balance_change_count":18,"date":"2026-09-28T00:00:00Z"},
+    {"account_value":"104264873.9458671","balance_change_count":19,"date":"2026-10-05T00:00:00Z"},
+    {"account_value":"104851823.42523555","balance_change_count":14,"date":"2026-10-12T00:00:00Z"}
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "count": 13,
+  "end": "2026-11-01T00:00:00Z",
+  "interval": "month",
+  "result": "success",
+  "rows": [
+    {"change_type":"transaction_cost","count":5,"date":"2026-07-01T00:00:00Z","in_value":"0","out_value":"0.000058"},
+    {"change_type":"payment_destination","count":1,"date":"2026-07-01T00:00:00Z","in_value":"8.776417","out_value":"0"},
+    {"change_type":"payment_source","count":1,"date":"2026-07-01T00:00:00Z","in_value":"0","out_value":"2.679495"},
+    {"count":2,"date":"2026-07-01T00:00:00Z","in_value":"0.643077","out_value":"0"},
+    {"change_type":"transaction_cost","count":2,"date":"2026-08-01T00:00:00Z","in_value":"0","out_value":"0.000023"},
+    {"change_type":"payment_destination","count":3,"date":"2026-08-01T00:00:00Z","in_value":"4.052425","out_value":"0"},
+    {"change_type":"payment_source","count":1,"date":"2026-08-01T00:00:00Z","in_value":"0","out_value":"0.926363"},
+    {"change_type":"transaction_cost","count":5,"date":"2026-09-01T00:00:00Z","in_value":"0","out_value":"0.00006"},
+    {"change_type":"payment_destination","count":4,"date":"2026-09-01T00:00:00Z","in_value":"5.1101","out_value":"0"},
+    {"change_type":"payment_source","count":3,"date":"2026-09-01T00:00:00Z","in_value":"0","out_value":"6.947122"},
+    {"change_type":"transaction_cost","count":4,"date":"2026-10-01T00:00:00Z","in_value":"0","out_value":"0.200034"},
+    {"change_type":"payment_source","count":1,"date":"2026-10-01T00:00:00Z","in_value":"0","out_value":"0.894734"},
+    {"count":1,"date":"2026-10-01T00:00:00Z","in_value":"0","out_value":"6.93413"}
+  ],
+  "start": "2026-07-01T00:00:00Z",
+  "totals": [
+    {"change_type":"transaction_cost","count":16,"in_value":"0","net_value":"-0.200175","out_value":"0.200175"},
+    {"change_type":"payment_destination","count":8,"in_value":"17.938942","net_value":"17.938942","out_value":"0"},
+    {"change_type":"payment_source","count":6,"in_value":"0","net_value":"-11.447714","out_value":"11.447714"},
+    {"count":3,"in_value":"0.643077","net_value":"-6.291053","out_value":"6.93413"}
+  ]
+}
