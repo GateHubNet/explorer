@@ -371,18 +371,51 @@ describe("loadAnalytics", () => {
       expect(marks).toEqual(["analytics frame took too long"]);
     });
 
-    it("is late when the header has not told the account's existence by the deadline, with the calls handed to waitUntil", async () => {
-      const { input, handedOff, marks, callsMade } = world({ calls: { pairs: () => after(5_000, answers.pairs) } });
-      const data = loadAnalytics(input);
+    describe("late because the header has not told the account's existence by the deadline", () => {
+      it("is late at the deadline, and says nothing and hands nothing on while the header may yet make the page a 404 or a 503", async () => {
+        const { input, handedOff, marks, logged, callsMade } = world({ calls: { pairs: () => after(5_000, answers.pairs) } });
+        const data = loadAnalytics(input);
 
-      expect(await statesAfter(data, CARD_DEADLINE_MS)).toEqual({ frame: "late", value: "late", sent: "late", changes: "late", counterparties: "late", balances: "late", pairs: "late" });
-      expect(marks).toEqual(["analytics frame took too long"]);
-      expect(callsMade()).toBe(6);
-      expect(handedOff).toHaveLength(1);
-      let finished = false;
-      void handedOff[0]!.then(() => (finished = true));
-      await vi.advanceTimersByTimeAsync(500);
-      expect(finished).toBe(true);
+        expect(await statesAfter(data, CARD_DEADLINE_MS)).toEqual({ frame: "late", value: "late", sent: "late", changes: "late", counterparties: "late", balances: "late", pairs: "late" });
+        expect(callsMade()).toBe(6);
+        expect(marks).toEqual([]);
+        expect(logged()).toEqual([]);
+        expect(handedOff).toEqual([]);
+      });
+
+      it("then the view: logs and marks the late frame once, and hands the chain to waitUntil, which sees the calls to their end", async () => {
+        const { input, deleted, handedOff, marks, logged } = world({ calls: { pairs: () => after(5_000, answers.pairs) } });
+        const data = loadAnalytics(input);
+        await statesAfter(data, CARD_DEADLINE_MS + 100);
+        expect(handedOff).toEqual([]);
+
+        // The header says the account exists: the page is the view.
+        deleted.resolve(false);
+        await statesAfter(data);
+        expect(marks).toEqual(["analytics frame took too long"]);
+        expect(logged()).toEqual(["the analytics frame of an account took too long"]);
+        expect(handedOff).toHaveLength(1);
+        let finished = false;
+        void handedOff[0]!.then(() => (finished = true));
+        await vi.advanceTimersByTimeAsync(400 - 1);
+        expect(finished).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(finished).toBe(true);
+        // Once, and the cards said nothing of their own.
+        expect(marks).toEqual(["analytics frame took too long"]);
+      });
+
+      it("then an abandoned page (a 404 or a 503): no log, no mark and nothing handed to waitUntil, ever", async () => {
+        const { input, abandon, handedOff, marks, logged } = world({ calls: { pairs: () => after(5_000, answers.pairs) } });
+        const data = loadAnalytics(input);
+        expect((await statesAfter(data, CARD_DEADLINE_MS + 100)).frame).toBe("late");
+
+        abandon.abort();
+        await statesAfter(data, 10_000);
+        expect(marks).toEqual([]);
+        expect(logged()).toEqual([]);
+        expect(handedOff).toEqual([]);
+      });
     });
   });
 

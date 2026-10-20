@@ -8,8 +8,9 @@
 // - **What a card comes to** is `ok`, `failed` (logged and marked, so the page is served and not stored) or `late`: logged and marked as taking too
 //   long, with its call handed to `ctx.waitUntil`, so that it finishes in the background and the subrequest cache keeps its answer for a Retry. A
 //   late frame hands on the whole chain: the window, then calls 1 to 6.
-// - **The frame fails** (call 0, or for All the probe) with one log line and one mark; its cards then fail without a word of their own. Its outcome is
-//   told once the header knows the account exists, so a page that turns out a 404 or a 503 says nothing of the analytics.
+// - **The frame fails** (call 0, or for All the probe) with one log line and one mark; its cards then fail without a word of their own. Its outcome,
+//   failed or late, is told (and a late one's chain handed on) once the header knows the account exists, so a page that turns out a 404 or a 503
+//   says nothing of the analytics and hands nothing to `waitUntil`.
 // - **A page that is not the view** (a 404, a 503) aborts `signal`: every deadline is cleared, whatever is pending resolves `late`, and nothing is
 //   logged, marked or handed to `waitUntil`. The fetches are not aborted: another request may share them (spec 2.7).
 
@@ -133,9 +134,13 @@ export function loadAnalytics(input: AnalyticsInput): AnalyticsData {
   abandoned.catch(() => {});
 
   /**
-   * `work` as a part of the view: `ok` with what it gave, or `failed` (logged and marked), or `late` at the deadline (logged and marked, and
-   * `background()` handed to `waitUntil`), or `late` without a word once the page is abandoned. The race is `byDeadline`'s; an abandoned page
-   * settles `work`'s side of it, which clears its timer.
+   * `work` as a part of the view: `ok` with what it gave, or `failed` (logged and marked), or `late` at the deadline, or `late` without a word
+   * once the page is abandoned. The race is `byDeadline`'s; an abandoned page settles `work`'s side of it, which clears its timer.
+   *
+   * A part that is late resolves `late` at once, but is logged and marked, and `background()` handed to `waitUntil`, only once the page is
+   * known to be the view (`deleted` has settled): the frame can be late while the header is still out, and a page that then turns out a 404
+   * or a 503 says nothing of the analytics and hands nothing on. The view's header settles `deleted` before the page is returned, so the
+   * mark is still made before the head is sent. (A card is raced only after its frame, so for it the page is the view already.)
    */
   async function settle<T extends object>(part: CardName | "frame", work: Promise<T>, background: () => Promise<unknown>): Promise<CardState<T>> {
     try {
@@ -143,10 +148,16 @@ export function loadAnalytics(input: AnalyticsInput): AnalyticsData {
     } catch (error) {
       if (error instanceof Abandoned) return { state: "late" };
       if (error instanceof TooLate) {
-        logProblem(`the analytics ${part} of an account took too long`, error, request);
-        markDegraded(context, `analytics ${part} took too long`);
-        // Never a rejection: the call's own failure was its card's, and the card has been told.
-        getExecutionContext(context).waitUntil(background().catch(() => {}));
+        Promise.race([deleted, abandoned]).then(
+          () => {
+            logProblem(`the analytics ${part} of an account took too long`, error, request);
+            markDegraded(context, `analytics ${part} took too long`);
+            // Never a rejection: the call's own failure was its card's, and the card has been told.
+            getExecutionContext(context).waitUntil(background().catch(() => {}));
+          },
+          // Abandoned: not the view.
+          () => {},
+        );
         return { state: "late" };
       }
       logProblem(`the analytics ${part} of an account could not be loaded`, error, request);
