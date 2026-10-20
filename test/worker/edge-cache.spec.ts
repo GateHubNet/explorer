@@ -56,8 +56,10 @@ function pageUrl(path = "/xrpl/ledger/107695660") {
 /** An execution context that remembers what was handed to `waitUntil`. */
 function harness(overrides: Partial<Env> = {}) {
   const pending: Promise<unknown>[] = [];
+  /** Everything handed to `waitUntil`, in order, also once it has been waited for. */
+  const handed: Promise<unknown>[] = [];
   const ctx = {
-    waitUntil: (promise: Promise<unknown>) => void pending.push(promise),
+    waitUntil: (promise: Promise<unknown>) => void (pending.push(promise), handed.push(promise)),
     passThroughOnException() {},
   } as unknown as ExecutionContext;
   const limit = vi.fn(async (_options: RateLimitOptions): Promise<RateLimitOutcome> => ({ success: true }));
@@ -73,6 +75,7 @@ function harness(overrides: Partial<Env> = {}) {
     get waiting() {
       return pending.length;
     },
+    handed,
   };
 }
 
@@ -1958,7 +1961,12 @@ describe("in-flight sharing", () => {
   /** A request of the Worker: its own execution context and its own cache. */
   function request(buildId = "build-1") {
     const h = harness();
-    return { cache: createSubrequestCache(h.ctx, buildId), settle: h.settle, get waiting() { return h.waiting; } };
+    return { cache: createSubrequestCache(h.ctx, buildId), settle: h.settle, handed: h.handed, get waiting() { return h.waiting; } };
+  }
+
+  /** The writes to the Cache API from now on, by the key of the subrequest; each goes through to the Cache API. */
+  function writes() {
+    return vi.spyOn(caches.default, "put");
   }
 
   /** A `load` that settles when the test says so. */
@@ -2024,6 +2032,7 @@ describe("in-flight sharing", () => {
   it("rejects both callers of a load that throws with the same UpstreamError, stores nothing, and loads again on the next call", async () => {
     const [a, b] = [request(), request()];
     const answered = reads();
+    const put = writes();
     const k = key("throws");
     const error = new UpstreamError("server", "the analytics call failed");
     const gate = pending<number>();
@@ -2038,8 +2047,10 @@ describe("in-flight sharing", () => {
     expect(outcomes.map((outcome) => outcome.status)).toEqual(["rejected", "rejected"]);
     for (const outcome of outcomes) expect((outcome as PromiseRejectedResult).reason).toBe(error);
     expect(other).not.toHaveBeenCalled();
-    // Nothing was handed to `waitUntil`, so nothing was written.
-    expect([a.waiting, b.waiting]).toEqual([0, 0]);
+    // The one thing handed to `waitUntil` is the flight, by the request that started it, and it wrote nothing.
+    expect([a.waiting, b.waiting]).toEqual([1, 0]);
+    await a.settle();
+    expect(put).not.toHaveBeenCalled();
 
     const next = vi.fn(async () => 3);
     expect(await a.cache.json(k, "minute", next, undefined, share)).toBe(3);
@@ -2100,6 +2111,7 @@ describe("in-flight sharing", () => {
 
   it("shares a call that is not kept (a TTL of zero) too, writes nothing, and forgets the flight when it settles", async () => {
     const [a, b] = [request(), request()];
+    const put = writes();
     const k = key("zero");
     const gate = pending<number>();
     const other = vi.fn(async () => 2);
@@ -2110,7 +2122,10 @@ describe("in-flight sharing", () => {
     gate.resolve(1);
     expect(await Promise.all([first, second])).toEqual([1, 1]);
     expect(other).not.toHaveBeenCalled();
-    expect([a.waiting, b.waiting]).toEqual([0, 0]);
+    // The flight was in the waitUntil of the request that started it, and it wrote nothing.
+    expect([a.waiting, b.waiting]).toEqual([1, 0]);
+    await a.settle();
+    expect(put).not.toHaveBeenCalled();
 
     // Nothing is stored and the flight is gone: the next call loads.
     const next = vi.fn(async () => 3);
@@ -2299,8 +2314,87 @@ describe("in-flight sharing", () => {
   it("rejects a shared answer that JSON cannot carry, and stores nothing", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const a = request();
+    const put = writes();
     await expect(a.cache.json(key("big"), "minute", async () => 10n, undefined, share)).rejects.toThrow();
     await expect(a.cache.json(key("undefined"), "minute", async () => undefined, undefined, share)).rejects.toThrow(TypeError);
-    expect(a.waiting).toBe(0);
+    await a.settle();
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  // A visitor who leaves (a period clicked while a heavy account's counterparties load, a tab closed) cancels the work of their request that is not in
+  // `waitUntil`. Were the flight only that, every request that joined it would wait on a load that never ends, until it is 30 s old.
+  it("hands the flight to the waitUntil of the request that starts it, as it starts: the joiners hand on nothing, and it is kept to its end", async () => {
+    const [a, b] = [request(), request()];
+    const answered = reads();
+    const k = key("kept");
+    const gate = pending<number>();
+    const joiner = vi.fn(async () => 2);
+
+    const first = a.cache.json(k, "minute", gate.load, undefined, share);
+    const second = b.cache.json(k, "minute", joiner, undefined, share);
+    await answered(2);
+    // The load is still out, and it is in the leader's waitUntil already.
+    expect(gate.load).toHaveBeenCalledTimes(1);
+    expect([a.handed.length, b.handed.length]).toEqual([1, 0]);
+    let kept = false;
+    void a.handed[0]!.then(() => (kept = true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(kept).toBe(false);
+
+    gate.resolve(1);
+    expect(await Promise.all([first, second])).toEqual([1, 1]);
+    expect(joiner).not.toHaveBeenCalled();
+    // What it handed on ends once the flight has: its load, and its write.
+    await a.settle();
+    expect(kept).toBe(true);
+    expect(b.handed).toEqual([]);
+  });
+
+  it("hands waitUntil a flight that fails without a rejection, a flight of a call that is not kept too", async () => {
+    const a = request();
+    const kept = pending<number>();
+    const failing = a.cache.json(key("kept-failing"), "minute", kept.load, undefined, share);
+    // A call that is not kept reads no Cache API: its flight is handed on as the call is made.
+    const unkept = pending<number>();
+    const zero = a.cache.json(key("kept-failing-zero"), "minute", unkept.load, 0, share);
+    await vi.waitFor(() => expect(kept.load).toHaveBeenCalledTimes(1), { interval: 1 });
+    expect(a.handed).toHaveLength(2);
+
+    const error = new UpstreamError("server");
+    kept.reject(error);
+    unkept.reject(error);
+    await expect(failing).rejects.toBe(error);
+    await expect(zero).rejects.toBe(error);
+    for (const handed of a.handed) await expect(handed).resolves.toBeUndefined();
+  });
+
+  // Between the answer and its write to the Cache API, a call that misses the Cache API must still find the flight, or it loads again.
+  it("keeps a flight in the table until its write has settled: the answer is there at once, and a call in between joins it", async () => {
+    const [a, b, c] = [request(), request(), request()];
+    const k = key("write-gap");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // Each write waits until the test lets it settle, and then fails, so that the Cache API keeps nothing and only the table can answer.
+    let land!: () => void;
+    const landed = new Promise<void>((resolve) => (land = resolve));
+    vi.spyOn(caches.default, "put").mockImplementation(async () => {
+      await landed;
+      throw new Error("the write failed");
+    });
+
+    const load = vi.fn(async () => ({ n: 1 }));
+    expect(await a.cache.json(k, "minute", load, undefined, share)).toEqual({ n: 1 });
+    // The leader has its answer while the write is out. A call now misses the Cache API and joins the flight, whose answer is there.
+    const between = vi.fn(async () => ({ n: 2 }));
+    expect(await b.cache.json(k, "minute", between, undefined, share)).toEqual({ n: 1 });
+    expect(between).not.toHaveBeenCalled();
+
+    // Once the write has settled (it failed: the Cache API has nothing), the flight has left the table, and the next call loads.
+    land();
+    await a.settle();
+    const after = vi.fn(async () => ({ n: 3 }));
+    expect(await c.cache.json(k, "minute", after, undefined, share)).toEqual({ n: 3 });
+    expect(after).toHaveBeenCalledTimes(1);
+    await c.settle();
+    expect(load).toHaveBeenCalledTimes(1);
   });
 });

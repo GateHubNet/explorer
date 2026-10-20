@@ -453,6 +453,30 @@ describe("loadAnalytics", () => {
       expect(logged()).toEqual([]);
     });
 
+    it("starts no call 1 to 6 when it is abandoned before the window is known, and hands nothing on", async () => {
+      const { input, abandon, handedOff, marks, logged, callsMade } = world({ last: () => after(1_000, LAST) });
+      const data = loadAnalytics(input);
+      await statesAfter(data, 500);
+      abandon.abort();
+
+      // Call 0 answers after the page was abandoned: nothing is asked for a page that is not the view.
+      expect(await statesAfter(data, 1_000)).toEqual({ frame: "late", value: "late", sent: "late", changes: "late", counterparties: "late", balances: "late", pairs: "late" });
+      expect(callsMade()).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(handedOff).toEqual([]);
+      expect(marks).toEqual([]);
+      expect(logged()).toEqual([]);
+    });
+
+    it("starts no call 1 to 6 for All when it is abandoned while the first month is not known", async () => {
+      const { input, abandon, callsMade } = world({ period: "all", account: after(1_000, CREATED) });
+      const data = loadAnalytics(input);
+      await statesAfter(data, 500);
+      abandon.abort();
+      await statesAfter(data, 1_000);
+      expect(callsMade()).toBe(0);
+    });
+
     it("logs nothing of a call 0 that failed when the page turns out not to be the view", async () => {
       const { input, abandon, marks, logged } = world({ last: () => Promise.reject(serverError("last_validated")) });
       const data = loadAnalytics(input);

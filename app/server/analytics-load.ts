@@ -12,7 +12,8 @@
 //   failed or late, is told (and a late one's chain handed on) once the header knows the account exists, so a page that turns out a 404 or a 503
 //   says nothing of the analytics and hands nothing to `waitUntil`.
 // - **A page that is not the view** (a 404, a 503) aborts `signal`: every deadline is cleared, whatever is pending resolves `late`, and nothing is
-//   logged, marked or handed to `waitUntil`. The fetches are not aborted: another request may share them (spec 2.7).
+//   logged, marked or handed to `waitUntil`; calls 1 to 6 that have not started do not start. The fetches are not aborted: another request may share
+//   them (spec 2.7), and a shared one is in the `waitUntil` of the request that started it (`createSubrequestCache`).
 
 import { analyticsWindow, type AnalyticsPeriod, type AnalyticsWindow } from "../domain/analytics-params";
 import { utcDayOf } from "../domain/window";
@@ -166,13 +167,14 @@ export function loadAnalytics(input: AnalyticsInput): AnalyticsData {
     }
   }
 
-  // Call 0, and for All the first month. Calls 1 to 6 start as soon as it is known: `null` when it cannot be (the frame says why).
+  // Call 0, and for All the first month. Calls 1 to 6 start as soon as it is known: `null` when it cannot be (the frame says why), and when the page was
+  // abandoned by then (its frame and cards are late already, and nothing would hand the calls on).
   const windowCall = api.lastValidated().then(async (last) => {
     const T = utcDayOf(anchorOrThrow(last).closeTime);
     return period === "all" ? analyticsWindow(period, T, await firstDayOf(account, probe)) : analyticsWindow(period, T);
   });
   const calls: Promise<Calls | null> = windowCall.then(
-    (window) => callsOf(api, address, window),
+    (window) => (signal.aborted ? null : callsOf(api, address, window)),
     () => null,
   );
 
@@ -188,7 +190,7 @@ export function loadAnalytics(input: AnalyticsInput): AnalyticsData {
   function card<A, T extends object>(name: CardName, build: (frame: AnalyticsFrame, answer: A) => T): Promise<CardState<T>> {
     return frame.then((framed) => {
       if (framed.state !== "ok") return { state: framed.state };
-      // The frame is there, so the window is, and the calls were made.
+      // The frame is there, so the window is, and the calls were made (a page abandoned before the window was known has no frame: it is late).
       const call = calls.then((made) => made![name] as Promise<PromiseSettledResult<A>>);
       const built = call.then((settled) => {
         if (settled.status === "rejected") throw settled.reason;

@@ -1603,6 +1603,33 @@ function storing(host: string) {
   return { api, storedBy };
 }
 
+/**
+ * For the calls of one key that overlap: `overlapped(calls)` polls until that many reads of the Cache API have been answered (each call has missed it,
+ * and so has joined the flight of its key or started it) and the fetch spy has been called, then yields one turn more, in which a call that had not
+ * joined the flight would have made a request of its own. No time is slept.
+ */
+function overlapping() {
+  const match = caches.default.match.bind(caches.default);
+  let answered = 0;
+  vi.spyOn(caches.default, "match").mockImplementation(async (request, options) => {
+    try {
+      return await match(request, options);
+    } finally {
+      answered += 1;
+    }
+  });
+  return async (calls: number) => {
+    await vi.waitFor(
+      () => {
+        expect(answered).toBe(calls);
+        expect(fetchSpy).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+}
+
 // The pair page's calls and the markets table's (markets spec 3.3): each is kept for the class the page needs, and its answer is checked inside the load.
 describe("the pair page's and the markets page's calls", () => {
   const recording = () => {
@@ -2178,13 +2205,14 @@ describe("the account analytics calls", () => {
 
     it("shares one request between the calls of one key that overlap, whichever of them asks: each is given its own copy of the answer", async () => {
       const { api } = storing("analytics-shared");
+      const overlapped = overlapping();
       let answer: (response: Response) => void = () => {};
       fetchSpy.mockImplementation(() => new Promise<Response>((resolve) => (answer = resolve)));
 
       const first = api.analyticsCounterparties(ACCOUNT, { limit: 6, start: START });
       const second = api.analyticsCounterparties(ACCOUNT, { limit: 6, start: START });
-      // Both have missed the Cache API by now, and the second has joined the first's request.
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Both have missed the Cache API, and the second has joined the first's request.
+      await overlapped(2);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       answer(json(counterpartiesBody));
       const [a, b] = await Promise.all([first, second]);
@@ -2322,6 +2350,7 @@ describe("the account analytics calls", () => {
 
     it("is shared in flight as it fails: the calls that overlap get the one error, from one request", async () => {
       const { api } = storing("analytics-shared-failure");
+      const overlapped = overlapping();
       let answer: (response: Response) => void = () => {};
       fetchSpy.mockImplementation(() => new Promise<Response>((resolve) => (answer = resolve)));
       const call = () => api.analyticsBalances(ACCOUNT, { interval: "day", limit: 4, start: START }).then(
@@ -2330,7 +2359,9 @@ describe("the account analytics calls", () => {
       );
 
       const calls = [call(), call(), call()];
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // All three have missed the Cache API, and the second and the third have joined the first's request.
+      await overlapped(3);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
       answer(json({ result: "error", message: "boom" }, { status: 503 }));
       const errors = await Promise.all(calls);
 
