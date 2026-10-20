@@ -1,0 +1,38 @@
+{
+  "amendments": [
+    {"id":"0D8BF22FF7570D58598D1EF19EBB6E142AD46E59A223FD3816262FBB69345BEA","introduced":"2025.2.6","majority":{"expected_activation":"2026-10-18T17:40:07Z","since":"2026-10-13T17:40:07Z"},"name":"Remit","node_supported":true,"status":"majority","votes":{"ledger_index":26596607,"needed":24,"pct":93.1,"trusted":29,"yes":27}},
+    {"id":"ECF412BE0964EC2E71DCF807EEEA6EA8470D3DB15173D46F28AB6E234860AC32","introduced":"2026.1.20","name":"URIToken","node_supported":true,"status":"voting","votes":{"ledger_index":26596607,"needed":24,"pct":34.48,"trusted":29,"yes":10}},
+    {"enabled":{"date":"2025-09-12T17:48:39Z","ledger_index":17956865,"source":"ledger","tx_hash":"F84175E9E6527312DA2F6E5C65B8FA53BA41532AF281963E53FADED8C12EE3E1"},"id":"F5751842D26FC057B92CAA435ABF4F1428C2BCC4180D18775ADE92CB2643BBA3","introduced":"2023.10.30","name":"Import","node_supported":true,"status":"enabled"},
+    {"enabled":{"date":"2023-10-30","source":"metadata"},"id":"ECE6819DBA5DB528F1A241695F5A9811EF99467CDE22510954FD357780BBD078","introduced":"2023.10.30","name":"Hooks","node_supported":true,"status":"enabled"},
+    {"id":"6E739F4F8B07BED29FC9FF440DA3C301CD14A180DF45819F658FEC2F7DE31427","introduced":"2023.10.30","name":"XahauGenesis","retired":true,"status":"enabled"}
+  ],
+  "count": 5,
+  "counts": {
+    "enabled": 3,
+    "majority": 1,
+    "obsolete": 0,
+    "unknown": 0,
+    "voting": 1
+  },
+  "ledger_index": 26596843,
+  "next_flag_ledger": {
+    "expected": "2026-10-17T17:48:35Z",
+    "ledger_index": 26596864,
+    "voting_ledger": 26596863
+  },
+  "result": "success",
+  "round": {
+    "date": "2026-10-17T17:31:27Z",
+    "ledger_index": 26596607,
+    "needed": 24,
+    "observed": 30,
+    "threshold": 23,
+    "trusted": 29,
+    "unl_size": 31
+  },
+  "rules": {
+    "flag_interval": 256,
+    "majority_hold_seconds": 432000,
+    "threshold_percent": 80
+  }
+}

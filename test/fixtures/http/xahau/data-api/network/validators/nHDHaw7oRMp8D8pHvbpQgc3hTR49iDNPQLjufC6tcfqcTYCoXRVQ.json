@@ -1,0 +1,99 @@
+{
+  "agreement_1h": {
+    "incomplete": false,
+    "missed": 0,
+    "partial": 0,
+    "score": "1.0000",
+    "total": 900
+  },
+  "agreement_24h": {
+    "incomplete": false,
+    "missed": 3,
+    "partial": 0,
+    "score": "0.9999",
+    "total": 21600
+  },
+  "agreement_30d": {
+    "incomplete": true,
+    "missed": 102,
+    "partial": 22,
+    "score": "0.9998",
+    "total": 647077
+  },
+  "amendment_votes": {
+    "ledger_index": 26596607,
+    "votes": [
+      {"id":"0D8BF22FF7570D58598D1EF19EBB6E142AD46E59A223FD3816262FBB69345BEA","name":"Remit","status":"majority","vote":"yes"},
+      {"id":"ECF412BE0964EC2E71DCF807EEEA6EA8470D3DB15173D46F28AB6E234860AC32","name":"URIToken","status":"voting","vote":"yes"}
+    ],
+    "yes": [
+      {"id":"0D8BF22FF7570D58598D1EF19EBB6E142AD46E59A223FD3816262FBB69345BEA","name":"Remit"},
+      {"id":"ECF412BE0964EC2E71DCF807EEEA6EA8470D3DB15173D46F28AB6E234860AC32","name":"URIToken"}
+    ]
+  },
+  "current_index": 26596843,
+  "daily_agreement": [
+    {"date":"2026-09-18","incomplete":false,"missed":9,"partial":0,"score":"0.9996","total":21600},
+    {"date":"2026-09-19","incomplete":false,"missed":1,"partial":0,"score":"1.0000","total":21600},
+    {"date":"2026-09-20","incomplete":false,"missed":0,"partial":0,"score":"1.0000","total":21599},
+    {"date":"2026-09-21","incomplete":false,"missed":2,"partial":2,"score":"0.9999","total":21598},
+    {"date":"2026-09-22","incomplete":false,"missed":3,"partial":3,"score":"0.9999","total":21599},
+    {"date":"2026-09-23","incomplete":false,"missed":1,"partial":0,"score":"1.0000","total":21598},
+    {"date":"2026-09-24","incomplete":false,"missed":0,"partial":0,"score":"1.0000","total":21599},
+    {"date":"2026-09-25","incomplete":false,"missed":7,"partial":1,"score":"0.9997","total":21598},
+    {"date":"2026-09-26","incomplete":false,"missed":6,"partial":0,"score":"0.9997","total":21598},
+    {"date":"2026-09-27","incomplete":false,"missed":1,"partial":1,"score":"1.0000","total":21599},
+    {"date":"2026-09-28","incomplete":false,"missed":3,"partial":0,"score":"0.9999","total":21599},
+    {"date":"2026-09-29","incomplete":false,"missed":2,"partial":2,"score":"0.9999","total":21598},
+    {"date":"2026-09-30","incomplete":false,"missed":10,"partial":0,"score":"0.9995","total":21600},
+    {"date":"2026-10-01","incomplete":false,"missed":6,"partial":0,"score":"0.9997","total":21599},
+    {"date":"2026-10-02","incomplete":false,"missed":0,"partial":2,"score":"1.0000","total":21600},
+    {"date":"2026-10-03","incomplete":false,"missed":8,"partial":0,"score":"0.9996","total":21598},
+    {"date":"2026-10-04","incomplete":false,"missed":6,"partial":0,"score":"0.9997","total":21600},
+    {"date":"2026-10-05","incomplete":true,"missed":3,"partial":3,"score":"0.9999","total":20700},
+    {"date":"2026-10-06","incomplete":false,"missed":2,"partial":1,"score":"0.9999","total":21599},
+    {"date":"2026-10-07","incomplete":false,"missed":0,"partial":1,"score":"1.0000","total":21600},
+    {"date":"2026-10-08","incomplete":false,"missed":5,"partial":1,"score":"0.9998","total":21600},
+    {"date":"2026-10-09","incomplete":false,"missed":3,"partial":1,"score":"0.9999","total":21600},
+    {"date":"2026-10-10","incomplete":false,"missed":3,"partial":0,"score":"0.9999","total":21600},
+    {"date":"2026-10-11","incomplete":false,"missed":2,"partial":0,"score":"0.9999","total":21600},
+    {"date":"2026-10-12","incomplete":false,"missed":6,"partial":0,"score":"0.9997","total":21600},
+    {"date":"2026-10-13","incomplete":false,"missed":2,"partial":1,"score":"0.9999","total":21599},
+    {"date":"2026-10-14","incomplete":false,"missed":0,"partial":1,"score":"1.0000","total":21598},
+    {"date":"2026-10-15","incomplete":false,"missed":6,"partial":1,"score":"0.9997","total":21600},
+    {"date":"2026-10-16","incomplete":false,"missed":2,"partial":1,"score":"0.9999","total":21599},
+    {"date":"2026-10-17","incomplete":true,"missed":3,"partial":0,"score":"0.9998","total":15300}
+  ],
+  "domain": "emberbay.example",
+  "domain_verification": {
+    "checked": "2026-10-17T17:36:10.662Z",
+    "reason": "manifest_unverified",
+    "status": "unverified",
+    "toml_url": "https://emberbay.example/.well-known/xahau.toml"
+  },
+  "fee_vote": {
+    "base_fee": "0.00001",
+    "ledger_index": 26596607,
+    "reserve_base": "1",
+    "reserve_inc": "0.2"
+  },
+  "first_seen": "2026-04-04T16:55:45.808Z",
+  "last_seen": "2026-10-17T17:47:11.844Z",
+  "manifest": {
+    "domain": "emberbay.example",
+    "sequence": 2,
+    "signing_key": "n9KRirNdF4DiVw42VrXoQUZoceV9RfYdE2AW5YUquxgiq116TZAd",
+    "signing_keys_seen": 1
+  },
+  "negative_unl": false,
+  "partial": false,
+  "result": "success",
+  "server_version": "1745992618040362935",
+  "signing_key": "n9KRirNdF4DiVw42VrXoQUZoceV9RfYdE2AW5YUquxgiq116TZAd",
+  "unl": false,
+  "unl_lists": [],
+  "validation_public_key": "nHDHaw7oRMp8D8pHvbpQgc3hTR49iDNPQLjufC6tcfqcTYCoXRVQ",
+  "version": "2026.9.18",
+  "version_build": 1975,
+  "version_latest": true
+}

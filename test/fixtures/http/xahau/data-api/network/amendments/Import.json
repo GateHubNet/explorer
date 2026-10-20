@@ -1,0 +1,83 @@
+{
+  "enabled": {
+    "date": "2025-09-12T17:48:39Z",
+    "ledger_index": 17956865,
+    "source": "ledger",
+    "tx_hash": "F84175E9E6527312DA2F6E5C65B8FA53BA41532AF281963E53FADED8C12EE3E1"
+  },
+  "history": [
+    {"date":"2025-09-07T17:46:31Z","event":"got_majority","ledger_index":17848833,"tx_hash":"5F58F7D0270F01BFF461DD015CCA6294FE81901F5C53DB1B81668CB5BE93085E"},
+    {"date":"2025-09-12T17:48:39Z","event":"enabled","ledger_index":17956865,"tx_hash":"F84175E9E6527312DA2F6E5C65B8FA53BA41532AF281963E53FADED8C12EE3E1"}
+  ],
+  "id": "F5751842D26FC057B92CAA435ABF4F1428C2BCC4180D18775ADE92CB2643BBA3",
+  "introduced": "2023.10.30",
+  "ledger_index": 26596843,
+  "name": "Import",
+  "next_flag_ledger": {
+    "expected": "2026-10-17T17:48:35Z",
+    "ledger_index": 26596864,
+    "voting_ledger": 26596863
+  },
+  "node_supported": true,
+  "other_votes": [
+    {"domain":"amberridge.example","last_seen":"2026-10-17T17:47:11.917Z","validation_public_key":"nHUGEEjhABYTuuTUnEF1qFHurhKgbA9TTJLWCNkFdJXHoqWnpFRG","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"birchstone.example","last_seen":"2026-10-17T17:47:11.792Z","validation_public_key":"nHDhHk8RLm5Q6mJjAbVtJQog2cKbEHYq7RVvDWpbPRqKTpjUwjj1","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"deltayard.example","last_seen":"2026-10-17T17:47:11.730Z","validation_public_key":"nHB2HXU1SQvF88MB7jqiJKRfDiK7vUtXa9qKgJeD1iPQmhZbVKc5","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"emberbay.example","last_seen":"2026-10-17T17:47:11.844Z","validation_public_key":"nHDHaw7oRMp8D8pHvbpQgc3hTR49iDNPQLjufC6tcfqcTYCoXRVQ","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"juniperridge.example","last_seen":"2026-10-17T17:47:11.762Z","validation_public_key":"nHUedW1uE3FjwjvuCmZoo8p8dHspgxBvFRuxrLKYoxbzBgjHjNgL","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"kestrelridge.example","last_seen":"2026-10-17T12:47:11.704Z","validation_public_key":"nHB59xyFpk9Sm98jVccQmFdgtwoiaARfsxQZFsZNssJ3r2ispLrC","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"orchidbay.example","last_seen":"2026-10-17T17:47:11.271Z","validation_public_key":"nHUvfYfc6HGrokDb6oHwErySQfEdLM53YMdofbt4Ljam5jjruWu8","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"last_seen":"2026-10-17T17:47:11.821Z","validation_public_key":"nHDHiffidCfKgq9TSd8TFFGQ5q2on2Mdgz6XnCsbjuPQscSHCvQP","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"last_seen":"2026-10-17T17:47:12.071Z","validation_public_key":"nHUoL9QQHZc9PU5mLZ1fYwbbXjmjVt7XcGhWtrtY6z4QEkEpCkSW","vote":"no"}
+  ],
+  "result": "success",
+  "round": {
+    "date": "2026-10-17T17:31:27Z",
+    "ledger_index": 26596607,
+    "needed": 24,
+    "observed": 30,
+    "threshold": 23,
+    "trusted": 29,
+    "unl_size": 31
+  },
+  "rounds": [],
+  "rules": {
+    "flag_interval": 256,
+    "majority_hold_seconds": 432000,
+    "threshold_percent": 80
+  },
+  "status": "enabled",
+  "unl_votes": [
+    {"domain":"amberbay.example","last_seen":"2026-10-17T17:47:11.718Z","validation_public_key":"nHU4HjhyARzLuEq8pdZeuB7ToQnGn4cyoHMuy3DeckgdC9F1sW75","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"amberfield.example","last_seen":"2026-10-17T17:47:11.589Z","validation_public_key":"nHDpn9JTJxFa9tKWJnTeUvk5r4dkXhewNL6GCrvP6ekWazG1gmD4","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"amberpeak.example","last_seen":"2026-10-17T17:47:11.446Z","validation_public_key":"nHB74civaYRUwcmpThLWbnomwsY56EubSYxSyoJ7ppa2SasU5pk4","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"cedarridge.example","last_seen":"2026-10-17T17:47:11.883Z","validation_public_key":"nHBYbcJc9jYDd58BxpsLuPQcFcpzVNhBzfYCWJuiAmq246FgTA57","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"deltahill.example","last_seen":"2026-10-17T17:47:11.701Z","validation_public_key":"nHU6Pfgoin8S2kTf76m3Bgq4zAHYWzx71NKrEa1jLxQsiVZXsAZR","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"deltapoint.example","last_seen":"2026-10-17T17:47:11.822Z","validation_public_key":"nHBFKjyr1HnRTW4tPDM2Prmw7qjAhzzrC7AA7Ppor6bsLDcPQprA","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"deltarock.example","last_seen":"2026-10-17T17:47:11.891Z","validation_public_key":"nHUpiKH4cJ79FaRTMeTiVhiYqrXVcdUjrt8ZYd2pW68YLYmVLGve","version":"2026.7.31","version_supports":true,"vote":"no"},
+    {"domain":"deltaworks.example","last_seen":"2026-10-17T17:47:11.983Z","validation_public_key":"nHUTsideRKhW26yK9RauDqtoNezhcqQf6hyU8eWroEUcogk21ewc","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"embermill.example","last_seen":"2026-10-17T17:47:11.744Z","validation_public_key":"nHB2wVGppGkC9RwvkgykjPvXuVQyj7aEaS8hCYBPCx8bt3S573Gk","version":"2026.9.18","version_supports":true,"vote":"none"},
+    {"domain":"embervale.example","last_seen":"2026-10-17T17:47:11.472Z","validation_public_key":"nHBMAexditNDpPDCEecYYc8xcgrpZp3ecKfuebS5SpnRFBTFr36b","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"fjordhill.example","last_seen":"2026-10-17T17:47:11.586Z","validation_public_key":"nHUs9ALTGVpap58KCEvQANGhnMdPSK9kzp9eezHLBVrdY5aJh2dP","version":"2025.11.4","version_supports":true,"vote":"no"},
+    {"domain":"fjordnode.example","last_seen":"2026-10-17T17:47:11.267Z","validation_public_key":"nHUAgjL181LSjtXU8jYyuxgBXr3q1YbLF9gnPuuoYT2B6pYo54eA","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"fjordridge.example","last_seen":"2026-10-17T17:47:11.626Z","validation_public_key":"nHBFD3GdoatCMTEkpKWSHWYqZUmVkqevG5myH9etMMmfxASRYe94","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"fjordvale.example","last_seen":"2026-10-17T17:47:11.793Z","validation_public_key":"nHBcZn5oPeziNVH3Lg2QVsECWkGX1MnWJcVaiQqhpFpGcq1tynaN","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"gladehill.example","last_seen":"2026-10-17T17:47:11.546Z","validation_public_key":"nHBS7vdaTzP4nEigAxEUVP6vJTUminmowXmEotUKSZLPK9G2PbA6","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"gladelake.example","last_seen":"2026-10-17T17:47:11.337Z","validation_public_key":"nHDnDcgUFGmqjuqQeujUNGKfH3qV2SLGJq3a8UCACMWKyXA18zZL","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"glademill.example","last_seen":"2026-10-17T17:47:11.504Z","validation_public_key":"nHUinWfAPkJrXWVgMkrQVPJQGZgcTe8Uy5Z9xAkuFZLV5eoEMDGL","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"indigogate.example","last_seen":"2026-10-17T17:47:11.736Z","validation_public_key":"nHUYbybY9jdspRPTCVw9tkqr8cikuM8SHNut5nXa7nRq2mvoWM1x","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"indigoridge.example","last_seen":"2026-10-17T17:47:11.582Z","validation_public_key":"nHB5DSVuUNnRjT92tvd9gvSR3G2mfkw4sDXE9ntR961znXYx4qs1","version":"2026.7.31","version_supports":true,"vote":"no"},
+    {"domain":"indigorock.example","last_seen":"2026-10-17T17:47:11.336Z","validation_public_key":"nHUUwK1xeF86KxMHRTEe4DXgf8ehWnNYPDExWLD2u4UQG2MhVkMf","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"indigoyard.example","last_seen":"2026-10-17T17:47:11.366Z","validation_public_key":"nHUydrYiZUtBjAoF9DBTeeyJyUF71q8LtV6VFQjCsfwMyU59BVor","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"juniperyard.example","last_seen":"2026-10-17T17:47:11.758Z","validation_public_key":"nHBVrHmjzoySJdKM1zq65SzgpLnKXFCRGSFpcB3x6r1RwLC6q95a","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"kestrelbay.example","last_seen":"2026-10-17T17:47:11.684Z","validation_public_key":"nHUyUEid26oVcoFw6N2awQam66kFhSoGdPhstFsMQzKB1zT6vgV1","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"lumenfield.example","last_seen":"2026-10-17T17:47:11.600Z","validation_public_key":"nHDHsE6Cx7dfEWq1ozqYQ7waveeJ7m5HUjtGcyyAaiyf8s4fyHT3","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"northstone.example","last_seen":"2026-10-17T17:47:11.436Z","validation_public_key":"nHB77KsKtrHsGKGrJpbYGjWUCo87MReTbAaFttH2V5ZqphbndmFL","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"pinebay.example","last_seen":"2026-10-17T17:47:11.391Z","validation_public_key":"nHBzbXLAVjjwLdxc9bm57jVYbN1TzRxpgcA4P8MF7EvtmuDoJsrm","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"pinemill.example","last_seen":"2026-10-17T17:47:11.394Z","validation_public_key":"nHBVqiHJWzhL3Sr5CfBEnJHpgqd2Dk4FkbDmX5EuqruXpYEXjS8U","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"domain":"pinepoint.example","last_seen":"2026-10-17T17:47:11.621Z","validation_public_key":"nHBiRgpQ2g4tumhtAESfWRv1G4dyH6N4Kf2bzTUXXA3yh765NGTn","version":"2026.7.31","version_supports":true,"vote":"no"},
+    {"domain":"pinerock.example","last_seen":"2026-10-17T17:47:11.227Z","validation_public_key":"nHBbJ61SERzNwDifxPqgCUc6FX1fqqSE8qhkMQqjNtFfqcZsnxUz","version":"2026.9.18","version_supports":true,"vote":"no"},
+    {"validation_public_key":"nHDsWSyjqFEErzxe1NVYtxVmfxvRnxMz38BGwf2f7PaB4zJz5Z15","vote":"none"},
+    {"last_seen":"2026-10-17T17:47:11.179Z","validation_public_key":"nHUdPANrwTn7vEdnes337eSckSEqp6R68ZZ5qZvPTwDcFeBHsji6","version":"2026.9.18","version_supports":true,"vote":"no"}
+  ]
+}
