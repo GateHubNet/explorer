@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { valueImports } from "../test/support/value-imports";
-import { analyticsKitCopy, checkKitCopyBundle, isKitModule, KIT_COPY, kitCopyId, kitCopyOf, type KitGraph } from "./analytics-kit-copy";
+import { analyticsKitCopy, checkKitCopyBundle, isKitModule, KIT_COPY, kitCopyId, kitCopyOf, kitCopyProblems, type KitGraph } from "./analytics-kit-copy";
 import type { BundleFile } from "./shell-chunks";
 
 const APP = "/repo/app";
@@ -252,6 +252,27 @@ describe("checkKitCopyBundle: the bundle", () => {
     ],
   ] as const)("throws on %s", (_case, bundle, message) => {
     expect(() => checkKitCopyBundle(bundle, kit, APP)).toThrow(message);
+  });
+});
+
+describe("kitCopyProblems: the files of the build (pnpm check:bundle)", () => {
+  const account = { name: "account", route: "routes/net.account.$address", files: ["entry.js", "shell.js", "account.js", "table.js"], bytes: 100 };
+  const view = (files: string[]) => ({ name: "account analytics", route: account.route, chunk: "AccountAnalytics-a.js", files: [...account.files, ...files], bytes: 200 });
+
+  it("is empty when the analytics view loads the account page's files and its own chunk", () => {
+    expect(kitCopyProblems({ pages: [account], views: [view(["AccountAnalytics-a.js"])] })).toEqual([]);
+  });
+
+  it("names each other file the view loads: a chunk it shares with another route, the kit's before its copy", () => {
+    expect(kitCopyProblems({ pages: [account], views: [view(["AccountAnalytics-a.js", "LineChart-b.js", "use-hydrated-c.js"])] })).toEqual([
+      "the analytics view loads assets/LineChart-b.js beyond the account page's files and its own chunk assets/AccountAnalytics-a.js: a chunk it shares with another route, which the view's own copy of the kit (scripts/analytics-kit-copy.ts) leaves out",
+      "the analytics view loads assets/use-hydrated-c.js beyond the account page's files and its own chunk assets/AccountAnalytics-a.js: a chunk it shares with another route, which the view's own copy of the kit (scripts/analytics-kit-copy.ts) leaves out",
+    ]);
+  });
+
+  it("says nothing when there is no view or no account page: the bundle check says so", () => {
+    expect(kitCopyProblems({ pages: [account], views: [] })).toEqual([]);
+    expect(kitCopyProblems({ pages: [], views: [view(["AccountAnalytics-a.js", "x.js"])] })).toEqual([]);
   });
 });
 

@@ -53,7 +53,7 @@ as well; the card then draws Payments and DEX trades only, with nothing failed.
 | `pnpm api:check` | Regenerate the types from the committed `api/openapi.yaml` and fail if `app/server/openapi.d.ts` differs (needs no `data-api-new`) |
 | `pnpm fixtures:sync` | Write the generated upstream fixtures of `test/fixtures/http/` from the recorded ledgers (see "Upstream fixtures"); names files that no longer belong, never deletes |
 | `pnpm fixtures:check` | Change nothing; fail when those files are not what the generator writes (`scripts/http-fixtures.test.ts` does the same inside `pnpm test`) |
-| `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page loads more than 150 KB of JavaScript (gzip), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
+| `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page, or the account page's analytics view, loads more than 150 KB of JavaScript (gzip), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
 | `pnpm deploy:staging`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `scripts/predeploy-check.ts <env>` (refuses a placeholder or non-https upstream URL, a build for another environment, a Worker reachable on workers.dev), then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
 | `pnpm verify` | `api:check`, `typecheck`, `test`, `build`, `check:bundle` |
 
@@ -909,7 +909,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   the DOM types their `page.evaluate` callbacks need (and `app/ui/features.ts`, which `scripts/e2e-env.ts` imports), and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
-  a missing file) and the command (`scripts/check-bundle.ts`, which also reads the `vendor` and `shell` chunks in the manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and
+  a missing file; the analytics view's chunk found by its `import()` in each spelling, its imports followed, its total to the byte, its missing
+  files) and the command (`scripts/check-bundle.ts`, which also reads the `vendor` and `shell` chunks in the manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and
   `shell` chunks (the closure over a made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest; no test
   reads `build/`); `scripts/analytics-kit-copy.test.ts` the analytics view's own copy of the kit (what the kit is, what an import resolves to, the
   check of a made-up module graph and bundle in each way it fails, the plugin's hooks, and the same check on the module graph of the app's sources);
@@ -1263,6 +1264,13 @@ was reached (a link to it included): a gate that cannot tell whether it is being
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
   and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its
   `gzip -9` size. Sizes are in kilobytes of 1000 bytes. 150,000 bytes passes and 150,001 fails;
+- the account page's **analytics view** loads more than 150 KB in all (spec 5, the second gate; the row `account analytics`): the account route's
+  first load as above, the chunk of the view that one of its files loads with `import()` (``import(`./AccountAnalytics-….js`)``, as the build
+  writes it; `ANALYTICS_VIEW` in `scripts/bundle-budget.ts`), and every file that chunk imports statically (`from"./x.js"`, `import"./x.js"`),
+  followed from file to file, each file once. So a visitor who opens the tab never loads more than the budget before the view works. An account
+  route without that `import()`, or with two, fails, and so does a file it reaches that is missing; and so does a view that loads any file beyond
+  the account page's but its own chunk (`kitCopyProblems` in `scripts/analytics-kit-copy.ts`: that is a chunk it shares with another route; see
+  "The analytics view's own copy of the kit" below);
 - any file of `build/client` that is text holds `workers-og`, `satori`, `resvg`, `AffectedNodes`, `TransactionType`, `FinalFields`, `ripple-binary` or
   the QR encoder's tables (the numbers of `ECC_CODEWORDS_PER_BLOCK` in `app/server/qr.ts`, which a minified bundle keeps and its names it does not).
   These are what the Worker uses to read a transaction, draw an image and encode a QR code; the browser gets data. Fonts and images are not read;
@@ -1413,6 +1421,28 @@ The view's first load is the account page's files and that one chunk, and the ne
 - **The sources of the cards.** The seven routes the view's parts are made from are in the frame (`frame.sources`, made by
   `app/server/analytics-view.ts`, whose card builders read them too), where the view had a table of its own of the same paths (93 bytes of its
   total).
+
+**The figures of E4** (`pnpm check:bundle`, gzip -9 bytes, each file once, the manifest included). *Before* is `007c6e2`, the view and its loader
+without the copy (its client files are byte for byte those of `4d8f6ea`, where the view's total was measured with the same rule before the check
+counted it); *after* is the copy of the kit and the frame's sources (`74a694b`; the commit of the gate changes no file of the build).
+
+| | Before | After | Change |
+|---|---:|---:|---:|
+| home | 134,391 | 134,374 | −17 |
+| ledger | 133,456 | 133,439 | −17 |
+| transaction | 135,709 | 135,692 | −17 |
+| account (gate 1; the spec's target is 138,500) | 137,978 | 137,906 | −72 |
+| network | 146,993 | 146,210 | −783 |
+| markets | 133,397 | 133,380 | −17 |
+| account analytics (gate 2) | 151,371 (20 files) | **149,799** (17 files) | −1,572 |
+| manifest `assets/manifest-*.js` | 1,074 | 1,057 | −17 |
+
+The −17 of every page is the manifest: the network and account routes no longer import the kit's shared files, so their `imports` are shorter.
+The network page is 14 bytes from where it is without any analytics chunk (146,196 at `4d8f6ea`). The view's total is 201 bytes under the
+budget; a route adds about 21 bytes to it through the manifest (measured with an empty route). Of the spec's two rungs for a view over the
+budget, the first (E2's cursor fallback) does not exist (it was measured and taken out at E2, see above), and the second (the account page's
+list panels in a lazy chunk) was not taken; the copy of the kit was, with the frame's sources (R18). The view's total with the frame's sources
+and without the copy is 151,275.
 
 ## The parsing libraries in the Workers runtime
 

@@ -30,6 +30,7 @@
 
 import type { Plugin } from "vite";
 
+import type { BundleReport } from "./bundle-budget.ts";
 import type { BundleFile } from "./shell-chunks.ts";
 
 /** The query of a copy: the view's copy of `app/ui/charts/Plot.tsx` is `…/app/ui/charts/Plot.tsx?analytics-kit`. */
@@ -187,6 +188,26 @@ export function checkKitCopyBundle(bundle: Readonly<Record<string, BundleFile>>,
     if (kitModule !== undefined) fail(`the analytics chunk ${chunk.fileName} imports ${fileName}, which holds ${kitModule}: a chunk of the kit that it shares with another route`);
     stack.push(...imported.imports);
   }
+}
+
+/**
+ * What is wrong in the files of a build (`pnpm check:bundle`, which has no module graph): the analytics view loads no file beyond the account
+ * page's files but its own chunk. Another one is a chunk it shares with another route, as the kit was before the view had its copy. Empty
+ * when all is well, and when the report has no view or no account page (the bundle check says why).
+ */
+export function kitCopyProblems(report: Pick<BundleReport, "pages" | "views">): string[] {
+  const problems: string[] = [];
+  for (const view of report.views) {
+    const page = report.pages.find((candidate) => candidate.route === view.route);
+    if (!page) continue;
+    for (const file of view.files) {
+      if (file === view.chunk || page.files.includes(file)) continue;
+      problems.push(
+        `the analytics view loads assets/${file} beyond the account page's files and its own chunk assets/${view.chunk}: a chunk it shares with another route, which the view's own copy of the kit (scripts/analytics-kit-copy.ts) leaves out`,
+      );
+    }
+  }
+  return problems;
 }
 
 /** The plugin, for the client build only (the Worker's build and the dev server are left as they are). */

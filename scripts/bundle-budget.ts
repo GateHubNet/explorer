@@ -5,6 +5,9 @@
 //
 //   - the JavaScript a page loads first, gzipped, is over 150 KB on the home, ledger, transaction, account, network or markets page (the route
 //     manifest is in it: see below);
+//   - the analytics view of the account page loads more than 150 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
+//     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
+//     to file (each file once); or that `import()` or a file it reaches is not in the build;
 //   - a file of the build holds something that belongs to the Worker alone: the image renderer, the transaction parser's vocabulary,
 //     the binary codec or the QR encoder (they would weigh on every visitor, and the pages are drawn from data that is ready);
 //   - the build has no `_headers` rule that keeps the hashed assets in `assets/` for a year.
@@ -16,10 +19,13 @@
 // not in it. Each file counts once, at its `gzip -9` size.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, posix, sep } from "node:path";
 import { gzipSync } from "node:zlib";
 
-/** 150 KB of 1000 bytes. The pages stand between 133.0 and 145.4 KB (network the heaviest), the route manifest (about 1.0 KB) included. */
+/**
+ * 150 KB of 1000 bytes, for each page and for the analytics view. The pages stand between 133.4 and 146.2 KB (network the heaviest) and the
+ * view at 149.8 KB, the route manifest (about 1.1 KB) included.
+ */
 export const BUDGET_BYTES = 150_000;
 
 /** The pages the budget is kept for, by their route in the manifest. */
@@ -31,6 +37,22 @@ export const PAGES = [
   { name: "network", route: "routes/net.network" },
   { name: "markets", route: "routes/net.markets" },
 ] as const;
+
+/**
+ * The analytics view (spec 5, gate 2): the account page with its Analytics tab, whose view (`app/ui/pages/AccountAnalytics.tsx`) is a chunk the
+ * account route loads with `import()`. The check finds the chunk from the files themselves: `chunk` is the `import()` in the account route's
+ * first-load files (the build writes it with backticks, ``import(`./AccountAnalytics-….js`)``; quotes are taken too), and the chunk's relative
+ * static imports (`from"./x.js"`, `import"./x.js"`) are followed in each file they reach. A visitor who opens the tab downloads no more than the
+ * budget before the view works.
+ */
+export const ANALYTICS_VIEW = {
+  name: "account analytics",
+  from: "routes/net.account.$address",
+  chunk: /import\(\s*["'`]\.\/(AccountAnalytics-[\w-]+\.js)["'`]\s*\)/,
+} as const;
+
+/** A relative static import of a file of the build: `from"./x.js"`, and `import"./x.js"` (an `import(…)` is loaded when needed, and is not one). */
+const STATIC_IMPORT = /\b(?:from|import)\s*["'](\.\.?\/[^"']+)["']/g;
 
 export interface Forbidden {
   label: string;
@@ -68,8 +90,16 @@ export interface PageReport {
   bytes: number;
 }
 
+/** A view loaded beyond a page's first load: the page's files, the view's chunk and what that imports. */
+export interface ViewReport extends PageReport {
+  /** The view's chunk, below `assets/`. */
+  chunk: string;
+}
+
 export interface BundleReport {
   pages: PageReport[];
+  /** The analytics view (`ANALYTICS_VIEW`), when its chunk was found. */
+  views: ViewReport[];
   /** The `gzip -9` size of the route manifest, which is in the figure of every page; 0 when there is none. */
   manifestBytes: number;
   /** The manifest's file name below `assets/`, when there is one. */
@@ -148,10 +178,65 @@ function chainOf(manifest: Manifest, id: string): ManifestRoute[] {
   return chain;
 }
 
+/**
+ * The analytics view of `page` (the account page's report): its files and the files of the chunk that one of them imports with `import()`,
+ * followed through the relative static imports of each file that is not the page's already (the page's are the whole closure of its
+ * routes), each once. `undefined`, with the problem added, when there is no such chunk, or more than one.
+ */
+function viewOf(dir: string, page: PageReport, problems: string[]): ViewReport | undefined {
+  const pattern = new RegExp(ANALYTICS_VIEW.chunk.source, "g");
+  const chunks = new Set<string>();
+  for (const file of page.files) {
+    let text: string;
+    try {
+      text = readFileSync(join(dir, "assets", file), "utf8");
+    } catch {
+      continue; // The page's problem says it is missing.
+    }
+    for (const match of text.matchAll(pattern)) chunks.add(match[1]!);
+  }
+  if (chunks.size === 0) {
+    problems.push("the account route has no import() of AccountAnalytics");
+    return undefined;
+  }
+  if (chunks.size > 1) {
+    problems.push(`the account route has an import() of ${chunks.size} AccountAnalytics chunks (${[...chunks].sort().join(", ")}), not one`);
+    return undefined;
+  }
+
+  const chunk = [...chunks][0]!;
+  const files = [...page.files];
+  const seen = new Set(files);
+  let bytes = page.bytes;
+  const stack = [chunk];
+  while (stack.length > 0) {
+    const file = stack.pop()!;
+    if (seen.has(file)) continue;
+    seen.add(file);
+    files.push(file);
+    let content: Buffer;
+    try {
+      content = readFileSync(join(dir, "assets", file));
+    } catch {
+      problems.push(`the ${ANALYTICS_VIEW.name} view loads assets/${file}, which is missing from the build`);
+      continue;
+    }
+    bytes += gzipSync(content, { level: 9 }).length;
+    const imported = [...content.toString("utf8").matchAll(STATIC_IMPORT)].map((match) => posix.normalize(posix.join(posix.dirname(file), match[1]!)));
+    // In the order they are written: the first import is the next file of the list.
+    stack.push(...imported.reverse());
+  }
+  if (bytes > BUDGET_BYTES) {
+    problems.push(`the ${ANALYTICS_VIEW.name} view loads ${kb(bytes)} of JavaScript, gzipped: over the budget of ${kb(BUDGET_BYTES)}`);
+  }
+  return { name: ANALYTICS_VIEW.name, route: ANALYTICS_VIEW.from, files, bytes, chunk };
+}
+
 /** Looks at the client build in `dir` (`build/client`) and says how heavy each page is and what is wrong. */
 export function checkBundle(dir: string): BundleReport {
   const problems: string[] = [];
   const pages: PageReport[] = [];
+  const views: ViewReport[] = [];
   const found = readManifest(dir, problems);
   const manifest = found?.manifest;
   let manifestBytes = 0;
@@ -187,6 +272,10 @@ export function checkBundle(dir: string): BundleReport {
         problems.push(`the ${page.name} page loads ${kb(bytes)} of JavaScript, gzipped: over the budget of ${kb(BUDGET_BYTES)}`);
       }
     }
+    // A missing account route is the account page's problem, said above.
+    const from = pages.find((page) => page.route === ANALYTICS_VIEW.from);
+    const view = from && viewOf(dir, from, problems);
+    if (view) views.push(view);
   }
 
   let all: string[] = [];
@@ -218,22 +307,23 @@ export function checkBundle(dir: string): BundleReport {
     }
   }
 
-  return { pages, manifestBytes, manifestFile: found?.file, problems };
+  return { pages, views, manifestBytes, manifestFile: found?.file, problems };
 }
 
 const kb = (bytes: number) => `${(bytes / 1000).toFixed(1)} KB`;
 
 /** The table printed after the check, and the problems below it. */
 export function formatReport(report: BundleReport): string {
+  const row = (name: string, files: string, bytes: string, gzip: string, status: string) =>
+    `${name.padEnd(18)}${files.padStart(7)}${bytes.padStart(13)}${gzip.padStart(13)}  ${status}`;
   const lines = [
     `Initial JavaScript per page, gzip -9, each file once, the route manifest included (budget ${kb(BUDGET_BYTES)})`,
     "",
-    "page          files        bytes         gzip  status",
+    row("page", "files", "bytes", "gzip", "status"),
   ];
-  for (const page of report.pages) {
-    lines.push(
-      `${page.name.padEnd(12)}${String(page.files.length).padStart(7)}${page.bytes.toLocaleString("en-US").padStart(13)}${kb(page.bytes).padStart(13)}  ${page.bytes > BUDGET_BYTES ? "OVER" : "ok"}`,
-    );
+  // The pages, then the analytics view: the account page's files, its chunk and what that imports.
+  for (const page of [...report.pages, ...report.views]) {
+    lines.push(row(page.name, String(page.files.length), page.bytes.toLocaleString("en-US"), kb(page.bytes), page.bytes > BUDGET_BYTES ? "OVER" : "ok"));
   }
   if (report.manifestFile !== undefined) {
     lines.push("", `Every figure includes the route manifest, ${report.manifestFile}: ${report.manifestBytes.toLocaleString("en-US")} bytes. It lists every route, so it grows with each.`);
