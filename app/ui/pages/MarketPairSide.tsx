@@ -204,7 +204,17 @@ export function PoolCard({ data }: { data: LivePairData }) {
  * The most active accounts of the 24 hours, each a link to its page with its volume and trades, then the note. The list holds the page. Not
  * `dense`: its rows are links, and the dense rows (21.6 px apart) put two links' 24 px targets closer than WCAG 2.5.8 lets them be (axe).
  */
-export function TradersCard({ data, holds, onRetry }: { data: LivePairData; holds: HoldHandlers; onRetry: () => void }) {
+export function TradersCard({
+  data,
+  holds,
+  onRetry,
+  retrying = false,
+}: {
+  data: LivePairData;
+  holds: HoldHandlers;
+  onRetry: () => void;
+  retrying?: boolean;
+}) {
   const titleId = useId();
   const { traders } = data;
   return (
@@ -222,7 +232,7 @@ export function TradersCard({ data, holds, onRetry }: { data: LivePairData; hold
             <p className="pair__note">{traders.note}</p>
           </>
         ) : (
-          <SectionError what="the most active traders" onRetry={onRetry} />
+          <SectionError what="the most active traders" onRetry={onRetry} retrying={retrying} />
         )}
       </div>
     </section>

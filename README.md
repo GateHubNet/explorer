@@ -221,7 +221,7 @@ log line, the edge cache with the visitor limit, React Router.
 | Class | Fresh at the edge | Then, stale while one render refreshes it | Browser `Cache-Control` (page) | Used for |
 |---|---|---|---|---|
 | `immutable` | 1 year | 0 | `max-age=60` (an image: `max-age=31536000, immutable`) | validated ledgers and transactions, their images |
-| `live-home` | **1 s** | **2 s** | `max-age=0, must-revalidate` | the home page, the network page, and their `.data` URLs (the route's own request of an open page) |
+| `live-home` | **1 s** | **2 s** | `max-age=0, must-revalidate` | the home page, the network page, the market pair page, and their `.data` URLs (the route's own request of an open page) |
 | `live` | 5 s | 30 s | `max-age=0, must-revalidate` | the newest ledger, an account's live state and first pages; balances and orders |
 | `minute` | 60 s | 30 s | `max-age=0, must-revalidate` | what the data API changes every minute: the markets table (`networkMarkets`), a pair's active accounts and its long-interval candles; the markets pages will use it for themselves |
 | `slow` | 1 h | 0 | `max-age=300` | an account's creation, account images, a list page reached with a marker (`MARKER_PAGE_CLASS`), the network page's calls over a period (kept 300 s, below) |
@@ -1222,7 +1222,8 @@ above does not see it).
 `scripts/check-bundle.test.ts`) on `build/client` after the build and exits 1 when it finds a problem. The command always runs the check, however it
 was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
-- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction, account or network route; what it loads
+- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction, account, network, markets or market
+  pair route (`PAGES` in `scripts/bundle-budget.ts`); what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
   and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its

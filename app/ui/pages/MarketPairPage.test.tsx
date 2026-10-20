@@ -249,7 +249,7 @@ const controls = (over: Partial<LiveControls> = {}): LiveControls => ({
  * The page in a data router, drawn at once: its route's data is given (`hydrationData`), as the document gives it in the browser. The
  * `loader` is what a Retry runs again.
  */
-function mount(data: PairPageData, props: { live?: LiveControls; network?: Net; loader?: () => null } = {}) {
+function mount(data: PairPageData, props: { live?: LiveControls; network?: Net; loader?: () => Promise<null> | null } = {}) {
   const network = props.network ?? XRPL;
   const router = createMemoryRouter(
     [{ path: "*", element: <MarketPairPage network={network} data={data} live={props.live} />, loader: props.loader ?? (() => null) }],
@@ -809,6 +809,33 @@ describe("MarketPairPage, the most active traders", () => {
     const calls = loader.mock.calls.length;
     fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(loader.mock.calls.length).toBe(calls + 1));
+  });
+});
+
+describe("MarketPairPage, the Retry of its section errors", () => {
+  it("says Retrying… on each section error while a press's own revalidation runs, and not for a beat it did not start", async () => {
+    let release: () => void = () => {};
+    let held: Promise<null> | null = null;
+    const loader = vi.fn(() => held);
+    const { router } = mount(page({ stats: FAILED_STATS, candles: FAILED_CANDLES, traders: FAILED_TRADERS }), { loader });
+    const hold = () => (held = new Promise<null>((resolve) => (release = () => resolve(null))));
+    const errorButtons = () => screen.getAllByRole("alert").map((alert) => within(alert).getByRole("button") as HTMLButtonElement);
+    expect(errorButtons()).toHaveLength(3);
+
+    // A beat (the live page's revalidation) leaves every Retry as it was: enabled, and named Retry.
+    hold();
+    await act(async () => void router.revalidate());
+    expect(router.state.revalidation).toBe("loading");
+    expect(errorButtons().map((button) => [button.textContent, button.disabled])).toEqual(Array(3).fill(["Retry", false]));
+    await act(async () => release());
+    await waitFor(() => expect(router.state.revalidation).toBe("idle"));
+
+    // A press: the page's data is asked for again, and the three say so until it has come (they ask for the same data).
+    hold();
+    fireEvent.click(errorButtons()[1]!);
+    await waitFor(() => expect(errorButtons().map((button) => [button.textContent, button.disabled])).toEqual(Array(3).fill(["Retrying…", true])));
+    await act(async () => release());
+    await waitFor(() => expect(errorButtons().map((button) => [button.textContent, button.disabled])).toEqual(Array(3).fill(["Retry", false])));
   });
 });
 

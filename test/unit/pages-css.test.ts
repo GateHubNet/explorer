@@ -110,3 +110,11 @@ describe("the segmented links of a filter row", () => {
     expect(rule(componentsCss, ".netswitch__item[aria-current]").background).toBe("var(--surface)");
   });
 });
+
+describe("the order book of the pair page", () => {
+  // The prices of the levels are 500, and so is the middle row's last price, which sits in the same column between them.
+  it("sets the last price of the middle row in the weight of the levels' prices", () => {
+    expect(rule(pagesCss, ".pair__level > .pair__level-price")["font-weight"]).toBe("500");
+    expect(rule(pagesCss, ".pair__book-mid .pair__level-price")["font-weight"]).toBe("500");
+  });
+});

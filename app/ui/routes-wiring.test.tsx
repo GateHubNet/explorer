@@ -7,17 +7,19 @@ import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "..
 import { forwardCacheClass } from "../server/edge-cache";
 import type { HomeLoaderData } from "../server/home-view";
 import type { AmmPart, NetworkLoaderData, SeriesView } from "../server/network-view";
-import type { BarListData, TimeSeriesData } from "./charts/types";
+import type { LivePairData, OlderPairData, PairPageData } from "../server/pair-view";
+import type { BarListData, CandleData, TimeSeriesData } from "./charts/types";
 import * as home from "../routes/net._index";
 import * as net from "../routes/net";
+import * as pair from "../routes/net.markets.$base.$counter";
 import * as network from "../routes/net.network";
 
 // The real route modules, not stand-ins: `net.tsx` and `net._index.tsx` as React Router's own build would load them. What these tests pin is
 // the wiring that no other test can see because it lives between files: the layout that must not revalidate, the home route's `clientLoader`
 // that keeps the page, the page's shared `onScreen`, the hook that polls and the controls (pause, hold, status). Deleting `shouldRevalidate`
 // from net.tsx or `clientLoader` from net._index.tsx fails here (and in the browser, test/e2e/live-home.spec.ts). The network page's route,
-// `net.network.tsx`, is wired the same way and is run the same way at the end of the file: its scope per view, its merge (`keepLoaded`) and
-// the page keyed by its scope.
+// `net.network.tsx`, is wired the same way and is run the same way after them: its scope per view, its merge (`keepLoaded`) and the page keyed
+// by its scope. The market pair page's, `net.markets.$base.$counter.tsx`, is last: the same wiring, and no live hook behind a marker.
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
 const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl" } as const;
@@ -670,5 +672,341 @@ describe("net.network.tsx", () => {
       await pass(30_000);
       expect(answer).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ---- The market pair page's route ------------------------------------------------------------------------------------------------------
+
+const USD_ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+const TRADER = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+/** XRP/USD in its natural orientation, as the data API writes the view and the page links it. */
+const PAIR_PATH = `/xrpl/markets/XRP/USD.${USD_ISSUER}`;
+const PAIR_BUCKETS = ["2026-10-17T13:00:00Z", "2026-10-17T14:00:00Z", "2026-10-17T15:00:00Z", "2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"];
+
+const PAIR_CANDLES: CandleData = {
+  axis: { unit: "hour", buckets: PAIR_BUCKETS },
+  candles: [
+    { o: "2.40", h: "2.46", l: "2.38", c: "2.44", v: "1200000", n: "310" },
+    null,
+    { o: "2.44", h: "2.45", l: "2.39", c: "2.41", v: "900000", n: "250" },
+    { o: "2.41", h: "2.43", l: "2.41", c: "2.42", v: "500000", n: "12" },
+    { o: "2.42", h: "2.48", l: "2.40", c: "2.4395", v: "1600000", n: "694" },
+  ],
+  format: { kind: "price", unit: "USD" },
+  volume: { kind: "amount", unit: "XRP" },
+  forming: true,
+  token: "candles",
+};
+
+const PAIR_HEAD: LivePairData["head"] = {
+  title: "XRP/USD",
+  heading: "XRP / USD",
+  base: "XRP",
+  counter: "USD",
+  issuers: [{ code: "USD", address: USD_ISSUER, href: `/xrpl/account/${USD_ISSUER}` }],
+  natives: ["XRP"],
+  issued: ["USD rhub8V…F3wq"],
+  issuedBy: "USD issued by rhub8V…F3wq",
+  invert: { label: "Show USD/XRP", href: `/xrpl/markets/USD.${USD_ISSUER}/XRP` },
+  firstPage: PAIR_PATH,
+};
+
+const PAIR_TRADES: LivePairData["trades"] = {
+  rows: [
+    {
+      key: "107721455:3:0",
+      time: "2026-10-17 15:42:51",
+      txHref: `/xrpl/tx/${"A".repeat(64)}`,
+      txHidden: ", transaction AAAAAA…AAAA",
+      side: "Buy",
+      dot: "up",
+      price: "2.4395",
+      base: "1,000",
+      counter: "2,439.5",
+      taker: TRADER,
+      via: "Book",
+    },
+  ],
+  paging: { newerHref: null, olderHref: `${PAIR_PATH}?marker=M1` },
+  source: "/v2/exchanges/{base}/{counter}?descending=true",
+};
+
+/** The pair's parts as a beat that failed them gives them (`pairPage`): each part's failed form. */
+const PAIR_FAILED = {
+  stats: { state: "failed", labels: ["24 h high", "24 h low", "VWAP 24 h", "Volume XRP", "Volume USD", "Trades 24 h"] },
+  candles: { state: "failed", source: "/v2/exchanges/{base}/{counter}?interval=1hour" },
+  traders: { state: "failed", source: "/v2/active_accounts/{base}/{counter}" },
+  book: { state: "failed", source: "live from the node · book_offers" },
+  pool: { state: "failed", title: "XRP/USD AMM pool", source: "live from the node · amm_info" },
+  share: { state: "failed" },
+} as const satisfies Pick<LivePairData, "stats" | "candles" | "traders" | "book" | "pool" | "share">;
+
+/** The live pair page's data at ledger `index` (its last price is `2.{index}`, its book of that ledger), every part loaded, made by build `build`. */
+function pairAt(index: number, over: Partial<LivePairData> = {}, build = "abc1234"): LivePairData {
+  const level = (price: string, depth: string) => ({ price, size: "1K", total: "1K", depth });
+  return {
+    mode: "live",
+    head: PAIR_HEAD,
+    anchor: { lastValidated: index, closeTime: 1792256472 + index },
+    build,
+    indexable: true,
+    view: [],
+    ammParts: true,
+    filters: {
+      trades: [
+        { label: "All", href: PAIR_PATH, current: true },
+        { label: "Order book", href: `${PAIR_PATH}?trades=book`, current: false },
+        { label: "AMM", href: `${PAIR_PATH}?trades=amm`, current: false },
+      ],
+      interval: [
+        { label: "1 h", href: PAIR_PATH, current: true },
+        { label: "4 h", href: `${PAIR_PATH}?interval=4h`, current: false },
+      ],
+    },
+    price: { text: `2.${index}`, unit: "USD per XRP", note: null, change: { text: "+1.84%", dir: "up" }, token: `price-${index}` },
+    stats: {
+      state: "ok",
+      items: PAIR_FAILED.stats.labels.map((label, at) => ({ label, value: `${at + 1}.5` })),
+      note: null,
+      token: "stats",
+    },
+    candles: { state: "ok", data: PAIR_CANDLES, source: "/v2/exchanges/{base}/{counter}?interval=1hour", empty: null },
+    trades: PAIR_TRADES,
+    book: {
+      state: "ok",
+      source: "live from the node · book_offers · ledger #",
+      ledger: String(index),
+      asks: [level("2.44", "0.5")],
+      bids: [level("2.39", "1")],
+      spread: "0.05",
+      token: "book",
+    },
+    pool: {
+      state: "ok",
+      title: "XRP/USD AMM pool",
+      source: "live from the node · amm_info · ledger #",
+      ledger: String(index),
+      reserves: "1.8M XRP · 4.39M USD",
+      price: "2.4393 USD",
+      fee: "0.300%",
+      link: { href: `/xrpl/account/${TRADER}`, label: "Pool account →" },
+      token: "pool",
+    },
+    share: { state: "ok", text: "34%" },
+    traders: {
+      state: "ok",
+      data: { items: [{ id: TRADER, label: "rLHzPs…rBJh", href: `/xrpl/account/${TRADER}`, value: "6100000", count: "312" }], format: { kind: "amount", unit: "XRP" }, token: "traders" },
+      note: "1 of 1 account that traded XRP/USD in the last 24 hours, by XRP volume. A trade counts for its buyer and its seller.",
+      source: "/v2/active_accounts/{base}/{counter}",
+    },
+    ...over,
+  };
+}
+
+/** The pair's page behind a marker: old trades only. */
+const olderPair = (build = "abc1234"): OlderPairData => ({
+  mode: "older",
+  head: PAIR_HEAD,
+  build,
+  view: ["older trades"],
+  ammParts: true,
+  note: { text: "Older trades of XRP/USD. The price, chart and order book are on the market's page.", link: "the market's page", href: PAIR_PATH },
+  trades: { ...PAIR_TRADES, paging: { newerHref: PAIR_PATH, olderHref: `${PAIR_PATH}?marker=M2&back=M1` } },
+});
+
+describe("net.markets.$base.$counter.tsx", () => {
+  /** The last price the page shows: the ledger it is at, in these tests. */
+  const lastPrice = () => document.querySelector(".pair__figure")?.textContent;
+  const REQUEST = (path: string) => new Request(`https://explorer.test${path}`);
+
+  /** The data a `.data` request for `url` is answered with. */
+  type Answer = (url: URL) => Promise<PairPageData>;
+
+  function PairRoute() {
+    return createElement(pair.default, { loaderData: useLoaderData() as PairPageData, params: useParams() as { net: string; base: string; counter: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the pair page as its route has it, in a data router, on the data the server rendered. */
+  function mountPair(answer: Answer, first: PairPageData = pairAt(100), path = PAIR_PATH) {
+    const layoutRuns = { count: 0 };
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [
+            {
+              id: "routes/net.markets.$base.$counter",
+              path: "markets/:base/:counter",
+              loader: (args) =>
+                pair.clientLoader({ params: args.params, request: args.request, serverLoader: () => answer(new URL(args.request.url)) } as never),
+              Component: PairRoute,
+            },
+          ],
+        },
+      ],
+      {
+        initialEntries: [path],
+        hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test", run: 0 }, "routes/net.markets.$base.$counter": first } },
+      },
+    );
+    const view = render(<RouterProvider router={router} />);
+    return { router, layoutRuns, ...view };
+  }
+
+  it("has a clientLoader, a handle that names the header's section, the headers that forward the class, and the parts a beat may keep", () => {
+    expect(pair.clientLoader).toBeTypeOf("function");
+    expect(pair.default).toBeTypeOf("function");
+    expect(pair.headers).toBe(forwardCacheClass);
+    expect(pair.handle).toEqual({ navSection: "markets" });
+    expect(pair.PAIR_PARTS).toEqual(["stats", "candles", "traders", "book", "pool", "share"]);
+  });
+
+  it("asks the server's loader again every 4 s, shows what it answers, and does not ask for the layout again", async () => {
+    let at = 100;
+    const answer = vi.fn<Answer>(async () => pairAt(++at));
+    const { layoutRuns } = mountPair(answer);
+    expect(lastPrice()).toBe("2.100");
+    await pass(3999);
+    expect(answer).not.toHaveBeenCalled();
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(lastPrice()).toBe("2.101");
+    await pass(4000);
+    expect(lastPrice()).toBe("2.102");
+    expect(layoutRuns.count).toBe(0);
+  });
+
+  describe("its clientLoader", () => {
+    const rejecting = (error: unknown) => () => Promise.reject(error);
+    const reload = (path: string, serverLoader: () => Promise<PairPageData>) => {
+      const [, netId, , base, counter] = new URL(`https://explorer.test${path}`).pathname.split("/");
+      return pair.clientLoader({ params: { net: netId, base: decodeURIComponent(base!), counter: decodeURIComponent(counter!) }, request: REQUEST(path), serverLoader } as never);
+    };
+
+    it("reloads through the scope of the view on screen: the network, the pair as the URL has it and the search, `?interval=4h` for that view", async () => {
+      const view = `${PAIR_PATH}?interval=4h`;
+      mountPair(async () => pairAt(101), pairAt(100, { view: ["4 h candles"] }), view);
+      // The page of that scope is on screen, so the data it shows is what a failed load hands back...
+      expect(await reload(view, rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      // ...and for no other view of the pair: another interval, a filter, the other orientation, a page behind a marker, the other network.
+      await expect(reload(PAIR_PATH, rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload(`${PAIR_PATH}?interval=4h&trades=amm`, rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload(`/xrpl/markets/USD.${USD_ISSUER}/XRP?interval=4h`, rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload(`${PAIR_PATH}?marker=M1`, rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload(`/xahau/markets/XRP/USD.${USD_ISSUER}?interval=4h`, rejecting(new Error("503")))).rejects.toThrow("503");
+    });
+
+    it("lets a redirect through, and hands nothing back once the page has left", async () => {
+      const { unmount } = mountPair(async () => pairAt(101));
+      const redirect = new Response(null, { status: 302, headers: { Location: PAIR_PATH } });
+      await expect(reload(PAIR_PATH, rejecting(redirect))).rejects.toBe(redirect);
+      unmount();
+      await expect(reload(PAIR_PATH, rejecting(new Error("503")))).rejects.toThrow("503");
+    });
+  });
+
+  it("keeps the page when a refresh is answered 503, slows down, and says so after two failures", async () => {
+    let failing = true;
+    const answer = vi.fn<Answer>(async () => {
+      if (failing) throw new Response("unavailable", { status: 503 });
+      return pairAt(101);
+    });
+    mountPair(answer);
+    await pass(4000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(lastPrice()).toBe("2.100");
+    expect(screen.getByRole("status").textContent).toBe("");
+    await pass(8000);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(lastPrice()).toBe("2.100");
+    expect(screen.getByRole("status").textContent).toBe("Live updates paused, retrying…");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("XRP / USD");
+
+    failing = false;
+    await pass(16_000);
+    expect(lastPrice()).toBe("2.101");
+    expect(screen.getByRole("status").textContent).toBe("Live updates reconnected");
+  });
+
+  it("keeps each part it shows loaded through a beat that failed it, the book and the pool with the ledger they were read at, and takes the rest", async () => {
+    mountPair(async () => pairAt(101, PAIR_FAILED));
+    const book = () => screen.getByRole("table", { name: "Order book" });
+    expect(book()).toBeTruthy();
+    await pass(4000);
+    // The answer was taken (the price moved on), and none of its failed parts was.
+    expect(lastPrice()).toBe("2.101");
+    expect(screen.queryByText("Live state unavailable")).toBeNull();
+    expect(screen.queryByText(/Couldn’t load/)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(book()).toBeTruthy();
+    // The kept book and pool say the ledger they were read at, the page's previous one.
+    const card = (name: string) => screen.getByRole("heading", { level: 2, name }).closest("section")!;
+    expect(card("Order book").textContent).toContain("ledger #100");
+    expect(card("XRP/USD AMM pool").textContent).toContain("ledger #100");
+    expect(card("XRP/USD AMM pool").textContent).toContain("34%");
+    expect(card("Most active traders, 24 h").querySelector("a")).toBeTruthy();
+    expect(document.querySelectorAll(".candle").length).toBeGreaterThan(0);
+    expect(screen.getByText("24 h high").closest("div")!.textContent).toContain("1.5");
+  });
+
+  it("shows the error of a part that was never loaded, beat after beat", async () => {
+    mountPair(async () => pairAt(101, { book: PAIR_FAILED.book, traders: PAIR_FAILED.traders }), pairAt(100, { book: PAIR_FAILED.book, traders: PAIR_FAILED.traders }));
+    expect(screen.getByText("Live state unavailable")).toBeTruthy();
+    expect(screen.getByText(/Couldn’t load the most active traders/)).toBeTruthy();
+    await pass(4000);
+    expect(lastPrice()).toBe("2.101");
+    expect(screen.getByText("Live state unavailable")).toBeTruthy();
+    expect(screen.getByText(/Couldn’t load the most active traders/)).toBeTruthy();
+    expect(screen.queryByRole("table", { name: "Order book" })).toBeNull();
+  });
+
+  it("draws the page of another view as a new page, keyed by its scope, and the beat that follows asks for that view", async () => {
+    const answer = vi.fn<Answer>(async () => pairAt(101, { view: ["4 h candles"] }));
+    const { router, container } = mountPair(answer);
+    const before = container.querySelector(".pair")!;
+    expect(before).toBeTruthy();
+
+    await act(async () => void router.navigate(`${PAIR_PATH}?interval=4h`));
+    await pass(0);
+    expect(answer).toHaveBeenCalledTimes(1);
+    const after = container.querySelector(".pair")!;
+    expect(after).not.toBe(before);
+    expect(container.querySelector(".is-entering, .is-changed")).toBeNull();
+    expect(lastPrice()).toBe("2.101");
+    answer.mockClear();
+    await pass(4000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(answer.mock.calls[0]![0].search).toBe("?interval=4h");
+  });
+
+  it("has no live hook behind a marker: no live row, no status, and no beat, also after a navigation from the live page", async () => {
+    const answer = vi.fn<Answer>(async (url) => (url.searchParams.has("marker") ? olderPair() : pairAt(101)));
+    mountPair(answer, olderPair(), `${PAIR_PATH}?marker=M1`);
+    expect(screen.getByText(/Older trades of XRP\/USD/)).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pause live updates" })).toBeNull();
+    await pass(20_000);
+    expect(answer).not.toHaveBeenCalled();
+
+    // From the live page to the one behind a marker and back: the route's hooks are the same in both (the live ones are the child's).
+    cleanup();
+    answer.mockClear();
+    const { router } = mountPair(answer);
+    expect(screen.getByRole("status")).toBeTruthy();
+    await act(async () => void router.navigate(`${PAIR_PATH}?marker=M1`));
+    await pass(0);
+    expect(screen.getByText(/Older trades of XRP\/USD/)).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+    answer.mockClear();
+    await pass(20_000);
+    expect(answer).not.toHaveBeenCalled();
+    await act(async () => void router.navigate(PAIR_PATH));
+    await pass(0);
+    expect(lastPrice()).toBe("2.101");
+    expect(screen.getByRole("status")).toBeTruthy();
   });
 });

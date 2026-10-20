@@ -7,10 +7,10 @@ import { valueImports } from "../support/value-imports";
 // The markets pages are drawn in the browser too (a client-side navigation renders them there), and the pages never fetch and get strings: the
 // view builders (`app/server/markets-view.ts`, which value-imports `app/domain/asset.ts` and `market-pair.ts`, and with them the issuer
 // checksums of `ripple-address-codec`) put every href, label and rank in the page data. So the files the browser runs for these pages import
-// none of that as a value. `app/server/meta.ts` and `meta-markets.ts` are among them: a page's `meta` is part of its route module, and it builds
-// the markets tags from the view words the builder wrote. A type import is erased and costs nothing; a value import is the bug. (The route,
-// `app/routes/net.markets.tsx`, imports the server for its loader; React Router drops the loader and what only it uses from the browser's build,
-// and `pnpm check:bundle` holds the result to the budget.)
+// none of that as a value. `app/server/meta.ts`, `meta-markets.ts` and `meta-pair.ts` are among them: a page's `meta` is part of its route
+// module, and it builds the tags from the words the view builder wrote. A type import is erased and costs nothing; a value import is the bug.
+// (The routes, `app/routes/net.markets.tsx` and `net.markets.$base.$counter.tsx`, import the server for their loaders; React Router drops a
+// loader and what only it uses from the browser's build, and `pnpm check:bundle` holds the result to the budget.)
 
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
@@ -54,7 +54,7 @@ describe("the files of the markets pages that run in the browser", () => {
     },
   );
 
-  it.each(["server/meta.ts", "server/meta-markets.ts"])("%s, which the browser runs as `meta`, imports nothing of ripple-*, domain/asset or domain/market-pair as a value", (file) => {
+  it.each(["server/meta.ts", "server/meta-markets.ts", "server/meta-pair.ts"])("%s, which the browser runs as `meta`, imports nothing of ripple-*, domain/asset or domain/market-pair as a value", (file) => {
     expect(valueImports(read(file)).filter(ASSET_CODE)).toEqual([]);
   });
 

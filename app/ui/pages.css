@@ -1677,6 +1677,11 @@ a.markets__pair:hover .markets__name {
   font-weight: 500;
 }
 
+/* The middle row's last price stands in the levels' price column, in their weight. */
+.pair__book-mid .pair__level-price {
+  font-weight: 500;
+}
+
 .pair__book-row > .pair__book-empty {
   grid-column: 1 / -1;
   padding-left: 16px;

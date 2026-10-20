@@ -21,11 +21,12 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
     browser: { html: "max-age=60", image: "max-age=31536000, immutable" },
   },
   /**
-   * The home page, the network page, and their `.data` URLs. A ledger closes every 3-4 s and an open page follows the chain (see
-   * `use-live-refresh.ts`): 1 s fresh, then 2 s during which the stored copy is served while one render refreshes it, so a reload never shows
-   * a copy much older than one ledger. At the owner's request; spec 4 had 3 s + 30 s. (A copy older than 3 s is not served: the visitor waits
-   * for a render. A failing render is still replaced by the stored copy, of any age.) The home page's calls are kept `HOME_CALL_TTL_SECONDS`,
-   * below, and the network page's calls over a period `PERIOD_CALL_TTL_SECONDS`.
+   * The home page, the network page, the market pair page, and their `.data` URLs. A ledger closes every 3-4 s and an open page follows the
+   * chain (see `use-live-refresh.ts`): 1 s fresh, then 2 s during which the stored copy is served while one render refreshes it, so a reload never
+   * shows a copy much older than one ledger. At the owner's request; spec 4 had 3 s + 30 s. (A copy older than 3 s is not served: the visitor
+   * waits for a render. A failing render is still replaced by the stored copy, of any age.) The home page's calls are kept
+   * `HOME_CALL_TTL_SECONDS`, below (and so are the pair page's anchor, trades and book), and the network page's calls over a period
+   * `PERIOD_CALL_TTL_SECONDS`.
    */
   "live-home": { edgeTtl: 1, swr: 2, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** The newest ledger, an account's live state, the first page of a list. */

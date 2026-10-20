@@ -415,6 +415,50 @@ describe("the markets page", () => {
   });
 });
 
+describe("a market pair page", () => {
+  const RLUSD = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+  const NATURAL = `/xrpl/markets/XRP/RLUSD.${RLUSD}`;
+  const DESCRIPTION = (pair: string, dex: string, issuedBy: string) =>
+    `Price, candles, recent trades, order book and most active traders of ${pair} on ${dex}. ${issuedBy}.`;
+
+  it("has the tags of the pair on its natural default view: its issuer in the title, a description with no numbers, a canonical URL, no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(NATURAL)).html);
+    expect(tags.titles).toEqual(["XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRP/RLUSD", "the XRP Ledger DEX", "RLUSD issued by rMxCKb…m5De"));
+    expect(tags.canonical).toEqual([`${ORIGIN}${NATURAL}`]);
+    expect(tags.content("og:title")).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer");
+    expect(tags.content("og:url")).toBe(`${ORIGIN}${NATURAL}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it.each([
+    [`/xrpl/markets/RLUSD.${RLUSD}/XRP`, "RLUSD/XRP · RLUSD rMxCKb…m5De · XRPL market · explorer"],
+    [`${NATURAL}?interval=4h`, "XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · 4 h candles · explorer"],
+    [`${NATURAL}?trades=amm`, "XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · AMM swaps · explorer"],
+    [`${NATURAL}?marker=WzEwNzY3MTU5MSwxNCwxXQ`, "XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · older trades · explorer"],
+  ])("is noindex, follow on %s, with the view in its title and no canonical URL or sharing tags", async (path, title) => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(path)).html);
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau: the Xahau DEX", async () => {
+    mock = mockUpstream("xahau");
+    const EVR = "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8";
+    const tags = head((await page(`/xahau/markets/EVR.${EVR}/XAH`)).html);
+    expect(tags.titles).toEqual(["EVR/XAH · EVR rEvern…HXr8 · Xahau market · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("EVR/XAH", "the Xahau DEX", "EVR issued by rEvern…HXr8"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/markets/EVR.${EVR}/XAH`]);
+  });
+});
+
 describe("the pages that are not for a search engine", () => {
   it("keeps a search page noindex, follow, without a canonical URL or sharing tags", async () => {
     mock = mockUpstream("xrpl");

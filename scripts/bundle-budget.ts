@@ -3,8 +3,8 @@
 // command is check-bundle.ts, which always runs it. (The command used to decide whether it was being run by comparing this module's URL
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
-//   - the JavaScript a page loads first, gzipped, is over 150 KB on the home, ledger, transaction, account, network or markets page (the route
-//     manifest is in it: see below);
+//   - the JavaScript a page loads first, gzipped, is over 150 KB on the home, ledger, transaction, account, network, markets or market pair
+//     page (the route manifest is in it: see below);
 //   - a file of the build holds something that belongs to the Worker alone: the image renderer, the transaction parser's vocabulary,
 //     the binary codec or the QR encoder (they would weigh on every visitor, and the pages are drawn from data that is ready);
 //   - the build has no `_headers` rule that keeps the hashed assets in `assets/` for a year.
@@ -19,7 +19,10 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { gzipSync } from "node:zlib";
 
-/** 150 KB of 1000 bytes. The pages stand between 133.0 and 145.4 KB (network the heaviest), the route manifest (about 1.0 KB) included. */
+/**
+ * 150 KB of 1000 bytes. The pages stand between 133.3 and 146.8 KB (network and the market pair page the heaviest), the route manifest (about
+ * 1.2 KB) included.
+ */
 export const BUDGET_BYTES = 150_000;
 
 /** The pages the budget is kept for, by their route in the manifest. */
@@ -30,6 +33,7 @@ export const PAGES = [
   { name: "account", route: "routes/net.account.$address" },
   { name: "network", route: "routes/net.network" },
   { name: "markets", route: "routes/net.markets" },
+  { name: "market-pair", route: "routes/net.markets.$base.$counter" },
 ] as const;
 
 export interface Forbidden {

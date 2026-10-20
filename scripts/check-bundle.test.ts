@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
 
-// A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the six pages' and
+// A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the seven pages' and
 // whose chunks are bytes of no pattern (they do not compress, so a chunk's gzipped size is known to within a few bytes).
 
 /** The route manifest of the fake build: every page loads it. */
@@ -112,7 +112,9 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.network", parentId: "routes/net", module: "network.js", imports: ["shared.js", "charts.js"] },
   // No heavier than home's: the 150,000 B pin test sizes the home page to the limit and needs it to be the heaviest page of the build.
   { id: "routes/net.markets", parentId: "routes/net", module: "markets.js", imports: ["shared.js", "table.js"] },
-  // Not one of the six pages: its chunk is loaded only when somebody goes there.
+  // The pair page draws charts, as the network page does, and its own chunk is lighter than network.js: no heavier than home's either.
+  { id: "routes/net.markets.$base.$counter", parentId: "routes/net", module: "pair.js", imports: ["shared.js", "charts.js"] },
+  // Not one of the seven pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
 ];
 const CHUNKS: FakeChunk[] = [
@@ -128,6 +130,7 @@ const CHUNKS: FakeChunk[] = [
   { name: "account.js", size: 1300 },
   { name: "network.js", size: 1400 },
   { name: "markets.js", size: 1500 },
+  { name: "pair.js", size: 1300 },
   { name: "charts.js", size: 6000 },
   { name: "qr-picture.js", size: 700 },
   { name: "search.js", size: 500 },
@@ -135,7 +138,7 @@ const CHUNKS: FakeChunk[] = [
 ];
 
 describe("the pages", () => {
-  it("are home, ledger, transaction, account, network and markets, by their routes", () => {
+  it("are home, ledger, transaction, account, network, markets and market-pair, by their routes", () => {
     expect(PAGES).toEqual([
       { name: "home", route: "routes/net._index" },
       { name: "ledger", route: "routes/net.ledger.$id" },
@@ -143,6 +146,7 @@ describe("the pages", () => {
       { name: "account", route: "routes/net.account.$address" },
       { name: "network", route: "routes/net.network" },
       { name: "markets", route: "routes/net.markets" },
+      { name: "market-pair", route: "routes/net.markets.$base.$counter" },
     ]);
   });
 
@@ -161,14 +165,15 @@ describe("checkBundle: what a page loads", () => {
     // The route manifest is one of the files every page loads, and counts like the others.
     const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js", MANIFEST];
     const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
-    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets"]);
+    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair"]);
     expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
     expect(byPage.ledger!.bytes).toBe(sum([...common, "table.js", "ledger.js"]));
     expect(byPage.transaction!.bytes).toBe(sum([...common, "tx.js"]));
     expect(byPage.account!.bytes).toBe(sum([...common, "table.js", "qr-picture.js", "account.js"]));
     expect(byPage.network!.bytes).toBe(sum([...common, "charts.js", "network.js"]));
     expect(byPage.markets!.bytes).toBe(sum([...common, "table.js", "markets.js"]));
-    // The chunk of a route that is not a page, and the ones only it imports, are in none of the six.
+    expect(byPage["market-pair"]!.bytes).toBe(sum([...common, "charts.js", "pair.js"]));
+    // The chunk of a route that is not a page, and the ones only it imports, are in none of the seven.
     expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
     expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
     expect(byPage.home!.files).toHaveLength(8);
@@ -206,8 +211,9 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/account\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/network\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/markets\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/market-pair\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toContain("150.0 KB");
-    expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets)\s/.test(line))).toHaveLength(6);
+    expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair)\s/.test(line))).toHaveLength(7);
   });
 
   it("fails a page over 150 KB gzipped, and only that page", () => {
@@ -270,7 +276,7 @@ describe("checkBundle: what a page loads", () => {
     });
     const report = checkBundle(dir);
     expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
-    expect(report.problems).toHaveLength(6);
+    expect(report.problems).toHaveLength(7);
   });
 });
 

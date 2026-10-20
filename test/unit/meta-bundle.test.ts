@@ -70,7 +70,7 @@ const appFiles = sources("app");
 
 describe("the tags' builders", () => {
   it("are there to be checked", () => {
-    expect(builders).toEqual(expect.arrayContaining(["app/server/meta-home.ts", "app/server/meta-network.ts", "app/server/meta-markets.ts", "app/server/meta-transaction.ts"]));
+    expect(builders).toEqual(expect.arrayContaining(["app/server/meta-home.ts", "app/server/meta-network.ts", "app/server/meta-markets.ts", "app/server/meta-pair.ts", "app/server/meta-transaction.ts"]));
   });
 
   it("are not in meta.ts, which every route imports: it exports only what every page's tags are made with", () => {

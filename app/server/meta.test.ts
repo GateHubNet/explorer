@@ -7,6 +7,7 @@ import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
 import { networkMeta } from "./meta-network";
+import { pairMeta } from "./meta-pair";
 import { transactionDescription, transactionMeta } from "./meta-transaction";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
@@ -371,6 +372,116 @@ describe("marketsMeta", () => {
       // The fixed words of the spec only: "10 trades", "24 hours", "7-day".
       expect(description.match(/\d+/g)).toEqual(["10", "24", "7"]);
     }
+  });
+});
+
+describe("pairMeta", () => {
+  const RLUSD = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+  const NATURAL = `/xrpl/markets/XRP/RLUSD.${RLUSD}`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  /** The head of XRP/RLUSD as the view builder writes it (`pairHead`): the fields the tags read. */
+  const HEAD = {
+    title: "XRP/RLUSD",
+    heading: "XRP / RLUSD",
+    base: "XRP",
+    counter: "RLUSD",
+    issuers: [{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}` }],
+    natives: ["XRP"],
+    issued: ["RLUSD rMxCKb…m5De"],
+    issuedBy: "RLUSD issued by rMxCKb…m5De",
+    invert: { label: "Show RLUSD/XRP", href: `/xrpl/markets/RLUSD.${RLUSD}/XRP` },
+    firstPage: NATURAL,
+  };
+  const DESCRIPTION =
+    "Price, candles, recent trades, order book and most active traders of XRP/RLUSD on the XRP Ledger DEX. RLUSD issued by rMxCKb…m5De.";
+  const LIVE = { head: HEAD, view: [], mode: "live" as const, indexable: true };
+
+  it("has the tags of the natural default view: the pair, its issuers, a canonical URL, Open Graph, a summary card and no image", () => {
+    const list = pairMeta(LIVE, XRPL);
+    expect(title(list)).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe(`https://explorer.test${NATURAL}`);
+    expect(content(list, "og:title")).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe(`https://explorer.test${NATURAL}`);
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it.each([
+    [["4 h candles"], "XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · 4 h candles · explorer"],
+    [["order-book trades"], "XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · order-book trades · explorer"],
+    [["1 d candles", "AMM swaps"], "XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · 1 d candles · AMM swaps · explorer"],
+  ])("names the view %j in the title, and is noindex, follow with no canonical URL and no Open Graph or card tags", (view, expected) => {
+    const list = pairMeta({ ...LIVE, view, indexable: false }, XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("says older trades behind a marker and is never indexable there, whatever it is told", () => {
+    const list = pairMeta({ head: HEAD, view: ["older trades"], mode: "older", indexable: true }, XRPL);
+    expect(title(list)).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · older trades · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(link(list, "canonical")).toBeUndefined();
+    const filtered = pairMeta({ head: HEAD, view: ["AMM swaps", "older trades"], mode: "older", indexable: false }, XRPL);
+    expect(title(filtered)).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · AMM swaps · older trades · explorer");
+  });
+
+  it("is noindex, follow for a pair the view builder did not make indexable (the inverted pair, one with offers and no trade)", () => {
+    const inverted = {
+      ...HEAD,
+      title: "RLUSD/XRP",
+      heading: "RLUSD / XRP",
+      base: "RLUSD",
+      counter: "XRP",
+      natives: ["XRP"],
+      invert: { label: "Show XRP/RLUSD", href: NATURAL },
+      firstPage: `/xrpl/markets/RLUSD.${RLUSD}/XRP`,
+    };
+    const list = pairMeta({ head: inverted, view: [], mode: "live", indexable: false }, XRPL);
+    expect(title(list)).toBe("RLUSD/XRP · RLUSD rMxCKb…m5De · XRPL market · explorer");
+    expect(content(list, "description")).toBe(
+      "Price, candles, recent trades, order book and most active traders of RLUSD/XRP on the XRP Ledger DEX. RLUSD issued by rMxCKb…m5De.",
+    );
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("names each issued side of a pair of two issued assets, and is Xahau's on Xahau", () => {
+    const EVR = "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8";
+    const two = {
+      ...HEAD,
+      title: "USD/EUR",
+      issued: ["USD rhub8V…F3wq", "EUR rLNaPo…dc6w"],
+      issuedBy: "USD issued by rhub8V…F3wq, EUR issued by rLNaPo…dc6w",
+    };
+    const list = pairMeta({ head: two, view: [], mode: "live", indexable: false }, XRPL);
+    expect(title(list)).toBe("USD/EUR · USD rhub8V…F3wq · EUR rLNaPo…dc6w · XRPL market · explorer");
+    expect(content(list, "description")).toBe(
+      "Price, candles, recent trades, order book and most active traders of USD/EUR on the XRP Ledger DEX. USD issued by rhub8V…F3wq, EUR issued by rLNaPo…dc6w.",
+    );
+
+    const evr = { ...HEAD, title: "EVR/XAH", issued: ["EVR rEvern…HXr8"], issuedBy: "EVR issued by rEvern…HXr8", firstPage: `/xahau/markets/EVR.${EVR}/XAH` };
+    const xahau = pairMeta({ head: evr, view: [], mode: "live", indexable: true }, XAHAU);
+    expect(title(xahau)).toBe("EVR/XAH · EVR rEvern…HXr8 · Xahau market · explorer");
+    expect(content(xahau, "description")).toBe(
+      "Price, candles, recent trades, order book and most active traders of EVR/XAH on the Xahau DEX. EVR issued by rEvern…HXr8.",
+    );
+    expect(link(xahau, "canonical")).toBe(`https://explorer.test/xahau/markets/EVR.${EVR}/XAH`);
+  });
+
+  it("puts no number of the data in the description: the page is stored for a second", () => {
+    const description = content(pairMeta(LIVE, XRPL), "description")!;
+    // The one digit is the issuer's own (its short address); no price, volume or count.
+    expect(description.replace("rMxCKb…m5De", "")).not.toMatch(/\d/);
   });
 });
 

@@ -122,7 +122,7 @@ function Quote({ price }: { price: LivePairData["price"] }) {
  * The six figures of the 24 hours, labels in --faint and values in mono, each ticking in when it changes. A part that failed reads "—" under
  * each of its labels (the data's), in the same places (so a figure that comes back ticks in), with one error under them.
  */
-function Stats({ stats, onRetry }: { stats: LivePairData["stats"]; onRetry: () => void }) {
+function Stats({ stats, onRetry, retrying }: { stats: LivePairData["stats"]; onRetry: () => void; retrying: boolean }) {
   const items = stats.state === "ok" ? stats.items : stats.labels.map((label) => ({ label, value: DASH }));
   return (
     <div className="pair__day">
@@ -136,7 +136,7 @@ function Stats({ stats, onRetry }: { stats: LivePairData["stats"]; onRetry: () =
           </div>
         ))}
       </dl>
-      {stats.state === "failed" && <SectionError what="the 24 h figures" onRetry={onRetry} />}
+      {stats.state === "failed" && <SectionError what="the 24 h figures" onRetry={onRetry} retrying={retrying} />}
       {stats.state === "ok" && stats.note !== null && <p className="pair__day-note">{stats.note}</p>}
     </div>
   );
@@ -150,7 +150,7 @@ function Stats({ stats, onRetry }: { stats: LivePairData["stats"]; onRetry: () =
  * card's place says what they are), the legend and the Chart/Table toggle. A changed token redraws the candles in place with no ring
  * (`mark={false}`): the forming candle changes with every trade. A failed part is the card's error, in place of all of that.
  */
-function PriceCard({ data, onRetry }: { data: LivePairData; onRetry: () => void }) {
+function PriceCard({ data, onRetry, retrying }: { data: LivePairData; onRetry: () => void; retrying: boolean }) {
   const { candles, filters, head } = data;
   const loaded = candles.state === "ok" ? candles : null;
   const name = `${head.title} price`;
@@ -162,6 +162,7 @@ function PriceCard({ data, onRetry }: { data: LivePairData; onRetry: () => void 
       what="the price chart"
       state={loaded ? "ok" : "failed"}
       onRetry={onRetry}
+      retrying={retrying}
       legend={
         loaded && (
           <div className="pair__chart-controls">
@@ -272,7 +273,8 @@ function TradesCard({
  */
 function LivePair({ network, data, live }: { network: NetworkInfo; data: LivePairData; live?: LiveControls }) {
   const refetching = useRefetching();
-  const { retry } = useRetry();
+  // `retrying` is the press's own (use-retry.ts): a beat, which revalidates too, leaves the buttons as they are.
+  const { retry, retrying } = useRetry();
   const holds = useHolds(live?.onHold);
   const [heldPart, setHeldPart] = useState<HeldPart>("trades");
 
@@ -305,7 +307,7 @@ function LivePair({ network, data, live }: { network: NetworkInfo; data: LivePai
           <Title head={head} invert />
           <Quote price={data.price} />
         </div>
-        <Stats stats={data.stats} onRetry={retry} />
+        <Stats stats={data.stats} onRetry={retry} retrying={retrying} />
       </section>
 
       {data.ammParts && data.filters.trades && (
@@ -315,14 +317,14 @@ function LivePair({ network, data, live }: { network: NetworkInfo; data: LivePai
         </div>
       )}
 
-      <PriceCard data={data} onRetry={retry} />
+      <PriceCard data={data} onRetry={retry} retrying={retrying} />
 
       <div className="pair__body">
         <TradesCard net={network.id} head={head} trades={data.trades} via={data.ammParts} live holds={holding("trades")} className="pair__main" />
         <div className="pair__side">
           <BookCard data={data} xrpl={network.id === "xrpl"} />
           <PoolCard data={data} />
-          <TradersCard data={data} holds={holding("traders")} onRetry={retry} />
+          <TradersCard data={data} holds={holding("traders")} onRetry={retry} retrying={retrying} />
         </div>
       </div>
     </div>
