@@ -109,6 +109,9 @@ const routed = (ui: ReactElement) => <MemoryRouter>{ui}</MemoryRouter>;
 const links = (container: HTMLElement) => Array.from(container.querySelectorAll<HTMLAnchorElement>("a"));
 const link0 = (container: HTMLElement) => links(container)[0]!;
 
+// The reach of a link's target (WCAG 2.5.8) is the stylesheet's, so it is checked in a browser: test/e2e/market-pair.spec.ts ("the traders card")
+// for a list that is not dense. No page draws a dense list with links yet (`.barlist--dense .barlist__link::after` in charts.css): its browser check
+// comes with the first page that does, E5's fee votes.
 describe("BarList's links (E3's traders, E5's fee votes)", () => {
   const LINKED: BarListData = {
     items: [

@@ -223,10 +223,10 @@ test.describe("the pair page follows the chain", () => {
 // ---- When something fails -----------------------------------------------------------------------------------------------------------------------
 
 test.describe("when the Worker cannot give the page new data", () => {
-  // The browser logs each 503 it is given as an error.
+  // The browser logs each 503 it is given as an error: the test checks that those are all it logs.
   test.use({ allowConsoleErrors: true });
 
-  test("keeps the page as it was, says that the updates are paused after two refusals, and goes on with the new data when the Worker answers again", async ({ page }) => {
+  test("keeps the page as it was, says that the updates are paused after two refusals, and goes on with the new data when the Worker answers again", async ({ page, browserErrors }) => {
     await openBehind(page);
     let refused = 0;
     await page.route(PAIR_DATA, (route) => {
@@ -252,6 +252,9 @@ test.describe("when the Worker cannot give the page new data", () => {
     await expect(statusOf(page)).toHaveText("Live updates reconnected");
     // Back to nothing to say.
     await expect(statusOf(page)).toHaveText("", { timeout: 10_000 });
+    // Every line the browser logged is a 503 of the page's `.data` URL: any other error in this flow fails the test.
+    expect(browserErrors.length).toBeGreaterThan(0);
+    expect(browserErrors.filter((line) => !(line.includes("status of 503") && PAIR_DATA.test(line)))).toEqual([]);
   });
 });
 
@@ -321,10 +324,10 @@ test.describe("when the node fails under an open page", () => {
 });
 
 test.describe("when the data API has no markets route", () => {
-  // The browser logs the 503 of the markets page.
+  // The browser logs the 503 of the markets page: the test checks that it is all it logs.
   test.use({ allowConsoleErrors: true });
 
-  test("the markets page answers 503, a stored copy stands in for it, and the pair page, which does not ask for it, is unaffected", async ({ page }) => {
+  test("the markets page answers 503, a stored copy stands in for it, and the pair page, which does not ask for it, is unaffected", async ({ page, browserErrors }) => {
     // The markets page of the 24 hours in views no other spec opens: each is the same call (#1 of the day), and none has a stored copy. The
     // Worker keeps that call's answer 60 s (class `minute`), and the chromium project asked for it a while ago: a view asked for while the
     // answer is kept is a 200, and stored, and from then on that copy stands in for its 503s (stale-if-error: README, "The Worker entry"). So
@@ -361,5 +364,8 @@ test.describe("when the data API has no markets route", () => {
     await expect(page.getByRole("table", { name: "Order book" })).toBeVisible();
     await expect(tradesOf(page).locator("[data-key]")).toHaveCount(20);
     await expect(page.getByText(/Couldn’t load|couldn’t be loaded|Live state unavailable/)).toHaveCount(0);
+    // Every line the browser logged is the 503 of the markets view it was shown: any other error in this flow fails the test.
+    expect(browserErrors.length).toBeGreaterThan(0);
+    expect(browserErrors.filter((line) => !(line.includes("status of 503") && line.includes(refused!)))).toEqual([]);
   });
 });

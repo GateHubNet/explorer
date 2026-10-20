@@ -56,7 +56,6 @@ describe("parseTrail", () => {
     const ten = Array.from({ length: MAX_TRAIL }, (_, i) => `M${i}`);
     expect(parseTrail(ten.join("."))).toEqual(ten);
     expect(parseTrail([...ten, "M10"].join("."))).toEqual([]);
-    expect(parseTrail(Array.from({ length: 11 }, (_, i) => `M${i}`).join("."))).toEqual([]);
   });
 
   it("is no trail when a piece is not a marker", () => {

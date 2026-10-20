@@ -210,6 +210,8 @@ describe("when the node is down", () => {
     expect(first.status).toBe(200);
     expect(first.headers.get("X-Cache")).toBe("MISS");
     expect(text).toContain("Live state unavailable");
+    // The account page's notice is a live region (the pair page's is not): a screen reader hears it.
+    expect(html).toMatch(/class="notice notice--warning" role="status"/);
     expect(text).toContain("XRP balance 25");
     // What only the node tells is not there.
     expect(text).not.toContain("Sequence");

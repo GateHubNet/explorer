@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { allSwitches } from "../../test/support/switches";
 import { USD_ISSUER, type Display } from "../domain/network-params";
 import { bucketStarts, windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
 import type {
@@ -33,6 +34,7 @@ import {
   type NetworkPageData,
   type Part,
 } from "./network-view";
+import { featuresOf, NO_FEATURES } from "../ui/features";
 import { UpstreamError } from "./upstream";
 
 // ---- The world of the tests: T is 2026-10-17, the close time of the newest ledger 17:01:12 UTC -----------------------------------------
@@ -47,8 +49,9 @@ const LAST: LastValidated = {
   close_time: "2026-10-17T17:01:12Z",
 };
 
-const XRPL: NetworkInput["net"] = { id: "xrpl", native: "XRP", hasAmm: true, features: { validators: true, ammData: true, markets: true } };
-const XAHAU: NetworkInput["net"] = { id: "xahau", native: "XAH", hasAmm: false, features: { validators: false, ammData: false, markets: false } };
+// Every switch on for XRPL, every one off for Xahau: a switch added to `FEATURE_VARS` needs no edit here.
+const XRPL: NetworkInput["net"] = { id: "xrpl", native: "XRP", hasAmm: true, features: featuresOf(allSwitches("on")) };
+const XAHAU: NetworkInput["net"] = { id: "xahau", native: "XAH", hasAmm: false, features: NO_FEATURES };
 
 const fulfilled = <V>(value: V): PromiseFulfilledResult<V> => ({ status: "fulfilled", value });
 const rejected = (reason: unknown): PromiseRejectedResult => ({ status: "rejected", reason });
@@ -751,9 +754,9 @@ describe("validatorsOf", () => {
 
   it("links to the validators with the switch on, and to nothing with it off", () => {
     expect(partOf(answer(validations)).href).toBe("/xrpl/validators?scope=all");
-    const off = ctxOf("7d", { net: { ...XRPL, features: { validators: false, ammData: true, markets: true } } });
+    const off = ctxOf("7d", { net: { ...XRPL, features: { ...XRPL.features, validators: false } } });
     expect(partOf(answer(validations), off).href).toBeNull();
-    expect(partOf(answer(validations), ctxOf("7d", { net: { ...XAHAU, features: { validators: true, ammData: false, markets: false } } })).href).toBe("/xahau/validators?scope=all");
+    expect(partOf(answer(validations), ctxOf("7d", { net: { ...XAHAU, features: { ...NO_FEATURES, validators: true } } })).href).toBe("/xahau/validators?scope=all");
   });
 
   it("is an empty list for no validations", () => {

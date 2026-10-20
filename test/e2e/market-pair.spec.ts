@@ -159,8 +159,9 @@ test.describe("the links", () => {
         expect(browserErrors).toEqual([]);
       } else {
         await expect(heading(page)).toHaveText("Temporarily unavailable");
-        expect(browserErrors.length).toBeGreaterThan(0);
         expect(browserErrors.filter((line) => !(line.includes("status of 503") && line.includes(`/xrpl/account/${RLUSD_ISSUER}.data`)))).toEqual([]);
+        // One line: the account route's data, asked for once.
+        expect(browserErrors).toHaveLength(1);
       }
     });
   });
@@ -285,25 +286,29 @@ test.describe("the AMM parts", () => {
 });
 
 test.describe("the traders card", () => {
-  test("makes each trader's link a target of 24 px and more, which does not reach into its neighbour's (WCAG 2.5.8)", async ({ page }) => {
+  test("makes each trader's link a target of 24 px and more (WCAG 2.5.8): 12 px above and below its line's middle is the link, on rows 24 px and more apart", async ({ page }) => {
     await page.goto(PAIR);
     await hydrated(page);
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Most active traders, 24 h" }) });
     await card.scrollIntoViewIfNeeded();
-    // What the pointer hits 12 px above and below the middle of each link's line (a span of 24 px, the stylesheet's `::after` around it), at the
-    // start of its label: the link itself, every time.
-    const hits = await card.locator(".barlist__link").evaluateAll((links) =>
-      links.map((link) => {
-        const box = link.getBoundingClientRect();
-        const middle = box.top + box.height / 2;
-        const owner = (y: number) => {
-          const hit = document.elementFromPoint(box.left + 2, y);
-          return hit === null ? -1 : links.findIndex((other) => other === hit || other.contains(hit));
-        };
-        return { above: owner(middle - 11.5), below: owner(middle + 11.5) };
-      }),
-    );
+    // What the pointer hits at the start of each link's label, 12 px above and below the middle of its line (a span of 24 px, the stylesheet's
+    // `::after` around it): the link itself, every time. The pitch of the list, from two consecutive links, is at least that span. (Measured in
+    // E3's final fix wave: a line of 15.6 px, an `::after` of 27.6 px, rows 28 px apart. The areas of neighbours meet at the row boundary within
+    // the browser's pixel snapping, so a probe closer to it than ±12 px, such as ±13.5 px, finds the next row's link and checks nothing more.)
+    const { pitch, hits } = await card.locator(".barlist__link").evaluateAll((links) => {
+      const boxes = links.map((link) => link.getBoundingClientRect());
+      const middles = boxes.map((box) => box.top + box.height / 2);
+      const owner = (box: DOMRect, y: number) => {
+        const hit = document.elementFromPoint(box.left + 2, y);
+        return hit === null ? -1 : links.findIndex((other) => other === hit || other.contains(hit));
+      };
+      return {
+        pitch: middles[1]! - middles[0]!,
+        hits: boxes.map((box, at) => ({ above: owner(box, middles[at]! - 12), below: owner(box, middles[at]! + 12) })),
+      };
+    });
     expect(hits.length).toBeGreaterThan(1);
+    expect(pitch).toBeGreaterThanOrEqual(24);
     expect(hits).toEqual(hits.map((_, at) => ({ above: at, below: at })));
   });
 });
