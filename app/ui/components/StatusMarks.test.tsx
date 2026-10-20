@@ -6,24 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import type { AmendmentStatusView, DomainStatusKind, TextPart } from "../../server/validator-facts";
-import {
-  AlertCircleIcon,
-  ArrowDownIcon,
-  ArrowUpIcon,
-  BallotIcon,
-  CheckCircleIcon,
-  CheckIcon,
-  ClockIcon,
-  CrossIcon,
-  DashIcon,
-  EqualsIcon,
-  ExternalIcon,
-  InfoIcon,
-  LatestIcon,
-  MinusCircleIcon,
-  QuestionIcon,
-  ShieldIcon,
-} from "./icons";
+import { CheckIcon, CrossIcon, InfoIcon } from "./icons";
 import {
   AmendmentStatusPill,
   DomainStatus,
@@ -38,6 +21,21 @@ import {
   ValidationPill,
   VotePill,
 } from "./StatusMarks";
+import {
+  AlertCircleIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  BallotIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  DashIcon,
+  EqualsIcon,
+  ExternalIcon,
+  LatestIcon,
+  MinusCircleIcon,
+  QuestionIcon,
+  ShieldIcon,
+} from "./status-icons";
 
 afterEach(() => {
   cleanup();

@@ -9,6 +9,8 @@ import { statusWord } from "../../domain/amendments-params";
 import { joinAnd } from "../../domain/format";
 import type { AmendmentStatusView, DomainStatusKind, TextPart } from "../../server/validator-facts";
 import { Countdown } from "./Countdown";
+import { CrossIcon, InfoIcon } from "./icons";
+import { Pill } from "./Pill";
 import {
   AlertCircleIcon,
   ArrowDownIcon,
@@ -16,17 +18,14 @@ import {
   BallotIcon,
   CheckCircleIcon,
   ClockIcon,
-  CrossIcon,
   DashIcon,
   EqualsIcon,
   ExternalIcon,
-  InfoIcon,
   LatestIcon,
   MinusCircleIcon,
   QuestionIcon,
   ShieldIcon,
-} from "./icons";
-import { Pill } from "./Pill";
+} from "./status-icons";
 
 // ---- Links (2.8) -------------------------------------------------------------------------------------------------------------------------------
 
