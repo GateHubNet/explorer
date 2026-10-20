@@ -72,7 +72,7 @@ describe("every fixture file", () => {
     // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
     expect(bytes(files.filter(isSynthetic))).toBeLessThan(2.7 * 1024 * 1024);
     // The markets pages' files (scripts/market-fixtures.ts: the pairs' trades, candles, 24-hour rows and active accounts, and the nine XRPL and three
-    // Xahau markets tables, a row to a line; 81 files, 885,058 bytes, about 0.84 MiB) are reviewed as their generator too, and have a budget of their own.
+    // Xahau markets tables, a row to a line; 81 files, 896,584 bytes, about 0.86 MiB) are reviewed as their generator too, and have a budget of their own.
     expect(bytes(files.filter(isMarketGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isMarketGenerated))).toBeLessThan(1.0 * 1024 * 1024);
   });

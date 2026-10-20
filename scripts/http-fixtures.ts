@@ -14,7 +14,7 @@
 // What the recordings cannot give, the network page's aggregates over months, fee snapshots and validations, is synthetic: a seeded
 // generator in network-fixtures.ts, called from `generate` below (README.md, "Upstream fixtures"; PROVENANCE.md, "Synthetic aggregates").
 //
-// The markets pages' answers are market-fixtures.ts's (a pair's trades, candles, 24-hour rows and active accounts, derived from the recordings on XRPL and
+// The markets pages' answers are market-fixtures.ts's, by the rules of market-aggregates.ts (a pair's trades, candles, 24-hour rows and active accounts, derived from the recordings on XRPL and
 // synthetic on Xahau; the markets tables, synthetic around the derived trades), and the pools' `amm_info` answers amm-info-fixtures.ts's (derived); `generate`
 // joins them too (PROVENANCE.md, "Synthetic aggregates" and "Derived trades and pool states"). Both modules, and derived-trades.ts, import this one in turn,
 // so nothing of theirs is used here before `generate` is called, and none of them uses another's exports while it loads (scripts/fixture-imports.test.ts).
@@ -361,7 +361,7 @@ export function isSynthetic(path: string): boolean {
  * Paths (below test/fixtures/http/) of the markets pages' files that market-fixtures.ts writes: the pairs' trades, candles and 24-hour rows
  * (`data-api/exchanges/`), their active accounts (`data-api/active_accounts/`) and the markets tables (`data-api/network/markets@`). Like the synthetic
  * aggregates they are reviewed in the generator, so they have a size budget of their own (test/unit/http-fixtures.test.ts), and
- * test/unit/market-fixtures.test.ts keeps this in step with the generator. (`isSynthetic` is E2's and stays as it is.)
+ * test/unit/market-generated.test.ts keeps this in step with the generator. (`isSynthetic` is E2's and stays as it is.)
  */
 export function isMarketGenerated(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/(exchanges\/|active_accounts\/|network\/markets@)/.test(path);

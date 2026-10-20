@@ -1,7 +1,7 @@
 {
   "count": 1,
   "exchanges": [
-    {"base_currency":"EVR","base_issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","base_volume":"2635.45272","buy_volume":1100.18184,"close":"2.4290573","close_time":"2026-10-17T17:44:35Z","count":14,"counter_currency":"XAH","counter_volume":"6364.10955","high":"2.4559146","low":"2.3897137","open":"2.4394540","open_time":"2026-10-16T19:50:23Z","start":"2026-10-16T17:47:00Z","vwap":"2.4148070"}
+    {"base_currency":"EVR","base_issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","base_volume":"3246.717055","buy_volume":1335.462385,"close":"2.6872479","close_time":"2026-10-17T16:38:59Z","count":13,"counter_currency":"XAH","counter_volume":"8644.723852","high":"2.6882077","low":"2.6316412","open":"2.6316412","open_time":"2026-10-16T20:32:11Z","start":"2026-10-16T17:47:00Z","vwap":"2.6626046"}
   ],
   "result": "success"
 }
