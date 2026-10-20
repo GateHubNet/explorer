@@ -381,7 +381,7 @@ the view builder, with `String(n)` for an integer or `BigNumber(String(n))`: not
 
 | Component | Takes | The fields that matter |
 |---|---|---|
-| `ColumnChart`, `LineChart` | `TimeSeriesData` | `axis` (`unit`: `day`, `week`, `hour`, `minute` (15-minute buckets) or `flag`; `buckets`: UTC, oldest first), `series` (`id`, `label`, `short` for an end label, `slot`, `values`: strings, `null` for none), `format` (`kind`: `count`, `amount`, `drops`, `percent`, `seconds` or `price`; `unit`), `token`. Optional: `totals` (a stack's exact totals), `domain` and `references` (lines), `annotations` (columns), `forming`, `pending` |
+| `ColumnChart`, `LineChart` | `TimeSeriesData` | `axis` (`unit`: `day`, `week`, `month` (`YYYY-MM-01`, "Oct 2026"), `hour`, `minute` (15-minute buckets) or `flag`; `buckets`: UTC, oldest first), `series` (`id`, `label`, `short` for an end label, `slot`, `values`: strings, `null` for none), `format` (`kind`: `count`, `amount`, `drops`, `percent`, `seconds`, `price` or `value`, an estimate in the native currency; `unit`), `token`. Optional: `totals` (a stack's exact totals), `domain` and `references` (lines), `annotations` (columns), `forming`, `pending`, `extras` |
 | `SmallMultiples` | `SmallMultiplesData` | `axis` (shared), `panels` (6 at most: `id`, `label`, `sublabel`, `values`, a `format` of its own), `forming`, `pending`, `token` |
 | `Candles` | `CandleData` | `axis`, `candles` (one for each bucket: `o`, `h`, `l`, `c`, `v`, `n`, or `null`), `format` (of the prices), `volume` (the format of the volume), `forming` (the newest bucket is the running one), `token` |
 | `ShareBar` | `ShareData` | `rows` (`id`, `label`, `total`, `segments`: `id`, `label`, `slot`, `value`), `token` |
@@ -393,6 +393,13 @@ the view builder, with `String(n)` for an integer or `BigNumber(String(n))`: not
 
 `token` is a string the view builder makes from what the chart shows (see "Live updates: memo by token"). `forming` says the newest bucket is the
 running one, and `pending` how many of the newest buckets are not computed yet (0 to 2).
+
+`extras` (`TimeSeriesExtra`: `id`, `label`, `values` (one per bucket, `null` for none), `format`, `tooltip`) are the one field for per-bucket figures
+that are shown and never drawn, on every form that takes `TimeSeriesData`. The tooltip lists them after the series and the total, with no key:
+the value strong and the label muted ("**1** failed", the label's capital lowered when a lower-case letter follows it), or with
+`tooltip: "value"` the value alone, for one that is a sentence already. The slider appends `; Failed 1` for each, `ChartTable` adds a column
+for each, and no scale, legend or plot summary reads them. A value goes through `format` when there is one (`valueText` in the tooltip and the
+slider, `cellText` in the table) and is shown as given when there is not; `null` is "—", read "no data". The `token` must cover them.
 
 ### Data and words
 

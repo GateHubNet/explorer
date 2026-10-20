@@ -5,7 +5,7 @@ import { PANEL_HEIGHT, PLOT_HEIGHT, areaPath, fractionOf, keptEndLabels, linePat
 import { emptyText, endLabelValue, plotSummary, sliderLabel, valueText } from "./labels";
 import { Plot } from "./Plot";
 import type { TimeSeriesData } from "./types";
-import { bucketWords, DASH } from "./words";
+import { bucketWords, DASH, extraWords } from "./words";
 
 export interface LineChartProps {
   /** The chart's name: the slider's and the summary's. */
@@ -88,18 +88,19 @@ export function LinePlot({ title, data, area = false, curve = "linear", panel = 
   // The words: the running bucket is "so far" in a tooltip and to the slider, never on the axis.
   const { date, gapReadOut, gapTip } = bucketWords(axis, forming, pending);
   const full = (cell: Cell): string => valueText(cell.text, format, "full");
+  const extras = extraWords(data.extras);
 
-  /** The slider's text for bucket `i`: the date, then each series with its value; or why there is none. A panel is named by its slider. */
+  /** The slider's text for bucket `i`: the date, then each series with its value, then the extras; or why there is none. A panel is named by its slider. */
   const readOut = (i: number): string => {
     if (!has(i)) return gapReadOut(i);
     const named = series.flatMap((s, k) => {
       const cell = at(k, i);
       return cell ? [panel ? full(cell) : `${s.label} ${full(cell)}`] : [];
     });
-    return `${date(i)}: ${named.join("; ")}`;
+    return `${date(i)}: ${[...named, ...extras.read(i)].join("; ")}`;
   };
 
-  /** The tooltip's content for bucket `i` (spec 2.6): the date, and a row for each series: its key, the value strong and the name muted. */
+  /** The tooltip's content for bucket `i` (spec 2.6): the date, a row for each series (its key, the value strong and the name muted), the extras. */
   const tooltip = (i: number): ReactNode => {
     if (!has(i)) return gapTip(i);
     return (
@@ -120,6 +121,7 @@ export function LinePlot({ title, data, area = false, curve = "linear", panel = 
             </span>
           );
         })}
+        {extras.rows(i)}
       </>
     );
   };
