@@ -12,6 +12,7 @@
     "test/support/fixture-server.ts",
     "test/support/switches.ts",
     "test/support/value-imports.ts",
+    "test/support/validators-case-rules.ts",
     "app/server/aggregate-shape.ts",
     "app/server/api-types.ts",
     "app/server/marker.ts",

@@ -323,6 +323,6 @@ not files. Only an end-to-end run against a real stack (`E2E_DATA_API_URL`) chec
 
 **What keeps them true.** `test/unit/validators-fixtures.test.ts` works D1's rules out again from the answers (the validators' order and the summary's counts and versions, F7 for
 every round and tally, `pct`, the amendments' order, the envelope of every amendment answer, the votes against the records, the server versions decoded), checks every object's
-keys against the reference's order, runs the client's checks on every answer, and holds every case by the predicates `test/support/validators-cases.ts` uses (the worker specs
-find a validator or an amendment of a case there, over the files, never by a fixed key). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
+keys against the reference's order, runs the client's checks on every answer, and holds every case by the rules of `test/support/validators-case-rules.ts`, the ones
+`test/support/validators-cases.ts` finds a validator or an amendment of a case by for the worker specs (over the files, never by a fixed key). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
 `isValidatorsGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (239 files, about 2.7 MiB).

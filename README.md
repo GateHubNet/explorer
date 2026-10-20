@@ -1055,7 +1055,7 @@ They are about 0.86 MiB (`isMarketGenerated`) and have a size budget of their ow
 names ("Synthetic validators and amendments"), from `seedOf(net, route)` streams: the summary is counted from the list, the list is in D1's order, the amendments obey F7 and D1's
 order, and every amendment answer carries the list's envelope (G3). `test/unit/validators-fixtures.test.ts` works those rules out again, checks the key orders and runs the client's
 checks. The worker specs find a validator or an amendment of each case with `test/support/validators-cases.ts` (`validatorCase`, `amendmentCase`, `fixtureValidatorKeys`,
-`validationsMarker`), by a predicate over the files, never a fixed key. They are about 2.7 MiB (`isValidatorsGenerated`, 239 files) and have a size budget of their own.
+`validationsMarker`), by the rules of `test/support/validators-case-rules.ts` over the files (the ones the fixtures test checks the generator with), never a fixed key. They are about 2.7 MiB (`isValidatorsGenerated`, 239 files) and have a size budget of their own.
 
 **The accounts.** The addresses and their transactions are real; what is not in the recordings is not invented beyond what a
 page needs.

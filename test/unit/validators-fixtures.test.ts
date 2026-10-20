@@ -26,6 +26,16 @@ import {
 import { fixtureText, generate, isValidatorsGenerated } from "../../scripts/http-fixtures";
 import { amendmentId, VALIDATORS_ROW_LISTS, validatorsFixtures } from "../../scripts/validators-fixtures";
 import { dataApiFile, type NetworkName } from "../support/upstream-core";
+import {
+  AMENDMENT_CASE_RULES,
+  AMENDMENT_CASES,
+  signingFileOf,
+  VALIDATOR_CASE_RULES,
+  VALIDATOR_CASES,
+  type AmendmentCase,
+  type CaseSources,
+  type ValidatorCase,
+} from "../support/validators-case-rules";
 
 // The answers of D1's six routes that scripts/validators-fixtures.ts makes up (E6 spec, "Testing", "Fixtures"): the rules of data-api-new's docs/api-reference.md at
 // feat/explorer-data 7d495ab ("Validators and amendments") are worked out here again from the answers themselves, and checked. The inputs are those `generate()`
@@ -152,55 +162,19 @@ function compareAmendments(a: AmendmentRow, b: AmendmentRow): number {
   return compareByName(a, b);
 }
 
-// ---- The cases the pages draw (validators-cases.ts finds them the same way in the files) -----------------------------------------------------------
+// ---- The cases the pages draw: the rules validators-cases.ts finds them by for the worker specs -----------------------------------------------------
 
-type ValidatorCase =
-  | "verified-unl"
-  | "with-accounts"
-  | "unverified"
-  | "pending"
-  | "no-domain"
-  | "never-seen"
-  | "negative-unl"
-  | "signing-key"
-  | "votes-unknown"
-  | "no-fee-vote"
-  | "fee-higher"
-  | "fee-lower"
-  | "incomplete"
-  | "no-score"
-  | "xahau-build";
-
-const FEES = ["base_fee", "reserve_base", "reserve_inc"] as const;
-const feeAgainst = (row: ValidatorRow, s: ValidatorsSummary, sign: 1 | -1) =>
-  row.fee_vote !== undefined && FEES.some((fee) => new BigNumber(row.fee_vote![fee]).comparedTo(s.fees![fee]) === sign);
-
-const CASES: Record<ValidatorCase, (row: ValidatorRow, net: Net) => boolean> = {
-  "verified-unl": (row, net) =>
-    row.unl &&
-    row.domain_verification?.status === "verified" &&
-    row.domain_verification.accounts === undefined &&
-    !row.negative_unl &&
-    row.unl_lists.length === summaryOf(net).unl.publishers.length,
-  "with-accounts": (row) => row.domain_verification?.status === "verified" && (row.domain_verification.accounts?.length ?? 0) > 0,
-  unverified: (row) => row.domain_verification?.status === "unverified",
-  pending: (row) => row.domain_verification?.status === "pending",
-  "no-domain": (row) => row.domain === undefined && row.last_seen !== undefined,
-  "never-seen": (row) => row.unl && row.last_seen === undefined,
-  "negative-unl": (row, net) => row.negative_unl && summaryOf(net).negative_unl_pending?.to_reenable === row.validation_public_key,
-  "signing-key": (row, net) => detailFiles(net).some((file) => file.key !== row.validation_public_key && file.value.validation_public_key === row.validation_public_key),
-  "votes-unknown": (row, net) => detailOf(net, row.validation_public_key).amendment_votes.votes.some((vote) => vote.status === "unknown" && vote.vote !== "none"),
-  "no-fee-vote": (row) => row.last_seen !== undefined && row.fee_vote === undefined,
-  "fee-higher": (row, net) => feeAgainst(row, summaryOf(net), 1),
-  "fee-lower": (row, net) => feeAgainst(row, summaryOf(net), -1),
-  incomplete: (row) => row.last_seen !== undefined && [row.agreement_1h, row.agreement_24h, row.agreement_30d].some((window) => window.incomplete),
-  "no-score": (row) => row.last_seen !== undefined && row.agreement_24h.score === undefined,
-  "xahau-build": (row) => row.version_build !== undefined,
-};
+/** What the case rules read beside a row: the summary, and every validator file by the key it is named by. */
+const sourcesOf = (net: Net): CaseSources => ({ summary: summaryOf(net), details: new Map(detailFiles(net).map(({ key, value }) => [key, value])) });
 /** Xahau has no unknown amendment to vote on, and XRPL no build number. */
-const CASES_OF: Record<Net, ValidatorCase[]> = {
-  xrpl: (Object.keys(CASES) as ValidatorCase[]).filter((which) => which !== "xahau-build"),
-  xahau: (Object.keys(CASES) as ValidatorCase[]).filter((which) => which !== "votes-unknown"),
+const VALIDATOR_CASES_OF: Record<Net, ValidatorCase[]> = {
+  xrpl: VALIDATOR_CASES.filter((which) => which !== "xahau-build"),
+  xahau: VALIDATOR_CASES.filter((which) => which !== "votes-unknown"),
+};
+/** Xahau has no obsolete or unknown amendment, and XRPL no retired one. */
+const AMENDMENT_CASES_OF: Record<Net, AmendmentCase[]> = {
+  xrpl: AMENDMENT_CASES.filter((which) => which !== "retired"),
+  xahau: AMENDMENT_CASES.filter((which) => which !== "obsolete" && which !== "unknown"),
 };
 
 // ---- The tests ---------------------------------------------------------------------------------------------------------
@@ -349,9 +323,22 @@ describe("the synthetic answers of D1's validators and amendments routes", () =>
     }
   });
 
-  it.each(NETS)("%s: holds every validator case", (net) => {
-    for (const which of CASES_OF[net]) {
-      expect(listOf(net).validators.some((row) => CASES[which](row, net)), which).toBe(true);
+  it.each(NETS)("%s: holds every validator case, by the rules the worker specs find them by", (net) => {
+    const sources = sourcesOf(net);
+    for (const which of VALIDATOR_CASES_OF[net]) {
+      expect(listOf(net).validators.some((row) => VALIDATOR_CASE_RULES[which](row, sources)), which).toBe(true);
+    }
+    // The signing-key case names the one signing key that has a file; the others are cases of none.
+    const signing = listOf(net).validators.filter((row) => VALIDATOR_CASE_RULES["signing-key"](row, sources));
+    expect(signing.map((row) => signingFileOf(row, sources))).toEqual([signing[0]!.signing_key]);
+    for (const which of VALIDATOR_CASES.filter((each) => !VALIDATOR_CASES_OF[net].includes(each))) {
+      expect(listOf(net).validators.some((row) => VALIDATOR_CASE_RULES[which](row, sources)), which).toBe(false);
+    }
+  });
+
+  it.each(NETS)("%s: holds every amendment case, by the same rules", (net) => {
+    for (const which of AMENDMENT_CASES) {
+      expect(amendmentsOf(net).amendments.some(AMENDMENT_CASE_RULES[which]), which).toBe(AMENDMENT_CASES_OF[net].includes(which));
     }
   });
 
