@@ -1,20 +1,26 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type MockInstance } from "vitest";
 
 import type {
+  ActiveAccounts,
   AmmVolumeComponent,
+  Candle,
   ExchangeVolumeComponent,
   FeeBucketRow,
   FeeRow,
   FeeStatsRow,
   LedgerValidations,
+  MarketRow,
+  MarketsResponse,
   Page,
+  PairExchange,
   PaymentVolumeComponent,
+  ReducedRow,
   StatsRow,
   TxObject,
   VolumeRow,
 } from "../../app/server/api-types";
 import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS, PERIOD_CALL_TTL_SECONDS, type CacheClass } from "../../app/server/cache-class";
-import { createDataApi, UpstreamError, type DataApi, type FreshOptions } from "../../app/server/data-api";
+import { ACTIVE_ACCOUNTS_KEPT, createDataApi, UpstreamError, type DataApi, type FreshOptions } from "../../app/server/data-api";
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
@@ -248,6 +254,127 @@ const validationsBody = {
     },
   ],
 };
+// The pair page's and the markets page's calls. Bodies in the shapes of the reference's sections "Exchanges" and "Active accounts" (main), "network/markets"
+// (feat/explorer-data 7d495ab) and the AMM keys of D2b.1 / feat/amm-data.
+const XRP_ASSET = { currency: "XRP" };
+const RLUSD_CODE = "524C555344000000000000000000000000000000";
+const RLUSD_ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+const RLUSD_ASSET = { currency: RLUSD_CODE, issuer: RLUSD_ISSUER };
+/** The pair XRP/RLUSD as the data API's path has it: `CUR+issuer`, the `+` escaped. */
+const PAIR_PATH = `/v2/exchanges/XRP/${RLUSD_CODE}%2B${RLUSD_ISSUER}`;
+const ACTIVE_PATH = `/v2/active_accounts/XRP/${RLUSD_CODE}%2B${RLUSD_ISSUER}`;
+const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+const pairTrade = {
+  base_amount: "50",
+  counter_amount: "122.5",
+  node_index: 4,
+  rate: "2.45",
+  tx_index: 12,
+  buyer: ACCOUNT,
+  executed_time: "2026-10-17T12:00:03Z",
+  ledger_index: 107695660,
+  offer_sequence: 1517,
+  provider: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+  seller: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+  taker: ACCOUNT,
+  tx_hash: HASH,
+  tx_type: "OfferCreate",
+  base_currency: "XRP",
+  counter_currency: RLUSD_CODE,
+  counter_issuer: RLUSD_ISSUER,
+};
+const pairSwap = { ...pairTrade, node_index: 9, offer_sequence: 0, provider: POOL, seller: POOL, tx_type: "Payment", amm_account: POOL };
+const pairExchangesBody = { result: "success", count: 2, marker: "WzEwNzY3MDM2MCw1XQ", exchanges: [pairTrade, pairSwap] };
+const pairCandle = {
+  base_volume: "1500",
+  buy_volume: 600,
+  close: "2.45000000",
+  close_time: "2026-10-17T11:59:50Z",
+  count: 12,
+  counter_volume: "3675",
+  high: "2.50000000",
+  low: "2.40000000",
+  open: "2.42000000",
+  open_time: "2026-10-17T11:00:10Z",
+  start: "2026-10-17T11:00:00Z",
+  vwap: "2.45000000",
+  base_currency: "XRP",
+  counter_currency: RLUSD_CODE,
+  counter_issuer: RLUSD_ISSUER,
+};
+const pairCandlesBody = { result: "success", count: 2, marker: "MTc5MjE0ODQwMA", exchanges: [pairCandle, { ...pairCandle, start: "2026-10-17T12:00:00Z" }] };
+const pairReduceRow = {
+  open: "2.42000000",
+  high: "2.50000000",
+  low: "2.40000000",
+  close: "2.45000000",
+  base_volume: "36000",
+  counter_volume: "88200",
+  buy_volume: 14400,
+  count: 288,
+  open_time: "2026-10-16T17:01:10Z",
+  close_time: "2026-10-17T16:59:50Z",
+  vwap: "2.45000000",
+  start: "2026-10-16T17:01:00Z",
+  base_currency: "XRP",
+  counter_currency: RLUSD_CODE,
+  counter_issuer: RLUSD_ISSUER,
+};
+const pairReduceBody = { result: "success", count: 1, exchanges: [pairReduceRow] };
+const activeAccount = (n: number) => ({
+  buy: { base_volume: String(1000 - n * 10), counter_volume: "2450", count: 3 },
+  sell: { base_volume: "0", counter_volume: "0", count: 0 },
+  account: `rActive${String(n).padStart(2, "0")}`,
+  base_volume: String(1000 - n * 10),
+  counter_volume: "2450",
+  count: 3,
+});
+const activeAccountsBody = { result: "success", count: 2, exchanges_count: 12, accounts: [activeAccount(1), activeAccount(2)] };
+const marketRow = {
+  base_currency: "USD",
+  base_issuer: USD_ISSUER,
+  counter_currency: "XRP",
+  count: 13,
+  base_volume: "130",
+  counter_volume: "65",
+  native_volume: "65",
+  open: "0.50000000",
+  high: "0.80000000",
+  low: "0.30000000",
+  last: "0.40000000",
+  change: "-20.00",
+  open_time: "2026-10-16T12:00:00Z",
+  last_time: "2026-10-17T10:42:17Z",
+  sparkline: [
+    { date: "2026-10-11T00:00:00Z" },
+    { date: "2026-10-12T00:00:00Z" },
+    { date: "2026-10-13T00:00:00Z", close: "0.52500000" },
+    { date: "2026-10-14T00:00:00Z", close: "0.52500000" },
+    { date: "2026-10-15T00:00:00Z", close: "0.52500000" },
+    { date: "2026-10-16T00:00:00Z", close: "0.50000000" },
+    { date: "2026-10-17T00:00:00Z", close: "0.40000000" },
+  ],
+};
+const marketsBody = {
+  result: "success",
+  period: "day",
+  start_time: "2026-10-16T10:00:00Z",
+  end_time: "2026-10-17T10:42:17Z",
+  totals: { pairs: 9, pairs_traded: 11, count: 112, native_volume: "243.5" },
+  count: 1,
+  markets: [marketRow],
+};
+/** The answer to a request with the filter: D2b's `amm` after `period`, and the shares of D2b.1 (4 decimals), `totals.amm_share` after `native_volume`. */
+const marketsWithAmm = (amm: "include" | "exclude" | "only") => ({
+  result: "success",
+  period: "day",
+  amm,
+  start_time: "2026-10-16T10:00:00Z",
+  end_time: "2026-10-17T10:42:17Z",
+  totals: { ...marketsBody.totals, amm_share: "0.2150" },
+  count: 1,
+  markets: [{ ...marketRow, amm_share: "0.3400", amm_pool: true }],
+});
 /** The window the network page asks for on 2026-10-17 (the index day): 30 days of buckets, up to and with that day. */
 const PERIOD = { start: "2026-09-18", end: "2026-10-17" };
 
@@ -519,6 +646,109 @@ const cases: Case[] = [
     body: validationsBody,
     result: validationsBody,
   },
+  {
+    // The pair page's trades. Asset segments are `CUR+issuer` with the `+` escaped. `live` (5 s) by default; the page asks for HOME_CALL_TTL_SECONDS (below).
+    name: "pairExchanges, first page",
+    cls: "live",
+    call: (a) => a.pairExchanges(XRP_ASSET, RLUSD_ASSET, { descending: true, limit: 20 }),
+    url: `${PAIR_PATH}?descending=true&limit=20`,
+    body: pairExchangesBody,
+    result: pairExchangesBody,
+  },
+  {
+    name: "pairExchanges, after a marker",
+    // `slow`, not `immutable` (MARKER_PAGE_CLASS in cache-class.ts): backfill and gap repair write history below the marker.
+    cls: "slow",
+    call: (a) => a.pairExchanges(XRP_ASSET, RLUSD_ASSET, { descending: true, limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" }),
+    url: `${PAIR_PATH}?descending=true&limit=20&marker=WzEwNzY3MDM2MCw1XQ`,
+    body: pairExchangesBody,
+    result: pairExchangesBody,
+  },
+  {
+    name: "pairExchanges, the swaps against pools only, in the other orientation",
+    cls: "live",
+    call: (a) => a.pairExchanges(RLUSD_ASSET, XRP_ASSET, { descending: true, limit: 20, amm: "only" }),
+    url: `/v2/exchanges/${RLUSD_CODE}%2B${RLUSD_ISSUER}/XRP?descending=true&limit=20&amm=only`,
+    body: pairExchangesBody,
+    result: pairExchangesBody,
+  },
+  {
+    name: "pairExchanges, the order book only",
+    cls: "live",
+    call: (a) => a.pairExchanges(XRP_ASSET, RLUSD_ASSET, { descending: true, limit: 20, amm: "exclude" }),
+    url: `${PAIR_PATH}?descending=true&limit=20&amm=exclude`,
+    body: pairExchangesBody,
+    result: pairExchangesBody,
+  },
+  {
+    // Candles are `live` unless the page says otherwise (`cls`), and `exchanges` is the key their rows come under.
+    name: "pairCandles",
+    cls: "live",
+    call: (a) => a.pairCandles(XRP_ASSET, RLUSD_ASSET, { interval: "1hour", start: "2026-10-14T05:00:00Z", limit: 61 }),
+    url: `${PAIR_PATH}?interval=1hour&start=2026-10-14T05%3A00%3A00Z&limit=61`,
+    body: pairCandlesBody,
+    result: pairCandlesBody,
+  },
+  {
+    name: "pairCandles, up to an end, newest first, the order book only",
+    cls: "live",
+    call: (a) =>
+      a.pairCandles(XRP_ASSET, RLUSD_ASSET, { interval: "1day", start: "2026-08-18T00:00:00Z", end: "2026-10-17T00:00:00Z", limit: 61, descending: true, amm: "exclude" }),
+    url: `${PAIR_PATH}?interval=1day&start=2026-08-18T00%3A00%3A00Z&end=2026-10-17T00%3A00%3A00Z&limit=61&descending=true&amm=exclude`,
+    body: pairCandlesBody,
+    result: pairCandlesBody,
+  },
+  {
+    // The one reduced row is what the call gives back, not the answer around it.
+    name: "pairReduce",
+    cls: "live",
+    call: (a, o) => a.pairReduce(XRP_ASSET, RLUSD_ASSET, { start: "2026-10-16T17:01:00Z" }, o),
+    url: `${PAIR_PATH}?reduce=true&start=2026-10-16T17%3A01%3A00Z`,
+    body: pairReduceBody,
+    result: pairReduceRow,
+  },
+  {
+    name: "pairReduce, the swaps against pools only",
+    cls: "live",
+    call: (a, o) => a.pairReduce(XRP_ASSET, RLUSD_ASSET, { start: "2026-10-16T17:01:00Z", amm: "only" }, o),
+    url: `${PAIR_PATH}?reduce=true&start=2026-10-16T17%3A01%3A00Z&amm=only`,
+    body: pairReduceBody,
+    result: pairReduceRow,
+  },
+  {
+    // `minute`: the accounts of a day change as trades come in, but the traders tile need not be fresher than the markets table.
+    name: "activeAccounts",
+    cls: "minute",
+    call: (a, o) => a.activeAccounts(XRP_ASSET, RLUSD_ASSET, o),
+    url: ACTIVE_PATH,
+    body: activeAccountsBody,
+    result: activeAccountsBody,
+  },
+  {
+    // Its path is in PENDING_PATHS: openapi.yaml has no `network/markets` yet (data-api-new `feat/explorer-data`).
+    name: "networkMarkets",
+    cls: "minute",
+    call: (a, o) => a.networkMarkets({ period: "day", limit: 1000 }, o),
+    url: "/v2/network/markets?limit=1000&period=day",
+    body: marketsBody,
+    result: marketsBody,
+  },
+  {
+    name: "networkMarkets, the order book only, over 7 days",
+    cls: "minute",
+    call: (a, o) => a.networkMarkets({ period: "7day", limit: 1000, amm: "exclude" }, o),
+    url: "/v2/network/markets?limit=1000&period=7day&amm=exclude",
+    body: { ...marketsWithAmm("exclude"), period: "7day" },
+    result: { ...marketsWithAmm("exclude"), period: "7day" },
+  },
+  {
+    name: "networkMarkets, the swaps only, over 30 days",
+    cls: "minute",
+    call: (a, o) => a.networkMarkets({ period: "30day", limit: 1000, amm: "only" }, o),
+    url: "/v2/network/markets?limit=1000&period=30day&amm=only",
+    body: { ...marketsWithAmm("only"), period: "30day" },
+    result: { ...marketsWithAmm("only"), period: "30day" },
+  },
 ];
 
 describe("requests", () => {
@@ -669,6 +899,17 @@ describe("requests", () => {
     expectTypeOf(api.exchangeVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<ExchangeVolumeComponent>>>>();
     expectTypeOf(api.ammVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<AmmVolumeComponent>>>>();
     expectTypeOf(api.ledgerValidations(HASH, { limit: 1000 })).toEqualTypeOf<Promise<LedgerValidations>>();
+    expectTypeOf(api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { limit: 20 })).toEqualTypeOf<Promise<Page<"exchanges", PairExchange>>>();
+    expectTypeOf(api.pairCandles(XRP_ASSET, RLUSD_ASSET, { interval: "1hour", start: "2026-10-14T05:00:00Z", limit: 61 })).toEqualTypeOf<Promise<Page<"exchanges", Candle>>>();
+    expectTypeOf(api.pairReduce(XRP_ASSET, RLUSD_ASSET, { start: "2026-10-16T17:01:00Z" })).toEqualTypeOf<Promise<ReducedRow>>();
+    expectTypeOf(api.activeAccounts(XRP_ASSET, RLUSD_ASSET)).toEqualTypeOf<Promise<ActiveAccounts>>();
+    expectTypeOf(api.networkMarkets({ period: "day", limit: 1000 })).toEqualTypeOf<Promise<MarketsResponse>>();
+    // `change` is the one market key the reference lets a market go without (D2: left out where `open` is not above 0); the AMM keys are there only when known.
+    expectTypeOf<MarketRow["change"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<MarketRow["amm_share"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<MarketRow["amm_pool"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<NonNullable<MarketsResponse["totals"]>["amm_share"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<MarketsResponse["amm"]>().toEqualTypeOf<"include" | "exclude" | "only" | undefined>();
   });
 
   it.each(["..", ".", ""])("refuses %j as an identifier without sending anything", async (id) => {
@@ -1331,6 +1572,367 @@ describe("cache", () => {
   });
 });
 
+// The pair page's calls and the markets table's (markets spec 3.3): each is kept for the class the page needs, and its answer is checked inside the load.
+describe("the pair page's and the markets page's calls", () => {
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  /**
+   * The Worker's own subrequest cache over a host of its own (this file's Cache API outlives a test): `storedBy` runs a call and answers the
+   * `Cache-Control` of every entry it stored, which is what the Cache API expires the entry by.
+   */
+  function storing(host: string) {
+    const puts: Array<string | null> = [];
+    const put = caches.default.put.bind(caches.default);
+    vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
+      puts.push((response as Response).headers.get("Cache-Control"));
+      return put(request, response);
+    });
+    const pending: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} } as unknown as ExecutionContext;
+    const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: `https://${host}.example.invalid` });
+    const api = createDataApi(network, env, createSubrequestCache(ctx, host));
+    const storedBy = async (call: (api: DataApi) => Promise<unknown>) => {
+      puts.length = 0;
+      await call(api);
+      await Promise.all(pending.splice(0));
+      return [...puts];
+    };
+    return { api, storedBy };
+  }
+
+  describe("the missing route and the failure hold", () => {
+    // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+    it("a 404 'Cannot GET' for the markets route (a data API without D2) is kind server, and is never stored: the next call asks again", async () => {
+      const { api, storedBy } = storing("markets-cannot-get");
+      const cannotGet = async () => json({ result: "error", message: "Cannot GET /v2/network/markets?limit=1000&period=day" }, { status: 404 });
+      fetchSpy.mockImplementation(cannotGet);
+
+      const first = await failureOf(api.networkMarkets({ period: "day", limit: 1000 }));
+      expect(first.kind).toBe("server");
+      expect(first.status).toBe(404);
+      expect(first.message).toContain("(the data API has no such route)");
+      expect(await storedBy(() => api.networkMarkets({ period: "day", limit: 1000 }).catch(() => undefined))).toEqual([]);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("is held with holdFailure: one request, and both calls throw the same error", async () => {
+      const { api } = storing("markets-cannot-get-held");
+      fetchSpy.mockImplementation(async () => json({ result: "error", message: "Cannot GET /v2/network/markets?limit=1000&period=day" }, { status: 404 }));
+
+      const first = await failureOf(api.networkMarkets({ period: "day", limit: 1000 }, { holdFailure: true }));
+      const second = await failureOf(api.networkMarkets({ period: "day", limit: 1000 }, { holdFailure: true }));
+
+      expect(first.kind).toBe("server");
+      expect(second).toBe(first);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("any other 404 of a pair route stays not_found: a pair the API has no trades of is an answer of its own", async () => {
+      const { api } = recording();
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "pair not found" }, { status: 404 }));
+
+      expect((await failureOf(api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { limit: 20 }))).kind).toBe("not_found");
+    });
+
+    it("a 400 of a pair route (an invalid marker, an issuer that is none) is bad_request", async () => {
+      const { api } = recording();
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid marker" }, { status: 400 }));
+
+      expect((await failureOf(api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { limit: 20, marker: "x" }))).kind).toBe("bad_request");
+    });
+  });
+
+  describe("pairExchanges", () => {
+    const q = { descending: true, limit: 20 };
+
+    it("is class `live` and, with a ttl, an entry of its own that says so (`[kept 2 s]`); the failure hold is no part of a key", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairExchangesBody));
+
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, q);
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, q, { holdFailure: true });
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, q, { ttl: HOME_CALL_TTL_SECONDS });
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, q, { ttl: HOME_CALL_TTL_SECONDS, holdFailure: true });
+
+      expect(cache.calls.map((call) => call.cls)).toEqual(["live", "live", "live", "live"]);
+      expect(cache.calls.map((call) => call.ttlOverride)).toEqual([undefined, undefined, 2, 2]);
+      expect(cache.calls.map((call) => call.holdFailure)).toEqual([undefined, true, undefined, true]);
+      const [plain, held, kept, keptHeld] = cache.calls.map((call) => call.key);
+      expect(plain).toBe(`GET ${BASE}${PAIR_PATH}?descending=true&limit=20`);
+      expect(held).toBe(plain);
+      expect(kept).toBe(`${plain} [kept 2 s]`);
+      expect(keptHeld).toBe(kept);
+    });
+
+    it("keeps MARKER_PAGE_CLASS for a page after a marker, newest first, and ignores the ttl: that page has no entry of its own", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairExchangesBody));
+
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { ...q, marker: "WzEwNzY3MDM2MCw1XQ" }, { ttl: HOME_CALL_TTL_SECONDS, holdFailure: true });
+      // Oldest first, a list grows at its end: a page after a marker is `live` there.
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" });
+
+      expect(MARKER_PAGE_CLASS).toBe("slow");
+      expect(cache.calls.map((call) => call.cls)).toEqual([MARKER_PAGE_CLASS, "live"]);
+      expect(cache.calls[0]!.ttlOverride).toBeUndefined();
+      expect(cache.calls[0]!.key).not.toContain("[kept");
+      expect(cache.calls[0]!.holdFailure).toBe(true);
+    });
+
+    it("has an entry for each filter and each orientation, so that none is read for another", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairExchangesBody));
+
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, q);
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { ...q, amm: "exclude" });
+      await api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { ...q, amm: "only" });
+      await api.pairExchanges(RLUSD_ASSET, XRP_ASSET, q);
+
+      expect(new Set(cache.calls.map((call) => call.key)).size).toBe(4);
+    });
+
+    it("sends the filter in the query and never `include`: the type has no such value, so that the keys are the same before and after feat/amm-data", () => {
+      expectTypeOf<NonNullable<Parameters<DataApi["pairExchanges"]>[2]["amm"]>>().toEqualTypeOf<"exclude" | "only">();
+    });
+
+    it.each([
+      ["a base with no currency", { currency: "" }, RLUSD_ASSET],
+      ["a counter with no currency", XRP_ASSET, { currency: "" }],
+    ])("refuses %s before anything is sent or looked up: its segment would be resolved away", async (_what, base, counter) => {
+      const { cache, api } = recording();
+
+      expect((await failureOf(api.pairExchanges(base, counter, q))).kind).toBe("bad_request");
+      expect((await failureOf(api.pairCandles(base, counter, { interval: "1hour", start: "2026-10-14T05:00:00Z", limit: 61 }))).kind).toBe("bad_request");
+      expect((await failureOf(api.pairReduce(base, counter, { start: "2026-10-16T17:01:00Z" }))).kind).toBe("bad_request");
+      expect((await failureOf(api.activeAccounts(base, counter))).kind).toBe("bad_request");
+      expect(cache.calls).toEqual([]);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("sends an asset as CUR+issuer with the `+` escaped, and the native currency alone", async () => {
+      const { api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairExchangesBody));
+
+      await api.pairExchanges({ currency: "USD", issuer: USD_ISSUER }, XRP_ASSET, q);
+
+      expect(sentRequest().url).toBe(`${BASE}/v2/exchanges/USD%2B${USD_ISSUER}/XRP?descending=true&limit=20`);
+    });
+  });
+
+  describe("pairCandles", () => {
+    const hourly = { interval: "1hour", start: "2026-10-14T05:00:00Z", limit: 61 } as const;
+
+    it("is stored 5 s by default (class live), 60 s as class minute, and 300 s as class slow kept 300 s", async () => {
+      const { storedBy } = storing("candles-stored");
+      fetchSpy.mockImplementation(async () => json(pairCandlesBody));
+
+      expect(await storedBy((a) => a.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, interval: "15minute" }))).toEqual(["public, max-age=5"]);
+      expect(await storedBy((a) => a.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, interval: "4hour" }, { cls: "minute" }))).toEqual(["public, max-age=60"]);
+      expect(await storedBy((a) => a.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, interval: "7day" }, { cls: "slow", ttl: PERIOD_CALL_TTL_SECONDS }))).toEqual([
+        "public, max-age=300",
+      ]);
+    });
+
+    it("passes the class, the ttl and the failure hold of the page on; the class is `live` without one", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairCandlesBody));
+
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, hourly);
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, hourly, { holdFailure: true });
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, interval: "1day" }, { cls: "minute", holdFailure: true });
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, interval: "7day" }, { cls: "slow", ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: true });
+
+      expect(cache.calls.map((call) => call.cls)).toEqual(["live", "live", "minute", "slow"]);
+      expect(cache.calls.map((call) => call.ttlOverride)).toEqual([undefined, undefined, undefined, 300]);
+      expect(cache.calls.map((call) => call.holdFailure)).toEqual([undefined, true, true, true]);
+      expect(cache.calls[3]!.key).toMatch(/interval=7day.* \[kept 300 s\]$/);
+    });
+
+    it("has an entry for each interval, window and filter, so that none is read for another", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairCandlesBody));
+
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, hourly);
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, interval: "4hour" });
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, start: "2026-10-14T06:00:00Z" });
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, end: "2026-10-17T00:00:00Z" });
+      await api.pairCandles(XRP_ASSET, RLUSD_ASSET, { ...hourly, amm: "only" });
+
+      expect(new Set(cache.calls.map((call) => call.key)).size).toBe(5);
+    });
+  });
+
+  describe("pairReduce", () => {
+    it("is class `live` and takes the options of a polled call", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairReduceBody));
+      const q = { start: "2026-10-16T17:01:00Z" };
+
+      await api.pairReduce(XRP_ASSET, RLUSD_ASSET, q);
+      await api.pairReduce(XRP_ASSET, RLUSD_ASSET, q, { ttl: 5, holdFailure: true });
+
+      expect(cache.calls.map((call) => call.cls)).toEqual(["live", "live"]);
+      expect(cache.calls.map((call) => call.ttlOverride)).toEqual([undefined, 5]);
+      expect(cache.calls.map((call) => call.holdFailure)).toEqual([undefined, true]);
+      expect(cache.calls[1]!.key).toBe(`${cache.calls[0]!.key} [kept 5 s]`);
+    });
+
+    it("has an entry for each filter", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(pairReduceBody));
+      const q = { start: "2026-10-16T17:01:00Z" };
+
+      await api.pairReduce(XRP_ASSET, RLUSD_ASSET, q);
+      await api.pairReduce(XRP_ASSET, RLUSD_ASSET, { ...q, amm: "exclude" });
+      await api.pairReduce(XRP_ASSET, RLUSD_ASSET, { ...q, amm: "only" });
+
+      expect(new Set(cache.calls.map((call) => call.key)).size).toBe(3);
+    });
+
+    it("takes the row of a window with no trade: prices 0.0000000, volumes 0, no open_time or close_time", async () => {
+      const { api } = recording();
+      const { open_time: _open, close_time: _close, ...bare } = pairReduceRow;
+      const empty = { ...bare, open: "0.0000000", high: "0.0000000", low: "0.0000000", close: "0.0000000", vwap: "0.0000000", base_volume: "0", counter_volume: "0", buy_volume: 0, count: 0 };
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", count: 1, exchanges: [empty] }));
+
+      expect(await api.pairReduce(XRP_ASSET, RLUSD_ASSET, { start: "2026-10-16T17:01:00Z" })).toEqual(empty);
+    });
+  });
+
+  describe("activeAccounts", () => {
+    const twelve = {
+      result: "success",
+      count: 12,
+      exchanges_count: 36,
+      accounts: Array.from({ length: 12 }, (_value, index) => activeAccount(index + 1)),
+    };
+
+    it("keeps the first 10 of 12 accounts, in the order the API sorted them (by base volume), and the counts as the API gave them", async () => {
+      const { api } = recording();
+      fetchSpy.mockResolvedValueOnce(json(twelve));
+
+      const answer = await api.activeAccounts(XRP_ASSET, RLUSD_ASSET);
+
+      expect(ACTIVE_ACCOUNTS_KEPT).toBe(10);
+      expect(answer.accounts).toEqual(twelve.accounts.slice(0, 10));
+      expect(answer.accounts.map((account) => account.account)).toEqual(Array.from({ length: 10 }, (_value, index) => `rActive${String(index + 1).padStart(2, "0")}`));
+      expect(answer.count).toBe(12);
+      expect(answer.exchanges_count).toBe(36);
+      expect(answer.result).toBe("success");
+    });
+
+    it("stores the 10, not the 12: the cut is made before the subrequest cache keeps it", async () => {
+      const cache = new Map<string, unknown>();
+      const api = createDataApi(xrpl, env, {
+        async json<T>(key: string, _cls: CacheClass, load: () => Promise<T>) {
+          const value = await load();
+          cache.set(key, value);
+          return value;
+        },
+      });
+      fetchSpy.mockResolvedValueOnce(json(twelve));
+
+      await api.activeAccounts(XRP_ASSET, RLUSD_ASSET);
+
+      expect([...cache.values()].map((value) => (value as { accounts: unknown[] }).accounts.length)).toEqual([10]);
+    });
+
+    it("leaves a short list as it is", async () => {
+      const { api } = recording();
+      fetchSpy.mockResolvedValueOnce(json(activeAccountsBody));
+
+      expect((await api.activeAccounts(XRP_ASSET, RLUSD_ASSET)).accounts).toHaveLength(2);
+    });
+
+    it("is stored 60 s: class minute", async () => {
+      const { storedBy } = storing("active-accounts-stored");
+      fetchSpy.mockImplementation(async () => json(twelve));
+
+      expect(await storedBy((a) => a.activeAccounts(XRP_ASSET, RLUSD_ASSET))).toEqual(["public, max-age=60"]);
+    });
+
+    it("takes the options of a polled call", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(activeAccountsBody));
+
+      await api.activeAccounts(XRP_ASSET, RLUSD_ASSET, { holdFailure: true });
+      await api.activeAccounts(XRP_ASSET, RLUSD_ASSET, { ttl: 30 });
+
+      expect(cache.calls.map((call) => call.cls)).toEqual(["minute", "minute"]);
+      expect(cache.calls.map((call) => call.holdFailure)).toEqual([true, undefined]);
+      expect(cache.calls.map((call) => call.ttlOverride)).toEqual([undefined, 30]);
+      expect(cache.calls[1]!.key).toBe(`${cache.calls[0]!.key} [kept 30 s]`);
+    });
+  });
+
+  describe("networkMarkets", () => {
+    it("is stored 60 s by its class, with no TTL of its own", async () => {
+      const { storedBy } = storing("markets-stored");
+      fetchSpy.mockImplementation(async () => json(marketsBody));
+
+      expect(await storedBy((a) => a.networkMarkets({ period: "day", limit: 1000 }))).toEqual(["public, max-age=60"]);
+      expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+    });
+
+    it("passes the failure hold and a ttl on; a ttl is an entry of its own", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async () => json(marketsBody));
+      const q = { period: "day", limit: 1000 } as const;
+
+      await api.networkMarkets(q);
+      await api.networkMarkets(q, { holdFailure: true });
+      await api.networkMarkets(q, { ttl: 20 });
+
+      expect(cache.calls.map((call) => call.cls)).toEqual(["minute", "minute", "minute"]);
+      expect(cache.calls.map((call) => call.holdFailure)).toEqual([undefined, true, undefined]);
+      expect(cache.calls.map((call) => call.ttlOverride)).toEqual([undefined, undefined, 20]);
+      expect(cache.calls[1]!.key).toBe(cache.calls[0]!.key);
+      expect(cache.calls[2]!.key).toBe(`${cache.calls[0]!.key} [kept 20 s]`);
+    });
+
+    it("has an entry for each period and each filter, so that none is read for another", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(async (input) => {
+        const query = new URL(input instanceof Request ? input.url : String(input)).searchParams;
+        const amm = query.get("amm");
+        return json({ ...(amm ? marketsWithAmm(amm as "exclude" | "only") : marketsBody), period: query.get("period") });
+      });
+
+      for (const period of ["day", "7day", "30day"] as const) {
+        await api.networkMarkets({ period, limit: 1000 });
+        await api.networkMarkets({ period, limit: 1000, amm: "exclude" });
+        await api.networkMarkets({ period, limit: 1000, amm: "only" });
+      }
+
+      expect(new Set(cache.calls.map((call) => call.key)).size).toBe(9);
+    });
+
+    it("takes the answer to a filter that echoes it, and keeps what the API wrote of the shares", async () => {
+      const { api } = recording();
+      for (const amm of ["exclude", "only"] as const) {
+        fetchSpy.mockResolvedValueOnce(json(marketsWithAmm(amm)));
+        const answer = await api.networkMarkets({ period: "day", limit: 1000, amm });
+        expect(answer.amm).toBe(amm);
+        expect(answer.totals?.amm_share).toBe("0.2150");
+        expect(answer.markets[0]).toMatchObject({ amm_share: "0.3400", amm_pool: true });
+      }
+    });
+
+    it("takes the Xahau answer, whose shares are 0.0000 and whose pools are false (the page ignores them there)", async () => {
+      const { api } = recording();
+      const answer = { ...marketsBody, totals: { ...marketsBody.totals, amm_share: "0.0000" }, markets: [{ ...marketRow, amm_share: "0.0000", amm_pool: false }] };
+      fetchSpy.mockResolvedValueOnce(json(answer));
+
+      expect(await createDataApi(xahau, env, passThroughCache).networkMarkets({ period: "day", limit: 1000 })).toEqual(answer);
+      expect(sentRequest().url).toBe("https://xahau.data.example.invalid/v2/network/markets?limit=1000&period=day");
+    });
+  });
+});
+
 // A 200 that is not what the reference promises is the API failing, not an answer: the subrequest cache stores what the client returns
 // for a year (class immutable), so a shape that the pages cannot use would be stored with it. The checks are in the client, inside the
 // load the cache runs, and a load that throws stores nothing.
@@ -1551,6 +2153,125 @@ describe("an answer that is not what the reference promises", () => {
       expect((await createDataApi(xrpl, env, passThroughCache).ammVolume(period)).rows).toEqual([]);
       fetchSpy.mockResolvedValueOnce(json({ result: "success", ledger_hash: LEDGER_HASH, count: 0, validations: [] }));
       expect((await createDataApi(xrpl, env, passThroughCache).ledgerValidations(LEDGER_HASH, { limit: 1000 })).validations).toEqual([]);
+    });
+  });
+
+  /** A copy of `body` that `change` has broken. */
+  const broken = (body: unknown, change: (copy: any) => void) => {
+    const copy = structuredClone(body);
+    change(copy);
+    return copy;
+  };
+
+  describe("for the pair page's and the markets page's calls", () => {
+    const base = XRP_ASSET;
+    const counter = RLUSD_ASSET;
+    const hourly = { interval: "1hour", start: "2026-10-14T05:00:00Z", limit: 61 } as const;
+    const markets = (api: DataApi) => api.networkMarkets({ period: "day", limit: 1000 });
+    const only = (api: DataApi) => api.networkMarkets({ period: "day", limit: 1000, amm: "only" });
+    const reduce = (api: DataApi) => api.pairReduce(base, counter, { start: "2026-10-16T17:01:00Z" });
+    const trades = (api: DataApi) => api.pairExchanges(base, counter, { descending: true, limit: 20 });
+    const candles = (api: DataApi) => api.pairCandles(base, counter, hourly);
+    const active = (api: DataApi) => api.activeAccounts(base, counter);
+
+    it.each<[string, unknown, (api: DataApi) => Promise<unknown>, unknown]>([
+      // The trades
+      ["trades that are not a list", broken(pairExchangesBody, (b) => (b.exchanges = { 0: pairTrade })), trades, pairExchangesBody],
+      ["a trade whose rate is a number", broken(pairExchangesBody, (b) => (b.exchanges[0].rate = 2.45)), trades, pairExchangesBody],
+      ["a trade whose base_amount is a number", broken(pairExchangesBody, (b) => (b.exchanges[0].base_amount = 50)), trades, pairExchangesBody],
+      ["a trade without a tx_hash", broken(pairExchangesBody, (b) => delete b.exchanges[0].tx_hash), trades, pairExchangesBody],
+      ["a trade whose executed_time is not ISO", broken(pairExchangesBody, (b) => (b.exchanges[1].executed_time = "yesterday")), trades, pairExchangesBody],
+      ["a marker that is not a marker", broken(pairExchangesBody, (b) => (b.marker = "2026-10-17T12:00:00Z")), trades, pairExchangesBody],
+      // The candles
+      ["candles that are not a list", broken(pairCandlesBody, (b) => (b.exchanges = "none")), candles, pairCandlesBody],
+      ["a candle whose close is a number", broken(pairCandlesBody, (b) => (b.exchanges[0].close = 2.45)), candles, pairCandlesBody],
+      ["a candle whose buy_volume is text", broken(pairCandlesBody, (b) => (b.exchanges[1].buy_volume = "600")), candles, pairCandlesBody],
+      ["a candle whose start is not ISO", broken(pairCandlesBody, (b) => (b.exchanges[0].start = "2026-10-17")), candles, pairCandlesBody],
+      // The reduced row
+      ["a reduce answer with no row", broken(pairReduceBody, (b) => (b.exchanges = [])), reduce, pairReduceBody],
+      ["a reduce answer with two rows", broken(pairReduceBody, (b) => b.exchanges.push({ ...pairReduceRow })), reduce, pairReduceBody],
+      ["a reduce answer whose row has a count that is text", broken(pairReduceBody, (b) => (b.exchanges[0].count = "288")), reduce, pairReduceBody],
+      ["a reduce answer whose row has a vwap that is a number", broken(pairReduceBody, (b) => (b.exchanges[0].vwap = 2.45)), reduce, pairReduceBody],
+      // The active accounts
+      ["accounts that are not a list", broken(activeAccountsBody, (b) => (b.accounts = {})), active, activeAccountsBody],
+      ["an account without a sell side", broken(activeAccountsBody, (b) => delete b.accounts[0].sell), active, activeAccountsBody],
+      ["an account whose base_volume is a number", broken(activeAccountsBody, (b) => (b.accounts[0].base_volume = 990)), active, activeAccountsBody],
+      ["an account beyond the first 10 that is malformed (all are checked, then cut)", broken({ ...activeAccountsBody, accounts: Array.from({ length: 12 }, (_v, i) => activeAccount(i + 1)) }, (b) => delete b.accounts[11].account), active, activeAccountsBody],
+      // The markets table
+      ["markets that are not a list", broken(marketsBody, (b) => (b.markets = { 0: marketRow })), markets, marketsBody],
+      ["no markets", broken(marketsBody, (b) => delete b.markets), markets, marketsBody],
+      ["a market whose last is a number", broken(marketsBody, (b) => (b.markets[0].last = 0.4)), markets, marketsBody],
+      ["a market whose sparkline is not a list", broken(marketsBody, (b) => (b.markets[0].sparkline = "0.4")), markets, marketsBody],
+      ["a market whose sparkline holds a text", broken(marketsBody, (b) => b.markets[0].sparkline.push("2026-10-18T00:00:00Z")), markets, marketsBody],
+      ["a market whose sparkline close is a number", broken(marketsBody, (b) => (b.markets[0].sparkline[2].close = 0.525)), markets, marketsBody],
+      ["totals that are not an object", broken(marketsBody, (b) => (b.totals = [])), markets, marketsBody],
+      ["totals that are text", broken(marketsBody, (b) => (b.totals = "9 pairs")), markets, marketsBody],
+      ["an amm_share without 4 decimals", broken(marketsBody, (b) => (b.markets[0].amm_share = "0.34")), markets, marketsBody],
+      ["an amm_pool that is text", broken(marketsBody, (b) => (b.markets[0].amm_pool = "yes")), markets, marketsBody],
+      // The filter that was asked for
+      ["an answer to amm=only with no amm: an API that ignored the filter", marketsBody, only, marketsWithAmm("only")],
+      ["an answer to amm=only that says include", marketsWithAmm("include"), only, marketsWithAmm("only")],
+      ["an answer to amm=only that says exclude", marketsWithAmm("exclude"), only, marketsWithAmm("only")],
+      ["an answer to a request without a filter that says only", marketsWithAmm("only"), markets, marketsBody],
+    ])("is a failure for %s, is not stored, and the good answer after it is", async (_what, body, call, good) => {
+      await failsWithoutStoring(body, call, good);
+    });
+
+    it("takes the answer to amm=only that says only, and the one to amm=exclude that says exclude", async () => {
+      fetchSpy.mockResolvedValueOnce(json(marketsWithAmm("only")));
+      expect(await only(createDataApi(xrpl, env, passThroughCache))).toEqual(marketsWithAmm("only"));
+      fetchSpy.mockResolvedValueOnce(json(marketsWithAmm("exclude")));
+      expect(await createDataApi(xrpl, env, passThroughCache).networkMarkets({ period: "day", limit: 1000, amm: "exclude" })).toEqual(marketsWithAmm("exclude"));
+    });
+
+    it("takes the figures the API writes in exponent form: a price below 1e-6 or from 1e8 (BigNumber's toPrecision(8)), a sum below 1e-6", async () => {
+      const junk = broken(marketsBody, (b) => Object.assign(b.markets[0], { open: "1.0000000e-7", last: "1.2345679e+8", base_volume: "5e-7" }));
+      fetchSpy.mockResolvedValueOnce(json(junk));
+      expect(await markets(createDataApi(xrpl, env, passThroughCache))).toEqual(junk);
+
+      const trade = broken(pairExchangesBody, (b) => (b.exchanges[0].rate = "1.2000000e-7"));
+      fetchSpy.mockResolvedValueOnce(json(trade));
+      expect(await trades(createDataApi(xrpl, env, passThroughCache))).toEqual(trade);
+
+      const candle = broken(pairCandlesBody, (b) => Object.assign(b.exchanges[0], { open: "1.2000000e-7", base_volume: "5e-7" }));
+      fetchSpy.mockResolvedValueOnce(json(candle));
+      expect(await candles(createDataApi(xrpl, env, passThroughCache))).toEqual(candle);
+    });
+
+    it("takes the good answers, each as it came, and an empty page: no trades, no candles, no accounts, no markets yet", async () => {
+      const api = createDataApi(xrpl, env, passThroughCache);
+      fetchSpy.mockResolvedValueOnce(json(pairExchangesBody));
+      expect(await trades(api)).toEqual(pairExchangesBody);
+      fetchSpy.mockResolvedValueOnce(json(pairCandlesBody));
+      expect(await candles(api)).toEqual(pairCandlesBody);
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", count: 0, exchanges: [] }));
+      expect((await trades(api)).exchanges).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", count: 0, exchanges: [] }));
+      expect((await candles(api)).exchanges).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", count: 0, exchanges_count: 0, accounts: [] }));
+      expect((await active(api)).accounts).toEqual([]);
+      // "No set yet" (a database whose aggregator has not written one): no window, no totals.
+      const none = { result: "success", period: "day", count: 0, markets: [] };
+      fetchSpy.mockResolvedValueOnce(json(none));
+      expect(await markets(api)).toEqual(none);
+    });
+
+    it("is not kept by the Worker's subrequest cache either, and is held with holdFailure: one request, and both calls throw", async () => {
+      const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+      const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: "https://malformed-markets.example.invalid" });
+      const api = createDataApi(network, env, createSubrequestCache(ctx, "malformed-markets"));
+      fetchSpy.mockImplementation(async () => json({ ...marketsBody, markets: "none" }));
+
+      expect((await failureOf(markets(api))).kind).toBe("server");
+      expect((await failureOf(markets(api))).kind).toBe("server");
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      fetchSpy.mockClear();
+      const first = await failureOf(api.networkMarkets({ period: "7day", limit: 1000 }, { holdFailure: true }));
+      const second = await failureOf(api.networkMarkets({ period: "7day", limit: 1000 }, { holdFailure: true }));
+      expect(second).toBe(first);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -12,6 +12,7 @@
     "test/support/switches.ts",
     "app/server/aggregate-shape.ts",
     "app/server/api-types.ts",
+    "app/server/marker.ts",
     "app/server/pending-paths.ts",
     "app/server/tx-shape.ts",
     "app/server/upstream.ts",

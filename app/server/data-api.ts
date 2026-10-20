@@ -4,12 +4,28 @@
 // Every request carries the key from the DATA_API_KEY secret, is limited to 5 s (answer included) and is
 // never redirected. A failure is an `UpstreamError`, which is never cached.
 
-import { checkFeeBucketPage, checkFeeStatsPage, checkStatsPage, checkValidations, checkVolumePage } from "./aggregate-shape";
+import { apiAssetText, type Asset } from "../domain/asset";
+import type { CandleApiInterval } from "../domain/market-params";
+import {
+  checkActiveAccounts,
+  checkCandles,
+  checkFeeBucketPage,
+  checkFeeStatsPage,
+  checkMarkets,
+  checkPairExchanges,
+  checkReduce,
+  checkStatsPage,
+  checkValidations,
+  checkVolumePage,
+} from "./aggregate-shape";
 import type {
   AccountData,
   AccountExchange,
+  ActiveAccounts,
+  AmmFilter,
   AmmVolumeComponent,
   BalancesResponse,
+  Candle,
   ExchangeVolumeComponent,
   FeeBucketRow,
   FeeRow,
@@ -19,10 +35,13 @@ import type {
   LedgerExpanded,
   LedgerValidations,
   LedgerWithHashes,
+  MarketsResponse,
   OrdersResponse,
   Page,
+  PairExchange,
   Payment,
   PaymentVolumeComponent,
+  ReducedRow,
   StatsRow,
   TxBinary,
   TxObject,
@@ -63,6 +82,8 @@ const PATHS = {
   paymentVolume: "/v2/network/payment_volume",
   exchangeVolume: "/v2/network/exchange_volume",
   ledgerValidations: "/v2/ledgers/{ledger_hash}/validations",
+  pairExchanges: "/v2/exchanges/{base}/{counter}",
+  activeAccounts: "/v2/active_accounts/{base}/{counter}",
 } as const satisfies Record<string, keyof paths>;
 
 /** A path of `PATHS` or of `PENDING_PATHS` (the routes `openapi.yaml` does not have yet, which the compiler cannot check). */
@@ -89,6 +110,16 @@ export type VolumeQuery = {
   exchangeCurrency?: string;
   exchangeIssuer?: string;
 };
+
+/**
+ * The candles of a pair: a row for each `interval` bucket that starts within `start` and `end` (ISO times; the newest ledger when `end` is left out), at most
+ * `limit`, oldest first unless `descending`. The pair's trades are the same path with `reduce` or without `interval`. `amm` narrows them like the trades'.
+ * Sent in this order, `amm` last.
+ */
+export type CandleQuery = { interval: CandleApiInterval; start: string; end?: string; limit: number; descending?: boolean; amm?: AmmFilter };
+
+/** The most accounts of a pair's active accounts that the client keeps (the API sorts them by base volume, largest first, and serves them all). */
+export const ACTIVE_ACCOUNTS_KEPT = 10;
 
 /** The most rows of a payments CSV: the API's own maximum for the account lists (it cuts a larger `limit` down to it). */
 export const CSV_PAGE_LIMIT = 1000;
@@ -187,6 +218,35 @@ export interface DataApi {
    * `live`. `limit` is at most 1000, and no marker is followed: a ledger with more validations than that is cut.
    */
   ledgerValidations(hash: string, q: { limit: number }, opts?: FreshOptions): Promise<LedgerValidations>;
+  /**
+   * The trades of a pair (offer crossings and swaps against AMM pools) in the orientation asked for, oldest first unless `descending`; `amm` narrows them to the
+   * order book (`exclude`) or the swaps (`only`) and is sent last, never as `include`. Class `live`; with `ttl` and **no marker** the answer is kept that long
+   * instead, under an entry of its own (the pair page asks for `HOME_CALL_TTL_SECONDS`). A list reached with a marker keeps the class it has
+   * (`MARKER_PAGE_CLASS` when newest first) and ignores `ttl`. Each trade is checked inside the load (`checkPairExchanges`).
+   */
+  pairExchanges(base: Asset, counter: Asset, q: ListQuery & { amm?: AmmFilter }, opts?: FreshOptions): Promise<Page<"exchanges", PairExchange>>;
+  /**
+   * The candles of a pair (`checkCandles`). Class `live` (5 s) unless the page names another with `cls` (the pair page asks for `minute` for the long
+   * intervals), and kept `ttl` seconds, under an entry of its own, when it asks for one. Every part of the query, the interval included, is in the key.
+   */
+  pairCandles(base: Asset, counter: Asset, q: CandleQuery, opts?: { cls?: CacheClass; ttl?: number; holdFailure?: boolean }): Promise<Page<"exchanges", Candle>>;
+  /**
+   * The one row that summarizes the pair's trades from `start` (ISO time) to the newest ledger (`reduce=true`). Class `live`. An answer with no row, or with
+   * more than one, is an `UpstreamError` of kind `server` and is not stored.
+   */
+  pairReduce(base: Asset, counter: Asset, q: { start: string; amm?: AmmFilter }, opts?: FreshOptions): Promise<ReducedRow>;
+  /**
+   * The accounts that traded the pair in the last day, sorted by base volume, largest first: the first `ACTIVE_ACCOUNTS_KEPT` (10) are kept before the answer is
+   * cached, and `count` and `exchanges_count` are as the API served them. Class `minute`.
+   */
+  activeAccounts(base: Asset, counter: Asset, opts?: FreshOptions): Promise<ActiveAccounts>;
+  /**
+   * The trade statistics of every pair that traded in a live period (`day`, `7day`, `30day`), the markets page's table: at most `limit` markets, with `amm`
+   * narrowing them like the trades'. Only a data API that has D2 (`feat/explorer-data`) has the route (`PENDING_PATHS`): without it the call fails with the
+   * missing-route outage (kind `server`), held when the call asks and never stored. Class `minute` (60 s). An answer to a filter that does not echo it in
+   * `amm` (a data API that ignored the parameter) is kind `server` too: its rows are the unfiltered ones.
+   */
+  networkMarkets(q: { period: "day" | "7day" | "30day"; limit: number; amm?: AmmFilter }, opts?: FreshOptions): Promise<MarketsResponse>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -386,6 +446,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     });
   };
 
+  /** The two path parameters of a pair route: each asset as the API writes it, `CUR+issuer` or the native code, escaped by `get` like any segment. */
+  const pairOf = (base: Asset, counter: Asset) => ({ base: apiAssetText(base), counter: apiAssetText(counter) });
+
   /** The options of a call that takes `FreshOptions`, as `get` takes them. */
   const fresh = (opts?: FreshOptions) => ({ ttl: opts?.ttl, holdFailure: opts?.holdFailure });
 
@@ -464,5 +527,43 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       }),
     ledgerValidations: (hash, q, opts) =>
       get<LedgerValidations>(PATHS.ledgerValidations, { ledger_hash: hash }, { limit: q.limit }, "live", { ...fresh(opts), finish: checkValidations }),
+    // The pair page's calls. The pair is the one in the URL's orientation (the API inverts when it is not the stored one); `amm` goes last in every query.
+    pairExchanges: (base, counter, q, opts) =>
+      get<Page<"exchanges", PairExchange>>(PATHS.pairExchanges, pairOf(base, counter), { ...listQuery(q), amm: q.amm }, listClass(q), {
+        ttl: q.marker ? undefined : opts?.ttl,
+        holdFailure: opts?.holdFailure,
+        finish: checkPairExchanges,
+      }),
+    pairCandles: (base, counter, q, opts) =>
+      get<Page<"exchanges", Candle>>(
+        PATHS.pairExchanges,
+        pairOf(base, counter),
+        { interval: q.interval, start: q.start, end: q.end, limit: q.limit, descending: q.descending, amm: q.amm },
+        opts?.cls ?? "live",
+        { ttl: opts?.ttl, holdFailure: opts?.holdFailure, finish: checkCandles },
+      ),
+    pairReduce: async (base, counter, q, opts) => {
+      const page = await get<Page<"exchanges", ReducedRow>>(PATHS.pairExchanges, pairOf(base, counter), { reduce: true, start: q.start, amm: q.amm }, "live", {
+        ...fresh(opts),
+        finish: checkReduce,
+      });
+      const [row] = page.exchanges;
+      if (row === undefined) throw new UpstreamError("server", "data API reduced exchanges answered without a row", { status: 200 });
+      return row;
+    },
+    activeAccounts: (base, counter, opts) =>
+      get<ActiveAccounts>(PATHS.activeAccounts, pairOf(base, counter), {}, "minute", {
+        ...fresh(opts),
+        // All are checked, then the first ten kept: what is cached is what the page can show.
+        finish: (body) => {
+          const checked = checkActiveAccounts(body);
+          return { ...checked, accounts: checked.accounts.slice(0, ACTIVE_ACCOUNTS_KEPT) };
+        },
+      }),
+    networkMarkets: (q, opts) =>
+      get<MarketsResponse>(PENDING_PATHS.networkMarkets, {}, { limit: q.limit, period: q.period, amm: q.amm }, "minute", {
+        ...fresh(opts),
+        finish: (body) => checkMarkets(body, q.amm),
+      }),
   };
 }

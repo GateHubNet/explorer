@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CACHE_CLASSES, FAILURE_HOLD_KEYS, FAILURE_HOLD_MAX_SECONDS, FAILURE_HOLD_SECONDS, PERIOD_CALL_TTL_SECONDS, type CacheClass } from "./cache-class";
 
 describe("CACHE_CLASSES", () => {
-  it("holds the five classes, with the TTLs and Cache-Control values of the design (spec 4)", () => {
+  it("holds the six classes, with the TTLs and Cache-Control values of the design (spec 4, and the markets design for `minute`)", () => {
     expect(CACHE_CLASSES).toEqual({
       immutable: {
         edgeTtl: 31536000,
@@ -19,6 +19,13 @@ describe("CACHE_CLASSES", () => {
       },
       live: {
         edgeTtl: 5,
+        swr: 30,
+        browser: { html: "max-age=0, must-revalidate", image: "max-age=0, must-revalidate" },
+      },
+      // The markets table's sets change every minute (24 h) or every five minutes (7 and 30 days), and the data API's own answers say
+      // `max-age=60`: 60 s fresh and 30 s stale copy, between `live` (5 s) and `slow` (an hour).
+      minute: {
+        edgeTtl: 60,
         swr: 30,
         browser: { html: "max-age=0, must-revalidate", image: "max-age=0, must-revalidate" },
       },

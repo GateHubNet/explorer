@@ -257,6 +257,197 @@ export interface AccountExchange {
   tx_type: string;
 }
 
+// ---- A pair: GET /v2/exchanges/{base}/{counter}, GET /v2/active_accounts/{base}/{counter} ---------------------------------------------------------------
+
+/**
+ * The `amm` filter of the exchange lists and the markets table: `exclude` is the order book alone, `only` the swaps against AMM pools alone. The explorer
+ * never sends `include` (the API's default), so that its requests are the same before and after the data API merges `feat/amm-data`. Everything about it
+ * is read from the data API's `feat/amm-data` branch (`c3e23026b3405fc2fd27fc897e724df4dfe106f1`, `docs/api-reference.md`).
+ */
+export type AmmFilter = "exclude" | "only";
+
+/**
+ * A trade of a pair (an offer crossing or a swap against an AMM pool), as `GET /v2/exchanges/{base}/{counter}` serves it, oldest first unless
+ * `descending`: the key order of the original's row, then `amm_account` last. In the orientation of the request (the API inverts a pair that is asked for
+ * the other way round than it is stored). `rate` is counter per base, 8 significant digits; a price below 1e-6 or from 1e8 is in exponent form (`1.2000000e-7`). A swap has
+ * `amm_account` (the pool, also its `provider`) and an `offer_sequence` of 0. The native currency has no issuer key; the autobridged keys are on an
+ * autobridged trade only. Unlike an account's trade (`AccountExchange`) it has no `client`.
+ */
+export interface PairExchange {
+  base_amount: string;
+  counter_amount: string;
+  node_index: number;
+  rate: string;
+  tx_index: number;
+  autobridged_currency?: string;
+  autobridged_issuer?: string;
+  buyer: string;
+  /** `YYYY-MM-DDTHH:mm:ssZ`, the close time of the ledger. */
+  executed_time: string;
+  ledger_index: number;
+  offer_sequence: number;
+  provider: string;
+  seller: string;
+  taker: string;
+  tx_hash: string;
+  tx_type: string;
+  base_currency: string;
+  base_issuer?: string;
+  counter_currency: string;
+  counter_issuer?: string;
+  /** The pool, on a swap against an AMM pool (`feat/amm-data`). */
+  amm_account?: string;
+}
+
+/**
+ * A candle of a pair (`interval=`): the buckets that start within the window, whole. Prices are strings of 8 significant digits, volumes exact decimal
+ * strings, `count` and `buy_volume` numbers (`buy_volume` is the base bought, a JavaScript number, so it may have a fraction). The pair is the one asked
+ * for. A page's marker is the base64url of the start of the bucket of its last candle.
+ */
+export interface Candle {
+  base_volume: string;
+  buy_volume: number;
+  close: string;
+  close_time: string;
+  count: number;
+  counter_volume: string;
+  high: string;
+  low: string;
+  open: string;
+  open_time: string;
+  start: string;
+  vwap: string;
+  base_currency: string;
+  base_issuer?: string;
+  counter_currency: string;
+  counter_issuer?: string;
+}
+
+/**
+ * The one row of `reduce=true`: a summary of the whole window, from `start`. With no trade the row is all zeros (`"0.0000000"` prices, `"0"` volumes) and
+ * has no `open_time` and `close_time`. `limit` and `marker` are ignored and there is no marker.
+ */
+export interface ReducedRow {
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  base_volume: string;
+  counter_volume: string;
+  buy_volume: number;
+  count: number;
+  open_time?: string;
+  close_time?: string;
+  vwap: string;
+  start: string;
+  base_currency: string;
+  base_issuer?: string;
+  counter_currency: string;
+  counter_issuer?: string;
+}
+
+/** What an account did on one side of a pair in the window. */
+export interface ActiveAccountSide {
+  base_volume: string;
+  counter_volume: string;
+  count: number;
+}
+
+/** An account that traded the pair, with what it bought and sold of the base and in all. */
+export interface ActiveAccount {
+  buy: ActiveAccountSide;
+  sell: ActiveAccountSide;
+  account: string;
+  base_volume: string;
+  counter_volume: string;
+  count: number;
+}
+
+/**
+ * `GET /v2/active_accounts/{base}/{counter}` (the `1day` period): the accounts that traded the pair, sorted by base volume, the largest first. An account is
+ * on the list as a seller and as a buyer of every trade. The client keeps the first `ACTIVE_ACCOUNTS_KEPT` (10) of `accounts` before it caches the answer;
+ * `count` (the accounts the API found) and `exchanges_count` are as it served them.
+ */
+export interface ActiveAccounts {
+  result: "success";
+  count: number;
+  exchanges_count: number;
+  accounts: ActiveAccount[];
+}
+
+// ---- Markets: GET /v2/network/markets -------------------------------------------------------------------------------------------------------------------
+
+/** A tick of a market's sparkline: the start of a UTC day, and the close of the last trade up to the end of that day (left out for a day with none before it). */
+export interface SparklineDay {
+  date: string;
+  close?: string;
+}
+
+/**
+ * A row of the markets table: one pair that traded in the window, in the canonical stored orientation (a price is counter per base). Keys in the reference's
+ * order. `open`, `high`, `low` and `last` have 8 significant digits (and an exponent below 1e-6 or from 1e8). `native_volume` is left out for a pair without
+ * a rate on either side. `change` is `(last / open - 1) * 100`, 2 decimals, and is left out where `open` is not above 0. `converted_volume` is only there
+ * with a display currency, which the explorer does not ask for.
+ *
+ * The AMM keys (D2 spec 7, D2b.1) are there **only when known** (every ledger of the window was parsed with AMM support); an absent key is "not known", never 0
+ * or `false`. `amm_share` is a string with exactly 4 decimals (`"0.3400"`: the AMM part of the pair's base volume), `amm_pool` whether the pair has a pool.
+ * On Xahau they are `"0.0000"` and `false`.
+ */
+export interface MarketRow {
+  base_currency: string;
+  base_issuer?: string;
+  counter_currency: string;
+  counter_issuer?: string;
+  count: number;
+  base_volume: string;
+  counter_volume: string;
+  native_volume?: string;
+  converted_volume?: string;
+  open: string;
+  high: string;
+  low: string;
+  last: string;
+  change?: string;
+  open_time: string;
+  last_time: string;
+  amm_share?: string;
+  amm_pool?: boolean;
+  sparkline: SparklineDay[];
+}
+
+/** The totals of a markets answer: `pairs` is the number of listed pairs (those with at least `min_trades` trades), the rest is over every pair that traded. */
+export interface MarketsTotals {
+  pairs: number;
+  pairs_traded: number;
+  count: number;
+  native_volume: string;
+  converted_volume?: string;
+  /** Known only like `MarketRow.amm_share`: the AMM part of the native volume, 4 decimals. */
+  amm_share?: string;
+}
+
+/**
+ * `GET /v2/network/markets` (`period`, `limit`, `amm`): the trade statistics of every pair that traded in a live period, in one call. The shape is that of
+ * the data API's `docs/api-reference.md` at data-api-new `feat/explorer-data` commit `7d495ab` (the merge of D2; section `GET /v2/network/markets`), with the AMM
+ * keys placed as D2 spec 7 and formatted as D2b.1 say (they are not in that reference, which serves no AMM field): `amm` after `period`, `totals.amm_share`
+ * after `converted_volume`, `amm_share` and `amm_pool` before `sparkline`. `amm` echoes the filter that was asked for; the client refuses an answer that
+ * does not (an API that ignored the filter). `exchange` and `exchange_rate` (after `end_time`) answer an `exchange_currency`, which the explorer does not
+ * send. `start_time` (the hour that is a window before `end_time`) and `end_time` (the close time of the newest ledger the set covers) and `totals` are
+ * missing when the aggregator has not written a set yet: `{ result, period: "day", count: 0, markets: [] }`. `count` is the number of markets served.
+ */
+export interface MarketsResponse {
+  result: "success";
+  period: "day" | "7day" | "30day";
+  amm?: "include" | "exclude" | "only";
+  start_time?: string;
+  end_time?: string;
+  exchange?: AssetRef;
+  exchange_rate?: string;
+  totals?: MarketsTotals;
+  count: number;
+  markets: MarketRow[];
+}
+
 // ---- Network: GET /v2/network/fees --------------------------------------------------------------------------------
 
 /**

@@ -1,6 +1,6 @@
 // How long each kind of response may be reused, at the edge and in the browser (spec 4). Worker-only code.
 
-export type CacheClass = "immutable" | "live-home" | "live" | "slow" | "short";
+export type CacheClass = "immutable" | "live-home" | "live" | "minute" | "slow" | "short";
 
 export interface CacheClassSpec {
   /** Seconds the edge cache serves a stored copy as fresh. */
@@ -30,6 +30,14 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
   "live-home": { edgeTtl: 1, swr: 2, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** The newest ledger, an account's live state, the first page of a list. */
   live: { edgeTtl: 5, swr: 30, browser: { html: REVALIDATE, image: REVALIDATE } },
+  /**
+   * What changes every minute and need not be fresher (markets spec 2.5): the markets page and its `.data` URL, and the calls of the data API that the
+   * pages of E3 to E6 keep 60 s. The data API rewrites the markets table's `day` set every minute and its `7day` and `30day` sets every five minutes,
+   * and says `Cache-Control: private, max-age=60`; `live` (5 s) would render the page twelve times for every change of a set, `slow` (an hour) would hide
+   * twelve. 60 s fresh, then 30 s during which the stored copy is served while one render refreshes it. A subrequest of this class is kept 60 s (its
+   * edge TTL), with no TTL constant of its own.
+   */
+  minute: { edgeTtl: 60, swr: 30, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** An account's creation info, account images. */
   slow: { edgeTtl: 3600, swr: 0, browser: { html: "max-age=300", image: "max-age=300" } },
   /** Search pages, a 404 for a well-formed id. */

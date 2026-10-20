@@ -7,4 +7,9 @@
 export const PENDING_PATHS = {
   /** The volume of the swaps against AMM pools (`feat/amm-data`). The network page asks for it only while `AMM_DATA` is on. */
   ammVolume: "/v2/network/amm_volume",
+  /**
+   * The trade statistics of every pair that traded in a live period, in one call: the markets page's table (data-api-new `feat/explorer-data`, D2, pinned at
+   * `7d495ab`). Without D2 the API answers `Cannot GET`, which the client reads as an outage (`throwUnlessOk`), never as a missing market.
+   */
+  networkMarkets: "/v2/network/markets",
 } as const;

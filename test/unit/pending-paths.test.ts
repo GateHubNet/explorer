@@ -32,4 +32,8 @@ describe("PENDING_PATHS", () => {
   it("has the AMM volume route, which only the data API's feat/amm-data branch has", () => {
     expect(PENDING_PATHS.ammVolume).toBe("/v2/network/amm_volume");
   });
+
+  it("has the markets route, which only a data API that has merged D2 (`feat/explorer-data`) has", () => {
+    expect(PENDING_PATHS.networkMarkets).toBe("/v2/network/markets");
+  });
 });
