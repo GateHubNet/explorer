@@ -16,7 +16,7 @@ import { analyticsPhrases, type AnalyticsPeriod, type AnalyticsPhrases, type Ana
 import { apiAssetText, type Asset } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
 import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue, shortAddress } from "../domain/format";
-import { marketHref, naturalOrientation } from "../domain/market-pair";
+import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import type { Native } from "../domain/parse/types";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { niceScale } from "../ui/charts/geometry";
@@ -141,7 +141,7 @@ export interface PairRow {
   label: string;
   /** "USD rhub8V…F3wq": each issued side's code and short issuer, base first. */
   issued: string[];
-  /** The pair page in that orientation; `null` while the markets are off. */
+  /** The pair page in that orientation; `null` while the markets are off, and for a pair the data API cannot be asked for (`isLinkable`). */
   href: string | null;
   volume: string;
   trades: string;
@@ -659,7 +659,7 @@ export function pairsCard(
       id: `${apiAssetText(stored.base)}/${apiAssetText(stored.counter)}`,
       label: `${code}/${formatCurrency(counter.currency)}`,
       issued: [base, counter].filter((side) => side.issuer).map((side) => `${formatCurrency(side.currency)} ${shortAddress(side.issuer!)}`),
-      href: markets ? marketHref(net, base, counter) : null,
+      href: markets && isLinkable([base, counter], native) ? marketHref(net, base, counter) : null,
       volume: pair.native_volume === undefined ? DASH : formatValue(numberOf(pair.native_volume, "native_volume").toFixed()),
       trades: formatAmount(String(pair.count)),
       bought: amount(bought, inverted ? "sold_counter" : "bought"),

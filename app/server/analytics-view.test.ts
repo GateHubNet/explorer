@@ -1196,6 +1196,21 @@ describe("pairsCard", () => {
     expect(row!.href).toBe(marketHref("xrpl", { currency: LIONS, issuer: LIONS_ISSUER }, { currency: "XRP" }));
   });
 
+  it("has no link, while the markets are on, for a pair the data API cannot be asked for: a lower-case standard code reads back as another asset", () => {
+    const lower = pairOf({ base_currency: "usd", base_issuer: ADDRESS_B, counter_currency: "XRP", bought: "5", native_volume: "9" });
+    const [row] = pairsCard(frame, exchangesAnswer([lower, usdXrp, lionsXrp]), ctx).rows;
+    expect(row!.href).toBeNull();
+    expect(row).toMatchObject({ label: "usd/XRP", issued: ["usd rhub8V…F3wq"], volume: "9", bought: "5 usd" });
+    // The links of pairs that read back as themselves are unchanged, next to it.
+    const rows = pairsCard(frame, exchangesAnswer([lower, usdXrp, lionsXrp]), ctx).rows;
+    expect(rows[1]!.href).toBe(marketHref("xrpl", { currency: "XRP" }, { currency: "USD", issuer: ADDRESS_B }));
+    expect(rows[2]!.href).toBe(marketHref("xrpl", { currency: LIONS, issuer: LIONS_ISSUER }, { currency: "XRP" }));
+    // A lower-case counter, and an issuer that is no address, are not linkable either.
+    const counter = pairOf({ base_currency: LIONS, base_issuer: LIONS_ISSUER, counter_currency: "eur", counter_issuer: ADDRESS_B });
+    const invented = pairOf({ base_currency: "USD", base_issuer: "rNotAnAddress", counter_currency: "XRP" });
+    expect(pairsCard(frame, exchangesAnswer([counter, invented]), ctx).rows.map((r) => r.href)).toEqual([null, null]);
+  });
+
   it("has a dash for a side the account did not trade, in either orientation", () => {
     const none = pairOf({ base_currency: "USD", base_issuer: ADDRESS_B, counter_currency: "XRP", bought: "5", sold: "5", bought_counter: "0", sold_counter: "7", native_volume: "1" });
     const [row] = pairsCard(frame, exchangesAnswer([none]), ctx).rows;
