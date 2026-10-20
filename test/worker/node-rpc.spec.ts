@@ -709,10 +709,10 @@ describe("book_offers", () => {
 
     it("drops become whole units exactly: 1500000 is 1.5, one drop 0.000001, and a whole number has no point", async () => {
       fetchSpy.mockResolvedValueOnce(
-        success(bookResult([offerOf({ TakerGets: "1500000" }), offerOf({ TakerGets: "1" }), offerOf({ TakerGets: "2000000" }), offerOf({ TakerGets: "0" })])),
+        success(bookResult([offerOf({ TakerGets: "1500000" }), offerOf({ TakerGets: "1" }), offerOf({ TakerGets: "2000000" }), offerOf({ TakerGets: "0012000000" })])),
       );
       const book = await rpc().bookOffers(XRP, RLUSD);
-      expect(book.offers.map((offer) => offer.gets.value)).toEqual(["1.5", "0.000001", "2", "0"]);
+      expect(book.offers.map((offer) => offer.gets.value)).toEqual(["1.5", "0.000001", "2", "12"]);
     });
 
     it("converts the native side of either direction, and Xahau's native amount to XAH", async () => {
@@ -762,10 +762,14 @@ describe("book_offers", () => {
 
     it("writes an issued amount the node gives with an exponent as a plain decimal", async () => {
       fetchSpy.mockResolvedValueOnce(
-        success(bookResult([offerOf({ TakerGets: rlusd("5876901213283910e-4"), TakerPays: rlusd("1000000000000000e-30"), taker_gets_funded: rlusd("9999999999999999e-2") })])),
+        success(
+          bookResult([
+            offerOf({ TakerGets: rlusd("5876901213283910e-4"), TakerPays: issued(LIONS, "1000000000000000e-30"), taker_gets_funded: rlusd("9999999999999999e-2") }),
+          ]),
+        ),
       );
 
-      const [offer] = (await rpc().bookOffers(RLUSD, XRP)).offers;
+      const [offer] = (await rpc().bookOffers(RLUSD, LIONS)).offers;
 
       expect(offer!.gets.value).toBe("587690121328.391");
       expect(offer!.pays.value).toBe("0.000000000000001");
@@ -811,6 +815,93 @@ describe("book_offers", () => {
       expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind).toBe("server");
     });
 
+    it("a full amount of zero is a server error, because the price is the ratio of the full amounts; a funded zero is not", async () => {
+      for (const change of [
+        { TakerGets: "0" },
+        { TakerPays: rlusd("0") },
+        { TakerPays: rlusd("0.000") },
+        { TakerGets: "000" },
+      ]) {
+        fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf(change)])));
+        const error = await failureOf(rpc().bookOffers(XRP, RLUSD));
+        expect(error.kind, JSON.stringify(change)).toBe("server");
+      }
+      fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf({ taker_gets_funded: "0", taker_pays_funded: rlusd("0") })])));
+      expect((await rpc().bookOffers(XRP, RLUSD)).offers).toHaveLength(1);
+    });
+
+    it("an offer must be of the assets asked for, full and funded amounts alike", async () => {
+      const dollars = (value: string) => issued({ ...RLUSD, issuer: LIONS.issuer }, value);
+      for (const [what, change] of [
+        ["TakerGets of another currency", { TakerGets: issued(LIONS, "5") }],
+        ["TakerGets the wrong way round", { TakerGets: rlusd("5") }],
+        ["TakerPays native", { TakerPays: "5000000" }],
+        ["TakerPays of the right currency and another issuer", { TakerPays: dollars("5") }],
+        ["a funded amount of another asset", { taker_gets_funded: rlusd("1") }],
+        ["a funded amount of another issuer", { taker_pays_funded: dollars("1") }],
+      ] as const) {
+        fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf(), offerOf(change)])));
+        expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind, what).toBe("server");
+      }
+      // The same offer is right for the book the other way round, and wrong for the book it was not asked for.
+      fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf({ TakerGets: rlusd("5"), TakerPays: "2500000" })])));
+      expect((await rpc().bookOffers(RLUSD, XRP)).offers).toHaveLength(1);
+      fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf({ TakerGets: rlusd("5"), TakerPays: "2500000" })])));
+      expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind).toBe("server");
+    });
+
+    it("no more offers than were asked for", async () => {
+      const offers = (count: number) => Array.from({ length: count }, (_, at) => offerOf({ Sequence: at }));
+      fetchSpy.mockResolvedValueOnce(success(bookResult(offers(BOOK_OFFERS_LIMIT))));
+      expect((await rpc().bookOffers(XRP, RLUSD)).offers).toHaveLength(60);
+      fetchSpy.mockResolvedValueOnce(success(bookResult(offers(BOOK_OFFERS_LIMIT + 1))));
+      const error = await failureOf(rpc().bookOffers(XRP, RLUSD));
+      expect(error.kind).toBe("server");
+      expect(error.message).toContain("offers");
+    });
+
+    it("a sequence and a ledger index are whole numbers from zero", async () => {
+      for (const change of [{ Sequence: 1.5 }, { Sequence: -1 }]) {
+        fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf(change)])));
+        expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind, JSON.stringify(change)).toBe("server");
+      }
+      for (const ledger_index of [1.5, -1]) {
+        fetchSpy.mockResolvedValueOnce(success(bookResult([], { ledger_index })));
+        expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind, String(ledger_index)).toBe("server");
+      }
+      fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf({ Sequence: 0 })], { ledger_index: 0 })));
+      expect(await rpc().bookOffers(XRP, RLUSD)).toMatchObject({ ledgerIndex: 0 });
+    });
+
+    describe("an issued value is in the range rippled can write", () => {
+      it.each([
+        "1000000000000000e-96",
+        "9999999999999999e80",
+        "1e-81",
+        "5e80",
+        "0.000000000000000000000001234567890123456",
+      ])("%s is read", async (value) => {
+        fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf({ TakerPays: rlusd(value) })])));
+        expect((await rpc().bookOffers(XRP, RLUSD)).offers[0]!.pays.value).toMatch(/^\d+(\.\d+)?$/);
+      });
+
+      it.each([
+        "1e81",
+        "1e-97",
+        "1000000000000000e-97",
+        "9999999999999999e81",
+        "1e-82",
+        "9999999999999999e80000",
+        "1e999",
+        "1e9999",
+        `0.${"0".repeat(70)}1`,
+        "1".repeat(65),
+      ])("%s is a server error", async (value) => {
+        fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf({ TakerPays: rlusd(value) })])));
+        expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind).toBe("server");
+      });
+    });
+
     it("one bad offer fails the whole book", async () => {
       fetchSpy.mockResolvedValueOnce(success(bookResult([offerOf(), offerOf({ TakerGets: "x" }), offerOf()])));
       expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind).toBe("server");
@@ -829,6 +920,23 @@ describe("book_offers", () => {
         expect(error.message).toContain(code);
       },
     );
+
+    it.each(["actNotFound", "lgrNotFound", "txnNotFound"])(
+      "%s is server for a book, which has no 'not found': a node with no validated ledger is an outage, not a market that is not there",
+      async (code) => {
+        fetchSpy.mockResolvedValueOnce(failure(code, "ledgerNotFound"));
+
+        const error = await failureOf(rpc().bookOffers(XRP, RLUSD));
+
+        expect(error.kind).toBe("server");
+        expect(error.message).toContain(code);
+      },
+    );
+
+    it("a malformed account is still bad_request for a book", async () => {
+      fetchSpy.mockResolvedValueOnce(failure("actMalformed", "Account malformed."));
+      expect((await failureOf(rpc().bookOffers(XRP, RLUSD))).kind).toBe("bad_request");
+    });
 
     it("a node that is busy or unsynced is server, and slowDown rate_limited", async () => {
       fetchSpy.mockResolvedValueOnce(failure("noNetwork"));
@@ -955,10 +1063,16 @@ describe("book_offers", () => {
         await failureOf(node.ammInfoByPair(XRP, heldAsset("HL4"), { holdFailure: true }));
         expect(fetchSpy).toHaveBeenCalledTimes(2);
 
+        // A node with no validated ledger yet is an outage and is held, where "no such pool" is an answer.
+        fetchSpy.mockImplementation(async () => failure("lgrNotFound", "ledgerNotFound"));
+        await failureOf(node.ammInfoByPair(XRP, heldAsset("HL6"), { holdFailure: true }));
+        await failureOf(node.ammInfoByPair(XRP, heldAsset("HL6"), { holdFailure: true }));
+        expect(fetchSpy).toHaveBeenCalledTimes(3);
+
         fetchSpy.mockImplementation(async () => failure("actNotFound", "Account not found."));
         expect((await failureOf(node.ammInfoByPair(XRP, heldAsset("HL5"), { holdFailure: true }))).kind).toBe("not_found");
         expect((await failureOf(node.ammInfoByPair(XRP, heldAsset("HL5"), { holdFailure: true }))).kind).toBe("not_found");
-        expect(fetchSpy).toHaveBeenCalledTimes(4);
+        expect(fetchSpy).toHaveBeenCalledTimes(5);
       });
     });
   });
@@ -1263,9 +1377,44 @@ describe("amm_info", () => {
       ["an asset_frozen that is not true or false", () => ammChanged((amm) => (amm.asset_frozen = "no"))],
       ["no ledger_index", () => ammResult(ammBlock(), { ledger_index: undefined })],
       ["a ledger_index that is text", () => ammResult(ammBlock(), { ledger_index: "107779805" })],
+      ["a ledger_index that is not whole", () => ammResult(ammBlock(), { ledger_index: 1.5 })],
+      ["a ledger_index below zero", () => ammResult(ammBlock(), { ledger_index: -1 })],
+      ["an lp_token of another issuer than the pool", () => ammChanged((amm) => (amm.lp_token = { ...LP_TOKEN, issuer: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh" }))],
+      ["an lp_token with no issuer", () => ammChanged((amm) => (amm.lp_token = { currency: LP_TOKEN.currency, value: "1" }))],
+      ["nine vote slots, where there are at most eight", () => ammChanged((amm) => (amm.vote_slots = Array.from({ length: 9 }, () => amm.vote_slots[0])))],
+      ["five authorised accounts, where there are at most four", () => ammChanged((amm) => (amm.auction_slot.auth_accounts = Array.from({ length: 5 }, () => amm.auction_slot.auth_accounts[0])))],
+      ["a value beyond the range of an amount", () => ammChanged((amm) => (amm.amount2 = rlusd("1e81")))],
+      ["a price beyond the range of an amount", () => ammChanged((amm) => (amm.auction_slot.price = { ...LP_TOKEN, value: "1e-97" }))],
     ])("%s is a server error", async (_what, make) => {
       fetchSpy.mockResolvedValueOnce(success(make()));
       expect((await failureOf(rpc().ammInfo(POOL))).kind).toBe("server");
+    });
+
+    it("the most vote slots and authorised accounts there can be are fine", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        success(
+          ammChanged((amm) => {
+            amm.vote_slots = Array.from({ length: 8 }, (_, at) => ({ account: `rVote${at}`, trading_fee: 100 + at, vote_weight: 12_500 }));
+            amm.auction_slot.auth_accounts = Array.from({ length: 4 }, (_, at) => ({ account: `rAuth${at}` }));
+          }),
+        ),
+      );
+      const pool = await rpc().ammInfo(POOL);
+      expect(pool.vote_slots).toHaveLength(8);
+      expect(pool.auction_slot!.auth_accounts).toEqual(["rAuth0", "rAuth1", "rAuth2", "rAuth3"]);
+    });
+
+    it("says what is wrong without repeating a node's text in full", async () => {
+      const long = `r${"x".repeat(5000)}`;
+      fetchSpy.mockResolvedValueOnce(success(ammChanged((amm) => (amm.account = long))));
+      const error = await failureOf(rpc().ammInfo(POOL));
+      expect(error.kind).toBe("server");
+      expect(error.message.length).toBeLessThan(500);
+
+      fetchSpy.mockResolvedValueOnce(success(ammChanged((amm) => (amm.lp_token = { ...LP_TOKEN, issuer: long }))));
+      const lp = await failureOf(rpc().ammInfo(POOL));
+      expect(lp.kind).toBe("server");
+      expect(lp.message.length).toBeLessThan(500);
     });
   });
 
@@ -1278,6 +1427,32 @@ describe("amm_info", () => {
 
       fetchSpy.mockResolvedValueOnce(failure(code, "Account not found."));
       expect((await failureOf(rpc().ammInfoByPair(XRP, LIONS))).kind).toBe("not_found");
+    });
+
+    it.each(["lgrNotFound", "txnNotFound"])(
+      "%s is server for a pool in both forms: a node with no validated ledger yet does not say 'no pool', which a page would store",
+      async (code) => {
+        fetchSpy.mockResolvedValueOnce(failure(code, "ledgerNotFound"));
+        const byPool = await failureOf(rpc().ammInfo(POOL));
+        expect(byPool.kind).toBe("server");
+        expect(byPool.message).toContain(code);
+
+        fetchSpy.mockResolvedValueOnce(failure(code, "ledgerNotFound"));
+        expect((await failureOf(rpc().ammInfoByPair(XRP, RLUSD))).kind).toBe("server");
+      },
+    );
+
+    it("the older calls read the three not-found codes as before", async () => {
+      for (const [code, call] of [
+        ["lgrNotFound", () => rpc().tx(TX_HASH)],
+        ["txnNotFound", () => rpc().ledger("107695660")],
+        ["lgrNotFound", () => rpc().accountInfo(ACCOUNT)],
+        ["txnNotFound", () => rpc().accountObjects(ACCOUNT)],
+        ["actNotFound", () => rpc().tx(TX_HASH)],
+      ] as const) {
+        fetchSpy.mockResolvedValueOnce(failure(code));
+        expect((await failureOf(call())).kind, code).toBe("not_found");
+      }
     });
 
     it("the node's malformed-request codes are bad_request, and the rest as for every call", async () => {

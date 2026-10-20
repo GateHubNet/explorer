@@ -4,8 +4,9 @@
 // Worker-only code.
 //
 // Every call is limited to 3 s (answer included). The node's failures arrive as `result.status: "error"`
-// with HTTP 200; they become `UpstreamError`s, `actNotFound`, `txnNotFound` and `lgrNotFound` as `not_found`
-// (`amm_info` adds `actMalformed`, see `AMM_NOT_FOUND`).
+// with HTTP 200; they become `UpstreamError`s, `actNotFound`, `txnNotFound` and `lgrNotFound` as `not_found`. A call may
+// give a list of its own that replaces that one: `amm_info` reads `actNotFound` and `actMalformed` as `not_found` and nothing
+// else (a node with no validated ledger yet is an outage, not "no such pool"), and `book_offers` none (a book has no "not found").
 //
 // Times: the node counts seconds from 2000-01-01 (the Ripple epoch). This client converts every such time it
 // returns (`date` of a transaction, `close_time` and `parent_close_time` of a ledger, `close_time` of the
@@ -228,11 +229,15 @@ export interface NodeRpc {
   serverState(): Promise<ServerState>;
   /**
    * The best offers of the book where `gets` is what the offers' owners give and `pays` what they want (`taker_gets`, `taker_pays`), on the
-   * newest validated ledger. An empty book is an answer. Class `live`. A native asset is the network's own (`{ currency: "XRP" }` on the
+   * newest validated ledger. An empty book is an answer, and a book is never `not_found`: whatever the node says of a ledger it cannot read
+   * is an outage (`server`). Every offer is of the two assets asked for, and neither of its full amounts is zero. Class `live`. A native asset is the network's own (`{ currency: "XRP" }` on the
    * XRP Ledger, `XAH` on Xahau); any other without an issuer is `bad_request` without a call.
    */
   bookOffers(gets: Asset, pays: Asset, opts?: NodeCallOptions): Promise<Book>;
-  /** An AMM pool by its account, on the newest validated ledger. `not_found` for an account that is no pool. Class `live`. */
+  /**
+   * An AMM pool by its account, on the newest validated ledger. `not_found` for an account that is no pool (`actNotFound`, `actMalformed`) and for
+   * nothing else: a node with no validated ledger yet is `server`. Class `live`.
+   */
   ammInfo(pool: string, opts?: NodeCallOptions): Promise<AmmInfo>;
   /** An AMM pool by its two assets, on the newest validated ledger; `amount` and `amount2` come in the order asked. `not_found` for a pair with no pool. Class `live`. */
   ammInfoByPair(asset: Asset, asset2: Asset, opts?: NodeCallOptions): Promise<AmmInfo>;
@@ -291,20 +296,30 @@ const MALFORMED_REQUEST = [
   "issueMalformed",
 ];
 
+/** The codes the calls about an account, a transaction or a ledger read as `not_found`. */
+const LEGACY_NOT_FOUND: readonly string[] = ["actNotFound", "txnNotFound", "lgrNotFound"];
+
 /**
  * The codes `amm_info` answers with when there is no such pool: `actNotFound` (the account is not a pool, or the pair has none) and
  * `actMalformed` (an address that holds no account, such as a deleted pool's). Both are `not_found` for it, where `actMalformed` is a
- * `bad_request` for a call about an account: the Worker has checked the address or the pair, so both mean "no such pool".
+ * `bad_request` for a call about an account: the Worker has checked the address or the pair, so both mean "no such pool". They are its
+ * whole list: `lgrNotFound` (the node has no validated ledger yet) is an outage for it, not an answer a page stores as "no pool".
  */
-const AMM_NOT_FOUND = ["actNotFound", "actMalformed"] as const;
+const AMM_NOT_FOUND: readonly string[] = ["actNotFound", "actMalformed"];
 
-/** The `result` of a failed call as an UpstreamError. `notFound`: the codes this call reads as `not_found`, besides the ones every call does. */
-function errorOf(what: string, result: Json, notFound: readonly string[] = []): UpstreamError {
+/** `book_offers` has no "not found": an empty book is an answer, and a node that cannot read the ledger is an outage. */
+const BOOK_NOT_FOUND: readonly string[] = [];
+
+/**
+ * The `result` of a failed call as an UpstreamError. `notFound`: the codes this call reads as `not_found`; the list of a call replaces
+ * `LEGACY_NOT_FOUND`, which a call that gives none keeps.
+ */
+function errorOf(what: string, result: Json, notFound: readonly string[] = LEGACY_NOT_FOUND): UpstreamError {
   const code = typeof result.error === "string" ? result.error : "unknown";
   const message = typeof result.error_message === "string" && result.error_message ? ` (${clip(result.error_message)})` : "";
   const text = `${what} failed with ${code}${message}`;
 
-  if (code === "actNotFound" || code === "txnNotFound" || code === "lgrNotFound" || notFound.includes(code)) {
+  if (notFound.includes(code)) {
     return new UpstreamError("not_found", text, { status: 200 });
   }
   if (MALFORMED_REQUEST.includes(code)) return new UpstreamError("bad_request", text, { status: 200 });
@@ -427,7 +442,16 @@ function toServerState(what: string, result: Json): ServerState {
 /** Drops: a whole number. */
 const DROPS = /^\d+$/;
 /** A non-negative decimal as the node writes an issued amount, with the exponent of a very large or small one ("1000000000000000e-4"). */
-const AMOUNT_VALUE = /^\d+(?:\.\d+)?(?:[eE][+-]?\d{1,3})?$/;
+const AMOUNT_VALUE = /^\d+(?:\.\d+)?(?:[eE]([+-]?\d{1,3}))?$/;
+/**
+ * What rippled can write as an issued amount: a mantissa of 16 digits and an exponent from -96 to 80, so zero or a value from 1e-81 to
+ * 9999999999999999e80. The longest plain decimal it writes is under 45 characters (the exponent form is used outside -25 to -5).
+ */
+const SMALLEST_VALUE = new BigNumber("1e-81");
+const LARGEST_VALUE = new BigNumber("9999999999999999e80");
+const MIN_EXPONENT = -96;
+const MAX_EXPONENT = 80;
+const MAX_VALUE_TEXT = 64;
 
 /**
  * An amount of the node: drops text (native, `native` its code) or an object `{ currency, issuer, value }` (issued), as a `NodeAmount`.
@@ -443,13 +467,14 @@ function readAmount(what: string, name: string, raw: unknown, native: string | n
   if (typeof currency !== "string" || currency === "" || typeof issuer !== "string" || issuer === "") {
     throw malformed(what, `"${name}" is an amount without a currency or an issuer`);
   }
-  if (typeof value !== "string" || !AMOUNT_VALUE.test(value)) throw malformed(what, `"${name}" has a value that is not a number`);
-  return { currency, issuer, value: new BigNumber(value).toFixed() };
-}
-
-/** An optional amount: absent is `undefined`, anything else must be an amount. */
-function readOptionalAmount(what: string, name: string, raw: unknown, native: string | null): NodeAmount | undefined {
-  return raw === undefined ? undefined : readAmount(what, name, raw, native);
+  const match = typeof value === "string" && value.length <= MAX_VALUE_TEXT ? AMOUNT_VALUE.exec(value) : null;
+  if (match === null) throw malformed(what, `"${name}" has a value that is not a number`);
+  const exponent = match[1] === undefined ? 0 : Number(match[1]);
+  const number = new BigNumber(value as string);
+  if (exponent < MIN_EXPONENT || exponent > MAX_EXPONENT || (!number.isZero() && (number.lt(SMALLEST_VALUE) || number.gt(LARGEST_VALUE)))) {
+    throw malformed(what, `"${name}" has a value outside the range of an amount`);
+  }
+  return { currency, issuer, value: number.toFixed() };
 }
 
 function integerField(what: string, from: Json, key: string, min: number, max = Number.MAX_SAFE_INTEGER): number {
@@ -460,31 +485,53 @@ function integerField(what: string, from: Json, key: string, min: number, max = 
   return value;
 }
 
-function toOffer(what: string, native: string, entry: unknown): BookOffer {
+/** An amount of the asset it must be of: the book asked for it, so an offer of another asset is not of this book. */
+function readAmountOf(what: string, name: string, raw: unknown, native: string, asset: Asset): NodeAmount {
+  const amount = readAmount(what, name, raw, native);
+  if (!sameAsset(amount, asset)) throw malformed(what, `"${name}" is not of the asset the book was asked for`);
+  return amount;
+}
+
+function toOffer(what: string, native: string, asked: BookAsked, entry: unknown): BookOffer {
   if (!isObject(entry)) throw malformed(what, "an offer that is not an object");
+  const [getsAsset, paysAsset] = asked;
   const offer: BookOffer = {
     account: textField(what, entry, "Account"),
-    sequence: numberField(what, entry, "Sequence"),
-    gets: readAmount(what, "TakerGets", entry.TakerGets, native),
-    pays: readAmount(what, "TakerPays", entry.TakerPays, native),
+    sequence: integerField(what, entry, "Sequence", 0),
+    gets: readAmountOf(what, "TakerGets", entry.TakerGets, native, getsAsset),
+    pays: readAmountOf(what, "TakerPays", entry.TakerPays, native, paysAsset),
   };
-  const getsFunded = readOptionalAmount(what, "taker_gets_funded", entry.taker_gets_funded, native);
-  const paysFunded = readOptionalAmount(what, "taker_pays_funded", entry.taker_pays_funded, native);
-  if (getsFunded) offer.getsFunded = getsFunded;
-  if (paysFunded) offer.paysFunded = paysFunded;
+  // The price is the ratio of the full amounts, which a page divides: neither is zero. (A funded amount is, for an offer nothing funds.)
+  if (new BigNumber(offer.gets.value).isZero() || new BigNumber(offer.pays.value).isZero()) {
+    throw malformed(what, "an offer of nothing");
+  }
+  if (entry.taker_gets_funded !== undefined) {
+    offer.getsFunded = readAmountOf(what, "taker_gets_funded", entry.taker_gets_funded, native, getsAsset);
+  }
+  if (entry.taker_pays_funded !== undefined) {
+    offer.paysFunded = readAmountOf(what, "taker_pays_funded", entry.taker_pays_funded, native, paysAsset);
+  }
   return offer;
 }
+
+/** The assets a book was asked for: what the offers' owners give, then what they want. */
+type BookAsked = readonly [gets: Asset, pays: Asset];
 
 /**
  * The offers are trimmed here, before the cache keeps them. `validated` may be absent (Clio's `book_offers` for `ledger_index: "validated"`
  * has none, and it serves validated data only) but never anything else than `true`: the explorer shows validated books only. A book has no
- * "not found": an empty one is an answer, and a bad offer fails the whole book, which is never shown in half.
+ * "not found": an empty one is an answer, and a bad offer (one of other assets than asked for, one of nothing, or more offers than asked
+ * for) fails the whole book, which is never shown in half.
  */
-function toBook(what: string, native: string, result: Json): Book {
+function toBook(what: string, native: string, asked: BookAsked, result: Json): Book {
   if (result.validated !== undefined && result.validated !== true) throw malformed(what, "the book is not from a validated ledger");
   const offers = result.offers;
   if (!Array.isArray(offers)) throw malformed(what, 'no "offers" list');
-  return { ledgerIndex: numberField(what, result, "ledger_index"), offers: offers.map((entry: unknown) => toOffer(what, native, entry)) };
+  if (offers.length > BOOK_OFFERS_LIMIT) throw malformed(what, `${offers.length} offers where ${BOOK_OFFERS_LIMIT} were asked for`);
+  return {
+    ledgerIndex: integerField(what, result, "ledger_index", 0),
+    offers: offers.map((entry: unknown) => toOffer(what, native, asked, entry)),
+  };
 }
 
 const ISO_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}(?::?\d{2})?)$/;
@@ -516,6 +563,10 @@ function isoSeconds(text: string): number | undefined {
   return date.getTime() / 1000 - offset;
 }
 
+/** The most votes and the most authorised accounts a pool has (XLS-30, rippled's AMMCore.h: `VOTE_MAX_SLOTS` and `AUCTION_SLOT_MAX_AUTH_ACCOUNTS`). */
+const MAX_VOTE_SLOTS = 8;
+const MAX_AUTH_ACCOUNTS = 4;
+
 /** What a reader of `amm_info` is told was asked, to check the answer is for it. */
 type AmmAsked = { pool: string } | { assets: readonly [Asset, Asset] };
 
@@ -525,6 +576,9 @@ function toAuctionSlot(what: string, slot: Json): NonNullable<AmmInfo["auction_s
 
   const accounts = slot.auth_accounts;
   if (accounts !== undefined && !Array.isArray(accounts)) throw malformed(what, 'the auction slot\'s "auth_accounts" is not a list');
+  if (accounts !== undefined && accounts.length > MAX_AUTH_ACCOUNTS) {
+    throw malformed(what, `${accounts.length} authorised accounts where a slot has at most ${MAX_AUTH_ACCOUNTS}`);
+  }
   const expiration = isoSeconds(textField(what, slot, "expiration"));
   if (expiration === undefined) throw malformed(what, 'the auction slot\'s "expiration" is not an ISO 8601 time');
 
@@ -554,7 +608,7 @@ function toAmmInfo(what: string, native: string, asked: AmmAsked, result: Json):
   const amount = readAmount(what, "amount", amm.amount, native);
   const amount2 = readAmount(what, "amount2", amm.amount2, native);
   if ("pool" in asked) {
-    if (account !== asked.pool) throw malformed(what, `"account" is ${account}, not the pool asked for`);
+    if (account !== asked.pool) throw malformed(what, `"account" is ${clip(account)}, not the pool asked for`);
   } else {
     const [first, second] = asked.assets;
     const asAsked = sameAsset(amount, first) && sameAsset(amount2, second);
@@ -568,6 +622,12 @@ function toAmmInfo(what: string, native: string, asked: AmmAsked, result: Json):
 
   const voteSlots = amm.vote_slots;
   if (voteSlots !== undefined && !Array.isArray(voteSlots)) throw malformed(what, '"vote_slots" is not a list');
+  if (voteSlots !== undefined && voteSlots.length > MAX_VOTE_SLOTS) {
+    throw malformed(what, `${voteSlots.length} vote slots where a pool has at most ${MAX_VOTE_SLOTS}`);
+  }
+  // The pool's LP token is issued by the pool: the reserves' share of it is what a pool page works out.
+  const lpToken = readAmount(what, "lp_token", amm.lp_token, null);
+  if (lpToken.issuer !== account) throw malformed(what, `"lp_token" is issued by ${clip(lpToken.issuer ?? "")}, not by the pool`);
   const slot = amm.auction_slot;
   if (slot !== undefined && !isObject(slot)) throw malformed(what, '"auction_slot" is not an object');
 
@@ -577,7 +637,7 @@ function toAmmInfo(what: string, native: string, asked: AmmAsked, result: Json):
     amount2,
     ...(amm.asset_frozen !== undefined && { asset_frozen: amm.asset_frozen as boolean }),
     ...(amm.asset2_frozen !== undefined && { asset2_frozen: amm.asset2_frozen as boolean }),
-    lp_token: readAmount(what, "lp_token", amm.lp_token, null),
+    lp_token: lpToken,
     trading_fee: integerField(what, amm, "trading_fee", 0, 1000),
     vote_slots: ((voteSlots ?? []) as unknown[]).map((entry) => {
       if (!isObject(entry)) throw malformed(what, "a vote slot that is not an object");
@@ -588,7 +648,7 @@ function toAmmInfo(what: string, native: string, asked: AmmAsked, result: Json):
       };
     }),
     ...(slot !== undefined && { auction_slot: toAuctionSlot(what, slot as Json) }),
-    ledger_index: numberField(what, result, "ledger_index"),
+    ledger_index: integerField(what, result, "ledger_index", 0),
   };
 }
 
@@ -667,7 +727,7 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
     return { currency: net.native };
   }
 
-  const readBook = (what: string, result: Json) => toBook(what, net.native, result);
+  const readBook = (asked: BookAsked) => (what: string, result: Json) => toBook(what, net.native, asked, result);
   const readAmm = (asked: AmmAsked) => (what: string, result: Json) => toAmmInfo(what, net.native, asked, result);
 
   return {
@@ -702,9 +762,9 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
         "book_offers",
         { taker_gets: assetParam(gets), taker_pays: assetParam(pays), ledger_index: "validated", limit: BOOK_OFFERS_LIMIT },
         "live",
-        readBook,
+        readBook([gets, pays]),
         undefined,
-        opts,
+        { ...opts, notFound: BOOK_NOT_FOUND },
       ),
     ammInfo: async (pool, opts) =>
       call(

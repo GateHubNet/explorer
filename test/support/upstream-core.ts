@@ -176,7 +176,7 @@ export function nodeKeys(method: string, params: NodeParams): string[] {
 function nodeRest(method: string, params: NodeParams): string {
   const subjectNames = new Set(SUBJECT_PARAMS[method] ?? []);
   // A request whose subject is its two assets has them in its file name already.
-  if (!subjectNames.size || ![...subjectNames].some((name) => params[name] !== undefined)) {
+  if (![...subjectNames].some((name) => params[name] !== undefined)) {
     if (pairSubject(method, params) !== undefined) for (const name of PAIR_PARAMS[method]!) subjectNames.add(name);
   }
   const rest: NodeParams = {};
