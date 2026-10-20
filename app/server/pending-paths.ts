@@ -12,4 +12,15 @@ export const PENDING_PATHS = {
    * `7d495ab`). Without D2 the API answers `Cannot GET`, which the client reads as an outage (`throwUnlessOk`), never as a missing market.
    */
   networkMarkets: "/v2/network/markets",
+  /**
+   * D1's six routes, validators and amendments (data-api-new `feat/explorer-data`, pinned at `7d495ab`; the path parameters are named as its `openapi.yaml`
+   * names them, `key` and `name`). Without D1 the API answers `Cannot GET`, which the client reads as an outage (`throwUnlessOk`), never as a missing validator
+   * or amendment: those answer `Validator not found` and `amendment not found`.
+   */
+  validatorsSummary: "/v2/network/validators/summary",
+  validators: "/v2/network/validators",
+  validator: "/v2/network/validators/{key}",
+  validatorValidations: "/v2/network/validators/{key}/validations",
+  amendments: "/v2/network/amendments",
+  amendment: "/v2/network/amendments/{name}",
 } as const;

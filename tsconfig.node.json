@@ -19,6 +19,7 @@
     "app/server/tx-shape.ts",
     "app/server/upstream.ts",
     "app/ui/features.ts",
+    "app/domain/amendments-params.ts",
     "app/domain/asset.ts",
     "app/domain/market-pair.ts",
     "app/domain/market-params.ts",

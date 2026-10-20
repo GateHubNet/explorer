@@ -6,6 +6,7 @@
 
 import { apiAssetText, type Asset } from "../domain/asset";
 import type { CandleApiInterval } from "../domain/market-params";
+import type { ValidatorScope } from "../domain/validators-params";
 import {
   checkActiveAccounts,
   checkCandles,
@@ -22,6 +23,8 @@ import type {
   AccountData,
   AccountExchange,
   ActiveAccounts,
+  AmendmentDetail,
+  AmendmentsList,
   AmmFilter,
   AmmVolumeComponent,
   BalancesResponse,
@@ -46,9 +49,13 @@ import type {
   TxBinary,
   TxObject,
   TxStoredJson,
+  ValidatorDetail,
+  ValidatorsList,
+  ValidatorsSummary,
+  ValidatorValidationsPage,
   VolumeRow,
 } from "./api-types";
-import { MARKER_PAGE_CLASS, type CacheClass, type SubrequestCache } from "./cache-class";
+import { MARKER_PAGE_CLASS, VALIDATIONS_MARKER_TTL_SECONDS, type CacheClass, type SubrequestCache } from "./cache-class";
 import type { Env } from "./env";
 import { isMarker } from "./marker";
 import type { Network } from "./networks";
@@ -56,6 +63,14 @@ import type { paths } from "./openapi";
 import { PENDING_PATHS } from "./pending-paths";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
 import { clip, DATA_API_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
+import {
+  checkAmendmentDetail,
+  checkAmendments,
+  checkValidatorDetail,
+  checkValidatorsList,
+  checkValidatorsSummary,
+  checkValidatorValidations,
+} from "./validators-shape";
 
 export { UpstreamError } from "./upstream";
 export type { UpstreamErrorKind } from "./upstream";
@@ -247,6 +262,32 @@ export interface DataApi {
    * `amm` (a data API that ignored the parameter) is kind `server` too: its rows are the unfiltered ones.
    */
   networkMarkets(q: { period: "day" | "7day" | "30day"; limit: number; amm?: AmmFilter }, opts?: FreshOptions): Promise<MarketsResponse>;
+
+  // D1 (data-api-new `feat/explorer-data`, pinned at `7d495ab`): the validators and amendments pages. Only a data API that has merged D1 has the routes (`PENDING_PATHS`):
+  // without it each call fails with the missing-route outage (kind `server`), held when the call asks and never stored; the routes' own "Validator not found" and
+  // "amendment not found" stay `not_found`. Every answer is checked inside the load (validators-shape.ts), and one that is not what the reference promises is kind `server` too.
+  // The pages ask for `{ ttl }` (VALIDATORS_CALL_TTL_SECONDS, VALIDATIONS_CALL_TTL_SECONDS) and, on a polled page, `holdFailure`: each has a cache entry of its own.
+  /** The network overview of the Validators board: counts, the trusted UNL and its publishers, the quorum, the negative UNL, fees, the next flag ledger, versions. Class `live`; the pages ask for `{ ttl: VALIDATORS_CALL_TTL_SECONDS }`. */
+  validatorsSummary(opts?: FreshOptions): Promise<ValidatorsSummary>;
+  /**
+   * The validators of the trusted UNL (`unl`), or of the UNL and every validator seen in 24 hours (`all`), at most `limit` (D1's maximum is 1000), domain-first. The query is
+   * `?limit=…&scope=…`; the `marker` of a longer list is not followed. Class `live`; the pages ask for `{ ttl: VALIDATORS_CALL_TTL_SECONDS }`.
+   */
+  validators(q: { scope: ValidatorScope; limit: number }, opts?: FreshOptions): Promise<ValidatorsList>;
+  /**
+   * One validator by its master key, its signing key or 66 hex digits (the answer's `validation_public_key` is the master). Class `live`; the pages ask for
+   * `{ ttl: VALIDATORS_CALL_TTL_SECONDS }`. `Validator not found` is `not_found`; D1's 400 `invalid validator public key` is `bad_request`.
+   */
+  validator(key: string, opts?: FreshOptions): Promise<ValidatorDetail>;
+  /**
+   * A validator's validations of the last 7 days, newest first, `limit` of them after `marker`. Class `live`; the page asks for `{ ttl: VALIDATIONS_CALL_TTL_SECONDS }`. A page after a marker
+   * is old rows: class `slow` and kept `VALIDATIONS_MARKER_TTL_SECONDS` whatever `opts.ttl` says (the failure hold goes on). The query is `?limit=…&marker=…`.
+   */
+  validatorValidations(key: string, q: { limit: number; marker?: string }, opts?: FreshOptions): Promise<ValidatorValidationsPage>;
+  /** Every amendment the network knows, with the rules, the newest round and the next flag ledger (D1's G3). Class `minute`, with no TTL constant of its own. */
+  amendments(opts?: FreshOptions): Promise<AmendmentsList>;
+  /** One amendment by its name or its 64-digit ID, with the envelope of the list, how the validators vote on it, its rounds and its history. Class `minute`. `amendment not found` is `not_found`. */
+  amendment(ref: string, opts?: FreshOptions): Promise<AmendmentDetail>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -342,15 +383,16 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   /**
    * One cached GET. `template` is a value of `PATHS` or of `PENDING_PATHS`, `params` fill its `{name}`s. With `unwrap`, the part
    * of the answer under that key is what is returned (and cached), otherwise the whole answer. `finish` shapes (or checks) what
-   * is returned, the unwrapped part or the whole answer, before it is cached. `ttl` and `holdFailure` are the cache's options
-   * (cache-class.ts): `ttl` is part of the key, `holdFailure` is not.
+   * is returned, the unwrapped part or the whole answer, before it is cached; it is given the request's path and query too, for a check
+   * to name the request in its message. `ttl` and `holdFailure` are the cache's options (cache-class.ts): `ttl` is part of the key,
+   * `holdFailure` is not.
    */
   async function get<T>(
     template: Template,
     params: Record<string, string>,
     query: Query,
     cls: CacheClass,
-    { unwrap, finish, ttl, holdFailure }: { unwrap?: string; finish?: (value: T) => T; ttl?: number; holdFailure?: boolean } = {},
+    { unwrap, finish, ttl, holdFailure }: { unwrap?: string; finish?: (value: T, path: string) => T; ttl?: number; holdFailure?: boolean } = {},
   ): Promise<T> {
     const path = template.replace(/\{(\w+)\}/g, (_match, name: string) => segment(name, params[name] ?? ""));
     const search = new URLSearchParams();
@@ -367,12 +409,12 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       cls,
       async () => {
         const body = await fetchJson(url);
-        if (unwrap === undefined) return finish ? finish(body as T) : (body as T);
+        if (unwrap === undefined) return finish ? finish(body as T, url) : (body as T);
         const part = typeof body === "object" && body !== null ? (body as Record<string, unknown>)[unwrap] : undefined;
         if (part === undefined || part === null) {
           throw new UpstreamError("server", `data API GET ${url} answered without "${unwrap}"`, { status: 200 });
         }
-        return finish ? finish(part as T) : (part as T);
+        return finish ? finish(part as T, url) : (part as T);
       },
       ttl,
       { holdFailure },
@@ -566,5 +608,18 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         ...fresh(opts),
         finish: (body) => checkMarkets(body, q.amm),
       }),
+    // D1's six calls. A query is written in the order `limit`, `marker`, `scope`. A validator is addressed by `key` and an amendment by `name`, as D1's openapi.yaml names them.
+    validatorsSummary: (opts) => get<ValidatorsSummary>(PENDING_PATHS.validatorsSummary, {}, {}, "live", { ...fresh(opts), finish: checkValidatorsSummary }),
+    validators: (q, opts) => get<ValidatorsList>(PENDING_PATHS.validators, {}, { limit: q.limit, scope: q.scope }, "live", { ...fresh(opts), finish: checkValidatorsList }),
+    validator: (key, opts) => get<ValidatorDetail>(PENDING_PATHS.validator, { key }, {}, "live", { ...fresh(opts), finish: checkValidatorDetail }),
+    validatorValidations: (key, q, opts) =>
+      get<ValidatorValidationsPage>(PENDING_PATHS.validatorValidations, { key }, { limit: q.limit, marker: q.marker || undefined }, q.marker ? "slow" : "live", {
+        // A page after a marker is old rows, read from a call kept as long as D1 says (`max-age=300`): the caller's TTL (the newest rows') does not apply to it.
+        ttl: q.marker ? VALIDATIONS_MARKER_TTL_SECONDS : opts?.ttl,
+        holdFailure: opts?.holdFailure,
+        finish: checkValidatorValidations,
+      }),
+    amendments: (opts) => get<AmendmentsList>(PENDING_PATHS.amendments, {}, {}, "minute", { ...fresh(opts), finish: checkAmendments }),
+    amendment: (ref, opts) => get<AmendmentDetail>(PENDING_PATHS.amendment, { name: ref }, {}, "minute", { ...fresh(opts), finish: checkAmendmentDetail }),
   };
 }

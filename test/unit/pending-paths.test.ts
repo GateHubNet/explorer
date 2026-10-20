@@ -36,4 +36,22 @@ describe("PENDING_PATHS", () => {
   it("has the markets route, which only a data API that has merged D2 (`feat/explorer-data`) has", () => {
     expect(PENDING_PATHS.networkMarkets).toBe("/v2/network/markets");
   });
+
+  it("has the six routes of D1 (`feat/explorer-data`, pinned at 7d495ab), with the path parameter names of its openapi.yaml: `key` and `name`", () => {
+    expect({
+      validatorsSummary: PENDING_PATHS.validatorsSummary,
+      validators: PENDING_PATHS.validators,
+      validator: PENDING_PATHS.validator,
+      validatorValidations: PENDING_PATHS.validatorValidations,
+      amendments: PENDING_PATHS.amendments,
+      amendment: PENDING_PATHS.amendment,
+    }).toEqual({
+      validatorsSummary: "/v2/network/validators/summary",
+      validators: "/v2/network/validators",
+      validator: "/v2/network/validators/{key}",
+      validatorValidations: "/v2/network/validators/{key}/validations",
+      amendments: "/v2/network/amendments",
+      amendment: "/v2/network/amendments/{name}",
+    });
+  });
 });

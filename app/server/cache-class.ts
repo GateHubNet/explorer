@@ -61,6 +61,21 @@ export const HOME_CALL_TTL_SECONDS = 2;
 export const PERIOD_CALL_TTL_SECONDS = 300;
 
 /**
+ * How long the validators pages keep the calls to D1 (`feat/explorer-data`) in the subrequest cache (validators spec 2.1). The loaders ask for them as
+ * `{ ttl }`, so each has a cache entry of its own (the key says `[kept N s]`), and the class is the call's own.
+ *
+ * `VALIDATORS_CALL_TTL_SECONDS`: the summary, the list and one validator (class `live`). D1 builds its directory at most every 10 s and says `max-age=30`:
+ * keeping them for less buys nothing, for more holds back the counts, the negative UNL and the next flag ledger.
+ * `VALIDATIONS_CALL_TTL_SECONDS`: a validator's newest validations (class `live`). D1 reads them per request (`max-age=5`) and a row comes every ledger.
+ * `VALIDATIONS_MARKER_TTL_SECONDS`: a page of older validations, reached with a marker (class `slow`, which would keep it an hour). Old rows change only when
+ * `validated: "unknown"` becomes `matches`, and D1 says `max-age=300`. `validatorValidations` applies it itself and ignores the caller's TTL.
+ * The amendment calls take `minute` as it is and need no constant.
+ */
+export const VALIDATORS_CALL_TTL_SECONDS = 10;
+export const VALIDATIONS_CALL_TTL_SECONDS = 2;
+export const VALIDATIONS_MARKER_TTL_SECONDS = 300;
+
+/**
  * The class of a list page reached with a marker, and of the account page that shows it. A DELIBERATE DEVIATION from spec 2, which has
  * these pages `immutable` ("markers are stable under new data"), and the owner is to confirm it.
  *
