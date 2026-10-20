@@ -418,6 +418,61 @@ describe("accountHeader", () => {
     const json = JSON.stringify(accountHeader(input()).header);
     for (const word of ["LedgerEntryType", "PreviousTxnID", "HighLimit", "AccountRoot"]) expect(json).not.toContain(word);
   });
+
+  it("needs the objects and the balances for a header with its holdings, as it has by default", () => {
+    const { objects: _objects, ...withoutObjects } = input();
+    const { balances: _balances, ...withoutBalances } = input();
+    expect(() => accountHeader(withoutObjects)).toThrow(/objects/);
+    expect(() => accountHeader(withoutBalances, { holdings: true })).toThrow(/balances/);
+  });
+
+  describe("without its holdings (the analytics view, spec 2.1)", () => {
+    /** The header's input with neither the node's objects nor the index's balances: the view asks for neither. */
+    const bare = (over: Partial<Parameters<typeof accountHeader>[0]> = {}) => {
+      const { objects: _objects, balances: _balances, ...rest } = input(over);
+      return rest;
+    };
+
+    it("has no owned objects and no tokens, and says nothing is missing", () => {
+      const { header, problems } = accountHeader(bare(), { holdings: false });
+      expect(problems).toEqual([]);
+      expect(header.owned).toBeNull();
+      expect(header.tokens).toEqual({ state: "none" });
+      expect(header.nodeProblem).toBe(false);
+    });
+
+    it("keeps the rest of the header: the activation, the live state and the balance with its reserve", () => {
+      const full = accountHeader(input()).header;
+      const { header } = accountHeader(bare(), { holdings: false });
+      expect(header.status).toBe("active");
+      expect(header.activation).toEqual(full.activation);
+      expect(header.live).toEqual(full.live);
+      expect(header.balance).toEqual(full.balance);
+    });
+
+    it("reads neither the objects nor the balances when they are given", () => {
+      const { header, problems } = accountHeader(input({ objects: FAILED, balances: FAILED }), { holdings: false });
+      expect(problems).toEqual([]);
+      expect(header.owned).toBeNull();
+      expect(header.tokens).toEqual({ state: "none" });
+    });
+
+    it("has no balance when the node does not answer, which the page shows as 'The balance could not be read.'", () => {
+      const { header, problems } = accountHeader(bare({ info: FAILED, state: FAILED }), { holdings: false });
+      expect(header.live).toEqual({ state: "unavailable" });
+      expect(header.balance).toBeNull();
+      expect(header.owned).toBeNull();
+      expect(header.tokens).toEqual({ state: "none" });
+      expect(header.nodeProblem).toBe(true);
+      expect(problems).toEqual(["node account_info failed", "node server_state failed"]);
+    });
+
+    it("is a deleted account as with its holdings", () => {
+      const { header, problems } = accountHeader(bare({ created: ok(created("xrpl", "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC")), info: MISSING }), { holdings: false });
+      expect(problems).toEqual([]);
+      expect(header).toMatchObject({ status: "deleted", live: { state: "none" }, balance: null, tokens: { state: "none" }, owned: null });
+    });
+  });
 });
 
 describe("transactionRows", () => {

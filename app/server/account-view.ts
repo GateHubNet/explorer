@@ -308,13 +308,21 @@ export interface HeaderInput {
   native: Native;
   created: Loaded<AccountData>;
   info: Loaded<AccountInfo>;
-  objects: Loaded<AccountObjects>;
+  /** The node's objects of the account, for the owned objects: a header with its holdings needs them, one without (the analytics view) asks for none. */
+  objects?: Loaded<AccountObjects>;
   state: Loaded<ServerState>;
-  balances: Loaded<BalancesResponse>;
+  /** The index's balances, for the tokens (and the native balance when the node did not answer): as `objects`. */
+  balances?: Loaded<BalancesResponse>;
   /** The close time (unix seconds) of the ledger that last changed the account, if it could be read. */
   lastLedgerTime: number | null;
   /** Whether the index has a transaction of the address: asked only when neither the index nor the node has the account. */
   history?: Loaded<boolean>;
+}
+
+/** A call a header with its holdings reads: leaving it out is the caller's mistake, not a call that failed. */
+function needed<T>(value: Loaded<T> | undefined, name: string): Loaded<T> {
+  if (value === undefined) throw new Error(`accountHeader with its holdings needs the ${name}`);
+  return value;
 }
 
 export function activationOf(created: AccountData): Activation {
@@ -329,9 +337,15 @@ export function activationOf(created: AccountData): Activation {
 /**
  * The header of an account that exists: `existenceOf` says active, deleted or unverified (the node did not answer). `problems`
  * names what could not be read, for the log and for the degraded mark: a page with any of them is served and not stored.
+ *
+ * `holdings` (the default) is the header of the list tabs, with the tokens and the owned objects, and needs `objects` and `balances`.
+ * Without it (the analytics view, spec 2.1) neither is read: `owned` is `null`, `tokens` is `none`, neither adds a problem, and the balance
+ * is the node's alone (an account whose node did not answer has none, and the page says the balance could not be read).
  */
-export function accountHeader(input: HeaderInput): { header: AccountHeader; problems: string[] } {
-  const { native, created, info, objects, state, balances, lastLedgerTime, history } = input;
+export function accountHeader(input: HeaderInput, { holdings }: { holdings: boolean } = { holdings: true }): { header: AccountHeader; problems: string[] } {
+  const { native, created, info, state, lastLedgerTime, history } = input;
+  const objects = holdings ? needed(input.objects, "objects") : undefined;
+  const balances = holdings ? needed(input.balances, "balances") : undefined;
   const existence = existenceOf(created, info, history);
   if (existence === "never-activated" || existence === "outage" || existence === "undetermined") {
     throw new Error(`accountHeader is for an account that exists, not one that is ${existence}`);
@@ -366,7 +380,7 @@ export function accountHeader(input: HeaderInput): { header: AccountHeader; prob
   // The balance: the node's, which the reserve is worked out from; else the native balance the index read.
   let balance: BalanceView | null = null;
   if (!deleted) {
-    const indexed = balances.state === "ok" ? balances.value.balances.find((b) => b.counterparty === undefined)?.value : undefined;
+    const indexed = balances?.state === "ok" ? balances.value.balances.find((b) => b.counterparty === undefined)?.value : undefined;
     const nativeBalance = info.state === "ok" ? dropsToNative(info.value.account_data.Balance) : indexed;
     if (nativeBalance !== undefined) {
       balance = { native: nativeBalance, available: null, reserve: null };
@@ -384,7 +398,7 @@ export function accountHeader(input: HeaderInput): { header: AccountHeader; prob
 
   // What the node owns, for the counts of the page's margin.
   let owned: OwnedView | null = null;
-  if (!deleted) {
+  if (!deleted && objects) {
     if (objects.state === "ok") {
       owned = { counts: ownedCounts(objects.value.account_objects), truncated: objects.value.marker !== undefined };
     } else if (objects.state === "failed") {
@@ -394,8 +408,8 @@ export function accountHeader(input: HeaderInput): { header: AccountHeader; prob
   if (!deleted && state.state === "failed") problems.push("node server_state failed");
 
   let tokens: TokensView = { state: "none" };
-  if (!deleted && balances.state === "ok") tokens = { state: "ok", ...tokensOf(balances.value) };
-  else if (!deleted && balances.state === "failed") {
+  if (!deleted && balances?.state === "ok") tokens = { state: "ok", ...tokensOf(balances.value) };
+  else if (!deleted && balances?.state === "failed") {
     tokens = { state: "failed" };
     problems.push("balances failed");
   }

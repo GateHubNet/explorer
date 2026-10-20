@@ -31,3 +31,14 @@ export function byDeadline<T>(work: Promise<T>, at: number): Promise<T> {
     );
   });
 }
+
+/**
+ * What `Promise.allSettled` says of one promise, as a promise that never rejects: a card that is asked for only in some cases (a switch, a
+ * network without pools) is awaited beside the others, and settles like them.
+ */
+export function outcome<T>(work: Promise<T>): Promise<PromiseSettledResult<T>> {
+  return work.then(
+    (value) => ({ status: "fulfilled", value }),
+    (reason: unknown) => ({ status: "rejected", reason }),
+  );
+}

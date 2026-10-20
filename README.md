@@ -633,7 +633,7 @@ is off. Lists are newest first, 20 a page, with Newer and Older.
 | an unknown `?tab=`, or a `marker` on Offers or Objects (they have no pages) | 302 to the URL without it | `short` |
 | `?tab=analytics…` with `ACCOUNT_ANALYTICS` off | 302 to `/{net}/account/{address}`, without a call | `short` |
 | `?tab=analytics…` with it on, in any query but the view's canonical one (`tab=analytics`, then `period` when it is not `30d`; compared as it came, so an escaped spelling is redirected too) | 302 to the canonical URL, without a call | `short` |
-| `?tab=analytics…`'s canonical URL, until the view's loader is built | 302 to `/{net}/account/{address}`, without a call | `short` |
+| `?tab=analytics…`'s canonical URL | the analytics view: the header (without the tokens and owned objects, so no `balances` or `account_objects` call) awaited, the frame and six cards **streamed** after it, each by the 4.5 s deadline; a failed or late card is served and not stored | `live` |
 | the first page of a tab | the page; header read from the data API (creation, balances) and the node (`account_info`, `account_objects` with `limit: 400`, `server_state`), the list **streamed** after it | `live` |
 | a page reached with a `marker` | the page, awaited whole: the list and nothing else (no live state, no activation, and the creation record is not asked for); `noindex, follow` | `slow` (`MARKER_PAGE_CLASS`, see below) |
 | a marker the API refuses (400), that is not base64url, or that has nothing behind it (an empty list) | 404 | `short` |
