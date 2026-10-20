@@ -377,12 +377,12 @@ describe("checkAmendments", () => {
     ["a majority ledger_index that is text", (b) => (b.amendments[0].majority.ledger_index = "107704833")],
     ["a majority tx_hash that is not 64 hex", (b) => (b.amendments[0].majority.tx_hash = "F78430AD")],
     ["a majority tx_hash that is a number", (b) => (b.amendments[0].majority.tx_hash = 1)],
-    ["enabled that is not an object", (b) => (b.amendments[1].enabled = true)],
-    ["an enabled source that is not one", (b) => (b.amendments[1].enabled.source = "node")],
-    ["no enabled source", (b) => delete b.amendments[1].enabled.source],
-    ["an enabled date that is a number", (b) => (b.amendments[1].enabled.date = 1792251084)],
-    ["an enabled ledger that is text", (b) => (b.amendments[1].enabled.ledger_index = "107747841")],
-    ["an enabled tx_hash that is not 64 hex", (b) => (b.amendments[1].enabled.tx_hash = "F5AFF7C2")],
+    ["enabled that is not an object", (b) => (b.amendments[3].enabled = true)],
+    ["an enabled source that is not one", (b) => (b.amendments[3].enabled.source = "node")],
+    ["no enabled source", (b) => delete b.amendments[3].enabled.source],
+    ["an enabled date that is a number", (b) => (b.amendments[3].enabled.date = 1792251084)],
+    ["an enabled ledger that is text", (b) => (b.amendments[3].enabled.ledger_index = "107747841")],
+    ["an enabled tx_hash that is not 64 hex", (b) => (b.amendments[3].enabled.tx_hash = "F5AFF7C2")],
   ]);
 
   it("takes what a database with no ledger, no round and no head leaves out, and rows that are only an ID and a status", () => {

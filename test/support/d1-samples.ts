@@ -256,7 +256,10 @@ const envelope = () =>
     next_flag_ledger: { ledger_index: 107748352, voting_ledger: 107748351, expected: "2026-10-19T16:05:28Z" },
   }) satisfies Pick<AmendmentsList, "ledger_index" | "rules" | "round" | "next_flag_ledger">;
 
-/** One of each kind that matters to the board: a majority, an amendment enabled from the ledger, one enabled from the metadata file, one being voted on, and one nobody named. */
+/**
+ * One of each kind that matters to the board, in D1's order (majority, voting, unknown, enabled, obsolete): a majority, one being voted on, one nobody named, an amendment
+ * enabled from the ledger and one enabled from the metadata file.
+ */
 export function amendmentsSample(over: Partial<AmendmentsList> = {}): AmendmentsList {
   return {
     result: "success",
@@ -265,6 +268,15 @@ export function amendmentsSample(over: Partial<AmendmentsList> = {}): Amendments
     count: 5,
     amendments: [
       majorityRow(),
+      {
+        id: DID_ID,
+        name: "DID",
+        status: "voting",
+        introduced: "1.12.0",
+        node_supported: true,
+        votes: { ledger_index: 107748095, yes: 4, trusted: 35, needed: 29, pct: 11.43 },
+      },
+      { id: UNKNOWN_ID, status: "unknown", node_supported: true, votes: { ledger_index: 107748095, yes: 0, trusted: 35, needed: 29, pct: 0 } },
       {
         id: AMM_ID,
         name: "AMM",
@@ -277,15 +289,6 @@ export function amendmentsSample(over: Partial<AmendmentsList> = {}): Amendments
         enabled: { ledger_index: 107747841, date: "2026-10-19T15:31:24Z", tx_hash: ENABLE_TX_HASH, source: "ledger" },
       },
       { id: FIX1201_ID, name: "fix1201", status: "enabled", introduced: "0.80.0", enabled: { ledger_index: 90000001, date: "2025-02-03", source: "metadata" } },
-      {
-        id: DID_ID,
-        name: "DID",
-        status: "voting",
-        introduced: "1.12.0",
-        node_supported: true,
-        votes: { ledger_index: 107748095, yes: 4, trusted: 35, needed: 29, pct: 11.43 },
-      },
-      { id: UNKNOWN_ID, status: "unknown", node_supported: true, votes: { ledger_index: 107748095, yes: 0, trusted: 35, needed: 29, pct: 0 } },
     ],
     ...over,
   };
