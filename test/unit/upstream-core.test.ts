@@ -10,6 +10,7 @@ import {
   nodeError,
   nodeFile,
   nodeKeys,
+  nodeSubject,
   type FixtureFiles,
   type UpstreamBases,
 } from "../support/upstream-core";
@@ -21,6 +22,10 @@ const jsonOf = (response: Response | undefined): Promise<any> => response!.json(
 
 const HASH = "83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B";
 const ACCOUNT = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+const RLUSD = { currency: "524C555344000000000000000000000000000000", issuer: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" };
+const RLUSD_TEXT = "524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+const BOOK = { taker_gets: { currency: "XRP" }, taker_pays: RLUSD, ledger_index: "validated", limit: 60 };
 
 describe("keys and file names", () => {
   it("sorts the query, so that the order a client sends it in is not a difference", () => {
@@ -50,6 +55,37 @@ describe("keys and file names", () => {
     expect(nodeKeys("server_state", {})).toEqual(["node server_state"]);
   });
 
+  // book_offers and amm_info have a subject made of asset objects, written in the API's form (the native code, or CUR+issuer).
+  it("makes the subject of a book_offers request of its two assets, taker_gets first", () => {
+    expect(nodeSubject("book_offers", BOOK)).toBe(`XRP_${RLUSD_TEXT}`);
+    expect(nodeSubject("book_offers", { ...BOOK, taker_gets: RLUSD, taker_pays: { currency: "XRP" } })).toBe(`${RLUSD_TEXT}_XRP`);
+    expect(nodeSubject("book_offers", { ...BOOK, taker_gets: { currency: "XAH" } })).toBe(`XAH_${RLUSD_TEXT}`);
+    expect(nodeSubject("book_offers", { ...BOOK, taker_gets: { currency: "USD", issuer: "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS" } })).toBe(`USD+rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS_${RLUSD_TEXT}`);
+  });
+
+  it("makes the subject of an amm_info request the pool account, or its two assets when it is asked by pair", () => {
+    expect(nodeSubject("amm_info", { amm_account: POOL, ledger_index: "validated" })).toBe(POOL);
+    expect(nodeSubject("amm_info", { asset: { currency: "XRP" }, asset2: RLUSD, ledger_index: "validated" })).toBe(`XRP_${RLUSD_TEXT}`);
+    expect(nodeSubject("amm_info", { asset: RLUSD, asset2: { currency: "XRP" }, ledger_index: "validated" })).toBe(`${RLUSD_TEXT}_XRP`);
+  });
+
+  it("has no subject for assets it cannot write, and never joins what is not an asset", () => {
+    expect(nodeSubject("book_offers", { taker_gets: "XRP", taker_pays: RLUSD })).toBeUndefined();
+    expect(nodeSubject("book_offers", { taker_gets: { currency: "XRP" } })).toBeUndefined();
+    expect(nodeSubject("book_offers", { taker_gets: { currency: 5 }, taker_pays: RLUSD })).toBeUndefined();
+    expect(nodeSubject("book_offers", { taker_gets: { currency: "XRP", issuer: 5 }, taker_pays: RLUSD })).toBeUndefined();
+    expect(nodeSubject("amm_info", { asset: { currency: "XRP" } })).toBeUndefined();
+    expect(nodeSubject("amm_info", { ledger_index: "validated" })).toBeUndefined();
+  });
+
+  it("keys a book_offers and an amm_info request by all its parameters and by its subject", () => {
+    const [exact, subject] = nodeKeys("book_offers", BOOK);
+    expect(exact).toBe(`node book_offers ledger_index=validated&limit=60&taker_gets={"currency":"XRP"}&taker_pays=${JSON.stringify(RLUSD)}`);
+    expect(subject).toBe(`node book_offers XRP_${RLUSD_TEXT}`);
+    expect(nodeKeys("amm_info", { amm_account: POOL, ledger_index: "validated" })).toEqual([`node amm_info amm_account=${POOL}&ledger_index=validated`, `node amm_info ${POOL}`]);
+    expect(nodeKeys("amm_info", { asset: { currency: "XRP" }, asset2: RLUSD, ledger_index: "validated" })[1]).toBe(`node amm_info XRP_${RLUSD_TEXT}`);
+  });
+
   it("names the file of a node request below the network, by subject, leaving the default ledger out", () => {
     expect(nodeFile("xrpl", "tx", { transaction: HASH })).toBe(`xrpl/node/tx/${HASH}.json`);
     expect(nodeFile("xrpl", "account_info", { account: ACCOUNT, ledger_index: "validated" })).toBe(`xrpl/node/account_info/${ACCOUNT}.json`);
@@ -57,6 +93,14 @@ describe("keys and file names", () => {
     expect(nodeFile("xahau", "ledger", { ledger_index: 5, transactions: true, expand: true })).toBe("xahau/node/ledger/5@expand=true&transactions=true.json");
     expect(nodeFile("xahau", "ledger", { ledger_hash: HASH }, 5)).toBe("xahau/node/ledger/5.json");
     expect(nodeFile("xrpl", "server_state", {})).toBe("xrpl/node/server_state.json");
+  });
+
+  it("names the file of a book_offers or amm_info request by its subject, with the subject's parameters and the default ledger left out", () => {
+    expect(nodeFile("xrpl", "book_offers", BOOK)).toBe(`xrpl/node/book_offers/XRP_${RLUSD_TEXT}@limit=60.json`);
+    expect(nodeFile("xrpl", "book_offers", { ...BOOK, taker_gets: RLUSD, taker_pays: { currency: "XRP" } })).toBe(`xrpl/node/book_offers/${RLUSD_TEXT}_XRP@limit=60.json`);
+    expect(nodeFile("xahau", "book_offers", { ...BOOK, taker_gets: { currency: "XAH" }, taker_pays: { currency: "EVR", issuer: "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8" } })).toBe("xahau/node/book_offers/XAH_EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8@limit=60.json");
+    expect(nodeFile("xrpl", "amm_info", { amm_account: POOL, ledger_index: "validated" })).toBe(`xrpl/node/amm_info/${POOL}.json`);
+    expect(nodeFile("xrpl", "amm_info", { asset: { currency: "XRP" }, asset2: RLUSD, ledger_index: "validated" })).toBe(`xrpl/node/amm_info/XRP_${RLUSD_TEXT}.json`);
   });
 });
 
@@ -96,6 +140,11 @@ describe("what a request may make of a file path", () => {
     expect(nodeFile("xrpl", "ledger", { ledger_index: up })).toBeUndefined();
     expect(nodeFile("xrpl", "../../package", { account: ACCOUNT })).toBeUndefined();
     expect(nodeFile("xrpl", "Account_Info", { account: ACCOUNT })).toBeUndefined();
+    // An asset is a piece of the subject too.
+    expect(nodeFile("xrpl", "book_offers", { ...BOOK, taker_pays: { currency: "XRP", issuer: up } })).toBeUndefined();
+    expect(nodeFile("xrpl", "book_offers", { ...BOOK, taker_gets: { currency: "%2e%2e/%2e%2e" } })).toBeUndefined();
+    expect(nodeFile("xrpl", "amm_info", { asset: { currency: "XRP" }, asset2: { currency: "..", issuer: "..\\.." } })).toBeUndefined();
+    expect(nodeFile("xrpl", "amm_info", { amm_account: up })).toBeUndefined();
   });
 
   it("never asks the files for a path that is not made of safe pieces", async () => {
@@ -137,6 +186,9 @@ describe("createUpstream", () => {
     ["xrpl/ledger-hashes.json", JSON.stringify({ [HASH]: 5 })],
     [`xrpl/node/tx/${HASH}.json`, '{"result":{"status":"success"}}'],
     ["xrpl/node/ledger/5.json", '{"result":{"ledger_index":5,"status":"success"}}'],
+    [`xrpl/node/book_offers/XRP_${RLUSD_TEXT}@limit=60.json`, '{"result":{"ledger_index":5,"offers":[{"Account":"rA","Sequence":1}],"status":"success"}}'],
+    [`xrpl/node/amm_info/${POOL}.json`, '{"result":{"amm":{"account":"pool"},"ledger_index":5,"validated":true,"status":"success"}}'],
+    [`xrpl/node/amm_info/XRP_${RLUSD_TEXT}.json`, '{"result":{"amm":{"account":"pool"},"ledger_index":5,"validated":true,"status":"success"}}'],
   ]);
   const files: FixtureFiles = { read: async (path) => store.get(path) };
   const bases: UpstreamBases = {
@@ -201,6 +253,84 @@ describe("createUpstream", () => {
     expect((await jsonOf(garbage)).result.error).toBe("invalidParams");
   });
 
+  it("answers a book_offers and an amm_info request from their files, by subject", async () => {
+    const upstream = make();
+    const url = "http://fixtures.test/xrpl-node";
+    const book = (await jsonOf(await upstream.handle(rpc(url, "book_offers", BOOK)))).result;
+    expect(book.offers).toEqual([{ Account: "rA", Sequence: 1 }]);
+    // The limit is part of the file's name: another limit is another file.
+    expect((await jsonOf(await upstream.handle(rpc(url, "book_offers", { ...BOOK, limit: 20 })))).result.offers).toEqual([]);
+    const byPool = (await jsonOf(await upstream.handle(rpc(url, "amm_info", { amm_account: POOL, ledger_index: "validated" })))).result;
+    const byPair = (await jsonOf(await upstream.handle(rpc(url, "amm_info", { asset: { currency: "XRP" }, asset2: RLUSD, ledger_index: "validated" })))).result;
+    expect(byPool.amm.account).toBe("pool");
+    expect(byPair).toEqual(byPool);
+    expect(upstream.requests.map((request) => request.key)).toEqual([
+      `node book_offers ledger_index=validated&limit=60&taker_gets={"currency":"XRP"}&taker_pays=${JSON.stringify(RLUSD)}`,
+      `node book_offers ledger_index=validated&limit=20&taker_gets={"currency":"XRP"}&taker_pays=${JSON.stringify(RLUSD)}`,
+      `node amm_info amm_account=${POOL}&ledger_index=validated`,
+      `node amm_info asset={"currency":"XRP"}&asset2=${JSON.stringify(RLUSD)}&ledger_index=validated`,
+    ]);
+  });
+
+  it("takes an override keyed by the subject of a book_offers or amm_info request", async () => {
+    const upstream = make({
+      [`node book_offers XRP_${RLUSD_TEXT}`]: { ledger_index: 9, offers: [], validated: true },
+      [`node amm_info ${POOL}`]: nodeError("slowDown"),
+      [`node amm_info XRP_${RLUSD_TEXT}`]: null,
+    });
+    const url = "http://fixtures.test/xrpl-node";
+    expect((await jsonOf(await upstream.handle(rpc(url, "book_offers", BOOK)))).result.ledger_index).toBe(9);
+    expect((await jsonOf(await upstream.handle(rpc(url, "amm_info", { amm_account: POOL, ledger_index: "validated" })))).result.error).toBe("slowDown");
+    expect((await jsonOf(await upstream.handle(rpc(url, "amm_info", { asset: { currency: "XRP" }, asset2: RLUSD, ledger_index: "validated" })))).result.error).toBe("actNotFound");
+    expect(upstream.unusedOverrides()).toEqual([]);
+  });
+
+  it("answers an amm_info for a pair or an account without a pool with actNotFound", async () => {
+    const upstream = make();
+    const url = "http://fixtures.test/xrpl-node";
+    const lions = { currency: "4C494F4E53000000000000000000000000000000", issuer: "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS" };
+    for (const params of [
+      { asset: { currency: "XRP" }, asset2: lions, ledger_index: "validated" },
+      { amm_account: ACCOUNT, ledger_index: "validated" },
+    ]) {
+      const answer = await upstream.handle(rpc(url, "amm_info", params));
+      expect(answer!.status).toBe(200);
+      expect((await jsonOf(answer)).result).toMatchObject({ error: "actNotFound", status: "error" });
+    }
+  });
+
+  it("answers a book nobody offers in with an empty validated book at the newest recorded ledger of the network", async () => {
+    const upstream = make();
+    const lions = { currency: "4C494F4E53000000000000000000000000000000", issuer: "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS" };
+    const empty = await upstream.handle(rpc("http://fixtures.test/xrpl-node", "book_offers", { ...BOOK, taker_pays: lions }));
+    expect(empty!.status).toBe(200);
+    expect((await jsonOf(empty)).result).toEqual({ ledger_index: 5, offers: [], validated: true });
+
+    // Each network's own recording: the ledger of Xahau is not the XRP Ledger's.
+    const both: FixtureFiles = { read: async (path) => (path === "xahau/data-api/last_validated.json" ? '{"result":"success","ledger_index":"26596843"}' : store.get(path)) };
+    const together = createUpstream({ files: both, bases, primary: "xrpl" });
+    const xahau = await together.handle(rpc("http://fixtures.test/xahau-node", "book_offers", { ...BOOK, taker_gets: { currency: "XAH" } }));
+    expect((await jsonOf(xahau)).result).toEqual({ ledger_index: 26596843, offers: [], validated: true });
+    expect((await jsonOf(await together.handle(rpc("http://fixtures.test/xrpl-node", "book_offers", { ...BOOK, taker_pays: lions })))).result.ledger_index).toBe(5);
+    expect(upstream.requests.map((request) => request.source)).toEqual(["absent"]);
+    expect(together.requests.map((request) => request.source)).toEqual(["absent", "absent"]);
+  });
+
+  it("has no book to answer with when the network has no recorded ledger", async () => {
+    const empty = createUpstream({ files: { read: async () => undefined }, bases, primary: "xrpl" });
+    const answer = await empty.handle(rpc("http://fixtures.test/xrpl-node", "book_offers", BOOK));
+    expect((await jsonOf(answer)).result).toMatchObject({ error: "noNetwork", status: "error" });
+    // A record that names no ledger, or is no JSON, is none.
+    for (const recorded of ['{"ledger_index":"soon"}', '{"result":"success"}', "not json"]) {
+      const unreadable = createUpstream({
+        files: { read: async (path) => (path === "xrpl/data-api/last_validated.json" ? recorded : undefined) },
+        bases,
+        primary: "xrpl",
+      });
+      expect((await jsonOf(await unreadable.handle(rpc("http://fixtures.test/xrpl-node", "book_offers", BOOK)))).result.error, recorded).toBe("noNetwork");
+    }
+  });
+
   describe("a Response given as an override", () => {
     const KEY = "GET /v2/last_validated";
 
@@ -244,6 +374,7 @@ describe("createUpstream", () => {
   it("describes the errors it makes as the servers do", () => {
     expect(nodeError("txnNotFound")).toMatchObject({ error: "txnNotFound", error_code: 29, status: "error" });
     expect(nodeError("somethingElse")).toMatchObject({ error: "somethingElse", error_code: 73 });
+    expect(nodeError("actMalformed")).toMatchObject({ error: "actMalformed", error_code: 35, error_message: "Account malformed.", status: "error" });
     const limited = dataApiError(429, "slow down", { "Retry-After": "3" });
     expect(limited.headers.get("Retry-After")).toBe("3");
     return jsonOf(limited).then((body) => expect(body).toEqual({ result: "error", message: "slow down" }));

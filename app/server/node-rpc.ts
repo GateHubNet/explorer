@@ -1,15 +1,21 @@
 // The client of a network's own node (rippled for the XRP Ledger, xahaud for Xahau) over JSON-RPC. The explorer
-// asks the node for what the data API does not hold: an account's live state, the reserves, and (spec 10) a
-// transaction or ledger the API has not indexed yet. Only loaders use it. Worker-only code.
+// asks the node for what the data API does not hold: an account's live state, the reserves, the order book of a
+// pair, an AMM pool's state, and (spec 10) a transaction or ledger the API has not indexed yet. Only loaders use it.
+// Worker-only code.
 //
 // Every call is limited to 3 s (answer included). The node's failures arrive as `result.status: "error"`
-// with HTTP 200; they become `UpstreamError`s, `actNotFound`, `txnNotFound` and `lgrNotFound` as `not_found`.
+// with HTTP 200; they become `UpstreamError`s, `actNotFound`, `txnNotFound` and `lgrNotFound` as `not_found`
+// (`amm_info` adds `actMalformed`, see `AMM_NOT_FOUND`).
 //
 // Times: the node counts seconds from 2000-01-01 (the Ripple epoch). This client converts every such time it
 // returns (`date` of a transaction, `close_time` and `parent_close_time` of a ledger, `close_time` of the
 // server state's ledgers) to unix seconds at this boundary, so that nothing outside it sees the Ripple epoch.
 // Requests are API version 1, the node's default: the shapes below are rippled's v1 shapes.
 
+import BigNumber from "bignumber.js";
+
+import { sameAsset, type Asset } from "../domain/asset";
+import { dropsToNative } from "../domain/format";
 import type { TxJson, TxMeta } from "../domain/parse/types";
 import type { CacheClass, SubrequestCache } from "./cache-class";
 import type { Network } from "./networks";
@@ -135,6 +141,77 @@ export interface ServerState {
   closed_ledger?: ServerStateLedger;
 }
 
+/** The most offers one `book_offers` call asks for: 60 is the default of both rippled and Clio, inside the limits of both. */
+export const BOOK_OFFERS_LIMIT = 60;
+
+/** An amount as the explorer reads it: native amounts converted from drops to whole units at this boundary. */
+export interface NodeAmount {
+  /** The native code (`XRP`, `XAH`) with no issuer, or the currency as the ledger holds it (3 characters, or 40 hex digits in upper case). */
+  currency: string;
+  issuer?: string;
+  /** A plain decimal: whole units, never in exponent form. */
+  value: string;
+}
+
+/** An offer of a book, trimmed to what the explorer reads. Funded amounts are there only when the node gave them (a partly or wholly unfunded offer). */
+export interface BookOffer {
+  account: string;
+  sequence: number;
+  /** What the offer's owner gives (the node's `TakerGets`). */
+  gets: NodeAmount;
+  /** What the owner wants (the node's `TakerPays`). */
+  pays: NodeAmount;
+  getsFunded?: NodeAmount;
+  paysFunded?: NodeAmount;
+}
+
+/** `book_offers` on the newest validated ledger: the best `BOOK_OFFERS_LIMIT` offers, in the node's order (best price first). */
+export interface Book {
+  ledgerIndex: number;
+  offers: BookOffer[];
+}
+
+/** rippled's v1 `amm_info` result, as the explorer reads it. Field names are the node's; amounts are `NodeAmount`s, times unix seconds. */
+export interface AmmInfo {
+  /** The pool account. */
+  account: string;
+  /** Native in whole units. */
+  amount: NodeAmount;
+  amount2: NodeAmount;
+  asset_frozen?: boolean;
+  asset2_frozen?: boolean;
+  /** Currency (40 hex digits), issuer = the pool, value = the LP supply. */
+  lp_token: NodeAmount;
+  /** Units of 1/100000 (300 is 0.300%). */
+  trading_fee: number;
+  /** `[]` when the node leaves it out. */
+  vote_slots: { account: string; trading_fee: number; vote_weight: number }[];
+  auction_slot?: {
+    /** Absent: an open slot. */
+    account?: string;
+    /** Addresses; `[]` when the node leaves it out. */
+    auth_accounts: string[];
+    discounted_fee: number;
+    /** Unix seconds (the node writes an ISO 8601 time). */
+    expiration: number;
+    price: NodeAmount;
+    /** 0 to 20. */
+    time_interval: number;
+  };
+  /** The validated ledger it was read at. */
+  ledger_index: number;
+}
+
+/**
+ * What a caller may ask of a call to the order book or a pool. `ttl`: keep the answer this many seconds instead of the class's, under a cache
+ * entry of its own (the key says `[kept N s]`). `holdFailure`: the cache's failure hold (`SubrequestOptions`); a page that polls asks for it on
+ * every call it makes.
+ */
+export interface NodeCallOptions {
+  ttl?: number;
+  holdFailure?: boolean;
+}
+
 export interface NodeRpc {
   /** A transaction by hash. Only a transaction in a validated ledger is returned; any other is `not_found`. */
   tx(hash: string): Promise<NodeTx>;
@@ -149,6 +226,16 @@ export interface NodeRpc {
   accountObjects(address: string, opts?: { limit?: number; marker?: string }): Promise<AccountObjects>;
   /** The node's state: the reserves in force (`validated_ledger.reserve_base` and `reserve_inc`) among it. */
   serverState(): Promise<ServerState>;
+  /**
+   * The best offers of the book where `gets` is what the offers' owners give and `pays` what they want (`taker_gets`, `taker_pays`), on the
+   * newest validated ledger. An empty book is an answer. Class `live`. A native asset is the network's own (`{ currency: "XRP" }` on the
+   * XRP Ledger, `XAH` on Xahau); any other without an issuer is `bad_request` without a call.
+   */
+  bookOffers(gets: Asset, pays: Asset, opts?: NodeCallOptions): Promise<Book>;
+  /** An AMM pool by its account, on the newest validated ledger. `not_found` for an account that is no pool. Class `live`. */
+  ammInfo(pool: string, opts?: NodeCallOptions): Promise<AmmInfo>;
+  /** An AMM pool by its two assets, on the newest validated ledger; `amount` and `amount2` come in the order asked. `not_found` for a pair with no pool. Class `live`. */
+  ammInfoByPair(asset: Asset, asset2: Asset, opts?: NodeCallOptions): Promise<AmmInfo>;
 }
 
 // ---- Reading the node's answers ------------------------------------------------------------------------------------
@@ -188,7 +275,7 @@ function requireValidated(what: string, result: Json): void {
   }
 }
 
-/** Error codes of a request the node finds malformed. */
+/** Error codes of a request the node finds malformed (the last six are `book_offers`' and `amm_info`'s: an asset or an issuer it cannot read). */
 const MALFORMED_REQUEST = [
   "invalidParams",
   "actMalformed",
@@ -196,15 +283,28 @@ const MALFORMED_REQUEST = [
   "malformedRequest",
   "lgrIdxMalformed",
   "lgrIdxsInvalid",
+  "srcCurMalformed",
+  "srcIsrMalformed",
+  "dstAmtMalformed",
+  "dstIsrMalformed",
+  "badMarket",
+  "issueMalformed",
 ];
 
-/** The `result` of a failed call as an UpstreamError. */
-function errorOf(what: string, result: Json): UpstreamError {
+/**
+ * The codes `amm_info` answers with when there is no such pool: `actNotFound` (the account is not a pool, or the pair has none) and
+ * `actMalformed` (an address that holds no account, such as a deleted pool's). Both are `not_found` for it, where `actMalformed` is a
+ * `bad_request` for a call about an account: the Worker has checked the address or the pair, so both mean "no such pool".
+ */
+const AMM_NOT_FOUND = ["actNotFound", "actMalformed"] as const;
+
+/** The `result` of a failed call as an UpstreamError. `notFound`: the codes this call reads as `not_found`, besides the ones every call does. */
+function errorOf(what: string, result: Json, notFound: readonly string[] = []): UpstreamError {
   const code = typeof result.error === "string" ? result.error : "unknown";
   const message = typeof result.error_message === "string" && result.error_message ? ` (${clip(result.error_message)})` : "";
   const text = `${what} failed with ${code}${message}`;
 
-  if (code === "actNotFound" || code === "txnNotFound" || code === "lgrNotFound") {
+  if (code === "actNotFound" || code === "txnNotFound" || code === "lgrNotFound" || notFound.includes(code)) {
     return new UpstreamError("not_found", text, { status: 200 });
   }
   if (MALFORMED_REQUEST.includes(code)) return new UpstreamError("bad_request", text, { status: 200 });
@@ -296,6 +396,202 @@ function toServerState(what: string, result: Json): ServerState {
   return converted as unknown as ServerState;
 }
 
+// ---- Order books and AMM pools -------------------------------------------------------------------------------------
+//
+// What the nodes answered when these readers were written (2026-10-20, read-only POSTs to https://s1.ripple.com:51234/, a Clio server,
+// and to https://xahau.network/):
+//
+//   amm_info, pair XRP / LIONS (4C494F4E53…+rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS): NOT an error. The pair has a pool on the live XRP Ledger
+//                      (r4XHjVJhBZ3Aoe9KVsDKnVesFMrmpMgjqn), so "LIONS/XRP has no pool" is a fact of the test fixtures, not of the network.
+//   amm_info, amm_account rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh (an ordinary account): `actNotFound` ("Account not found.", error_code 19).
+//   amm_info, amm_account rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz (the deleted XRP/SNK pool): `actMalformed` ("Account malformed.", error_code 35).
+//   amm_info, amm_account rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3, and its pair XRP / RLUSD: a success. The pool is `result.amm`; `validated: true`,
+//                      `ledger_index` (a number) and `ledger_hash` sit beside it in `result`, not inside. `amm.amount` of XRP is drops text
+//                      ("1854660697034"), the other amount an issued object. Asked by pool, `amount` is the pool's first asset (XRP); asked by
+//                      pair, `amount` is the asset asked as `asset` (asked as RLUSD / XRP, `amount` is the RLUSD). `auction_slot.expiration` is
+//                      text, "2026-03-02T17:05:00+0000" (ISO 8601 with an offset and no colon), where the ledger entry has a Ripple-epoch number.
+//                      `auction_slot.auth_accounts` is a list of `{ account }` objects, left out when empty; `auction_slot.account` is left out
+//                      for an open slot. `asset_frozen` and `asset2_frozen` are in `amm`, and only when true or false is known (here
+//                      `asset2_frozen: false`).
+//   book_offers, XRP / RLUSD, ledger_index "validated": `{ ledger_hash, ledger_index (a number), offers, status }`, with NO `validated` (xrplcluster.com's
+//                      rippled and xahau.network's xahaud say `validated: true`; s1 and s2.ripple.com, which are Clio, do not, and this client is
+//                      configured with s1). Each offer is its ledger entry with `Account`, `Sequence`, `TakerGets` and `TakerPays` (drops text
+//                      for the native side), `owner_funds`, `quality`; `taker_gets_funded` and `taker_pays_funded` only on an offer the owner cannot
+//                      wholly fund (`"0"` for a side that is funded nothing).
+//   book_offers on xahau.network with taker_gets { currency: "XAH" }: accepted, `validated: true`, the native side drops text. With
+//                      { currency: "XRP" } it answers `dstIsrMalformed`, so the native asset of Xahau is written XAH.
+//
+// An issued amount's value is text in the node's own form, which for a very large or small value has an exponent ("5876901213283910e-4");
+// the readers write every value as a plain decimal. Native amounts are drops text and become whole units.
+
+/** Drops: a whole number. */
+const DROPS = /^\d+$/;
+/** A non-negative decimal as the node writes an issued amount, with the exponent of a very large or small one ("1000000000000000e-4"). */
+const AMOUNT_VALUE = /^\d+(?:\.\d+)?(?:[eE][+-]?\d{1,3})?$/;
+
+/**
+ * An amount of the node: drops text (native, `native` its code) or an object `{ currency, issuer, value }` (issued), as a `NodeAmount`.
+ * `native` is null where only an issued amount can be (an LP token).
+ */
+function readAmount(what: string, name: string, raw: unknown, native: string | null): NodeAmount {
+  if (typeof raw === "string") {
+    if (native === null || !DROPS.test(raw)) throw malformed(what, `"${name}" is not an amount`);
+    return { currency: native, value: dropsToNative(raw) };
+  }
+  if (!isObject(raw)) throw malformed(what, `"${name}" is not an amount`);
+  const { currency, issuer, value } = raw;
+  if (typeof currency !== "string" || currency === "" || typeof issuer !== "string" || issuer === "") {
+    throw malformed(what, `"${name}" is an amount without a currency or an issuer`);
+  }
+  if (typeof value !== "string" || !AMOUNT_VALUE.test(value)) throw malformed(what, `"${name}" has a value that is not a number`);
+  return { currency, issuer, value: new BigNumber(value).toFixed() };
+}
+
+/** An optional amount: absent is `undefined`, anything else must be an amount. */
+function readOptionalAmount(what: string, name: string, raw: unknown, native: string | null): NodeAmount | undefined {
+  return raw === undefined ? undefined : readAmount(what, name, raw, native);
+}
+
+function integerField(what: string, from: Json, key: string, min: number, max = Number.MAX_SAFE_INTEGER): number {
+  const value = from[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    throw malformed(what, `"${key}" is not a whole number from ${min} to ${max}`);
+  }
+  return value;
+}
+
+function toOffer(what: string, native: string, entry: unknown): BookOffer {
+  if (!isObject(entry)) throw malformed(what, "an offer that is not an object");
+  const offer: BookOffer = {
+    account: textField(what, entry, "Account"),
+    sequence: numberField(what, entry, "Sequence"),
+    gets: readAmount(what, "TakerGets", entry.TakerGets, native),
+    pays: readAmount(what, "TakerPays", entry.TakerPays, native),
+  };
+  const getsFunded = readOptionalAmount(what, "taker_gets_funded", entry.taker_gets_funded, native);
+  const paysFunded = readOptionalAmount(what, "taker_pays_funded", entry.taker_pays_funded, native);
+  if (getsFunded) offer.getsFunded = getsFunded;
+  if (paysFunded) offer.paysFunded = paysFunded;
+  return offer;
+}
+
+/**
+ * The offers are trimmed here, before the cache keeps them. `validated` may be absent (Clio's `book_offers` for `ledger_index: "validated"`
+ * has none, and it serves validated data only) but never anything else than `true`: the explorer shows validated books only. A book has no
+ * "not found": an empty one is an answer, and a bad offer fails the whole book, which is never shown in half.
+ */
+function toBook(what: string, native: string, result: Json): Book {
+  if (result.validated !== undefined && result.validated !== true) throw malformed(what, "the book is not from a validated ledger");
+  const offers = result.offers;
+  if (!Array.isArray(offers)) throw malformed(what, 'no "offers" list');
+  return { ledgerIndex: numberField(what, result, "ledger_index"), offers: offers.map((entry: unknown) => toOffer(what, native, entry)) };
+}
+
+const ISO_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}(?::?\d{2})?)$/;
+
+/**
+ * An ISO 8601 time with its offset (the node writes `2026-03-02T17:05:00+0000`; `Z`, `+00:00` and a fraction of a second are read too) as unix
+ * seconds, the fraction dropped; `undefined` for anything else, a day or an hour that does not exist included.
+ */
+function isoSeconds(text: string): number | undefined {
+  const match = ISO_TIME.exec(text);
+  if (!match) return undefined;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number) as [number, number, number, number, number, number];
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return undefined;
+
+  // `Date.UTC` reads the years 0 to 99 as 1900 to 1999.
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, 0);
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return undefined;
+
+  let offset = 0;
+  const zone = match[7]!;
+  if (zone !== "Z") {
+    const hours = Number(zone.slice(1, 3));
+    const minutes = zone.length > 3 ? Number(zone.slice(-2)) : 0;
+    if (hours > 23 || minutes > 59) return undefined;
+    offset = (zone.startsWith("-") ? -1 : 1) * (hours * 3600 + minutes * 60);
+  }
+  return date.getTime() / 1000 - offset;
+}
+
+/** What a reader of `amm_info` is told was asked, to check the answer is for it. */
+type AmmAsked = { pool: string } | { assets: readonly [Asset, Asset] };
+
+function toAuctionSlot(what: string, slot: Json): NonNullable<AmmInfo["auction_slot"]> {
+  const account = slot.account;
+  if (account !== undefined && typeof account !== "string") throw malformed(what, 'the auction slot\'s "account" is not text');
+
+  const accounts = slot.auth_accounts;
+  if (accounts !== undefined && !Array.isArray(accounts)) throw malformed(what, 'the auction slot\'s "auth_accounts" is not a list');
+  const expiration = isoSeconds(textField(what, slot, "expiration"));
+  if (expiration === undefined) throw malformed(what, 'the auction slot\'s "expiration" is not an ISO 8601 time');
+
+  return {
+    ...(account !== undefined && { account }),
+    auth_accounts: ((accounts ?? []) as unknown[]).map((entry) => {
+      if (!isObject(entry)) throw malformed(what, "an authorised account that is not an object");
+      return textField(what, entry, "account");
+    }),
+    discounted_fee: integerField(what, slot, "discounted_fee", 0, 1000),
+    expiration,
+    price: readAmount(what, "price", slot.price, null),
+    time_interval: integerField(what, slot, "time_interval", 0, 20),
+  };
+}
+
+/**
+ * One reader for both forms of `amm_info`. Beyond the shape: `validated` must be `true` (a `server` error, not `requireValidated`'s
+ * `not_found`, which a page would read as "no pool"), the fees and the time interval must be in their ranges, and the pool must be the one
+ * asked for: by account, `account` is it; by pair, the assets of `amount` and `amount2` are the two asked for, in either order.
+ */
+function toAmmInfo(what: string, native: string, asked: AmmAsked, result: Json): AmmInfo {
+  if (result.validated !== true) throw malformed(what, "the answer does not say validated: true");
+  const amm = objectField(what, result, "amm");
+
+  const account = textField(what, amm, "account");
+  const amount = readAmount(what, "amount", amm.amount, native);
+  const amount2 = readAmount(what, "amount2", amm.amount2, native);
+  if ("pool" in asked) {
+    if (account !== asked.pool) throw malformed(what, `"account" is ${account}, not the pool asked for`);
+  } else {
+    const [first, second] = asked.assets;
+    const asAsked = sameAsset(amount, first) && sameAsset(amount2, second);
+    const reversed = sameAsset(amount, second) && sameAsset(amount2, first);
+    if (!asAsked && !reversed) throw malformed(what, "the pool's assets are not the pair asked for");
+  }
+
+  for (const key of ["asset_frozen", "asset2_frozen"] as const) {
+    if (amm[key] !== undefined && typeof amm[key] !== "boolean") throw malformed(what, `"${key}" is neither true nor false`);
+  }
+
+  const voteSlots = amm.vote_slots;
+  if (voteSlots !== undefined && !Array.isArray(voteSlots)) throw malformed(what, '"vote_slots" is not a list');
+  const slot = amm.auction_slot;
+  if (slot !== undefined && !isObject(slot)) throw malformed(what, '"auction_slot" is not an object');
+
+  return {
+    account,
+    amount,
+    amount2,
+    ...(amm.asset_frozen !== undefined && { asset_frozen: amm.asset_frozen as boolean }),
+    ...(amm.asset2_frozen !== undefined && { asset2_frozen: amm.asset2_frozen as boolean }),
+    lp_token: readAmount(what, "lp_token", amm.lp_token, null),
+    trading_fee: integerField(what, amm, "trading_fee", 0, 1000),
+    vote_slots: ((voteSlots ?? []) as unknown[]).map((entry) => {
+      if (!isObject(entry)) throw malformed(what, "a vote slot that is not an object");
+      return {
+        account: textField(what, entry, "account"),
+        trading_fee: integerField(what, entry, "trading_fee", 0, 1000),
+        vote_weight: integerField(what, entry, "vote_weight", 0),
+      };
+    }),
+    ...(slot !== undefined && { auction_slot: toAuctionSlot(what, slot as Json) }),
+    ledger_index: numberField(what, result, "ledger_index"),
+  };
+}
+
 /** The node's selector for a ledger given as an index or a hash. */
 function ledgerSelector(id: string): { ledger_hash: string } | { ledger_index: number } {
   if (/^[0-9A-Fa-f]{64}$/.test(id)) return { ledger_hash: id };
@@ -306,8 +602,8 @@ function ledgerSelector(id: string): { ledger_hash: string } | { ledger_index: n
 // ---- The client ---------------------------------------------------------------------------------------------------
 
 export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
-  /** Posts one command and returns the node's `result` of a success; a failure throws. */
-  function post(method: string, body: string): Promise<Json> {
+  /** Posts one command and returns the node's `result` of a success; a failure throws. `notFound`: the codes this command reads as `not_found`. */
+  function post(method: string, body: string, notFound?: readonly string[]): Promise<Json> {
     const what = `node ${method}`;
     return withDeadline(NODE_TIMEOUT_MS, what, async (signal) => {
       const response = await fetch(net.nodeUrl, {
@@ -333,27 +629,46 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
       }
       const result = isObject(answer) ? answer.result : undefined;
       if (!isObject(result)) throw malformed(what, 'no "result"');
-      if (result.status === "error") throw errorOf(what, result);
+      if (result.status === "error") throw errorOf(what, result, notFound);
       return result;
     });
   }
 
-  /** One cached command; what `read` makes of its `result` is what is returned and cached. */
+  /**
+   * One cached command; what `read` makes of its `result` is what is returned and cached. `ttlOverride` keeps the answer that long under the
+   * command's own key. `options.ttl` is a TTL a caller asks for: it has a cache entry of its own (the key says `[kept N s]`), so that an answer
+   * kept longer for another caller is not what this one reads. `options.holdFailure` is the cache's failure hold; it is not part of the key.
+   */
   async function call<T>(
     method: string,
     params: Json,
     cls: CacheClass,
     read: (what: string, result: Json) => T,
     ttlOverride?: number,
+    options: NodeCallOptions & { notFound?: readonly string[] } = {},
   ): Promise<T> {
     const body = JSON.stringify({ method, params: [params] });
+    const key = `POST ${net.nodeUrl} ${body}`;
     return cache.json(
-      `POST ${net.nodeUrl} ${body}`,
+      options.ttl === undefined ? key : `${key} [kept ${options.ttl} s]`,
       cls,
-      async () => read(`node ${method}`, await post(method, body)),
-      ttlOverride,
+      async () => read(`node ${method}`, await post(method, body, options.notFound)),
+      options.ttl ?? ttlOverride,
+      options.holdFailure ? { holdFailure: true } : undefined,
     );
   }
+
+  /** An asset as the node wants it: the network's native currency alone, else the currency as the ledger holds it and its issuer. */
+  function assetParam(asset: Asset): { currency: string; issuer?: string } {
+    if (asset.issuer) return { currency: asset.currency, issuer: asset.issuer };
+    if (asset.currency !== net.native) {
+      throw new UpstreamError("bad_request", `${JSON.stringify(asset.currency)} is not an asset without an issuer on ${net.name}`);
+    }
+    return { currency: net.native };
+  }
+
+  const readBook = (what: string, result: Json) => toBook(what, net.native, result);
+  const readAmm = (asked: AmmAsked) => (what: string, result: Json) => toAmmInfo(what, net.native, asked, result);
 
   return {
     // A node answers about the ledgers it is validating, so what it says may still change (a transaction is not
@@ -380,5 +695,34 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
       ),
     // The reserves change by a vote, rarely: 5 minutes.
     serverState: () => call("server_state", {}, "slow", toServerState, 300),
+    // The book and the pool move with every ledger: class `live`, and the page that polls them asks for `ttl` and `holdFailure`. These are
+    // `async` so that a refused asset is a failed promise, like the other calls' refusals.
+    bookOffers: async (gets, pays, opts) =>
+      call(
+        "book_offers",
+        { taker_gets: assetParam(gets), taker_pays: assetParam(pays), ledger_index: "validated", limit: BOOK_OFFERS_LIMIT },
+        "live",
+        readBook,
+        undefined,
+        opts,
+      ),
+    ammInfo: async (pool, opts) =>
+      call(
+        "amm_info",
+        { amm_account: pool, ledger_index: "validated" },
+        "live",
+        readAmm({ pool }),
+        undefined,
+        { ...opts, notFound: AMM_NOT_FOUND },
+      ),
+    ammInfoByPair: async (asset, asset2, opts) =>
+      call(
+        "amm_info",
+        { asset: assetParam(asset), asset2: assetParam(asset2), ledger_index: "validated" },
+        "live",
+        readAmm({ assets: [asset, asset2] }),
+        undefined,
+        { ...opts, notFound: AMM_NOT_FOUND },
+      ),
   };
 }

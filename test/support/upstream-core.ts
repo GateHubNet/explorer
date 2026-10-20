@@ -17,6 +17,10 @@
 //                                     the same request by all its parameters (sorted), for when a subject has
 //                                     several shapes; the most specific key wins
 //   node server_state                 a request without a subject
+//   node book_offers XRP_524C…+rMx…   a book by its subject: `<taker_gets>_<taker_pays>`, each asset the native code or `CUR+issuer`
+//                                     (the currency as the ledger holds it)
+//   node amm_info rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3
+//                                     a pool by its account; by its pair the subject is `<asset>_<asset2>`, written as a book's
 
 export const NETWORK_NAMES = ["xrpl", "xahau"] as const;
 export type NetworkName = (typeof NETWORK_NAMES)[number];
@@ -106,9 +110,37 @@ const SUBJECT_PARAMS: Record<string, string[]> = {
   ledger: ["ledger_hash", "ledger_index"],
   account_info: ["account"],
   account_objects: ["account"],
+  // The pool form: the subject is the pool account. The pair form has no such parameter, see `PAIR_PARAMS`.
+  amm_info: ["amm_account"],
+};
+
+/** The methods whose subject is two assets, and the parameters that hold them: a book's, and an `amm_info` asked by pair. */
+const PAIR_PARAMS: Record<string, [string, string]> = {
+  book_offers: ["taker_gets", "taker_pays"],
+  amm_info: ["asset", "asset2"],
 };
 
 const text = (value: unknown): string => (typeof value === "string" ? value : JSON.stringify(value));
+
+/**
+ * An asset object of a request written in the API's form: the native code alone, or `CUR+issuer` with the currency as the ledger holds it.
+ * Written inline, as upstream-core imports no app code. `undefined` for anything that is not an asset.
+ */
+function assetSubject(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { currency, issuer } = value as { currency?: unknown; issuer?: unknown };
+  if (typeof currency !== "string") return undefined;
+  if (issuer === undefined) return currency;
+  return typeof issuer === "string" ? `${currency}+${issuer}` : undefined;
+}
+
+/** `<first>_<second>` of a request that names two assets, else `undefined`. */
+function pairSubject(method: string, params: NodeParams): string | undefined {
+  const names = PAIR_PARAMS[method];
+  if (names === undefined) return undefined;
+  const [first, second] = names.map((name) => assetSubject(params[name]));
+  return first === undefined || second === undefined ? undefined : `${first}_${second}`;
+}
 
 /** The subject of a node request (what it asks about), upper-casing a hash; `undefined` for a request without one. */
 export function nodeSubject(method: string, params: NodeParams): string | undefined {
@@ -118,7 +150,7 @@ export function nodeSubject(method: string, params: NodeParams): string | undefi
       return HEX64.test(value) ? value.toUpperCase() : value;
     }
   }
-  return undefined;
+  return pairSubject(method, params);
 }
 
 /** All the parameters of a node request as `a=1&b=2`, sorted; a hash is upper-cased as in `nodeSubject`. */
@@ -143,6 +175,10 @@ export function nodeKeys(method: string, params: NodeParams): string[] {
 /** The params of a node request apart from its subject, as `a=1&b=2`; `ledger_index=validated` is the default and left out. */
 function nodeRest(method: string, params: NodeParams): string {
   const subjectNames = new Set(SUBJECT_PARAMS[method] ?? []);
+  // A request whose subject is its two assets has them in its file name already.
+  if (!subjectNames.size || ![...subjectNames].some((name) => params[name] !== undefined)) {
+    if (pairSubject(method, params) !== undefined) for (const name of PAIR_PARAMS[method]!) subjectNames.add(name);
+  }
   const rest: NodeParams = {};
   for (const [name, value] of Object.entries(params)) {
     if (subjectNames.has(name) || value === undefined) continue;
@@ -206,6 +242,7 @@ const NODE_ERRORS: Record<string, [code: number, message: string]> = {
   lgrNotFound: [21, "ledgerNotFound"],
   invalidParams: [31, "Invalid parameters."],
   unknownCmd: [32, "Unknown method."],
+  actMalformed: [35, "Account malformed."],
   noNetwork: [17, "Not synced to the network."],
   slowDown: [10, "You are placing too much load on the server."],
   internal: [73, "Internal error."],
@@ -246,6 +283,8 @@ const NODE_ABSENT: Record<string, string> = {
   account_info: "actNotFound",
   account_objects: "actNotFound",
   server_state: "noNetwork",
+  // A pair or an account that is no pool. (`book_offers` has no code: a book nobody offers in is an empty one, see `createUpstream`.)
+  amm_info: "actNotFound",
 };
 
 function nodeAbsent(method: string, params: NodeParams): Response {
@@ -370,12 +409,35 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
     return table.then((entries) => entries[hash.toUpperCase()]);
   }
 
+  /** The index of the newest ledger the network's fixtures record: that of its `data-api/last_validated.json`. */
+  async function newestLedger(net: NetworkName): Promise<number | undefined> {
+    const recorded = await files.read(`${net}/data-api/last_validated.json`);
+    if (recorded === undefined) return undefined;
+    try {
+      const index = Number((JSON.parse(recorded) as { ledger_index?: unknown }).ledger_index);
+      return Number.isSafeInteger(index) && index >= 0 ? index : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * What a node says for a request that has no fixture. A book nobody offers in is an empty one, validated, at the newest recorded ledger
+   * (with no ledger recorded the node is "not synced"); every other method has its code in `NODE_ABSENT`.
+   */
+  async function absentNodeAnswer(net: NetworkName, method: string, params: NodeParams): Promise<Response> {
+    if (method !== "book_offers") return nodeAbsent(method, params);
+    const ledgerIndex = await newestLedger(net);
+    if (ledgerIndex === undefined) return nodeAnswer(nodeError("noNetwork", { ...params, command: method }));
+    return nodeAnswer({ ledger_index: ledgerIndex, offers: [], validated: true });
+  }
+
   /** Runs an override: a function is called, a captured Response rebuilt, `null` stands for "absent", the rest is a body. */
   async function overridden(
     value: Override,
     request: Request,
     asBody: (value: unknown) => Response,
-    absent: () => Response,
+    absent: () => Response | Promise<Response>,
   ): Promise<Response> {
     if (typeof value === "function") {
       const made = await (value as (req: Request) => Response | Promise<Response>)(request);
@@ -480,7 +542,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
       if (hit !== undefined) {
         used.add(`${net} ${hit}`);
         seen.source = "override";
-        return overridden(override.get(hit), request, nodeAnswer, () => nodeAbsent(method, params));
+        return overridden(override.get(hit), request, nodeAnswer, () => absentNodeAnswer(net, method, params));
       }
 
       let ledgerIndex: number | undefined;
@@ -494,7 +556,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
       const found = file === undefined ? undefined : await files.read(file);
       if (found === undefined) {
         seen.source = "absent";
-        return nodeAbsent(method, params);
+        return absentNodeAnswer(net, method, params);
       }
       return new Response(found, { status: 200, headers: JSON_HEADERS });
     };
