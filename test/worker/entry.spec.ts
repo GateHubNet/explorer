@@ -1,5 +1,5 @@
 import { env, exports } from "cloudflare:workers";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../../app/server/env";
 import { requestIdOf, withRequestLog, withSentryWhenConfigured } from "../../app/server/logging";
@@ -16,8 +16,13 @@ let visitors = 0;
 /** An address of the documentation range (RFC 5737) no other test uses. */
 const visitor = () => `198.51.100.${++visitors}`;
 
+/**
+ * The Worker's answer to a GET of `path`, as it is: a redirect is not followed. The root answers with one, to `/xrpl`, and that page would
+ * call the data API of the tests' bindings (`*.example.invalid`, vitest.config.ts). Those are real subrequests, and workerd logs each
+ * one that fails to resolve as an "uncaught exception … internal error" even when the loader has caught it.
+ */
 const get = (path: string, headers: Record<string, string> = {}) =>
-  exports.default.fetch(`https://explorer.test${path}`, { headers });
+  exports.default.fetch(`https://explorer.test${path}`, { headers, redirect: "manual" });
 
 /** A request as the Worker's `fetch` is called with it by the runtime. */
 const incoming = (url: string, init?: RequestInit) =>
@@ -202,6 +207,15 @@ describe("Sentry", () => {
   });
 
   describe("with the real @sentry/cloudflare", () => {
+    // The first import of the package in a test file's isolate loads its whole module graph, about 530 modules (@sentry/core,
+    // @sentry/server-utils, @opentelemetry/api…), each one transformed by Vite and fetched by workerd's module runner, one after another
+    // (`server.deps.inline`, vitest.config.ts). That took about 1 s on an idle machine, 2.4 s with the worker project running, and more than
+    // the 5 s of a test with the whole of `pnpm verify` and other suites running. It is loading, not what these tests are about, so it is done
+    // here, under a limit of its own; `withSentryWhenConfigured` then imports the same module from the cache, and each test takes milliseconds.
+    beforeAll(async () => {
+      await import("@sentry/cloudflare");
+    }, 60_000);
+
     function failing() {
       const sent: string[] = [];
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
