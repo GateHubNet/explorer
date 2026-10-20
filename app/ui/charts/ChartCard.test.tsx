@@ -160,6 +160,20 @@ describe("ChartCard failed", () => {
     expect(errors).toEqual([]);
   });
 
+  it("says its message instead of 'Couldn't load …' when it has one, in the same place, with the same Retry", async () => {
+    const onRetry = vi.fn();
+    const message = "Still working on the account value. Retry in a few seconds.";
+    const { container, errors } = await serverThenHydrated(card({ state: "failed", message, onRetry }));
+    const alert = within(container).getByRole("alert");
+    expect(alert.textContent).toBe(`${message}Retry`);
+    expect(container.textContent).not.toContain("Couldn’t load");
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("fieldset")).toBeNull();
+    expect(container.querySelector(".chart__view")).toBeNull();
+    expect(errors).toEqual([]);
+  });
+
   it("disables Retry while it retries", () => {
     render(card({ state: "failed", onRetry: () => {}, retrying: true }));
     expect(screen.getByRole("button", { name: /Retry/ }).hasAttribute("disabled")).toBe(true);

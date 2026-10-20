@@ -16,7 +16,8 @@ const NOTHING = () => {};
  * in the HTML, so the cached page has the table as well as the plot.
  *
  * `state="failed"` is the card whose data could not be loaded: the title and the source stay, and a `SectionError` with a Retry stands
- * in place of the toggle, the legend, both views and the notes. `what` finishes "Couldn't load …".
+ * in place of the toggle, the legend, both views and the notes. `what` finishes "Couldn't load …"; `message` says it in other words where
+ * those do not fit (a call that is still running: "Still working on the account value. Retry in a few seconds.").
  *
  * `state="loading"` is the card of a stream, before its data: the title and the source stay, and "Loading…" fills the height the plot will
  * have, hidden from assistive technology (the card is `aria-busy`, and the page's one status says it is loading). There is no toggle, and
@@ -28,6 +29,7 @@ export function ChartCard({
   source,
   what,
   state = "ok",
+  message,
   onRetry,
   retrying,
   legend,
@@ -44,6 +46,8 @@ export function ChartCard({
   /** What to call the chart in the words of a failure: "transactions by type". */
   what: string;
   state?: "ok" | "failed" | "loading";
+  /** What a failed card says instead of "Couldn't load {what}." (`SectionError`'s `message`). */
+  message?: ReactNode;
   onRetry?: () => void;
   retrying?: boolean;
   /** The `Legend`, for a chart with two or more series. */
@@ -84,7 +88,7 @@ export function ChartCard({
         {toggle}
       </div>
       {state === "failed" ? (
-        <SectionError what={what} onRetry={onRetry ?? NOTHING} retrying={retrying} />
+        <SectionError what={what} message={message} onRetry={onRetry ?? NOTHING} retrying={retrying} />
       ) : state === "loading" ? (
         <div className="chart__loading" aria-hidden="true">
           Loading…

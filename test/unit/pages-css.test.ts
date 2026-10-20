@@ -110,3 +110,49 @@ describe("the segmented links of a filter row", () => {
     expect(rule(componentsCss, ".netswitch__item[aria-current]").background).toBe("var(--surface)");
   });
 });
+
+describe("the account analytics view", () => {
+  /** The selector of every rule of the pages' sheet that names the view (`.analytics…`), at the top level or inside an at-rule. */
+  const analyticsSelectors = [...pagesCss.matchAll(/(?:^|[{}])\s*([^{}@]+?)\s*\{[^{}]*\}/g)]
+    .map(([, selector]) => selector!.trim())
+    .filter((selector) => /\.analytics/.test(selector));
+
+  it("is one column of rows 18 px apart, as the board is", () => {
+    expect(rule(pagesCss, ".analytics")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px", "min-width": "0" });
+  });
+
+  it("lays its four tiles out as many as fit at 220 px, and one under another on a screen narrower than that", () => {
+    expect(rule(pagesCss, ".analytics > .stat-grid")["grid-template-columns"]).toBe("repeat(auto-fit, minmax(min(220px, 100%), 1fr))");
+  });
+
+  it("puts its cards in rows that fold on a phone: the two charts are 480 px at least, the two tables 460 px, each able to shrink", () => {
+    expect(rule(pagesCss, ".analytics__row")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "align-items": "stretch", gap: "18px" });
+    expect(rule(pagesCss, ".analytics__half")).toMatchObject({ flex: "1 1 480px", "min-width": "0" });
+    expect(rule(pagesCss, ".analytics__table-half")).toMatchObject({ flex: "1 1 460px", "min-width": "0" });
+  });
+
+  it("keeps a table's place while it loads: its header row and its rows of 46 px, as many as the card has", () => {
+    expect(rule(pagesCss, ".analytics__table-loading")["min-height"]).toBe("calc(36px + var(--rows) * 46px)");
+    // The rows of DataTable it stands in for.
+    expect(rule(componentsCss, ".table__row")["min-height"]).toBe("46px");
+    expect(rule(componentsCss, ".table__head")["min-height"]).toBe("36px");
+  });
+
+  it("is a filter row of the period links, the values note and the period note, which wrap on a phone", () => {
+    expect(rule(pagesCss, ".analytics-filters")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "align-items": "center" });
+    expect(rule(pagesCss, ".analytics-filters__values").color).toBe("var(--muted)");
+    expect(rule(pagesCss, ".analytics-filters__note").color).toBe("var(--faint)");
+  });
+
+  it("keeps the period links' 44 px target: no rule of the view's touches the segmented links or the network switch's segments", () => {
+    expect(analyticsSelectors).toContain(".analytics-filters");
+    expect(analyticsSelectors.filter((selector) => /seglinks|netswitch/.test(selector))).toEqual([]);
+    expect(rule(componentsCss, ".netswitch__item")["min-height"]).toBe("32px");
+    expect(rule(componentsCss, ".netswitch__item::after").inset).toBe("-6px 0");
+  });
+
+  it("writes its notes in --faint and the hint of a change type in --faint, text colours only", () => {
+    expect(rule(pagesCss, ".analytics__notes").color).toBe("var(--faint)");
+    expect(rule(pagesCss, ".analytics__hint").color).toBe("var(--faint)");
+  });
+});

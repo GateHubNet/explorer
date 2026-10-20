@@ -78,6 +78,16 @@ describe("SegmentedLinks", () => {
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
+  it("gives a link the rel it is given, and none to a link without one", () => {
+    const links: SegmentLink[] = [
+      { label: "30 days", href: "/xrpl/account/A?tab=analytics", current: true, rel: "nofollow" },
+      { label: "90 days", href: "/xrpl/account/A?tab=analytics&period=90d", current: false, rel: "nofollow" },
+      { label: "1 year", href: "/xrpl/account/A?tab=analytics&period=1y", current: false },
+    ];
+    render(routed(<SegmentedLinks label="Period" links={links} />).element);
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("rel"))).toEqual(["nofollow", "nofollow", null]);
+  });
+
   it("keeps its label for screen readers only with hideLabel: the group is named by it as before, and there is no other group", () => {
     const { container } = render(routed(<SegmentedLinks label="Candle interval" hideLabel links={PERIOD} />).element);
     const label = screen.getByText("Candle interval");
