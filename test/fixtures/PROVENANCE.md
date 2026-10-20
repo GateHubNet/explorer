@@ -172,7 +172,8 @@ upstream mock, which finds one by `nodeFile` (`test/support/upstream-core.ts`).
 | Xahau | `https://xahau.network/` | 2026-10-20, 08:37:00 UTC | `validated: true` in `result` |
 
 The native asset is written `XRP` on XRPL and `XAH` on Xahau (`XRP` is refused on Xahau); RLUSD and LIONS are asked for as the ledger holds them, 40 hex digits.
-The four XRPL books were read at one ledger, so the pair page's two orientations agree; the two Xahau books likewise.
+The four XRPL books were read at one ledger (the same index and ledger hash), so the pair page's two orientations agree; the two Xahau books likewise. The recorder
+refuses to write books of one network that are of different ledgers (a ledger closes every few seconds): it asks that network once more, and a second miss writes nothing.
 
 | File below `http/` | Method | `taker_gets` | `taker_pays` | `limit` | `ledger_index` | `result.ledger_index` | Offers | Answered (UTC) |
 |---|---|---|---|---|---|---|---|---|
@@ -189,5 +190,7 @@ the two: a page that shows a book beside a recorded ledger shows two moments. Th
 change together, in one commit.
 
 **What keeps them true.** `test/unit/market-fixtures.test.ts` reads this table: it fails when a row's file, request (method and parameters) or `result.ledger_index`
-is not what the file holds, when `validated` is anything but true or absent, when an offer is not of the assets asked for, when a file is not in `fixtureText`'s
-layout, and when a file is in `node/book_offers/` and has no row. `scripts/http-fixtures.test.ts` fails when the generator would write or report one of them.
+is not what the file holds, when `validated` is anything but true or absent, when an offer is not of the assets asked for, when the books of a network are not of
+one ledger, when a file is not in `fixtureText`'s layout, and when a file is in `node/book_offers/` and has no row. The six books and the rules the recorder keeps
+(`acceptAnswer`, `checkOneLedger`) are in `test/support/book-fixtures.ts`, which the recorder and the test share and the test tries without a network; this table is the
+independent pin of the pairs. `scripts/http-fixtures.test.ts` fails when the generator would write or report one of them.
