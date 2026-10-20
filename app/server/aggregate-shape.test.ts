@@ -310,7 +310,9 @@ describe("checkVolumePage", () => {
   ];
   /** What goes wrong in a component of any volume: its amounts. */
   const ofAmounts: Defect[] = [
-    ["a converted_amount in exponent form", (page) => (page.rows[0].components[0].converted_amount = "1e3")],
+    ["a converted_amount with an exponent of 4 digits", (page) => (page.rows[0].components[0].converted_amount = "1e1000")],
+    ["an amount that is NaN", (page) => (page.rows[0].components[0].amount = "NaN")],
+    ["a rate that is empty", (page) => (page.rows[0].components[0].rate = "")],
     ["a converted_amount that is a number", (page) => (page.rows[0].components[0].converted_amount = 1000)],
     ["a converted_amount that is missing", (page) => delete page.rows[0].components[0].converted_amount],
     ["an amount that is a number", (page) => (page.rows[0].components[0].amount = 5000)],
@@ -358,6 +360,24 @@ describe("checkVolumePage", () => {
       const none = { result: "success", count: 1, rows: [{ ...amm.rows[0], components: [], count: 0, total: "0", exchange_rate: "1" }] };
       expect(checkVolumePage("amm", none).rows[0]!.components).toEqual([]);
     });
+  });
+
+  it.each(["payment", "exchange", "amm"] as const)(
+    "takes the %s component's amount, rate and converted_amount in exponent form: the API writes a tiny amount, or a rate from 1e8, with BigNumber's text",
+    (kind) => {
+      const good = { payment, exchange, amm }[kind];
+      const dust = clone(good) as Body;
+      Object.assign(dust.rows[0].components[0], { amount: "2.5e-7", rate: "1.2345679e+8", converted_amount: "1.5E-7" });
+      expect(checkVolumePage(kind, dust)).toBe(dust);
+    },
+  );
+
+  it("keeps the row's total and exchange_rate plain: they are sums and a display rate, which the API writes as plain decimals", () => {
+    for (const [name, value] of [["total", "4.5e4"], ["exchange_rate", "1e0"]] as const) {
+      const row = clone(exchange) as Body;
+      row.rows[0][name] = value;
+      refuses((body) => checkVolumePage("exchange", body), row);
+    }
   });
 
   it("asks of a component what its kind has: a payment component is not a trade, and a trade is not a pool", () => {
@@ -459,10 +479,16 @@ describe("checkValidations", () => {
 describe("isNumberText", () => {
   // The API writes the figures it computes with BigNumber: `precision8` (`toPrecision(8)`: a price, a rate, a vwap) is in exponent form from 1e8 and below
   // 1e-6, and `toString()` (a sum, a native volume cut to 17 digits) from 1e21 and below 1e-6. So a junk token priced at 0.00000012 XRP is "1.2000000e-7".
-  it.each(["0", "12", "-3", "0.5", "0.0090909091", "45454.545", "0.0000000", "1.2000000e-7", "1.2345679e+8", "5e-7", "1.5e+21", "1e-81", "-1.5E+3"])("takes %j", (text) => {
+  it.each(["0", "12", "-3", "0.5", "0.0090909091", "45454.545", "0.0000000", "1.2000000e-7", "1.2345679e+8", "5e-7", "1.5e+21", "1e-81", "-1.5E+3", "5e-007"])("takes %j", (text) => {
     expect(isNumberText(text)).toBe(true);
   });
   it.each(["", "1e", "e5", "1e+", "1.e5", ".5e3", "12.", "1,000", " 12", "12 ", "+1", "0x10", "NaN", "Infinity", "-Infinity", "1e3.5", "1.2.3", "٣"])("refuses %j", (text) => {
+    expect(isNumberText(text)).toBe(false);
+  });
+  it.each(["1e999", "1e-999", "1.5e+100"])("takes %j, an exponent of at most 3 digits", (text) => {
+    expect(isNumberText(text)).toBe(true);
+  });
+  it.each(["1e1000", "1e-1000", "1e999999999", "1.5e+0001", "5e-00000000007"])("refuses %j: an exponent of more than 3 digits would reach BigNumber's formatting of a page", (text) => {
     expect(isNumberText(text)).toBe(false);
   });
   it.each([12, 1.5e-7, null, undefined, true, ["1"], { value: "1" }])("refuses %j, which is not text", (value) => {

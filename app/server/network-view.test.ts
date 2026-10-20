@@ -598,6 +598,24 @@ describe("paymentsOf", () => {
       expect(byCurrency.format).toEqual({ kind: "amount", unit: "XRP" });
     });
 
+    // The data API writes a tiny amount, or a rate from 1e8, with BigNumber's text, in exponent form (`isNumberText` takes it). The view reads the converted
+    // amount through BigNumber and writes it with `toFixed()`, so no exponent reaches a figure, a share or a label.
+    it("writes a component the API sent in exponent form as a plain decimal", () => {
+      const dust = [
+        volumeRow(a, "0.0000007", [
+          { ...paying("XRP", undefined, "2e-7"), amount: "2e-7" },
+          { ...paying("USD", USD_ISSUER, "5.0E-7"), amount: "2.5e-7", rate: "1.2345679e+8" },
+        ]),
+      ];
+      const part = partOf(dust);
+
+      expect(part.byCurrency.items.map((item) => [item.label, item.value, item.share])).toEqual([
+        ["USD", "0.0000005", "71%"],
+        ["XRP", "0.0000002", "29%"],
+      ]);
+      expect(JSON.stringify(part)).not.toMatch(/\de[+-]\d/i);
+    });
+
     it("names the currencies in a note", () => {
       expect(partOf(rows).currencies).toBe("Payments in the currencies the data API tracks: XRP, USD, EUR.");
       expect(partOf([]).currencies).toBe("Payments in the currencies the data API tracks.");

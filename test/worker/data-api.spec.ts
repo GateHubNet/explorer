@@ -2100,7 +2100,7 @@ describe("an answer that is not what the reference promises", () => {
       ...volumes.flatMap(([name, call, good]): Array<[string, unknown, (api: DataApi) => Promise<unknown>, unknown]> => [
         [`a ${name} row whose total is a number`, broken(good, (b) => (b.rows[0].total = 12.5)), call, good],
         [`a ${name} row without components`, broken(good, (b) => delete b.rows[0].components), call, good],
-        [`a ${name} component whose converted_amount is "1e3"`, broken(good, (b) => (b.rows[0].components[0].converted_amount = "1e3")), call, good],
+        [`a ${name} component whose converted_amount is "1e1000" (an exponent of 4 digits)`, broken(good, (b) => (b.rows[0].components[0].converted_amount = "1e1000")), call, good],
       ]),
       ["validations that are not a list", broken(validationsBody, (b) => (b.validations = {})), (api) => api.ledgerValidations(LEDGER_HASH, { limit: 1000 }), validationsBody],
       [
@@ -2137,6 +2137,14 @@ describe("an answer that is not what the reference promises", () => {
       expect(first.kind).toBe("server");
       expect(second).toBe(first);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("takes a volume component in exponent form, which BigNumber's text has for a tiny amount or a rate from 1e8", async () => {
+      for (const [name, call, good] of volumes) {
+        const dust = broken(good, (b) => Object.assign(b.rows[0].components[0], { amount: "2.5e-7", rate: "1.2345679e+8", converted_amount: "1.5e-7" }));
+        fetchSpy.mockResolvedValueOnce(json(dust));
+        expect(await call(createDataApi(xrpl, env, passThroughCache)), name).toEqual(dust);
+      }
     });
 
     it("takes the good answers, each as it came", async () => {

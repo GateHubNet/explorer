@@ -29,7 +29,7 @@ import { isMarker } from "./marker";
 import { isObject, malformed } from "./tx-shape";
 
 const DECIMAL = /^-?\d+(\.\d+)?$/;
-const NUMBER = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+const NUMBER = /^-?\d+(\.\d+)?([eE][+-]?\d{1,3})?$/;
 /** A share as D2b.1 writes it: exactly 4 decimals, `"0.3400"`. */
 const SHARE = /^\d+\.\d{4}$/;
 const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
@@ -43,7 +43,8 @@ export function isDecimalText(value: unknown): value is string {
  * A number as the API writes a figure it computes: a decimal, or one in exponent form. The API formats with BigNumber: `precision8` (`toPrecision(8)`, a price,
  * a rate, a vwap) writes an exponent from 1e8 and below 1e-6 (`"1.2345679e+8"`, `"1.0000000e-7"`: a token priced at a ten-millionth of an XRP), and `toString()`
  * (a sum of volumes, a native volume cut to 17 digits) from 1e21 and below 1e-6. Those are exact texts like the others, and the pages compute with them as
- * with any decimal; refusing them would turn a pair of a junk token into an outage of the whole table. The text of `NaN`, `Infinity` and `""` is refused.
+ * with any decimal; refusing them would turn a pair of a junk token into an outage of the whole table. The exponent has at most 3 digits (a ledger amount
+ * reaches `e-81` and `e+96`), so that `1e999999999` never reaches the formatting of a page. `NaN`, `Infinity` and `""` are refused.
  * (The amounts that are plain by contract, `change` and the shares, are tested with `isDecimalText` and `isShare`.)
  */
 export function isNumberText(value: unknown): value is string {
@@ -143,8 +144,8 @@ const VOLUME_NAMES = { payment: "data API payment volume", exchange: "data API e
 
 /**
  * `GET /v2/network/{payment,exchange,amm}_volume` with `start` or `end`: a row for each bucket, with its components. The row's `total` and its
- * components' `amount`, `rate` and `converted_amount` are decimal strings (exact text: a JSON number would lose digits); the component
- * is the kind's: a currency for payments, a market (`base`, `counter`) for trades, a pool as well (`amm_account`) for swaps.
+ * components' `amount`, `rate` and `converted_amount` are numbers as exact text (a JSON number would lose digits; BigNumber writes a tiny amount, or a rate
+ * from 1e8, with an exponent: `isNumberText`), `total` and `exchange_rate` are plain decimals; the component is the kind's: a currency for payments, a market (`base`, `counter`) for trades, a pool as well (`amm_account`) for swaps.
  */
 export function checkVolumePage<K extends keyof VolumeComponents>(kind: K, body: unknown): Page<"rows", VolumeRow<VolumeComponents[K]>> {
   const what = VOLUME_NAMES[kind];
@@ -160,7 +161,8 @@ export function checkVolumePage<K extends keyof VolumeComponents>(kind: K, body:
       const here = `${where}.components[${at}]`;
       if (!isObject(component)) throw malformed(what, `${here} is not an object`);
       fields(what, here, component, ["count"], isCount, "a number");
-      fields(what, here, component, ["amount", "rate", "converted_amount"], isDecimalText, "a decimal");
+      // BigNumber's text: a tiny amount, or a rate from 1e8 (a worthless token), is in exponent form (`isNumberText`). The row's `total` and `exchange_rate` stay plain.
+      fields(what, here, component, ["amount", "rate", "converted_amount"], isNumberText, "a number as text");
       if (kind === "payment") {
         fields(what, here, component, ["currency"], (value) => isText(value) && value !== "", "a currency");
         if (component.issuer !== undefined && !isText(component.issuer)) throw malformed(what, `${here}.issuer is not text`);
@@ -209,7 +211,7 @@ export function checkValidations(body: unknown): LedgerValidations {
 function listOf(what: string, body: unknown, key: string): Array<Record<string, unknown>> {
   const rows = rowsOf(what, body, key);
   const head = body as Record<string, unknown>;
-  if (!isWhole(head.count)) throw malformed(what, "count is not a number");
+  if (!isWhole(head.count)) throw malformed(what, "count is not a whole number");
   if (head.marker !== undefined && !isMarker(head.marker)) throw malformed(what, "marker is not a marker");
   return rows;
 }
@@ -263,7 +265,7 @@ export function checkReduce(body: unknown): Page<"exchanges", ReducedRow> {
   const what = "data API reduced exchanges";
   const rows = listOf(what, body, "exchanges");
   if (rows.length !== 1) throw malformed(what, `${rows.length} rows, not one`);
-  const [row = {}] = rows;
+  const row = rows[0] as Record<string, unknown>; // exactly one row: the count was checked just above
   checkFigures(what, "exchanges[0]", row);
   fields(what, "exchanges[0]", row, ["start"], isIsoTime, "a time");
   optionalFields(what, "exchanges[0]", row, ["open_time", "close_time"], isIsoTime, "a time");

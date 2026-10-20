@@ -548,6 +548,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         finish: checkReduce,
       });
       const [row] = page.exchanges;
+      // Unreachable: checkReduce admits exactly one row. Kept so that the return needs no assertion, and still holds if `noUncheckedIndexedAccess` is ever turned on.
       if (row === undefined) throw new UpstreamError("server", "data API reduced exchanges answered without a row", { status: 200 });
       return row;
     },
