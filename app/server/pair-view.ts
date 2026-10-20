@@ -35,7 +35,7 @@ export interface BookLevel {
   size: string;
   /** The size from the best price out to this level, `compactNumber`. */
   total: string;
-  /** `total` over the larger side's last total, exact text from 0 to 1 (a plain decimal of up to 80 places): the width of the level's bar. */
+  /** `total` over the larger side's last total, from 0 to 1 as a plain decimal of up to 6 places, half up: the width of the level's bar, never a figure. */
   depth: string;
 }
 
@@ -48,6 +48,7 @@ export interface BookParts {
   bids: BookLevel[];
   /** The best ask minus the best bid at 8 significant digits, as shown, or a dash where a side is empty or the book is not above 0 apart. */
   spread: string;
+  /** `tokenOf` the levels (`asks` and `bids`) alone: the ledger and the spread are left out, so a book that has not changed keeps its token as the chain moves. */
   token: string;
 }
 
@@ -110,20 +111,22 @@ function levelsOf(book: Book, side: "ask" | "bid"): Level[] {
     merged.set(key, { price: priced.price, size: level === undefined ? priced.size : level.size.plus(priced.size) });
   }
   const ordered = [...merged.values()].sort((a, b) => (side === "ask" ? a.price.comparedTo(b.price) : b.price.comparedTo(a.price)) ?? 0);
+  const levels: Level[] = [];
   let total = new BN(0);
-  return ordered.slice(0, BOOK_LEVELS).map(({ price, size }) => {
+  for (const { price, size } of ordered.slice(0, BOOK_LEVELS)) {
     total = total.plus(size);
-    return { price, size, total };
-  });
+    levels.push({ price, size, total });
+  }
+  return levels;
 }
 
-/** The level as the page shows it, on the scale `scale` (the larger side's last total). */
+/** The level as the page shows it, on the scale `scale` (the larger side's last total). The depth is a bar's width, so 6 places are all it needs. */
 function shown(level: Level, scale: BigNumber): BookLevel {
   return {
     price: formatPrice(level.price.toFixed()),
     size: compactNumber(level.size.toFixed()),
     total: compactNumber(level.total.toFixed()),
-    depth: level.total.div(scale).toFixed(),
+    depth: level.total.div(scale).decimalPlaces(6, HALF_UP).toFixed(),
   };
 }
 
@@ -147,13 +150,13 @@ function spreadOf(asks: readonly Level[], bids: readonly Level[]): string {
 export function bookOf(asks: Book, bids: Book): BookParts {
   const [askLevels, bidLevels] = [levelsOf(asks, "ask"), levelsOf(bids, "bid")];
   const scale = BN.max(askLevels.at(-1)?.total ?? 0, bidLevels.at(-1)?.total ?? 0);
-  const parts = {
+  const levels = { asks: askLevels.map((level) => shown(level, scale)), bids: bidLevels.map((level) => shown(level, scale)) };
+  return {
     ledger: formatAmount(String(Math.min(asks.ledgerIndex, bids.ledgerIndex))),
-    asks: askLevels.map((level) => shown(level, scale)),
-    bids: bidLevels.map((level) => shown(level, scale)),
+    ...levels,
     spread: spreadOf(askLevels, bidLevels),
+    token: tokenOf(levels),
   };
-  return { ...parts, token: tokenOf(parts) };
 }
 
 // ---- The candles ----------------------------------------------------------------------------------------------------------------------------
@@ -173,6 +176,7 @@ export function candlesOf(
   const served = new Map<number, Candle>();
   for (const candle of page.exchanges) {
     const at = Date.parse(candle.start);
+    // A repeated start keeps the first. Defensive only: the API serves one candle a bucket and never repeats a start.
     if (!served.has(at)) served.set(at, candle);
   }
   const candles = window.buckets.map((bucket) => {

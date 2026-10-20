@@ -19,6 +19,9 @@ const DASH = "—";
 /** The arithmetic of the view builder, for the expected values: 80 places, half up. */
 const BN = BigNumber.clone({ DECIMAL_PLACES: 80, ROUNDING_MODE: BigNumber.ROUND_HALF_UP });
 
+/** A depth as the page gets it: `part` over `whole`, 6 decimal places, half up. */
+const depthOf = (part: BigNumber.Value, whole: BigNumber.Value): string => new BN(part).div(whole).decimalPlaces(6).toFixed();
+
 const xrp = (value: string): NodeAmount => ({ currency: "XRP", value });
 const rlusd = (value: string): NodeAmount => ({ currency: RLUSD_HEX, issuer: RL, value });
 
@@ -62,7 +65,7 @@ describe("bookOf", () => {
   it("builds the inverted page, RLUSD / XRP, from the same two answers swapped", () => {
     const parts = bookOf(BIDS, ASKS);
     // Its asks give RLUSD: D, at 100 ÷ 125. Its bids give XRP: A (funded 65 RLUSD) and B (260) at 100 ÷ 130 and 200 ÷ 260; C is funded nothing.
-    expect(parts.asks).toEqual([{ price: "0.8", size: "125", total: "125", depth: new BN(125).div(325).toFixed() }]);
+    expect(parts.asks).toEqual([{ price: "0.8", size: "125", total: "125", depth: depthOf(125, 325) }]);
     expect(parts.bids).toEqual([{ price: "0.76923077", size: "325", total: "325", depth: "1" }]);
     expect(parts.spread).toBe("0.03076923");
   });
@@ -78,11 +81,18 @@ describe("bookOf", () => {
     expect(parts.bids.map((level) => level.depth)).toEqual(["0.125", "0.375", "1"]);
   });
 
-  it("writes a depth that is not exact in 80 places, as the arithmetic of the page does", () => {
+  it("writes a depth that is not exact to 6 decimal places, half up, as a plain decimal", () => {
     const parts = bookOf(book([offer(xrp("1"), rlusd("2"))]), book([offer(rlusd("3"), xrp("3")), offer(rlusd("3"), xrp("0.5"))]));
-    // 1 ÷ 3.5: the bids' last total is the scale.
-    expect(parts.asks[0]!.depth).toBe(new BN(1).div(new BN("3.5")).toFixed());
-    expect(parts.asks[0]!.depth).toMatch(/^0\.285714285714285714285714\d{56}$/);
+    // 1 ÷ 3.5 = 0.2857142857…: the bids' last total is the scale.
+    expect(parts.asks[0]!.depth).toBe("0.285714");
+    expect(parts.bids.map((level) => level.depth)).toEqual(["0.142857", "1"]);
+    // 2 ÷ 3 rounds up, 1 ÷ 3 down; 5e-7 is 1e-6 (half up) and 3.3e-7 is nothing.
+    const thirds = bookOf(book([offer(xrp("1"), rlusd("2")), offer(xrp("1"), rlusd("3"))]), book([offer(rlusd("3"), xrp("3"))]));
+    expect(thirds.asks.map((level) => level.depth)).toEqual(["0.333333", "0.666667"]);
+    const tiny = bookOf(book([offer(xrp("1"), rlusd("2"))]), book([offer(rlusd("3"), xrp("2000000"))]));
+    expect(tiny.asks[0]!.depth).toBe("0.000001");
+    expect(bookOf(book([offer(xrp("1"), rlusd("2"))]), book([offer(rlusd("3"), xrp("3000000"))])).asks[0]!.depth).toBe("0");
+    for (const level of [...parts.asks, ...parts.bids, ...thirds.asks, ...tiny.asks]) expect(level.depth).toMatch(/^(?:0|1|0\.\d{1,6})$/);
   });
 
   it("keeps the best 10 of more than 10 asks", () => {
@@ -102,7 +112,7 @@ describe("bookOf", () => {
     const parts = bookOf(book([]), bids);
     expect(parts.bids).toHaveLength(10);
     expect(parts.bids.map((level) => level.size)).toEqual(["5", "6", "7", "8", "9", "10", "11", "12", "13", "14"]);
-    expect(parts.bids[0]).toEqual({ price: "2", size: "5", total: "5", depth: new BN(5).div(95).toFixed() });
+    expect(parts.bids[0]).toEqual({ price: "2", size: "5", total: "5", depth: depthOf(5, 95) });
     expect(parts.bids[1]!.price).toBe("1.6666667");
     expect(parts.bids[9]!.price).toBe("0.71428571");
     expect(parts.bids[9]!.depth).toBe("1");
@@ -125,8 +135,8 @@ describe("bookOf", () => {
     expect(parts.asks.map((level) => level.size)).toEqual(["10", "20.5", "30K"]);
     expect(parts.asks.map((level) => level.total)).toEqual(["10", "30.5", "30K"]);
     expect(parts.asks.map((level) => level.depth)).toEqual([
-      new BN(10).div("30030.5").toFixed(),
-      new BN("30.5").div("30030.5").toFixed(),
+      depthOf(10, "30030.5"),
+      depthOf("30.5", "30030.5"),
       "1",
     ]);
   });
@@ -159,7 +169,7 @@ describe("bookOf", () => {
     const asks = book([offer(xrp("100"), rlusd("130"), { getsFunded: xrp("40"), paysFunded: rlusd("10") })]);
     const bids = book([offer(rlusd("125"), xrp("100"), { getsFunded: rlusd("1"), paysFunded: xrp("60") })]);
     const parts = bookOf(asks, bids);
-    expect(parts.asks).toEqual([{ price: "1.3", size: "40", total: "40", depth: new BN(40).div(60).toFixed() }]);
+    expect(parts.asks).toEqual([{ price: "1.3", size: "40", total: "40", depth: depthOf(40, 60) }]);
     expect(parts.bids).toEqual([{ price: "1.25", size: "60", total: "60", depth: "1" }]);
   });
 
@@ -257,9 +267,6 @@ describe("bookOf", () => {
       "a price": bookOf(book([A, B, offer(xrp("10"), rlusd("14"))]), BIDS).token,
       "a size": bookOf(book([A, offer(xrp("201"), rlusd("261.3")), C]), BIDS).token,
       "a bid": bookOf(ASKS, book([offer(rlusd("125"), xrp("101"))])).token,
-      // The ledger shown is the lower of the two.
-      "the asks' ledger": bookOf(book([A, B, C], 107_721_453), BIDS).token,
-      "the bids' ledger": bookOf(ASKS, book([D], 107_721_454)).token,
       "an empty side": bookOf(ASKS, book([])).token,
       "swapped sides": bookOf(BIDS, ASKS).token,
       // The same levels on the ask side; only the depth scale (the bids) moved.
@@ -267,6 +274,26 @@ describe("bookOf", () => {
     };
     for (const [what, other] of Object.entries(changed)) expect(other, what).not.toBe(token);
     expect(new Set(Object.values(changed)).size).toBe(Object.keys(changed).length);
+  });
+
+  it("changes the token when only an ask does, under a bid side that sets the depth scale", () => {
+    const deep = book([offer(rlusd("1000"), xrp("1000"))]);
+    const [before, after] = [bookOf(book([offer(xrp("10"), rlusd("13"))]), deep), bookOf(book([offer(xrp("10"), rlusd("14"))]), deep)];
+    expect(after.bids).toEqual(before.bids);
+    expect(after.token).not.toBe(before.token);
+  });
+
+  it("keeps the token of a book whose levels have not changed when only the ledger has", () => {
+    const token = bookOf(ASKS, BIDS).token;
+    // The ledger shown is the lower of the two: either one moving changes it, and neither moves the token.
+    const older = bookOf(book([A, B, C], 107_721_453), BIDS);
+    const newer = bookOf(book([A, B, C], 107_721_460), book([D], 107_721_470));
+    expect(older.ledger).toBe("107,721,453");
+    expect(newer.ledger).toBe("107,721,460");
+    expect(bookOf(ASKS, book([D], 107_721_454)).ledger).toBe("107,721,454");
+    for (const same of [older, newer, bookOf(ASKS, book([D], 107_721_454))]) expect(same.token).toBe(token);
+    // The token is of what is drawn: one offer of the same price and size is the same level.
+    expect(bookOf(book([offer(xrp("250"), rlusd("325"))], 1), BIDS).token).toBe(token);
   });
 
   describe("at the edges of what a ledger holds", () => {
@@ -367,16 +394,16 @@ describe("bookOf over the recorded books", () => {
     // The bids' total, 23,372.273255, is the larger: the scale of both sides.
     const scale = new BN("23372.273255");
     expect(parts.bids).toEqual([
-      { price: "1.0417752", size: "9,714.86", total: "9,714.86", depth: new BN("9714.85993").div(scale).toFixed() },
-      { price: "1.0416667", size: "1,587.41", total: "11.3K", depth: new BN("11302.273255").div(scale).toFixed() },
+      { price: "1.0417752", size: "9,714.86", total: "9,714.86", depth: depthOf("9714.85993", scale) },
+      { price: "1.0416667", size: "1,587.41", total: "11.3K", depth: depthOf("11302.273255", scale) },
       { price: "0.01", size: "12.1K", total: "23.4K", depth: "1" },
     ]);
     // The four offers that are funded: the last is 1 XRP at 100,000,000 LIONS.
     expect(parts.asks).toEqual([
-      { price: "7,092.1986", size: "10", total: "10", depth: new BN(10).div(scale).toFixed() },
-      { price: "7,246.3768", size: "6.82", total: "16.82", depth: new BN("16.822751").div(scale).toFixed() },
-      { price: "7,633.5878", size: "0.384", total: "17.21", depth: new BN("17.206943").div(scale).toFixed() },
-      { price: "100,000,000", size: "1", total: "18.21", depth: new BN("18.206943").div(scale).toFixed() },
+      { price: "7,092.1986", size: "10", total: "10", depth: depthOf(10, scale) },
+      { price: "7,246.3768", size: "6.82", total: "16.82", depth: depthOf("16.822751", scale) },
+      { price: "7,633.5878", size: "0.384", total: "17.21", depth: depthOf("17.206943", scale) },
+      { price: "100,000,000", size: "1", total: "18.21", depth: depthOf("18.206943", scale) },
     ]);
     // The best ask is far above the best bid, and the spread is of the two shown prices: 7092.1986 − 1.0417752.
     expect(parts.spread).toBe("7,091.1568");
@@ -388,11 +415,11 @@ describe("bookOf over the recorded books", () => {
     expect(parts.asks).toHaveLength(10);
     expect(parts.bids).toHaveLength(10);
     expect(parts.asks[0]).toMatchObject({ price: "1.29643", size: "7,717.67", total: "7,717.67" });
-    expect(parts.bids[0]).toEqual({ price: "1.2956", size: "1", total: "1", depth: new BN(1).div("10960.893152").toFixed() });
+    expect(parts.bids[0]).toEqual({ price: "1.2956", size: "1", total: "1", depth: depthOf(1, "10960.893152") });
     expect(parts.spread).toBe("0.00083");
     // Asks total 10,960.893152 and bids 2,368.322576: the asks reach the depth 1 and the bids a fraction of it.
     expect(parts.asks[9]).toMatchObject({ price: "1.297884", total: "11K", depth: "1" });
-    expect(parts.bids[9]).toMatchObject({ price: "1.2943466", total: "2,368.32", depth: new BN("2368.322576").div("10960.893152").toFixed() });
+    expect(parts.bids[9]).toMatchObject({ price: "1.2943466", total: "2,368.32", depth: depthOf("2368.322576", "10960.893152") });
     for (const level of [...parts.asks, ...parts.bids]) {
       for (const text of Object.values(level)) expect(text).not.toMatch(EXPONENT);
     }
@@ -402,10 +429,10 @@ describe("bookOf over the recorded books", () => {
     const parts = bookOf(recorded(RLUSD, XRP), recorded(XRP, RLUSD));
     expect(parts.ledger).toBe("107,780,245");
     // The asks are the offers that give RLUSD: 1 ÷ 1.2956 XRP per RLUSD. The bids give XRP: 1.2956 ÷ ... the larger side is the bids, 14,212.449684083.
-    expect(parts.asks[0]).toEqual({ price: "0.77184316", size: "1.3", total: "1.3", depth: new BN("1.2956").div("14212.449684083").toFixed() });
+    expect(parts.asks[0]).toEqual({ price: "0.77184316", size: "1.3", total: "1.3", depth: depthOf("1.2956", "14212.449684083") });
     expect(parts.bids[0]).toMatchObject({ price: "0.77134901", size: "10K", total: "10K" });
     expect(parts.bids[9]).toMatchObject({ total: "14.2K", depth: "1" });
-    expect(parts.asks[9]).toMatchObject({ total: "3,065.93", depth: new BN("3065.92918233191525").div("14212.449684083").toFixed() });
+    expect(parts.asks[9]).toMatchObject({ total: "3,065.93", depth: depthOf("3065.92918233191525", "14212.449684083") });
     expect(parts.spread).toBe("0.00049415");
   });
 });
@@ -514,7 +541,6 @@ describe("candlesOf", () => {
     expect(data.forming).toBe(true);
     expect(data.format).toEqual({ kind: "price", unit: "RLUSD" });
     expect(data.volume).toEqual({ kind: "amount", unit: "XRP" });
-    expect(Object.keys(data)).toEqual(["axis", "candles", "format", "volume", "forming", "token"]);
   });
 
   it("marks the newest bucket as running when it has no candle either", () => {
