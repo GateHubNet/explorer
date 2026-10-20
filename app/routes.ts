@@ -8,6 +8,7 @@ export default [
   route(":net", "routes/net.tsx", [
     index("routes/net._index.tsx"),
     route("network", "routes/net.network.tsx"),
+    route("markets", "routes/net.markets.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

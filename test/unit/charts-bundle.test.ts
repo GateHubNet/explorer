@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { valueImports } from "../support/value-imports";
+
 // The chart kit is drawn in the browser too (a client-side navigation renders a page there), and it has to fit in what the network page
 // loads (spec 2.1: about 7 KB gzip). So it imports no charting package, no code of the server, and from the app only what is light:
 // `react`, its own files, `app/domain/format.ts` (bignumber.js is in the bundle already), `app/ui/cx.ts` and the components. It has no
@@ -8,26 +10,6 @@ import { describe, expect, it } from "vitest";
 
 const appDir = new URL("../../app/", import.meta.url);
 const chartsDir = new URL("ui/charts/", appDir);
-
-/**
- * The module specifiers a source loads as values: `import x from`, `import "x"`, `export … from "x"` and `import("x")`. What
- * `import type` and `import { type A }` bring is erased by the compiler, and so is `export type … from`.
- */
-function valueImports(source: string): string[] {
-  const found: string[] = [];
-  const keep = (clause: string, from: string) => {
-    if (/^type\s/.test(clause)) return;
-    const named = /^\{([^}]*)\}$/.exec(clause.trim());
-    if (named && named[1]!.split(",").map((part) => part.trim()).filter(Boolean).every((part) => part.startsWith("type "))) return;
-    found.push(from);
-  };
-  for (const [, clause, from] of source.matchAll(/^import\s+([^;]*?)\s+from\s+["']([^"']+)["']/gms)) keep(clause!, from!);
-  // A re-export names a module too; only `export { … } from` and `export * from` do (an `export const` has no `from`).
-  for (const [, clause, from] of source.matchAll(/^export\s+((?:type\s+)?\{[^}]*\}|\*(?:\s+as\s+\w+)?)\s+from\s+["']([^"']+)["']/gms)) keep(clause!, from!);
-  for (const [, from] of source.matchAll(/^import\s+["']([^"']+)["']/gm)) found.push(from!);
-  for (const [, from] of source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)) found.push(from!);
-  return found;
-}
 
 const kitFiles = readdirSync(chartsDir).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
 

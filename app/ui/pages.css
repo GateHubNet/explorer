@@ -1180,6 +1180,207 @@ a.example:hover {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Markets: /{net}/markets (the board's layout: one column of rows, the table scrolling sideways inside its card on a phone). The classes of
+   the chart kit (charts.css, which comes before this sheet) are never defined here, the meter's and the source line's included: the cells
+   size the meter through a box of their own. */
+
+.markets {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.markets__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.markets__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.markets__intro {
+  color: var(--muted);
+}
+
+/* The segmented links, then the text filter. The field is drawn only after hydration, in a slot that is there from the start and 44 px high
+   (on a line of its own on a phone too), so adding it moves nothing. */
+.markets__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  min-height: 44px;
+}
+
+.markets__search {
+  display: flex;
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.markets__field {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.markets__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.markets__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.markets__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.markets__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+/* The period's words: faint, 12 px. */
+.markets__note {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The table: rows of 56 px (the board's), the header row 44 px, which the sort buttons fill after hydration, so that they move nothing. */
+.markets__table .table__row {
+  min-height: 56px;
+}
+
+.markets__table .table__head {
+  min-height: 44px;
+}
+
+/* The sorted column's header, in --fg: the others are the header row's --faint. */
+.markets__table [aria-sort="ascending"],
+.markets__table [aria-sort="descending"] {
+  color: var(--fg);
+}
+
+/* A sort button fills its header, 44 px high; its ring is drawn inside it, where the scroll region does not clip it. */
+.markets__sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: inherit;
+  text-align: inherit;
+}
+
+.markets__sort:hover {
+  color: var(--fg);
+}
+
+.markets__sort:focus-visible {
+  outline-offset: -2px;
+}
+
+.markets__arrow {
+  margin-left: 4px;
+}
+
+/* The pair's link is the cell's whole block, at least 44 px high: the pair in --fg over its issuers in --faint mono, one target per row. */
+.markets__pair {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  color: var(--fg);
+}
+
+a.markets__pair:hover {
+  text-decoration: none;
+}
+
+a.markets__pair:hover .markets__name {
+  text-decoration: underline;
+}
+
+.markets__name {
+  font-weight: 600;
+}
+
+.markets__issuers {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The change: a triangle (a picture) and the signed text, in --muted: more is neither good nor bad. */
+.markets__change {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.markets__range {
+  font-size: 13px;
+}
+
+.markets__amm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The box the decorative meter fills: the meter itself has no width of its own. */
+.markets__meter {
+  flex: none;
+  width: 56px;
+}
+
+.markets__footnote {
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .markets__title {
+    font-size: 24px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Phones */
 
 @media (max-width: 640px) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowStep } from "../domain/describe";
-import { accountMeta, homeMeta, imageUrl, ledgerMeta, metaContext, networkMeta, transactionDescription, transactionMeta, type MetaContext } from "./meta";
+import { accountMeta, homeMeta, imageUrl, ledgerMeta, marketsMeta, metaContext, networkMeta, transactionDescription, transactionMeta, type MetaContext } from "./meta";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
 // view builders return for the fields the tags read; the worker specs (test/worker/meta.spec.ts) check the whole way from a
@@ -299,6 +299,66 @@ describe("networkMeta", () => {
     expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
     expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
     expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+});
+
+describe("marketsMeta", () => {
+  const DESCRIPTION = (dex: string, period = "last 24 hours") =>
+    `Every pair traded on ${dex} with at least 10 trades in the ${period}: last price, change, range, volume and a 7-day trend.`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const DEFAULT = { view: [], indexable: true };
+
+  it("has the tags of the default view: a canonical URL, Open Graph, a summary card and no image", () => {
+    const list = marketsMeta(DEFAULT, XRPL);
+    expect(title(list)).toBe("XRPL markets · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("the XRP Ledger DEX"));
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/markets");
+    expect(content(list, "og:title")).toBe("XRPL markets · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION("the XRP Ledger DEX"));
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/markets");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau: the Xahau DEX", () => {
+    const list = marketsMeta(DEFAULT, XAHAU);
+    expect(title(list)).toBe("Xahau markets · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("the Xahau DEX"));
+    expect(link(list, "canonical")).toBe("https://explorer.test/xahau/markets");
+  });
+
+  it("names the view in the title of any other, in the view builder's words, and its period in the description", () => {
+    const list = marketsMeta({ view: ["last 7 days", "USD", "AMM swaps"], indexable: false }, XRPL);
+    expect(title(list)).toBe("XRPL markets · last 7 days · USD · AMM swaps · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("the XRP Ledger DEX", "last 7 days"));
+    expect(title(marketsMeta({ view: ["EUR"], indexable: false }, XRPL))).toBe("XRPL markets · EUR · explorer");
+    expect(content(marketsMeta({ view: ["EUR"], indexable: false }, XRPL), "description")).toBe(DESCRIPTION("the XRP Ledger DEX"));
+    expect(content(marketsMeta({ view: ["last 30 days", "order-book trades"], indexable: false }, XAHAU), "description")).toBe(
+      DESCRIPTION("the Xahau DEX", "last 30 days"),
+    );
+  });
+
+  it.each([[["last 7 days", "USD", "AMM swaps"]], [["USD"]], [["last 30 days"]], [["order-book trades"]]])(
+    "is noindex, follow, with no canonical URL and no Open Graph or card tags, on the view %j",
+    (view) => {
+      const list = marketsMeta({ view, indexable: false }, XRPL);
+      expect(content(list, "robots")).toBe("noindex, follow");
+      expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+      expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+      expect(keys(list).sort()).toEqual(["description", "robots"]);
+    },
+  );
+
+  it("puts no number of the data in the description: the page is stored for a minute", () => {
+    for (const ctx of [XRPL, XAHAU]) {
+      const description = content(marketsMeta(DEFAULT, ctx), "description")!;
+      // The fixed words of the spec only: "10 trades", "24 hours", "7-day".
+      expect(description.match(/\d+/g)).toEqual(["10", "24", "7"]);
+    }
   });
 });
 

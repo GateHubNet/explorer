@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { valueImports } from "../support/value-imports";
+
 // The account page is drawn in the browser too (a client-side navigation renders it there), so what it imports must be light. `describe/`
 // and `parse/` (and the libraries behind them), the QR encoder and the view builder work in the Worker only and reach the browser as data:
 // the finished picture of the QR code, the rows of the lists. A type import is erased and costs nothing; a value import of the server's
@@ -8,18 +10,6 @@ import { describe, expect, it } from "vitest";
 
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
-
-/** The module specifiers a source imports as values (`import type` and `import { type X }`-only lines are erased by the compiler). */
-function valueImports(source: string): string[] {
-  const found: string[] = [];
-  for (const [, clause, from] of source.matchAll(/^import\s+([^;]*?)\s+from\s+["']([^"']+)["']/gms)) {
-    if (/^type\s/.test(clause!)) continue;
-    const named = /^\{([^}]*)\}$/.exec(clause!.trim());
-    if (named && named[1]!.split(",").map((part) => part.trim()).filter(Boolean).every((part) => part.startsWith("type "))) continue;
-    found.push(from!);
-  }
-  return found;
-}
 
 const SERVER_ONLY = (from: string) => /\/server\//.test(from) || /\/describe(\/|$)/.test(from) || /\/parse(\/|$)/.test(from) || /ripple-/.test(from) || /\/qr$/.test(from);
 

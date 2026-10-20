@@ -375,6 +375,46 @@ describe("the network page", () => {
   });
 });
 
+describe("the markets page", () => {
+  const DESCRIPTION = (dex: string, period = "last 24 hours") =>
+    `Every pair traded on ${dex} with at least 10 trades in the ${period}: last price, change, range, volume and a 7-day trend.`;
+
+  it("has the tags of its network on the default view: a description with no numbers of the data, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/markets")).html);
+    expect(tags.titles).toEqual(["XRPL markets · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("the XRP Ledger DEX"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/markets`]);
+    expect(tags.content("og:title")).toBe("XRPL markets · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("the XRP Ledger DEX"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/markets`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow on any other view, with the view in its title and no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/markets?period=7d&quote=usd&trades=amm")).html);
+    expect(tags.titles).toEqual(["XRPL markets · last 7 days · USD · AMM swaps · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("the XRP Ledger DEX", "last 7 days"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau: the Xahau DEX", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/markets")).html);
+    expect(tags.titles).toEqual(["Xahau markets · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("the Xahau DEX"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/markets`]);
+  });
+});
+
 describe("the pages that are not for a search engine", () => {
   it("keeps a search page noindex, follow, without a canonical URL or sharing tags", async () => {
     mock = mockUpstream("xrpl");

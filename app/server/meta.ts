@@ -21,6 +21,7 @@ import { findNetwork, type NetworkBrief } from "../ui/networks";
 import { NETWORK_ROUTE_ID } from "../ui/use-network";
 import type { Activation, BalanceView } from "./account-view";
 import type { LedgerPageData } from "./ledger-view";
+import type { MarketsPageData } from "./markets-view";
 import type { TransactionPageData } from "./transaction-view";
 
 /** What every builder needs besides the page's data: the network, and the origin of the request (`https://host`, no slash at the end). */
@@ -146,6 +147,28 @@ export function networkMeta(view: NetworkParams, ctx: MetaContext): MetaDescript
 
   if (!isDefault) return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex, follow" }];
   return sharing({ title, description, url: absolute(origin, `/${network.id}/network`) });
+}
+
+// ---- The markets page -----------------------------------------------------------------------------------------------------------------
+
+/** The DEX of each network, as the markets page's description names it. */
+const DEX_NAMES = { xrpl: "the XRP Ledger DEX", xahau: "the Xahau DEX" } as const satisfies Record<NetworkBrief["id"], string>;
+
+/**
+ * The tags of `/{net}/markets` (markets spec 4.5). The title adds the words a view that is not the default has (`view`, which the view builder
+ * wrote: "last 7 days", "USD", "AMM swaps"). The default view is indexable, with a canonical URL on the origin of the request and no image (a
+ * card with a price would be wrong within a ledger); every other view is `noindex, follow`, with no canonical URL and no Open Graph or card
+ * tags. The description has no number of the data (the page is stored for a minute); it names the view's period, the 24 hours unless a view
+ * word says another ("last 7 days").
+ */
+export function marketsMeta(page: Pick<MarketsPageData, "view" | "indexable">, ctx: MetaContext): MetaDescriptor[] {
+  const { network, origin } = ctx;
+  const title = [`${network.name} markets`, ...page.view, PRODUCT_NAME].join(" · ");
+  const period = page.view.find((words) => words.startsWith("last ")) ?? "last 24 hours";
+  const description = `Every pair traded on ${DEX_NAMES[network.id]} with at least 10 trades in the ${period}: last price, change, range, volume and a 7-day trend.`;
+
+  if (!page.indexable) return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex, follow" }];
+  return sharing({ title, description, url: absolute(origin, `/${network.id}/markets`) });
 }
 
 // ---- A transaction ------------------------------------------------------------------------------------------------------------------

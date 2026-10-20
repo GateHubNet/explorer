@@ -3,6 +3,9 @@ import { useRef, type CSSProperties, type ReactNode } from "react";
 import { cx } from "../cx";
 import { useLiveRows } from "../use-live-rows";
 
+/** Rows a long table shows before its "Show all" (the ledger page's transactions, the markets page's pairs): the rest wait for a press. */
+export const FIRST_ROWS = 100;
+
 export interface Column<Row> {
   id: string;
   header: ReactNode;
@@ -12,6 +15,8 @@ export interface Column<Row> {
   align?: "start" | "end";
   /** Cut a long value with an ellipsis instead of wrapping it. */
   ellipsis?: boolean;
+  /** For a column the rows can be sorted by: how they are now (`aria-sort` on its header). Left out, the header says nothing of sorting. */
+  sort?: "ascending" | "descending" | "none";
   cell: (row: Row, index: number) => ReactNode;
 }
 
@@ -31,6 +36,9 @@ export interface Column<Row> {
  * `live` makes the rows follow their data in the browser (the home page's): after the first render a row whose key is new enters (the class
  * `is-entering`, which the stylesheet animates) and the rows that were there slide into their new places (`useLiveRows`). Off, the table is
  * exactly what it was: no key on the rows, no class, no style. Keys must be stable and unique, which `rowKey` is for.
+ *
+ * `className` is added to the scroll region's own, for a page's rules over its rows (the markets page's 56 px rows). A column's `sort` is the
+ * header's `aria-sort`: the page draws the control, the table says the order.
  */
 export function DataTable<Row>({
   label,
@@ -42,6 +50,7 @@ export function DataTable<Row>({
   live = false,
   compact = false,
   maxHeight,
+  className,
 }: {
   /** What the table is, for screen readers. */
   label: string;
@@ -57,6 +66,8 @@ export function DataTable<Row>({
   compact?: boolean;
   /** The tallest the region gets, in px; it scrolls on y beyond that. */
   maxHeight?: number;
+  /** More classes for the scroll region. */
+  className?: string;
 }) {
   const table = useRef<HTMLDivElement>(null);
   const keys = rows.map((row, index) => rowKey(row, index));
@@ -68,7 +79,7 @@ export function DataTable<Row>({
 
   return (
     <div
-      className={cx("table-scroll", maxHeight !== undefined && "table-scroll--capped")}
+      className={cx("table-scroll", maxHeight !== undefined && "table-scroll--capped", className)}
       style={maxHeight === undefined ? undefined : { maxHeight }}
       role="region"
       aria-label={`${label}, scrollable table`}
@@ -77,7 +88,7 @@ export function DataTable<Row>({
       <div ref={table} role="table" aria-label={label} style={style}>
         <div role="row" className={cx(rowClass, "table__head")}>
           {columns.map((column) => (
-            <span key={column.id} role="columnheader" className={cellClass(column)}>
+            <span key={column.id} role="columnheader" aria-sort={column.sort} className={cellClass(column)}>
               {column.header}
             </span>
           ))}
