@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, validatorRowSample } from "../../test/support/d1-samples";
+import { statusWord as domainStatusWord } from "../domain/amendments-params";
+import { joinAnd as domainJoinAnd } from "../domain/format";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import {
   accountLinks,
@@ -191,19 +193,10 @@ describe("compareFee", () => {
   });
 });
 
-describe("moreThan and joinAnd", () => {
+describe("moreThan", () => {
   it("says more than 80%", () => {
     expect(moreThan(80)).toBe("more than 80%");
     expect(moreThan(66.5)).toBe("more than 66.5%");
-  });
-
-  it("joins a list the way a sentence does", () => {
-    expect(joinAnd([])).toBe("");
-    expect(joinAnd(["a"])).toBe("a");
-    expect(joinAnd(["a", "b"])).toBe("a and b");
-    expect(joinAnd(["a", "b", "c"])).toBe("a, b and c");
-    expect(joinAnd(["vl.ripple.com", "unl.xrplf.org"])).toBe("vl.ripple.com and unl.xrplf.org");
-    expect(joinAnd(["a", "b", "c", "d"])).toBe("a, b, c and d");
   });
 });
 
@@ -475,18 +468,9 @@ describe("amendmentStatusView", () => {
   });
 });
 
-describe("statusWord", () => {
-  it.each([
-    ["enabled", "Activated"],
-    ["majority", "Activating"],
-    ["voting", "Voting"],
-    ["obsolete", "Obsolete"],
-    ["unknown", "Unknown"],
-  ] as const)("calls %s %s", (status, word) => {
-    expect(statusWord(status)).toBe(word);
-  });
-
-  it("calls a status a newer D1 sends Unknown", () => {
-    expect(statusWord("frozen" as never)).toBe("Unknown");
+describe("the words the browser needs too", () => {
+  it("are the ones of the domain files, re-exported (their tests are there)", () => {
+    expect(joinAnd).toBe(domainJoinAnd);
+    expect(statusWord).toBe(domainStatusWord);
   });
 });

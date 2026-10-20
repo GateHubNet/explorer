@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AMENDMENT_STATUSES, amendmentHref, amendmentsHref, parseAmendmentsParams } from "./amendments-params";
+import { AMENDMENT_STATUSES, amendmentHref, amendmentsHref, parseAmendmentsParams, statusWord } from "./amendments-params";
 
 const XCB_ID = "C98D98EE9616ACD36E81FDEB8D41D349BF5F1B41DD64A0ABC1FE9AA5EA267E9C";
 
@@ -47,5 +47,25 @@ describe("amendment hrefs", () => {
 
   it("writes a segment that is not a name as one path segment", () => {
     expect(amendmentHref("xrpl", "a/b?c#d")).toBe("/xrpl/amendments/a%2Fb%3Fc%23d");
+  });
+});
+
+describe("statusWord", () => {
+  it.each([
+    ["enabled", "Activated"],
+    ["majority", "Activating"],
+    ["voting", "Voting"],
+    ["obsolete", "Obsolete"],
+    ["unknown", "Unknown"],
+  ] as const)("calls %s %s", (status, word) => {
+    expect(statusWord(status)).toBe(word);
+  });
+
+  it("has a word for every status the list knows", () => {
+    for (const status of AMENDMENT_STATUSES) expect(statusWord(status)).not.toBe("");
+  });
+
+  it("calls a status a newer D1 sends Unknown", () => {
+    expect(statusWord("frozen" as never)).toBe("Unknown");
   });
 });

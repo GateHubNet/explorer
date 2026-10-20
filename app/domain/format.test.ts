@@ -12,6 +12,7 @@ import {
   formatPrice,
   formatUtc,
   formatUtcDay,
+  joinAnd,
   relativeTime,
   sharePercent,
   shortAddress,
@@ -539,5 +540,16 @@ describe("formatChange", () => {
     expect(formatChange("abc")).toBe("abc");
     expect(formatChange("")).toBe("");
     expect(formatChange("\u2014")).toBe("\u2014");
+  });
+});
+
+describe("joinAnd", () => {
+  it("joins a list the way a sentence does", () => {
+    expect(joinAnd([])).toBe("");
+    expect(joinAnd(["a"])).toBe("a");
+    expect(joinAnd(["a", "b"])).toBe("a and b");
+    expect(joinAnd(["a", "b", "c"])).toBe("a, b and c");
+    expect(joinAnd(["vl.ripple.com", "unl.xrplf.org"])).toBe("vl.ripple.com and unl.xrplf.org");
+    expect(joinAnd(["a", "b", "c", "d"])).toBe("a, b, c and d");
   });
 });

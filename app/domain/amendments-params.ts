@@ -12,6 +12,22 @@
 export const AMENDMENT_STATUSES = ["majority", "voting", "enabled", "obsolete", "unknown"] as const;
 export type AmendmentStatus = (typeof AMENDMENT_STATUSES)[number];
 
+/** The word for a status: `Activated`, `Activating`, `Voting`, `Obsolete`, `Unknown` (a status this file does not know, from a newer D1, is `Unknown`). */
+export function statusWord(status: AmendmentStatus): string {
+  switch (status) {
+    case "enabled":
+      return "Activated";
+    case "majority":
+      return "Activating";
+    case "voting":
+      return "Voting";
+    case "obsolete":
+      return "Obsolete";
+    default:
+      return "Unknown";
+  }
+}
+
 /** The list's view: one status, or all of them (`status` absent). */
 export interface AmendmentsParams {
   status?: AmendmentStatus;

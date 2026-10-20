@@ -285,6 +285,12 @@ export function untilText(atMs: number, nowMs: number, opts: { approx?: boolean 
   return `${tilde}${Math.round(seconds / 86_400)} days`;
 }
 
+/** A list as a sentence does it: `a`, `a and b`, `a, b and c` (no comma before the `and`). */
+export function joinAnd(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]!}`;
+}
+
 function shorten(text: string): string {
   // Eleven characters or fewer: the shortened form would be no shorter.
   if (text.length <= 11) return text;

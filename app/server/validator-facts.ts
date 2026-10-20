@@ -6,10 +6,14 @@
 import BigNumber from "bignumber.js";
 import { isValidClassicAddress } from "ripple-address-codec";
 
-import type { AmendmentStatus } from "../domain/amendments-params";
 import { formatAmount, formatDateTime, formatUtcDay, utcMoment } from "../domain/format";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
+
+// `joinAnd` and `statusWord` are words the status marks (browser files) need too, so they live in the domain files a browser file may import; they are the interface of this
+// file as well.
+export { statusWord } from "../domain/amendments-params";
+export { joinAnd } from "../domain/format";
 
 const DASH = "—";
 const HALF_UP = BigNumber.ROUND_HALF_UP;
@@ -114,12 +118,6 @@ export function compareFee(vote: string, now: string): "higher" | "lower" | "sam
 /** What a majority needs, in words: `more than 80%` (D1 passes an amendment on more than the threshold, never at it). */
 export function moreThan(thresholdPercent: number): string {
   return `more than ${new BigNumber(thresholdPercent).toFixed()}%`;
-}
-
-/** A list as a sentence does it: `a`, `a and b`, `a, b and c`. */
-export function joinAnd(items: readonly string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]!}`;
 }
 
 // ---- Links (2.8) -------------------------------------------------------------------------------------------------------------------------------
@@ -263,21 +261,5 @@ export function amendmentStatusView(row: AmendmentRow): AmendmentStatusView {
       return { status: "obsolete" };
     default:
       return { status: row.status === "voting" ? "voting" : "unknown", share: row.votes === undefined ? DASH : yesPercentText(row.votes.yes, row.votes.trusted) };
-  }
-}
-
-/** The word for a status: `Activated`, `Activating`, `Voting`, `Obsolete`, `Unknown`. */
-export function statusWord(status: AmendmentStatus): string {
-  switch (status) {
-    case "enabled":
-      return "Activated";
-    case "majority":
-      return "Activating";
-    case "voting":
-      return "Voting";
-    case "obsolete":
-      return "Obsolete";
-    default:
-      return "Unknown";
   }
 }
