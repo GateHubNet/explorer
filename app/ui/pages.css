@@ -1890,3 +1890,304 @@ a.markets__pair:hover .markets__name {
   text-overflow: clip;
   white-space: normal;
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Validators: /{net}/validators (the board's layout: one column of rows, the table scrolling sideways inside its card on a phone). The classes of the
+   chart kit (charts.css, which comes before this sheet) are never defined here, the source line's and the legend's included: the swatch of the versions
+   table is this page's own. */
+
+.validators {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.validators__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.validators__lead {
+  display: flex;
+  flex: 1 1 520px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.validators__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.validators__intro {
+  color: var(--muted);
+}
+
+.validators__cross {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The six tiles: as many columns as fit at 300 px (the board's), one on a phone. */
+.validators__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 12px;
+}
+
+/* The swatch of a version's group in the table view: the legend's, in a cell. */
+.validators__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: var(--mark);
+  vertical-align: -1px;
+}
+
+/* The card: its head holds the title and source, then the scope links and the form in one wrapping row. */
+.validators__cardhead {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.validators__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.validators__form {
+  display: flex;
+  flex: 1 1 520px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-width: 0;
+}
+
+.validators__field {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.validators__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.validators__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.validators__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.validators__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.validators__select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.validators__select label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.validators__sel {
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.validators__apply {
+  min-height: 44px;
+  padding: 0 16px;
+  font-weight: 500;
+}
+
+.validators__clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The table's scroll region is a containing block for what is positioned inside it: the visually hidden words of a cell (`.sr` is `position: absolute`)
+   would otherwise sit at their place in the unscrolled table, a screen or two to the right of a phone, and the page would scroll sideways to reach them. */
+.validators__table {
+  position: relative;
+}
+
+/* A validator: the name and its marks on a line that wraps, its short key under it. */
+.validators__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 0;
+}
+
+.validators__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+/* A link of at least 24 px (WCAG 2.5.8); a long domain breaks inside its track. */
+.validators__name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.validators__sub {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.validators__version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+/* The figure at the end of its track, "incomplete" under it. */
+.validators__agreement {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.validators__fees {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+
+.validators__fee {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.validators__fee .faint,
+.validators__nofee {
+  color: var(--faint);
+}
+
+/* The disclosure: "3 yes" and a chevron that turns when it opens. A 44 px target, its ring drawn inside it where the table's scroll region does not clip it. */
+.validators__yes summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--link);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.validators__yes summary::-webkit-details-marker {
+  display: none;
+}
+
+.validators__yes summary:focus-visible {
+  outline-offset: -2px;
+}
+
+.validators__chev {
+  transition: transform 0.15s;
+}
+
+.validators__yes[open] .validators__chev {
+  transform: rotate(90deg);
+}
+
+.validators__yes ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.validators__yes li a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.validators__foot {
+  margin: 0;
+}
+
+.validators__failed {
+  padding: 16px;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .validators__cross {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .validators__title {
+    font-size: 24px;
+  }
+}

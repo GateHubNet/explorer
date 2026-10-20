@@ -401,9 +401,10 @@ describe("the page without JavaScript", () => {
     expect(elementText(html, "network__signed")).toMatch(/^35 validators signed ledger #107,721,455$/);
     expect(text).toContain("#107,721,455 107 txs");
     expect(text).toContain("Open ledger fee 10 drops Queue 0 · 84 of 96 expected in the open ledger as of 17:01:10 UTC");
-    // `VALIDATORS` is off until E6 builds its pages: the link is the header's "soon" style.
-    expect(text).toContain("All validators soon");
-    expect(anchors(html).some((a) => /\/validators/.test(a.attrs))).toBe(false);
+    // `VALIDATORS` is on at the top level: "All validators" is a link to the All scope (network-off.spec.ts has the "soon" style of the off case).
+    expect(text).not.toContain("All validators soon");
+    const all = anchors(html).filter((a) => a.text === "All validators");
+    expect(all.map((a) => a.attrs)).toEqual([expect.stringContaining('href="/xrpl/validators?scope=all"')]);
   });
 
   it("is Xahau's on Xahau: no choice of currency, the order-book wording", async () => {

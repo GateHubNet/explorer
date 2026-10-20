@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowStep } from "../domain/describe";
+import type { ValidatorsParams } from "../domain/validators-params";
 import { imageUrl, metaContext, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
 import { homeMeta } from "./meta-home";
@@ -8,6 +9,8 @@ import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
 import { networkMeta } from "./meta-network";
 import { transactionDescription, transactionMeta } from "./meta-transaction";
+import { validatorsMeta } from "./meta-validators";
+import { validatorsPage } from "./validators-view";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
 // view builders return for the fields the tags read; the worker specs (test/worker/meta.spec.ts) check the whole way from a
@@ -396,5 +399,63 @@ describe("metaContext", () => {
     expect(metaContext("xrpl", [undefined])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { network: {} } }])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { origin: 5 } }])).toBeUndefined();
+  });
+});
+
+describe("validatorsMeta", () => {
+  const DESCRIPTION = (name: string) =>
+    `The validators of ${name}: the default UNL and every validator seen in the last 24 hours, with their domains, software versions, agreement, and fee and amendment votes.`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const view = (params: ValidatorsParams) => ({ params });
+  const DEFAULT = view({ scope: "unl" });
+
+  it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = validatorsMeta(DEFAULT, XRPL);
+    expect(title(list)).toBe("Validators · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/validators");
+    expect(content(list, "og:title")).toBe("Validators · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/validators");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau, on the request's origin", () => {
+    const list = validatorsMeta(DEFAULT, { ...XAHAU, origin: "https://explorer.example" });
+    expect(title(list)).toBe("Validators · Xahau · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("Xahau"));
+    expect(link(list, "canonical")).toBe("https://explorer.example/xahau/validators");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xahau/validators");
+  });
+
+  it.each([
+    ["the All scope", { scope: "all" }],
+    ["a publisher", { scope: "unl", publisher: "vl.ripple.com" }],
+    ["an amendment", { scope: "unl", amendment: "XChainBridge" }],
+    ["a search", { scope: "unl", q: "example" }],
+    ["the All scope and a search", { scope: "all", q: "example" }],
+    ["every filter", { scope: "all", publisher: "vl.ripple.com", amendment: "XChainBridge", q: "example" }],
+  ] satisfies Array<[string, ValidatorsParams]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, on %s", (_name, params) => {
+    const list = validatorsMeta(view(params), XRPL);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(title(list)).toBe("Validators · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("takes the whole page's data as well as its params, since a route hands it the loader's answer", () => {
+    const data = validatorsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, params: { scope: "unl" }, summary: { state: "failed" }, list: { state: "failed" }, amendments: { state: "failed" } });
+    expect(link(validatorsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/validators");
+  });
+
+  it("puts no number of the data in the description: the page is stored for seconds", () => {
+    for (const ctx of [XRPL, XAHAU]) expect(content(validatorsMeta(DEFAULT, ctx), "description")!.match(/\d+/g)).toEqual(["24"]);
   });
 });

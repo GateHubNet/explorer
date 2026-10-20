@@ -110,3 +110,30 @@ describe("the segmented links of a filter row", () => {
     expect(rule(componentsCss, ".netswitch__item[aria-current]").background).toBe("var(--surface)");
   });
 });
+
+describe("the validators list", () => {
+  it("is one column of rows 18 px apart, as the board is, with six tiles in as many columns as fit at 300 px", () => {
+    expect(rule(pagesCss, ".validators")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });
+    expect(rule(pagesCss, ".validators__tiles")).toMatchObject({ display: "grid", "grid-template-columns": "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: "12px" });
+  });
+
+  it("makes the table's scroll region a containing block, so that the visually hidden words of a cell (`.sr`, absolute) stay inside it and do not widen the page", () => {
+    expect(rule(baseCss, ".sr").position).toBe("absolute");
+    expect(rule(pagesCss, ".validators__table").position).toBe("relative");
+  });
+
+  it("gives the form's controls and the disclosure a 44 px target, and draws the disclosure's ring inside it, where the table's scroll region does not clip it", () => {
+    for (const selector of [".validators__field", ".validators__sel", ".validators__apply", ".validators__clear", ".validators__yes summary"]) {
+      expect(Number.parseFloat(rule(pagesCss, selector)["min-height"]!), selector).toBeGreaterThanOrEqual(44);
+    }
+    expect(Number.parseFloat(rule(pagesCss, ".validators__yes summary:focus-visible")["outline-offset"]!)).toBeLessThanOrEqual(-2);
+  });
+
+  it("gives the validator's link a target of at least 24 px (WCAG 2.5.8)", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".validators__name")["min-height"]!)).toBeGreaterThanOrEqual(24);
+  });
+
+  it("colours the swatch of a version's group from its slot, the legend's way", () => {
+    expect(rule(pagesCss, ".validators__swatch").background).toBe("var(--mark)");
+  });
+});

@@ -65,6 +65,11 @@ function namedModules(source: string): string[] {
 }
 
 const PAGE_META_MODULE = /(^|\/)meta-[a-z-]+(\.ts)?$/;
+/**
+ * A builder whose route is added by a later commit of the same series (the validators list: its page and tags come first, its route after). While it is
+ * listed, no route may import it yet; the commit that adds the route takes the line out, and this test says so if it forgets.
+ */
+const ROUTE_TO_COME: readonly string[] = ["app/server/meta-validators.ts"];
 const builders = sources("app/server").filter((file) => /^app\/server\/meta-[a-z-]+\.ts$/.test(file));
 const appFiles = sources("app");
 
@@ -93,7 +98,7 @@ describe("the tags' builders", () => {
     const importers = appFiles.filter((source) => importedFiles(source).includes(module));
     // The Worker's own modules may read a page's facts (card-data.ts, for the link-preview image); the browser runs app/routes, app/ui, app/domain.
     const browser = importers.filter((source) => !source.startsWith("app/server/") && !source.startsWith("app/og/"));
-    expect(browser.filter((source) => source.startsWith("app/routes/"))).toHaveLength(1);
+    expect(browser.filter((source) => source.startsWith("app/routes/"))).toHaveLength(ROUTE_TO_COME.includes(file) ? 0 : 1);
     expect(browser.filter((source) => !source.startsWith("app/routes/"))).toEqual([]);
   });
 
