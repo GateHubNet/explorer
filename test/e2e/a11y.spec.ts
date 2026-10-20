@@ -1,13 +1,14 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
-import { fixtures, unavailable } from "./fixture-control";
+import { featuresOff } from "../../scripts/e2e-env";
+import { fixtures, RLUSD_ISSUER, unavailable } from "./fixture-control";
 import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_ACCOUNT, XAHAU_LEDGER, XRPL_ACCOUNT, XRPL_HEAD_LEDGER, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
 import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
-// ledger, transaction, account, network and 404 pages, in light and in dark, on a desktop and on a 375 px phone. Dark is reached both ways it
-// can be: the system's (`prefers-color-scheme`) and the visitor's (the theme toggle, which wins over the system).
+// ledger, transaction, account, network, markets, market pair and 404 pages, in light and in dark, on a desktop and on a 375 px phone. Dark
+// is reached both ways it can be: the system's (`prefers-color-scheme`) and the visitor's (the theme toggle, which wins over the system).
 
 type Theme = "light" | "dark";
 
@@ -32,6 +33,23 @@ const networkReady = async (page: Page) => {
 
 const NETWORK: PageUnderTest = { name: "network", path: "/xrpl/network", ready: networkReady };
 
+// The markets pages (E3), while `MARKETS` is on in the Worker under test: off, they are not found and the header says "soon".
+const FEATURES_OFF = featuresOff(process.env);
+const MARKETS_ON = !FEATURES_OFF.has("MARKETS");
+
+/** XRP/RLUSD, the pair of the derived fixtures, in its natural orientation and the other way round. */
+const PAIR = `/xrpl/markets/XRP/RLUSD.${RLUSD_ISSUER}`;
+const INVERTED = `/xrpl/markets/RLUSD.${RLUSD_ISSUER}/XRP`;
+
+/** The pair page is whole when its book is drawn and the script has given the candles their slider. */
+const pairReady = async (page: Page) => {
+  await expect(page.getByRole("table", { name: "Order book" })).toBeVisible();
+  await expect(page.getByRole("slider").first()).toBeAttached();
+};
+
+const MARKETS: PageUnderTest = { name: "markets", path: "/xrpl/markets", ready: visible("Pairs") };
+const MARKET_PAIR: PageUnderTest = { name: "market pair", path: PAIR, ready: pairReady };
+
 /** The pages the spec names, and the matrix below runs all of them in every setting. */
 const MAIN: PageUnderTest[] = [
   { name: "home", path: "/xrpl", ready: visible("Latest ledgers") },
@@ -40,6 +58,7 @@ const MAIN: PageUnderTest[] = [
   { name: "account", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions") },
   { name: "404", path: "/xrpl/nothing-here", ready: async (page) => void (await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible()) },
   NETWORK,
+  ...(MARKETS_ON ? [MARKETS, MARKET_PAIR] : []),
 ];
 
 /** More of what a visitor sees, in light and dark (the system's) only. */
@@ -83,6 +102,51 @@ const MORE: PageUnderTest[] = [
       await expect(page.locator(".plot__tip").first()).toBeVisible();
     },
   },
+  // The markets pages in their other forms: the other network (no AMM column, no Trades filter), a period and a quote, the text filter in use,
+  // the pair the other way round, a page of older trades, the pair page's 404, and the candles' slider with its tooltip. (The pair with its node
+  // failing needs the fixture server to fail a call, which only the `live` project may do: it is in market-pair-live.spec.ts.)
+  ...(MARKETS_ON
+    ? [
+        { name: "Xahau markets", path: "/xahau/markets", ready: visible("Pairs") },
+        { name: "markets, 30 days quoted in USD", path: "/xrpl/markets?period=30d&quote=usd", ready: visible("Pairs") },
+        {
+          name: "markets, the text filter in use",
+          path: "/xrpl/markets",
+          ready: visible("Pairs"),
+          act: async (page: Page) => {
+            await page.getByRole("searchbox", { name: "Filter pairs" }).fill("xrp");
+            await expect(page.locator('.markets__count[role="status"]')).toHaveText(/^Showing /);
+          },
+        },
+        { name: "market pair, the other way round", path: INVERTED, ready: pairReady },
+        {
+          // The order-book trades, then Older: a page behind a marker (with AMM_DATA off there is no filter, and Older is the list's).
+          name: "market pair, older trades",
+          path: FEATURES_OFF.has("AMM_DATA") ? PAIR : `${PAIR}?trades=book`,
+          ready: pairReady,
+          act: async (page: Page) => {
+            await page.getByRole("link", { name: "Older", exact: true }).click();
+            await page.waitForURL((url) => url.searchParams.has("marker"));
+            await expect(page.getByRole("table", { name: "Recent trades" })).toBeVisible();
+            await expect(page.getByRole("table", { name: "Order book" })).toHaveCount(0);
+          },
+        },
+        {
+          name: "market pair not found",
+          path: "/xrpl/markets/XRP/XRP",
+          ready: async (page: Page) => void (await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible()),
+        },
+        {
+          name: "market pair, the candle slider focused",
+          path: PAIR,
+          ready: pairReady,
+          act: async (page: Page) => {
+            await page.getByRole("slider", { name: "XRP/RLUSD price, hour by hour" }).focus();
+            await expect(page.locator('section[aria-labelledby="pair-price-title"] .plot__tip')).toBeVisible();
+          },
+        },
+      ]
+    : []),
 ];
 
 const VIEWPORTS = [
@@ -151,7 +215,13 @@ test.describe("landmarks", () => {
 // axe reports a name on an element that cannot have one (`aria-label` on a `span` with no role) not as a violation but as "needs review",
 // so the gate above does not see it: the controls the pages draw are looked at for it.
 test.describe("names", () => {
-  for (const under of [MORE[0]!, ...MAIN.slice(0, 4), NETWORK, ...MORE.filter((page) => page.name.startsWith("newest ledger"))]) {
+  for (const under of [
+    MORE[0]!,
+    ...MAIN.slice(0, 4),
+    NETWORK,
+    ...MORE.filter((page) => page.name.startsWith("newest ledger")),
+    ...(MARKETS_ON ? [MARKETS, MARKET_PAIR] : []),
+  ]) {
     test(`${under.name}: nothing is given a name it cannot have`, async ({ page }) => {
       await page.goto(under.path);
       await hydrated(page);

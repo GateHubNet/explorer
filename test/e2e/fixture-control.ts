@@ -70,6 +70,40 @@ export function xrplHomeOneLedgerBehind(): Record<string, unknown> {
   };
 }
 
+/** The issuer of RLUSD, the counter of the XRP/RLUSD market whose trades the fixtures derive from the recorded AMM ledgers. */
+export const RLUSD_ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+
+/** RLUSD as the data API and the node are sent it: the code as the ledger holds it (40 hex), a `+` and the issuer. */
+export const RLUSD_API = `524C555344000000000000000000000000000000+${RLUSD_ISSUER}`;
+
+/** The first page of the trades of XRP/RLUSD, the call the pair page makes for its list (#2). */
+const PAIR_TRADES = `exchanges/XRP/${RLUSD_API}@descending=true&limit=20`;
+
+interface TradesAnswer {
+  exchanges: unknown[];
+  count: number;
+  [key: string]: unknown;
+}
+
+/**
+ * What the data API says for the trades of XRP/RLUSD when the market is one trade behind the recordings: the recorded first page without its
+ * newest row (the trade of ledger 107,721,455, at 1.2890268 RLUSD), so the newest is the one before it (1.2935851 RLUSD). Put it in with
+ * `fixtures.override`, open `/xrpl/markets/XRP/RLUSD.r…`, take it away with `fixtures.reset`, and the open page gets that trade as a new one.
+ * Its marker (the Older link) is the recording's: the page behind it is the same.
+ */
+export function xrplPairOneTradeBehind(): Record<string, unknown> {
+  const page = recorded<TradesAnswer>(PAIR_TRADES);
+  return {
+    [`GET /v2/exchanges/XRP/${RLUSD_API}?descending=true&limit=20`]: { ...page, exchanges: page.exchanges.slice(1), count: page.count - 1 },
+  };
+}
+
+/**
+ * The `result` a node gives for a call it cannot answer (`noNetwork`, HTTP 200 with `status: "error"`), as an override of a node key: the
+ * node's answer for `node book_offers <gets>_<pays>` (test/support/upstream-core.ts has the codes; JSON carries it as it is).
+ */
+export const nodeNotSynced = () => ({ error: "noNetwork", error_code: 17, error_message: "Not synced to the network.", request: {}, status: "error" });
+
 /**
  * What the data API says when the chain has crossed midnight UTC since the recordings: the newest ledger is the next one (107,721,456), closed
  * at 00:00:05 on Oct 18, so the index day is Oct 18 and every key a view asks for over a period (its `start` and `end`) is new. None of them has

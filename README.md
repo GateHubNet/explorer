@@ -108,8 +108,9 @@ The conditions for turning a switch on in `staging` or `production` (by a commit
 - `AMM_DATA`: the environment's data API has merged `feat/amm-data`, has re-ingested and back-filled, and D2b is deployed (`syncer_markets_live_amm_share_known` is 1).
   (Locally the top level has it `"on"`: against a data API that has not merged it, set `AMM_DATA=off` in `.dev.vars`, see "Getting started".)
 - `VALIDATORS`: E6, the validators and amendments pages.
-- `MARKETS` (`markets`, E3): the markets pages, the header's Markets link and every link into them. "on" at the top level, "off" in staging and production until the
-  data API there serves `/v2/network/markets` with D2 §16.4's gauges at their marks.
+- `MARKETS` (`markets`, E3; it gates the markets pages, the header's Markets link and every link into them): the environment's data API serves
+  `/v2/network/markets`, with D2 §16.4's gauges at their marks (`syncer_pair_hourly_missing_hours` is 0, `syncer_markets_live_age_seconds{period="day"}` is under 120).
+  Until then it is `"off"` there; the top level has it `"on"`.
 
 **A switch is never set in the Cloudflare dashboard.** The Cloudflare Vite plugin writes the build's vars, so the next deploy would undo it.
 
@@ -150,7 +151,9 @@ names, read by `featuresOff(process.env)` in `scripts/e2e-env.ts`; "End-to-end t
 6. Write its own tests: a guard case that refuses the misspelt name, its case in a `*-off.spec.ts`, and, in the end-to-end specs of the page it gates, the skip and the off-case (`featuresOff(process.env).has("NAME")`).
 
 The hand-built `Env`s of the tests, the passing configs of `scripts/predeploy-check.test.ts`, and the expectations of `features.test.ts`, `env.test.ts`, `networks.test.ts`,
-`edge-cache.spec.ts` and `features-off.spec.ts` are built on `allSwitches` and `FEATURE_VARS`, so they need no edit.
+`edge-cache.spec.ts` and `features-off.spec.ts` are built on `allSwitches` and `FEATURE_VARS`, so they need no edit, except the cache generations that two of them spell out
+as text: `features-off.spec.ts` has the whole of it (`test-build:AMM_DATA=off,MARKETS=off,VALIDATORS=off`), which every new switch changes, and `env.test.ts` has
+`AMM_DATA=on,MARKETS=on,VALIDATORS=off` and its `MARKETS=off` form, which a switch whose name sorts between those changes. Add the new switch to those strings.
 
 ## The data API and the node
 
@@ -360,7 +363,7 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 | `SmallMultiples` | A grid of one-series lines (6 at most), each on a scale of its own, one cursor for all |
 | `Candles` | Candlesticks over a volume pane that share one cursor and one readout. `mark={false}` redraws a changed token with no ring, `empty` is the price pane's words when no candle is drawn |
 | `ShareBar` | 100% stacked horizontal rows, a label under a segment of 18% or more |
-| `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%". An item's `href` makes its label a link (`components/RouteLink.tsx`: the kit may not import `react-router`; the bar is not a target; the link's hit area is 27.6 px high around its line (21.6 px in a dense list, so that neighbours do not overlap), and on touch screens and phones the row is 44 px and the area 45.6 px); `tip="count"` ends the tip with the count instead ("**6.1M XRP** · 312 trades"), the bars measured against the first item |
+| `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%". An item's `href` makes its label a link (`components/RouteLink.tsx`: the kit may not import `react-router`; the bar is not a target; the link is an inline block, its hit area 27.6 px high around its 15.6 px line (24 px in a dense list, whose rows are 23.4 px apart and 24 px where a row has a link, so that neighbours do not overlap), and on touch screens and phones the row is 44 px and the area 45.6 px); `tip="count"` ends the tip with the count instead ("**6.1M XRP** · 312 trades"), the bars measured against the first item |
 | `Meter` | One ratio on a track, 12 px (6 px `small`), with a threshold tick and its label. `decorative` hides it from assistive technology (`aria-hidden`, no image role) for a cell that says the value in text |
 | `InlineBar` | A depth wash behind a table row (bids, asks), or an out/in bar in a cell. The depth form needs the row to be `position: relative`, the bar to be the row's first child and the cells after it to be elements: the stylesheet puts those above the wash, so the text keeps its contrast on it, and a bare text node in the row would sit under it |
 | `Sparkline` | A trend of 100 × 28 px with no axes, for a row or a `StatTile` |
@@ -777,6 +780,143 @@ The view builder puts the link in the card's data, so the stored HTML and the da
 the redirects, the page without JavaScript), `network-calls.spec.ts` (the exact calls of each view), `network-hold.spec.ts` and, with every switch off, `network-off.spec.ts`; in the browser,
 `network-page.spec.ts`, `network-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The synthetic aggregates the Worker and the browser read are in "Upstream fixtures".
 
+## The markets pages
+
+Two pages of E3, behind the switch `MARKETS` ("Switches"): `/{net}/markets`, the trade statistics of every pair of the network's DEX over a period, and
+`/{net}/markets/{base}/{counter}`, one market, which follows the chain. The routes are `app/routes/net.markets.tsx` and `app/routes/net.markets.$base.$counter.tsx`,
+the pages `app/ui/pages/MarketsPage.tsx`, `MarketPairPage.tsx` and `MarketPairSide.tsx` (the book, the pool and the traders), the view builders
+`app/server/markets-view.ts` (`marketsPage`) and `app/server/pair-view.ts` (`pairPage`, `olderPage` and one function a part: `bookOf`, `tradesOf`, `candlesOf`,
+`statsOf`, `poolOf`, `tradersOf`, `existenceOf`), and the tags `app/server/meta-markets.ts` and `meta-pair.ts`. The view builders are pure and compute with
+`bignumber.js` (80 decimal places); the pages never fetch and never format: every price, label and href is text in their data, and `app/server`,
+`domain/asset.ts`, `domain/market-pair.ts` and `ripple-*` stay out of their browser files (`test/unit/markets-bundle.test.ts`). Prices are `formatPrice` (8
+significant digits, half up, grouped, never in exponent form); a minus is U+2212. The header's Markets item leads to the markets page (`handle = { navSection: "markets" }`:
+`aria-current="page"` there, `"true"` on a pair page).
+
+**The markets page.** The heading and its intro, the filters (Period, Quote, Trades, and a text field), the period's window, four tiles (DEX volume, trades,
+pairs shown, the AMM share of the volume), and the Pairs table: the pair (a link to its page, the issuers under it), the last price, the change, the low and the
+high, the volume in the native currency, the trades, the AMM share and a sparkline of 7 days. The HTML holds the first 100 rows (`FIRST_ROWS`) of the call's
+1,000 at most; what only a script can do is drawn after hydration (`useHydrated`, `app/ui/use-hydrated.ts`), since no control may do nothing without
+JavaScript: "Show all N", which shows the rest of the rows the page already has; the text filter, which matches a substring of each row's search text (its codes,
+raw and shown, and its issuers in full) and leaves the tiles alone; and the sort buttons (last price, change, volume, trades: largest first, a second press
+reverses), which order the rows by the ranks the view builder wrote, so the browser compares no decimal. The count line under the table, the page's one
+`role="status"`, says what is shown: "Showing 2 of 40 pairs, by volume, largest first". The page does not refresh itself (no `clientLoader`, no pause control):
+a table of hundreds of rows that moves while it is sorted and filtered is worse than one that says how old it is.
+
+| Parameter | Values | Default | The call |
+|---|---|---|---|
+| `period` | `24h`, `7d`, `30d` | `24h` | `period=day`, `7day`, `30day` |
+| `quote` | XRPL `xrp`, `usd`, `eur`, `btc`; Xahau `xah`, `usd` | all | none: the view builder keeps the rows with that code on a side, turned to have it as the counter |
+| `trades` | `book`, `amm` | all | `amm=exclude`, `only`; XRPL only, while `AMM_DATA` is on |
+
+**The pair page.** The breadcrumb and the live row; the summary (the pair, "Show RLUSD/XRP" to the other way round, the issuers, each a link to its
+account, the last price and the change of 24 h, and the six figures of the 24 hours); the Trades filter; the price card (candles over their volume, the
+interval, the legend, Chart and Table); then the 20 newest trades (`DataTable live`, with Newer and Older) beside the order book, the pair's AMM pool and the
+five most active traders of the 24 hours (they wrap under it on a phone). The order book is ten levels a side, the asks above the bids with the best nearest
+the middle row (the last price and the spread, "—" when a side is empty or the book is crossed), its price from the offers' full amounts and its size from
+their funded ones, one depth scale for both sides; it is an ARIA table over rows of a CSS grid (`role="table"`, `row`, `cell`), each row
+`position: relative` with its depth bar first, because WebKit draws a bar of a `<tr>` against the page. A trade's side and a level's side are words.
+The traders card leaves out the pair's pool, the other side of every swap, when the node has named it (#8), and says so.
+
+| Parameter | Values | Default | The calls |
+|---|---|---|---|
+| `interval` | `15m`, `1h`, `4h`, `1d`, `1w` | `1h` | the candles' `interval=15minute`, `1hour`, `4hour`, `1day`, `7day`: 60 buckets ending with the one that holds the newest ledger, which is "so far" |
+| `trades` | `book`, `amm` | all | `amm=exclude`, `only` on the trades, the candles and the 24 h figures; XRPL only, while `AMM_DATA` is on |
+| `marker`, `back` | the account page's paging (`trailPaging`, `app/domain/paging.ts`) | the first page | `marker`: a page of older trades |
+
+**One URL per view.** A query string that is not exactly the canonical form of its view (defaults, unknown values, repeats and other parameters dropped,
+in the order of the tables; `interval` dropped behind a marker, `back` without `marker`, and `trades` where the network has no pools or `AMM_DATA` is off) is a
+302 to it, class `short`, before any call (`parseMarketsParams`, `parsePairParams`, `app/domain/market-params.ts`). The selectors are links (`SegmentedLinks`,
+hrefs from `marketsHref` and `marketHref`), so they work without JavaScript; with it a click is a client-side navigation that keeps the scroll position.
+Indexable are the markets page's default view and a pair's default view in its natural orientation with at least one trade, with a canonical link and `og:*` (and no image:
+a card with a price would be wrong within a ledger); every other view, the other way round, a page behind a marker and a pair with offers and no trade is
+`noindex, follow` with neither.
+
+**The asset in a URL** (`app/domain/asset.ts`, the one asset form, which E5's pool routes and `?asset=` use as it is). The native currency is its code
+(`XRP`, `XAH`); an issued one is `CUR.issuer`: a standard code in upper case (the data API upper-cases codes, so `usd` and `USD` are one market), a text
+code as its text (`RLUSD.rMxCKb…`, the currency `524C5553…`; its letters are the currency's bytes, so `rlusd` is another currency), any other 40-hex code
+(an LP token's) in upper-case hex. The API is sent `apiAssetText` (`CUR+issuer`, a text code as its hex), the node the currency as the ledger holds it.
+`parsePairPath` (`app/server/pair-route.ts`) reads the raw path and answers:
+
+| Path | Answer |
+|---|---|
+| `+`, `%2B`, a space or `\|` as the separator; a standard code in lower case; the 40 hex of a text or standard code; lower-case hex; an escape a character does not need | 302 to the canonical path, with the canonical query: `immutable` when only the path changed, `short` with the query |
+| more than one separator, a code that is none of the forms (or holds `\|`), all-zero hex, the native code with an issuer, another code without one, an issuer that is not a classic address with a good checksum, the same asset on both sides, a `marker` that is none | 404 `short`, "We couldn’t find a market for "…" on XRPL", before any call |
+| the other way round (`RLUSD.r…/XRP`) | 200: both orientations are pages; the API inverts a pair asked for in reverse |
+
+**The natural orientation** (`naturalOrientation`, `app/domain/market-pair.ts`). Every display of a pair uses it, the markets table and the pair's heading
+and natural URL included; `canonicalPair` (the API's stored order) is for talking to the API only. The counter, the currency the price is in, is the side
+that ranks better in `QUOTE_RANK` by its display code: USD, EUR, GBP, JPY, CNY, AUD, CAD, CHF, KRW, then RLUSD, USDC, USDT, then BTC, ETH, then the
+native currency; a ranked side beats an unranked one. A tie (one code from two issuers, two unranked codes) makes the side whose code, then issuer, sorts
+first the base. So XRP/USD, XRP/RLUSD, EUR/USD, LIONS/XRP and EVR/XAH. A row the other way round from the API's is inverted exactly: `1/last`, `1/open`, the
+high from `1/low`, the low from `1/high`, the change from the API's own strings, the volumes swapped, the sparkline's closes inverted with their gaps.
+
+**The markets page's call.** One, and the page is made of it:
+
+| # | Call | Kept | If it fails |
+|---|---|---|---|
+| 1 | `/v2/network/markets?period={p}&limit=1000[&amm=exclude\|only]` (`networkMarkets`, still in `PENDING_PATHS`) | 60 s, class `minute` | 503 (`upstreamOutage`), not stored; an API without the route ("Cannot GET") is one too |
+
+The page and its `.data` URL are class `minute` (60 s fresh, 30 s stale: the data API rewrites the 24-hour set every minute and the others every five), so
+the 24 hours are at most about 3.5 minutes old, and the window's words say how old. The page does not poll, so the call does not ask for the failure hold.
+A malformed 200 is kind `server` and not stored. `min_trades` is not sent: the API's 10 is what the footnote says.
+
+**The pair page's calls** (`T` is the close time of `last_validated`, `T₁` the start of its minute less 24 hours; `{b}/{c}` the pair as the URL has it;
+`[&amm=]` the Trades filter). They are made side by side and all are awaited (`Promise.allSettled`); every one asks for the failure hold, the node's
+included; each card's call or chain fails as "took too long" when it has not answered 4.5 s after the loader began (`byDeadline`, `CARD_DEADLINE_MS`),
+and the node's own limit is 3 s. Nothing is streamed.
+
+| # | Call | Kept | Feeds | If it fails |
+|---|---|---|---|---|
+| 1 | `last_validated` | 2 s, the home page's entry | `T` | 503 |
+| 2 | `exchanges/{b}/{c}?descending=true&limit=20[&amm=]` | 2 s | the trades, the last price, Older | 503 |
+| 3 | `exchanges/{b}/{c}?reduce=true&start={T₁}[&amm=]` | 5 s (`live`) | the six figures, the change | the figures "—" and their `SectionError` |
+| 4 | `exchanges/{b}/{c}?interval=…&start={S}&limit=61[&amm=]` | 5 s for 15 m and 1 h; 60 s (`minute`) for 4 h, 1 d and 1 w | the candles | the price card's error |
+| 5 | `active_accounts/{b}/{c}` | 60 s (`minute`), the top 10 kept | the traders | the card's error |
+| 6, 7 | node `book_offers`, each side (`taker_gets` and `taker_pays` swapped), `limit: 60`, `ledger_index: "validated"` | 2 s | the book; the other way round's too | "Live state unavailable" for the whole book, never half of it |
+| 8 | node `amm_info` by the pair (`ammInfoByPair`, `asset` and `asset2` in the natural orientation), XRPL | 5 s | the pool card, the pool account the traders leave out | `not_found`: no card; else "Live state unavailable" |
+| 9 | `exchanges/{b}/{c}?reduce=true&start={T₁}&amm=only` (`exclude` under the `amm` filter), XRPL with `AMM_DATA` on | 5 s | the pool's share of the pair's volume | "—", "Couldn’t load" |
+| 10 | `exchanges/{b}/{c}?descending=true&limit=1` | 5 s | whether the market exists, only when a filtered #2 and the book are empty | 503 |
+
+**Whether the market exists.** No trade and an empty book is a 404 `short` ("We couldn’t find a market for XRP/USD (USD issued by rhub8V…F3wq) on XRPL"); no
+trade and a book that could not be read is a 503, not stored: the page cannot tell an empty market from a node that failed. Never a 200 that says the market
+is not there. A card that failed is told in its place and logged (`logProblem`), and the page is then degraded: a 200 with `Cache-Control: no-store`, not
+stored (`markDegraded`). The page and its `.data` URL are class `live-home` (1 s and 2 s, as the home and network pages); a page behind a marker is one call
+(#2 with the marker), awaited whole, class `MARKER_PAGE_CLASS` (`slow`), with the trades alone and a note that links to the market's page, no live row and
+no node call; a marker the API refuses, or nothing behind it, is a 404.
+
+**The node calls** (`app/server/node-rpc.ts`). `bookOffers(gets, pays)` asks `book_offers` for the best 60 offers (`BOOK_OFFERS_LIMIT`) of the validated ledger,
+the native side `{ currency: "XRP" }` (`"XAH"` on Xahau) and drops converted to whole units at the boundary, `validated` required; `ammInfoByPair(asset, asset2)`
+and `ammInfo(pool)` (E5's) are one reader of `amm_info`: drops to whole units, `vote_slots` and `auth_accounts` defaulted to `[]`, the pool's assets checked
+against the pair asked for, `actNotFound` and `actMalformed` read as `not_found`. Both orientations of a pair share the node's answers: the asks of one are the
+bids of the other, and the pool is asked for in the natural orientation.
+
+**The switches.** `MARKETS` off: both routes, every view, answer the not-found page "We couldn’t find the markets pages on XRPL" (404 `short`) before any call,
+and the header's Markets item is the "soon" label. `AMM_DATA` gates the AMM parts on XRPL: the Trades filter of each page, the Via column, the AMM share tile and column, the
+pool card's share (#9) and the intro's words about swaps. Off, they are left out (a `trades` parameter is dropped by the canonical redirect, and #9 is not
+made); on, a period whose answer has no `amm_share` yet shows "—". On Xahau there is no pool (`hasAmm`), whatever the switch says, and the API's
+`"0.0000"` there is not read. Nothing asks the API whether it has AMM data.
+
+**The live pair page.** It follows the chain as the network page does ("Live updates"): `useLiveControls`, the beat of 4 s, the backoff, the pause, the build
+reload. In the route: `createLiveOnScreen` with `order: (d) => d.anchor.lastValidated` and `merge: keepLoaded(next, shown, PAIR_PARTS)`, the `clientLoader`
+that hands the page what it shows when a refresh fails, and the page keyed by its scope (`{net}/markets/{base}/{counter}` and the canonical query), so another
+interval, filter or orientation is a navigation and a first render, which is not animated. A beat is one request:
+`/{net}/markets/{base}/{counter}.data?…&_routes=routes%2Fnet.markets.%24base.%24counter`. `PAIR_PARTS` is `stats` (#3), `candles` (#4), `traders` (#5),
+`book` (#6 and #7, one part), `pool` (#8) and `share` (#9): a beat whose answer has one of them failed where the page shows it loaded keeps what it shows (the
+book and the pool with the ledger they were read at, so a kept one says its age); a part that never loaded shows its error. The trades and the price are #2's,
+without which there is no answer, and the page then keeps itself, saying "Live updates paused, retrying…" after two failures. On a beat a new trade enters
+(`is-entering`) and the others slide, the price, the change, the figures, the spread and the ledger numbers tick in (`LiveValue`), and the candles redraw in
+place with no ring (`mark={false}`: the forming candle changes with every trade); with `prefers-reduced-motion: reduce` only the colours change. **The hold:**
+a pointer over, or keyboard focus in, the trades table or the traders list (the parts with links) holds the page, and the live row says "Paused while you
+look at the trades" (or "…at the traders"). **The failure hold:** every call asks for it, so a failing node or API call is remembered for 5 s and not asked
+again by every beat of every open tab. A Retry within the hold gets the held failure. The node notices have no `role`: `LiveStatus` is the page's one
+`role="status"`, and nothing is announced on a beat.
+
+**Tests.** The unit tests of `asset.ts`, `market-pair.ts`, `market-params.ts`, `paging.ts`, `pair-route.ts`, `markets-view.ts`, `pair-view.ts`, the tags' builders and
+`formatPrice`; `MarketsPage.test.tsx`, `MarketPairPage.test.tsx` and `routes-wiring.test.tsx`; in the Worker, `test/worker/markets-page.spec.ts`,
+`market-pair.spec.ts`, `market-pair-live.spec.ts` and, with every switch off, `markets-off.spec.ts`; in the browser, `markets.spec.ts`, `market-pair.spec.ts`,
+`market-pair-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The fixtures (XRP/RLUSD and LIONS/XRP derived from the recorded ledgers, the recorded books,
+the derived pool, Xahau's EVR/XAH and the markets sets seeded around them) are in "Upstream fixtures".
+
 ## Search
 
 `/{net}/search?q=...` (`routes/net.search.tsx`) is what the search box submits, so it works before JavaScript loads. Its loader says what
@@ -1137,7 +1277,7 @@ otherwise; never 5173) and never reuses a server that is already running.
 | Variable | Default | |
 |---|---|---|
 | `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one, the fixture server the one after (`E2E_FIXTURE_PORT`) |
-| `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on or take an answer away (`live-home.spec.ts`, `network-live.spec.ts`) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
+| `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on or take an answer away (`live-home.spec.ts`, `network-live.spec.ts`, `market-pair-live.spec.ts`) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
 | `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or staging. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
 | `E2E_DATA_API_KEY` | `e2e-fixture-key` (the fixtures take any) | The `X-API-Key` of a real data API; required with `E2E_DATA_API_URL` |
 | `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed staging) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
@@ -1185,9 +1325,12 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route module or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
 | `live-home.spec.ts` | The `live` project of `playwright.config.ts`, which runs alone after the others (what the tests do to the fixture server would show in every page the Worker renders meanwhile; `--no-deps` runs it without them), one test at a time, each `test.slow()`. The fixture server says the newest XRPL ledger is the one before the recordings' newest, the home page is opened, and the fixture server goes back to the recordings: the new ledger appears without a reload (the document is the same; the browser asked only the explorer's own `.data` URL for the page's route), the new rows have `.is-entering` and the rows that were there were sent back to slide (a `MutationObserver` of the page records it, and the `animation-name` of each row and figure *as it was added*, so that the next beat is no race), the figures that changed ticked in; under `reducedMotion: "reduce"` nothing is transformed and the animation is the wash and the mark alone; nothing animates when the page is first opened; the pause button pauses and resumes (its label switches, it is not `aria-pressed`, the status line says what was done), is 44 px, and the choice survives a reload of the tab; the hero says the page waits while the mouse is over a table, and a real click on a spot of a table (which focuses its scroll region) does not leave the page held once the mouse has left; and when the Worker answers 503 the page is the page it was (no error screen), the hero says "Live updates paused, retrying…" after two refusals (the second 8 s after the first), and "Live updates reconnected" when the Worker answers again |
 | `network-live.spec.ts` | In the `live` project too (`*-live.spec.ts`, below). A card that cannot be loaded: `stats/type` of `?period=90d&in=usd` answers 503 (`unavailable()`), the card says "Couldn’t load transactions by type" in its place with a Retry, and after `fixtures.reset()` it is back by itself within 10 s (the hold, then a beat); `amm_volume` of `?period=7d&in=usd` has no route (`null`), the volume card says "AMM swaps couldn’t be loaded." with a Retry and the line comes back when the route does. The chain moves on (`xrplHomeOneLedgerBehind()`, then `fixtures.reset()`) under `?period=90d`: the new chip has `.is-entering`, the chips that were there get a transform, the validators card follows, the document is the same and the only request is `/xrpl/network.data?…&_routes=routes%2Fnet.network`; with `reducedMotion: "reduce"` there is no transform and the chip does not slide; nothing animates when the page is opened; the pause button pauses (the status line says so, the choice survives a reload) and resuming asks at once; a mouse over the strip says "Paused while you look at the ledgers" in the row and not in the status line; with the browser's `.data` requests answered 503 the page stays and says "Live updates paused, retrying…" after two refusals, and "reconnected" when they work; and with `xrplNextDay()` in (the newest ledger closed after midnight, so every call over a period has no answer) the window's words move on to Oct 18, and the AMM line and every card the page had stay (`keepLoaded`), for two beats, with nothing said |
+| `markets.spec.ts` | The markets page, reading the fixtures and changing none: "Markets" in the header leads to `/xrpl/markets` in one document and is the current item (`aria-current="page"`; with `MARKETS` in `E2E_FEATURES_OFF` the test checks the "soon" label and skips itself, and the rest of the file is skipped); "7 days" changes the URL to `?period=7d`, adds `noindex`, drops the canonical link and `og:*`, and Back restores them; on `?period=30d` (the fixtures' XRP/RLUSD has fewer than 10 trades in the 24 hours, so it is in the 7-day and 30-day sets only), "XRP" in Quote turns the XRP/RLUSD row round (RLUSD / XRP, its link to `/xrpl/markets/RLUSD.rMxCKb…/XRP`) and every row is quoted in XRP; the text filter narrows the rows ("solo": "Showing 2 of 40 pairs, by volume, largest first"; an issuer's full address in capitals; nothing, and the empty text) and the tiles stay; a press on Trades sets `aria-sort` and orders the rows by it, a second reverses, Volume again is the API's order; "Show all 159" shows the rest without a request and "Show first 100" takes them away; with JavaScript off the 100 rows and their sparklines are there and no field, button or Show all is; and the XRP/RLUSD row leads to the pair's page in the same document (the header's Markets `aria-current="true"` there) |
+| `market-pair.spec.ts` | The market pair page on `/xrpl/markets/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De`, reading the fixtures and changing none: "4 h" is `?interval=4h` (the readout's newest bucket 16:00, the slider's words change, `noindex`, the title's "4 h candles", one document); "Show RLUSD/XRP" goes to the inverted pair, which is `noindex` with no canonical link or `og:*` and links back; on `?trades=book`, Older and Newer keep `trades` and the page behind the marker has no live row, no price card and no book (skipped with `AMM_DATA` in `E2E_FEATURES_OFF`); a trade's time leads to its transaction (an OfferCreate the fixtures hold); the issuer leads to its account page (the fixtures do not hold that account: its page is the 503 there, the one console error the test lets through); the pointer on a candle shows it in the readout and a tooltip, and the readout goes back when it leaves; Tab to the slider then Arrow Left changes `aria-valuetext`; with JavaScript off the candles, the volume, the Table view (61 rows), the book (20 levels) and the trades (20) are there and no slider or pause button; the Via column and the Trades filter are there (with `AMM_DATA` off: checked absent, then skipped); the traders card does not list the pool `rhWTXC…tcS3`; and every depth bar of the book lies inside its own row, at 1280 and 375 px (Chromium; the ARIA table over `div` rows is for WebKit, which no Playwright WebKit here has checked) |
+| `market-pair-live.spec.ts` | In the `live` project too. With `xrplPairOneTradeBehind()` in, the page opened and `fixtures.reset()`: the new trade enters with `.is-entering` (`row-enter, live-flash, row-mark`), the rows that were there slide, the price and the book's last price tick in, the document is the same and the only request is `…/XRP/RLUSD.r….data?…&_routes=routes%2Fnet.markets.%24base.%24counter`; with `reducedMotion: "reduce"` nothing slides and only the colours change; paused, nothing is asked for 6 s and resuming takes the trade at once; the pointer on the trades holds the page ("Paused while you look at the trades") and nothing is asked until it leaves; with the `.data` requests answered 503 the page stays and says "Live updates paused, retrying…" after two, and "reconnected" when they work; both `book_offers` failing (`nodeNotSynced()`): on a fresh load "Live state unavailable" in place of the whole book, the rest of the page there, no alert and one `role="status"`, and axe's gate in both system themes; a book once shown is kept, with its ledger, through beats whose book failed (`keepLoaded`); and `GET /v2/network/markets?limit=1000&period=day` taken away (`null`): a view of the 24 hours that has no stored copy answers 503 (each asked once, 20 s apart, the last 62 s after the override, when the Worker's kept answer has surely gone), the default view is its stored copy or the 503, and the pair page is unaffected |
 | `a11y.spec.ts` | See below |
 
-**Changing what the fixture server answers.** `test/e2e/fixture-control.ts` puts answers into the fixture server from the tests' process (`fixtures.override`, a JSON object of override keys, each `GET /v2/…` with the query sorted by name; one `PUT` replaces the overrides before it; `fixtures.reset` goes back to the recordings). JSON cannot carry a failing `Response`, so an error is written `unavailable()` (`{ $error: { status: 503, message: "unavailable" } }`) and the control path turns it into the data API's own error answer (`test/support/fixture-server.ts`); `null` is the API's "Cannot GET" 404. `xrplHomeOneLedgerBehind()` says the chain is one ledger behind the recordings (the home page's and the network page's tests move it on), and `xrplNextDay()` says the newest ledger closed after midnight UTC, so that no call over a period has a fixture. A change shows in every page the Worker renders meanwhile, so the specs that make one are the `live` project's (`LIVE_SPECS` in `playwright.config.ts`: `live-home.spec.ts` and every `*-live.spec.ts`, so a later plan's needs no edit there), which runs alone after the `chromium` project and with **one worker**, across its files as well as in each (`fullyParallel: false` only keeps the tests of a file together; two files would otherwise put their overrides over each other's). The Worker keeps a period's answers for 300 s, so a test that takes one away has to be the first of the run to ask for it: `network-live.spec.ts` uses views no other spec opens (`?period=90d&in=usd`, `?period=7d&in=usd`, every 90-day view), in the order that keeps it so. The one spec of the `chromium` project that fails a call, `a11y.spec.ts`, fails `stats/type` of `?period=7d`, which nothing else asks for, in a group of four tests that run in one worker, and takes the override away after them.
+**Changing what the fixture server answers.** `test/e2e/fixture-control.ts` puts answers into the fixture server from the tests' process (`fixtures.override`, a JSON object of override keys, each `GET /v2/…` with the query sorted by name; one `PUT` replaces the overrides before it; `fixtures.reset` goes back to the recordings). JSON cannot carry a failing `Response`, so an error is written `unavailable()` (`{ $error: { status: 503, message: "unavailable" } }`) and the control path turns it into the data API's own error answer (`test/support/fixture-server.ts`); `null` is the API's "Cannot GET" 404. `xrplHomeOneLedgerBehind()` says the chain is one ledger behind the recordings (the home page's and the network page's tests move it on), `xrplNextDay()` says the newest ledger closed after midnight UTC, so that no call over a period has a fixture, `xrplPairOneTradeBehind()` says the newest trade of XRP/RLUSD is the one before the recordings' newest (the first page of its trades without its newest row), and `nodeNotSynced()` is a node's `noNetwork` answer, for a node key (`node book_offers <gets>_<pays>`). A change shows in every page the Worker renders meanwhile, so the specs that make one are the `live` project's (`LIVE_SPECS` in `playwright.config.ts`: `live-home.spec.ts` and every `*-live.spec.ts`, so a later plan's needs no edit there), which runs alone after the `chromium` project and with **one worker**, across its files as well as in each (`fullyParallel: false` only keeps the tests of a file together; two files would otherwise put their overrides over each other's). The Worker keeps a period's answers for 300 s, so a test that takes one away has to be the first of the run to ask for it: `network-live.spec.ts` uses views no other spec opens (`?period=90d&in=usd`, `?period=7d&in=usd`, every 90-day view), in the order that keeps it so. The edge also serves a page's stored copy, of any age, in place of a render that fails, so `market-pair-live.spec.ts` shows the markets page's 503 on views of the 24 hours no other spec opens (`?quote=btc`, `eur`, `usd`, `xrp`), each asked once. The one spec of the `chromium` project that fails a call, `a11y.spec.ts`, fails `stats/type` of `?period=7d`, which nothing else asks for, in a group of four tests that run in one worker, and takes the override away after them.
 
 **Theme, with no flash.** The page is stored once for everybody, so the server cannot name a theme: `THEME_SCRIPT`, a plain inline script in
 `<head>` before the stylesheet, puts the stored choice on `<html data-theme>`. The spec checks that three ways. (1) The stored HTML, parsed as a
@@ -1207,12 +1350,13 @@ after the stylesheet fails (1) and (3).
 
 **Accessibility.** `@axe-core/playwright` with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` (the rules of WCAG 2.2 AA, including
 `color-contrast`, `target-size` and `label-content-name-mismatch`, which the spec checks ran). The gate is no violation of impact `serious` or
-`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account, 404 and network (`/xrpl/network`) pages
+`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account, 404, network (`/xrpl/network`), markets (`/xrpl/markets`) and market pair (`/xrpl/markets/XRP/RLUSD.rMxCKb…`) pages
 × a 1280 px desktop and a 375 px phone × four settings: light and dark by `prefers-color-scheme`, and dark and light chosen with the toggle
 (against the opposite system theme; the spec checks the page really has that `color-scheme`). Sixteen more pages (the other tabs of an account, a page
 behind a marker, a never-activated account, a missing transaction, the search help, the newest ledger, the Xahau home and account, a ledger of 66
 transactions, and the network page in a year in USD, on Xahau, with every Table radio checked and with a slider focused and its tooltip shown) run in
-the two system themes, and the network page with a card that failed (`stats/type` of the 7 days, failed through the fixture server) in the two system themes at both widths. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
+the two system themes, and so do seven of the markets pages (`/xahau/markets`, `/xrpl/markets?period=30d&quote=usd`, the markets page with the text filter in use, the pair the other way round, a page of its
+older trades reached by Older from `?trades=book`, the pair page's 404 and the pair with the candles' slider focused); the network page with a card that failed (`stats/type` of the 7 days, failed through the fixture server) runs in the two system themes at both widths, and the pair page with its node failing (`book_offers`) in the two system themes in `market-pair-live.spec.ts`, which may change the fixture server's answers. The markets pages are left out while `E2E_FEATURES_OFF` lists `MARKETS`. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
 about ARIA attributes with "needs review" results counted as failures (axe reports a name on an element that cannot have one that way, so the gate
 above does not see it).
 
@@ -1344,6 +1488,23 @@ where the real page will. Measured and not taken (every page's figure at `3d4986
   more on the search and not-found pages, and the rule would have to know the gate's pages;
 - `routeDiscovery: { mode: "lazy" }`: the figures do not move. The build still writes `assets/manifest-*.js` and the check counts it; the browser would
   not load it first (the matched routes come in the HTML), but would ask `/__manifest` for the rest, the Worker invocations the setting avoids.
+
+**The figures of E3**, as `pnpm check:bundle` prints them at the end of E3 (its end-to-end tests and README; gzip -9 bytes, each file once, the manifest
+counted): the markets page (`routes/net.markets`) and the market pair page (`routes/net.markets.$base.$counter`) joined `PAGES`, and the gate is the one bar (ruling
+R15: no `CursorSlot`; the spec's targets, markets 140,000 and pair 146,000, are not a gate, and the pair page is 780 bytes over its own).
+
+| page | files | bytes |
+|---|---|---|
+| home | 16 | 134,507 |
+| ledger | 17 | 133,832 |
+| transaction | 18 | 136,085 |
+| account | 17 | 137,267 |
+| network | 16 | 146,852 |
+| markets | 12 | 133,303 |
+| market pair | 17 | 146,780 |
+| manifest `assets/manifest-*.js` (in each) | | 1,152 |
+
+The network page is 3,148 bytes under the gate and the pair page 3,220; E4, E5 and E6 add routes to the manifest (about 100 bytes each) and pages of their own.
 
 ## The parsing libraries in the Workers runtime
 
@@ -1480,6 +1641,22 @@ staging before production:
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
 - [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: the network page and every other page are under 150,000 bytes with the manifest counted, and the manifest's
   size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
+- [ ] **The markets pages' node calls, against the deployed nodes.** With `wrangler tail --env staging --format json`, open a pair page on each network (`/xrpl/markets/XRP/RLUSD.rMxCKb…`,
+  `/xahau/markets/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH`): `book_offers` accepts `limit: 60` and answers with the funded fields (`taker_gets_funded`,
+  `taker_pays_funded`) on a partly funded offer, xahaud takes `{ "currency": "XAH" }` for its native side, and `amm_info` by `asset` and `asset2` answers for an XRPL pair that has a pool
+  (and `actNotFound` for one that has none: no pool card, and nothing logged).
+- [ ] **The node's call rate with pair pages open.** With a pair page open in a few tabs, `wrangler tail` shows about two `book_offers` per 2 s per watched pair per Worker
+  instance (the two sides, kept 2 s), not two per beat of every tab; and with the node failing (a node URL that refuses, for a while), one failing call per side per 5 s per instance (the failure hold),
+  the book saying "Live state unavailable" on a fresh load and an open page keeping the book it showed.
+- [ ] **The markets page's age.** On `/xrpl/markets` (the 24 hours) the period's window ends within about two minutes of now (the data API's minute, 60 s kept, the page's 60 s
+  and 30 s), and on `?period=7d` and `30d` within about seven.
+- [ ] **The HTML weight of `/xrpl/markets?period=30d`**, the biggest set (up to 1,000 rows in the page's data, 100 in its table): write down the size of the document and of its
+  `.data` URL, gzipped and not, beside the ledger page's of a large ledger.
+- [ ] **The AMM parts after `AMM_DATA` is turned on** (rollout step 7 of the markets spec): the Trades filter on both pages, the Via column, the AMM share tile and column (or "—" for
+  a period whose answer has no `amm_share` yet), the pool card's share, and the intro's words about swaps, at once after the deploy; and the traders card of a pair with a pool does not
+  list the pool account (`rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3` for XRP/RLUSD) and says so.
+- [ ] **The bundle figures of the markets pages.** `pnpm check:bundle` on the commit being deployed: write the markets and market-pair figures down beside "The client bundle check",
+  and check every page against the gate of 150,000 bytes with the manifest, the one bar (the spec's targets of 140,000 and 146,000 are not one: ruling R15).
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.
