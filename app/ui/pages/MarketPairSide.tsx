@@ -202,7 +202,8 @@ export function PoolCard({ data }: { data: LivePairData }) {
 
 /**
  * The most active accounts of the 24 hours, each a link to its page with its volume and trades, then the note. The list holds the page. Not
- * `dense`: its rows are links, and the dense rows (21.6 px apart) put two links' 24 px targets closer than WCAG 2.5.8 lets them be (axe).
+ * `dense`: its rows are links, and the list that is not dense has them 28 px apart, where a dense one has its rows with a link 24 px apart, the
+ * least WCAG 2.5.8 allows (the links themselves are 15.6 px lines; their hit areas are the stylesheet's, which axe does not count).
  */
 export function TradersCard({
   data,

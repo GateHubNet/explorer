@@ -118,3 +118,10 @@ describe("the order book of the pair page", () => {
     expect(rule(pagesCss, ".pair__book-mid .pair__level-price")["font-weight"]).toBe("500");
   });
 });
+
+describe("the page of older trades of a pair", () => {
+  // The note says where the price and the chart are, and its link is a part of the sentence in another colour: it is underlined too.
+  it("underlines the link in its note, so that more than the colour tells it from the words around it", () => {
+    expect(rule(pagesCss, ".pair__older a")["text-decoration"]).toBe("underline");
+  });
+});

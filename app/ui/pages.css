@@ -1773,6 +1773,11 @@ a.markets__pair:hover .markets__name {
   color: var(--muted);
 }
 
+/* The link in the note's sentence is underlined: told from the words around it by more than its colour (WCAG 1.4.1, axe's link-in-text-block). */
+.pair__older a {
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
   .pair__summary {
     padding: 16px;

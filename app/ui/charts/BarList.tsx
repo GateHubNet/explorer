@@ -37,7 +37,7 @@ const tradesText = (count: string): string => `${formatAmount(count)} ${count ==
  * (`count` is in the table; at the tip only with `tip="count"`).
  *
  * An item with an `href` has its label as a link to it (`RouteLink`, a client-side navigation); the bar and the tip stay text, so a row has
- * one target, and a hit area of 24 px is the stylesheet's.
+ * one target, and its hit area is the stylesheet's: 24 px high and more, dense or not, and 44 px on a touch screen or a phone (charts.css).
  *
  * Nothing is measured: the label's column is the characters of the longest label (or sublabel) and the room after the longest bar the
  * characters of the longest tip, in CSS units (`--label`, `--tip`; charts.css), so the Worker prints the finished list. The longest bar is the
