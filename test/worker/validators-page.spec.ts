@@ -30,6 +30,21 @@ const AMENDMENTS = "GET /v2/network/amendments";
 
 const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
 
+/**
+ * The subrequest-cache lookups made from now until the test ends, hits and misses alike. `mock.requests` holds only what reached `fetch`, and by the time the
+ * tests below run XRPL's calls are warm in the Cache API, so a call that was answered from it never shows there: a lookup does.
+ */
+function subrequestLookups(): string[] {
+  const urls: string[] = [];
+  const match = caches.default.match.bind(caches.default);
+  vi.spyOn(caches.default, "match").mockImplementation((request, options) => {
+    const url = request instanceof Request ? request.url : String(request);
+    if (url.startsWith("https://subrequest-cache.invalid/")) urls.push(url);
+    return match(request, options);
+  });
+  return urls;
+}
+
 /** Whether the filter form has the field `label` ("Listed by" is also a word of the rows' UNL tags: only a label is a field). */
 const hasField = (html: string, label: string) => new RegExp(`<label[^>]*>${label}</label>`).test(html);
 
@@ -124,18 +139,23 @@ describe("the query of the URL", () => {
     ["?x=1&q=a&q=b", "?q=a"],
   ])("redirects %s to %j with no call", async (query, to) => {
     mock = mockUpstream("xrpl");
+    const lookups = subrequestLookups();
     const response = await get(`/xrpl/validators${query}`);
     await response.text();
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe(`/xrpl/validators${to}`);
     expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+    // No call: none reached the upstream, and none was asked of the subrequest cache either (XRPL's calls are warm there from the first test, so an answer from
+    // it would not show in `mock.requests`).
     expect(mock.requests).toEqual([]);
+    expect(lookups).toEqual([]);
     expect(await storedAs(`/xrpl/validators${query}`)).toEqual({ cls: "short", ttl: 30 });
   });
 
   it("sends one 302 carrying both kinds of change", async () => {
     mock = mockUpstream("xrpl");
+    const lookups = subrequestLookups();
     const named = amendmentOf(xrplAmendments, "voting");
     expect(named.name).toBe("DynamicNFT");
 
@@ -159,6 +179,8 @@ describe("the query of the URL", () => {
       expect(response.headers.get("Cache-Control"), from).toBe("max-age=0");
       expect(await storedAs(`/xrpl/validators${from}`), from).toEqual({ cls: "short", ttl: 30 });
     }
+    // The control of the check above: these redirects wait for S and A, so the spy does see lookups of the subrequest cache (it is not blind to them).
+    expect(lookups.length).toBeGreaterThan(0);
   });
 });
 
