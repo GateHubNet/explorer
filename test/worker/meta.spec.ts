@@ -299,6 +299,24 @@ describe("an account page", () => {
     expect(tags.content("description")).toBe(`Older payments of the account ${ACTIVE} on XRPL.`);
   });
 
+  it.each([
+    ["?tab=analytics", "Analytics"],
+    ["?tab=analytics&period=90d", "Analytics, last 90 days"],
+    ["?tab=analytics&period=1y", "Analytics, last 52 weeks"],
+    ["?tab=analytics&period=all", "Analytics, all time"],
+  ])("is noindex, follow on the Analytics view %s: a title per period, the same description, no canonical URL and nothing to share", async (query, named) => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/account/${ACTIVE}${query}`);
+    const tags = head(html);
+    expect(tags.titles).toEqual([`${named} · Account ${shortAddress(ACTIVE)} · XRPL · explorer`]);
+    expect(tags.content("description")).toBe(
+      `Account value, transactions sent, balances, money in and out, counterparties and DEX trading of ${ACTIVE} on XRPL.`,
+    );
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
   it("is noindex and shares nothing for an address that was never activated", async () => {
     mock = mockUpstream("xrpl");
     const tags = head((await page("/xrpl/account/rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC", 404)).html);

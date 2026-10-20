@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ANALYTICS_META,
   ANALYTICS_PERIODS,
   ANALYTICS_PERIOD_LABELS,
   DEFAULT_ANALYTICS_PERIOD,
@@ -124,6 +125,11 @@ describe("analyticsPhrases", () => {
   it("does not read the first month for the other periods", () => {
     expect(analyticsPhrases("90d", "").title).toBe("last 90 days");
     expect(analyticsPhrases("1y", "Jul 2025").title).toBe(analyticsPhrases("1y", "Jan 2020").title);
+  });
+
+  it("takes its meta from the table that the account route's <title> reads on its own", () => {
+    expect(ANALYTICS_META).toEqual({ "30d": null, "90d": "last 90 days", "1y": "last 52 weeks", all: "all time" });
+    for (const period of ANALYTICS_PERIODS) expect(analyticsPhrases(period, "Jul 2025").meta, period).toBe(ANALYTICS_META[period]);
   });
 });
 

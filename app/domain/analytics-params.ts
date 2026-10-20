@@ -50,6 +50,12 @@ export function analyticsHref(net: string, address: string, period: AnalyticsPer
   return `/${net}/account/${address}?${analyticsQuery(period)}`;
 }
 
+/**
+ * The words that name a period in the page's `<title>`, `null` for the default period's. `meta` runs in the browser too (a client-side
+ * navigation), so this table is `analyticsPhrases`' `meta` on its own: the account route's chunk takes it and leaves the rest to the Worker.
+ */
+export const ANALYTICS_META: Record<AnalyticsPeriod, string | null> = { "30d": null, "90d": "last 90 days", "1y": "last 52 weeks", all: "all time" };
+
 /** `title` goes in card titles and tile 1, `empty` in empty states, `meta` in the page's `<title>` (`null` for the default period's). */
 export interface AnalyticsPhrases {
   title: string;
@@ -64,13 +70,13 @@ export interface AnalyticsPhrases {
 export function analyticsPhrases(period: AnalyticsPeriod, firstMonth: string): AnalyticsPhrases {
   switch (period) {
     case "30d":
-      return { title: "last 30 days", empty: "these 30 days", meta: null };
+      return { title: "last 30 days", empty: "these 30 days", meta: ANALYTICS_META[period] };
     case "90d":
-      return { title: "last 90 days", empty: "these 90 days", meta: "last 90 days" };
+      return { title: "last 90 days", empty: "these 90 days", meta: ANALYTICS_META[period] };
     case "1y":
-      return { title: "last 52 weeks", empty: "these 52 weeks", meta: "last 52 weeks" };
+      return { title: "last 52 weeks", empty: "these 52 weeks", meta: ANALYTICS_META[period] };
     case "all":
-      return { title: `since ${firstMonth}`, empty: "its whole history", meta: "all time" };
+      return { title: `since ${firstMonth}`, empty: "its whole history", meta: ANALYTICS_META[period] };
   }
 }
 

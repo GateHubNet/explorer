@@ -239,6 +239,50 @@ describe("accountMeta", () => {
       expect(keys(history).filter((key) => /^(og|twitter):/.test(key)), tab).toEqual([]);
     }
   });
+
+  describe("on the Analytics tab", () => {
+    const view = (period: "30d" | "90d" | "1y" | "all") => account({ tab: "analytics", analytics: { period } });
+    const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+    const DESCRIPTION = `Account value, transactions sent, balances, money in and out, counterparties and DEX trading of ${ADDRESS} on XRPL.`;
+
+    it.each([
+      ["30d", "Analytics · Account rBbW6i…W5jh · XRPL · explorer"],
+      ["90d", "Analytics, last 90 days · Account rBbW6i…W5jh · XRPL · explorer"],
+      ["1y", "Analytics, last 52 weeks · Account rBbW6i…W5jh · XRPL · explorer"],
+      ["all", "Analytics, all time · Account rBbW6i…W5jh · XRPL · explorer"],
+    ] as const)("names the period %s in the title", (period, expected) => {
+      expect(title(accountMeta(view(period), XRPL))).toBe(expected);
+    });
+
+    it("names the network in the title and the description", () => {
+      const xahau = accountMeta({ ...view("90d"), native: "XAH" as const }, XAHAU);
+      expect(title(xahau)).toBe("Analytics, last 90 days · Account rBbW6i…W5jh · Xahau · explorer");
+      expect(content(xahau, "description")).toBe(DESCRIPTION.replace("XRPL", "Xahau"));
+    });
+
+    it.each(["30d", "90d", "1y", "all"] as const)("is noindex, follow, with no canonical URL and no Open Graph or card tags, on the view %s", (period) => {
+      const list = accountMeta(view(period), XRPL);
+      expect(content(list, "description")).toBe(DESCRIPTION);
+      expect(content(list, "robots")).toBe("noindex, follow");
+      expect(link(list, "canonical")).toBeUndefined();
+      expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+      expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+      expect(keys(list).sort()).toEqual(["description", "robots"]);
+      expect(title(list)).toBeDefined();
+    });
+
+    it("does not carry the figures of the account: the balance and the activation are not in the description", () => {
+      expect(content(accountMeta(view("30d"), XRPL), "description")).not.toMatch(/10\.001625|2025-07-15/);
+    });
+
+    it("leaves the list tabs' tags as they were", () => {
+      // A list tab's data has no `analytics`, so the tab alone does not make the Analytics tags.
+      const list = accountMeta(account({ tab: "payments" }), XRPL);
+      expect(title(list)).toBe("Account rBbW6i…W5jh · XRPL · explorer");
+      expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/account/${ADDRESS}?tab=payments`);
+      expect(keys(list)).not.toContain("robots");
+    });
+  });
 });
 
 describe("homeMeta", () => {

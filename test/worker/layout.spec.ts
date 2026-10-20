@@ -236,7 +236,7 @@ describe("the document shell", () => {
 });
 
 describe("/robots.txt", () => {
-  it("allows everything but the search pages and the payments CSVs", async () => {
+  it("allows everything but the search pages, the payments CSVs and the analytics views", async () => {
     const response = await get("/robots.txt");
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/plain");
@@ -245,7 +245,9 @@ describe("/robots.txt", () => {
     expect(body).toContain("Disallow: /*/search");
     // Each crawl of a CSV costs an upstream CSV of up to 1000 rows (cached 30 s), and the file is no page to index.
     expect(body).toContain("Disallow: /*/account/*/payments.csv");
-    expect(body.match(/^Disallow:/gm)).toHaveLength(2);
+    // The analytics views are six aggregate reads of an account nobody else is looking at, and the rule matches either query order.
+    expect(body).toContain("\nDisallow: /*/account/*tab=analytics\n");
+    expect(body.match(/^Disallow:/gm)).toHaveLength(3);
     expect(body).not.toMatch(/^Disallow: \/?$/m);
   });
 
