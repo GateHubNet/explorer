@@ -17,7 +17,7 @@ const RLUSD_HEX = "524C555344000000000000000000000000000000";
 const LIONS_HEX = "4C494F4E53000000000000000000000000000000";
 
 type Input = Parameters<typeof marketsPage>[0];
-const FEATURES = { validators: false, ammData: true, markets: true };
+const FEATURES = { validators: false, ammData: true, markets: true, accountAnalytics: true };
 const XRPL: Input["network"] = { id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true, features: FEATURES };
 const XRPL_AMM_OFF: Input["network"] = { ...XRPL, features: { ...FEATURES, ammData: false } };
 /** The switch is "on" at the top level of every environment, Xahau's included: `hasAmm` is what rules there. */

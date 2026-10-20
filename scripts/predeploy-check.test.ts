@@ -186,6 +186,42 @@ describe("deployProblems", () => {
       });
     });
 
+    // ACCOUNT_ANALYTICS (E4): the account page's Analytics tab. A staging or production build must say it, and say it right.
+    describe("ACCOUNT_ANALYTICS", () => {
+      it("passes a build whose ACCOUNT_ANALYTICS is on or off, and the passing configs carry it", () => {
+        expect((good("staging").vars as Config).ACCOUNT_ANALYTICS).toBe("off");
+        expect((good("production").vars as Config).ACCOUNT_ANALYTICS).toBe("off");
+        expect(deployProblems(withVars({ ACCOUNT_ANALYTICS: "on" }), "staging")).toEqual([]);
+        expect(deployProblems(withVars({ ACCOUNT_ANALYTICS: "off" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without ACCOUNT_ANALYTICS, and names it", () => {
+        const vars = { ...(good().vars as Config) };
+        delete vars.ACCOUNT_ANALYTICS;
+        const problems = deployProblems(good("staging", { vars }), "staging");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("ACCOUNT_ANALYTICS is not set");
+        expect(problems[0]).toContain('"on" or "off"');
+      });
+
+      it('refuses ACCOUNT_ANALYTICS: "yes", and names it', () => {
+        const problems = deployProblems(withVars({ ACCOUNT_ANALYTICS: "yes" }, "production"), "production");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("ACCOUNT_ANALYTICS");
+        expect(problems[0]).toContain('"yes"');
+        expect(problems[0]).toContain('not exactly "on" or "off"');
+      });
+
+      it('refuses a misspelt ACCOUNT_ANALYTIC: "on" as a var that is not a switch, naming ACCOUNT_ANALYTICS among the switches', () => {
+        const problems = deployProblems(withVars({ ACCOUNT_ANALYTIC: "on" }), "staging");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("ACCOUNT_ANALYTIC is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("ACCOUNT_ANALYTICS");
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "staging")).toEqual([]);
     });
@@ -393,5 +429,14 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(config.targetEnvironment).toBe(env);
     expect(config.workers_dev).toBe(false);
     expect(config.preview_urls).toBe(false);
+  });
+
+  // ACCOUNT_ANALYTICS (README "Switches"): on in development and the tests (the top level), off in staging and production until D2's gauges
+  // `syncer_rates_daily_missing_days` and `syncer_account_rollups_pending_accounts` are 0 there. A flip is a commit, so it is read from the file.
+  it("has ACCOUNT_ANALYTICS on at the top level and off in staging and production", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().ACCOUNT_ANALYTICS).toBe("on");
+    expect(vars("staging").ACCOUNT_ANALYTICS).toBe("off");
+    expect(vars("production").ACCOUNT_ANALYTICS).toBe("off");
   });
 });

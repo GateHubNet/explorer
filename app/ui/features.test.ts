@@ -70,6 +70,32 @@ describe("the MARKETS switch", () => {
   });
 });
 
+// ACCOUNT_ANALYTICS (E4): the account page's Analytics tab.
+describe("the ACCOUNT_ANALYTICS switch", () => {
+  it("is appended last, after E3's MARKETS, and its feature is accountAnalytics", () => {
+    expect(FEATURE_VARS.slice(0, 4)).toEqual(["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS"]);
+    expect(FEATURE_VARS.at(-1)).toBe("ACCOUNT_ANALYTICS");
+    expect(Object.keys(FEATURE_NAME).at(-1)).toBe("ACCOUNT_ANALYTICS");
+    expect(FEATURE_NAME.ACCOUNT_ANALYTICS).toBe("accountAnalytics");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ ACCOUNT_ANALYTICS: "on" }).accountAnalytics).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ ACCOUNT_ANALYTICS: value }).accountAnalytics, String(value)).toBe(false);
+    expect(featuresOf({}).accountAnalytics).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.accountAnalytics).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ ACCOUNT_ANALYTICS: "on" })).toEqual({ ...NO_FEATURES, accountAnalytics: true });
+    expect(featuresOf({ ...allSwitches("on"), ACCOUNT_ANALYTICS: "off" }).accountAnalytics).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on" }).accountAnalytics).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

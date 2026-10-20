@@ -15,6 +15,7 @@ const env: Env = {
   ...allSwitches("off"),
   AMM_DATA: "on",
   MARKETS: "on",
+  ACCOUNT_ANALYTICS: "on",
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
@@ -79,6 +80,10 @@ describe("cacheGeneration", () => {
     expect(cacheGeneration(env)).toContain("AMM_DATA=on,MARKETS=on,VALIDATORS=off");
   });
 
+  it("names ACCOUNT_ANALYTICS=on first after the colon, ahead of AMM_DATA", () => {
+    expect(cacheGeneration(env)).toBe("test-build:ACCOUNT_ANALYTICS=on,AMM_DATA=on,MARKETS=on,VALIDATORS=off");
+  });
+
   it("changes when a switch is flipped, and when the build is", () => {
     const flipped = cacheGeneration({ ...env, AMM_DATA: "off" });
     expect(flipped).not.toBe(cacheGeneration(env));
@@ -87,6 +92,9 @@ describe("cacheGeneration", () => {
     const markets = cacheGeneration({ ...env, MARKETS: "off" });
     expect(markets).not.toBe(cacheGeneration(env));
     expect(markets).toContain("AMM_DATA=on,MARKETS=off,VALIDATORS=off");
+    const analytics = cacheGeneration({ ...env, ACCOUNT_ANALYTICS: "off" });
+    expect(analytics).not.toBe(cacheGeneration(env));
+    expect(analytics).toBe("test-build:ACCOUNT_ANALYTICS=off,AMM_DATA=on,MARKETS=on,VALIDATORS=off");
     expect(cacheGeneration({ ...env, BUILD_ID: "other-build" })).not.toBe(cacheGeneration(env));
   });
 

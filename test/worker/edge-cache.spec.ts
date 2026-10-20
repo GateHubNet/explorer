@@ -271,6 +271,10 @@ describe("storing and serving a page", () => {
     const h = harness();
     const url = pageUrl();
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(`__build=${encodeURIComponent(cacheGeneration(h.env))}`);
+    // ACCOUNT_ANALYTICS is one of the switches the generation names (sorted first), and flipping it is another key.
+    expect(cacheGeneration(h.env)).toMatch(/^test-build:ACCOUNT_ANALYTICS=off,AMM_DATA=on,/);
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("ACCOUNT_ANALYTICS=off"));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, ACCOUNT_ANALYTICS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(url, "build-b"));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(`${url}?x=1`, "build-a"));
     expect(edgeCacheKey(`${url}?x=1`, "build-a")).toBe(`${url}?x=1&__build=build-a`);
