@@ -8,17 +8,22 @@ import {
   accountLinks,
   amendmentStatusView,
   compareFee,
+  count,
+  DASH,
   dropsText,
   joinAnd,
+  ledgerLink,
   ledgersText,
   moreThan,
   nativeText,
   scoreText,
+  scoreValue,
   shareText,
   statusWord,
   tomlFileOf,
   tomlLink,
   unixOf,
+  valueOf,
   verificationNote,
   versionText,
   xlsLink,
@@ -69,6 +74,44 @@ describe("scoreText", () => {
   it("rounds half up, exactly", () => {
     expect(scoreText("0.99995")).toBe("100.00%");
     expect(scoreText("0.99994")).toBe("99.99%");
+  });
+});
+
+describe("scoreValue", () => {
+  it.each([
+    ["0.9998", "99.98"],
+    ["1.0000", "100.00"],
+    ["0.5", "50.00"],
+    ["0.99995", "100.00"],
+    [undefined, null],
+    ["", null],
+    ["high", null],
+  ])("scoreValue(%j) is %j", (score, value) => {
+    expect(scoreValue(score)).toBe(value);
+  });
+});
+
+describe("count, DASH and valueOf", () => {
+  it("writes a count with separators", () => {
+    expect(count(0)).toBe("0");
+    expect(count(22096)).toBe("22,096");
+  });
+
+  it("has one dash for a figure that is not there", () => {
+    expect(DASH).toBe("—");
+  });
+
+  it("takes the value of a part that loaded, and nothing from one that did not", () => {
+    expect(valueOf({ state: "ok", value: 7 })).toBe(7);
+    expect(valueOf({ state: "failed" })).toBeNull();
+    expect(valueOf({ state: "missing" })).toBeNull();
+  });
+});
+
+describe("ledgerLink", () => {
+  it("names a ledger by the number it shows and links its page on the network", () => {
+    expect(ledgerLink("xrpl", 107748183)).toEqual({ text: "#107,748,183", href: "/xrpl/ledger/107748183" });
+    expect(ledgerLink("xahau", 7)).toEqual({ text: "#7", href: "/xahau/ledger/7" });
   });
 });
 

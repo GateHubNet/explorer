@@ -1,26 +1,36 @@
 // What the validators list shows, worked out in the Worker from the data API's three answers (spec 3.1, 3.2 and 9.1): the intro, the publisher notices, the six tiles of the
 // network overview, the share bar and table of the software versions, the filtered rows with their counts and footer, and the options of the two selects. `validatorsPage`
 // is pure: no I/O, no clock, no `Intl`. Every text is made from D1's exact strings (validator-facts.ts: `bignumber.js`), and the numbers of the API that are counts become
-// text with `formatAmount(String(n))`, so no float reaches a string of the page. Each of S (the summary), L (the list) and A (the amendments) stands or fails on its own: a
-// part that did not load is `{ state: "failed" }` (a `missing` answer is the same to this page), and what only adds context to another part (a publisher's name, a fee arrow,
-// a negative UNL validator's domain) is left out of it, with a note where the page would otherwise say less than it seems to.
+// text with `count` (validator-facts.ts: `formatAmount(String(n))`), so no float reaches a string of the page. Each of S (the summary), L (the list) and A (the amendments)
+// stands or fails on its own: a part that did not load is `{ state: "failed" }` (a `missing` answer is the same to this page), and what only adds context to another part
+// (a publisher's name, a fee arrow, a negative UNL validator's domain) is left out of it, with a note where the page would otherwise say less than it seems to.
 
 import { amendmentSegment } from "../domain/amendment-ref";
 import { amendmentHref, amendmentsHref } from "../domain/amendments-params";
 import { fnv1a32, tokenOf } from "../domain/fnv";
-import { formatAmount, shortHash } from "../domain/format";
+import { shortHash } from "../domain/format";
 import { formatDate } from "../domain/time-words";
 import { validatorHref, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import type { ShareData, Slot } from "../ui/charts/types";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, AmendmentsList, NativeFees, NegativeUnlMember, NextFlagLedger, UnlPublisher, ValidatorRow, ValidatorsList, ValidatorsSummary } from "./api-types";
-import { compareFee, dropsText, joinAnd, nativeText, scoreText, shareText, unixOf, versionText, yesPercentText, type DomainStatusKind, type TextPart } from "./validator-facts";
-
-const DASH = "—";
-
-/** A count with separators: `1,234`. */
-const count = (n: number): string => formatAmount(String(n));
+import {
+  compareFee,
+  count,
+  DASH,
+  dropsText,
+  joinAnd,
+  nativeText,
+  scoreText,
+  shareText,
+  unixOf,
+  valueOf,
+  versionText,
+  yesPercentText,
+  type DomainStatusKind,
+  type TextPart,
+} from "./validator-facts";
 
 /** A value for a `<select>`: the canonical parameter, and what the option says. */
 export interface Option {
@@ -97,9 +107,6 @@ export interface ValidatorsPageData {
   list: { state: "ok"; counts: { unl: number; all: number }; rows: ValidatorRowView[]; footer: string[]; empty: boolean } | { state: "failed" };
   amendments: { state: "ok"; options: Option[] } | { state: "failed" };
 }
-
-/** The value of a part that loaded; `null` for one that did not (a `missing` answer is a failure to this page). */
-const valueOf = <T>(part: Loaded<T>): T | null => (part.state === "ok" ? part.value : null);
 
 // ---- Version slots (3.2) -------------------------------------------------------------------------------------------------------------------------
 

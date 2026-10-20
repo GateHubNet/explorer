@@ -8,6 +8,7 @@ import { isValidClassicAddress } from "ripple-address-codec";
 
 import { formatAmount, formatUtcDay, utcMoment } from "../domain/format";
 import { formatDateTime } from "../domain/time-words";
+import type { Loaded } from "./account-view";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
 
@@ -16,8 +17,12 @@ import type { Network } from "./networks";
 export { statusWord } from "../domain/amendments-params";
 export { joinAnd } from "../domain/time-words";
 
-const DASH = "—";
+/** What a figure that is not there reads as. */
+export const DASH = "—";
 const HALF_UP = BigNumber.ROUND_HALF_UP;
+
+/** The value of a part that loaded; `null` for one that did not (a `missing` answer is a failure to these pages). */
+export const valueOf = <T>(part: Loaded<T>): T | null => (part.state === "ok" ? part.value : null);
 
 /**
  * A piece of a sentence: plain text, a link (an internal one, or an external one that opens in a new tab: `"plain"`, or `"nofollow"` for a TOML file, which anyone can
@@ -48,12 +53,18 @@ function decimal(text: string): BigNumber | null {
 }
 
 /** A count with separators: `22,096`. */
-const count = (n: number): string => formatAmount(String(n));
+export const count = (n: number): string => formatAmount(String(n));
 
-/** The agreement score, `score` × 100 to 2 decimals (D1's 4 decimals make it exact): `"0.9998"` is `99.98%`, no score is `—`. */
-export function scoreText(score: string | undefined): string {
+/** The agreement score for a chart's value, `score` × 100 to 2 decimals, exactly (D1's 4 decimals make it exact): `"0.9998"` is `"99.98"`. `null` for no score. */
+export function scoreValue(score: string | undefined): string | null {
   const value = score === undefined ? null : decimal(score);
-  return value === null ? DASH : `${value.times(100).toFixed(2, HALF_UP)}%`;
+  return value === null ? null : value.times(100).toFixed(2, HALF_UP);
+}
+
+/** The agreement score as text: `"0.9998"` is `99.98%`, no score is `—`. */
+export function scoreText(score: string | undefined): string {
+  const value = scoreValue(score);
+  return value === null ? DASH : `${value}%`;
 }
 
 /** The ledgers an agreement window counted: `4 missed of 22,096 validated ledgers · 1 partial` (no partial, no ` · 0 partial`). */
@@ -122,6 +133,11 @@ export function moreThan(thresholdPercent: number): string {
 }
 
 // ---- Links (2.8) -------------------------------------------------------------------------------------------------------------------------------
+
+/** A ledger named by the number it shows, `#107,748,095`, linked to its page (a ledger that exists: the next flag ledger is text, never a link). */
+export function ledgerLink(net: string, index: number): { text: string; href: string } {
+  return { text: `#${count(index)}`, href: `/${net}/ledger/${index}` };
+}
 
 /** The file a validator's domain publishes on the network whose software this is. */
 export function tomlFileOf(software: Network["software"]): "xrp-ledger.toml" | "xahau.toml" {
