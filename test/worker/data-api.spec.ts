@@ -2147,6 +2147,14 @@ describe("an answer that is not what the reference promises", () => {
       }
     });
 
+    it("takes a volume row whose total and exchange_rate are in exponent form: String() of a JS number, and precision8 (a day of dust trades)", async () => {
+      for (const [name, call, good] of volumes) {
+        const dust = broken(good, (b) => Object.assign(b.rows[0], { total: "4e-7", exchange_rate: "1.0000000e-7" }));
+        fetchSpy.mockResolvedValueOnce(json(dust));
+        expect(await call(createDataApi(xrpl, env, passThroughCache)), name).toEqual(dust);
+      }
+    });
+
     it("takes the good answers, each as it came", async () => {
       for (const [name, call, good] of volumes) {
         fetchSpy.mockResolvedValueOnce(json(good));
@@ -2214,15 +2222,35 @@ describe("an answer that is not what the reference promises", () => {
       ["a market whose sparkline close is a number", broken(marketsBody, (b) => (b.markets[0].sparkline[2].close = 0.525)), markets, marketsBody],
       ["totals that are not an object", broken(marketsBody, (b) => (b.totals = [])), markets, marketsBody],
       ["totals that are text", broken(marketsBody, (b) => (b.totals = "9 pairs")), markets, marketsBody],
-      ["an amm_share without 4 decimals", broken(marketsBody, (b) => (b.markets[0].amm_share = "0.34")), markets, marketsBody],
-      ["an amm_pool that is text", broken(marketsBody, (b) => (b.markets[0].amm_pool = "yes")), markets, marketsBody],
       // The filter that was asked for
       ["an answer to amm=only with no amm: an API that ignored the filter", marketsBody, only, marketsWithAmm("only")],
       ["an answer to amm=only that says include", marketsWithAmm("include"), only, marketsWithAmm("only")],
       ["an answer to amm=only that says exclude", marketsWithAmm("exclude"), only, marketsWithAmm("only")],
-      ["an answer to a request without a filter that says only", marketsWithAmm("only"), markets, marketsBody],
+      ["an answer to amm=only that says null", { ...marketsWithAmm("only"), amm: null }, only, marketsWithAmm("only")],
     ])("is a failure for %s, is not stored, and the good answer after it is", async (_what, body, call, good) => {
       await failsWithoutStoring(body, call, good);
+    });
+
+    it("takes a markets answer whose AMM fields it cannot read, without them: they are not known (D2), and never take the table down", async () => {
+      const unread = broken(marketsBody, (b) => {
+        b.totals.amm_share = 0.12;
+        b.markets[0].amm_share = "abc";
+        b.markets[0].amm_pool = "yes";
+      });
+      fetchSpy.mockResolvedValueOnce(json(unread));
+      const answer = await markets(createDataApi(xrpl, env, passThroughCache));
+      expect(answer.totals).not.toHaveProperty("amm_share");
+      expect(answer.markets[0]).not.toHaveProperty("amm_share");
+      expect(answer.markets[0]).not.toHaveProperty("amm_pool");
+      expect(answer.markets[0]!.last).toBe(marketsBody.markets[0]!.last);
+    });
+
+    it("reads no amm of the answer to a request without a filter, whatever it says", async () => {
+      for (const amm of ["include", "exclude", "only", null]) {
+        const body = { ...marketsBody, amm };
+        fetchSpy.mockResolvedValueOnce(json(body));
+        expect(await markets(createDataApi(xrpl, env, passThroughCache))).toEqual(body);
+      }
     });
 
     it("takes the answer to amm=only that says only, and the one to amm=exclude that says exclude", async () => {

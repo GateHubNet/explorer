@@ -5,6 +5,7 @@ import { loader } from "../../app/routes/net.markets";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import type { MarketsPageData } from "../../app/server/markets-view";
+import xahauWeek from "../fixtures/http/xahau/data-api/network/markets@limit=1000&period=7day.json";
 import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 
@@ -222,6 +223,28 @@ describe("the call of a view", () => {
     expect(text).toContain("/v2/network/markets?period=day&amm=only");
     expect(pairRows(html)).toHaveLength(9);
     expect(pairRows(html)[1]![1]).toBe("TIDE / XRP TIDE rwYxVU…GCJF");
+  });
+});
+
+// ---- The AMM fields of the answer ---------------------------------------------------------------------------------------------------------
+
+describe("the AMM fields of the answer (D2: absent = not known)", () => {
+  it("takes an unfiltered answer whatever its amm says, null here, and an AMM field the client cannot read takes nothing down", async () => {
+    // Xahau's 7 days: a key no other test of this file reads, since the answer is stored like any other.
+    const answer = structuredClone(xahauWeek) as Record<string, any>;
+    answer.amm = null;
+    answer.totals.amm_share = 0.12;
+    answer.markets[0].amm_share = "abc";
+    answer.markets[1].amm_share = 1.2;
+    answer.markets[2].amm_pool = "yes";
+    mock = mockUpstream("xahau", { "GET /v2/network/markets?limit=1000&period=7day": answer });
+    const path = "/xahau/markets?period=7d";
+    const { response, html } = await render(path);
+
+    expect(response.status).toBe(200);
+    // The header and the 23 pairs of the set.
+    expect(pairRows(html)).toHaveLength(24);
+    expect(await storedAs(path)).toEqual({ cls: "minute", ttl: 60 });
   });
 });
 

@@ -294,7 +294,7 @@ describe("checkVolumePage", () => {
     ["rows that are not a list", (page) => (page.rows = "none")],
     ["a row that is null", (page) => page.rows.push(null)],
     ["a total that is a number", (page) => (page.rows[0].total = 12.5)],
-    ["a total in exponent form", (page) => (page.rows[0].total = "4.5e4")],
+    ["a total that is no number", (page) => (page.rows[0].total = "4.5 XRP")],
     ["a total that is missing", (page) => delete page.rows[0].total],
     ["an exchange_rate that is a number", (page) => (page.rows[0].exchange_rate = 1)],
     ["a count that is text", (page) => (page.rows[0].count = "120")],
@@ -372,8 +372,18 @@ describe("checkVolumePage", () => {
     },
   );
 
-  it("keeps the row's total and exchange_rate plain: they are sums and a display rate, which the API writes as plain decimals", () => {
-    for (const [name, value] of [["total", "4.5e4"], ["exchange_rate", "1e0"]] as const) {
+  it("takes the row's total and exchange_rate in exponent form: the API writes the total with String() of a JS number, the rate with precision8", () => {
+    for (const kind of ["payment", "exchange", "amm"] as const) {
+      for (const [name, value] of [["total", "4e-7"], ["total", "1.5e+21"], ["exchange_rate", "4e-7"], ["exchange_rate", "1.2345679e+8"]] as const) {
+        const row = clone({ payment, exchange, amm }[kind]) as Body;
+        row.rows[0][name] = value;
+        expect(checkVolumePage(kind, row)).toBe(row);
+      }
+    }
+  });
+
+  it("refuses a row's total or exchange_rate that is no number as text", () => {
+    for (const [name, value] of [["total", "abc"], ["total", ""], ["exchange_rate", "NaN"], ["exchange_rate", "1e9999"]] as const) {
       const row = clone(exchange) as Body;
       row.rows[0][name] = value;
       refuses((body) => checkVolumePage("exchange", body), row);
@@ -862,16 +872,6 @@ describe("checkMarkets", () => {
     ["a sparkline entry without a date", (b) => delete b.markets[0].sparkline[2].date],
     ["a sparkline close that is a number", (b) => (b.markets[0].sparkline[2].close = 0.525)],
     ["a sparkline close that is null", (b) => (b.markets[0].sparkline[2].close = null)],
-    ["an amm_share that is a number", (b) => (b.markets[0].amm_share = 0.34)],
-    ["an amm_share without exactly 4 decimals", (b) => (b.markets[0].amm_share = "0.34")],
-    ["an amm_share with 5 decimals", (b) => (b.markets[0].amm_share = "0.34000")],
-    ["an amm_share in exponent form", (b) => (b.markets[0].amm_share = "3.4e-1")],
-    ["an amm_pool that is text", (b) => (b.markets[0].amm_pool = "true")],
-    ["an amm_pool that is a number", (b) => (b.markets[0].amm_pool = 1)],
-    ["a totals.amm_share without exactly 4 decimals", (b) => (b.totals.amm_share = "0.3")],
-    ["a totals.amm_share that is a number", (b) => (b.totals.amm_share = 0.3)],
-    ["an amm the API does not have", (b) => (b.amm = "all")],
-    ["an amm that is a number", (b) => (b.amm = 1)],
   ]);
 
   it("takes the AMM keys when they are known: amm_share with 4 decimals, amm_pool a boolean, totals.amm_share", () => {
@@ -890,6 +890,43 @@ describe("checkMarkets", () => {
     xahau.markets[0].amm_share = "0.0000";
     xahau.markets[0].amm_pool = false;
     expect(checkMarkets(xahau)).toBe(xahau);
+  });
+
+  describe("an AMM field it cannot read is not known (D2: absent = not known), and never takes the answer down", () => {
+    /** The answer with one change to its first market, after the check. */
+    const withMarket = (change: Record<string, unknown>) => {
+      const body = clone(plain) as Body;
+      Object.assign(body.markets[0], change);
+      return checkMarkets(body);
+    };
+
+    it.each(["0.34", "0.3400", "0.34000", "0", "0.0000", "1", "1.0000", "0.0049"])("keeps an amm_share of %j: decimal text from 0 to 1 (spec 2.3)", (share) => {
+      expect(withMarket({ amm_share: share }).markets[0]!.amm_share).toBe(share);
+    });
+
+    it.each([["abc"], [1.2], [0.34], ["1.2"], ["1.0001"], ["-0.1"], ["3.4e-1"], [""], [null], [true]])("drops an amm_share of %j, and keeps the row", (share) => {
+      const answer = withMarket({ amm_share: share });
+      expect(answer.markets).toHaveLength(1);
+      expect(answer.markets[0]).not.toHaveProperty("amm_share");
+      expect(answer.markets[0]!.last).toBe("0.40000000");
+    });
+
+    it.each([["true"], [1], [null]])("drops an amm_pool of %j, and keeps the share", (pool) => {
+      const answer = withMarket({ amm_share: "0.3400", amm_pool: pool });
+      expect(answer.markets[0]).not.toHaveProperty("amm_pool");
+      expect(answer.markets[0]!.amm_share).toBe("0.3400");
+    });
+
+    it("keeps a totals.amm_share of decimal text, and drops one that is a number or no share", () => {
+      for (const [share, kept] of [["0.3", true], ["0.2150", true], [0.12, false], ["abc", false], ["2", false]] as const) {
+        const body = clone(plain) as Body;
+        body.totals.amm_share = share;
+        const { totals } = checkMarkets(body);
+        if (kept) expect(totals!.amm_share).toBe(share);
+        else expect(totals).not.toHaveProperty("amm_share");
+        expect(totals!.native_volume).toBe("243.5");
+      }
+    });
   });
 
   it("takes a market whose optional keys are all left out: no issuers, no native_volume, no change, a sparkline with no close", () => {
@@ -940,12 +977,14 @@ describe("checkMarkets", () => {
       refuses((body) => checkMarkets(body, amm), plain);
     });
 
-    it("refuses an answer to a request that sent no filter when it names `exclude` or `only`; `include`, the default, or nothing is the answer", () => {
-      refuses(checkPlain, echoing("exclude"));
-      refuses(checkPlain, echoing("only"));
-      const include = echoing("include");
-      expect(checkMarkets(include)).toBe(include);
-      expect(checkMarkets(plain)).toBe(plain);
+    it.each([undefined, "include", "exclude", "only", "all", null, 1])("reads no `amm` of the answer to a request that sent no filter: %j is taken", (amm) => {
+      const body = amm === undefined ? plain : { ...plain, amm };
+      expect(checkMarkets(body)).toBe(body);
+    });
+
+    it.each(["exclude", "only"] as const)("refuses `amm: null` and `amm: 1` for the filter %j", (amm) => {
+      refuses((body) => checkMarkets(body, amm), { ...plain, amm: null });
+      refuses((body) => checkMarkets(body, amm), { ...plain, amm: 1 });
     });
   });
 

@@ -3,7 +3,8 @@
 // table. A list where a list belongs, dates as ISO text, amounts as decimal strings and counts as numbers, as data-api-new/docs/api-reference.md has them.
 // Like `tx-shape.ts`, the data API client runs the checks inside the load its subrequest cache runs: a 200 that is not what the reference promises is an
 // `UpstreamError` of kind `server` (status 200 marks it as an answer of the upstream), is held when the call asks, and is never stored. Each check takes
-// the whole body and returns it, typed, as it is. Worker-only code, no I/O.
+// the whole body and returns it, typed, as it is, except that the markets check deletes an AMM field it cannot read (D2: absent = not known). Worker-only
+// code, no I/O.
 //
 // A check makes the types of api-types.ts true: every key they do not mark optional is there, with the type they give it. Extra keys are not
 // refused (the API may add a column, and the reference's own example of a fee row is a ledger's, with a `ledger_index` that a day's has not).
@@ -30,8 +31,8 @@ import { isObject, malformed } from "./tx-shape";
 
 const DECIMAL = /^-?\d+(\.\d+)?$/;
 const NUMBER = /^-?\d+(\.\d+)?([eE][+-]?\d{1,3})?$/;
-/** A share as D2b.1 writes it: exactly 4 decimals, `"0.3400"`. */
-const SHARE = /^\d+\.\d{4}$/;
+/** A share as spec 2.3 has it: decimal text from 0 to 1 (`"0.34"`, D2b.1's `"0.3400"`, `"1"`). Never an exponent, never below 0 or above 1. */
+const SHARE = /^(?:0+(?:\.\d+)?|0*1(?:\.0+)?)$/;
 const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
 /** A decimal number as the API writes an exact amount: digits, a point and digits. Never an exponent. */
@@ -62,7 +63,7 @@ const isWhole = (value: unknown): value is number => typeof value === "number" &
 const isText = (value: unknown): value is string => typeof value === "string";
 /** A name that is there: a currency, an account, a hash. */
 const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
-const isShare = (value: unknown): value is string => typeof value === "string" && SHARE.test(value);
+const isShare = (value: unknown): value is string => isDecimalText(value) && SHARE.test(value);
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 
 /** The list that the answer keeps its rows under, each row an object. */
@@ -86,6 +87,16 @@ function fields(what: string, where: string, row: Record<string, unknown>, names
 function optionalFields(what: string, where: string, row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean, kind: string): void {
   for (const name of names) {
     if (row[name] !== undefined && !is(row[name])) throw malformed(what, `${where}.${name} is not ${kind}`);
+  }
+}
+
+/**
+ * Deletes each of `names` that `row` has and that fails `is`. For the fields that are there only when known (the AMM keys of the markets answer, D2: absent =
+ * not known): one the client cannot read is not known, and never takes the whole answer down.
+ */
+function dropUnless(row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean): void {
+  for (const name of names) {
+    if (row[name] !== undefined && !is(row[name])) delete row[name];
   }
 }
 
@@ -143,16 +154,18 @@ type VolumeComponents = { payment: PaymentVolumeComponent; exchange: ExchangeVol
 const VOLUME_NAMES = { payment: "data API payment volume", exchange: "data API exchange volume", amm: "data API AMM volume" } as const;
 
 /**
- * `GET /v2/network/{payment,exchange,amm}_volume` with `start` or `end`: a row for each bucket, with its components. The row's `total` and its
- * components' `amount`, `rate` and `converted_amount` are numbers as exact text (a JSON number would lose digits; BigNumber writes a tiny amount, or a rate
- * from 1e8, with an exponent: `isNumberText`), `total` and `exchange_rate` are plain decimals; the component is the kind's: a currency for payments, a market (`base`, `counter`) for trades, a pool as well (`amm_account`) for swaps.
+ * `GET /v2/network/{payment,exchange,amm}_volume` with `start` or `end`: a row for each bucket, with its components. The row's `total` and `exchange_rate`
+ * and its components' `amount`, `rate` and `converted_amount` are numbers as text (a JSON number would lose digits), any of which may be in exponent form
+ * (`isNumberText`): the API writes `total` with `String()` of a JS number (an exponent below 1e-6 and from 1e21: a Xahau day of dust trades) and
+ * `exchange_rate` and a rate with `precision8` (an exponent below 1e-6 and from 1e8), and the page reads them all with BigNumber. The component is the
+ * kind's: a currency for payments, a market (`base`, `counter`) for trades, a pool as well (`amm_account`) for swaps.
  */
 export function checkVolumePage<K extends keyof VolumeComponents>(kind: K, body: unknown): Page<"rows", VolumeRow<VolumeComponents[K]>> {
   const what = VOLUME_NAMES[kind];
   for (const [index, row] of rowsOf(what, body, "rows").entries()) {
     const where = `rows[${index}]`;
     fields(what, where, row, ["count"], isCount, "a number");
-    fields(what, where, row, ["total", "exchange_rate"], isDecimalText, "a decimal");
+    fields(what, where, row, ["total", "exchange_rate"], isNumberText, "a number as text");
     fields(what, where, row, ["start_time", "end_time"], isIsoTime, "a time");
     checkAsset(what, `${where}.exchange`, row.exchange);
     const components = row.components;
@@ -161,7 +174,7 @@ export function checkVolumePage<K extends keyof VolumeComponents>(kind: K, body:
       const here = `${where}.components[${at}]`;
       if (!isObject(component)) throw malformed(what, `${here} is not an object`);
       fields(what, here, component, ["count"], isCount, "a number");
-      // BigNumber's text: a tiny amount, or a rate from 1e8 (a worthless token), is in exponent form (`isNumberText`). The row's `total` and `exchange_rate` stay plain.
+      // BigNumber's text: a tiny amount, or a rate from 1e8 (a worthless token), is in exponent form (`isNumberText`), like the row's `total` and `exchange_rate`.
       fields(what, here, component, ["amount", "rate", "converted_amount"], isNumberText, "a number as text");
       if (kind === "payment") {
         fields(what, here, component, ["currency"], (value) => isText(value) && value !== "", "a currency");
@@ -302,14 +315,14 @@ export function checkActiveAccounts(body: unknown): ActiveAccounts {
 
 const MARKETS_PERIODS = ["day", "7day", "30day"];
 
-/** The `amm` an answer carries, for the one that was asked for: the one asked for, or, when none was, nothing or the default. */
+/**
+ * The `amm` a filtered answer carries must be the filter asked for: otherwise the API ignored it (D2 has no such parameter) and the rows are the unfiltered
+ * ones. An unfiltered request reads no `amm`, whatever its value: whether D2b.1 echoes the default there is not settled, and the rows are the same.
+ */
 function checkAmmEchoed(what: string, echoed: unknown, asked: AmmFilter | undefined): void {
+  if (asked === undefined || echoed === asked) return;
   const shown = echoed === undefined ? "missing" : JSON.stringify(echoed);
-  if (asked === undefined) {
-    if (echoed !== undefined && echoed !== "include") throw malformed(what, `amm is ${shown}, and no filter was asked for`);
-  } else if (echoed !== asked) {
-    throw malformed(what, `amm is ${shown}, not the ${JSON.stringify(asked)} that was asked for (an API that ignored the filter?)`);
-  }
+  throw malformed(what, `amm is ${shown}, not the ${JSON.stringify(asked)} that was asked for (an API that ignored the filter?)`);
 }
 
 /** The `{ date, close? }` days of a market's sparkline. */
@@ -323,20 +336,21 @@ function checkSparkline(what: string, where: string, days: unknown): void {
   }
 }
 
-/** `GET /v2/network/markets`, when it has a set: the totals over every pair that traded. */
+/** `GET /v2/network/markets`, when it has a set: the totals over every pair that traded. An `amm_share` that is not a share is dropped. */
 function checkTotals(what: string, totals: unknown): void {
   if (!isObject(totals)) throw malformed(what, "totals is not an object");
   fields(what, "totals", totals, ["pairs", "pairs_traded", "count"], isWhole, "a whole number");
   fields(what, "totals", totals, ["native_volume"], isNumberText, "a number as text");
   optionalFields(what, "totals", totals, ["converted_volume"], isNumberText, "a number as text");
-  optionalFields(what, "totals", totals, ["amm_share"], isShare, "a share with 4 decimals");
+  dropUnless(totals, ["amm_share"], isShare);
 }
 
 /**
  * `GET /v2/network/markets` (`MarketsResponse`). `asked` is the `amm` filter the request sent, if any: the answer must echo it in `amm`, or the data API
  * did not know the parameter (D2, which ignores it) and the rows are the unfiltered ones, which a page would show as the order book's or the swaps'. A request
- * with no filter takes an answer with no `amm`, or the default `include`. The AMM keys of the answer, the totals and the rows are checked when they are
- * there (D2b.1: present only when known); their absence is not a failure. Prices, volumes and the native volume are numbers as text (`isNumberText`).
+ * with no filter reads no `amm`. The AMM keys of the totals and the rows are there only when known (D2b.1), and are read only while `AMM_DATA` is on: one
+ * that fails its check (a share that is not decimal text from 0 to 1, a pool that is not a boolean) is deleted from the returned value, so that it reads as
+ * not known, and never fails the answer. Prices, volumes and the native volume are numbers as text (`isNumberText`).
  */
 export function checkMarkets(body: unknown, asked?: AmmFilter): MarketsResponse {
   const what = "data API markets";
@@ -358,8 +372,8 @@ export function checkMarkets(body: unknown, asked?: AmmFilter): MarketsResponse 
     optionalFields(what, where, row, ["native_volume", "converted_volume"], isNumberText, "a number as text");
     optionalFields(what, where, row, ["change"], isDecimalText, "a decimal");
     fields(what, where, row, ["open_time", "last_time"], isIsoTime, "a time");
-    optionalFields(what, where, row, ["amm_share"], isShare, "a share with 4 decimals");
-    optionalFields(what, where, row, ["amm_pool"], isBoolean, "a boolean");
+    dropUnless(row, ["amm_share"], isShare);
+    dropUnless(row, ["amm_pool"], isBoolean);
     checkSparkline(what, `${where}.sparkline`, row.sparkline);
   }
   return body as MarketsResponse;

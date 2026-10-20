@@ -390,8 +390,8 @@ export interface SparklineDay {
  * with a display currency, which the explorer does not ask for.
  *
  * The AMM keys (D2 spec 7, D2b.1) are there **only when known** (every ledger of the window was parsed with AMM support); an absent key is "not known", never 0
- * or `false`. `amm_share` is a string with exactly 4 decimals (`"0.3400"`: the AMM part of the pair's base volume), `amm_pool` whether the pair has a pool.
- * On Xahau they are `"0.0000"` and `false`.
+ * or `false`. `amm_share` is decimal text from 0 to 1 (D2b.1 writes 4 decimals, `"0.3400"`: the AMM part of the pair's base volume), `amm_pool` whether the
+ * pair has a pool. On Xahau they are `"0.0000"` and `false`. `checkMarkets` deletes either when it is not that, so that it reads as not known.
  */
 export interface MarketRow {
   base_currency: string;
@@ -422,7 +422,7 @@ export interface MarketsTotals {
   count: number;
   native_volume: string;
   converted_volume?: string;
-  /** Known only like `MarketRow.amm_share`: the AMM part of the native volume, 4 decimals. */
+  /** Known only like `MarketRow.amm_share`, and the same decimal text: the AMM part of the native volume. */
   amm_share?: string;
 }
 
@@ -430,8 +430,8 @@ export interface MarketsTotals {
  * `GET /v2/network/markets` (`period`, `limit`, `amm`): the trade statistics of every pair that traded in a live period, in one call. The shape is that of
  * the data API's `docs/api-reference.md` at data-api-new `feat/explorer-data` commit `7d495ab` (the merge of D2; section `GET /v2/network/markets`), with the AMM
  * keys placed as D2 spec 7 and formatted as D2b.1 say (they are not in that reference, which serves no AMM field): `amm` after `period`, `totals.amm_share`
- * after `converted_volume`, `amm_share` and `amm_pool` before `sparkline`. `amm` echoes the filter that was asked for; the client refuses an answer that
- * does not (an API that ignored the filter). `exchange` and `exchange_rate` (after `end_time`) answer an `exchange_currency`, which the explorer does not
+ * after `converted_volume`, `amm_share` and `amm_pool` before `sparkline`. `amm` echoes the filter that was asked for; the client refuses a filtered answer
+ * that does not (an API that ignored the filter), and reads no `amm` of an unfiltered one. `exchange` and `exchange_rate` (after `end_time`) answer an `exchange_currency`, which the explorer does not
  * send. `start_time` (the hour that is a window before `end_time`) and `end_time` (the close time of the newest ledger the set covers) and `totals` are
  * missing when the aggregator has not written a set yet: `{ result, period: "day", count: 0, markets: [] }`. `count` is the number of markets served.
  */

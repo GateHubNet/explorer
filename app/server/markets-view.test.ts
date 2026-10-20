@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatPrice } from "../domain/format";
 import type { MarketsParams } from "../domain/market-params";
+import { checkMarkets } from "./aggregate-shape";
 import type { MarketRow, MarketsResponse, SparklineDay } from "./api-types";
 import { marketsPage, type MarketsPageData } from "./markets-view";
 
@@ -530,6 +531,24 @@ describe("marketsPage: the AMM", () => {
     expect(data.tiles!.map((tile) => tile.label)).toEqual(["DEX volume", "Trades", "Pairs shown"]);
     expect(data.rows.map((row) => row.amm)).toEqual([null, null, null]);
     expect(data.intro).toBe("Trades on the XRP Ledger DEX.");
+  });
+
+  it("shows what the client's check leaves of the AMM fields: 0.34 as 34%, a share it cannot read as a dash, a totals share that is a number as not complete", () => {
+    const answer = checkMarkets(
+      answerOf(
+        [usdXrp({ amm_share: "0.34", amm_pool: true }), eurUsd({ amm_share: "abc", amm_pool: true }), rlusdXrp({ amm_share: 1.2 as unknown as string, amm_pool: true })],
+        {},
+        { amm_share: 0.12 as unknown as string },
+      ),
+    );
+    const data = marketsPage({ network: XRPL, params: DEFAULT, answer });
+    expect(data.rows.map((row) => row.amm)).toEqual([
+      { text: "34%", meter: { value: "0.34", max: "1", label: "AMM share 34%" } },
+      { text: "—", meter: null },
+      { text: "—", meter: null },
+    ]);
+    expect(data.tiles![3]).toEqual({ label: "AMM share of volume", value: "—", sub: "not complete for this period yet" });
+    expect(data.rows.map((row) => row.last)).toEqual(["0.40983607", "1.085", "1.3333333"]);
   });
 
   it("ignores what Xahau's answer says (\"0.0000\"): a dash tile that says why, no column, no cell", () => {
