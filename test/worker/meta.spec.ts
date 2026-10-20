@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
-import { validationsMarker, validatorCase } from "../support/validators-cases";
+import { amendmentCase, validationsMarker, validatorCase } from "../support/validators-cases";
 
 // The tags of the pages (spec 9) on the real Worker against the recorded answers of the data API and the nodes: a `<title>`, a
 // description built from the page's data, a canonical URL, Open Graph and Twitter card tags with the image on the origin of the
@@ -534,6 +534,46 @@ describe("the amendments page", () => {
     expect(tags.titles).toEqual(["Amendments · Xahau · explorer"]);
     expect(tags.content("description")).toBe(DESCRIPTION("Xahau"));
     expect(tags.canonical).toEqual([`${ORIGIN}/xahau/amendments`]);
+  });
+});
+
+describe("an amendment's page", () => {
+  it("has a title and a description built from AD, a canonical URL on its name, and the amendment's image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amendments/MPTokensV1")).html);
+
+    // XRPL's majority amendment: the sentence of its status, then D1's description of it.
+    const description =
+      "MPTokensV1 has had a majority of XRPL's default UNL since Oct 7, 2026 and activates on or soon after Oct 21, 2026 if it holds. Fungible tokens that need no trust line.";
+    expect(tags.titles).toEqual(["Amendment MPTokensV1 · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amendments/MPTokensV1`]);
+    expect(tags.content("og:title")).toBe("Amendment MPTokensV1 · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/amendments/MPTokensV1`);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/amendment/MPTokensV1.png`);
+    expect(tags.content("og:image:alt")).toBe("Amendment MPTokensV1 on XRPL");
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("names a nameless amendment by its short ID, and its URLs by the ID in full", async () => {
+    mock = mockUpstream("xrpl");
+    const { id } = await amendmentCase("xrpl", "unknown");
+    const tags = head((await page(`/xrpl/amendments/${id}`)).html);
+    expect(tags.titles).toEqual([`Amendment ${shortHash(id)} · XRPL · explorer`]);
+    expect(tags.content("description")).toBe("An amendment of XRPL with no known name: its votes and history.");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amendments/${id}`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/amendment/${id}.png`);
+  });
+
+  it("is Xahau's on Xahau: an amendment enabled from the ledger, since its day and at its ledger", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/amendments/Import")).html);
+    expect(tags.titles).toEqual(["Amendment Import · Xahau · explorer"]);
+    expect(tags.content("description")).toBe("Import is enabled on Xahau since Sep 12, 2025 (ledger 17,956,865).");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/amendments/Import`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/amendment/Import.png`);
   });
 });
 

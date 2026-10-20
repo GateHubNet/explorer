@@ -5,8 +5,8 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The validators pages with every switch "off" (the `worker-off` project, README "Switches"): `VALIDATORS` is page-level, so every view of the
 // list, every validator and every view of the amendments is the not-found page, a 404 of class `short` made before any call (the query and the key are
-// not even read: no redirect either). The `worker` project's cases are validators-page.spec.ts, validators-page-failures.spec.ts, validator-page.spec.ts
-// and amendments-page.spec.ts.
+// not even read: no redirect either). The `worker` project's cases are validators-page.spec.ts, validators-page-failures.spec.ts, validator-page.spec.ts,
+// amendments-page.spec.ts and amendment-page.spec.ts.
 
 const { get, storedAs } = pageClient("198.51.111");
 
@@ -77,3 +77,24 @@ describe("the amendments list with VALIDATORS off", () => {
   });
 });
 
+
+describe("an amendment with VALIDATORS off", () => {
+  it.each([
+    ["/xrpl/amendments/AMM", "XRPL"],
+    ["/xahau/amendments/Remit", "Xahau"],
+    // Neither the segment nor the query is read: what would be a redirect (a query string, an ID in lower case) or a 404 of its own (no name) is the switch's 404.
+    ["/xrpl/amendments/AMM?x=1", "XRPL"],
+    [`/xrpl/amendments/${"ab".repeat(32)}`, "XRPL"],
+    ["/xahau/amendments/fix-1201", "Xahau"],
+  ])("answers %s with the not-found page, a 404 of class short, and asks nothing upstream", async (path, name) => {
+    mock = mockUpstream("xrpl");
+    const response = await get(path);
+    const html = await response.text();
+
+    expect(response.status).toBe(404);
+    expect(textOf(html)).toContain(`We couldn’t find the amendments on ${name}.`);
+    expect(html).toMatch(/<meta name="robots" content="noindex"\/?>/);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+  });
+});

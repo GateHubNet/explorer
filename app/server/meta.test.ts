@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { amendmentsSample, SAMPLE_KEYS, validationsSample, validatorDetailSample } from "../../test/support/d1-samples";
+import { AMM_ID, amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, UNKNOWN_ID, validationsSample, validatorDetailSample } from "../../test/support/d1-samples";
 import type { AmendmentStatus } from "../domain/amendments-params";
 import type { FlowStep } from "../domain/describe";
 import { shortHash } from "../domain/format";
 import type { ValidatorsParams } from "../domain/validators-params";
 import type { NetworkInfo } from "../ui/networks";
+import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
+import type { AmendmentDetail } from "./api-types";
 import { imageUrl, metaContext, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
+import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
@@ -581,5 +584,100 @@ describe("amendmentsMeta", () => {
 
   it("puts no number of the data in the description: the page is stored for a minute", () => {
     for (const ctx of [XRPL, XAHAU]) expect(content(amendmentsMeta(DEFAULT, ctx), "description")!.match(/\d+/g)).toBeNull();
+  });
+});
+
+describe("amendmentMeta", () => {
+  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  /** The sample (XChainBridge, with a majority) as `over` makes it, without D1's description and the keys `absent` (D1 leaves a key out; it never sends `null`). */
+  function amendment(over: Partial<AmendmentDetail> = {}, ...absent: (keyof AmendmentDetail)[]): AmendmentDetail {
+    const detail: AmendmentDetail = { ...amendmentDetailSample(), ...over };
+    for (const key of ["description", ...absent] as const) if (!(key in over) || absent.includes(key)) delete detail[key];
+    return detail;
+  }
+  const page = (detail: AmendmentDetail, network = NET) => amendmentPage({ network, amendment: detail, summary: { state: "failed" } });
+
+  it("has the tags of the page: the builder's title and description, a canonical URL on the origin, Open Graph and the amendment's image", () => {
+    const list = amendmentMeta(page(amendmentDetailSample()), XRPL);
+    const description =
+      "XChainBridge has had a majority of XRPL's default UNL since Oct 17, 2026 and activates on or soon after Oct 31, 2026 if it holds. Made up for the samples: bridges between two ledgers.";
+    expect(title(list)).toBe("Amendment XChainBridge · XRPL · explorer");
+    expect(content(list, "description")).toBe(description);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/amendments/XChainBridge");
+    expect(content(list, "og:title")).toBe("Amendment XChainBridge · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(description);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/amendments/XChainBridge");
+    expect(content(list, "og:image")).toBe("https://explorer.test/og/xrpl/amendment/XChainBridge.png");
+    expect(content(list, "og:image:alt")).toBe("Amendment XChainBridge on XRPL");
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
+    expect(content(list, "twitter:image")).toBe("https://explorer.test/og/xrpl/amendment/XChainBridge.png");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it.each([
+    [
+      "enabled",
+      () =>
+        amendment(
+          { id: AMM_ID, name: "AMM", status: "enabled", enabled: { ledger_index: 86836481, date: "2024-03-22T13:49:51Z", tx_hash: "A".repeat(64), source: "ledger" }, rounds: [] },
+          "votes",
+          "majority",
+        ),
+      "AMM is enabled on XRPL since Mar 22, 2024 (ledger 86,836,481).",
+    ],
+    [
+      "majority",
+      () => amendment({ id: AMM_ID, name: "AMM", majority: { since: "2026-10-09T09:34:00Z", expected_activation: "2026-10-23T09:34:00Z" } }),
+      "AMM has had a majority of XRPL's default UNL since Oct 9, 2026 and activates on or soon after Oct 23, 2026 if it holds.",
+    ],
+    [
+      "voting",
+      () => amendment({ status: "voting", votes: { ledger_index: 107748095, yes: 4, trusted: 35, needed: 29, pct: 11.43 } }, "majority"),
+      "4 of 35 validators of XRPL's default UNL vote for XChainBridge; 29 are needed.",
+    ],
+    [
+      "obsolete",
+      () => amendment({ name: "fixNFTokenNegOffer", status: "obsolete", rounds: [] }, "votes", "majority"),
+      "fixNFTokenNegOffer is obsolete on XRPL: current software can no longer vote it in.",
+    ],
+  ])("says §8's sentence of an amendment that is %s, on its canonical URL and image", (_status, detail, sentence) => {
+    const data = page(detail());
+    const list = amendmentMeta(data, XRPL);
+    expect(content(list, "description")).toBe(sentence);
+    expect(content(list, "og:description")).toBe(sentence);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/amendments/${data.canonical}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/amendment/${data.canonical}.png`);
+  });
+
+  it("names a nameless amendment by its short ID, and its URLs by the ID in full", () => {
+    const list = amendmentMeta(page(amendment({ id: UNKNOWN_ID, status: "unknown", votes: { ledger_index: 107748095, yes: 0, trusted: 35, needed: 29, pct: 0 } }, "name", "majority")), XRPL);
+    expect(title(list)).toBe(`Amendment ${shortHash(UNKNOWN_ID)} · XRPL · explorer`);
+    expect(content(list, "description")).toBe("An amendment of XRPL with no known name: its votes and history.");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/amendments/${UNKNOWN_ID}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/amendment/${UNKNOWN_ID}.png`);
+    expect(content(list, "og:image:alt")).toBe(`Amendment ${shortHash(UNKNOWN_ID)} on XRPL`);
+  });
+
+  it("follows the sentence with D1's description when there is one", () => {
+    const list = amendmentMeta(page(amendment({ name: "fixNFTokenNegOffer", status: "obsolete", description: "Made up: a description." }, "votes", "majority")), XRPL);
+    expect(content(list, "description")).toBe("fixNFTokenNegOffer is obsolete on XRPL: current software can no longer vote it in. Made up: a description.");
+  });
+
+  it("is Xahau's on Xahau, on the request's origin", () => {
+    const xahau: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+    const list = amendmentMeta(page(amendment({ name: "Remit" }), xahau), { ...XAHAU, origin: "https://explorer.example" });
+    expect(title(list)).toBe("Amendment Remit · Xahau · explorer");
+    expect(content(list, "description")).toMatch(/^Remit has had a majority of Xahau's default UNL since /);
+    expect(link(list, "canonical")).toBe("https://explorer.example/xahau/amendments/Remit");
+    expect(content(list, "og:image")).toBe("https://explorer.example/og/xahau/amendment/Remit.png");
+    expect(content(list, "og:image:alt")).toBe("Amendment Remit on Xahau");
+  });
+
+  it("puts no age and no countdown in the description: the page is stored for a minute", () => {
+    const description = content(amendmentMeta(page(amendmentDetailSample()), XRPL), "description")!;
+    expect(description).not.toMatch(/\bago\b|\bin \d+ (days?|h|min)\b|~/);
+    // The digits are the two dates': no share, no count of votes, no time of day.
+    expect(description.match(/\d+/g)).toEqual(["17", "2026", "31", "2026"]);
   });
 });

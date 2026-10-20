@@ -33,6 +33,7 @@ export const PAGES = [
   { name: "validators", route: "routes/net.validators" },
   { name: "validator", route: "routes/net.validators.$key" },
   { name: "amendments", route: "routes/net.amendments" },
+  { name: "amendment", route: "routes/net.amendments.$name" },
 ] as const;
 
 export interface Forbidden {

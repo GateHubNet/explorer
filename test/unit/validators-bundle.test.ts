@@ -19,6 +19,7 @@ describe("the files of the validators pages that run in the browser", () => {
     "ui/pages/ValidatorsPage.tsx",
     "ui/pages/ValidatorPage.tsx",
     "ui/pages/AmendmentsPage.tsx",
+    "ui/pages/AmendmentPage.tsx",
     "ui/components/StatusMarks.tsx",
     "ui/components/status-icons.tsx",
     "ui/components/Countdown.tsx",
@@ -31,6 +32,7 @@ describe("the files of the validators pages that run in the browser", () => {
     // A page's tags are made in the browser too (a client-side navigation): its builder imports ./meta, which SERVER_ONLY lets through, and nothing else of app/server.
     "server/meta-validator.ts",
     "server/meta-amendments.ts",
+    "server/meta-amendment.ts",
   ])("%s imports nothing of app/server and no ripple- package as a value", (file) => {
     expect(valueImports(read(file)).filter(SERVER_ONLY)).toEqual([]);
   });

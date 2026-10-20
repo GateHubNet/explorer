@@ -7,6 +7,7 @@ import { amendmentsHref, type AmendmentStatus } from "../domain/amendments-param
 import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "../domain/network-params";
 import { validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import {
+  amendmentDetailSample,
   amendmentsSample,
   SAMPLE_KEYS,
   SAMPLE_SIGNING_KEYS,
@@ -16,6 +17,7 @@ import {
   validatorRowSample,
 } from "../../test/support/d1-samples";
 import type { Loaded } from "../server/account-view";
+import { amendmentPage, type AmendmentPageData } from "../server/amendment-view";
 import { amendmentsPage, type AmendmentsPageData } from "../server/amendments-view";
 import { forwardCacheClass } from "../server/edge-cache";
 import type { HomeLoaderData } from "../server/home-view";
@@ -24,6 +26,7 @@ import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type Va
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
 import type { BarListData, TimeSeriesData } from "./charts/types";
 import * as home from "../routes/net._index";
+import * as amendment from "../routes/net.amendments.$name";
 import * as amendments from "../routes/net.amendments";
 import * as net from "../routes/net";
 import * as network from "../routes/net.network";
@@ -36,8 +39,8 @@ import * as validator from "../routes/net.validators.$key";
 // from net.tsx or `clientLoader` from net._index.tsx fails here (and in the browser, test/e2e/live-home.spec.ts). The network page's route,
 // `net.network.tsx`, is wired the same way and is run the same way after it: its scope per view, its merge (`keepLoaded`) and the page keyed by
 // its scope. The validators list's route, `net.validators.tsx`, comes next, with its own beat (10 s) and its three parts, and the validator page's,
-// `net.validators.$key.tsx`: live every ledger, and a page of older validations that never polls. The amendments list's, `net.amendments.tsx`, is last: one part,
-// a beat of a minute, and no merge.
+// `net.validators.$key.tsx`: live every ledger, and a page of older validations that never polls. The amendments list's, `net.amendments.tsx`, comes next: one part,
+// a beat of a minute, and no merge. The amendment page's, `net.amendments.$name.tsx`, is last: a beat of a minute, and S's part kept.
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
 const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl" } as const;
@@ -1342,6 +1345,154 @@ describe("net.amendments.tsx", () => {
       sessionStorage.setItem("explorer:live-paused", "1");
       const answer = vi.fn<Answer>(async () => amendmentsAt(101));
       mountAmendments(answer);
+      expect(screen.getByRole("button", { name: "Resume live updates" })).toBeTruthy();
+      await pass(300_000);
+      expect(answer).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---- The amendment page's route ---------------------------------------------------------------------------------------------------------
+
+type AmendmentData = AmendmentPageData & { anchor: { lastValidated: number; closeTime: number }; build: string };
+
+/**
+ * The amendment page's data at ledger `index`, S loaded unless `summary` says otherwise, made by build `build`: XChainBridge with `31 + (index - 100)` yes votes of 35 ("88.6%"
+ * at ledger 100), the figure that says which answer is on screen.
+ */
+function amendmentAt(index: number, summary: Loaded<ReturnType<typeof summarySample>> = ok(summarySample()), build = "abc1234"): AmendmentData {
+  const detail = amendmentDetailSample();
+  return {
+    ...amendmentPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendment: { ...detail, votes: { ...detail.votes!, yes: 31 + (index - 100) } }, summary }),
+    anchor: { lastValidated: index, closeTime: 1792256472 + index },
+    build,
+  };
+}
+
+describe("net.amendments.$name.tsx", () => {
+  /** The yes share: which answer the page shows. */
+  const figure = () => document.querySelector(".amendment__share")!.textContent;
+  /** The head of the UNL's votes, which names the publishers of S. */
+  const head = () => document.querySelector(".amendment__count")!.textContent;
+  const REQUEST = (path: string) => new Request(`https://explorer.test${path}`);
+
+  /** The data a `.data` request for `url` is answered with. */
+  type Answer = (url: URL) => Promise<AmendmentData>;
+
+  function AmendmentRoute() {
+    return createElement(amendment.default, { loaderData: useLoaderData() as AmendmentData, params: useParams() as { net: string; name: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the amendment as `net.amendments.$name.tsx` has it, in a data router, on the data the server rendered. */
+  function mountAmendment(answer: Answer, first = amendmentAt(100), path = "/xrpl/amendments/XChainBridge") {
+    const layoutRuns = { count: 0 };
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [
+            {
+              id: "routes/net.amendments.$name",
+              path: "amendments/:name",
+              loader: (args) => amendment.clientLoader({ params: args.params, request: args.request, serverLoader: () => answer(new URL(args.request.url)) } as never),
+              Component: AmendmentRoute,
+            },
+          ],
+        },
+      ],
+      {
+        initialEntries: [path],
+        hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test", run: 0 }, "routes/net.amendments.$name": first } },
+      },
+    );
+    const view = render(<RouterProvider router={router} />);
+    return { router, layoutRuns, ...view };
+  }
+
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
+    expect(amendment.clientLoader).toBeTypeOf("function");
+    expect(amendment.default).toBeTypeOf("function");
+    expect(amendment.headers).toBe(forwardCacheClass);
+    expect(amendment.handle).toEqual({ navSection: "network" });
+  });
+
+  it("asks the server's loader again every minute, shows what it answers, and does not ask for the layout again", async () => {
+    let at = 100;
+    const answer = vi.fn<Answer>(async () => amendmentAt(++at));
+    const { layoutRuns } = mountAmendment(answer);
+    expect(figure()).toBe("88.6%");
+    expect(screen.getByText("Live · updates every minute")).toBeTruthy();
+    await pass(59_999);
+    expect(answer).not.toHaveBeenCalled();
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(figure()).toBe("91.4%");
+    await pass(60_000);
+    expect(figure()).toBe("94.3%");
+    expect(layoutRuns.count).toBe(0);
+  });
+
+  it("keeps S's part when a beat has it failed while the page shows it loaded, and takes the rest of the answer", async () => {
+    const answer = vi.fn<Answer>(async () => amendmentAt(101, FAILED));
+    mountAmendment(answer);
+    expect(head()).toBe("3 yes · 1 no · 1 without a recent vote, on unl.xrplf.org and vl.ripple.com");
+    await pass(60_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    // The publishers and the number of other validators seen are the ones on screen; the yes share is the answer's.
+    expect(head()).toBe("3 yes · 1 no · 1 without a recent vote, on unl.xrplf.org and vl.ripple.com");
+    expect(screen.getByText(/^Showing 2 of the 20 other validators seen/)).toBeTruthy();
+    expect(figure()).toBe("91.4%");
+  });
+
+  it("shows a beat's S as failed when the page has never had it", async () => {
+    mountAmendment(async () => amendmentAt(101, FAILED), amendmentAt(100, FAILED));
+    await pass(60_000);
+    expect(head()).toBe("3 yes · 1 no · 1 without a recent vote");
+    expect(figure()).toBe("91.4%");
+  });
+
+  it("refuses an answer with a lower last validated ledger than the page's, and slows down to 2 minutes", async () => {
+    const answer = vi.fn<Answer>(async () => amendmentAt(90));
+    mountAmendment(answer);
+    await pass(60_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(figure()).toBe("88.6%");
+    await pass(119_999);
+    expect(answer).toHaveBeenCalledTimes(1);
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(2);
+  });
+
+  describe("its clientLoader", () => {
+    const rejecting = (error: unknown) => () => Promise.reject(error);
+    const reload = (path: string, name: string, serverLoader: () => Promise<AmendmentData>, netId = "xrpl") =>
+      amendment.clientLoader({ params: { net: netId, name }, request: REQUEST(path), serverLoader } as never);
+
+    it("hands back what the page of that amendment shows when a load fails, and nothing for another amendment or network", async () => {
+      mountAmendment(async () => amendmentAt(101));
+      expect(await reload("/xrpl/amendments/XChainBridge", "XChainBridge", rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      await expect(reload("/xrpl/amendments/AMM", "AMM", rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload("/xahau/amendments/XChainBridge", "XChainBridge", rejecting(new Error("503")), "xahau")).rejects.toThrow("503");
+    });
+
+    it("lets a redirect through (a case variant, an ID), and leaves a network that does not exist to the layout's 404", async () => {
+      mountAmendment(async () => amendmentAt(101));
+      const redirect = new Response(null, { status: 302, headers: { Location: "/xrpl/amendments/XChainBridge" } });
+      await expect(reload("/xrpl/amendments/xchainbridge", "xchainbridge", rejecting(redirect))).rejects.toBe(redirect);
+      const notFound = new Response(null, { status: 404 });
+      await expect(reload("/bitcoin/amendments/AMM", "AMM", rejecting(notFound), "bitcoin")).rejects.toBe(notFound);
+    });
+  });
+
+  describe("pausing", () => {
+    it("is the tab's choice, shared with the home page: a pause there holds here", async () => {
+      sessionStorage.setItem("explorer:live-paused", "1");
+      const answer = vi.fn<Answer>(async () => amendmentAt(101));
+      mountAmendment(answer);
       expect(screen.getByRole("button", { name: "Resume live updates" })).toBeTruthy();
       await pass(300_000);
       expect(answer).not.toHaveBeenCalled();

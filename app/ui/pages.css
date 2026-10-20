@@ -2655,3 +2655,379 @@ a.markets__pair:hover .markets__name {
     font-size: 24px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Amendment: /{net}/amendments/{name} (the board's layout: the identity card, the consensus beside the history, the votes of the UNL with the other validators in a
+   disclosure under them; the pair folds into one column on a phone, and the tables scroll inside their cards). The chart kit's classes (charts.css) are never defined
+   here: the cards that are not charts use its title and source line, and the chart's card inside the consensus card loses its frame through a class of its own. */
+
+.amendment {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.amendment__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.amendment__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.amendment__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.amendment__label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* The name, the short ID of a nameless one and the status pill, on a line that wraps; a long name breaks inside it. */
+.amendment__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.amendment__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.amendment__short {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.amendment__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* The ID in full: it wraps anywhere, with its copy button after it. */
+.amendment__id {
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+/* The facts: as many columns as fit at 200 px (the board's), one on a phone. */
+.amendment__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 16px 24px;
+}
+
+.amendment__value {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* A link inside a sentence is told from the words around it by more than its colour (axe: link-in-text-block; in dark mode the link's colour is close to the text's). */
+.amendment__value a,
+.amendment__since a,
+.amendment__when a,
+.amendment__foot a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.amendment__about {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.amendment__about .tag {
+  margin-left: 6px;
+}
+
+.amendment__description {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+/* The consensus beside the history, under each other on a phone. */
+.amendment__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.amendment__consensus {
+  display: flex;
+  flex: 999 1 640px;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 18px 14px;
+}
+
+.amendment__history {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+/* A card's head: the kit's title and source line. The votes card has no padding of its own (its table is flush), so its head has. */
+.amendment__cardhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.amendment__votes > .amendment__cardhead {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The yes share (the board's 44 px) and the meter beside it, the meter under it on a phone. */
+.amendment__standing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.amendment__figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 24px;
+  margin-bottom: 6px;
+}
+
+.amendment__share {
+  font-size: 44px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.amendment__meter {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.amendment__tally {
+  font-weight: 600;
+}
+
+.amendment__since {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The chart's card is part of the consensus card: no frame and no padding of its own. It keeps the kit's container, head, views and notes. */
+.amendment__chart {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.amendment__empty {
+  color: var(--faint);
+}
+
+/* History: a dot beside each item (the board's 12 px, a screen reader does not read it: the label says what the item is). */
+.amendment__events {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.amendment__event {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.amendment__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border: 2px solid;
+  border-radius: 50%;
+}
+
+.amendment__dot--pending {
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.amendment__dot--got {
+  background: var(--series-1);
+  border-color: var(--series-1);
+}
+
+.amendment__dot--lost {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.amendment__dot--enabled {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: var(--surface);
+}
+
+.amendment__eventtext {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.amendment__eventlabel {
+  font-weight: 600;
+}
+
+.amendment__flag {
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.amendment__when {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The transaction: a line of its own, a target of 24 px (WCAG 2.5.8) as wide as its words. */
+.amendment__tx {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 24px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.amendment__note {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* Votes */
+.amendment__count {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* The scroll region of a vote table is a containing block for what is positioned inside it: the visually hidden words of a cell (`.sr` is `position: absolute`)
+   would otherwise sit at their place in the unscrolled table, out to the right of a phone, and the page would scroll sideways to reach them. */
+.amendment__table {
+  position: relative;
+}
+
+.amendment__validator {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.amendment__version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+
+.amendment__lacks {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The other validators: a disclosure across the card, its summary a 48 px row whose ring is drawn inside it (the card clips what is outside its padding box). */
+.amendment__others {
+  border-top: 1px solid var(--border);
+}
+
+.amendment__others summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 48px;
+  padding: 8px 16px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.amendment__others summary::-webkit-details-marker {
+  display: none;
+}
+
+.amendment__others summary:focus-visible {
+  outline-offset: -2px;
+}
+
+.amendment__chev {
+  flex: none;
+  color: var(--faint);
+  transition: transform 0.15s;
+}
+
+.amendment__others[open] .amendment__chev {
+  transform: rotate(90deg);
+}
+
+.amendment__otherssub {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.amendment__foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .amendment__identity {
+    padding: 16px;
+  }
+
+  .amendment__title {
+    font-size: 22px;
+  }
+}

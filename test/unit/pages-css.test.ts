@@ -226,3 +226,55 @@ describe("the amendments list", () => {
   });
 });
 
+
+describe("the amendment page", () => {
+  it("is one column of rows 18 px apart, as the board is, with the facts in as many columns as fit at 200 px", () => {
+    expect(rule(pagesCss, ".amendment")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });
+    expect(rule(pagesCss, ".amendment__grid")).toMatchObject({ display: "grid", "grid-template-columns": "repeat(auto-fit, minmax(min(200px, 100%), 1fr))" });
+  });
+
+  it("lays the consensus beside the history, folding on a phone: the consensus 640 px at least, the history 340 px, each able to shrink", () => {
+    expect(rule(pagesCss, ".amendment__pair")).toMatchObject({ display: "flex", "flex-wrap": "wrap", gap: "18px" });
+    expect(rule(pagesCss, ".amendment__consensus")).toMatchObject({ flex: "999 1 640px", "min-width": "0" });
+    expect(rule(pagesCss, ".amendment__history")).toMatchObject({ flex: "1 1 340px", "min-width": "0" });
+  });
+
+  it("draws the chart's card inside the consensus card without a frame of its own", () => {
+    expect(rule(pagesCss, ".amendment__chart")).toMatchObject({ padding: "0", border: "0" });
+  });
+
+  it("has the board's 44 px figure", () => {
+    expect(rule(pagesCss, ".amendment__share")["font-size"]).toBe("44px");
+  });
+
+  it("makes the vote tables' scroll region a containing block, so that the visually hidden words of a cell (`.sr`, absolute) stay inside it and do not widen the page", () => {
+    expect(rule(baseCss, ".sr").position).toBe("absolute");
+    expect(rule(pagesCss, ".amendment__table").position).toBe("relative");
+  });
+
+  it("breaks the ID and a long name anywhere, so that a phone does not scroll sideways", () => {
+    expect(rule(pagesCss, ".amendment__id")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".amendment__title")["overflow-wrap"]).toBe("anywhere");
+  });
+
+  it("gives the disclosure of the other validators a 48 px summary across the card, its ring drawn inside it, where the card does not clip it", () => {
+    expect(rule(pagesCss, ".amendment__others summary")).toMatchObject({ display: "flex", "min-height": "48px" });
+    expect(Number.parseFloat(rule(pagesCss, ".amendment__others summary:focus-visible")["outline-offset"]!)).toBeLessThanOrEqual(-2);
+  });
+
+  it("dots the history: a majority filled in --series-1, its loss outlined in --border-strong, the enabling filled in --ok, the one to come dashed", () => {
+    expect(rule(pagesCss, ".amendment__dot--got")).toMatchObject({ background: "var(--series-1)", "border-color": "var(--series-1)" });
+    expect(rule(pagesCss, ".amendment__dot--lost")).toMatchObject({ background: "var(--surface)", "border-color": "var(--border-strong)" });
+    expect(rule(pagesCss, ".amendment__dot--enabled")).toMatchObject({ background: "var(--ok)", "border-color": "var(--ok)" });
+    expect(rule(pagesCss, ".amendment__dot--pending")).toMatchObject({ "border-style": "dashed", "border-color": "var(--border-strong)" });
+  });
+
+  it("underlines the links inside a sentence: their colour alone would not tell them from the words around them (axe: link-in-text-block)", () => {
+    const prose = rule(pagesCss, ".amendment__value a,\n.amendment__since a,\n.amendment__when a,\n.amendment__foot a");
+    expect(prose["text-decoration"]).toBe("underline");
+  });
+
+  it("gives the links of a vote table a target of at least 24 px (WCAG 2.5.8)", () => {
+    expect(Number.parseFloat(rule(pagesCss, ".amendment__validator")["min-height"]!)).toBeGreaterThanOrEqual(24);
+  });
+});

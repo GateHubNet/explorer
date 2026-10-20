@@ -16,3 +16,6 @@ export const validatorCall = (key: string) => `GET /v2/network/validators/${key}
 /** VV: a validator's newest validations, or the page after `marker`. */
 export const validationsCall = (key: string, marker?: string) =>
   `GET /v2/network/validators/${key}/validations?limit=20${marker === undefined ? "" : `&marker=${marker}`}`;
+
+/** AD: one amendment, by the name the URL holds or its ID in upper case (the loader upper-cases an ID, and the mock's key does too). */
+export const amendmentCall = (ref: string) => `GET /v2/network/amendments/${ref}`;
