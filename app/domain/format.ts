@@ -198,24 +198,33 @@ const ISO_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?
 const ISO_START = /^\d{4}-\d{2}-\d{2}/;
 
 /**
- * A moment as `2026-10-17 15:42:51 UTC`. A string is an ISO 8601 date and time (read as UTC when it
- * has no zone). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since
- * 2000-01-01) must be converted before it gets here, as the size of a number cannot tell the two
- * epochs apart. What is not a moment is returned as it came.
+ * The moment `at` names, or `undefined` when it names none. A string is an ISO 8601 date and time (read as UTC when it has no zone), or
+ * a date alone (UTC midnight). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since 2000-01-01) must be
+ * converted before it gets here, as the size of a number cannot tell the two epochs apart.
  */
-export function formatUtc(at: string | number): string {
+function utcMoment(at: string | number): Date | undefined {
   let date: Date;
   if (typeof at === "number") {
     date = new Date(at * 1000);
   } else if (ISO_START.test(at)) {
     date = new Date(ISO_WITHOUT_ZONE.test(at) ? `${at.replace(" ", "T")}Z` : at);
   } else {
-    return at;
+    return undefined;
   }
 
   const year = date.getUTCFullYear(); // NaN for an invalid date
-  if (!(year >= 0 && year <= 9999)) return String(at);
-  return `${date.toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  return year >= 0 && year <= 9999 ? date : undefined;
+}
+
+/**
+ * A moment as `2026-10-17 15:42:51 UTC`. A string is an ISO 8601 date and time (read as UTC when it
+ * has no zone). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since
+ * 2000-01-01) must be converted before it gets here, as the size of a number cannot tell the two
+ * epochs apart. What is not a moment is returned as it came.
+ */
+export function formatUtc(at: string | number): string {
+  const date = utcMoment(at);
+  return date ? `${date.toISOString().slice(0, 19).replace("T", " ")} UTC` : String(at);
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
@@ -232,6 +241,23 @@ export function formatUtcDay(day: string, withYear = false): string {
   return `${month} ${Number(parts[3])}${withYear ? `, ${parts[1]}` : ""}`;
 }
 
+/**
+ * The UTC date of a moment as `Oct 9, 2026`. Takes what `formatUtc` takes (an ISO date or date and time, read as UTC; a number is Unix
+ * seconds) and returns what is not a moment as it came.
+ */
+export function formatDate(at: string | number): string {
+  const date = utcMoment(at);
+  return date ? formatUtcDay(date.toISOString().slice(0, 10), true) : String(at);
+}
+
+/** The UTC date and minute of a moment as `Oct 9, 2026, 09:34 UTC`; takes and returns what `formatDate` does. */
+export function formatDateTime(at: string | number): string {
+  const date = utcMoment(at);
+  if (!date) return String(at);
+  const iso = date.toISOString();
+  return `${formatUtcDay(iso.slice(0, 10), true)}, ${iso.slice(11, 16)} UTC`;
+}
+
 /** How long before `nowMs` the moment `atMs` was: `3 s ago`, `4 min ago`, `2 h ago`, `5 d ago`. */
 export function relativeTime(atMs: number, nowMs: number): string {
   // A clock a little ahead of the moment's source makes a negative difference: show it as now.
@@ -242,6 +268,21 @@ export function relativeTime(atMs: number, nowMs: number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} h ago`;
   return `${Math.floor(hours / 24)} d ago`;
+}
+
+/**
+ * How long until the moment `atMs`, seen at `nowMs`: `under a minute`, `11 min` (rounded up), `5 h` (rounded down) or `4 days` (to the
+ * nearest day, half up). `null` when the moment is now or has gone, so that the caller says its own past text. With `approx` the number
+ * has a `~` before it: the moment is an estimate.
+ */
+export function untilText(atMs: number, nowMs: number, opts: { approx?: boolean } = {}): string | null {
+  const seconds = (atMs - nowMs) / 1000;
+  if (!(seconds > 0)) return null;
+  if (seconds < 60) return "under a minute";
+  const tilde = opts.approx ? "~" : "";
+  if (seconds < 3600) return `${tilde}${Math.ceil(seconds / 60)} min`;
+  if (seconds < 48 * 3600) return `${tilde}${Math.floor(seconds / 3600)} h`;
+  return `${tilde}${Math.round(seconds / 86_400)} days`;
 }
 
 function shorten(text: string): string {
