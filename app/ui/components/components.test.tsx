@@ -37,6 +37,7 @@ import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
 import { FEATURE_VARS, featuresOf, NO_FEATURES, type Features } from "../features";
 import { navSectionOf, type NetworkRouteHandle } from "../route-handle";
 import { NETWORK_ROUTE_ID, useNetwork } from "../use-network";
+import { handle as validatorsHandle } from "../../routes/net.validators";
 import { DetailList } from "./DetailList";
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
@@ -836,6 +837,14 @@ describe("Header and Shell", () => {
 
     it('names the section on its other pages with aria-current="true"', () => {
       const nav = renderHeaderAt("/xrpl/validators", { navSection: "network" });
+      const link = nav.getByRole("link", { name: "Network" });
+      expect(link.getAttribute("href")).toBe("/xrpl/network");
+      expect(link.getAttribute("aria-current")).toBe("true");
+      expect(link.classList.contains("is-current")).toBe(true);
+    });
+
+    it("names the section on the validators list too, through that route's own handle", () => {
+      const nav = renderHeaderAt("/xrpl/validators", validatorsHandle);
       const link = nav.getByRole("link", { name: "Network" });
       expect(link.getAttribute("href")).toBe("/xrpl/network");
       expect(link.getAttribute("aria-current")).toBe("true");

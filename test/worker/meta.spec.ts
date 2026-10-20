@@ -415,6 +415,46 @@ describe("the markets page", () => {
   });
 });
 
+describe("the validators page", () => {
+  const DESCRIPTION = (name: string) =>
+    `The validators of ${name}: the default UNL and every validator seen in the last 24 hours, with their domains, software versions, agreement, and fee and amendment votes.`;
+
+  it("has the tags of its network on the default view: a description with no numbers of the data, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/validators")).html);
+    expect(tags.titles).toEqual(["Validators · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/validators`]);
+    expect(tags.content("og:title")).toBe("Validators · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/validators`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow on any other view, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/validators?scope=all")).html);
+    expect(tags.titles).toEqual(["Validators · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/validators")).html);
+    expect(tags.titles).toEqual(["Validators · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/validators`]);
+  });
+});
+
 describe("the pages that are not for a search engine", () => {
   it("keeps a search page noindex, follow, without a canonical URL or sharing tags", async () => {
     mock = mockUpstream("xrpl");
