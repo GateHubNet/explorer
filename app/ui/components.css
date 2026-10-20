@@ -557,6 +557,20 @@ a.nav-item:hover {
   color: var(--muted);
 }
 
+/* An amendment about to activate: the accent washed into the card, with --fg text. test/unit/tokens.test.ts checks the pair (12% accent over
+   --surface) for both accents in light and in both dark blocks. */
+.pill--info {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--fg);
+}
+
+/* What is off or not there (obsolete, unknown, no recent vote): outlined, with no fill; --muted text on the card, which the tokens test checks. */
+.pill--off {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
 .pill.mono {
   font-size: 11px;
 }
@@ -592,6 +606,51 @@ a.nav-item:hover {
   font-weight: 500;
   line-height: 1.45;
   white-space: nowrap;
+}
+
+/* A tag that starts with an icon (UNL, Negative UNL). */
+.tag--icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* A status word beside its icon in a table cell or under a figure, quieter than a pill: "verified", "not verified", "latest", "incomplete".
+   Only `--ok` is a colour; the icon and the word say it either way. test/unit/tokens.test.ts checks both on a card and on a hovered row. */
+.st {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.st--ok {
+  color: var(--ok);
+}
+
+.st--quiet {
+  color: var(--muted);
+}
+
+/* A status pill and its tag side by side ("Activated" and "retired"). */
+.marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The arrow after a fee vote that differs from the fee now: the words are in the hidden text after it. */
+.fee-arrow {
+  margin-inline-start: 4px;
+}
+
+/* The icon of a link that opens a new tab. */
+.extlink__icon {
+  margin-inline-start: 3px;
+  vertical-align: -1px;
 }
 
 .amt {

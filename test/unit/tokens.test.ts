@@ -254,3 +254,53 @@ describe.each([
     expect(contrast(c("--muted"), painted), depth).toBeGreaterThanOrEqual(AA);
   });
 });
+
+// Spec 2.5: the marks of the validators and amendments pages. The rules are read from components.css, so a change of the wash, the text colour or
+// the background of a rule is a change of the pair tested here. Checked in every block that declares the tokens: light, dark by choice and dark
+// by system (the last two are asserted equal above; a drift would show here too).
+const BLOCKS = [
+  ["light", light],
+  ["dark by choice", darkByAttribute],
+  ["dark by system", darkByMedia],
+] as const;
+
+/** One property of a rule of components.css, as written (`""` when the rule does not set it). `color` does not find `background-color`. */
+function ruleProperty(selector: string, name: string): string {
+  const match = new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+)`).exec(componentsRule(selector));
+  return match?.[1]?.trim() ?? "";
+}
+
+/** `--fg` from `var(--fg)`. */
+function tokenOf(value: string): string {
+  const match = /^var\((--[\w-]+)\)$/.exec(value);
+  if (!match) throw new Error(`not a var(): ${value}`);
+  return match[1]!;
+}
+
+describe.each(BLOCKS)("the status marks in %s", (_block, tokens) => {
+  const color = (name: string) => rgb(tokens[name]!);
+  const hoveredRow = () => mix(color("--sunken"), color("--surface"), ROW_HOVER_SHARE);
+
+  // `.pill--info`: --fg on the accent wash, 12% accent over --surface, for each network's accent.
+  it.each(Object.entries(ACCENTS))("--fg on .pill--info's wash of the %s accent is at least 4.5:1", (_net, accent) => {
+    const wash = /^color-mix\(\s*in srgb\s*,\s*var\(--accent\)\s+(\d+)%\s*,\s*var\((--[\w-]+)\)\s*\)$/.exec(ruleProperty(".pill--info", "background"));
+    expect(wash, "the background of .pill--info is a color-mix of the accent over a token").not.toBeNull();
+    const backdrop = mix(rgb(accent), color(wash![2]!), Number(wash![1]) / 100);
+    expect(contrast(color(tokenOf(ruleProperty(".pill--info", "color"))), backdrop)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it("--muted on .pill--off, which has no background of its own, is at least 4.5:1 on a card and on a hovered row", () => {
+    expect(ruleProperty(".pill--off", "background")).toBe("transparent");
+    const text = color(tokenOf(ruleProperty(".pill--off", "color")));
+    expect(contrast(text, color("--surface"))).toBeGreaterThanOrEqual(AA);
+    expect(contrast(text, hoveredRow())).toBeGreaterThanOrEqual(AA);
+  });
+
+  // `.st`: the quiet text with an icon (a domain's verification, "latest", "incomplete") has no background: it sits on a card or a hovered row.
+  it.each([".st--ok", ".st--quiet"])("%s text is at least 4.5:1 on a card and on a hovered row", (selector) => {
+    expect(ruleProperty(selector, "background")).toBe("");
+    const text = color(tokenOf(ruleProperty(selector, "color")));
+    expect(contrast(text, color("--surface"))).toBeGreaterThanOrEqual(AA);
+    expect(contrast(text, hoveredRow())).toBeGreaterThanOrEqual(AA);
+  });
+});
