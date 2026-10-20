@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { END_LABEL_GUTTER_PX, niceScale } from "./geometry";
 import { cx } from "../cx";
-import { Plot, useHydrated, usePlotMark, usePlotRing, type PlotProps } from "./Plot";
+import { useHydrated } from "../use-hydrated";
+import { Plot, usePlotMark, usePlotRing, type PlotProps } from "./Plot";
 import { tickLabel } from "./labels";
 import type { TimeAxis } from "./types";
 

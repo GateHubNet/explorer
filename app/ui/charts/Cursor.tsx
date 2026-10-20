@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
@@ -14,18 +13,9 @@ import {
 } from "react";
 
 import { cx } from "../cx";
+import { useHydrated } from "../use-hydrated";
 import { bucketAt, percent, tooltipSide, xOf, type Placement } from "./geometry";
 import type { Slot } from "./types";
-
-const noSubscription = () => () => {};
-
-/**
- * False in the Worker's HTML and during hydration, true from the render after: a thing that only a script can do is left out of both, so
- * that they match (the same rule as `LiveToggle`). `Plot.tsx` exports it for the forms; it lives here because the cursor is what needs it.
- */
-export function useHydrated(): boolean {
-  return useSyncExternalStore(noSubscription, () => true, () => false);
-}
 
 export interface CursorProps {
   /** The plot's box, which the cursor measures, and marks: it gets `data-active="{i}"`, and its `[data-bucket="{i}"]` marks get `is-active`. */

@@ -15,9 +15,6 @@ import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, percent, tooltipSide, xLa
 import { bucketLabel, tickLabel } from "./labels";
 import type { TimeAxis, ValueKind } from "./types";
 
-// Defined beside the cursor, which is what needs it: Plot imports Cursor, and Cursor importing Plot back would be a cycle.
-export { useHydrated } from "./Cursor";
-
 export interface PlotProps {
   /** The scroll region's name: "{title}, scrollable chart". */
   title: string;

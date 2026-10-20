@@ -5,8 +5,9 @@ import { valueImports } from "../support/value-imports";
 
 // The chart kit is drawn in the browser too (a client-side navigation renders a page there), and it has to fit in what the network page
 // loads (spec 2.1: about 7 KB gzip). So it imports no charting package, no code of the server, and from the app only what is light:
-// `react`, its own files, `app/domain/format.ts` (bignumber.js is in the bundle already), `app/ui/cx.ts` and the components. It has no
-// barrel file, so a page loads only the modules it imports. A type import is erased and costs nothing; a value import is the bug.
+// `react`, its own files, `app/domain/format.ts` (bignumber.js is in the bundle already), `app/ui/cx.ts`, `app/ui/use-hydrated.ts` and the
+// components. It has no barrel file, so a page loads only the modules it imports. A type import is erased and costs nothing; a value import
+// is the bug.
 
 const appDir = new URL("../../app/", import.meta.url);
 const chartsDir = new URL("ui/charts/", appDir);
@@ -14,14 +15,19 @@ const chartsDir = new URL("ui/charts/", appDir);
 const kitFiles = readdirSync(chartsDir).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
 
 const ALLOWED = (from: string) =>
-  from === "react" || from.startsWith("./") || from === "../../domain/format" || from === "../cx" || from.startsWith("../components/");
+  from === "react" ||
+  from.startsWith("./") ||
+  from === "../../domain/format" ||
+  from === "../cx" ||
+  from === "../use-hydrated" ||
+  from.startsWith("../components/");
 
 describe("the files of the chart kit", () => {
   it("are there to be checked", () => {
     expect(kitFiles).toEqual(expect.arrayContaining(["types.ts", "geometry.ts", "labels.ts", "ChartCard.tsx", "Legend.tsx", "ChartTable.tsx"]));
   });
 
-  it.each(kitFiles)("%s imports as values only react, its own files, domain/format, cx and the components", (file) => {
+  it.each(kitFiles)("%s imports as values only react, its own files, domain/format, cx, use-hydrated and the components", (file) => {
     const imports = valueImports(readFileSync(new URL(file, chartsDir), "utf8"));
     expect(imports.filter((from) => !ALLOWED(from))).toEqual([]);
   });
@@ -68,7 +74,11 @@ describe("the scanner of this test", () => {
   });
 
   it("allows what the kit may import", () => {
-    for (const from of ["react", "./types", "./labels", "../../domain/format", "../cx", "../components/DataTable", "../components/SectionError"]) expect(ALLOWED(from), from).toBe(true);
-    for (const from of ["react-dom", "react-router", "../../domain/describe", "../../server/clients", "~/ui/cx", "../use-network", "../../domain/format.ts2"]) expect(ALLOWED(from), from).toBe(false);
+    for (const from of ["react", "./types", "./labels", "../../domain/format", "../cx", "../use-hydrated", "../components/DataTable", "../components/SectionError"]) {
+      expect(ALLOWED(from), from).toBe(true);
+    }
+    for (const from of ["react-dom", "react-router", "../../domain/describe", "../../server/clients", "~/ui/cx", "../use-network", "../use-hydrated2", "../../domain/format.ts2"]) {
+      expect(ALLOWED(from), from).toBe(false);
+    }
   });
 });

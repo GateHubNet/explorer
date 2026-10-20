@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowStep } from "../domain/describe";
-import { accountMeta, homeMeta, imageUrl, ledgerMeta, marketsMeta, metaContext, networkMeta, transactionDescription, transactionMeta, type MetaContext } from "./meta";
+import { imageUrl, metaContext, type MetaContext } from "./meta";
+import { accountMeta } from "./meta-account";
+import { homeMeta } from "./meta-home";
+import { ledgerMeta } from "./meta-ledger";
+import { marketsMeta } from "./meta-markets";
+import { networkMeta } from "./meta-network";
+import { transactionDescription, transactionMeta } from "./meta-transaction";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
 // view builders return for the fields the tags read; the worker specs (test/worker/meta.spec.ts) check the whole way from a
-// recorded transaction to the HTML.
+// recorded transaction to the HTML. Each page's builder is in a module of its own (`meta-<page>.ts`, beside meta.ts, which has the
+// helpers): test/unit/meta-bundle.test.ts says why.
 
 const XRPL: MetaContext = { network: { id: "xrpl", name: "XRPL" }, origin: "https://explorer.test" };
 const XAHAU: MetaContext = { network: { id: "xahau", name: "Xahau" }, origin: "https://explorer.test" };

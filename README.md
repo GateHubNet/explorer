@@ -437,7 +437,7 @@ running one, and `pending` how many of the newest buckets are not computed yet (
   because the figures are its alone ("Highest Payments Oct 3, 45.5M XRP; latest Payments Oct 17, so far, 12.1M XRP"); the other lines are in the
   table. A running bucket (`forming`, the newest of the axis) that the summary names says "so far" after its date, as the tooltip does.
   `Sparkline` and `Meter` are one image named by the label the builder wrote. `BarList` is a list: its bars are `aria-hidden` and its text is read.
-- **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore`) a `Cursor` adds a transparent
+- **Hover and keyboard come with the script.** After hydration (`useHydrated`, a `useSyncExternalStore` in `app/ui/use-hydrated.ts`) a `Cursor` adds a transparent
   `role="slider"` over the plot with `aria-valuetext` for the bucket, so a screen reader hears each step with no live region. A pointer selects
   the nearest bucket; focus the newest; Left and Right, Home and End move; Escape and blur hide. The tooltip is `aria-hidden`, at most
   `min(260px, 90%)` wide, to the right of the cursor under 22% of the plot, to the left over 78%, else centred. The active mark is marked in the DOM
@@ -469,9 +469,12 @@ memo'd: they have no token and cost almost nothing.
 ### The kit's boundaries
 
 - **The bundle rule.** `test/unit/charts-bundle.test.ts` reads every file of `app/ui/charts/` and allows as value imports only `react`, the kit's
-  own files (`./…`), `app/domain/format` (`bignumber.js` is in the bundle already), `app/ui/cx` and `app/ui/components/*`; nothing from
+  own files (`./…`), `app/domain/format` (`bignumber.js` is in the bundle already), `app/ui/cx`, `app/ui/use-hydrated` and `app/ui/components/*`; nothing from
   `app/server`, no charting package in `package.json`, and **no barrel file**: a page imports the modules it draws, so it loads only those. Type
-  imports are erased and are free. The spec's estimate for what the network page loads of the kit is about 7 KB gzipped, and the page's target
+  imports are erased and are free. A re-export is a barrel too: the markets page once took `useHydrated` from `Plot.tsx` and so loaded `Plot`,
+  `Cursor` and `labels` (3.3 KB of its figure) for one line. So the hook is a module of its own, `app/ui/use-hydrated.ts`, which imports only
+  React: the kit's `Cursor` and `ShareBar` and a page that draws no plot (`MarketsPage`) all import it from there, and
+  `test/unit/markets-bundle.test.ts` holds the markets page to that (it imports neither `charts/Plot` nor `charts/Cursor`). The spec's estimate for what the network page loads of the kit is about 7 KB gzipped, and the page's target
   is 145,000 bytes (the budget is 150,000). The page measured 146,616 bytes, over the target, so the fallback the spec decided on was tried and taken out again: `Cursor` and the tooltip
   loaded with `import()` on the first `pointerenter` or `focusin` of a plot (a `CursorSlot` layer in their place until then). It did not make any page lighter, and every page was heavier for
   it ("The client bundle check" has the figures), so a plot draws `Cursor` directly and the cursor is in the page's first JavaScript. What the page needs to lose is elsewhere in its route chunk.
@@ -800,9 +803,14 @@ cost a render each.
 
 ## SEO and link previews
 
-Spec 9. Every page's `meta` export is a thin call into `app/server/meta.ts`, pure functions over the page data and the origin
+Spec 9. Every page's `meta` export is a thin call into its builder, pure functions over the page data and the origin
 of the request (unit-tested in `app/server/meta.test.ts`; `meta` is part of the route module, so the browser runs them on a
-client-side navigation: that file imports nothing heavy, and `test/unit/og-bundle.test.ts` pins it).
+client-side navigation: those files import nothing heavy, and `test/unit/og-bundle.test.ts` pins it). `app/server/meta.ts` has what every
+page's tags are made with (`metaContext`, the absolute URLs, `sharing`); each page's builder is in a module of its own, `meta-<page>.ts`
+(`meta-home.ts`, `meta-network.ts`, `meta-markets.ts`, `meta-transaction.ts`, `meta-ledger.ts`, `meta-account.ts`), which that page's route
+alone imports. A module every route imports is in a chunk every page loads, so one module of all the builders put each page's builder in
+every page's JavaScript (1.1 to 1.6 KB of each figure, growing with each page). A new page's builder goes in a new `meta-<page>.ts`
+(`test/unit/meta-bundle.test.ts` fails a builder in `meta.ts` and a builder module that another page imports).
 
 | Page | Tags |
 |---|---|
@@ -877,7 +885,9 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   the DOM types their `page.evaluate` callbacks need (and `app/ui/features.ts`, which `scripts/e2e-env.ts` imports), and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
-  a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/e2e-env.test.ts` the switches of the end-to-end suite
+  a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and
+  `shell` chunks (the closure over a made-up module graph, the plugin's wiring, and, where there is a build, that no file imports the entry's chunk);
+  `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through, `E2E_FEATURES_OFF`); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
   `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, the switches, another environment, workers.dev, the redirect), the
@@ -1262,7 +1272,70 @@ The manifest is measured with `gzip -9 -c build/client/assets/manifest-*.js | wc
   already): +900. If the network page stays the heaviest, it ends at 147,640 + 900 + 900 = **149,440 bytes, 560 under the budget**. A later page that has more of its own than the network page (15.9 KB over the
   base: a pair page with candles, a book and trades) would be over 150,000. So the manifest is **part of every page's figure from now on** (`scripts/bundle-budget.ts`, with its test): left out, 1 to 2 KB of what
   every visitor loads would be in nobody's figure. What to do when a page fails the check: load less on first load, load what only an interaction needs with `import()` (the cursor is not that: see above), or
-  give the kit's modules a shared chunk once two pages draw them.
+  give the kit's modules a shared chunk once two pages draw them (measured since, and worse: see below).
+
+**The shell and vendor chunks, and the builders of the tags** (from `3d49860`, where the markets route had made every page 650 to 830 bytes heavier and the
+network page 1,505, to 149,533). A page's figure is the manifest, its code, and for each file the `import`/`export` lines that join it to the others and a gzip
+context of its own. Rolldown makes one chunk for each set of pages that load a module, so each page that shares another part of the components or the kit
+cuts the chunks finer for the pages already there: the markets route took the network page from 17 files to 20 (the kit's plot modules left its route
+chunk for one it shares with the markets page, which imported `useHydrated` from `Plot.tsx`; `StatTile`, `Card` and `RelativeTime` left the chunks they
+shared), and its figure grew 94 bytes of manifest, 252 of code (the markets page's builder in `meta.ts`, which every page loads, and the kit's exports
+that the markets page uses) and 1,159 of file boundaries (273 of `import`/`export` lines, 886 of lost gzip context). Three changes:
+
+- `scripts/shell-chunks.ts` (`vite.config.ts`, tested in `scripts/shell-chunks.test.ts`): what every page loads, the static closure of the client entry
+  and the root route, in two files, `vendor` (the packages: React, React DOM, the router, `bignumber.js`) and `shell` (the app's: the root, the header
+  and footer, the error screen, the search box, `format.ts`, …), where it came in nine. No page loads more code for it. The client entry's own module
+  (the `hydrateRoot` call, 209 bytes) stays the entry's chunk, which no file imports, so hydration starts when React Router's bootstrap imports the
+  entry, after the route modules, as before (were it in a chunk the routes import, it would run while they are imported; the test reads the build for it). `vendor`
+  changes with a dependency: it kept its name over the markets commit, where React's and the format chunk's did too and a one-file shell did not. The
+  build adds a runtime chunk (512 bytes) when chunks are grouped, as it did for the cursor's fallback; the figures count it. The dev server is untouched;
+- the tags' builders, one module for each page (see "SEO and link previews"): 1.1 to 1.6 KB off each figure;
+- the markets page's `useHydrated` from outside the kit (see "The kit's boundaries"): 3.3 KB off the markets page. It was measured with a copy of
+  the line in the page; the hook is now the module `app/ui/use-hydrated.ts` that the kit imports too, which costs 7 bytes on the markets page, 22
+  on the network page and 1 on the others against that copy (measured on `e310a4e` with the change, both ways).
+
+| | `3d49860` | after | change | of it, the two chunks | of it, the builders | of it, `useHydrated` |
+|---|---|---|---|---|---|---|
+| home | 138,549 | 134,153 | -4,396 | -2,818 | -1,580 | 0 |
+| ledger | 137,545 | 133,262 | -4,283 | -2,798 | -1,487 | 0 |
+| transaction | 139,684 | 135,511 | -4,173 | -2,822 | -1,353 | 0 |
+| account | 140,373 | 136,332 | -4,041 | -2,808 | -1,235 | 0 |
+| network | 149,533 | 145,363 | -4,170 | -2,776 | -1,114 | -280 |
+| markets | 140,502 | 132,995 | -7,507 | -2,773 | -1,370 | -3,364 |
+| manifest | 1,120 | 1,028 | | | | |
+
+The parts are measured one after the other in that order, with a harness that makes the same changes on `3d49860`; they add up to the change within
+2 bytes. On `e310a4e` (the markets page's fixes and the pair page's component, which has no route yet), with the change, the check says: home
+134,172, ledger 133,272, transaction 135,529, account 136,387, network 145,419, markets 133,001 (manifest 1,027). **The coming routes**, simulated: throwaway routes that import what each coming page's plan says it consumes (the pair page's candles, bar
+list, inline bar, sparkline and live row; the analytics view's line, column, small multiples and table; the validators', amendments' and AMM pages'
+meters, share bars, line and column charts, tabs, pagers and notices), each with a builder module of its own and 8 to 15 KB of its own code, added in
+the order of the work (pair, analytics, validators, validator, amendments, amendment, AMM list, AMM pool):
+
+| routes added | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| network, `3d49860` | 149,533 | **150,626** | 151,565 | 152,622 | 153,269 | 153,701 | 153,848 | 153,941 | 154,101 |
+| network, after | 145,363 | 146,607 | 147,631 | 148,633 | 149,108 | 149,151 | 149,226 | 149,564 | 149,655 |
+| heaviest other page, after | 136,332 | 145,254 (pair) | 146,314 | 146,839 | 147,020 | 147,063 | 147,138 | 147,458 | 147,549 (pair) |
+| manifest, after | 1,028 | 1,154 | 1,299 | 1,405 | 1,515 | 1,558 | 1,633 | 1,693 | 1,784 |
+
+The network page still grows about 940 bytes for each of the first four routes and 140 for each after: the manifest's 95, and the kit's modules,
+which each chart page draws a different set of, cut into finer shared chunks (in its route chunk at 0 routes, six shared files at 4 and seven at 8,
+which with `LiveRow`'s are the 8 files it gains). Its code grows 200 bytes in all (the kit's exports that the other pages use). The other pages grow
+150 to 320 bytes a route. The simulated pages are models (their own code is generated), so a figure of theirs says where a page would stand, not
+where the real page will. Measured and not taken (every page's figure at `3d49860` unless said):
+
+- `output.experimentalMinChunkSize` (Rollup's): Rolldown rejects the key, and `codeSplitting.minSize` with no group changes nothing;
+- the kit as one chunk: a group takes in what its modules import, so `DataTable`, `SectionError` and `format.ts` went into it and every page loaded
+  it (home 147,120); without its imports (which needs `preserveEntrySignatures: "allow-extension"`), a page that draws only a meter or a sparkline
+  loads all of it (markets 149,271, with the one-file shell);
+- Rolldown's `entriesAware` groups with a merge threshold (500 to 64,000 bytes): heavier than the shell alone at 8 routes, for every threshold;
+- the shared components and hooks as one chunk: every page 151 to 162 KB;
+- `vendor` and `shell` as one file: 570 to 650 bytes less on every page, and that 123 KB file changes with every deploy that changes what a page
+  imports of the shell (it did on the markets commit), where `vendor` changes with a dependency. A lever to keep;
+- the modules every gated page loads (`DataTable`, `meta.ts`, …) in the shell: 410 to 450 bytes less on the gated pages, about 1.8 KB (that chunk)
+  more on the search and not-found pages, and the rule would have to know the gate's pages;
+- `routeDiscovery: { mode: "lazy" }`: the figures do not move. The build still writes `assets/manifest-*.js` and the check counts it; the browser would
+  not load it first (the matched routes come in the HTML), but would ask `/__manifest` for the rest, the Worker invocations the setting avoids.
 
 ## The parsing libraries in the Workers runtime
 

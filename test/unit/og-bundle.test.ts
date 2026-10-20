@@ -36,8 +36,13 @@ describe("the image renderer", () => {
   });
 
   it("is not reachable from the tags of the pages, which the browser runs too (a page's `meta` is part of its route module)", () => {
-    const imports = [...read("app/server/meta.ts").matchAll(/^import\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']/gms)].map((match) => match[1]!);
-    expect(imports.filter((from) => /\/og\/(?!types["']?$)|card-data|workers-og|\/edge-cache|\/env|\/clients|\/data-api|\/node-rpc/.test(from))).toEqual([]);
+    // meta.ts and each page's builder beside it (meta-<page>.ts).
+    const files = sources("app/server").filter((file) => /^app\/server\/meta(-[a-z-]+)?\.ts$/.test(file));
+    expect(files).toEqual(expect.arrayContaining(["app/server/meta.ts", "app/server/meta-transaction.ts"]));
+    for (const file of files) {
+      const imports = [...read(file).matchAll(/^import\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']/gms)].map((match) => match[1]!);
+      expect(imports.filter((from) => /\/og\/(?!types["']?$)|card-data|workers-og|\/edge-cache|\/env|\/clients|\/data-api|\/node-rpc/.test(from)), file).toEqual([]);
+    }
   });
 });
 

@@ -6,10 +6,10 @@ import { valueImports } from "../support/value-imports";
 // The markets pages are drawn in the browser too (a client-side navigation renders them there), and the pages never fetch and get strings: the
 // view builders (`app/server/markets-view.ts`, which value-imports `app/domain/asset.ts` and `market-pair.ts`, and with them the issuer
 // checksums of `ripple-address-codec`) put every href, label and rank in the page data. So the files the browser runs for these pages import
-// none of that as a value. `app/server/meta.ts` is one of them: a page's `meta` is part of its route module, and it builds the markets tags from
-// the view words the builder wrote. A type import is erased and costs nothing; a value import is the bug. (The route, `app/routes/net.markets.tsx`,
-// imports the server for its loader; React Router drops the loader and what only it uses from the browser's build, and `pnpm check:bundle` holds
-// the result to the budget.)
+// none of that as a value. `app/server/meta.ts` and `meta-markets.ts` are among them: a page's `meta` is part of its route module, and it builds
+// the markets tags from the view words the builder wrote. A type import is erased and costs nothing; a value import is the bug. (The route,
+// `app/routes/net.markets.tsx`, imports the server for its loader; React Router drops the loader and what only it uses from the browser's build,
+// and `pnpm check:bundle` holds the result to the budget.)
 
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
@@ -31,8 +31,17 @@ describe("the files of the markets pages that run in the browser", () => {
     },
   );
 
-  it("server/meta.ts, which the browser runs as `meta`, imports nothing of ripple-*, domain/asset or domain/market-pair as a value", () => {
-    expect(valueImports(read("server/meta.ts")).filter(ASSET_CODE)).toEqual([]);
+  it.each(["server/meta.ts", "server/meta-markets.ts"])("%s, which the browser runs as `meta`, imports nothing of ripple-*, domain/asset or domain/market-pair as a value", (file) => {
+    expect(valueImports(read(file)).filter(ASSET_CODE)).toEqual([]);
+  });
+
+  it("MarketsPage.tsx imports neither charts/Plot nor charts/Cursor: it draws no plot, and either would put the plot's modules in its first JavaScript", () => {
+    expect(valueImports(read("ui/pages/MarketsPage.tsx")).filter((from) => /(^|\/)charts\/(Plot|Cursor)$/.test(from))).toEqual([]);
+  });
+
+  it("ui/use-hydrated.ts, where MarketsPage.tsx and the kit take useHydrated from, imports only react", () => {
+    expect(valueImports(read("ui/pages/MarketsPage.tsx"))).toContain("../use-hydrated");
+    expect(valueImports(read("ui/use-hydrated.ts"))).toEqual(["react"]);
   });
 
   it("is checked by filters that see each of those, and not a file named like one", () => {

@@ -6,7 +6,8 @@ import { formatAmount, formatCurrency, shortAddress, shortHash } from "../domain
 import type { Native } from "../domain/parse/types";
 import type { CardData } from "../og/types";
 import type { NetworkBrief } from "../ui/networks";
-import { movement, type LedgerFacts, type TxFacts } from "./meta";
+import type { LedgerFacts } from "./meta-ledger";
+import { movement, type TxFacts } from "./meta-transaction";
 import { plainText, type TransactionPageData, type TransactionSource } from "./transaction-view";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

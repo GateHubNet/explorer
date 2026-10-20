@@ -2,7 +2,6 @@ import { useId, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import type { MarketRowView, MarketsPageData } from "../../server/markets-view";
-import { useHydrated } from "../charts/Cursor";
 import { Meter } from "../charts/Meter";
 import { Sparkline } from "../charts/Sparkline";
 import { Card } from "../components/Card";
@@ -11,6 +10,7 @@ import { SearchIcon, TriangleDownIcon, TriangleUpIcon } from "../components/icon
 import { SegmentedLinks } from "../components/SegmentedLinks";
 import { StatGrid, StatTile } from "../components/StatTile";
 import type { NetworkInfo } from "../networks";
+import { useHydrated } from "../use-hydrated";
 
 const pairs = (n: number) => `${count(n)} ${n === 1 ? "pair" : "pairs"}`;
 
@@ -98,8 +98,8 @@ function AmmCell({ amm }: { amm: MarketRowView["amm"] }) {
  * and the footnote). Takes what the view builder made of the data API's one answer (`marketsPage`) and never fetches: every label, href and
  * figure is text in `data`.
  *
- * The HTML holds the first `FIRST_ROWS` rows (the ledger page's). What only a script can do is drawn after hydration (`useHydrated`, from the
- * kit's Cursor.tsx, which defines it) and is left out of the server's HTML, since no control may do nothing without JavaScript (spec 2.2):
+ * The HTML holds the first `FIRST_ROWS` rows (the ledger page's). What only a script can do is drawn after hydration (`useHydrated`, from
+ * `app/ui/use-hydrated.ts`, which loads nothing of the plot) and is left out of the server's HTML, since no control may do nothing without JavaScript (spec 2.2):
  * "Show all", which shows the rest of the rows the loader served without a request; the text filter, whose row is there from the start so
  * that adding it moves nothing; and the sort buttons, where the server prints plain headers with `aria-sort`. The
  * text filter narrows the rows to those whose search text holds what is typed; a sort orders them by the view builder's ranks. The tiles stay

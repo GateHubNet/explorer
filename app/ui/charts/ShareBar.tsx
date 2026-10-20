@@ -2,8 +2,9 @@ import { memo, useRef, type PointerEvent } from "react";
 
 import { formatAmount, sharePercent } from "../../domain/format";
 import { cx } from "../cx";
+import { useHydrated } from "../use-hydrated";
 import { cellOf } from "./cells";
-import { useCursorState, useHydrated } from "./Cursor";
+import { useCursorState } from "./Cursor";
 import { percent, tooltipSide } from "./geometry";
 import { tickLabel } from "./labels";
 import type { LegendItem } from "./Legend";
