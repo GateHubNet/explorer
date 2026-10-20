@@ -27,7 +27,7 @@ const LABEL_MIN = 7;
 const SUB_SCALE = 11 / 13;
 
 /** "312 trades", "1 trade": the count grouped, with its noun. */
-const tradesText = (count: string): string => `${formatAmount(count)} ${Number(count) === 1 ? "trade" : "trades"}`;
+const tradesText = (count: string): string => `${formatAmount(count)} ${count === "1" ? "trade" : "trades"}`;
 
 /**
  * Labelled horizontal bars (spec 2.3 and 2.11), an ordered list with a row for each item, in the order given: its label, with the sublabel (a

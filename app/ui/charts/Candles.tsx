@@ -125,7 +125,7 @@ export const Candles = memo(
     const latest = bars.reduce((last, bar, i) => (bar ? i : last), -1);
 
     // The prices fit the candles. The volume is from 0 with 3 ticks, as the pane is 64 px high.
-    const prices = fitScale(bars.flatMap((bar) => (bar ? [bar.o.value, bar.h.value, bar.l.value, bar.c.value] : [])));
+    const prices = fitScale(bars.flatMap((bar) => (bar ? [bar.o.value, bar.h.value, bar.l.value, bar.c.value] : [])), format.kind);
     const volumes = niceScale(bars.map((bar) => bar?.v?.value ?? null), { integer: volume.kind === "count", ticks: 3 });
 
     // The gutters of the two panes are as wide as the wider labels, so that the plots are as wide as each other and a bucket is at one x.

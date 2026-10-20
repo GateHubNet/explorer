@@ -107,6 +107,7 @@ describe("BarList as the Worker prints it and the browser takes it over", () => 
 /** The page the list is in: a link needs a router, as the pages that use it have. */
 const routed = (ui: ReactElement) => <MemoryRouter>{ui}</MemoryRouter>;
 const links = (container: HTMLElement) => Array.from(container.querySelectorAll<HTMLAnchorElement>("a"));
+const link0 = (container: HTMLElement) => links(container)[0]!;
 
 describe("BarList's links (E3's traders, E5's fee votes)", () => {
   const LINKED: BarListData = {
@@ -174,8 +175,6 @@ describe("BarList's links (E3's traders, E5's fee votes)", () => {
   });
 });
 
-const link0 = (container: HTMLElement) => links(container)[0]!;
-
 describe("BarList with tip=\"count\" (the traders)", () => {
   const TRADERS: BarListData = {
     items: [
@@ -193,6 +192,23 @@ describe("BarList with tip=\"count\" (the traders)", () => {
     expect(tips(container).map((tip) => tip.textContent)).toEqual(["6.1M XRP · 312 trades", "3.05M XRP · 1,204 trades", "61K XRP · 1 trade", "0 XRP · 0 trades"]);
     expect(tips(container)[0]!.querySelector("b")!.textContent).toBe("6.1M XRP");
     expect(errors).toEqual([]);
+  });
+
+  it("says 'trade' for a count of 1 as text, and 'trades' for any other text: 0, 10, 11, 21, 100, 1.0", async () => {
+    // A count is the text of a whole number: it is compared as text, not read as a float, so only "1" is one.
+    const counts = ["1", "0", "10", "11", "21", "100", "1204", "1.0"];
+    const data = barlist({ items: counts.map((count, i) => ({ id: String(i), label: `L${i}`, value: "5", count })), format: { kind: "count" } });
+    const { container } = await serverThenHydrated(<BarList data={data} tip="count" />);
+    expect(tips(container).map((tip) => tip.textContent)).toEqual([
+      "5 · 1 trade",
+      "5 · 0 trades",
+      "5 · 10 trades",
+      "5 · 11 trades",
+      "5 · 21 trades",
+      "5 · 100 trades",
+      "5 · 1,204 trades",
+      "5 · 1.0 trades",
+    ]);
   });
 
   it("ignores a share that is given, which the table view keeps", async () => {

@@ -225,6 +225,13 @@ describe("ChartTable of a bar list", () => {
     expect(container.querySelector(".table__empty")!.textContent).toBe("No data");
   });
 
+  it("keeps its Name, Value and Share headings when it is empty, as the network page's currencies card has them", async () => {
+    const { container, errors } = await serverThenHydrated(<ChartTable title="Payment volume by currency" data={{ ...list, items: [] }} />);
+    expect(headers(container)).toEqual(["Name", "Value", "Share"]);
+    expect(container.querySelector(".table__empty")!.textContent).toBe("No data");
+    expect(errors).toEqual([]);
+  });
+
   // A list whose tip is the count (`tip="count"`) has no share to write.
   it("has no share column when no item has a share, and the count is there", async () => {
     const data: BarListData = {

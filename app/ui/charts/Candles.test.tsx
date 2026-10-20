@@ -37,7 +37,7 @@ function candles(extra: Partial<CandleData> = {}): CandleData {
   return { axis: AXIS, candles: CANDLES, format: { kind: "price", unit: "USD" }, volume: { kind: "amount", unit: "XRP" }, token: "c1", ...extra };
 }
 
-/** The prices' scale, 2.38 to 2.48: steps of 0.02 would be six ticks and of 0.025 would give a label that is not exact, so 0.05. */
+/** The prices' scale, 2.38 to 2.48: steps of 0.02 would be six ticks and so would 0.025 (2.375 to 2.5), so 0.05. */
 const PRICES = [2.35, 2.4, 2.45, 2.5];
 const PRICE_SCALE = { min: 2.35, max: 2.5, step: 0.05, ticks: PRICES };
 /** The volumes' scale: 1.5M at most, 3 ticks. */
@@ -536,6 +536,19 @@ describe("Candles' prices are formatPrice text, never compact", () => {
     const { container } = await serverThenHydrated(<Candles title={TITLE} data={priced(rows)} />);
     expect(readout(container).slice(0, 5)).toEqual(["Oct 15, 2026", "O 0.4099 USD", "H 0.425 USD", "L 0.4 USD", "C 0.415 USD"]);
     expect(container.innerHTML).not.toContain("0.41 USD");
+  });
+
+  it("fills the pane with a stable pair, whose labels can tell 0.99975 from 1: an axis of 0.9995 to 1.0005, not 0.99 to 1.01", async () => {
+    const rows: CandleData["candles"] = [
+      { o: "1.00000000", h: "1.00050000", l: "0.99950000", c: "1.00020000", v: "1000", n: "9" },
+      { o: "1.00020000", h: "1.00030000", l: "0.99980000", c: "0.99990000", v: "500", n: "4" },
+    ];
+    const { container, errors } = await serverThenHydrated(<Candles title={TITLE} data={priced(rows)} />);
+    expect(texts(price(container).querySelector(".plot__y")!.children)).toEqual(["0.9995", "0.99975", "1", "1.00025", "1.0005"]);
+    // The first candle's wick runs the whole pane.
+    const wick = slot(price(container), 0).querySelector<HTMLElement>(".candle__wick")!;
+    expect([wick.style.bottom, wick.style.height]).toEqual(["0%", "100%"]);
+    expect(errors).toEqual([]);
   });
 
   it("reads a price the data API wrote in exponent notation, and writes none", async () => {

@@ -360,7 +360,7 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 | `SmallMultiples` | A grid of one-series lines (6 at most), each on a scale of its own, one cursor for all |
 | `Candles` | Candlesticks over a volume pane that share one cursor and one readout. `mark={false}` redraws a changed token with no ring, `empty` is the price pane's words when no candle is drawn |
 | `ShareBar` | 100% stacked horizontal rows, a label under a segment of 18% or more |
-| `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%". An item's `href` makes its label a link (`components/RouteLink.tsx`: the kit may not import `react-router`; the bar is not a target); `tip="count"` ends the tip with the count instead ("**6.1M XRP** · 312 trades"), the bars measured against the first item |
+| `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%". An item's `href` makes its label a link (`components/RouteLink.tsx`: the kit may not import `react-router`; the bar is not a target; the link's hit area is 27.6 px high around its line (21.6 px in a dense list, so that neighbours do not overlap), and on touch screens and phones the row is 44 px and the area 45.6 px); `tip="count"` ends the tip with the count instead ("**6.1M XRP** · 312 trades"), the bars measured against the first item |
 | `Meter` | One ratio on a track, 12 px (6 px `small`), with a threshold tick and its label. `decorative` hides it from assistive technology (`aria-hidden`, no image role) for a cell that says the value in text |
 | `InlineBar` | A depth wash behind a table row (bids, asks), or an out/in bar in a cell. The depth form needs the row to be `position: relative`, the bar to be the row's first child and the cells after it to be elements: the stylesheet puts those above the wash, so the text keeps its contrast on it, and a bare text node in the row would sit under it |
 | `Sparkline` | A trend of 100 × 28 px with no axes, for a row or a `StatTile` |
@@ -405,7 +405,7 @@ running one, and `pending` how many of the newest buckets are not computed yet (
   that is at least a quarter of the maximum (0, 5, 10), and a count of 2 is 0 to 4. A diverging chart is symmetric about 0. Nothing to draw is 0
   to 4 for a count, else 0 to 1. A line may take a `domain`, `min` and `max`; **a domain must cover its data**: a value below `domain.min` is drawn
   outside the plot, not cut, and one above `domain.max` raises the top of the scale. The
-  card's note must say that the axis does not start at 0. Candles use `fitScale`, which does not start at 0.
+  card's note must say that the axis does not start at 0. Candles use `fitScale`, which does not start at 0 and, for a price, takes steps down to the 8 significant digits `formatPrice` writes (a stable pair at 1.0000 ± 0.0005 is an axis of 0.9995 to 1.0005; near 1e8 the steps are 10 at the least, so adjacent labels stay distinct).
 - **Words.** A tick is `tickLabel` (`500K`, `1.2B`; in full under 10,000). **Tooltips and the slider's `aria-valuetext` use `valueText(v,
   format, "full")`**: a count in full (`1,284,331`), an amount or drops compact with its unit (`45.5M XRP`, `113 drops`), a percent and
   seconds exact. **A price is `formatPrice` everywhere** (ticks, readouts, tooltips, end labels, tables): 8 significant digits, half up, trailing

@@ -733,9 +733,24 @@ describe("the bar list (BarList)", () => {
   });
 
   it("gives a label that is a link a hit area of 24 px and more around its text, which does not make the row taller", () => {
-    // 15.6 px of line plus 6 px above and below is 27.6 px; the rows are 28 px apart when the list is not dense.
+    // The line is 15.6 px (13 px at 1.2). A row of a list that is not dense is 18 px (the bar) and the rows are 28 px apart: 6 px above and
+    // below the line is 27.6 px, and the neighbours' areas do not meet.
     expect(rule(chartsCss, ".barlist__link").position).toBe("relative");
     expect(rule(chartsCss, ".barlist__link::after")).toMatchObject({ content: '""', position: "absolute", inset: "-6px -4px" });
+  });
+
+  it("keeps the hit areas of a dense list from overlapping: its rows are the 15.6 px line and a 6 px gap, 21.6 px apart, so 3 px above and below", () => {
+    // 15.6 + 2 × 3 is the pitch of the rows (15.6 + 6): the areas meet and do not overlap.
+    expect(rule(chartsCss, ".barlist--dense .barlist__link::after").inset).toBe("-3px -4px");
+  });
+
+  it("makes the link a 44 px target on touch screens and phones, as the repo's other targets: the row is 44 px, and the hit area is more than that", () => {
+    const touch = "@media (pointer: coarse), (max-width: 720px)";
+    expect(rule(chartsCss, ".barlist__item:has(.barlist__link)", [touch])["min-height"]).toBe("44px");
+    // 15.6 px of line and 15 px above and below is 45.6 px; the rows are 44 px and a gap of 10 px (6 px dense) apart, so they do not meet.
+    for (const selector of [".barlist__link::after", ".barlist--dense .barlist__link::after"]) {
+      expect(rule(chartsCss, selector, [touch]), selector).toMatchObject({ inset: "-15px -4px", "min-width": "44px" });
+    }
   });
 
   it("draws the bar 18 px thick, 12 px when dense, in --series-1, with a 4 px radius at its end and a square start", () => {

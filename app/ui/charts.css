@@ -1033,8 +1033,10 @@
   font-size: 11px;
 }
 
-/* A label that is a link (an item's `href`): a hit area of 24 px or more (WCAG 2.2, 2.5.8) around its text, 6 px above and below and 4 px at
-   the sides, without making the row taller. The rows of a list that is not dense are 28 px apart, so two hit areas do not meet. */
+/* A label that is a link (an item's `href`) has a hit area around its text, which does not make the row taller. The line is 15.6 px (13 px at
+   1.2). A row of a list that is not dense is 18 px (the bar) and the rows are 28 px apart: 6 px above and below the line is 27.6 px, and 4 px at the
+   sides, so the areas of neighbours do not meet. A dense row is the line, 15.6 px, with a gap of 6 px: 21.6 px apart, so 3 px above and below, and
+   the areas meet and do not overlap. */
 .barlist__link {
   position: relative;
 }
@@ -1043,6 +1045,25 @@
   content: "";
   position: absolute;
   inset: -6px -4px;
+}
+
+.barlist--dense .barlist__link::after {
+  inset: -3px -4px;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones, as components.css and pages.css have it. A row that has a link is 44 px high, and the
+   hit area is the line with 15 px above and below it, 45.6 px, and at least 44 px wide (the label may be three characters). The rows are 44 px and a
+   gap of 10 px (6 px dense) apart, so the areas of neighbours do not meet. */
+@media (pointer: coarse), (max-width: 720px) {
+  .barlist__item:has(.barlist__link) {
+    min-height: 44px;
+  }
+
+  .barlist__link::after,
+  .barlist--dense .barlist__link::after {
+    inset: -15px -4px;
+    min-width: 44px;
+  }
 }
 
 .barlist__lane {

@@ -131,8 +131,8 @@ function barList(title: string, data: BarListData) {
     { id: "name", header: "Name", min: NAME, grow: true, cell: (item) => named(item.label, item.sublabel) },
     { id: "value", header: "Value", min: FIGURE, figure: true, grow: true, cell: (item) => figure(item.value, format) },
   ];
-  // A list whose tip is the count (`tip="count"`) has no share: a column of dashes would say nothing.
-  if (items.some((item) => item.share !== undefined)) {
+  // A list whose tip is the count (`tip="count"`) has no share: a column of dashes would say nothing. An empty list has its headers as before.
+  if (items.length === 0 || items.some((item) => item.share !== undefined)) {
     cols.push({ id: "share", header: "Share", min: COUNT, figure: true, grow: true, cell: (item) => item.share ?? figure(null) });
   }
   if (items.some((item) => item.count !== undefined)) {

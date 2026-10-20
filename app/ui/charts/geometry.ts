@@ -3,6 +3,8 @@
 // clock, no `Intl`, so the Worker and the browser draw the same marks. The kit parses the view builder's decimal strings with
 // `Number()` for this and for nothing else; every text a chart shows is made from the strings (labels.ts).
 
+import type { ValueKind } from "./types";
+
 export type Placement = "points" | "bands";
 
 export interface ValueScale {
@@ -123,11 +125,18 @@ export function niceScale(
 /**
  * The scale of a price (spec 2.11, candles): it fits the values and does not start at 0, since a price moves by a few percent of itself.
  * The step is the smallest of {1, 2, 2.5, 5} × 10ⁿ that, with the bottom at the step below the lowest value and the top at the step above
- * the highest, gives 5 ticks or fewer. A step is one that the labels can write: `compactNumber` keeps 2 decimals from 1 up and 3 significant
- * digits under it, so on a price of 2.4 a step of 0.025 would write 2.375 as 2.38, and a range finer than the labels tell apart has fewer
- * ticks instead. Values that do not vary (or none) have `niceScale`'s scale, from 0.
+ * the highest, gives 5 ticks or fewer. A step is one that the labels can write, and a range finer than the labels tell apart has fewer ticks
+ * instead:
+ *
+ * - `kind` `"price"`: the labels are `formatPrice`, 8 significant digits, so the finest step is the digit that 8 digits of the largest value
+ *   reach, 10^(⌊log10(reach)⌋ − 7). A stable pair at 1.0000 ± 0.0005 gets steps of 0.00025 and fills the pane; near 1e8 the steps are 10
+ *   at the least, which keeps adjacent labels distinct.
+ * - Any other kind, or none: the labels are `compactNumber`, which keeps 2 decimals from 1 up and 3 significant digits under it, so on a price
+ *   of 2.4 a step of 0.025 would write 2.375 as 2.38 (E2's step).
+ *
+ * Values that do not vary (or none) have `niceScale`'s scale, from 0.
  */
-export function fitScale(values: readonly (number | null)[]): ValueScale {
+export function fitScale(values: readonly (number | null)[], kind?: ValueKind): ValueScale {
   const numbers = values.filter((v): v is number => v !== null && Number.isFinite(v));
   const low = Math.min(...numbers);
   const high = Math.max(...numbers);
@@ -135,7 +144,8 @@ export function fitScale(values: readonly (number | null)[]): ValueScale {
 
   const span = high - low;
   const reach = Math.max(Math.abs(low), Math.abs(high));
-  const finest = 10 ** -(reach >= 1 ? 2 : 2 - Math.floor(Math.log10(reach)));
+  const finest =
+    kind === "price" ? Number(`1e${Math.floor(Math.log10(reach)) - 7}`) : 10 ** -(reach >= 1 ? 2 : 2 - Math.floor(Math.log10(reach)));
   const bottomOf = (step: number): number => clean(Math.floor(low / step + EPSILON) * step);
   const fits = (step: number): boolean => {
     const times = step / finest;

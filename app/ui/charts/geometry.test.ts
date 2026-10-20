@@ -18,6 +18,7 @@ import {
   xLabelPicks,
   xOf,
 } from "./geometry";
+import { tickLabel } from "./labels";
 
 describe("niceScale", () => {
   const ticks = (...args: Parameters<typeof niceScale>) => niceScale(...args).ticks;
@@ -181,6 +182,90 @@ describe("fitScale", () => {
 
   it("leaves out a null and a value that is not a number", () => {
     expect(fitScale([null, 2.38, NaN, 2.48, null]).ticks).toEqual([2.35, 2.4, 2.45, 2.5]);
+  });
+});
+
+describe("fitScale for a price", () => {
+  // formatPrice writes 8 significant digits, so a price scale may use every step that 8 digits of the reach can write: the smallest is
+  // 10^(floor(log10(reach)) - 7). The other kinds keep the step their compact labels allow (the tests above).
+  const price = (values: (number | null)[]) => fitScale(values, "price");
+  const text = (tick: number) => tickLabel(tick, "price");
+  /** What a tick reads back as: the label with its separators and sign taken off. */
+  const readBack = (label: string) => Number(label.replaceAll(",", "").replace("\u2212", "-"));
+
+  it("fills the pane with a stable pair: 1.0000 plus or minus 0.0005 is 0.9995 to 1.0005 in steps of 0.00025", () => {
+    const scale = price([0.9995, 1.0005, 1.0001, 0.9998]);
+    expect(scale.ticks).toEqual([0.9995, 0.99975, 1, 1.00025, 1.0005]);
+    expect(scale.step).toBe(0.00025);
+    expect(scale.ticks.map(text)).toEqual(["0.9995", "0.99975", "1", "1.00025", "1.0005"]);
+    // Where the compact labels fit it in a twentieth of the pane, 0.99 to 1.01.
+    expect(fitScale([0.9995, 1.0005, 1.0001, 0.9998]).ticks).toEqual([0.99, 1, 1.01]);
+    expect(fitScale([0.9995, 1.0005, 1.0001, 0.9998], "count").ticks).toEqual([0.99, 1, 1.01]);
+  });
+
+  it("uses a step of 0.025 on a price of 2.4 now that its labels are exact: 2.375 is written 2.375", () => {
+    expect(price([2.3813, 2.4605]).ticks).toEqual([2.375, 2.4, 2.425, 2.45, 2.475]);
+    expect(price([2.3813, 2.4605]).ticks.map(text)).toEqual(["2.375", "2.4", "2.425", "2.45", "2.475"]);
+    // And the range of the candles' tests, which has no such step that fits in 5 ticks, keeps 0.05.
+    expect(price([2.38, 2.46, 2.39, 2.45, 2.48, 2.4]).ticks).toEqual([2.35, 2.4, 2.45, 2.5]);
+  });
+
+  it("goes down to the digit the label shows: 2.431 to 2.4339 is steps of 0.001, where the compact labels settle for 2.43 and 2.44", () => {
+    expect(price([2.431, 2.4339]).ticks).toEqual([2.431, 2.432, 2.433, 2.434]);
+    expect(fitScale([2.431, 2.4339]).ticks).toEqual([2.43, 2.44]);
+    const fine = price([2.43101, 2.43102]);
+    expect(fine.ticks).toEqual([2.43101, 2.4310125, 2.431015, 2.4310175, 2.43102]);
+    expect(fine.ticks.map(text)).toEqual(["2.43101", "2.4310125", "2.431015", "2.4310175", "2.43102"]);
+    expect(fitScale([2.43101, 2.43102]).ticks).toEqual([2.43, 2.44]);
+  });
+
+  it("keeps a price near 1e8 to steps of 10, the digits 8 significant digits can tell apart, so that adjacent labels are distinct", () => {
+    const tight = price([123456781, 123456789]);
+    expect(tight.ticks).toEqual([123456780, 123456790]);
+    expect(tight.ticks.map(text)).toEqual(["123,456,780", "123,456,790"]);
+    const wide = price([123400000, 123500000]);
+    expect(wide.ticks).toEqual([123400000, 123425000, 123450000, 123475000, 123500000]);
+    expect(wide.ticks.map(text)).toEqual(["123,400,000", "123,425,000", "123,450,000", "123,475,000", "123,500,000"]);
+  });
+
+  it("writes every tick exactly and every adjacent pair differently, on ranges of every size, with at most 5 ticks around the values", () => {
+    const ranges: [number, number][] = [
+      [0.9995, 1.0005],
+      [2.43101, 2.43102],
+      [12345.6, 12345.7],
+      [12300, 12400],
+      [0.00001234, 0.00001236],
+      [1.2345e-8, 1.2349e-8],
+      [123456781, 123456789],
+      [99999999, 100000001],
+      [99.9999, 100.0001],
+      [9.9999, 10.0001],
+      [0.5, 0.5000001],
+      [1e8, 1.5e8],
+      [-3.2, -3.1],
+    ];
+    for (const [low, high] of ranges) {
+      const scale = price([low, high]);
+      const labels = scale.ticks.map(text);
+      expect(scale.min, `${low}..${high}`).toBeLessThanOrEqual(low);
+      expect(scale.max, `${low}..${high}`).toBeGreaterThanOrEqual(high);
+      expect(scale.ticks.length, `${low}..${high}`).toBeGreaterThanOrEqual(2);
+      expect(scale.ticks.length, `${low}..${high}`).toBeLessThanOrEqual(5);
+      expect(new Set(labels).size, `${low}..${high}: ${labels}`).toBe(labels.length);
+      scale.ticks.forEach((tick, k) => expect(readBack(labels[k]!), `${low}..${high}: ${labels[k]}`).toBe(tick));
+    }
+  });
+
+  it("is the same scale for a price and for every other kind when the compact labels already tell the steps apart", () => {
+    expect(price([100, 180]).ticks).toEqual(fitScale([100, 180]).ticks);
+    expect(price([98, 140]).ticks).toEqual([80, 100, 120, 140]);
+    expect(price([0.9, 3.1]).ticks).toEqual(fitScale([0.9, 3.1]).ticks);
+  });
+
+  it("is niceScale's for values that do not vary, and leaves out a null and a value that is not a number", () => {
+    expect(price([2.4, 2.4])).toEqual(niceScale([2.4, 2.4]));
+    expect(price([])).toEqual(niceScale([]));
+    expect(price([null, 2.38, NaN, 2.48, null]).ticks).toEqual([2.35, 2.4, 2.45, 2.5]);
   });
 });
 
