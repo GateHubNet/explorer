@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type MockInstance } from "vitest";
 
 import type {
+  AccountTxStatsRow,
+  AccountValueRow,
   ActiveAccounts,
   AmmVolumeComponent,
+  AnalyticsBalanceChanges,
+  AnalyticsBalances,
+  AnalyticsCounterparties,
+  AnalyticsExchanges,
   Candle,
   ExchangeVolumeComponent,
   FeeBucketRow,
@@ -24,6 +30,7 @@ import { ACTIVE_ACCOUNTS_KEPT, createDataApi, UpstreamError, type DataApi, type 
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
+import { ANALYTICS_SLOW_TIMEOUT_MS, DATA_API_TIMEOUT_MS } from "../../app/server/upstream";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 
@@ -1572,36 +1579,36 @@ describe("cache", () => {
   });
 });
 
+/**
+ * The Worker's own subrequest cache over a host of its own (this file's Cache API outlives a test): `storedBy` runs a call and answers the
+ * `Cache-Control` of every entry it stored, which is what the Cache API expires the entry by.
+ */
+function storing(host: string) {
+  const puts: Array<string | null> = [];
+  const put = caches.default.put.bind(caches.default);
+  vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
+    puts.push((response as Response).headers.get("Cache-Control"));
+    return put(request, response);
+  });
+  const pending: Promise<unknown>[] = [];
+  const ctx = { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} } as unknown as ExecutionContext;
+  const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: `https://${host}.example.invalid` });
+  const api = createDataApi(network, env, createSubrequestCache(ctx, host));
+  const storedBy = async (call: (api: DataApi) => Promise<unknown>) => {
+    puts.length = 0;
+    await call(api);
+    await Promise.all(pending.splice(0));
+    return [...puts];
+  };
+  return { api, storedBy };
+}
+
 // The pair page's calls and the markets table's (markets spec 3.3): each is kept for the class the page needs, and its answer is checked inside the load.
 describe("the pair page's and the markets page's calls", () => {
   const recording = () => {
     const cache = recordingCache();
     return { cache, api: createDataApi(xrpl, env, cache) };
   };
-
-  /**
-   * The Worker's own subrequest cache over a host of its own (this file's Cache API outlives a test): `storedBy` runs a call and answers the
-   * `Cache-Control` of every entry it stored, which is what the Cache API expires the entry by.
-   */
-  function storing(host: string) {
-    const puts: Array<string | null> = [];
-    const put = caches.default.put.bind(caches.default);
-    vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
-      puts.push((response as Response).headers.get("Cache-Control"));
-      return put(request, response);
-    });
-    const pending: Promise<unknown>[] = [];
-    const ctx = { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {} } as unknown as ExecutionContext;
-    const network = networkOf("xrpl", { ...env, XRPL_DATA_API_URL: `https://${host}.example.invalid` });
-    const api = createDataApi(network, env, createSubrequestCache(ctx, host));
-    const storedBy = async (call: (api: DataApi) => Promise<unknown>) => {
-      puts.length = 0;
-      await call(api);
-      await Promise.all(pending.splice(0));
-      return [...puts];
-    };
-    return { api, storedBy };
-  }
 
   describe("the missing route and the failure hold", () => {
     // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
@@ -1929,6 +1936,407 @@ describe("the pair page's and the markets page's calls", () => {
 
       expect(await createDataApi(xahau, env, passThroughCache).networkMarkets({ period: "day", limit: 1000 })).toEqual(answer);
       expect(sentRequest().url).toBe("https://xahau.data.example.invalid/v2/network/markets?limit=1000&period=day");
+    });
+  });
+});
+
+// The Analytics tab of the account page's calls (E4 spec 2.3, 2.6 and 2.7): D2's `stats/{family}` and `analytics/*` routes. Each is kept a minute (class `minute`),
+// held on failure and shared in flight, and checked inside the load; the counterparties call, which D2 expects to take seconds for a heavy account, is given 15 s.
+describe("the account analytics calls", () => {
+  const START = "2026-09-18";
+  const OTHER = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+  const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+  const WINDOW = { start: "2026-09-18T00:00:00Z", end: "2026-10-18T00:00:00Z" };
+
+  // The answers, in the shapes of D2's built reference (the ones analytics-shape.test.ts takes).
+  const valueBody = { result: "success", count: 2, rows: [{ date: "2026-10-16T00:00:00Z", account_value: "100.5", balance_change_count: 2 }, { date: "2026-10-17T00:00:00Z", account_value: "98", balance_change_count: 1 }] };
+  const transactionsBody = {
+    result: "success",
+    count: 1,
+    rows: [{ date: "2026-10-17T00:00:00Z", transaction_count: 3, result: { tesSUCCESS: 3 }, type: { Payment: 2, TrustSet: 1 } }],
+  };
+  const balancesBody = {
+    result: "success",
+    ...WINDOW,
+    interval: "day",
+    lines_total: 2,
+    lines: [{ currency: "XRP", balance: "98" }, { currency: "USD", counterparty: ISSUER, balance: "20" }],
+    count: 2,
+    rows: [{ date: "2026-10-17T00:00:00Z", currency: "XRP", balance: "98" }, { date: "2026-10-17T00:00:00Z", currency: "USD", counterparty: ISSUER, balance: "20" }],
+  };
+  const changesBody = {
+    result: "success",
+    ...WINDOW,
+    interval: "day",
+    totals: [{ change_type: "payment_source", count: 2, in_value: "0", out_value: "12", net_value: "-12" }],
+    count: 1,
+    rows: [{ date: "2026-10-17T00:00:00Z", change_type: "payment_source", count: 2, in_value: "0", out_value: "12" }],
+  };
+  const counterpartiesBody = {
+    result: "success",
+    ...WINDOW,
+    sort: "value",
+    total: 1,
+    count: 1,
+    counterparties: [
+      { account: OTHER, sent_value: "15", received_value: "24", total_value: "39", payments_sent: 2, payments_received: 3, first: "2026-09-20T09:00:00Z", last: "2026-10-15T09:00:00Z" },
+    ],
+  };
+  const exchangesBody = {
+    result: "success",
+    ...WINDOW,
+    total: 1,
+    count: 1,
+    pairs: [
+      {
+        base_currency: "USD",
+        base_issuer: ISSUER,
+        counter_currency: "XRP",
+        count: 4,
+        base_volume: "35.5",
+        counter_volume: "13.25",
+        bought: "15.5",
+        sold: "21",
+        bought_counter: "8.25",
+        sold_counter: "5.25",
+        native_volume: "13.25",
+      },
+    ],
+  };
+
+  const dayQuery = { interval: "day", limit: 1000, start: START } as const;
+  type AnalyticsCase = {
+    name: string;
+    call: (api: DataApi, address?: string) => Promise<unknown>;
+    /** Path and query of the request, after the host (the account is `ACCOUNT`). */
+    url: string;
+    body: unknown;
+    /** A change that makes the answer one that is not what the reference promises (a daily row under `week` and the like). */
+    broken: (copy: any) => void;
+  };
+  const analyticsCases: AnalyticsCase[] = [
+    {
+      name: "accountStats value",
+      call: (api, address = ACCOUNT) => api.accountStats(address, "value", dayQuery),
+      url: `/v2/accounts/${ACCOUNT}/stats/value?interval=day&limit=1000&start=${START}`,
+      body: valueBody,
+      broken: (copy) => (copy.rows[0].account_value = 100.5),
+    },
+    {
+      name: "accountStats transactions",
+      call: (api, address = ACCOUNT) => api.accountStats(address, "transactions", dayQuery),
+      url: `/v2/accounts/${ACCOUNT}/stats/transactions?interval=day&limit=1000&start=${START}`,
+      body: transactionsBody,
+      broken: (copy) => (copy.marker = "MjAyNi0xMC0xNw"),
+    },
+    {
+      name: "analyticsBalances",
+      call: (api, address = ACCOUNT) => api.analyticsBalances(address, { interval: "day", limit: 4, start: START }),
+      url: `/v2/accounts/${ACCOUNT}/analytics/balances?interval=day&limit=4&start=${START}`,
+      body: balancesBody,
+      broken: (copy) => (copy.interval = "week"),
+    },
+    {
+      name: "analyticsBalanceChanges",
+      call: (api, address = ACCOUNT) => api.analyticsBalanceChanges(address, { interval: "day", start: START }),
+      url: `/v2/accounts/${ACCOUNT}/analytics/balance_changes?interval=day&start=${START}`,
+      body: changesBody,
+      broken: (copy) => delete copy.interval,
+    },
+    {
+      name: "analyticsCounterparties",
+      call: (api, address = ACCOUNT) => api.analyticsCounterparties(address, { limit: 6, start: START }),
+      url: `/v2/accounts/${ACCOUNT}/analytics/counterparties?limit=6&start=${START}`,
+      body: counterpartiesBody,
+      broken: (copy) => (copy.counterparties[0].account = "rrrrUBy92h6worVCYERZcVCzgzgmHb17Dx"),
+    },
+    {
+      name: "analyticsExchanges",
+      call: (api, address = ACCOUNT) => api.analyticsExchanges(address, { limit: 6, start: START }),
+      url: `/v2/accounts/${ACCOUNT}/analytics/exchanges?limit=6&start=${START}`,
+      body: exchangesBody,
+      broken: (copy) => (copy.pairs[0].count = "4"),
+    },
+  ];
+  /** What the fixture host answers: the body of the route asked for. */
+  const answerByPath = async (input: RequestInfo | URL) => {
+    const { pathname, search } = new URL(input instanceof Request ? input.url : String(input));
+    const found = analyticsCases.find((c) => c.url === pathname + search);
+    if (!found) throw new Error(`unexpected request ${pathname}${search}`);
+    return json(found.body);
+  };
+
+  describe("the requests", () => {
+    it.each(analyticsCases)("$name asks for its route, with its query in the order of the call, and the key", async (c) => {
+      fetchSpy.mockResolvedValueOnce(json(c.body));
+
+      const answer = await c.call(createDataApi(xrpl, env, passThroughCache));
+
+      expect(answer).toEqual(c.body);
+      expect(sentRequest().url).toBe(`${BASE}${c.url}`);
+      expect(sentRequest().method).toBe("GET");
+      expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+    });
+
+    it("sends the interval of the call, whichever it is, and keeps the order: interval, limit, start", async () => {
+      const api = createDataApi(xrpl, env, passThroughCache);
+      // Rows dated on the start of a bucket of the interval asked for, so that the checks take the answers.
+      fetchSpy.mockResolvedValueOnce(json({ ...valueBody, rows: [{ date: "2026-10-12T00:00:00Z", account_value: "1", balance_change_count: 1 }] }));
+      fetchSpy.mockResolvedValueOnce(json({ ...valueBody, rows: [{ date: "2026-10-01T00:00:00Z", account_value: "1", balance_change_count: 1 }] }));
+
+      await api.accountStats(ACCOUNT, "value", { interval: "week", limit: 1000, start: "2026-07-20" });
+      expect(sentRequest().url).toBe(`${BASE}/v2/accounts/${ACCOUNT}/stats/value?interval=week&limit=1000&start=2026-07-20`);
+      await api.accountStats(ACCOUNT, "value", { interval: "month", limit: 1000, start: "2025-07-01" });
+      expect(sentRequest().url).toBe(`${BASE}/v2/accounts/${ACCOUNT}/stats/value?interval=month&limit=1000&start=2025-07-01`);
+    });
+
+    it("asks the host of the network it was created for", async () => {
+      fetchSpy.mockResolvedValueOnce(json(counterpartiesBody));
+
+      await createDataApi(xahau, env, passThroughCache).analyticsCounterparties(ACCOUNT, { limit: 6, start: START });
+
+      expect(sentRequest().url).toBe(`https://xahau.data.example.invalid/v2/accounts/${ACCOUNT}/analytics/counterparties?limit=6&start=${START}`);
+    });
+
+    it.each(analyticsCases)("$name refuses an address that would be resolved away as a path (empty, . and ..) before any call, and escapes the rest", async (c) => {
+      const api = createDataApi(xrpl, env, passThroughCache);
+      for (const address of ["", ".", ".."]) expect((await failureOf(c.call(api, address))).kind).toBe("bad_request");
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      fetchSpy.mockResolvedValueOnce(json(c.body));
+      await c.call(api, "a/b?c");
+      expect(new URL(sentRequest().url).pathname).toContain("/accounts/a%2Fb%3Fc/");
+    });
+
+    it("types the answers by what the reference gives them", () => {
+      // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+      const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+      expectTypeOf(api.accountStats(ACCOUNT, "value", dayQuery)).toEqualTypeOf<Promise<Page<"rows", AccountValueRow>>>();
+      expectTypeOf(api.accountStats(ACCOUNT, "transactions", dayQuery)).toEqualTypeOf<Promise<Page<"rows", AccountTxStatsRow>>>();
+      expectTypeOf(api.analyticsBalances(ACCOUNT, { interval: "week", limit: 4, start: START })).toEqualTypeOf<Promise<AnalyticsBalances>>();
+      expectTypeOf(api.analyticsBalanceChanges(ACCOUNT, { interval: "month", start: START })).toEqualTypeOf<Promise<AnalyticsBalanceChanges>>();
+      expectTypeOf(api.analyticsCounterparties(ACCOUNT, { limit: 6, start: START })).toEqualTypeOf<Promise<AnalyticsCounterparties>>();
+      expectTypeOf(api.analyticsExchanges(ACCOUNT, { limit: 6, start: START })).toEqualTypeOf<Promise<AnalyticsExchanges>>();
+    });
+  });
+
+  describe("the cache", () => {
+    it.each(analyticsCases)("$name is class minute, held on failure and shared in flight, with no TTL of its own", async (c) => {
+      const cache = recordingCache();
+      fetchSpy.mockResolvedValueOnce(json(c.body));
+
+      await c.call(createDataApi(xrpl, env, cache));
+
+      expect(cache.calls).toEqual([{ key: `GET ${BASE}${c.url}`, cls: "minute", holdFailure: true, shareInFlight: true }]);
+    });
+
+    it("has an entry for each route, interval and window, so that none is read for another", async () => {
+      const cache = recordingCache();
+      const api = createDataApi(xrpl, env, cache);
+      fetchSpy.mockImplementation(async (input) => {
+        const interval = new URL(input instanceof Request ? input.url : String(input)).searchParams.get("interval") ?? "day";
+        // A daily answer for a daily request, the first of the month for a monthly one: the checks take both.
+        const date = interval === "month" ? "2026-10-01T00:00:00Z" : "2026-10-12T00:00:00Z";
+        return json({ ...valueBody, rows: [{ ...valueBody.rows[0], date }] });
+      });
+
+      await api.accountStats(ACCOUNT, "value", { interval: "month", limit: 1000, start: "2025-07-01" });
+      await api.accountStats(ACCOUNT, "value", { interval: "week", limit: 1000, start: "2025-07-01" });
+      await api.accountStats(ACCOUNT, "value", { interval: "week", limit: 1000, start: "2025-07-02" });
+      await api.accountStats(ACCOUNT, "value", { interval: "week", limit: 1000, start: "2025-07-01" });
+
+      expect(cache.calls.map((call) => call.key)).toEqual([
+        `GET ${BASE}/v2/accounts/${ACCOUNT}/stats/value?interval=month&limit=1000&start=2025-07-01`,
+        `GET ${BASE}/v2/accounts/${ACCOUNT}/stats/value?interval=week&limit=1000&start=2025-07-01`,
+        `GET ${BASE}/v2/accounts/${ACCOUNT}/stats/value?interval=week&limit=1000&start=2025-07-02`,
+        `GET ${BASE}/v2/accounts/${ACCOUNT}/stats/value?interval=week&limit=1000&start=2025-07-01`,
+      ]);
+    });
+
+    it("is not what a call of another page asks for: a polled call passes the failure hold and no sharing", async () => {
+      const cache = recordingCache();
+      fetchSpy.mockResolvedValue(json(lastValidatedBody));
+
+      await createDataApi(xrpl, env, cache).lastValidated({ holdFailure: true });
+
+      expect(cache.calls).toEqual([{ key: `GET ${BASE}/v2/last_validated`, cls: "live", holdFailure: true }]);
+    });
+
+    it("really stores each answer for 60 s", async () => {
+      const { api, storedBy } = storing("analytics-stored");
+      fetchSpy.mockImplementation(answerByPath);
+
+      for (const c of analyticsCases) expect(await storedBy((a) => c.call(a)), c.name).toEqual(["public, max-age=60"]);
+      expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+      expect(fetchSpy).toHaveBeenCalledTimes(analyticsCases.length);
+
+      // Stored: the next call of each is the cache's, not the API's.
+      for (const c of analyticsCases) expect(await c.call(api), c.name).toEqual(c.body);
+      expect(fetchSpy).toHaveBeenCalledTimes(analyticsCases.length);
+    });
+
+    it("shares one request between the calls of one key that overlap, whichever of them asks: each is given its own copy of the answer", async () => {
+      const { api } = storing("analytics-shared");
+      let answer: (response: Response) => void = () => {};
+      fetchSpy.mockImplementation(() => new Promise<Response>((resolve) => (answer = resolve)));
+
+      const first = api.analyticsCounterparties(ACCOUNT, { limit: 6, start: START });
+      const second = api.analyticsCounterparties(ACCOUNT, { limit: 6, start: START });
+      // Both have missed the Cache API by now, and the second has joined the first's request.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      answer(json(counterpartiesBody));
+      const [a, b] = await Promise.all([first, second]);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(a).toEqual(counterpartiesBody);
+      expect(b).toEqual(counterpartiesBody);
+      expect(a).not.toBe(b);
+    });
+  });
+
+  describe("the deadlines", () => {
+    /** The call ends with `kind: timeout` after `ms` ms, not before; its request is aborted then. */
+    async function timesOutAt(ms: number, call: (api: DataApi) => Promise<unknown>) {
+      vi.useFakeTimers();
+      let signal: AbortSignal | null | undefined;
+      fetchSpy.mockImplementation((_input, init) => {
+        signal = init?.signal;
+        return new Promise<Response>(() => {});
+      });
+      let settled = false;
+      const outcome = call(createDataApi(xrpl, env, passThroughCache))
+        .then(
+          () => "resolved",
+          (reason: unknown) => reason,
+        )
+        .finally(() => {
+          settled = true;
+        });
+
+      await vi.advanceTimersByTimeAsync(ms - 1);
+      expect(settled).toBe(false);
+      expect(signal?.aborted).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const error = await outcome;
+      expect(error).toBeInstanceOf(UpstreamError);
+      expect((error as UpstreamError).kind).toBe("timeout");
+      expect(signal?.aborted).toBe(true);
+    }
+
+    it("gives analytics/counterparties 15 s: it has not settled at 14,999 ms and is a timeout at 15,000 ms", async () => {
+      await timesOutAt(15_000, (api) => api.analyticsCounterparties(ACCOUNT, { limit: 6, start: START }));
+    });
+
+    it("is 15,000 ms for it, three times the data API's 5,000 ms", () => {
+      expect(ANALYTICS_SLOW_TIMEOUT_MS).toBe(15_000);
+      expect(DATA_API_TIMEOUT_MS).toBe(5_000);
+    });
+
+    it.each(analyticsCases.filter((c) => c.name !== "analyticsCounterparties"))("gives $name the data API's 5 s: a timeout at 5,000 ms", async (c) => {
+      await timesOutAt(5_000, (api) => c.call(api));
+    });
+
+    it("an answer after 14 s is the answer: the 15 s is the deadline of the whole call, body included", async () => {
+      vi.useFakeTimers();
+      fetchSpy.mockImplementation(() => new Promise<Response>((resolve) => setTimeout(() => resolve(json(counterpartiesBody)), 14_000)));
+      const outcome = createDataApi(xrpl, env, passThroughCache).analyticsCounterparties(ACCOUNT, { limit: 6, start: START });
+
+      await vi.advanceTimersByTimeAsync(14_000);
+
+      expect(await outcome).toEqual(counterpartiesBody);
+    });
+  });
+
+  describe("a failure", () => {
+    // Each on a host of its own: the Cache API and the failure hold of this file outlive a test.
+    it("a 404 'Cannot GET' (a data API without D2) is kind server, whatever the route, and is never stored", async () => {
+      const { api, storedBy } = storing("analytics-cannot-get");
+      fetchSpy.mockImplementation(async () => json({ result: "error", message: `Cannot GET /v2/accounts/${ACCOUNT}/analytics/balances` }, { status: 404 }));
+
+      const error = await failureOf(api.analyticsBalances(ACCOUNT, { interval: "day", limit: 4, start: START }));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(404);
+      expect(error.message).toContain("(the data API has no such route)");
+      expect(await storedBy(() => api.analyticsBalances(ACCOUNT, { interval: "day", limit: 4, start: START }).catch(() => undefined))).toEqual([]);
+    });
+
+    it("a 404 of another message stays not_found, and a 400 bad_request: the routes have no not-found of their own, and the caller fails the card with either", async () => {
+      const { api } = storing("analytics-not-found");
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "account not found" }, { status: 404 }));
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid start" }, { status: 400 }));
+
+      expect((await failureOf(api.analyticsExchanges(ACCOUNT, { limit: 6, start: START }))).kind).toBe("not_found");
+      expect((await failureOf(api.analyticsBalanceChanges(ACCOUNT, { interval: "day", start: START }))).kind).toBe("bad_request");
+    });
+
+    it.each(analyticsCases)("an answer to $name that is not what the reference promises is kind server, status 200, and is never stored", async (c) => {
+      const { api, storedBy } = storing(`analytics-malformed-${c.name.replace(/\W+/g, "-").toLowerCase()}`);
+      const copy = structuredClone(c.body);
+      c.broken(copy);
+      fetchSpy.mockImplementation(async () => json(copy));
+
+      const error = await failureOf(c.call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain("answered something unexpected");
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it("is a daily row under `week`, the answer of an API that ignores the interval: kind server, and is never stored", async () => {
+      const { api, storedBy } = storing("analytics-daily-under-week");
+      // A Tuesday: a week starts on a Monday.
+      fetchSpy.mockImplementation(async () => json({ ...valueBody, rows: [{ date: "2026-10-13T00:00:00Z", account_value: "100.5", balance_change_count: 2 }] }));
+      const call = (a: DataApi) => a.accountStats(ACCOUNT, "value", { interval: "week", limit: 1000, start: "2026-07-20" });
+
+      const error = await failureOf(call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain("data API account value stats");
+      expect(await storedBy((a) => call(a).catch(() => undefined))).toEqual([]);
+    });
+
+    it("an answer for another interval than the one asked for is kind server, in each route that echoes it", async () => {
+      const api = createDataApi(xrpl, env, passThroughCache);
+      fetchSpy.mockResolvedValueOnce(json({ ...balancesBody, interval: "day" }));
+      fetchSpy.mockResolvedValueOnce(json({ ...changesBody, interval: "day" }));
+
+      expect((await failureOf(api.analyticsBalances(ACCOUNT, { interval: "week", limit: 4, start: START }))).kind).toBe("server");
+      expect((await failureOf(api.analyticsBalanceChanges(ACCOUNT, { interval: "week", start: START }))).kind).toBe("server");
+    });
+
+    it("is held, as any failure of the API: a route that fails is asked once, and the calls after it get the same error", async () => {
+      const { api } = storing("analytics-held");
+      fetchSpy.mockImplementation(async () => json({ result: "error", message: "boom" }, { status: 500 }));
+      const call = () => api.analyticsExchanges(ACCOUNT, { limit: 6, start: START });
+
+      const first = await failureOf(call());
+      const second = await failureOf(call());
+
+      expect(first.kind).toBe("server");
+      expect(second).toBe(first);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("is shared in flight as it fails: the calls that overlap get the one error, from one request", async () => {
+      const { api } = storing("analytics-shared-failure");
+      let answer: (response: Response) => void = () => {};
+      fetchSpy.mockImplementation(() => new Promise<Response>((resolve) => (answer = resolve)));
+      const call = () => api.analyticsBalances(ACCOUNT, { interval: "day", limit: 4, start: START }).then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
+
+      const calls = [call(), call(), call()];
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      answer(json({ result: "error", message: "boom" }, { status: 503 }));
+      const errors = await Promise.all(calls);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      for (const error of errors) expect((error as UpstreamError).kind).toBe("server");
+      expect(errors[1]).toBe(errors[0]);
     });
   });
 });
