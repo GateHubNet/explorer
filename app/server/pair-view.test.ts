@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { bookFile, LIONS, RLUSD, XRP, type Asset as FixtureAsset } from "../../test/support/book-fixtures";
 import type { Asset } from "../domain/asset";
-import { dropsToNative } from "../domain/format";
+import { compactNumber, dropsToNative } from "../domain/format";
 import { candleWindow as marketParamsWindow, INTERVALS, type Interval, type PairParams } from "../domain/market-params";
 import type { Loaded } from "./account-view";
 import type { ActiveAccount, ActiveAccounts, Candle, Page, PairExchange, ReducedRow } from "./api-types";
@@ -835,6 +835,23 @@ describe("pairHead", () => {
     expect(pairHead(XRPL, { currency: UNDECODABLE.toLowerCase(), issuer: BS }, XRP_ASSET, DEFAULT_PARAMS).issuers[0]!.code).toBe(UNDECODABLE);
   });
 
+  it("writes the full hex exactly where formatCurrency shortens it to 8 digits and an ellipsis", () => {
+    for (const undecodable of [
+      "01FFFE0000000000000000000000000000000000",
+      "5300410000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000".replace(/^0/, "1"),
+    ]) {
+      const head = pairHead(XRPL, { currency: undecodable, issuer: BS }, XRP_ASSET, DEFAULT_PARAMS);
+      expect(head.base).toBe(`${undecodable.slice(0, 8)}…`);
+      expect(head.issuers[0]!.code).toBe(undecodable);
+    }
+    for (const decodable of ["534F4C4F00000000000000000000000000000000", "0000000000000000000000005553440000000000", "USD"]) {
+      const head = pairHead(XRPL, { currency: decodable, issuer: BS }, XRP_ASSET, DEFAULT_PARAMS);
+      expect(head.issuers[0]!.code).toBe(head.base);
+      expect(head.base).not.toContain("…");
+    }
+  });
+
   it("shows a decodable hex code as its text, and an LP token as \"LP token\"", () => {
     expect(pairHead(XRPL, { currency: RLUSD_HEX, issuer: RL }, XRP_ASSET, DEFAULT_PARAMS)).toMatchObject({
       title: "RLUSD/XRP",
@@ -870,6 +887,13 @@ describe("tradesOf", () => {
         via: "Book",
       },
     ]);
+  });
+
+  it("shows a dash for an amount or a price that is no number, and writes exponent text in full", () => {
+    const [row] = tradesOf(tradePage([trade({ rate: "abc", base_amount: "", counter_amount: "NaN" })]), CTX).rows;
+    expect(row).toMatchObject({ price: "—", base: "—", counter: "—" });
+    const [exponent] = tradesOf(tradePage([trade({ base_amount: "1.5e+3", counter_amount: "2.5E-4" })]), CTX).rows;
+    expect(exponent).toMatchObject({ base: "1,500", counter: "0.00025" });
   });
 
   it("takes the side of the taker: Buy for the buyer, Sell for the seller, a dash for neither", () => {
@@ -1147,6 +1171,13 @@ describe("tradersOf", () => {
     expect(view.data.items).toHaveLength(3);
     expect(view.note).toMatch(/^3 of 3 accounts that traded XRP\/USD/);
     expect(tradersOf(active(TRADERS.slice(0, 1)), null, CTX).note).toMatch(/^1 of 1 account that traded XRP\/USD/);
+  });
+
+  it("passes a base volume in exponent form on as the API wrote it, for the kit to read and write in its own words", () => {
+    const view = tradersOf(active([activeAccount(trader(1), "1.5e+6", 40), activeAccount(trader(2), "2.5E+5", 30)]), null, CTX);
+    expect(view.data.items.map((item) => item.value)).toEqual(["1.5e+6", "2.5E+5"]);
+    // The text the kit draws from it is plain.
+    expect(view.data.items.map((item) => compactNumber(item.value))).toEqual(["1.5M", "250K"]);
   });
 
   it("is an empty list for a pair nobody traded", () => {
@@ -1518,6 +1549,17 @@ describe("pairPage", () => {
       expect(build({ pool: null })).toMatchObject({ page: { pool: { state: "missing" } }, problems: [] });
     });
 
+    it("is missing, and no problem, on a network without AMM, whatever it was given: Xahau has no pool card", () => {
+      for (const pool of [ok(poolInfo()), FAILED, MISSING, null]) {
+        expect(build({ network: XAHAU, pool, share: null })).toMatchObject({ page: { pool: { state: "missing" } }, problems: [] });
+      }
+      // A pool the node named is not left out of the traders either: there is no pool.
+      const accounts = [activeAccount(POOL, "9000000", 900), ...TRADERS];
+      const { traders } = build({ network: XAHAU, pool: ok(poolInfo()), share: null, traders: ok(active(accounts, 1204)) }).page;
+      if (traders.state !== "ok") throw new Error("traders");
+      expect(traders.data.items[0]!.id).toBe(POOL);
+    });
+
     it("failed, and a problem, when the node could not answer: that is not \"no pool\"", () => {
       expect(build({ pool: FAILED })).toMatchObject({ page: { pool: { state: "failed" } }, problems: ["pool"] });
     });
@@ -1601,6 +1643,17 @@ describe("pairPage", () => {
       expect(build({ stats: FAILED, network: XRPL_AMM_OFF }).problems).toEqual(["stats"]);
     });
 
+    it("gives every failed part one frozen value: a consumer that changed it would change them all", () => {
+      const { page: built } = build({ stats: FAILED, candles: FAILED, traders: FAILED, asks: FAILED, pool: FAILED, share: FAILED });
+      const failed = [built.stats, built.candles, built.traders, built.book, built.pool, built.share];
+      for (const part of failed) {
+        expect(part).toEqual({ state: "failed" });
+        expect(Object.isFrozen(part)).toBe(true);
+        expect(() => Object.assign(part, { state: "ok" })).toThrow(TypeError);
+      }
+      expect(failed[0]).toBe(failed[1]);
+    });
+
     it("keeps the other parts: the trades and the head do not depend on the cards", () => {
       const { page: built } = build({ stats: FAILED, candles: FAILED, traders: FAILED, asks: FAILED, pool: FAILED, share: FAILED });
       expect(built.trades.rows).toHaveLength(1);
@@ -1659,6 +1712,20 @@ describe("olderPage", () => {
     expect(olderPage(input()).trades.rows[0]!.via).toBe("AMM");
     expect(olderPage(input({ network: XRPL_AMM_OFF })).trades.rows[0]!.via).toBeNull();
     expect(olderPage(input({ network: XAHAU })).trades.rows[0]!.via).toBeNull();
+  });
+
+  it("drops a Trades filter the network lacks: not on Xahau, not while AMM_DATA is off", () => {
+    const params: PairParams = { interval: "1h", trades: "amm", marker: "M1", back: [] };
+    for (const network of [XRPL_AMM_OFF, XAHAU]) {
+      const older = olderPage(input({ network, params }));
+      expect(older.view).toEqual(["older trades"]);
+      expect(older.note.href).toBe(older.head.firstPage);
+      expect(older.note.href).not.toContain("trades=");
+      expect(older.head.invert.href).not.toContain("trades=");
+      expect(older.trades.source).toBe("/v2/exchanges/{base}/{counter}?descending=true");
+      expect(older.trades.paging.olderHref).not.toContain("trades=");
+      expect(older.trades.paging.newerHref).not.toContain("trades=");
+    }
   });
 
   it("is a page of the other way round too: its note names the pair as it is asked for and points to its own market page", () => {

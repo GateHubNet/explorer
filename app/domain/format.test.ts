@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   compactNumber,
+  decodesCurrency,
   dropsToNative,
   formatAmount,
   formatChange,
@@ -116,6 +117,35 @@ describe("formatCurrency", () => {
     expect(formatCurrency("5300410000000000000000000000000000000000")).toBe("53004100\u2026");
     // All zeros decodes to nothing.
     expect(formatCurrency("0000000000000000000000000000000000000000")).toBe("00000000\u2026");
+  });
+});
+
+describe("decodesCurrency", () => {
+  it("is true for what formatCurrency shows as text: a standard code, decoded hex, the standard 160-bit form, an LP token", () => {
+    for (const code of [
+      "USD",
+      "XRP",
+      "",
+      "534F4C4F00000000000000000000000000000000",
+      "534f4c4f00000000000000000000000000000000",
+      "0000000000000000000000005553440000000000",
+      "03A1F7D29C2E0000000000000000000000000000",
+      "4D6F6F6E636174000000000000000000000000000",
+    ]) {
+      expect(decodesCurrency(code), code).toBe(true);
+    }
+  });
+
+  it("is false for the 40-hex codes that formatCurrency shortens to 8 digits and an ellipsis", () => {
+    for (const code of [
+      "01FFFE0000000000000000000000000000000000",
+      "01fffe0000000000000000000000000000000000",
+      "5300410000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000",
+    ]) {
+      expect(decodesCurrency(code), code).toBe(false);
+      expect(formatCurrency(code).endsWith("\u2026"), code).toBe(true);
+    }
   });
 });
 

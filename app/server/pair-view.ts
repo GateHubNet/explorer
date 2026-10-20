@@ -12,7 +12,18 @@ import BigNumber from "bignumber.js";
 import { accountHref } from "../domain/account-tabs";
 import { sameAsset, type Asset } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
-import { compactNumber, formatAmount, formatChange, formatCurrency, formatPrice, formatUtc, shortAddress, shortHash, wholePercent } from "../domain/format";
+import {
+  compactNumber,
+  decodesCurrency,
+  formatAmount,
+  formatChange,
+  formatCurrency,
+  formatPrice,
+  formatUtc,
+  shortAddress,
+  shortHash,
+  wholePercent,
+} from "../domain/format";
 import { marketHref, naturalOrientation } from "../domain/market-pair";
 import { candleWindow, INTERVALS, pairQuery, TRADES_API, type Interval, type PairParams, type TradesFilter } from "../domain/market-params";
 import { trailPaging, type Paging } from "../domain/paging";
@@ -339,7 +350,8 @@ export interface PairInput {
 /** The names of the page's parts that can fail alone, in the order they are listed in `problems`. */
 type PartName = "stats" | "candles" | "traders" | "book" | "pool" | "share";
 
-const FAILED_PART = { state: "failed" } as const;
+/** Frozen: it is the one value of every part that failed, and a consumer that changed one would change them all. */
+const FAILED_PART = Object.freeze({ state: "failed" } as const);
 
 // ---- Shared ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -358,6 +370,11 @@ function priceText(text: string | undefined): string {
   return isNumberText(text) ? formatPrice(text) : DASH;
 }
 
+/** An amount as a table cell shows it: `formatAmount` (exponent text written out in full), or a dash where the text is no number. */
+function amountText(text: string | undefined): string {
+  return isNumberText(text) ? formatAmount(text) : DASH;
+}
+
 /** A volume as a summary shows it: `compactNumber`, or a dash where the text is no number. */
 function summaryText(text: string | undefined): string {
   return isNumberText(text) ? compactNumber(text) : DASH;
@@ -370,12 +387,9 @@ function ammQuery(trades: TradesFilter | null): string {
 
 // ---- The head -------------------------------------------------------------------------------------------------------------------------------
 
-const HEX_CURRENCY = /^[0-9A-Fa-f]{40}$/;
-const ELLIPSIS = "…";
-
-/** The code of an issuer's currency on the issuer line: the display code, and a 40-hex code that does not decode written out in full. */
+/** The code of an issuer's currency on the issuer line: the display code, and a 40-hex code that does not decode (`formatCurrency` shortens it) written out in full. */
 function issuerCode(currency: string, shown: string): string {
-  return HEX_CURRENCY.test(currency) && shown.endsWith(ELLIPSIS) ? currency.toUpperCase() : shown;
+  return decodesCurrency(currency) ? shown : currency.toUpperCase();
 }
 
 /**
@@ -432,8 +446,8 @@ export function tradesOf(
       side,
       dot: side === "Buy" ? "up" : side === "Sell" ? "down" : null,
       price: priceText(trade.rate),
-      base: formatAmount(trade.base_amount),
-      counter: formatAmount(trade.counter_amount),
+      base: amountText(trade.base_amount),
+      counter: amountText(trade.counter_amount),
       taker: trade.taker,
       via: ctx.via ? (trade.amm_account === undefined ? "Book" : "AMM") : null,
     };
@@ -659,8 +673,9 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
           source: `/v2/exchanges/{base}/{counter}?interval=${INTERVALS[params.interval].api}${ammQuery(params.trades)}`,
         }
       : FAILED_PART;
+  // A network without AMM has no pool card, whatever the caller passed: its answer is not read.
   const pool: LivePairData["pool"] =
-    input.pool === null || input.pool.state === "missing"
+    !network.hasAmm || input.pool === null || input.pool.state === "missing"
       ? { state: "missing" }
       : input.pool.state === "ok" && poolSides(input.pool.value, base, counter) !== null
         ? poolOf(input.pool.value, network.id, base, counter, head)

@@ -145,11 +145,10 @@ export function wholePercent(part: string, whole: string): string {
 const HEX_CURRENCY = /^[0-9A-Fa-f]{40}$/;
 
 /**
- * A currency code for display. A 3-character code is shown as it is. A 40-hex code is shown as ASCII
- * when it decodes to printable text, as "LP token" when it starts with `03` (an AMM pool's share
- * token), and otherwise as its first 8 hex digits and an ellipsis.
+ * The text of a currency code for display, or `null` for a 40-hex code that has none (it decodes to no printable text and is no LP token).
+ * What is not a 40-hex code is its own text.
  */
-export function formatCurrency(code: string): string {
+function decodedCurrency(code: string): string | null {
   if (!HEX_CURRENCY.test(code)) return code;
   const hex = code.toUpperCase();
   if (hex.startsWith("03")) return "LP token";
@@ -170,7 +169,24 @@ export function formatCurrency(code: string): string {
   const text = bytes.slice(0, end);
   if (text.length > 0 && text.every(isPrintable)) return String.fromCharCode(...text);
 
-  return `${hex.slice(0, 8)}${ELLIPSIS}`;
+  return null;
+}
+
+/**
+ * A currency code for display. A 3-character code is shown as it is. A 40-hex code is shown as ASCII
+ * when it decodes to printable text, as "LP token" when it starts with `03` (an AMM pool's share
+ * token), and otherwise as its first 8 hex digits and an ellipsis.
+ */
+export function formatCurrency(code: string): string {
+  return decodedCurrency(code) ?? `${code.toUpperCase().slice(0, 8)}${ELLIPSIS}`;
+}
+
+/**
+ * Whether `formatCurrency` shows the code itself (or its text), not the first 8 digits of a 40-hex code that does not decode. A page that
+ * shortens such a code elsewhere writes it out in full where it names the currency.
+ */
+export function decodesCurrency(code: string): boolean {
+  return decodedCurrency(code) !== null;
 }
 
 function isPrintable(byte: number): boolean {
