@@ -1,15 +1,47 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { createMemoryRouter, createStaticHandler, createStaticRouter, RouterProvider, StaticRouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
-import type { AccountHeader, AccountPageData, NeverActivatedData, TabList, TxRow } from "../../server/account-view";
+import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountPageData, NeverActivatedData, TabList, TxRow } from "../../server/account-view";
+import type { AnalyticsData } from "../../server/analytics-view";
 import { AccountPage, NeverActivatedPage } from "./AccountPage";
 
 afterEach(cleanup);
+
+// The analytics view is a chunk of its own that the page loads with `import()` (spec 5). Here it is a stand-in that counts its loads and its
+// mounts, and that suspends until the test opens `chunk.shown`, so that the test sees the page while the body is not there yet; AccountAnalytics.test.tsx
+// tests the view itself. (Vitest loads a mocked module once, and a second `import()` of it while the first is still loading does not settle: a
+// test that loads it waits for `chunk.ready`.)
+const chunk = vi.hoisted(() => {
+  let ready!: () => void;
+  let show!: () => void;
+  return {
+    loads: 0,
+    mounts: [] as string[],
+    ready: new Promise<void>((resolve) => (ready = resolve)),
+    loaded: () => ready(),
+    shown: new Promise<void>((resolve) => (show = resolve)),
+    show: () => show(),
+  };
+});
+vi.mock("./AccountAnalytics", async () => {
+  chunk.loads += 1;
+  const { createElement, use, useEffect } = await import("react");
+  function AccountAnalytics({ network, analytics }: { network: { native: string }; analytics: { period: string } }) {
+    use(chunk.shown);
+    useEffect(() => {
+      chunk.mounts.push(analytics.period);
+    }, []);
+    return createElement("section", { "aria-label": "Analytics view", "data-period": analytics.period }, `The ${analytics.period} view in ${network.native}`);
+  }
+  chunk.loaded();
+  return { default: AccountAnalytics };
+});
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
 const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
@@ -82,8 +114,20 @@ const transactions = (
   paging,
 });
 
-function data(over: Partial<AccountPageData> = {}): AccountPageData {
-  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "transactions", tag: null, qr: QR, header: header(), list: transactions(), ...over };
+function data(over: Partial<AccountListPageData> = {}): AccountListPageData {
+  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "transactions", tag: null, qr: QR, analyticsTab: true, header: header(), list: transactions(), ...over };
+}
+
+/** A promise that never settles: a part of the analytics that has not streamed in. */
+const pending = <T,>(): Promise<T> => new Promise<T>(() => {});
+
+function analyticsOf(period: AnalyticsPeriod = "30d"): AnalyticsData {
+  return { period, frame: pending(), value: pending(), sent: pending(), changes: pending(), counterparties: pending(), balances: pending(), pairs: pending() };
+}
+
+/** The analytics view's page. Its header has the tokens and the owned objects, which the view does not show all the same. */
+function analyticsPage(over: Partial<AccountAnalyticsPageData> = {}): AccountAnalyticsPageData {
+  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "analytics", tag: null, qr: QR, analyticsTab: true, header: header(), analytics: analyticsOf(), ...over };
 }
 
 function renderInRouter(ui: ReactElement, loader: () => null = () => null) {
@@ -297,21 +341,146 @@ describe("the margin", () => {
 });
 
 describe("the tabs", () => {
-  it("are links, one is current, and Analytics is a disabled tab that says 'soon'", async () => {
-    renderInRouter(<AccountPage network={XRPL} data={data({ tab: "payments" })} />);
+  /** The tab bar's links: text, href, aria-current and rel. */
+  async function tabLinks() {
     const nav = await screen.findByRole("navigation", { name: "Account activity" });
-    const links = within(nav).getAllByRole("link");
-    expect(links.map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("aria-current")])).toEqual([
-      ["Transactions", `/xrpl/account/${ADDRESS}`, null],
-      ["Payments", `/xrpl/account/${ADDRESS}?tab=payments`, "page"],
-      ["Trades", `/xrpl/account/${ADDRESS}?tab=trades`, null],
-      ["Offers", `/xrpl/account/${ADDRESS}?tab=offers`, null],
-      ["Objects", `/xrpl/account/${ADDRESS}?tab=objects`, null],
+    return within(nav)
+      .getAllByRole("link")
+      .map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("aria-current"), a.getAttribute("rel")]);
+  }
+
+  it("are links, one is current, and Analytics leads to the analytics view, rel=nofollow, while ACCOUNT_ANALYTICS is on", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data({ tab: "payments" })} />);
+    expect(await tabLinks()).toEqual([
+      ["Transactions", `/xrpl/account/${ADDRESS}`, null, null],
+      ["Payments", `/xrpl/account/${ADDRESS}?tab=payments`, "page", null],
+      ["Trades", `/xrpl/account/${ADDRESS}?tab=trades`, null, null],
+      ["Offers", `/xrpl/account/${ADDRESS}?tab=offers`, null, null],
+      ["Objects", `/xrpl/account/${ADDRESS}?tab=objects`, null, null],
+      ["Analytics", `/xrpl/account/${ADDRESS}?tab=analytics`, null, "nofollow"],
     ]);
+    expect(screen.queryByText("soon")).toBeNull();
+  });
+
+  it("show Analytics as a disabled tab that says 'soon' while ACCOUNT_ANALYTICS is off", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data({ tab: "payments", analyticsTab: false })} />);
+    expect((await tabLinks()).map(([label]) => label)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
+    const nav = screen.getByRole("navigation", { name: "Account activity" });
     const soon = within(nav).getByText("Analytics").parentElement!;
     expect(soon.getAttribute("aria-disabled")).toBe("true");
     expect(soon.textContent).toBe("Analyticssoon");
     expect(soon.tagName).toBe("SPAN");
+    expect(nav.innerHTML).not.toContain("tab=analytics");
+  });
+
+  it("lead to the analytics view from a page of old history too: the view is live mode", async () => {
+    const history = data({ mode: "history", header: { status: "history" }, list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: null }) });
+    renderInRouter(<AccountPage network={XRPL} data={history} />);
+    expect((await tabLinks()).at(-1)).toEqual(["Analytics", `/xrpl/account/${ADDRESS}?tab=analytics`, null, "nofollow"]);
+  });
+
+  it("lead to the analytics view on the network of the page", async () => {
+    renderInRouter(<AccountPage network={XAHAU} data={data({ native: "XAH" })} />);
+    expect((await tabLinks()).at(-1)).toEqual(["Analytics", `/xahau/account/${ADDRESS}?tab=analytics`, null, "nofollow"]);
+  });
+});
+
+// The analytics view's stand-in (`chunk`, at the top of this file) is loaded once for the whole file, so these tests run in this order: the
+// tab warms the chunk before any view is drawn (no test above draws the view or points at its tab), the view's first draw shows its fallback
+// until the body is there, and then the body is keyed by the period.
+describe("the analytics view", () => {
+  it("is warmed by the Analytics tab: its chunk is loaded when the pointer enters the tab or the tab takes the focus, and not before", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data()} />);
+    const nav = await screen.findByRole("navigation", { name: "Account activity" });
+    const tab = within(nav).getByRole("link", { name: "Analytics" });
+    // Drawing the page, the other tabs among it, loads nothing.
+    fireEvent.pointerEnter(within(nav).getByRole("link", { name: "Payments" }));
+    fireEvent.focus(within(nav).getByRole("link", { name: "Payments" }));
+    await act(async () => {});
+    expect(chunk.loads).toBe(0);
+
+    fireEvent.pointerEnter(tab);
+    fireEvent.focus(tab);
+    await waitFor(() => expect(chunk.loads).toBe(1));
+    await act(async () => chunk.ready);
+    // The visitor did not go there: no view was drawn.
+    expect(chunk.mounts).toEqual([]);
+  });
+
+  it("is the notices, the breadcrumbs and the account card, then the Activity card with the tabs and the filters, then the lazy body in its own Suspense", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={analyticsPage({ tag: 7 })} />);
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    const viewStatuses = () => screen.getAllByRole("status").filter((status) => !status.closest(".account-card"));
+    try {
+      expect(screen.getByRole("heading", { level: 1, name: ADDRESS })).toBeTruthy();
+      expect(screen.getByText("Destination tag 7")).toBeTruthy();
+      expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
+
+      // No Holdings margin: neither the tokens nor the owned objects, though the header has both.
+      expect(document.querySelector('aside[aria-label="Holdings"]')).toBeNull();
+      expect(screen.queryByRole("heading", { name: "Tokens" })).toBeNull();
+      expect(screen.queryByRole("heading", { name: "Owned objects" })).toBeNull();
+      expect(document.querySelector(".cols")).toBeNull();
+
+      // The Activity card: the tabs, Analytics current, and the filter row under them; no list.
+      const nav = within(activity).getByRole("navigation", { name: "Account activity" });
+      const current = within(nav).getByRole("link", { name: "Analytics" });
+      expect(current.getAttribute("aria-current")).toBe("page");
+      expect(current.getAttribute("href")).toBe(`/xrpl/account/${ADDRESS}?tab=analytics`);
+      const filters = within(activity).getByRole("group", { name: "Analytics filters" });
+      expect(nav.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(within(activity).queryByRole("table")).toBeNull();
+      expect(screen.queryByText(/Loading transactions/)).toBeNull();
+
+      // The body is below the card. Until it is there (its chunk loading, here the stand-in holding) it is a frame hidden from assistive
+      // technology: the filter row's status is the view's one status (spec 3.11), and it says the view is loading. (The account card's copy
+      // button has a status of its own, on every tab.)
+      const waiting = screen.getByText("Loading…").closest("[aria-hidden]");
+      expect(waiting?.getAttribute("aria-hidden")).toBe("true");
+      expect(activity.contains(waiting)).toBe(false);
+      expect(activity.compareDocumentPosition(waiting!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(viewStatuses().map((status) => status.textContent)).toEqual(["Loading analytics…"]);
+      expect(screen.queryByRole("region", { name: "Analytics view" })).toBeNull();
+    } finally {
+      // The tests after this one need the body, whatever happened here.
+      await act(async () => chunk.show());
+    }
+
+    const body = await screen.findByRole("region", { name: "Analytics view" });
+    expect(body.textContent).toBe("The 30d view in XRP");
+    expect(screen.queryByText("Loading…")).toBeNull();
+    expect(activity.contains(body)).toBe(false);
+    expect(activity.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(viewStatuses().map((status) => status.className)).toEqual(["analytics-filters__note"]);
+  });
+
+  it("keys the body by the period: another period is drawn afresh, new data of the same period is not", async () => {
+    let setPage!: (page: AccountPageData) => void;
+    function Switching() {
+      const [current, set] = useState<AccountPageData>(analyticsPage());
+      setPage = set;
+      return <AccountPage network={XRPL} data={current} />;
+    }
+    chunk.mounts.length = 0;
+    renderInRouter(<Switching />);
+    await screen.findByRole("region", { name: "Analytics view" });
+    expect(chunk.mounts).toEqual(["30d"]);
+
+    await act(async () => setPage(analyticsPage()));
+    expect(chunk.mounts).toEqual(["30d"]);
+
+    await act(async () => setPage(analyticsPage({ analytics: analyticsOf("90d") })));
+    expect((await screen.findByRole("region", { name: "Analytics view" })).getAttribute("data-period")).toBe("90d");
+    expect(chunk.mounts).toEqual(["30d", "90d"]);
+  });
+
+  it("has the Live state unavailable notice with its Retry above it when the node did not answer, as the other tabs do", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={analyticsPage({ header: header({ live: { state: "unavailable" }, owned: null, tokens: { state: "none" }, nodeProblem: true }) })} />);
+    const notice = (await screen.findByText("Live state unavailable")).closest<HTMLElement>(".notice")!;
+    expect(notice.getAttribute("role")).toBe("status");
+    expect(within(notice).getByRole("button", { name: "Retry" })).toBeTruthy();
+    const body = await screen.findByRole("region", { name: "Analytics view" });
+    expect(notice.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

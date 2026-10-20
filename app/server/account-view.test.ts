@@ -24,6 +24,7 @@ import {
   parseTag,
   parseTrail,
   reserveOf,
+  TAB_WHAT,
   tokensOf,
   tradeRows,
   tradesList,
@@ -54,10 +55,10 @@ const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: st
 const text = (segments: readonly Segment[]) => segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : `[${s.pair}]`)).join("");
 
 describe("the tabs and the URL", () => {
-  it("lists the five tabs of the page, the first being the default", () => {
-    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects"]);
+  it("lists the six tabs of the page, the first being the default and the last the analytics", () => {
+    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects", "analytics"]);
     for (const tab of ACCOUNT_TABS) expect(isAccountTab(tab)).toBe(true);
-    for (const other of ["analytics", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
+    for (const other of ["Analytics", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
   });
 
   it.each([
@@ -688,5 +689,7 @@ describe("the lists of the tabs", () => {
     expect(failedList("payments")).toEqual({ state: "failed", what: "payments" });
     expect(failedList("trades")).toEqual({ state: "failed", what: "trades" });
     expect(failedList("offers")).toEqual({ state: "failed", what: "offers" });
+    // The analytics view is no list; its whole-view error says "Couldn't load the analytics."
+    expect(TAB_WHAT.analytics).toBe("the analytics");
   });
 });

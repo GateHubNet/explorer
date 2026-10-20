@@ -1,5 +1,8 @@
+import { featuresOff } from "../../scripts/e2e-env";
 import { LIVE, XRPL_ACCOUNT } from "./fixtures";
 import { expect, hydrated, test } from "./support";
+
+const FEATURES_OFF = featuresOff(process.env);
 
 const rowsOf = (page: import("@playwright/test").Page, name: string) => page.getByRole("table", { name }).getByRole("row");
 
@@ -33,9 +36,16 @@ test.describe("the account page", () => {
     await page.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}?tab=objects`);
     await expect(tabs.getByRole("link", { name: "Objects" })).toHaveAttribute("aria-current", "page");
 
-    // Analytics is for later: it is there, and it is not a link.
-    await expect(tabs.getByRole("link", { name: /Analytics/ })).toHaveCount(0);
-    await expect(tabs).toContainText("Analytics");
+    // Analytics is a link to the analytics view while ACCOUNT_ANALYTICS is on, kept from crawlers; with it off, the "soon" label of before.
+    if (FEATURES_OFF.has("ACCOUNT_ANALYTICS")) {
+      await expect(tabs.getByRole("link", { name: /Analytics/ })).toHaveCount(0);
+      await expect(tabs).toContainText("Analyticssoon");
+    } else {
+      const analytics = tabs.getByRole("link", { name: "Analytics" });
+      await expect(analytics).toHaveAttribute("href", `/xrpl/account/${XRPL_ACCOUNT}?tab=analytics`);
+      await expect(analytics).toHaveAttribute("rel", "nofollow");
+      await expect(analytics).not.toHaveAttribute("aria-current", "page");
+    }
   });
 
   test("pages back through the history with Older and returns with Newer", async ({ page }) => {

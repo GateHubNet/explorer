@@ -508,6 +508,29 @@ describe("Tabs", () => {
     expect(soon.textContent).toContain("soon");
     expect(soon.tagName).not.toBe("A");
   });
+
+  it("gives a link its rel, and calls its onIntent once when the pointer enters it and once when it takes the focus", () => {
+    const onIntent = vi.fn();
+    const withIntent = [...items.slice(0, 2), { id: "analytics", label: "Analytics", href: "?tab=analytics", rel: "nofollow", onIntent }];
+    renderInRouter(<Tabs label="Account activity" items={withIntent} current="payments" />);
+    const nav = screen.getByRole("navigation", { name: "Account activity" });
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((a) => [a.textContent, a.getAttribute("rel")])).toEqual([
+      ["Transactions", null],
+      ["Payments", null],
+      ["Analytics", "nofollow"],
+    ]);
+    expect(onIntent).not.toHaveBeenCalled();
+
+    fireEvent.pointerEnter(links[2]!);
+    expect(onIntent).toHaveBeenCalledTimes(1);
+    fireEvent.focus(links[2]!);
+    expect(onIntent).toHaveBeenCalledTimes(2);
+    // The other tabs have none: entering them warms nothing.
+    fireEvent.pointerEnter(links[0]!);
+    fireEvent.focus(links[0]!);
+    expect(onIntent).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("Pager", () => {

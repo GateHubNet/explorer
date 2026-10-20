@@ -626,20 +626,21 @@ describe("the active XRPL account", () => {
     expect(textOf(html)).toContain("4 transactions");
   });
 
-  it("has the five tabs as links and the Analytics tab as a disabled one with 'soon'", async () => {
+  it("has the six tabs as links, Analytics with rel=nofollow (ACCOUNT_ANALYTICS is on here; account-analytics-off.spec.ts has it off)", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(path);
     const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
     expect(nav).not.toBeNull();
-    const tabs = anchors(nav![1]!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"')]);
+    const tabs = anchors(nav![1]!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"'), /rel="([^"]*)"/.exec(a.attrs)?.[1] ?? null]);
     expect(tabs).toEqual([
-      ["Transactions", `/xrpl/account/${ACTIVE}`, true],
-      ["Payments", `/xrpl/account/${ACTIVE}?tab=payments`, false],
-      ["Trades", `/xrpl/account/${ACTIVE}?tab=trades`, false],
-      ["Offers", `/xrpl/account/${ACTIVE}?tab=offers`, false],
-      ["Objects", `/xrpl/account/${ACTIVE}?tab=objects`, false],
+      ["Transactions", `/xrpl/account/${ACTIVE}`, true, null],
+      ["Payments", `/xrpl/account/${ACTIVE}?tab=payments`, false, null],
+      ["Trades", `/xrpl/account/${ACTIVE}?tab=trades`, false, null],
+      ["Offers", `/xrpl/account/${ACTIVE}?tab=offers`, false, null],
+      ["Objects", `/xrpl/account/${ACTIVE}?tab=objects`, false, null],
+      ["Analytics", `/xrpl/account/${ACTIVE}?tab=analytics`, false, "nofollow"],
     ]);
-    expect(nav![1]).toMatch(/<span class="tabs__item is-soon" aria-disabled="true"><span>Analytics<\/span><span class="soon">soon<\/span><\/span>/);
+    expect(nav![1]).not.toContain("is-soon");
   });
 
   it("is stored as class live: 5 s at the edge, revalidated by the browser", async () => {
@@ -1222,7 +1223,7 @@ describe("paging", () => {
 // The URL
 
 describe("the query of the URL", () => {
-  it.each(["analytics", "bogus", "", "Payments", "transactions,payments"])("redirects an unknown ?tab=%j to the URL without it, class short", async (tab) => {
+  it.each(["bogus", "", "Payments", "Analytics", "transactions,payments"])("redirects an unknown ?tab=%j to the URL without it, class short", async (tab) => {
     mock = mockUpstream("xrpl");
     const response = await get(`/xrpl/account/${ACTIVE}?tab=${encodeURIComponent(tab)}`);
     await response.text();

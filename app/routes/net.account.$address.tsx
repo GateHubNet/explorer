@@ -1,7 +1,8 @@
 import { redirect } from "react-router";
 import { classicAddressToXAddress, isValidClassicAddress, isValidXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
-import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab } from "../domain/account-tabs";
+import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
+import { parseAnalyticsQuery } from "../domain/analytics-params";
 import { shortAddress } from "../domain/format";
 import {
   accountHeader,
@@ -17,7 +18,7 @@ import {
   paymentsList,
   tradesList,
   transactionsList,
-  type AccountPageData,
+  type AccountListPageData,
   type HistoryHeader,
   type ListContext,
   type Loaded,
@@ -83,7 +84,7 @@ async function within<T>(list: Promise<T>, ms: number, onTimeout: () => T): Prom
 }
 
 /** The data of the list of a tab that is read from the data API: transactions, payments, trades (paged) and the open offers. */
-function readList(api: DataApi, tab: AccountTab, ctx: ListContext): Promise<TabList> {
+function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList> {
   const query = { descending: true, limit: PAGE_SIZE, marker: ctx.marker };
   switch (tab) {
     case "transactions":
@@ -112,6 +113,10 @@ function readList(api: DataApi, tab: AccountTab, ctx: ListContext): Promise<TabL
  *   parameter that selects what the page shows) is a 302 to the URL without it, and so is a `marker` on a tab that has no pages. That only
  *   tidies those two: every route is keyed on its whole URL (the edge cache's key is the URL and the build ID), so a made-up `back`, `tag`
  *   or other parameter, on a marker URL or any other, is a page of its own, stored for as long as its class says.
+ * - **The Analytics tab** (`?tab=analytics`, spec 1.2 and 1.3) has one URL per view, and anything else is a 302 of class `short` before any
+ *   call: with `ACCOUNT_ANALYTICS` off, to the account page (as an unknown tab, without the rest of the query); with it on, to the view's
+ *   canonical URL (`tab=analytics`, then `period` when it is not the default). The view's loader is not built yet, so for now the canonical
+ *   URL leads to the account page too.
  * - **The first page of a tab** (no marker) is class `live`. The header is read side by side from the data API (creation, balances) and
  *   the node (`account_info`, `account_objects`, `server_state` for the reserves) and awaited. The list of the tab is a promise that
  *   streams in after it, and that never rejects: when it cannot be loaded it is a `failed` list, which the page shows as "Couldn't
@@ -136,7 +141,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     throw cached({ notFound: `account ${JSON.stringify(address.slice(0, 40))}` }, "short", { status: 404 });
   }
 
-  const search = new URL(request.url).searchParams;
+  const url = new URL(request.url);
+  const search = url.searchParams;
   const base = `/${network.id}/account/${address}`;
   const without = (...names: string[]) => {
     const rest = new URLSearchParams(search);
@@ -147,6 +153,14 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const tabParam = search.get("tab");
   if (search.has("tab") && !isAccountTab(tabParam)) return tidied(without("tab"));
   const tab: AccountTab = isAccountTab(tabParam) ? tabParam : "transactions";
+
+  if (tab === "analytics") {
+    if (!network.features.accountAnalytics) return tidied(base);
+    // The query as it came (`url.search`), not as `URLSearchParams` writes it again: an escaped spelling of the canonical query is redirected.
+    const view = parseAnalyticsQuery(url.search);
+    if ("canonical" in view) return tidied(`${base}?${view.canonical}`);
+    return tidied(base);
+  }
 
   const markerParam = search.get("marker");
   if (markerParam !== null && !PAGED_TABS.includes(tab)) return tidied(without("marker", "back"));
@@ -167,6 +181,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     tab,
     tag,
     qr: { size: code.size, path: qrPath(code), content, tag },
+    analyticsTab: network.features.accountAnalytics,
   };
   const ctx: ListContext = { net: network.id, native: network.native, address, marker, back: marker === undefined ? [] : parseTrail(search.get("back")) };
 
@@ -175,7 +190,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     : historyPage(context, network, tab, ctx, common);
 }
 
-type Common = Pick<AccountPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr">;
+type Common = Pick<AccountListPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab">;
 
 /**
  * A page of old history: awaited whole, class `MARKER_PAGE_CLASS`, and nothing but the list. It does not ask for the creation record: that
@@ -183,7 +198,7 @@ type Common = Pick<AccountPageData, "kind" | "address" | "native" | "tab" | "tag
  * first ledger (it is filled by range), whose first page shows it as active all the same. The page does not exist when the API refuses
  * the marker or when there is nothing behind it.
  */
-async function historyPage(context: Route.LoaderArgs["context"], network: Network, tab: AccountTab, ctx: ListContext, common: Common) {
+async function historyPage(context: Route.LoaderArgs["context"], network: Network, tab: ListTab, ctx: ListContext, common: Common) {
   const { api } = clientsFor(context, network);
   let list: TabList;
   try {
@@ -200,7 +215,7 @@ async function historyPage(context: Route.LoaderArgs["context"], network: Networ
   }
 
   const header: HistoryHeader = { status: "history" };
-  const page: AccountPageData = { ...common, mode: "history", header, list };
+  const page: AccountListPageData = { ...common, mode: "history", header, list };
   return cached(page, MARKER_PAGE_CLASS);
 }
 
@@ -209,7 +224,7 @@ async function firstPage(
   context: Route.LoaderArgs["context"],
   request: Request,
   network: Network,
-  tab: AccountTab,
+  tab: ListTab,
   ctx: ListContext,
   common: Common,
 ) {
@@ -311,7 +326,7 @@ async function firstPage(
     list = failedList("objects");
   }
 
-  const page: AccountPageData = { ...common, mode: "live", header, list };
+  const page: AccountListPageData = { ...common, mode: "live", header, list };
   return cached(page, "live");
 }
 

@@ -8,12 +8,13 @@
 
 import BigNumber from "bignumber.js";
 
-import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab } from "../domain/account-tabs";
+import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
+import type { AnalyticsData } from "./analytics-view";
 import type { AccountData, AccountExchange, BalancesResponse, OrdersResponse, Page, Payment, TxObject } from "./api-types";
 import type { NetworkId } from "./networks";
 import { RIPPLE_EPOCH_OFFSET, type AccountInfo, type AccountObjects, type LedgerObject, type ServerState } from "./node-rpc";
@@ -22,7 +23,7 @@ import { UpstreamError } from "./upstream";
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tabs and the URL
 
-export { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab };
+export { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
 
 /** The tabs whose list is paged by marker; the offers and the objects are read live and have one page. */
 export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades"];
@@ -686,13 +687,14 @@ export type TabList =
   | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean }
   | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null };
 
-/** What each tab is called in "Couldn't load transactions". */
+/** What each tab is called in "Couldn't load transactions"; the analytics view's whole-view error is "Couldn't load the analytics." */
 export const TAB_WHAT: Record<AccountTab, string> = {
   transactions: "transactions",
   payments: "payments",
   trades: "trades",
   offers: "offers",
   objects: "objects",
+  analytics: "the analytics",
 };
 
 export interface ListContext {
@@ -754,7 +756,7 @@ export function objectsList(objects: AccountObjects | null, native: Native): Tab
   return { state: "ok", tab: "objects", ...objectRows(objects.account_objects, native), truncated: objects.marker !== undefined, ledgerIndex: objects.ledger_index };
 }
 
-export function failedList(tab: AccountTab): TabList {
+export function failedList(tab: ListTab): TabList {
   return { state: "failed", what: TAB_WHAT[tab] };
 }
 
@@ -779,24 +781,44 @@ export interface QrPicture {
   tag: number | null;
 }
 
-/**
- * What the account page is drawn from. `mode` is `live` for the first page of a list (the header is read from the node and the
- * index) and `history` for a page reached with a marker. On the first page `list` is a promise that settles after the header
- * has been sent (it never rejects: a failure is a `TabList` of state `failed`); on a page with a marker it is there already.
- */
-export interface AccountPageData {
+/** What every account page is drawn from, whatever its tab. */
+interface AccountPageBase {
   kind: "account";
-  mode: "live" | "history";
   address: string;
   /** The network's native currency, for the page's title and description. */
   native: Native;
-  tab: AccountTab;
   /** The destination tag of the X-address the visitor came from, if the URL had a valid one. */
   tag: number | null;
   qr: QrPicture;
+  /**
+   * Whether the Analytics tab is a link (`ACCOUNT_ANALYTICS` is on) or the "soon" label: read from the switch by the loader and carried in
+   * the page data, so that the stored HTML, the server's tab bar and the browser's agree.
+   */
+  analyticsTab: boolean;
+}
+
+/**
+ * A page of a tab that shows a list. `mode` is `live` for the first page of a list (the header is read from the node and the index) and
+ * `history` for a page reached with a marker. On the first page `list` is a promise that settles after the header has been sent (it never
+ * rejects: a failure is a `TabList` of state `failed`); on a page with a marker it is there already.
+ */
+export interface AccountListPageData extends AccountPageBase {
+  tab: ListTab;
+  mode: "live" | "history";
   header: AccountHeader | HistoryHeader;
   list: TabList | Promise<TabList>;
 }
+
+/** The Analytics tab (spec 1.5): always live mode, its header that of the first page, and the view's parts as promises that never reject. */
+export interface AccountAnalyticsPageData extends AccountPageBase {
+  tab: "analytics";
+  mode: "live";
+  header: AccountHeader;
+  analytics: AnalyticsData;
+}
+
+/** What the account page is drawn from: a list tab's page or the analytics view. */
+export type AccountPageData = AccountListPageData | AccountAnalyticsPageData;
 
 /** The page for an address nothing ever funded (a 404 of class `short`). */
 export interface NeverActivatedData {

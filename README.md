@@ -623,13 +623,17 @@ fails if the page's files import them as values).
 `/{net}/account/{address}` (`routes/net.account.$address.tsx`, a child of the `/:net` layout): the loader asks the clients,
 `app/server/account-view.ts` works out what the page shows, and `app/ui/pages/AccountPage.tsx` draws it (with `Identicon`, `QrButton`
 and the tabs of `Tabs`). The tabs are `?tab=transactions|payments|trades|offers|objects` (each a link, so each works without
-JavaScript); Analytics is a disabled tab that says "soon". Lists are newest first, 20 a page, with Newer and Older.
+JavaScript); Analytics (`?tab=analytics`) is a `rel="nofollow"` link while `ACCOUNT_ANALYTICS` is on and the disabled "soon" tab while it
+is off. Lists are newest first, 20 a page, with Newer and Older.
 
 | Request | Answer | Class |
 |---|---|---|
 | an X-address | 302 to the classic address, with `?tag=N` for its tag | `immutable` |
 | an address that is not an account | 404 without a call, noindex | `short` |
 | an unknown `?tab=`, or a `marker` on Offers or Objects (they have no pages) | 302 to the URL without it | `short` |
+| `?tab=analytics…` with `ACCOUNT_ANALYTICS` off | 302 to `/{net}/account/{address}`, without a call | `short` |
+| `?tab=analytics…` with it on, in any query but the view's canonical one (`tab=analytics`, then `period` when it is not `30d`; compared as it came, so an escaped spelling is redirected too) | 302 to the canonical URL, without a call | `short` |
+| `?tab=analytics…`'s canonical URL, until the view's loader is built | 302 to `/{net}/account/{address}`, without a call | `short` |
 | the first page of a tab | the page; header read from the data API (creation, balances) and the node (`account_info`, `account_objects` with `limit: 400`, `server_state`), the list **streamed** after it | `live` |
 | a page reached with a `marker` | the page, awaited whole: the list and nothing else (no live state, no activation, and the creation record is not asked for); `noindex, follow` | `slow` (`MARKER_PAGE_CLASS`, see below) |
 | a marker the API refuses (400), that is not base64url, or that has nothing behind it (an empty list) | 404 | `short` |
@@ -1199,7 +1203,7 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 |---|---|
 | `search.spec.ts` | A pasted hash with its noise (`0x`, lower case, spaces) shows its hint and leads to the transaction; a hint leads to an account and `/` focuses the header's box; a grouped ledger index (`107,720,688`); the box as a plain form with JavaScript off; a hash of the other network, the 404 and the "Search on Xahau" offer; an address never activated |
 | `ledger.spec.ts` | Xahau 26540187 → next (26540188) → previous, in the page (no new document), by the links named `26,540,188, next ledger`; the type filter |
-| `account.spec.ts` | The tabs (Transactions, Payments, Trades, Offers, Objects; Analytics is not a link); Older and Newer on Transactions (four rows, two rows, four rows; the marker page shows no live state) and on Payments, which keep the tab; the balance, the token and the reserve |
+| `account.spec.ts` | The tabs (Transactions, Payments, Trades, Offers, Objects; Analytics is a `rel="nofollow"` link, the "soon" label when `E2E_FEATURES_OFF` lists `ACCOUNT_ANALYTICS`); Older and Newer on Transactions (four rows, two rows, four rows; the marker page shows no live state) and on Payments, which keep the tab; the balance, the token and the reserve |
 | `network.spec.ts` | The switch goes to the other network's home, changes `data-net` and the title, writes the `net` cookie, and `/` then redirects to it; `/` without a cookie is XRPL; an unknown network is a 404 |
 | `network-page.spec.ts` | The network page, reading the fixtures and changing none: "Network" in the header leads to `/xrpl/network` in one document and is the current item (`aria-current="page"`); with JavaScript off the 30 columns are drawn and checking Table hides the chart and shows 31 rows; "1 year" changes the URL to `?period=1y`, draws 52 columns, adds `noindex`, drops the canonical link and Back restores them; "USD" sets `in=usd`, and `/xahau/network` has no "Amounts in"; a pointer over the stacked chart shows a tooltip with the date and "total", and Tab to its slider then Arrow Left changes `aria-valuenow` and the text it says; the AMM line and its legend entry are there (or, with `AMM_DATA` in `E2E_FEATURES_OFF`, the `off` wording); the newest column's tooltip reads "Oct 17, 2026, so far" and the volume card notes "Oct 17 is not computed yet." (skipped against a real stack, which has another day) |
 | `theme.spec.ts` | See below |
