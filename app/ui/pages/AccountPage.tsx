@@ -1,5 +1,5 @@
 import { Suspense, type ReactNode } from "react";
-import { Await, Link, useRevalidator } from "react-router";
+import { Await, Link } from "react-router";
 
 import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab } from "../../domain/account-tabs";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
@@ -24,7 +24,8 @@ import { Card } from "../components/Card";
 import { CopyButton } from "../components/CopyButton";
 import { DataTable, type Column } from "../components/DataTable";
 import { Identicon } from "../components/Identicon";
-import { AlertIcon, CheckIcon } from "../components/icons";
+import { CheckIcon } from "../components/icons";
+import { LiveStateNotice } from "../components/LiveStateNotice";
 import { Notice } from "../components/Notice";
 import { Pager } from "../components/Pager";
 import { QrButton } from "../components/QrButton";
@@ -35,6 +36,7 @@ import { Tabs, type TabItem } from "../components/Tabs";
 import { TypeTag } from "../components/TypeTag";
 import { ResultPill } from "../components/Pill";
 import type { NetworkInfo } from "../networks";
+import { useRetry } from "../use-retry";
 import { NotFoundPage } from "./NotFoundPage";
 
 /** Tokens listed before "Show N more". */
@@ -55,12 +57,6 @@ const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 
 function whenOf(time: number): { date: string; clock: string; full: string } {
   const full = formatUtc(time);
   return { date: full.slice(0, 10), clock: full.slice(11, 19), full };
-}
-
-/** Retry of a section that could not be loaded: the route's own data is fetched again, in the browser, from the explorer's own Worker. */
-function useRetry() {
-  const revalidator = useRevalidator();
-  return { retry: () => void revalidator.revalidate(), retrying: revalidator.state !== "idle" };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -88,7 +84,12 @@ export function AccountPage({ network, data }: { network: NetworkInfo; data: Acc
           This account was deleted from the ledger, so it has no balance or live state any more. Its history is below.
         </Notice>
       )}
-      {(header.status === "active" || header.status === "deleted") && header.nodeProblem && <LiveStateNotice />}
+      {(header.status === "active" || header.status === "deleted") && header.nodeProblem && (
+        <LiveStateNotice role="status">
+          The network node did not answer, so what it tells (the sequence, flags, reserve and owned objects) is missing. The history below is from the
+          explorer&rsquo;s index and is not affected.
+        </LiveStateNotice>
+      )}
 
       <Breadcrumbs
         items={[
@@ -139,25 +140,6 @@ function TagNote({ tag }: { tag: number }) {
       The address you opened includes a destination tag. When you send to this account, enter <span className="mono num">{tag}</span> as the
       destination tag, or the payment may not reach the right person.
     </Notice>
-  );
-}
-
-function LiveStateNotice() {
-  const { retry, retrying } = useRetry();
-  return (
-    <div className="notice notice--warning" role="status">
-      <span className="notice__icon">
-        <AlertIcon />
-      </span>
-      <div className="notice__body">
-        <strong className="notice__title">Live state unavailable</strong>
-        The network node did not answer, so what it tells (the sequence, flags, reserve and owned objects) is missing. The history below is from the
-        explorer&rsquo;s index and is not affected.
-      </div>
-      <button type="button" className="btn" onClick={retry} disabled={retrying}>
-        {retrying ? "Retrying…" : "Retry"}
-      </button>
-    </div>
   );
 }
 

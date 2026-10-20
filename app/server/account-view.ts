@@ -11,10 +11,10 @@ import BigNumber from "bignumber.js";
 import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab } from "../domain/account-tabs";
 import { describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
+import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
 import type { AccountData, AccountExchange, BalancesResponse, OrdersResponse, Page, Payment, TxObject } from "./api-types";
-import { isMarker } from "./marker";
 import type { NetworkId } from "./networks";
 import { RIPPLE_EPOCH_OFFSET, type AccountInfo, type AccountObjects, type LedgerObject, type ServerState } from "./node-rpc";
 import { UpstreamError } from "./upstream";
@@ -29,8 +29,8 @@ export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "t
 
 /** Rows of a page of a list. */
 export const PAGE_SIZE = 20;
-/** The pages before the current one that a URL remembers, so that Newer can go back to the one before. */
-export const MAX_TRAIL = 10;
+
+export { MAX_TRAIL, parseTrail, type Paging };
 
 const UINT32_MAX = 4294967295;
 
@@ -44,40 +44,16 @@ export function parseTag(text: string | null): number | null {
   return tag <= UINT32_MAX ? tag : null;
 }
 
-/** The markers of `?back=`: the pages newer than this one, nearest first, joined by dots. Anything that is not that is no trail. */
-export function parseTrail(text: string | null): string[] {
-  if (text === null || text === "") return [];
-  const pieces = text.split(".");
-  return pieces.length <= MAX_TRAIL && pieces.every(isMarker) ? pieces : [];
-}
-
-export interface Paging {
-  newerHref: string | null;
-  olderHref: string | null;
-}
-
 /**
- * The Newer and Older links of a page of a list. Older is the API's `next` marker. The API's markers only run towards older rows, so
- * a page can go back to the one before only if its URL remembers it: `marker` is how this page was reached, and `back` the markers
- * of the pages before it. A page reached with no trail (a link someone copied) goes back to the first page.
+ * The Newer and Older links of a page of a list (`trailPaging`, which the other paged lists share), written as the account page's URLs.
+ * A page reached with no trail (a link someone copied) goes back to the first page.
  */
 export function pagingOf(
   net: NetworkId,
   address: string,
   page: { tab: AccountTab; marker?: string; back: readonly string[]; next?: string },
 ): Paging {
-  const { tab, marker, back, next } = page;
-  const newerHref =
-    marker === undefined
-      ? null
-      : back.length === 0
-        ? accountHref(net, address, { tab })
-        : accountHref(net, address, { tab, marker: back[0], back: back.slice(1) });
-  const olderHref =
-    next === undefined
-      ? null
-      : accountHref(net, address, { tab, marker: next, back: marker === undefined ? [] : [marker, ...back].slice(0, MAX_TRAIL) });
-  return { newerHref, olderHref };
+  return trailPaging(page, (to) => accountHref(net, address, { tab: page.tab, ...to }));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
