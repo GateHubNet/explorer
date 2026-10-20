@@ -180,6 +180,22 @@ describe("the query of the URL", () => {
     expect(await storedAs(from)).toEqual({ cls: "short", ttl: 30 });
   });
 
+  it.each([
+    ["/xrpl/markets/", "/xrpl/markets", { cls: "immutable", ttl: 31_536_000 }, "max-age=60"],
+    ["/xrpl/Markets", "/xrpl/markets", { cls: "immutable", ttl: 31_536_000 }, "max-age=60"],
+    ["/xrpl/Markets/?period=24h&quote=USD", "/xrpl/markets?quote=usd", { cls: "short", ttl: 30 }, "max-age=0"],
+  ])("redirects the path %s to %s before any call, as the pair route does: one page in the edge cache", async (from, to, stored, browser) => {
+    mock = mockUpstream("xrpl");
+    const response = await get(from);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(to);
+    expect(response.headers.get("Cache-Control")).toBe(browser);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(from)).toEqual(stored);
+  });
+
   it("tidies the .data URL the same way: a redirect for React Router to follow, class short, with no call", async () => {
     mock = mockUpstream("xrpl");
     const path = "/xrpl/markets.data?_routes=routes%2Fnet.markets&period=24h";
@@ -196,7 +212,13 @@ describe("the query of the URL", () => {
     expect(await stored(path)).toBeUndefined();
     // The loader's own answer to that request names the class.
     const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
-    const own = (await loader({ request: new Request(`https://explorer.test${path}`), params: { net: "xrpl" }, context: createLoadContext(env as unknown as Env, ctx) } as never)) as Response;
+    // React Router hands the loader the URL without its `.data`.
+    const own = (await loader({
+      request: new Request(`https://explorer.test${path}`),
+      url: new URL(`https://explorer.test${path.replace(".data", "")}`),
+      params: { net: "xrpl" },
+      context: createLoadContext(env as unknown as Env, ctx),
+    } as never)) as Response;
     expect(own.status).toBe(302);
     expect(own.headers.get("Location")).toBe("/xrpl/markets");
     expect(own.headers.get("X-Cache-Class")).toBe("short");
@@ -358,6 +380,7 @@ describe("the page with AMM_DATA off (the route's loader, with a load context of
   const run = (path: string) =>
     loader({
       request: new Request(`https://explorer.test${path}`),
+      url: new URL(`https://explorer.test${path}`),
       params: { net: "xrpl" },
       context: createLoadContext({ ...(env as unknown as Env), AMM_DATA: "off" }, ctx),
     } as never);

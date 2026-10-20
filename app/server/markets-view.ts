@@ -54,7 +54,8 @@ export interface MarketRowView {
   /** Lower case: the pair as "base/counter", the raw codes and the issuers. The text filter matches a substring of it. */
   search: string;
   /**
-   * Each row's place (from 0) in an exact ascending sort of what the row shows, a tie keeping the API's order. `last`, `change` and `volume`
+   * Each row's place (from 0) in an exact ascending sort of what the row shows, equal values sharing the place of the first of them, so that
+   * the browser keeps the API's order among them in both directions (spec 2.4: a tie keeps the API's order). `last`, `change` and `volume`
    * are `null` for a row without one (a price that cannot be inverted, a missing change, a pair with no native volume), which the browser puts
    * last in both directions. The browser sorts by these integers and compares no decimal.
    */
@@ -133,12 +134,19 @@ function eightDigits(value: BigNumber): string {
   return value.precision(8, HALF_UP).toFixed();
 }
 
-/** The place of each value in an ascending sort, a tie keeping the order the values came in; `null` for a value that is not there. */
+/**
+ * The place of each value in an ascending sort, equal values sharing the place of the first of them (so that a sort either way can keep the
+ * order they came in); `null` for a value that is not there.
+ */
 function ranksOf(values: (BigNumber | null)[]): (number | null)[] {
   const listed = values.flatMap((value, at) => (value === null ? [] : [{ value, at }]));
   listed.sort((a, b) => a.value.comparedTo(b.value) || a.at - b.at);
   const ranks: (number | null)[] = values.map(() => null);
-  for (const [place, { at }] of listed.entries()) ranks[at] = place;
+  let place = 0;
+  for (const [index, { value, at }] of listed.entries()) {
+    if (index > 0 && !value.eq(listed[index - 1]!.value)) place = index;
+    ranks[at] = place;
+  }
   return ranks;
 }
 
@@ -389,11 +397,11 @@ export function marketsPage(input: MarketsInput): MarketsPageData {
   const ammState = ammStateOf(network);
   // The Trades filter is a parameter only where it exists; a link or a title never names one that is not there.
   const params: MarketsParams = { ...input.params, trades: ammState === "on" ? input.params.trades : null };
-  const tradesShown = ammState === "on" && answer.totals?.amm_share !== undefined;
-  // While the filter is not shown the other filters' links drop it, so that a view filtered by it can be left.
-  const linkTrades = tradesShown ? params.trades : null;
+  // P19: the filter is offered only once the window's AMM data is complete (`totals.amm_share`). A view already filtered by it is a canonical
+  // view (a bookmark, a shared link) and always shows it, so that it is named and can be left.
+  const tradesShown = ammState === "on" && (params.trades !== null || answer.totals?.amm_share !== undefined);
   const link = (change: Partial<MarketsParams>): string =>
-    marketsHref(network.id, { period: params.period, quote: params.quote, trades: linkTrades, ...change });
+    marketsHref(network.id, { period: params.period, quote: params.quote, trades: params.trades, ...change });
 
   const listed = answer.markets.flatMap((row) => {
     const stored = { base: sideOf(row.base_currency, row.base_issuer), counter: sideOf(row.counter_currency, row.counter_issuer) };

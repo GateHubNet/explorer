@@ -14,8 +14,8 @@ import { useNetwork } from "../ui/use-network";
 
 import type { Route } from "./+types/net.markets";
 
-// The loader names a cache class (`minute`), answers a 404 of class `short` while `MARKETS` is off, and tidies a query string with a redirect
-// of class `short`; a 503 it throws is not stored but replaced by the stored copy.
+// The loader names a cache class (`minute`), answers a 404 of class `short` while `MARKETS` is off, and tidies a path or a query string with a
+// redirect (`immutable` for the path alone, `short` with the query); a 503 it throws is not stored but replaced by the stored copy.
 export const headers = forwardCacheClass;
 
 // The header marks its Markets item as the page of the section (`aria-current="page"`).
@@ -28,9 +28,10 @@ const MARKETS_LIMIT = 1000;
  * `/{net}/markets` (markets spec 2): the trade statistics of every pair of the network's DEX over a period, from the data API's one markets call.
  *
  * - **Validation first** (spec 2.4). `MARKETS` off is the not-found page, a 404 of class `short`, for every view and before the query is read.
- *   A query that is not exactly the canonical form of the view it names (`period`, `quote`, `trades`: defaults, unknown values, repeats and
- *   other parameters dropped; the Trades filter only where `AMM_DATA` is on and the network has pools) is a 302 to the canonical URL, class
- *   `short`. The query is the request's own text (`queryOf`: React Router's `_routes` dropped, nothing decoded), so a `.data` request of a
+ *   A path that is not the route's own (`/xrpl/markets/`, `/xrpl/Markets`) is a 302 to it, as the pair route's (class `immutable`, or
+ *   `short` when the query is tidied too). A query that is not exactly the canonical form of the view it names (`period`, `quote`, `trades`:
+ *   defaults, unknown values, repeats and other parameters dropped; the Trades filter only where `AMM_DATA` is on and the network has pools)
+ *   is a 302 to the canonical URL, class `short`. The query is the request's own text (`queryOf`: React Router's `_routes` dropped, nothing decoded), so a `.data` request of a
  *   canonical view answers its data and not a redirect. No call is made before these.
  * - **One call** (#1, spec 2.3): `/v2/network/markets` for the period, at most `MARKETS_LIMIT` pairs, with `amm` for a Trades filter. Without it
  *   there is no page: any failure is a 503 (`upstreamOutage`: a "Cannot GET" of an API without the route is one), not stored. The page does not
@@ -38,7 +39,7 @@ const MARKETS_LIMIT = 1000;
  * - **The class is `minute`** (spec 2.5): the data API rewrites its sets every minute at most, and the page has no live refresh and no
  *   `clientLoader`.
  */
-export async function loader({ request, params, context }: Route.LoaderArgs) {
+export async function loader({ request, url, params, context }: Route.LoaderArgs) {
   const net = requireNetwork(context, params);
   if (!net.features.markets) throw cached({ notFound: "the markets pages" }, "short", { status: 404 });
 
@@ -47,9 +48,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     native: net.native,
     tradesAllowed: net.hasAmm && net.features.ammData,
   });
-  // The route has one path: what is compared is the query, with its `?`.
-  const path = marketsHref(net.id);
-  const tidied = redirectToCanonical({ path, search: search === "" ? "" : `?${search}` }, { path, search: canonical });
+  // The path as React Router has it (`.data` taken off), against the route's one path: `/xrpl/markets/` and `/xrpl/Markets` are the same
+  // page, and a redirect (class `immutable` when only the path changed) leaves the edge one copy of it and the header's exact match true.
+  const tidied = redirectToCanonical({ path: url.pathname, search: search === "" ? "" : `?${search}` }, { path: marketsHref(net.id), search: canonical });
   if (tidied) return tidied;
 
   const { api } = clientsFor(context, net);

@@ -479,6 +479,23 @@ describe("MarketsPage, sorting", () => {
     expect(countLine().textContent).toBe("4 pairs, by trades, largest first");
   });
 
+  it("keeps the API's order among rows of one rank, largest first and smallest first (spec 2.4: a tie keeps the API's order)", () => {
+    // Three pairs of 10 trades each (rank 0, shared) and one of 50, in the API's order: by volume, largest first.
+    const tied = [
+      row({ key: "P", pair: "PPP / XRP", trades: "10", ranks: { last: 0, change: 0, volume: 3, trades: 0 } }),
+      row({ key: "Q", pair: "QQQ / XRP", trades: "50", ranks: { last: 1, change: 1, volume: 2, trades: 3 } }),
+      row({ key: "R", pair: "RRR / XRP", trades: "10", ranks: { last: 2, change: 0, volume: 1, trades: 0 } }),
+      row({ key: "S", pair: "SSS / XRP", trades: "10", ranks: { last: 3, change: 0, volume: 0, trades: 0 } }),
+    ];
+    mount(page({ rows: tied }));
+    fireEvent.click(screen.getByRole("button", { name: "Trades" }));
+    expect(pairsShown().map((pair) => pair!.slice(0, 3))).toEqual(["QQQ", "PPP", "RRR", "SSS"]);
+    fireEvent.click(screen.getByRole("button", { name: "Trades" }));
+    expect(pairsShown().map((pair) => pair!.slice(0, 3))).toEqual(["PPP", "RRR", "SSS", "QQQ"]);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(pairsShown().map((pair) => pair!.slice(0, 3))).toEqual(["QQQ", "PPP", "RRR", "SSS"]);
+  });
+
   it("reverses the volume order on a press of Volume, which is the order it starts in, with the pair that has no volume still last", () => {
     mount(page());
     fireEvent.click(screen.getByRole("button", { name: "Volume (XRP)" }));

@@ -27,9 +27,10 @@ const SORT_WORDS: Record<SortKey, string> = { last: "last price", change: "chang
 const SERVER_ORDER: Sort = { key: "volume", dir: "descending" };
 
 /**
- * The rows in the order `sort` names, from the ranks the view builder wrote (each row's place in an exact ascending sort): integers, so the
- * browser compares no decimal. A row without a rank (no price, no change, no native volume) is last in both directions, the API's order
- * kept among such rows. Volume, largest first, is the API's own order, so it is the rows as they came.
+ * The rows in the order `sort` names, from the ranks the view builder wrote (each row's place in an exact ascending sort, equal values sharing
+ * one): integers, so the browser compares no decimal. Rows of one rank keep the API's order in both directions, and a row without a rank (no
+ * price, no change, no native volume) is last in both, the API's order kept among such rows. Volume, largest first, is the API's own order,
+ * so it is the rows as they came.
  */
 function sorted(rows: readonly MarketRowView[], sort: Sort): readonly MarketRowView[] {
   if (sort.key === SERVER_ORDER.key && sort.dir === SERVER_ORDER.dir) return rows;
@@ -38,7 +39,7 @@ function sorted(rows: readonly MarketRowView[], sort: Sort): readonly MarketRowV
     .map((row, at) => ({ row, at, rank: row.ranks[sort.key] }))
     .sort((a, b) => {
       if (a.rank === null || b.rank === null) return a.rank === b.rank ? a.at - b.at : a.rank === null ? 1 : -1;
-      return sign * (a.rank - b.rank);
+      return sign * (a.rank - b.rank) || a.at - b.at;
     })
     .map(({ row }) => row);
 }

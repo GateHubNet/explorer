@@ -371,8 +371,22 @@ describe("marketsPage: ranks", () => {
     expect(ranked[2]!.change).toBe(0);
   });
 
-  it("keeps the API's order among equal trade counts", () => {
-    expect(ranked.map((r) => r.trades)).toEqual([1, 2, 0]);
+  it("gives equal trade counts one rank, the place of the first of them", () => {
+    expect(ranked.map((r) => r.trades)).toEqual([1, 1, 0]);
+  });
+
+  it("gives three tied rows one rank, so that a sort either way keeps the API's order among them (spec 2.4)", () => {
+    // Three pairs of 10 trades each, in the API's order (by volume, largest first), and one of 50.
+    const tied = pageOf([
+      eurUsd({ count: 10, native_volume: "3000", change: "0.00" }),
+      usdXrp({ count: 50, native_volume: "2000", change: "1.00" }),
+      eurUsd({ count: 10, native_volume: "1000", counter_issuer: BS, change: "0.00" }),
+      eurUsd({ count: 10, native_volume: "500", base_issuer: GH, change: "0.00" }),
+    ]).rows;
+    expect(tied.map((row) => row.ranks.trades)).toEqual([0, 3, 0, 0]);
+    // The "0.00" changes tie too, above the XRP / USD row's, which falls when inverted.
+    expect(tied.map((row) => row.ranks.change)).toEqual([1, 0, 1, 1]);
+    expect(tied.map((row) => row.ranks.volume)).toEqual([3, 2, 1, 0]);
   });
 
   it("gives a row without a native volume no volume rank, and ranks the others by volume (exponent text included)", () => {
@@ -589,11 +603,17 @@ describe("marketsPage: the Trades filter", () => {
     expect(pageOf(rows, { network: XAHAU, totals: { amm_share: "0.0000" } }).filters.trades).toBeNull();
   });
 
-  it("is kept out of the other filters' links while it is not shown, so that a filtered view can be left", () => {
-    const data = pageOf(rows, { params: { period: "7d", trades: "amm" } });
-    expect(data.filters.trades).toBeNull();
-    expect(data.filters.period.map((link) => link.href)).toEqual(["/xrpl/markets", "/xrpl/markets?period=7d", "/xrpl/markets?period=30d"]);
-    expect(data.filters.quote[1]!.href).toBe("/xrpl/markets?period=7d&quote=xrp");
+  it("is shown on a view it filters even while the window's AMM data is incomplete, so that the view is named and can be left", () => {
+    const data = pageOf(rows, { params: { period: "7d", trades: "amm" }, over: { amm: "only" } });
+    expect(data.filters.trades).toEqual([
+      { label: "All", href: "/xrpl/markets?period=7d", current: false },
+      { label: "Order book", href: "/xrpl/markets?period=7d&trades=book", current: false },
+      { label: "AMM", href: "/xrpl/markets?period=7d&trades=amm", current: true },
+    ]);
+    expect(data.filters.period.map((link) => link.href)).toEqual(["/xrpl/markets?trades=amm", "/xrpl/markets?period=7d&trades=amm", "/xrpl/markets?period=30d&trades=amm"]);
+    expect(data.view).toEqual(["last 7 days", "AMM swaps"]);
+    // The unfiltered view of the same window still does not offer it (P19).
+    expect(pageOf(rows, { params: { period: "7d" } }).filters.trades).toBeNull();
   });
 
   it("is carried by the other filters' links while it is shown", () => {
