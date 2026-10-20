@@ -546,10 +546,33 @@ describe("the URL of the analytics view", () => {
     ["an escaped spelling of the tab", "tab=%61nalytics", "tab=analytics"],
     ["an escaped spelling of the period", "tab=analytics&period=%31y", "tab=analytics&period=1y"],
     ["an empty parameter", "tab=analytics&", "tab=analytics"],
+    // On a page's URL, `_routes` is a parameter like any other; only React Router's own data request carries it as its own (below).
+    ["React Router's `_routes` on a page's URL", "tab=analytics&_routes=routes%2Fnet.account.%24address", "tab=analytics"],
   ])("redirects %s (?%s) to its canonical URL, class short, without a call", async (_what, query, canonical) => {
     const path = `${base}?${query}`;
     expect(await redirectOf(path)).toEqual({ status: 302, location: `${base}?${canonical}`, requests: [] });
     expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  // A client-side navigation to the view (its tab, a period of the filter row) asks for `{path}.data?{query}&_routes={the routes to load}`. The
+  // `_routes` is React Router's, and not the view's: were it read as part of the query, the canonical URL would redirect to itself, and the
+  // browser would follow it until the visitor's limit answered 429.
+  it("answers a client-side navigation's data request for the canonical URL with the view's data, not with a redirect to itself", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`${base}.data?tab=analytics&period=1y&_routes=routes%2Fnet.account.%24address`);
+    const body = await response.text();
+    expect(response.status, body.slice(0, 300)).toBe(200);
+    expect(body).not.toContain("SingleFetchRedirect");
+    expect(body).toContain("Transactions this account sent; a failed one still paid its fee.");
+  });
+
+  it("still redirects a data request whose query is not the canonical one, `_routes` aside", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`${base}.data?period=1y&tab=analytics&_routes=routes%2Fnet.account.%24address`);
+    const body = await response.text();
+    expect(body).toContain("SingleFetchRedirect");
+    expect(body).toContain(`${base}?tab=analytics&period=1y`);
+    expect(mock.requests).toEqual([]);
   });
 
   it("redirects on Xahau to Xahau's canonical URL", async () => {

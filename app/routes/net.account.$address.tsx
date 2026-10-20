@@ -110,6 +110,14 @@ function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList
   }
 }
 
+/** A query as it came, without the `_routes` parameter that React Router's client adds to a data request (`{path}.data?…`). */
+const withoutRoutesParam = (search: string) =>
+  search
+    .replace(/^\?/, "")
+    .split("&")
+    .filter((part) => !/^_routes(=|$)/.test(part))
+    .join("&");
+
 /**
  * `/{net}/account/{address}` (spec 2, 3, 7.2, 10).
  *
@@ -164,7 +172,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (tab === "analytics") {
     if (!network.features.accountAnalytics) return tidied(base);
     // The query as it came (`url.search`), not as `URLSearchParams` writes it again: an escaped spelling of the canonical query is redirected.
-    const view = parseAnalyticsQuery(url.search);
+    // A client-side navigation asks for `{path}.data?{query}&_routes={ids}`: that `_routes` is React Router's, not the view's, and read as the
+    // view's it would make the canonical URL redirect to itself, which the browser would follow until the visitor's limit said 429.
+    const view = parseAnalyticsQuery(url.pathname.endsWith(".data") ? withoutRoutesParam(url.search) : url.search);
     if ("canonical" in view) return tidied(`${base}?${view.canonical}`);
     // The canonical query has no `tag`: the view's QR code is the classic address.
     return analyticsPage(context, request, network, view.period, { ...pageBase(network, address, null), tab }, started + CARD_DEADLINE_MS);
