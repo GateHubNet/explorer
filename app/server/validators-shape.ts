@@ -27,7 +27,8 @@ type Row = Record<string, unknown>;
 
 const WHOLE_UNITS = /^\d+(\.\d+)?$/;
 const SCORE = /^\d\.\d{4}$/;
-const AMENDMENT_ID = /^[0-9A-F]{64}$/;
+/** An amendment's ID, and the hash of an EnableAmendment: 64 hex digits in upper case. */
+const HASH = /^[0-9A-F]{64}$/;
 /** The hash of a validated ledger. D1 compares these without regard to case (it takes them as the collector stored them), so either is taken. */
 const LEDGER_HASH = /^[0-9A-Fa-f]{64}$/;
 const SERVER_VERSION = /^\d+$/;
@@ -35,7 +36,6 @@ const SERVER_VERSION = /^\d+$/;
 const TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z)?$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-const isText = (value: unknown): value is string => typeof value === "string";
 /** A name that is there: a domain, a version, a description. */
 const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
@@ -49,7 +49,7 @@ const isScore = (value: unknown): value is string => typeof value === "string" &
 const isKey = (value: unknown): value is string => typeof value === "string" && isNodePublicKey(value);
 /** The signing key of a validation: D1 reads it from the collector's `ephemeral_public_key`, a column that can be empty. */
 const isKeyOrEmpty = (value: unknown): value is string => value === "" || isKey(value);
-const isAmendmentId = (value: unknown): value is string => typeof value === "string" && AMENDMENT_ID.test(value);
+const isHash = (value: unknown): value is string => typeof value === "string" && HASH.test(value);
 const isLedgerHash = (value: unknown): value is string => typeof value === "string" && LEDGER_HASH.test(value);
 /** A word out of a fixed set. */
 const oneOf =
@@ -151,7 +151,7 @@ class Shape {
 
   /** An amendment as the list has it; `where` says which, and `row` is the object (the list's member, or the whole answer of one amendment). */
   amendment(where: string, row: Row): void {
-    this.fields(where, row, ["id"], isAmendmentId, "an ID of 64 hex digits in upper case");
+    this.fields(where, row, ["id"], isHash, "64 hex digits in upper case");
     this.fields(where, row, ["status"], oneOf(...AMENDMENT_STATUSES), "a status");
     this.optional(where, row, ["name", "introduced", "xls", "xls_url", "description"], isName, "text");
     this.optional(where, row, ["retired"], (value) => value === true, "true");
@@ -165,14 +165,14 @@ class Shape {
       const majority = this.object(`${where}.majority`, row.majority);
       this.fields(`${where}.majority`, majority, ["since", "expected_activation"], isTime, "a time");
       this.optional(`${where}.majority`, majority, ["ledger_index"], isWhole, "a whole number");
-      this.optional(`${where}.majority`, majority, ["tx_hash"], isAmendmentId, "a hash of 64 hex digits in upper case");
+      this.optional(`${where}.majority`, majority, ["tx_hash"], isHash, "64 hex digits in upper case");
     }
     if (row.enabled !== undefined) {
       const enabled = this.object(`${where}.enabled`, row.enabled);
       this.fields(`${where}.enabled`, enabled, ["source"], oneOf("ledger", "metadata"), "ledger or metadata");
       this.optional(`${where}.enabled`, enabled, ["ledger_index"], isWhole, "a whole number");
       this.optional(`${where}.enabled`, enabled, ["date"], isTime, "a time");
-      this.optional(`${where}.enabled`, enabled, ["tx_hash"], isAmendmentId, "a hash of 64 hex digits in upper case");
+      this.optional(`${where}.enabled`, enabled, ["tx_hash"], isHash, "64 hex digits in upper case");
     }
   }
 
@@ -216,13 +216,13 @@ class Shape {
     if (detail) this.optional(here, votes, ["ledger_index"], isWhole, "a whole number");
     else this.fields(here, votes, ["ledger_index"], isWhole, "a whole number");
     for (const [index, yes] of this.rows(here, votes, "yes").entries()) {
-      this.fields(`${here}.yes[${index}]`, yes, ["id"], isAmendmentId, "an ID of 64 hex digits in upper case");
+      this.fields(`${here}.yes[${index}]`, yes, ["id"], isHash, "64 hex digits in upper case");
       this.optional(`${here}.yes[${index}]`, yes, ["name"], isName, "text");
     }
     if (!detail) return;
     for (const [index, vote] of this.rows(here, votes, "votes").entries()) {
       const where = `${here}.votes[${index}]`;
-      this.fields(where, vote, ["id"], isAmendmentId, "an ID of 64 hex digits in upper case");
+      this.fields(where, vote, ["id"], isHash, "64 hex digits in upper case");
       this.optional(where, vote, ["name"], isName, "text");
       this.fields(where, vote, ["status"], oneOf("voting", "majority", "unknown"), "voting, majority or unknown");
       this.fields(where, vote, ["vote"], oneOf("yes", "no", "none"), "yes, no or none");
@@ -328,8 +328,8 @@ export function checkValidatorValidations(body: unknown, path: string): Validato
   for (const [index, row] of s.rows("", head, "validations").entries()) {
     const where = `validations[${index}]`;
     s.fields(where, row, ["ledger_index", "count"], isWhole, "a whole number");
-    s.fields(where, row, ["ledger_hash"], isLedgerHash, "a hash of 64 hex digits");
-    s.optional(where, row, ["validated_hash"], isLedgerHash, "a hash of 64 hex digits");
+    s.fields(where, row, ["ledger_hash"], isLedgerHash, "64 hex digits");
+    s.optional(where, row, ["validated_hash"], isLedgerHash, "64 hex digits");
     s.fields(where, row, ["validated"], oneOf("matches", "different", "unknown"), "matches, different or unknown");
     s.fields(where, row, ["full"], isBoolean, "a boolean");
     s.fields(where, row, ["signing_key"], isKeyOrEmpty, "a node public key");
@@ -369,7 +369,7 @@ export function checkAmendmentDetail(body: unknown, path: string): AmendmentDeta
     s.fields(where, event, ["event"], oneOf("got_majority", "lost_majority", "enabled"), "got_majority, lost_majority or enabled");
     s.fields(where, event, ["ledger_index"], isWhole, "a whole number");
     s.fields(where, event, ["date"], isTime, "a time");
-    s.fields(where, event, ["tx_hash"], isAmendmentId, "a hash of 64 hex digits in upper case");
+    s.fields(where, event, ["tx_hash"], isHash, "64 hex digits in upper case");
   }
   return body as AmendmentDetail;
 }
