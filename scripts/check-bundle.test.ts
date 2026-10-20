@@ -57,7 +57,18 @@ function fakeBuild(options: {
   headers?: string | null;
   extra?: Record<string, string | Buffer>;
   manifest?: boolean;
+  /** The two chunks every page loads (scripts/shell-chunks.ts): the root route imports `vendor` and `shell`, the entry `vendor`. */
+  shell?: boolean;
 }): { dir: string; sizes: Map<string, number> } {
+  if (options.shell) {
+    const { routes, entry } = options;
+    options = {
+      ...options,
+      chunks: [...options.chunks, { name: "vendor-abc123.js", size: 900 }, { name: "shell-abc123.js", size: 800 }],
+      routes: routes.map((route) => (route.id === "root" ? { ...route, imports: [...(route.imports ?? []), "vendor-abc123.js", "shell-abc123.js"] } : route)),
+      entry: { module: entry?.module ?? "entry.js", imports: [...(entry?.imports ?? []), "vendor-abc123.js"] },
+    };
+  }
   const dir = mkdtempSync(join(tmpdir(), "t15b-check-bundle-"));
   dirs.push(dir);
   mkdirSync(join(dir, "assets"));
@@ -357,10 +368,29 @@ describe("the command", () => {
   const run = (dir: string) => spawnSync("pnpm", ["exec", "tsx", script, dir], { encoding: "utf8", cwd: dirname(script) });
 
   it("prints the table and exits 0 for a build within the budget", () => {
-    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, shell: true });
     const result = run(dir);
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+  }, 30_000);
+
+  it("exits 1 for a build without the vendor and shell chunks (a build from before scripts/shell-chunks.ts), and says so", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
+    const result = run(dir);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(result.stdout).toContain("the root route imports 0 vendor-*.js chunks, not one");
+    expect(result.stdout).toContain("the root route imports 0 shell-*.js chunks, not one");
+  }, 30_000);
+
+  it("exits 1 for a build that is not there, or has no manifest, and says so", () => {
+    const missing = run(join(tmpdir(), "t15b-no-such-build"));
+    expect(missing.status).toBe(1);
+    expect(missing.stdout).toMatch(/not a client build \(no assets\/ directory\): run pnpm build first/);
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, manifest: false, shell: true });
+    const noManifest = run(dir);
+    expect(noManifest.status).toBe(1);
+    expect(noManifest.stdout).toMatch(/expected one manifest-\*\.js in .*, found 0/);
   }, 30_000);
 
   it("prints what is wrong and exits 1 for a build over it", () => {
@@ -398,7 +428,7 @@ describe("the command", () => {
 
     it.each(["file", "directory"] as const)("still passes a build that is within the budget (a link to the %s)", (kind) => {
       const { entry } = linked(kind);
-      const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
+      const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, shell: true });
       const result = runLinked(entry, dir);
       expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
       expect(result.status).toBe(0);

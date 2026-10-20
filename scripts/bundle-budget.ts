@@ -84,7 +84,7 @@ interface ManifestRoute {
   imports?: string[];
 }
 
-interface Manifest {
+export interface Manifest {
   entry: { module: string; imports?: string[] };
   routes: Record<string, ManifestRoute>;
 }
@@ -115,7 +115,8 @@ function filesBelow(dir: string): string[] {
     .sort();
 }
 
-function readManifest(dir: string, problems: string[]): { manifest: Manifest; file: string } | undefined {
+/** The route manifest of the build in `dir` (`assets/manifest-*.js`), or `undefined` with what is wrong added to `problems`. */
+export function readManifest(dir: string, problems: string[]): { manifest: Manifest; file: string } | undefined {
   let names: string[];
   try {
     names = readdirSync(join(dir, "assets")).filter((name) => /^manifest-.*\.js$/.test(name));

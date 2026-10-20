@@ -1,12 +1,10 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { useRef } from "react";
-import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { END_LABEL_GUTTER_PX, niceScale } from "./geometry";
 import { cx } from "../cx";
-import { useHydrated } from "../use-hydrated";
 import { Plot, usePlotMark, usePlotRing, type PlotProps } from "./Plot";
 import { tickLabel } from "./labels";
 import type { TimeAxis } from "./types";
@@ -599,7 +597,7 @@ describe("usePlotRing", () => {
   });
 });
 
-describe("usePlotMark and useHydrated", () => {
+describe("usePlotMark", () => {
   function Mark({ token }: { token: string }) {
     return <output>{String(usePlotMark(token))}</output>;
   }
@@ -613,17 +611,5 @@ describe("usePlotMark and useHydrated", () => {
     expect(container.textContent).toBe("true");
     rerender(<Mark token="b" />);
     expect(container.textContent).toBe("true");
-  });
-
-  function Hydrated() {
-    return <output>{String(useHydrated())}</output>;
-  }
-
-  it("useHydrated is false in the Worker's HTML and during hydration, and true after", async () => {
-    expect(renderToString(<Hydrated />)).toContain("false");
-    const { html, container, errors } = await serverThenHydrated(<Hydrated />);
-    expect(html).toContain("false");
-    expect(container.textContent).toBe("true");
-    expect(errors).toEqual([]);
   });
 });

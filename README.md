@@ -810,7 +810,9 @@ page's tags are made with (`metaContext`, the absolute URLs, `sharing`); each pa
 (`meta-home.ts`, `meta-network.ts`, `meta-markets.ts`, `meta-transaction.ts`, `meta-ledger.ts`, `meta-account.ts`), which that page's route
 alone imports. A module every route imports is in a chunk every page loads, so one module of all the builders put each page's builder in
 every page's JavaScript (1.1 to 1.6 KB of each figure, growing with each page). A new page's builder goes in a new `meta-<page>.ts`
-(`test/unit/meta-bundle.test.ts` fails a builder in `meta.ts` and a builder module that another page imports).
+(`test/unit/meta-bundle.test.ts` holds `meta.ts` to the list of names it may export, in whatever form they are exported, and to no import or
+re-export of a `meta-<page>.ts`; it fails a builder module that another page imports, and one that value-imports anything of `app/server` but
+`./meta`).
 
 | Page | Tags |
 |---|---|
@@ -885,8 +887,9 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   the DOM types their `page.evaluate` callbacks need (and `app/ui/features.ts`, which `scripts/e2e-env.ts` imports), and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
-  a missing file) and the command (`scripts/check-bundle.ts`) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and
-  `shell` chunks (the closure over a made-up module graph, the plugin's wiring, and, where there is a build, that no file imports the entry's chunk);
+  a missing file) and the command (`scripts/check-bundle.ts`, which also reads the `vendor` and `shell` chunks in the manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and
+  `shell` chunks (the closure over a made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest; no test
+  reads `build/`);
   `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through, `E2E_FEATURES_OFF`); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
@@ -1283,11 +1286,14 @@ shared), and its figure grew 94 bytes of manifest, 252 of code (the markets page
 that the markets page uses) and 1,159 of file boundaries (273 of `import`/`export` lines, 886 of lost gzip context). Three changes:
 
 - `scripts/shell-chunks.ts` (`vite.config.ts`, tested in `scripts/shell-chunks.test.ts`): what every page loads, the static closure of the client entry
-  and the root route, in two files, `vendor` (the packages: React, React DOM, the router, `bignumber.js`) and `shell` (the app's: the root, the header
-  and footer, the error screen, the search box, `format.ts`, …), where it came in nine. No page loads more code for it. The client entry's own module
+  and the root route, in two files, `vendor` (the packages, the `node_modules` ids, and the bundler's virtual `\0` ids: React, React DOM, the router,
+  `bignumber.js`) and `shell` (the rest, the repository's own: the root, the header and footer, the error screen, the search box, `format.ts`, …),
+  where it came in nine. No page loads more code for it. The client entry's own module
   (the `hydrateRoot` call, 209 bytes) stays the entry's chunk, which no file imports, so hydration starts when React Router's bootstrap imports the
-  entry, after the route modules, as before (were it in a chunk the routes import, it would run while they are imported; the test reads the build for it). `vendor`
-  changes with a dependency: it kept its name over the markets commit, where React's and the format chunk's did too and a one-file shell did not. The
+  entry, after the route modules, as before (were it in a chunk the routes import, it would run while they are imported). The plugin checks the bundle
+  it has made, in every client build, a deploy's too: one `vendor` and one `shell` chunk with modules in them, and an entry chunk of the entry module
+  alone that no chunk imports, or the build fails; `pnpm check:bundle` reads the same two chunks in the route manifest (the root route imports both,
+  the entry `vendor`). `vendor` changes with a dependency, or when the app uses more or less of one: it kept its name over the markets commit, where React's and the format chunk's did too and a one-file shell did not. The
   build adds a runtime chunk (512 bytes) when chunks are grouped, as it did for the cursor's fallback; the figures count it. The dev server is untouched;
 - the tags' builders, one module for each page (see "SEO and link previews"): 1.1 to 1.6 KB off each figure;
 - the markets page's `useHydrated` from outside the kit (see "The kit's boundaries"): 3.3 KB off the markets page. It was measured with a copy of
@@ -1331,7 +1337,7 @@ where the real page will. Measured and not taken (every page's figure at `3d4986
 - Rolldown's `entriesAware` groups with a merge threshold (500 to 64,000 bytes): heavier than the shell alone at 8 routes, for every threshold;
 - the shared components and hooks as one chunk: every page 151 to 162 KB;
 - `vendor` and `shell` as one file: 570 to 650 bytes less on every page, and that 123 KB file changes with every deploy that changes what a page
-  imports of the shell (it did on the markets commit), where `vendor` changes with a dependency. A lever to keep;
+  imports of the shell (it did on the markets commit), where `vendor` changes with a dependency, or when the app uses more or less of one. A lever to keep;
 - the modules every gated page loads (`DataTable`, `meta.ts`, …) in the shell: 410 to 450 bytes less on the gated pages, about 1.8 KB (that chunk)
   more on the search and not-found pages, and the rule would have to know the gate's pages;
 - `routeDiscovery: { mode: "lazy" }`: the figures do not move. The build still writes `assets/manifest-*.js` and the check counts it; the browser would
