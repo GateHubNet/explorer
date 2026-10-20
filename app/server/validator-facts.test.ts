@@ -11,12 +11,14 @@ import {
   compareFee,
   count,
   DASH,
+  daysText,
   dropsText,
   joinAnd,
   ledgerLink,
   ledgersText,
   moreThan,
   nativeText,
+  percentText,
   scoreText,
   scoreValue,
   shareText,
@@ -28,6 +30,7 @@ import {
   verificationNote,
   versionText,
   xlsLink,
+  yesMeter,
   yesPercentText,
   yesPercentValue,
   type TextPart,
@@ -249,6 +252,54 @@ describe("moreThan", () => {
   it("says more than 80%", () => {
     expect(moreThan(80)).toBe("more than 80%");
     expect(moreThan(66.5)).toBe("more than 66.5%");
+  });
+});
+
+describe("daysText", () => {
+  it("says a span of time in days, from the rules' seconds: 14 days on XRPL, 5 on Xahau", () => {
+    expect(daysText(1209600)).toBe("14 days");
+    expect(daysText(432000)).toBe("5 days");
+    expect(daysText(86400)).toBe("1 day");
+  });
+
+  it("keeps one decimal at most, half up, and drops a zero one", () => {
+    expect(daysText(129600)).toBe("1.5 days");
+    expect(daysText(104_000)).toBe("1.2 days"); // 1.2037...
+    expect(daysText(86_400 * 2 + 4_320)).toBe("2.1 days"); // 2.05 rounds up
+    expect(daysText(86_400 + 100)).toBe("1 day"); // 1.001 is 1.0: one day, singular
+  });
+});
+
+describe("percentText", () => {
+  it("writes a threshold as a percentage, exactly", () => {
+    expect(percentText(80)).toBe("80%");
+    expect(percentText(66.5)).toBe("66.5%");
+    expect(percentText(75.25)).toBe("75.25%");
+  });
+});
+
+describe("yesMeter", () => {
+  it("is the bar of a yes share against the rules' threshold, with the share and the words in its label", () => {
+    expect(yesMeter(31, 35, 80)).toEqual({
+      value: "88.57",
+      max: "100",
+      threshold: { value: "80", label: "80%" },
+      label: "31 of 35 UNL validators vote yes, 88.6%; more than 80% needed",
+    });
+  });
+
+  it("takes the threshold from the rules, whatever it is", () => {
+    const meter = yesMeter(4, 35, 75);
+    expect(meter.threshold).toEqual({ value: "75", label: "75%" });
+    expect(meter.label).toBe("4 of 35 UNL validators vote yes, 11.4%; more than 75% needed");
+  });
+
+  it("is empty, not broken, where there are no trusted validators to share", () => {
+    expect(yesMeter(0, 0, 80)).toEqual({ value: "0", max: "100", threshold: { value: "80", label: "80%" }, label: "0 of 0 UNL validators vote yes, —; more than 80% needed" });
+  });
+
+  it("writes counts with separators", () => {
+    expect(yesMeter(1_234, 2_000, 80).label).toBe("1,234 of 2,000 UNL validators vote yes, 61.7%; more than 80% needed");
   });
 });
 

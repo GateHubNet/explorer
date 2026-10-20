@@ -299,6 +299,8 @@ export function amendmentDetailSample(over: Partial<AmendmentDetail> = {}): Amen
   return {
     ...envelope(),
     ...majorityRow(),
+    // D1: `version_supports` is true when the voter's version is at least `introduced`. The voters below run 3.4.1 (supports) and 3.4.0 (does not), as the reference's own example has it.
+    introduced: "3.4.1",
     unl_votes: [
       { validation_public_key: SAMPLE_KEYS[0], domain: "northpeak.example", vote: "yes", version: "3.4.1", version_supports: true, last_seen: "2026-10-19T15:53:19.750Z" },
       { validation_public_key: SAMPLE_KEYS[1], domain: "shoreline.example", vote: "yes", version: "3.4.1", version_supports: true, last_seen: "2026-10-19T15:53:19.750Z" },

@@ -2,8 +2,6 @@
 // paragraph of the rules, the status chips with their counts, the table's rows and the footer. `amendmentsPage` is pure: no I/O, no clock, no `Intl`. Every text is made from D1's exact
 // strings (validator-facts.ts: `bignumber.js`), so no float reaches a string of the page. The page is A: it has no card of its own that could fail, and a failed A is the loader's 503.
 
-import BigNumber from "bignumber.js";
-
 import { amendmentSegment } from "../domain/amendment-ref";
 import { AMENDMENT_STATUSES, amendmentHref, amendmentsHref, statusWord, type AmendmentStatus } from "../domain/amendments-params";
 import { shortHash } from "../domain/format";
@@ -17,10 +15,13 @@ import {
   clock,
   count,
   DASH,
+  daysText,
   ledgerLink,
   moreThan,
+  percentText,
   unixOf,
   xlsLink,
+  yesMeter,
   yesPercentText,
   yesPercentValue,
   type AmendmentStatusView,
@@ -68,17 +69,6 @@ export interface AmendmentsPageData {
   rows: AmendmentListRow[];
   footer: string[];
 }
-
-const SECONDS_PER_DAY = 86_400;
-
-/** A span of time in days, one decimal at most (the rules' holds are whole days: 14 on XRPL, 5 on Xahau): `14 days`, `1 day`. */
-function daysText(seconds: number): string {
-  const days = new BigNumber(seconds).div(SECONDS_PER_DAY).decimalPlaces(1, BigNumber.ROUND_HALF_UP);
-  return `${days.toFixed()} day${days.isEqualTo(1) ? "" : "s"}`;
-}
-
-/** The threshold of the rules as a percentage: `80%`. */
-const percentText = (percent: number): string => `${new BigNumber(percent).toFixed()}%`;
 
 /** The name of an amendment as a link: the name, or the short ID in mono (an amendment nobody has named). */
 const nameOf = (row: AmendmentRow): { text: string; mono: boolean } => (row.name !== undefined ? { text: row.name, mono: false } : { text: shortHash(row.id), mono: true });
@@ -133,15 +123,9 @@ function meterOf(row: AmendmentRow, view: AmendmentStatusView, rules: AmendmentR
   const { votes } = row;
   const value = votes === undefined ? null : yesPercentValue(votes.yes, votes.trusted);
   if (votes === undefined || value === null) return null;
-  const share = yesPercentText(votes.yes, votes.trusted);
   return {
-    data: {
-      value,
-      max: "100",
-      threshold: { value: new BigNumber(rules.threshold_percent).toFixed(), label: percentText(rules.threshold_percent) },
-      label: `${count(votes.yes)} of ${count(votes.trusted)} UNL validators vote yes, ${share}; ${moreThan(rules.threshold_percent)} needed`,
-    },
-    text: `${share} · ${count(votes.yes)} / ${count(votes.trusted)} UNL`,
+    data: yesMeter(votes.yes, votes.trusted, rules.threshold_percent),
+    text: `${yesPercentText(votes.yes, votes.trusted)} · ${count(votes.yes)} / ${count(votes.trusted)} UNL`,
   };
 }
 

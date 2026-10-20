@@ -8,6 +8,7 @@ import { isValidClassicAddress } from "ripple-address-codec";
 
 import { formatAmount, formatUtcDay, utcMoment } from "../domain/format";
 import { formatDateTime } from "../domain/time-words";
+import type { MeterData } from "../ui/charts/types";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
@@ -133,6 +134,30 @@ export function compareFee(vote: string, now: string): "higher" | "lower" | "sam
 /** What a majority needs, in words: `more than 80%` (D1 passes an amendment on more than the threshold, never at it). */
 export function moreThan(thresholdPercent: number): string {
   return `more than ${new BigNumber(thresholdPercent).toFixed()}%`;
+}
+
+/** The threshold of the rules as a percentage: `80%`. */
+export const percentText = (percent: number): string => `${new BigNumber(percent).toFixed()}%`;
+
+const SECONDS_PER_DAY = 86_400;
+
+/** A span of time in days, one decimal at most (the rules' holds are whole days: 14 on XRPL, 5 on Xahau): `14 days`, `1 day`. */
+export function daysText(seconds: number): string {
+  const days = new BigNumber(seconds).div(SECONDS_PER_DAY).decimalPlaces(1, HALF_UP);
+  return `${days.toFixed()} day${days.isEqualTo(1) ? "" : "s"}`;
+}
+
+/**
+ * The bar of a yes share against the rules' threshold (the amendments list's rows and the amendment page's figure): the share to 2 decimals, out of 100, with the threshold
+ * tick and the words that say the same in `label`. Where there are no trusted validators to share, the bar is empty (`"0"`) and its words say `—`.
+ */
+export function yesMeter(yes: number, trusted: number, thresholdPercent: number): MeterData {
+  return {
+    value: yesPercentValue(yes, trusted) ?? "0",
+    max: "100",
+    threshold: { value: new BigNumber(thresholdPercent).toFixed(), label: percentText(thresholdPercent) },
+    label: `${count(yes)} of ${count(trusted)} UNL validators vote yes, ${yesPercentText(yes, trusted)}; ${moreThan(thresholdPercent)} needed`,
+  };
 }
 
 // ---- Links (2.8) -------------------------------------------------------------------------------------------------------------------------------
