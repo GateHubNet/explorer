@@ -215,9 +215,20 @@ function runsOf(fractions: readonly (number | null)[], { height, width = BOX_WID
   return runs;
 }
 
+/**
+ * The vertices of a run as the curve draws them. A step is step-after (level to the next bucket, then up or down to its value) and
+ * has a vertex only where the value changes: a corner at the change and the rise to the new value, and the end of the last level. A run of
+ * one value is one segment, so 2,600 buckets with 5 changes are 12 commands, where a vertex for each bucket would be 2,600.
+ */
 function outline(run: Point[], curve: PathOptions["curve"]): Point[] {
   if (curve !== "step") return run;
-  return run.flatMap((point, i) => (i === 0 ? [point] : [[point[0], run[i - 1]![1]] as const, point]));
+  const vertices: Point[] = [run[0]!];
+  for (let i = 1; i < run.length; i += 1) {
+    const [point, before] = [run[i]!, run[i - 1]!];
+    if (point[1] !== before[1]) vertices.push([point[0], before[1]], point);
+    else if (i === run.length - 1) vertices.push(point);
+  }
+  return vertices;
 }
 
 /** At most 2 decimals, trailing zeros trimmed (`333.33`, `100`): a coordinate of a path, and of a mark that is drawn beside one. */

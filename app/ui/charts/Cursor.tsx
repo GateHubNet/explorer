@@ -34,6 +34,8 @@ export interface CursorProps {
   dots?: (i: number) => readonly { y: number; slot: Slot }[];
   /** Told the bucket this plot shows, or `null`: for the readouts (a panel's header, the candle readout) that follow the cursor. */
   onChange?: (i: number | null) => void;
+  /** A plot of many buckets: Page Up moves this many towards the newest and Page Down towards the oldest, stopping at the ends. Without it the page keys are the browser's. */
+  pageStep?: number;
 }
 
 /** What a cursor has to show as its tooltip: the bucket, and the content `tooltip(bucket)` gave. */
@@ -102,13 +104,18 @@ interface KeyPress {
   metaKey: boolean;
 }
 
+/** The buckets a page key moves, from a cursor's `pageStep`: its whole part when that is 1 or more, else 0 (no page keys). */
+const pageOf = (pageStep: number | undefined): number => (pageStep !== undefined && pageStep >= 1 ? Math.floor(pageStep) : 0);
+
 /**
  * The keys of a cursor (spec 2.6), for every form that has one: the bucket (or segment) a key moves to from `index`, among `last + 1`, as
- * the arrow keys, Home and End say it and stopping at the ends; `"hide"` for Escape; `null` for a key that is not the cursor's, and for the
- * browser's own shortcuts (Alt+Left is Back). Pure: the caller prevents the default and selects, or hides.
+ * the arrow keys, Home and End say it and stopping at the ends; with a `pageStep` (a whole number of buckets, 1 or more) Page Up moves that many
+ * towards the newest (the last) and Page Down towards the oldest, and stops at the ends too; `"hide"` for Escape; `null` for a key that is not
+ * the cursor's, and for the browser's own shortcuts (Alt+Left is Back). Pure: the caller prevents the default and selects, or hides.
  */
-export function steppedKey(event: KeyPress, index: number, last: number): number | "hide" | null {
+export function steppedKey(event: KeyPress, index: number, last: number, pageStep?: number): number | "hide" | null {
   if (event.altKey || event.ctrlKey || event.metaKey) return null;
+  const page = pageOf(pageStep);
   switch (event.key) {
     case "ArrowLeft":
       return Math.min(last, Math.max(0, index - 1));
@@ -118,6 +125,10 @@ export function steppedKey(event: KeyPress, index: number, last: number): number
       return 0;
     case "End":
       return Math.max(0, last);
+    case "PageUp":
+      return page > 0 ? Math.min(last, Math.max(0, index + page)) : null;
+    case "PageDown":
+      return page > 0 ? Math.min(last, Math.max(0, index - page)) : null;
     case "Escape":
       return "hide";
     default:
@@ -133,18 +144,20 @@ export function steppedKey(event: KeyPress, index: number, last: number): number
  * the touched cursor's own handler: a plot of the same group that is touched next sets the bucket after this one has cleared it.
  *
  * `setGroup` is the group's (`useHoverGroup().set`): a selection is told to it, and a cursor that is not showing owns nothing in the
- * group and leaves what another plot is showing alone.
+ * group and leaves what another plot is showing alone. `pageStep` is the cursor's (`steppedKey`).
  */
 export function useCursorState({
   initial,
   last,
   inside,
   setGroup,
+  pageStep,
 }: {
   initial: number;
   last: number;
   inside: RefObject<Element | null>;
   setGroup?: (i: number | null) => void;
+  pageStep?: number;
 }) {
   const [at, setAt] = useState(initial);
   const [open, setOpen] = useState(false);
@@ -176,7 +189,7 @@ export function useCursorState({
   }, [pinned, setGroup]);
 
   const onKeyDown = (event: KeyboardEvent) => {
-    const next = steppedKey(event, index, last);
+    const next = steppedKey(event, index, last, pageStep);
     if (next === null) return;
     if (next === "hide") {
       hide();
@@ -192,7 +205,8 @@ export function useCursorState({
 /**
  * The hover and keyboard layer over a plot (spec 2.6): a transparent `role="slider"` as big as the plot, which is not in the Worker's HTML
  * and comes with the script (`useHydrated`). A pointer selects the nearest bucket; a touch selects and keeps the tooltip until a touch
- * lands elsewhere; focus selects the newest bucket, and the arrow keys, Home and End move it; blur and Escape hide it. The slider says the
+ * lands elsewhere; focus selects the newest bucket, and the arrow keys, Home and End move it (and Page Up and Page Down, by `pageStep`, when the
+ * plot has one: the slider names them in `aria-keyshortcuts`); blur and Escape hide it. The slider says the
  * bucket in words (`aria-valuetext`), so that the tooltip, which is `aria-hidden`, need not be read.
  *
  * What it marks in the plot it marks in the DOM (`data-active`, `is-active`), so that a pointer move renders this layer and not the marks.
@@ -202,7 +216,7 @@ export function Cursor(props: CursorProps) {
   return hydrated && props.count > 0 ? <CursorLayer {...props} /> : null;
 }
 
-function CursorLayer({ plot, count, placement, label, valueText, tooltip, crosshair, dots, onChange }: CursorProps) {
+function CursorLayer({ plot, count, placement, label, valueText, tooltip, crosshair, dots, onChange, pageStep }: CursorProps) {
   const group = useHoverGroup();
   const setGroup = group?.set;
   const slot = useContext(TipSlotContext);
@@ -210,7 +224,7 @@ function CursorLayer({ plot, count, placement, label, valueText, tooltip, crossh
 
   // Where this cursor's own input put it, whether that shows, the keys, and what a touch keeps: the protocol of every cursor.
   const last = count - 1;
-  const { index, open, select, hide, pin, onKeyDown } = useCursorState({ initial: last, last, inside: layer, setGroup });
+  const { index, open, select, hide, pin, onKeyDown } = useCursorState({ initial: last, last, inside: layer, setGroup, pageStep });
   // In a group the bucket is the group's, whichever plot it came from; the tooltip is only for the plot that is being used.
   const shown = group ? group.active : open ? index : null;
   const bucket = shown !== null && shown >= 0 && shown <= last ? shown : null;
@@ -271,6 +285,7 @@ function CursorLayer({ plot, count, placement, label, valueText, tooltip, crossh
       aria-valuemax={last}
       aria-valuenow={index}
       aria-valuetext={valueText(index)}
+      aria-keyshortcuts={pageOf(pageStep) > 0 ? "PageUp PageDown" : undefined}
       onPointerDown={(event) => {
         selectAtPointer(event);
         if (event.pointerType === "touch") pin();

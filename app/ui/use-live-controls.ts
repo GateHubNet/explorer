@@ -49,9 +49,10 @@ function writePaused(paused: boolean): void {
  * A live page's updates as the route wires them: the polling (`useLiveRefresh`) with what the page knows that it must obey, and the
  * `LiveControls` the page shows. The failures are the page's `OnScreen` store's. Whether it is paused is the visitor's, read from the tab's
  * storage after the first render (so that the server's HTML and the hydration do not depend on it, and a paused tab does not ask before it
- * has been read: the first beat is 4 s after the page is up). One key serves the whole tab, so a pause on one live page holds on the other.
+ * has been read: the first beat is `everyMs` after the page is up, 4 s unless the page says another). One key serves the whole tab, so a pause
+ * on one live page holds on the others.
  */
-export function useLiveControls(store: Pick<OnScreen<unknown>, "failures" | "subscribe">): LiveControls {
+export function useLiveControls(store: Pick<OnScreen<unknown>, "failures" | "subscribe">, opts: { everyMs?: number } = {}): LiveControls {
   const failures = useSyncExternalStore(store.subscribe, store.failures, () => 0);
   const [paused, setPaused] = useState(false);
   const [holding, setHolding] = useState(false);
@@ -63,7 +64,7 @@ export function useLiveControls(store: Pick<OnScreen<unknown>, "failures" | "sub
     const timer = setTimeout(() => setNotice(""), NOTICE_MS);
     return () => clearTimeout(timer);
   }, [notice]);
-  useLiveRefresh({ failures, paused, holding });
+  useLiveRefresh({ everyMs: opts.everyMs, failures, paused, holding });
 
   return useMemo(
     () => ({
