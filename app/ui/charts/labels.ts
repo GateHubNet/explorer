@@ -186,7 +186,7 @@ function summaryDate(bucket: string, unit: TimeAxis["unit"], withYear: boolean):
  * "Highest Payments Oct 3, 45.5M XRP; latest Payments Oct 17, so far, 12.1M XRP" (the other lines are in the table). The year is on the
  * last date only, and on both when the years differ. The highest is the earliest of equal highs, the latest the newest bucket with a
  * value; a bucket that is the running one (`forming`, the newest of the axis) adds ", so far" to its date, as the tooltip does. With no
- * value at all it is "{title}: {emptyText}.".
+ * value at all it is "{title}: {emptyText}.", the data's own `emptyText` when it has one.
  */
 export function plotSummary(title: string, data: TimeSeriesData): string {
   const { axis, format } = data;
@@ -202,7 +202,7 @@ export function plotSummary(title: string, data: TimeSeriesData): string {
     latest = i;
     if (highest < 0 || Number(value) > Number(values[highest])) highest = i;
   }
-  if (highest < 0) return `${title}: ${emptyText(axis)}.`;
+  if (highest < 0) return `${title}: ${data.emptyText ?? emptyText(axis)}.`;
 
   const [first = "", last = ""] = [axis.buckets[0], axis.buckets.at(-1)];
   const sameYear = first.slice(0, 4) === last.slice(0, 4);

@@ -28,6 +28,7 @@ export interface TimeSeriesData {
   forming?: boolean;                                                 // true: the newest bucket is the running one ("so far")
   pending?: number;                                                  // how many of the newest buckets are not computed yet (0 to 2)
   extras?: TimeSeriesExtra[];                                        // never part of the scales, the legend or the summary; the token must cover them
+  emptyText?: string;                                                // what the plot says when no bucket has a value, instead of "No data for these 30 days"; the token must cover it
   token: string;
 }
 export interface SmallMultiplesData {

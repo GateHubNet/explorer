@@ -356,6 +356,51 @@ describe("Card and StatTile", () => {
     expect(Array.from(container.firstElementChild!.children, (part) => part.className)).toEqual(["stat__label", "stat__value", "stat__delta", "stat__sub", "stat__trend"]);
     expect(container.querySelector(".stat__trend [role='img']")!.getAttribute("aria-label")).toBe("7-day price");
   });
+
+  it("shows a source under the note, in .stat__source, and none without one", () => {
+    const path = "/v2/accounts/{a}/analytics/counterparties";
+    const { container } = render(<StatTile figure label="Counterparties" value="48" sub="accounts it paid or was paid by" source={path} />);
+    expect(container.querySelector(".stat__source")!.textContent).toBe(path);
+    expect(Array.from(container.firstElementChild!.children, (part) => part.className)).toEqual(["stat__label", "stat__value", "stat__sub", "stat__source"]);
+    expect(container.firstElementChild!.hasAttribute("aria-busy")).toBe(false);
+
+    const { container: bare } = render(<StatTile figure label="Counterparties" value="48" sub="accounts it paid or was paid by" />);
+    expect(bare.querySelector(".stat__source")).toBeNull();
+  });
+
+  it("puts the source last, the tile's own line under the delta, the note and the trend", () => {
+    const { container } = render(
+      <StatTile figure label="Price" value="2.44" delta={{ text: "+2.5%", sign: 1 }} sub="7 days" trend={<svg role="img" aria-label="7-day price" />} source="/v2/price" />,
+    );
+    expect(Array.from(container.firstElementChild!.children, (part) => part.className)).toEqual([
+      "stat__label",
+      "stat__value",
+      "stat__delta",
+      "stat__sub",
+      "stat__trend",
+      "stat__source",
+    ]);
+  });
+
+  it("is busy before its data: aria-busy, and an empty figure that is still in the tile", () => {
+    const { container } = render(<StatTile figure busy label="Account value" value="12,345 XRP" source="/v2/accounts/{a}/stats/value?interval=day" />);
+    const tile = container.firstElementChild!;
+    expect(tile.getAttribute("aria-busy")).toBe("true");
+    expect(tile.className).toBe("stat stat--figure");
+    expect(container.querySelector(".stat__value")!.textContent).toBe("");
+    expect(container.querySelector(".stat__label")!.textContent).toBe("Account value");
+    expect(container.querySelector(".stat__source")!.textContent).toBe("/v2/accounts/{a}/stats/value?interval=day");
+    expect(container.textContent).not.toContain("12,345");
+  });
+
+  it("has no busy mark when it is not busy, whether busy is false or left out", () => {
+    for (const busy of [undefined, false]) {
+      const { container, unmount } = render(<StatTile label="Fees paid" value="0.00001 XRP" busy={busy} />);
+      expect(container.firstElementChild!.hasAttribute("aria-busy")).toBe(false);
+      expect(container.querySelector(".stat__value")!.textContent).toBe("0.00001 XRP");
+      unmount();
+    }
+  });
 });
 
 describe("DataTable", () => {

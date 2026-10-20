@@ -1,8 +1,12 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { ChartCard } from "./ChartCard";
+import { ColumnChart } from "./ColumnChart";
+import { LineChart } from "./LineChart";
+import type { TimeSeriesData } from "./types";
 
 afterEach(() => {
   cleanup();
@@ -165,6 +169,164 @@ describe("ChartCard failed", () => {
     const { container, errors } = await serverThenHydrated(card({ state: "ok" }));
     expect(container.querySelector("input[type=radio]")).not.toBeNull();
     expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("ChartCard loading", () => {
+  const loading = (props: Partial<Props> = {}) =>
+    card({ id: "value", title: "Account value, in XRP", source: "/v2/accounts/{a}/stats/value?interval=day", state: "loading", ...props });
+
+  it("shows the title and the source, and 'Loading…' hidden from assistive technology where the views would be", async () => {
+    const { container, errors } = await serverThenHydrated(loading());
+    const section = container.querySelector("section.card.chart")!;
+    expect(section.querySelector("h2")!.textContent).toBe("Account value, in XRP");
+    expect(section.getAttribute("aria-labelledby")).toBe("value-title");
+    expect(section.querySelector(".chart__source")!.textContent).toBe("/v2/accounts/{a}/stats/value?interval=day");
+    const body = within(container).getByText("Loading…");
+    expect(body.getAttribute("aria-hidden")).toBe("true");
+    expect(body.parentElement).toBe(section);
+    expect(body.previousElementSibling!.className).toBe("chart__head");
+    expect(errors).toEqual([]);
+  });
+
+  it("is busy, and has neither a toggle nor a view, a table, a legend, a summary or notes", async () => {
+    const { container, errors } = await serverThenHydrated(loading({ summary: <p className="summary-stub">Received</p> }));
+    expect(container.querySelector("section")!.getAttribute("aria-busy")).toBe("true");
+    expect(container.querySelector("fieldset")).toBeNull();
+    expect(container.querySelector("input[type=radio]")).toBeNull();
+    for (const part of [".chart__view", ".chart__table", ".chart__notes", ".chart__summary", ".legend-stub", ".plot-stub", ".table-stub", ".summary-stub"]) {
+      expect(container.querySelector(part), part).toBeNull();
+    }
+    expect(within(container).queryByRole("alert")).toBeNull();
+    expect(errors).toEqual([]);
+  });
+
+  it("is a card of the other states again once its data is there: the toggle, and no busy mark", () => {
+    const { container, rerender } = render(loading());
+    expect(container.querySelector("input[type=radio]")).toBeNull();
+    rerender(loading({ state: "ok" }));
+    expect(container.querySelector("input[type=radio]")).not.toBeNull();
+    expect(container.querySelector("section")!.hasAttribute("aria-busy")).toBe(false);
+    expect(container.querySelector(".chart__loading")).toBeNull();
+    expect(container.querySelector(".plot-stub")).not.toBeNull();
+  });
+
+  it("leaves the busy mark off a card that is ok, given or not, and off a failed one", async () => {
+    for (const props of [{}, { state: "ok" as const }, { state: "failed" as const }]) {
+      const { container, errors } = await serverThenHydrated(card(props));
+      expect(container.querySelector("section")!.hasAttribute("aria-busy"), JSON.stringify(props)).toBe(false);
+      expect(container.querySelector(".chart__loading"), JSON.stringify(props)).toBeNull();
+      expect(errors).toEqual([]);
+    }
+  });
+
+  it("is the card of state ok when no state is given", async () => {
+    const { container, errors } = await serverThenHydrated(card());
+    expect(container.querySelector("input[type=radio]")).not.toBeNull();
+    expect(container.querySelector(".plot-stub")).not.toBeNull();
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("ChartCard summary", () => {
+  it("is drawn after the legend and before the chart view, in document order", async () => {
+    const { container, errors } = await serverThenHydrated(card({ summary: <p>Received</p> }));
+    const section = container.querySelector("section")!;
+    expect(Array.from(section.children).map((child) => child.className)).toEqual([
+      "chart__head",
+      "legend-stub",
+      "chart__summary",
+      "chart__view",
+      "chart__table",
+      "chart__notes",
+    ]);
+    const [legend, summary, view] = [".legend-stub", ".chart__summary", ".chart__view"].map((selector) => section.querySelector(selector)!);
+    expect(legend!.compareDocumentPosition(summary!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summary!.compareDocumentPosition(view!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summary!.querySelector("p")!.textContent).toBe("Received");
+    expect(errors).toEqual([]);
+  });
+
+  it("is after the head when there is no legend, and not drawn at all when there is no summary", async () => {
+    const { container, errors } = await serverThenHydrated(card({ legend: undefined, summary: <p>Received</p> }));
+    expect(Array.from(container.querySelector("section")!.children).map((child) => child.className).slice(0, 3)).toEqual(["chart__head", "chart__summary", "chart__view"]);
+    const none = await serverThenHydrated(card());
+    expect(none.container.querySelector(".chart__summary")).toBeNull();
+    expect(errors).toEqual([]);
+    expect(none.errors).toEqual([]);
+  });
+
+  it("stays in the page when the visitor chooses the table, which hides the chart view only", async () => {
+    const { container } = await serverThenHydrated(card({ summary: <p>Received</p> }));
+    expect(container.querySelector(".chart__summary")!.closest(".chart__view")).toBeNull();
+    expect(container.querySelector(".chart__summary")!.closest(".chart__table")).toBeNull();
+  });
+
+  it("is left out of a failed card, with the views", async () => {
+    const { container, errors } = await serverThenHydrated(card({ state: "failed", summary: <p>Received</p> }));
+    expect(container.querySelector(".chart__summary")).toBeNull();
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("the empty text of a card's chart", () => {
+  const TITLE = "Transactions sent, per day";
+  const DAYS = Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2026, 8, 18 + i)).toISOString().slice(0, 10));
+  const nothing = DAYS.map(() => null);
+  const empty = (extra: Partial<TimeSeriesData> = {}): TimeSeriesData => ({
+    axis: { unit: "day", buckets: DAYS },
+    series: [
+      { id: "Payment", label: "Payment", slot: 1, values: nothing },
+      { id: "OfferCreate", label: "OfferCreate", slot: 2, values: nothing },
+    ],
+    totals: nothing,
+    format: { kind: "count", unit: "transactions" },
+    token: "t1",
+    ...extra,
+  });
+  const WORDS = "No transactions sent in these 30 days";
+  const inCard = (chart: ReactNode) => (
+    <ChartCard id="sent" title={TITLE} source="/v2/accounts/{a}/stats/transactions?interval=day" what="transactions sent">
+      {chart}
+    </ChartCard>
+  );
+
+  it("is what a stacked ColumnChart with no value says in the middle of the plot, and the summary says it to a screen reader", async () => {
+    const { container, errors } = await serverThenHydrated(inCard(<ColumnChart layout="stacked" title={TITLE} data={empty({ emptyText: WORDS })} />));
+    expect(container.querySelector(".plot__empty")!.textContent).toBe(WORDS);
+    expect(container.querySelector(".plot__marks")!.getAttribute("aria-label")).toBe(`${TITLE}: ${WORDS}.`);
+    expect(errors).toEqual([]);
+  });
+
+  it("is the kit's own words without it: 'No data for these 30 days'", async () => {
+    const { container, errors } = await serverThenHydrated(inCard(<ColumnChart layout="stacked" title={TITLE} data={empty()} />));
+    expect(container.querySelector(".plot__empty")!.textContent).toBe("No data for these 30 days");
+    expect(container.querySelector(".plot__marks")!.getAttribute("aria-label")).toBe(`${TITLE}: No data for these 30 days.`);
+    expect(errors).toEqual([]);
+  });
+
+  it("is said in a diverging and a single ColumnChart, and in a LineChart, as well", async () => {
+    for (const element of [
+      <ColumnChart key="d" layout="diverging" title={TITLE} data={empty({ emptyText: WORDS })} />,
+      <ColumnChart key="s" layout="single" title={TITLE} data={empty({ emptyText: WORDS, series: [empty().series[0]!] })} />,
+      <LineChart key="l" title={TITLE} data={empty({ emptyText: WORDS })} />,
+      <LineChart key="a" title={TITLE} area data={empty({ emptyText: WORDS, series: [empty().series[0]!] })} />,
+    ]) {
+      const { container, errors } = await serverThenHydrated(inCard(element));
+      expect(container.querySelector(".plot__empty")!.textContent, String(element.key)).toBe(WORDS);
+      expect(container.querySelector(".plot__marks")!.getAttribute("aria-label"), String(element.key)).toBe(`${TITLE}: ${WORDS}.`);
+      expect(errors).toEqual([]);
+    }
+  });
+
+  it("is not said when a bucket has a value: the plot is drawn, and the text is not in the page", async () => {
+    const some = empty({ emptyText: WORDS });
+    some.series[0]!.values = DAYS.map((_, i) => (i === 3 ? "4" : null));
+    some.totals = DAYS.map((_, i) => (i === 3 ? "4" : null));
+    const { container, errors } = await serverThenHydrated(inCard(<ColumnChart layout="stacked" title={TITLE} data={some} />));
+    expect(container.querySelector(".plot__empty")).toBeNull();
+    expect(container.textContent).not.toContain(WORDS);
     expect(errors).toEqual([]);
   });
 });

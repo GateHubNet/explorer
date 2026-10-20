@@ -173,7 +173,7 @@ export const ColumnChart = memo(
         axis={axis}
         placement="bands"
         slots
-        empty={axis.buckets.some((_, i) => has(i)) ? null : emptyText(axis)}
+        empty={axis.buckets.some((_, i) => has(i)) ? null : (data.emptyText ?? emptyText(axis))}
         cursor={{ count, placement: "bands", label: sliderLabel(title, axis.unit), valueText: readOut, tooltip }}
       >
         <div className="plot__cols">

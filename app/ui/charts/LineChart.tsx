@@ -143,7 +143,7 @@ export function LinePlot({ title, data, area = false, curve = "linear", panel = 
       xLabels={panel ? "ends" : "spread"}
       placement="points"
       height={panel ? "panel" : "chart"}
-      empty={drawn ? null : emptyText(axis)}
+      empty={drawn ? null : (data.emptyText ?? emptyText(axis))}
       endLabels={endLabels}
       cursor={{ count, placement: "points", label: sliderLabel(title, axis.unit), valueText: readOut, tooltip, crosshair: true, dots }}
     >

@@ -356,7 +356,7 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 
 | Component | Draws |
 |---|---|
-| `ChartCard` | The card: title, source line (a path, never a host), the Chart/Table toggle, the legend, both views and the notes. `state="failed"` puts a `SectionError` with Retry in place of the views and the toggle |
+| `ChartCard` | The card: title, source line (a path, never a host), the Chart/Table toggle, the legend, the `summary` (a line of figures, the view builder's, between the legend and the plot, which stays when Table is chosen), both views and the notes. `state="failed"` puts a `SectionError` with Retry in place of the views and the toggle; `state="loading"` is a streamed card before its data: the title and source, "Loading…" (`aria-hidden`) as high as the plot, no toggle, and `aria-busy` |
 | `Legend` | 10 × 10 px swatches for columns and areas, 14 × 2 px keys for lines, a symbol with its words for an annotation; none for one series. Its items come from `legendOf(data, "swatch" or "line")` (`Legend.tsx`, for a `TimeSeriesData`), `shareLegend(data)` (`ShareBar.tsx`) and `candleLegend(data)` (`Candles.tsx`) |
 | `ChartTable` | The table view of any form below: a compact `DataTable`, 300 px high at most, newest first, exact values, "—" (heard as "no data") for a gap |
 | `ColumnChart` | `layout="single"`, `"stacked"` (the series bottom up, each segment its exact share) or `"diverging"` (in up, out down, from a zero line); `annotations` put a symbol over a column |
@@ -372,7 +372,8 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 `StatTile` and `StatGrid` (`components/StatTile.tsx`) are the home page's tiles, which stay mono at 22 px. `figure` gives a tile the network
 pages' style (sans, proportional figures, 24 px, weight 600), `StatGrid narrow` a grid of tiles of 150 px (two in a row on a phone), `delta`
 (`{ text, sign }`) a triangle for 1 or -1 (none for 0) and the signed text in `--muted`, after the value and before the note, and `trend` a
-`Sparkline` after the note. The sign picks the triangle and the text is the view builder's.
+`Sparkline` after the note. The sign picks the triangle and the text is the view builder's. `source` is the data API path the tile is made from, a faint mono
+line under everything else, and `busy` a tile before its data: `aria-busy` and an empty figure that keeps the height of one line, whatever `value` is.
 
 ### Data shapes
 
@@ -381,7 +382,7 @@ the view builder, with `String(n)` for an integer or `BigNumber(String(n))`: not
 
 | Component | Takes | The fields that matter |
 |---|---|---|
-| `ColumnChart`, `LineChart` | `TimeSeriesData` | `axis` (`unit`: `day`, `week`, `month` (`YYYY-MM-01`, "Oct 2026"), `hour`, `minute` (15-minute buckets) or `flag`; `buckets`: UTC, oldest first), `series` (`id`, `label`, `short` for an end label, `slot`, `values`: strings, `null` for none), `format` (`kind`: `count`, `amount`, `drops`, `percent`, `seconds`, `price` or `value`, an estimate in the native currency; `unit`), `token`. Optional: `totals` (a stack's exact totals), `domain` and `references` (lines), `annotations` (columns), `forming`, `pending`, `extras` |
+| `ColumnChart`, `LineChart` | `TimeSeriesData` | `axis` (`unit`: `day`, `week`, `month` (`YYYY-MM-01`, "Oct 2026"), `hour`, `minute` (15-minute buckets) or `flag`; `buckets`: UTC, oldest first), `series` (`id`, `label`, `short` for an end label, `slot`, `values`: strings, `null` for none), `format` (`kind`: `count`, `amount`, `drops`, `percent`, `seconds`, `price` or `value`, an estimate in the native currency; `unit`), `token`. Optional: `totals` (a stack's exact totals), `domain` and `references` (lines), `annotations` (columns), `forming`, `pending`, `extras`, `emptyText` (what the plot, and its summary for a screen reader, says when no bucket has a value, instead of "No data for these 30 days"; the `token` must cover it) |
 | `SmallMultiples` | `SmallMultiplesData` | `axis` (shared), `panels` (6 at most: `id`, `label`, `sublabel`, `values`, a `format` of its own), `forming`, `pending`, `token` |
 | `Candles` | `CandleData` | `axis`, `candles` (one for each bucket: `o`, `h`, `l`, `c`, `v`, `n`, or `null`), `format` (of the prices), `volume` (the format of the volume), `forming` (the newest bucket is the running one), `token` |
 | `ShareBar` | `ShareData` | `rows` (`id`, `label`, `total`, `segments`: `id`, `label`, `slot`, `value`), `token` |

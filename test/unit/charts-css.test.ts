@@ -121,6 +121,23 @@ describe("the card", () => {
   it("is dimmed, with no skeleton, while the page refetches", () => {
     expect(rule(chartsCss, ".is-refetching .chart").opacity).toBe("0.55");
   });
+
+  // A card before its data fills the height its plot will have (the plot and the band of its x labels), at the card's width as well as
+  // under 480 px of it, so that the data arriving moves nothing: the words are centred in --muted.
+  it("has a loading body as high as the plot and the band of its x labels, at both heights of the plot", () => {
+    const band = rule(chartsCss, ".plot__frame")["--x-band"];
+    expect(rule(chartsCss, ".chart__loading").height).toBe(`calc(${rule(chartsCss, ".plot")!.height} + ${band})`);
+    expect(rule(chartsCss, ".chart__loading", [NARROW]).height).toBe(`calc(${rule(chartsCss, ".plot", [NARROW])!.height} + ${band})`);
+  });
+
+  it("centres the loading words in --muted", () => {
+    expect(rule(chartsCss, ".chart__loading")).toMatchObject({ display: "flex", "align-items": "center", "justify-content": "center", color: "var(--muted)" });
+  });
+
+  it("draws the summary line in --muted at 13 px, its figures in the text colour", () => {
+    expect(rule(chartsCss, ".chart__summary")).toMatchObject({ color: "var(--muted)", "font-size": "13px" });
+    expect(rule(chartsCss, ".chart__summary :is(b, strong)")).toMatchObject({ color: "var(--fg)", "font-weight": "600" });
+  });
 });
 
 describe("the Chart/Table toggle", () => {
@@ -918,6 +935,14 @@ describe("the tiles (components.css)", () => {
   it("write the delta in --muted at 12 px, the triangle beside its first line", () => {
     expect(rule(componentsCss, ".stat__delta")).toMatchObject({ display: "flex", "align-items": "flex-start", gap: "4px", color: "var(--muted)", "font-size": "12px" });
     expect(rule(componentsCss, ".stat__delta svg")).toMatchObject({ flex: "none" });
+  });
+
+  it("write the source in --faint, mono, small, breaking inside a path", () => {
+    expect(rule(componentsCss, ".stat__source")).toMatchObject({ color: "var(--faint)", "font-family": "var(--font-mono)", "font-size": "11px", "overflow-wrap": "anywhere" });
+  });
+
+  it("keep the figure's height while busy: one line of the figure's own size, which is the body's line height", () => {
+    expect(rule(componentsCss, '.stat[aria-busy="true"] .stat__value')["min-height"]).toBe(`${rule(read("base.css"), "body")["line-height"]}em`);
   });
 });
 

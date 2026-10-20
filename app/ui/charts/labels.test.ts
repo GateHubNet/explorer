@@ -537,4 +537,10 @@ describe("plotSummary", () => {
     const empty: TimeSeriesData = { axis, series: [], format: { kind: "count" }, token: "t" };
     expect(plotSummary("Fees", empty)).toBe("Fees: No data for these 30 days.");
   });
+
+  it("says the data's own words instead when it has them, and still reads a chart that has a value", () => {
+    const words = "No transactions sent in these 30 days";
+    expect(plotSummary("Transactions sent, per day", stack(totals.map(() => null), { emptyText: words }))).toBe(`Transactions sent, per day: ${words}.`);
+    expect(plotSummary("Transactions sent, per day", stack(totals, { emptyText: words }))).toBe(plotSummary("Transactions sent, per day", stack(totals)));
+  });
 });
