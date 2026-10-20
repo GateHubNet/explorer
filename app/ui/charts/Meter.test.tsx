@@ -93,4 +93,39 @@ describe("Meter as the Worker prints it and the browser takes it over", () => {
     const { container } = await serverThenHydrated(<Meter data={DATA} />);
     expect(container.querySelector('[role="slider"], [tabindex], button, a')).toBeNull();
   });
+
+  it("is not hidden from assistive technology unless it is told it is decorative", async () => {
+    for (const props of [{}, { decorative: false }]) {
+      const { container } = await serverThenHydrated(<Meter data={DATA} {...props} />);
+      expect(container.querySelector(".meter")!.hasAttribute("aria-hidden")).toBe(false);
+      expect(container.querySelector(".meter")!.getAttribute("role")).toBe("img");
+    }
+  });
+});
+
+describe("Meter, decorative", () => {
+  it("is hidden from assistive technology: aria-hidden, no image role and no label to read", async () => {
+    const { container, errors } = await serverThenHydrated(<Meter data={DATA} decorative />);
+    const meter = container.querySelector(".meter")!;
+    expect(meter.getAttribute("aria-hidden")).toBe("true");
+    expect(meter.hasAttribute("role")).toBe(false);
+    expect(meter.hasAttribute("aria-label")).toBe(false);
+    expect(container.querySelector('[role="img"]')).toBeNull();
+    expect(errors).toEqual([]);
+  });
+
+  it("draws what it always does: the fill, the tick of the threshold and its label, the small size", async () => {
+    const { container } = await serverThenHydrated(<Meter data={DATA} decorative small />);
+    expect(fill(container).style.width).toBe("84%");
+    expect(tick(container)!.style.left).toBe("80%");
+    expect(tickLabel(container)!.textContent).toBe("80% needed");
+    const meter = container.querySelector(".meter")!;
+    expect(meter.classList.contains("meter--small")).toBe(true);
+    expect(meter.classList.contains("meter--threshold")).toBe(true);
+  });
+
+  it("still has nothing to focus or hover", async () => {
+    const { container } = await serverThenHydrated(<Meter data={DATA} decorative />);
+    expect(container.querySelector('[role="slider"], [tabindex], button, a')).toBeNull();
+  });
 });

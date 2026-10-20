@@ -130,8 +130,11 @@ function barList(title: string, data: BarListData) {
   const cols: Col<BarListData["items"][number]>[] = [
     { id: "name", header: "Name", min: NAME, grow: true, cell: (item) => named(item.label, item.sublabel) },
     { id: "value", header: "Value", min: FIGURE, figure: true, grow: true, cell: (item) => figure(item.value, format) },
-    { id: "share", header: "Share", min: COUNT, figure: true, grow: true, cell: (item) => item.share },
   ];
+  // A list whose tip is the count (`tip="count"`) has no share: a column of dashes would say nothing.
+  if (items.some((item) => item.share !== undefined)) {
+    cols.push({ id: "share", header: "Share", min: COUNT, figure: true, grow: true, cell: (item) => item.share ?? figure(null) });
+  }
   if (items.some((item) => item.count !== undefined)) {
     cols.push({ id: "count", header: "Count", min: COUNT, figure: true, grow: true, cell: (item) => figure(item.count ?? null) });
   }
@@ -173,7 +176,7 @@ function candles(title: string, data: CandleData) {
     },
   });
   const cols: Col<number>[] = [
-    bucketCol(axis, false),
+    bucketCol(axis, data.forming),
     price("open", "Open", (candle) => candle.o),
     price("high", "High", (candle) => candle.h),
     price("low", "Low", (candle) => candle.l),
@@ -187,9 +190,10 @@ function candles(title: string, data: CandleData) {
 
 /**
  * The table view of every chart form (spec 2.5): a compact `DataTable`, 300 px high at most, named `title`, with the exact values as the
- * view builder made them. A form over time lists the newest bucket first, its date in UTC ("Oct 17, 2026, so far" while it runs), one column
- * for each series or panel and, for stacks, `totalLabel` after them. A bar list has its name, value, share and count; shares have the row, its
- * total and a column for each segment; candles have open, high, low, close, volume and trades. A value that is missing is a dash that
+ * view builder made them. A form over time lists the newest bucket first, its date in UTC ("Oct 17, 2026, so far" while it runs, which the
+ * candles' `forming` says too), one column for each series or panel and, for stacks, `totalLabel` after them. A bar list has its name, value,
+ * share (when any item has one) and count; shares have the row, its total and a column for each segment; candles have open, high, low, close
+ * (`formatPrice` text), volume and trades. A value that is missing is a dash that
  * screen readers hear as "no data"; with no value at all there are no rows and the table says "No data". The unit is not in a cell: the
  * title and the headings name it.
  */

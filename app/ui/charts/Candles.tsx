@@ -4,7 +4,7 @@ import { formatAmount } from "../../domain/format";
 import { cellOf, type Cell } from "./cells";
 import { HoverGroup, useHoverGroup } from "./Cursor";
 import { fitScale, fractionOf, niceScale, percent } from "./geometry";
-import { emptyText, plotSummary, sliderLabel, tickLabel, valueText } from "./labels";
+import { bucketLabel, emptyText, plotSummary, sliderLabel, tickLabel, valueText } from "./labels";
 import type { LegendItem } from "./Legend";
 import { Plot } from "./Plot";
 import type { CandleData } from "./types";
@@ -14,6 +14,10 @@ export interface CandlesProps {
   /** The chart's name: the price pane is named for it, and the volume pane for it and "volume". */
   title: string;
   data: CandleData;
+  /** `false`: a changed token redraws the panes with no ring (the page rings the figures around them). Default `true`. */
+  mark?: boolean;
+  /** What the price pane says when no candle is drawn ("No trades in these 60 hours"). Default: the kit's "No data for these 60 days". */
+  empty?: string;
 }
 
 /** A candle the kit can draw: its four prices, which are numbers (a candle with one that is not is `null`), and its volume, which may be missing. */
@@ -58,8 +62,9 @@ export function candleLegend(data: CandleData): LegendItem[] {
 
 /**
  * The readout above the price pane (spec 2.11): the time, then O H L C, "Volume" and the trades, of the candle the group is on (the pointer
- * or the keyboard, in either pane), else the newest one that there is; a bucket with no candle says so. Only this follows the group, so that
- * a pointer move renders the readout and the cursors and not the marks.
+ * or the keyboard, in either pane), else the newest one that there is; a bucket with no candle says so. The time is the readout's own
+ * (`Oct 17, 2026, 17:00 UTC · so far`, `Week of Oct 12, 2026`). Only this follows the group, so that a pointer move renders the readout
+ * and the cursors and not the marks.
  */
 function Readout({ count, latest, said, dateOf }: { count: number; latest: number; said: (i: number) => Said | null; dateOf: (i: number) => string }) {
   const active = useHoverGroup()?.active ?? null;
@@ -75,7 +80,7 @@ function Readout({ count, latest, said, dateOf }: { count: number; latest: numbe
   }
   return (
     <p className="candles__readout">
-      <span className="candles__time">{line.date}</span>
+      <span className="candles__time">{dateOf(i)}</span>
       {line.prices.map(({ letter, text }) => (
         <span key={letter}>
           {letter} <b>{text}</b>
@@ -105,10 +110,14 @@ function Readout({ count, latest, said, dateOf }: { count: number; latest: numbe
  * the tooltip for its own. Both panes scroll sideways when they are denser than 5 px a bucket (`slots`), each in a region of its own, and a
  * region follows the other so that the volume stays under its candles.
  *
- * Memoised on `title` and the data's `token` (spec 2.9): a beat that brings the same token renders nothing.
+ * Memoised on `title`, the data's `token`, `mark` and `empty` (spec 2.9): a beat that brings the same token renders nothing.
+ *
+ * `data.forming` says the newest bucket is the running one: its date says "so far" in the tooltip, the slider, the summary and the table, and
+ * ` · so far` in the readout, never on the axis. `mark={false}` redraws a changed token with no ring, and `empty` is what the price pane says
+ * when no candle is drawn (the kit's "No data for these 60 days" otherwise).
  */
 export const Candles = memo(
-  function Candles({ title, data }: CandlesProps) {
+  function Candles({ title, data, mark = true, empty }: CandlesProps) {
     const { axis, format, volume } = data;
     const count = axis.buckets.length;
     const bars = axis.buckets.map((_, i) => barOf(data.candles[i]));
@@ -125,8 +134,12 @@ export const Candles = memo(
       ...volumes.ticks.map((tick) => tickLabel(tick, volume.kind).length),
     );
 
-    // The words: a price is `valueText` in full, with its unit, and the volume is compact with its unit, as the readout says it.
-    const { date, gapReadOut, gapTip } = bucketWords(axis, false, 0);
+    // The words: a price is `valueText` in full (`formatPrice`), with its unit, and the volume is compact with its unit, as the readout says
+    // it. The newest bucket is the running one when the data says so: "so far" in the tooltip, the slider, the summary and the readout.
+    const forming = data.forming === true;
+    const { date, gapReadOut, gapTip } = bucketWords(axis, forming, 0);
+    /** The line above the chart writes the bucket as it stands alone: with its zone, and ` · so far` on the running one. */
+    const readoutDate = (i: number): string => bucketLabel(axis.buckets[i] ?? "", axis.unit, "readout", forming && i === count - 1);
     const said = (i: number): Said | null => {
       const bar = bars[i];
       if (!bar) return null;
@@ -181,7 +194,7 @@ export const Candles = memo(
 
     // For a screen reader, each pane is an image of a series: the closing prices, and the volumes (`plotSummary`).
     const summary = (name: string, series: (string | null)[], fmt: CandleData["format"]): string =>
-      plotSummary(name, { axis, series: [{ id: "series", label: name, slot: 1, values: series }], format: fmt, token: data.token });
+      plotSummary(name, { axis, series: [{ id: "series", label: name, slot: 1, values: series }], format: fmt, forming, token: data.token });
 
     // The panes are two regions that scroll sideways, each following the other.
     const root = useRef<HTMLDivElement>(null);
@@ -200,11 +213,12 @@ export const Candles = memo(
     return (
       <HoverGroup>
         <div ref={root} className="candles">
-          {drawn && <Readout count={count} latest={latest} said={said} dateOf={date} />}
+          {drawn && <Readout count={count} latest={latest} said={said} dateOf={readoutDate} />}
           <Plot
             title={title}
             summary={summary(`${title}, closing price`, bars.map((bar) => bar?.c.text ?? null), format)}
             token={data.token}
+            mark={mark}
             scale={prices}
             kind={format.kind}
             axis={axis}
@@ -213,7 +227,7 @@ export const Candles = memo(
             slots
             yAxis="right"
             yChars={chars}
-            empty={drawn ? null : emptyText(axis)}
+            empty={drawn ? null : (empty ?? emptyText(axis))}
             cursor={{ count, placement: "bands", label: sliderLabel(title, axis.unit), valueText: readOut(true), tooltip: tooltip(true) }}
           >
             <div className="plot__cols">
@@ -242,6 +256,7 @@ export const Candles = memo(
             title={`${title}, volume`}
             summary={summary(`${title}, volume`, bars.map((bar) => bar?.v?.text ?? null), volume)}
             token={data.token}
+            mark={mark}
             scale={volumes}
             kind={volume.kind}
             axis={axis}
@@ -264,5 +279,6 @@ export const Candles = memo(
       </HoverGroup>
     );
   },
-  (before, after) => before.title === after.title && before.data.token === after.data.token,
+  (before, after) =>
+    before.title === after.title && before.data.token === after.data.token && before.mark === after.mark && before.empty === after.empty,
 );

@@ -9,14 +9,18 @@ import type { MeterData } from "./types";
  * its tick near the start of the track and to the left near its end (the tooltip's rule, `tooltipSide`), so that it stays inside.
  *
  * It is one image named by `data.label` ("84% of the UNL votes yes; 80% needed"): the view builder writes it, since the numbers are its. It has
- * no hover, because the row or card it sits in says the numbers.
+ * no hover, because the row or card it sits in says the numbers. `decorative` is for a meter whose cell says its value in text (the markets
+ * table's AMM share: a meter and "34%"): it is then `aria-hidden`, with no `role="img"` and no label, so that the value is read once.
  */
-export function Meter({ data, small = false }: { data: MeterData; small?: boolean }) {
+export function Meter({ data, small = false, decorative = false }: { data: MeterData; small?: boolean; decorative?: boolean }) {
   const { value, max, threshold } = data;
   // A threshold that is not a number has no tick, and no label that would point at nothing.
   const place = threshold && cellOf(threshold.value) ? shareOf(threshold.value, max) : null;
   return (
-    <div className={cx("meter", small && "meter--small", place !== null && "meter--threshold")} role="img" aria-label={data.label}>
+    <div
+      className={cx("meter", small && "meter--small", place !== null && "meter--threshold")}
+      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": data.label })}
+    >
       <div className="meter__track">
         <span className="meter__fill" style={{ width: percent(shareOf(value, max)) }} />
         {place !== null && <span className="meter__tick" style={{ left: percent(place) }} />}

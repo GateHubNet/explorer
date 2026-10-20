@@ -274,10 +274,10 @@ describe("Candles' readout", () => {
     }
   });
 
-  it("is a time with the hour for an hourly axis", async () => {
+  it("is a time with the hour and its zone for an hourly axis: the readout names UTC, the slider does not", async () => {
     const hours: TimeAxis = { unit: "hour", buckets: ["2026-10-16T14:00:00Z", "2026-10-16T15:00:00Z"] };
     const { container } = await serverThenHydrated(<Candles title={TITLE} data={candles({ axis: hours, candles: [CANDLES[0]!, CANDLES[1]!] })} />);
-    expect(readout(container)[0]).toBe("Oct 16, 2026, 15:00");
+    expect(readout(container)[0]).toBe("Oct 16, 2026, 15:00 UTC");
     expect(sliders(container)[0]!.getAttribute("aria-valuetext")).toMatch(/^Oct 16, 2026, 15:00: open /);
   });
 });
@@ -360,6 +360,243 @@ describe("Candles' shared cursor", () => {
   });
 });
 
+describe("Candles' time axes, and the bucket that is still running", () => {
+  const HOURS: TimeAxis = { unit: "hour", buckets: ["2026-10-17T15:00:00Z", "2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"] };
+  const hourly = (extra: Partial<CandleData> = {}) => candles({ axis: HOURS, candles: [CANDLES[0]!, CANDLES[1]!, CANDLES[4]!], ...extra });
+  const QUARTERS: TimeAxis = {
+    unit: "minute",
+    buckets: ["2026-10-17T16:15:00Z", "2026-10-17T16:30:00Z", "2026-10-17T16:45:00Z", "2026-10-17T17:00:00Z"],
+  };
+  const quarterly = (extra: Partial<CandleData> = {}) => candles({ axis: QUARTERS, candles: [CANDLES[0]!, CANDLES[1]!, null, CANDLES[4]!], ...extra });
+  const WEEKS: TimeAxis = { unit: "week", buckets: ["2026-09-28", "2026-10-05", "2026-10-12"] };
+  const weekly = (extra: Partial<CandleData> = {}) => candles({ axis: WEEKS, candles: [CANDLES[0]!, CANDLES[1]!, CANDLES[4]!], ...extra });
+  const grid = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('[role="row"]'), (row) => Array.from(row.querySelectorAll('[role="columnheader"], [role="cell"]'), (cell) => cell.textContent ?? ""));
+
+  it("reads 'Oct 17, 2026, 17:00 UTC · so far' in the readout for the forming hour, in the HTML the Worker prints", async () => {
+    const { html, container, errors } = await serverThenHydrated(<Candles title={TITLE} data={hourly({ forming: true })} />);
+    expect(readout(container)[0]).toBe("Oct 17, 2026, 17:00 UTC \u00b7 so far");
+    expect(html).toContain("Oct 17, 2026, 17:00 UTC \u00b7 so far");
+    expect(errors).toEqual([]);
+  });
+
+  it("reads the bucket without 'so far' when it is not forming, or when the pointer is on an older bucket", async () => {
+    const quiet = await serverThenHydrated(<Candles title={TITLE} data={hourly()} />);
+    expect(readout(quiet.container)[0]).toBe("Oct 17, 2026, 17:00 UTC");
+    cleanup();
+    const { container } = await mounted(<Candles title={TITLE} data={hourly({ forming: true })} />);
+    fireEvent.pointerMove(sliders(container)[0]!, mouse(100));
+    expect(readout(container)[0]).toBe("Oct 17, 2026, 15:00 UTC");
+    fireEvent.pointerMove(sliders(container)[0]!, mouse(500));
+    expect(readout(container)[0]).toBe("Oct 17, 2026, 16:00 UTC");
+    fireEvent.pointerLeave(sliders(container)[0]!, mouse(500));
+    expect(readout(container)[0]).toBe("Oct 17, 2026, 17:00 UTC \u00b7 so far");
+  });
+
+  it("puts ', so far' in the tooltip and the slider text of the newest bucket in both panes, and in no other", async () => {
+    const { container, errors } = await mounted(<Candles title={TITLE} data={hourly({ forming: true })} />);
+    const [onPrice, onVolume] = sliders(container);
+    expect(onPrice!.getAttribute("aria-valuetext")).toMatch(/^Oct 17, 2026, 17:00, so far: open /);
+    expect(onVolume!.getAttribute("aria-valuetext")).toMatch(/^Oct 17, 2026, 17:00, so far: volume /);
+    fireEvent.pointerMove(onPrice!, mouse(900));
+    expect(lines(tips(container)[0]!)[0]).toBe("Oct 17, 2026, 17:00, so far");
+    fireEvent.pointerMove(onVolume!, mouse(900));
+    expect(lines(tips(container)[0]!)[0]).toBe("Oct 17, 2026, 17:00, so far");
+    // An older bucket is a closed one.
+    fireEvent.pointerMove(onPrice!, mouse(100));
+    expect(lines(tips(container)[0]!)[0]).toBe("Oct 17, 2026, 15:00");
+    fireEvent.keyDown(onPrice!, { key: "Home" });
+    expect(onPrice!.getAttribute("aria-valuetext")).toMatch(/^Oct 17, 2026, 15:00: open /);
+    expect(errors).toEqual([]);
+  });
+
+  it("puts nothing of it on the axis, and nothing at all when forming is not asked for", async () => {
+    const forming = await serverThenHydrated(<Candles title={TITLE} data={hourly({ forming: true })} />);
+    expect(texts(volume(forming.container).querySelector(".plot__x--wide")!.children)).toEqual(["15:00", "16:00", "17:00"]);
+    cleanup();
+    const { container } = await mounted(<Candles title={TITLE} data={hourly()} />);
+    expect(sliders(container)[0]!.getAttribute("aria-valuetext")).toMatch(/^Oct 17, 2026, 17:00: open /);
+    fireEvent.pointerMove(sliders(container)[0]!, mouse(900));
+    expect(lines(tips(container)[0]!)[0]).toBe("Oct 17, 2026, 17:00");
+    expect(container.innerHTML).not.toContain("so far");
+  });
+
+  it("says so far in the summary of each pane, after the date of the newest bucket", async () => {
+    const { container } = await serverThenHydrated(<Candles title={TITLE} data={hourly({ forming: true })} />);
+    expect(Array.from(container.querySelectorAll('[role="img"]'), (img) => img.getAttribute("aria-label"))).toEqual([
+      "Price, XRP/USD, closing price, Oct 17, 15:00 to Oct 17, 2026, 17:00. Highest Oct 17, 17:00, so far, 2.47 USD; latest Oct 17, 17:00, so far, 2.47 USD. Choose Table for every value.",
+      "Price, XRP/USD, volume, Oct 17, 15:00 to Oct 17, 2026, 17:00. Highest Oct 17, 17:00, so far, 1.5M XRP; latest Oct 17, 17:00, so far, 1.5M XRP. Choose Table for every value.",
+    ]);
+  });
+
+  it("says so far in the table's cell of the newest bucket only", async () => {
+    const data = hourly({ forming: true });
+    const { container, errors } = await serverThenHydrated(
+      <ChartCard id="price" title="Price" source="/v2/exchanges/XRP/USD" what="the price" table={<ChartTable title="Price" data={data} />}>
+        <Candles title="Price" data={data} />
+      </ChartCard>,
+    );
+    expect(grid(container).map((row) => row[0])).toEqual(["Hour (UTC)", "Oct 17, 2026, 17:00, so far", "Oct 17, 2026, 16:00", "Oct 17, 2026, 15:00"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("reads 'Week of Oct 12, 2026' for a week, with ' · so far' when it is the running one", async () => {
+    const closed = await serverThenHydrated(<Candles title={TITLE} data={weekly()} />);
+    expect(readout(closed.container)[0]).toBe("Week of Oct 12, 2026");
+    cleanup();
+    const running = await serverThenHydrated(<Candles title={TITLE} data={weekly({ forming: true })} />);
+    expect(readout(running.container)[0]).toBe("Week of Oct 12, 2026 \u00b7 so far");
+    expect(sliders(running.container)[0]!.getAttribute("aria-valuetext")).toMatch(/^Week of Oct 12, 2026, so far: open /);
+  });
+
+  it("reads a forming day as 'Oct 16, 2026 · so far' in the readout, and a closed day as before", async () => {
+    const { container } = await serverThenHydrated(<Candles title={TITLE} data={candles({ forming: true })} />);
+    expect(readout(container)[0]).toBe("Oct 16, 2026 \u00b7 so far");
+    cleanup();
+    const closed = await serverThenHydrated(<Candles title={TITLE} data={candles()} />);
+    expect(readout(closed.container)[0]).toBe("Oct 16, 2026");
+  });
+
+  it("marks a forming bucket that has no candle yet, in the readout beside 'No data'", async () => {
+    const data = hourly({ forming: true, candles: [CANDLES[0]!, CANDLES[1]!, null] });
+    const { container } = await serverThenHydrated(<Candles title={TITLE} data={data} />);
+    // The readout is on the newest candle there is, the one at 16:00.
+    expect(readout(container)[0]).toBe("Oct 17, 2026, 16:00 UTC");
+    cleanup();
+    const mountedData = await mounted(<Candles title={TITLE} data={data} />);
+    fireEvent.pointerMove(sliders(mountedData.container)[0]!, mouse(900));
+    expect(readout(mountedData.container)).toEqual(["Oct 17, 2026, 17:00 UTC \u00b7 so far", "No data"]);
+    expect(sliders(mountedData.container)[0]!.getAttribute("aria-valuetext")).toBe("Oct 17, 2026, 17:00, so far: no data");
+  });
+
+  it("draws a 15-minute axis: labels like '17:15', a readout with the zone, and a slider that goes quarter hour by quarter hour", async () => {
+    const { container, errors } = await serverThenHydrated(<Candles title={TITLE} data={quarterly({ forming: true })} />);
+    expect(texts(volume(container).querySelector(".plot__x--wide")!.children)).toEqual(["16:15", "16:30", "16:45", "17:00"]);
+    expect(readout(container)[0]).toBe("Oct 17, 2026, 17:00 UTC \u00b7 so far");
+    expect(sliders(container).map((slider) => slider.getAttribute("aria-label"))).toEqual([
+      "Price, XRP/USD, quarter hour by quarter hour",
+      "Price, XRP/USD, volume, quarter hour by quarter hour",
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it("says a quarter hour's tooltip with its day and time, and 'No data for' the one with no candle", async () => {
+    const { container } = await mounted(<Candles title={TITLE} data={quarterly()} />);
+    fireEvent.pointerMove(sliders(container)[0]!, mouse(100));
+    expect(lines(tips(container)[0]!)[0]).toBe("Oct 17, 2026, 16:15");
+    fireEvent.pointerMove(sliders(container)[0]!, mouse(600));
+    expect(lines(tips(container)[0]!)).toEqual(["No data for Oct 17, 2026, 16:45"]);
+  });
+
+  it("heads the first column of the table 'Time (UTC)' for a 15-minute axis", async () => {
+    const data = quarterly({ forming: true });
+    const { container } = await serverThenHydrated(
+      <ChartCard id="price" title="Price" source="/v2/exchanges/XRP/USD" what="the price" table={<ChartTable title="Price" data={data} />}>
+        <Candles title="Price" data={data} />
+      </ChartCard>,
+    );
+    expect(grid(container).map((row) => row[0])).toEqual([
+      "Time (UTC)",
+      "Oct 17, 2026, 17:00, so far",
+      "Oct 17, 2026, 16:45",
+      "Oct 17, 2026, 16:30",
+      "Oct 17, 2026, 16:15",
+    ]);
+  });
+});
+
+describe("Candles' prices are formatPrice text, never compact", () => {
+  const PRICES: CandleData["candles"] = [
+    { o: "12345.67890000", h: "12400.00000000", l: "12300.00000000", c: "12350.50000000", v: "2500000", n: "7" },
+    { o: "12350.50000000", h: "12390", l: "12310.25", c: "12320", v: "900000", n: "3" },
+  ];
+  const AXIS2: TimeAxis = { unit: "day", buckets: ["2026-10-15", "2026-10-16"] };
+  const priced = (rows: CandleData["candles"] = PRICES) => candles({ axis: AXIS2, candles: rows });
+
+  it("writes the axis, the readout, the tooltip, the slider and the table with it: 12,345.679, not 12.3K", async () => {
+    const data = priced();
+    const { container, errors } = await mounted(
+      <ChartCard id="price" title="Price" source="/v2/exchanges/XRP/USD" what="the price" table={<ChartTable title="Price" data={data} />}>
+        <Candles title="Price" data={data} />
+      </ChartCard>,
+    );
+    expect(texts(price(container).querySelector(".plot__y")!.children)).toEqual(["12,300", "12,325", "12,350", "12,375", "12,400"]);
+    fireEvent.pointerMove(sliders(container)[0]!, mouse(100));
+    expect(readout(container).slice(0, 5)).toEqual(["Oct 15, 2026", "O 12,345.679 USD", "H 12,400 USD", "L 12,300 USD", "C 12,350.5 USD"]);
+    expect(lines(tips(container)[0]!).slice(1, 5)).toEqual(["12,345.679 USD open", "12,400 USD high", "12,300 USD low", "12,350.5 USD close"]);
+    expect(sliders(container)[0]!.getAttribute("aria-valuetext")).toContain("open 12,345.679 USD, high 12,400 USD, low 12,300 USD, close 12,350.5 USD");
+    const rows = Array.from(container.querySelectorAll('[role="row"]'), (row) => Array.from(row.querySelectorAll('[role="cell"]'), (cell) => cell.textContent ?? ""));
+    expect(rows[2]!.slice(0, 5)).toEqual(["Oct 15, 2026", "12,345.679", "12,400", "12,300", "12,350.5"]);
+    expect(container.innerHTML).not.toMatch(/12\.3K|12\.4K/);
+    expect(errors).toEqual([]);
+  });
+
+  it("shows '0.40990000' as 0.4099, never 0.41, and keeps what is small whole", async () => {
+    const rows: CandleData["candles"] = [{ o: "0.40990000", h: "0.42500000", l: "0.40000000", c: "0.41500000", v: "100", n: "2" }, null];
+    const { container } = await serverThenHydrated(<Candles title={TITLE} data={priced(rows)} />);
+    expect(readout(container).slice(0, 5)).toEqual(["Oct 15, 2026", "O 0.4099 USD", "H 0.425 USD", "L 0.4 USD", "C 0.415 USD"]);
+    expect(container.innerHTML).not.toContain("0.41 USD");
+  });
+
+  it("reads a price the data API wrote in exponent notation, and writes none", async () => {
+    const rows: CandleData["candles"] = [{ o: "1.2345678e+8", h: "1.2345679e+8", l: "1.2345677e+8", c: "1.2345678e+8", v: "1", n: "1" }, null];
+    const { html, container } = await serverThenHydrated(<Candles title={TITLE} data={priced(rows)} />);
+    expect(readout(container).slice(1, 5)).toEqual(["O 123,456,780 USD", "H 123,456,790 USD", "L 123,456,770 USD", "C 123,456,780 USD"]);
+    expect(html).not.toMatch(/\de[+-]?\d/);
+  });
+});
+
+describe("Candles' mark prop", () => {
+  const other = candles({ candles: CANDLES.map((candle) => (candle ? { ...candle, c: "2.3" } : null)) });
+
+  it("sets no mark on either pane for a new token with mark={false}, though it redraws", () => {
+    const { container, rerender } = render(<Candles title={TITLE} data={candles()} mark={false} />);
+    rerender(<Candles title={TITLE} data={{ ...other, token: "c2" }} mark={false} />);
+    expect(container.querySelector(".plot.is-changed")).toBeNull();
+    expect(readout(container)).toContain("C 2.3 USD");
+    rerender(<Candles title={TITLE} data={{ ...other, token: "c3" }} mark={false} />);
+    expect(container.querySelector(".plot.is-changed")).toBeNull();
+    expect(container.querySelectorAll(".plot")).toHaveLength(2);
+  });
+
+  it("still rings both panes by default, and with mark={true}", () => {
+    for (const props of [{}, { mark: true }]) {
+      const { container, rerender, unmount } = render(<Candles title={TITLE} data={candles()} {...props} />);
+      rerender(<Candles title={TITLE} data={{ ...other, token: "c2" }} {...props} />);
+      expect(container.querySelectorAll(".plot.is-changed")).toHaveLength(2);
+      unmount();
+    }
+  });
+});
+
+describe("Candles' empty text", () => {
+  const none = candles({ candles: CANDLES.map(() => null) });
+
+  it("says the page's words in the price pane when no candle is drawn, and keeps the kit's own without them", async () => {
+    const asked = await serverThenHydrated(<Candles title={TITLE} data={none} empty="No trades in these 60 hours" />);
+    expect(price(asked.container).querySelector(".plot__empty")!.textContent).toBe("No trades in these 60 hours");
+    expect(sliders(asked.container)).toHaveLength(0);
+    expect(asked.container.querySelector(".candles__readout")).toBeNull();
+    expect(volume(asked.container).querySelector(".plot__empty")).toBeNull();
+    expect(asked.errors).toEqual([]);
+    cleanup();
+    const plain = await serverThenHydrated(<Candles title={TITLE} data={none} />);
+    expect(price(plain.container).querySelector(".plot__empty")!.textContent).toBe("No data for these 5 days");
+  });
+
+  it("is not said when a candle is drawn", async () => {
+    const { container } = await serverThenHydrated(<Candles title={TITLE} data={candles()} empty="No trades in these 60 hours" />);
+    expect(container.querySelector(".plot__empty")).toBeNull();
+    expect(container.innerHTML).not.toContain("No trades");
+  });
+
+  it("is part of what the component is memoised on, with the token and the title", () => {
+    const { container, rerender } = render(<Candles title={TITLE} data={none} empty="No trades in these 60 hours" />);
+    rerender(<Candles title={TITLE} data={none} empty="No trades in these 10 days" />);
+    expect(container.querySelector(".plot__empty")!.textContent).toBe("No trades in these 10 days");
+  });
+});
+
 describe("candleLegend", () => {
   it("gives the three items the page passes to Legend: closed higher, closed lower, and the volume in its unit", () => {
     expect(candleLegend(candles())).toEqual([
@@ -438,7 +675,8 @@ describe("Candles in its card: the table view of the same data", () => {
     const { container, errors } = await serverThenHydrated(card(candles()));
     const rows = grid(container);
     expect(rows[0]).toEqual(["Day (UTC)", "Open", "High", "Low", "Close", "Volume", "Trades"]);
-    expect(rows[1]).toEqual(["Oct 16, 2026", "2.41", "2.48", "2.40", "2.47", "1,500,000", "402"]);
+    // The prices are `formatPrice` text: the trailing zero of 2.40 is gone.
+    expect(rows[1]).toEqual(["Oct 16, 2026", "2.41", "2.48", "2.4", "2.47", "1,500,000", "402"]);
     expect(rows).toHaveLength(6);
     expect(container.querySelectorAll(".legend__item")).toHaveLength(3);
     expect(container.querySelectorAll(".candles .candle")).toHaveLength(4);

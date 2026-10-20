@@ -1033,6 +1033,18 @@
   font-size: 11px;
 }
 
+/* A label that is a link (an item's `href`): a hit area of 24 px or more (WCAG 2.2, 2.5.8) around its text, 6 px above and below and 4 px at
+   the sides, without making the row taller. The rows of a list that is not dense are 28 px apart, so two hit areas do not meet. */
+.barlist__link {
+  position: relative;
+}
+
+.barlist__link::after {
+  content: "";
+  position: absolute;
+  inset: -6px -4px;
+}
+
 .barlist__lane {
   display: flex;
   align-items: center;

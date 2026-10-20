@@ -96,6 +96,30 @@ export function compactNumber(value: string): string {
 }
 
 /**
+ * A price for display (the data API writes one with 8 significant digits, in exponent notation from 1e8 and below 1e-6): 8 significant
+ * digits, half up on the digits themselves, trailing zeros dropped, the integer part grouped (`12,345.679`, `0.4099`, `0.0000000001`).
+ * It is never compacted (no K, M or B: a price is read to the digit) and never written with an exponent; U+2212 is the sign of a negative.
+ * A value that is not a number is returned as it came.
+ */
+export function formatPrice(value: string): string {
+  if (!DECIMAL.test(value)) return value;
+  // `toFixed()` with no argument is plain notation, and BigNumber keeps no trailing zeros, so `0.40990000` is `0.4099` from here.
+  return formatAmount(new BigNumber(value).precision(8, BigNumber.ROUND_HALF_UP).toFixed());
+}
+
+/**
+ * A percent change as text, without the `%` (the caller adds it): rounded half up to 2 decimals, `+` before a positive value, U+2212
+ * before a negative one, the integer part grouped, and `0.00` for zero and for what rounds to zero (`-0.004`), which has no sign. Exponent
+ * notation is read, never written. A value that is not a number is returned as it came.
+ */
+export function formatChange(value: string): string {
+  if (!DECIMAL.test(value)) return value;
+  const change = new BigNumber(value).decimalPlaces(2, BigNumber.ROUND_HALF_UP);
+  if (change.isZero()) return "0.00";
+  return `${change.isNegative() ? MINUS : "+"}${formatAmount(change.abs().toFixed(2))}`;
+}
+
+/**
  * `part` as a whole percent of `whole`, half up, exactly (`58%`), and `<1%` below one half of a percent. A share of nothing
  * (a `whole` that is not above 0) or of what is not a number is a dash.
  */
@@ -107,6 +131,15 @@ export function sharePercent(part: string, whole: string): string {
   // floor(100 × part ÷ whole + ½), without a division that rounds: (200 × part + whole) ÷ (2 × whole), whole part.
   const percent = share.times(200).plus(total).idiv(total.times(2));
   return percent.isZero() ? "<1%" : `${percent.toFixed()}%`;
+}
+
+/**
+ * The one percent rule of the markets pages: `sharePercent`, except that a `part` of exactly 0 is `0%` (a share of nothing is still a dash).
+ * So `<1%` always means more than 0 and less than one half of a percent.
+ */
+export function wholePercent(part: string, whole: string): string {
+  if (DECIMAL.test(part) && DECIMAL.test(whole) && new BigNumber(part).isZero() && new BigNumber(whole).gt(0)) return "0%";
+  return sharePercent(part, whole);
 }
 
 const HEX_CURRENCY = /^[0-9A-Fa-f]{40}$/;

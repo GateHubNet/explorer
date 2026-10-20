@@ -1,4 +1,7 @@
 import { cleanup, render } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { renderToString } from "react-dom/server";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
@@ -98,6 +101,158 @@ describe("BarList as the Worker prints it and the browser takes it over", () => 
     expect(short.container.querySelector<HTMLElement>("ol")!.style.getPropertyValue("--label")).toBe("min(7ch, 45%)");
     const long = await serverThenHydrated(<BarList data={barlist({ items: [{ id: "a", label: "A pool of a long name", value: "1", share: "1%" }] })} />);
     expect(long.container.querySelector<HTMLElement>("ol")!.style.getPropertyValue("--label")).toBe("min(21ch, 45%)");
+  });
+});
+
+/** The page the list is in: a link needs a router, as the pages that use it have. */
+const routed = (ui: ReactElement) => <MemoryRouter>{ui}</MemoryRouter>;
+const links = (container: HTMLElement) => Array.from(container.querySelectorAll<HTMLAnchorElement>("a"));
+
+describe("BarList's links (E3's traders, E5's fee votes)", () => {
+  const LINKED: BarListData = {
+    items: [
+      { id: "a", label: "rJF2Xa…fQvg", sublabel: "Binance", value: "6100000", share: "58%", href: "/xrpl/account/rJF2XaN4q9D9E2hzK5qJ6kAn7rR7yGfQvg" },
+      { id: "b", label: "rN7n7o…2Rh", value: "3050000", share: "29%", href: "/xrpl/account/rN7n7otQDd6FczFgLdSqtcsAUxDkw6fzRh" },
+      { id: "c", label: "Not linked", value: "61000", share: "<1%" },
+    ],
+    format: { kind: "amount", unit: "XRP" },
+    token: "l1",
+  };
+
+  it("makes the label of an item with an href a link to it, and leaves the other labels as text", async () => {
+    const { container, errors } = await serverThenHydrated(routed(<BarList data={LINKED} />));
+    expect(links(container).map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["rJF2Xa…fQvg", "/xrpl/account/rJF2XaN4q9D9E2hzK5qJ6kAn7rR7yGfQvg"],
+      ["rN7n7o…2Rh", "/xrpl/account/rN7n7otQDd6FczFgLdSqtcsAUxDkw6fzRh"],
+    ]);
+    const labels = Array.from(container.querySelectorAll(".barlist__label"));
+    expect(labels.map((label) => label.querySelector("a") !== null)).toEqual([true, true, false]);
+    expect(labels.map((label) => label.textContent)).toEqual(["rJF2Xa…fQvg", "rN7n7o…2Rh", "Not linked"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("is in the HTML the Worker prints, so that it works without the script", () => {
+    const html = renderToString(routed(<BarList data={LINKED} />));
+    expect(html).toContain('href="/xrpl/account/rJF2XaN4q9D9E2hzK5qJ6kAn7rR7yGfQvg"');
+    expect(html.match(/<a /g)).toHaveLength(2);
+  });
+
+  it("keeps the bar a picture: aria-hidden, no link around it and nothing of it to tab to; the sublabel and the tip are text beside the link", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={LINKED} />));
+    for (const bar of bars(container)) {
+      expect(bar.getAttribute("aria-hidden")).toBe("true");
+      expect(bar.closest("a")).toBeNull();
+      expect(bar.querySelector("a")).toBeNull();
+    }
+    for (const part of container.querySelectorAll(".barlist__sub, .barlist__tip, .barlist__lane")) expect(part.closest("a")).toBeNull();
+    expect(links(container).every((link) => link.querySelector("[aria-hidden]") === null && link.closest('[aria-hidden="true"]') === null)).toBe(true);
+    expect(container.querySelectorAll("a, [tabindex], button")).toHaveLength(2);
+  });
+
+  it("changes nothing in what a screen reader hears of a row but the label being a link", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={LINKED} />));
+    expect(items(container)[0]!.textContent).toBe("rJF2Xa…fQvg" + "Binance" + "6.1M XRP · 58%");
+  });
+
+  it("gives the link a class of its own, for its hit area", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={LINKED} />));
+    expect(links(container).every((link) => link.classList.contains("barlist__link"))).toBe(true);
+    expect(link0(container).closest(".barlist__label")).not.toBeNull();
+  });
+
+  it("draws no link, and needs no router, when no item has an href", async () => {
+    const { container, errors } = await serverThenHydrated(<BarList data={DATA} />);
+    expect(links(container)).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  it("redraws a label that gains an href, as a new token does", () => {
+    const { container, rerender } = render(routed(<BarList data={{ ...LINKED, items: LINKED.items.map(({ href: _href, ...item }) => item) }} />));
+    expect(links(container)).toHaveLength(0);
+    rerender(routed(<BarList data={{ ...LINKED, token: "l2" }} />));
+    expect(links(container)).toHaveLength(2);
+  });
+});
+
+const link0 = (container: HTMLElement) => links(container)[0]!;
+
+describe("BarList with tip=\"count\" (the traders)", () => {
+  const TRADERS: BarListData = {
+    items: [
+      { id: "a", label: "rJF2Xa…fQvg", value: "6100000", count: "312", href: "/xrpl/account/rJF2XaN4q9D9E2hzK5qJ6kAn7rR7yGfQvg" },
+      { id: "b", label: "rN7n7o…2Rh", value: "3050000", count: "1204" },
+      { id: "c", label: "rPEPPE…ZZ", value: "61000", count: "1" },
+      { id: "d", label: "rQuiet…00", value: "0", count: "0" },
+    ],
+    format: { kind: "amount", unit: "XRP" },
+    token: "t1",
+  };
+
+  it("reads '6.1M XRP · 312 trades' at the tip: the value strong, then the count and 'trades', with no share needed", async () => {
+    const { container, errors } = await serverThenHydrated(routed(<BarList data={TRADERS} tip="count" />));
+    expect(tips(container).map((tip) => tip.textContent)).toEqual(["6.1M XRP · 312 trades", "3.05M XRP · 1,204 trades", "61K XRP · 1 trade", "0 XRP · 0 trades"]);
+    expect(tips(container)[0]!.querySelector("b")!.textContent).toBe("6.1M XRP");
+    expect(errors).toEqual([]);
+  });
+
+  it("ignores a share that is given, which the table view keeps", async () => {
+    const data = barlist({ items: DATA.items });
+    const { container } = await serverThenHydrated(<BarList data={data} tip="count" />);
+    expect(tips(container).map((tip) => tip.textContent)).toEqual(["1.24B XRP · 812,034 trades", "620M XRP · 41,230 trades", "12.4M XRP"]);
+  });
+
+  it("draws each bar as wide as its value over the FIRST item's, the list being sorted", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={TRADERS} tip="count" />));
+    expect(bars(container).map((bar) => bar.style.width)).toEqual(["100%", "50%", "1%"]);
+    // The share-mode rule measures against the largest wherever it is: the first, not the largest, is the count mode's.
+    const unsorted = barlist({ items: [TRADERS.items[1]!, TRADERS.items[0]!], format: TRADERS.format });
+    const byFirst = await serverThenHydrated(routed(<BarList data={unsorted} tip="count" />));
+    expect(bars(byFirst.container).map((bar) => bar.style.width)).toEqual(["100%", "100%"]);
+    const byLargest = await serverThenHydrated(routed(<BarList data={unsorted} />));
+    expect(bars(byLargest.container).map((bar) => bar.style.width)).toEqual(["50%", "100%"]);
+  });
+
+  it("holds a bar longer than the first's at the end of its lane, and draws none when the first is 0 or not a number", async () => {
+    const { container } = await serverThenHydrated(<BarList data={barlist({ items: [{ id: "a", label: "A", value: "2", count: "1" }, { id: "b", label: "B", value: "5", count: "1" }], format: { kind: "count" } })} tip="count" />);
+    expect(bars(container).map((bar) => bar.style.width)).toEqual(["100%", "100%"]);
+    for (const first of ["0", "n/a", "-3"]) {
+      const none = await serverThenHydrated(<BarList data={barlist({ items: [{ id: "a", label: "A", value: first, count: "1" }, { id: "b", label: "B", value: "5", count: "1" }], format: { kind: "count" } })} tip="count" />);
+      expect(bars(none.container)).toHaveLength(0);
+      expect(none.html).not.toContain("NaN");
+      expect(none.html).not.toContain("Infinity");
+    }
+  });
+
+  it("leaves the count out of the tip of an item that has none", async () => {
+    const { container } = await serverThenHydrated(<BarList data={barlist({ items: [{ id: "a", label: "A", value: "6100000" }], format: TRADERS.format })} tip="count" />);
+    expect(tips(container)[0]!.textContent).toBe("6.1M XRP");
+  });
+
+  it("makes room for the longest tip, 'trades' included", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={TRADERS} tip="count" />));
+    // '3.05M XRP · 1,204 trades' is 24 characters, the longest; one more for the bold.
+    expect(container.querySelector<HTMLElement>("ol")!.style.getPropertyValue("--tip")).toBe("calc(25ch + 10px)");
+  });
+
+  it("is a list of links to the account pages in the traders' use, the bar still a picture", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={TRADERS} tip="count" />));
+    expect(links(container).map((link) => link.getAttribute("href"))).toEqual(["/xrpl/account/rJF2XaN4q9D9E2hzK5qJ6kAn7rR7yGfQvg"]);
+    for (const bar of bars(container)) expect(bar.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("is drawn again when the tip changes, which is part of what it is memoised on", () => {
+    const { container, rerender } = render(<BarList data={DATA} />);
+    expect(tips(container)[0]!.textContent).toBe("1.24B XRP · 58%");
+    rerender(<BarList data={DATA} tip="count" />);
+    expect(tips(container)[0]!.textContent).toBe("1.24B XRP · 812,034 trades");
+  });
+});
+
+describe("BarList without a share, in the default tip", () => {
+  it("writes the value alone at the tip, with no dot after it, and does not say undefined", async () => {
+    const { html, container } = await serverThenHydrated(<BarList data={barlist({ items: [{ id: "a", label: "A", value: "5" }, { id: "b", label: "B", value: "2", share: "40%" }] })} />);
+    expect(tips(container).map((tip) => tip.textContent)).toEqual(["5 XRP", "2 XRP · 40%"]);
+    expect(html).not.toContain("undefined");
   });
 });
 

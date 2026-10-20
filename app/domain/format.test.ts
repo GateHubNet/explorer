@@ -4,13 +4,16 @@ import {
   compactNumber,
   dropsToNative,
   formatAmount,
+  formatChange,
   formatCurrency,
+  formatPrice,
   formatUtc,
   formatUtcDay,
   relativeTime,
   sharePercent,
   shortAddress,
   shortHash,
+  wholePercent,
 } from "./format";
 
 describe("formatAmount", () => {
@@ -308,5 +311,128 @@ describe("sharePercent", () => {
     expect(sharePercent("1", "0")).toBe("\u2014");
     expect(sharePercent("soon", "10")).toBe("\u2014");
     expect(sharePercent("1", "soon")).toBe("\u2014");
+  });
+});
+
+describe("wholePercent", () => {
+  it("is sharePercent: whole percents, half up, and <1% below one half of a percent", () => {
+    expect(wholePercent("34", "100")).toBe("34%");
+    expect(wholePercent("900", "1300.4")).toBe("69%");
+    expect(wholePercent("0.5", "100")).toBe("1%");
+    expect(wholePercent("0.4", "100")).toBe("<1%");
+    expect(wholePercent("0.4999999999999999999999", "100")).toBe("<1%");
+    expect(wholePercent("5", "5")).toBe("100%");
+  });
+
+  it("says 0% for a part of exactly 0, in any way of writing it, where sharePercent says <1%", () => {
+    expect(sharePercent("0", "100")).toBe("<1%");
+    expect(wholePercent("0", "100")).toBe("0%");
+    expect(wholePercent("0.0000", "100")).toBe("0%");
+    expect(wholePercent("-0", "100")).toBe("0%");
+    expect(wholePercent("0e5", "100")).toBe("0%");
+  });
+
+  it("says nothing of a share of nothing, or of what is not a number", () => {
+    expect(wholePercent("0", "0")).toBe("\u2014");
+    expect(wholePercent("1", "0")).toBe("\u2014");
+    expect(wholePercent("0", "soon")).toBe("\u2014");
+    expect(wholePercent("soon", "10")).toBe("\u2014");
+    expect(wholePercent("-1", "10")).toBe("\u2014");
+  });
+});
+
+describe("formatPrice", () => {
+  it("keeps 8 significant digits, half up, and drops the trailing zeros", () => {
+    expect(formatPrice("0.40990000")).toBe("0.4099");
+    expect(formatPrice("2.43934999")).toBe("2.43935");
+    expect(formatPrice("12345.678912")).toBe("12,345.679");
+    expect(formatPrice("0.000123456789")).toBe("0.00012345679");
+    expect(formatPrice("2.4")).toBe("2.4");
+    expect(formatPrice("2.40")).toBe("2.4");
+    expect(formatPrice("1")).toBe("1");
+    expect(formatPrice("1.00000000")).toBe("1");
+  });
+
+  it("rounds half up on the digits, not on a float", () => {
+    expect(formatPrice("0.123456785")).toBe("0.12345679");
+    expect(formatPrice("0.123456784999")).toBe("0.12345678");
+    expect(formatPrice("1.00000005")).toBe("1.0000001");
+    expect(formatPrice("1.00000004")).toBe("1");
+    expect(formatPrice("99999999.5")).toBe("100,000,000");
+    expect(formatPrice("0.99999999999")).toBe("1");
+  });
+
+  it("groups the integer part, and rounds a large price to 8 digits with zeros after them", () => {
+    expect(formatPrice("123456789012")).toBe("123,456,790,000");
+    expect(formatPrice("1234")).toBe("1,234");
+    expect(formatPrice("1234567.891")).toBe("1,234,567.9");
+  });
+
+  it("reads exponent notation, which the data API writes from 1e8 and below 1e-6, and never writes it", () => {
+    expect(formatPrice("1e-10")).toBe("0.0000000001");
+    expect(formatPrice("1.5E+3")).toBe("1,500");
+    expect(formatPrice("1.2345678e+8")).toBe("123,456,780");
+    expect(formatPrice("1.23456789e-7")).toBe("0.00000012345679");
+    expect(formatPrice("1e+21")).toBe("1,000,000,000,000,000,000,000");
+    expect(formatPrice("-2.5e-9")).toBe("\u22120.0000000025");
+    for (const text of ["1e-10", "1.5E+3", "1.2345678e+8", "9.9999999e-12", "1e+30", "123456789012", "0.000123456789"]) expect(formatPrice(text)).not.toMatch(/e/i);
+  });
+
+  it("is 0 for a zero, with U+2212 for a negative value", () => {
+    expect(formatPrice("0")).toBe("0");
+    expect(formatPrice("0.00000000")).toBe("0");
+    expect(formatPrice("-0")).toBe("0");
+    expect(formatPrice("-1.234567891")).toBe("\u22121.2345679");
+    expect(formatPrice("+2.5")).toBe("2.5");
+  });
+
+  it("returns what is not a number as it came", () => {
+    expect(formatPrice("abc")).toBe("abc");
+    expect(formatPrice("")).toBe("");
+    expect(formatPrice("NaN")).toBe("NaN");
+    expect(formatPrice("Infinity")).toBe("Infinity");
+    expect(formatPrice("1,5")).toBe("1,5");
+    expect(formatPrice("\u2014")).toBe("\u2014");
+  });
+});
+
+describe("formatChange", () => {
+  it("has 2 decimals, half up, a + before a positive value and U+2212 before a negative one", () => {
+    expect(formatChange("2.375")).toBe("+2.38");
+    expect(formatChange("-2.375")).toBe("\u22122.38");
+    expect(formatChange("12.3")).toBe("+12.30");
+    expect(formatChange("-12.3")).toBe("\u221212.30");
+    expect(formatChange("0.005")).toBe("+0.01");
+    expect(formatChange("-0.005")).toBe("\u22120.01");
+    expect(formatChange("+2.375")).toBe("+2.38");
+  });
+
+  it("rounds on the digits, not on a float", () => {
+    expect(formatChange("2.3749999999999999999")).toBe("+2.37");
+    expect(formatChange("1.005")).toBe("+1.01");
+    expect(formatChange("2.675")).toBe("+2.68");
+  });
+
+  it("is 0.00 for zero and for what rounds to it, with no sign", () => {
+    expect(formatChange("0")).toBe("0.00");
+    expect(formatChange("0.00")).toBe("0.00");
+    expect(formatChange("-0")).toBe("0.00");
+    expect(formatChange("-0.004")).toBe("0.00");
+    expect(formatChange("0.004")).toBe("0.00");
+    expect(formatChange("1e-10")).toBe("0.00");
+  });
+
+  it("groups a large change, reads exponent notation and never writes it, and has no percent sign", () => {
+    expect(formatChange("1234.5")).toBe("+1,234.50");
+    expect(formatChange("-1234567.891")).toBe("\u22121,234,567.89");
+    expect(formatChange("1.5E+3")).toBe("+1,500.00");
+    expect(formatChange("2.5e1")).toBe("+25.00");
+    expect(formatChange("12.3")).not.toContain("%");
+  });
+
+  it("returns what is not a number as it came", () => {
+    expect(formatChange("abc")).toBe("abc");
+    expect(formatChange("")).toBe("");
+    expect(formatChange("\u2014")).toBe("\u2014");
   });
 });

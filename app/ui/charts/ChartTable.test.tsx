@@ -224,6 +224,35 @@ describe("ChartTable of a bar list", () => {
     const { container } = await serverThenHydrated(<ChartTable title="Payment volume by currency" data={{ ...list, items: [] }} />);
     expect(container.querySelector(".table__empty")!.textContent).toBe("No data");
   });
+
+  // A list whose tip is the count (`tip="count"`) has no share to write.
+  it("has no share column when no item has a share, and the count is there", async () => {
+    const data: BarListData = {
+      items: [
+        { id: "a", label: "rJF2Xa…fQvg", value: "6100000", count: "312", href: "/xrpl/account/rJF2XaN4q9D9E2hzK5qJ6kAn7rR7yGfQvg" },
+        { id: "b", label: "rN7n7o…2Rh", value: "950000.5", count: "1" },
+      ],
+      format: { kind: "amount", unit: "XRP" },
+      token: "t",
+    };
+    const { container, errors } = await serverThenHydrated(<ChartTable title="Most active traders" data={data} />);
+    expect(headers(container)).toEqual(["Name", "Value", "Count"]);
+    expect(body(container)).toEqual([
+      ["rJF2Xa…fQvg", "6,100,000", "312"],
+      ["rN7n7o…2Rh", "950,000.5", "1"],
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it("keeps the share column when some item has a share, and a dash that says no data for the one that has none", async () => {
+    const data: BarListData = { ...list, items: [list.items[0]!, { id: "eur", label: "EUR", value: "5", count: "2" }] };
+    const { container } = await serverThenHydrated(<ChartTable title="Payment volume by currency" data={data} />);
+    expect(headers(container)).toEqual(["Name", "Value", "Share", "Count"]);
+    expect(body(container)).toEqual([
+      ["XRP", "1,240,000,000.5", "58%", "812,004"],
+      ["EUR", "5", "—no data", "2"],
+    ]);
+  });
 });
 
 describe("ChartTable of shares", () => {
@@ -295,6 +324,46 @@ describe("ChartTable of candles", () => {
   it("says No data when no candle exists", async () => {
     const { container } = await serverThenHydrated(<ChartTable title="XRP/USD" data={{ ...candles, candles: [null, null, null] }} />);
     expect(container.querySelector(".table__empty")!.textContent).toBe("No data");
+  });
+
+  it("says so far in the cell of the newest bucket when the candles are forming, and in no other", async () => {
+    const { container, errors } = await serverThenHydrated(<ChartTable title="XRP/USD" data={{ ...candles, forming: true }} />);
+    expect(body(container).map((row) => row[0])).toEqual(["Oct 17, 2026, so far", "Oct 16, 2026", "Oct 15, 2026"]);
+    expect(errors).toEqual([]);
+    const closed = await serverThenHydrated(<ChartTable title="XRP/USD" data={{ ...candles, forming: false }} />);
+    expect(body(closed.container).map((row) => row[0])).toEqual(["Oct 17, 2026", "Oct 16, 2026", "Oct 15, 2026"]);
+  });
+
+  it("says so far in an hour or a week cell, and heads a 15-minute axis Time (UTC) with the day and time in the cells", async () => {
+    const hourly: CandleData = { ...candles, axis: { unit: "hour", buckets: ["2026-10-17T15:00:00Z", "2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"] }, forming: true };
+    const hours = await serverThenHydrated(<ChartTable title="XRP/USD" data={hourly} />);
+    expect(headers(hours.container)![0]).toBe("Hour (UTC)");
+    expect(body(hours.container)[0]![0]).toBe("Oct 17, 2026, 17:00, so far");
+    const quarters: CandleData = { ...hourly, axis: { unit: "minute", buckets: ["2026-10-17T16:30:00Z", "2026-10-17T16:45:00Z", "2026-10-17T17:00:00Z"] } };
+    const minutes = await serverThenHydrated(<ChartTable title="XRP/USD" data={quarters} />);
+    expect(headers(minutes.container)![0]).toBe("Time (UTC)");
+    expect(body(minutes.container).map((row) => row[0])).toEqual(["Oct 17, 2026, 17:00, so far", "Oct 17, 2026, 16:45", "Oct 17, 2026, 16:30"]);
+    const weekly: CandleData = { ...candles, axis: { unit: "week", buckets: ["2026-09-28", "2026-10-05", "2026-10-12"] }, forming: true };
+    const weeks = await serverThenHydrated(<ChartTable title="XRP/USD" data={weekly} />);
+    expect(body(weeks.container)[0]![0]).toBe("Oct 12, 2026, so far");
+  });
+
+  it("writes the prices with formatPrice (8 significant digits, no trailing zeros, no exponent) and the volume in full", async () => {
+    const data: CandleData = {
+      ...candles,
+      candles: [
+        { o: "0.40990000", h: "0.42500000", l: "0.4", c: "1.2345678e+8", v: "1.5e+6", n: "1204" },
+        null,
+        { o: "2.43934999", h: "12345.678912", l: "1e-10", c: "0.000123456789", v: "250000.5", n: "90" },
+      ],
+    };
+    const { container, errors } = await serverThenHydrated(<ChartTable title="XRP/USD" data={data} />);
+    expect(body(container)).toEqual([
+      ["Oct 17, 2026", "2.43935", "12,345.679", "0.0000000001", "0.00012345679", "250,000.5", "90"],
+      ["Oct 16, 2026", "—no data", "—no data", "—no data", "—no data", "—no data", "—no data"],
+      ["Oct 15, 2026", "0.4099", "0.425", "0.4", "123,456,780", "1,500,000", "1,204"],
+    ]);
+    expect(errors).toEqual([]);
   });
 });
 

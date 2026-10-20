@@ -358,10 +358,10 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 | `ColumnChart` | `layout="single"`, `"stacked"` (the series bottom up, each segment its exact share) or `"diverging"` (in up, out down, from a zero line); `annotations` put a symbol over a column |
 | `LineChart` | 1 to 3 lines, with `area`, `curve="step"`, a `domain` and `references` (dashed thresholds), and end labels |
 | `SmallMultiples` | A grid of one-series lines (6 at most), each on a scale of its own, one cursor for all |
-| `Candles` | Candlesticks over a volume pane that share one cursor and one readout |
+| `Candles` | Candlesticks over a volume pane that share one cursor and one readout. `mark={false}` redraws a changed token with no ring, `empty` is the price pane's words when no candle is drawn |
 | `ShareBar` | 100% stacked horizontal rows, a label under a segment of 18% or more |
-| `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%" |
-| `Meter` | One ratio on a track, 12 px (6 px `small`), with a threshold tick and its label |
+| `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%". An item's `href` makes its label a link (`components/RouteLink.tsx`: the kit may not import `react-router`; the bar is not a target); `tip="count"` ends the tip with the count instead ("**6.1M XRP** · 312 trades"), the bars measured against the first item |
+| `Meter` | One ratio on a track, 12 px (6 px `small`), with a threshold tick and its label. `decorative` hides it from assistive technology (`aria-hidden`, no image role) for a cell that says the value in text |
 | `InlineBar` | A depth wash behind a table row (bids, asks), or an out/in bar in a cell. The depth form needs the row to be `position: relative`, the bar to be the row's first child and the cells after it to be elements: the stylesheet puts those above the wash, so the text keeps its contrast on it, and a bare text node in the row would sit under it |
 | `Sparkline` | A trend of 100 × 28 px with no axes, for a row or a `StatTile` |
 
@@ -377,11 +377,11 @@ the view builder, with `String(n)` for an integer or `BigNumber(String(n))`: not
 
 | Component | Takes | The fields that matter |
 |---|---|---|
-| `ColumnChart`, `LineChart` | `TimeSeriesData` | `axis` (`unit`: `day`, `week`, `hour` or `flag`; `buckets`: UTC, oldest first), `series` (`id`, `label`, `short` for an end label, `slot`, `values`: strings, `null` for none), `format` (`kind`: `count`, `amount`, `drops`, `percent`, `seconds` or `price`; `unit`), `token`. Optional: `totals` (a stack's exact totals), `domain` and `references` (lines), `annotations` (columns), `forming`, `pending` |
+| `ColumnChart`, `LineChart` | `TimeSeriesData` | `axis` (`unit`: `day`, `week`, `hour`, `minute` (15-minute buckets) or `flag`; `buckets`: UTC, oldest first), `series` (`id`, `label`, `short` for an end label, `slot`, `values`: strings, `null` for none), `format` (`kind`: `count`, `amount`, `drops`, `percent`, `seconds` or `price`; `unit`), `token`. Optional: `totals` (a stack's exact totals), `domain` and `references` (lines), `annotations` (columns), `forming`, `pending` |
 | `SmallMultiples` | `SmallMultiplesData` | `axis` (shared), `panels` (6 at most: `id`, `label`, `sublabel`, `values`, a `format` of its own), `forming`, `pending`, `token` |
-| `Candles` | `CandleData` | `axis`, `candles` (one for each bucket: `o`, `h`, `l`, `c`, `v`, `n`, or `null`), `format` (of the prices), `volume` (the format of the volume), `token` |
+| `Candles` | `CandleData` | `axis`, `candles` (one for each bucket: `o`, `h`, `l`, `c`, `v`, `n`, or `null`), `format` (of the prices), `volume` (the format of the volume), `forming` (the newest bucket is the running one), `token` |
 | `ShareBar` | `ShareData` | `rows` (`id`, `label`, `total`, `segments`: `id`, `label`, `slot`, `value`), `token` |
-| `BarList` | `BarListData` | `items` (`id`, `label`, `sublabel`, `value`, `share`: the whole text, "58%" or "<1%", `count`: only for the table), `format`, `token` |
+| `BarList` | `BarListData` | `items` (`id`, `label`, `sublabel`, `value`, `share`: the whole text, "58%" or "<1%", not needed with `tip="count"`, `count`: the table's, and the tip's with `tip="count"`, `href`: a path), `format`, `token` |
 | `Meter` | `MeterData` | `value`, `max`, `threshold` (`value`, `label`), and `label`, which is the `aria-label` of the image: the view builder writes it, since the numbers are its |
 | `ChartTable` | any of the five above | the data of the chart it is the table of |
 | `StatTile` | `Delta` for `delta` | `text` (signed, the builder's) and `sign` (1, -1 or 0) |
@@ -407,12 +407,15 @@ running one, and `pending` how many of the newest buckets are not computed yet (
   outside the plot, not cut, and one above `domain.max` raises the top of the scale. The
   card's note must say that the axis does not start at 0. Candles use `fitScale`, which does not start at 0.
 - **Words.** A tick is `tickLabel` (`500K`, `1.2B`; in full under 10,000). **Tooltips and the slider's `aria-valuetext` use `valueText(v,
-  format, "full")`**: a count in full (`1,284,331`), an amount, drops or a price compact with its unit (`45.5M XRP`, `113 drops`), a percent and
-  seconds exact. An end label is the compact figure and the series' `short` name, with no unit: "**45.5M** payments" (the card's title names the
+  format, "full")`**: a count in full (`1,284,331`), an amount or drops compact with its unit (`45.5M XRP`, `113 drops`), a percent and
+  seconds exact. **A price is `formatPrice` everywhere** (ticks, readouts, tooltips, end labels, tables): 8 significant digits, half up, trailing
+  zeros dropped, grouped, never compact and never an exponent (`0.4099 USD`, `12,345.679 USD`), and a price in exponent text (`1e-10`, which the data
+  API writes) is read. An end label is the compact figure and the series' `short` name, with no unit: "**45.5M** payments" (the card's title names the
   currency). The table has the exact string. A `BarList` tip is compact with the unit, then the share text the builder wrote ("58%", "<1%").
-- **Time.** Every bucket is UTC. An axis writes "Oct 16" (a week: its Monday, "Oct 12"), "17:00" for an hour and the day for a flag ledger. A tooltip or a table
-  cell writes "Oct 16, 2026", and "Oct 17, 2026, 17:00" for an hour or a flag ledger. A week is "Week of Oct 12, 2026" in a tooltip only; its table cell is
-  "Oct 12, 2026" under the heading "Week of (UTC)". `forming: true` marks the newest bucket as the running one and adds ", so far" to the tooltip, the slider text and the table, never
+- **Time.** Every bucket is UTC. An axis writes "Oct 16" (a week: its Monday, "Oct 12"), "17:00" for an hour, "17:15" for a quarter hour (`minute`) and the day for a flag ledger. A tooltip or a table
+  cell writes "Oct 16, 2026", and "Oct 17, 2026, 17:00" for an hour, a quarter hour or a flag ledger. A week is "Week of Oct 12, 2026" in a tooltip only; its table cell is
+  "Oct 12, 2026" under the heading "Week of (UTC)" (a quarter hour's heading is "Time (UTC)"). The `Candles` readout, which stands alone above the
+  chart, names the zone: "Oct 17, 2026, 17:00 UTC", "Week of Oct 12, 2026", and " · so far" after the running bucket. `forming: true` marks the newest bucket as the running one and adds ", so far" to the tooltip, the slider text and the table, never
   to the axis. `pending: n` says the newest `n` buckets have no value yet: their values are `null`, and the tooltip says "Not computed yet".
   The card's note must say which day is not computed. x labels are every k-th bucket counting back from the newest: k = ⌈n/6⌉ on a wide plot,
   ⌈n/3⌉ under 480 px of card. Both sets are in the HTML and a container query shows one, since the Worker cannot know the width.

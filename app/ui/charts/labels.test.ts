@@ -40,6 +40,18 @@ describe("tickLabel", () => {
     expect(tickLabel(0.0001, "price")).toBe("0.0001");
     expect(tickLabel(1e-7, "price")).toBe("0.0000001");
   });
+
+  it("writes a price with formatPrice, never compact: no K, M or B, 8 significant digits, grouped, no exponent", () => {
+    expect(tickLabel(2.375, "price")).toBe("2.375");
+    expect(tickLabel(1234.5, "price")).toBe("1,234.5");
+    expect(tickLabel(12345678, "price")).toBe("12,345,678");
+    expect(tickLabel(2500000, "price")).toBe("2,500,000");
+    expect(tickLabel(1e-10, "price")).toBe("0.0000000001");
+    expect(tickLabel(0, "price")).toBe("0");
+    expect(tickLabel(-0.25, "price")).toBe("\u22120.25");
+    // The other kinds are compact, as before.
+    expect(tickLabel(2500000, "amount")).toBe("2.5M");
+  });
 });
 
 describe("valueText", () => {
@@ -49,12 +61,22 @@ describe("valueText", () => {
     expect(valueText("12", { kind: "count" }, "compact")).toBe("12");
   });
 
-  it("writes an amount, drops or a price compact with the unit, in either style", () => {
+  it("writes an amount or drops compact with the unit, in either style", () => {
     expect(valueText("45500000", { kind: "amount", unit: "XRP" }, "compact")).toBe("45.5M XRP");
     expect(valueText("45500000", { kind: "amount", unit: "XRP" }, "full")).toBe("45.5M XRP");
     expect(valueText("113", { kind: "drops", unit: "drops" }, "compact")).toBe("113 drops");
     expect(valueText("113", { kind: "drops", unit: "drops" }, "full")).toBe("113 drops");
-    expect(valueText("0.52341", { kind: "price", unit: "USD" }, "full")).toBe("0.523 USD");
+  });
+
+  it("writes a price with formatPrice and the unit, in either style, and never compact (a change from the first reading of the kind)", () => {
+    for (const style of ["compact", "full"] as const) {
+      expect(valueText("0.52341", { kind: "price", unit: "USD" }, style)).toBe("0.52341 USD");
+      expect(valueText("0.40990000", { kind: "price", unit: "USD" }, style)).toBe("0.4099 USD");
+      expect(valueText("12345.678912", { kind: "price", unit: "USD" }, style)).toBe("12,345.679 USD");
+      expect(valueText("12100000", { kind: "price", unit: "USD" }, style)).toBe("12,100,000 USD");
+      expect(valueText("1e-10", { kind: "price", unit: "USD" }, style)).toBe("0.0000000001 USD");
+      expect(valueText("2.43934999", { kind: "price" }, style)).toBe("2.43935");
+    }
   });
 
   it("names the drops when the format does not", () => {
@@ -75,7 +97,7 @@ describe("valueText", () => {
 describe("endLabelValue", () => {
   it("writes the figure with no unit, since the card names it and the label has 112 px: `45.5M` for `45.5M XRP`", () => {
     expect(endLabelValue("45500000", { kind: "amount", unit: "XRP" })).toBe("45.5M");
-    expect(endLabelValue("12100000", { kind: "price", unit: "USD" })).toBe("12.1M");
+    expect(endLabelValue("12100000", { kind: "price", unit: "USD" })).toBe("12,100,000");
     expect(endLabelValue("1284331", { kind: "count", unit: "transactions" })).toBe("1.28M");
     expect(endLabelValue("1284", { kind: "count" })).toBe("1,284");
     expect(endLabelValue("113", { kind: "drops", unit: "drops" })).toBe("113");
@@ -86,6 +108,11 @@ describe("endLabelValue", () => {
     expect(endLabelValue("99.31", { kind: "percent" })).toBe("99.31%");
     expect(endLabelValue("3.4", { kind: "seconds" })).toBe("3.4 s");
   });
+
+  it("writes a price with formatPrice, with no unit and not compact", () => {
+    expect(endLabelValue("0.40990000", { kind: "price", unit: "USD" })).toBe("0.4099");
+    expect(endLabelValue("2.43934999", { kind: "price" })).toBe("2.43935");
+  });
 });
 
 describe("cellText", () => {
@@ -95,6 +122,13 @@ describe("cellText", () => {
     expect(cellText("99.31", { kind: "percent" })).toBe("99.31%");
     expect(cellText("3.4", { kind: "seconds" })).toBe("3.4 s");
     expect(cellText("0", { kind: "count" })).toBe("0");
+  });
+
+  it("writes a price with formatPrice: 8 significant digits, trailing zeros dropped, never an exponent", () => {
+    expect(cellText("0.40990000", { kind: "price", unit: "USD" })).toBe("0.4099");
+    expect(cellText("2.40", { kind: "price" })).toBe("2.4");
+    expect(cellText("12345.678912", { kind: "price" })).toBe("12,345.679");
+    expect(cellText("1e-10", { kind: "price" })).toBe("0.0000000001");
   });
 
   it("is a dash for a missing value", () => {
@@ -120,6 +154,15 @@ describe("bucketLabel", () => {
     expect(bucketLabel("2026-10-17T17:00:00Z", "hour", "axis")).toBe("17:00");
     expect(bucketLabel("2026-10-17T17:00:00Z", "hour", "tooltip")).toBe("Oct 17, 2026, 17:00");
     expect(bucketLabel("2026-10-17T17:00:00Z", "hour", "table")).toBe("Oct 17, 2026, 17:00");
+  });
+
+  it("writes a quarter hour as 17:15 on the axis and with its day elsewhere", () => {
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "axis")).toBe("17:15");
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "tooltip")).toBe("Oct 17, 2026, 17:15");
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "table")).toBe("Oct 17, 2026, 17:15");
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "tooltip", true)).toBe("Oct 17, 2026, 17:15, so far");
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "axis", true)).toBe("17:15");
+    expect(bucketLabel("soon", "minute", "axis")).toBe("soon");
   });
 
   it("writes a flag ledger by its day on the axis and its day and time elsewhere", () => {
@@ -148,12 +191,40 @@ describe("bucketLabel", () => {
   });
 });
 
+describe("bucketLabel for a readout", () => {
+  it("writes a time of day with its day and UTC: Oct 17, 2026, 17:00 UTC", () => {
+    expect(bucketLabel("2026-10-17T17:00:00Z", "hour", "readout")).toBe("Oct 17, 2026, 17:00 UTC");
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "readout")).toBe("Oct 17, 2026, 17:15 UTC");
+    expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "readout")).toBe("Oct 16, 2026, 17:01 UTC");
+  });
+
+  it("writes a day as Oct 16, 2026 and a week as Week of Oct 12, 2026, which are in UTC already", () => {
+    expect(bucketLabel("2026-10-16", "day", "readout")).toBe("Oct 16, 2026");
+    expect(bucketLabel("2026-10-12", "week", "readout")).toBe("Week of Oct 12, 2026");
+  });
+
+  it("marks the running bucket with a middle dot and so far, not the tooltip's comma", () => {
+    expect(bucketLabel("2026-10-17T17:00:00Z", "hour", "readout", true)).toBe("Oct 17, 2026, 17:00 UTC \u00b7 so far");
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "readout", true)).toBe("Oct 17, 2026, 17:15 UTC \u00b7 so far");
+    expect(bucketLabel("2026-10-16", "day", "readout", true)).toBe("Oct 16, 2026 \u00b7 so far");
+    expect(bucketLabel("2026-10-12", "week", "readout", true)).toBe("Week of Oct 12, 2026 \u00b7 so far");
+    expect(bucketLabel("2026-10-17T17:00:00Z", "hour", "tooltip", true)).toBe("Oct 17, 2026, 17:00, so far");
+  });
+
+  it("returns what is not a bucket as it came, with no UTC added to it", () => {
+    expect(bucketLabel("soon", "hour", "readout")).toBe("soon");
+    expect(bucketLabel("soon", "minute", "readout")).toBe("soon");
+    expect(bucketLabel("soon", "day", "readout")).toBe("soon");
+  });
+});
+
 describe("tableHeading", () => {
   it("names the first column by the unit of the axis", () => {
     expect(tableHeading("day")).toBe("Day (UTC)");
     expect(tableHeading("week")).toBe("Week of (UTC)");
     expect(tableHeading("hour")).toBe("Hour (UTC)");
     expect(tableHeading("flag")).toBe("Flag ledger (UTC)");
+    expect(tableHeading("minute")).toBe("Time (UTC)");
   });
 });
 
@@ -175,6 +246,11 @@ describe("gapText", () => {
     expect(gapText({ unit: "hour", buckets: ["2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"] }, 0, 0)).toBe("No data for Oct 17, 2026, 16:00");
     expect(gapText({ unit: "flag", buckets: ["2026-10-16T17:01:10Z"] }, 0, 0)).toBe("No data for Oct 16, 2026, 17:01");
   });
+
+  it("gives a quarter hour its day and time, as an hour has", () => {
+    expect(gapText({ unit: "minute", buckets: ["2026-10-17T17:00:00Z", "2026-10-17T17:15:00Z"] }, 1, 0)).toBe("No data for Oct 17, 2026, 17:15");
+    expect(gapText({ unit: "minute", buckets: ["2026-10-17T17:00:00Z", "2026-10-17T17:15:00Z"] }, 1, 1)).toBe("Not computed yet");
+  });
 });
 
 describe("emptyText", () => {
@@ -183,10 +259,12 @@ describe("emptyText", () => {
     expect(emptyText({ unit: "week", buckets: days("2025-10-20", 52) })).toBe("No data for these 52 weeks");
     expect(emptyText({ unit: "hour", buckets: ["a", "b"] })).toBe("No data for these 2 hours");
     expect(emptyText({ unit: "flag", buckets: ["a", "b", "c"] })).toBe("No data for these 3 flag ledgers");
+    expect(emptyText({ unit: "minute", buckets: ["a", "b", "c"] })).toBe("No data for these 3 quarter hours");
   });
 
   it("is singular for one bucket", () => {
     expect(emptyText({ unit: "day", buckets: ["2026-10-17"] })).toBe("No data for this day");
+    expect(emptyText({ unit: "minute", buckets: ["2026-10-17T17:15:00Z"] })).toBe("No data for this quarter hour");
   });
 });
 
@@ -196,6 +274,7 @@ describe("sliderLabel", () => {
     expect(sliderLabel("Validator agreement", "week")).toBe("Validator agreement, week by week");
     expect(sliderLabel("Ledgers", "hour")).toBe("Ledgers, hour by hour");
     expect(sliderLabel("Votes", "flag")).toBe("Votes, flag ledger by flag ledger");
+    expect(sliderLabel("Price", "minute")).toBe("Price, quarter hour by quarter hour");
   });
 });
 
@@ -324,6 +403,19 @@ describe("plotSummary", () => {
         token: "t",
       };
       expect(plotSummary("Ledgers per hour", hours)).toContain("Highest Oct 17, 16:00, 9; latest Oct 17, 17:00, so far, 7.");
+    });
+
+    it("adds it to a quarter hour, and reads a price with formatPrice, not compact", () => {
+      const quarters: TimeSeriesData = {
+        axis: { unit: "minute", buckets: ["2026-10-17T16:45:00Z", "2026-10-17T17:00:00Z", "2026-10-17T17:15:00Z"] },
+        series: [{ id: "price", label: "Price", slot: 1, values: ["0.40990000", "12345.678912", "0.41234567891"] }],
+        format: { kind: "price", unit: "USD" },
+        forming: true,
+        token: "t",
+      };
+      expect(plotSummary("Price", quarters)).toBe(
+        "Price, Oct 17, 16:45 to Oct 17, 2026, 17:15. Highest Oct 17, 17:00, 12,345.679 USD; latest Oct 17, 17:15, so far, 0.41234568 USD. Choose Table for every value.",
+      );
     });
 
     it("leaves it out when the newest bucket has no value yet (pending): the latest is a closed bucket", () => {

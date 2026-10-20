@@ -515,6 +515,38 @@ describe("Plot's ring after a change (spec 2.9)", () => {
     rerender(plot({ token: "c", summary: "another summary" }));
     expect(container.querySelector(".plot")!.className).toBe("plot is-changed");
   });
+
+  it("is on by default, and `mark: true` says the same", () => {
+    const { container, rerender } = render(plot({ token: "a", mark: true }));
+    rerender(plot({ token: "b", mark: true }));
+    expect(container.querySelectorAll(".plot.is-changed")).toHaveLength(1);
+  });
+
+  it("sets no mark with `mark: false`: a new token redraws the plot in place, with no class now and none after the changes that follow", () => {
+    // The restart of a ring that has run (off, a reflow, on) must not happen either: the reflow is the sign of it.
+    const reflowed: boolean[] = [];
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("plot")) reflowed.push(this.classList.contains("is-changed"));
+      return 0;
+    });
+    const { container, rerender } = render(plot({ token: "a", mark: false }));
+    const first = container.querySelector(".stub-mark")!;
+    for (const token of ["b", "c", "d"]) {
+      rerender(plot({ token, mark: false }));
+      expect(container.querySelector(".plot")!.className).toBe("plot");
+    }
+    expect(container.querySelector(".plot.is-changed")).toBeNull();
+    expect(container.querySelector(".stub-mark")).toBe(first);
+    expect(reflowed).toEqual([]);
+  });
+
+  it("rings for a change that follows when `mark` is switched on", () => {
+    const { container, rerender } = render(plot({ token: "a", mark: false }));
+    rerender(plot({ token: "b", mark: false }));
+    expect(container.querySelector(".plot.is-changed")).toBeNull();
+    rerender(plot({ token: "c", mark: true }));
+    expect(container.querySelectorAll(".plot.is-changed")).toHaveLength(1);
+  });
 });
 
 describe("usePlotRing", () => {
@@ -546,6 +578,23 @@ describe("usePlotRing", () => {
     rerender(<Ringed token="c" />);
     expect(seen).toEqual([false]);
     expect(container.querySelector(".ringed")!.className).toBe("ringed is-changed");
+  });
+
+  it("does nothing when it is told not to mark (the third argument is false): no class, and no restart", () => {
+    function Unmarked({ token }: { token: string }) {
+      const box = useRef<HTMLDivElement>(null);
+      const changed = usePlotRing(token, box, false);
+      return <div ref={box} className={cx("ringed", changed && "is-changed")} />;
+    }
+    const seen: boolean[] = [];
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("ringed")) seen.push(this.classList.contains("is-changed"));
+      return 0;
+    });
+    const { container, rerender } = render(<Unmarked token="a" />);
+    for (const token of ["b", "c", "d"]) rerender(<Unmarked token={token} />);
+    expect(container.querySelector(".ringed")!.className).toBe("ringed");
+    expect(seen).toEqual([]);
   });
 });
 

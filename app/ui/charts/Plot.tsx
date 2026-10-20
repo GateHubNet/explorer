@@ -25,6 +25,8 @@ export interface PlotProps {
   summary: string;
   /** What the data says, as text: the ring runs when it changes after the first render, and not before. */
   token: string;
+  /** `false`: a changed token redraws the plot with no ring (the candles, whose page rings the figures around them). Default `true`. */
+  mark?: boolean;
   /** The gridlines (1 px `--grid`, the 0 line `--axis`) and the labels of the y axis, in a gutter outside the scroll region. */
   scale: ValueScale;
   kind: ValueKind;
@@ -74,10 +76,11 @@ export function usePlotMark(token: string): boolean {
  * does, through the `changed` this returns), and each change after the first runs again. The class stays after the first change, and a CSS
  * animation that has finished cannot be started again from script (it is no longer there to ask for), so a later change does it with the
  * class: off, a reflow so that the browser sees it off, and on. The first change starts the ring by itself, with the class. For the plot,
- * and for a form that has none (the share bars): `box` is where the class goes.
+ * and for a form that has none (the share bars): `box` is where the class goes. With `mark` false there is never a ring, and the class is
+ * neither put on nor restarted.
  */
-export function usePlotRing(token: string, box: RefObject<HTMLElement | null>): boolean {
-  const changed = usePlotMark(token);
+export function usePlotRing(token: string, box: RefObject<HTMLElement | null>, mark = true): boolean {
+  const changed = usePlotMark(token) && mark;
   const marked = useRef(false);
   useEffect(() => {
     const el = box.current;
@@ -108,6 +111,7 @@ export function Plot({
   title,
   summary,
   token,
+  mark = true,
   scale,
   kind,
   axis,
@@ -123,7 +127,7 @@ export function Plot({
   children,
 }: PlotProps) {
   const plot = useRef<HTMLDivElement>(null);
-  const changed = usePlotRing(token, plot);
+  const changed = usePlotRing(token, plot, mark);
 
   // Where the cursor's tooltip is drawn: beside the region that scrolls, which would clip it, and not in it.
   const [tips] = useState(createTipSlot);

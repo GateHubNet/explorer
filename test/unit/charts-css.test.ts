@@ -732,6 +732,12 @@ describe("the bar list (BarList)", () => {
     expect(rule(chartsCss, ".barlist__sub")).toMatchObject({ color: "var(--faint)", "font-size": "11px" });
   });
 
+  it("gives a label that is a link a hit area of 24 px and more around its text, which does not make the row taller", () => {
+    // 15.6 px of line plus 6 px above and below is 27.6 px; the rows are 28 px apart when the list is not dense.
+    expect(rule(chartsCss, ".barlist__link").position).toBe("relative");
+    expect(rule(chartsCss, ".barlist__link::after")).toMatchObject({ content: '""', position: "absolute", inset: "-6px -4px" });
+  });
+
   it("draws the bar 18 px thick, 12 px when dense, in --series-1, with a 4 px radius at its end and a square start", () => {
     expect(rule(chartsCss, ".barlist__bar")).toMatchObject({ height: "18px", background: "var(--series-1)", "border-radius": "0 4px 4px 0", flex: "none" });
     expect(rule(chartsCss, ".barlist--dense .barlist__bar").height).toBe("12px");
