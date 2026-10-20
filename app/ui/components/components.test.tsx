@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Segment } from "../../domain/describe";
 import { shortAddress, shortHash } from "../../domain/format";
+import { allSwitches } from "../../../test/support/switches";
 import { THEME_STORAGE_KEY } from "../theme-script";
 import { AccountLink } from "./AccountLink";
 import { Amount } from "./Amount";
@@ -33,7 +34,7 @@ import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { PRODUCT_NAME } from "../brand";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
-import { FEATURE_VARS, featuresOf } from "../features";
+import { FEATURE_VARS, featuresOf, NO_FEATURES, type Features } from "../features";
 import { navSectionOf, type NetworkRouteHandle } from "../route-handle";
 import { NETWORK_ROUTE_ID, useNetwork } from "../use-network";
 import { DetailList } from "./DetailList";
@@ -778,10 +779,26 @@ describe("Header and Shell", () => {
 
     /** The header as the `/:net` layout renders it, with the layout's data holding every switch on, or every one off. */
     async function renderHeaderWithLayout(on: boolean) {
-      const features = featuresOf(Object.fromEntries(FEATURE_VARS.map((name) => [name, on ? "on" : "off"])));
+      return renderHeaderWithFeatures(featuresOf(Object.fromEntries(FEATURE_VARS.map((name) => [name, on ? "on" : "off"]))));
+    }
+
+    /**
+     * The header under the `/:net` layout whose data holds `features`, at `path`, on a page whose route has `handle`: the layout route
+     * carries the switches, its child (the index, and `*` for any deeper path) the page and the section it names.
+     */
+    async function renderHeaderWithFeatures(features: Features, path = "/xrpl", handle?: NetworkRouteHandle) {
+      const page = { element: <Header net={XRPL} />, handle };
       const router = createMemoryRouter(
-        [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network: { ...XRPL, features } }), element: <Header net={XRPL} /> }],
-        { initialEntries: ["/xrpl"] },
+        [
+          {
+            id: NETWORK_ROUTE_ID,
+            path: "/:net",
+            loader: () => ({ network: { ...XRPL, features } }),
+            element: <Outlet />,
+            children: [{ index: true, ...page }, { path: "*", ...page }],
+          },
+        ],
+        { initialEntries: [path] },
       );
       render(<RouterProvider router={router} />);
       return within(await screen.findByRole("navigation", { name: "Main" }));
@@ -875,10 +892,97 @@ describe("Header and Shell", () => {
       }
     });
 
-    it("shows Markets as a label with a soon tag, not as a link, without the layout's data and with every switch on", async () => {
-      expectSoon(renderHeaderAt("/xrpl"), "Markets");
+    // Markets (E3) leads to the markets page while MARKETS is on; AMM is still a later sub-project's label.
+    it("shows Markets and AMM as labels with a soon tag, not as links, without the layout's data (every switch off)", () => {
+      const nav = renderHeaderAt("/xrpl");
+      expectSoon(nav, "Markets");
+      expectSoon(nav, "AMM");
+    });
+
+    it("shows Markets as a label with a soon tag with every switch off in the layout's data, and AMM too", async () => {
+      const nav = await renderHeaderWithLayout(false);
+      expectSoon(nav, "Markets");
+      expectSoon(nav, "AMM");
+    });
+
+    it("links Markets to the markets page of the network, with every switch on, while AMM is still a label with a soon tag", async () => {
+      const nav = await renderHeaderWithLayout(true);
+      const link = nav.getByRole("link", { name: "Markets" });
+      expect(link.getAttribute("href")).toBe("/xrpl/markets");
+      expect(link.classList.contains("is-soon")).toBe(false);
+      expect(link.hasAttribute("aria-disabled")).toBe(false);
+      expect(link.textContent).not.toContain("soon");
+      expectSoon(nav, "AMM");
+    });
+
+    it("shows Markets as a label with a soon tag while MARKETS is off, whatever the other switches are", async () => {
+      expectSoon(await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), markets: false }), "Markets");
       cleanup();
-      expectSoon(await renderHeaderWithLayout(true), "Markets");
+      expectSoon(await renderHeaderWithFeatures({ ...NO_FEATURES, validators: true, ammData: true }), "Markets");
+    });
+
+    it("links Markets while only MARKETS is on", async () => {
+      const nav = await renderHeaderWithFeatures({ ...NO_FEATURES, markets: true });
+      expect(nav.getByRole("link", { name: "Markets" }).getAttribute("href")).toBe("/xrpl/markets");
+    });
+
+    it("keeps Markets current on the markets page under any query", async () => {
+      const nav = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/markets?period=7d", { navSection: "markets" });
+      const link = nav.getByRole("link", { name: "Markets" });
+      expect(link.getAttribute("href")).toBe("/xrpl/markets");
+      expect(link.getAttribute("aria-current")).toBe("page");
+      expect(link.classList.contains("is-current")).toBe(true);
+      // The section is Markets alone: Network is not current.
+      const network = nav.getByRole("link", { name: "Network" });
+      expect(network.hasAttribute("aria-current")).toBe(false);
+      expect(network.classList.contains("is-current")).toBe(false);
+    });
+
+    it('names the markets section on a pair page with aria-current="true"', async () => {
+      const nav = await renderHeaderWithFeatures(
+        featuresOf(allSwitches("on")),
+        "/xrpl/markets/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+        { navSection: "markets" },
+      );
+      const link = nav.getByRole("link", { name: "Markets" });
+      expect(link.getAttribute("aria-current")).toBe("true");
+      expect(link.classList.contains("is-current")).toBe(true);
+    });
+
+    it("leaves Markets a plain link on a page that names no section, and on the network page", async () => {
+      const elsewhere = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/markets");
+      const link = elsewhere.getByRole("link", { name: "Markets" });
+      expect(link.hasAttribute("aria-current")).toBe(false);
+      expect(link.classList.contains("is-current")).toBe(false);
+      cleanup();
+      const network = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/network", { navSection: "network" });
+      const markets = network.getByRole("link", { name: "Markets" });
+      expect(markets.hasAttribute("aria-current")).toBe(false);
+      expect(markets.classList.contains("is-current")).toBe(false);
+      expect(network.getByRole("link", { name: "Network" }).getAttribute("aria-current")).toBe("page");
+    });
+
+    it("marks nothing current on a markets page while MARKETS is off (the item is a label)", async () => {
+      const nav = await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), markets: false }, "/xrpl/markets", { navSection: "markets" });
+      expectSoon(nav, "Markets");
+      expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+    });
+
+    it("links Markets to the page of the network the header is on", async () => {
+      const router = createMemoryRouter(
+        [
+          {
+            id: NETWORK_ROUTE_ID,
+            path: "/:net",
+            loader: () => ({ network: { ...XAHAU, features: featuresOf(allSwitches("on")) } }),
+            element: <Header net={XAHAU} />,
+          },
+        ],
+        { initialEntries: ["/xahau"] },
+      );
+      render(<RouterProvider router={router} />);
+      const nav = within(await screen.findByRole("navigation", { name: "Main" }));
+      expect(nav.getByRole("link", { name: "Markets" }).getAttribute("href")).toBe("/xahau/markets");
     });
 
     it("shows AMM as a label with a soon tag, not as a link, without the layout's data and with every switch on", async () => {

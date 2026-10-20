@@ -143,6 +143,49 @@ describe("deployProblems", () => {
       }
     });
 
+    // MARKETS (E3): a staging or production build must say it, and say it right.
+    describe("MARKETS", () => {
+      it("passes a build whose MARKETS is on or off", () => {
+        expect(deployProblems(withVars({ MARKETS: "on" }), "staging")).toEqual([]);
+        expect(deployProblems(withVars({ MARKETS: "off" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without MARKETS, and names it", () => {
+        const vars = { ...(good().vars as Config) };
+        delete vars.MARKETS;
+        const problems = deployProblems(good("staging", { vars }), "staging");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("MARKETS is not set");
+        expect(problems[0]).toContain('"on" or "off"');
+      });
+
+      it('refuses MARKETS: "yes"', () => {
+        const problems = deployProblems(withVars({ MARKETS: "yes" }, "production"), "production");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("MARKETS");
+        expect(problems[0]).toContain('"yes"');
+        expect(problems[0]).toContain('not exactly "on" or "off"');
+      });
+
+      it('refuses a misspelt MARKET: "on" as a var that is not a switch, naming MARKETS among the switches', () => {
+        const problems = deployProblems(withVars({ MARKET: "on" }), "staging");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("MARKET is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("MARKETS");
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+
+      it("refuses a build with MARKETS missing and MARKET set instead, with both reasons", () => {
+        const vars: Config = { ...(good().vars as Config), MARKET: "on" };
+        delete vars.MARKETS;
+        const problems = deployProblems(good("staging", { vars }), "staging");
+        expect(problems).toHaveLength(2);
+        expect(problems[0]).toContain("MARKETS is not set");
+        expect(problems[1]).toContain("MARKET is");
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "staging")).toEqual([]);
     });

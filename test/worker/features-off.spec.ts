@@ -16,5 +16,7 @@ describe("the worker-off project", () => {
   it("keys the edge cache with every switch off", () => {
     expect(cacheGeneration(env)).toBe("test-build:" + [...FEATURE_VARS].sort().map((name) => `${name}=off`).join(","));
     expect(cacheGeneration(env)).toMatch(/^test-build:[A-Z_]+=off(,[A-Z_]+=off)*$/);
+    // The names, spelt out: MARKETS sorts between AMM_DATA and VALIDATORS.
+    expect(cacheGeneration(env)).toBe("test-build:AMM_DATA=off,MARKETS=off,VALIDATORS=off");
   });
 });

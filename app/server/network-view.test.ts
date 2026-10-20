@@ -47,8 +47,8 @@ const LAST: LastValidated = {
   close_time: "2026-10-17T17:01:12Z",
 };
 
-const XRPL: NetworkInput["net"] = { id: "xrpl", native: "XRP", hasAmm: true, features: { validators: true, ammData: true } };
-const XAHAU: NetworkInput["net"] = { id: "xahau", native: "XAH", hasAmm: false, features: { validators: false, ammData: false } };
+const XRPL: NetworkInput["net"] = { id: "xrpl", native: "XRP", hasAmm: true, features: { validators: true, ammData: true, markets: true } };
+const XAHAU: NetworkInput["net"] = { id: "xahau", native: "XAH", hasAmm: false, features: { validators: false, ammData: false, markets: false } };
 
 const fulfilled = <V>(value: V): PromiseFulfilledResult<V> => ({ status: "fulfilled", value });
 const rejected = (reason: unknown): PromiseRejectedResult => ({ status: "rejected", reason });
@@ -733,9 +733,9 @@ describe("validatorsOf", () => {
 
   it("links to the validators with the switch on, and to nothing with it off", () => {
     expect(partOf(answer(validations)).href).toBe("/xrpl/validators?scope=all");
-    const off = ctxOf("7d", { net: { ...XRPL, features: { validators: false, ammData: true } } });
+    const off = ctxOf("7d", { net: { ...XRPL, features: { validators: false, ammData: true, markets: true } } });
     expect(partOf(answer(validations), off).href).toBeNull();
-    expect(partOf(answer(validations), ctxOf("7d", { net: { ...XAHAU, features: { validators: true, ammData: false } } })).href).toBe("/xahau/validators?scope=all");
+    expect(partOf(answer(validations), ctxOf("7d", { net: { ...XAHAU, features: { validators: true, ammData: false, markets: false } } })).href).toBe("/xahau/validators?scope=all");
   });
 
   it("is an empty list for no validations", () => {

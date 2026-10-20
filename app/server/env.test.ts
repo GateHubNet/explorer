@@ -14,6 +14,7 @@ const env: Env = {
   BUILD_ID: "test-build",
   ...allSwitches("off"),
   AMM_DATA: "on",
+  MARKETS: "on",
   VISITOR_LIMITER: { limit: async () => ({ success: true }) },
 };
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
@@ -74,11 +75,18 @@ describe("cacheGeneration", () => {
     expect(generation).toContain("VALIDATORS=off");
   });
 
+  it("names MARKETS=on between AMM_DATA and VALIDATORS in its sorted list", () => {
+    expect(cacheGeneration(env)).toContain("AMM_DATA=on,MARKETS=on,VALIDATORS=off");
+  });
+
   it("changes when a switch is flipped, and when the build is", () => {
     const flipped = cacheGeneration({ ...env, AMM_DATA: "off" });
     expect(flipped).not.toBe(cacheGeneration(env));
     expect(flipped).toContain("AMM_DATA=off");
     expect(cacheGeneration({ ...env, VALIDATORS: "on" })).not.toBe(cacheGeneration(env));
+    const markets = cacheGeneration({ ...env, MARKETS: "off" });
+    expect(markets).not.toBe(cacheGeneration(env));
+    expect(markets).toContain("AMM_DATA=on,MARKETS=off,VALIDATORS=off");
     expect(cacheGeneration({ ...env, BUILD_ID: "other-build" })).not.toBe(cacheGeneration(env));
   });
 

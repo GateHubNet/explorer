@@ -46,6 +46,30 @@ describe("featuresOf", () => {
   });
 });
 
+// MARKETS (E3): the markets pages, the header's Markets link and every link into them.
+describe("the MARKETS switch", () => {
+  it("is appended after E2's two, and its feature is markets", () => {
+    expect(FEATURE_VARS.slice(0, 3)).toEqual(["VALIDATORS", "AMM_DATA", "MARKETS"]);
+    expect(FEATURE_NAME.MARKETS).toBe("markets");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ MARKETS: "on" }).markets).toBe(true);
+    for (const value of ["On", "yes", undefined]) expect(featuresOf({ MARKETS: value }).markets, String(value)).toBe(false);
+    expect(featuresOf({}).markets).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.markets).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ MARKETS: "on" })).toEqual({ ...NO_FEATURES, markets: true });
+    expect(featuresOf({ ...allSwitches("on"), MARKETS: "off" }).markets).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on" }).markets).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

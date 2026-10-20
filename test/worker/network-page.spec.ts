@@ -382,6 +382,17 @@ describe("the page without JavaScript", () => {
     expect(network.some((a) => /aria-current="page"/.test(a.attrs) && /is-current/.test(a.attrs))).toBe(true);
   });
 
+  it("links Markets to the markets page in the header, while MARKETS is on (the top level), and AMM is still a label", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await render("/xrpl/network?period=7d");
+    const markets = anchors(html).filter((a) => /href="\/xrpl\/markets"/.test(a.attrs));
+    expect(markets.map((a) => a.text)).toEqual(["Markets"]);
+    // Network is the current section of this page, Markets is not.
+    expect(markets[0]!.attrs).not.toMatch(/aria-current|is-current|is-soon/);
+    expect(html).not.toContain('<span class="nav-item is-soon" aria-disabled="true"><span>Markets</span>');
+    expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>AMM</span><span class="soon">soon</span></span>');
+  });
+
   it("says the totals, the strip and the validators of the recording", async () => {
     mock = mockUpstream("xrpl");
     const { html, text } = await render("/xrpl/network?period=7d");

@@ -72,7 +72,7 @@ per request, over the data centre's Cache API, built with `BUILD_ID`).
 |---|---|---|
 | `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL` | var | `wrangler.jsonc`, per environment (placeholders for now) |
 | `XRPL_NODE_URL`, `XAHAU_NODE_URL` | var | `wrangler.jsonc`, per environment (`https://s1.ripple.com:51234/`, `https://xahau.network/`) |
-| `VALIDATORS`, `AMM_DATA` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
+| `VALIDATORS`, `AMM_DATA`, `MARKETS` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
 | `VISITOR_LIMITER` | `ratelimits` binding, 60 per 10 s | `wrangler.jsonc`, per environment (own namespace each) |
 | `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-staging` and `x-explorer-production` as a secret |
 | `SENTRY_DSN` | secret, optional | the same |
@@ -86,13 +86,14 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 
 A switch turns a page, or a part of one, on or off for one environment, from one commit. It is a Worker variable, `"on"` or `"off"`, set per environment in
 `wrangler.jsonc`. `app/ui/features.ts` is the one list of them (`FEATURE_VARS`), and nothing else lists their names. It is pure, with no React and no server import,
-so the Worker, the browser, the scripts and the tests all import it. `featuresOf(vars)` turns the variables into `Features` (`validators`, `ammData`): `"on"` is
+so the Worker, the browser, the scripts and the tests all import it. `featuresOf(vars)` turns the variables into `Features` (`validators`, `ammData`, `markets`): `"on"` is
 `true`, and anything else, a missing value too, is `false`. `NO_FEATURES` (frozen) is every switch off.
 
 | Variable | In `Features` | Gates |
 |---|---|---|
 | `VALIDATORS` | `validators` | every link into the validators and amendments pages (the network page's "All validators") and those pages' routes |
 | `AMM_DATA` | `ammData` | every part derived from the AMM data in the index: the network page's AMM volume series and its "AMM swaps included" wording |
+| `MARKETS` | `markets` | the markets pages (E3), the header's Markets link and every link into them |
 
 Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). The values:
 
@@ -100,12 +101,15 @@ Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). T
 |---|---|---|---|
 | `VALIDATORS` | `"off"` until E6 builds its pages: a link to a route that does not exist yet would only be a 404 | `"off"` | `"off"` |
 | `AMM_DATA` | `"on"` | `"off"` | `"off"` |
+| `MARKETS` | `"on"` | `"off"` | `"off"` |
 
 The conditions for turning a switch on in `staging` or `production` (by a commit and a deploy):
 
 - `AMM_DATA`: the environment's data API has merged `feat/amm-data`, has re-ingested and back-filled, and D2b is deployed (`syncer_markets_live_amm_share_known` is 1).
   (Locally the top level has it `"on"`: against a data API that has not merged it, set `AMM_DATA=off` in `.dev.vars`, see "Getting started".)
 - `VALIDATORS`: E6, the validators and amendments pages.
+- `MARKETS` (`markets`, E3): the markets pages, the header's Markets link and every link into them. "on" at the top level, "off" in staging and production until the
+  data API there serves `/v2/network/markets` with D2 §16.4's gauges at their marks.
 
 **A switch is never set in the Cloudflare dashboard.** The Cloudflare Vite plugin writes the build's vars, so the next deploy would undo it.
 
@@ -121,7 +125,7 @@ How a switch reaches the code:
   that depends on them takes its "off" form.
 
 **The cache generation.** `cacheGeneration(env)` (`app/server/env.ts`) is `BUILD_ID`, a colon, and every switch as `NAME=value`, sorted by name and joined by commas:
-`3f2a9c1:AMM_DATA=on,VALIDATORS=off`. The edge cache keys every page, image and `.data` URL with it (`edgeCacheKey(url, cacheGeneration(env))`, the `__build` parameter of
+`3f2a9c1:AMM_DATA=on,MARKETS=on,VALIDATORS=off`. The edge cache keys every page, image and `.data` URL with it (`edgeCacheKey(url, cacheGeneration(env))`, the `__build` parameter of
 the key). A flip is a deploy of the same commit with another value, and it is a new key for everything, so a copy stored under the other value is never served. The
 subrequest cache keeps `BUILD_ID` alone, because it holds upstream data, which no switch changes. The live pages' `build` field keeps `BUILD_ID` too, because it says
 which code drew the page: a flip does not reload an open tab. Its route's data follows on the next beat (the `.data` key changed), and the layout's data (the header)
@@ -1100,7 +1104,7 @@ otherwise; never 5173) and never reuses a server that is already running.
 | `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:staging` leaves) is refused |
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
-| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`AMM_DATA`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
+| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`AMM_DATA`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
 | `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
@@ -1279,7 +1283,7 @@ its exit code stops the deploy. It reads the config the plugin wrote (`build/ser
 
 - an upstream var (`XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL`, `XAHAU_NODE_URL`) is a placeholder (a host under `.invalid`, which is what
   `wrangler.jsonc` holds until the hosts are decided: a Worker deployed with them answers every page with a 503), is not an `https` URL, or is missing;
-- a switch (`VALIDATORS`, `AMM_DATA`; the list is `FEATURE_VARS` in `app/ui/features.ts`) is missing from the build's vars, or its value is not exactly `"on"` or `"off"`, or a var
+- a switch (`VALIDATORS`, `AMM_DATA`, `MARKETS`; the list is `FEATURE_VARS` in `app/ui/features.ts`) is missing from the build's vars, or its value is not exactly `"on"` or `"off"`, or a var
   that is not a switch has the value `"on"` or `"off"` (a misspelt switch, such as `MARKET`: see "Switches");
 - the build is not for the environment asked for, or for none (a build without `CLOUDFLARE_ENV` is the top level, local development);
 - `workers_dev` or `preview_urls` is not `false` in the build, so that the Worker would be reachable on `*.workers.dev`;
@@ -1352,7 +1356,7 @@ staging before production:
 
 - [ ] **The network page's views, against the staging stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`) and `?in=usd` on XRPL: the
   window's words ("Totals and charts cover the 30 days from … to …, today so far") must be anchored to the staging stack's own `last_validated` and name the running day, and the volume
-  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; staging does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=AMM_DATA,VALIDATORS` while those switches are off there.
+  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; staging does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=AMM_DATA,MARKETS,VALIDATORS` while those switches are off there.
 - [ ] **The failure hold, in `wrangler tail`.** With one card failing (the data API refusing one route, or its key revoked for it), `wrangler tail --env staging --format json` should show one
   failing call per 5 s per Worker instance for the network page and for the home page, and not one per beat of every open tab (`holdFailure`, "The cache classes"); and the card comes back by itself within the hold and a beat
   when the route answers again.
