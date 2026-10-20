@@ -3,7 +3,7 @@ import { useState, type ReactElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { createMemoryRouter, createStaticHandler, createStaticRouter, RouterProvider, StaticRouterProvider } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
@@ -13,35 +13,54 @@ import { AccountPage, NeverActivatedPage } from "./AccountPage";
 
 afterEach(cleanup);
 
-// The analytics view is a chunk of its own that the page loads with `import()` (spec 5). Here it is a stand-in that counts its loads and its
-// mounts, and that suspends until the test opens `chunk.shown`, so that the test sees the page while the body is not there yet; AccountAnalytics.test.tsx
-// tests the view itself. (Vitest loads a mocked module once, and a second `import()` of it while the first is still loading does not settle: a
-// test that loads it waits for `chunk.ready`.)
+// The analytics view is a chunk of its own that the page loads with `import()` (spec 5). Here it is a stand-in that counts its loads (each run of
+// its factory) and its mounts; AccountAnalytics.test.tsx tests the view itself. A test that looks at the page before the body is there holds
+// the body (`holdBody`): the stand-in suspends until the hold is released, and every test of the view starts and ends with none. Vitest runs a
+// mock's factory once and keeps the module until the mock is registered again (`vi.doMock`), and a second `import()` of it while a load is still
+// running never settles, so a test of the view does not end before the load it started (`chunk.loading`).
 const chunk = vi.hoisted(() => {
-  let ready!: () => void;
-  let show!: () => void;
-  return {
+  const chunk = {
     loads: 0,
     mounts: [] as string[],
-    ready: new Promise<void>((resolve) => (ready = resolve)),
-    loaded: () => ready(),
-    shown: new Promise<void>((resolve) => (show = resolve)),
-    show: () => show(),
+    /** Settles when the stand-in's latest load has finished. */
+    loading: Promise.resolve(),
+    /** While there is one, the stand-in suspends on it: the body is not there yet, and its `Suspense` shows its fallback. */
+    hold: null as { until: Promise<void>; release: () => void } | null,
+    /** The stand-in's module, loaded afresh each time it is called. */
+    load: async () => {
+      chunk.loads += 1;
+      const load = import("react").then(({ createElement, use, useEffect }) => {
+        function AccountAnalytics({ network, analytics }: { network: { native: string }; analytics: { period: string } }) {
+          const hold = chunk.hold;
+          if (hold) use(hold.until);
+          useEffect(() => {
+            chunk.mounts.push(analytics.period);
+          }, []);
+          return createElement("section", { "aria-label": "Analytics view", "data-period": analytics.period }, `The ${analytics.period} view in ${network.native}`);
+        }
+        return { default: AccountAnalytics };
+      });
+      chunk.loading = load.then(() => undefined);
+      return load;
+    },
   };
+  return chunk;
 });
-vi.mock("./AccountAnalytics", async () => {
-  chunk.loads += 1;
-  const { createElement, use, useEffect } = await import("react");
-  function AccountAnalytics({ network, analytics }: { network: { native: string }; analytics: { period: string } }) {
-    use(chunk.shown);
-    useEffect(() => {
-      chunk.mounts.push(analytics.period);
-    }, []);
-    return createElement("section", { "aria-label": "Analytics view", "data-period": analytics.period }, `The ${analytics.period} view in ${network.native}`);
-  }
-  chunk.loaded();
-  return { default: AccountAnalytics };
-});
+vi.mock("./AccountAnalytics", () => chunk.load());
+
+/** Holds the analytics body back until the returned function is called. */
+function holdBody(): () => void {
+  let resolve!: () => void;
+  const hold = {
+    until: new Promise<void>((settle) => (resolve = settle)),
+    release: () => {
+      if (chunk.hold === hold) chunk.hold = null;
+      resolve();
+    },
+  };
+  chunk.hold = hold;
+  return hold.release;
+}
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
 const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
@@ -385,11 +404,22 @@ describe("the tabs", () => {
   });
 });
 
-// The analytics view's stand-in (`chunk`, at the top of this file) is loaded once for the whole file, so these tests run in this order: the
-// tab warms the chunk before any view is drawn (no test above draws the view or points at its tab), the view's first draw shows its fallback
-// until the body is there, and then the body is keyed by the period.
+// Each test of the view stands alone (the stand-in `chunk`, at the top of this file): it starts with no hold and no mounts, and it ends with the
+// page unmounted, any hold released and the stand-in's load finished.
 describe("the analytics view", () => {
+  beforeEach(() => {
+    chunk.mounts.length = 0;
+  });
+  afterEach(async () => {
+    cleanup();
+    chunk.hold?.release();
+    await chunk.loading;
+  });
+
   it("is warmed by the Analytics tab: its chunk is loaded when the pointer enters the tab or the tab takes the focus, and not before", async () => {
+    // A load of the chunk of its own, whatever the tests before this one loaded.
+    vi.doMock("./AccountAnalytics", () => chunk.load());
+    const before = chunk.loads;
     renderInRouter(<AccountPage network={XRPL} data={data()} />);
     const nav = await screen.findByRole("navigation", { name: "Account activity" });
     const tab = within(nav).getByRole("link", { name: "Analytics" });
@@ -397,17 +427,22 @@ describe("the analytics view", () => {
     fireEvent.pointerEnter(within(nav).getByRole("link", { name: "Payments" }));
     fireEvent.focus(within(nav).getByRole("link", { name: "Payments" }));
     await act(async () => {});
-    expect(chunk.loads).toBe(0);
+    expect(chunk.loads).toBe(before);
 
     fireEvent.pointerEnter(tab);
+    await waitFor(() => expect(chunk.loads).toBe(before + 1));
+    await act(async () => chunk.loading);
+
+    vi.doMock("./AccountAnalytics", () => chunk.load());
     fireEvent.focus(tab);
-    await waitFor(() => expect(chunk.loads).toBe(1));
-    await act(async () => chunk.ready);
+    await waitFor(() => expect(chunk.loads).toBe(before + 2));
+    await act(async () => chunk.loading);
     // The visitor did not go there: no view was drawn.
     expect(chunk.mounts).toEqual([]);
   });
 
   it("is the notices, the breadcrumbs and the account card, then the Activity card with the tabs and the filters, then the lazy body in its own Suspense", async () => {
+    const release = holdBody();
     renderInRouter(<AccountPage network={XRPL} data={analyticsPage({ tag: 7 })} />);
     const activity = await screen.findByRole("region", { name: "Activity" });
     const viewStatuses = () => screen.getAllByRole("status").filter((status) => !status.closest(".account-card"));
@@ -432,9 +467,9 @@ describe("the analytics view", () => {
       expect(within(activity).queryByRole("table")).toBeNull();
       expect(screen.queryByText(/Loading transactions/)).toBeNull();
 
-      // The body is below the card. Until it is there (its chunk loading, here the stand-in holding) it is a frame hidden from assistive
-      // technology: the filter row's status is the view's one status (spec 3.11), and it says the view is loading. (The account card's copy
-      // button has a status of its own, on every tab.)
+      // The body is below the card. Until it is there (its chunk loading, here the body held) it is a frame hidden from assistive technology:
+      // the filter row's status is the view's one status (spec 3.11), and it says the view is loading. (The account card's copy button has a
+      // status of its own, on every tab.)
       const waiting = screen.getByText("Loading…").closest("[aria-hidden]");
       expect(waiting?.getAttribute("aria-hidden")).toBe("true");
       expect(activity.contains(waiting)).toBe(false);
@@ -442,8 +477,7 @@ describe("the analytics view", () => {
       expect(viewStatuses().map((status) => status.textContent)).toEqual(["Loading analytics…"]);
       expect(screen.queryByRole("region", { name: "Analytics view" })).toBeNull();
     } finally {
-      // The tests after this one need the body, whatever happened here.
-      await act(async () => chunk.show());
+      await act(async () => release());
     }
 
     const body = await screen.findByRole("region", { name: "Analytics view" });
@@ -461,7 +495,6 @@ describe("the analytics view", () => {
       setPage = set;
       return <AccountPage network={XRPL} data={current} />;
     }
-    chunk.mounts.length = 0;
     renderInRouter(<Switching />);
     await screen.findByRole("region", { name: "Analytics view" });
     expect(chunk.mounts).toEqual(["30d"]);
