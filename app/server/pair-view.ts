@@ -22,11 +22,11 @@ import {
   formatUtc,
   shortAddress,
   shortHash,
-  wholePercent,
 } from "../domain/format";
 import { marketHref, naturalOrientation } from "../domain/market-pair";
 import { candleWindow, INTERVALS, pairQuery, TRADES_API, type Interval, type PairParams, type TradesFilter } from "../domain/market-params";
 import { trailPaging, type Paging } from "../domain/paging";
+import { wholePercent } from "../domain/percent";
 import type { BarListData, CandleData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
 import type { Loaded } from "./account-view";

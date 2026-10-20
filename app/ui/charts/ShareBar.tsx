@@ -1,6 +1,7 @@
 import { memo, useRef, type PointerEvent } from "react";
 
-import { formatAmount, sharePercent } from "../../domain/format";
+import { formatAmount } from "../../domain/format";
+import { sharePercent } from "../../domain/percent";
 import { cx } from "../cx";
 import { useHydrated } from "../use-hydrated";
 import { cellOf } from "./cells";

@@ -17,10 +17,10 @@ import {
   formatPrice,
   formatUtcDay,
   shortAddress,
-  wholePercent,
 } from "../domain/format";
 import { marketHref, naturalOrientation } from "../domain/market-pair";
 import { marketsHref, PERIODS, QUOTES, TRADES_API, type MarketsParams, type Quote } from "../domain/market-params";
+import { wholePercent } from "../domain/percent";
 import type { MeterData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
 import { isNumberText } from "./aggregate-shape";

@@ -5,8 +5,9 @@
 import BigNumber from "bignumber.js";
 
 import { tokenOf } from "../domain/fnv";
-import { compactNumber, formatAmount, formatCurrency, formatUtcDay, shortAddress, sharePercent } from "../domain/format";
+import { compactNumber, formatAmount, formatCurrency, formatUtcDay, shortAddress } from "../domain/format";
 import { displaysOf, type Display, type NetworkParams } from "../domain/network-params";
+import { sharePercent } from "../domain/percent";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { bucketStarts, pendingCount, utcDayOf, windowOf, type PeriodWindow } from "../domain/window";
 import type { BarListData, Delta, Series, TimeSeriesData } from "../ui/charts/types";

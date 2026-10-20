@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { redirect } from "react-router";
 
-import { queryOf } from "../domain/network-params";
+import { queryOf } from "../domain/query-of";
 import { canonicalValidatorsParams, parseValidatorsParams, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import { loaded, type Loaded } from "../server/account-view";
 import { anchorOf, type Anchor } from "../server/anchor";

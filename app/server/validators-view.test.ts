@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, SAMPLE_SIGNING_KEYS, summarySample, UNKNOWN_ID, validatorRowSample, XCB_ID } from "../../test/support/d1-samples";
 import { fnv1a32 } from "../domain/fnv";
-import { sharePercent, shortHash } from "../domain/format";
+import { shortHash } from "../domain/format";
+import { sharePercent } from "../domain/percent";
 import type { ValidatorsParams } from "../domain/validators-params";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";

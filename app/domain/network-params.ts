@@ -31,20 +31,7 @@ export function displaysOf(net: NetworkId): readonly Display[] {
   return DISPLAYS[net];
 }
 
-/**
- * The raw query of a URL, without the `?`, and without the pairs React Router adds to a data request (`_routes=…`). Left as it came
- * otherwise, so that a query that is not canonical (`period=1y&`, `period=%37d`) stays different from `parseNetworkParams`' answer.
- */
-export function queryOf(url: string): string {
-  const start = url.indexOf("?");
-  if (start < 0) return "";
-  const hash = url.indexOf("#", start);
-  const query = url.slice(start + 1, hash < 0 ? undefined : hash);
-  return query
-    .split("&")
-    .filter((pair) => pair.split("=", 1)[0] !== "_routes")
-    .join("&");
-}
+export { queryOf } from "./query-of";
 
 /** The query of a view: what is not the default, `period` then `in`. `in` is `usd` where the network has it. */
 function canonicalOf(net: NetworkId, params: Partial<NetworkParams>): string {
