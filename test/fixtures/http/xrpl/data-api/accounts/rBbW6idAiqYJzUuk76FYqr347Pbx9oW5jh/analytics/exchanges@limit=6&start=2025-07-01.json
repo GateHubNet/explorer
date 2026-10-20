@@ -1,11 +1,12 @@
 {
-  "count": 2,
+  "count": 3,
   "end": "2026-10-18T00:00:00Z",
   "pairs": [
-    {"base_currency":"4C494F4E53000000000000000000000000000000","base_issuer":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","base_volume":"172544.53","bought":"114983.67","bought_counter":"18.746698","count":17,"counter_currency":"XRP","counter_volume":"27.49022","native_volume":"27.49022","sold":"57560.86","sold_counter":"8.743522"},
-    {"base_currency":"USD","base_issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","base_volume":"31.920813","bought":"12.7072","bought_counter":"5.317573","count":12,"counter_currency":"XRP","counter_volume":"13.400916","native_volume":"13.400916","sold":"19.213613","sold_counter":"8.083343"}
+    {"base_currency":"4C494F4E53000000000000000000000000000000","base_issuer":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","base_volume":"183239.07","bought":"101230.11","bought_counter":"16.535593","count":17,"counter_currency":"XRP","counter_volume":"29.360652","native_volume":"29.360652","sold":"82008.96","sold_counter":"12.825059"},
+    {"base_currency":"USD","base_issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","base_volume":"29.662516","bought":"12.10047","bought_counter":"5.138901","count":14,"counter_currency":"XRP","counter_volume":"12.529192","native_volume":"12.529192","sold":"17.562046","sold_counter":"7.390291"},
+    {"base_currency":"4C494F4E53000000000000000000000000000000","base_issuer":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","base_volume":"53495.6","bought":"45181.35","bought_counter":"17.515274","count":9,"counter_currency":"USD","counter_issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","counter_volume":"20.643918","native_volume":"8.76611986697168754","sold":"8314.25","sold_counter":"3.128644"}
   ],
   "result": "success",
   "start": "2025-07-01T00:00:00Z",
-  "total": 2
+  "total": 3
 }

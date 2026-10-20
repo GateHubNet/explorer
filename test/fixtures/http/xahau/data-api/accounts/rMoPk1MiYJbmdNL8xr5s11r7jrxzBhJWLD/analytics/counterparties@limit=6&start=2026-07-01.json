@@ -1,10 +1,10 @@
 {
   "count": 6,
   "counterparties": [
-    {"account":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","first":"2026-07-02T17:43:31Z","last":"2026-07-02T17:43:31Z","payments_received":1,"payments_sent":0,"received_value":"8.776417","sent_value":"0","total_value":"8.776417"},
+    {"account":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","first":"2026-07-02T17:43:31Z","last":"2026-07-02T17:43:31Z","payments_received":1,"payments_sent":0,"received_value":"15","sent_value":"0","total_value":"15"},
+    {"account":"rDxRbwPa21hAuWGLNk6dsB7i7XSinYu2oy","first":"2026-07-02T17:44:31Z","last":"2026-10-09T04:46:24Z","payments_received":2,"payments_sent":3,"received_value":"3.677739","sent_value":"7.369338","total_value":"11.047077"},
     {"account":"rMCXf9PpoAptmmRrDoWAkUJCsQFcjajHve","first":"2026-09-21T18:56:03Z","last":"2026-09-22T16:24:39Z","payments_received":0,"payments_sent":2,"received_value":"0","sent_value":"6.696091","total_value":"6.696091"},
     {"account":"rhCm1bnYVZTvHHWXQsoyn4UTCUDY9kNqGQ","first":"2026-08-03T03:10:53Z","last":"2026-09-18T09:21:10Z","payments_received":3,"payments_sent":1,"received_value":"3.921239","sent_value":"0.926363","total_value":"4.847602"},
-    {"account":"rDxRbwPa21hAuWGLNk6dsB7i7XSinYu2oy","first":"2026-09-09T20:10:24Z","last":"2026-10-09T04:46:24Z","payments_received":2,"payments_sent":2,"received_value":"3.677739","sent_value":"1.145765","total_value":"4.823504"},
     {"account":"rKrkgTAsz9QSm8YvNvEi8f4GVsgVzfCj9M","first":"2026-07-25T15:04:12Z","last":"2026-07-25T15:04:12Z","payments_received":0,"payments_sent":1,"received_value":"0","sent_value":"2.679495","total_value":"2.679495"},
     {"account":"rJw7nsxxrKFqFCBZ2nLT8NEBHER3ZJQ315","first":"2026-08-15T14:39:04Z","last":"2026-09-09T09:46:50Z","payments_received":2,"payments_sent":0,"received_value":"1.563547","sent_value":"0","total_value":"1.563547"}
   ],

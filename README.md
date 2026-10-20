@@ -1057,8 +1057,8 @@ The default fixtures include `amm_volume` (the post-merge API), which the top le
 `scripts/analytics-fixtures.ts` makes them up (`analyticsFixtures(net, T)`, joined into `generate()`): for the active, the deleted and the never-funded account of each network, the
 six calls of each of the four periods at T (`analyticsWindow`), 144 files. Each account has one history, drawn from `mulberry32(seedOf(net, account, endpoint))` day by day from its
 `inception` to T and made backwards from what the hand-written files say it holds (the active account's native line ends at its `account_info` balance and its LIONS or EVR line
-at its `balances.json` value; the deleted account's native balance is 0 from its deletion on 2026-10-15), so the six answers and the four periods agree with each other and with
-the header. The shapes follow D2's reference at the commit `test/fixtures/PROVENANCE.md` ("Synthetic aggregates") names; the never-funded address has D2's empty answers.
+at its `balances.json` value; the deleted account's native balance is 0 from its deletion on 2026-10-15; its parent opens it with the creation's `initial_balance` at its
+`inception`), so the six answers and the four periods agree with each other and with the header. The shapes follow D2's reference at the commit `test/fixtures/PROVENANCE.md` ("Synthetic aggregates") names; the never-funded address has D2's empty answers.
 `test/unit/analytics-fixtures.test.ts` works the requests out from the spec's table of calls and checks the files against the reference's rules and the anchors. They are about
 0.31 MiB (`isAnalyticsGenerated`) and count against the synthetic files' budget.
 

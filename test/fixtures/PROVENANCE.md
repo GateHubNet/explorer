@@ -230,14 +230,19 @@ change type and an asset; a counterparty, a side, an asset and a day; a pair's d
 9,351.039221) and each token line at its `balances.json` value (XRPL's LIONS 48,329.908117603, Xahau's EVR 28,437,367.3675102); the deleted account's native balance is 0 from
 the day of its deletion on (the newest row of its hand-written history, 2026-10-15 on both networks: XRPL's recorded AccountDelete, Xahau's newest recorded transaction), when an
 AccountDelete pays `server_state`'s `reserve_inc` as its fee and sends the rest away (no change type), and it does nothing after it; an account's first day is the day of its
-creation's `inception`, when the creation's `parent` pays it what it starts with; the native balance stays at or above `server_state`'s reserve (`reserve_base`, and
-`reserve_inc` for each trust line) until a deletion. The history is made backwards, from the anchors to the first day, and a change the balances could not have had did not
-happen: a payment or an offer the account sent then failed for want of funds (`tecUNFUNDED_PAYMENT`, `tecUNFUNDED_OFFER`), and anything else is dropped. A token line opens
-with the account's TrustSet and a payment from the token's issuer of what the history leaves at its first day.
+creation's `inception`, when the creation's `parent` pays it the creation's `initial_balance` at the `inception`'s second, as the header shows it (XRPL 25 and 10 XRP,
+Xahau 25 and 15 XAH); the native balance stays at or above `server_state`'s reserve (`reserve_base`, and `reserve_inc` for each trust line) until a deletion. The history is
+made backwards, from the anchors to the first day, and a change the balances could not have had did not happen: a payment or an offer the account sent then failed for want of
+funds (`tecUNFUNDED_PAYMENT`, `tecUNFUNDED_OFFER`), and anything else is dropped. What the history leaves on the first day differs from the initial balance, and one payment a
+minute after the activation settles it: from one of the account's counterparties when the history needs more (XRPL's deleted account, Xahau's active one), to one when it
+needs less (XRPL's active account, Xahau's deleted one). So the parent's row of All's counterparties is the initial balance, one payment at the inception; Xahau's active
+account's parent is also EVR's issuer, and its row holds the EVR too. A token line opens with the account's TrustSet and a payment from the token's issuer of what the history
+leaves at its first day.
 
 *On purpose:* the XRPL active account trades USD of `rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq` against XRP in its last 45 days (stored USD/XRP, shown XRP/USD by E3's natural
-orientation), and LIONS against XRP and USD; Xahau's trades USD of a seeded issuer against XAH in its last 40 days (stored USD/XAH, shown XAH/USD) and EVR against XAH; neither
-holds USD at T, so a line of 0 is served. The XRPL active account has a failed transaction in the 30 days. Xahau's active account is paid small sums by some thirty accounts,
+orientation), LIONS against XRP, and LIONS against that USD in the same 45 days (LIONS/USD, a pair without a native side, whose `native_volume` is LIONS' volume at its rate
+of each day); Xahau's trades USD of a seeded issuer against XAH in its last 40 days (stored USD/XAH, shown XAH/USD) and EVR against XAH, and nothing against USD but XAH;
+neither holds USD at T, so a line of 0 is served. The XRPL active account has a failed transaction in the 30 days. Xahau's active account is paid small sums by some thirty accounts,
 as its recorded history shows, and both Xahau accounts claim rewards (`ClaimReward`, XAH with no change type). The deleted accounts hold no token and never trade.
 
 *Invented, and not checked against anything real:* every count, amount, time, rate (LIONS at about 6,318 a XRP, the price of its recorded trades; GateHub's USD at 2.4 a XRP,
@@ -248,8 +253,8 @@ against a real stack checks them against real answers.
 *What keeps them true.* `test/unit/analytics-fixtures.test.ts` works the requests out from the E4 spec's table of calls and `analyticsWindow`, fails for a file that is asked for
 and not written or written and not asked for, runs the client's checks (`app/server/analytics-shape.ts`) on every answer, and checks the rules and the anchors above against the
 files, and the four periods against each other; `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes. `isAnalyticsGenerated`
-(`scripts/http-fixtures.ts`) names them, and they count against the synthetic files' budget in `test/unit/http-fixtures.test.ts` (144 files, 324,247 bytes, about 0.31 MiB;
-with the network page's 2.3 MiB, below its 2.7 MiB).
+(`scripts/http-fixtures.ts`) names them, and they count against the synthetic files' budget in `test/unit/http-fixtures.test.ts` (144 files, 327,126 bytes, about 0.31 MiB;
+with the network page's 2.3 MiB, below its 2.7 MiB). `analyticsOpenings` gives the test each funded account's opening payment alone.
 
 ## Derived trades and pool states: the markets pages' XRPL files and `http/xrpl/node/amm_info/`
 

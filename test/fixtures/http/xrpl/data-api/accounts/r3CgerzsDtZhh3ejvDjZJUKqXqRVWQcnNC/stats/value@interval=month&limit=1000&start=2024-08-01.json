@@ -2,7 +2,7 @@
   "count": 27,
   "result": "success",
   "rows": [
-    {"account_value":"20.190952","balance_change_count":2,"date":"2024-08-01T00:00:00Z"},
+    {"account_value":"20.190952","balance_change_count":3,"date":"2024-08-01T00:00:00Z"},
     {"account_value":"20.190952","balance_change_count":0,"date":"2024-09-01T00:00:00Z"},
     {"account_value":"20.190927","balance_change_count":0,"date":"2024-10-01T00:00:00Z"},
     {"account_value":"17.536037","balance_change_count":4,"date":"2024-11-01T00:00:00Z"},

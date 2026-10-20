@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ANALYTICS_PERIODS, analyticsWindow, type AnalyticsPeriod, type AnalyticsUnit, type AnalyticsWindow } from "../../app/domain/analytics-params";
 import { naturalOrientation } from "../../app/domain/market-pair";
 import { checkAccountStats, checkAnalyticsBalances, checkAnalyticsExchanges, checkBalanceChanges, checkCounterparties } from "../../app/server/analytics-shape";
-import { ANALYTICS_REFERENCE_COMMIT, analyticsFixtures } from "../../scripts/analytics-fixtures";
+import { ANALYTICS_REFERENCE_COMMIT, analyticsFixtures, analyticsOpenings } from "../../scripts/analytics-fixtures";
 import { generate, HTTP, isAnalyticsGenerated, isHandWritten } from "../../scripts/http-fixtures";
 import { dataApiFile, type NetworkName } from "../support/upstream-core";
 
@@ -55,7 +55,8 @@ const DECIMAL_KEYS = new Set([
   "native_volume",
 ]);
 
-const json = (path: string): any => JSON.parse(readFileSync(new URL(path, HTTP), "utf8"));
+/** A fixture's body; with `optional`, `undefined` when there is no such file. */
+const json = (path: string, optional = false): any => (optional && !existsSync(new URL(path, HTTP)) ? undefined : JSON.parse(readFileSync(new URL(path, HTTP), "utf8")));
 const exists = (path: string) => existsSync(new URL(path, HTTP));
 const big = (text: string) => new BigNumber(text);
 
@@ -481,6 +482,21 @@ describe.each(NETS)("the anchors of %s, read from the hand-written account fixtu
     }
   });
 
+  it("open each funded account with its parent's payment of the creation's initial_balance, at its inception, as the header says", () => {
+    for (const account of [ACTIVE[net], DELETED[net]]) {
+      const created = json(`${net}/data-api/accounts/${account}.json`).account_data;
+      const opening = analyticsOpenings(net, T(net)).find((o) => o.account === account);
+      expect(opening, account).toEqual({ account, counterparty: created.parent, amount: big(created.initial_balance).toFixed(), time: created.inception });
+
+      // In the files: the parent is a counterparty of All, first paid at the inception. Where it paid nothing else (it is not also the issuer of a
+      // token the account holds), what it paid is the initial balance.
+      const parent = answerOf(net, account, "all", "counterparties").counterparties.find((c: any) => c.account === created.parent);
+      expect(parent, account).toMatchObject({ first: created.inception, payments_sent: 0 });
+      const issues = (json(`${net}/data-api/accounts/${account}/balances.json`, true)?.balances ?? []).some((line: any) => line.counterparty === created.parent);
+      if (!issues) expect(parent, account).toMatchObject({ received_value: big(created.initial_balance).toFixed(), payments_received: 1, last: created.inception });
+    }
+  });
+
   it("give the never-funded address the empty answers of an unknown address, for every period", () => {
     for (const period of ANALYTICS_PERIODS) {
       const w = windowFor(net, NEVER_FUNDED, period);
@@ -515,6 +531,17 @@ describe("what the view needs of the fixtures", () => {
     expect(inverted("xrpl").map((pair) => pair.base_issuer)).toEqual(["rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"]);
     expect(inverted("xahau")).toHaveLength(1);
     expect(inverted("xahau")[0].base_issuer).toMatch(/^r/);
+  });
+
+  it("has the pairs PROVENANCE.md names: XRPL's LIONS against XRP and against USD (no native side, valued at LIONS' rate), Xahau's EVR against XAH", () => {
+    const pairsOf = (net: NetworkName) =>
+      (answerOf(net, ACTIVE[net], "all", "exchanges").pairs as any[]).map((pair) => `${pair.base_currency}.${pair.base_issuer ?? ""}/${pair.counter_currency}.${pair.counter_issuer ?? ""}`);
+    const LIONS = "4C494F4E53000000000000000000000000000000.rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS";
+    expect(pairsOf("xrpl").sort()).toEqual([`${LIONS}/USD.rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq`, `${LIONS}/XRP.`, "USD.rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq/XRP."]);
+    const cross = (answerOf("xrpl", ACTIVE.xrpl, "all", "exchanges").pairs as any[]).find((pair) => pair.counter_currency === "USD");
+    expect(cross.native_volume).toEqual(expect.any(String));
+    expect(pairsOf("xahau")).toContain("EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH.");
+    expect(pairsOf("xahau").some((pair) => /^USD\.r\w+\/XAH\.$/.test(pair))).toBe(true);
   });
 
   it("has counterparties and DEX trades for both active accounts in the default view, and balance changes of several kinds", () => {

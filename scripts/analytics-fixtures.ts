@@ -23,13 +23,16 @@
 // - Anchors, read from the hand-written account fixtures and never written here: the active account's native line ends at its `account_info` balance at T,
 //   and each token line at its balances fixture's value; the deleted account's native balance is 0 from the day of its deletion on (the date of the newest
 //   row of its hand-written history: XRPL's recorded AccountDelete, Xahau's newest recorded transaction), and it does nothing after it; an account's first
-//   day is the day of its creation's `inception`, when its creation's `parent` pays it what it starts with. The native balance never goes below the
-//   reserve of `server_state` (`reserve_base`, and `reserve_inc` for each trust line) before the deletion, and the deletion pays `reserve_inc` as its fee.
+//   day is the day of its creation's `inception`, when its creation's `parent` pays it the creation's `initial_balance`, as the header says. The native
+//   balance never goes below the reserve of `server_state` (`reserve_base`, and `reserve_inc` for each trust line) before the deletion, and the deletion
+//   pays `reserve_inc` as its fee.
 // - Because the balances end at their anchors, the history is made backwards, from the last day to the first: a day's balance before its changes is its
 //   balance after them less the changes. A change the balances cannot have had (a payment received that would leave less than the reserve before it, a
 //   purchase of more of a token than the account held after it) did not happen: a payment or an offer the account sent then fails for want of funds
-//   (`tecUNFUNDED_PAYMENT`, `tecUNFUNDED_OFFER`), and anything else is dropped. What is left at a line's first day is what opened it: the parent's payment
-//   for the native line, a payment from the issuer for a token line (after the account's TrustSet).
+//   (`tecUNFUNDED_PAYMENT`, `tecUNFUNDED_OFFER`), and anything else is dropped. What is left at a token line's first day is what opened it: a payment from
+//   the issuer (after the account's TrustSet). On the account's first day the parent pays the initial balance, and what the history leaves differs from
+//   it: one payment right after the activation settles the difference, from one of the account's counterparties when the history needs more, to one
+//   when it needs less.
 // - The never-funded address has the empty answers of an unknown address.
 //
 // The draws come from one stream per network, account and endpoint, `mulberry32(seedOf(net, account, endpoint))` (scripts/synthetic.ts): `stats/value` the
@@ -141,9 +144,13 @@ interface Habits {
   escrows: number;
   ripples: number;
   rewards: number;
-  /** Trades a day of each pair, while it trades it, and their size; how many days before T it began to trade USD. */
+  /**
+   * Trades a day of each pair while it trades it (a held token against the native currency, USD against it, a held token against USD), and their size;
+   * how many days before T it began to trade USD.
+   */
   trades: number;
   usdTrades: number;
+  crossTrades: number;
   tradeSize: number;
   usdDays: number;
   /** The share of the trades in which it took an offer (an OfferCreate it sent), not had its own taken. */
@@ -166,6 +173,7 @@ const QUIET: Habits = {
   rewards: 0,
   trades: 0,
   usdTrades: 0,
+  crossTrades: 0,
   tradeSize: 0,
   usdDays: 0,
   taker: 0,
@@ -188,6 +196,7 @@ const HABITS: Record<NetworkName, { active: Habits; deleted: Habits }> = {
       ripples: 0.012,
       trades: 0.05,
       usdTrades: 0.3,
+      crossTrades: 0.15,
       tradeSize: 2,
       usdDays: 45,
       taker: 0.6,
@@ -319,10 +328,11 @@ interface Plan {
   account: string;
   native: NativeCode;
   habits: Habits;
-  /** The day of the creation's `inception`, its seconds, and the account that paid it its first coins. */
+  /** The day of the creation's `inception`, its seconds, the account that paid it its first coins, and how many (`initial_balance`). */
   first: string;
   firstSeconds: number;
   parent: string;
+  initial: Decimal;
   /** The last day it does anything: T, or the day of its deletion; and, deleted, the second of the deletion. */
   last: string;
   deletedAt: number | null;
@@ -339,7 +349,7 @@ interface Plan {
 /** The plan of a funded account, from its hand-written fixtures. */
 function planOf(net: NetworkName, account: string, role: "active" | "deleted", T: string, usdIssuer: string): Plan {
   const network = NETWORKS[net];
-  const created = readJson(`${net}/data-api/accounts/${account}.json`).account_data as { inception: string; parent: string };
+  const created = readJson(`${net}/data-api/accounts/${account}.json`).account_data as { inception: string; parent: string; initial_balance: string };
   const reserves = readJson(`${net}/node/server_state.json`).result.state.validated_ledger as { reserve_base: number; reserve_inc: number };
   const ends = new Map<string, Decimal>();
   const tokens = new Map<string, Token>();
@@ -375,6 +385,7 @@ function planOf(net: NetworkName, account: string, role: "active" | "deleted", T
     first: created.inception.slice(0, 10),
     firstSeconds: secondsOf(created.inception),
     parent: created.parent,
+    initial: new BN(created.initial_balance),
     last,
     deletedAt,
     ends,
@@ -431,6 +442,8 @@ interface History {
   rates: Map<string, Map<string, Decimal>>;
   /** The first day of each line: the native line's is the account's first day. */
   opened: Map<string, string>;
+  /** The parent's payment that opened the account. */
+  activation: Payment;
 }
 
 /** Something that happened on a day, before it is known whether the balances allow it. */
@@ -507,7 +520,9 @@ function historyOf(plan: Plan, T: string, usd: string): History {
   const amountOf = (line: string, day: string, worth: number): Decimal =>
     line === native ? dropsOf(worth) : unitsOf(worth * rateOf(line, day).toNumber(), plan.tokens.get(line)!.decimals);
 
-  // Payments: the accounts first, so that a day added never changes them; then each day's, received and sent.
+  // Payments: the accounts first, so that a day added never changes them; then each day's, received and sent; then the account that settles the
+  // first day's difference between the initial balance and what the history needs (drawn last, so that it moves no other draw).
+  let settler = "";
   {
     const next = stream(net, account, "analytics/counterparties");
     const pool = Array.from({ length: habits.pool }, () => accountOf(next));
@@ -536,6 +551,7 @@ function historyOf(plan: Plan, T: string, usd: string): History {
         }
       }
     }
+    settler = pick(next());
   }
 
   // Trades: each pair of the account (the tokens against the native currency, and the held tokens against USD), in the pair's stored order.
@@ -546,7 +562,7 @@ function historyOf(plan: Plan, T: string, usd: string): History {
     const lines = [...plan.tokens.keys()].sort();
     const pairs: Array<{ a: string; b: string; perDay: number }> = [
       ...lines.map((line) => ({ a: line, b: native as string, perDay: line === usd ? habits.usdTrades : habits.trades })),
-      ...lines.filter((line) => line !== usd).map((line) => ({ a: line, b: usd, perDay: habits.trades })),
+      ...lines.filter((line) => line !== usd).map((line) => ({ a: line, b: usd, perDay: habits.crossTrades })),
     ];
     for (const day of days) {
       for (const { a, b, perDay } of pairs) {
@@ -683,14 +699,32 @@ function historyOf(plan: Plan, T: string, usd: string): History {
       send("TrustSet", "tesSUCCESS", fee());
     }
     if (day === plan.first) {
-      const amount = balances.get(native)!;
-      if (!amount.gt(0)) throw new Error(`analytics fixtures: ${account} would start with ${amount.toFixed()}`);
-      today.changes.push({ line: native, type: "payment_destination", amount });
-      today.payments.push({ counterparty: plan.parent, side: "received", line: native, amount, time: timeOf(day, plan.firstSeconds) });
+      // The parent paid the initial balance, and a payment right after it settled what the history needs beyond it, or less.
+      const left = balances.get(native)!;
+      const settled = timeOf(day, plan.firstSeconds + 60);
+      if (left.gt(plan.initial)) {
+        const amount = left.minus(plan.initial);
+        today.changes.push({ line: native, type: "payment_destination", amount });
+        today.payments.push({ counterparty: settler, side: "received", line: native, amount, time: settled });
+        balances.set(native, plan.initial);
+      } else if (left.lt(plan.initial)) {
+        const cost = fee();
+        const amount = plan.initial.minus(left).minus(cost);
+        if (!amount.gt(0)) throw new Error(`analytics fixtures: ${account} cannot settle ${plan.initial.minus(left).toFixed()} with a payment that pays ${cost.toFixed()}`);
+        today.changes.push({ line: native, type: "payment_source", amount: amount.negated() });
+        today.payments.push({ counterparty: settler, side: "sent", line: native, amount, time: settled });
+        balances.set(native, left.plus(amount));
+        send("Payment", "tesSUCCESS", cost);
+      }
+      if (!balances.get(native)!.eq(plan.initial)) throw new Error(`analytics fixtures: ${account} does not open with its initial balance`);
+      const activation: Payment = { counterparty: plan.parent, side: "received", line: native, amount: plan.initial, time: timeOf(day, plan.firstSeconds) };
+      today.changes.push({ line: native, type: "payment_destination", amount: plan.initial });
+      today.payments.push(activation);
       balances.set(native, ZERO);
+      return { plan, days: record, rates, opened, activation };
     }
   }
-  return { plan, days: record, rates, opened };
+  throw new Error(`analytics fixtures: ${account} has no first day`);
 }
 
 // ---- Values --------------------------------------------------------------------------------------------------------------
@@ -954,24 +988,37 @@ function exchangesAnswer(history: History | null, w: AnalyticsWindow): Analytics
 
 // ---- The files -----------------------------------------------------------------------------------------------------------
 
+/** The three accounts of a network with their histories (`null` for the never-funded address). */
+function historiesOf(net: NetworkName, T: string): Array<{ account: string; history: History | null }> {
+  const { active, deleted, unfunded } = ACCOUNTS[net];
+  // Xahau's USD issuer is the first thing the active account's stream of trades draws.
+  const usdIssuer = NETWORKS[net].usd.issuer ?? accountOf(stream(net, active, "analytics/exchanges"));
+  const usd = keyOf({ currency: "USD", issuer: usdIssuer });
+  return [
+    { account: active, history: historyOf(planOf(net, active, "active", T, usdIssuer), T, usd) },
+    { account: deleted, history: historyOf(planOf(net, deleted, "deleted", T, usdIssuer), T, usd) },
+    { account: unfunded, history: null },
+  ];
+}
+
+/**
+ * The payment that opened each funded account of a network: its creation's `parent` paid it the creation's `initial_balance` at its `inception`. The
+ * counterparties answers hold it among the parent's payments; this is it alone, for test/unit/analytics-fixtures.test.ts.
+ */
+export function analyticsOpenings(net: NetworkName, T: string): Array<{ account: string; counterparty: string; amount: string; time: string }> {
+  return historiesOf(net, T).flatMap(({ account, history }) =>
+    history ? [{ account, counterparty: history.activation.counterparty, amount: text(history.activation.amount), time: history.activation.time }] : [],
+  );
+}
+
 /**
  * Every analytics answer of a network: for the active, the deleted and the never-funded account, the six calls of spec 2.3 for each period, with the window
  * `analyticsWindow` gives for T (All from the month of the account's `inception`, or T's month without a creation). `T` is the UTC day of the recorded
  * `last_validated`.
  */
 export function analyticsFixtures(net: NetworkName, T: string): AnalyticsFile[] {
-  const { active, deleted, unfunded } = ACCOUNTS[net];
-  // Xahau's USD issuer is the first thing the active account's stream of trades draws.
-  const usdIssuer = NETWORKS[net].usd.issuer ?? accountOf(stream(net, active, "analytics/exchanges"));
-  const usd = keyOf({ currency: "USD", issuer: usdIssuer });
-
   const files: AnalyticsFile[] = [];
-  for (const [account, role] of [
-    [active, "active"],
-    [deleted, "deleted"],
-    [unfunded, "unfunded"],
-  ] as const) {
-    const history = role === "unfunded" ? null : historyOf(planOf(net, account, role, T, usdIssuer), T, usd);
+  for (const { account, history } of historiesOf(net, T)) {
     const first = history ? { day: history.plan.first, from: "activation" as const } : null;
     for (const period of ANALYTICS_PERIODS) {
       const w = analyticsWindow(period, T, first);

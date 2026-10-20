@@ -2,7 +2,7 @@
   "count": 16,
   "result": "success",
   "rows": [
-    {"account_value":"8.776417","balance_change_count":1,"date":"2026-06-29T00:00:00Z"},
+    {"account_value":"8.776417","balance_change_count":2,"date":"2026-06-29T00:00:00Z"},
     {"account_value":"8.776417","balance_change_count":0,"date":"2026-07-06T00:00:00Z"},
     {"account_value":"9.419461","balance_change_count":2,"date":"2026-07-13T00:00:00Z"},
     {"account_value":"6.739941","balance_change_count":1,"date":"2026-07-20T00:00:00Z"},

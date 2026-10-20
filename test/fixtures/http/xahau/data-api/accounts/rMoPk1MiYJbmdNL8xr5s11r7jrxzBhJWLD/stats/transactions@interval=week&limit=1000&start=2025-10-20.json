@@ -1,7 +1,8 @@
 {
-  "count": 10,
+  "count": 11,
   "result": "success",
   "rows": [
+    {"date":"2026-06-29T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
     {"date":"2026-07-13T00:00:00Z","result":{"tesSUCCESS":3},"transaction_count":3,"type":{"ClaimReward":2,"Invoke":1}},
     {"date":"2026-07-20T00:00:00Z","result":{"tesSUCCESS":2},"transaction_count":2,"type":{"Payment":1,"URITokenMint":1}},
     {"date":"2026-08-03T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},

@@ -1,13 +1,12 @@
 {
-  "count": 3,
+  "count": 2,
   "counterparties": [
     {"account":"rq5QXrArpavMCfE5dRuR3uG55iV1rG8mj","first":"2026-10-10T23:47:12Z","last":"2026-10-10T23:47:12Z","payments_received":0,"payments_sent":1,"received_value":"0","sent_value":"1.7730054607718128","total_value":"1.7730054607718128"},
-    {"account":"rPTVXPLZihzerPc9RHpfcTH5RZQSrVoi8s","first":"2026-09-29T12:01:50Z","last":"2026-09-29T12:01:50Z","payments_received":1,"payments_sent":0,"received_value":"1.724075","sent_value":"0","total_value":"1.724075"},
     {"account":"rEhcqzSi5e1E1GJJ1xfY1cmrRaoePZWkzt","first":"2026-09-21T13:18:30Z","last":"2026-09-21T13:18:30Z","payments_received":0,"payments_sent":1,"received_value":"0","sent_value":"0.605868","total_value":"0.605868"}
   ],
   "end": "2026-10-18T00:00:00Z",
   "result": "success",
   "sort": "value",
   "start": "2026-09-18T00:00:00Z",
-  "total": 3
+  "total": 2
 }
