@@ -50,6 +50,8 @@ const noSubscription = () => () => {};
  * out, so they match.
  */
 export function LiveToggle({ paused, onToggle }: { paused: boolean; onToggle: () => void }) {
+  // `useHydrated` (app/ui/use-hydrated.ts) written out, the one copy there is: pages take that hook, but importing it here put it in a chunk
+  // of its own and grew the home, network, markets and pair pages by 164–192 B (measured in E3's final fix wave), so this line stays.
   const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
   if (!hydrated) return null;
   return (

@@ -43,11 +43,11 @@ const count = (n: number) => formatAmount(String(n));
 const notesOf = (...notes: (string | null)[]): string[] => notes.filter((note): note is string => note !== null);
 
 /**
- * Retry of a part that could not be loaded: the route's own data is fetched again, in the browser, from the explorer's own Worker. It does not
- * pass `retrying` to the button: the page revalidates on every beat, and a button that disables itself for each would lose the keyboard focus
- * of a visitor who is on it.
+ * Retry of a part that could not be loaded: the route's own data is fetched again, in the browser, from the explorer's own Worker. The page's
+ * buttons take no `retrying`. This is not the shared `useRetry` (app/ui/use-retry.ts), which a new page uses: taking that one here measured
+ * +118 B on this page (E3's final fix wave), so the network page keeps its own, under a name of its own.
  */
-function useRetry(): () => void {
+function useRevalidate(): () => void {
   const revalidator = useRevalidator();
   return () => void revalidator.revalidate();
 }
@@ -378,7 +378,7 @@ function ValidatorsCard({ net, part, onRetry }: { net: Net; part: NetworkPageDat
  */
 export function NetworkPage({ network, data, live }: { network: NetworkInfo; data: NetworkPageData; live?: LiveControls }) {
   const refetching = useRefetching();
-  const onRetry = useRetry();
+  const onRetry = useRevalidate();
   const net = network.id;
 
   return (
