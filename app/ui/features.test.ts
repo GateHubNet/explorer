@@ -72,10 +72,14 @@ describe("the MARKETS switch", () => {
 
 // ACCOUNT_ANALYTICS (E4): the account page's Analytics tab.
 describe("the ACCOUNT_ANALYTICS switch", () => {
-  it("is appended last, after E3's MARKETS, and its feature is accountAnalytics", () => {
-    expect(FEATURE_VARS.slice(0, 4)).toEqual(["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS"]);
-    expect(FEATURE_VARS.at(-1)).toBe("ACCOUNT_ANALYTICS");
-    expect(Object.keys(FEATURE_NAME).at(-1)).toBe("ACCOUNT_ANALYTICS");
+  // Its place is the fourth, after E2's two and E3's MARKETS. It is checked as a prefix of both lists, not as their last entry, so that a switch
+  // appended after it by a later plan (E5's AMM_PAGES) leaves this test as it is.
+  it("is the fourth switch, after E2's two and E3's MARKETS, and its feature is accountAnalytics", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS"];
+    expect(FEATURE_VARS.slice(0, 4)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("ACCOUNT_ANALYTICS")).toBe(3);
+    expect(Object.keys(FEATURE_NAME).slice(0, 4)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("ACCOUNT_ANALYTICS")).toBe(3);
     expect(FEATURE_NAME.ACCOUNT_ANALYTICS).toBe("accountAnalytics");
   });
 
