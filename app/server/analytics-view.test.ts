@@ -610,10 +610,75 @@ describe("the text of the builders", () => {
   });
 
   it("is what a decimal string is, whatever notation the API's digits come in", () => {
-    // `1e-7` and `5E+2` are decimals to the shape check; the chart still holds plain notation.
+    // `1e-7` and `5E+2` are numbers as text to the shape check; the chart still holds plain notation.
     const card = valueCard(frame, valuesOver(frame, ["1e-7", "5E+2"]), "XRP");
     expect(card.chart.series[0]!.values.slice(-2)).toEqual(["0.0000001", "500"]);
     expect(card.tile.figure).toBe("500 XRP");
+  });
+
+  /** Every string of `value` with where it is, but the token of a chart (a hash of what it draws). */
+  const stringsOf = (value: unknown, where = ""): Array<[string, string]> => {
+    if (typeof value === "string") return [[where, value]];
+    if (Array.isArray(value)) return value.flatMap((item, i) => stringsOf(item, `${where}[${i}]`));
+    if (value === null || typeof value !== "object") return [];
+    return Object.entries(value).flatMap(([key, item]) => (key === "token" ? [] : stringsOf(item, `${where}.${key}`)));
+  };
+
+  it("writes no exponent in any string of any card when D2's values come in exponent form, below 1e-6 and from 1e21", () => {
+    const [tiny, small, huge, minus] = ["1.2e-7", "3.4e-7", "1e+21", "-2.5e-8"];
+    const cards = {
+      value: valueCard(frame, valuesOver(frame, [tiny, small, huge]), "XRP"),
+      changes: changesCard(
+        frame,
+        changesAnswer(
+          [changeRow("2026-10-15", "payment_destination", tiny, "0"), changeRow("2026-10-16", "exchange", huge, small), changeRow(T, undefined, "0", "5E+21")],
+          [
+            changeTotal("transaction_cost", 1, "0", tiny, "-1.2e-7"),
+            changeTotal("payment_destination", 1, tiny, "0", tiny),
+            changeTotal("exchange", 1, huge, small, "9.99999999999999999999966e+20"),
+            changeTotal(undefined, 1, "0", "5E+21", "-5E+21"),
+          ],
+        ),
+        "XRP",
+        XRPL_DEX,
+      ),
+      counterparties: counterpartiesCard(frame, counterpartiesAnswer(2, [counterparty(ADDRESS_A, tiny, huge, 1, 1), counterparty(ADDRESS_B, "0", small, 0, 1)])),
+      balances: balancesCard(
+        frame,
+        balancesAnswer(
+          [balanceLine("XRP", huge), balanceLine("USD", minus, ADDRESS_B)],
+          [balanceRow("2026-10-16", "XRP", tiny), balanceRow(T, "XRP", huge), balanceRow(T, "USD", minus, ADDRESS_B)],
+        ),
+      ),
+      pairs: pairsCard(
+        frame,
+        exchangesAnswer([
+          // Stored as USD/XRP and shown as XRP/USD: Bought is `sold_counter` and Sold `bought_counter`.
+          pairOf({ base_currency: "USD", base_issuer: ADDRESS_B, counter_currency: "XRP", base_volume: huge, counter_volume: "3e+22", bought: tiny, sold: huge, bought_counter: minus.slice(1), sold_counter: "3e+22", native_volume: "3e+22" }),
+          pairOf({ base_currency: "ABC", base_issuer: LIONS_ISSUER, counter_currency: "XRP", bought: small, sold: "0", native_volume: tiny }),
+        ]),
+        { net: "xrpl", native: "XRP", markets: true, dex: XRPL_DEX },
+      ),
+    };
+
+    const texts = stringsOf(cards);
+    expect(texts.length).toBeGreaterThan(100);
+    for (const [where, text] of texts) expect(text, where).not.toMatch(/\d[eE][+-]?\d|NaN|Infinity/);
+
+    // Written out in full, or as what is below a drop.
+    expect(cards.value.chart.series[0]!.values.slice(-3)).toEqual(["0.00000012", "0.00000034", "1000000000000000000000"]);
+    expect(cards.value.tile.figure).toBe("1,000,000,000,000,000,000,000 XRP");
+    expect(cards.changes.tile).toMatchObject({ figure: "0.00000012 XRP", sub: "0 drops, burned" });
+    expect(cards.changes.sources.max).toBe("5000000000000000000000");
+    expect(cards.counterparties.rows[0]).toMatchObject({ sent: "<0.000001", received: "1,000,000,000,000,000,000,000" });
+    expect(cards.balances.chart!.panels.map((panel) => panel.values.slice(-2))).toEqual([
+      ["0.00000012", "1000000000000000000000"],
+      [null, "-0.000000025"],
+    ]);
+    expect(cards.pairs.rows.map((row) => [row.label, row.volume, row.bought, row.sold])).toEqual([
+      ["XRP/USD", "30,000,000,000,000,000,000,000", "30,000,000,000,000,000,000,000 XRP", "0.000000025 XRP"],
+      ["ABC/XRP", "<0.000001", "0.00000034 ABC", "—"],
+    ]);
   });
 });
 

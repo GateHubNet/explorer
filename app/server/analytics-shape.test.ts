@@ -28,8 +28,11 @@ const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 const OTHER = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
 const THIRD = "rBtgXXrLQntDfCoJFhdnmhPqMuK2DuwepA";
 
-/** The check refuses `body` as an `UpstreamError` of kind `server` that marks an answer of the upstream (status 200), in the words of `WHAT`. */
-function refuses(check: (body: unknown) => unknown, body: unknown): void {
+/**
+ * The check refuses `body` as an `UpstreamError` of kind `server` that marks an answer of the upstream (status 200), in the words of `WHAT`, and, when
+ * `why` is given, with that reason at the end of its message.
+ */
+function refuses(check: (body: unknown) => unknown, body: unknown, why?: string): void {
   let error: unknown;
   try {
     check(body);
@@ -40,6 +43,7 @@ function refuses(check: (body: unknown) => unknown, body: unknown): void {
   expect((error as UpstreamError).kind).toBe("server");
   expect((error as UpstreamError).status).toBe(200);
   expect((error as UpstreamError).message).toMatch(new RegExp(`^${WHAT} answered `));
+  if (why !== undefined) expect((error as UpstreamError).message.endsWith(`: ${why}`), (error as UpstreamError).message).toBe(true);
 }
 
 /** `good` is taken and returned as it is, and every change in `defects` makes it a refused answer. */
@@ -51,6 +55,32 @@ function pins(check: (body: unknown) => unknown, good: unknown, defects: Defect[
     const body = clone(good);
     defect(body);
     refuses(check, body);
+  });
+}
+
+/**
+ * Amounts and values as D2 writes them (7d495ab): bignumber.js's `toString()`, which is exponent form below 1e-6 and from 1e21 (a dust payment, a
+ * remnant of a partly filled offer, an in and out that nearly cancel). They are numbers as text, as E2 and E3 take them from the same API (`isNumberText`).
+ */
+const EXPONENT_FORMS = ["1.2e-7", "-1e-10", "1e+21", "1.5E+3", "0e0"];
+/** What is no number as text: `NaN`, an exponent of 4 digits (`1e9999` must never reach the formatting of a page), `Infinity` and nothing. */
+const NOT_NUMBERS = ["NaN", "1e9999", "Infinity", ""];
+
+/** Each field of `good` that `fields` names (its place in the refusal, and how to set it) takes a value in exponent form, and refuses what is no number. */
+function numbersAsText(check: (body: unknown) => unknown, good: unknown, fields: Array<[where: string, set: (body: Body, value: string) => void]>): void {
+  it.each(fields)("takes %s in exponent form, as D2 writes a value below 1e-6 or from 1e21", (_where, set) => {
+    for (const value of EXPONENT_FORMS) {
+      const body = clone(good);
+      set(body, value);
+      expect(check(body), value).toBe(body);
+    }
+  });
+  it.each(fields)("refuses %s that is NaN, has an exponent of 4 digits, is Infinity or is empty", (where, set) => {
+    for (const value of NOT_NUMBERS) {
+      const body = clone(good);
+      set(body, value);
+      refuses(check, body, `${where} is not a number as text`);
+    }
   });
 }
 
@@ -141,7 +171,6 @@ describe("checkAccountStats", () => {
       ["a daily row", (body) => (body.rows[1].date = "2020-02-02T00:00:00Z")],
       ["a marker", (body) => (body.marker = "MjAyMC0wNC0wMQ")],
       ["an account value that is a number", (body) => (body.rows[0].account_value = 100)],
-      ["an account value in exponent form", (body) => (body.rows[0].account_value = "1e3")],
       ["an account value that is empty", (body) => (body.rows[0].account_value = "")],
       ["an account value with a trailing point", (body) => (body.rows[0].account_value = "100.")],
       ["an account value that is null", (body) => (body.rows[0].account_value = null)],
@@ -151,6 +180,7 @@ describe("checkAccountStats", () => {
       ["a change count that is negative", (body) => (body.rows[0].balance_change_count = -1)],
       ["no change count", (body) => delete body.rows[0].balance_change_count],
     ]);
+    numbersAsText(check, value, [["rows[0].account_value", (body, text) => (body.rows[0].account_value = text)]]);
     it("takes a negative or a fractional value, and a quiet bucket", () => {
       const body = { result: "success", count: 2, rows: [{ date: "2020-01-01T00:00:00Z", account_value: "-0.5", balance_change_count: 0 }, { date: "2020-02-01T00:00:00Z", account_value: "1034.5", balance_change_count: 0 }] };
       expect(checkAccountStats(body, "value", "month", WHAT)).toBe(body);
@@ -265,7 +295,6 @@ describe("checkAnalyticsBalances", () => {
     ["a count that is not a whole number", (body) => (body.count = 1.5)],
     ["a count that is negative", (body) => (body.count = -7)],
     ["a balance that is a number", (body) => (body.rows[0].balance = 79.999976)],
-    ["a balance in exponent form", (body) => (body.rows[0].balance = "1e3")],
     ["a balance with a plus", (body) => (body.rows[0].balance = "+5")],
     ["a balance with a comma", (body) => (body.rows[0].balance = "1,000")],
     ["no balance in a row", (body) => delete body.rows[0].balance],
@@ -287,6 +316,10 @@ describe("checkAnalyticsBalances", () => {
     ["a counterparty that is empty", (body) => (body.rows[1].counterparty = "")],
     ["a counterparty that is null", (body) => (body.rows[1].counterparty = null)],
     ["a counterparty that is a number", (body) => (body.lines[1].counterparty = 1)],
+  ]);
+  numbersAsText(check, balances, [
+    ["lines[0].balance", (body, text) => (body.lines[0].balance = text)],
+    ["rows[1].balance", (body, text) => (body.rows[1].balance = text)],
   ]);
 
   it("takes a week and a day of the interval it was asked for, and refuses a month's row under them", () => {
@@ -361,17 +394,22 @@ describe("checkBalanceChanges", () => {
     ["a total's count that is negative", (body) => (body.totals[1].count = -7)],
     ["a row's count that is not a whole number", (body) => (body.rows[1].count = 4.5)],
     ["a row's count that is missing", (body) => delete body.rows[1].count],
-    ["a value in exponent form", (body) => (body.rows[1].in_value = "1e3")],
     ["a value that is a number", (body) => (body.rows[1].in_value = 550)],
     ["an out value that is a number", (body) => (body.rows[0].out_value = 0.000012)],
     ["a total's in value that is a number", (body) => (body.totals[1].in_value = 560)],
-    ["a total's out value in exponent form", (body) => (body.totals[1].out_value = "0e0")],
     ["a net value that is a number", (body) => (body.totals[2].net_value = -100)],
     ["no net value", (body) => delete body.totals[2].net_value],
     ["a net value with a plus", (body) => (body.totals[1].net_value = "+560")],
     ["a change type that is empty", (body) => (body.rows[0].change_type = "")],
     ["a change type that is a number", (body) => (body.totals[0].change_type = 1)],
     ["a change type that is null (the API leaves the key out)", (body) => (body.totals[3].change_type = null)],
+  ]);
+  numbersAsText(check, changes, [
+    ["totals[0].in_value", (body, text) => (body.totals[0].in_value = text)],
+    ["totals[1].out_value", (body, text) => (body.totals[1].out_value = text)],
+    ["totals[2].net_value", (body, text) => (body.totals[2].net_value = text)],
+    ["rows[1].in_value", (body, text) => (body.rows[1].in_value = text)],
+    ["rows[0].out_value", (body, text) => (body.rows[0].out_value = text)],
   ]);
 
   it("takes a total and a row with no change type, and a type the page does not know", () => {
@@ -449,7 +487,6 @@ describe("checkCounterparties", () => {
     ["an account that is a number", (body) => (body.counterparties[1].account = 5)],
     ["no account", (body) => delete body.counterparties[1].account],
     ["a sent value that is a number", (body) => (body.counterparties[0].sent_value = 15)],
-    ["a received value in exponent form", (body) => (body.counterparties[0].received_value = "1e3")],
     ["a total value that is a number", (body) => (body.counterparties[0].total_value = 39)],
     ["no total value", (body) => delete body.counterparties[0].total_value],
     ["a payments count that is not a whole number", (body) => (body.counterparties[0].payments_sent = 1.5)],
@@ -473,6 +510,11 @@ describe("checkCounterparties", () => {
     ["a start that is not a time", (body) => (body.start = 1577836800)],
     ["no end", (body) => delete body.end],
   ]);
+  numbersAsText(
+    check,
+    counterparties,
+    (["sent_value", "received_value", "total_value"] as const).map((name) => [`counterparties[0].${name}`, (body: Body, text: string) => (body.counterparties[0][name] = text)]),
+  );
 
   it("takes the other sort, and a total beyond the count", () => {
     const body: Body = clone(counterparties);
@@ -551,13 +593,10 @@ describe("checkAnalyticsExchanges", () => {
   pins(check, exchanges, [
     ["a bought that is a number", (body) => (body.pairs[0].bought = 1500)],
     ["a sold that is a number", (body) => (body.pairs[0].sold = 9)],
-    ["a bought in exponent form", (body) => (body.pairs[0].bought = "1.5e3")],
-    ["a base volume in exponent form", (body) => (body.pairs[0].base_volume = "1e3")],
     ["a counter volume that is a number", (body) => (body.pairs[0].counter_volume = 85)],
     ["a bought counter that is a number", (body) => (body.pairs[0].bought_counter = 67)],
     ["a sold counter that is empty", (body) => (body.pairs[0].sold_counter = "")],
     ["a native volume that is a number", (body) => (body.pairs[0].native_volume = 37)],
-    ["a native volume in exponent form", (body) => (body.pairs[0].native_volume = "3.7e1")],
     ["a native volume that is null (the API leaves the key out)", (body) => (body.pairs[0].native_volume = null)],
     ["no bought", (body) => delete body.pairs[0].bought],
     ["a base issuer that is not an address", (body) => (body.pairs[0].base_issuer = "rBad")],
@@ -586,6 +625,14 @@ describe("checkAnalyticsExchanges", () => {
     ["a start that is not a time", (body) => (body.start = "2020-01-01")],
     ["no end", (body) => delete body.end],
   ]);
+  numbersAsText(
+    check,
+    exchanges,
+    (["base_volume", "counter_volume", "bought", "sold", "bought_counter", "sold_counter", "native_volume"] as const).map((name) => [
+      `pairs[0].${name}`,
+      (body: Body, text: string) => (body.pairs[0][name] = text),
+    ]),
+  );
 
   it("takes a pair of two hex currencies, and a pair with no native volume", () => {
     const body: Body = clone(exchanges);

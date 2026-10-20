@@ -7,14 +7,15 @@
 //
 // What is checked: lists are lists; the answer says `success`; the date of a row is a UTC midnight that starts a bucket of the interval asked for (a Monday
 // for a week, the 1st for a month: an API without D2 ignores `interval` and answers days); the `interval` an answer echoes is the one asked for; amounts and
-// values are decimal strings, counts whole numbers; an account (a counterparty, an issuer) is a classic address, because it goes into a link; a currency is 3
+// values are numbers as text (`isNumberText`: D2 writes them with bignumber.js's `toString()`, in exponent form below 1e-6 and from 1e21, as E2's and E3's
+// calls of the same API are taken), counts whole numbers; an account (a counterparty, an issuer) is a classic address, because it goes into a link; a currency is 3
 // characters or 40 hex digits; `stats/{family}` has no `marker`. Extra keys are not refused (the API may add a column), and a key the API leaves out when it
 // has no value (`counterparty`, `issuer`, `change_type`, `native_volume`) is checked when it is there: `null` is never served.
 
 import { isValidClassicAddress } from "ripple-address-codec";
 
 import type { AnalyticsUnit } from "../domain/analytics-params";
-import { fields, isDecimalText, isIsoTime, isName, isWhole, optionalFields, rowsOf } from "./aggregate-shape";
+import { fields, isIsoTime, isName, isNumberText, isWhole, optionalFields, rowsOf } from "./aggregate-shape";
 import type {
   AccountTxStatsRow,
   AccountValueRow,
@@ -78,7 +79,11 @@ function checkBucketStart(what: string, where: string, row: Record<string, unkno
 }
 
 const WHOLE = "a whole number";
-const DECIMAL = "a decimal";
+/**
+ * An amount or a value: a decimal, or one in exponent form (a dust payment, a remnant of a partly filled offer, an in and out that nearly cancel). The
+ * builders read it with bignumber.js and hand on `toFixed()`, so no exponent reaches the page.
+ */
+const NUMBER = "a number as text";
 
 // ---- stats/{family}?interval= ---------------------------------------------------------------------------------------------------------------------
 
@@ -117,7 +122,7 @@ export function checkAccountStats(
     const where = `rows[${index}]`;
     checkBucketStart(what, where, row, interval);
     if (family === "value") {
-      fields(what, where, row, ["account_value"], isDecimalText, DECIMAL);
+      fields(what, where, row, ["account_value"], isNumberText, NUMBER);
       fields(what, where, row, ["balance_change_count"], isWhole, WHOLE);
     } else {
       fields(what, where, row, ["transaction_count"], isWhole, WHOLE);
@@ -134,7 +139,7 @@ export function checkAccountStats(
 function checkBalanceOf(what: string, where: string, line: Record<string, unknown>): void {
   fields(what, where, line, ["currency"], isCurrency, "a currency (3 characters or 40 hex digits)");
   optionalFields(what, where, line, ["counterparty"], isAccount, "a classic address");
-  fields(what, where, line, ["balance"], isDecimalText, DECIMAL);
+  fields(what, where, line, ["balance"], isNumberText, NUMBER);
 }
 
 /** `GET /v2/accounts/{address}/analytics/balances?interval=` (`AnalyticsBalances`): the lines, and a row of balance for each line and bucket. */
@@ -167,14 +172,14 @@ export function checkBalanceChanges(body: unknown, interval: AnalyticsUnit, what
     const where = `totals[${index}]`;
     optionalFields(what, where, total, ["change_type"], isName, "a change type");
     fields(what, where, total, ["count"], isWhole, WHOLE);
-    fields(what, where, total, ["in_value", "out_value", "net_value"], isDecimalText, DECIMAL);
+    fields(what, where, total, ["in_value", "out_value", "net_value"], isNumberText, NUMBER);
   }
   for (const [index, row] of rowsOf(what, head, "rows").entries()) {
     const where = `rows[${index}]`;
     checkBucketStart(what, where, row, interval);
     optionalFields(what, where, row, ["change_type"], isName, "a change type");
     fields(what, where, row, ["count"], isWhole, WHOLE);
-    fields(what, where, row, ["in_value", "out_value"], isDecimalText, DECIMAL);
+    fields(what, where, row, ["in_value", "out_value"], isNumberText, NUMBER);
   }
   return body as AnalyticsBalanceChanges;
 }
@@ -192,7 +197,7 @@ export function checkCounterparties(body: unknown, what: string): AnalyticsCount
   for (const [index, row] of rowsOf(what, head, "counterparties").entries()) {
     const where = `counterparties[${index}]`;
     fields(what, where, row, ["account"], isAccount, "a classic address");
-    fields(what, where, row, ["sent_value", "received_value", "total_value"], isDecimalText, DECIMAL);
+    fields(what, where, row, ["sent_value", "received_value", "total_value"], isNumberText, NUMBER);
     fields(what, where, row, ["payments_sent", "payments_received"], isWhole, WHOLE);
     fields(what, where, row, ["first", "last"], isIsoTime, "a time");
   }
@@ -211,8 +216,8 @@ export function checkAnalyticsExchanges(body: unknown, what: string): AnalyticsE
     fields(what, where, pair, ["base_currency", "counter_currency"], isCurrency, "a currency (3 characters or 40 hex digits)");
     optionalFields(what, where, pair, ["base_issuer", "counter_issuer"], isAccount, "a classic address");
     fields(what, where, pair, ["count"], isWhole, WHOLE);
-    fields(what, where, pair, ["base_volume", "counter_volume", "bought", "sold", "bought_counter", "sold_counter"], isDecimalText, DECIMAL);
-    optionalFields(what, where, pair, ["native_volume"], isDecimalText, DECIMAL);
+    fields(what, where, pair, ["base_volume", "counter_volume", "bought", "sold", "bought_counter", "sold_counter"], isNumberText, NUMBER);
+    optionalFields(what, where, pair, ["native_volume"], isNumberText, NUMBER);
   }
   return body as AnalyticsExchanges;
 }

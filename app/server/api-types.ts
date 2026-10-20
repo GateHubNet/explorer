@@ -597,8 +597,8 @@ export interface LedgerValidations {
 }
 
 // ---- Account analytics: GET /v2/accounts/{address}/stats/{family}?interval= and /analytics/{balances,balance_changes,counterparties,exchanges} -----
-// (D2, `feat/explorer-data` 7d495ab; checked by `analytics-shape.ts`.) Amounts are whole units, values are in the native currency, both exact decimal
-// strings; counts are whole numbers; a time is `YYYY-MM-DDTHH:mm:ssZ` and the `date` of a bucket is its start (UTC midnight, a Monday for a week, the 1st
+// (D2, `feat/explorer-data` 7d495ab; checked by `analytics-shape.ts`.) Amounts are whole units, values are in the native currency, both exact numbers as
+// text (bignumber.js's `toString()`: a decimal, in exponent form below 1e-6 and from 1e21); counts are whole numbers; a time is `YYYY-MM-DDTHH:mm:ssZ` and the `date` of a bucket is its start (UTC midnight, a Monday for a week, the 1st
 // for a month). A key without a value is left out, `null` is never served. `start` and `end` are the window widened to whole buckets, `end` exclusive.
 // The lists are whole answers or top lists: there is no `marker`.
 
