@@ -22,13 +22,13 @@ import BigNumber from "bignumber.js";
 
 import { canonicalPair, sameAsset, type Asset } from "../app/domain/asset";
 import { ammHops } from "../app/domain/parse/amm-hops";
-import { nodesOf, type Node } from "../app/domain/parse/objects";
-import type { TxMeta } from "../app/domain/parse/types";
+import { isPoolAccountRoot, nodesOf, type Node } from "../app/domain/parse/objects";
+import type { IssuedAmount, Native, TxMeta } from "../app/domain/parse/types";
 import type { PairExchange } from "../app/server/api-types";
 import { inLedgerOrder, isoTime, unixOf, type RawLedger, type RawTx } from "./http-fixtures";
 
-/** The native currency of XRPL, which the recorded ledgers are of. */
-const NATIVE = "XRP";
+/** The native currency of XRPL, which the recorded ledgers are of (amm-info-fixtures.ts uses it too). */
+export const NATIVE = "XRP" satisfies Native;
 
 /** `RippleState` flag: the line belongs to an AMM (the pool's reserve line). */
 const LSF_AMM_NODE = 0x01000000;
@@ -86,7 +86,7 @@ function inReferenceOrder(row: PairExchange): PairExchange {
 /**
  * The `rate` each row stored before it was cut to 8 digits, by row. The API inverts the stored rate (`ratio(1, row.rate)` on the stored text), not the
  * 8 digits it served: inverting those instead gives another 8th digit for about three rows in ten. A row that is a copy of a derived one has no entry
- * here, and `invertedExchange` has only its 8 digits for it.
+ * here, and `invertedExchange` refuses it.
  */
 const stored = new WeakMap<PairExchange, string>();
 
@@ -112,10 +112,8 @@ interface Transaction {
   tx: RawTx;
 }
 
-type Issued = { currency: string; issuer: string; value: string };
-
 /** An issued-currency amount object (`currency`, `issuer`, `value`), as opposed to a drops string or an MPT amount. */
-function isIssued(amount: unknown): amount is Issued {
+function isIssued(amount: unknown): amount is IssuedAmount {
   return typeof amount === "object" && amount !== null && typeof (amount as { currency?: unknown }).currency === "string";
 }
 
@@ -137,7 +135,7 @@ const assetOf = ({ currency, issuer }: Side): Asset => (issuer === undefined ? {
 /** The part of one side of the offer that was consumed (`consumed`). */
 function consumed(before: unknown, after: unknown): Side {
   if (isIssued(before)) {
-    const change = new Parser(before.value).minus((after as Issued).value);
+    const change = new Parser(before.value).minus((after as IssuedAmount).value);
     return { currency: before.currency, issuer: before.issuer, native: false, amount: change.toFixed() };
   }
   const drops = new Parser(before as string).minus(after as string);
@@ -229,6 +227,8 @@ function tradeOf(t: Transaction, node: Node, nodeIndex: number): PairExchange | 
   }
   // The quality was base per counter; once flipped that is counter per base.
   const rate = storedRate(quality, flipped);
+  // The offer's own sequence: a ledger entry always has one, so a node without it is not an Offer of this ledger.
+  if (typeof after.Sequence !== "number") throw new Error(`${t.hash}: node ${nodeIndex}, an Offer whose Sequence is ${JSON.stringify(after.Sequence)}, not a number`);
 
   return served(
     {
@@ -241,7 +241,7 @@ function tradeOf(t: Transaction, node: Node, nodeIndex: number): PairExchange | 
       buyer,
       executed_time: t.executedTime,
       ledger_index: t.ledgerIndex,
-      offer_sequence: after.Sequence as number,
+      offer_sequence: after.Sequence,
       provider: after.Account,
       seller,
       taker: t.taker,
@@ -264,7 +264,7 @@ function tradeOf(t: Transaction, node: Node, nodeIndex: number): PairExchange | 
  * one of their two sides.
  */
 function poolNodeIndex(nodes: readonly Node[], pool: string): number {
-  const root = nodes.findIndex((node) => node.type === "AccountRoot" && "AMMID" in node.fields && node.fields.Account === pool);
+  const root = nodes.findIndex((node) => isPoolAccountRoot(node) && node.fields.Account === pool);
   if (root >= 0) return root;
   const line = nodes.findIndex((node) => {
     if (node.type !== "RippleState") return false;
@@ -354,11 +354,16 @@ export function derivedExchanges(ledgers: readonly RawLedger[]): PairExchange[] 
 
 /**
  * The row as the API serves it for the pair asked in reverse: sides, amounts, buyer and seller swapped, rate 1/rate (200 decimals, then 8 significant
- * digits). A row `derivedExchanges` made is inverted from the rate it stored, as the API does it; any other row (a copy, or one made by hand) from its
- * own 8 digits, which is the same but for the last digit of about three rows in ten.
+ * digits). The API inverts the rate a trade stored, which the 8 digits of `rate` do not give back (the last digit differs for about three rows in ten), so
+ * the row must be one `derivedExchanges` returned, or one `invertedExchange` returned: callers (the pair fixtures of Task 13, E5's) pass the derived row
+ * objects themselves, never a copy of them (a spread, a JSON round trip), and a row it did not make is refused rather than inverted from its 8 digits.
  */
 export function invertedExchange(row: PairExchange): PairExchange {
-  const exact = inverse(stored.get(row) ?? row.rate).toString();
+  const rate = stored.get(row);
+  if (rate === undefined) {
+    throw new Error("invertedExchange: the row is not one that derivedExchanges returned (a copy has lost the rate it stored); pass the derived row itself");
+  }
+  const exact = inverse(rate).toString();
   return served(
     {
       ...row,

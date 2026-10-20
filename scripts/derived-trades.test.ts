@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { checkPairExchanges } from "../app/server/aggregate-shape";
 import type { PairExchange } from "../app/server/api-types";
 import { derivedExchanges, invertedExchange } from "./derived-trades";
-import { HTTP, LEDGERS, readLedgers, type RawLedger } from "./http-fixtures";
+import { withTx } from "../test/support/ledger-edits";
+import { HTTP, LEDGERS, readLedgers } from "./http-fixtures";
 
 // The rows are derived from the recorded ledgers of XRPL (its three sets). The cases are the ones test/fixtures/ledgers/xrpl-amm/manifest.json describes. Their
 // amounts are the pool's own change read off the metadata (the manifest's notes round them: "-179.4482 RLUSD" is 179.448166793), the offer's consumed amounts,
@@ -61,16 +62,6 @@ const REFERENCE_ORDER = [
   "counter_issuer",
   "amm_account",
 ];
-
-/** A copy of the recorded ledgers where one transaction is changed by `change`. */
-function withTx(hash: string, change: (tx: RawLedger["ledger"]["transactions"][number]) => void): RawLedger[] {
-  const copy = structuredClone(ledgers);
-  for (const raw of copy) {
-    const found = raw.ledger.transactions.find((tx) => tx.hash === hash);
-    if (found) change(found);
-  }
-  return copy;
-}
 
 describe("a swap against a pool", () => {
   it("is stored RLUSD/XRP when the pool paid RLUSD out (52E2AD5B…: 134 XRP in, 179.448166793 RLUSD out): the taker buys", () => {
@@ -374,7 +365,7 @@ describe("derivedExchanges", () => {
   it("leaves out a transaction that did not succeed, and one that is neither a Payment nor an OfferCreate", () => {
     const hash = "8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900";
     const failed = derivedExchanges(
-      withTx(hash, (tx) => {
+      withTx(ledgers, hash, (tx) => {
         tx.metaData.TransactionResult = "tecPATH_PARTIAL";
       }),
     );
@@ -382,7 +373,7 @@ describe("derivedExchanges", () => {
     expect(failed).toHaveLength(rows.length - 2);
 
     const other = derivedExchanges(
-      withTx(hash, (tx) => {
+      withTx(ledgers, hash, (tx) => {
         tx.TransactionType = "OfferCancel";
       }),
     );
@@ -395,7 +386,7 @@ describe("derivedExchanges", () => {
     const hash = "8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900";
     type Body = { LedgerEntryType: string; FinalFields: Record<string, unknown>; PreviousFields: Record<string, unknown> };
     const changed = derivedExchanges(
-      withTx(hash, (tx) => {
+      withTx(ledgers, hash, (tx) => {
         const nodes = tx.metaData.AffectedNodes as Array<{ DeletedNode?: Body }>;
         const offer = nodes.map((node) => node.DeletedNode).find((node) => node?.LedgerEntryType === "Offer")!;
         offer.FinalFields.BookDirectory = "0".repeat(64);
@@ -410,13 +401,41 @@ describe("derivedExchanges", () => {
     const hash = "8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900";
     type Body = { LedgerEntryType: string; FinalFields: Record<string, unknown> };
     const changed = derivedExchanges(
-      withTx(hash, (tx) => {
+      withTx(ledgers, hash, (tx) => {
         const nodes = tx.metaData.AffectedNodes as Array<{ DeletedNode?: Body }>;
         nodes.map((node) => node.DeletedNode).find((node) => node?.LedgerEntryType === "Offer")!.FinalFields.BookDirectory = "0".repeat(64);
       }),
     );
     // 1.27451 XRP over 1.664037908479139 RLUSD
     expect(changed.find((row) => row.tx_hash === hash && row.amm_account === undefined)?.rate).toBe("0.76591404");
+  });
+});
+
+describe("an offer the transaction took", () => {
+  const hash = "8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900";
+  type Body = { LedgerEntryType: string; FinalFields: Record<string, unknown> };
+
+  it("must have a Sequence that is a number: a node without one, or with text, is an error and not a row with an undefined offer_sequence", () => {
+    for (const sequence of [undefined, "107195225"]) {
+      const broken = withTx(ledgers, hash, (tx) => {
+        const nodes = tx.metaData.AffectedNodes as Array<{ DeletedNode?: Body }>;
+        const offer = nodes.map((node) => node.DeletedNode).find((node) => node?.LedgerEntryType === "Offer")!;
+        if (sequence === undefined) delete offer.FinalFields.Sequence;
+        else offer.FinalFields.Sequence = sequence;
+      });
+      expect(() => derivedExchanges(broken)).toThrow(new RegExp(`${hash}: node 6, an Offer whose Sequence is ${sequence === undefined ? "undefined" : '"107195225"'}`));
+    }
+  });
+
+  it("is not looked at when its trade is left out for want of a rate", () => {
+    const broken = withTx(ledgers, hash, (tx) => {
+      const nodes = tx.metaData.AffectedNodes as Array<{ DeletedNode?: Body & { PreviousFields: Record<string, unknown> } }>;
+      const offer = nodes.map((node) => node.DeletedNode).find((node) => node?.LedgerEntryType === "Offer")!;
+      delete offer.FinalFields.Sequence;
+      offer.FinalFields.BookDirectory = "0".repeat(64);
+      offer.PreviousFields.TakerGets = offer.FinalFields.TakerGets;
+    });
+    expect(derivedExchanges(broken).filter((row) => row.tx_hash === hash)).toHaveLength(1);
   });
 });
 
@@ -470,20 +489,30 @@ describe("invertedExchange", () => {
 
   it("inverts the rate the row stored, as the API does, not the 8 digits it served: they differ in the last digit for a row of 93663334", () => {
     // Ledger 93663334, transaction 25, node 0: the rate it stored is 0.23712701492493160389 and was served as 0.23712701. 1 / 0.23712701492… is 4.2171492…,
-    // and 1 / 0.23712701 is 4.2171493…
+    // and 1 / 0.23712701 would be 4.2171493…
     const trade = rows.find((found) => found.ledger_index === 93663334 && found.tx_index === 25 && found.node_index === 0)!;
     expect(trade.rate).toBe("0.23712701");
     expect(invertedExchange(trade).rate).toBe("4.2171492");
-    // A copy has only what the row says.
-    expect(invertedExchange({ ...trade }).rate).toBe("4.2171493");
+  });
+
+  it("refuses a row that derivedExchanges did not return, a copy included, instead of inverting its 8 digits", () => {
+    expect(() => invertedExchange({ ...row })).toThrow(/not one that derivedExchanges returned/);
+    expect(() => invertedExchange(JSON.parse(JSON.stringify(row)) as PairExchange)).toThrow(/pass the derived row itself/);
+    // The row itself inverts, and so does a row that invertedExchange returned.
+    expect(() => invertedExchange(row)).not.toThrow();
+    expect(() => invertedExchange(invertedExchange(row))).not.toThrow();
   });
 
   it("is its own inverse on every derived row", () => {
     for (const found of rows) expect(invertedExchange(invertedExchange(found))).toEqual(found);
   });
 
-  it("inverts a rate above 1e12 without turning it into 0, and writes the exponent form where toPrecision(8) does", () => {
-    expect(invertedExchange({ ...row, rate: "1.2345679e+13" }).rate).toBe("8.1000000e-14");
-    expect(invertedExchange({ ...row, rate: "0.0000000012345679" }).rate).toBe("8.1000000e+8");
+  it("writes the exponent form where toPrecision(8) does: a rate of 1e-10 inverts to 9e9, one of 3e8 to 3e-9", () => {
+    // Stored 1.0641306943e-10 (ledger 107720115, transaction 29, node 7) and 329516868.4608556733031000199 (ledger 102186243, transaction 40, node 1).
+    const find = (ledger: number, tx: number, node: number) => rows.find((found) => [found.ledger_index, found.tx_index, found.node_index].join() === [ledger, tx, node].join())!;
+    const small = find(107720115, 29, 7);
+    expect([small.rate, invertedExchange(small).rate]).toEqual(["1.0641307e-10", "9.3973419e+9"]);
+    const large = find(102186243, 40, 1);
+    expect([large.rate, invertedExchange(large).rate]).toEqual(["3.2951687e+8", "3.0347460e-9"]);
   });
 });

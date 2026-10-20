@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { naturalOrientation } from "../app/domain/market-pair";
+import { withTx } from "../test/support/ledger-edits";
 import { nodeFile } from "../test/support/upstream-core";
 import { AMM_INFO_POOLS, ammInfoFixtures, ammInfoResult, ammInfoResultByPair, type AmmInfoPool } from "./amm-info-fixtures";
 import { fixtureText, readLedgers, type RawLedger } from "./http-fixtures";
@@ -37,16 +38,6 @@ function closingAt(closeTime: number): RawLedger[] {
   const copy = structuredClone(ledgers);
   const newest = copy.reduce((a, b) => (Number(b.ledger.ledger_index) > Number(a.ledger.ledger_index) ? b : a));
   newest.ledger.close_time = closeTime;
-  return copy;
-}
-
-/** A copy of the recorded ledgers where one transaction is changed by `change`. */
-function withTx(hash: string, change: (tx: RawLedger["ledger"]["transactions"][number]) => void): RawLedger[] {
-  const copy = structuredClone(ledgers);
-  for (const raw of copy) {
-    const found = raw.ledger.transactions.find((tx) => tx.hash === hash);
-    if (found) change(found);
-  }
   return copy;
 }
 
@@ -130,7 +121,7 @@ describe("the amm_info result of the XRP/RLUSD pool", () => {
   it("serves the state a transaction that did not succeed does not change: the Payment failed, the earlier nodes stand", () => {
     // Without 8014250A…, the pool's Balance is the AMMWithdraw's (ledger 107711512) and its RLUSD line the AMMDeposit's (ledger 107703707).
     const result = resultOf(
-      withTx("8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900", (tx) => {
+      withTx(ledgers, "8014250A4FB1AC8859C4743090B7A905F2738253C010B968E272368A3FE59900", (tx) => {
         tx.metaData.TransactionResult = "tecPATH_PARTIAL";
       }),
     );

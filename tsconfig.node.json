@@ -8,6 +8,7 @@
     "test/e2e/stack.ts",
     "test/support/upstream-core.ts",
     "test/support/book-fixtures.ts",
+    "test/support/ledger-edits.ts",
     "test/support/fixture-server.ts",
     "test/support/switches.ts",
     "app/server/aggregate-shape.ts",

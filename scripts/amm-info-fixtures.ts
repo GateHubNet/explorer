@@ -19,13 +19,11 @@
 // recorded transactions of a pool do not show.
 
 import { sameAsset, type Asset } from "../app/domain/asset";
-import { nodesOf, type Node } from "../app/domain/parse/objects";
-import type { TxMeta } from "../app/domain/parse/types";
+import { isPoolAccountRoot, nodesOf, type Node } from "../app/domain/parse/objects";
+import type { IssuedAmount, TxMeta } from "../app/domain/parse/types";
 import { nodeFile } from "../test/support/upstream-core";
+import { NATIVE } from "./derived-trades";
 import { fixtureText, inLedgerOrder, isoTime, readLedgers, unixOf, type RawLedger } from "./http-fixtures";
-
-/** The native currency of XRPL, which the recorded ledgers are of. */
-const NATIVE = "XRP";
 
 /** A pool and its two assets in the natural orientation (`naturalOrientation`, app/domain/market-pair.ts): the base, then the counter. */
 export interface AmmInfoPool {
@@ -42,9 +40,6 @@ export const AMM_INFO_POOLS: AmmInfoPool[] = [
     asset2: { currency: "524C555344000000000000000000000000000000", issuer: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" },
   },
 ];
-
-/** An issued amount as the ledger and the node write it. */
-type Issued = { currency: string; issuer: string; value: string };
 
 /** The seconds of an auction slot, and of one of its 20 time intervals (rippled's AMMCore.h: `TOTAL_TIME_SLOT_SECS`, `AUCTION_SLOT_INTERVAL_DURATION`). */
 const SLOT_SECONDS = 24 * 60 * 60;
@@ -95,11 +90,11 @@ function newestNodes(ledgers: readonly RawLedger[], pool: string): Newest {
       if (meta.TransactionResult !== "tesSUCCESS") continue;
       for (const node of nodesOf(meta)) {
         if (node.type === "AMM" && node.fields.Account === pool) newest.amm = node;
-        else if (node.type === "AccountRoot" && node.fields.Account === pool && "AMMID" in node.fields) newest.root = node;
+        else if (isPoolAccountRoot(node) && node.fields.Account === pool) newest.root = node;
         else if (node.type === "RippleState") {
-          const low = node.fields.LowLimit as Issued | undefined;
-          const high = node.fields.HighLimit as Issued | undefined;
-          const balance = node.fields.Balance as Issued | undefined;
+          const low = node.fields.LowLimit as IssuedAmount | undefined;
+          const high = node.fields.HighLimit as IssuedAmount | undefined;
+          const balance = node.fields.Balance as IssuedAmount | undefined;
           if (!low || !high || !balance || (low.issuer !== pool && high.issuer !== pool)) continue;
           const poolIsLow = low.issuer === pool;
           newest.lines.set(lineKey(balance.currency, poolIsLow ? high.issuer : low.issuer), { node, poolIsLow });
@@ -111,14 +106,14 @@ function newestNodes(ledgers: readonly RawLedger[], pool: string): Newest {
 }
 
 /** The pool's holding of an asset as `amm_info` gives it: drops text for the native currency, else an amount object. */
-function holding(newest: Newest, pool: string, asset: Asset): string | Issued {
+function holding(newest: Newest, pool: string, asset: Asset): string | IssuedAmount {
   if (asset.issuer === undefined) {
     const balance = newest.root?.fields.Balance;
     if (typeof balance !== "string") throw new Error(`${pool}: the recordings show no Balance of its account`);
     return balance;
   }
   const line = newest.lines.get(lineKey(asset.currency, asset.issuer));
-  const value = (line?.node.fields.Balance as Issued | undefined)?.value;
+  const value = (line?.node.fields.Balance as IssuedAmount | undefined)?.value;
   if (line === undefined || value === undefined) throw new Error(`${pool}: the recordings show no trust line with ${asset.issuer} for ${asset.currency}`);
   const own = line.poolIsLow ? value : negated(value);
   if (own.startsWith("-")) throw new Error(`${pool}: its ${asset.currency} line says it owes the issuer`);
@@ -130,7 +125,7 @@ type NodeSlot = {
   AuthAccounts?: Array<{ AuthAccount: { Account: string } }>;
   DiscountedFee?: number;
   Expiration?: number;
-  Price?: Issued;
+  Price?: IssuedAmount;
 };
 
 /** The auction slot as `amm_info` gives it, worked out for a ledger that closed at `close` (Ripple epoch seconds). */
@@ -167,7 +162,7 @@ function ammInfo(ledgers: readonly RawLedger[], { pool, asset, asset2 }: AmmInfo
   if (!asGiven && !reversed) throw new Error(`${pool}: its assets are ${own.map((a) => a.currency).join("/")}, not ${asset.currency}/${asset2.currency}`);
   const [first, second] = byPair && reversed ? [own[1], own[0]] : own;
 
-  const lpToken = amm.fields.LPTokenBalance as Issued | undefined;
+  const lpToken = amm.fields.LPTokenBalance as IssuedAmount | undefined;
   if (lpToken === undefined) throw new Error(`${pool}: its AMM node has no LPTokenBalance`);
   const slot = amm.fields.AuctionSlot as NodeSlot | undefined;
   const votes = (amm.fields.VoteSlots ?? []) as Array<{ VoteEntry: { Account: string; TradingFee?: number; VoteWeight: number } }>;
