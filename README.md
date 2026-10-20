@@ -952,7 +952,8 @@ Loader tests and the end-to-end suite never reach the network: they run against 
 nodes, `test/fixtures/http/<net>/` for `xrpl` and `xahau`. The answers are the recorded mainnet ledgers (`test/fixtures/ledgers/`)
 shaped as the servers shape them (`scripts/http-fixtures.ts`: the data API's from its reference and `app/server/api-types.ts`,
 rippled's from API v1), plus the network page's aggregates, fee snapshots and validations, which the recordings cannot give and a seeded
-generator makes up (`scripts/network-fixtures.ts`), plus the accounts, which are written by hand.
+generator makes up (`scripts/network-fixtures.ts`), plus the accounts, which are written by hand, plus the order books of the markets pages, which are recorded from the
+public nodes (`scripts/record-node-fixtures.ts`).
 
 | Path below `<net>/` | Holds | By |
 |---|---|---|
@@ -971,10 +972,13 @@ generator makes up (`scripts/network-fixtures.ts`), plus the accounts, which are
 | `data-api/network/fees@end=2026-10-17&interval=day&...` | the daily fees of each window, the running day included | generator (synthetic) |
 | `data-api/network/payment_volume@...`, `exchange_volume@...`, and on XRPL `amm_volume@...` | the volumes of the four periods, and on XRPL in USD too (`exchange_currency=USD&exchange_issuer=rhub8...`); the day files end on 2026-10-16 and a running week has the days so far | generator (synthetic) |
 | `node/account_info/<address>.json`, `node/account_objects/<address>.json`, `node/server_state.json` | the node's view of the active accounts and the reserves | by hand |
+| `node/book_offers/<gets>_<pays>@limit=60.json` | the order books of the markets pages, the whole answer the node gave to `book_offers` with `ledger_index: "validated"` and `limit: 60` (the best 60 offers): both orientations of XRP and RLUSD and of XRP and LIONS on XRPL, of EVR and XAH on Xahau, each read at one validated ledger (`test/fixtures/PROVENANCE.md`, "Recorded node answers": the nodes, the time, each file's `ledger_index`). Kept as the node served them: the XRPL node (Clio) leaves `validated` out and adds `warnings`, as it does live | recorder |
 
 The "By" column says how a file came to be. **generator (derived)**: worked out from the recordings by `scripts/http-fixtures.ts`. **generator (synthetic)**: made up by the
-seeded generator `scripts/network-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. (The fourth kind, **recorder**, is the ledgers under
-`test/fixtures/ledgers/`, which are not files of this table.)
+seeded generator `scripts/network-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. **recorder**: an answer recorded from a public node by
+`scripts/record-node-fixtures.ts` (`pnpm exec tsx scripts/record-node-fixtures.ts`, which needs network access and only reads), never edited by hand, and left alone by
+`pnpm fixtures:sync` too (`isHandWritten`). The recorded ledgers under `test/fixtures/ledgers/` are of the same kind, but they are not files of this table.
+A re-recording changes the files and the table of `test/fixtures/PROVENANCE.md` together, and `test/unit/market-fixtures.test.ts` fails when they part ways.
 
 A file is named by its request: the path after `/v2/`, then `@` and the query with its parameters sorted (`transactions=true&expand=true`
 is `expand=true&transactions=true`); a node file by method, subject (the transaction, ledger or account asked for; for `book_offers`

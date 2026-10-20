@@ -55,6 +55,21 @@ describe("the generated upstream fixtures", () => {
   it("never include a file that is written by hand", () => {
     expect([...generate().keys()].filter(isHandWritten)).toEqual([]);
   });
+
+  // The order books are recorded from the public nodes (scripts/record-node-fixtures.ts), not worked out from the recorded ledgers: the generator
+  // neither writes nor reports them.
+  it("leave the recorded order books alone: a node/book_offers file is not generated and not stale", () => {
+    const book = "node/book_offers/XRP_524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De@limit=60.json";
+    expect(isHandWritten(`xrpl/${book}`)).toBe(true);
+    expect(isHandWritten("xahau/node/book_offers/XAH_EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8@limit=60.json")).toBe(true);
+    // Only the books: another method's node files are still the generator's to report.
+    expect(isHandWritten("xrpl/node/tx/AAAA.json")).toBe(false);
+    expect(isHandWritten("xrpl/node/amm_info/rAAAA.json")).toBe(false);
+    expect(isHandWritten("xrpl/data-api/book_offers/x.json")).toBe(false);
+
+    expect([...generate().keys()].filter((path) => path.includes("/node/book_offers/"))).toEqual([]);
+    expect(compare(generate()).stale.filter((path) => path.includes("/node/book_offers/"))).toEqual([]);
+  });
 });
 
 describe("fixtureText", () => {

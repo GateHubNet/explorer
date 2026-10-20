@@ -8,7 +8,8 @@
 // a ledger's transactions in ledger order, and its times as unix seconds or ISO text; a node serves Ripple-epoch times.
 //
 // Files with account data (test/fixtures/http/<net>/data-api/accounts/, node/account_info, node/account_objects and
-// node/server_state.json) are written by hand and left alone; the transactions they name are served here too.
+// node/server_state.json) are written by hand and left alone; the transactions they name are served here too. So are the order books of
+// node/book_offers/, which are recorded from the public nodes by record-node-fixtures.ts (PROVENANCE.md, "Recorded node answers").
 //
 // What the recordings cannot give, the network page's aggregates over months, fee snapshots and validations, is synthetic: a seeded
 // generator in network-fixtures.ts, called from `generate` below (README.md, "Upstream fixtures"; PROVENANCE.md, "Synthetic aggregates").
@@ -327,9 +328,17 @@ export function fixtureText(value: unknown, rowLists: readonly string[] = []): s
 
 // ---- Which files are written by hand ---------------------------------------------------------------------------------
 
-/** Paths (below test/fixtures/http/) of files that hold account data and are written by hand; the generator leaves them. */
+/**
+ * Paths (below test/fixtures/http/) of files that hold account data and are written by hand, and of the order books that are recorded from the
+ * public nodes (`node/book_offers/`, scripts/record-node-fixtures.ts); the generator leaves them all.
+ */
 export function isHandWritten(path: string): boolean {
-  return /^(xrpl|xahau)\/data-api\/accounts\//.test(path) || /^(xrpl|xahau)\/node\/(account_info|account_objects)\//.test(path) || /^(xrpl|xahau)\/node\/server_state\.json$/.test(path);
+  return (
+    /^(xrpl|xahau)\/data-api\/accounts\//.test(path) ||
+    /^(xrpl|xahau)\/node\/(account_info|account_objects)\//.test(path) ||
+    /^(xrpl|xahau)\/node\/server_state\.json$/.test(path) ||
+    /^(xrpl|xahau)\/node\/book_offers\//.test(path)
+  );
 }
 
 /**
