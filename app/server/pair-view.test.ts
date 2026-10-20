@@ -20,6 +20,7 @@ import {
   pairHead,
   pairPage,
   poolOf,
+  statLabels,
   statsOf,
   tradersOf,
   tradesOf,
@@ -1029,10 +1030,11 @@ describe("poolOf", () => {
     expect(poolOf(poolInfo(), "xrpl", XRP_ASSET, USD_ASSET, HEAD)).toEqual({
       state: "ok",
       title: "XRP/USD AMM pool",
-      source: "live from the node · amm_info · ledger #107,780,245",
+      // The line up to the ledger, which the page puts after it as a figure that ticks.
+      source: "live from the node · amm_info · ledger #",
       ledger: "107,780,245",
       reserves: "1.8M XRP · 4.39M USD",
-      price: "2.4393",
+      price: "2.4393 USD",
       fee: "0.300%",
       link: { href: `/xrpl/account/${POOL}`, label: "Pool account →" },
       token: expect.stringMatching(/^[0-9a-f]{8}$/),
@@ -1048,7 +1050,7 @@ describe("poolOf", () => {
     const head = pairHead(XRPL, USD_ASSET, XRP_ASSET, DEFAULT_PARAMS);
     for (const info of [poolInfo(), poolInfo({ amount: usd("4390740"), amount2: xrp("1800000") })]) {
       const card = poolOf(info, "xrpl", USD_ASSET, XRP_ASSET, head);
-      expect(card).toMatchObject({ title: "USD/XRP AMM pool", reserves: "4.39M USD · 1.8M XRP", price: "0.40995368" });
+      expect(card).toMatchObject({ title: "USD/XRP AMM pool", reserves: "4.39M USD · 1.8M XRP", price: "0.40995368 XRP" });
     }
   });
 
@@ -1065,7 +1067,7 @@ describe("poolOf", () => {
     const eur = { currency: "EUR", issuer: BS, value: "1000" };
     const head = pairHead(XRPL, EUR_ASSET, USD_ASSET, DEFAULT_PARAMS);
     const card = poolOf(poolInfo({ amount: usd("1090"), amount2: eur }), "xrpl", EUR_ASSET, USD_ASSET, head);
-    expect(card).toMatchObject({ title: "EUR/USD AMM pool", reserves: "1,000 EUR · 1,090 USD", price: "1.09" });
+    expect(card).toMatchObject({ title: "EUR/USD AMM pool", reserves: "1,000 EUR · 1,090 USD", price: "1.09 USD" });
   });
 
   it("has no price for a pool whose base reserve is nothing", () => {
@@ -1075,10 +1077,10 @@ describe("poolOf", () => {
 
   it("gets 8 digits right at any size: a price of 1e-30 and of 1e30 in plain digits", () => {
     const tiny = poolOf(poolInfo({ amount: xrp("1000000000000000"), amount2: usd("0.000000000000000000000000000001") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD);
-    expect(tiny.price).toBe(`0.${"0".repeat(44)}1`);
+    expect(tiny.price).toBe(`0.${"0".repeat(44)}1 USD`);
     expect(tiny.price).not.toMatch(EXPONENT);
     const huge = poolOf(poolInfo({ amount: xrp("0.000000000001"), amount2: usd("1000000000000000000") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD);
-    expect(huge.price.replaceAll(",", "")).toBe(`1${"0".repeat(30)}`);
+    expect(huge.price.replaceAll(",", "")).toBe(`1${"0".repeat(30)} USD`);
   });
 
   it("links the pool account on the network of the page", () => {
@@ -1280,10 +1282,17 @@ describe("pairPage", () => {
     expect(built.trades.rows).toHaveLength(1);
     expect(built.stats).toMatchObject({ state: "ok", note: null });
     expect(built.candles).toMatchObject({ state: "ok", source: "/v2/exchanges/{base}/{counter}?interval=1hour", empty: null });
-    expect(built.book).toMatchObject({ state: "ok", ledger: "107,721,455", spread: "0.0093", asks: [{ price: "2.4393" }], bids: [{ price: "2.43" }] });
-    expect(built.pool).toMatchObject({ state: "ok", title: "XRP/USD AMM pool", price: "2.4393" });
+    expect(built.book).toMatchObject({
+      state: "ok",
+      source: "live from the node · book_offers · ledger #",
+      ledger: "107,721,455",
+      spread: "0.0093",
+      asks: [{ price: "2.4393" }],
+      bids: [{ price: "2.43" }],
+    });
+    expect(built.pool).toMatchObject({ state: "ok", title: "XRP/USD AMM pool", price: "2.4393 USD", source: "live from the node · amm_info · ledger #" });
     expect(built.share).toEqual({ state: "ok", text: "34%" });
-    expect(built.traders).toMatchObject({ state: "ok", note: expect.stringMatching(/^5 of 1,204 accounts/) });
+    expect(built.traders).toMatchObject({ state: "ok", note: expect.stringMatching(/^5 of 1,204 accounts/), source: "/v2/active_accounts/{base}/{counter}" });
     // The route adds the anchor and the build.
     expect(built).not.toHaveProperty("anchor");
     expect(built).not.toHaveProperty("build");
@@ -1541,7 +1550,7 @@ describe("pairPage", () => {
       const { pool } = build().page;
       expect(pool).toMatchObject({ state: "ok", reserves: "1.8M XRP · 4.39M USD", fee: "0.300%" });
       const inverted = build({ base: USD_ASSET, counter: XRP_ASSET }).page.pool;
-      expect(inverted).toMatchObject({ state: "ok", title: "USD/XRP AMM pool", reserves: "4.39M USD · 1.8M XRP", price: "0.40995368" });
+      expect(inverted).toMatchObject({ state: "ok", title: "USD/XRP AMM pool", reserves: "4.39M USD · 1.8M XRP", price: "0.40995368 XRP" });
     });
 
     it("is missing, and no problem, for a pair with no pool, and when the node was not asked", () => {
@@ -1560,8 +1569,14 @@ describe("pairPage", () => {
       expect(traders.data.items[0]!.id).toBe(POOL);
     });
 
-    it("failed, and a problem, when the node could not answer: that is not \"no pool\"", () => {
+    it("failed, and a problem, when the node could not answer: that is not \"no pool\"; the card keeps its title and source", () => {
       expect(build({ pool: FAILED })).toMatchObject({ page: { pool: { state: "failed" } }, problems: ["pool"] });
+      expect(build({ pool: FAILED }).page.pool).toEqual({ state: "failed", title: "XRP/USD AMM pool", source: "live from the node · amm_info" });
+      expect(build({ pool: FAILED, base: USD_ASSET, counter: XRP_ASSET }).page.pool).toEqual({
+        state: "failed",
+        title: "USD/XRP AMM pool",
+        source: "live from the node · amm_info",
+      });
     });
 
     it("failed, and a problem, when the node's pool is not of the pair: an answer for another pair is no answer", () => {
@@ -1643,15 +1658,43 @@ describe("pairPage", () => {
       expect(build({ stats: FAILED, network: XRPL_AMM_OFF }).problems).toEqual(["stats"]);
     });
 
-    it("gives every failed part one frozen value: a consumer that changed it would change them all", () => {
+    it("gives every failed card what its head and its words need, so the page writes none of them", () => {
       const { page: built } = build({ stats: FAILED, candles: FAILED, traders: FAILED, asks: FAILED, pool: FAILED, share: FAILED });
-      const failed = [built.stats, built.candles, built.traders, built.book, built.pool, built.share];
-      for (const part of failed) {
+      expect(built.stats).toEqual({ state: "failed", labels: ["24 h high", "24 h low", "VWAP 24 h", "Volume XRP", "Volume USD", "Trades 24 h"] });
+      expect(built.candles).toEqual({ state: "failed", source: "/v2/exchanges/{base}/{counter}?interval=1hour" });
+      expect(built.traders).toEqual({ state: "failed", source: "/v2/active_accounts/{base}/{counter}" });
+      expect(built.book).toEqual({ state: "failed", source: "live from the node · book_offers" });
+      expect(built.pool).toEqual({ state: "failed", title: "XRP/USD AMM pool", source: "live from the node · amm_info" });
+    });
+
+    it("labels the failed 24 h figures as the loaded ones are, in the page's orientation and codes", () => {
+      for (const [base, counter] of [
+        [XRP_ASSET, USD_ASSET],
+        [USD_ASSET, XRP_ASSET],
+      ] as const) {
+        const loaded = build({ base, counter }).page.stats;
+        const failed = build({ base, counter, stats: FAILED, share: null }).page.stats;
+        if (loaded.state !== "ok" || failed.state !== "failed") throw new Error("stats");
+        expect(failed.labels).toEqual(loaded.items.map((item) => item.label));
+      }
+      expect(statLabels({ base: "LP token", counter: "RLUSD" })).toEqual(["24 h high", "24 h low", "VWAP 24 h", "Volume LP token", "Volume RLUSD", "Trades 24 h"]);
+    });
+
+    it("names the interval and the Trades filter in the failed chart's source, as in the loaded one's", () => {
+      const params: PairParams = { interval: "15m", trades: "book", marker: undefined, back: [] };
+      expect(build({ params, candles: FAILED }).page.candles).toEqual({ state: "failed", source: "/v2/exchanges/{base}/{counter}?interval=15minute&amm=exclude" });
+      expect(build({ params }).page.candles).toMatchObject({ state: "ok", source: "/v2/exchanges/{base}/{counter}?interval=15minute&amm=exclude" });
+    });
+
+    it("gives every failed share one frozen value: a consumer that changed it would change them all", () => {
+      const one = build({ share: FAILED }).page.share;
+      const other = build({ stats: FAILED }).page.share;
+      for (const part of [one, other]) {
         expect(part).toEqual({ state: "failed" });
         expect(Object.isFrozen(part)).toBe(true);
         expect(() => Object.assign(part, { state: "ok" })).toThrow(TypeError);
       }
-      expect(failed[0]).toBe(failed[1]);
+      expect(one).toBe(other);
     });
 
     it("keeps the other parts: the trades and the head do not depend on the cards", () => {
@@ -1709,9 +1752,13 @@ describe("olderPage", () => {
   });
 
   it("has the Via column while the AMM parts are on, and not while they are off or on Xahau", () => {
+    expect(olderPage(input())).toMatchObject({ ammParts: true });
     expect(olderPage(input()).trades.rows[0]!.via).toBe("AMM");
-    expect(olderPage(input({ network: XRPL_AMM_OFF })).trades.rows[0]!.via).toBeNull();
-    expect(olderPage(input({ network: XAHAU })).trades.rows[0]!.via).toBeNull();
+    for (const network of [XRPL_AMM_OFF, XAHAU]) {
+      const older = olderPage(input({ network }));
+      expect(older.ammParts).toBe(false);
+      expect(older.trades.rows[0]!.via).toBeNull();
+    }
   });
 
   it("drops a Trades filter the network lacks: not on Xahau, not while AMM_DATA is off", () => {

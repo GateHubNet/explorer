@@ -18,7 +18,13 @@ const SERVER = (from: string) => /(^|\/)server(\/|$)/.test(from);
 const ASSET_CODE = (from: string) => /ripple-/.test(from) || /(^|\/)domain\/asset(\.ts)?$/.test(from) || /(^|\/)domain\/market-pair(\.ts)?$/.test(from);
 
 describe("the files of the markets pages that run in the browser", () => {
-  it.each(["ui/pages/MarketsPage.tsx", "ui/pages/MarketPairPage.tsx", "ui/components/LiveStateNotice.tsx", "ui/use-retry.ts"])(
+  it.each([
+    "ui/pages/MarketsPage.tsx",
+    "ui/pages/MarketPairPage.tsx",
+    "ui/pages/MarketPairSide.tsx",
+    "ui/components/LiveStateNotice.tsx",
+    "ui/use-retry.ts",
+  ])(
     "%s imports nothing of the server, ripple-*, domain/asset or domain/market-pair as a value",
     (file) => {
       expect(valueImports(read(file)).filter((from) => SERVER(from) || ASSET_CODE(from))).toEqual([]);

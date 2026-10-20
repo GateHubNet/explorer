@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -67,5 +67,69 @@ describe("LiveStateNotice", () => {
     release();
     await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy());
     expect((screen.getByRole("button", { name: "Retry" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  describe("on a live page, which revalidates on every beat", () => {
+    /** The notice in a data router whose loader waits while `held` is set: a beat (`router.revalidate()`) or a Retry runs it. */
+    function live() {
+      let release: () => void = () => {};
+      let held: Promise<null> | null = null;
+      const loader = vi.fn(() => held);
+      const router = createMemoryRouter([{ path: "*", element: <LiveStateNotice>The node did not answer.</LiveStateNotice>, loader }], {
+        initialEntries: ["/xrpl/markets/XRP/USD"],
+        hydrationData: { loaderData: { "0": null } },
+      });
+      render(<RouterProvider router={router} />);
+      const hold = () => (held = new Promise<null>((resolve) => (release = () => resolve(null))));
+      return { router, loader, hold, release: () => release() };
+    }
+    const button = () => screen.getByRole("button", { name: /^Retry/ }) as HTMLButtonElement;
+
+    it("keeps its Retry enabled, and focused, through a revalidation it did not start", async () => {
+      const page = live();
+      act(() => button().focus());
+      expect(document.activeElement).toBe(button());
+
+      page.hold();
+      await act(async () => void page.router.revalidate());
+      expect(page.router.state.revalidation).toBe("loading");
+      expect(button().textContent).toBe("Retry");
+      expect(button().disabled).toBe(false);
+      expect(document.activeElement).toBe(button());
+
+      await act(async () => page.release());
+      expect(page.router.state.revalidation).toBe("idle");
+      expect(document.activeElement).toBe(button());
+    });
+
+    it("says it is retrying for a press of its own, until that revalidation is over, and not for the beats after it", async () => {
+      const page = live();
+      page.hold();
+      fireEvent.click(button());
+      const retrying = await screen.findByRole("button", { name: "Retrying…" });
+      expect((retrying as HTMLButtonElement).disabled).toBe(true);
+      await act(async () => page.release());
+      await waitFor(() => expect(button().textContent).toBe("Retry"));
+      expect(button().disabled).toBe(false);
+
+      // A beat after it is not the press's.
+      page.hold();
+      await act(async () => void page.router.revalidate());
+      expect(page.router.state.revalidation).toBe("loading");
+      expect(button().textContent).toBe("Retry");
+      expect(button().disabled).toBe(false);
+      await act(async () => page.release());
+    });
+
+    it("says it is retrying when pressed during a beat, until the revalidation is over", async () => {
+      const page = live();
+      page.hold();
+      await act(async () => void page.router.revalidate());
+      expect(button().disabled).toBe(false);
+      fireEvent.click(button());
+      expect((await screen.findByRole("button", { name: "Retrying…" }) as HTMLButtonElement).disabled).toBe(true);
+      await act(async () => page.release());
+      await waitFor(() => expect(button().textContent).toBe("Retry"));
+    });
   });
 });

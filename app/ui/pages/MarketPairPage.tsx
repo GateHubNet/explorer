@@ -1,12 +1,10 @@
-import { useId, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import type { BookLevel, BookParts, LivePairData, OlderPairData, PairHead, PairPageData, TradeRowView, TradesView } from "../../server/pair-view";
-import { BarList } from "../charts/BarList";
+import type { LivePairData, OlderPairData, PairHead, PairPageData, TradeRowView, TradesView } from "../../server/pair-view";
 import { candleLegend, Candles } from "../charts/Candles";
 import { ChartCard } from "../charts/ChartCard";
 import { ChartTable } from "../charts/ChartTable";
-import { InlineBar } from "../charts/InlineBar";
 import { Legend } from "../charts/Legend";
 import { AccountLink } from "../components/AccountLink";
 import { Breadcrumbs } from "../components/Breadcrumbs";
@@ -14,7 +12,6 @@ import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
 import { TriangleDownIcon, TriangleUpIcon } from "../components/icons";
 import { LiveRow } from "../components/LiveRow";
-import { LiveStateNotice } from "../components/LiveStateNotice";
 import { LiveValue } from "../components/LiveValue";
 import { Pager } from "../components/Pager";
 import { SectionError } from "../components/SectionError";
@@ -25,6 +22,7 @@ import { holdsFocus, useHolds, type HoldHandlers } from "../use-hold";
 import type { LiveControls } from "../use-live-controls";
 import { useRefetching } from "../use-refetching";
 import { useRetry } from "../use-retry";
+import { BookCard, PoolCard, TradersCard } from "./MarketPairSide";
 
 const DASH = "—";
 
@@ -34,29 +32,6 @@ const HELD_NOTES = {
   trades: "Paused while you look at the trades",
   traders: "Paused while you look at the traders",
 } as const satisfies Record<HeldPart, string>;
-
-/** The node notices (spec 3.4): what is missing, and what is not. */
-const BOOK_BODY =
-  "The network node did not answer, so the order book is missing. Trades and prices on this page are from the explorer’s index and are not affected.";
-const POOL_BODY =
-  "The network node did not answer, so the pool’s reserves and fee are missing. Trades and prices on this page are from the explorer’s index and are not affected.";
-
-/** The six 24 h figures by their labels, for a part that failed and so brought none: the view builder's labels when it loads (`statsOf`). */
-const statLabels = (head: PairHead): string[] => ["24 h high", "24 h low", "VWAP 24 h", `Volume ${head.base}`, `Volume ${head.counter}`, "Trades 24 h"];
-
-/**
- * A source line that ends with a ledger number (`live from the node · book_offers · ledger #107,721,455`), the number a figure that ticks in
- * when it changes (`LiveValue`): a book or a pool kept through a failing beat says how old it is, and a fresh one says it moved.
- */
-function LedgerSource({ text, ledger }: { text: string; ledger: string }) {
-  if (!text.endsWith(ledger)) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, text.length - ledger.length)}
-      <LiveValue token={ledger}>{ledger}</LiveValue>
-    </>
-  );
-}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The head: the breadcrumb, the pair, its issuers
@@ -102,7 +77,7 @@ function Title({ head, invert }: { head: PairHead; invert: boolean }) {
       <div className="pair__titles">
         <h1 className="pair__title">{head.heading}</h1>
         {invert && (
-          <Link to={head.invert.href} className="btn pair__invert">
+          <Link to={head.invert.href} className="btn">
             {head.invert.label}
           </Link>
         )}
@@ -144,11 +119,11 @@ function Quote({ price }: { price: LivePairData["price"] }) {
 }
 
 /**
- * The six figures of the 24 hours, labels in --faint and values in mono, each ticking in when it changes. A part that failed reads "—" in
- * each, in the same places (so a figure that comes back ticks in), with one error under them.
+ * The six figures of the 24 hours, labels in --faint and values in mono, each ticking in when it changes. A part that failed reads "—" under
+ * each of its labels (the data's), in the same places (so a figure that comes back ticks in), with one error under them.
  */
-function Stats({ head, stats, onRetry }: { head: PairHead; stats: LivePairData["stats"]; onRetry: () => void }) {
-  const items = stats.state === "ok" ? stats.items : statLabels(head).map((label) => ({ label, value: DASH }));
+function Stats({ stats, onRetry }: { stats: LivePairData["stats"]; onRetry: () => void }) {
+  const items = stats.state === "ok" ? stats.items : stats.labels.map((label) => ({ label, value: DASH }));
   return (
     <div className="pair__day">
       <dl className="pair__stats">
@@ -183,7 +158,7 @@ function PriceCard({ data, onRetry }: { data: LivePairData; onRetry: () => void 
     <ChartCard
       id="pair-price"
       title="Price"
-      source={loaded ? loaded.source : "/v2/exchanges/{base}/{counter}"}
+      source={candles.source}
       what="the price chart"
       state={loaded ? "ok" : "failed"}
       onRetry={onRetry}
@@ -264,6 +239,7 @@ function TradesCard({
 }) {
   return (
     <Card title="Recent trades" flush action={<span className="chart__source">{trades.source}</span>} className={className}>
+      {/* `pair__hold` has no style: it is the element that holds the page while the visitor is on the table. */}
       <div className="pair__hold" {...holds}>
         <DataTable
           label="Recent trades"
@@ -280,200 +256,6 @@ function TradesCard({
         <Pager newerHref={trades.paging.newerHref} olderHref={trades.paging.olderHref} />
       </div>
     </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------------------------------------
-// The order book
-
-/** A level of a side: its side in text for a screen reader, the depth bar behind the row (a picture), then the price, the size and the total. */
-function Level({ side, level }: { side: "Ask" | "Bid"; level: BookLevel }) {
-  return (
-    <tr className="pair__level">
-      {/* The bar is placed in the row (`position: relative`), not in this cell, which is as wide as nothing. */}
-      <td className="pair__book-side">
-        <span className="sr">{side}</span>
-        <InlineBar value={level.depth} max="1" tone={side === "Ask" ? "down" : "up"} />
-      </td>
-      <td className="pair__level-price mono">{level.price}</td>
-      <td>{level.size}</td>
-      <td className="muted">{level.total}</td>
-    </tr>
-  );
-}
-
-function NoLevel({ text }: { text: string }) {
-  return (
-    <tr>
-      <td colSpan={4} className="pair__book-empty">
-        {text}
-      </td>
-    </tr>
-  );
-}
-
-/**
- * The book as one table (spec 3.4): the asks with the best last, nearest the middle; the middle row with the last price and the spread; the
- * bids with the best first. Each row's side is in text, in a column only a screen reader reads, and its bar is on one scale for both sides.
- */
-function BookTable({ base, book, last }: { base: string; book: BookParts; last: string }) {
-  const asks = [...book.asks].reverse();
-  return (
-    <table className="pair__book" aria-label="Order book">
-      <thead>
-        <tr>
-          <th scope="col" className="pair__book-side">
-            <span className="sr">Side</span>
-          </th>
-          <th scope="col" className="pair__level-price">
-            Price
-          </th>
-          <th scope="col">{base}</th>
-          <th scope="col">Total</th>
-        </tr>
-      </thead>
-      <tbody>{asks.length > 0 ? asks.map((level) => <Level key={level.price} side="Ask" level={level} />) : <NoLevel text="No asks" />}</tbody>
-      <tbody className="pair__book-mid">
-        <tr>
-          <td colSpan={2} className="mono">
-            <span className="sr">Last price </span>
-            <LiveValue token={last}>{last}</LiveValue>
-          </td>
-          <td colSpan={2} className="faint">
-            spread <LiveValue token={book.spread}>{book.spread}</LiveValue>
-          </td>
-        </tr>
-      </tbody>
-      <tbody>{book.bids.length > 0 ? book.bids.map((level) => <Level key={level.price} side="Bid" level={level} />) : <NoLevel text="No bids" />}</tbody>
-    </table>
-  );
-}
-
-/** The order book card: its source names the node's call and the ledger; a book that could not be read is the node notice, never half a book. */
-function BookCard({ data, xrpl }: { data: LivePairData; xrpl: boolean }) {
-  const titleId = useId();
-  const { book } = data;
-  return (
-    <section className="card pair__card" aria-labelledby={titleId}>
-      <div className="chart__titles pair__card-head">
-        <h2 id={titleId} className="chart__title">
-          Order book
-        </h2>
-        <span className="chart__source">
-          {book.state === "ok" ? <LedgerSource text={`live from the node · book_offers · ledger #${book.ledger}`} ledger={book.ledger} /> : "live from the node · book_offers"}
-        </span>
-      </div>
-      {book.state === "ok" ? (
-        <>
-          <BookTable base={data.head.base} book={book} last={data.price.text} />
-          <div className="pair__notes">
-            <p>Asks on top, bids below; the bar is the size on the book up to that price.</p>
-            {xrpl && <p>AMM pool liquidity is not in this book; see the pool.</p>}
-          </div>
-        </>
-      ) : (
-        <div className="pair__card-body">
-          <LiveStateNotice>{BOOK_BODY}</LiveStateNotice>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------------------------------------
-// The pool
-
-function Figure({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
-
-/**
- * The pool of the pair, when the node has one (spec 3.1): its title and source, the reserves, the pool's price, the fee and, with the AMM
- * parts, its share of the pair's volume. A section, not a link: its one link is the data's (the pool account, or the pool page once E5 has it).
- * A pool that could not be read is the node notice.
- */
-function PoolCard({ data }: { data: LivePairData }) {
-  const titleId = useId();
-  const { pool, share, head } = data;
-  if (pool.state === "missing") return null;
-  return (
-    <section className="card pair__card" aria-labelledby={titleId}>
-      <div className="pair__card-head pair__pool-head">
-        <div className="chart__titles pair__pool-titles">
-          <h2 id={titleId} className="chart__title">
-            {pool.state === "ok" ? pool.title : `${head.title} AMM pool`}
-          </h2>
-          <span className="chart__source">{pool.state === "ok" ? <LedgerSource text={pool.source} ledger={pool.ledger} /> : "live from the node · amm_info"}</span>
-        </div>
-        {pool.state === "ok" && (
-          <Link to={pool.link.href} className="pair__pool-link">
-            {pool.link.label}
-          </Link>
-        )}
-      </div>
-      {pool.state === "ok" ? (
-        <dl className="pair__figures">
-          <Figure label="Reserves">{pool.reserves}</Figure>
-          <Figure label="Pool price">{pool.price === DASH ? DASH : `${pool.price} ${head.counter}`}</Figure>
-          <Figure label="Trading fee">{pool.fee}</Figure>
-          {data.ammParts && share.state !== "off" && (
-            <Figure label="Share of pair volume, 24 h">
-              {share.state === "ok" ? (
-                share.text
-              ) : (
-                <>
-                  <span className="pair__figure-value">{DASH}</span>
-                  <span className="pair__figure-sub">Couldn’t load</span>
-                </>
-              )}
-            </Figure>
-          )}
-        </dl>
-      ) : (
-        <div className="pair__card-body">
-          <LiveStateNotice>{POOL_BODY}</LiveStateNotice>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------------------------------------
-// The traders
-
-/**
- * The most active accounts of the 24 hours, each a link to its page with its volume and trades, then the note. The list holds the page. Not
- * `dense`: its rows are links, and the dense rows (21.6 px apart) put two links' 24 px targets closer than WCAG 2.5.8 lets them be (axe).
- */
-function TradersCard({ data, holds, onRetry }: { data: LivePairData; holds: HoldHandlers; onRetry: () => void }) {
-  const titleId = useId();
-  const { traders } = data;
-  return (
-    <section className="card pair__card" aria-labelledby={titleId}>
-      <div className="chart__titles pair__card-head">
-        <h2 id={titleId} className="chart__title">
-          Most active traders, 24 h
-        </h2>
-        <span className="chart__source">{"/v2/active_accounts/{base}/{counter}"}</span>
-      </div>
-      <div className="pair__card-body">
-        {traders.state === "ok" ? (
-          <>
-            <div className="pair__hold" {...holds}>
-              <BarList data={traders.data} tip="count" />
-            </div>
-            <p className="pair__note">{traders.note}</p>
-          </>
-        ) : (
-          <SectionError what="the most active traders" onRetry={onRetry} />
-        )}
-      </div>
-    </section>
   );
 }
 
@@ -523,7 +305,7 @@ function LivePair({ network, data, live }: { network: NetworkInfo; data: LivePai
           <Title head={head} invert />
           <Quote price={data.price} />
         </div>
-        <Stats head={head} stats={data.stats} onRetry={retry} />
+        <Stats stats={data.stats} onRetry={retry} />
       </section>
 
       {data.ammParts && data.filters.trades && (
@@ -567,7 +349,7 @@ function OlderPair({ network, data }: { network: NetworkInfo; data: OlderPairDat
         <Link to={note.href}>{note.link}</Link>
         {after}
       </p>
-      <TradesCard net={network.id} head={head} trades={data.trades} via={data.trades.rows.some((row) => row.via !== null)} live={false} />
+      <TradesCard net={network.id} head={head} trades={data.trades} via={data.ammParts} live={false} />
     </div>
   );
 }

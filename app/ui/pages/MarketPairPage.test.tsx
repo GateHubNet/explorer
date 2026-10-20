@@ -121,6 +121,8 @@ const STATS = [
   { label: "Trades 24 h", value: "8,412" },
 ];
 
+const BOOK_SOURCE = "live from the node · book_offers · ledger #";
+const TRADERS_SOURCE = "/v2/active_accounts/{base}/{counter}";
 const TRADERS_NOTE = "2 of 1,204 accounts that traded XRP/USD in the last 24 hours, by XRP volume. A trade counts for its buyer and its seller.";
 
 function page(over: Partial<LivePairData> = {}): LivePairData {
@@ -146,14 +148,14 @@ function page(over: Partial<LivePairData> = {}): LivePairData {
     stats: { state: "ok", items: STATS, note: null, token: "stats-1" },
     candles: { state: "ok", data: candleData(), source: "/v2/exchanges/{base}/{counter}?interval=1hour", empty: null },
     trades: { rows: TRADES, paging: { newerHref: null, olderHref: `${PAIR}?marker=M1` }, source: "/v2/exchanges/{base}/{counter}?descending=true" },
-    book: { state: "ok", ledger: "107,721,455", asks: ASKS, bids: BIDS, spread: "0.05", token: "book-1" },
+    book: { state: "ok", source: BOOK_SOURCE, ledger: "107,721,455", asks: ASKS, bids: BIDS, spread: "0.05", token: "book-1" },
     pool: {
       state: "ok",
       title: "XRP/USD AMM pool",
-      source: "live from the node · amm_info · ledger #107,721,456",
+      source: "live from the node · amm_info · ledger #",
       ledger: "107,721,456",
       reserves: "1.8M XRP · 4.39M USD",
-      price: "2.4393",
+      price: "2.4393 USD",
       fee: "0.300%",
       link: { href: `/xrpl/account/${POOL}`, label: "Pool account →" },
       token: "pool-1",
@@ -170,6 +172,7 @@ function page(over: Partial<LivePairData> = {}): LivePairData {
         token: "traders-1",
       },
       note: TRADERS_NOTE,
+      source: TRADERS_SOURCE,
     },
     ...over,
   };
@@ -210,6 +213,7 @@ function older(over: Partial<OlderPairData> = {}): OlderPairData {
     head: head(),
     build: "test",
     view: ["older trades"],
+    ammParts: true,
     note: { text: "Older trades of XRP/USD. The price, chart and order book are on the market's page.", link: "the market's page", href: PAIR },
     trades: {
       rows: TRADES,
@@ -220,7 +224,14 @@ function older(over: Partial<OlderPairData> = {}): OlderPairData {
   };
 }
 
-const FAILED = { state: "failed" } as const;
+/** Every card failed, each with what the view builder gives a failed card (`pairPage`). */
+const FAILED_STATS = { state: "failed", labels: STATS.map((s) => s.label) } as const satisfies LivePairData["stats"];
+const FAILED_CANDLES = { state: "failed", source: "/v2/exchanges/{base}/{counter}?interval=1hour" } as const satisfies LivePairData["candles"];
+const FAILED_BOOK = { state: "failed", source: "live from the node · book_offers" } as const satisfies LivePairData["book"];
+const FAILED_POOL = { state: "failed", title: "XRP/USD AMM pool", source: "live from the node · amm_info" } as const satisfies LivePairData["pool"];
+const FAILED_TRADERS = { state: "failed", source: TRADERS_SOURCE } as const satisfies LivePairData["traders"];
+const FAILED_SHARE = { state: "failed" } as const;
+const ALL_FAILED = { stats: FAILED_STATS, candles: FAILED_CANDLES, book: FAILED_BOOK, pool: FAILED_POOL, share: FAILED_SHARE, traders: FAILED_TRADERS };
 
 // ---- Rendering --------------------------------------------------------------------------------------------------------------------------
 
@@ -254,8 +265,10 @@ const card = (title: string | RegExp) => screen.getByRole("heading", { level: 2,
 const summary = () => region("Pair summary");
 const tradesTable = () => screen.getByRole("table", { name: "Recent trades" });
 const bookTable = () => screen.getByRole("table", { name: "Order book" });
-/** The rows of a `tbody` of the book, each as the texts of its cells. */
-const bodyRows = (body: Element) => Array.from(body.querySelectorAll("tr"), (tr) => Array.from(tr.querySelectorAll("td"), (td) => td.textContent));
+/** The row groups of the book: the header row, the asks, the middle row and the bids. */
+const bookGroups = () => within(bookTable()).getAllByRole("rowgroup");
+/** The rows of a row group of the book, each as the texts of its cells. */
+const groupRows = (group: HTMLElement) => within(group).getAllByRole("row").map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
 const stat = (label: string) => {
   const term = within(summary()).getByText(label);
   return term.closest(".pair__stat")!.querySelector("dd")!.textContent;
@@ -299,7 +312,7 @@ describe("MarketPairPage, the breadcrumb and the live row", () => {
   });
 
   it("has no aria-live anywhere and exactly one role=status, the live status, even with every card failed", async () => {
-    const failing = page({ stats: FAILED, candles: FAILED, book: FAILED, pool: FAILED, share: FAILED, traders: FAILED });
+    const failing = page(ALL_FAILED);
     for (const data of [page(), failing]) {
       const { container, unmount } = mount(data, { live: controls() });
       await screen.findByRole("button", { name: "Pause live updates" });
@@ -400,7 +413,7 @@ describe("MarketPairPage, the pair summary", () => {
 
   it("reads '—' in the six figures and the change when the 24 h figures failed, with one error and a Retry that asks the route again", async () => {
     const loader = vi.fn(() => null);
-    mount(page({ stats: FAILED, price: { ...page().price, change: null } }), { loader });
+    mount(page({ stats: FAILED_STATS, price: { ...page().price, change: null } }), { loader });
     expect(["24 h high", "24 h low", "VWAP 24 h", "Volume XRP", "Volume USD", "Trades 24 h"].map(stat)).toEqual(Array(6).fill("—"));
     const alerts = within(summary()).getAllByRole("alert");
     expect(alerts).toHaveLength(1);
@@ -477,11 +490,12 @@ describe("MarketPairPage, the price chart", () => {
 
   it("says it could not load the price chart in place of the views, the toggle and the interval control", async () => {
     const loader = vi.fn(() => null);
-    mount(page({ candles: FAILED }), { loader });
+    mount(page({ candles: FAILED_CANDLES }), { loader });
     const price = card("Price");
     const alert = within(price).getByRole("alert");
     expect(alert.querySelector(".notice__body")!.textContent).toBe("Couldn’t load the price chart.");
-    expect(price.querySelector(".chart__source")!.textContent).toBe("/v2/exchanges/{base}/{counter}");
+    // The source is the data's, the failed part's own.
+    expect(price.querySelector(".chart__source")!.textContent).toBe("/v2/exchanges/{base}/{counter}?interval=1hour");
     expect(price.querySelector(".plot, .chart__toggle, .legend")).toBeNull();
     expect(within(price).queryByRole("group", { name: "Candle interval" })).toBeNull();
     fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
@@ -570,21 +584,24 @@ describe("MarketPairPage, the order book", () => {
     expect(book.querySelector(".chart__source")!.textContent).toBe("live from the node · book_offers · ledger #107,721,455");
   });
 
-  it("is one table 'Order book': the asks best last, the middle row, the bids best first", () => {
+  it("is one ARIA table 'Order book' over rows of a grid: the asks best last, the middle row, the bids best first", () => {
     mount(page());
-    const bodies = bookTable().querySelectorAll("tbody");
-    expect(bodies).toHaveLength(3);
-    expect(bodyRows(bodies[0]!)).toEqual([
+    expect(bookTable().tagName).toBe("DIV");
+    expect(card("Order book").querySelector("table, tr, td, th")).toBeNull();
+    const [head, asks, middle, bids] = bookGroups();
+    expect(bookGroups()).toHaveLength(4);
+    expect(within(head!).getAllByRole("row")).toHaveLength(1);
+    expect(groupRows(asks!)).toEqual([
       ["Ask", "2.46", "3K", "5K"],
       ["Ask", "2.45", "800", "2K"],
       ["Ask", "2.44", "1.2K", "1.2K"],
     ]);
-    expect(bodyRows(bodies[1]!)).toEqual([["Last price 2.4395", "spread 0.05"]]);
-    expect(bodyRows(bodies[2]!)).toEqual([
+    expect(groupRows(middle!)).toEqual([["Last price", "2.4395", "spread 0.05"]]);
+    expect(within(middle!).getAllByRole("cell")[2]!.getAttribute("aria-colspan")).toBe("2");
+    expect(groupRows(bids!)).toEqual([
       ["Bid", "2.39", "1K", "1K"],
       ["Bid", "2.38", "2.5K", "3.5K"],
     ]);
-    expect(bookTable().tagName).toBe("TABLE");
   });
 
   it("has the columns Price, the base and Total, and a Side column that only a screen reader reads", () => {
@@ -592,24 +609,31 @@ describe("MarketPairPage, the order book", () => {
     const headers = within(bookTable()).getAllByRole("columnheader");
     expect(headers.map((h) => h.textContent)).toEqual(["Side", "Price", "XRP", "Total"]);
     expect(headers[0]!.querySelector(".sr")!.textContent).toBe("Side");
-    const sides = Array.from(bookTable().querySelectorAll("tbody tr td:first-child .sr"), (cell) => cell.textContent);
-    expect(sides).toEqual(["Ask", "Ask", "Ask", "Last price ", "Bid", "Bid"]);
+    const [, asks, middle, bids] = bookGroups();
+    const sides = [asks!, middle!, bids!].flatMap((group) => within(group).getAllByRole("row").map((row) => within(row).getAllByRole("cell")[0]!));
+    expect(sides.map((cell) => cell.textContent)).toEqual(["Ask", "Ask", "Ask", "Last price", "Bid", "Bid"]);
+    expect(sides.every((cell) => cell.querySelector(".sr")?.textContent === cell.textContent)).toBe(true);
   });
 
-  it("draws one depth bar per level, the asks' in the down wash and the bids' in the up wash, as wide as the level's depth", () => {
+  it("draws one depth bar per level, as the row's first child: the asks' in the down wash and the bids' in the up wash, as wide as the depth", () => {
     mount(page());
-    const [asks, middle, bids] = Array.from(bookTable().querySelectorAll("tbody"));
-    const bars = (body: Element) =>
-      Array.from(body.querySelectorAll("tr"), (tr) => {
-        const found = tr.querySelectorAll(".inline-bar");
-        expect(found).toHaveLength(1);
-        return [found[0]!.className, (found[0] as HTMLElement).style.width, found[0]!.getAttribute("aria-hidden")];
-      });
+    const [head, asks, middle, bids] = bookGroups();
+    const bars = (group: HTMLElement) =>
+      within(group)
+        .getAllByRole("row")
+        .map((row) => {
+          const found = row.querySelectorAll(".inline-bar");
+          expect(found).toHaveLength(1);
+          // InlineBar's contract: the bar is the row's first child, and the row is the box it is placed in.
+          expect(row.firstElementChild).toBe(found[0]);
+          return [found[0]!.className, (found[0] as HTMLElement).style.width, found[0]!.getAttribute("aria-hidden")];
+        });
     expect(bars(asks!)).toEqual([
       ["inline-bar inline-bar--down", "100%", "true"],
       ["inline-bar inline-bar--down", "40%", "true"],
       ["inline-bar inline-bar--down", "24%", "true"],
     ]);
+    expect(head!.querySelector(".inline-bar")).toBeNull();
     expect(middle!.querySelector(".inline-bar")).toBeNull();
     expect(bars(bids!)).toEqual([
       ["inline-bar inline-bar--up", "20%", "true"],
@@ -618,14 +642,15 @@ describe("MarketPairPage, the order book", () => {
   });
 
   it("says 'No asks' or 'No bids' for a side with no offer, and the spread's dash", () => {
-    mount(page({ book: { state: "ok", ledger: "107,721,455", asks: [], bids: BIDS, spread: "—", token: "b" } }));
-    const [asks, middle] = Array.from(bookTable().querySelectorAll("tbody"));
-    expect(bodyRows(asks!)).toEqual([["No asks"]]);
+    mount(page({ book: { state: "ok", source: BOOK_SOURCE, ledger: "107,721,455", asks: [], bids: BIDS, spread: "—", token: "b" } }));
+    const [, asks, middle] = bookGroups();
+    expect(groupRows(asks!)).toEqual([["No asks"]]);
+    expect(within(asks!).getByRole("cell").getAttribute("aria-colspan")).toBe("4");
     expect(asks!.querySelector(".inline-bar")).toBeNull();
-    expect(bodyRows(middle!)).toEqual([["Last price 2.4395", "spread —"]]);
+    expect(groupRows(middle!)).toEqual([["Last price", "2.4395", "spread —"]]);
     cleanup();
-    mount(page({ book: { state: "ok", ledger: "107,721,455", asks: ASKS, bids: [], spread: "—", token: "b" } }));
-    expect(bodyRows(bookTable().querySelectorAll("tbody")[2]!)).toEqual([["No bids"]]);
+    mount(page({ book: { state: "ok", source: BOOK_SOURCE, ledger: "107,721,455", asks: ASKS, bids: [], spread: "—", token: "b" } }));
+    expect(groupRows(bookGroups()[3]!)).toEqual([["No bids"]]);
   });
 
   it("has the board's notes, the second on XRPL only", () => {
@@ -641,7 +666,7 @@ describe("MarketPairPage, the order book", () => {
 
   it("says 'Live state unavailable' when the book could not be read, with no role, and a Retry that asks the route again", async () => {
     const loader = vi.fn(() => null);
-    mount(page({ book: FAILED }), { loader });
+    mount(page({ book: FAILED_BOOK }), { loader });
     const book = card("Order book");
     expect(within(book).queryByRole("table")).toBeNull();
     const notice = book.querySelector(".notice")!;
@@ -682,15 +707,21 @@ describe("MarketPairPage, the pool card", () => {
     ]);
   });
 
-  it("writes the pool price's dash alone", () => {
+  it("shows the pool's price as the data writes it, its unit and a dash included", () => {
     const ok = page().pool as Extract<LivePairData["pool"], { state: "ok" }>;
-    mount(page({ pool: { ...ok, price: "—" } }));
-    const row = Array.from(region("XRP/USD AMM pool").querySelectorAll(".pair__figures > div")).find((r) => r.querySelector("dt")!.textContent === "Pool price")!;
-    expect(row.querySelector("dd")!.textContent).toBe("—");
+    const price = () =>
+      Array.from(region("XRP/USD AMM pool").querySelectorAll(".pair__figures > div"))
+        .find((r) => r.querySelector("dt")!.textContent === "Pool price")!
+        .querySelector("dd")!.textContent;
+    for (const text of ["—", "0.40995368 XRP"]) {
+      mount(page({ pool: { ...ok, price: text } }));
+      expect(price()).toBe(text);
+      cleanup();
+    }
   });
 
   it("reads '—' and 'Couldn’t load' for a share that failed, and has no share line while the AMM parts are off", () => {
-    mount(page({ share: FAILED }));
+    mount(page({ share: FAILED_SHARE }));
     const share = Array.from(region("XRP/USD AMM pool").querySelectorAll(".pair__figures > div")).at(-1)!;
     expect(share.querySelector("dt")!.textContent).toBe("Share of pair volume, 24 h");
     expect(share.querySelector(".pair__figure-value")!.textContent).toBe("—");
@@ -709,7 +740,7 @@ describe("MarketPairPage, the pool card", () => {
 
   it("says 'Live state unavailable' when the pool could not be read, with no role, and a Retry", async () => {
     const loader = vi.fn(() => null);
-    mount(page({ pool: FAILED }), { loader });
+    mount(page({ pool: FAILED_POOL }), { loader });
     const pool = region("XRP/USD AMM pool");
     const notice = pool.querySelector(".notice")!;
     expect(notice.hasAttribute("role")).toBe(false);
@@ -720,6 +751,37 @@ describe("MarketPairPage, the pool card", () => {
     const calls = loader.mock.calls.length;
     fireEvent.click(within(pool).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(loader.mock.calls.length).toBe(calls + 1));
+  });
+});
+
+describe("MarketPairPage, the data's own words", () => {
+  it("labels the failed 24 h figures, titles the failed pool and writes every source line as the data gives them", () => {
+    const labels = ["24 h high", "24 h low", "VWAP 24 h", "Volume LP token", "Volume RLUSD", "Trades 24 h"];
+    mount(
+      page({
+        stats: { state: "failed", labels },
+        candles: { state: "failed", source: "/v2/exchanges/{base}/{counter}?interval=7day&amm=only" },
+        book: { state: "failed", source: "the book's source" },
+        pool: { state: "failed", title: "LP token/RLUSD AMM pool", source: "the pool's source" },
+        traders: { state: "failed", source: "the traders' source" },
+      }),
+    );
+    expect(Array.from(summary().querySelectorAll(".pair__stat dt"), (dt) => dt.textContent)).toEqual(labels);
+    expect(card("Price").querySelector(".chart__source")!.textContent).toBe("/v2/exchanges/{base}/{counter}?interval=7day&amm=only");
+    expect(card("Order book").querySelector(".chart__source")!.textContent).toBe("the book's source");
+    expect(region("LP token/RLUSD AMM pool").querySelector(".chart__source")!.textContent).toBe("the pool's source");
+    expect(card("Most active traders, 24 h").querySelector(".chart__source")!.textContent).toBe("the traders' source");
+  });
+
+  it("puts the ledger after the loaded book's and pool's source lines, as a figure of its own", () => {
+    const ok = page().pool as Extract<LivePairData["pool"], { state: "ok" }>;
+    const book = page().book as Extract<LivePairData["book"], { state: "ok" }>;
+    mount(page({ book: { ...book, source: "book up to #" }, pool: { ...ok, source: "pool up to #" } }));
+    const source = (element: Element) => element.querySelector(".chart__source")!;
+    expect(source(card("Order book")).textContent).toBe("book up to #107,721,455");
+    expect(source(card("Order book")).querySelector(".live__value")!.textContent).toBe("107,721,455");
+    expect(source(region("XRP/USD AMM pool")).textContent).toBe("pool up to #107,721,456");
+    expect(source(region("XRP/USD AMM pool")).querySelector(".live__value")!.textContent).toBe("107,721,456");
   });
 });
 
@@ -739,7 +801,7 @@ describe("MarketPairPage, the most active traders", () => {
 
   it("says it could not load the most active traders, with a Retry", async () => {
     const loader = vi.fn(() => null);
-    mount(page({ traders: FAILED }), { loader });
+    mount(page({ traders: FAILED_TRADERS }), { loader });
     const traders = card("Most active traders, 24 h");
     const alert = within(traders).getByRole("alert");
     expect(alert.querySelector(".notice__body")!.textContent).toBe("Couldn’t load the most active traders.");
@@ -808,15 +870,15 @@ describe("MarketPairPage, what a beat moves", () => {
   it("ticks in the spread and the book's ledger, and redraws the levels in place", () => {
     const { container } = mountHost();
     const levels = [level("2.43", "1K", "1K", "0.2"), ...ASKS.slice(1)];
-    update(page({ book: { state: "ok", ledger: "107,721,456", asks: levels, bids: BIDS, spread: "0.04", token: "book-2" } }));
+    update(page({ book: { state: "ok", source: BOOK_SOURCE, ledger: "107,721,456", asks: levels, bids: BIDS, spread: "0.04", token: "book-2" } }));
     expect(changed(container).sort()).toEqual(["0.04", "107,721,456"]);
-    expect(bodyRows(bookTable().querySelectorAll("tbody")[0]!).at(-1)).toEqual(["Ask", "2.43", "1K", "1K"]);
+    expect(groupRows(bookGroups()[1]!).at(-1)).toEqual(["Ask", "2.43", "1K", "1K"]);
   });
 
   it("ticks in the pool's ledger, and not its figures", () => {
     const { container } = mountHost();
     const ok = page().pool as Extract<LivePairData["pool"], { state: "ok" }>;
-    update(page({ pool: { ...ok, ledger: "107,721,460", source: "live from the node · amm_info · ledger #107,721,460", reserves: "1.9M XRP · 4.4M USD", token: "pool-2" } }));
+    update(page({ pool: { ...ok, ledger: "107,721,460", reserves: "1.9M XRP · 4.4M USD", token: "pool-2" } }));
     expect(changed(container)).toEqual(["107,721,460"]);
     expect(region("XRP/USD AMM pool").querySelector(".chart__source")!.textContent).toBe("live from the node · amm_info · ledger #107,721,460");
   });
@@ -829,10 +891,38 @@ describe("MarketPairPage, what a beat moves", () => {
   });
 
   it("ticks in a 24 h figure that comes back after failing", () => {
-    const { container } = mountHost(page({ stats: FAILED }));
+    const { container } = mountHost(page({ stats: FAILED_STATS }));
     update(page());
     expect(changed(container)).toEqual(STATS.map((s) => s.value));
     expect(within(summary()).queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("MarketPairPage, refetching", () => {
+  it("dims its charts while another view is loading, and not while it only follows the chain", async () => {
+    let release!: () => void;
+    let held: Promise<null> | null = null;
+    const router = createMemoryRouter([{ path: "*", element: <MarketPairPage network={XRPL} data={page()} />, loader: () => held }], {
+      initialEntries: [PAIR],
+      hydrationData: { loaderData: { "0": null } },
+    });
+    const { container } = render(<RouterProvider router={router} />);
+    const dimmed = () => container.querySelector(".pair")!.classList.contains("is-refetching");
+    expect(dimmed()).toBe(false);
+
+    // A beat is a revalidation: the page follows the chain and is not dimmed.
+    held = new Promise<null>((resolve) => (release = () => resolve(null)));
+    await act(async () => void router.revalidate());
+    expect(router.state.revalidation).toBe("loading");
+    expect(dimmed()).toBe(false);
+    await act(async () => release());
+
+    // Another interval of the same pair is another view of this page: dimmed until it comes.
+    held = new Promise<null>((resolve) => (release = () => resolve(null)));
+    await act(async () => void router.navigate(`${PAIR}?interval=4h`));
+    expect(dimmed()).toBe(true);
+    await act(async () => release());
+    expect(dimmed()).toBe(false);
   });
 });
 
@@ -950,6 +1040,29 @@ describe("MarketPairPage behind a marker", () => {
     // The rows of an old page do not follow the chain.
     expect(within(tradesTable()).getAllByRole("row")[1]!.hasAttribute("data-key")).toBe(false);
   });
+
+  it("has the Via column while the AMM parts are on, and none while they are off", () => {
+    mount(older());
+    expect(within(tradesTable()).getAllByRole("columnheader").map((h) => h.textContent)).toContain("Via");
+    cleanup();
+    mount(older({ ammParts: false, trades: { ...older().trades, rows: TRADES.map((row) => ({ ...row, via: null })) } }));
+    expect(within(tradesTable()).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Time (UTC)", "Side", "Price", "XRP", "USD", "Taker"]);
+    expect(tradesTable().querySelector(".tag")).toBeNull();
+  });
+
+  it("reads the Via column's presence from the data, not from the rows: an empty list of an AMM page still has it", () => {
+    mount(older({ trades: { ...older().trades, rows: [] } }));
+    expect(within(tradesTable()).getAllByRole("columnheader").map((h) => h.textContent)).toContain("Via");
+  });
+
+  it("puts the link after the note's text when its words are not in it", () => {
+    mount(older({ note: { text: "Older trades of XRP/USD.", link: "Back to the market", href: PAIR } }));
+    const note = document.querySelector(".pair__older")!;
+    expect(note.textContent).toBe("Older trades of XRP/USD. Back to the market");
+    const link = within(note as HTMLElement).getByRole("link", { name: "Back to the market" });
+    expect(link.getAttribute("href")).toBe(PAIR);
+    expect(note.lastElementChild).toBe(link);
+  });
 });
 
 // ---- On the server, then in the browser ---------------------------------------------------------------------------------------------------
@@ -958,7 +1071,7 @@ describe("MarketPairPage, as the Worker prints it and the browser takes it over"
   it("hydrates what the server printed with no mismatch, live and behind a marker, with every card loaded or failed", async () => {
     const cases: [Net, PairPageData][] = [
       [XRPL, page()],
-      [XRPL, page({ stats: FAILED, candles: FAILED, book: FAILED, pool: FAILED, share: FAILED, traders: FAILED })],
+      [XRPL, page(ALL_FAILED)],
       [XRPL, NO_AMM({ pool: { state: "missing" } })],
       [XAHAU, XAHAU_PAGE()],
       [XRPL, older()],

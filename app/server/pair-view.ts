@@ -289,26 +289,35 @@ export interface LivePairData {
   ammParts: boolean;
   filters: { trades: SegmentLink[] | null; interval: SegmentLink[] };
   price: { text: string; unit: string; note: string | null; change: { text: string; dir: "up" | "down" | "flat" } | null; token: string };
-  stats: { state: "ok"; items: { label: string; value: string }[]; note: string | null; token: string } | { state: "failed" };
-  candles: { state: "ok"; data: CandleData; source: string; empty: string | null } | { state: "failed" };
+  /** A part that failed keeps its six labels (`statLabels`, the loaded part's own): the page shows them with a dash each. */
+  stats: { state: "ok"; items: { label: string; value: string }[]; note: string | null; token: string } | { state: "failed"; labels: string[] };
+  /** The source names the interval and the Trades filter in either state: the card keeps its head when it fails. */
+  candles: { state: "ok"; data: CandleData; source: string; empty: string | null } | { state: "failed"; source: string };
   trades: TradesView;
-  book: ({ state: "ok" } & BookParts) | { state: "failed" };
+  /**
+   * Loaded, `source` is the line up to the ledger number ("live from the node · book_offers · ledger #"), which the page puts after it as a
+   * figure that ticks (`ledger`); failed, it is the whole line ("live from the node · book_offers").
+   */
+  book: ({ state: "ok"; source: string } & BookParts) | { state: "failed"; source: string };
   pool:
     | {
         state: "ok";
         title: string;
+        /** The line up to the ledger number ("live from the node · amm_info · ledger #"), which the page puts after it (`ledger`). */
         source: string;
         ledger: string;
         reserves: string;
+        /** "2.4393 USD": the pool's price with its unit, or a dash alone. */
         price: string;
         fee: string;
         link: { href: string; label: string };
         token: string;
       }
     | { state: "missing" }
-    | { state: "failed" };
+    /** The card stays, with its title and the source's whole line ("live from the node · amm_info"), and the node's notice. */
+    | { state: "failed"; title: string; source: string };
   share: { state: "ok"; text: string } | { state: "off" } | { state: "failed" };
-  traders: { state: "ok"; data: BarListData; note: string } | { state: "failed" };
+  traders: { state: "ok"; data: BarListData; note: string; source: string } | { state: "failed"; source: string };
 }
 
 /** The page behind a marker: old trades only, with no chart, no book and no live row. */
@@ -317,6 +326,8 @@ export interface OlderPairData {
   head: PairHead;
   build: string;
   view: string[];
+  /** Whether the AMM parts exist on this page (the Via column): XRPL with `AMM_DATA` on. */
+  ammParts: boolean;
   /** `link` is the part of `text` that links to `href`, the market's page. */
   note: { text: string; link: string; href: string };
   trades: TradesView;
@@ -350,8 +361,15 @@ export interface PairInput {
 /** The names of the page's parts that can fail alone, in the order they are listed in `problems`. */
 type PartName = "stats" | "candles" | "traders" | "book" | "pool" | "share";
 
-/** Frozen: it is the one value of every part that failed, and a consumer that changed one would change them all. */
+/** Frozen: it is the one value of every failed share (the part that has nothing of its own to show), and a consumer that changed one would change them all. */
 const FAILED_PART = Object.freeze({ state: "failed" } as const);
+
+/** The source lines of the cards the node fills, and of the traders: paths and calls only, never a host or a key. */
+const BOOK_SOURCE = "live from the node · book_offers";
+const POOL_SOURCE = "live from the node · amm_info";
+const TRADERS_SOURCE = "/v2/active_accounts/{base}/{counter}";
+/** What a source line of the node says before the ledger it was read at. */
+const LEDGER_WORDS = " · ledger #";
 
 // ---- Shared ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -462,19 +480,28 @@ export function tradesOf(
 // ---- The 24 h figures and the price ---------------------------------------------------------------------------------------------------------
 
 /**
+ * The labels of the six figures of the 24 hours, in their order: the loaded part's and the failed part's, so the two cannot differ. The volumes
+ * name the codes of the pair as it is shown.
+ */
+export function statLabels(codes: { base: string; counter: string }): string[] {
+  return ["24 h high", "24 h low", "VWAP 24 h", `Volume ${codes.base}`, `Volume ${codes.counter}`, "Trades 24 h"];
+}
+
+/**
  * The six figures of the 24 hours (spec 3.1) from the one row of `reduce=true`: high, low and VWAP with `formatPrice`, the two volumes compact, the
  * trades grouped. A window with no trade has dashes for the prices and "0" for the rest (its row is all zeros), and a note that says so.
  */
 export function statsOf(row: ReducedRow, codes: { base: string; counter: string }): Extract<LivePairData["stats"], { state: "ok" }> {
   const traded = row.count > 0;
-  const items = [
-    { label: "24 h high", value: traded ? priceText(row.high) : DASH },
-    { label: "24 h low", value: traded ? priceText(row.low) : DASH },
-    { label: "VWAP 24 h", value: traded ? priceText(row.vwap) : DASH },
-    { label: `Volume ${codes.base}`, value: traded ? summaryText(row.base_volume) : "0" },
-    { label: `Volume ${codes.counter}`, value: traded ? summaryText(row.counter_volume) : "0" },
-    { label: "Trades 24 h", value: formatAmount(String(row.count)) },
+  const values = [
+    traded ? priceText(row.high) : DASH,
+    traded ? priceText(row.low) : DASH,
+    traded ? priceText(row.vwap) : DASH,
+    traded ? summaryText(row.base_volume) : "0",
+    traded ? summaryText(row.counter_volume) : "0",
+    formatAmount(String(row.count)),
   ];
+  const items = statLabels(codes).map((label, at) => ({ label, value: values[at]! }));
   const note = traded ? null : "No trades in the last 24 hours.";
   return { state: "ok", items, note, token: tokenOf({ items, note }) };
 }
@@ -525,11 +552,15 @@ function poolSides(info: AmmInfo, base: Asset, counter: Asset): { base: NodeAmou
   return null;
 }
 
+/** "XRP/USD AMM pool": the pool card's title, loaded or not. */
+const poolTitle = (head: PairHead): string => `${head.title} AMM pool`;
+
 /**
  * The pool card of the pair (spec 3.1 and 3.7): its reserves compact and oriented to the page, the spot price (the counter reserve over the base
- * reserve, fee-free, 8 significant digits), the fee (the node's units of 1/100000 are thousandths of a percent) and the link to the pool account. The
- * pool must be the pair's: its amounts are matched to the page's assets, and a pool of another pair is a bug of the caller's (`pairPage` makes it a
- * failed card). The token is of the figures and the link; the ledger, which changes every ledger, is not in it.
+ * reserve, fee-free, 8 significant digits, with the counter's code: "2.4393 USD"), the fee (the node's units of 1/100000 are thousandths of a percent)
+ * and the link to the pool account. The pool must be the pair's: its amounts are matched to the page's assets, and a pool of another pair is a bug of
+ * the caller's (`pairPage` makes it a failed card). The source is the line up to the ledger, which the page puts after it. The token is of the
+ * figures and the link; the ledger, which changes every ledger, is not in it.
  */
 export function poolOf(
   info: AmmInfo,
@@ -544,13 +575,13 @@ export function poolOf(
   const [baseReserve, counterReserve] = [decimalOf(sides.base.value), decimalOf(sides.counter.value)];
   const price =
     baseReserve !== null && counterReserve !== null && baseReserve.gt(0) && counterReserve.gt(0)
-      ? formatPrice(ratioOf(counterReserve, baseReserve).toFixed())
+      ? `${formatPrice(ratioOf(counterReserve, baseReserve).toFixed())} ${head.counter}`
       : DASH;
-  const title = `${head.title} AMM pool`;
+  const title = poolTitle(head);
   const reserves = `${summaryText(sides.base.value)} ${head.base} · ${summaryText(sides.counter.value)} ${head.counter}`;
   const fee = `${new BN(info.trading_fee).div(1000).toFixed(3)}%`;
   const link = { href: accountHref(net, info.account, {}), label: "Pool account →" };
-  const source = `live from the node · amm_info · ledger #${ledger}`;
+  const source = `${POOL_SOURCE}${LEDGER_WORDS}`;
   return { state: "ok", title, source, ledger, reserves, price, fee, link, token: tokenOf({ title, reserves, price, fee, link }) };
 }
 
@@ -603,7 +634,7 @@ export function tradersOf(
     ...(ctx.filtered ? ["All trades: this list has no filter."] : []),
     ...(leftOut ? [`The ${head.title} AMM pool, the other side of every swap, is left out.`] : []),
   ].join(" ");
-  return { state: "ok", data: { items, format, token: tokenOf({ items, format }) }, note };
+  return { state: "ok", data: { items, format, token: tokenOf({ items, format }) }, note, source: TRADERS_SOURCE };
 }
 
 // ---- Whether the market exists --------------------------------------------------------------------------------------------------------------
@@ -664,31 +695,34 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
   const linkTo = (change: Partial<PairParams>): string =>
     marketHref(network.id, base, counter, { interval: params.interval, trades: params.trades, ...change });
 
-  const stats = input.stats.state === "ok" ? statsOf(input.stats.value, codes) : FAILED_PART;
-  const candles =
+  // A failed card keeps what its head and its words need (the labels, the title, the source line): the page writes none of them.
+  const stats: LivePairData["stats"] =
+    input.stats.state === "ok" ? statsOf(input.stats.value, codes) : { state: "failed", labels: statLabels(codes) };
+  const candlesSource = `/v2/exchanges/{base}/{counter}?interval=${INTERVALS[params.interval].api}${ammQuery(params.trades)}`;
+  const candles: LivePairData["candles"] =
     input.candles.state === "ok"
       ? {
-          state: "ok" as const,
+          state: "ok",
           ...candlesOf(input.candles.value, candleWindow(input.closeTime, params.interval), params.interval, codes),
-          source: `/v2/exchanges/{base}/{counter}?interval=${INTERVALS[params.interval].api}${ammQuery(params.trades)}`,
+          source: candlesSource,
         }
-      : FAILED_PART;
+      : { state: "failed", source: candlesSource };
   // A network without AMM has no pool card, whatever the caller passed: its answer is not read.
   const pool: LivePairData["pool"] =
     !network.hasAmm || input.pool === null || input.pool.state === "missing"
       ? { state: "missing" }
       : input.pool.state === "ok" && poolSides(input.pool.value, base, counter) !== null
         ? poolOf(input.pool.value, network.id, base, counter, head)
-        : FAILED_PART;
+        : { state: "failed", title: poolTitle(head), source: POOL_SOURCE };
   const poolAccount = input.pool?.state === "ok" && pool.state === "ok" ? input.pool.value.account : null;
-  const traders =
+  const traders: LivePairData["traders"] =
     input.traders.state === "ok"
       ? tradersOf(input.traders.value, poolAccount, { net: network.id, head, filtered: params.trades !== null })
-      : FAILED_PART;
-  const book =
+      : { state: "failed", source: TRADERS_SOURCE };
+  const book: LivePairData["book"] =
     input.asks.state === "ok" && input.bids.state === "ok"
-      ? { state: "ok" as const, ...bookOf(input.asks.value, input.bids.value) }
-      : FAILED_PART;
+      ? { state: "ok", source: `${BOOK_SOURCE}${LEDGER_WORDS}`, ...bookOf(input.asks.value, input.bids.value) }
+      : { state: "failed", source: BOOK_SOURCE };
   let share: LivePairData["share"] = { state: "off" };
   if (ammParts && input.share !== null) {
     const text = input.share.state === "ok" && input.stats.state === "ok" ? shareText(params.trades, input.stats.value, input.share.value) : null;
@@ -743,6 +777,7 @@ export function olderPage(input: Pick<PairInput, "network" | "base" | "counter" 
     mode: "older",
     head,
     view: [...tradesWords(params), "older trades"],
+    ammParts: hasAmmParts(network),
     note: {
       text: `Older trades of ${head.title}. The price, chart and order book are on the market's page.`,
       link: "the market's page",

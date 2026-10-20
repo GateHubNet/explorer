@@ -1635,73 +1635,63 @@ a.markets__pair:hover .markets__name {
   padding: 0 16px 14px;
 }
 
-/* The order book: one table of rows 28 px high; the card does not scroll. The first column is the side, which only a screen reader reads:
-   it has no width, and a level's depth bar, in that cell, is placed in the row (`position: relative`) with the visible cells above it. */
+/* The order book: an ARIA table of rows 28 px high, each a grid of the same tracks, so the columns line up; the card does not scroll. The first
+   track is the side, which only a screen reader reads, and has no width. A level's depth bar is the row's first child, placed in the row
+   (`position: relative`), and the kit's stylesheet puts the cells after it above it (charts.css, InlineBar). */
 .pair__book {
-  width: 100%;
-  border-collapse: collapse;
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
 
-.pair__book th,
-.pair__book td {
-  height: 28px;
-  padding: 0 5px;
-  font-weight: 400;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.pair__book th:last-child,
-.pair__book td:last-child {
+.pair__book-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0 minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  min-height: 28px;
   padding-right: 16px;
+  white-space: nowrap;
+  text-align: right;
 }
 
-.pair__book .pair__book-side {
-  width: 0;
+/* The cells and the headers (the bar, which has no role, keeps no padding: it would be as wide as it). */
+.pair__book-row > [role] {
+  padding-left: 10px;
+}
+
+.pair__book-row > .pair__book-side {
   padding: 0;
 }
 
-.pair__book .pair__level-price {
-  padding-left: 16px;
-  text-align: left;
-}
-
-.pair__book thead th {
+.pair__book-head {
   color: var(--faint);
   font-size: 11.5px;
 }
 
-.pair__level {
-  position: relative;
-}
-
-.pair__level > td:not(.pair__book-side) {
-  position: relative;
-  z-index: 1;
+.pair__book-row > .pair__level-price {
+  padding-left: 16px;
+  text-align: left;
 }
 
 .pair__level > .pair__level-price {
   font-weight: 500;
 }
 
-.pair__book .pair__book-empty {
+.pair__book-row > .pair__book-empty {
+  grid-column: 1 / -1;
   padding-left: 16px;
   color: var(--faint);
   text-align: left;
 }
 
 /* The middle row: the last price at the start and the spread at the end, between two rules. */
-.pair__book-mid td {
-  height: auto;
-  padding: 8px 16px;
+.pair__book-mid > .pair__book-row {
+  min-height: 34px;
   border-block: 1px solid var(--border);
 }
 
-.pair__book-mid td:first-child {
-  font-weight: 500;
-  text-align: left;
+.pair__book-row > .pair__book-spread {
+  grid-column: span 2;
 }
 
 .pair__notes {
