@@ -17,6 +17,7 @@ import { niceScale } from "../ui/charts/geometry";
 import { bucketLabel } from "../ui/charts/labels";
 import type { TimeAxis, TimeSeriesData } from "../ui/charts/types";
 import type { AccountTxStatsRow, AccountValueRow, Page } from "./api-types";
+import { divided, percentText } from "./exact";
 import type { NetworkId } from "./networks";
 
 /** A card of the tab: what its call gave, or that it failed or came too late (spec 2.8). Each stands on its own. */
@@ -60,7 +61,6 @@ export interface SentCard {
 }
 
 const DASH = "—";
-const MINUS = "−";
 const ZERO = new BigNumber(0);
 
 // ---- What every builder shares -----------------------------------------------------------------------------------------------------
@@ -82,12 +82,6 @@ function aligned<R extends { date: string }>(buckets: readonly string[], rows: r
   const byDay = new Map<string, R>();
   for (const row of rows) byDay.set(row.date.slice(0, 10), row);
   return buckets.map((bucket) => byDay.get(bucket) ?? null);
-}
-
-/** `n ÷ d` (d above 0) to `places` decimals, half away from zero, exactly: BigNumber's own division rounds at 20 places before we round. */
-function divided(n: BigNumber, d: BigNumber, places: number): BigNumber {
-  const rounded = n.abs().shiftedBy(places).times(2).plus(d).idiv(d.times(2)).shiftedBy(-places);
-  return n.isNegative() && !rounded.isZero() ? rounded.negated() : rounded;
 }
 
 // ---- The frame ---------------------------------------------------------------------------------------------------------------------
@@ -153,12 +147,11 @@ function valueDelta(frame: AnalyticsFrame, values: readonly (BigNumber | null)[]
   const base = values[baseAt]!;
   if (!base.gt(0)) return null;
 
-  const percent = divided(last.minus(base).times(100), base, 1);
-  const direction = percent.isZero() ? "flat" : percent.isNegative() ? "down" : "up";
-  const sign = direction === "up" ? "+" : direction === "down" ? MINUS : "";
+  const { text, sign } = percentText(divided(last.minus(base).times(100), base, 1));
+  const direction = sign === 0 ? "flat" : sign < 0 ? "down" : "up";
   const words =
     baseAt > 0 ? `since ${bucketLabel(axis.buckets[baseAt]!, axis.unit, "axis")}` : period === "all" ? phrase.title : `over the ${phrase.title}`;
-  return { text: `${sign}${formatAmount(percent.abs().toFixed(1))}%`, direction, words };
+  return { text, direction, words };
 }
 
 /**
