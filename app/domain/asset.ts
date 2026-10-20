@@ -32,7 +32,7 @@ const ZERO_HEX = /^0{40}$/;
 /** The ledger's form of a 3-character code: bytes 0 to 11 and 15 to 19 zero, bytes 12 to 14 the code. */
 const STANDARD_HEX = /^0{24}([0-9A-Fa-f]{6})0{10}$/;
 
-/** Upper-case for ASCII letters only: `toUpperCase` also maps characters that are not letters of a code. */
+/** Upper-case for ASCII letters only. */
 function upperAscii(text: string): string {
   return text.replace(/[a-z]+/g, (letters) => letters.toUpperCase());
 }
@@ -123,15 +123,15 @@ export function apiAssetText(asset: Asset): string {
 }
 
 /**
- * The key the data API orders a pair by: the lower-cased currency followed by the lower-cased issuer, with nothing between (the
- * native currency has no issuer, so its text is its code). The API's own key writes the text `undefined` for the missing issuer; the
- * order is the same for every pair of assets of one network, since no other asset of it has a key that starts with its native code.
+ * The key the data API orders a pair by: its `canonicalPairKey` (data-api-new `packages/shared/src/parsers/exchanges.parser.ts`), the
+ * lower-cased currency followed by the lower-cased issuer with nothing between. A missing issuer, or the empty one a stored row carries
+ * for the native currency, is the text `undefined`: the native currency's key is `xrpundefined`, not `xrp`.
  */
 function orderKey(asset: Asset): string {
-  return `${asset.currency}${asset.issuer ?? ""}`.toLowerCase();
+  return (asset.currency + (asset.issuer || "undefined")).toLowerCase();
 }
 
-/** The pair in the API's stored order: lexicographic on the lower-cased `currency+issuer` text. For talking to the API only. */
+/** The pair in the API's stored order (see `orderKey`). For talking to the API only. */
 export function canonicalPair(a: Asset, b: Asset): [Asset, Asset] {
   return orderKey(b) < orderKey(a) ? [b, a] : [a, b];
 }

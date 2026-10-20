@@ -437,6 +437,29 @@ describe("canonicalPair", () => {
     const xah: Asset = { currency: "XAH" };
     expect(canonicalPair(xah, USD)).toEqual([USD, xah]);
   });
+
+  // The API's key is `currency + (issuer || "undefined")`, lower-cased (`canonicalPairKey`, data-api-new
+  // `packages/shared/src/parsers/exchanges.parser.ts`): a native currency's key is `xrpundefined`, not `xrp`.
+  describe.each([
+    ["XRP", XRP],
+    ["XAH", { currency: "XAH" }],
+  ] as const)("the native %s keyed as the API keys it", (code, native) => {
+    const issued: Asset = { currency: code, issuer: GH };
+
+    it("puts the same code issued before the native one: an issuer (`r…`) sorts before `undefined`", () => {
+      expect(canonicalPair(native, issued)).toEqual([issued, native]);
+      expect(canonicalPair(issued, native)).toEqual([issued, native]);
+    });
+
+    it("keys an empty issuer, as a stored row carries for the native currency, as the native currency", () => {
+      const stored: Asset = { currency: code, issuer: "" };
+      expect(canonicalPair(stored, issued)).toEqual([issued, stored]);
+      expect(canonicalPair(issued, stored)).toEqual([issued, stored]);
+      // The same key as the native one: the given order stays.
+      expect(canonicalPair(stored, native)).toEqual([stored, native]);
+      expect(canonicalPair(native, stored)).toEqual([native, stored]);
+    });
+  });
 });
 
 describe("sameAsset", () => {
