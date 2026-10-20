@@ -1291,8 +1291,9 @@ that the markets page uses) and 1,159 of file boundaries (273 of `import`/`expor
   where it came in nine. No page loads more code for it. The client entry's own module
   (the `hydrateRoot` call, 209 bytes) stays the entry's chunk, which no file imports, so hydration starts when React Router's bootstrap imports the
   entry, after the route modules, as before (were it in a chunk the routes import, it would run while they are imported). The plugin checks the bundle
-  it has made, in every client build, a deploy's too: one `vendor` and one `shell` chunk with modules in them, and an entry chunk of the entry module
-  alone that no chunk imports, or the build fails; `pnpm check:bundle` reads the same two chunks in the route manifest (the root route imports both,
+  it has made, in every client build, a deploy's too: the vendor modules in one chunk named `vendor` and the shell's in one named `shell` (known by
+  what they hold: a page's own `shell.tsx` may make another chunk of that name), and an entry chunk that holds the entry module alone, which no
+  other chunk holds or imports, or the build fails; `pnpm check:bundle` reads the same two chunks in the route manifest (the root route imports both,
   the entry `vendor`). `vendor` changes with a dependency, or when the app uses more or less of one: it kept its name over the markets commit, where React's and the format chunk's did too and a one-file shell did not. The
   build adds a runtime chunk (512 bytes) when chunks are grouped, as it did for the cursor's fallback; the figures count it. The dev server is untouched;
 - the tags' builders, one module for each page (see "SEO and link previews"): 1.1 to 1.6 KB off each figure;

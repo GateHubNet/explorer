@@ -14,9 +14,9 @@
 // that hydration starts when the bootstrap imports the entry, after the route modules are in, and not while they are being imported (were it
 // in a chunk the routes import, it would run then). What only some pages load is left to Rolldown's own splitting.
 //
-// The plugin checks what it has made, in every client build (a deploy's too): one chunk named `vendor` and one named `shell`, both with
-// modules in them, and the entry's chunk holding the entry module alone and imported by no chunk (`checkShellBundle`; it throws, and the build
-// fails). `pnpm check:bundle` reads the same in the route manifest of `build/client` (`shellManifestProblems`).
+// The plugin checks what it has made, in every client build (a deploy's too): the vendor modules in one chunk named `vendor`, the shell's in
+// another named `shell`, and the entry's chunk holding the entry module alone, which no other chunk holds or imports (`checkShellBundle`; it
+// throws, and the build fails). `pnpm check:bundle` reads the same in the route manifest of `build/client` (`shellManifestProblems`).
 
 import type { Plugin, Rolldown } from "vite";
 
@@ -95,24 +95,38 @@ export type BundleFile =
   | { type: "asset"; fileName: string };
 
 /**
- * Throws unless the bundle is cut as the groups say: exactly one chunk named `vendor` and one named `shell`, each with modules in it, and one
- * chunk of the client entry (`entry`, its facade), which holds no module but the entry and which no chunk imports statically (see above: were
- * it imported, hydration would start while the route modules are being imported).
+ * Throws unless the bundle is cut as the groups say. The two chunks are known by what they hold, not by their names (Rolldown names an
+ * automatic chunk after its module's file, so a page's own `shell.tsx` or `vendor.ts` makes another chunk of that name): every module of
+ * `modules.vendor` that the bundle has is in one chunk, named `vendor`, and every one of `modules.shell` in another, named `shell`. The client
+ * entry has one chunk (its facade), which holds the entry module and nothing else, and no other chunk holds the entry module or imports that
+ * chunk statically (see above: were the entry in a chunk the routes import, hydration would start while they are being imported).
  */
-export function checkShellBundle(bundle: Readonly<Record<string, BundleFile>>, entry: string): void {
+export function checkShellBundle(bundle: Readonly<Record<string, BundleFile>>, modules: ShellModules): void {
   const chunks = Object.values(bundle).flatMap((file) => (file.type === "chunk" ? [file] : []));
-  for (const name of ["vendor", "shell"]) {
-    const named = chunks.filter((chunk) => chunk.name === name);
-    if (named.length !== 1) throw new Error(`shell chunks: expected one chunk named ${name}, found ${named.length}`);
-    if (named[0]!.moduleIds.length === 0) throw new Error(`shell chunks: the ${name} chunk (${named[0]!.fileName}) has no module`);
+  for (const [name, set] of [
+    ["vendor", modules.vendor],
+    ["shell", modules.shell],
+  ] as const) {
+    const holding = chunks.filter((chunk) => chunk.moduleIds.some((id) => set.has(id)));
+    if (holding.length !== 1) {
+      throw new Error(`shell chunks: expected the ${name} modules in one chunk, found them in ${holding.length}${holding.length > 0 ? ` (${holding.map((chunk) => chunk.fileName).join(", ")})` : ""}`);
+    }
+    const chunk = holding[0]!;
+    // A chunk of another name is not the group's (and a chunk of both sets would be named for one of them only).
+    if (chunk.name !== name) throw new Error(`shell chunks: the chunk that holds the ${name} modules, ${chunk.fileName}, is named ${chunk.name}, not ${name}`);
   }
+
+  const { entry } = modules;
   const entryChunks = chunks.filter((chunk) => chunk.facadeModuleId === entry);
   if (entryChunks.length !== 1) throw new Error(`shell chunks: expected one chunk of the client entry (${entry}), found ${entryChunks.length}`);
   const entryChunk = entryChunks[0]!;
-  const others = entryChunk.moduleIds.filter((id) => id !== entry);
-  if (others.length > 0) {
-    throw new Error(`shell chunks: the client entry's chunk ${entryChunk.fileName} holds other modules too (${others.join(", ")}), which the route modules may import`);
+  if (entryChunk.moduleIds.length !== 1 || entryChunk.moduleIds[0] !== entry) {
+    throw new Error(
+      `shell chunks: the client entry's chunk ${entryChunk.fileName} must hold the entry module and nothing else; it holds ${entryChunk.moduleIds.length === 0 ? "no module" : entryChunk.moduleIds.join(", ")}`,
+    );
   }
+  const elsewhere = chunks.filter((chunk) => chunk !== entryChunk && chunk.moduleIds.includes(entry)).map((chunk) => chunk.fileName);
+  if (elsewhere.length > 0) throw new Error(`shell chunks: ${elsewhere.join(", ")} hold the client entry module too: hydration would start while it is imported`);
   const importers = chunks.filter((chunk) => chunk.imports.includes(entryChunk.fileName)).map((chunk) => chunk.fileName);
   if (importers.length > 0) {
     throw new Error(`shell chunks: ${importers.join(", ")} import the client entry's chunk ${entryChunk.fileName}: hydration would start while they are imported`);
@@ -164,7 +178,7 @@ export function shellChunks({ appDirectory }: { appDirectory: string }): Plugin 
     generateBundle(_options, bundle) {
       if (this.environment.name !== "client") return;
       if (!modules) throw new Error("shell chunks: the bundle was made before the module graph was read (buildEnd)");
-      checkShellBundle(bundle, modules.entry);
+      checkShellBundle(bundle, modules);
     },
   };
 }
