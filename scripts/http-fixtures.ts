@@ -14,6 +14,11 @@
 // What the recordings cannot give, the network page's aggregates over months, fee snapshots and validations, is synthetic: a seeded
 // generator in network-fixtures.ts, called from `generate` below (README.md, "Upstream fixtures"; PROVENANCE.md, "Synthetic aggregates").
 //
+// The markets pages' answers are market-fixtures.ts's (a pair's trades, candles, 24-hour rows and active accounts, derived from the recordings on XRPL and
+// synthetic on Xahau; the markets tables, synthetic around the derived trades), and the pools' `amm_info` answers amm-info-fixtures.ts's (derived); `generate`
+// joins them too (PROVENANCE.md, "Synthetic aggregates" and "Derived trades and pool states"). Both modules, and derived-trades.ts, import this one in turn,
+// so nothing of theirs is used here before `generate` is called, and none of them uses another's exports while it loads (scripts/fixture-imports.test.ts).
+//
 // `?binary=true` answers (`transactions/<HASH>@binary=true.json`) hold `tx` and `meta` as the hex of their serialization,
 // made here with ripple-binary-codec (a devDependency: the Worker never serializes). XRPL uses the codec's own definitions,
 // Xahau the ones recorded from a Xahau node (test/fixtures/definitions/xahau/server_definitions.json, see PROVENANCE.md).
@@ -25,6 +30,8 @@ import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase 
 
 import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
+import { ammInfoFixtures } from "./amm-info-fixtures";
+import { marketFixtures } from "./market-fixtures";
 import { networkFixtures } from "./network-fixtures";
 
 export const LEDGERS = new URL("../test/fixtures/ledgers/", import.meta.url);
@@ -350,6 +357,16 @@ export function isSynthetic(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/(stats\/|ledgers\/[0-9A-F]{64}\/validations@|network\/(fee_stats@|fees@end=|(payment|exchange|amm)_volume@))/.test(path);
 }
 
+/**
+ * Paths (below test/fixtures/http/) of the markets pages' files that market-fixtures.ts writes: the pairs' trades, candles and 24-hour rows
+ * (`data-api/exchanges/`), their active accounts (`data-api/active_accounts/`) and the markets tables (`data-api/network/markets@`). Like the synthetic
+ * aggregates they are reviewed in the generator, so they have a size budget of their own (test/unit/http-fixtures.test.ts), and
+ * test/unit/market-fixtures.test.ts keeps this in step with the generator. (`isSynthetic` is E2's and stays as it is.)
+ */
+export function isMarketGenerated(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/(exchanges\/|active_accounts\/|network\/markets@)/.test(path);
+}
+
 /** The hashes of the transactions the hand-written account lists name, so that every row can be opened. */
 function accountListHashes(net: NetworkName): string[] {
   const dir = new URL(`${net}/data-api/accounts/`, HTTP);
@@ -501,6 +518,13 @@ export function generate(): Map<string, string> {
       api(net, `/v2/transactions/${hash}`, "binary=true", { result: "success", transaction: binaryTx(net, served) });
       put(nodeFile(net, "tx", { transaction: hash }), { result: nodeTxResult(found.raw, found.tx) });
     }
+  }
+
+  // The markets pages' answers and the pools' amm_info answers, each in the layout its generator chose (fixtureText, with the rows of the markets files one to
+  // a line). None may take the place of another generated file.
+  for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures()]) {
+    if (files.has(path)) throw new Error(`${path} is generated twice`);
+    files.set(path, text);
   }
   return files;
 }

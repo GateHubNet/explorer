@@ -1,0 +1,9 @@
+{
+  "accounts": [
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","base_volume":"4.757355","buy":{"base_volume":"2.411362","count":1,"counter_volume":"15235.08"},"count":2,"counter_volume":"30057.15","sell":{"base_volume":"2.345993","count":1,"counter_volume":"14822.07"}},
+    {"account":"rDFDjdFgCEGgYoAxdZVp3AepoErfrPfy48","base_volume":"4.757355","buy":{"base_volume":"2.345993","count":1,"counter_volume":"14822.07"},"count":2,"counter_volume":"30057.15","sell":{"base_volume":"2.411362","count":1,"counter_volume":"15235.08"}}
+  ],
+  "count": 2,
+  "exchanges_count": 2,
+  "result": "success"
+}

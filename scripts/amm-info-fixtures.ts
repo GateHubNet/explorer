@@ -36,7 +36,9 @@ export interface AmmInfoPool {
 export const AMM_INFO_POOLS: AmmInfoPool[] = [
   {
     pool: "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
-    asset: { currency: NATIVE },
+    // XRP written out, not `NATIVE`: http-fixtures.ts imports this module for `generate()`, and derived-trades.ts imports http-fixtures.ts, so when
+    // derived-trades.ts is the first of them to be loaded this list is made before `NATIVE` is (undefined in Vitest, a ReferenceError in Node).
+    asset: { currency: "XRP" },
     asset2: { currency: "524C555344000000000000000000000000000000", issuer: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" },
   },
 ];

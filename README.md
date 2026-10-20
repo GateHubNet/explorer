@@ -959,7 +959,8 @@ nodes, `test/fixtures/http/<net>/` for `xrpl` and `xahau`. The answers are the r
 shaped as the servers shape them (`scripts/http-fixtures.ts`: the data API's from its reference and `app/server/api-types.ts`,
 rippled's from API v1), plus the network page's aggregates, fee snapshots and validations, which the recordings cannot give and a seeded
 generator makes up (`scripts/network-fixtures.ts`), plus the accounts, which are written by hand, plus the order books of the markets pages, which are recorded from the
-public nodes (`scripts/record-node-fixtures.ts`).
+public nodes (`scripts/record-node-fixtures.ts`), plus the markets pages' data API answers and the pools' `amm_info` answers (`scripts/market-fixtures.ts`,
+`scripts/amm-info-fixtures.ts`): XRPL's pairs worked out from the recorded trades (`scripts/derived-trades.ts`), Xahau's pair and the markets tables seeded around them.
 
 | Path below `<net>/` | Holds | By |
 |---|---|---|
@@ -978,10 +979,15 @@ public nodes (`scripts/record-node-fixtures.ts`).
 | `data-api/network/fees@end=2026-10-17&interval=day&...` | the daily fees of each window, the running day included | generator (synthetic) |
 | `data-api/network/payment_volume@...`, `exchange_volume@...`, and on XRPL `amm_volume@...` | the volumes of the four periods, and on XRPL in USD too (`exchange_currency=USD&exchange_issuer=rhub8...`); the day files end on 2026-10-16 and a running week has the days so far | generator (synthetic) |
 | `node/account_info/<address>.json`, `node/account_objects/<address>.json`, `node/server_state.json` | the node's view of the active accounts and the reserves | by hand |
+| `data-api/exchanges/<base>/<counter>@...`, `data-api/active_accounts/<base>/<counter>.json` on XRPL: both orientations of XRP/RLUSD (`exchanges/XRP/524C…+rMx…`, `exchanges/524C…+rMx…/XRP`) and of LIONS/XRP (`exchanges/4C494F4E53…+rGHtf1…/XRP` and its inverse) | the pair page's data API calls of spec 3.3 for the default view: the trades, 20 to a page newest first, with the marker pages (`descending=true&limit=20[&marker=…]`); the candles of the five intervals (`interval=<api>&limit=61&start=<S>`, S from `candleWindow`); the 24-hour row (`reduce=true&start=2026-10-16T17:01:00Z`) and #9's `amm=only` one; the active accounts of the day before T. For XRP/RLUSD in the natural orientation also the lists, candles and 24-hour rows of `amm=exclude` and `amm=only`, and the one-row probe (`descending=true&limit=1`). Made of the trades `scripts/derived-trades.ts` works out from the recorded ledgers (XRP/RLUSD: 37, 4 of them swaps against the pool; LIONS/XRP: 3), inverted for the other orientation | generator (derived) |
+| `data-api/exchanges/EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH@...`, `data-api/active_accounts/EVR+r…/XAH.json` on Xahau | the same calls for EVR/XAH, without `amm`: 161 seeded trades from the first week of the weekly candles to T, one of them dust (an XAH leg of 0.0004: listed, in no aggregate) | generator (synthetic) |
+| `data-api/network/markets@[amm=exclude\|only&]limit=1000&period=<day\|7day\|30day>.json` | the markets table (9 files on XRPL, 3 on Xahau): seeded pairs (about 40, 80 and 150 listed on XRPL, among them `usd`, EUR/USD, USD/USD of two issuers and a pair without a native volume), and the derived pairs on XRPL (XRP/RLUSD is listed in the 7-day and 30-day sets of all trades and of the order book's) and EVR/XAH on Xahau, by the reference's rules at the pinned D2 commit; the AMM fields on XRPL, `"0.0000"` and `false` on Xahau | generator (synthetic) |
+| `node/amm_info/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3.json`, `node/amm_info/XRP_524C…+rMx….json` | the XRP/RLUSD pool's `amm_info`, by its account and by its pair: the state its newest recorded transaction left, at the newest recorded ledger (`scripts/amm-info-fixtures.ts`) | generator (derived) |
 | `node/book_offers/<gets>_<pays>@limit=60.json` | the order books of the markets pages, the whole answer the node gave to `book_offers` with `ledger_index: "validated"` and `limit: 60` (the best 60 offers): both orientations of XRP and RLUSD and of XRP and LIONS on XRPL, of EVR and XAH on Xahau, each read at one validated ledger (`test/fixtures/PROVENANCE.md`, "Recorded node answers": the nodes, the time, each file's `ledger_index`). Kept as the node served them: the XRPL node (Clio) leaves `validated` out and adds `warnings`, as it does live | recorder |
 
-The "By" column says how a file came to be. **generator (derived)**: worked out from the recordings by `scripts/http-fixtures.ts`. **generator (synthetic)**: made up by the
-seeded generator `scripts/network-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. **recorder**: an answer recorded from a public node by
+The "By" column says how a file came to be. **generator (derived)**: worked out from the recordings by `scripts/http-fixtures.ts` (and, for the markets pages' XRPL pairs and
+the pools, by `scripts/derived-trades.ts`, `scripts/market-fixtures.ts` and `scripts/amm-info-fixtures.ts`, which it calls). **generator (synthetic)**: made up by the
+seeded generators `scripts/network-fixtures.ts` and `scripts/market-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. **recorder**: an answer recorded from a public node by
 `scripts/record-node-fixtures.ts` (`pnpm exec tsx scripts/record-node-fixtures.ts`, which needs network access and only reads), never edited by hand, and left alone by
 `pnpm fixtures:sync` too (`isHandWritten`). The recorded ledgers under `test/fixtures/ledgers/` are of the same kind, but they are not files of this table.
 A re-recording changes the files and the table of `test/fixtures/PROVENANCE.md` together, and `test/unit/market-fixtures.test.ts` fails when they part ways.
@@ -1018,6 +1024,14 @@ from `W₀`; `fees` from `W₀` with `interval=day`, always; all with `end=T` an
 `windowOf` and the spec's table of calls, asks the fixture server for each, and fails for a file that is written and never asked for, or asked for and not written.
 The default fixtures include `amm_volume` (the post-merge API), which the top level's `AMM_DATA: "on"` reads; the `worker-off` project does not ask for it. The synthetic files
 (`isSynthetic`) are about 2.3 MiB and have a size budget of their own (`test/unit/http-fixtures.test.ts`).
+
+**The markets pages' files.** `scripts/market-fixtures.ts` (`marketFixtures()`, joined into `generate()` with `ammInfoFixtures()`) makes them all by the data API's rules
+(test/fixtures/PROVENANCE.md, "Synthetic aggregates" and "Derived trades and pool states", names the commits): the candles, 24-hour rows, active accounts and markets rows are
+made of trades, the XRPL pairs' derived from the recordings, the rest drawn from `seedOf(net, "network/markets")` and `seedOf("xahau", "exchanges/EVR+r…/XAH")`, so every count,
+sum, price and close agrees with the trades it is of. A row of them is one line (a trade, a candle, an account, a market), T is the close time of the newest recorded ledger,
+and `test/unit/market-fixtures.test.ts` works out the pair page's and the markets page's requests from `candleWindow` and `dayWindowStart`, asks the fixture server for each,
+runs the client's checks, and checks every figure against its trades; `test/worker/market-fixtures.spec.ts` reads them with the clients' own requests in the Workers runtime.
+They are about 0.84 MiB (`isMarketGenerated`) and have a size budget of their own too.
 
 **The accounts.** The addresses and their transactions are real; what is not in the recordings is not invented beyond what a
 page needs.

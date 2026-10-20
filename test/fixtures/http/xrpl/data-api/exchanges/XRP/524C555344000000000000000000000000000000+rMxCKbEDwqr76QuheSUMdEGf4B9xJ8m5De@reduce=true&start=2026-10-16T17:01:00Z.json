@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "exchanges": [
+    {"base_currency":"XRP","base_volume":"430.097276","buy_volume":425.407775,"close":"1.2890268","close_time":"2026-10-17T17:01:12Z","count":8,"counter_currency":"524C555344000000000000000000000000000000","counter_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","counter_volume":"560.540250163379139","high":"1.3056283","low":"1.2890268","open":"1.3033792","open_time":"2026-10-16T17:34:11Z","start":"2026-10-16T17:01:00Z","vwap":"1.3032871"}
+  ],
+  "result": "success"
+}

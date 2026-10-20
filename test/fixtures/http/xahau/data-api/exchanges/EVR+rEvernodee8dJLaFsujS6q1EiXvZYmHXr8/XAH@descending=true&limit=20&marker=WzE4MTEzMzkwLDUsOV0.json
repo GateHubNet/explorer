@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "exchanges": [
+    {"base_amount":"518.445825","base_currency":"EVR","base_issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","buyer":"rUhuSgV8wXYmpXyFWdhxXh1Y5WjnvN5gyV","counter_amount":"1744.732734","counter_currency":"XAH","executed_time":"2025-09-14T06:20:27Z","ledger_index":17989742,"node_index":6,"offer_sequence":6751972,"provider":"rUhuSgV8wXYmpXyFWdhxXh1Y5WjnvN5gyV","rate":"3.3653135","seller":"rag2KUbDPivKwV6qq2Yx3kizZ5E8PftNmd","taker":"rag2KUbDPivKwV6qq2Yx3kizZ5E8PftNmd","tx_hash":"7AD5A147E05FAD9DCE6CD955ACB4C349A37674698EFEAE013F1E89119E4E9568","tx_index":19,"tx_type":"OfferCreate"}
+  ],
+  "result": "success"
+}

@@ -78,7 +78,8 @@ decision was to leave it hand-written), so its tests in `describe.test.ts` use h
 (`pnpm fixtures:sync`, `scripts/http-fixtures.ts`), and, written by hand, the account files and `server_state` (the README's
 "Upstream fixtures" says which is which, and `test/unit/http-fixtures.test.ts` checks the hand-written ones against the
 recordings). Its transactions are the recorded ones; the creation data of its accounts and its `server_state` are invented. The files of the network page that
-the recordings cannot give are synthetic, and have a section of their own at the end.
+the recordings cannot give are synthetic, and have a section of their own at the end. So have the markets pages' files: their markets tables and Xahau's EVR/XAH
+are synthetic ("Synthetic aggregates"), and XRPL's pair files and the pools' `amm_info` answers are derived from the recorded trades ("Derived trades and pool states").
 
 The account page asks the node for `account_objects` with `limit: 400` (the largest page), and a fixture is found by all the
 parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
@@ -152,18 +153,84 @@ from 1e8 is in exponent form (`"1.2000000e-7"`): the checks take those (`isNumbe
 | `stats/type@...`, `stats/metric@...`, `network/fees@end=...&interval=day...` | for `7d`, `30d`, `90d` and `1y` (days, weeks from Monday for `1y`; `fees` always days); zero counts left out; `transaction_count` is the sum of the type columns and is the `tx_count` of `fees`; about 22,150 ledgers a day on XRPL and 21,600 on Xahau; the running day is pro rata to the close time of the newest ledger (17:01:12 and 17:47:11) | both networks |
 | `network/payment_volume@...`, `network/exchange_volume@...` | the native currency and the markets config's payment currencies; its trade markets. Sorted by converted amount, `rate = amount / converted_amount` to 8 significant digits; day files end on 2026-10-16 (a day counts an hour after it ended), a week adds up its days and the running week has the days so far; USD rows (XRPL) are the native rows at a seeded daily rate, with the same amounts | both networks; USD on XRPL |
 | `network/amm_volume@...` | 3 seeded pools with seeded accounts, two against XRP and one between two issued currencies | XRPL only |
+| `network/markets@limit=1000&period=<day\|7day\|30day>.json`, and on XRPL `network/markets@amm=<exclude\|only>&limit=1000&period=….json` | the markets table of each period (9 files on XRPL, 3 on Xahau), one set of the reference's markets job at T, made of every trade below: the seeded pairs, and on XRPL every pair of the derived trades ("Derived trades and pool states"), on Xahau EVR/XAH. The window is from the hour a period before T (`floorHour(T) − P`) to T; a trade counts when its native leg is above 0.0005; the pairs with 10 trades or more are listed (fewer than the `limit` of 1,000 qualify, so `totals.pairs` is `count`), by native volume (no two are equal), the pairs without one last by count, then by the pair; prices are the 8 significant digits of the stored rates (`toPrecision(8)`, `"0.50000000"`), `change` of the exact rates; the sparkline the 7 days that end with the day of T, a day without a trade carrying the close before it. About 40 rows (24 hours), 83 (7 days) and 159 (30 days) on XRPL, 11, 23 and 41 on Xahau | both networks; the filters on XRPL |
+| `exchanges/EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH@...`, `active_accounts/EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH.json` | the pair page's data API calls of Xahau's EVR/XAH (as XRPL's pairs have them, without `amm`): 161 synthetic trades from the first week of the weekly candles to T, 20 to a page newest first; the candles of the five intervals; the 24-hour row; the accounts of the day before T | Xahau only |
+
+**The markets tables and Xahau's pair.** `scripts/market-fixtures.ts` (`marketFixtures()`, called by `generate()`) draws them from two more streams of `scripts/synthetic.ts`:
+`seedOf(net, "network/markets")` for each network's seeded pairs (every pair first: its two assets, each with a code from the generator's list and an issuer that
+`ripple-address-codec` encodes from 20 seeded bytes, a value in native coins, a tier and a pool; then the trades of each pair day by day, from the day before the 30-day window
+to T), and `seedOf("xahau", "exchanges/EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH")` for EVR/XAH's trades (at the ledgers of the Xahau chain, one every 4 s back from the newest
+recorded one, among 24 seeded accounts; the third newest has an XAH leg of 0.0004, so it is listed and in the active accounts but in no aggregate). The tiers make about 40
+pairs busy enough for the 24 hours, 42 more for 7 days, 75 more for 30 days and 30 that trade but are never listed (XRPL; 10, 12, 18 and 8 on Xahau). Some pairs are there on
+purpose, on both networks: `usd` (a lower-case standard code), EUR/USD and USD/USD of two issuers beside the native pairs of their assets, XAG/XAU (two assets without a
+native pair: no `native_volume`), a token worth about 3.2e-7 native coins (prices in exponent form, as `precision8` writes them) and ZAR (stored with the native currency as
+base). The aggregates are made of the trades by the reference's rules (the commits above; the rules are listed at the head of the generator), so the counts, sums, prices,
+closes and native volumes agree with the trades they are of, and the filtered sets are the order book's and the swaps' parts of the same trades. The AMM fields follow D2's
+absent-field contract (section 8 of the design, D2b.1): present because the set is known; `amm_share` is the AMM part of the pair's base volume over all the trades of the
+window, the same in every filter's set; `amm_pool` whether the pair has a pool (a seeded pair has one by a draw, and some pools have no swap: a share of `"0.0000"` and `true`);
+`totals.amm_share` is Σ native volume × share ÷ Σ native volume over the set's pairs with a native volume, of the exact shares, rounded once to 4 decimals (D2b.1 gives the
+formula, not the rounding); on Xahau `"0.0000"` and `false`. `amm` is in a filtered answer only (`exclude`, `only`); the answer without a filter has none, which the client
+reads as the default.
 
 **Invented, and not checked against anything real:** every count and every amount; the prices (XRP at about 2.4 USD, XAH at about 0.04 USD, BTC at 96,000 USD, 0.92 EUR to the dollar, EVR
 at 0.14 USD, RVN at 0.03 USD) and their daily drift; the volumes and the shares of the components; the pools and their accounts; the validators' keys, the collector's key and the
 columns of a validation beyond the ones the page reads (`count`, `flags`, `full`, `signing_time`, the fee and reserve columns, `reporter_public_key`, `ephemeral_public_key`); the
-weekday and trend of the activity; Xahau's snapshot (16 of 24 expected). The reference does not say what a `fee_stats` marker is, so the snapshot has none. A USD row's `exchange_rate`
+weekday and trend of the activity; Xahau's snapshot (16 of 24 expected); the seeded pairs of the markets tables, their issuers, values, trades, pools and swaps; EVR/XAH's
+trades, accounts, transaction hashes (no transaction of them is served) and price (about 2.4 XAH). The reference does not say what a `fee_stats` marker is, so the snapshot has none. A USD row's `exchange_rate`
 is the USD one native coin buys, by the same reading as a component's `rate`; nothing reads it. Only an end-to-end run against a real stack (`E2E_DATA_API_URL`) checks these
 files against real answers.
 
 **What keeps them true.** `test/unit/network-fixtures.test.ts` reads the files and checks them against the rules above, runs the data API client's own checks
 (`app/server/aggregate-shape.ts`) on every answer, works out the requests the page makes from the spec's table of calls and `windowOf`, and fails when a request finds no file or a
 file is never asked for. `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes. The synthetic files have a size budget of their own in
-`test/unit/http-fixtures.test.ts`.
+`test/unit/http-fixtures.test.ts`. The markets pages' files are checked in the same way by `test/unit/market-fixtures.test.ts` (the requests of spec 3.3 and the markets
+calls worked out from `candleWindow` and `dayWindowStart`, the fixture server's answers, the client's checks, and every figure against the trades it is made of) and
+`test/worker/market-fixtures.spec.ts` (the data API client's own requests in the Workers runtime); `isMarketGenerated` names them, and they have a budget of their own
+(about 0.84 MiB, 81 files).
+
+## Derived trades and pool states: the markets pages' XRPL files and `http/xrpl/node/amm_info/`
+
+Not recorded and not made up: worked out from the trades and pool states of the recorded XRPL ledgers (the three sets above), as the data API and the node would serve them
+for those ledgers. Three generators, all called by `generate()` (`pnpm fixtures:sync`):
+
+- `scripts/derived-trades.ts` (`derivedExchanges`): the `/v2/exchanges` rows of the recorded transactions, an order-book trade for each Offer node a successful Payment or
+  OfferCreate consumed and a swap for each pool it moved, by the rules of the data API's parsers (ported, never imported; the paths are in its head). `invertedExchange` gives
+  a row of the pair asked the other way round, from the rate the trade stored (200 decimals, then 8 significant digits), which the 8 digits it serves do not give back.
+- `scripts/market-fixtures.ts`: for XRP/RLUSD and LIONS/XRP, each in both orientations, the pair page's data API calls of spec 3.3 for the default view, from those rows:
+  the trades 20 to a page, newest first, with the pages their markers name (`descending=true&limit=20[&marker=…]`), the candles of the five intervals
+  (`interval=<api>&limit=61&start=<S>`, S the first bucket of `candleWindow(T, interval)`), the 24-hour row (`reduce=true&start=2026-10-16T17:01:00Z`) and #9's
+  `amm=only` row, the active accounts of the day before T (`active_accounts/<base>/<counter>.json`); for XRP/RLUSD in its natural orientation also the lists, candles and
+  24-hour rows of `amm=exclude` and `amm=only`, and the one-row probe (`descending=true&limit=1`). Every recorded pair goes into XRPL's markets tables too.
+- `scripts/amm-info-fixtures.ts` (`ammInfoFixtures`): the node's `amm_info` of the XRP/RLUSD pool `rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3`, asked by its account
+  (`node/amm_info/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3.json`) and by its pair (`node/amm_info/XRP_524C…+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De.json`): the state its newest
+  recorded transaction left (AccountRoot balance, RLUSD line, AMM node), served at the newest recorded ledger, 107721455, in rippled's API v1 shape.
+
+T is the close time of the newest recorded ledger, `last_validated` (XRPL 2026-10-17T17:01:12Z, Xahau 2026-10-17T17:47:11Z).
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `packages/shared/src/parsers/exchanges.parser.ts`, `amm.parser.ts`, `util/quality.ts`; `apps/api/src/exchanges/exchange-object.ts`, `apps/api/src/common/format.ts`; `docs/api-reference.md` | `data-api-new`, `feat/amm-data` | `c3e23026b3405fc2fd27fc897e724df4dfe106f1` | the trades: an order-book trade and a swap against a pool, the row and its key order, `amm_account` (the pool, the last key of a swap), the `amm` filter (`include`, `exclude`, `only`) of the lists, the candles and `reduce` |
+| `apps/api/src/exchanges/exchange-aggregate.ts`, `exchange-intervals.ts`, `exchanges.service.ts`; `apps/api/src/active-accounts/*`; `packages/shared/src/query/decimal.ts`; `docs/api-reference.md` | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` (the merge of D2) | the candles, the reduced row and the active accounts made of the trades, the markers of the pages; and the markets table (`markets-object.ts`, `packages/shared/src/aggregate/markets-live.job.ts`), with "Synthetic aggregates" |
+| `docs/superpowers/specs/2026-10-19-account-market-aggregates-design.md`, sections 7, 8 and D2b.1 | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` | the AMM fields of the markets table under D2's absent-field contract |
+
+Read with `git -C ../data-api-new show <commit>:<path>`, never checked out.
+
+The recorded cases behind the rows:
+
+| Pair (stored) | Trades | Ledgers | What they are |
+|---|---|---|---|
+| RLUSD/XRP (`524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De/XRP`; the explorer shows it XRP/RLUSD) | 37, from 2026-02-12 to T, 8 of them in the 24 hours before T | 17 of the three sets | 33 order-book trades; 4 swaps against the pool `rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3`, the `xrpl-amm` cases `swap_payment_xrp_iou` (`52E2AD5B…`, ledger 107694747), `offercreate_autobridged_pool_leg` (`F9F304F7…`, 107698980), `swap_offercreate_xrp_iou` (`5081561D…`, 107699656) and `payment_pool_and_book` (`8014250A…`, 107713744), the last two in the 24 hours before T |
+| LIONS/XRP (`4C494F4E53000000000000000000000000000000+rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS/XRP`) | 3, no swap | 107506489, 107720115, 107720688 | the offers of the XRPL active account `rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh` (README, "Upstream fixtures") |
+
+What follows from the recordings: XRP/RLUSD has 8 trades in the 24-hour window, so the 24-hour markets table does not list it (10 are needed) and the `amm=only` tables never do
+(4 swaps); its 7-day and 30-day rows of all trades and of the order book's are made of its trades. Its active accounts include the pool, which bought and sold in the day.
+LIONS/XRP has no swap, so its `amm=only` 24-hour row is the reference's row of zeros.
+
+Where these differ from the data API: an amount is written with `toFixed()` (derived-trades.ts says why: the API's parsers write the exponent form of a tiny amount, which
+the client reads either way); the sums of the aggregates are exact, and an amount the API's exact sums could not hold (more than 30 decimal places, from 1e36) stops the
+generator rather than fall back to floats, as the API would (none does); a trade's stored rate is known to its 8 served digits, which is all an aggregate shows of it, and the
+`change` of a market, which the reference computes from the exact rates, is worked out at both ends of what the 8 digits leave open: the generator stops if the two round
+apart (they agree for every recorded pair). The AMM fields of the markets tables follow D2's absent-field contract as in "Synthetic aggregates".
 
 ## Recorded node answers: `http/<net>/node/book_offers/`
 

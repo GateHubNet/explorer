@@ -1,0 +1,18 @@
+{
+  "accounts": [
+    {"account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","base_volume":"418.293119","buy":{"base_volume":"1.015604","count":1,"counter_volume":"1.325962092"},"count":2,"counter_volume":"545.196812468","sell":{"base_volume":"417.277515","count":1,"counter_volume":"543.870850376"}},
+    {"account":"rKYdJJLAgxbJcn9Ria2X5jMMiqP91r4qy","base_volume":"417.277515","buy":{"base_volume":"417.277515","count":1,"counter_volume":"543.870850376"},"count":1,"counter_volume":"543.870850376","sell":{"base_volume":"0","count":0,"counter_volume":"0"}},
+    {"account":"rHciXfG7ZxFNTYZajwGH7sxCjGJV9rJrHC","base_volume":"7.6","buy":{"base_volume":"0","count":0,"counter_volume":"0"},"count":1,"counter_volume":"9.892914","sell":{"base_volume":"7.6","count":1,"counter_volume":"9.892914"}},
+    {"account":"rDi2VysuPsU5oQRGPDTPiR9YPd34kzK9m8","base_volume":"7.6","buy":{"base_volume":"7.6","count":1,"counter_volume":"9.892914"},"count":1,"counter_volume":"9.892914","sell":{"base_volume":"0","count":0,"counter_volume":"0"}},
+    {"account":"rfi8FjRARhrHfFgtphVNYEoWRzx4MhKGnZ","base_volume":"2.290114","buy":{"base_volume":"0","count":0,"counter_volume":"0"},"count":2,"counter_volume":"2.990000000479139","sell":{"base_volume":"2.290114","count":2,"counter_volume":"2.990000000479139"}},
+    {"account":"rdmFzEkMmPWyySaYCvptaLjyT6sSbYJKx","base_volume":"2.156601","buy":{"base_volume":"2.156601","count":3,"counter_volume":"2.7864857869"},"count":3,"counter_volume":"2.7864857869","sell":{"base_volume":"0","count":0,"counter_volume":"0"}},
+    {"account":"rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7","base_volume":"1.54603","buy":{"base_volume":"0","count":0,"counter_volume":"0"},"count":2,"counter_volume":"2","sell":{"base_volume":"1.54603","count":2,"counter_volume":"2"}},
+    {"account":"rKrVTQChbm1761udZt18u9Aq9onJwEyvZw","base_volume":"1.27451","buy":{"base_volume":"1.27451","count":1,"counter_volume":"1.664037908479139"},"count":1,"counter_volume":"1.664037908479139","sell":{"base_volume":"0","count":0,"counter_volume":"0"}},
+    {"account":"r3AScGaNv8UapSQxhcPyTy4nYh1P9jqGL","base_volume":"0.853357","buy":{"base_volume":"0","count":0,"counter_volume":"0"},"count":1,"counter_volume":"1.10000004","sell":{"base_volume":"0.853357","count":1,"counter_volume":"1.10000004"}},
+    {"account":"r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo","base_volume":"0.773046","buy":{"base_volume":"0.773046","count":1,"counter_volume":"1"},"count":1,"counter_volume":"1","sell":{"base_volume":"0","count":0,"counter_volume":"0"}},
+    {"account":"rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns","base_volume":"0.53026","buy":{"base_volume":"0","count":0,"counter_volume":"0"},"count":1,"counter_volume":"0.6864857469","sell":{"base_volume":"0.53026","count":1,"counter_volume":"0.6864857469"}}
+  ],
+  "count": 11,
+  "exchanges_count": 8,
+  "result": "success"
+}

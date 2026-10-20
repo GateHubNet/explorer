@@ -1,0 +1,9 @@
+{
+  "count": 3,
+  "exchanges": [
+    {"base_currency":"XRP","base_volume":"1.27451","buy_volume":0,"close":"1.3056283","close_time":"2026-10-17T08:42:50Z","count":1,"counter_currency":"524C555344000000000000000000000000000000","counter_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","counter_volume":"1.664037908479139","high":"1.3056283","low":"1.3056283","open":"1.3056283","open_time":"2026-10-17T08:42:50Z","start":"2026-10-17T08:30:00Z","vwap":"1.3056295"},
+    {"base_currency":"XRP","base_volume":"2.07629","buy_volume":0.53026,"close":"1.2935851","close_time":"2026-10-17T16:11:02Z","count":3,"counter_currency":"524C555344000000000000000000000000000000","counter_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","counter_volume":"2.6864857469","high":"1.2946200","low":"1.2935851","open":"1.2936886","open_time":"2026-10-17T16:02:02Z","start":"2026-10-17T16:00:00Z","vwap":"1.2938875"},
+    {"base_currency":"XRP","base_volume":"0.853357","buy_volume":0,"close":"1.2890268","close_time":"2026-10-17T17:01:12Z","count":1,"counter_currency":"524C555344000000000000000000000000000000","counter_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","counter_volume":"1.10000004","high":"1.2890268","low":"1.2890268","open":"1.2890268","open_time":"2026-10-17T17:01:12Z","start":"2026-10-17T17:00:00Z","vwap":"1.2890268"}
+  ],
+  "result": "success"
+}

@@ -1,0 +1,17 @@
+{
+  "result": {
+    "amm": {
+      "account": "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
+      "amount": "1847691034536",
+      "amount2": {"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"2417282.053464318"},
+      "auction_slot": {"account":"r4uKh2rHuarMZdAgSBYqqicX7MxPBegttw","auth_accounts":[{"account":"rNy92d5CrBQ1eC5HUokq1LDfcuLPvTfh4X"},{"account":"rJrFQCQKgUJwG6bnDLyX33ea4DwWcjk6P3"},{"account":"rGDuzDRHd7MEPHLykPt6Z2CkQuvBcDrdQZ"},{"account":"rBJpahxkPrMenKYzKBKEFNGsd7KpBTPL5P"}],"discounted_fee":20,"expiration":"2026-03-02T17:05:00+0000","price":{"currency":"03B245BE580EC4F4386A751C084489EC4B514A2F","issuer":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","value":"131482.3939333034"},"time_interval":20},
+      "lp_token": {"currency":"03B245BE580EC4F4386A751C084489EC4B514A2F","issuer":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","value":"1791055986.845366"},
+      "trading_fee": 205,
+      "vote_slots": [{"account":"rJ4XeEzorvsQp6un4h9CjtANEsB3Qcc8iA","trading_fee":300,"vote_weight":2932},{"account":"rDu4vMpZU5WcwVME6oorzSov4DMLWXUEDf","trading_fee":0,"vote_weight":1948},{"account":"rHq1hgWYgaiG9ycudXHoMbqGdJi75UTfzt","trading_fee":200,"vote_weight":3514},{"account":"rETg9RYxRAxgNjm33Q4tAWceKKVoMcpM7","trading_fee":200,"vote_weight":3514},{"account":"rnEQs55pWyvEfWXkjMCD2TNzCQ1uS7SBGS","trading_fee":200,"vote_weight":3514},{"account":"rwCdTmuSML5TizAMTAZFKC5ppkdxT5j24k","trading_fee":200,"vote_weight":3514},{"account":"rUaf9PLELm2gtui2pEivv7k9Xbue5c6yJ3","trading_fee":200,"vote_weight":3514},{"account":"r42VCs56CWH9eiS4EKBQB33ThbtPcBwN4","trading_fee":1000,"vote_weight":271}]
+    },
+    "ledger_hash": "68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092",
+    "ledger_index": 107721455,
+    "status": "success",
+    "validated": true
+  }
+}

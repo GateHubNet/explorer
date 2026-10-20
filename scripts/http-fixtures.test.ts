@@ -28,6 +28,8 @@ import {
   type RawLedger,
   type RawTx,
 } from "./http-fixtures";
+import { ammInfoFixtures } from "./amm-info-fixtures";
+import { marketFixtures } from "./market-fixtures";
 
 describe("the generated upstream fixtures", () => {
   // The committed files are what the generator writes from the recordings (`pnpm fixtures:sync` rewrites them).
@@ -54,6 +56,25 @@ describe("the generated upstream fixtures", () => {
 
   it("never include a file that is written by hand", () => {
     expect([...generate().keys()].filter(isHandWritten)).toEqual([]);
+  });
+
+  // The markets pages' answers (market-fixtures.ts: a pair's trades, candles, 24-hour rows and active accounts, and the markets table) and the pools'
+  // `amm_info` answers (amm-info-fixtures.ts) are generated with the rest, so `pnpm fixtures:sync` writes them and `fixtures:check` fails when they part ways.
+  it("hold the market fixtures and the amm_info files, as their generators write them, none of them written by hand", () => {
+    const generated = generate();
+    const market = marketFixtures();
+    const pools = ammInfoFixtures();
+    expect(market.size).toBeGreaterThan(50);
+    expect([...pools.keys()]).toEqual(
+      expect.arrayContaining([
+        "xrpl/node/amm_info/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3.json",
+        "xrpl/node/amm_info/XRP_524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De.json",
+      ]),
+    );
+    for (const [path, text] of [...market, ...pools]) expect(generated.get(path), path).toBe(text);
+    expect([...market.keys(), ...pools.keys()].filter(isHandWritten)).toEqual([]);
+    expect([...market.keys()].some((path) => path.startsWith("xrpl/data-api/network/markets@"))).toBe(true);
+    expect([...market.keys()].some((path) => path.startsWith("xahau/data-api/exchanges/EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH@"))).toBe(true);
   });
 
   // The order books are recorded from the public nodes (scripts/record-node-fixtures.ts), not worked out from the recorded ledgers: the generator

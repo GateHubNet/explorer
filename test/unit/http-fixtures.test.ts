@@ -3,7 +3,7 @@ import { gunzipSync } from "node:zlib";
 import { isValidClassicAddress } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
-import { dataApiTx, HTTP, inLedgerOrder, isSynthetic, LEDGERS, isoTime, readLedgers, txMarker, unixOf, type RawLedger, type RawTx } from "../../scripts/http-fixtures";
+import { dataApiTx, HTTP, inLedgerOrder, isMarketGenerated, isSynthetic, LEDGERS, isoTime, readLedgers, txMarker, unixOf, type RawLedger, type RawTx } from "../../scripts/http-fixtures";
 import { canonicalQuery, dataApiFile } from "../support/upstream-core";
 
 // What the fixtures of test/fixtures/http/ promise the tests that use them. The generated files are checked against
@@ -67,10 +67,14 @@ describe("every fixture file", () => {
 
   it("stays within the budget that keeps the set reviewable", () => {
     const bytes = (names: string[]) => names.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
-    expect(bytes(files.filter((file) => !isSynthetic(file)))).toBeLessThan(3.5 * 1024 * 1024);
+    expect(bytes(files.filter((file) => !isSynthetic(file) && !isMarketGenerated(file)))).toBeLessThan(3.5 * 1024 * 1024);
     // The synthetic aggregates of the network page (about 2.3 MiB, a row to a line: four periods, two display currencies, three volumes) are
     // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
     expect(bytes(files.filter(isSynthetic))).toBeLessThan(2.7 * 1024 * 1024);
+    // The markets pages' files (scripts/market-fixtures.ts: the pairs' trades, candles, 24-hour rows and active accounts, and the nine XRPL and three
+    // Xahau markets tables, a row to a line; 81 files, 885,058 bytes, about 0.84 MiB) are reviewed as their generator too, and have a budget of their own.
+    expect(bytes(files.filter(isMarketGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isMarketGenerated))).toBeLessThan(1.0 * 1024 * 1024);
   });
 });
 
