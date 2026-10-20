@@ -10,17 +10,8 @@ import type { NetworkId } from "./networks";
 
 export type PairPath =
   | { kind: "pair"; base: Asset; counter: Asset; canonicalPath: string }
-  /** `asked` is the decoded `base/counter`, cut to 40 characters: what the not-found page says was looked for. */
+  /** `asked` is the decoded `base/counter`, whole: what the not-found page says was looked for, through `echoOf` (echo.ts), which cuts it. */
   | { kind: "not-a-pair"; asked: string };
-
-/** How much of what was asked the not-found page repeats. */
-const ASKED_LENGTH = 40;
-
-/** A text cut to `ASKED_LENGTH` characters, between characters (a surrogate pair is one). */
-function cut(text: string): string {
-  const characters = [...text];
-  return characters.length <= ASKED_LENGTH ? text : characters.slice(0, ASKED_LENGTH).join("");
-}
 
 /**
  * The pair a path names. `rawPath` is the path as the request has it (`/xrpl/markets/XRP/USD.rhub…`: percent-escapes kept, the query not
@@ -46,7 +37,7 @@ export function parsePairPath(network: { id: NetworkId; native: NativeCode }, ra
       decodes = false;
     }
   }
-  const notAPair: PairPath = { kind: "not-a-pair", asked: cut(texts.join("/")) };
+  const notAPair: PairPath = { kind: "not-a-pair", asked: texts.join("/") };
 
   if (segments.length !== 2 || !decodes) return notAPair;
   const base = parseAssetText(texts[0]!, network);

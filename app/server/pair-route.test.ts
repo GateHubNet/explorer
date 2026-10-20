@@ -162,30 +162,30 @@ describe("parsePairPath: not a pair", () => {
   const SAME_ISSUER_USD = `USD.${GH}`;
 
   it.each([
-    ["two separators", XRPL, path("XRP", `USD.${GH}.x`), `XRP/USD.${GH}.x`.slice(0, 40)],
-    ["two kinds of separator", XRPL, path("XRP", `USD+${GH}.x`), `XRP/USD+${GH}.x`.slice(0, 40)],
-    ["all-zero hex", XRPL, path("XRP", `${"0".repeat(40)}.${GH}`), `XRP/${"0".repeat(40)}.${GH}`.slice(0, 40)],
-    ["the native code with an issuer on XRPL", XRPL, path(`XRP.${GH}`, SAME_ISSUER_USD), `XRP.${GH}/USD.${GH}`.slice(0, 40)],
-    ["the native code in lower case with an issuer on XRPL", XRPL, path(`xrp.${GH}`, "XRP"), `xrp.${GH}/XRP`.slice(0, 40)],
-    ["the native code with an issuer on Xahau", XAHAU, path(`XAH.${GH}`, SAME_ISSUER_USD, "xahau"), `XAH.${GH}/USD.${GH}`.slice(0, 40)],
+    ["two separators", XRPL, path("XRP", `USD.${GH}.x`), `XRP/USD.${GH}.x`],
+    ["two kinds of separator", XRPL, path("XRP", `USD+${GH}.x`), `XRP/USD+${GH}.x`],
+    ["all-zero hex", XRPL, path("XRP", `${"0".repeat(40)}.${GH}`), `XRP/${"0".repeat(40)}.${GH}`],
+    ["the native code with an issuer on XRPL", XRPL, path(`XRP.${GH}`, SAME_ISSUER_USD), `XRP.${GH}/USD.${GH}`],
+    ["the native code in lower case with an issuer on XRPL", XRPL, path(`xrp.${GH}`, "XRP"), `xrp.${GH}/XRP`],
+    ["the native code with an issuer on Xahau", XAHAU, path(`XAH.${GH}`, SAME_ISSUER_USD, "xahau"), `XAH.${GH}/USD.${GH}`],
     ["a code without an issuer", XRPL, path("XRP", "USD"), "XRP/USD"],
     ["a text code without an issuer", XRPL, path("XRP", "RLUSD"), "XRP/RLUSD"],
     ["the other network's native code alone", XRPL, path("XRP", "XAH"), "XRP/XAH"],
-    ["a bad checksum", XRPL, path("XRP", `USD.${GH.slice(0, -1)}x`), `XRP/USD.${GH.slice(0, -1)}x`.slice(0, 40)],
-    ["an X-address issuer", XRPL, path("XRP", `USD.${classicAddressToXAddress(GH, false, false)}`), `XRP/USD.${classicAddressToXAddress(GH, false, false)}`.slice(0, 40)],
-    ["a code containing `|`", XRPL, path("XRP", `U|D.${GH}`), `XRP/U|D.${GH}`.slice(0, 40)],
-    ["a code containing an escaped `|`", XRPL, path("XRP", `U%7CD.${GH}`), `XRP/U|D.${GH}`.slice(0, 40)],
-    ["a code of the wrong length", XRPL, path("XRP", `US.${GH}`), `XRP/US.${GH}`.slice(0, 40)],
-    ["a code that is too long", XRPL, path("XRP", `${"A".repeat(21)}.${GH}`), `XRP/${"A".repeat(21)}.${GH}`.slice(0, 40)],
+    ["a bad checksum", XRPL, path("XRP", `USD.${GH.slice(0, -1)}x`), `XRP/USD.${GH.slice(0, -1)}x`],
+    ["an X-address issuer", XRPL, path("XRP", `USD.${classicAddressToXAddress(GH, false, false)}`), `XRP/USD.${classicAddressToXAddress(GH, false, false)}`],
+    ["a code containing `|`", XRPL, path("XRP", `U|D.${GH}`), `XRP/U|D.${GH}`],
+    ["a code containing an escaped `|`", XRPL, path("XRP", `U%7CD.${GH}`), `XRP/U|D.${GH}`],
+    ["a code of the wrong length", XRPL, path("XRP", `US.${GH}`), `XRP/US.${GH}`],
+    ["a code that is too long", XRPL, path("XRP", `${"A".repeat(21)}.${GH}`), `XRP/${"A".repeat(21)}.${GH}`],
     ["the same asset on both sides", XRPL, path("XRP", "XRP"), "XRP/XRP"],
     ["the same asset written two ways", XRPL, path("XRP", "xrp"), "XRP/xrp"],
-    ["the same asset with an issuer", XRPL, path(`USD.${GH}`, `usd+${GH}`), `USD.${GH}/usd+${GH}`.slice(0, 40)],
-    ["the same asset, a text code and its hex", XRPL, path(`RLUSD.${RL}`, `${RLUSD_HEX}.${RL}`), `RLUSD.${RL}/${RLUSD_HEX}.${RL}`.slice(0, 40)],
+    ["the same asset with an issuer", XRPL, path(`USD.${GH}`, `usd+${GH}`), `USD.${GH}/usd+${GH}`],
+    ["the same asset, a text code and its hex", XRPL, path(`RLUSD.${RL}`, `${RLUSD_HEX}.${RL}`), `RLUSD.${RL}/${RLUSD_HEX}.${RL}`],
     ["an empty segment", XRPL, `/xrpl/markets//USD.${GH}`, `/USD.${GH}`],
     ["both segments empty", XRPL, "/xrpl/markets//", "/"],
     ["one segment", XRPL, "/xrpl/markets/XRP", "XRP"],
-    ["three segments", XRPL, path("XRP", `USD.${GH}/x`), `XRP/USD.${GH}/x`.slice(0, 40)],
-    ["a trailing slash", XRPL, `${path("XRP", `USD.${GH}`)}/`, `XRP/USD.${GH}/`.slice(0, 40)],
+    ["three segments", XRPL, path("XRP", `USD.${GH}/x`), `XRP/USD.${GH}/x`],
+    ["a trailing slash", XRPL, `${path("XRP", `USD.${GH}`)}/`, `XRP/USD.${GH}/`],
     ["no segments", XRPL, "/xrpl/markets", ""],
     ["no segments, with a slash", XRPL, "/xrpl/markets/", ""],
   ] as const)("says so for %s", (_what, net, raw, asked) => {
@@ -196,25 +196,17 @@ describe("parsePairPath: not a pair", () => {
     expect(parsePairPath(XRPL, path("XRP", "%E0%A4%A"))).toEqual({ kind: "not-a-pair", asked: "XRP/%E0%A4%A" });
     expect(parsePairPath(XRPL, path("XRP", `USD.${GH}%`))).toEqual({
       kind: "not-a-pair",
-      asked: `XRP/USD.${GH}%`.slice(0, 40),
+      asked: `XRP/USD.${GH}%`,
     });
     // a lone `%BC` is a malformed UTF-8 sequence, not a character
     expect(parsePairPath(XRPL, path("XRP", `A%BC.${RL}`)).kind).toBe("not-a-pair");
   });
 
-  it("shows what was asked decoded, and cut to 40 characters", () => {
+  it("shows what was asked decoded and whole: the not-found page's echo (echoOf) cuts it", () => {
     expect(parsePairPath(XRPL, path("XRP", "USD%2B%41"))).toEqual({ kind: "not-a-pair", asked: "XRP/USD+A" });
-    const asked = (parsePairPath(XRPL, path("XRP", "z".repeat(100))) as { asked: string }).asked;
-    expect(asked).toBe(`XRP/${"z".repeat(36)}`);
-    expect(asked).toHaveLength(40);
-  });
-
-  it("cuts a long text between characters, never inside one", () => {
+    expect(parsePairPath(XRPL, path("XRP", "z".repeat(100)))).toEqual({ kind: "not-a-pair", asked: `XRP/${"z".repeat(100)}` });
     const smiley = "\u{1F600}";
-    const { asked } = parsePairPath(XRPL, path("XRP", encodeURIComponent(smiley.repeat(50)))) as { asked: string };
-    expect([...asked]).toHaveLength(40);
-    expect(asked).toBe(`XRP/${smiley.repeat(36)}`);
-    expect(asked).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    expect(parsePairPath(XRPL, path("XRP", encodeURIComponent(smiley.repeat(50))))).toEqual({ kind: "not-a-pair", asked: `XRP/${smiley.repeat(50)}` });
   });
 
   it("does not read a code that is valid on the other network", () => {

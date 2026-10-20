@@ -27,6 +27,7 @@ import {
 import { MARKER_PAGE_CLASS } from "../server/cache-class";
 import type { DataApi } from "../server/data-api";
 import { clientsFor } from "../server/clients";
+import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { markDegraded } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
@@ -133,7 +134,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     return permanent(`/${network.id}/account/${classicAddress}${tag === false ? "" : `?tag=${tag}`}`);
   }
   if (!isValidClassicAddress(address)) {
-    throw cached({ notFound: `account ${JSON.stringify(address.slice(0, 40))}` }, "short", { status: 404 });
+    throw cached({ notFound: `account ${echoOf(address)}` }, "short", { status: 404 });
   }
 
   const search = new URL(request.url).searchParams;

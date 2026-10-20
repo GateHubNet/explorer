@@ -3,6 +3,7 @@ import { redirect } from "react-router";
 import { decodeCtid } from "../domain/ctid";
 import { shortHash } from "../domain/format";
 import { clientsFor } from "../server/clients";
+import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
@@ -82,7 +83,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const ctid = decodeCtid(id);
   if (ctid) return ctidAnswer(context, network, id, ctid.networkId);
 
-  throw cached({ notFound: `transaction ${JSON.stringify(id.slice(0, 80))}` }, "short", { status: 404 });
+  throw cached({ notFound: `transaction ${echoOf(id)}` }, "short", { status: 404 });
 }
 
 async function ctidAnswer(context: Route.LoaderArgs["context"], network: Network, ctid: string, ctidNetworkId: number) {

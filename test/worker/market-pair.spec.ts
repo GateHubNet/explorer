@@ -647,6 +647,17 @@ describe("what is not a pair", () => {
     expect(mock.requests).toEqual([]);
   });
 
+  it("leaves the bidi controls and the C1 controls out of what it says was asked: a crafted link cannot reorder the sentence", async () => {
+    mock = mockUpstream("xrpl");
+    // U+202E, a right-to-left override, and U+0085, a C1 control, inside the code.
+    const path = `/xrpl/markets/XRP/%E2%80%AEUSD%C2%85.${USD_ISSUER}x`;
+    const { response, html, text } = await render(path);
+    expect(response.status).toBe(404);
+    expect(text).toContain(`We couldn’t find a market for "XRP/USD.${USD_ISSUER.slice(0, 32)}" on XRPL.`);
+    expect(html).not.toMatch(/[\u202A-\u202E\u2066-\u2069\u0080-\u009F]/);
+    expect(mock.requests).toEqual([]);
+  });
+
   it("is a 404 of class short for a marker that is not one, before the query is tidied and before any call", async () => {
     mock = mockUpstream("xrpl");
     const path = `/xrpl/markets/xrp/RLUSD.${RLUSD_ISSUER}?interval=4h&marker=%21%21`;

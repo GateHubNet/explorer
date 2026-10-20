@@ -11,6 +11,7 @@ import type { Page, PairExchange } from "../server/api-types";
 import { HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
 import { byDeadline, CARD_DEADLINE_MS, outcome, TooLate } from "../server/deadline";
+import { echoOf } from "../server/echo";
 import { cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv, markDegraded } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
@@ -100,7 +101,7 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   if (!net.features.markets) throw cached({ notFound: "the markets pages" }, "short", { status: 404 });
 
   const path = parsePairPath(net, url.pathname);
-  if (path.kind === "not-a-pair") throw cached({ notFound: `a market for ${JSON.stringify(path.asked)}` }, "short", { status: 404 });
+  if (path.kind === "not-a-pair") throw cached({ notFound: `a market for ${echoOf(path.asked)}` }, "short", { status: 404 });
 
   const search = queryOf(request.url);
   const { params: view, canonical } = parsePairParams(new URLSearchParams(search), {

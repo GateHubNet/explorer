@@ -2,6 +2,7 @@ import { redirect } from "react-router";
 
 import { shortHash } from "../domain/format";
 import { clientsFor } from "../server/clients";
+import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "../server/ledger-view";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
@@ -51,7 +52,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     const canonical = String(Number(id));
     if (id !== canonical) return canonicalRedirect(`/${network.id}/ledger/${canonical}`);
   } else {
-    throw cached({ notFound: `ledger ${JSON.stringify(id.slice(0, 80))}` }, "short", { status: 404 });
+    throw cached({ notFound: `ledger ${echoOf(id)}` }, "short", { status: 404 });
   }
 
   const what = `ledger ${LEDGER_HASH.test(id) ? shortHash(id) : id}`;
