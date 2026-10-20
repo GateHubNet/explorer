@@ -6,6 +6,7 @@
 // everywhere else a time is an ISO 8601 string in UTC. Amounts are exact decimal strings in whole units of the
 // currency (the native currency included), never numbers. Types only: nothing here runs.
 
+import type { AnalyticsUnit } from "../domain/analytics-params";
 import type { TxJson, TxMeta } from "../domain/parse/types";
 
 // ---- Ledgers: GET /v2/ledgers/{ledger_param}, GET /v2/last_validated ----------------------------------------------
@@ -593,4 +594,156 @@ export interface LedgerValidations {
   count: number;
   marker?: string;
   validations: Validation[];
+}
+
+// ---- Account analytics: GET /v2/accounts/{address}/stats/{family}?interval= and /analytics/{balances,balance_changes,counterparties,exchanges} -----
+// (D2, `feat/explorer-data` 7d495ab; checked by `analytics-shape.ts`.) Amounts are whole units, values are in the native currency, both exact decimal
+// strings; counts are whole numbers; a time is `YYYY-MM-DDTHH:mm:ssZ` and the `date` of a bucket is its start (UTC midnight, a Monday for a week, the 1st
+// for a month). A key without a value is left out, `null` is never served. `start` and `end` are the window widened to whole buckets, `end` exclusive.
+// The lists are whole answers or top lists: there is no `marker`.
+
+/** One of the ten kinds of balance change of `balance_changes`; a change of a transaction type the original never classified has none. */
+export type ChangeType =
+  | "transaction_cost"
+  | "payment_destination"
+  | "payment_source"
+  | "exchange"
+  | "intermediary"
+  | "escrow_create"
+  | "escrow_finish"
+  | "escrow_cancel"
+  | "paychannel_fund"
+  | "paychannel_payout";
+
+/** `stats/value?interval=`: what the account held at the end of the bucket's last day, in the native currency. A row for every bucket from its first balance. */
+export interface AccountValueRow {
+  date: string;
+  account_value: string;
+  balance_change_count: number;
+}
+
+/** `stats/transactions?interval=`: what the account sent in the bucket (a bucket in which it sent nothing has no row), by result code and by type. */
+export interface AccountTxStatsRow {
+  date: string;
+  transaction_count: number;
+  result: Record<string, number>;
+  type: Record<string, number>;
+}
+// `stats/{family}` answers are `Page<"rows", AccountValueRow>` and `Page<"rows", AccountTxStatsRow>`. With `limit=1000` they have no `marker`.
+
+/** A trust line, or the native balance (no `counterparty`), at the end of the window. */
+export interface AnalyticsBalanceLine {
+  currency: string;
+  counterparty?: string;
+  /** Negative: what the account owes on the line. */
+  balance: string;
+}
+
+/** The balance of a line at the end of a bucket. */
+export interface AnalyticsBalanceRow {
+  date: string;
+  currency: string;
+  counterparty?: string;
+  balance: string;
+}
+
+/** `analytics/balances`: the first `limit` lines (the native line first, then by what they are worth) of `lines_total`, and a row for each line and bucket. The answer always carries `interval`. */
+export interface AnalyticsBalances {
+  result: "success";
+  start: string;
+  end: string;
+  interval: AnalyticsUnit;
+  lines_total: number;
+  lines: AnalyticsBalanceLine[];
+  /** The number of `rows`. */
+  count: number;
+  rows: AnalyticsBalanceRow[];
+}
+
+/** What the changes of a type came to in the window, in native-currency values: `in_value` the positive changes, `out_value` the negative ones as a positive amount. */
+export interface BalanceChangeTotal {
+  change_type?: string;
+  count: number;
+  in_value: string;
+  out_value: string;
+  net_value: string;
+}
+
+/** What the changes of a type came to in a bucket (a bucket or type with no change has no row). */
+export interface BalanceChangeBucket {
+  date: string;
+  change_type?: string;
+  count: number;
+  in_value: string;
+  out_value: string;
+}
+
+/**
+ * `analytics/balance_changes?interval=`. The reference's answer with no `interval` (rows per change type and asset, with `currency`, `issuer`, `in` and
+ * `out`) is not modelled: the explorer always asks with one, and the answer then always carries it.
+ */
+export interface AnalyticsBalanceChanges {
+  result: "success";
+  start: string;
+  end: string;
+  interval: AnalyticsUnit;
+  totals: BalanceChangeTotal[];
+  /** The number of `rows`. */
+  count: number;
+  rows: BalanceChangeBucket[];
+}
+
+/** An account the account paid or was paid by. The values are what the payments were worth; `first` and `last` the times of the first and last payment. */
+export interface AnalyticsCounterparty {
+  account: string;
+  sent_value: string;
+  received_value: string;
+  total_value: string;
+  payments_sent: number;
+  payments_received: number;
+  first: string;
+  last: string;
+}
+
+/** `analytics/counterparties`: the first `limit` of `total` counterparties by `sort`, largest first. */
+export interface AnalyticsCounterparties {
+  result: "success";
+  start: string;
+  end: string;
+  sort: "value" | "count";
+  total: number;
+  /** The number served. */
+  count: number;
+  counterparties: AnalyticsCounterparty[];
+}
+
+/**
+ * A pair the account traded, in the canonical stored order (as `/v2/exchanges` serves a pair). `bought` is the base it received and `sold` the base it gave;
+ * `bought_counter` the counter it paid for what it bought, `sold_counter` the counter it received for what it sold. `native_volume` is left out when no day
+ * of the pair had a rate.
+ */
+export interface AnalyticsPair {
+  base_currency: string;
+  base_issuer?: string;
+  counter_currency: string;
+  counter_issuer?: string;
+  count: number;
+  base_volume: string;
+  counter_volume: string;
+  bought: string;
+  sold: string;
+  bought_counter: string;
+  sold_counter: string;
+  native_volume?: string;
+}
+
+/** `analytics/exchanges`: the first `limit` of `total` pairs, by native volume, largest first. */
+export interface AnalyticsExchanges {
+  result: "success";
+  start: string;
+  end: string;
+  total: number;
+  /** The number served. */
+  count: number;
+  pairs: AnalyticsPair[];
 }
