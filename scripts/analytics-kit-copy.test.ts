@@ -181,6 +181,23 @@ describe("kitCopyOf: the module graph at the end of the client build", () => {
     expect(() => kitCopyOf(graph, APP)).toThrow(message);
   });
 
+  // The rule about the contexts reads the modules' code. Were Rolldown to give none at the end of the build (`ModuleInfo.code` is `null`), or were the
+  // contexts to leave the kit, it would find no context and pass whatever imports what: it throws instead.
+  it("throws when no module of the kit creates a React context: the code of the modules could not be read, or the contexts moved", () => {
+    const unread: KitGraph = {
+      ids: Object.keys(MODULES),
+      info: (id) => {
+        const info = graphOf(MODULES).info(id);
+        return info && { ...info, code: null };
+      },
+    };
+    expect(() => kitCopyOf(unread, APP)).toThrow(/no module of the kit creates a React context .*Cursor\.tsx/);
+    const moved = changed({ [ui("charts/Cursor.tsx")]: { ...MODULES[ui("charts/Cursor.tsx")]!, code: "" }, [ui(`charts/Cursor.tsx${KIT_COPY}`)]: { ...MODULES[ui(`charts/Cursor.tsx${KIT_COPY}`)]!, code: "" } });
+    expect(() => kitCopyOf(moved, APP)).toThrow(/no module of the kit creates a React context/);
+    // One module of the kit that creates one is enough, the copy's alone too.
+    expect(() => kitCopyOf(changed({ [ui("charts/Cursor.tsx")]: { ...MODULES[ui("charts/Cursor.tsx")]!, code: "" } }), APP)).not.toThrow();
+  });
+
   it("finds the kit's contexts by what a module of the kit does: a new createContext elsewhere in the kit is held to the same rule", () => {
     const graph = changed({
       [ui("charts/Legend.tsx")]: { code: "export const LegendContext = React.createContext(null);" },

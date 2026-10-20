@@ -21,7 +21,8 @@
 //
 //   - `kitCopyOf`, on the module graph (`buildEnd`): the view is in the build; so are `use-hydrated.ts` and `StatTile.tsx`; every module of the
 //     kit that the view loads is its copy, and among them is the chart kit's directory; nothing but the view and the copies imports a copy; the
-//     page that imports the view loads none of the kit; and no module outside the kit imports a module of the kit that creates a React context.
+//     page that imports the view loads none of the kit; a module of the kit creates a React context; and no module outside the kit imports a module of
+//     the kit that creates one.
 //   - `checkKitCopyBundle`, on the bundle (`generateBundle`): the view has a chunk of its own, the copies are in it and in no other chunk, it
 //     holds no module of the kit that is not a copy, and no chunk it imports, directly or through another, holds a module of the kit.
 //
@@ -110,7 +111,8 @@ const WHERE = "scripts/analytics-kit-copy.ts names the view and the kit; update 
 /**
  * The view and its copies, read from the module graph at the end of the client build. Throws unless the copy is as it must be (see above):
  * the view or a file of the kit that cannot be found (renamed or moved) fails the build, as does a module of the kit that the view loads as it
- * is, a page that imports the view and loads the kit too, and a module outside the kit that imports one that creates a React context.
+ * is, a page that imports the view and loads the kit too, a kit in which no module creates a React context (its code could not be read), and a
+ * module outside the kit that imports one that creates a React context.
  */
 export function kitCopyOf(graph: KitGraph, appDirectory: string): KitCopy {
   const { view, charts, files } = kitPaths(appDirectory);
@@ -148,6 +150,9 @@ export function kitCopyOf(graph: KitGraph, appDirectory: string): KitCopy {
   // The kit's React contexts are provided and read inside the kit (a copy's by that copy): no module outside it imports a module of the kit
   // that creates one, so none can put a provider of one copy around a consumer of the other.
   const contexts = new Set(ids.filter((id) => isKitModule(id, appDirectory) && /\bcreateContext\b/.test(graph.info(id)?.code ?? "")).map(fileOf));
+  // The kit has contexts (`Cursor.tsx`'s): finding none is code that could not be read (a `ModuleInfo` whose `code` is `null`), and the rule would pass
+  // whatever imports what.
+  if (contexts.size === 0) fail(`no module of the kit creates a React context (Cursor.tsx's TipSlotContext and HoverContext): could its code not be read, or did the contexts move? ${WHERE}`);
   for (const id of ids) {
     if (isKitModule(id, appDirectory)) continue;
     const used = (graph.info(id)?.importedIds ?? []).find((next) => contexts.has(fileOf(next)));

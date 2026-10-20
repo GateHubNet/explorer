@@ -602,12 +602,15 @@ export function counterpartiesCard(frame: AnalyticsFrame, answer: AnalyticsCount
     ),
   }));
 
+  // The API answers `limit` rows when there are more (6), so "The N largest" is never of one; a total of one is common (a new account funded once).
   const note =
     total === 0
       ? null
       : total > count
         ? `The ${formatAmount(String(count))} largest of ${formatAmount(String(total))} counterparties, by value sent plus received.`
-        : `All ${formatAmount(String(total))} counterparties, largest first.`;
+        : total === 1
+          ? "Its one counterparty."
+          : `All ${formatAmount(String(total))} counterparties, largest first.`;
   return {
     tile: { figure: formatAmount(String(total)), sub: "accounts it paid or was paid by", delta: null, source },
     rows,

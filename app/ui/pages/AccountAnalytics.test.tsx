@@ -526,6 +526,18 @@ describe("a card before its data", () => {
     expect(container.querySelectorAll('[role="status"], [aria-live], [role="alert"]')).toHaveLength(0);
   });
 
+  it("marks a table card busy (aria-busy) while its part has not come, as a chart card is, and not once it has come, failed or come too late", async () => {
+    const tables = TITLES.slice(4);
+    const { unmount } = await show(analytics("30d", everyCard("pending")));
+    expect(tables.map((title) => card(title).getAttribute("aria-busy"))).toEqual(["true", "true", "true"]);
+    unmount();
+    for (const over of [{}, everyCard({ state: "failed" }), everyCard({ state: "late" })]) {
+      const { unmount: done } = await show(analytics("30d", over));
+      expect(tables.map((title) => card(title).hasAttribute("aria-busy")), JSON.stringify(over)).toEqual([false, false, false]);
+      done();
+    }
+  });
+
   it("takes the source line of a part that has not come from the frame, which names the routes as the cards do", async () => {
     const frame = frameOf("30d");
     const sources: AnalyticsFrame["sources"] = { value: "frame:value", sent: "frame:sent", changes: "frame:changes", sources: "frame:sources", counterparties: "frame:counterparties", balances: "frame:balances", pairs: "frame:pairs" };

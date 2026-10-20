@@ -1556,8 +1556,9 @@ The view's first load is the account page's files and that one chunk, and the ne
 - **The checks.** The plugin checks what it has made in every client build, a deploy's too, and fails the build otherwise, so that a renamed
   file cannot quietly bring the shared files back. On the module graph: the view is in the build, and so are `use-hydrated.ts` and
   `StatTile.tsx`; every module of the kit that the view loads is its copy, the chart kit's directory among them; nothing but the view and the
-  copies imports a copy; the page that imports the view (`AccountPage.tsx`) loads none of the kit; and no module outside the kit imports one of
-  its modules that creates a React context. On the bundle: the view's chunk holds the copies and no other chunk does, it holds no module of the
+  copies imports a copy; the page that imports the view (`AccountPage.tsx`) loads none of the kit; a module of the kit creates a React context
+  (finding none would be code the build could not read, and the next rule would pass whatever imports what); and no module outside the kit
+  imports one of its modules that creates a React context. On the bundle: the view's chunk holds the copies and no other chunk does, it holds no module of the
   kit as it is, and no chunk it imports, directly or through another, holds one. `scripts/analytics-kit-copy.test.ts` runs the same check on
   the app's own sources (made into the module graph the build reads) and on made-up graphs and bundles, one for each way it fails.
 - **The sources of the cards.** The seven routes the view's parts are made from are in the frame (`frame.sources`, made by

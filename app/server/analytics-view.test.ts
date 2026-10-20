@@ -1052,6 +1052,15 @@ describe("counterpartiesCard", () => {
     expect(counterpartiesCard(frame, counterpartiesAnswer(1234, [], 6)).note).toBe("The 6 largest of 1,234 counterparties, by value sent plus received.");
   });
 
+  it("says 'Its one counterparty.' for an account with one in the period, as a new account funded by an exchange has", () => {
+    const one = counterpartiesCard(frame, counterpartiesAnswer(1, [counterparty(ADDRESS_A, "0", "25", 0, 1)]));
+    expect(one.note).toBe("Its one counterparty.");
+    expect(one.tile.figure).toBe("1");
+    expect(counterpartiesCard(frame, counterpartiesAnswer(2, [counterparty(ADDRESS_A, "1", "1", 1, 1), counterparty(ADDRESS_B, "1", "0", 1, 0)])).note).toBe(
+      "All 2 counterparties, largest first.",
+    );
+  });
+
   it("says no payments were made or received, and has no note, when there is no counterparty", () => {
     const card = counterpartiesCard(frame, counterpartiesAnswer(0, []));
     expect(card.empty).toBe("No payments in these 30 days.");

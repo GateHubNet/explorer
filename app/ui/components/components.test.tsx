@@ -296,6 +296,23 @@ describe("Card and StatTile", () => {
     expect(container.firstElementChild!.hasAttribute("id")).toBe(false);
   });
 
+  it("is aria-busy while its content is loading (`busy`), and has no aria-busy otherwise", () => {
+    const { container, rerender } = render(
+      <Card title="Top counterparties" busy>
+        Loading…
+      </Card>,
+    );
+    expect(screen.getByRole("region", { name: "Top counterparties" }).getAttribute("aria-busy")).toBe("true");
+    for (const busy of [false, undefined]) {
+      rerender(
+        <Card title="Top counterparties" busy={busy}>
+          body
+        </Card>,
+      );
+      expect(container.firstElementChild!.hasAttribute("aria-busy"), String(busy)).toBe(false);
+    }
+  });
+
   it("shows a tile's label, value and note", () => {
     const { container } = render(<StatTile label="Fees burned" value="0.001284 XRP" sub="base fee 0.00001 XRP" />);
     expect(container.textContent).toContain("Fees burned");

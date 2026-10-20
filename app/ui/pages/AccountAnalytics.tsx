@@ -332,7 +332,7 @@ function MoneyChart({ native, unit, retry, source, part }: ViewProps & { unit: s
 
 /**
  * A table card of the view in each state of its part (spec 3.11): before it streams in, a frame as tall as its table will be (`rows`, the
- * call's row limit) with "Loading…" hidden from assistive technology; the section error of its own `what` when it failed, or the same place
+ * call's row limit) with "Loading…" hidden from assistive technology, in a card that is `aria-busy` as a chart card is; the section error of its own `what` when it failed, or the same place
  * saying it is still working when it came too late; and otherwise the builder's table, or its empty sentence in place of the table, and its notes.
  */
 function TablePart<T>({
@@ -356,7 +356,7 @@ function TablePart<T>({
 }) {
   const drawn = part?.state === "ok" ? draw(part) : null;
   return (
-    <Card title={title} flush action={<span className="chart__source">{drawn?.source ?? source}</span>} className={className}>
+    <Card title={title} flush busy={part === null} action={<span className="chart__source">{drawn?.source ?? source}</span>} className={className}>
       {part === null ? (
         <div className="analytics__table-loading" style={{ "--rows": rows } as CSSProperties} aria-hidden="true">
           Loading…
