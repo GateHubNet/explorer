@@ -579,6 +579,21 @@ a.nav-item:hover {
   white-space: nowrap;
 }
 
+/* A small tag of text, quieter than a transaction's type: --muted on --sunken with a border (the pair page's Via, "AMM" or "Book"). What it says
+   is in its text, never in a colour. */
+.tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--sunken);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
 .amt {
   font-family: var(--font-mono);
   font-weight: 500;

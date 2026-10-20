@@ -78,6 +78,23 @@ describe("SegmentedLinks", () => {
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
+  it("keeps its label for screen readers only with hideLabel: the group is named by it as before, and there is no other group", () => {
+    const { container } = render(routed(<SegmentedLinks label="Candle interval" hideLabel links={PERIOD} />).element);
+    const label = screen.getByText("Candle interval");
+    // Out of sight (base.css `.sr`) but in the page, so the name the group has by reference is still its own words.
+    expect(label.className).toBe("seglinks__label sr");
+    const group = screen.getByRole("group", { name: "Candle interval" });
+    expect(group.getAttribute("aria-labelledby")).toBe(label.id);
+    expect(group.className).toBe("netswitch");
+    expect(container.querySelectorAll('[role="group"]')).toHaveLength(1);
+    expect(within(group).getAllByRole("link")).toHaveLength(4);
+  });
+
+  it("shows its label without hideLabel, and with hideLabel={false}", () => {
+    render(routed(<SegmentedLinks label="Period" hideLabel={false} links={PERIOD} />).element);
+    expect(screen.getByText("Period").className).toBe("seglinks__label");
+  });
+
   it("is the same on the server as in the browser", async () => {
     const { html, container, errors } = await serverThenHydrated(routed(<SegmentedLinks label="Period" links={PERIOD} />).element);
     expect(html).toContain('class="seglinks__label"');

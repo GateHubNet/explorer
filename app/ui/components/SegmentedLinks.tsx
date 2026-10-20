@@ -15,12 +15,15 @@ export interface SegmentLink {
  *
  * The group is named by the visible label itself (`aria-labelledby`), so the name a screen reader says is the one the eye reads. The
  * segments are 32 px to look at with a 44 px target (the `netswitch` styles).
+ *
+ * `hideLabel` keeps the label for screen readers only (`.sr`), where the place of the control says what it is (the candle interval in a
+ * chart card): the group is still named by it, and there is no other group around it.
  */
-export function SegmentedLinks({ label, links }: { label: string; links: readonly SegmentLink[] }) {
+export function SegmentedLinks({ label, links, hideLabel = false }: { label: string; links: readonly SegmentLink[]; hideLabel?: boolean }) {
   const labelId = useId();
   return (
     <div className="seglinks">
-      <span id={labelId} className="seglinks__label">
+      <span id={labelId} className={hideLabel ? "seglinks__label sr" : "seglinks__label"}>
         {label}
       </span>
       <div role="group" aria-labelledby={labelId} className="netswitch">

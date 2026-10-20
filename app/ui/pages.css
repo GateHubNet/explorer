@@ -1381,6 +1381,421 @@ a.markets__pair:hover .markets__name {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Market pair: /{net}/markets/{base}/{counter} (the board's layout: the summary, the filter and the price chart across the page, then the
+   recent trades with a column of the order book, the pool and the most active traders beside them, which wraps under the trades on a
+   phone). The classes of the chart kit (charts.css) are never defined here: the cards' heads use the kit's title and source line as they are. */
+
+.pair {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* The breadcrumb, and E2's live row (44 px high from the start) at the end of the line, under it when there is not room. */
+.pair__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+/* The summary: the pair, its price and the change on the left, the 24 h figures at the end (under them when there is not room). */
+.pair__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px 36px;
+  padding: 20px 22px;
+}
+
+.pair__lead,
+.pair__name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pair__titles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.pair__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* Each issuer is the whole address, so the line may wrap inside one rather than push the page sideways on a phone. */
+.pair__issuers {
+  color: var(--faint);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.pair__issuers .mono {
+  font-size: 12px;
+}
+
+.pair__quote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.pair__line,
+.pair__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-width: 0;
+}
+
+.pair__figure {
+  font-size: clamp(32px, 9vw, 52px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.pair__unit {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.pair__change {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 15px;
+}
+
+/* The change: a triangle (a picture) and the signed text, in --muted: more is neither good nor bad. */
+.pair__delta {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The figure that ticks in holds the triangle (a block, base.css) and the text: one line, the triangle never parted from its figure. */
+.pair__delta .live__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pair__note {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.pair__day {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pair__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+}
+
+.pair__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 110px;
+}
+
+.pair__stat dt {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.pair__stat dd {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.pair__day-note,
+.pair__filters-note {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.pair__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+
+/* The candle interval and the legend, on one line in the price card while there is room. */
+.pair__chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 18px;
+}
+
+/* The trades card and the column beside it: 600 px and 340 px at their least, so the column folds under the trades on a narrow screen. */
+.pair__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.pair__main {
+  flex: 999 1 600px;
+  min-width: 0;
+}
+
+.pair__side {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* The trades: rows of 42 px in 13 px text (the board's); the header row keeps the table's own height and size. */
+.pair__trades .table__row {
+  min-height: 42px;
+  font-size: 13px;
+}
+
+.pair__trades .table__head {
+  min-height: 36px;
+  font-size: 12px;
+}
+
+.pair__time {
+  white-space: nowrap;
+}
+
+/* The taker's side: a 6 px dot (a picture) and the word, which says it. */
+.pair__trade-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pair__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.pair__dot[data-dir="up"] {
+  background: var(--up);
+}
+
+.pair__dot[data-dir="down"] {
+  background: var(--down);
+}
+
+.pair__trade-price {
+  font-weight: 500;
+}
+
+.pair__pager {
+  justify-content: flex-end;
+}
+
+/* The cards of the column: the kit's title and source line in a head of their own, then the body. */
+.pair__card {
+  display: flex;
+  flex-direction: column;
+}
+
+.pair__card-head {
+  padding: 14px 16px 10px;
+}
+
+.pair__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+
+/* The order book: one table of rows 28 px high; the card does not scroll. The first column is the side, which only a screen reader reads:
+   it has no width, and a level's depth bar, in that cell, is placed in the row (`position: relative`) with the visible cells above it. */
+.pair__book {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pair__book th,
+.pair__book td {
+  height: 28px;
+  padding: 0 5px;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pair__book th:last-child,
+.pair__book td:last-child {
+  padding-right: 16px;
+}
+
+.pair__book .pair__book-side {
+  width: 0;
+  padding: 0;
+}
+
+.pair__book .pair__level-price {
+  padding-left: 16px;
+  text-align: left;
+}
+
+.pair__book thead th {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.pair__level {
+  position: relative;
+}
+
+.pair__level > td:not(.pair__book-side) {
+  position: relative;
+  z-index: 1;
+}
+
+.pair__level > .pair__level-price {
+  font-weight: 500;
+}
+
+.pair__book .pair__book-empty {
+  padding-left: 16px;
+  color: var(--faint);
+  text-align: left;
+}
+
+/* The middle row: the last price at the start and the spread at the end, between two rules. */
+.pair__book-mid td {
+  height: auto;
+  padding: 8px 16px;
+  border-block: 1px solid var(--border);
+}
+
+.pair__book-mid td:first-child {
+  font-weight: 500;
+  text-align: left;
+}
+
+.pair__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The pool: its title and source, its one link at the end of the head, then its figures two by two. */
+.pair__pool-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+/* The title and the source take what the link leaves them, so the link stays at the end of the head while the source wraps. */
+.pair__pool-titles {
+  flex: 1 1 180px;
+}
+
+.pair__pool-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pair__figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  padding: 0 16px 16px;
+  font-size: 12.5px;
+}
+
+.pair__figures > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pair__figures dt {
+  color: var(--faint);
+}
+
+.pair__figures dd {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.pair__figure-value {
+  display: block;
+}
+
+/* Why a figure is missing: words, not a figure. */
+.pair__figure-sub {
+  display: block;
+  color: var(--faint);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.pair__older {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .pair__summary {
+    padding: 16px;
+  }
+
+  .pair__title {
+    font-size: 22px;
+  }
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .pair__pool-link {
+    min-height: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Phones */
 
 @media (max-width: 640px) {
