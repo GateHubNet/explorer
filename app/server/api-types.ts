@@ -562,6 +562,138 @@ export interface VolumeRow<C> {
   end_time: string;
 }
 
+/** A row of `amm_volume`: one per bucket of the historical form, and the one row of a rolling day (`live=day`) of the live form. */
+export type AmmVolumeRow = VolumeRow<AmmVolumeComponent>;
+
+// ---- AMM: GET /v2/amm/pools, /v2/amm/pools/{pool}, /v2/amm/pools/{base}/{counter} and /v2/amm/pools/{pool}/{history,swaps,liquidity,governance} ------------
+
+// The reference's rules for these objects (data-api-new `feat/amm-data` at `c3e23026b3405fc2fd27fc897e724df4dfe106f1`, `docs/api-reference.md` "AMM" and
+// `apps/api/src/amm/amm-objects.ts`), which the types below follow in the reference's key order:
+//   - the pair of a pool is flat (`base_currency`, `base_issuer?`, `counter_currency`, `counter_issuer?`), in the order the pool is stored in, and the native currency has no issuer key;
+//   - amounts are exact decimal strings in whole units, BigNumber's `toString()` (so an exponent below 1e-6 and from 1e21 is possible; `value_native` alone is never one);
+//   - `trading_fee` and the other fees are numbers in units of 1/100000 (`500` is 0.5%, the ledger's largest is 1000); counts and ledger indexes are numbers, times are
+//     `YYYY-MM-DDTHH:mm:ssZ` text;
+//   - a key whose value is unknown is left out, `null` is never served, and a fee of 0 is a value.
+
+/** The auction slot of a pool, grouped; left out of the pool when it has none of it. `expiration` is a time. */
+export interface AmmAuctionSlot {
+  holder?: string;
+  price?: string;
+  discounted_fee?: number;
+  expiration?: string;
+}
+
+/**
+ * A pool in its current state (`GET /v2/amm/pools`, and `pool` of `GET /v2/amm/pools/{pool}`). `lp_currency` is the 40-hex-digit currency of the LP token the pool issues,
+ * `last_ledger` the newest ledger its state has seen, `created_ledger` and `created_by` are left out for a pool whose creation was not ingested, `value_native` (eight
+ * significant digits, a plain decimal) for a pool without a rate and for a deleted one.
+ */
+export interface AmmPool {
+  amm_account: string;
+  base_currency: string;
+  base_issuer?: string;
+  counter_currency: string;
+  counter_issuer?: string;
+  reserve_base?: string;
+  reserve_counter?: string;
+  lp_supply?: string;
+  lp_currency?: string;
+  trading_fee?: number;
+  auction_slot?: AmmAuctionSlot;
+  value_native?: string;
+  created_ledger?: number;
+  created_by?: string;
+  last_ledger: number;
+  deleted: boolean;
+}
+
+/**
+ * A UTC day on which a transaction touched the pool, with the stats of the day and the pool's closing state (`GET /v2/amm/pools/{pool}/history?interval=day`; a day without
+ * activity has no row). `date` is the start of the day. `volume_*` are the amounts that went into the pool, by side; `fees_*_est` are estimates, left out when a swap into
+ * that side had no known fee (not the same as `"0"`, a known zero).
+ */
+export interface AmmPoolDay {
+  amm_account: string;
+  date: string;
+  base_currency: string;
+  base_issuer?: string;
+  counter_currency: string;
+  counter_issuer?: string;
+  swap_count: number;
+  volume_base: string;
+  volume_counter: string;
+  fees_base_est?: string;
+  fees_counter_est?: string;
+  deposit_count: number;
+  withdraw_count: number;
+  liquidity_in_base: string;
+  liquidity_in_counter: string;
+  liquidity_out_base: string;
+  liquidity_out_counter: string;
+  reserve_base?: string;
+  reserve_counter?: string;
+  lp_supply?: string;
+  trading_fee?: number;
+  value_native?: string;
+}
+
+/** A swap against a pool (`GET /v2/amm/pools/{pool}/swaps`): an exchange of the pool's own pair, with the pool as its `amm_account`. */
+export type AmmSwap = PairExchange & { amm_account: string };
+
+/**
+ * One creation, deposit, withdrawal, clawback or deletion of a pool (`GET /v2/amm/pools/{pool}/liquidity`), oldest first. The amounts are signed from the pool's side
+ * (a withdrawal has negative ones) and on the pool's own `base` and `counter`: the event carries no pair. `account` is the liquidity provider, `initiator` who sent the
+ * transaction (a clawback's differ). `mode` is left out for a creation, a deletion, a clawback and a transaction with no mode flag or several.
+ */
+export interface AmmLiquidityEvent {
+  amm_account: string;
+  ledger_index: number;
+  tx_index: number;
+  tx_hash: string;
+  executed_time: string;
+  account: string;
+  initiator: string;
+  event: "create" | "deposit" | "withdraw" | "clawback" | "delete";
+  mode?: string;
+  base_amount: string;
+  counter_amount: string;
+  lp_tokens: string;
+}
+
+/** A vote on the trading fee (`GET /v2/amm/pools/{pool}/governance`): the fee the voter asked for, and the pool's fee after the vote. A vote carries nothing of a bid. */
+export interface AmmVote {
+  amm_account: string;
+  ledger_index: number;
+  tx_index: number;
+  tx_hash: string;
+  executed_time: string;
+  type: "vote";
+  account: string;
+  fee_voted?: number;
+  trading_fee_after?: number;
+}
+
+/**
+ * A bid for the auction slot (`GET /v2/amm/pools/{pool}/governance`). `price_paid` is the LP tokens the bid burned; `auction_slot` is the slot after the bid, left out when
+ * the row holds none of it, with `auth_accounts` always a list. A bid carries nothing of a vote.
+ */
+export interface AmmBid {
+  amm_account: string;
+  ledger_index: number;
+  tx_index: number;
+  tx_hash: string;
+  executed_time: string;
+  type: "bid";
+  account: string;
+  bid_min?: string;
+  bid_max?: string;
+  price_paid?: string;
+  auction_slot?: { holder?: string; discounted_fee?: number; expiration?: string; auth_accounts: string[] };
+}
+
+/** A row of a pool's governance list. */
+export type AmmGovernanceRow = AmmVote | AmmBid;
+
 // ---- Validations: GET /v2/ledgers/{ledger_hash}/validations -------------------------------------------------------
 
 /**

@@ -8,6 +8,7 @@ import type { AnalyticsUnit } from "../domain/analytics-params";
 import { apiAssetText, type Asset } from "../domain/asset";
 import type { CandleApiInterval } from "../domain/market-params";
 import type { ValidatorScope } from "../domain/validators-params";
+import { checkDaysPage, checkGovernancePage, checkLiquidityPage, checkLiveVolume, checkPool, checkPoolsPage, checkSwapsPage } from "./amm-shape";
 import {
   checkActiveAccounts,
   checkCandles,
@@ -36,7 +37,12 @@ import type {
   AmendmentDetail,
   AmendmentsList,
   AmmFilter,
-  AmmVolumeComponent,
+  AmmGovernanceRow,
+  AmmLiquidityEvent,
+  AmmPool,
+  AmmPoolDay,
+  AmmSwap,
+  AmmVolumeRow,
   AnalyticsBalanceChanges,
   AnalyticsBalances,
   AnalyticsCounterparties,
@@ -69,7 +75,14 @@ import type {
   ValidatorValidationsPage,
   VolumeRow,
 } from "./api-types";
-import { MARKER_PAGE_CLASS, VALIDATIONS_MARKER_TTL_SECONDS, type CacheClass, type SubrequestCache, type SubrequestOptions } from "./cache-class";
+import {
+  MARKER_PAGE_CLASS,
+  PERIOD_CALL_TTL_SECONDS,
+  VALIDATIONS_MARKER_TTL_SECONDS,
+  type CacheClass,
+  type SubrequestCache,
+  type SubrequestOptions,
+} from "./cache-class";
 import type { Env } from "./env";
 import { isMarker } from "./marker";
 import type { Network } from "./networks";
@@ -244,11 +257,15 @@ export interface DataApi {
   /** The trade volume of the tracked markets, per day or week. Class `slow`; the network page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`. */
   exchangeVolume(q: VolumeQuery, opts?: FreshOptions): Promise<Page<"rows", VolumeRow<ExchangeVolumeComponent>>>;
   /**
-   * The volume of the swaps against AMM pools, per day or week, one component per pool. Only a data API that has merged `feat/amm-data` has the
-   * route (`PENDING_PATHS`): without it the call fails with the missing-route outage (kind `server`), so a page asks only while `AMM_DATA` is on.
-   * Class `slow`; the network page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
+   * The volume of the swaps against AMM pools, one component per pool. Only a data API that has merged `feat/amm-data` has the route (`PENDING_PATHS`): without it the
+   * call fails with the missing-route outage (kind `server`), so a page asks only while `AMM_DATA` is on.
+   *
+   * With a `VolumeQuery`, per day or week: class `slow`; the network page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
+   *
+   * With `{ live: "day" }` (sent as `live=day`, no `start`, `end` or `interval`), the one row of a rolling day ending now, which the AMM pages show: class `minute`, and the
+   * answer is checked to have exactly one row (`checkLiveVolume`).
    */
-  ammVolume(q: VolumeQuery, opts?: FreshOptions): Promise<Page<"rows", VolumeRow<AmmVolumeComponent>>>;
+  ammVolume(q: VolumeQuery | { live: "day" }, opts?: FreshOptions): Promise<Page<"rows", AmmVolumeRow>>;
   /**
    * The validations the network made of one ledger, one per validator, sorted by validator key (the data API keeps them 90 days). Class
    * `live`. `limit` is at most 1000, and no marker is followed: a ledger with more validations than that is cut.
@@ -331,6 +348,38 @@ export interface DataApi {
   amendments(opts?: FreshOptions): Promise<AmendmentsList>;
   /** One amendment by its name or its 64-digit ID, with the envelope of the list, how the validators vote on it, its rounds and its history. Class `minute`. `amendment not found` is `not_found`. */
   amendment(ref: string, opts?: FreshOptions): Promise<AmendmentDetail>;
+
+  // E5's AMM pool calls (data-api-new `feat/amm-data`, pinned at `c3e2302`). Only a data API that has merged it has the routes (`PENDING_PATHS`): without it each call fails with the
+  // missing-route outage (kind `server`, never stored), and the routes' own `pool not found` stays `not_found`. The AMM pages ask only while `AMM_PAGES` is on. Every answer is
+  // checked inside the load (amm-shape.ts), and one that is not what the reference promises is kind `server` too. These calls take no `FreshOptions`: the pages do not poll, so
+  // none asks for the failure hold, and each is kept for the class its page needs (`ammVolume` keeps the options E2 gave it).
+  /**
+   * The pools, the most valuable first (the pools without a value last), `limit` of them after `marker`; with `asset`, only those that have it on either side, and with
+   * `includeDeleted` the deleted ones too. The query is `?limit=…&asset=…&include_deleted=true&marker=…`. Class `minute`.
+   */
+  ammPools(q: { limit: number; asset?: Asset; includeDeleted?: boolean; marker?: string }): Promise<Page<"pools", AmmPool>>;
+  /**
+   * One pool by its account (the `pool` of the answer). A pool created less than a minute ago is `not_found` here: the route is served from the table the aggregator rebuilds.
+   * An answer for another pool than the one asked for is kind `server`. Class `minute`.
+   */
+  ammPool(pool: string): Promise<AmmPool>;
+  /** One pool by its pair, the assets in either order: the live pool of the pair, else the one deleted last (the `pool` of the answer). Class `minute`. */
+  ammPoolByPair(base: Asset, counter: Asset): Promise<AmmPool>;
+  /**
+   * The days on which a transaction touched the pool, with the stats of the day and the pool's closing state: those that start within `start` and `end` (`YYYY-MM-DD`; the
+   * first day when `start` is left out), at most `limit`, oldest first unless `descending`. Unlike the pool, found as soon as its ledger is committed. Class `slow`, kept
+   * `PERIOD_CALL_TTL_SECONDS`, under an entry of its own (the key says `[kept 300 s]`).
+   */
+  ammPoolDays(pool: string, q: { start?: string; end: string; descending?: boolean; limit: number }): Promise<Page<"days", AmmPoolDay>>;
+  /** The swaps against the pool, in the pair as the pool stores it. Class `live`, `MARKER_PAGE_CLASS` for a page behind a marker, newest first (`listClass`). */
+  ammSwaps(pool: string, q: ListQuery): Promise<Page<"exchanges", AmmSwap>>;
+  /**
+   * The creation, deposits, withdrawals, clawbacks and deletion of the pool. Class `live`, `MARKER_PAGE_CLASS` behind a marker, newest first; with `event` (the pool's
+   * creation, `{ event: "create", limit: 1 }`: the event never changes) class `slow`.
+   */
+  ammLiquidity(pool: string, q: ListQuery & { event?: "create" }): Promise<Page<"liquidity", AmmLiquidityEvent>>;
+  /** The votes on the pool's trading fee and the bids for its auction slot. Class `live`, `MARKER_PAGE_CLASS` behind a marker, newest first (`listClass`). */
+  ammGovernance(pool: string, q: ListQuery): Promise<Page<"governance", AmmGovernanceRow>>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -609,11 +658,14 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         ...fresh(opts),
         finish: (page) => checkVolumePage("exchange", page),
       }),
+    // The live form is the AMM pages' (`live=day`, no window): a minute, and exactly one row. The historical form is the network page's, and keeps its class, key and answer.
     ammVolume: (q, opts) =>
-      get<Page<"rows", VolumeRow<AmmVolumeComponent>>>(PENDING_PATHS.ammVolume, {}, volumeQuery(q), "slow", {
-        ...fresh(opts),
-        finish: (page) => checkVolumePage("amm", page),
-      }),
+      "live" in q
+        ? get<Page<"rows", AmmVolumeRow>>(PENDING_PATHS.ammVolume, {}, { live: q.live }, "minute", { ...fresh(opts), finish: checkLiveVolume })
+        : get<Page<"rows", AmmVolumeRow>>(PENDING_PATHS.ammVolume, {}, volumeQuery(q), "slow", {
+            ...fresh(opts),
+            finish: (page) => checkVolumePage("amm", page),
+          }),
     ledgerValidations: (hash, q, opts) =>
       get<LedgerValidations>(PATHS.ledgerValidations, { ledger_hash: hash }, { limit: q.limit }, "live", { ...fresh(opts), finish: checkValidations }),
     // The pair page's calls. The pair is the one in the URL's orientation (the API inverts when it is not the stored one); `amm` goes last in every query.
@@ -699,5 +751,32 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       }),
     amendments: (opts) => get<AmendmentsList>(PENDING_PATHS.amendments, {}, {}, "minute", { ...fresh(opts), finish: checkAmendments }),
     amendment: (ref, opts) => get<AmendmentDetail>(PENDING_PATHS.amendment, { name: ref }, {}, "minute", { ...fresh(opts), finish: checkAmendmentDetail }),
+    // E5's AMM pool calls. A pool is the `pool` of its answer; a pair is in the exchanges' path form, in the order asked.
+    ammPools: (q) =>
+      get<Page<"pools", AmmPool>>(
+        PENDING_PATHS.ammPools,
+        {},
+        { limit: q.limit, asset: q.asset === undefined ? undefined : apiAssetText(q.asset), include_deleted: q.includeDeleted, marker: q.marker || undefined },
+        "minute",
+        { finish: checkPoolsPage },
+      ),
+    ammPool: (pool) => get<AmmPool>(PENDING_PATHS.ammPool, { pool }, {}, "minute", { unwrap: "pool", finish: (found) => checkPool(found, pool) }),
+    ammPoolByPair: (base, counter) => get<AmmPool>(PENDING_PATHS.ammPoolByPair, pairOf(base, counter), {}, "minute", { unwrap: "pool", finish: (found) => checkPool(found) }),
+    ammPoolDays: (pool, q) =>
+      get<Page<"days", AmmPoolDay>>(
+        PENDING_PATHS.ammPoolHistory,
+        { pool },
+        { interval: "day", start: q.start, end: q.end, descending: q.descending, limit: q.limit },
+        "slow",
+        { ttl: PERIOD_CALL_TTL_SECONDS, finish: checkDaysPage },
+      ),
+    ammSwaps: (pool, q) => get<Page<"exchanges", AmmSwap>>(PENDING_PATHS.ammPoolSwaps, { pool }, listQuery(q), listClass(q), { finish: checkSwapsPage }),
+    // The create event is the pool's first and never changes: `slow` whatever the page. `event` goes first (`liquidity?event=create&limit=1`).
+    ammLiquidity: (pool, q) =>
+      get<Page<"liquidity", AmmLiquidityEvent>>(PENDING_PATHS.ammPoolLiquidity, { pool }, { event: q.event, ...listQuery(q) }, q.event ? "slow" : listClass(q), {
+        finish: checkLiquidityPage,
+      }),
+    ammGovernance: (pool, q) =>
+      get<Page<"governance", AmmGovernanceRow>>(PENDING_PATHS.ammPoolGovernance, { pool }, listQuery(q), listClass(q), { finish: checkGovernancePage }),
   };
 }

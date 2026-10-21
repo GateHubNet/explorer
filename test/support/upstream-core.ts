@@ -281,6 +281,9 @@ function dataApiAbsent(segments: string[]): Response {
     if (id === "validators" && one && key !== "summary" && (page === undefined || page === "validations")) return dataApiError(404, "Validator not found");
     if (id === "amendments" && one && page === undefined) return dataApiError(404, "amendment not found");
   }
+  // A pool that does not exist (feat/amm-data): the pool route, its pair form and everything below it answer `pool not found`. The list (`/v2/amm/pools`) has no such thing,
+  // and neither has `/v2/network/amm_volume`: they stay missing routes, `Cannot GET`. A test of an API without feat/amm-data names that body (`dataApiError(404, "Cannot GET …")`).
+  if (version === "v2" && resource === "amm" && id === "pools" && sub !== undefined) return dataApiError(404, "pool not found");
   return dataApiError(404, `Cannot GET /${segments.join("/")}`);
 }
 

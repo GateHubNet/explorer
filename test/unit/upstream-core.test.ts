@@ -249,6 +249,34 @@ describe("createUpstream", () => {
     }
   });
 
+  // The pool route and everything below it (the pair form, the history, the swaps, the liquidity, the governance) answer for a pool that is none; the list
+  // is a route like any other. A thing that is missing and a route that is missing are told apart by the message (`throwUnlessOk`).
+  it("answers an unknown AMM pool, and anything below it, with the route's own `pool not found`; the list and the volume stay missing routes", async () => {
+    const upstream = make();
+    for (const path of [
+      "/v2/amm/pools/rX",
+      "/v2/amm/pools/rX/history?interval=day",
+      "/v2/amm/pools/rX/swaps?descending=true&limit=20",
+      "/v2/amm/pools/rX/liquidity?event=create&limit=1",
+      "/v2/amm/pools/rX/governance",
+      `/v2/amm/pools/XRP/${RLUSD_TEXT.replace("+", "%2B")}`,
+      `/v2/amm/pools/${POOL}`,
+    ]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: "pool not found" });
+    }
+    // A `null` override is the same "absent" answer, so a test of a missing route names its body (`dataApiError(404, "Cannot GET …")`).
+    const removed = await make({ [`GET /v2/amm/pools/${POOL}`]: null }).handle(get(`/xrpl/v2/amm/pools/${POOL}`));
+    expect(await jsonOf(removed)).toEqual({ result: "error", message: "pool not found" });
+
+    for (const path of ["/v2/amm/pools?limit=20", "/v2/amm/pools", "/v2/network/amm_volume?live=day", "/v2/amm"]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: `Cannot GET ${path.split("?")[0]}` });
+    }
+  });
+
   it("answers 401 without the key, 404 for a method the API does not have, and never caches an error", async () => {
     const upstream = make();
     const noKey = await upstream.handle(get("/xrpl/v2/last_validated", null));

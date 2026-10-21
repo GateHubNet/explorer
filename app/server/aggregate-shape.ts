@@ -221,7 +221,7 @@ export function checkValidations(body: unknown): LedgerValidations {
 // ---- A pair: its trades, candles, reduced row and active accounts ------------------------------------------------------------------------------------
 
 /** The rows of a list answer under `key`, after its `count` and its `marker` (when there is one, a token the explorer may send back). */
-function listOf(what: string, body: unknown, key: string): Array<Record<string, unknown>> {
+export function listOf(what: string, body: unknown, key: string): Array<Record<string, unknown>> {
   const rows = rowsOf(what, body, key);
   const head = body as Record<string, unknown>;
   if (!isWhole(head.count)) throw malformed(what, "count is not a whole number");

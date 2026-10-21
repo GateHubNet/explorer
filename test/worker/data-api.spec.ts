@@ -6,7 +6,13 @@ import type {
   ActiveAccounts,
   AmendmentDetail,
   AmendmentsList,
+  AmmGovernanceRow,
+  AmmLiquidityEvent,
+  AmmPool,
+  AmmPoolDay,
+  AmmSwap,
   AmmVolumeComponent,
+  AmmVolumeRow,
   AnalyticsBalanceChanges,
   AnalyticsBalances,
   AnalyticsCounterparties,
@@ -46,9 +52,21 @@ import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { ANALYTICS_SLOW_TIMEOUT_MS, DATA_API_TIMEOUT_MS } from "../../app/server/upstream";
+import {
+  AMM_POOL,
+  ammDaysSample,
+  ammGovernanceSample,
+  ammLiquidityPageSample,
+  ammLiveVolumeSample,
+  ammPoolAccount,
+  ammPoolSample,
+  ammPoolsSample,
+  ammSwapsSample,
+} from "../support/amm-samples";
 import { amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, summarySample, validationsSample, validatorDetailSample, validatorRowSample } from "../support/d1-samples";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
+import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The Data API client, in the Workers runtime. Nothing here reaches the network: `fetch` is replaced in every
 // test, and the data API hosts of the env are `.invalid` anyway.
@@ -2034,6 +2052,477 @@ describe("the pair page's and the markets page's calls", () => {
       expect(await createDataApi(xahau, env, passThroughCache).networkMarkets({ period: "day", limit: 1000 })).toEqual(answer);
       expect(sentRequest().url).toBe("https://xahau.data.example.invalid/v2/network/markets?limit=1000&period=day");
     });
+  });
+});
+
+// The AMM pool calls (E5; `feat/amm-data` c3e2302, the bodies are test/support/amm-samples.ts's): the pools list, one pool by its account or by its pair, a pool's days, swaps,
+// liquidity events and governance, and the live form of `ammVolume`. Each is kept for the class its page needs and its answer is checked inside the load (amm-shape.ts), so that
+// a 200 that is not what the reference promises is kind `server` and is never stored. A route the API lacks answers `Cannot GET …` (kind `server`: an outage, never a missing pool);
+// a pool it lacks answers `pool not found` (`not_found`).
+describe("the AMM pool calls", () => {
+  let mock: UpstreamMock | undefined;
+  afterEach(() => {
+    mock?.restore();
+    mock = undefined;
+  });
+
+  let poolNumber = 0;
+  /** A pool no other test uses: this file's Cache API outlives a test. */
+  const freshPool = () => ammPoolAccount((poolNumber += 1));
+
+  let builds = 0;
+  /** The client over the Worker's own subrequest cache, as a page has it, under a build id of its own, with the upstream mock answering as `overrides` say. */
+  function throughCache(overrides: Overrides) {
+    const upstream = (mock = mockUpstream("xrpl", overrides));
+    const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+    builds += 1;
+    return { api: createDataApi(xrpl, env, createSubrequestCache(ctx, `amm-calls-${builds}`)), mock: upstream };
+  }
+
+  /** What the data API answers a request of these calls, by its path: a good answer, for the pool asked for where the path names one. */
+  function ammAnswer(input: RequestInfo | URL): Response {
+    const parts = new URL(input instanceof Request ? input.url : String(input)).pathname.split("/").filter(Boolean);
+    if (parts[1] === "network") return json(ammLiveVolumeSample());
+    const [, , , pool, tail] = parts;
+    if (pool === undefined) return json(ammPoolsSample());
+    if (tail === "history") return json(ammDaysSample());
+    if (tail === "swaps") return json(ammSwapsSample());
+    if (tail === "liquidity") return json(ammLiquidityPageSample());
+    if (tail === "governance") return json(ammGovernanceSample());
+    // A pool by its account is that pool; by its pair, the sample's.
+    return json({ result: "success", pool: ammPoolSample(tail === undefined ? { amm_account: pool } : {}) });
+  }
+
+  interface AmmCall {
+    name: string;
+    /** Whether the route is one of a pool (it answers `pool not found` for a pool the API does not have), or the list or the volume. */
+    ofPool: boolean;
+    call: (api: DataApi, pool: string) => Promise<unknown>;
+    /** The override key of the request `call` makes, with its query in alphabetical order. */
+    key: (pool: string) => string;
+    /** A good answer to it. */
+    good: (pool: string) => any;
+    /** The key a pool is unwrapped from, if the answer has one. */
+    unwrap?: "pool";
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    broken: (body: any) => void;
+    field: string;
+  }
+  const poolBroken = (body: any) => (body.pool.trading_fee = 1001);
+  const calls: AmmCall[] = [
+    {
+      name: "ammPool",
+      ofPool: true,
+      call: (api, pool) => api.ammPool(pool),
+      key: (pool) => `GET /v2/amm/pools/${pool}`,
+      good: (pool) => ({ result: "success", pool: ammPoolSample({ amm_account: pool }) }),
+      unwrap: "pool",
+      broken: poolBroken,
+      field: "trading_fee",
+    },
+    {
+      name: "ammPoolByPair",
+      ofPool: true,
+      call: (api, pool) => api.ammPoolByPair(XRP_ASSET, { currency: "USD", issuer: pool }),
+      key: (pool) => `GET /v2/amm/pools/XRP/USD+${pool}`,
+      good: () => ({ result: "success", pool: ammPoolSample() }),
+      unwrap: "pool",
+      broken: poolBroken,
+      field: "trading_fee",
+    },
+    {
+      name: "ammPoolDays",
+      ofPool: true,
+      call: (api, pool) => api.ammPoolDays(pool, { end: "2026-10-17", limit: 1000 }),
+      key: (pool) => `GET /v2/amm/pools/${pool}/history?end=2026-10-17&interval=day&limit=1000`,
+      good: () => ammDaysSample(),
+      broken: (body) => (body.days[0].swap_count = "3"),
+      field: "swap_count",
+    },
+    {
+      name: "ammSwaps",
+      ofPool: true,
+      call: (api, pool) => api.ammSwaps(pool, { descending: true, limit: 20 }),
+      key: (pool) => `GET /v2/amm/pools/${pool}/swaps?descending=true&limit=20`,
+      good: () => ammSwapsSample(),
+      broken: (body) => delete body.exchanges[0].amm_account,
+      field: "amm_account",
+    },
+    {
+      name: "ammLiquidity",
+      ofPool: true,
+      call: (api, pool) => api.ammLiquidity(pool, { descending: true, limit: 20 }),
+      key: (pool) => `GET /v2/amm/pools/${pool}/liquidity?descending=true&limit=20`,
+      good: () => ammLiquidityPageSample(),
+      broken: (body) => (body.liquidity[0].event = "mint"),
+      field: "event",
+    },
+    {
+      name: "ammGovernance",
+      ofPool: true,
+      call: (api, pool) => api.ammGovernance(pool, { descending: true, limit: 20 }),
+      key: (pool) => `GET /v2/amm/pools/${pool}/governance?descending=true&limit=20`,
+      good: () => ammGovernanceSample(),
+      broken: (body) => (body.governance[0].type = "both"),
+      field: "type",
+    },
+    {
+      name: "ammPools",
+      ofPool: false,
+      call: (api) => api.ammPools({ limit: 20 }),
+      key: () => "GET /v2/amm/pools?limit=20",
+      good: () => ammPoolsSample(),
+      broken: (body) => (body.pools[0].deleted = "false"),
+      field: "deleted",
+    },
+    {
+      name: "ammVolume, live",
+      ofPool: false,
+      call: (api) => api.ammVolume({ live: "day" }),
+      key: () => "GET /v2/network/amm_volume?live=day",
+      good: () => ammLiveVolumeSample(),
+      broken: (body) => body.rows.push(structuredClone(body.rows[0])),
+      field: "rows",
+    },
+  ];
+  const everyCall = calls.map((c) => [c.name, c] as const);
+  const poolCalls = everyCall.filter(([, c]) => c.ofPool);
+
+  // Failure tests first, each on a build id and a pool of its own.
+  describe("a pool the data API does not have, and a route it does not have", () => {
+    it.each(poolCalls)("%s: `pool not found` is not_found, with the API's own words", async (_name, c) => {
+      const pool = freshPool();
+      const { api } = throughCache({ [c.key(pool)]: dataApiError(404, "pool not found") });
+
+      const error = await failureOf(c.call(api, pool));
+
+      expect(error.kind).toBe("not_found");
+      expect(error.status).toBe(404);
+      expect(error.message).toContain("pool not found");
+    });
+
+    it.each(everyCall)("%s: `Cannot GET …` (a data API without feat/amm-data) is kind server, the API missing and not a pool; nothing is stored or held", async (_name, c) => {
+      const pool = freshPool();
+      const key = c.key(pool);
+      const { api, mock: seen } = throughCache({ [key]: dataApiError(404, `Cannot GET ${key.slice("GET ".length)}`) });
+
+      const first = await failureOf(c.call(api, pool));
+      const second = await failureOf(c.call(api, pool));
+
+      expect(first.kind).toBe("server");
+      expect(first.status).toBe(404);
+      expect(first.message).toContain("(the data API has no such route)");
+      expect(second.kind).toBe("server");
+      expect(statusesOf(seen, key)).toEqual([404, 404]);
+    });
+
+    it.each(everyCall)("%s: the mock's own absent answer (a `null` override) is what the API says: `pool not found` for a pool's routes, `Cannot GET` for the list and the volume", async (_name, c) => {
+      const pool = freshPool();
+      const { api } = throughCache({ [c.key(pool)]: null });
+
+      const error = await failureOf(c.call(api, pool));
+
+      expect(error.kind).toBe(c.ofPool ? "not_found" : "server");
+      expect(error.message).toContain(c.ofPool ? "pool not found" : "Cannot GET");
+    });
+
+    it("a 400 (an invalid pool, an invalid marker) is bad_request, and a 503 is server", async () => {
+      const pool = freshPool();
+      const { api } = throughCache({
+        [`GET /v2/amm/pools/${pool}/swaps?descending=true&limit=20`]: dataApiError(400, "invalid marker"),
+        [`GET /v2/amm/pools/${pool}`]: dataApiError(503, "unavailable"),
+      });
+
+      expect((await failureOf(api.ammSwaps(pool, { descending: true, limit: 20 }))).kind).toBe("bad_request");
+      expect((await failureOf(api.ammPool(pool))).kind).toBe("server");
+    });
+  });
+
+  describe("an answer that is not what the reference promises", () => {
+    it.each(everyCall)("%s: is kind server (status 200, the field named), and is not stored: the next call asks the API again", async (_name, c) => {
+      const pool = freshPool();
+      const key = c.key(pool);
+      const body = c.good(pool);
+      c.broken(body);
+      const { api, mock: seen } = throughCache({ [key]: body });
+
+      const first = await failureOf(c.call(api, pool));
+      const second = await failureOf(c.call(api, pool));
+
+      expect(first.kind).toBe("server");
+      expect(first.status).toBe(200);
+      expect(first.message).toContain(c.field);
+      expect(second.kind).toBe("server");
+      expect(statusesOf(seen, key)).toEqual([200, 200]);
+    });
+
+    it("ammPool answered with another pool's amm_account is kind server, and not stored", async () => {
+      const asked = freshPool();
+      const other = freshPool();
+      const key = `GET /v2/amm/pools/${asked}`;
+      const { api, mock: seen } = throughCache({ [key]: { result: "success", pool: ammPoolSample({ amm_account: other }) } });
+
+      const first = await failureOf(api.ammPool(asked));
+      await failureOf(api.ammPool(asked));
+
+      expect(first.kind).toBe("server");
+      expect(first.status).toBe(200);
+      expect(first.message).toContain("amm_account");
+      expect(first.message).toContain(asked);
+      expect(first.message).toContain(other);
+      expect(statusesOf(seen, key)).toEqual([200, 200]);
+    });
+
+    it.each([
+      ["ammPool", (api: DataApi, pool: string) => api.ammPool(pool), (pool: string) => `GET /v2/amm/pools/${pool}`],
+      ["ammPoolByPair", (api: DataApi, pool: string) => api.ammPoolByPair(XRP_ASSET, { currency: "USD", issuer: pool }), (pool: string) => `GET /v2/amm/pools/XRP/USD+${pool}`],
+    ])("%s: an answer without its `pool` is kind server", async (_name, call, key) => {
+      const pool = freshPool();
+      const { api } = throughCache({ [key(pool)]: { result: "success" } });
+
+      const error = await failureOf(call(api, pool));
+
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain('"pool"');
+    });
+  });
+
+  describe("a good answer", () => {
+    it.each(everyCall)("%s: is what the API said (the pool under `pool` unwrapped), through the Worker's own cache", async (_name, c) => {
+      const pool = freshPool();
+      const body = c.good(pool);
+      const { api } = throughCache({ [c.key(pool)]: body });
+
+      expect(await c.call(api, pool)).toEqual(c.unwrap ? body[c.unwrap] : body);
+    });
+
+    it("takes the amounts as BigNumber writes them (a dust reserve), and a pool the index has not seen the creation of", async () => {
+      const pool = freshPool();
+      const bare = { amm_account: pool, base_currency: "USD", counter_currency: "XRP", reserve_base: "1.5e-7", last_ledger: 107717584, deleted: true };
+      const { api } = throughCache({ [`GET /v2/amm/pools/${pool}`]: { result: "success", pool: bare } });
+
+      expect(await api.ammPool(pool)).toEqual(bare);
+    });
+  });
+
+  describe("what is stored, and for how long", () => {
+    it("keeps the pools, a pool, a pool by its pair and the live volume a minute (class minute)", async () => {
+      const pool = freshPool();
+      const { storedBy } = storing("amm-stored-minute");
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+
+      expect(await storedBy((a) => a.ammPools({ limit: 20 }))).toEqual(["public, max-age=60"]);
+      expect(await storedBy((a) => a.ammPool(pool))).toEqual(["public, max-age=60"]);
+      expect(await storedBy((a) => a.ammPoolByPair(XRP_ASSET, { currency: "USD", issuer: pool }))).toEqual(["public, max-age=60"]);
+      expect(await storedBy((a) => a.ammVolume({ live: "day" }))).toEqual(["public, max-age=60"]);
+      expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+    });
+
+    it("keeps a pool's days 300 s (class slow, kept PERIOD_CALL_TTL_SECONDS), under an entry of its own", async () => {
+      const pool = freshPool();
+      const { storedBy } = storing("amm-stored-days");
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+
+      expect(await storedBy((a) => a.ammPoolDays(pool, { end: "2026-10-17", limit: 1000 }))).toEqual(["public, max-age=300"]);
+      expect(PERIOD_CALL_TTL_SECONDS).toBe(300);
+    });
+
+    it("keeps the first page of the swaps 5 s (class live) and a page behind a marker, newest first, MARKER_PAGE_CLASS's 3600 s", async () => {
+      const pool = freshPool();
+      const { storedBy } = storing("amm-stored-swaps");
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+
+      expect(await storedBy((a) => a.ammSwaps(pool, { descending: true, limit: 20 }))).toEqual(["public, max-age=5"]);
+      expect(await storedBy((a) => a.ammSwaps(pool, { limit: 20 }))).toEqual(["public, max-age=5"]);
+      expect(await storedBy((a) => a.ammSwaps(pool, { descending: true, limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" }))).toEqual(["public, max-age=3600"]);
+      // Oldest first, a list grows at its end: a page behind a marker is the newest rows still.
+      expect(await storedBy((a) => a.ammSwaps(pool, { limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" }))).toEqual(["public, max-age=5"]);
+      expect(MARKER_PAGE_CLASS).toBe("slow");
+      expect(CACHE_CLASSES[MARKER_PAGE_CLASS].edgeTtl).toBe(3600);
+    });
+
+    it("keeps the liquidity events like the swaps, and the create event an hour (class slow)", async () => {
+      const pool = freshPool();
+      const { storedBy } = storing("amm-stored-liquidity");
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+
+      expect(await storedBy((a) => a.ammLiquidity(pool, { descending: true, limit: 20 }))).toEqual(["public, max-age=5"]);
+      expect(await storedBy((a) => a.ammLiquidity(pool, { descending: true, limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" }))).toEqual(["public, max-age=3600"]);
+      expect(await storedBy((a) => a.ammLiquidity(pool, { event: "create", limit: 1 }))).toEqual(["public, max-age=3600"]);
+    });
+
+    it("keeps the governance rows like the swaps", async () => {
+      const pool = freshPool();
+      const { storedBy } = storing("amm-stored-governance");
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+
+      expect(await storedBy((a) => a.ammGovernance(pool, { descending: true, limit: 20 }))).toEqual(["public, max-age=5"]);
+      expect(await storedBy((a) => a.ammGovernance(pool, { descending: true, limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" }))).toEqual(["public, max-age=3600"]);
+    });
+
+    it("asks the cache for each call's class, and for a TTL only on the days; the volume's live form is class minute, its historical form class slow", async () => {
+      const cache = recordingCache();
+      const api = createDataApi(xrpl, env, cache);
+      const pool = freshPool();
+      const marker = "WzEwNzY3MDM2MCw1XQ";
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+
+      await api.ammPools({ limit: 20 });
+      await api.ammPool(pool);
+      await api.ammPoolByPair(XRP_ASSET, RLUSD_ASSET);
+      await api.ammPoolDays(pool, { end: "2026-10-17", limit: 1000 });
+      await api.ammSwaps(pool, { descending: true, limit: 20 });
+      await api.ammSwaps(pool, { descending: true, limit: 20, marker });
+      await api.ammLiquidity(pool, { limit: 20 });
+      await api.ammLiquidity(pool, { event: "create", limit: 1 });
+      await api.ammGovernance(pool, { limit: 20 });
+      await api.ammGovernance(pool, { descending: true, limit: 20, marker });
+      await api.ammVolume({ live: "day" });
+      await api.ammVolume({ interval: "day", ...PERIOD, limit: 1000 });
+
+      expect(cache.calls.map(({ cls, ttlOverride }) => ({ cls, ttlOverride }))).toEqual([
+        { cls: "minute" },
+        { cls: "minute" },
+        { cls: "minute" },
+        { cls: "slow", ttlOverride: PERIOD_CALL_TTL_SECONDS },
+        { cls: "live" },
+        { cls: MARKER_PAGE_CLASS },
+        { cls: "live" },
+        { cls: "slow" },
+        { cls: "live" },
+        { cls: MARKER_PAGE_CLASS },
+        { cls: "minute" },
+        { cls: "slow" },
+      ]);
+      expect(cache.calls[3]!.key).toBe(`GET ${BASE}/v2/amm/pools/${pool}/history?interval=day&end=2026-10-17&limit=1000 [kept 300 s]`);
+      // The two forms of the volume are two entries.
+      expect(cache.calls[10]!.key).toBe(`GET ${BASE}/v2/network/amm_volume?live=day`);
+      expect(cache.calls[11]!.key).toBe(`GET ${BASE}/v2/network/amm_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000`);
+    });
+
+    it("has an entry for each filter, window and page, so that none is read for another; the failure hold is no part of the live volume's key", async () => {
+      const cache = recordingCache();
+      const api = createDataApi(xrpl, env, cache);
+      const pool = freshPool();
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+
+      await api.ammPools({ limit: 20 });
+      await api.ammPools({ limit: 20, asset: RLUSD_ASSET });
+      await api.ammPools({ limit: 20, includeDeleted: true });
+      await api.ammPools({ limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" });
+      await api.ammPoolDays(pool, { end: "2026-10-17", limit: 1000 });
+      await api.ammPoolDays(pool, { end: "2026-10-17", descending: true, limit: 1 });
+      await api.ammPoolDays(pool, { start: "2026-07-20", end: "2026-10-17", limit: 1000 });
+      await api.ammLiquidity(pool, { limit: 20 });
+      await api.ammLiquidity(pool, { event: "create", limit: 20 });
+      expect(new Set(cache.calls.map((call) => call.key)).size).toBe(9);
+
+      cache.calls.length = 0;
+      await api.ammVolume({ live: "day" });
+      await api.ammVolume({ live: "day" }, { holdFailure: true });
+      expect(cache.calls.map((call) => call.holdFailure)).toEqual([undefined, true]);
+      expect(cache.calls[1]!.key).toBe(cache.calls[0]!.key);
+    });
+  });
+
+  describe("the requests", () => {
+    const api = () => createDataApi(xrpl, env, passThroughCache);
+    beforeEach(() => {
+      fetchSpy.mockImplementation(async (input) => ammAnswer(input));
+    });
+
+    it("asks for the pools with limit, asset, include_deleted and marker, in that order; an asset is CUR+issuer with the + escaped, the native currency alone", async () => {
+      await api().ammPools({ limit: 20, asset: RLUSD_ASSET, includeDeleted: true });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools?limit=20&asset=${RLUSD_CODE}%2B${RLUSD_ISSUER}&include_deleted=true`);
+
+      await api().ammPools({ limit: 20, asset: XRP_ASSET, includeDeleted: false, marker: "WzEwNzY3MDM2MCw1XQ" });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools?limit=20&asset=XRP&marker=WzEwNzY3MDM2MCw1XQ`);
+
+      await api().ammPools({ limit: 20, marker: "" });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools?limit=20`);
+    });
+
+    it("asks for a pool by its account, and by its pair in the order given with each asset as the exchanges' path has it", async () => {
+      await api().ammPool(AMM_POOL);
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}`);
+
+      await api().ammPoolByPair(XRP_ASSET, RLUSD_ASSET);
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/XRP/${RLUSD_CODE}%2B${RLUSD_ISSUER}`);
+
+      await api().ammPoolByPair(RLUSD_ASSET, XRP_ASSET);
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${RLUSD_CODE}%2B${RLUSD_ISSUER}/XRP`);
+    });
+
+    it("asks for the days with interval=day first, then start, end, descending and limit; start and descending are left out when there are none", async () => {
+      await api().ammPoolDays(AMM_POOL, { end: "2026-07-19", descending: true, limit: 1 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/history?interval=day&end=2026-07-19&descending=true&limit=1`);
+
+      await api().ammPoolDays(AMM_POOL, { start: "2026-07-20", end: "2026-10-17", limit: 1000 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/history?interval=day&start=2026-07-20&end=2026-10-17&limit=1000`);
+
+      await api().ammPoolDays(AMM_POOL, { start: "2026-07-20", end: "2026-10-17", descending: false, limit: 1000 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/history?interval=day&start=2026-07-20&end=2026-10-17&limit=1000`);
+    });
+
+    it("asks for the swaps, the liquidity events and the governance rows with descending, limit and marker; the create event first", async () => {
+      await api().ammSwaps(AMM_POOL, { descending: true, limit: 20 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/swaps?descending=true&limit=20`);
+
+      await api().ammSwaps(AMM_POOL, { descending: true, limit: 20, marker: "WzEwNzY3MDM2MCw1XQ" });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/swaps?descending=true&limit=20&marker=WzEwNzY3MDM2MCw1XQ`);
+
+      await api().ammLiquidity(AMM_POOL, { descending: true, limit: 20 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/liquidity?descending=true&limit=20`);
+
+      await api().ammLiquidity(AMM_POOL, { event: "create", limit: 1 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/liquidity?event=create&limit=1`);
+
+      await api().ammGovernance(AMM_POOL, { descending: true, limit: 20 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/${AMM_POOL}/governance?descending=true&limit=20`);
+    });
+
+    it("asks for the live volume with live=day alone, and the historical volume as it always did", async () => {
+      await api().ammVolume({ live: "day" });
+      expect(sentRequest().url).toBe(`${BASE}/v2/network/amm_volume?live=day`);
+
+      await api().ammVolume({ interval: "day", ...PERIOD, limit: 1000 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/network/amm_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000`);
+    });
+
+    it("escapes the pool it puts in a path", async () => {
+      await api().ammPoolDays("AB/CD?x#y", { end: "2026-10-17", limit: 1000 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/amm/pools/AB%2FCD%3Fx%23y/history?interval=day&end=2026-10-17&limit=1000`);
+    });
+
+    it.each(["..", ".", ""])("refuses %j as a pool without sending anything: its segment would be resolved away", async (pool) => {
+      const client = api();
+
+      expect((await failureOf(client.ammPool(pool))).kind).toBe("bad_request");
+      expect((await failureOf(client.ammPoolDays(pool, { end: "2026-10-17", limit: 1000 }))).kind).toBe("bad_request");
+      expect((await failureOf(client.ammSwaps(pool, { limit: 20 }))).kind).toBe("bad_request");
+      expect((await failureOf(client.ammLiquidity(pool, { limit: 20 }))).kind).toBe("bad_request");
+      expect((await failureOf(client.ammGovernance(pool, { limit: 20 }))).kind).toBe("bad_request");
+      expect((await failureOf(client.ammPoolByPair(XRP_ASSET, { currency: "" }))).kind).toBe("bad_request");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("types the answer of each call by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.ammPools({ limit: 20 })).toEqualTypeOf<Promise<Page<"pools", AmmPool>>>();
+    expectTypeOf(api.ammPool(AMM_POOL)).toEqualTypeOf<Promise<AmmPool>>();
+    expectTypeOf(api.ammPoolByPair(XRP_ASSET, RLUSD_ASSET)).toEqualTypeOf<Promise<AmmPool>>();
+    expectTypeOf(api.ammPoolDays(AMM_POOL, { end: "2026-10-17", limit: 1000 })).toEqualTypeOf<Promise<Page<"days", AmmPoolDay>>>();
+    expectTypeOf(api.ammSwaps(AMM_POOL, { limit: 20 })).toEqualTypeOf<Promise<Page<"exchanges", AmmSwap>>>();
+    expectTypeOf(api.ammLiquidity(AMM_POOL, { limit: 20 })).toEqualTypeOf<Promise<Page<"liquidity", AmmLiquidityEvent>>>();
+    expectTypeOf(api.ammGovernance(AMM_POOL, { limit: 20 })).toEqualTypeOf<Promise<Page<"governance", AmmGovernanceRow>>>();
+    expectTypeOf(api.ammVolume({ live: "day" })).toEqualTypeOf<Promise<Page<"rows", AmmVolumeRow>>>();
+    expectTypeOf(api.ammVolume({ interval: "day", ...PERIOD, limit: 1000 })).toEqualTypeOf<Promise<Page<"rows", VolumeRow<AmmVolumeComponent>>>>();
+    // The only event the page asks the liquidity route for is the creation.
+    expectTypeOf<NonNullable<Parameters<DataApi["ammLiquidity"]>[1]["event"]>>().toEqualTypeOf<"create">();
   });
 });
 
