@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { parsePairPath } from "../server/pair-route";
 import { assetText, sameAsset, type Asset, type NativeCode } from "./asset";
-import { marketHref, naturalOrientation, QUOTE_RANK } from "./market-pair";
+import { isLinkable, marketHref, naturalOrientation, QUOTE_RANK } from "./market-pair";
 
 const GH = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 const RL = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
@@ -208,6 +208,32 @@ describe("marketHref: the canonical link to a pair", () => {
 
   it("writes an LP token's hex in upper case", () => {
     expect(marketHref("xrpl", LP, XRP)).toBe(`/xrpl/markets/${LP.currency}.${LP_POOL}/XRP`);
+  });
+});
+
+describe("isLinkable: whether the data API can be asked for a pair", () => {
+  it("is true when each side reads back from its URL form as the same asset", () => {
+    expect(isLinkable([XRP, USD], "XRP")).toBe(true);
+    expect(isLinkable([RLUSD, XRP], "XRP")).toBe(true);
+    expect(isLinkable([LP, XRP], "XRP")).toBe(true);
+    expect(isLinkable([XAH, EVR], "XAH")).toBe(true);
+  });
+
+  it("is false for a lower-case standard code, which reads back as upper case (another asset)", () => {
+    const lower: Asset = { currency: "usd", issuer: GH };
+    expect(assetText(lower)).toBe(`USD.${GH}`);
+    expect(isLinkable([lower, XRP], "XRP")).toBe(false);
+    expect(isLinkable([XRP, lower], "XRP")).toBe(false);
+    expect(isLinkable([{ currency: "xrp" }, USD], "XRP")).toBe(false);
+  });
+
+  it("is false when any side is not an asset of the network: a bad issuer, or the other network's native code", () => {
+    expect(isLinkable([{ currency: "USD", issuer: "rNotAnAddress" }, XRP], "XRP")).toBe(false);
+    expect(isLinkable([XAH, USD], "XRP")).toBe(false);
+  });
+
+  it("is true for no side", () => {
+    expect(isLinkable([], "XRP")).toBe(true);
   });
 });
 

@@ -3,6 +3,11 @@
 
 /** How long a data API request, answer included, may take. */
 export const DATA_API_TIMEOUT_MS = 5000;
+/**
+ * How long the one slow data API request, `analytics/counterparties` of an account, may take (D2 asks for 15 s: 2 to 10 s for the heaviest accounts at 1 Y and All).
+ * Too long for a page to await (`streamTimeout` is 5 s), so the page lets a late call finish in the background, under `waitUntil`, and keeps its answer 60 s.
+ */
+export const ANALYTICS_SLOW_TIMEOUT_MS = 15_000;
 /** How long a node request, answer included, may take. */
 export const NODE_TIMEOUT_MS = 3000;
 

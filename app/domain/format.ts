@@ -119,6 +119,29 @@ export function formatChange(value: string): string {
   return `${change.isNegative() ? MINUS : "+"}${formatAmount(change.abs().toFixed(2))}`;
 }
 
+/** The smallest value `formatValue` writes in digits: one drop of the native currency. */
+const ONE_DROP = new BigNumber("0.000001");
+
+/**
+ * An estimate in the native currency, for a tile or a table cell: half up to 2 decimals from 1, to 6 decimals below 1, trailing zeros
+ * dropped, the integer part grouped, U+2212 before a negative value, `+` before a positive one with `signed`, `0` for zero (no sign), and
+ * `<0.000001` for what is not zero and below a drop (the sign goes before it). Exponent notation is read, never written. A value that is
+ * not a number is returned as it came.
+ */
+export function formatValue(value: string, opts: { signed?: boolean } = {}): string {
+  if (!DECIMAL.test(value)) return value;
+  const number = new BigNumber(value);
+  if (number.isZero()) return "0";
+
+  const abs = number.abs();
+  const plus = opts.signed === true && number.isPositive() ? "+" : "";
+  if (abs.lt(ONE_DROP)) return `${number.isNegative() ? MINUS : plus}<0.000001`;
+
+  // Half up on the digits (a tie goes away from zero, as in `formatChange`), and `toFixed()` with no argument is plain notation with no trailing zeros.
+  const rounded = number.decimalPlaces(abs.gte(1) ? 2 : 6, BigNumber.ROUND_HALF_UP);
+  return `${plus}${formatAmount(rounded.toFixed())}`;
+}
+
 /**
  * `part` as a whole percent of `whole`, half up, exactly (`58%`), and `<1%` below one half of a percent. A share of nothing
  * (a `whole` that is not above 0) or of what is not a number is a dash.

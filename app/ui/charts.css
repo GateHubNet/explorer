@@ -120,6 +120,27 @@
   color: var(--faint);
 }
 
+/* The summary line of a card (`summary`): the figures of the whole window, between the legend and the plot, and in the page under the table. */
+.chart__summary {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.chart__summary :is(b, strong) {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* A card before its data (`state="loading"`) is as high as its chart will be, so that the data arriving moves nothing: the plot and the band of
+   its x labels, which is 24 px (`--x-band`) and is not in scope here. The plot's height under 480 px of card is in the container rule below. */
+.chart__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(200px + 24px);
+  color: var(--muted);
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    The Chart/Table toggle: a fieldset of two native radios drawn as segments, the choice kept by the browser and read by the CSS below. The
    radios are out of sight but in the page (a keyboard reaches them, a screen reader names them); the label is the target, 44 px high. */
@@ -398,6 +419,10 @@
   .plot__y,
   .plot__end {
     height: 160px;
+  }
+
+  .chart__loading {
+    height: calc(160px + 24px);
   }
 
   .plot__x--wide {

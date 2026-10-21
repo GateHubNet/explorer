@@ -3,6 +3,7 @@
 import type { MetaDescriptor } from "react-router";
 
 import { accountHref, type AccountTab } from "../domain/account-tabs";
+import { ANALYTICS_META, type AnalyticsPeriod } from "../domain/analytics-params";
 import { formatAmount, formatUtc, shortAddress } from "../domain/format";
 import type { Native } from "../domain/parse/types";
 import type { Activation, BalanceView } from "./account-view";
@@ -13,6 +14,8 @@ export interface AccountFacts {
   address: string;
   native: Native;
   tab: AccountTab;
+  /** Present on the Analytics tab's data (its view), which is the only page that has it. */
+  analytics?: { period: AnalyticsPeriod };
   header:
     | { status: "history" }
     | { status: "active" | "deleted"; activation: Pick<Activation, "time"> | null; balance: Pick<BalanceView, "native"> | null };
@@ -20,12 +23,23 @@ export interface AccountFacts {
 
 /**
  * The tags of `/{net}/account/{address}`. The canonical URL names the tab unless it is the first one; `tag` and every other parameter
- * are not part of it. A page of old history (reached with a marker) is `noindex, follow`, with no canonical URL and nothing to share.
+ * are not part of it. A page of old history (reached with a marker) is `noindex, follow`, with no canonical URL and nothing to share, and
+ * so is a view of the Analytics tab (spec 4): a title per period, a description with no figures.
  */
 export function accountMeta(account: AccountFacts, ctx: MetaContext): MetaDescriptor[] {
   const { network, origin } = ctx;
-  const { address, tab, header } = account;
+  const { address, tab, header, analytics } = account;
   const title = `Account ${shortAddress(address)} · ${suffixOf(network)}`;
+
+  if (analytics) {
+    const period = ANALYTICS_META[analytics.period];
+    return [
+      { title: `Analytics${period ? `, ${period}` : ""} · ${title}` },
+      { name: "description", content: `Account value, transactions sent, balances, money in and out, counterparties and DEX trading of ${address} on ${network.name}.` },
+      { name: "robots", content: "noindex, follow" },
+    ];
+  }
+
   const url = absolute(origin, accountHref(network.id, address, { tab }));
 
   if (header.status === "history") {

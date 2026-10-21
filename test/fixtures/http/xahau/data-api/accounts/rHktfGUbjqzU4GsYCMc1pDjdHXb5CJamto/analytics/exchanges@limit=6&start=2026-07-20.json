@@ -1,0 +1,11 @@
+{
+  "count": 2,
+  "end": "2026-10-18T00:00:00Z",
+  "pairs": [
+    {"base_currency":"EVR","base_issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","base_volume":"63.795265","bought":"36.027887","bought_counter":"120.0663","count":4,"counter_currency":"XAH","counter_volume":"212.149848","native_volume":"212.149848","sold":"27.767378","sold_counter":"92.083548"},
+    {"base_currency":"USD","base_issuer":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","base_volume":"2.008492","bought":"0","bought_counter":"0","count":3,"counter_currency":"XAH","counter_volume":"51.22855","native_volume":"51.22855","sold":"2.008492","sold_counter":"51.22855"}
+  ],
+  "result": "success",
+  "start": "2026-07-20T00:00:00Z",
+  "total": 2
+}

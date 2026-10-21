@@ -80,6 +80,8 @@ decision was to leave it hand-written), so its tests in `describe.test.ts` use h
 recordings). Its transactions are the recorded ones; the creation data of its accounts and its `server_state` are invented. The files of the network page that
 the recordings cannot give are synthetic, and have a section of their own at the end. So have the markets pages' files: their markets tables and Xahau's EVR/XAH
 are synthetic ("Synthetic aggregates"), and XRPL's pair files and the pools' `amm_info` answers are derived from the recorded trades ("Derived trades and pool states").
+So are the accounts' answers for the Analytics tab (`data-api/accounts/<address>/stats/` and `.../analytics/`): synthetic, anchored to the hand-written account files ("Synthetic
+aggregates").
 
 The account page asks the node for `account_objects` with `limit: 400` (the largest page), and a fixture is found by all the
 parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
@@ -188,6 +190,71 @@ file is never asked for. `scripts/http-fixtures.test.ts` fails when a file is no
 calls worked out from `candleWindow` and `dayWindowStart`, the fixture server's answers, the client's checks, and every figure against the trades it is made of) and
 `test/worker/market-fixtures.spec.ts` (the data API client's own requests in the Workers runtime); `isMarketGenerated` names them, and they have a budget of their own
 (about 0.86 MiB, 81 files).
+
+**The Analytics tab's answers** (`http/<net>/data-api/accounts/<address>/stats/` and `.../analytics/`). The account page's Analytics tab (E4) asks for an account's months of
+aggregates valued at rates: calls 1 to 6 of the E4 spec, section 2.3 (`stats/value`, `stats/transactions`, `analytics/balance_changes`, `analytics/counterparties`,
+`analytics/balances`, `analytics/exchanges`), which the recorded ledgers cannot give. `scripts/analytics-fixtures.ts` (`analyticsFixtures(net, T)`, called by `generate()`) makes
+them up for the active, the deleted and the never-funded account of each network (README.md, "Upstream fixtures"), for the windows of the four periods at T (`analyticsWindow`;
+T is the UTC day of the recorded `last_validated`, 2026-10-17 on both networks): 6 calls × 4 periods × 3 accounts, 72 files a network, 144 in all, each named by its request
+(`stats/value@interval=day&limit=1000&start=2026-09-18.json` … `analytics/exchanges@limit=6&start=2025-07-01.json`; All from the month of the account's `inception`, T's month
+for the never-funded address). The never-funded address has the empty answers D2 gives an address it does not know.
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`: `GET /v2/accounts/{address}/stats/{family}` with "`interval` on `stats/{family}`", and "Account analytics" | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` (the merge of D2; `ANALYTICS_REFERENCE_COMMIT` in the generator) | the shapes, keys, formats, windows, row rules and sort orders |
+| `apps/api/src/accounts/account-analytics-object.ts`, `packages/shared/src/query/valuation.ts`, `packages/shared/src/query/decimal.ts` | the same | the same | what the reference leaves open: the groups a value is worked out per (17 significant digits of the quotient, half up; sums exact), the ranking of the lines, the native volume of a pair without a native side |
+
+Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. The client's types and checks (`app/server/api-types.ts`, `app/server/analytics-shape.ts`) follow
+the same commit.
+
+*Generator and seeds.* One stream for each network, account and endpoint, `mulberry32(seedOf(net, account, endpoint))` (`scripts/synthetic.ts`): `stats/value` draws the
+tokens' daily rates; `stats/transactions` the transactions sent that move nothing but their fee, and which payments and offers fail; `analytics/balances` the first day of
+each token line the account holds; `analytics/counterparties` the accounts it pays and is paid by (20 seeded bytes each, `encodeAccountID`) and the payments;
+`analytics/exchanges` (Xahau's USD issuer first, the same way) the trades; `analytics/balance_changes` the fees, escrows, rippled payments, rewards and what the deleted account
+held when it was deleted. Only integer arithmetic and the four operations of IEEE doubles go into the draws.
+
+*What they follow.* One history per account, made day by day from its `inception` to T and then cut to each window and bucketed by its interval with `bignumber.js`: a
+30-day file's days are the 90-day file's, a week or a month adds up its days, and a level (a balance, the account's value) is its last day's. Every balance change is a leg of
+something in that history: a payment (`payment_source`, `payment_destination`), a trade (`exchange`, both sides), an escrow, a payment rippled through a trust line
+(`intermediary`, in and out), a reward or the deletion (no change type), or the fee of a transaction the account sent (`transaction_cost`, so a bucket's count is its
+`transaction_count`; a failed transaction pays its fee and moves nothing else). The lines' balances are the sums of their changes, and the counterparties and pairs are the
+payments and trades of the same history. The answers follow the reference's rules: `stats/value` has a row for every bucket from the account's first; `stats/transactions` only
+for the buckets with a transaction sent, its result counts adding up to its type counts; the totals of `balance_changes` are the sums of its rows, in D2's order of the types,
+with `net_value` = `in_value − out_value`; the lines are ranked native first, then by value at T; counterparties by `total_value`, then the account; pairs, in their stored
+order (`canonicalPair`), by `native_volume`; the window is widened to whole buckets with an exclusive `end` (the day after T for counterparties and exchanges). Values follow
+D2's valuation: the native coin is worth itself, a token amount its amount over the day's rate (units per native coin), cut to 17 significant digits for each group (a day, a
+change type and an asset; a counterparty, a side, an asset and a day; a pair's day), and the sums are exact. Every amount and value is a plain decimal, as `toString` writes it
+(the generator stops at one the API would write in exponent form), and a row is one line (`ANALYTICS_ROW_LISTS`).
+
+*Anchored to the account fixtures*, which the generator reads and never writes: the active account's native line ends at its `node/account_info` balance (XRPL 10.001625, Xahau
+9,351.039221) and each token line at its `balances.json` value (XRPL's LIONS 48,329.908117603, Xahau's EVR 28,437,367.3675102); the deleted account's native balance is 0 from
+the day of its deletion on (the newest row of its hand-written history, 2026-10-15 on both networks: XRPL's recorded AccountDelete, Xahau's newest recorded transaction), when an
+AccountDelete pays `server_state`'s `reserve_inc` as its fee and sends the rest away (no change type), and it does nothing after it; an account's first day is the day of its
+creation's `inception`, when the creation's `parent` pays it the creation's `initial_balance` at the `inception`'s second, as the header shows it (XRPL 25 and 10 XRP,
+Xahau 25 and 15 XAH); the native balance stays at or above `server_state`'s reserve (`reserve_base`, and `reserve_inc` for each trust line) until a deletion. The history is
+made backwards, from the anchors to the first day, and a change the balances could not have had did not happen: a payment or an offer the account sent then failed for want of
+funds (`tecUNFUNDED_PAYMENT`, `tecUNFUNDED_OFFER`), and anything else is dropped. What the history leaves on the first day differs from the initial balance, and one payment a
+minute after the activation settles it: from one of the account's counterparties when the history needs more (XRPL's deleted account, Xahau's active one), to one when it
+needs less (XRPL's active account, Xahau's deleted one). So the parent's row of All's counterparties is the initial balance, one payment at the inception; Xahau's active
+account's parent is also EVR's issuer, and its row holds the EVR too. A token line opens with the account's TrustSet and a payment from the token's issuer of what the history
+leaves at its first day.
+
+*On purpose:* the XRPL active account trades USD of `rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq` against XRP in its last 45 days (stored USD/XRP, shown XRP/USD by E3's natural
+orientation), LIONS against XRP, and LIONS against that USD in the same 45 days (LIONS/USD, a pair without a native side, whose `native_volume` is LIONS' volume at its rate
+of each day); Xahau's trades USD of a seeded issuer against XAH in its last 40 days (stored USD/XAH, shown XAH/USD) and EVR against XAH, and nothing against USD but XAH;
+neither holds USD at T, so a line of 0 is served. The XRPL active account has a failed transaction in the 30 days. Xahau's active account is paid small sums by some thirty accounts,
+as its recorded history shows, and both Xahau accounts claim rewards (`ClaimReward`, XAH with no change type). The deleted accounts hold no token and never trade.
+
+*Invented, and not checked against anything real:* every count, amount, time, rate (LIONS at about 6,318 a XRP, the price of its recorded trades; GateHub's USD at 2.4 a XRP,
+Xahau's USD at 0.04 a XAH and EVR at 0.285714 a XAH, the prices of the network page's fixtures), counterparty and issuer of the histories. The histories do not hold the recorded
+transactions of the accounts' hand-written lists, which are a handful of days, so the Transactions and the Analytics tabs do not show the same days. Only an end-to-end run
+against a real stack checks them against real answers.
+
+*What keeps them true.* `test/unit/analytics-fixtures.test.ts` works the requests out from the E4 spec's table of calls and `analyticsWindow`, fails for a file that is asked for
+and not written or written and not asked for, runs the client's checks (`app/server/analytics-shape.ts`) on every answer, and checks the rules and the anchors above against the
+files, and the four periods against each other; `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes. `isAnalyticsGenerated`
+(`scripts/http-fixtures.ts`) names them, and they count against the synthetic files' budget in `test/unit/http-fixtures.test.ts` (144 files, 327,126 bytes, about 0.31 MiB;
+with the network page's 2.3 MiB, below its 2.7 MiB). `analyticsOpenings` gives the test each funded account's opening payment alone.
 
 ## Derived trades and pool states: the markets pages' XRPL files and `http/xrpl/node/amm_info/`
 

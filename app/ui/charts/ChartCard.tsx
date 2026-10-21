@@ -16,7 +16,12 @@ const NOTHING = () => {};
  * in the HTML, so the cached page has the table as well as the plot.
  *
  * `state="failed"` is the card whose data could not be loaded: the title and the source stay, and a `SectionError` with a Retry stands
- * in place of the toggle, the legend, both views and the notes. `what` finishes "Couldn't load …".
+ * in place of the toggle, the legend, both views and the notes. `what` finishes "Couldn't load …"; `message` says it in other words where
+ * those do not fit (a call that is still running: "Still working on the account value. Retry in a few seconds.").
+ *
+ * `state="loading"` is the card of a stream, before its data: the title and the source stay, and "Loading…" fills the height the plot will
+ * have, hidden from assistive technology (the card is `aria-busy`, and the page's one status says it is loading). There is no toggle, and
+ * no legend, view or notes. `summary` is the line of figures between the legend and the plot, and stays when the table is chosen.
  */
 export function ChartCard({
   id,
@@ -24,9 +29,11 @@ export function ChartCard({
   source,
   what,
   state = "ok",
+  message,
   onRetry,
   retrying,
   legend,
+  summary,
   table,
   notes,
   className,
@@ -38,11 +45,15 @@ export function ChartCard({
   source: string;
   /** What to call the chart in the words of a failure: "transactions by type". */
   what: string;
-  state?: "ok" | "failed";
+  state?: "ok" | "failed" | "loading";
+  /** What a failed card says instead of "Couldn't load {what}." (`SectionError`'s `message`). */
+  message?: ReactNode;
   onRetry?: () => void;
   retrying?: boolean;
   /** The `Legend`, for a chart with two or more series. */
   legend?: ReactNode;
+  /** A line of figures between the legend and the plot ("Received +45.2K · sent −38.1K"), the view builder's. */
+  summary?: ReactNode;
   /** The table view: a `ChartTable`. */
   table?: ReactNode;
   /** One paragraph each, in the faint note style. */
@@ -66,7 +77,7 @@ export function ChartCard({
   );
 
   return (
-    <section className={cx("card", "chart", className)} aria-labelledby={titleId}>
+    <section className={cx("card", "chart", className)} aria-labelledby={titleId} aria-busy={state === "loading" || undefined}>
       <div className="chart__head">
         <div className="chart__titles">
           <h2 id={titleId} className="chart__title">
@@ -77,10 +88,15 @@ export function ChartCard({
         {toggle}
       </div>
       {state === "failed" ? (
-        <SectionError what={what} onRetry={onRetry ?? NOTHING} retrying={retrying} />
+        <SectionError what={what} message={message} onRetry={onRetry ?? NOTHING} retrying={retrying} />
+      ) : state === "loading" ? (
+        <div className="chart__loading" aria-hidden="true">
+          Loading…
+        </div>
       ) : (
         <>
           {legend}
+          {summary && <div className="chart__summary">{summary}</div>}
           <div className="chart__view">{children}</div>
           <div className="chart__table">{table}</div>
           {notes && notes.length > 0 && (

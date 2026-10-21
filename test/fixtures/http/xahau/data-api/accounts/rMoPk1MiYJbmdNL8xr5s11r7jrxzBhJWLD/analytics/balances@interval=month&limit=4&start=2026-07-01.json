@@ -1,0 +1,17 @@
+{
+  "count": 4,
+  "end": "2026-11-01T00:00:00Z",
+  "interval": "month",
+  "lines": [
+    {"balance":"0","currency":"XAH"}
+  ],
+  "lines_total": 1,
+  "result": "success",
+  "rows": [
+    {"balance":"6.739941","currency":"XAH","date":"2026-07-01T00:00:00Z"},
+    {"balance":"9.86598","currency":"XAH","date":"2026-08-01T00:00:00Z"},
+    {"balance":"8.028898","currency":"XAH","date":"2026-09-01T00:00:00Z"},
+    {"balance":"0","currency":"XAH","date":"2026-10-01T00:00:00Z"}
+  ],
+  "start": "2026-07-01T00:00:00Z"
+}

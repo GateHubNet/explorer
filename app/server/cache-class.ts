@@ -85,7 +85,7 @@ export const FAILURE_HOLD_SECONDS = 5;
 export const FAILURE_HOLD_MAX_SECONDS = 30;
 export const FAILURE_HOLD_KEYS = 256;
 
-/** What a call may ask of the subrequest cache beyond its class and TTL. A later spec adds its options here (E4: `shareInFlight`). */
+/** What a call may ask of the subrequest cache beyond its class and TTL. */
 export interface SubrequestOptions {
   /**
    * Hold this call's failure (spec 1.7): when `load` throws an `UpstreamError` of kind `server`, `timeout`, `network` or `rate_limited`, the error is
@@ -97,6 +97,20 @@ export interface SubrequestOptions {
    * call that does not ask neither reads nor makes a hold. Never stored in the Cache API; never for `not_found` or `bad_request`.
    */
   holdFailure?: boolean;
+  /**
+   * Share the load with the same load in flight (E4 spec 2.7): while one request of this Worker instance is loading a key on a miss, a call for that
+   * key with this option waits for that load and is given its answer, as a copy of its own, or its error (the same object), and calls no `load`. It is
+   * for a slow, heavy call that a page of many visitors would otherwise make once for each of them. The flight is per instance and in memory, by build ID
+   * and key (so a key kept `[kept N s]` is its own), covers the load and the write only, and is removed when it settles. A load that has not settled in
+   * 30 s is not joined any more (it is never going to, and must not close its key for good): the next call starts a flight of its own.
+   *
+   * The order of a call is: the Cache API (a stored answer is the answer, whatever is held or in flight), then the held failure if `holdFailure` is set
+   * (thrown without joining a flight or loading, so that the probe of a hold is still one call), then the flight of the key, else one this call starts.
+   * It applies to a call that is not kept (a TTL of zero) too, which writes nothing. The answer travels as JSON text and each caller parses its own, so
+   * a value that JSON cannot hold (or `undefined`) is an error for every caller of the flight. The call that starts a flight is the one that records its
+   * failure for the hold, so the calls of one key should all ask for `holdFailure`, or none.
+   */
+  shareInFlight?: boolean;
 }
 
 /**

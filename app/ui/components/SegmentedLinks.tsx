@@ -6,6 +6,8 @@ export interface SegmentLink {
   href: string;
   /** The view the page is showing: marked with `aria-current="true"`. */
   current: boolean;
+  /** The link's `rel`: `nofollow` for a view crawlers are kept off (the account's analytics). */
+  rel?: string;
 }
 
 /**
@@ -28,7 +30,14 @@ export function SegmentedLinks({ label, links, hideLabel = false }: { label: str
       </span>
       <div role="group" aria-labelledby={labelId} className="netswitch">
         {links.map((link) => (
-          <Link key={link.href} to={link.href} preventScrollReset className="netswitch__item" aria-current={link.current ? "true" : undefined}>
+          <Link
+            key={link.href}
+            to={link.href}
+            preventScrollReset
+            rel={link.rel}
+            className="netswitch__item"
+            aria-current={link.current ? "true" : undefined}
+          >
             {link.label}
           </Link>
         ))}

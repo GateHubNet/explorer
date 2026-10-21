@@ -59,15 +59,15 @@ export function isIsoTime(value: unknown): value is string {
 
 const isCount = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 /** A count of rows or an index: a whole number, not negative. */
-const isWhole = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+export const isWhole = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const isText = (value: unknown): value is string => typeof value === "string";
 /** A name that is there: a currency, an account, a hash. */
-const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
+export const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
 const isShare = (value: unknown): value is string => isDecimalText(value) && SHARE.test(value);
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 
 /** The list that the answer keeps its rows under, each row an object. */
-function rowsOf(what: string, body: unknown, key: string): Array<Record<string, unknown>> {
+export function rowsOf(what: string, body: unknown, key: string): Array<Record<string, unknown>> {
   const list = isObject(body) ? body[key] : undefined;
   if (!Array.isArray(list)) throw malformed(what, `no list of ${key}`);
   for (const [index, row] of (list as unknown[]).entries()) {
@@ -77,14 +77,14 @@ function rowsOf(what: string, body: unknown, key: string): Array<Record<string, 
 }
 
 /** Throws unless each of `names` is a field of `row` that satisfies `is`; `kind` says what it should have been. */
-function fields(what: string, where: string, row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean, kind: string): void {
+export function fields(what: string, where: string, row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean, kind: string): void {
   for (const name of names) {
     if (!is(row[name])) throw malformed(what, `${where}.${name} is not ${kind}`);
   }
 }
 
 /** Throws unless each of `names` that `row` has (a key the API leaves out when it has none) satisfies `is`. */
-function optionalFields(what: string, where: string, row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean, kind: string): void {
+export function optionalFields(what: string, where: string, row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean, kind: string): void {
   for (const name of names) {
     if (row[name] !== undefined && !is(row[name])) throw malformed(what, `${where}.${name} is not ${kind}`);
   }

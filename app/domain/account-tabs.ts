@@ -1,8 +1,10 @@
 // The tabs of the account page and the URL of a tab or of a page of its list. Pure: the Worker builds the Newer and Older links with
 // it and the page builds the links of its tabs, so it must stay small (the page runs in the browser too).
 
-export const ACCOUNT_TABS = ["transactions", "payments", "trades", "offers", "objects"] as const;
+export const ACCOUNT_TABS = ["transactions", "payments", "trades", "offers", "objects", "analytics"] as const;
 export type AccountTab = (typeof ACCOUNT_TABS)[number];
+/** The tabs that show a list. Analytics is a view of its own (`app/domain/analytics-params.ts` has its URLs). */
+export type ListTab = Exclude<AccountTab, "analytics">;
 
 export function isAccountTab(value: unknown): value is AccountTab {
   return typeof value === "string" && (ACCOUNT_TABS as readonly string[]).includes(value);

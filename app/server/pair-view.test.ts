@@ -672,7 +672,7 @@ const XRP_ASSET: Asset = { currency: "XRP" };
 const USD_ASSET: Asset = { currency: "USD", issuer: GH };
 const EUR_ASSET: Asset = { currency: "EUR", issuer: BS };
 
-const FEATURES = { validators: false, ammData: true, markets: true };
+const FEATURES = { validators: false, ammData: true, markets: true, accountAnalytics: true };
 const XRPL: PairInput["network"] = { id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true, features: FEATURES };
 const XRPL_AMM_OFF: PairInput["network"] = { ...XRPL, features: { ...FEATURES, ammData: false } };
 /** The switch is "on" at the top level of every environment, Xahau's included: `hasAmm` is what rules there. */

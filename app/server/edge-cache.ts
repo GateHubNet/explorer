@@ -163,21 +163,24 @@ function holdSeconds(error: UpstreamError): number {
 }
 
 /**
- * Runs `load` unless the key's failure is held, in which case that error is thrown again; remembers the failure of a `load` that fails.
- *
- * Once a hold is over, the first call that finds it is the probe: it runs `load`, and until it has settled (or for the hold's length again, if it
- * does not) the entry stays, so that every other call keeps getting the held error and the upstream is asked by one call, not by every render
- * that starts while the probe waits. That matters for an upstream that times out: its probe takes the whole deadline (5 s), and a hold that simply
- * lapsed would leave every render of those 5 s calling it. What the probe finds decides the entry: an answer deletes it; a held failure sets it
- * again, for a full hold from now; any other outcome (a thing that is not there, a request that was refused, an error that is not an upstream's)
- * deletes it. The entry is all that is shared: a call never gets another request's response or stream, which a Worker may not read.
+ * Throws the key's held failure, if there is one. Once a hold is over, the first call that finds it is the probe: it goes on to run `load`, and until
+ * it has settled (or for the hold's length again, if it does not) the entry stays, so that every other call keeps getting the held error and the
+ * upstream is asked by one call, not by every render that starts while the probe waits. That matters for an upstream that times out: its probe takes
+ * the whole deadline (5 s), and a hold that simply lapsed would leave every render of those 5 s calling it.
  */
-async function loadHoldingFailures<T>(key: string, load: () => Promise<T>): Promise<T> {
+function throwIfHeld(key: string): void {
   const held = heldFailures.get(key);
-  if (held) {
-    if (held.until > Date.now()) throw held.error;
-    held.until = Date.now() + holdSeconds(held.error) * 1000;
-  }
+  if (!held) return;
+  if (held.until > Date.now()) throw held.error;
+  held.until = Date.now() + holdSeconds(held.error) * 1000;
+}
+
+/**
+ * Runs `load` and remembers its failure. What the probe finds decides the entry: an answer deletes it; a held failure sets it again, for a full hold
+ * from now; any other outcome (a thing that is not there, a request that was refused, an error that is not an upstream's) deletes it. The entry is
+ * all that is shared: a call never gets another request's response or stream, which a Worker may not read.
+ */
+async function recordFailures<T>(key: string, load: () => Promise<T>): Promise<T> {
   try {
     const value = await load();
     heldFailures.delete(key);
@@ -195,20 +198,93 @@ async function loadHoldingFailures<T>(key: string, load: () => Promise<T>): Prom
   }
 }
 
+/** Runs `load` unless the key's failure is held, in which case that error is thrown again; remembers the failure of a `load` that fails. */
+async function loadHoldingFailures<T>(key: string, load: () => Promise<T>): Promise<T> {
+  throwIfHeld(key);
+  return recordFailures(key, load);
+}
+
+/**
+ * How long a flight is joined, at the most. The slowest call has a 15 s limit and a request's own work is given 30 s after its response (the flight is
+ * in its `waitUntil`), so a load that has not settled by then is not going to. It must not close its key for good, to every later call and to the probe
+ * of a hold, as a hold's own probe must not (`throwIfHeld`): the next call starts a flight of its own.
+ */
+export const SHARED_LOAD_MAX_AGE_MS = 30_000;
+
+/**
+ * The loads of the calls that asked for `shareInFlight` that are running in this Worker instance, by build ID and key, each as the JSON text of
+ * its answer and the time it started (spec 2.7, `SubrequestOptions`). The same mechanism as the page `flights` below: a module's variable, which
+ * every request this instance serves can see, holding plain data (a string, an error) and no response or stream, which a Worker may not read across
+ * requests. A flight is removed when it has failed, or when the write of its answer has settled (a call in between would miss the Cache API and load
+ * again), only if it is still the one in the table (a call that found it too old has put its own in its place).
+ */
+const loadsInFlight = new Map<string, { answer: Promise<string>; since: number }>();
+
+/** Hands `body` to the Cache API for `ttl` seconds, behind the answer: in `ctx.waitUntil`, and a failed write is logged. The write, which never rejects. */
+function storeBehind(ctx: ExecutionContext, cacheKey: Request, body: string, ttl: number): Promise<void> {
+  const response = new Response(body, {
+    headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${Math.ceil(ttl)}` },
+  });
+  const write = caches.default.put(cacheKey, response).catch((error: unknown) => logProblem("subrequest cache write failed", error));
+  ctx.waitUntil(write);
+  return write;
+}
+
 /**
  * The cache the data API and node clients keep their answers in, in the Cache API of the data centre, so every
  * request there shares it. The key is the clients' own (their full upstream URL, a node's with its JSON-RPC body)
  * plus the build ID; a `load` that throws stores nothing. The value is stored behind the answer, in `ctx.waitUntil`.
  *
- * With `opts.holdFailure` a call is also held to its failures (`SubrequestOptions`). The order is: the Cache API (a stored answer is the
- * answer, whatever failed before), then a failure that is held, then `load`. That is the order for a call that is not kept (a TTL of zero) too.
+ * With `opts.holdFailure` a call is also held to its failures, and with `opts.shareInFlight` it shares its load with the same load in flight
+ * (`SubrequestOptions`). The order is: the Cache API (a stored answer is the answer, whatever failed before or is loading now), then a failure
+ * that is held, then the flight of the key if there is one, then `load`. That is the order for a call that is not kept (a TTL of zero) too.
  */
 export function createSubrequestCache(ctx: ExecutionContext, buildId: string): SubrequestCache {
+  /**
+   * The answer of the load of `key` that is in flight, or of one this call starts. The flight is the load and the write (handed to `waitUntil`), and ends
+   * with the JSON text that each caller parses for itself, so that no two callers hold the same object (as a page's flight gives each visitor a copy).
+   * `cacheKey` is `undefined` for a call that is not kept.
+   *
+   * The request that starts a flight hands it to its `waitUntil` as it starts: a visitor who leaves (a period clicked while a heavy account's
+   * counterparties load, a tab closed) cancels what their request has not handed on, and every request that joined the flight would wait for a load
+   * that never ends, until it is too old to join. The answer is each caller's as soon as it is there; the flight leaves the table when its write has
+   * settled, so that a call in between joins it instead of missing the Cache API and loading again.
+   */
+  async function loadShared<T>(key: string, cacheKey: Request | undefined, ttl: number, load: () => Promise<T>, holding: boolean): Promise<T> {
+    if (holding) throwIfHeld(key);
+    const flightKey = `${encodeURIComponent(buildId)}/${key}`;
+    let flight = loadsInFlight.get(flightKey);
+    if (!flight || Date.now() - flight.since > SHARED_LOAD_MAX_AGE_MS) {
+      let written: Promise<void> | undefined;
+      const answer = (async () => {
+        const value = await (holding ? recordFailures(key, load) : load());
+        const body = JSON.stringify(value) as string | undefined;
+        if (body === undefined) throw new TypeError("a shared subrequest value is not JSON");
+        if (cacheKey) written = storeBehind(ctx, cacheKey, body, ttl);
+        return body;
+      })();
+      const own = { answer, since: Date.now() };
+      flight = own;
+      loadsInFlight.set(flightKey, own);
+      const settled = () => {
+        if (loadsInFlight.get(flightKey) === own) loadsInFlight.delete(flightKey);
+      };
+      // Never a rejection: a failure is each caller's, who has been told it.
+      ctx.waitUntil(
+        answer.then(
+          () => written,
+          () => undefined,
+        ).then(settled),
+      );
+    }
+    return JSON.parse(await flight.answer) as T;
+  }
+
   return {
     async json<T>(key: string, cls: CacheClass, load: () => Promise<T>, ttlOverride?: number, opts?: SubrequestOptions): Promise<T> {
       const ttl = ttlOverride ?? CACHE_CLASSES[cls].edgeTtl;
       const loadIt = opts?.holdFailure ? () => loadHoldingFailures(key, load) : load;
-      if (!(ttl > 0)) return loadIt();
+      if (!(ttl > 0)) return opts?.shareInFlight ? loadShared(key, undefined, ttl, load, !!opts.holdFailure) : loadIt();
 
       const cacheKey = await subrequestKey(key, buildId);
       const cache = caches.default;
@@ -219,6 +295,7 @@ export function createSubrequestCache(ctx: ExecutionContext, buildId: string): S
         // Unreadable (or not JSON): load it again.
         logProblem("subrequest cache read failed", error);
       }
+      if (opts?.shareInFlight) return loadShared(key, cacheKey, ttl, load, !!opts.holdFailure);
 
       const value = await loadIt();
 
@@ -228,14 +305,7 @@ export function createSubrequestCache(ctx: ExecutionContext, buildId: string): S
       } catch (error) {
         logProblem("subrequest value is not JSON", error);
       }
-      if (body !== undefined) {
-        const response = new Response(body, {
-          headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${Math.ceil(ttl)}` },
-        });
-        ctx.waitUntil(
-          cache.put(cacheKey, response).catch((error: unknown) => logProblem("subrequest cache write failed", error)),
-        );
-      }
+      if (body !== undefined) storeBehind(ctx, cacheKey, body, ttl);
       return value;
     },
   };

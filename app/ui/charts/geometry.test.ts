@@ -502,6 +502,12 @@ describe("xLabelPicks", () => {
     expect(xLabelPicks(7, "wide")).toEqual([0, 2, 4, 6]);
   });
 
+  it("spaces the labels of a month axis as those of a day axis of the same length: it counts buckets, not units", () => {
+    // 166 months: every 28th (ceil(166/6)), counting from the newest.
+    expect(xLabelPicks(166, "wide")).toEqual([25, 53, 81, 109, 137, 165]);
+    expect(xLabelPicks(166, "narrow")).toEqual([53, 109, 165]);
+  });
+
   it("labels each bucket of a short axis", () => {
     expect(xLabelPicks(1, "wide")).toEqual([0]);
     expect(xLabelPicks(6, "wide")).toEqual([0, 1, 2, 3, 4, 5]);

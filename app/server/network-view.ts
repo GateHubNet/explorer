@@ -25,6 +25,7 @@ import type {
   VolumeRow,
 } from "./api-types";
 import { TooLate } from "./deadline";
+import { divided, percentText } from "./exact";
 import { latestLedgerIndex } from "./home-view";
 import type { Network } from "./networks";
 
@@ -157,7 +158,6 @@ const FIRST_SEEN = 5;
 
 const DASH = "—";
 const ELLIPSIS = "…";
-const MINUS = "−";
 const ZERO = new BigNumber(0);
 const ONE = new BigNumber(1);
 const SECONDS_IN = { day: 86_400, week: 604_800 } as const;
@@ -222,12 +222,6 @@ function byDay<R>(rows: readonly R[], timeOf: (row: R) => string): Map<string, R
   return byTime;
 }
 
-/** `n ÷ d` (d above 0) to `places` decimals, half away from zero, exactly: BigNumber's own division rounds at 20 places before we round. */
-function divided(n: BigNumber, d: BigNumber, places: number): BigNumber {
-  const rounded = n.abs().shiftedBy(places).times(2).plus(d).idiv(d.times(2)).shiftedBy(-places);
-  return n.isNegative() && !rounded.isZero() ? rounded.negated() : rounded;
-}
-
 /** The newest buckets of the window without a value, counted by the rule of spec 1.6 ("Pending"). */
 function pendingOf(w: PeriodWindow, values: readonly (string | null)[]): number {
   return pendingCount(w.buckets, new Set(w.buckets.filter((_, i) => values[i] !== null)));
@@ -290,9 +284,8 @@ function changeOf(w: PeriodWindow, f: Ratio | null, p: Ratio | null): Delta | nu
   if (!f || !p || !p.num.gt(0) || !p.den.gt(0) || !f.den.gt(0)) return null;
   const change = f.num.times(p.den).minus(p.num.times(f.den));
   const percent = divided(change.times(100), p.num.times(f.den), 1);
-  const sign = percent.isZero() ? 0 : percent.isNegative() ? -1 : 1;
+  const { text: signed, sign } = percentText(percent);
   const buckets = bucketStarts(w.full.start, w.full.end, w.unit).length;
-  const signed = `${sign === 1 ? "+" : sign === -1 ? MINUS : ""}${formatAmount(percent.abs().toFixed(1))}%`;
   return {
     text: `${signed}, ${buckets} full ${w.unit}s to ${formatUtcDay(w.full.end)} vs the ${buckets} before`,
     sign,

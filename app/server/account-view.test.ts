@@ -24,6 +24,7 @@ import {
   parseTag,
   parseTrail,
   reserveOf,
+  TAB_WHAT,
   tokensOf,
   tradeRows,
   tradesList,
@@ -54,10 +55,10 @@ const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: st
 const text = (segments: readonly Segment[]) => segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : `[${s.pair}]`)).join("");
 
 describe("the tabs and the URL", () => {
-  it("lists the five tabs of the page, the first being the default", () => {
-    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects"]);
+  it("lists the six tabs of the page, the first being the default and the last the analytics", () => {
+    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects", "analytics"]);
     for (const tab of ACCOUNT_TABS) expect(isAccountTab(tab)).toBe(true);
-    for (const other of ["analytics", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
+    for (const other of ["Analytics", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
   });
 
   it.each([
@@ -417,6 +418,61 @@ describe("accountHeader", () => {
     const json = JSON.stringify(accountHeader(input()).header);
     for (const word of ["LedgerEntryType", "PreviousTxnID", "HighLimit", "AccountRoot"]) expect(json).not.toContain(word);
   });
+
+  it("needs the objects and the balances for a header with its holdings, as it has by default", () => {
+    const { objects: _objects, ...withoutObjects } = input();
+    const { balances: _balances, ...withoutBalances } = input();
+    expect(() => accountHeader(withoutObjects)).toThrow(/objects/);
+    expect(() => accountHeader(withoutBalances, { holdings: true })).toThrow(/balances/);
+  });
+
+  describe("without its holdings (the analytics view, spec 2.1)", () => {
+    /** The header's input with neither the node's objects nor the index's balances: the view asks for neither. */
+    const bare = (over: Partial<Parameters<typeof accountHeader>[0]> = {}) => {
+      const { objects: _objects, balances: _balances, ...rest } = input(over);
+      return rest;
+    };
+
+    it("has no owned objects and no tokens, and says nothing is missing", () => {
+      const { header, problems } = accountHeader(bare(), { holdings: false });
+      expect(problems).toEqual([]);
+      expect(header.owned).toBeNull();
+      expect(header.tokens).toEqual({ state: "none" });
+      expect(header.nodeProblem).toBe(false);
+    });
+
+    it("keeps the rest of the header: the activation, the live state and the balance with its reserve", () => {
+      const full = accountHeader(input()).header;
+      const { header } = accountHeader(bare(), { holdings: false });
+      expect(header.status).toBe("active");
+      expect(header.activation).toEqual(full.activation);
+      expect(header.live).toEqual(full.live);
+      expect(header.balance).toEqual(full.balance);
+    });
+
+    it("reads neither the objects nor the balances when they are given", () => {
+      const { header, problems } = accountHeader(input({ objects: FAILED, balances: FAILED }), { holdings: false });
+      expect(problems).toEqual([]);
+      expect(header.owned).toBeNull();
+      expect(header.tokens).toEqual({ state: "none" });
+    });
+
+    it("has no balance when the node does not answer, which the page shows as 'The balance could not be read.'", () => {
+      const { header, problems } = accountHeader(bare({ info: FAILED, state: FAILED }), { holdings: false });
+      expect(header.live).toEqual({ state: "unavailable" });
+      expect(header.balance).toBeNull();
+      expect(header.owned).toBeNull();
+      expect(header.tokens).toEqual({ state: "none" });
+      expect(header.nodeProblem).toBe(true);
+      expect(problems).toEqual(["node account_info failed", "node server_state failed"]);
+    });
+
+    it("is a deleted account as with its holdings", () => {
+      const { header, problems } = accountHeader(bare({ created: ok(created("xrpl", "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC")), info: MISSING }), { holdings: false });
+      expect(problems).toEqual([]);
+      expect(header).toMatchObject({ status: "deleted", live: { state: "none" }, balance: null, tokens: { state: "none" }, owned: null });
+    });
+  });
 });
 
 describe("transactionRows", () => {
@@ -688,5 +744,7 @@ describe("the lists of the tabs", () => {
     expect(failedList("payments")).toEqual({ state: "failed", what: "payments" });
     expect(failedList("trades")).toEqual({ state: "failed", what: "trades" });
     expect(failedList("offers")).toEqual({ state: "failed", what: "offers" });
+    // The analytics view is no list; its whole-view error says "Couldn't load the analytics."
+    expect(TAB_WHAT.analytics).toBe("the analytics");
   });
 });

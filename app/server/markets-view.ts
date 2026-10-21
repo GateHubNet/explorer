@@ -7,7 +7,7 @@
 
 import BigNumber from "bignumber.js";
 
-import { apiAssetText, assetText, parseAssetText, sameAsset, type Asset, type NativeCode } from "../domain/asset";
+import { apiAssetText, type Asset, type NativeCode } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
 import {
   compactNumber,
@@ -19,7 +19,7 @@ import {
   shortAddress,
   wholePercent,
 } from "../domain/format";
-import { marketHref, naturalOrientation } from "../domain/market-pair";
+import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import { marketsHref, PERIODS, QUOTES, TRADES_API, type MarketsParams, type Quote } from "../domain/market-params";
 import type { MeterData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
@@ -285,14 +285,6 @@ function issuersOf(base: Asset, counter: Asset): string {
     .filter((side) => side.issuer)
     .map((side) => `${formatCurrency(side.currency)} ${shortAddress(side.issuer!)}`)
     .join(SEPARATOR);
-}
-
-/** Whether the data API can be asked for the pair: each side must read back from its URL form as the same asset (`usd` reads back as `USD`). */
-function isLinkable(sides: readonly Asset[], native: NativeCode): boolean {
-  return sides.every((side) => {
-    const read = parseAssetText(assetText(side), { native });
-    return read !== null && sameAsset(read, side);
-  });
 }
 
 // ---- The page -------------------------------------------------------------------------------------------------------------------------

@@ -1,9 +1,10 @@
 // The client of the GateHub Data API (data-api-new, its /v2 endpoints). Only loaders use it, through the
 // Worker's subrequest cache; nothing in the browser talks to the API. Worker-only code.
 //
-// Every request carries the key from the DATA_API_KEY secret, is limited to 5 s (answer included) and is
-// never redirected. A failure is an `UpstreamError`, which is never cached.
+// Every request carries the key from the DATA_API_KEY secret, is limited to 5 s (answer included; the account's counterparties,
+// the one slow call, 15 s) and is never redirected. A failure is an `UpstreamError`, which is never cached.
 
+import type { AnalyticsUnit } from "../domain/analytics-params";
 import { apiAssetText, type Asset } from "../domain/asset";
 import type { CandleApiInterval } from "../domain/market-params";
 import {
@@ -18,12 +19,25 @@ import {
   checkValidations,
   checkVolumePage,
 } from "./aggregate-shape";
+import {
+  checkAccountStats,
+  checkAnalyticsBalances,
+  checkAnalyticsExchanges,
+  checkBalanceChanges,
+  checkCounterparties,
+} from "./analytics-shape";
 import type {
   AccountData,
   AccountExchange,
+  AccountTxStatsRow,
+  AccountValueRow,
   ActiveAccounts,
   AmmFilter,
   AmmVolumeComponent,
+  AnalyticsBalanceChanges,
+  AnalyticsBalances,
+  AnalyticsCounterparties,
+  AnalyticsExchanges,
   BalancesResponse,
   Candle,
   ExchangeVolumeComponent,
@@ -48,14 +62,14 @@ import type {
   TxStoredJson,
   VolumeRow,
 } from "./api-types";
-import { MARKER_PAGE_CLASS, type CacheClass, type SubrequestCache } from "./cache-class";
+import { MARKER_PAGE_CLASS, type CacheClass, type SubrequestCache, type SubrequestOptions } from "./cache-class";
 import type { Env } from "./env";
 import { isMarker } from "./marker";
 import type { Network } from "./networks";
 import type { paths } from "./openapi";
 import { PENDING_PATHS } from "./pending-paths";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
-import { clip, DATA_API_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
+import { ANALYTICS_SLOW_TIMEOUT_MS, clip, DATA_API_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
 
 export { UpstreamError } from "./upstream";
 export type { UpstreamErrorKind } from "./upstream";
@@ -76,6 +90,7 @@ const PATHS = {
   accountTransactions: "/v2/accounts/{address}/transactions",
   accountPayments: "/v2/accounts/{address}/payments",
   accountExchanges: "/v2/accounts/{address}/exchanges",
+  accountStats: "/v2/accounts/{address}/stats/{family}",
   fees: "/v2/network/fees",
   feeStats: "/v2/network/fee_stats",
   stats: "/v2/stats/{family}",
@@ -117,6 +132,12 @@ export type VolumeQuery = {
  * Sent in this order, `amm` last.
  */
 export type CandleQuery = { interval: CandleApiInterval; start: string; end?: string; limit: number; descending?: boolean; amm?: AmmFilter };
+
+/**
+ * What the account analytics calls ask for (E4 spec 2.3): the buckets (`interval`) and the pages (`limit`) of a window that starts on `start` (`YYYY-MM-DD`, UTC) and
+ * runs to the newest ledger. Sent in the order `interval`, `limit`, `start`, each call the ones it has.
+ */
+export type AnalyticsQuery = { interval: AnalyticsUnit; limit: number; start: string };
 
 /** The most accounts of a pair's active accounts that the client keeps (the API sorts them by base volume, largest first, and serves them all). */
 export const ACTIVE_ACCOUNTS_KEPT = 10;
@@ -247,6 +268,28 @@ export interface DataApi {
    * `amm` (a data API that ignored the parameter) is kind `server` too: its rows are the unfiltered ones.
    */
   networkMarkets(q: { period: "day" | "7day" | "30day"; limit: number; amm?: AmmFilter }, opts?: FreshOptions): Promise<MarketsResponse>;
+  /**
+   * The Analytics tab's calls (E4 spec 2.3), D2's `stats/{family}` and `analytics/*` of an account. Every one is kept 60 s (class `minute`: the running bucket and
+   * the figures of now move with every transaction of the account), asks for the failure hold and for sharing its load in flight (spec 2.7: the heaviest of the API's
+   * account reads, which a page of many visitors must not make once each), and is checked inside the load, so that a 200 that is not what D2 promises (a daily row
+   * under `week`: an API that ignored `interval`) is kind `server` and is never stored. Without D2 the API answers `Cannot GET`, which is kind `server` too. They ask for
+   * no marker: a window is one page. The answers of `stats/{family}` and of `analytics/{balances,balance_changes}` carry the interval asked for.
+   *
+   * `stats/value`: what the account held at the end of each bucket, in the native currency, from its first balance. `stats/transactions`: what it sent in each bucket.
+   */
+  accountStats(address: string, family: "value", q: AnalyticsQuery): Promise<Page<"rows", AccountValueRow>>;
+  accountStats(address: string, family: "transactions", q: AnalyticsQuery): Promise<Page<"rows", AccountTxStatsRow>>;
+  /** The first `limit` lines of the account's balances (the native one first), and each line's balance at the end of each bucket. */
+  analyticsBalances(address: string, q: AnalyticsQuery): Promise<AnalyticsBalances>;
+  /** What the balance changes of the window came to by change type, in all and in each bucket (no `limit`: the types are few). */
+  analyticsBalanceChanges(address: string, q: Pick<AnalyticsQuery, "interval" | "start">): Promise<AnalyticsBalanceChanges>;
+  /**
+   * The first `limit` accounts the account paid or was paid by, largest first. D2 expects 2 to 10 s of the heaviest accounts at 1 Y and All, so this call alone
+   * has `ANALYTICS_SLOW_TIMEOUT_MS` (15 s) in place of the 5 s of the rest; a page does not await it that long (spec 2.6).
+   */
+  analyticsCounterparties(address: string, q: Pick<AnalyticsQuery, "limit" | "start">): Promise<AnalyticsCounterparties>;
+  /** The first `limit` pairs the account traded, by native volume, largest first. */
+  analyticsExchanges(address: string, q: Pick<AnalyticsQuery, "limit" | "start">): Promise<AnalyticsExchanges>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -321,10 +364,10 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     });
   }
 
-  /** Fetches `path` and returns the JSON body of a 2xx answer; any other answer throws. */
-  function fetchJson(path: string): Promise<unknown> {
+  /** Fetches `path` and returns the JSON body of a 2xx answer; any other answer throws. The call has `timeoutMs` ms, answer included. */
+  function fetchJson(path: string, timeoutMs: number = DATA_API_TIMEOUT_MS): Promise<unknown> {
     const what = `data API GET ${path}`;
-    return withDeadline(DATA_API_TIMEOUT_MS, what, async (signal) => {
+    return withDeadline(timeoutMs, what, async (signal) => {
       const response = await send(path, "application/json", signal);
       await throwUnlessOk(response, what);
 
@@ -342,15 +385,16 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
   /**
    * One cached GET. `template` is a value of `PATHS` or of `PENDING_PATHS`, `params` fill its `{name}`s. With `unwrap`, the part
    * of the answer under that key is what is returned (and cached), otherwise the whole answer. `finish` shapes (or checks) what
-   * is returned, the unwrapped part or the whole answer, before it is cached. `ttl` and `holdFailure` are the cache's options
-   * (cache-class.ts): `ttl` is part of the key, `holdFailure` is not.
+   * is returned, the unwrapped part or the whole answer, before it is cached. `ttl`, `holdFailure` and `shareInFlight` are the cache's options
+   * (cache-class.ts): `ttl` is part of the key, the other two are not. `timeoutMs` is how long the request may take, answer included: `DATA_API_TIMEOUT_MS`
+   * unless given (it is no part of the key: a call that is given longer is the same call).
    */
   async function get<T>(
     template: Template,
     params: Record<string, string>,
     query: Query,
     cls: CacheClass,
-    { unwrap, finish, ttl, holdFailure }: { unwrap?: string; finish?: (value: T) => T; ttl?: number; holdFailure?: boolean } = {},
+    { unwrap, finish, ttl, holdFailure, shareInFlight, timeoutMs }: { unwrap?: string; finish?: (value: T) => T; ttl?: number; timeoutMs?: number } & SubrequestOptions = {},
   ): Promise<T> {
     const path = template.replace(/\{(\w+)\}/g, (_match, name: string) => segment(name, params[name] ?? ""));
     const search = new URLSearchParams();
@@ -366,7 +410,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       key,
       cls,
       async () => {
-        const body = await fetchJson(url);
+        const body = await fetchJson(url, timeoutMs);
         if (unwrap === undefined) return finish ? finish(body as T) : (body as T);
         const part = typeof body === "object" && body !== null ? (body as Record<string, unknown>)[unwrap] : undefined;
         if (part === undefined || part === null) {
@@ -375,7 +419,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         return finish ? finish(part as T) : (part as T);
       },
       ttl,
-      { holdFailure },
+      { holdFailure, shareInFlight },
     );
   }
 
@@ -451,6 +495,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
 
   /** The options of a call that takes `FreshOptions`, as `get` takes them. */
   const fresh = (opts?: FreshOptions) => ({ ttl: opts?.ttl, holdFailure: opts?.holdFailure });
+
+  /** What every account analytics call asks of the cache (spec 2.7): its failure held a few seconds, and its load shared with the same load in flight. */
+  const analyticsOptions = { holdFailure: true, shareInFlight: true } as const;
 
   return {
     // The home page follows the chain and asks for these three at `HOME_CALL_TTL_SECONDS` (`opts.ttl`); the ledger page (its Next at the
@@ -565,6 +612,37 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       get<MarketsResponse>(PENDING_PATHS.networkMarkets, {}, { limit: q.limit, period: q.period, amm: q.amm }, "minute", {
         ...fresh(opts),
         finish: (body) => checkMarkets(body, q.amm),
+      }),
+    // The Analytics tab's calls: a minute, held on failure, shared in flight, and each answer checked inside the load.
+    accountStats: ((address: string, family: "value" | "transactions", q: AnalyticsQuery) =>
+      get<Page<"rows", AccountValueRow> | Page<"rows", AccountTxStatsRow>>(
+        PATHS.accountStats,
+        { address, family },
+        { interval: q.interval, limit: q.limit, start: q.start },
+        "minute",
+        { ...analyticsOptions, finish: (body) => checkAccountStats(body, family, q.interval, `data API account ${family} stats`) },
+      )) as DataApi["accountStats"],
+    analyticsBalances: (address, q) =>
+      get<AnalyticsBalances>(PENDING_PATHS.analyticsBalances, { address }, { interval: q.interval, limit: q.limit, start: q.start }, "minute", {
+        ...analyticsOptions,
+        finish: (body) => checkAnalyticsBalances(body, q.interval, "data API analytics balances"),
+      }),
+    analyticsBalanceChanges: (address, q) =>
+      get<AnalyticsBalanceChanges>(PENDING_PATHS.analyticsBalanceChanges, { address }, { interval: q.interval, start: q.start }, "minute", {
+        ...analyticsOptions,
+        finish: (body) => checkBalanceChanges(body, q.interval, "data API analytics balance changes"),
+      }),
+    analyticsCounterparties: (address, q) =>
+      get<AnalyticsCounterparties>(PENDING_PATHS.analyticsCounterparties, { address }, { limit: q.limit, start: q.start }, "minute", {
+        ...analyticsOptions,
+        // The slow one (D2 sections 9 and 13); the other calls keep the 5 s.
+        timeoutMs: ANALYTICS_SLOW_TIMEOUT_MS,
+        finish: (body) => checkCounterparties(body, "data API analytics counterparties"),
+      }),
+    analyticsExchanges: (address, q) =>
+      get<AnalyticsExchanges>(PENDING_PATHS.analyticsExchanges, { address }, { limit: q.limit, start: q.start }, "minute", {
+        ...analyticsOptions,
+        finish: (body) => checkAnalyticsExchanges(body, "data API analytics exchanges"),
       }),
   };
 }

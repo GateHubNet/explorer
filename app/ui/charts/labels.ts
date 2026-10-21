@@ -3,7 +3,7 @@
 // app/domain/format.ts (the kit does not import bignumber.js itself), and with a fixed month table: no `Intl`, no locale, no clock,
 // so the Worker and the browser write the same text.
 
-import { compactNumber, formatAmount, formatPrice, formatUtcDay } from "../../domain/format";
+import { compactNumber, formatAmount, formatPrice, formatUtcDay, formatValue } from "../../domain/format";
 import type { TimeAxis, TimeSeriesData, ValueFormat, ValueKind } from "./types";
 
 const DASH = "—";
@@ -25,9 +25,9 @@ const withUnit = (text: string, unit: string | undefined): string => (unit ? `${
 
 /**
  * A value for a tooltip, an end label or a slider's `aria-valuetext`. A count is `compactNumber` when `style` is compact and in full
- * (`1,284,331`) when it is full, with no noun. An amount and drops are always `compactNumber` and the unit (`45.5M XRP`, `113 drops`). A
- * price is `formatPrice` and the unit in either style, never compact (`0.4099 USD`, `12,345.679 USD`). A percent and seconds are exact
- * (`99.31%`, `3.4 s`).
+ * (`1,284,331`) when it is full, with no noun. An amount, a value (an estimate in the native currency) and drops are always `compactNumber`
+ * and the unit (`45.5M XRP`, `45.2K XRP`, `113 drops`). A price is `formatPrice` and the unit in either style, never compact (`0.4099 USD`,
+ * `12,345.679 USD`). A percent and seconds are exact (`99.31%`, `3.4 s`).
  */
 export function valueText(value: string, format: ValueFormat, style: "compact" | "full"): string {
   switch (format.kind) {
@@ -40,6 +40,7 @@ export function valueText(value: string, format: ValueFormat, style: "compact" |
     case "drops":
       return withUnit(compactNumber(value), format.unit ?? "drops");
     case "amount":
+    case "value":
       return withUnit(compactNumber(value), format.unit);
     case "price":
       return withUnit(formatPrice(value), format.unit);
@@ -58,11 +59,12 @@ export function endLabelValue(value: string, format: ValueFormat): string {
 
 /**
  * A cell of the table view: the exact value (with a `%` or an `s`, no unit: the column heading names it), and a dash for none. A price is
- * `formatPrice`: the data API's 8 significant digits, without the trailing zeros.
+ * `formatPrice`: the data API's 8 significant digits, without the trailing zeros. A value is `formatValue`: 2 decimals from 1, 6 below it.
  */
 export function cellText(value: string | null, format: ValueFormat): string {
   if (value === null) return DASH;
   if (format.kind === "price") return formatPrice(value);
+  if (format.kind === "value") return formatValue(value);
   if (format.kind === "percent") return `${formatAmount(value)}%`;
   if (format.kind === "seconds") return `${formatAmount(value)} s`;
   return formatAmount(value);
@@ -81,6 +83,9 @@ function bucketText(bucket: string, unit: TimeAxis["unit"], where: BucketPlace):
     case "week":
       if (where === "tooltip" || where === "readout") return `Week of ${formatUtcDay(bucket, true)}`;
       return formatUtcDay(bucket, where === "table");
+    case "month":
+      // `Oct 2026` wherever it is written: the month's day is not part of it.
+      return formatUtcDay(bucket, true).replace(/ \d+,/, "");
     case "hour":
     case "minute":
     case "flag": {
@@ -95,10 +100,10 @@ function bucketText(bucket: string, unit: TimeAxis["unit"], where: BucketPlace):
 }
 
 /**
- * A bucket's date, in UTC. On the axis: `Oct 16` (a day or a week's Monday, `Oct 12`), `17:00` (an hour) or `17:15` (a quarter hour), the
- * day of a flag ledger. In a tooltip or a table: `Oct 16, 2026`; a week is `Week of Oct 12, 2026` in a tooltip and `Oct 12, 2026` in a table;
- * an hour, a quarter hour or a flag ledger is `Oct 17, 2026, 17:00`. The running bucket (`forming`) adds `, so far` in a tooltip and a table,
- * never on the axis. The readout (the line above the candles) is the tooltip's date with `UTC` after a time of day, and the running bucket
+ * A bucket's date, in UTC. On the axis: `Oct 16` (a day or a week's Monday, `Oct 12`), `Oct 2026` (a month, everywhere), `17:00` (an hour)
+ * or `17:15` (a quarter hour), the day of a flag ledger. In a tooltip or a table: `Oct 16, 2026`; a week is `Week of Oct 12, 2026` in a
+ * tooltip and `Oct 12, 2026` in a table; an hour, a quarter hour or a flag ledger is `Oct 17, 2026, 17:00`. The running bucket (`forming`)
+ * adds `, so far` in a tooltip and a table, never on the axis. The readout (the line above the candles) is the tooltip's date with `UTC` after a time of day, and the running bucket
  * adds ` · so far`: `Oct 17, 2026, 17:00 UTC · so far`, `Week of Oct 12, 2026`.
  */
 export function bucketLabel(bucket: string, unit: TimeAxis["unit"], where: BucketPlace, forming = false): string {
@@ -107,7 +112,14 @@ export function bucketLabel(bucket: string, unit: TimeAxis["unit"], where: Bucke
   return where === "readout" ? `${text} \u00b7 so far` : `${text}, so far`;
 }
 
-const HEADINGS = { day: "Day (UTC)", week: "Week of (UTC)", hour: "Hour (UTC)", minute: "Time (UTC)", flag: "Flag ledger (UTC)" } as const;
+const HEADINGS = {
+  day: "Day (UTC)",
+  week: "Week of (UTC)",
+  month: "Month (UTC)",
+  hour: "Hour (UTC)",
+  minute: "Time (UTC)",
+  flag: "Flag ledger (UTC)",
+} as const;
 
 /** The heading of the table view's first column. */
 export function tableHeading(unit: TimeAxis["unit"]): string {
@@ -120,7 +132,8 @@ export function gapText(axis: TimeAxis, i: number, pending: number): string {
   const bucket = axis.buckets[i] ?? "";
   switch (axis.unit) {
     case "day":
-      return `No data for ${bucketLabel(bucket, "day", "axis")}`;
+    case "month":
+      return `No data for ${bucketLabel(bucket, axis.unit, "axis")}`;
     case "week":
       return `No data for the week of ${bucketLabel(bucket, "week", "axis")}`;
     case "hour":
@@ -133,6 +146,7 @@ export function gapText(axis: TimeAxis, i: number, pending: number): string {
 const NOUNS = {
   day: ["day", "days"],
   week: ["week", "weeks"],
+  month: ["month", "months"],
   hour: ["hour", "hours"],
   minute: ["quarter hour", "quarter hours"],
   flag: ["flag ledger", "flag ledgers"],
@@ -155,8 +169,12 @@ export function emptyText(axis: TimeAxis): string {
   return count === 1 ? `No data for this ${one}` : `No data for these ${count} ${many}`;
 }
 
-/** A bucket in a summary: `Oct 3`, with the year when asked; an hour, a quarter hour or a flag ledger has its time after the day. */
+/**
+ * A bucket in a summary: `Oct 3`, with the year when asked; a month is `Oct 2026` always; an hour, a quarter hour or a flag ledger has its
+ * time after the day.
+ */
 function summaryDate(bucket: string, unit: TimeAxis["unit"], withYear: boolean): string {
+  if (unit === "month") return bucketLabel(bucket, unit, "axis");
   const moment = MOMENT.exec(bucket);
   if (unit === "hour" || unit === "minute" || unit === "flag") {
     return moment ? `${formatUtcDay(moment[1]!, withYear)}, ${moment[2]}` : bucket;
@@ -171,7 +189,7 @@ function summaryDate(bucket: string, unit: TimeAxis["unit"], withYear: boolean):
  * "Highest Payments Oct 3, 45.5M XRP; latest Payments Oct 17, so far, 12.1M XRP" (the other lines are in the table). The year is on the
  * last date only, and on both when the years differ. The highest is the earliest of equal highs, the latest the newest bucket with a
  * value; a bucket that is the running one (`forming`, the newest of the axis) adds ", so far" to its date, as the tooltip does. With no
- * value at all it is "{title}: {emptyText}.".
+ * value at all it is "{title}: {emptyText}.", the data's own `emptyText` when it has one.
  */
 export function plotSummary(title: string, data: TimeSeriesData): string {
   const { axis, format } = data;
@@ -187,7 +205,7 @@ export function plotSummary(title: string, data: TimeSeriesData): string {
     latest = i;
     if (highest < 0 || Number(value) > Number(values[highest])) highest = i;
   }
-  if (highest < 0) return `${title}: ${emptyText(axis)}.`;
+  if (highest < 0) return `${title}: ${data.emptyText ?? emptyText(axis)}.`;
 
   const [first = "", last = ""] = [axis.buckets[0], axis.buckets.at(-1)];
   const sameYear = first.slice(0, 4) === last.slice(0, 4);

@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "counterparties": [
+    {"account":"rwGwheDxho592en1Lc2fdcBQJZcjrqtRy9","first":"2026-09-29T13:57:03Z","last":"2026-09-29T13:57:03Z","payments_received":0,"payments_sent":1,"received_value":"0","sent_value":"2.17501","total_value":"2.17501"}
+  ],
+  "end": "2026-10-18T00:00:00Z",
+  "result": "success",
+  "sort": "value",
+  "start": "2026-09-18T00:00:00Z",
+  "total": 1
+}

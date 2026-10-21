@@ -12,4 +12,13 @@ export const PENDING_PATHS = {
    * `7d495ab`). Without D2 the API answers `Cannot GET`, which the client reads as an outage (`throwUnlessOk`), never as a missing market.
    */
   networkMarkets: "/v2/network/markets",
+  /**
+   * The four analytics routes of an account (D2, pinned at `7d495ab`), which the account page's Analytics tab asks for: the balances of its lines per bucket, what its
+   * balance changes came to by type, its counterparties and the pairs it traded. Without D2 each answers `Cannot GET`, which the client reads as an outage, so the
+   * tab is off (`ACCOUNT_ANALYTICS`) where D2 is not live. (`stats/{family}` of an account is in `openapi.yaml` already, and is in `PATHS`.)
+   */
+  analyticsBalances: "/v2/accounts/{address}/analytics/balances",
+  analyticsBalanceChanges: "/v2/accounts/{address}/analytics/balance_changes",
+  analyticsCounterparties: "/v2/accounts/{address}/analytics/counterparties",
+  analyticsExchanges: "/v2/accounts/{address}/analytics/exchanges",
 } as const;

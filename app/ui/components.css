@@ -504,6 +504,19 @@ a.nav-item:hover {
   margin-top: 4px;
 }
 
+/* The path of the call a tile is made from, as a chart card has it, under everything else in the tile. */
+.stat__source {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+/* A tile before its data (`busy`): the figure is empty and is still one line of its own size (the body's line height), so the data arriving moves nothing. */
+.stat[aria-busy="true"] .stat__value {
+  min-height: 1.45em;
+}
+
 .kv {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);

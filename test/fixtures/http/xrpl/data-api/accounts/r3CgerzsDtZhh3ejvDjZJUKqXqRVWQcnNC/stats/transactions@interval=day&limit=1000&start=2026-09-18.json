@@ -1,0 +1,8 @@
+{
+  "count": 2,
+  "result": "success",
+  "rows": [
+    {"date":"2026-09-29T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"Payment":1}},
+    {"date":"2026-10-15T00:00:00Z","result":{"tesSUCCESS":1},"transaction_count":1,"type":{"AccountDelete":1}}
+  ]
+}

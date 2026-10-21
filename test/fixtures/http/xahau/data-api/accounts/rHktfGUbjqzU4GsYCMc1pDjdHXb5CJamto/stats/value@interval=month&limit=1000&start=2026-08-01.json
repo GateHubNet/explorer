@@ -1,0 +1,9 @@
+{
+  "count": 3,
+  "result": "success",
+  "rows": [
+    {"account_value":"98606003.382882544","balance_change_count":45,"date":"2026-08-01T00:00:00Z"},
+    {"account_value":"94303627.311659532042001","balance_change_count":79,"date":"2026-09-01T00:00:00Z"},
+    {"account_value":"104851823.42523555","balance_change_count":41,"date":"2026-10-01T00:00:00Z"}
+  ]
+}

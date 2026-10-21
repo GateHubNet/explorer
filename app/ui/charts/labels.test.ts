@@ -52,6 +52,12 @@ describe("tickLabel", () => {
     // The other kinds are compact, as before.
     expect(tickLabel(2500000, "amount")).toBe("2.5M");
   });
+
+  it("writes the kind value as an amount: compact, with no unit (the card names it)", () => {
+    expect(tickLabel(45200, "value")).toBe("45.2K");
+    expect(tickLabel(-12900, "value")).toBe("\u221212.9K");
+    expect(tickLabel(0, "value")).toBe("0");
+  });
 });
 
 describe("valueText", () => {
@@ -66,6 +72,14 @@ describe("valueText", () => {
     expect(valueText("45500000", { kind: "amount", unit: "XRP" }, "full")).toBe("45.5M XRP");
     expect(valueText("113", { kind: "drops", unit: "drops" }, "compact")).toBe("113 drops");
     expect(valueText("113", { kind: "drops", unit: "drops" }, "full")).toBe("113 drops");
+  });
+
+  it("writes the kind value as an amount does: compact with the unit, in either style", () => {
+    expect(valueText("45200", { kind: "value", unit: "XRP" }, "full")).toBe("45.2K XRP");
+    expect(valueText("45200", { kind: "value", unit: "XRP" }, "compact")).toBe("45.2K XRP");
+    expect(valueText("16787.149", { kind: "value", unit: "XRP" }, "full")).toBe("16.8K XRP");
+    expect(valueText("-3.5", { kind: "value", unit: "XRP" }, "full")).toBe("\u22123.5 XRP");
+    expect(valueText("45200", { kind: "value" }, "full")).toBe("45.2K");
   });
 
   it("writes a price with formatPrice and the unit, in either style, and never compact (a change from the first reading of the kind)", () => {
@@ -124,6 +138,16 @@ describe("cellText", () => {
     expect(cellText("0", { kind: "count" })).toBe("0");
   });
 
+  it("writes the kind value with formatValue: 2 decimals from 1, 6 below it, grouped, no unit", () => {
+    expect(cellText("16787.149", { kind: "value", unit: "XRP" })).toBe("16,787.15");
+    expect(cellText("0.1234567", { kind: "value" })).toBe("0.123457");
+    expect(cellText("2.50", { kind: "value" })).toBe("2.5");
+    expect(cellText("-1234.5", { kind: "value" })).toBe("\u22121,234.5");
+    expect(cellText("0", { kind: "value" })).toBe("0");
+    expect(cellText("0.0000001", { kind: "value" })).toBe("<0.000001");
+    expect(cellText(null, { kind: "value" })).toBe("\u2014");
+  });
+
   it("writes a price with formatPrice: 8 significant digits, trailing zeros dropped, never an exponent", () => {
     expect(cellText("0.40990000", { kind: "price", unit: "USD" })).toBe("0.4099");
     expect(cellText("2.40", { kind: "price" })).toBe("2.4");
@@ -171,6 +195,19 @@ describe("bucketLabel", () => {
     expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "table")).toBe("Oct 16, 2026, 17:01");
   });
 
+  it("writes a month as Oct 2026 on the axis, in the tooltip and in the table", () => {
+    for (const where of ["axis", "tooltip", "table"] as const) expect(bucketLabel("2026-10-01", "month", where)).toBe("Oct 2026");
+    expect(bucketLabel("2025-07-01", "month", "axis")).toBe("Jul 2025");
+    expect(bucketLabel("2026-01-01", "month", "tooltip")).toBe("Jan 2026");
+    expect(bucketLabel("2026-12-01", "month", "table")).toBe("Dec 2026");
+  });
+
+  it("adds so far to a running month in the tooltip and the table, never on the axis", () => {
+    expect(bucketLabel("2026-10-01", "month", "tooltip", true)).toBe("Oct 2026, so far");
+    expect(bucketLabel("2026-10-01", "month", "table", true)).toBe("Oct 2026, so far");
+    expect(bucketLabel("2026-10-01", "month", "axis", true)).toBe("Oct 2026");
+  });
+
   it("adds so far in the tooltip and the table, never on the axis", () => {
     expect(bucketLabel("2026-10-17", "day", "tooltip", true)).toBe("Oct 17, 2026, so far");
     expect(bucketLabel("2026-10-17", "day", "table", true)).toBe("Oct 17, 2026, so far");
@@ -188,6 +225,8 @@ describe("bucketLabel", () => {
   it("returns what is not a bucket as it came", () => {
     expect(bucketLabel("soon", "day", "tooltip")).toBe("soon");
     expect(bucketLabel("soon", "hour", "axis")).toBe("soon");
+    expect(bucketLabel("soon", "month", "axis")).toBe("soon");
+    expect(bucketLabel("soon", "month", "tooltip")).toBe("soon");
   });
 });
 
@@ -225,6 +264,7 @@ describe("tableHeading", () => {
     expect(tableHeading("hour")).toBe("Hour (UTC)");
     expect(tableHeading("flag")).toBe("Flag ledger (UTC)");
     expect(tableHeading("minute")).toBe("Time (UTC)");
+    expect(tableHeading("month")).toBe("Month (UTC)");
   });
 });
 
@@ -251,6 +291,12 @@ describe("gapText", () => {
     expect(gapText({ unit: "minute", buckets: ["2026-10-17T17:00:00Z", "2026-10-17T17:15:00Z"] }, 1, 0)).toBe("No data for Oct 17, 2026, 17:15");
     expect(gapText({ unit: "minute", buckets: ["2026-10-17T17:00:00Z", "2026-10-17T17:15:00Z"] }, 1, 1)).toBe("Not computed yet");
   });
+
+  it("names a month by its label", () => {
+    const months: TimeAxis = { unit: "month", buckets: ["2026-08-01", "2026-09-01", "2026-10-01"] };
+    expect(gapText(months, 1, 0)).toBe("No data for Sep 2026");
+    expect(gapText(months, 2, 1)).toBe("Not computed yet");
+  });
 });
 
 describe("emptyText", () => {
@@ -260,11 +306,13 @@ describe("emptyText", () => {
     expect(emptyText({ unit: "hour", buckets: ["a", "b"] })).toBe("No data for these 2 hours");
     expect(emptyText({ unit: "flag", buckets: ["a", "b", "c"] })).toBe("No data for these 3 flag ledgers");
     expect(emptyText({ unit: "minute", buckets: ["a", "b", "c"] })).toBe("No data for these 3 quarter hours");
+    expect(emptyText({ unit: "month", buckets: ["a", "b", "c"] })).toBe("No data for these 3 months");
   });
 
   it("is singular for one bucket", () => {
     expect(emptyText({ unit: "day", buckets: ["2026-10-17"] })).toBe("No data for this day");
     expect(emptyText({ unit: "minute", buckets: ["2026-10-17T17:15:00Z"] })).toBe("No data for this quarter hour");
+    expect(emptyText({ unit: "month", buckets: ["2026-10-01"] })).toBe("No data for this month");
   });
 });
 
@@ -275,6 +323,7 @@ describe("sliderLabel", () => {
     expect(sliderLabel("Ledgers", "hour")).toBe("Ledgers, hour by hour");
     expect(sliderLabel("Votes", "flag")).toBe("Votes, flag ledger by flag ledger");
     expect(sliderLabel("Price", "minute")).toBe("Price, quarter hour by quarter hour");
+    expect(sliderLabel("Transactions sent per month", "month")).toBe("Transactions sent per month, month by month");
   });
 
   it("names the step after the words of one bucket when it is given one: a 4-hour candle on an axis of hours", () => {
@@ -455,6 +504,22 @@ describe("plotSummary", () => {
     );
   });
 
+  it("reads a month by its name and year on both dates, whatever the years, and says so far of the running one", () => {
+    const months: TimeSeriesData = {
+      axis: { unit: "month", buckets: ["2026-08-01", "2026-09-01", "2026-10-01"] },
+      series: [{ id: "a", label: "A", slot: 1, values: ["5", "9", "7"] }],
+      format: { kind: "count" },
+      token: "t",
+    };
+    expect(plotSummary("Transactions sent per month", months)).toBe(
+      "Transactions sent per month, Aug 2026 to Oct 2026. Highest Sep 2026, 9; latest Oct 2026, 7. Choose Table for every value.",
+    );
+    expect(plotSummary("Transactions sent per month", { ...months, forming: true })).toContain("latest Oct 2026, so far, 7.");
+    expect(plotSummary("Value", { ...months, axis: { unit: "month", buckets: ["2025-12-01", "2026-01-01"] }, series: [{ id: "a", label: "A", slot: 1, values: ["45200", "46000"] }], format: { kind: "value", unit: "XRP" } })).toBe(
+      "Value, Dec 2025 to Jan 2026. Highest Jan 2026, 46K XRP; latest Jan 2026, 46K XRP. Choose Table for every value.",
+    );
+  });
+
   it("gives an hour its time", () => {
     const hours: TimeSeriesData = {
       axis: { unit: "hour", buckets: ["2026-10-17T15:00:00Z", "2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"] },
@@ -476,5 +541,11 @@ describe("plotSummary", () => {
   it("says there is no data when there is no series and no totals", () => {
     const empty: TimeSeriesData = { axis, series: [], format: { kind: "count" }, token: "t" };
     expect(plotSummary("Fees", empty)).toBe("Fees: No data for these 30 days.");
+  });
+
+  it("says the data's own words instead when it has them, and still reads a chart that has a value", () => {
+    const words = "No transactions sent in these 30 days";
+    expect(plotSummary("Transactions sent, per day", stack(totals.map(() => null), { emptyText: words }))).toBe(`Transactions sent, per day: ${words}.`);
+    expect(plotSummary("Transactions sent, per day", stack(totals, { emptyText: words }))).toBe(plotSummary("Transactions sent, per day", stack(totals)));
   });
 });

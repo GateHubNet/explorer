@@ -474,6 +474,67 @@ describe("ColumnChart's density (spec 2.7)", () => {
   });
 });
 
+describe("ColumnChart on a month axis (E4)", () => {
+  /** `count` months from Jan 2012, as `YYYY-MM-01`. */
+  const months = (count: number) => Array.from({ length: count }, (_, i) => new Date(Date.UTC(2012, i, 1)).toISOString().slice(0, 10));
+  const over = (buckets: string[], unit: TimeAxis["unit"]): TimeSeriesData => ({
+    axis: { unit, buckets },
+    series: [{ id: "sent", label: "Sent", slot: 1, values: buckets.map(() => "3") }],
+    format: { kind: "count", unit: "transactions" },
+    forming: true,
+    token: "m",
+  });
+  const xLabels = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<HTMLElement>(".plot__x--wide > *"), (label) => [label.textContent, label.style.left]);
+
+  it("labels every 28th of 166 buckets from the newest as Mon YYYY, at the places a day axis of the same length has", async () => {
+    const month = await serverThenHydrated(<ColumnChart layout="single" title="Sent per month" data={over(months(166), "month")} />);
+    const dayBuckets = Array.from({ length: 166 }, (_, i) => new Date(Date.UTC(2012, 0, 1 + i)).toISOString().slice(0, 10));
+    const days = await serverThenHydrated(<ColumnChart layout="single" title="Sent per day" data={over(dayBuckets, "day")} />);
+    // Buckets 25, 53, 81, 109, 137 and 165, which are the ones of a day axis.
+    expect(xLabels(month.container).map(([text]) => text)).toEqual(["Feb 2014", "Jun 2016", "Oct 2018", "Feb 2021", "Jun 2023", "Oct 2025"]);
+    expect(xLabels(month.container).map(([, left]) => left)).toEqual(xLabels(days.container).map(([, left]) => left));
+    expect(month.errors).toEqual([]);
+    expect(days.errors).toEqual([]);
+  });
+
+  it("names the slider by the month, says Oct 2026, so far, and writes the year in the table and the empty state too", async () => {
+    const buckets = ["2026-08-01", "2026-09-01", "2026-10-01"];
+    const data = over(buckets, "month");
+    const { container, errors } = await serverThenHydrated(<ColumnChart layout="single" title="Sent per month" data={data} />);
+    expect(slider(container).getAttribute("aria-label")).toBe("Sent per month, month by month");
+    expect(slider(container).getAttribute("aria-valuetext")).toBe("Oct 2026, so far: 3 transactions");
+    expect(container.querySelector(".plot__x--wide")!.textContent).toBe("Aug 2026Sep 2026Oct 2026");
+    cleanup();
+
+    const none = await serverThenHydrated(<ColumnChart layout="single" title="Sent per month" data={{ ...data, series: [{ ...data.series[0]!, values: [null, null, null] }] }} />);
+    expect(none.container.textContent).toContain("No data for these 3 months");
+    expect(errors).toEqual([]);
+    expect(none.errors).toEqual([]);
+  });
+});
+
+describe("ColumnChart in the kind value (E4)", () => {
+  it("writes the ticks and the tooltip compact, with the unit: 45.2K XRP, as an amount is", async () => {
+    const data: TimeSeriesData = {
+      axis: AXIS,
+      series: [{ id: "value", label: "Account value", slot: 1, values: AXIS.buckets.map((_, i) => (i === 29 ? "16787.149" : "45200")) }],
+      format: { kind: "value", unit: "XRP" },
+      forming: true,
+      token: "v",
+    };
+    const { container, errors } = await serverThenHydrated(<ColumnChart layout="single" title="Account value, in XRP" data={data} />);
+    expect(texts(container.querySelector(".plot__y")!.children)).toEqual(["0", "20K", "40K", "60K"]);
+    goTo(container, 29);
+    expect(lines(container)).toEqual(["Oct 17, 2026, so far", "16.8K XRP Account value"]);
+    expect(slider(container).getAttribute("aria-valuetext")).toBe("Oct 17, 2026, so far: 16.8K XRP");
+    goTo(container, 3);
+    expect(lines(container)).toEqual(["Sep 21, 2026", "45.2K XRP Account value"]);
+    expect(slider(container).getAttribute("aria-valuetext")).toBe("Sep 21, 2026: 45.2K XRP");
+    expect(errors).toEqual([]);
+  });
+});
+
 describe("ColumnChart, memoised on the token (spec 2.9)", () => {
   const other = stacked({ 12: ["2", "1"], 29: ["1", "1"] });
 

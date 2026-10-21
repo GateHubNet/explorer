@@ -1,0 +1,16 @@
+{
+  "count": 6,
+  "counterparties": [
+    {"account":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","first":"2026-08-12T22:38:31Z","last":"2026-08-17T00:05:00Z","payments_received":2,"payments_sent":0,"received_value":"94965623.545753033","sent_value":"0","total_value":"94965623.545753033"},
+    {"account":"r4JFhhzarYb7v1vA2RVsbJjFa9HRVN7NGg","first":"2026-08-12T22:39:31Z","last":"2026-10-17T02:14:24Z","payments_received":8,"payments_sent":0,"received_value":"9273.59204523926560883","sent_value":"0","total_value":"9273.59204523926560883"},
+    {"account":"rG31CzxrMSshHJgLgeyzSB9FmE7HnuYu6N","first":"2026-09-08T00:05:00Z","last":"2026-09-08T00:05:00Z","payments_received":1,"payments_sent":0,"received_value":"55.748419945208947","sent_value":"0","total_value":"55.748419945208947"},
+    {"account":"r3SZFCprpeLS2AHYa5HoNdeD79E5PLFy4o","first":"2026-08-13T14:46:36Z","last":"2026-10-17T13:57:28Z","payments_received":19,"payments_sent":1,"received_value":"14.98495484347726981","sent_value":"29.665233","total_value":"44.65018784347726981"},
+    {"account":"rMUTyna9HWXNHYZZcmLuiHjvDYFMjkXQr5","first":"2026-08-12T22:59:18Z","last":"2026-10-16T14:49:00Z","payments_received":34,"payments_sent":0,"received_value":"24.26835947872661288","sent_value":"0","total_value":"24.26835947872661288"},
+    {"account":"rPfAvYFc5afpUEHxzWDYfboPFFnqPYZBZG","first":"2026-08-26T03:12:16Z","last":"2026-10-17T12:38:38Z","payments_received":12,"payments_sent":1,"received_value":"5.06699262718578567","sent_value":"12.795050831895626","total_value":"17.86204345908141167"}
+  ],
+  "end": "2026-10-18T00:00:00Z",
+  "result": "success",
+  "sort": "value",
+  "start": "2025-10-20T00:00:00Z",
+  "total": 28
+}

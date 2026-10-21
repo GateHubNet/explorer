@@ -6,7 +6,7 @@
  * the Cloudflare Vite plugin writes a flattened config for the selected environment.
  *
  * `vars` and `ratelimits` are not inherited, so each environment repeats them.
- * `VALIDATORS`, `AMM_DATA` and `MARKETS` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
+ * `VALIDATORS`, `AMM_DATA`, `MARKETS` and `ACCOUNT_ANALYTICS` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
  * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` stays
  * "off" until the validators pages exist); `staging` and `production` are "off" until their data API serves what the switch needs. Set
  * one by a commit and a deploy, never in the Cloudflare dashboard: the next deploy would undo it. The predeploy guard refuses a build
@@ -46,7 +46,8 @@
 		"XAHAU_NODE_URL": "https://xahau.network/",
 		"VALIDATORS": "off",
 		"AMM_DATA": "on",
-		"MARKETS": "on"
+		"MARKETS": "on",
+		"ACCOUNT_ANALYTICS": "on"
 	},
 	"ratelimits": [
 		{
@@ -67,7 +68,8 @@
 				"XAHAU_NODE_URL": "https://xahau.network/",
 				"VALIDATORS": "off",
 				"AMM_DATA": "off",
-				"MARKETS": "off"
+				"MARKETS": "off",
+				"ACCOUNT_ANALYTICS": "off"
 			},
 			"ratelimits": [
 				{
@@ -88,7 +90,8 @@
 				"XAHAU_NODE_URL": "https://xahau.network/",
 				"VALIDATORS": "off",
 				"AMM_DATA": "off",
-				"MARKETS": "off"
+				"MARKETS": "off",
+				"ACCOUNT_ANALYTICS": "off"
 			},
 			"ratelimits": [
 				{

@@ -8,12 +8,13 @@
 
 import BigNumber from "bignumber.js";
 
-import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab } from "../domain/account-tabs";
+import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
+import type { AnalyticsData } from "./analytics-view";
 import type { AccountData, AccountExchange, BalancesResponse, OrdersResponse, Page, Payment, TxObject } from "./api-types";
 import type { NetworkId } from "./networks";
 import { RIPPLE_EPOCH_OFFSET, type AccountInfo, type AccountObjects, type LedgerObject, type ServerState } from "./node-rpc";
@@ -22,7 +23,7 @@ import { UpstreamError } from "./upstream";
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tabs and the URL
 
-export { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab };
+export { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
 
 /** The tabs whose list is paged by marker; the offers and the objects are read live and have one page. */
 export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades"];
@@ -307,13 +308,21 @@ export interface HeaderInput {
   native: Native;
   created: Loaded<AccountData>;
   info: Loaded<AccountInfo>;
-  objects: Loaded<AccountObjects>;
+  /** The node's objects of the account, for the owned objects: a header with its holdings needs them, one without (the analytics view) asks for none. */
+  objects?: Loaded<AccountObjects>;
   state: Loaded<ServerState>;
-  balances: Loaded<BalancesResponse>;
+  /** The index's balances, for the tokens (and the native balance when the node did not answer): as `objects`. */
+  balances?: Loaded<BalancesResponse>;
   /** The close time (unix seconds) of the ledger that last changed the account, if it could be read. */
   lastLedgerTime: number | null;
   /** Whether the index has a transaction of the address: asked only when neither the index nor the node has the account. */
   history?: Loaded<boolean>;
+}
+
+/** A call a header with its holdings reads: leaving it out is the caller's mistake, not a call that failed. */
+function needed<T>(value: Loaded<T> | undefined, name: string): Loaded<T> {
+  if (value === undefined) throw new Error(`accountHeader with its holdings needs the ${name}`);
+  return value;
 }
 
 export function activationOf(created: AccountData): Activation {
@@ -328,9 +337,15 @@ export function activationOf(created: AccountData): Activation {
 /**
  * The header of an account that exists: `existenceOf` says active, deleted or unverified (the node did not answer). `problems`
  * names what could not be read, for the log and for the degraded mark: a page with any of them is served and not stored.
+ *
+ * `holdings` (the default) is the header of the list tabs, with the tokens and the owned objects, and needs `objects` and `balances`.
+ * Without it (the analytics view, spec 2.1) neither is read: `owned` is `null`, `tokens` is `none`, neither adds a problem, and the balance
+ * is the node's alone (an account whose node did not answer has none, and the page says the balance could not be read).
  */
-export function accountHeader(input: HeaderInput): { header: AccountHeader; problems: string[] } {
-  const { native, created, info, objects, state, balances, lastLedgerTime, history } = input;
+export function accountHeader(input: HeaderInput, { holdings }: { holdings: boolean } = { holdings: true }): { header: AccountHeader; problems: string[] } {
+  const { native, created, info, state, lastLedgerTime, history } = input;
+  const objects = holdings ? needed(input.objects, "objects") : undefined;
+  const balances = holdings ? needed(input.balances, "balances") : undefined;
   const existence = existenceOf(created, info, history);
   if (existence === "never-activated" || existence === "outage" || existence === "undetermined") {
     throw new Error(`accountHeader is for an account that exists, not one that is ${existence}`);
@@ -365,7 +380,7 @@ export function accountHeader(input: HeaderInput): { header: AccountHeader; prob
   // The balance: the node's, which the reserve is worked out from; else the native balance the index read.
   let balance: BalanceView | null = null;
   if (!deleted) {
-    const indexed = balances.state === "ok" ? balances.value.balances.find((b) => b.counterparty === undefined)?.value : undefined;
+    const indexed = balances?.state === "ok" ? balances.value.balances.find((b) => b.counterparty === undefined)?.value : undefined;
     const nativeBalance = info.state === "ok" ? dropsToNative(info.value.account_data.Balance) : indexed;
     if (nativeBalance !== undefined) {
       balance = { native: nativeBalance, available: null, reserve: null };
@@ -383,7 +398,7 @@ export function accountHeader(input: HeaderInput): { header: AccountHeader; prob
 
   // What the node owns, for the counts of the page's margin.
   let owned: OwnedView | null = null;
-  if (!deleted) {
+  if (!deleted && objects) {
     if (objects.state === "ok") {
       owned = { counts: ownedCounts(objects.value.account_objects), truncated: objects.value.marker !== undefined };
     } else if (objects.state === "failed") {
@@ -393,8 +408,8 @@ export function accountHeader(input: HeaderInput): { header: AccountHeader; prob
   if (!deleted && state.state === "failed") problems.push("node server_state failed");
 
   let tokens: TokensView = { state: "none" };
-  if (!deleted && balances.state === "ok") tokens = { state: "ok", ...tokensOf(balances.value) };
-  else if (!deleted && balances.state === "failed") {
+  if (!deleted && balances?.state === "ok") tokens = { state: "ok", ...tokensOf(balances.value) };
+  else if (!deleted && balances?.state === "failed") {
     tokens = { state: "failed" };
     problems.push("balances failed");
   }
@@ -686,13 +701,14 @@ export type TabList =
   | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean }
   | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null };
 
-/** What each tab is called in "Couldn't load transactions". */
+/** What each tab is called in "Couldn't load transactions"; the analytics view's whole-view error is "Couldn't load the analytics." */
 export const TAB_WHAT: Record<AccountTab, string> = {
   transactions: "transactions",
   payments: "payments",
   trades: "trades",
   offers: "offers",
   objects: "objects",
+  analytics: "the analytics",
 };
 
 export interface ListContext {
@@ -754,7 +770,7 @@ export function objectsList(objects: AccountObjects | null, native: Native): Tab
   return { state: "ok", tab: "objects", ...objectRows(objects.account_objects, native), truncated: objects.marker !== undefined, ledgerIndex: objects.ledger_index };
 }
 
-export function failedList(tab: AccountTab): TabList {
+export function failedList(tab: ListTab): TabList {
   return { state: "failed", what: TAB_WHAT[tab] };
 }
 
@@ -779,24 +795,44 @@ export interface QrPicture {
   tag: number | null;
 }
 
-/**
- * What the account page is drawn from. `mode` is `live` for the first page of a list (the header is read from the node and the
- * index) and `history` for a page reached with a marker. On the first page `list` is a promise that settles after the header
- * has been sent (it never rejects: a failure is a `TabList` of state `failed`); on a page with a marker it is there already.
- */
-export interface AccountPageData {
+/** What every account page is drawn from, whatever its tab. */
+interface AccountPageBase {
   kind: "account";
-  mode: "live" | "history";
   address: string;
   /** The network's native currency, for the page's title and description. */
   native: Native;
-  tab: AccountTab;
   /** The destination tag of the X-address the visitor came from, if the URL had a valid one. */
   tag: number | null;
   qr: QrPicture;
+  /**
+   * Whether the Analytics tab is a link (`ACCOUNT_ANALYTICS` is on) or the "soon" label: read from the switch by the loader and carried in
+   * the page data, so that the stored HTML, the server's tab bar and the browser's agree.
+   */
+  analyticsTab: boolean;
+}
+
+/**
+ * A page of a tab that shows a list. `mode` is `live` for the first page of a list (the header is read from the node and the index) and
+ * `history` for a page reached with a marker. On the first page `list` is a promise that settles after the header has been sent (it never
+ * rejects: a failure is a `TabList` of state `failed`); on a page with a marker it is there already.
+ */
+export interface AccountListPageData extends AccountPageBase {
+  tab: ListTab;
+  mode: "live" | "history";
   header: AccountHeader | HistoryHeader;
   list: TabList | Promise<TabList>;
 }
+
+/** The Analytics tab (spec 1.5): always live mode, its header that of the first page, and the view's parts as promises that never reject. */
+export interface AccountAnalyticsPageData extends AccountPageBase {
+  tab: "analytics";
+  mode: "live";
+  header: AccountHeader;
+  analytics: AnalyticsData;
+}
+
+/** What the account page is drawn from: a list tab's page or the analytics view. */
+export type AccountPageData = AccountListPageData | AccountAnalyticsPageData;
 
 /** The page for an address nothing ever funded (a 404 of class `short`). */
 export interface NeverActivatedData {

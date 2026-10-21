@@ -3,7 +3,7 @@
 // it: the pages get every href and label as a string in their data. The markets table, the pair page, the DEX table of E4 and the pool
 // cards of E5 all order a pair with `naturalOrientation`; `canonicalPair` (asset.ts) is for talking to the data API only.
 
-import { assetText, type Asset, type NativeCode } from "./asset";
+import { assetText, parseAssetText, sameAsset, type Asset, type NativeCode } from "./asset";
 import { formatCurrency } from "./format";
 import { pairQuery, type PairParams } from "./market-params";
 
@@ -62,6 +62,14 @@ export function naturalOrientation(a: Asset, b: Asset, native: NativeCode): { ba
   // The worse rank is the base. The same rank is a tie, which a pair of one asset ends in `a`'s favour.
   const aIsBase = rankA === rankB ? !sortsBefore(b, a) : rankA > rankB;
   return aIsBase ? { base: a, counter: b, inverted: false } : { base: b, counter: a, inverted: true };
+}
+
+/** Whether the data API can be asked for the pair: each side must read back from its URL form as the same asset (`usd` reads back as `USD`). */
+export function isLinkable(sides: readonly Asset[], native: NativeCode): boolean {
+  return sides.every((side) => {
+    const read = parseAssetText(assetText(side), { native });
+    return read !== null && sameAsset(read, side);
+  });
 }
 
 /** A segment of the pair's path: the URL form of an asset, escaped for a path. */

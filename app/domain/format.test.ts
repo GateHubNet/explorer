@@ -10,6 +10,7 @@ import {
   formatPrice,
   formatUtc,
   formatUtcDay,
+  formatValue,
   relativeTime,
   sharePercent,
   shortAddress,
@@ -464,5 +465,99 @@ describe("formatChange", () => {
     expect(formatChange("abc")).toBe("abc");
     expect(formatChange("")).toBe("");
     expect(formatChange("\u2014")).toBe("\u2014");
+  });
+});
+
+describe("formatValue", () => {
+  it("keeps what is exact and drops the zeros it would add", () => {
+    expect(formatValue("1")).toBe("1");
+    expect(formatValue("1.50")).toBe("1.5");
+    expect(formatValue("0.999999")).toBe("0.999999");
+    expect(formatValue("0.000001")).toBe("0.000001");
+    expect(formatValue("0.5000")).toBe("0.5");
+    expect(formatValue("2.000")).toBe("2");
+  });
+
+  it("is 6 decimals below 1, half up", () => {
+    expect(formatValue("0.1234565")).toBe("0.123457");
+    expect(formatValue("0.1234564999")).toBe("0.123456");
+    expect(formatValue("0.0000015")).toBe("0.000002");
+    expect(formatValue("0.0000014999")).toBe("0.000001");
+    expect(formatValue("-0.1234565")).toBe("\u22120.123457");
+  });
+
+  it("is 2 decimals from 1, half up, and groups the integer part", () => {
+    expect(formatValue("16787.149")).toBe("16,787.15");
+    expect(formatValue("1234567.1")).toBe("1,234,567.1");
+    expect(formatValue("7100.255")).toBe("7,100.26");
+    expect(formatValue("1.005")).toBe("1.01");
+    expect(formatValue("2.675")).toBe("2.68");
+    expect(formatValue("1.004")).toBe("1");
+    expect(formatValue("999.995")).toBe("1,000");
+    expect(formatValue("1000000")).toBe("1,000,000");
+  });
+
+  it("rounds on the digits, not on a float", () => {
+    expect(formatValue("1.0049999999999999999")).toBe("1");
+    expect(formatValue("1.0050000000000000001")).toBe("1.01");
+    expect(formatValue("123456789012345678.995")).toBe("123,456,789,012,345,679");
+    expect(formatValue("123456789012345678.994")).toBe("123,456,789,012,345,678.99");
+  });
+
+  it("rounds from below 1 up to 1 without a 6-decimal tail", () => {
+    expect(formatValue("0.9999996")).toBe("1");
+    expect(formatValue("-0.9999996")).toBe("\u22121");
+  });
+
+  it("is <0.000001 below a drop, with the sign before it", () => {
+    expect(formatValue("0.0000005")).toBe("<0.000001");
+    expect(formatValue("0.0000009999")).toBe("<0.000001");
+    expect(formatValue("1e-12")).toBe("<0.000001");
+    expect(formatValue("-0.0000001")).toBe("\u2212<0.000001");
+    expect(formatValue("-0.0000001", { signed: true })).toBe("\u2212<0.000001");
+    expect(formatValue("0.0000001", { signed: true })).toBe("+<0.000001");
+    expect(formatValue("0.0000001")).toBe("<0.000001");
+  });
+
+  it("is 0 for zero, with no sign", () => {
+    expect(formatValue("0")).toBe("0");
+    expect(formatValue("0", { signed: true })).toBe("0");
+    expect(formatValue("0.000")).toBe("0");
+    expect(formatValue("-0")).toBe("0");
+    expect(formatValue("-0", { signed: true })).toBe("0");
+    expect(formatValue("0e5", { signed: true })).toBe("0");
+  });
+
+  it("writes a negative value with U+2212, signed or not", () => {
+    expect(formatValue("-38100.456")).toBe("\u221238,100.46");
+    expect(formatValue("-38100.456", { signed: true })).toBe("\u221238,100.46");
+    expect(formatValue("-0.5")).toBe("\u22120.5");
+    expect(formatValue("-1234567.891")).not.toContain("-");
+  });
+
+  it("has a + for a positive value only when signed", () => {
+    expect(formatValue("7100.255", { signed: true })).toBe("+7,100.26");
+    expect(formatValue("0.5", { signed: true })).toBe("+0.5");
+    expect(formatValue("+0.5", { signed: true })).toBe("+0.5");
+    expect(formatValue("7100.255")).toBe("7,100.26");
+    expect(formatValue("7100.255", {})).toBe("7,100.26");
+    expect(formatValue("7100.255", { signed: false })).toBe("7,100.26");
+  });
+
+  it("reads exponent notation and never writes it", () => {
+    expect(formatValue("1.5e3")).toBe("1,500");
+    expect(formatValue("1.5E+3")).toBe("1,500");
+    expect(formatValue("2.5e-1")).toBe("0.25");
+    expect(formatValue("1e21")).toBe("1,000,000,000,000,000,000,000");
+    expect(formatValue("1.5e-7")).toBe("<0.000001");
+    expect(formatValue("-1.5e21")).toBe("\u22121,500,000,000,000,000,000,000");
+  });
+
+  it("returns what is not a number as it came", () => {
+    expect(formatValue("abc")).toBe("abc");
+    expect(formatValue("")).toBe("");
+    expect(formatValue("\u2014")).toBe("\u2014");
+    expect(formatValue("NaN")).toBe("NaN");
+    expect(formatValue("Infinity")).toBe("Infinity");
   });
 });

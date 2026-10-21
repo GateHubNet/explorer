@@ -14,6 +14,9 @@
 // What the recordings cannot give, the network page's aggregates over months, fee snapshots and validations, is synthetic: a seeded
 // generator in network-fixtures.ts, called from `generate` below (README.md, "Upstream fixtures"; PROVENANCE.md, "Synthetic aggregates").
 //
+// The Analytics tab's answers of the accounts (`data-api/accounts/<address>/stats/` and `.../analytics/`) are synthetic too: analytics-fixtures.ts makes them up,
+// anchored to the hand-written account files (README.md, "Upstream fixtures"; PROVENANCE.md, "Synthetic aggregates"), and `generate` writes them.
+//
 // The markets pages' answers are market-fixtures.ts's, by the rules of market-aggregates.ts (a pair's trades, candles, 24-hour rows and active accounts, derived from the recordings on XRPL and
 // synthetic on Xahau; the markets tables, synthetic around the derived trades), and the pools' `amm_info` answers amm-info-fixtures.ts's (derived); `generate`
 // joins them too (PROVENANCE.md, "Synthetic aggregates" and "Derived trades and pool states"). Both modules, and derived-trades.ts, import this one in turn,
@@ -31,6 +34,7 @@ import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase 
 import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 import { ammInfoFixtures } from "./amm-info-fixtures";
+import { ANALYTICS_ROW_LISTS, analyticsFixtures } from "./analytics-fixtures";
 import { marketFixtures } from "./market-fixtures";
 import { networkFixtures } from "./network-fixtures";
 
@@ -337,11 +341,12 @@ export function fixtureText(value: unknown, rowLists: readonly string[] = []): s
 
 /**
  * Paths (below test/fixtures/http/) of files that hold account data and are written by hand, and of the order books that are recorded from the
- * public nodes (`node/book_offers/`, scripts/record-node-fixtures.ts); the generator leaves them all.
+ * public nodes (`node/book_offers/`, scripts/record-node-fixtures.ts); the generator leaves them all. An account's analytics answers (`stats/` and
+ * `analytics/` below its directory) are not: analytics-fixtures.ts writes them (`isAnalyticsGenerated`).
  */
 export function isHandWritten(path: string): boolean {
   return (
-    /^(xrpl|xahau)\/data-api\/accounts\//.test(path) ||
+    (/^(xrpl|xahau)\/data-api\/accounts\//.test(path) && !isAnalyticsGenerated(path)) ||
     /^(xrpl|xahau)\/node\/(account_info|account_objects)\//.test(path) ||
     /^(xrpl|xahau)\/node\/server_state\.json$/.test(path) ||
     /^(xrpl|xahau)\/node\/book_offers\//.test(path)
@@ -367,6 +372,15 @@ export function isMarketGenerated(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/(exchanges\/|active_accounts\/|network\/markets@)/.test(path);
 }
 
+/**
+ * Paths (below test/fixtures/http/) of the accounts' analytics answers that analytics-fixtures.ts writes: `stats/{family}` and `analytics/*` below an
+ * account's directory. Synthetic like the network page's aggregates, they count against the same size budget (test/unit/http-fixtures.test.ts), and
+ * test/unit/analytics-fixtures.test.ts keeps this in step with the generator. (`isSynthetic` is E2's and stays as it is.)
+ */
+export function isAnalyticsGenerated(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/accounts\/[^/]+\/(stats|analytics)\//.test(path);
+}
+
 /** The hashes of the transactions the hand-written account lists name, so that every row can be opened. */
 function accountListHashes(net: NetworkName): string[] {
   const dir = new URL(`${net}/data-api/accounts/`, HTTP);
@@ -380,7 +394,10 @@ function accountListHashes(net: NetworkName): string[] {
   for (const account of accounts) {
     let files: string[];
     try {
-      files = readdirSync(new URL(`${account}/`, dir));
+      // The lists are files; the analytics answers' `stats/` and `analytics/` are directories, and none of their rows names a transaction.
+      files = readdirSync(new URL(`${account}/`, dir), { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name);
     } catch {
       continue; // `<account>.json`: the account's creation, not a directory
     }
@@ -507,6 +524,13 @@ export function generate(): Map<string, string> {
     // moves the chain back by one), which are the first two rows of the list above.
     const newestTwo = rows.slice(0, 2).map((row, at) => ({ index: row.ledger_index, hash: ledgers[ledgers.length - 1 - at]!.ledger_hash, date: row.date }));
     for (const { path, query, value } of networkFixtures(net, dataApiLastValidated(head), newestTwo)) put(dataApiFile(net, path, query), value, SYNTHETIC_ROW_LISTS);
+
+    // The Analytics tab's answers of the three accounts: synthetic, for the windows of the four periods at T, the UTC day of the newest ledger's close.
+    for (const { path, query, body } of analyticsFixtures(net, isoTime(unixOf(head.ledger.close_time)).slice(0, 10))) {
+      const file = dataApiFile(net, path, query);
+      if (file !== undefined && files.has(file)) throw new Error(`${file} is generated twice`);
+      put(file, body, ANALYTICS_ROW_LISTS);
+    }
 
     // Single transactions: one per type the recordings looked for, the newest ones, and those the account lists show.
     const served = new Set([...manifestHashes(net), ...newest.map(({ tx }) => tx.hash), ...accountListHashes(net)]);

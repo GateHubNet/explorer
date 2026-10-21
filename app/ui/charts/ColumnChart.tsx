@@ -5,7 +5,7 @@ import { fractionOf, niceScale, percent, stackOf } from "./geometry";
 import { emptyText, plotSummary, sliderLabel, valueText } from "./labels";
 import { Plot } from "./Plot";
 import type { Slot, TimeSeriesData, ValueFormat } from "./types";
-import { bucketWords, DASH } from "./words";
+import { bucketWords, DASH, extraWords } from "./words";
 
 export interface ColumnChartProps {
   /** One series; the series bottom up; or the first series up and the second down from the zero line. */
@@ -110,8 +110,9 @@ export const ColumnChart = memo(
     // The words. The running bucket is "so far" in a tooltip and to the slider, never on the axis (Plot's labels are the axis').
     const { date: dateOf, gapReadOut, gapTip } = bucketWords(axis, forming, pending);
     const full = (cell: Cell): string => valueText(cell.text, format, "full");
+    const extras = extraWords(data.extras);
 
-    /** The slider's text for bucket `i`: the date, then the total, then each series with its value; or why there is none. */
+    /** The slider's text for bucket `i`: the date, then the total, then each series with its value, the extras; or why there is none. */
     const readOut = (i: number): string => {
       if (!has(i)) return gapReadOut(i);
       const sum = cellOf(totals?.[i]);
@@ -123,10 +124,10 @@ export const ColumnChart = memo(
       if (layout === "single") parts = [quantity(at(0, i)?.text ?? "", format)];
       else if (layout === "stacked") parts = [...(sum ? [quantity(sum.text, format)] : []), ...named];
       else parts = [...named, ...(sum ? [`Net ${full(sum)}`] : [])];
-      return `${dateOf(i)}: ${[...parts, ...(noted.get(i) ?? []).map((note) => note.label)].join("; ")}`;
+      return `${dateOf(i)}: ${[...parts, ...extras.read(i), ...(noted.get(i) ?? []).map((note) => note.label)].join("; ")}`;
     };
 
-    /** The tooltip's content for bucket `i` (spec 2.6): the date, a row for each series, the total (or the net), the annotations. */
+    /** The tooltip's content for bucket `i` (spec 2.6): the date, a row for each series, the total (or the net), the extras, the annotations. */
     const tooltip = (i: number): ReactNode => {
       if (!has(i)) return gapTip(i);
       const sum = cellOf(totals?.[i]);
@@ -152,6 +153,7 @@ export const ColumnChart = memo(
               <span className="plot__tip-name">Net</span> <b>{full(sum)}</b>
             </span>
           )}
+          {extras.rows(i)}
           {(noted.get(i) ?? []).map((note, n) => (
             <span key={n} className="plot__tip-note">
               <span className="plot__tip-symbol">{note.symbol}</span> {note.label}
@@ -171,7 +173,7 @@ export const ColumnChart = memo(
         axis={axis}
         placement="bands"
         slots
-        empty={axis.buckets.some((_, i) => has(i)) ? null : emptyText(axis)}
+        empty={axis.buckets.some((_, i) => has(i)) ? null : (data.emptyText ?? emptyText(axis))}
         cursor={{ count, placement: "bands", label: sliderLabel(title, axis.unit), valueText: readOut, tooltip }}
       >
         <div className="plot__cols">

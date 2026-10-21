@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
+import { ANALYTICS_VIEW, BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
 
 // A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the seven pages' and
 // whose chunks are bytes of no pattern (they do not compress, so a chunk's gzipped size is known to within a few bytes).
@@ -22,6 +22,8 @@ interface FakeChunk {
   /** Raw bytes, random unless `text` is given. */
   size?: number;
   text?: string;
+  /** Text before the random bytes: the `import`s of a chunk. */
+  head?: string;
 }
 
 interface FakeRoute {
@@ -74,7 +76,8 @@ function fakeBuild(options: {
   mkdirSync(join(dir, "assets"));
   const sizes = new Map<string, number>();
   for (const chunk of options.chunks) {
-    const content = chunk.text ?? incompressible(chunk.size ?? 100, [...chunk.name].reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7));
+    const random = () => incompressible(chunk.size ?? 100, [...chunk.name].reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7));
+    const content = chunk.text ?? (chunk.head === undefined ? random() : Buffer.concat([Buffer.from(chunk.head), random()]));
     writeFileSync(join(dir, "assets", chunk.name), content);
     sizes.set(chunk.name, gz(content));
   }
@@ -127,7 +130,9 @@ const CHUNKS: FakeChunk[] = [
   { name: "home.js", size: 1000 },
   { name: "ledger.js", size: 1100 },
   { name: "tx.js", size: 1200 },
-  { name: "account.js", size: 1300 },
+  // The account route loads the analytics view with import(), as the build writes it (with backticks): the view's chunk is loaded when needed.
+  { name: "account.js", size: 1300, head: "const view=()=>import(`./AccountAnalytics-abc.js`);" },
+  { name: "AccountAnalytics-abc.js", size: 1500 },
   { name: "network.js", size: 1400 },
   { name: "markets.js", size: 1500 },
   { name: "pair.js", size: 1300 },
@@ -213,7 +218,8 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/markets\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/market-pair\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toContain("150.0 KB");
-    expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair)\s/.test(line))).toHaveLength(7);
+    expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair)\s+\d/.test(line))).toHaveLength(7);
+    expect(table).toMatch(/\naccount analytics\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
   });
 
   it("fails a page over 150 KB gzipped, and only that page", () => {
@@ -276,7 +282,132 @@ describe("checkBundle: what a page loads", () => {
     });
     const report = checkBundle(dir);
     expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
-    expect(report.problems).toHaveLength(7);
+    // The seven pages, and the analytics view, which is the account page's files and more.
+    expect(report.problems).toHaveLength(8);
+  });
+});
+
+describe("checkBundle: the analytics view (gate 2)", () => {
+  const ACCOUNT = "routes/net.account.$address";
+
+  /** The fake build with the analytics chunk and the account route's chunk changed: `chunks` replaces or adds chunks by name. */
+  function viewBuild(chunks: FakeChunk[], routes = ROUTES) {
+    const byName = new Map([...CHUNKS, ...chunks].map((chunk) => [chunk.name, chunk]));
+    return fakeBuild({ chunks: [...byName.values()], routes });
+  }
+
+  it("is the account route", () => {
+    expect(ANALYTICS_VIEW.name).toBe("account analytics");
+    expect(ANALYTICS_VIEW.from).toBe(ACCOUNT);
+    expect(PAGES.find((page) => page.route === ANALYTICS_VIEW.from)?.name).toBe("account");
+  });
+
+  it("adds to the account route's first load the chunk its import() names and the chunk's relative static imports, transitively, each file once", () => {
+    const { dir, sizes } = viewBuild([
+      { name: "account.js", size: 1300, head: 'const view=()=>import("./AccountAnalytics-abc.js");' },
+      // A chunk of its own, and one the account route loads already (table.js); the second is not counted again.
+      { name: "AccountAnalytics-abc.js", size: 1500, head: 'import{a as t}from"./kit-1.js";import{b as u}from"./table.js";' },
+      // What kit-1 imports is followed too; an import() is loaded when needed, and is not.
+      { name: "kit-1.js", size: 900, head: 'import"./kit-2.js";const later=()=>import("./later.js");' },
+      { name: "kit-2.js", size: 400 },
+      { name: "later.js", size: 5000 },
+    ]);
+    const report = checkBundle(dir);
+    expect(report.problems).toEqual([]);
+    const account = report.pages.find((page) => page.name === "account")!;
+    expect(report.views).toHaveLength(1);
+    const view = report.views[0]!;
+    expect(view).toMatchObject({ name: "account analytics", route: ACCOUNT, chunk: "AccountAnalytics-abc.js" });
+    expect(view.files).toEqual([...account.files, "AccountAnalytics-abc.js", "kit-1.js", "kit-2.js"]);
+    expect(view.files.filter((file) => file === "table.js")).toHaveLength(1);
+    expect(view.bytes).toBe(account.bytes + sizes.get("AccountAnalytics-abc.js")! + sizes.get("kit-1.js")! + sizes.get("kit-2.js")!);
+  });
+
+  it.each([
+    ["double quotes", '"'],
+    ["single quotes", "'"],
+    ["backticks, as the build writes it", "`"],
+  ])("finds the chunk by an import() in %s, with the spaces a hand would write", (_quotes, quote) => {
+    const { dir } = viewBuild([{ name: "account.js", size: 1300, head: `x=()=>import( ${quote}./AccountAnalytics-abc.js${quote} );` }]);
+    expect(checkBundle(dir).views[0]?.chunk).toBe("AccountAnalytics-abc.js");
+  });
+
+  it("finds the import() in any file of the account route's first load, not only in the route's own", () => {
+    const { dir } = viewBuild([
+      { name: "account.js", size: 1300 },
+      { name: "qr-picture.js", size: 700, head: "x=()=>import(`./AccountAnalytics-abc.js`);" },
+    ]);
+    const report = checkBundle(dir);
+    expect(report.problems).toEqual([]);
+    expect(report.views[0]?.chunk).toBe("AccountAnalytics-abc.js");
+  });
+
+  /**
+   * A build whose analytics view loads exactly `target` bytes, gzipped: the chunk every page shares carries most of it, and the analytics
+   * chunk is adjusted a byte at a time until the sum is right. (Every page is lighter than the view, by the analytics chunk at least.)
+   */
+  function viewAt(target: number) {
+    let shared = 120_000;
+    let chunk = 8000;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const { dir } = viewBuild([
+        { name: "shared.js", size: shared },
+        { name: "AccountAnalytics-abc.js", size: chunk },
+      ]);
+      const report = checkBundle(dir);
+      const bytes = report.views[0]!.bytes;
+      if (bytes === target) return report;
+      const delta = target - bytes;
+      if (Math.abs(delta) > 3000) shared += delta - Math.sign(delta) * 1000;
+      else chunk += delta;
+    }
+    throw new Error(`no build whose analytics view loads ${target} bytes`);
+  }
+
+  it("holds the view to 150,000 bytes gzipped: that many passes, one more fails, and says so", () => {
+    const atLimit = viewAt(BUDGET_BYTES);
+    expect(atLimit.views[0]!.bytes).toBe(150_000);
+    expect(atLimit.problems).toEqual([]);
+    expect(formatReport(atLimit)).toMatch(/\naccount analytics\s+\d+\s+150,000\s+150\.0 KB\s+ok/);
+
+    const over = viewAt(BUDGET_BYTES + 1);
+    expect(over.views[0]!.bytes).toBe(150_001);
+    expect(over.problems).toEqual(["the account analytics view loads 150.0 KB of JavaScript, gzipped: over the budget of 150.0 KB"]);
+    expect(formatReport(over)).toMatch(/\naccount analytics\s+\d+\s+150,001\s+150\.0 KB\s+OVER/);
+    // The pages are under it: the account page by the analytics chunk.
+    expect(over.pages.every((page) => page.bytes < BUDGET_BYTES)).toBe(true);
+  });
+
+  it("fails when the import() names a chunk that is not in the build, and names it", () => {
+    const { dir } = viewBuild([{ name: "AccountAnalytics-abc.js", size: 0 }]);
+    rmSync(join(dir, "assets", "AccountAnalytics-abc.js"));
+    const problems = checkBundle(dir).problems;
+    expect(problems).toEqual(["the account analytics view loads assets/AccountAnalytics-abc.js, which is missing from the build"]);
+  });
+
+  it("fails when a file the chunk imports is not in the build, and names it", () => {
+    const { dir } = viewBuild([{ name: "AccountAnalytics-abc.js", size: 1500, head: 'import{a}from"./kit-9.js";' }]);
+    expect(checkBundle(dir).problems).toEqual(["the account analytics view loads assets/kit-9.js, which is missing from the build"]);
+  });
+
+  it("fails when the account route has no import() of AccountAnalytics", () => {
+    const { dir } = viewBuild([{ name: "account.js", size: 1300, head: 'const view=()=>import("./Elsewhere-abc.js");' }]);
+    const report = checkBundle(dir);
+    expect(report.problems).toEqual(["the account route has no import() of AccountAnalytics"]);
+    expect(report.views).toEqual([]);
+    expect(formatReport(report)).not.toMatch(/account analytics\s+\d/);
+  });
+
+  it("fails when the account route imports two AccountAnalytics chunks, and names them", () => {
+    const { dir } = viewBuild([{ name: "account.js", size: 1300, head: "a=()=>import(`./AccountAnalytics-abc.js`);b=()=>import(`./AccountAnalytics-def.js`);a();" }]);
+    expect(checkBundle(dir).problems).toEqual(["the account route has an import() of 2 AccountAnalytics chunks (AccountAnalytics-abc.js, AccountAnalytics-def.js), not one"]);
+  });
+
+  it("says nothing of its own when the account route is not in the manifest (the account page says so)", () => {
+    const { dir } = viewBuild([], ROUTES.filter((route) => route.id !== ACCOUNT));
+    const report = checkBundle(dir);
+    expect(report.views).toEqual([]);
+    expect(report.problems).toEqual([expect.stringMatching(/the account page: no route routes\/net\.account\.\$address in the manifest/)]);
   });
 });
 
@@ -413,6 +544,17 @@ describe("the command", () => {
     const noManifest = run(dir);
     expect(noManifest.status).toBe(1);
     expect(noManifest.stdout).toMatch(/expected one manifest-\*\.js in .*, found 0/);
+  }, 30_000);
+
+  it("exits 1 for a build whose analytics view loads a file beyond the account page's and its chunk (the kit's copy is not in it), and says so", () => {
+    const chunks = [
+      ...CHUNKS.map((chunk) => (chunk.name === "AccountAnalytics-abc.js" ? { ...chunk, head: 'import{a}from"./charts.js";' } : chunk)),
+    ];
+    const { dir } = fakeBuild({ chunks, routes: ROUTES, shell: true });
+    const result = run(dir);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toMatch(/account analytics\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(result.stdout).toContain("the analytics view loads assets/charts.js beyond the account page's files and its own chunk assets/AccountAnalytics-abc.js");
   }, 30_000);
 
   it("prints what is wrong and exits 1 for a build over it", () => {

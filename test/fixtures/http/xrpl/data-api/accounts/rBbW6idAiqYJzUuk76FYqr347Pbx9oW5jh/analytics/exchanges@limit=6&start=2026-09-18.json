@@ -1,0 +1,12 @@
+{
+  "count": 3,
+  "end": "2026-10-18T00:00:00Z",
+  "pairs": [
+    {"base_currency":"USD","base_issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","base_volume":"17.846376","bought":"7.762317","bought_counter":"3.256519","count":10,"counter_currency":"XRP","counter_volume":"7.459324","native_volume":"7.459324","sold":"10.084059","sold_counter":"4.202805"},
+    {"base_currency":"4C494F4E53000000000000000000000000000000","base_issuer":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","base_volume":"42745.4","bought":"41399.73","bought_counter":"16.047836","count":6,"counter_currency":"USD","counter_issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","counter_volume":"16.567884","native_volume":"7.01145447483318132","sold":"1345.67","sold_counter":"0.520048"},
+    {"base_currency":"4C494F4E53000000000000000000000000000000","base_issuer":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","base_volume":"31080","bought":"0","bought_counter":"0","count":3,"counter_currency":"XRP","counter_volume":"5.15787","native_volume":"5.15787","sold":"31080","sold_counter":"5.15787"}
+  ],
+  "result": "success",
+  "start": "2026-09-18T00:00:00Z",
+  "total": 3
+}

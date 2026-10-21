@@ -57,6 +57,11 @@ describe("networkOf", () => {
     expect(networkOf("xrpl", env).features.markets).toBe(false);
     expect(networkOf("xrpl", { ...env, MARKETS: "on" }).features.markets).toBe(true);
     expect(networkOf("xahau", { ...env, MARKETS: "on" }).features.markets).toBe(true);
+    // ACCOUNT_ANALYTICS likewise: off in this env, on for both networks when the env says so, and no other switch turns it on.
+    expect(networkOf("xrpl", env).features.accountAnalytics).toBe(false);
+    expect(networkOf("xrpl", { ...env, ACCOUNT_ANALYTICS: "on" }).features.accountAnalytics).toBe(true);
+    expect(networkOf("xahau", { ...env, ACCOUNT_ANALYTICS: "on" }).features.accountAnalytics).toBe(true);
+    expect(networkOf("xrpl", { ...env, AMM_DATA: "on", MARKETS: "on", VALIDATORS: "on" }).features.accountAnalytics).toBe(false);
   });
 
   it("points each network at the other", () => {

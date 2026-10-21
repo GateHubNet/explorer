@@ -1,0 +1,40 @@
+{
+  "count": 25,
+  "end": "2026-10-18T00:00:00Z",
+  "interval": "day",
+  "result": "success",
+  "rows": [
+    {"change_type":"transaction_cost","count":1,"date":"2026-07-20T00:00:00Z","in_value":"0","out_value":"0.00001"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-07-25T00:00:00Z","in_value":"0","out_value":"0.000015"},
+    {"change_type":"payment_source","count":1,"date":"2026-07-25T00:00:00Z","in_value":"0","out_value":"2.679495"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-08-03T00:00:00Z","in_value":"0","out_value":"0.00001"},
+    {"change_type":"payment_source","count":1,"date":"2026-08-03T00:00:00Z","in_value":"0","out_value":"0.926363"},
+    {"change_type":"payment_destination","count":1,"date":"2026-08-08T00:00:00Z","in_value":"0.203222","out_value":"0"},
+    {"change_type":"payment_destination","count":1,"date":"2026-08-15T00:00:00Z","in_value":"0.841352","out_value":"0"},
+    {"change_type":"payment_destination","count":1,"date":"2026-08-23T00:00:00Z","in_value":"3.007851","out_value":"0"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-08-29T00:00:00Z","in_value":"0","out_value":"0.000013"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-09-04T00:00:00Z","in_value":"0","out_value":"0.000014"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-09-09T00:00:00Z","in_value":"0","out_value":"0.000011"},
+    {"change_type":"payment_destination","count":1,"date":"2026-09-09T00:00:00Z","in_value":"0.722195","out_value":"0"},
+    {"change_type":"payment_source","count":1,"date":"2026-09-09T00:00:00Z","in_value":"0","out_value":"0.251031"},
+    {"change_type":"payment_destination","count":1,"date":"2026-09-16T00:00:00Z","in_value":"1.821074","out_value":"0"},
+    {"change_type":"payment_destination","count":1,"date":"2026-09-17T00:00:00Z","in_value":"1.856665","out_value":"0"},
+    {"change_type":"payment_destination","count":1,"date":"2026-09-18T00:00:00Z","in_value":"0.710166","out_value":"0"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-09-21T00:00:00Z","in_value":"0","out_value":"0.000011"},
+    {"change_type":"payment_source","count":1,"date":"2026-09-21T00:00:00Z","in_value":"0","out_value":"4.881453"},
+    {"change_type":"transaction_cost","count":2,"date":"2026-09-22T00:00:00Z","in_value":"0","out_value":"0.000024"},
+    {"change_type":"payment_source","count":1,"date":"2026-09-22T00:00:00Z","in_value":"0","out_value":"1.814638"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-10-04T00:00:00Z","in_value":"0","out_value":"0.000012"},
+    {"change_type":"transaction_cost","count":1,"date":"2026-10-09T00:00:00Z","in_value":"0","out_value":"0.000012"},
+    {"change_type":"payment_source","count":1,"date":"2026-10-09T00:00:00Z","in_value":"0","out_value":"0.894734"},
+    {"change_type":"transaction_cost","count":2,"date":"2026-10-15T00:00:00Z","in_value":"0","out_value":"0.20001"},
+    {"count":1,"date":"2026-10-15T00:00:00Z","in_value":"0","out_value":"6.93413"}
+  ],
+  "start": "2026-07-20T00:00:00Z",
+  "totals": [
+    {"change_type":"transaction_cost","count":13,"in_value":"0","net_value":"-0.200142","out_value":"0.200142"},
+    {"change_type":"payment_destination","count":7,"in_value":"9.162525","net_value":"9.162525","out_value":"0"},
+    {"change_type":"payment_source","count":6,"in_value":"0","net_value":"-11.447714","out_value":"11.447714"},
+    {"count":1,"in_value":"0","net_value":"-6.93413","out_value":"6.93413"}
+  ]
+}

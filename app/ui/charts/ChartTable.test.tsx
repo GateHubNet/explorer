@@ -85,6 +85,30 @@ describe("ChartTable of a time series", () => {
     expect(errors).toEqual([]);
   });
 
+  it("heads a month axis Month (UTC), writes Oct 2026 in the cells and says so far of the running month", async () => {
+    const data = stacked({ axis: { unit: "month", buckets: ["2026-08-01", "2026-09-01", "2026-10-01"] }, forming: true });
+    const { container, errors } = await serverThenHydrated(<ChartTable title="Transactions sent per month" data={data} />);
+    expect(headers(container)![0]).toBe("Month (UTC)");
+    expect(body(container).map((row) => row[0])).toEqual(["Oct 2026, so far", "Sep 2026", "Aug 2026"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("writes the kind value with formatValue: 2 decimals from 1, 6 below it, no unit, and a dash for none", async () => {
+    const data: TimeSeriesData = {
+      axis: { unit: "month", buckets: ["2026-08-01", "2026-09-01", "2026-10-01"] },
+      series: [{ id: "value", label: "Account value", slot: 1, values: ["16787.149", "0.1234567", null] }],
+      format: { kind: "value", unit: "XRP" },
+      token: "t",
+    };
+    const { container, errors } = await serverThenHydrated(<ChartTable title="Account value, in XRP" data={data} />);
+    expect(body(container)).toEqual([
+      ["Oct 2026", "\u2014no data"],
+      ["Sep 2026", "0.123457"],
+      ["Aug 2026", "16,787.15"],
+    ]);
+    expect(errors).toEqual([]);
+  });
+
   it("heads an hour axis Hour (UTC) and writes the hour in the cells", async () => {
     const data: TimeSeriesData = {
       axis: { unit: "hour", buckets: ["2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"] },
@@ -111,6 +135,67 @@ describe("ChartTable of a time series", () => {
     const { container, errors } = await serverThenHydrated(<ChartTable title="Money in and out" totalLabel="Net" data={stacked()} />);
     expect(headers(container)).toEqual(["Day (UTC)", "Payment", "OfferCreate", "Net"]);
     expect(errors).toEqual([]);
+  });
+
+  describe("with extras", () => {
+    const failed = { id: "failed", label: "Failed", values: ["1", "0", null] };
+
+    it("has a column for each extra after the series and the total, headed by its label, and a cell for each day, newest first", async () => {
+      const data = stacked({ extras: [failed, { id: "net", label: "Net", values: ["+2", "\u22121", "0"] }] });
+      const { container, errors } = await serverThenHydrated(<ChartTable title="Transactions by type" data={data} />);
+      expect(headers(container)).toEqual(["Day (UTC)", "Payment", "OfferCreate", "Total", "Failed", "Net"]);
+      expect(body(container)).toEqual([
+        ["Oct 17, 2026", "810,004", "2", "810,006", "\u2014no data", "0"],
+        ["Oct 16, 2026", "1,204,331", "431", "1,204,762", "0", "\u22121"],
+        ["Oct 15, 2026", "1,180,220", "520,004", "1,700,224", "1", "+2"],
+      ]);
+      expect(errors).toEqual([]);
+    });
+
+    it("comes after the series when there is no total", async () => {
+      const { container, errors } = await serverThenHydrated(<ChartTable title="Volume" data={stacked({ totals: undefined, extras: [failed] })} />);
+      expect(headers(container)).toEqual(["Day (UTC)", "Payment", "OfferCreate", "Failed"]);
+      expect(errors).toEqual([]);
+    });
+
+    it("shows a value as given without a format, and by the format's table text with one", async () => {
+      const data = stacked({
+        extras: [
+          { id: "phrase", label: "Ledgers", values: ["4 missed of 22,096 validated ledgers", "0 missed of 22,100 validated ledgers", null] },
+          { id: "swaps", label: "Swaps", values: ["1284331", "7", "12"], format: { kind: "count" } },
+          { id: "usd", label: "Volume", values: ["1234.5678", "0.5", "9"], format: { kind: "amount", unit: "USD" } },
+          { id: "raw", label: "Raw", values: ["1284331", "7", "12"] },
+          { id: "worth", label: "Worth", values: ["16787.149", "2", "3"], format: { kind: "value", unit: "XRP" } },
+        ],
+      });
+      const { container, errors } = await serverThenHydrated(<ChartTable title="Transactions by type" data={data} />);
+      expect(body(container).map((row) => row.slice(4))).toEqual([
+        ["\u2014no data", "12", "9", "12", "3"],
+        ["0 missed of 22,100 validated ledgers", "7", "0.5", "7", "2"],
+        ["4 missed of 22,096 validated ledgers", "1,284,331", "1,234.5678", "1284331", "16,787.15"],
+      ]);
+      expect(errors).toEqual([]);
+    });
+
+    it("makes a dash that says no data for a missing value, as a series does", async () => {
+      const { container, errors } = await serverThenHydrated(<ChartTable title="Transactions by type" data={stacked({ extras: [failed] })} />);
+      const cell = Array.from(container.querySelectorAll('[role="row"]'))[1]!.querySelectorAll('[role="cell"]')[4]!;
+      expect(cell.querySelector("[aria-hidden=true]")!.textContent).toBe("\u2014");
+      expect(cell.querySelector(".sr")!.textContent).toBe("no data");
+      expect(errors).toEqual([]);
+    });
+
+    it("adds no rows to a table with no value of its own: an extra is not data", async () => {
+      const none = stacked({
+        series: [{ id: "payment", label: "Payment", slot: 1, values: [null, null, null] }],
+        totals: [null, null, null],
+        extras: [failed],
+      });
+      const { container, errors } = await serverThenHydrated(<ChartTable title="Transactions by type" data={none} />);
+      expect(container.querySelector(".table__empty")!.textContent).toBe("No data");
+      expect(body(container)).toEqual([]);
+      expect(errors).toEqual([]);
+    });
   });
 
   it("writes percents and seconds with their sign, and amounts exactly, with the unit left to the title", async () => {

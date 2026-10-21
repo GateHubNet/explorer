@@ -1,10 +1,13 @@
-import { Suspense, type ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Await, Link } from "react-router";
 
-import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab } from "../../domain/account-tabs";
+import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
+import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
 import type {
+  AccountAnalyticsPageData,
   AccountHeader,
+  AccountListPageData,
   AccountPageData,
   ChangeView,
   NeverActivatedData,
@@ -37,6 +40,7 @@ import { TypeTag } from "../components/TypeTag";
 import { ResultPill } from "../components/Pill";
 import type { NetworkInfo } from "../networks";
 import { useRetry } from "../use-retry";
+import { AnalyticsFilters } from "./AnalyticsFilters";
 import { NotFoundPage } from "./NotFoundPage";
 
 /** Tokens listed before "Show N more". */
@@ -48,7 +52,20 @@ const TAB_LABELS: Record<AccountTab, string> = {
   trades: "Trades",
   offers: "Offers",
   objects: "Objects",
+  analytics: "Analytics",
 };
+
+/**
+ * The analytics view, a chunk of its own (spec 5): the other tabs load none of it. On the server it resolves during the render, so the HTML
+ * holds the view; in the browser, hydration keeps that HTML until the chunk has loaded.
+ */
+const AccountAnalytics = lazy(() => import("./AccountAnalytics"));
+
+/**
+ * The Analytics tab's `onIntent`: the pointer entered it or it took the focus, so its chunk is fetched ahead of the click. Only the chunk: its
+ * data would be a render and six calls upstream per hover. A failure here says nothing; the view's own load reports it, if it fails too.
+ */
+const warmAnalytics = () => void import("./AccountAnalytics").catch(() => {});
 
 const count = (n: number) => formatAmount(String(n));
 const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
@@ -64,13 +81,16 @@ function whenOf(time: number): { date: string; clock: string; full: string } {
 
 /**
  * The account page: the address with its picture, copy button and QR code, when and by whom it was activated, its flags, the balance
- * with the reserve, the tokens and owned objects, and the tabs (transactions, payments with a CSV link, trades, offers, objects;
- * Analytics is a tab for later). Takes what the loader made of the account (`AccountPageData`) and never fetches.
+ * with the reserve, the tokens and owned objects, and the tabs (transactions, payments with a CSV link, trades, offers, objects, and
+ * analytics while `ACCOUNT_ANALYTICS` is on, the "soon" label otherwise). Takes what the loader made of the account (`AccountPageData`) and
+ * never fetches.
  *
  * - On the first page the header is read live. The tab's list is a promise: it streams in after the header, and when it could not be
  *   loaded the page says "Couldn't load transactions" with a Retry that fetches it again.
  * - On a page reached with a marker (old history, stored for good) there is no live state: it would be a year old. A link leads to
  *   the first page, which has it.
+ * - The Analytics tab (spec 1.5) has no Holdings margin: the Activity card is the width of the page, with the filter row under the tabs, and
+ *   the view under it, loaded lazily.
  */
 export function AccountPage({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
   const net = network.id;
@@ -101,7 +121,12 @@ export function AccountPage({ network, data }: { network: NetworkInfo; data: Acc
 
       <AccountCard network={network} data={data} />
 
-      {header.status === "history" ? (
+      {data.tab === "analytics" ? (
+        <>
+          <Activity network={network} data={data} />
+          <AnalyticsBody network={network} data={data} />
+        </>
+      ) : header.status === "history" ? (
         <Activity network={network} data={data} />
       ) : (
         <div className="cols">
@@ -378,18 +403,49 @@ function OwnedCard({ header }: { header: AccountHeader }) {
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tabs and what is under them
 
+/**
+ * The Activity card: the tabs, then the list of a list tab, or the analytics view's filter row. The Analytics tab is a link while the switch is
+ * on (`data.analyticsTab`), to the view's default period from every page of the account, history pages included (the view is live mode).
+ */
 function Activity({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
   const net = network.id;
-  const items: TabItem[] = [
-    ...ACCOUNT_TABS.map((id) => ({ id, label: TAB_LABELS[id], href: accountHref(net, data.address, { tab: id }) })),
-    { id: "analytics", label: "Analytics", soon: true },
-  ];
+  const items: TabItem[] = ACCOUNT_TABS.map((id) => {
+    if (id !== "analytics") return { id, label: TAB_LABELS[id], href: accountHref(net, data.address, { tab: id }) };
+    return data.analyticsTab
+      ? { id, label: TAB_LABELS[id], href: analyticsHref(net, data.address, DEFAULT_ANALYTICS_PERIOD), rel: "nofollow", onIntent: warmAnalytics }
+      : { id, label: TAB_LABELS[id], soon: true };
+  });
 
   return (
     <Card label="Activity" flush className="cols__wide activity">
       <Tabs label="Account activity" items={items} current={data.tab} />
-      <ListSection network={network} data={data} />
+      {data.tab === "analytics" ? (
+        <AnalyticsFilters network={network} address={data.address} analytics={data.analytics} />
+      ) : (
+        <ListSection network={network} data={data} />
+      )}
     </Card>
+  );
+}
+
+/**
+ * The analytics view under the Activity card. Until its chunk has loaded (a client-side navigation to the tab) it is the view's own waiting
+ * frame, hidden from assistive technology: the filter row's status says the view is loading. Keyed by the period: another period is another
+ * view, drawn afresh (spec 3.11).
+ */
+function AnalyticsBody({ network, data }: { network: NetworkInfo; data: AccountAnalyticsPageData }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="analytics">
+          <div className="analytics__waiting" aria-hidden="true">
+            Loading…
+          </div>
+        </div>
+      }
+    >
+      <AccountAnalytics key={data.analytics.period} network={network} analytics={data.analytics} />
+    </Suspense>
   );
 }
 
@@ -397,7 +453,7 @@ function isPromise(value: unknown): value is Promise<unknown> {
   return typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
 }
 
-function ListSection({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
+function ListSection({ network, data }: { network: NetworkInfo; data: AccountListPageData }) {
   const { list } = data;
   if (!isPromise(list)) return <TabPanel network={network} data={data} list={list} />;
   return (
@@ -409,7 +465,7 @@ function ListSection({ network, data }: { network: NetworkInfo; data: AccountPag
   );
 }
 
-function ListLoading({ tab }: { tab: AccountTab }) {
+function ListLoading({ tab }: { tab: ListTab }) {
   return (
     <div className="activity__loading" role="status">
       {`Loading ${tab}…`}
@@ -426,7 +482,7 @@ function ListFailed({ what }: { what: string }) {
   );
 }
 
-function TabPanel({ network, data, list }: { network: NetworkInfo; data: AccountPageData; list: TabList }) {
+function TabPanel({ network, data, list }: { network: NetworkInfo; data: AccountListPageData; list: TabList }) {
   const net = network.id;
   if (list.state === "failed") return <ListFailed what={list.what} />;
 
