@@ -8,7 +8,7 @@
 // that did not load is `{ state: "failed" }` (a `missing` answer is the same to this page), and the page then says less, never something else:
 //   - without VV the recent card fails, and last seen is D's (`grid.lastSeenFallback`); with VV, last seen is its newest validation (`recent.newest`);
 //   - without S the fee votes have no Now and no Against now, UNL membership is D's `unl_lists` (`identity.unlPublishers`), and no negative UNL ledger is known;
-//   - without A the amendment votes keep D's rows and D's status word, and the fee votes' note says "on flag ledgers" without the interval.
+//   - without A the amendment votes keep D's rows and D's status (its pill, with no moment and no share), and the fee votes' note says "on flag ledgers" without the interval.
 // A key the data API leaves out becomes `null` (or an empty list) here, and the page draws no line for it.
 
 import BigNumber from "bignumber.js";
@@ -33,12 +33,12 @@ import {
   count,
   DASH,
   dropsText,
+  feesNotCompared,
   ledgerLink,
   ledgersText,
   nativeText,
   scoreText,
   scoreValue,
-  statusWord,
   unixOf,
   valueOf,
   verificationNote,
@@ -130,12 +130,17 @@ export interface ValidatorLiveData {
     voteLedger: LedgerLink | null;
     /** Base reserve, owner reserve, base fee; `null` without a record. */
     votes: { setting: string; vote: string }[] | null;
+    /** Why the votes have no Now and no Against now (spec 2.7's sentence: S did not load, or has no fees yet), the card's note; `null` when they have them, and without a record. */
+    note: string | null;
   };
   votes: {
     /** The voting ledger of the record; `null` when the validator has none. */
     ledger: LedgerLink | null;
-    /** D's `amendment_votes.votes[]`, in D's order. `word` is D's status in a word, for the page to show without A. */
-    rows: { id: string; label: { text: string; mono: boolean }; href: string; vote: "yes" | "no" | "none"; word: string }[];
+    /**
+     * D's `amendment_votes.votes[]`, in D's order. `status` is D's status as its pill draws it, for the page to show without A (or for an amendment A does not have): a
+     * majority with no moment to count down to, a vote with no share of yes.
+     */
+    rows: { id: string; label: { text: string; mono: boolean }; href: string; vote: "yes" | "no" | "none"; status: AmendmentStatusView }[];
   };
   summary:
     | {
@@ -301,8 +306,8 @@ function dailyOf(days: readonly DailyAgreement[], anchor: Anchor): Omit<Validato
 
 // ---- Fee votes and amendment votes (4.1) -------------------------------------------------------------------------------------------------------
 
-function feesOf(network: NetworkInfo, vote: FeeVote | undefined): ValidatorLiveData["fees"] {
-  if (vote === undefined) return { voteLedger: null, votes: null };
+function feesOf(network: NetworkInfo, vote: FeeVote | undefined, summary: ValidatorsSummary | null): ValidatorLiveData["fees"] {
+  if (vote === undefined) return { voteLedger: null, votes: null, note: null };
   return {
     voteLedger: ledgerLink(network.id, vote.ledger_index),
     votes: [
@@ -310,6 +315,7 @@ function feesOf(network: NetworkInfo, vote: FeeVote | undefined): ValidatorLiveD
       { setting: "Owner reserve", vote: nativeText(vote.reserve_inc, network.native) },
       { setting: "Base fee", vote: dropsText(vote.base_fee) },
     ],
+    note: summary === null ? `${feesNotCompared("failed")}.` : summary.fees === undefined ? `${feesNotCompared("unknown")}.` : null,
   };
 }
 
@@ -321,12 +327,13 @@ function votesOf(network: NetworkInfo, votes: ValidatorDetail["amendment_votes"]
       label: vote.name !== undefined ? { text: vote.name, mono: false } : { text: shortHash(vote.id), mono: true },
       href: amendmentHref(network.id, amendmentSegment(vote)),
       vote: vote.vote,
-      word: statusWord(vote.status),
+      // The view of a row that is D's ID and status alone: no `majority` to count down to, no `votes` to share.
+      status: amendmentStatusView({ id: vote.id, status: vote.status }),
     })),
   };
 }
 
-/** A's view of the status of each amendment the validator votes on, by ID (an amendment A does not have gets none: the page shows D's word). */
+/** A's view of the status of each amendment the validator votes on, by ID (an amendment A does not have gets none: the page shows D's). */
 function statusesOf(list: AmendmentsList, votes: ValidatorDetail["amendment_votes"]["votes"]): Extract<ValidatorLiveData["amendments"], { state: "ok" }> {
   const rows = new Map(list.amendments.map((row) => [row.id, row]));
   const status: Record<string, AmendmentStatusView> = {};
@@ -409,7 +416,7 @@ export function validatorPage(input: {
       tiles: [tileOf("Agreement, 1 h", validator.agreement_1h), tileOf("Agreement, 24 h", validator.agreement_24h), tileOf("Agreement, 30 days", validator.agreement_30d)],
       ...dailyOf(validator.daily_agreement, anchor),
     },
-    fees: feesOf(network, validator.fee_vote),
+    fees: feesOf(network, validator.fee_vote, summary),
     votes: votesOf(network, validator.amendment_votes),
     summary: summary === null ? { state: "failed" } : summaryOf(network, validator, summary),
     amendments: amendments === null ? { state: "failed" } : statusesOf(amendments, validator.amendment_votes.votes),

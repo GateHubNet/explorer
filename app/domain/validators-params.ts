@@ -23,8 +23,11 @@ export interface ValidatorsParams {
 /** The longest search text: D1's limit, in characters (code points). */
 export const SEARCH_MAX = 100;
 
-/** The statuses of the amendments that "Votes yes for" lists: the ones being voted on, and `unknown`, which validators vote for and A does not name. */
-const VOTED_ON: readonly AmendmentStatus[] = ["majority", "voting", "unknown"];
+/**
+ * The statuses of the amendments that "Votes yes for" lists: the ones being voted on, and `unknown`, which validators vote for and A does not name. A status a newer D1
+ * sends is none of them: this build cannot say the amendment is being voted on, so it is not offered, and a `?amendment=` that names it is dropped.
+ */
+const VOTED_ON: readonly string[] = ["majority", "voting", "unknown"] satisfies readonly AmendmentStatus[];
 
 /** The first `count` characters of a text: code points, so that a surrogate pair is never cut in two. */
 function firstCharacters(text: string, count: number): string {
@@ -84,7 +87,7 @@ export function canonicalValidatorsParams(
   params: ValidatorsParams,
   known: {
     publishers: readonly string[] | null;
-    amendments: readonly { id: string; name?: string; status: AmendmentStatus }[] | null;
+    amendments: readonly { id: string; name?: string; status: string }[] | null;
   },
 ): ValidatorsParams {
   const { scope, publisher, amendment, q } = tidy(params);
@@ -111,7 +114,7 @@ function publisherOf(publisher: string, ids: readonly string[]): string | undefi
  * The path segment of the amendment that `amendment` (an upper-case ID or a name, after the pure rules) names among the rows of a status
  * "Votes yes for" lists: the ID exactly, the name exactly, else the one name that matches without regard to case.
  */
-function segmentOf(amendment: string, rows: readonly { id: string; name?: string; status: AmendmentStatus }[]): string | undefined {
+function segmentOf(amendment: string, rows: readonly { id: string; name?: string; status: string }[]): string | undefined {
   const candidates = rows.filter((row) => VOTED_ON.includes(row.status));
   const lower = amendment.toLowerCase();
   const alike = candidates.filter((row) => row.name?.toLowerCase() === lower);

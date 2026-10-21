@@ -149,12 +149,16 @@ export function IncompleteMark() {
 
 // ---- Amendments --------------------------------------------------------------------------------------------------------------------------------
 
+/** The builders' text for a share of nothing (validator-facts.ts's `DASH`, which a browser file does not import). */
+const NO_SHARE = "—";
+
 /**
  * An amendment's status: "Activated" (and the tag "retired" beside it for a retired amendment), "Activating, in 4 days" (on the server and
  * at hydration "Activating, expected Oct 23": a stored page holds no countdown), "Voting", "Obsolete", "Unknown". An activation with no moment
- * known (`at` is not a number) reads "Activating" alone, with no comma left hanging.
+ * known (`at` is not a number) reads "Activating" alone, with no comma left hanging. **Growth** (E6): with `share`, a voting amendment's pill
+ * says its share of yes, "Voting · 11.4% yes" (the validator page's amendment votes), and "Voting" alone where it has none.
  */
-export function AmendmentStatusPill({ view }: { view: AmendmentStatusView }) {
+export function AmendmentStatusPill({ view, share }: { view: AmendmentStatusView; share?: boolean }) {
   switch (view.status) {
     case "enabled": {
       const activated = (
@@ -190,7 +194,7 @@ export function AmendmentStatusPill({ view }: { view: AmendmentStatusView }) {
     case "voting":
       return (
         <Pill tone="neutral" icon={<BallotIcon />}>
-          {statusWord("voting")}
+          {share && view.share !== NO_SHARE ? `${statusWord("voting")} · ${view.share} yes` : statusWord("voting")}
         </Pill>
       );
     case "obsolete":

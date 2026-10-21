@@ -1,5 +1,6 @@
 // What one amendment's page shows, worked out in the Worker from the data API's answers (spec 6.1 to 6.5, 8 and 9.4): the identity and its grid, the consensus (the yes share, its
-// two sentences, the step chart of the yes votes per flag ledger and its changes-only table), the history, and the votes of the UNL and of the other validators. `amendmentPage` and
+// two sentences, the step chart of the yes votes per flag ledger and its changes-only table), the history, and the votes of the UNL and of the other validators (for an enabled or
+// obsolete amendment, which is no longer voted on, the note that says so in their place). `amendmentPage` and
 // `yesVotesPageStep` are pure: no I/O, no clock (the page has no age in it: the browser draws the ones that tick), no `Intl`. Every text is made from D1's exact strings
 // (validator-facts.ts: `bignumber.js`), and the counts become text with `count`, so no float reaches a string of the page.
 //
@@ -23,7 +24,7 @@ import { validatorHref } from "../domain/validators-params";
 import type { MeterData, TimeSeriesData } from "../ui/charts/types";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
-import type { AmendmentDetail, AmendmentMajority, AmendmentRound, AmendmentRoundPoint, AmendmentTally, AmendmentVote, ValidatorsSummary } from "./api-types";
+import type { AmendmentDetail, AmendmentHistoryEvent, AmendmentMajority, AmendmentRound, AmendmentRoundPoint, AmendmentTally, AmendmentVote, ValidatorsSummary } from "./api-types";
 import { suffixOf } from "./meta";
 import {
   amendmentStatusView,
@@ -98,10 +99,11 @@ export interface AmendmentPageData {
     events: HistoryItem[];
     note: string;
   };
-  /** In D1's order (the validators list's). */
-  unlVotes: VoteRowView[];
-  otherVotes: VoteRowView[];
-  counts: { yes: number; no: number; none: number; otherYes: number };
+  /**
+   * The votes (6.5): the rows of the UNL's validators and of the others, in D1's order (the validators list's), and their counts. An enabled or obsolete amendment is no longer
+   * voted on: what D1 still lists for it (its validators' "no", or no recent vote) is no vote that counts, so it has no tables, and the page shows `note` in their place.
+   */
+  votes: { unl: VoteRowView[]; others: VoteRowView[]; counts: { yes: number; no: number; none: number; otherYes: number } } | { note: string };
   summary: { state: "ok"; publishers: string[]; othersSeen: number } | { state: "failed" };
   /** §8's title and description. */
   meta: { title: string; description: string };
@@ -198,7 +200,8 @@ function gridOf(network: NetworkInfo, amendment: AmendmentDetail, view: Amendmen
       grid.push({ label: "Status", value: ["Current software can no longer vote it in."] });
       break;
     case "unknown":
-      grid.push({ label: "Status", value: ["No name is known for this ID, from the data API's metadata or its node."] });
+      // D1's unknown is an ID nobody has named. A status a newer D1 sends is `unknown` here too, and one with a name does not get the sentence.
+      if (amendment.name === undefined) grid.push({ label: "Status", value: ["No name is known for this ID, from the data API's metadata or its node."] });
       break;
     default:
       break;
@@ -332,6 +335,9 @@ function consensusOf(net: string, amendment: AmendmentDetail, view: AmendmentSta
 
 const EVENT_LABELS: Record<HistoryItem["event"], string> = { got_majority: "Got majority", lost_majority: "Lost majority", enabled: "Enabled" };
 
+/** Whether this build has a word for the event (a newer D1 may send another). */
+const isNamed = (event: AmendmentHistoryEvent): event is AmendmentHistoryEvent & { event: HistoryItem["event"] } => Object.hasOwn(EVENT_LABELS, event.event);
+
 function historyOf(network: NetworkInfo, amendment: AmendmentDetail, view: AmendmentStatusView): AmendmentPageData["history"] {
   const net = network.id;
   const { majority, enabled } = amendment;
@@ -339,7 +345,7 @@ function historyOf(network: NetworkInfo, amendment: AmendmentDetail, view: Amend
   // D1 lists the oldest first. An event this build has no word for (a newer D1) is left out rather than named wrongly.
   const events: HistoryItem[] = [...amendment.history]
     .reverse()
-    .filter((event) => Object.hasOwn(EVENT_LABELS, event.event))
+    .filter(isNamed)
     .map((event) => ({ event: event.event, label: EVENT_LABELS[event.event], date: formatDate(event.date), ledger: ledgerLink(net, event.ledger_index), tx: txLink(net, event.tx_hash) }));
   // An amendment enabled from the metadata file has no EnableAmendment in the index: its one item is the file's day, and its ledger if the file has one. It is the newest.
   if (view.status === "enabled" && enabled?.source === "metadata" && !events.some((event) => event.event === "enabled")) {
@@ -371,6 +377,16 @@ function voteRowOf(net: string, vote: AmendmentVote): VoteRowView {
     lacks: vote.version_supports === false,
     lastSeen: momentOf(vote.last_seen),
   };
+}
+
+/** The tables of the votes and their counts, or, for an amendment that is no longer voted on, the note that stands in their place. */
+function voteTablesOf(net: string, amendment: AmendmentDetail, view: AmendmentStatusView): AmendmentPageData["votes"] {
+  if (view.status === "enabled") return { note: "An enabled amendment is no longer voted on." };
+  if (view.status === "obsolete") return { note: "Current software can no longer vote for it, so no votes are shown." };
+  const unl = amendment.unl_votes.map((vote) => voteRowOf(net, vote));
+  const others = amendment.other_votes.map((vote) => voteRowOf(net, vote));
+  const tally = (vote: VoteRowView["vote"]): number => unl.filter((row) => row.vote === vote).length;
+  return { unl, others, counts: { yes: tally("yes"), no: tally("no"), none: tally("none"), otherYes: others.filter((row) => row.vote === "yes").length } };
 }
 
 // ---- Title and description (8) -----------------------------------------------------------------------------------------------------------
@@ -421,9 +437,6 @@ export function amendmentPage(input: { network: NetworkInfo; amendment: Amendmen
   const net = network.id;
   const view = amendmentStatusView(amendment);
   const summary = valueOf(input.summary);
-  const unlVotes = amendment.unl_votes.map((vote) => voteRowOf(net, vote));
-  const otherVotes = amendment.other_votes.map((vote) => voteRowOf(net, vote));
-  const tally = (vote: VoteRowView["vote"]): number => unlVotes.filter((row) => row.vote === vote).length;
   return {
     network,
     canonical: amendmentSegment(amendment),
@@ -436,9 +449,7 @@ export function amendmentPage(input: { network: NetworkInfo; amendment: Amendmen
     },
     consensus: consensusOf(net, amendment, view),
     history: historyOf(network, amendment, view),
-    unlVotes,
-    otherVotes,
-    counts: { yes: tally("yes"), no: tally("no"), none: tally("none"), otherYes: otherVotes.filter((row) => row.vote === "yes").length },
+    votes: voteTablesOf(net, amendment, view),
     summary: summary === null ? { state: "failed" } : { state: "ok", publishers: summary.unl.publishers.map((publisher) => publisher.id), othersSeen: summary.validators.others_seen_24h },
     meta: metaOf(network, amendment, view),
   };

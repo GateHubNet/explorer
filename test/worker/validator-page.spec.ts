@@ -158,7 +158,7 @@ describe("a call that fails", () => {
       ["—", "—"],
       ["—", "—"],
     ]);
-    expect(text).toContain("Its votes are not compared with the current fees: they could not be loaded.");
+    expect(text).toContain("Fee votes are not compared with the current fees: they could not be loaded.");
     // UNL membership is D's lists alone: the one list that names it, and nothing of the publisher that does not.
     expect(text).toContain(`UNL membership ${ONE_LIST.unl_lists[0]} listed`);
     expect(text).not.toContain("not listed");

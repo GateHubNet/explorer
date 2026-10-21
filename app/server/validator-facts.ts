@@ -131,6 +131,14 @@ export function compareFee(vote: string, now: string): "higher" | "lower" | "sam
   return voted.gt(current) ? "higher" : voted.lt(current) ? "lower" : "same";
 }
 
+/**
+ * Why fee votes have no "now" to be compared with (spec 2.7): S could not be loaded (`failed`), or it has no fees yet (`unknown`). One sentence, without its full stop, for the
+ * validators list's footer and the validator page's note alike.
+ */
+export function feesNotCompared(why: "failed" | "unknown"): string {
+  return `Fee votes are not compared with the current fees: ${why === "failed" ? "they could not be loaded" : "they are not known yet"}`;
+}
+
 /** What a majority needs, in words: `more than 80%` (D1 passes an amendment on more than the threshold, never at it). */
 export function moreThan(thresholdPercent: number): string {
   return `more than ${new BigNumber(thresholdPercent).toFixed()}%`;

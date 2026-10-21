@@ -29,6 +29,7 @@ const CHART_TITLE = "Yes votes per flag ledger, % of the UNL, last 30 days";
 type Data = AmendmentPageData & { anchor: Anchor; build: string };
 type Consensus = NonNullable<AmendmentPageData["consensus"]>;
 type RoundRow = Consensus["table"][number];
+type Votes = Exclude<AmendmentPageData["votes"], { note: string }>;
 
 /** A card that is not a chart: the kit's title and source line in its head. */
 function CardHead({ id, title }: { id: string; title: string }) {
@@ -321,20 +322,30 @@ function VoteTable({ label, rows, holds, empty, maxHeight }: { label: string; ro
 }
 
 /** "{yes} yes · {no} no · {none} without a recent vote, on vl.ripple.com and unl.xrplf.org": without S, no publishers. */
-function votesHead({ counts, summary }: Data): string {
+function votesHead({ counts }: Votes, summary: Data["summary"]): string {
   const tally = [`${count(counts.yes)} yes`, `${count(counts.no)} no`, ...(counts.none > 0 ? [`${count(counts.none)} without a recent vote`] : [])].join(" · ");
   return summary.state === "ok" && summary.publishers.length > 0 ? `${tally}, on ${joinAnd(summary.publishers)}` : tally;
 }
 
 /** "Showing 24 of the 107 other validators seen in the last 24 hours: those with a vote recorded.": without S, no "of the N … seen". */
-function othersFoot({ otherVotes, summary }: Data): string {
-  const shown = count(otherVotes.length);
+function othersFoot({ others }: Votes, summary: Data["summary"]): string {
+  const shown = count(others.length);
   if (summary.state === "ok") return `Showing ${shown} of the ${count(summary.othersSeen)} other validators seen in the last 24 hours: those with a vote recorded.`;
-  return `Showing ${shown} other ${otherVotes.length === 1 ? "validator" : "validators"}: those with a vote recorded.`;
+  return `Showing ${shown} other ${others.length === 1 ? "validator" : "validators"}: those with a vote recorded.`;
 }
 
-function VotesCard({ data, holds }: { data: Data; holds: (name: string) => HoldHandlers }) {
-  const head = votesHead(data);
+/** In the votes card's place for an amendment that is no longer voted on (enabled or obsolete): the builder's note of why no vote is shown. */
+function NoVotesCard({ note }: { note: string }) {
+  return (
+    <section className="card amendment__votes" aria-labelledby="amendment-votes-title">
+      <CardHead id="amendment-votes-title" title="Votes" />
+      <p className="amendment__empty amendment__novotes">{note}</p>
+    </section>
+  );
+}
+
+function VotesCard({ votes, data, holds }: { votes: Votes; data: Data; holds: (name: string) => HoldHandlers }) {
+  const head = votesHead(votes, data.summary);
   return (
     <section className="card amendment__votes" aria-labelledby="amendment-votes-title">
       <div className="amendment__cardhead">
@@ -348,17 +359,17 @@ function VotesCard({ data, holds }: { data: Data; holds: (name: string) => HoldH
         </div>
         <span className="chart__source">{SOURCE}</span>
       </div>
-      <VoteTable label="Votes of the UNL validators" rows={data.unlVotes} holds={holds("unl")} empty="No vote of a UNL validator is recorded." maxHeight={470} />
+      <VoteTable label="Votes of the UNL validators" rows={votes.unl} holds={holds("unl")} empty="No vote of a UNL validator is recorded." maxHeight={470} />
 
       <details className="amendment__others">
         <summary>
           <ChevronRightIcon size={14} className="amendment__chev" />
           <span>Other validators, not on the UNL</span>{" "}
-          <span className="amendment__otherssub">{`· ${count(data.counts.otherYes)} of ${count(data.otherVotes.length)} vote yes · their votes do not count`}</span>
+          <span className="amendment__otherssub">{`· ${count(votes.counts.otherYes)} of ${count(votes.others.length)} vote yes · their votes do not count`}</span>
         </summary>
-        <VoteTable label="Votes of other validators" rows={data.otherVotes} holds={holds("others")} empty="No vote of another validator is recorded." />
+        <VoteTable label="Votes of other validators" rows={votes.others} holds={holds("others")} empty="No vote of another validator is recorded." />
         <p className="amendment__foot">
-          {othersFoot(data)}{" "}
+          {othersFoot(votes, data.summary)}{" "}
           {/* The validators list's All scope, in its canonical form (`validatorsHref`'s): the list of every validator seen, these among them. */}
           <Link to={`/${data.network.id}/validators?scope=all`}>
             All validators →
@@ -374,7 +385,8 @@ function VotesCard({ data, holds }: { data: Data; holds: (name: string) => HoldH
 
 /**
  * One amendment (`/{net}/amendments/{name}`, spec 6.1), in the board's order: the breadcrumb, E2's live row, the identity with its grid and description, the consensus
- * beside the history, and the votes of the UNL validators with the other validators' in a disclosure under them. Takes what the view builder made of the data API's
+ * beside the history, and the votes of the UNL validators with the other validators' in a disclosure under them (an enabled or obsolete amendment, which is no longer
+ * voted on, has the builder's note in their place). Takes what the view builder made of the data API's
  * answers (`amendmentPage`) and never fetches: every label, href and figure is text in `data`. AD is the page; S stands or fails alone (spec 6.6): without it the vote
  * table's head names no publisher and the disclosure's footer no number of validators seen.
  *
@@ -406,7 +418,7 @@ export function AmendmentPage({ data, live }: { data: Data; live: LiveControls }
         {data.consensus && <ConsensusCard consensus={data.consensus} />}
         <HistoryCard history={data.history} />
       </div>
-      <VotesCard data={data} holds={holds} />
+      {"note" in data.votes ? <NoVotesCard note={data.votes.note} /> : <VotesCard votes={data.votes} data={data} holds={holds} />}
     </div>
   );
 }

@@ -107,7 +107,7 @@ describe("DomainStatus", () => {
   });
 
   it("reads a status it does not know (a newer data API) as not verified, as the note under the name does", () => {
-    const { container } = render(<DomainStatus status={"revoked" as DomainStatusKind} />);
+    const { container } = render(<DomainStatus status="revoked" />);
     expect(container.textContent).toBe("not verified");
   });
 });
@@ -241,6 +241,22 @@ describe("AmendmentStatusPill", () => {
     clockAt(ACTIVATES + 60);
     const later = render(<AmendmentStatusPill view={{ status: "majority", activation: { at: ACTIVATES, fallback: "expected Oct 23" } }} />);
     expect(later.container.textContent).toBe("Activating, at the next flag ledger");
+  });
+
+  it("says a voting amendment's share of yes with `share`, in the same neutral pill with the ballot, and nothing else changes", () => {
+    const { container } = render(<AmendmentStatusPill view={{ status: "voting", share: "11.4%" }} share />);
+    const pill = container.querySelector(".pill")!;
+    expect(pill.textContent).toBe("Voting · 11.4% yes");
+    expect(pill.classList.contains("pill--neutral")).toBe(true);
+    expect(drawnIn(pill)).toBe(drawing(<BallotIcon />));
+    cleanup();
+    // No share to say ("—", no round or no trusted validator): the word alone.
+    expect(render(<AmendmentStatusPill view={{ status: "voting", share: "—" }} share />).container.textContent).toBe("Voting");
+    cleanup();
+    // The other statuses are what they are without it; an unknown amendment's share is not said.
+    expect(render(<AmendmentStatusPill view={{ status: "unknown", share: "0.0%" }} share />).container.textContent).toBe("Unknown");
+    cleanup();
+    expect(render(<AmendmentStatusPill view={{ status: "majority", activation: { at: Number.NaN, fallback: "" } }} share />).container.textContent).toBe("Activating");
   });
 
   it("reads 'Activating' with no dangling comma when no moment is known (the server, the first render and the browser)", async () => {

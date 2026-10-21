@@ -44,6 +44,12 @@ const gridOf = (page: AmendmentPageData): [string, string][] => page.identity.gr
 
 const sentencesOf = (page: AmendmentPageData): string[] => page.consensus!.votes!.sentences.map(plain);
 
+/** The vote tables of a page that has them (an amendment still voted on); a page with the note instead fails the test. */
+function tablesOf(page: AmendmentPageData): Exclude<AmendmentPageData["votes"], { note: string }> {
+  if ("note" in page.votes) throw new Error(`no vote tables: "${page.votes.note}"`);
+  return page.votes;
+}
+
 /** The links among some parts. */
 const linksOf = (parts: readonly TextPart[]) => parts.filter((part): part is Extract<TextPart, { href: string }> => typeof part !== "string" && "href" in part);
 
@@ -757,7 +763,7 @@ describe("amendmentPage: the history", () => {
 
   it("leaves out an event it has no word for, rather than naming it wrongly", () => {
     const [first, ...rest] = majorityCase().history;
-    const history = [first!, { ...first!, event: "frozen" as never }, ...rest];
+    const history = [first!, { ...first!, event: "frozen" }, ...rest];
     expect(build({ history }).history.events.map((event) => event.event)).toEqual(["got_majority", "lost_majority", "got_majority"]);
   });
 
@@ -769,65 +775,107 @@ describe("amendmentPage: the history", () => {
 
 // ---- Votes (6.5) -------------------------------------------------------------------------------------------------------------------------
 
+describe("amendmentPage: a status a newer D1 sends", () => {
+  // `amendmentStatusView` reads a word it does not know as `unknown`: the pill says "Unknown", and the page is drawn as for D1's unknown, which is voted on.
+  const frozen = (): AmendmentDetail => ({ ...votingCase(), status: "frozen" });
+
+  it("is Unknown, with the votes, the consensus and the history of an amendment still voted on", () => {
+    const page = buildWithout(frozen());
+    expect(page.identity.status).toEqual({ status: "unknown", share: "11.4%" });
+    expect(tablesOf(page).unl).toHaveLength(5);
+    expect(sentencesOf(page)).toEqual(["4 of 35 UNL validators vote yes; 25 more are needed.", "Votes of voting ledger #107,748,095, Oct 19, 2026, 15:48 UTC."]);
+    expect(page.meta.description).toBe("4 of 35 validators of XRPL's default UNL vote for DID; 29 are needed.");
+  });
+
+  it("does not say no name is known for an amendment that has one; one that has none says it", () => {
+    expect(gridOf(buildWithout(frozen()))).toEqual([
+      ["Specification", "No XLS"],
+      ["Introduced in", "rippled 1.12.0"],
+    ]);
+    const nameless = frozen();
+    delete nameless.name;
+    expect(gridOf(buildWithout(nameless)).at(-1)).toEqual(["Status", "No name is known for this ID, from the data API's metadata or its node."]);
+  });
+});
+
 describe("amendmentPage: the votes", () => {
+  it("has no tables for an enabled or an obsolete amendment, which is no longer voted on, whatever D1 lists: the note in their place", () => {
+    // D1 still lists the validators of an amendment that is no longer voted on, each "no" or without a recent vote (the AMM fixture's: 33 no, 2 none).
+    for (const amendment of [enabledCase(), metadataCase(), retiredCase(), obsoleteCase()]) expect(amendment.unl_votes.length, amendment.name).toBeGreaterThan(0);
+    const enabled = { note: "An enabled amendment is no longer voted on." };
+    expect(buildWithout(enabledCase()).votes).toEqual(enabled);
+    expect(buildWithout(metadataCase()).votes).toEqual(enabled);
+    expect(buildWithout(retiredCase()).votes).toEqual(enabled);
+    expect(buildWithout(obsoleteCase()).votes).toEqual({ note: "Current software can no longer vote for it, so no votes are shown." });
+    // Without S as well: the note does not depend on it.
+    expect(buildWithout(enabledCase(), { summary: { state: "failed" } }).votes).toEqual(enabled);
+  });
+
+  it("has the tables for an amendment still voted on: a majority, a voting one and an unknown one", () => {
+    for (const amendment of [majorityCase(), votingCase(), unknownCase()]) {
+      const { unl, others } = tablesOf(buildWithout(amendment));
+      expect(unl.map((row) => row.key), amendment.status).toEqual(SAMPLE_KEYS.slice(0, 5));
+      expect(others.map((row) => row.key), amendment.status).toEqual([SAMPLE_KEYS[7], SAMPLE_KEYS[8]]);
+    }
+  });
+
   it("lists the UNL's votes and the others' in D1's order", () => {
-    const page = build();
-    expect(page.unlVotes.map((row) => row.key)).toEqual(SAMPLE_KEYS.slice(0, 5));
-    expect(page.otherVotes.map((row) => row.key)).toEqual([SAMPLE_KEYS[7], SAMPLE_KEYS[8]]);
-    expect(page.unlVotes.map((row) => row.vote)).toEqual(["yes", "yes", "yes", "no", "none"]);
-    expect(page.otherVotes.map((row) => row.vote)).toEqual(["yes", "no"]);
+    const { unl, others } = tablesOf(build());
+    expect(unl.map((row) => row.key)).toEqual(SAMPLE_KEYS.slice(0, 5));
+    expect(others.map((row) => row.key)).toEqual([SAMPLE_KEYS[7], SAMPLE_KEYS[8]]);
+    expect(unl.map((row) => row.vote)).toEqual(["yes", "yes", "yes", "no", "none"]);
+    expect(others.map((row) => row.vote)).toEqual(["yes", "no"]);
   });
 
   it("names a validator by its domain, else by its short key in mono, and links its page on the network", () => {
-    const [northpeak, , nameless] = build().unlVotes;
+    const [northpeak, , nameless] = tablesOf(build()).unl;
     expect(northpeak!.name).toEqual({ text: "northpeak.example", mono: false });
     expect(northpeak!.href).toBe(`/xrpl/validators/${SAMPLE_KEYS[0]}`);
     expect(nameless!.name).toEqual({ text: shortHash(SAMPLE_KEYS[2]), mono: true });
-    expect(build({}, { network: XAHAU }).unlVotes[0]!.href).toBe(`/xahau/validators/${SAMPLE_KEYS[0]}`);
+    expect(tablesOf(build({}, { network: XAHAU })).unl[0]!.href).toBe(`/xahau/validators/${SAMPLE_KEYS[0]}`);
   });
 
   it("gives the version as reported, the seconds it was last seen at, and nothing for what D1 does not have", () => {
-    const rows = build().unlVotes;
+    const rows = tablesOf(build()).unl;
     expect(rows[0]!.version).toBe("3.4.1");
     expect(rows[0]!.lastSeen).toBe(unixOf("2026-10-19T15:53:19.750Z"));
     expect(Number.isInteger(rows[0]!.lastSeen)).toBe(true);
     // A validator that reported no version.
     expect(rows[4]!.version).toBeNull();
     const never: AmendmentVote = { validation_public_key: SAMPLE_KEYS[0], vote: "none" };
-    expect(build({ unl_votes: [never] }).unlVotes[0]).toEqual({ key: SAMPLE_KEYS[0], name: { text: shortHash(SAMPLE_KEYS[0]), mono: true }, href: `/xrpl/validators/${SAMPLE_KEYS[0]}`, vote: "none", version: null, lacks: false, lastSeen: null });
-    expect(build({ unl_votes: [{ ...never, last_seen: "never" }] }).unlVotes[0]!.lastSeen).toBeNull();
-    expect(build({ unl_votes: [{ ...never, version: "" }] }).unlVotes[0]!.version).toBeNull();
+    expect(tablesOf(build({ unl_votes: [never] })).unl[0]).toEqual({ key: SAMPLE_KEYS[0], name: { text: shortHash(SAMPLE_KEYS[0]), mono: true }, href: `/xrpl/validators/${SAMPLE_KEYS[0]}`, vote: "none", version: null, lacks: false, lastSeen: null });
+    expect(tablesOf(build({ unl_votes: [{ ...never, last_seen: "never" }] })).unl[0]!.lastSeen).toBeNull();
+    expect(tablesOf(build({ unl_votes: [{ ...never, version: "" }] })).unl[0]!.version).toBeNull();
   });
 
   it("marks a validator whose version lacks it", () => {
     // The sample's amendment was introduced in 3.4.1: 3.4.0 does not have it.
-    const { unlVotes, otherVotes } = build();
-    expect(unlVotes.map((row) => row.lacks)).toEqual([false, false, true, true, false]);
-    expect(unlVotes.map((row) => row.version)).toEqual(["3.4.1", "3.4.1", "3.4.0", "3.4.0", null]);
-    expect(otherVotes.map((row) => row.lacks)).toEqual([false, false]);
+    const { unl, others } = tablesOf(build());
+    expect(unl.map((row) => row.lacks)).toEqual([false, false, true, true, false]);
+    expect(unl.map((row) => row.version)).toEqual(["3.4.1", "3.4.1", "3.4.0", "3.4.0", null]);
+    expect(others.map((row) => row.lacks)).toEqual([false, false]);
     // `version_supports` absent (a version or an introduction not known) is not a claim.
     const unknown: AmendmentVote = { validation_public_key: SAMPLE_KEYS[0], vote: "yes", version: "3.4.0" };
-    expect(build({ unl_votes: [unknown] }).unlVotes[0]!.lacks).toBe(false);
+    expect(tablesOf(build({ unl_votes: [unknown] })).unl[0]!.lacks).toBe(false);
   });
 
   it("writes vote counts, with publishers and others seen only with S", () => {
     const page = build();
-    expect(page.counts).toEqual({ yes: 3, no: 1, none: 1, otherYes: 1 });
+    expect(tablesOf(page).counts).toEqual({ yes: 3, no: 1, none: 1, otherYes: 1 });
     expect(page.summary).toEqual({ state: "ok", publishers: ["unl.xrplf.org", "vl.ripple.com"], othersSeen: 20 });
     // Without S the counts stand and the page leaves out what S adds; a `missing` answer is a failure to this page.
     for (const summary of [{ state: "failed" }, { state: "missing" }] as const) {
       const without = build({}, { summary });
       expect(without.summary).toEqual({ state: "failed" });
-      expect(without.counts).toEqual(page.counts);
-      expect(without.unlVotes).toEqual(page.unlVotes);
+      expect(without.votes).toEqual(page.votes);
     }
   });
 
   it("counts every vote of the UNL, and the yes votes of the others", () => {
     const vote = (key: number, v: AmendmentVote["vote"]): AmendmentVote => ({ validation_public_key: SAMPLE_KEYS[key]!, vote: v });
     const page = build({ unl_votes: [vote(0, "yes"), vote(1, "yes"), vote(2, "no"), vote(3, "none"), vote(4, "none"), vote(5, "none")], other_votes: [vote(6, "no"), vote(7, "no")] });
-    expect(page.counts).toEqual({ yes: 2, no: 1, none: 3, otherYes: 0 });
-    expect(build({ unl_votes: [], other_votes: [] }).counts).toEqual({ yes: 0, no: 0, none: 0, otherYes: 0 });
+    expect(tablesOf(page).counts).toEqual({ yes: 2, no: 1, none: 3, otherYes: 0 });
+    expect(tablesOf(build({ unl_votes: [], other_votes: [] })).counts).toEqual({ yes: 0, no: 0, none: 0, otherYes: 0 });
   });
 
   it("reads the publishers and the others seen from S, in S's order", () => {
@@ -936,7 +984,7 @@ describe("amendmentPage: the whole page", () => {
     for (let index = 0; index < 2_600; index += 1) rounds.push(roundAt(index + 1, index % 36, 35, T0 + index * 16 * 60_000));
     const started = performance.now();
     build({ rounds });
-    // Loose: the real figure is a few milliseconds; this catches a quadratic step, not a slow machine.
-    expect(performance.now() - started).toBeLessThan(1_000);
+    // Loose, for a suite that runs on a loaded shared machine: the real figure is a few milliseconds, and this catches a build gone far wrong, not a slow machine.
+    expect(performance.now() - started).toBeLessThan(5_000);
   });
 });

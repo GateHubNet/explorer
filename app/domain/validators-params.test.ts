@@ -155,6 +155,15 @@ describe("canonicalValidatorsParams (the part that needs data)", () => {
     expect(canonical("?amendment=FooBar")).toStrictEqual({ scope: "unl" });
   });
 
+  it("drops an amendment of a status a newer D1 sends, by name or by ID: the filter does not offer it", () => {
+    const frozen = { id: "8".repeat(64), name: "Frozen", status: "frozen" };
+    const withFrozen = (search: string) => canonicalValidatorsParams(parseValidatorsParams(search), { publishers, amendments: [...amendments, frozen] });
+    expect(withFrozen("?amendment=Frozen")).toStrictEqual({ scope: "unl" });
+    expect(withFrozen(`?amendment=${frozen.id}`)).toStrictEqual({ scope: "unl" });
+    // The rows of the statuses it knows still match beside it.
+    expect(withFrozen("?amendment=xchainbridge").amendment).toBe("XChainBridge");
+  });
+
   it("matches a name among the rows of the statuses the filter has, not among all rows", () => {
     const list = [row(AMM_ID, "enabled", "Twin"), row(XCB_ID, "voting", "TWIN")];
     expect(canonical("?amendment=twin", { publishers, amendments: list }).amendment).toBe("TWIN");

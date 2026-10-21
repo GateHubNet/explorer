@@ -230,7 +230,9 @@ describe("checkValidatorsList", () => {
     ["a yes entry whose name is a number", (b) => (b.validators[0].amendment_votes.yes[1].name = 7)],
     ["a first_seen that is a number", (b) => (b.validators[0].first_seen = 1784661953)],
     ["a last_seen that is not a time", (b) => (b.validators[0].last_seen = "yesterday")],
-    ["a domain verification of a status of its own", (b) => (b.validators[0].domain_verification.status = "checking")],
+    ["a domain verification status that is empty", (b) => (b.validators[0].domain_verification.status = "")],
+    ["a domain verification status that is a number", (b) => (b.validators[0].domain_verification.status = 1)],
+    ["a domain verification without its status", (b) => delete b.validators[0].domain_verification.status],
     ["a domain verification without its toml_url", (b) => delete b.validators[0].domain_verification.toml_url],
     ["a domain verification checked that is a number", (b) => (b.validators[0].domain_verification.checked = 1)],
     ["a domain verification accounts that is text", (b) => (b.validators[0].domain_verification.accounts = ADDRESS)],
@@ -259,6 +261,11 @@ describe("checkValidatorsList", () => {
     const none = { result: "success", count: 0, validators: [] };
     expect(checkValidatorsList(none, "/x")).toBe(none);
   });
+
+  it("takes a domain check's status a newer D1 sends: a word the pages read as not verified, not a refusal", () => {
+    const body = listOf(validatorRowSample({ domain_verification: { status: "revoked", toml_url: "https://northpeak.example/.well-known/xrp-ledger.toml" } }));
+    expect(checkValidatorsList(body, "/x")).toBe(body);
+  });
 });
 
 describe("checkValidatorDetail", () => {
@@ -273,8 +280,9 @@ describe("checkValidatorDetail", () => {
     ["a vote that is not an object", (b) => (b.amendment_votes.votes[0] = "yes")],
     ["a vote whose id is not 64 hex", (b) => (b.amendment_votes.votes[0].id = "98433DD0")],
     ["a vote whose name is a number", (b) => (b.amendment_votes.votes[1].name = 1)],
-    ["a vote on an enabled amendment", (b) => (b.amendment_votes.votes[0].status = "enabled")],
-    ["a vote of a status that is not one", (b) => (b.amendment_votes.votes[0].status = "pending")],
+    ["a vote whose status is empty", (b) => (b.amendment_votes.votes[0].status = "")],
+    ["a vote whose status is a number", (b) => (b.amendment_votes.votes[0].status = 1)],
+    ["a vote with no status", (b) => delete b.amendment_votes.votes[0].status],
     ["a vote that is a boolean", (b) => (b.amendment_votes.votes[0].vote = true)],
     ["a vote of a word that is not one", (b) => (b.amendment_votes.votes[0].vote = "maybe")],
     ["a record ledger that is text", (b) => (b.amendment_votes.ledger_index = "107748095")],
@@ -301,6 +309,14 @@ describe("checkValidatorDetail", () => {
   it("takes an unknown amendment's vote, which has no name", () => {
     const body = validatorDetailSample();
     body.amendment_votes.votes.push({ id: "2".repeat(64), status: "unknown", vote: "no" });
+    expect(checkValidatorDetail(body, "/x")).toBe(body);
+  });
+
+  it("takes a vote's status that the reference does not list for it, and a domain check's status a newer D1 sends: words the page reads as its defaults", () => {
+    const body = validatorDetailSample();
+    body.amendment_votes.votes[0]!.status = "frozen";
+    body.amendment_votes.votes[1]!.status = "enabled";
+    body.domain_verification!.status = "revoked";
     expect(checkValidatorDetail(body, "/x")).toBe(body);
   });
 });
@@ -360,7 +376,8 @@ describe("checkAmendments", () => {
     ["an id in lower case", (b) => (b.amendments[0].id = b.amendments[0].id.toLowerCase())],
     ["an id of 65 digits", (b) => (b.amendments[0].id += "0")],
     ["a name that is a number", (b) => (b.amendments[0].name = 7)],
-    ["a status that is not one", (b) => (b.amendments[0].status = "pending")],
+    ["a status that is empty", (b) => (b.amendments[0].status = "")],
+    ["a status that is a number", (b) => (b.amendments[0].status = 1)],
     ["no status", (b) => delete b.amendments[0].status],
     ["retired that is false", (b) => (b.amendments[0].retired = false)],
     ["retired that is text", (b) => (b.amendments[0].retired = "true")],
@@ -407,6 +424,12 @@ describe("checkAmendments", () => {
     ];
     expect(checkAmendments(body, "/x")).toBe(body);
   });
+
+  it("takes a status a newer D1 sends: a word the pages read as Unknown, not a refusal (the counts keep D1's five)", () => {
+    const body = amendmentsSample();
+    body.amendments[1]!.status = "frozen";
+    expect(checkAmendments(body, "/x")).toBe(body);
+  });
 });
 
 describe("checkAmendmentDetail", () => {
@@ -416,7 +439,8 @@ describe("checkAmendmentDetail", () => {
     ["no rules", (b) => delete b.rules],
     ["a round that is a list", (b) => (b.round = [])],
     ["an id that is not 64 hex", (b) => (b.id = "C98D98EE")],
-    ["a status that is not one", (b) => (b.status = "pending")],
+    ["a status that is empty", (b) => (b.status = "")],
+    ["no status", (b) => delete b.status],
     ["votes whose pct is text", (b) => (b.votes.pct = "85.71")],
     ["a majority since that is a number", (b) => (b.majority.since = 1)],
     ["unl_votes that is not a list", (b) => (b.unl_votes = {})],
@@ -442,7 +466,9 @@ describe("checkAmendmentDetail", () => {
     ["a round passes that is text", (b) => (b.rounds[0].passes = "false")],
     ["history that is not a list", (b) => (b.history = {})],
     ["history that is missing", (b) => delete b.history],
-    ["an event that is not one", (b) => (b.history[0].event = "activated")],
+    ["an event that is empty", (b) => (b.history[0].event = "")],
+    ["an event that is a number", (b) => (b.history[0].event = 1)],
+    ["no event", (b) => delete b.history[0].event],
     ["an event ledger_index that is text", (b) => (b.history[0].ledger_index = "106500001")],
     ["an event date that is a number", (b) => (b.history[0].date = 1)],
     ["an event tx_hash that is not 64 hex", (b) => (b.history[0].tx_hash = "62C1656A")],
@@ -466,6 +492,13 @@ describe("checkAmendmentDetail", () => {
       { event: "lost_majority", ledger_index: 2, date: "2026-08-30T15:54:20Z", tx_hash: tx },
       { event: "enabled", ledger_index: 3, date: "2026-09-13T15:54:20Z", tx_hash: tx },
     ];
+    expect(checkAmendmentDetail(body, "/x")).toBe(body);
+  });
+
+  it("takes a status and a history event a newer D1 sends: words the page reads as Unknown and leaves out, not a refusal", () => {
+    const body = amendmentDetailSample();
+    body.status = "frozen";
+    body.history = [...body.history, { event: "vetoed", ledger_index: 4, date: "2026-09-20T15:54:20Z", tx_hash: "A".repeat(64) }];
     expect(checkAmendmentDetail(body, "/x")).toBe(body);
   });
 });

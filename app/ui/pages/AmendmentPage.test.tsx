@@ -489,6 +489,23 @@ describe("AmendmentPage, the votes of the UNL validators", () => {
     expect(head()).toBe("3 yes · 2 no, on unl.xrplf.org and vl.ripple.com");
   });
 
+  it.each([
+    ["an enabled amendment", enabledCase, "An enabled amendment is no longer voted on."],
+    ["an amendment enabled from the metadata file", metadataCase, "An enabled amendment is no longer voted on."],
+    ["an obsolete amendment", obsoleteCase, "Current software can no longer vote for it, so no votes are shown."],
+  ])("has the builder's note in the tables' place for %s, which is no longer voted on, though D1 lists its validators", (_name, amendment, note) => {
+    expect(amendment().unl_votes.length).toBeGreaterThan(0);
+    mount(build(amendment()));
+    const card = screen.getByRole("region", { name: "Votes" });
+    expect(card.classList.contains("amendment__votes")).toBe(true);
+    expect(text(card.querySelector(".amendment__novotes"))).toBe(note);
+    // No table, no count of "no" votes in a head, and no disclosure of the other validators.
+    expect(screen.queryByRole("table", { name: "Votes of the UNL validators" })).toBeNull();
+    expect(screen.queryByRole("table", { name: "Votes of other validators" })).toBeNull();
+    expect(card.querySelector(".amendment__count, details")).toBeNull();
+    expect(textOfHtml(htmlOf(build(amendment())))).not.toMatch(/\d+ yes · \d+ no|Other validators, not on the UNL/);
+  });
+
   it("lists every UNL validator in D1's order: the link to its page, its vote, its version and when it was last seen", () => {
     mount(build());
     // 401 s ago: past the 5 coarse minutes, the age itself.

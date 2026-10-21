@@ -2396,7 +2396,6 @@ a.markets__pair:hover .markets__name {
 }
 
 .validator__now,
-.validator__word,
 .validator__hash {
   color: var(--muted);
 }
@@ -2825,6 +2824,11 @@ a.markets__pair:hover .markets__name {
 .amendment__votes > .amendment__cardhead {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
+}
+
+/* The note in the votes card of an amendment that is no longer voted on: the card has no padding of its own. */
+.amendment__novotes {
+  padding: 14px 16px;
 }
 
 /* The yes share (the board's 44 px) and the meter beside it, the meter under it on a phone. */

@@ -149,6 +149,22 @@ test.describe("an amendment's page", () => {
     await expect(others.getByRole("link", { name: "All validators →" })).toHaveAttribute("href", "/xrpl/validators?scope=all");
   });
 
+  test("has a note in the votes' place for an enabled and an obsolete amendment, which are no longer voted on: no vote table, no count of no votes", async ({ page }) => {
+    for (const [status, note] of [
+      ["enabled", "An enabled amendment is no longer voted on."],
+      ["obsolete", "Current software can no longer vote for it, so no votes are shown."],
+    ] as const) {
+      const listed = await listedAmendment(page, status);
+      needs(listed !== null, `${status} amendment`);
+      await page.goto(listed!.href);
+      await hydrated(page);
+      await expect(page.getByRole("region", { name: "Votes" }).locator(".amendment__novotes")).toHaveText(note);
+      await expect(page.getByRole("table", { name: "Votes of the UNL validators" })).toHaveCount(0);
+      await expect(page.locator("details.amendment__others")).toHaveCount(0);
+      await expect(page.getByRole("main")).not.toContainText(/\d+ yes · \d+ no/);
+    }
+  });
+
   test("lands on the name's URL from the ID in lower case", async ({ page }) => {
     const { name } = await openMajority(page);
     const id = (await page.locator(".amendment__id").textContent())!.trim();

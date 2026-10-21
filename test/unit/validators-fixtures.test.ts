@@ -139,7 +139,7 @@ const passesOf = (yes: number, trusted: number) => (trusted === 1 ? yes >= thres
 const pctOf = (yes: number, trusted: number) => (trusted <= 0 ? 0 : new BigNumber(yes).times(100).div(trusted).decimalPlaces(2, BigNumber.ROUND_HALF_UP).toNumber());
 
 /** A list's order: majority by expected activation, voting by yes (most first) then name, unknown by ID, enabled by its ledger (newest first, none last) then name, obsolete by name. */
-const GROUPS: AmendmentStatus[] = ["majority", "voting", "unknown", "enabled", "obsolete"];
+const GROUPS: readonly string[] = ["majority", "voting", "unknown", "enabled", "obsolete"] satisfies AmendmentStatus[];
 function compareByName(a: AmendmentRow, b: AmendmentRow): number {
   if ((a.name === undefined) !== (b.name === undefined)) return a.name === undefined ? 1 : -1;
   if (a.name !== undefined && b.name !== undefined) {

@@ -277,6 +277,10 @@ const amendmentReady = async (page: Page) => {
   await visible("Votes of the UNL validators")(page);
   await slidersReady(page);
 };
+/** An enabled amendment is no longer voted on: its page is whole when the note in the votes card's place is drawn. */
+const enabledAmendmentReady = async (page: Page) => {
+  await expect(page.getByRole("region", { name: "Votes" }).getByText("An enabled amendment is no longer voted on.")).toBeVisible();
+};
 const checkEveryTable = async (page: Page) => {
   for (const radio of await page.getByRole("radio", { name: "Table" }).all()) await radio.check();
   await expect(page.locator(".chart__table").first()).toBeVisible();
@@ -310,7 +314,7 @@ const VALIDATORS_MORE: ValidatorsPageUnderTest[] = [
     ready: visible("Recent validations"),
   },
   { name: "Xahau amendments", path: "/xahau/amendments", ready: visible("Amendments") },
-  { name: "an enabled amendment", path: async (page) => (await listedAmendment(page, "enabled"))?.href ?? null, ready: visible("Votes of the UNL validators") },
+  { name: "an enabled amendment", path: async (page) => (await listedAmendment(page, "enabled"))?.href ?? null, ready: enabledAmendmentReady },
   { name: "an amendment of no known name", path: async (page) => (await listedAmendment(page, "unknown"))?.href ?? null, ready: visible("Votes of the UNL validators") },
   { name: "validators, every table view", path: "/xrpl/validators", ready: validatorsListReady, act: checkEveryTable },
   { name: "a validator, every table view", path: VERIFIED_VALIDATOR, ready: validatorReady, act: checkEveryTable },

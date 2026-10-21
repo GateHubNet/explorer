@@ -21,6 +21,7 @@ import {
   count,
   DASH,
   dropsText,
+  feesNotCompared,
   joinAnd,
   nativeText,
   scoreText,
@@ -351,7 +352,7 @@ function footerOf(net: NetworkInfo, shown: number, hasFilter: boolean, summary: 
   const footer = [`${count(shown)} ${noun}`, "in the order of their domain, then their key"];
   const units = `Fee votes in ${net.native} / ${net.native} / drops`;
   if (summary?.fees !== undefined) footer.push(`${units}; ↑ ↓ against the current value`);
-  else footer.push(units, `Fee votes are not compared with the current fees: ${summary === null ? "they could not be loaded" : "they are not known yet"}`);
+  else footer.push(units, feesNotCompared(summary === null ? "failed" : "unknown"));
   if (marker) footer.push("The first 1,000 validators in this order are shown.");
   return footer;
 }

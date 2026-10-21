@@ -13,6 +13,7 @@ import {
   DASH,
   daysText,
   dropsText,
+  feesNotCompared,
   joinAnd,
   ledgerLink,
   ledgersText,
@@ -245,6 +246,13 @@ describe("compareFee", () => {
     // D1's fees are checked to be decimals before a builder sees them, so this is not reached; it must still not throw.
     expect(() => compareFee("n/a", "1")).not.toThrow();
     expect(compareFee("n/a", "1")).toBe("same");
+  });
+});
+
+describe("feesNotCompared", () => {
+  it("says spec 2.7's sentence of why the fee votes are not compared: S could not be loaded, or it has no fees yet", () => {
+    expect(feesNotCompared("failed")).toBe("Fee votes are not compared with the current fees: they could not be loaded");
+    expect(feesNotCompared("unknown")).toBe("Fee votes are not compared with the current fees: they are not known yet");
   });
 });
 
@@ -497,7 +505,7 @@ describe("verificationNote", () => {
   });
 
   it("says the same for a status a newer D1 sends", () => {
-    const dv = { status: "revoked", toml_url: `https://${DOMAIN}/.well-known/xrp-ledger.toml` } as unknown as DomainVerification;
+    const dv: DomainVerification = { status: "revoked", toml_url: `https://${DOMAIN}/.well-known/xrp-ledger.toml` };
     expect(plain(verificationNote(dv, DOMAIN, "rippled"))).toBe("The domain could not be verified.");
   });
 
@@ -567,7 +575,7 @@ describe("amendmentStatusView", () => {
   });
 
   it("is unknown for a status a newer D1 sends", () => {
-    expect(amendmentStatusView({ ...base, status: "frozen" as never })).toEqual({ status: "unknown", share: "—" });
+    expect(amendmentStatusView({ ...base, status: "frozen" })).toEqual({ status: "unknown", share: "—" });
   });
 });
 

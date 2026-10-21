@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { amendmentsHref, statusWord } from "../../domain/amendments-params";
+import { amendmentsHref } from "../../domain/amendments-params";
 import { formatUtc, shortAddress, shortHash } from "../../domain/format";
 import type { Anchor } from "../../server/anchor";
 import type { DailyRow, LedgerLink, ValidationRowView, ValidatorHistoryData, ValidatorIdentity, ValidatorLiveData } from "../../server/validator-view";
@@ -333,7 +333,7 @@ function FeesCard({ data }: { data: Data }) {
             Its vote is from voting ledger <Ledger ledger={fees.voteLedger} />.
           </>
         )}
-        {rows !== null && (summary.state !== "ok" ? " Its votes are not compared with the current fees: they could not be loaded." : now === null && " The current fees are not known yet.")}
+        {fees.note !== null && ` ${fees.note}`}
       </p>
     </section>
   );
@@ -341,14 +341,10 @@ function FeesCard({ data }: { data: Data }) {
 
 type VoteRow = ValidatorLiveData["votes"]["rows"][number];
 
-const VOTING = statusWord("voting");
-
-/** A's status of the amendment: the pill (a countdown to an activation), or "Voting · 11.4% yes"; without A, or for one A does not have, D's word. */
+/** A's status of the amendment as its pill (a countdown to an activation, "Voting · 11.4% yes"); without A, or for one A does not have, D's status as the same pill. */
 function VoteStatus({ row, amendments }: { row: VoteRow; amendments: ValidatorLiveData["amendments"] }) {
-  const view = amendments.state === "ok" ? amendments.status[row.id] : undefined;
-  if (view === undefined) return <span className="validator__word">{row.word}</span>;
-  if (view.status === "voting") return <span className="validator__word">{view.share === DASH ? VOTING : `${VOTING} · ${view.share} yes`}</span>;
-  return <AmendmentStatusPill view={view} />;
+  const view = (amendments.state === "ok" ? amendments.status[row.id] : undefined) ?? row.status;
+  return <AmendmentStatusPill view={view} share />;
 }
 
 function VotesCard({ data }: { data: Data }) {
@@ -474,7 +470,7 @@ function RecentCard({
  * One validator (`/{net}/validators/{key}`, spec 4.1), in the board's order: the breadcrumb, E2's live row, the identity with its facts, the agreement tiles
  * beside the 30-day chart, the fee votes beside the amendment votes, and the recent validations. Takes what the view builder made of the data API's answers
  * (`validatorPage`) and never fetches: every label, href and figure is text in `data`. D is the page; each of VV, S and A stands or fails alone (spec 4.4):
- * the recent validations are a section error and last seen comes from D, coarse; the fee votes lose Now and Against now; the amendment votes keep D's words.
+ * the recent validations are a section error and last seen comes from D, coarse; the fee votes lose Now and Against now; the amendment votes keep D's statuses.
  *
  * The page follows the chain (spec 2.3): the validations enter and slide (`DataTable live`, keyed by ledger and hash), a tile that changed ticks in
  * (`LiveValue`), the chart rings when its days moved. Nothing animates on the first render, so another validator must remount the page (the route keys it by

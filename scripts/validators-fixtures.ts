@@ -720,7 +720,7 @@ interface Amendment {
 }
 
 /** The order of the list's groups, and inside them (D1 3.5): by expected activation, by yes (most first), by ID, by the ledger it was enabled in (newest first), by name. */
-const GROUPS: readonly AmendmentStatus[] = ["majority", "voting", "unknown", "enabled", "obsolete"];
+const GROUPS: readonly string[] = ["majority", "voting", "unknown", "enabled", "obsolete"] satisfies readonly AmendmentStatus[];
 
 function compareByName(a: AmendmentRow, b: AmendmentRow): number {
   if ((a.name === undefined) !== (b.name === undefined)) return a.name === undefined ? 1 : -1;

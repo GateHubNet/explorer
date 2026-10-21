@@ -84,7 +84,7 @@ export const amendmentsTable = (page: Page) => page.getByRole("table", { name: "
  * amendment with a majority, or none of an unknown name: the caller says what it `needs`). The table is there first: a page that is not the list (a 404,
  * a 503) fails here rather than reading as a view with no amendment.
  */
-export async function listedAmendment(page: Page, status: "majority" | "voting" | "enabled" | "unknown", net = "xrpl"): Promise<{ name: string; href: string } | null> {
+export async function listedAmendment(page: Page, status: "majority" | "voting" | "enabled" | "obsolete" | "unknown", net = "xrpl"): Promise<{ name: string; href: string } | null> {
   await page.goto(`/${net}/amendments?status=${status}`);
   await hydrated(page);
   await expect(amendmentsTable(page)).toBeVisible();

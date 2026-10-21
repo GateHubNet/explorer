@@ -605,6 +605,13 @@ export interface LedgerValidations {
 // `YYYY-MM-DD`. Native amounts are whole units as exact decimal text (`"0.00001"`), counts are numbers, `pct` is a number to two decimals, and a `score` is text to four
 // decimals. A key is a base58 node public key (`nH…` a master key, `n9…` a signing key); an amendment ID and a transaction hash are 64 hex digits in upper case.
 
+/**
+ * One of D1's words that a newer D1 may add to (an amendment's status, a domain check's status, the status of a validator's vote, a history event): the words named, or
+ * another text. The shape checks (validators-shape.ts) let any word through, and every reader has a default for a word it does not know: the pages show it as their
+ * "Unknown" (or "not verified"), or leave it out, and never refuse the answer for it.
+ */
+export type OpenWord<Known extends string> = Known | (string & {});
+
 /** One publisher of the trusted UNL (`unl.publishers[]` of the summary). Everything after `status` is there only with a list, or after a failed fetch. */
 export interface UnlPublisher {
   /** The URL without its scheme: `vl.ripple.com`. Also what `?publisher=` takes. */
@@ -694,7 +701,7 @@ export interface Agreement {
  * `http_status`), `checked` and `verified` are absent while `pending`, and `accounts` (G1) comes last, only for `verified`, and is absent when the file lists none.
  */
 export interface DomainVerification {
-  status: "verified" | "unverified" | "pending";
+  status: OpenWord<"verified" | "unverified" | "pending">;
   reason?: string;
   status_code?: number;
   toml_url: string;
@@ -763,7 +770,7 @@ export interface ValidatorsList {
 export interface ValidatorVote {
   id: string;
   name?: string;
-  status: "voting" | "majority" | "unknown";
+  status: OpenWord<"voting" | "majority" | "unknown">;
   vote: "yes" | "no" | "none";
 }
 
@@ -883,7 +890,7 @@ export interface AmendmentRow {
   /** 64 hex digits, upper case: the SHA-512Half of the name. */
   id: string;
   name?: string;
-  status: AmendmentStatus;
+  status: OpenWord<AmendmentStatus>;
   retired?: true;
   introduced?: string;
   xls?: string;
@@ -937,7 +944,7 @@ export interface AmendmentRoundPoint {
 
 /** An indexed EnableAmendment transaction of the amendment. */
 export interface AmendmentHistoryEvent {
-  event: "got_majority" | "lost_majority" | "enabled";
+  event: OpenWord<"got_majority" | "lost_majority" | "enabled">;
   ledger_index: number;
   date: string;
   tx_hash: string;

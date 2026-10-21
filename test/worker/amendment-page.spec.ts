@@ -351,4 +351,19 @@ describe("the stored page", () => {
     expect(text).toContain("on or soon after Oct 21, 2026, 17:08 UTC, if it holds");
     expect(text).toContain("Oct 21, 2026, 17:08 UTC, if the majority holds");
   });
+
+  it("has the note in the votes' place for an enabled amendment: what D1 lists of its validators is no vote", async () => {
+    // D1 lists AMM's validators, each "no" or without a recent vote: the page would read "0 yes · 33 no" if it drew them.
+    expect(xrplAmm.status).toBe("enabled");
+    expect(xrplAmm.unl_votes.length).toBeGreaterThan(0);
+    expect(xrplAmm.unl_votes.some((vote) => vote.vote === "yes")).toBe(false);
+    mock = mockUpstream("xrpl");
+    const { response, html, text } = await render("/xrpl/amendments/AMM");
+
+    expect(response.status).toBe(200);
+    expect(elementText(html, "amendment__novotes")).toBe("An enabled amendment is no longer voted on.");
+    expect(html).not.toContain('aria-label="Votes of the UNL validators"');
+    expect(html).not.toContain("amendment__count");
+    expect(text).not.toContain("Other validators, not on the UNL");
+  });
 });

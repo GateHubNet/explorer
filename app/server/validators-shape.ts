@@ -8,7 +8,10 @@
 //   - lists are lists, counts and ledgers are whole numbers (`pct` is a number to two decimals);
 //   - times are text in the three forms D1 writes: an instant `YYYY-MM-DDTHH:mm:ss.SSSZ`, a time `YYYY-MM-DDTHH:mm:ssZ`, or a day `YYYY-MM-DD`;
 //   - native amounts are plain decimal strings (`"0.00001"`), a `score` is text to four decimals (`"0.9998"`);
-//   - keys are base58 node public keys (`isNodePublicKey`); an amendment ID and the hash of an EnableAmendment are 64 hex digits in upper case.
+//   - keys are base58 node public keys (`isNodePublicKey`); an amendment ID and the hash of an EnableAmendment are 64 hex digits in upper case;
+//   - the words a newer D1 may add to (an amendment's status, a domain check's status, the status of a validator's vote, a history event: `OpenWord` in api-types.ts)
+//     are any text that is not empty. The pages have a default for a word they do not know ("Unknown", "not verified", an event left out), so a new word is shown
+//     as that, never a refused answer. The words the pages build on (a vote, a validation's match, an enabling's source, a publisher's status) keep their sets.
 
 import { AMENDMENT_STATUSES } from "../domain/amendments-params";
 import { isNodePublicKey } from "../domain/validator-key";
@@ -152,7 +155,7 @@ class Shape {
   /** An amendment as the list has it; `where` says which, and `row` is the object (the list's member, or the whole answer of one amendment). */
   amendment(where: string, row: Row): void {
     this.fields(where, row, ["id"], isHash, "64 hex digits in upper case");
-    this.fields(where, row, ["status"], oneOf(...AMENDMENT_STATUSES), "a status");
+    this.fields(where, row, ["status"], isName, "text");
     this.optional(where, row, ["name", "introduced", "xls", "xls_url", "description"], isName, "text");
     this.optional(where, row, ["retired"], (value) => value === true, "true");
     this.optional(where, row, ["node_supported"], isBoolean, "a boolean");
@@ -192,7 +195,7 @@ class Shape {
     if (row.domain_verification !== undefined) {
       const verification = this.object(`${where}.domain_verification`, row.domain_verification);
       const here = `${where}.domain_verification`;
-      this.fields(here, verification, ["status"], oneOf("verified", "unverified", "pending"), "verified, unverified or pending");
+      this.fields(here, verification, ["status"], isName, "text");
       this.fields(here, verification, ["toml_url"], isName, "text");
       this.optional(here, verification, ["reason"], isName, "text");
       this.optional(here, verification, ["status_code"], isWhole, "a whole number");
@@ -224,7 +227,7 @@ class Shape {
       const where = `${here}.votes[${index}]`;
       this.fields(where, vote, ["id"], isHash, "64 hex digits in upper case");
       this.optional(where, vote, ["name"], isName, "text");
-      this.fields(where, vote, ["status"], oneOf("voting", "majority", "unknown"), "voting, majority or unknown");
+      this.fields(where, vote, ["status"], isName, "text");
       this.fields(where, vote, ["vote"], oneOf("yes", "no", "none"), "yes, no or none");
     }
   }
@@ -366,7 +369,7 @@ export function checkAmendmentDetail(body: unknown, path: string): AmendmentDeta
   }
   for (const [index, event] of s.rows("", head, "history").entries()) {
     const where = `history[${index}]`;
-    s.fields(where, event, ["event"], oneOf("got_majority", "lost_majority", "enabled"), "got_majority, lost_majority or enabled");
+    s.fields(where, event, ["event"], isName, "text");
     s.fields(where, event, ["ledger_index"], isWhole, "a whole number");
     s.fields(where, event, ["date"], isTime, "a time");
     s.fields(where, event, ["tx_hash"], isHash, "64 hex digits in upper case");

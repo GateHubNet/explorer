@@ -395,7 +395,17 @@ describe("ValidatorPage, fee votes", () => {
       ["Owner reserve", "0.2 XRP", "—", "—"],
       ["Base fee", "10 drops", "—", "—"],
     ]);
-    expect(note()).toContain("Its votes are not compared with the current fees: they could not be loaded.");
+    expect(note()).toBe("Fee votes are counted on flag ledgers, every 256 ledgers. Its vote is from voting ledger #107,748,095. Fee votes are not compared with the current fees: they could not be loaded.");
+  });
+
+  it("says the current fees are not known yet when the summary has none", () => {
+    mountPage(build({ summary: ok(without(summarySample(), "fees")) }));
+    expect(rowsOf("Fee votes").map((row) => row.slice(2))).toEqual([
+      ["—", "—"],
+      ["—", "—"],
+      ["—", "—"],
+    ]);
+    expect(note()).toBe("Fee votes are counted on flag ledgers, every 256 ledgers. Its vote is from voting ledger #107,748,095. Fee votes are not compared with the current fees: they are not known yet.");
   });
 
   it("counts on flag ledgers without the interval when the amendments did not load", () => {
@@ -407,6 +417,18 @@ describe("ValidatorPage, fee votes", () => {
 // ---- Amendment votes -----------------------------------------------------------------------------------------------------------------------
 
 describe("ValidatorPage, amendment votes", () => {
+  /** The pill of each row's Status cell: every status is an icon and a word (spec 2.5), with or without A. */
+  const statusPills = () =>
+    within(table("Amendment votes"))
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => {
+        const pill = within(row).getAllByRole("cell")[1]!.querySelector(".pill");
+        expect(pill, row.textContent!).toBeTruthy();
+        expect(pill!.querySelector("svg"), row.textContent!).toBeTruthy();
+        return { text: pill!.textContent, tone: Array.from(pill!.classList).find((name) => name.startsWith("pill--")) };
+      });
+
   it("lists D's votes in D's order, each a link, with A's status and the vote's pill, and the link to every amendment", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.parse("2026-10-19T16:26:23Z"));
@@ -425,8 +447,13 @@ describe("ValidatorPage, amendment votes", () => {
     expect(within(table("Amendment votes")).getByRole("link", { name: "XChainBridge" }).getAttribute("href")).toBe("/xrpl/amendments/XChainBridge");
     expect(within(table("Amendment votes")).getByRole("link", { name: shortHash(UNKNOWN_ID) }).getAttribute("href")).toBe(`/xrpl/amendments/${UNKNOWN_ID}`);
     expect(within(table("Amendment votes")).getByRole("link", { name: shortHash(UNKNOWN_ID) }).classList.contains("mono")).toBe(true);
-    expect(within(table("Amendment votes")).getByText(/^Activating/).closest(".pill")!.classList.contains("pill--info")).toBe(true);
-    expect(within(table("Amendment votes")).getByText("Unknown", { selector: ".pill" }).classList.contains("pill--off")).toBe(true);
+    // Each a pill with its icon: the accent wash and the clock, the outlined question, the neutral ballot with the share of yes.
+    expect(statusPills()).toEqual([
+      { text: "Activating, in 12 days", tone: "pill--info" },
+      { text: "Unknown", tone: "pill--off" },
+      { text: "Voting · 11.4% yes", tone: "pill--neutral" },
+      { text: "Unknown", tone: "pill--off" },
+    ]);
     expect(within(votes).getByRole("link", { name: "All amendments →" }).getAttribute("href")).toBe("/xrpl/amendments");
     expect(votes.querySelector(".validator__foot")!.textContent).toBe(
       "Amendments still being voted on. A validator that does not vote yes counts as no. Its votes of voting ledger #107,748,095.",
@@ -443,9 +470,24 @@ describe("ValidatorPage, amendment votes", () => {
     expect(none.querySelector("svg")).toBeTruthy();
   });
 
-  it("keeps D's rows and D's words when the amendments did not load", () => {
+  it("keeps D's rows and draws D's statuses as the same pills when the amendments did not load: no moment, no share", () => {
     mountPage(build({ amendments: FAILED }));
     expect(rowsOf("Amendment votes").map((row) => row[1])).toEqual(["Activating", "Voting", "Voting", "Unknown"]);
+    expect(statusPills()).toEqual([
+      // A majority with no moment known: the clock and the word, with no comma left hanging.
+      { text: "Activating", tone: "pill--info" },
+      { text: "Voting", tone: "pill--neutral" },
+      { text: "Voting", tone: "pill--neutral" },
+      { text: "Unknown", tone: "pill--off" },
+    ]);
+  });
+
+  it("draws a voting amendment A has no share of as the pill alone", () => {
+    const list = amendmentsSample();
+    const voting = list.amendments[1]!;
+    const { votes: _votes, ...bare } = voting;
+    mountPage(build({ amendments: ok({ ...list, amendments: list.amendments.map((row) => (row.id === voting.id ? bare : row)) }) }));
+    expect(statusPills()[2]).toEqual({ text: "Voting", tone: "pill--neutral" });
   });
 
   it("says no vote is recorded when D has no record", () => {

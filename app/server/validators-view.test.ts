@@ -242,6 +242,13 @@ describe("validatorsPage: intro, notices and options", () => {
       { value: "DID", label: "DID · 11.4%" },
     ]);
   });
+
+  it("does not offer an amendment of a status a newer D1 sends: this build cannot say it is being voted on (the filter drops it too)", () => {
+    const rows = amendmentsSample().amendments;
+    const frozen = { ...rows[1]!, id: "8".repeat(64), name: "Frozen", status: "frozen" };
+    const options = shown(build({ amendments: amendmentsWith({ amendments: [...rows, frozen] }) })).amendments.options;
+    expect(options.map((option) => option.value)).toEqual(["XChainBridge", "DID", UNKNOWN_ID]);
+  });
 });
 
 // ---- Links ------------------------------------------------------------------------------------------------------------------------------------

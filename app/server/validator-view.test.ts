@@ -395,6 +395,8 @@ describe("validatorPage: the fee votes", () => {
         { setting: "Owner reserve", vote: "0.2 XRP" },
         { setting: "Base fee", vote: "10 drops" },
       ],
+      // Compared with S's fees: nothing to say why not.
+      note: null,
     });
     expect(page.summary).toMatchObject({
       now: [
@@ -424,7 +426,7 @@ describe("validatorPage: the fee votes", () => {
 
   it("writes fee votes without a record", () => {
     const page = build({ validator: without(validatorDetailSample(), "fee_vote") });
-    expect(page.fees).toEqual({ voteLedger: null, votes: null });
+    expect(page.fees).toEqual({ voteLedger: null, votes: null, note: null });
     expect(page.summary).toMatchObject({ state: "ok", now: null });
   });
 
@@ -438,12 +440,26 @@ describe("validatorPage: the fee votes", () => {
     expect(page.summary).toMatchObject({ state: "ok", now: null });
     expect(page.fees.votes).toHaveLength(3);
   });
+
+  it("says why the votes are not compared (spec 2.7's sentence, the validators list's too), and nothing without a vote to compare", () => {
+    expect(build({ summary: FAILED }).fees.note).toBe("Fee votes are not compared with the current fees: they could not be loaded.");
+    expect(build({ summary: MISSING }).fees.note).toBe("Fee votes are not compared with the current fees: they could not be loaded.");
+    expect(build({ summary: ok(without(summarySample(), "fees")) }).fees.note).toBe("Fee votes are not compared with the current fees: they are not known yet.");
+    for (const summary of [FAILED, ok(without(summarySample(), "fees"))]) {
+      expect(build({ summary, validator: without(validatorDetailSample(), "fee_vote") }).fees.note).toBeNull();
+    }
+  });
 });
 
 // ---- Amendment votes ---------------------------------------------------------------------------------------------------------------------
 
 describe("validatorPage: the amendment votes", () => {
-  it("lists D's amendment votes with an unknown amendment as Yes, No and No recent vote, with A's status and with D's word", () => {
+  // D's status of a vote as its pill draws it without A: a majority with no moment to count down to, and no share of yes.
+  const D_MAJORITY = { status: "majority", activation: { at: Number.NaN, fallback: "" } };
+  const D_VOTING = { status: "voting", share: "—" };
+  const D_UNKNOWN = { status: "unknown", share: "—" };
+
+  it("lists D's amendment votes with an unknown amendment as Yes, No and No recent vote, with A's status and with D's", () => {
     const NONE_ID = "3".repeat(64);
     const validator = validatorDetailSample({
       amendment_votes: {
@@ -461,12 +477,12 @@ describe("validatorPage: the amendment votes", () => {
     expect(votes.ledger).toEqual({ text: "#107,748,095", href: "/xrpl/ledger/107748095" });
     // D's order, whatever A's, and no row depends on A.
     expect(votes.rows).toEqual([
-      { id: XCB_ID, label: { text: "XChainBridge", mono: false }, href: "/xrpl/amendments/XChainBridge", vote: "yes", word: "Activating" },
-      { id: UNKNOWN_ID, label: { text: shortHash(UNKNOWN_ID), mono: true }, href: `/xrpl/amendments/${UNKNOWN_ID}`, vote: "yes", word: "Voting" },
-      { id: "2".repeat(64), label: { text: shortHash("2".repeat(64)), mono: true }, href: `/xrpl/amendments/${"2".repeat(64)}`, vote: "no", word: "Unknown" },
-      { id: NONE_ID, label: { text: shortHash(NONE_ID), mono: true }, href: `/xrpl/amendments/${NONE_ID}`, vote: "none", word: "Unknown" },
+      { id: XCB_ID, label: { text: "XChainBridge", mono: false }, href: "/xrpl/amendments/XChainBridge", vote: "yes", status: D_MAJORITY },
+      { id: UNKNOWN_ID, label: { text: shortHash(UNKNOWN_ID), mono: true }, href: `/xrpl/amendments/${UNKNOWN_ID}`, vote: "yes", status: D_VOTING },
+      { id: "2".repeat(64), label: { text: shortHash("2".repeat(64)), mono: true }, href: `/xrpl/amendments/${"2".repeat(64)}`, vote: "no", status: D_UNKNOWN },
+      { id: NONE_ID, label: { text: shortHash(NONE_ID), mono: true }, href: `/xrpl/amendments/${NONE_ID}`, vote: "none", status: D_UNKNOWN },
     ]);
-    // A's status view for the amendments A has, by id; the ones it does not have get none (the page falls back to D's word).
+    // A's status view for the amendments A has, by id; the ones it does not have get none (the page falls back to D's).
     expect(amendments).toEqual({
       state: "ok",
       flagInterval: 256,
@@ -483,11 +499,19 @@ describe("validatorPage: the amendment votes", () => {
     expect(amendments).toMatchObject({ status: { [amendmentsSample().amendments[1]!.id]: { status: "voting", share: "11.4%" } } });
   });
 
-  it("keeps D's rows and words without A", () => {
+  it("draws a status a newer D1 sends for a vote as Unknown, and one the reference does not list for a vote as what it says", () => {
+    const votes = validatorDetailSample().amendment_votes;
+    const validator = validatorDetailSample({
+      amendment_votes: { ...votes, votes: [{ ...votes.votes[0]!, status: "frozen" }, { ...votes.votes[1]!, status: "enabled" }] },
+    });
+    expect(build({ validator, amendments: FAILED }).votes.rows.map((row) => row.status)).toEqual([D_UNKNOWN, { status: "enabled", retired: false }]);
+  });
+
+  it("keeps D's rows and statuses without A", () => {
     for (const list of [FAILED, MISSING]) {
       const page = build({ amendments: list });
       expect(page.amendments).toEqual({ state: "failed" });
-      expect(page.votes.rows.map((row) => row.word)).toEqual(["Activating", "Voting", "Voting", "Unknown"]);
+      expect(page.votes.rows.map((row) => row.status)).toEqual([D_MAJORITY, D_VOTING, D_VOTING, D_UNKNOWN]);
     }
   });
 
@@ -503,7 +527,7 @@ describe("validatorPage: the amendment votes", () => {
     });
     const { votes } = build({ validator });
     expect(votes.ledger).toBeNull();
-    expect(votes.rows).toEqual([{ id: XCB_ID, label: { text: "XChainBridge", mono: false }, href: "/xrpl/amendments/XChainBridge", vote: "none", word: "Activating" }]);
+    expect(votes.rows).toEqual([{ id: XCB_ID, label: { text: "XChainBridge", mono: false }, href: "/xrpl/amendments/XChainBridge", vote: "none", status: D_MAJORITY }]);
   });
 
   it("has no rows when no amendment is being decided", () => {
@@ -679,7 +703,7 @@ describe("validatorPage: the whole page", () => {
   it("builds from the fewest keys D1 sends, without throwing", () => {
     const page = build({ validator: neverSeen(), recent: ok(pageOf([])) });
     expect(page.identity.heading).toEqual({ text: shortHash(SAMPLE_KEYS[4]), mono: true });
-    expect(page.fees).toEqual({ voteLedger: null, votes: null });
+    expect(page.fees).toEqual({ voteLedger: null, votes: null, note: null });
     expect(page.votes).toEqual({ ledger: null, rows: [] });
     expect(page.grid.accounts).toBeNull();
   });

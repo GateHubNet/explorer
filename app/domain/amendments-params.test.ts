@@ -66,6 +66,6 @@ describe("statusWord", () => {
   });
 
   it("calls a status a newer D1 sends Unknown", () => {
-    expect(statusWord("frozen" as never)).toBe("Unknown");
+    expect(statusWord("frozen")).toBe("Unknown");
   });
 });
