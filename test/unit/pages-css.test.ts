@@ -339,3 +339,10 @@ describe("the amendment page", () => {
     expect(Number.parseFloat(rule(pagesCss, ".amendment__validator")["min-height"]!)).toBeGreaterThanOrEqual(24);
   });
 });
+
+describe("the AMM pool page", () => {
+  it("underlines the links inside a sentence, the state card's ledger and the deleted pool's last ledger: their colour alone would not tell them from the words around them (axe: link-in-text-block)", () => {
+    const prose = rule(pagesCss, ".amm-pool__caption a,\n.amm-pool > .notice a");
+    expect(prose["text-decoration"]).toBe("underline");
+  });
+});

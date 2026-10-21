@@ -3644,6 +3644,15 @@ a.markets__pair:hover .markets__name {
   font-size: 12px;
 }
 
+/* The links inside a sentence: the state card's ledger ("Live from the network at ledger #N") and, in the deleted pool's banner, the last ledger that
+   touched it. They are told from the words around them by more than their colour (WCAG 1.4.1, axe's link-in-text-block: the link's colour alone is
+   too close to the text's). */
+.amm-pool__caption a,
+.amm-pool > .notice a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .amm-pool__filters {
   display: flex;
   flex-direction: column;
