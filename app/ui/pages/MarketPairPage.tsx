@@ -11,6 +11,7 @@ import { Breadcrumbs } from "../components/Breadcrumbs";
 import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
 import { TriangleDownIcon, TriangleUpIcon } from "../components/icons";
+import { LinkedText } from "../components/LinkedText";
 import { LiveRow } from "../components/LiveRow";
 import { LiveValue } from "../components/LiveValue";
 import { Pager } from "../components/Pager";
@@ -338,10 +339,6 @@ function LivePair({ network, data, live }: { network: NetworkInfo; data: LivePai
 /** The page behind a marker (spec 3.11): old trades, with no live row, no price, chart or book, and a note that leads to the market's page. */
 function OlderPair({ network, data }: { network: NetworkInfo; data: OlderPairData }) {
   const { head, note } = data;
-  // The link is the part of the note's text that names the market's page; a note that does not hold it has it after its text.
-  const at = note.text.indexOf(note.link);
-  const before = at < 0 ? `${note.text} ` : note.text.slice(0, at);
-  const after = at < 0 ? "" : note.text.slice(at + note.link.length);
   return (
     <div className="pair">
       <div className="pair__top">
@@ -351,9 +348,8 @@ function OlderPair({ network, data }: { network: NetworkInfo; data: OlderPairDat
         <Title head={head} invert={false} />
       </section>
       <p className="pair__older">
-        {before}
-        <Link to={note.href}>{note.link}</Link>
-        {after}
+        {/* The link is the part of the note's text that names the market's page. */}
+        <LinkedText text={note.text} link={{ text: note.link, href: note.href }} />
       </p>
       <TradesCard net={network.id} head={head} trades={data.trades} via={data.ammParts} live={false} />
     </div>

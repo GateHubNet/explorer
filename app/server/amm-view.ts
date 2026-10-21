@@ -898,8 +898,10 @@ export function daySeries(input: DaySeriesInput): DaySeries {
   return seriesOf(input).series;
 }
 
-/** A chart card: its title, source line, chart and notes, or what could not be loaded. */
-export type ChartPart<T> = { state: "ok"; title: string; source: string; data: T; notes: string[] } | { state: "failed"; title: string; what: string };
+/** A chart card: its title, source line, chart and notes; or, failed, its title and source line (as a failed card shows them) and what could not be loaded. */
+export type ChartPart<T> =
+  | { state: "ok"; title: string; source: string; data: T; notes: string[] }
+  | { state: "failed"; title: string; source: string; what: string };
 
 /** The five chart cards of the pool page, in pairs on the page: value and volume, price and fee, then the reserves. */
 export interface PoolCharts {
@@ -916,6 +918,13 @@ const RESERVES_NOTE = "Each asset on its own scale.";
 const FEES_FAILED_NOTE = "The fee estimates couldn't be loaded.";
 /** The titles of the cards where there is no window, and so no period and no pair, to name (#3 failed). */
 const BARE_TITLES = { value: "Pool value", volume: "Swap volume", price: "Pool price", fee: "Trading fee", reserves: "Reserves" } as const;
+/**
+ * The source lines of the cards there: what they ask in general, as the activity's tab source line names `{pool}`. Without a window there is no interval to name,
+ * and `poolCharts` is given no pool; the page draws one error in place of the five cards then.
+ */
+const BARE_SOURCES = { history: "/v2/amm/pools/{pool}/history?interval=day", volume: "/v2/exchanges/{base}/{counter}?amm=only" } as const;
+/** The source line of the volume card: the pair's AMM candles, daily, or weekly for a year. */
+const volumeSource = (unit: PeriodWindow["unit"]): string => `${BARE_SOURCES.volume}&interval=${unit === "week" ? "7day" : "1day"}`;
 
 /**
  * The five chart cards of the pool page (spec 3.5 and 3.6), from the day series. Each card stands or fails on its own: without the day rows (#4 or #5) the four
@@ -924,13 +933,13 @@ const BARE_TITLES = { value: "Pool value", volume: "Swap volume", price: "Pool p
  */
 export function poolCharts(input: DaySeriesInput | null): PoolCharts {
   if (input === null) {
-    const failed = (title: string) => ({ state: "failed" as const, title, what: "the charts" });
+    const failed = (title: string, source: string) => ({ state: "failed" as const, title, source, what: "the charts" });
     return {
-      value: failed(BARE_TITLES.value),
-      volume: failed(BARE_TITLES.volume),
-      price: failed(BARE_TITLES.price),
-      fee: failed(BARE_TITLES.fee),
-      reserves: failed(BARE_TITLES.reserves),
+      value: failed(BARE_TITLES.value, BARE_SOURCES.history),
+      volume: failed(BARE_TITLES.volume, BARE_SOURCES.volume),
+      price: failed(BARE_TITLES.price, BARE_SOURCES.history),
+      fee: failed(BARE_TITLES.fee, BARE_SOURCES.history),
+      reserves: failed(BARE_TITLES.reserves, BARE_SOURCES.history),
     };
   }
 
@@ -953,11 +962,11 @@ export function poolCharts(input: DaySeriesInput | null): PoolCharts {
   // The volume: the candles' own figures, which need no note of the days not computed; its fee estimates read the day rows, and do.
   const volume: PoolCharts["volume"] =
     candles === null
-      ? { state: "failed", title: titles.volume, what: "the swap volume" }
+      ? { state: "failed", title: titles.volume, source: volumeSource(window.unit), what: "the swap volume" }
       : {
           state: "ok",
           title: titles.volume,
-          source: `/v2/exchanges/{base}/{counter}?amm=only&interval=${window.unit === "week" ? "7day" : "1day"}`,
+          source: volumeSource(window.unit),
           data: tokened<Omit<TimeSeriesData, "token">>({
             axis,
             series: line("volume", "Swap volume", series.volume),
@@ -981,11 +990,11 @@ export function poolCharts(input: DaySeriesInput | null): PoolCharts {
 
   if (days === null) {
     return {
-      value: { state: "failed", title: titles.value, what: "the pool value" },
+      value: { state: "failed", title: titles.value, source: historySource, what: "the pool value" },
       volume,
-      price: { state: "failed", title: titles.price, what: "the pool price" },
-      fee: { state: "failed", title: titles.fee, what: "the trading fee" },
-      reserves: { state: "failed", title: titles.reserves, what: "the reserves" },
+      price: { state: "failed", title: titles.price, source: historySource, what: "the pool price" },
+      fee: { state: "failed", title: titles.fee, source: historySource, what: "the trading fee" },
+      reserves: { state: "failed", title: titles.reserves, source: historySource, what: "the reserves" },
     };
   }
 
@@ -1129,7 +1138,7 @@ export function poolQueries(window: PeriodWindow, T: string): PoolQueries {
 /** What the tags of a pool page say of it (Task 13's `ammPoolMeta`), each fact left out where the page does not have it. */
 export interface AmmPoolFacts {
   pool: string;
-  net: string;
+  net: Network["id"];
   native: string;
   /** `XRP/RLUSD`: the display pair as a slug. */
   pair: string;
@@ -1254,9 +1263,13 @@ export type AmmStat =
   | { id: "value" | "price" | "fee" | "lp" | "volume" | "fees"; label: string; value: string; sub: string }
   | { id: "reserves"; label: string; reserves: [string, string] };
 
-/** The auction slot card. `held` is `null` for an open slot; from the index (the node down), it has no interval, cost or authorized accounts. */
+/**
+ * The auction slot card. `held` is `null` for an open slot and for an index's slot whose state cannot be told; `open` says which (a status, which the page draws
+ * with its icon). From the index (the node down), a held slot has no interval, cost or authorized accounts.
+ */
 export interface AmmSlotView {
   state: "ok";
+  open: boolean;
   held: { holder: AccountRef; fee: string | null; pricePaid: string | null; authorized: AccountRef[] | null } | null;
   /** "until Oct 18, 2026, 09:00 UTC", and the moment (unix seconds) of E6's `Countdown`; `null` for an open slot, or an expiration that is not known. */
   until: string | null;
@@ -1515,12 +1528,13 @@ function nodeSlot(net: string, info: AmmInfo): AmmSlotView {
   const held = interval === null || slot === undefined || slot.account === undefined ? null : { slot, account: slot.account, interval };
   const cost = nextBidPrice(info.lp_token.value, info.trading_fee, held === null ? null : { price: held.slot.price.value, interval: held.interval });
   const costText = cost === "0" ? "" : ` A new bid now costs at least ${formatAmount(cost)} LP tokens.`;
-  if (held === null) return { state: "ok", held: null, until: null, countdownAt: null, meter: null, text: `${OPEN_SLOT}${costText}` };
+  if (held === null) return { state: "ok", open: true, held: null, until: null, countdownAt: null, meter: null, text: `${OPEN_SLOT}${costText}` };
 
   const label = `${intervalText(held.interval)} ${SLOT_SPAN}`;
   const paid = exactAmount(held.slot.price.value);
   return {
     state: "ok",
+    open: false,
     held: {
       holder: accountRef(net, held.account),
       fee: feePercent(held.slot.discounted_fee),
@@ -1542,14 +1556,15 @@ function nodeSlot(net: string, info: AmmInfo): AmmSlotView {
 function indexSlot(net: string, index: AmmPool, now: number | null): AmmSlotView {
   const nothing = { state: "ok", held: null, until: null, countdownAt: null, meter: null } as const;
   const slot = index.auction_slot;
-  if (slot?.holder === undefined) return { ...nothing, text: OPEN_SLOT };
+  if (slot?.holder === undefined) return { ...nothing, open: true, text: OPEN_SLOT };
   const expires = slot.expiration === undefined ? Number.NaN : unixOf(slot.expiration);
   const known = !Number.isNaN(expires);
-  if (known && now === null) return { ...nothing, text: DASH };
-  if (known && now !== null && expires <= now) return { ...nothing, text: OPEN_SLOT };
+  if (known && now === null) return { ...nothing, open: false, text: DASH };
+  if (known && now !== null && expires <= now) return { ...nothing, open: true, text: OPEN_SLOT };
   const paid = exactAmount(slot.price);
   return {
     state: "ok",
+    open: false,
     held: {
       holder: accountRef(net, slot.holder),
       fee: slot.discounted_fee === undefined ? null : feePercent(slot.discounted_fee),

@@ -11,6 +11,7 @@ import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
 import { AlertIcon, SearchIcon } from "../components/icons";
 import { Pager } from "../components/Pager";
+import { PairCoins } from "../components/PairCoins";
 import { SectionError } from "../components/SectionError";
 import { StatGrid, StatTile } from "../components/StatTile";
 import { DeletedIcon, OpenIcon } from "../components/status-icons";
@@ -22,9 +23,6 @@ const DASH = "—";
 /** The list is ordered by value, not by time: its pager's words (spec 2.1). */
 const PAGER_LABELS = { newer: "Previous", older: "More pools" } as const;
 
-/** The first three characters of a currency's display code, in a coin (decorative: the pair says it in full). */
-const coinText = (code: string) => [...code].slice(0, 3).join("");
-
 // ---------------------------------------------------------------------------------------------------------------------------
 // The cells
 
@@ -32,10 +30,7 @@ const coinText = (code: string) => [...code].slice(0, 3).join("");
 function PoolCell({ row }: { row: AmmRowView }) {
   return (
     <span className="amm__pool">
-      <span className="amm__coins" aria-hidden="true">
-        <span className="amm__coin">{coinText(row.coins[0])}</span>
-        <span className="amm__coin">{coinText(row.coins[1])}</span>
-      </span>
+      <PairCoins codes={row.coins} />
       <span className="amm__names">
         <Link to={row.href} className="amm__pair">
           {row.pair}

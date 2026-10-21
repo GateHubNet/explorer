@@ -2195,10 +2195,12 @@ describe("poolCharts: what failed", () => {
   it("fails the four cards of the day rows without them, and draws the volume without its fee estimates, unmasked, and says so", () => {
     const input = chartInput({ days: null });
     const charts = poolCharts(input);
-    expect(charts.value).toEqual({ state: "failed", title: "Pool value, in XRP", what: "the pool value" });
-    expect(charts.price).toEqual({ state: "failed", title: "Pool price, RLUSD per XRP", what: "the pool price" });
-    expect(charts.fee).toEqual({ state: "failed", title: "Trading fee", what: "the trading fee" });
-    expect(charts.reserves).toEqual({ state: "failed", title: "Reserves", what: "the reserves" });
+    // A failed card keeps its title and its source line, as a failed card shows them.
+    const source = `/v2/amm/pools/${shortAddress(AMM_POOL)}/history?interval=day`;
+    expect(charts.value).toEqual({ state: "failed", title: "Pool value, in XRP", source, what: "the pool value" });
+    expect(charts.price).toEqual({ state: "failed", title: "Pool price, RLUSD per XRP", source, what: "the pool price" });
+    expect(charts.fee).toEqual({ state: "failed", title: "Trading fee", source, what: "the trading fee" });
+    expect(charts.reserves).toEqual({ state: "failed", title: "Reserves", source, what: "the reserves" });
     const volume = drawn(charts.volume);
     expect(volume.data.extras!.map((extra) => extra.id)).toEqual(["swaps"]);
     expect(volume.data.series[0]!.values.every((value) => value !== null)).toBe(true);
@@ -2207,18 +2209,21 @@ describe("poolCharts: what failed", () => {
 
   it("fails the volume card alone without the candles", () => {
     const charts = poolCharts(chartInput({ candles: null }));
-    expect(charts.volume).toEqual({ state: "failed", title: "Swap volume per day, in XRP", what: "the swap volume" });
+    expect(charts.volume).toEqual({ state: "failed", title: "Swap volume per day, in XRP", source: "/v2/exchanges/{base}/{counter}?amm=only&interval=1day", what: "the swap volume" });
+    // A year's candles are weekly, and so is the failed card's source line.
+    expect(poolCharts(chartInput({ window: W1Y, candles: null })).volume).toMatchObject({ state: "failed", source: "/v2/exchanges/{base}/{counter}?amm=only&interval=7day" });
     for (const part of [charts.value, charts.price, charts.fee, charts.reserves]) expect(part.state, part.title).toBe("ok");
   });
 
   it("fails all five cards without a window (#3 failed): the charts", () => {
     const charts = poolCharts(null);
     expect(charts).toEqual({
-      value: { state: "failed", title: "Pool value", what: "the charts" },
-      volume: { state: "failed", title: "Swap volume", what: "the charts" },
-      price: { state: "failed", title: "Pool price", what: "the charts" },
-      fee: { state: "failed", title: "Trading fee", what: "the charts" },
-      reserves: { state: "failed", title: "Reserves", what: "the charts" },
+      // No window, so no interval, and no pool is given: the source lines' general forms (the page draws one error in place of the five cards).
+      value: { state: "failed", title: "Pool value", source: "/v2/amm/pools/{pool}/history?interval=day", what: "the charts" },
+      volume: { state: "failed", title: "Swap volume", source: "/v2/exchanges/{base}/{counter}?amm=only", what: "the charts" },
+      price: { state: "failed", title: "Pool price", source: "/v2/amm/pools/{pool}/history?interval=day", what: "the charts" },
+      fee: { state: "failed", title: "Trading fee", source: "/v2/amm/pools/{pool}/history?interval=day", what: "the charts" },
+      reserves: { state: "failed", title: "Reserves", source: "/v2/amm/pools/{pool}/history?interval=day", what: "the charts" },
     });
   });
 });
@@ -2813,6 +2818,7 @@ describe("ammPoolPage: the modes (spec 3.3)", () => {
     it("draws the slot from the index's auction_slot, without its interval, its cost or its authorized accounts", () => {
       expect(page.slot).toEqual({
         state: "ok",
+        open: false,
         held: { holder: { address: AMM_HOLDER, href: `/xrpl/account/${AMM_HOLDER}` }, fee: "0.050%", pricePaid: "12.5 LP tokens", authorized: null },
         until: "until Oct 18, 2026, 09:00 UTC",
         countdownAt: EXPIRATION,
@@ -2822,21 +2828,22 @@ describe("ammPoolPage: the modes (spec 3.3)", () => {
     });
 
     it("reads the index's slot as open without a holder, or past its expiration at the newest ledger", () => {
-      expect(slotOfPage(ammPoolPage({ ...input, index: indexPool({ auction_slot: { price: "1" } }) }).page)).toMatchObject({ held: null, text: "The slot is open.", until: null });
+      expect(slotOfPage(ammPoolPage({ ...input, index: indexPool({ auction_slot: { price: "1" } }) }).page)).toMatchObject({ open: true, held: null, text: "The slot is open.", until: null });
       const expired = indexPool({ auction_slot: { holder: AMM_HOLDER, price: "1", discounted_fee: 50, expiration: "2026-10-17T09:00:00Z" } });
-      expect(slotOfPage(ammPoolPage({ ...input, index: expired }).page)).toMatchObject({ held: null, text: "The slot is open." });
+      expect(slotOfPage(ammPoolPage({ ...input, index: expired }).page)).toMatchObject({ open: true, held: null, text: "The slot is open." });
     });
 
     it("cannot tell the index's held slot from an expired one without the newest ledger: a dash, as the list's slot cell", () => {
       const blind = { ...input, last: rejected(serverError()), days: null, carryIn: null, lastDay: null, candles: null };
       const expired = indexPool({ auction_slot: { holder: AMM_HOLDER, price: "1", discounted_fee: 50, expiration: "2026-10-17T09:00:00Z" } });
       for (const index of [expired, indexPool()]) {
-        expect(ammPoolPage({ ...blind, index }).page.slot).toEqual({ state: "ok", held: null, until: null, countdownAt: null, meter: null, text: "—" });
+        // Neither held nor open: a dash, which is no status.
+        expect(ammPoolPage({ ...blind, index }).page.slot).toEqual({ state: "ok", open: false, held: null, until: null, countdownAt: null, meter: null, text: "—" });
       }
       // Without a holder it is open, and without an expiration it is held as the index has it, whatever the newest ledger.
-      expect(slotOfPage(ammPoolPage({ ...blind, index: indexPool({ auction_slot: { price: "1" } }) }).page).text).toBe("The slot is open.");
+      expect(slotOfPage(ammPoolPage({ ...blind, index: indexPool({ auction_slot: { price: "1" } }) }).page)).toMatchObject({ open: true, text: "The slot is open." });
       const undated = ammPoolPage({ ...blind, index: indexPool({ auction_slot: { holder: AMM_HOLDER, price: "1" } }) }).page;
-      expect(slotOfPage(undated)).toMatchObject({ held: { holder: { address: AMM_HOLDER } }, until: null, countdownAt: null, text: null });
+      expect(slotOfPage(undated)).toMatchObject({ open: false, held: { holder: { address: AMM_HOLDER } }, until: null, countdownAt: null, text: null });
     });
 
     it("fails the fee votes", () => {
@@ -3005,6 +3012,7 @@ describe("ammPoolPage: the auction slot", () => {
     expect(slot.until).toBe("until Oct 18, 2026, 09:00 UTC");
     expect(slot.countdownAt).toBe(EXPIRATION);
     expect(slot.held).toEqual({ holder: { address: AMM_HOLDER, href: `/xrpl/account/${AMM_HOLDER}` }, fee: "0.022%", pricePaid: "100 LP tokens", authorized: [] });
+    expect(slot.open).toBe(false);
   });
 
   it("links the accounts the holder authorized", () => {
@@ -3019,7 +3027,7 @@ describe("ammPoolPage: the auction slot", () => {
     for (const auction_slot of [heldSlot({ time_interval: 20 }), heldSlot({ account: undefined }), undefined]) {
       const info = leaving(poolInfo({ auction_slot }), ...(auction_slot === undefined ? (["auction_slot"] as const) : []));
       const slot = slotOfPage(poolPage({ node: fulfilled(info) }));
-      expect(slot).toEqual({ state: "ok", held: null, until: null, countdownAt: null, meter: null, text: `The slot is open. A new bid now costs at least ${cost(info, null)} LP tokens.` });
+      expect(slot).toEqual({ state: "ok", open: true, held: null, until: null, countdownAt: null, meter: null, text: `The slot is open. A new bid now costs at least ${cost(info, null)} LP tokens.` });
     }
   });
 

@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
-import { shortAddress } from "../../domain/format";
 import type {
-  AccountRef,
   AmmActivity,
   AmmHistoryPageData,
   AmmNotice,
@@ -26,14 +24,17 @@ import { Meter } from "../charts/Meter";
 import { SmallMultiples } from "../charts/SmallMultiples";
 import type { SmallMultiplesData, TimeSeriesData } from "../charts/types";
 import { cx } from "../cx";
+import { AccountLink } from "../components/AccountLink";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { Card } from "../components/Card";
 import { CopyButton } from "../components/CopyButton";
 import { Countdown } from "../components/Countdown";
 import { DataTable, type Column } from "../components/DataTable";
+import { LinkedText } from "../components/LinkedText";
 import { LiveStateNotice } from "../components/LiveStateNotice";
 import { Notice } from "../components/Notice";
 import { Pager } from "../components/Pager";
+import { PairCoins } from "../components/PairCoins";
 import { SectionError } from "../components/SectionError";
 import { SegmentedLinks } from "../components/SegmentedLinks";
 import { StatTile } from "../components/StatTile";
@@ -43,46 +44,8 @@ import { When } from "../components/WhenCell";
 import type { NetworkInfo } from "../networks";
 import { useRetry } from "../use-retry";
 
-/** An index's slot whose state cannot be told (no newest ledger to compare its expiration with): the view builder's dash. */
-const DASH = "—";
-
-/** What the one error of the charts says when all five failed for reasons of their own (the view builder's word when #3 failed). */
-const ALL_CHARTS = "the charts";
-
-/** The first three characters of a currency's display code, in a coin (decorative: the heading says the pair in full), as the list's coins. */
-const coinText = (code: string) => [...code].slice(0, 3).join("");
-
 type Net = NetworkInfo["id"];
 type Retry = { onRetry: () => void; retrying: boolean };
-
-// ---------------------------------------------------------------------------------------------------------------------------
-// The words with links
-
-/** A text with a link in it (the view builder's `Linked`, a notice's link): the part that is `link.text` is the link; a text without it has the link after it. */
-function LinkedText({ text, link, className }: { text: string; link: { text: string; href: string }; className?: string }) {
-  const at = text.lastIndexOf(link.text);
-  const before = at < 0 ? `${text} ` : text.slice(0, at);
-  const after = at < 0 ? "" : text.slice(at + link.text.length);
-  return (
-    <>
-      {before}
-      <Link to={link.href} className={className}>
-        {link.text}
-      </Link>
-      {after}
-    </>
-  );
-}
-
-/** An account of the data (`AccountRef`), short, the whole address on hover, a link to the page the view builder gives it. */
-function AccountRefLink({ account }: { account: AccountRef }) {
-  const label = shortAddress(account.address);
-  return (
-    <Link to={account.href} className="mono" title={label === account.address ? undefined : account.address}>
-      {label}
-    </Link>
-  );
-}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The pool card and the notices
@@ -91,19 +54,13 @@ function AccountRefLink({ account }: { account: AccountRef }) {
  * The pool card (spec 3.1): the coins, the `<h1>`, "Market →" (E3's market page, or the header's "soon" style while the markets pages are off), the pool
  * account in full with a copy button, each issuer in full, and on the first page the Created and LP token lines.
  */
-function PoolCard({ head }: { head: AmmPoolHead | AmmPoolHeader }) {
+function PoolCard({ net, head }: { net: Net; head: AmmPoolHead | AmmPoolHeader }) {
   const created = "created" in head ? head.created : null;
   const lpToken = "lpToken" in head ? head.lpToken : null;
   return (
     <section className="card amm-pool__card" aria-label="Pool">
       <div className="amm-pool__name">
-        <span className="amm__coins amm-pool__coins" aria-hidden="true">
-          {head.coins.map((code, at) => (
-            <span key={at} className="amm__coin">
-              {coinText(code)}
-            </span>
-          ))}
-        </span>
+        <PairCoins codes={head.coins} className="amm-pool__coins" />
         <h1 className="amm-pool__title">{head.title}</h1>
         {head.market !== null ? (
           <Link to={head.market} className="amm-pool__market">
@@ -118,10 +75,7 @@ function PoolCard({ head }: { head: AmmPoolHead | AmmPoolHeader }) {
       </div>
       <div className="amm-pool__facts">
         <span className="amm-pool__fact">
-          Pool account{" "}
-          <Link to={head.account.href} className="mono">
-            {head.account.address}
-          </Link>
+          Pool account <AccountLink net={net} address={head.account.address} full />
           <CopyButton value={head.account.address} label="pool account" />
         </span>
         {head.issuers.map((line, at) => (
@@ -135,7 +89,7 @@ function PoolCard({ head }: { head: AmmPoolHead | AmmPoolHeader }) {
             <Link to={created.href} className="num">
               {created.date}
             </Link>{" "}
-            by <AccountRefLink account={created.by} />
+            by <AccountLink net={net} address={created.by.address} />
           </span>
         )}
         {lpToken !== null && (
@@ -237,24 +191,23 @@ function Filters({ filters }: { filters: AmmPoolPageData["filters"] }) {
 // The charts
 
 /**
- * A chart card of the pool (spec 3.5): its title, source line, the Chart/Table toggle, the chart, its table and its notes; or its title, a source line and its
- * `SectionError`. A failed part carries no source line of its own: the card has the one it is given (`failedSource`).
+ * A chart card of the pool (spec 3.5): its title, source line, the Chart/Table toggle, the chart, its table and its notes; or, failed, its title and source
+ * line (the view builder's, as for a card with its data) and its `SectionError`.
  */
 function PoolChartCard<T extends TimeSeriesData | SmallMultiplesData>({
   id,
   part,
-  failedSource,
   className,
   onRetry,
   retrying,
   children,
-}: Retry & { id: string; part: ChartPart<T>; failedSource: string; className?: string; children: (title: string, data: T) => ReactNode }) {
+}: Retry & { id: string; part: ChartPart<T>; className?: string; children: (title: string, data: T) => ReactNode }) {
   const ok = part.state === "ok" ? part : null;
   return (
     <ChartCard
       id={id}
       title={part.title}
-      source={ok ? ok.source : failedSource}
+      source={part.source}
       // What a failed card says it could not load; a card with its data says nothing of it.
       what={part.state === "failed" ? part.what : ""}
       state={part.state}
@@ -271,35 +224,35 @@ function PoolChartCard<T extends TimeSeriesData | SmallMultiplesData>({
 
 /**
  * The five charts, in the board's pairs: Pool value · Swap volume, Pool price · Trading fee, and Reserves the width of the page. Each card stands or fails on
- * its own; when all five failed (the newest ledger could not be read, so there is no window) they are one `SectionError`, with one Retry.
+ * its own. When all five failed for one reason, which the view builder says by giving all five the same `what` (the newest ledger could not be read, so there
+ * is no window: "the charts", spec 3.6), they are one `SectionError`, with one Retry; failures of their own (the day rows and the candles) stay five cards.
  */
-function Charts({ charts, source, onRetry, retrying }: Retry & { charts: PoolCharts; source: string }) {
+function Charts({ charts, onRetry, retrying }: Retry & { charts: PoolCharts }) {
   const parts = [charts.value, charts.volume, charts.price, charts.fee, charts.reserves];
-  const failed = parts.flatMap((part) => (part.state === "failed" ? [part.what] : []));
-  if (failed.length === parts.length) {
-    const what = failed.every((one) => one === failed[0]) ? failed[0]! : ALL_CHARTS;
-    return <SectionError what={what} onRetry={onRetry} retrying={retrying} />;
+  const [first] = parts;
+  if (first?.state === "failed" && parts.every((part) => part.state === "failed" && part.what === first.what)) {
+    return <SectionError what={first.what} onRetry={onRetry} retrying={retrying} />;
   }
   const retry = { onRetry, retrying };
   return (
     <>
       <div className="amm-pool__pair">
-        <PoolChartCard id="pool-value" part={charts.value} failedSource={source} className="amm-pool__half" {...retry}>
+        <PoolChartCard id="pool-value" part={charts.value} className="amm-pool__half" {...retry}>
           {(title, data) => <LineChart title={title} data={data} area />}
         </PoolChartCard>
-        <PoolChartCard id="pool-volume" part={charts.volume} failedSource="" className="amm-pool__half" {...retry}>
+        <PoolChartCard id="pool-volume" part={charts.volume} className="amm-pool__half" {...retry}>
           {(title, data) => <ColumnChart layout="single" title={title} data={data} />}
         </PoolChartCard>
       </div>
       <div className="amm-pool__pair">
-        <PoolChartCard id="pool-price" part={charts.price} failedSource={source} className="amm-pool__half" {...retry}>
+        <PoolChartCard id="pool-price" part={charts.price} className="amm-pool__half" {...retry}>
           {(title, data) => <LineChart title={title} data={data} />}
         </PoolChartCard>
-        <PoolChartCard id="pool-fee" part={charts.fee} failedSource={source} className="amm-pool__half" {...retry}>
+        <PoolChartCard id="pool-fee" part={charts.fee} className="amm-pool__half" {...retry}>
           {(title, data) => <LineChart title={title} data={data} curve="step" />}
         </PoolChartCard>
       </div>
-      <PoolChartCard id="pool-reserves" part={charts.reserves} failedSource={source} {...retry}>
+      <PoolChartCard id="pool-reserves" part={charts.reserves} {...retry}>
         {(title, data) => <SmallMultiples title={title} data={data} />}
       </PoolChartCard>
     </>
@@ -321,11 +274,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 /**
  * The auction slot (spec 3.1): until when it is held, in UTC, then E6's countdown in the browser (the stored page prints no age: the server's text is
  * empty); the holder and what the data has of the slot; the kit's `Meter` of the interval and the sentence that says it and the cost of a new bid. An open
- * slot is "The slot is open.", a status with its icon.
+ * slot (`open`, the view builder's) is "The slot is open.", a status with its icon; a slot whose state cannot be told is the builder's dash, with none.
  */
-function SlotCard({ slot }: { slot: AmmSlotView }) {
-  const { held } = slot;
-  const open = held === null && slot.text !== null && slot.text !== DASH;
+function SlotCard({ net, slot }: { net: Net; slot: AmmSlotView }) {
+  const { held, open } = slot;
   return (
     <Card
       title="Auction slot"
@@ -343,7 +295,7 @@ function SlotCard({ slot }: { slot: AmmSlotView }) {
         {held !== null && (
           <dl className="amm-pool__fields">
             <Field label="Holder">
-              <AccountRefLink account={held.holder} />
+              <AccountLink net={net} address={held.holder.address} />
             </Field>
             {held.fee !== null && (
               <Field label="Their trading fee">
@@ -362,7 +314,7 @@ function SlotCard({ slot }: { slot: AmmSlotView }) {
                   : held.authorized.map((account, at) => (
                       <span key={account.address}>
                         {at > 0 && ", "}
-                        <AccountRefLink account={account} />
+                        <AccountLink net={net} address={account.address} />
                       </span>
                     ))}
               </Field>
@@ -440,7 +392,7 @@ function swapColumns(net: Net, codes: [string, string]): Column<SwapRow>[] {
     { id: "into", header: "Into the pool", width: "minmax(130px, 1fr)", align: "end", cell: (row) => <span className="amt num">{row.into}</span> },
     { id: "out", header: "Out of the pool", width: "minmax(130px, 1fr)", align: "end", cell: (row) => <span className="amt num">{row.out}</span> },
     { id: "price", header: `Price (${codes[1]} per ${codes[0]})`, width: "minmax(130px, 1fr)", align: "end", cell: (row) => <span className="mono num">{row.price}</span> },
-    { id: "taker", header: "Taker", width: "130px", cell: (row) => <AccountRefLink account={row.taker} /> },
+    { id: "taker", header: "Taker", width: "130px", cell: (row) => <AccountLink net={net} address={row.taker.address} /> },
   ];
 }
 const SWAPS_WIDTH = 120 + 120 + 3 * 130 + 130 + 5 * 16 + 2 * 16;
@@ -459,11 +411,11 @@ function liquidityColumns(net: Net, codes: [string, string]): Column<LiquidityRo
       width: "minmax(140px, 1fr)",
       cell: (row) => (
         <span>
-          <AccountRefLink account={row.provider} />
+          <AccountLink net={net} address={row.provider.address} />
           {row.by !== null && (
             <span className="faint">
               {" "}
-              by <AccountRefLink account={row.by} />
+              by <AccountLink net={net} address={row.by.address} />
             </span>
           )}
         </span>
@@ -477,7 +429,7 @@ function governanceColumns(net: Net): Column<GovernanceRow>[] {
   return [
     { id: "time", header: "Time (UTC)", width: "120px", cell: (row) => <When net={net} hash={row.hash} time={row.time} /> },
     { id: "kind", header: "Kind", width: "70px", cell: (row) => <span className="tag">{row.kind}</span> },
-    { id: "account", header: "Account", width: "130px", cell: (row) => <AccountRefLink account={row.account} /> },
+    { id: "account", header: "Account", width: "130px", cell: (row) => <AccountLink net={net} address={row.account.address} /> },
     { id: "what", header: "What happened", width: "minmax(260px, 2fr)", cell: (row) => <span className="muted">{row.what}</span> },
     { id: "fee", header: "Fee after", width: "100px", align: "end", cell: (row) => <span className="mono num">{row.feeAfter}</span> },
   ];
@@ -558,12 +510,11 @@ function Activity({ net, activity, onRetry, retrying }: Retry & { net: Net; acti
  */
 export function AmmPoolPage({ data }: { data: AmmPoolPageData | AmmHistoryPageData }) {
   const { retry, retrying } = useRetry();
-  // `meta.net` is the network's id (the view builder writes `net.id`).
-  const net = data.meta.net as Net;
+  const net = data.meta.net;
   return (
     <div className="amm amm-pool">
       <Breadcrumbs items={data.crumbs} />
-      <PoolCard head={data.header} />
+      <PoolCard net={net} head={data.header} />
       {data.kind === "history" ? (
         <p className="amm-pool__back">
           <Link to={data.backHref}>Back to the pool</Link>
@@ -573,10 +524,10 @@ export function AmmPoolPage({ data }: { data: AmmPoolPageData | AmmHistoryPageDa
           <Notices notices={data.notices} />
           {data.state !== null && <StateCard state={data.state} />}
           <Filters filters={data.filters} />
-          <Charts charts={data.charts} source={data.filters.source} onRetry={retry} retrying={retrying} />
+          <Charts charts={data.charts} onRetry={retry} retrying={retrying} />
           {(data.slot !== null || data.votes !== null) && (
             <div className="amm-pool__pair">
-              {data.slot !== null && <SlotCard slot={data.slot} />}
+              {data.slot !== null && <SlotCard net={net} slot={data.slot} />}
               {data.votes !== null && <VotesCard votes={data.votes} onRetry={retry} retrying={retrying} />}
             </div>
           )}

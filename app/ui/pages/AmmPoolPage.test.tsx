@@ -370,6 +370,7 @@ describe("AmmPoolPage: the notices of the modes (spec 3.3)", () => {
     const [notice] = notices(container);
     expect(notice!.classList.contains("notice--info")).toBe(true);
     expect(notice!.textContent).toBe("Not in the index yet, shown from the network. Its history appears once the index has it.");
+    expect(notice!.querySelector(".notice__icon svg")!.getAttribute("aria-hidden")).toBe("true");
     expect(within(region("Pool state")).getByText(/Live from the network/)).toBeTruthy();
   });
 
@@ -486,10 +487,23 @@ describe("AmmPoolPage: the charts", () => {
     expect(within(volume).getByText("The fee estimates couldn't be loaded.")).toBeTruthy();
   });
 
-  it("fails the volume card alone without the candles", () => {
+  it("fails the volume card alone without the candles, keeping its own source line", () => {
     mount(build({ candles: rejected(serverError()) }));
-    expect(within(region("Swap volume per day, in XRP")).getByRole("alert").textContent).toContain("Couldn’t load the swap volume.");
+    const volume = region("Swap volume per day, in XRP");
+    expect(within(volume).getByRole("alert").textContent).toContain("Couldn’t load the swap volume.");
+    expect(within(volume).getByText("/v2/exchanges/{base}/{counter}?amm=only&interval=1day")).toBeTruthy();
     expect(within(region("Pool value, in XRP")).queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps five cards, each with its own error and source line, when all five failed for reasons of their own (#4 and #6)", () => {
+    mount(build({ days: rejected(serverError()), candles: rejected(serverError()) }));
+    const whats = ["the pool value", "the swap volume", "the pool price", "the trading fee", "the reserves"];
+    CHART_TITLES.forEach((title, at) => {
+      const card = region(title);
+      expect(within(card).getByRole("alert").textContent).toContain(`Couldn’t load ${whats[at]}.`);
+      expect(card.querySelector(".chart__source")!.textContent).not.toBe("");
+    });
+    expect(screen.queryByText(/Couldn’t load the charts/)).toBeNull();
   });
 
   it("says 'Couldn't load the charts.' once for all five when the newest ledger could not be read, with one Retry", async () => {
@@ -567,6 +581,22 @@ describe("AmmPoolPage: the auction slot", () => {
     expect(card.querySelector(".amm-pool__field")).toBeNull();
     expect(within(card).queryByRole("img")).toBeNull();
     expect(card.querySelector("time")).toBeNull();
+  });
+
+  it("draws the index's slot without a holder, while the node is down, as open: the status with its icon", () => {
+    mount(build({ mode: "node-down", node: rejected(serverError()), index: indexPool({ auction_slot: { price: "1" } }) }));
+    const text = region("Auction slot").querySelector(".amm-pool__slot-text")!;
+    expect(text.textContent).toBe("The slot is open.");
+    expect(text.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("draws the index's held slot as a dash with no icon when the newest ledger could not be read, so it cannot be told from an expired one", () => {
+    mount(build({ mode: "node-down", node: rejected(serverError()), last: rejected(serverError()), days: null, carryIn: null, lastDay: null, candles: null }));
+    const card = region("Auction slot");
+    const text = card.querySelector(".amm-pool__slot-text")!;
+    expect(text.textContent).toBe("—");
+    expect(text.querySelector("svg")).toBeNull();
+    expect(card.querySelector(".amm-pool__field")).toBeNull();
   });
 
   it("reads the index's slot while the node is down: the holder, fee, price and time, without the interval or the authorized accounts", () => {
@@ -758,6 +788,18 @@ describe("AmmPoolPage behind a marker", () => {
     for (const name of ["Pool state", "Auction slot", "Fee votes", ...CHART_TITLES]) expect(screen.queryByRole("region", { name })).toBeNull();
     expect(screen.queryByRole("group", { name: "Period" })).toBeNull();
     expect(document.querySelector(".notice")).toBeNull();
+  });
+
+  it("pages from behind a marker: Newer goes to the tab's first page, Older further back with the trail, both keeping the window where it is", async () => {
+    const { router } = mount(history(), `${POOL_PAGE}?marker=M1`);
+    const pager = within(region("Pool activity")).getByRole("navigation", { name: "Pagination" });
+    expect(within(pager).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Newer", POOL_PAGE],
+      ["Older", `${POOL_PAGE}?marker=${AMM_MARKER}&back=M1`],
+    ]);
+    await act(async () => void fireEvent.click(within(pager).getByRole("link", { name: "Newer" })));
+    expect(router.state.location.pathname + router.state.location.search).toBe(POOL_PAGE);
+    expect(router.state.preventScrollReset).toBe(true);
   });
 });
 

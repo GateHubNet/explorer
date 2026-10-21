@@ -18,9 +18,11 @@ import { DataTable } from "./DataTable";
 import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { HashLink, LedgerLink } from "./HashLink";
+import { LinkedText } from "./LinkedText";
 import { NetworkSwitch } from "./NetworkSwitch";
 import { Notice } from "./Notice";
 import { Pager } from "./Pager";
+import { PairCoins } from "./PairCoins";
 import { Pill, ResultPill } from "./Pill";
 import { SearchBox } from "./SearchBox";
 import { SectionError } from "./SectionError";
@@ -662,6 +664,60 @@ describe("Pager", () => {
     await act(async () => void fireEvent.click(screen.getByRole("link", { name: /Newer/ })));
     expect(router.state.location.search).toBe("");
     expect(router.state.preventScrollReset).toBe(true);
+  });
+});
+
+describe("LinkedText", () => {
+  const sentence = (text: string, link: { text: string; href: string }, className?: string) => {
+    renderInRouter(
+      <p data-testid="sentence">
+        <LinkedText text={text} link={link} className={className} />
+      </p>,
+    );
+    return screen.getByTestId("sentence");
+  };
+
+  it("makes the part of the text the view builder names a link, at the end of a sentence or inside it", () => {
+    let p = sentence("Live from the network at ledger #107,721,455", { text: "#107,721,455", href: "/xrpl/ledger/107721455" }, "mono");
+    expect(p.textContent).toBe("Live from the network at ledger #107,721,455");
+    const link = within(p).getByRole("link");
+    expect([link.textContent, link.getAttribute("href"), link.className]).toEqual(["#107,721,455", "/xrpl/ledger/107721455", "mono"]);
+    cleanup();
+    p = sentence("Older trades of USD/XRP. The price, chart and order book are on the market's page.", { text: "the market's page", href: "/xrpl/markets/USD/XRP" });
+    expect(p.textContent).toBe("Older trades of USD/XRP. The price, chart and order book are on the market's page.");
+    expect(within(p).getByRole("link").textContent).toBe("the market's page");
+    expect(p.lastChild!.textContent).toBe(".");
+  });
+
+  it("links the last place the words are, where the builders put the link", () => {
+    const p = sentence("See ledger #5, the ledger after #5", { text: "#5", href: "/xrpl/ledger/5" });
+    expect(p.textContent).toBe("See ledger #5, the ledger after #5");
+    expect(within(p).getAllByRole("link")).toHaveLength(1);
+    expect(p.lastChild!.textContent).toBe("#5");
+  });
+
+  it("puts the link after a text that does not hold its words", () => {
+    const p = sentence("The pool was deleted.", { text: "#7", href: "/xrpl/ledger/7" });
+    expect(p.textContent).toBe("The pool was deleted. #7");
+    expect(within(p).getByRole("link").getAttribute("href")).toBe("/xrpl/ledger/7");
+  });
+});
+
+describe("PairCoins", () => {
+  it("draws the first three characters of each code in a coin, hidden from assistive technology", () => {
+    const { container } = render(<PairCoins codes={["XRP", "RLUSD"]} className="amm-pool__coins" />);
+    const coins = container.querySelector(".amm__coins")!;
+    expect(coins.getAttribute("aria-hidden")).toBe("true");
+    expect(coins.className).toBe("amm__coins amm-pool__coins");
+    expect([...coins.querySelectorAll(".amm__coin")].map((coin) => coin.textContent)).toEqual(["XRP", "RLU"]);
+  });
+
+  it("keeps two coins of one code (a pool of two issuers of USD) and counts characters, not UTF-16 units", () => {
+    const { container } = render(<PairCoins codes={["USD", "USD"]} />);
+    expect([...container.querySelectorAll(".amm__coin")].map((coin) => coin.textContent)).toEqual(["USD", "USD"]);
+    cleanup();
+    const emoji = render(<PairCoins codes={["V🗽X1", "XRP"]} />);
+    expect(emoji.container.querySelector(".amm__coin")!.textContent).toBe("V🗽X");
   });
 });
 
