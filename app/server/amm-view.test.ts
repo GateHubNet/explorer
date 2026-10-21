@@ -1,12 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 
 import BigNumber from "bignumber.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { ammPoolHref, type AmmPoolQuery } from "../domain/amm-params";
 import type { Asset } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
-import { formatPrice } from "../domain/format";
-import { naturalOrientation, QUOTE_RANK } from "../domain/market-pair";
+import { formatAmount, formatPrice, shortHash } from "../domain/format";
+import { marketHref, naturalOrientation, QUOTE_RANK } from "../domain/market-pair";
+import { formatDateTime } from "../domain/time-words";
 import { windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
 import type { SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
 import { NO_FEATURES } from "../ui/features";
@@ -49,20 +51,34 @@ import {
   intervalText,
   liquidityRows,
   NOT_COMPUTED_NOTE,
+  ammHistoryPage,
   ammListPage,
+  ammPoolFacts,
+  ammPoolPage,
+  MODE_CLASS,
   nextBidPrice,
   noAmmPage,
   poolCharts,
+  poolModeOf,
+  poolQueries,
   slotInterval,
   swapRows,
   voteShares,
+  type AmmActivityPage,
   type AmmListInput,
   type AmmListPageData,
+  type AmmPoolInput,
+  type AmmPoolMode,
+  type AmmPoolPageData,
+  type AmmStat,
   type ChartPart,
   type DaySeriesInput,
 } from "./amm-view";
+import type { SubrequestCache } from "./cache-class";
 import { TooLate } from "./deadline";
-import type { AmmInfo } from "./node-rpc";
+import { createNodeRpc, type AmmInfo } from "./node-rpc";
+import type { Network } from "./networks";
+import { UpstreamError } from "./upstream";
 
 // ---- The world of the tests: T is Oct 17, the live set ends at 17:01 UTC --------------------------------------------------------------------------
 
@@ -2307,5 +2323,1026 @@ describe("poolCharts: the recorded days", () => {
     }
     // The year of SNK/XRP does hold estimates in exponent form, so the test is not vacuous.
     expect(recorded(SNK, "1y").days!.some((row) => /e-/.test(row.fees_base_est ?? ""))).toBe(true);
+  });
+});
+
+// ---- The pool page: its modes, its queries, its facts and its two builders ----------------------------------------------------------------------
+// T is Oct 17, 2026 (LAST's close time) and the default period is 90 days. The pool is XRP / RLUSD, stored RLUSD / XRP; the index and the node are told
+// apart by their figures (the index's reserves, LP supply and fee differ from the node's).
+
+const POOL_NET: AmmPoolInput["net"] = { id: "xrpl", name: "XRPL", native: "XRP", features: { ...NO_FEATURES, ammPages: true, markets: true } };
+const QUERY: AmmPoolQuery = { period: "90d", tab: "swaps", back: [] };
+const notFound = (message = "pool not found"): UpstreamError => new UpstreamError("not_found", message, { status: 404 });
+const serverError = (message = "data API GET /v2/amm/pools/rhWTXC… answered 503"): UpstreamError => new UpstreamError("server", message, { status: 503 });
+const unixAt = (iso: string): number => Date.parse(iso) / 1000;
+const EXPIRATION = unixAt("2026-10-18T09:00:00Z");
+const CREATED_AT = "2024-03-22T10:15:20Z";
+/** A stat that could not be loaded says so as a `SectionError` would: a typographic apostrophe. */
+const COULD_NOT = "Couldn’t load";
+const ESTIMATE = "estimate, paid to liquidity providers";
+
+const voteSlot = (account: string, trading_fee: number, vote_weight: number) => ({ account, trading_fee, vote_weight });
+
+/** The node's XRP / RLUSD: a fee of 0.300% from three votes, and a slot held in its interval 12 until Oct 18, 2026, 09:00 UTC. */
+function poolInfo(over: Partial<AmmInfo> = {}): AmmInfo {
+  return {
+    account: AMM_POOL,
+    amount: { currency: "XRP", value: "1847691.034536" },
+    amount2: { currency: RLUSD, issuer: RL, value: "2417282.053464318" },
+    lp_token: { currency: LP_CURRENCY, issuer: AMM_POOL, value: "1791055986.845366" },
+    trading_fee: 300,
+    vote_slots: [voteSlot(AMM_HOLDER, 300, 50000), voteSlot(AMM_ACCOUNT, 250, 30000), voteSlot(AMM_OTHER, 400, 20000)],
+    auction_slot: heldSlot({ time_interval: 12, expiration: EXPIRATION }),
+    ledger_index: 107721455,
+    ...over,
+  };
+}
+
+/** The index's XRP / RLUSD: other reserves and LP supply than the node's, a fee of 0.205%, and the sample's auction slot (held by AMM_HOLDER until Oct 18, 09:00). */
+const indexPool = (over: Partial<AmmPool> = {}): AmmPool =>
+  xrpRlusd({ reserve_base: "2400000", reserve_counter: "1800000", lp_supply: "1790000000", last_ledger: 107717584, ...over });
+
+/** USDC / RLUSD as the index stores it (RLUSD / USDC, P35), and as the node has it. */
+const usdcPool = (over: Partial<AmmPool> = {}): AmmPool =>
+  indexPool({ counter_currency: USDC, counter_issuer: USDC_ISSUER, reserve_base: "26100", reserve_counter: "26200", value_native: "52345.6", ...over });
+const usdcInfo = (over: Partial<AmmInfo> = {}): AmmInfo =>
+  poolInfo({ amount: { currency: RLUSD, issuer: RL, value: "26100" }, amount2: { currency: USDC, issuer: USDC_ISSUER, value: "26200" }, ...over });
+
+const daysPage = (days: AmmPoolDay[]): Page<"days", AmmPoolDay> => ({ result: "success", count: days.length, days });
+const candlesPage = (exchanges: Candle[]): Page<"exchanges", Candle> => ({ result: "success", count: exchanges.length, exchanges });
+const createEvent = (over: Partial<AmmLiquidityEvent> = {}): AmmLiquidityEvent =>
+  leaving(ammLiquiditySample({ event: "create", executed_time: CREATED_AT, ledger_index: 86_800_123, tx_index: 5, ...over }), "mode");
+/** A swap of the pool in its stored pair, RLUSD / XRP: the pool paid out 1,250 RLUSD for 512.4 XRP. */
+const rlusdSwap = (over: Partial<AmmSwap> = {}): AmmSwap => ammSwapSample({ base_currency: RLUSD, base_issuer: RL, base_amount: "1250", counter_amount: "512.4", ...over });
+/** A page of swaps; `marker` `null` for the last page. */
+const swapsPage = (exchanges: AmmSwap[] = [rlusdSwap()], marker: string | null = AMM_MARKER): Page<"exchanges", AmmSwap> => ({
+  result: "success",
+  count: exchanges.length,
+  ...(marker === null ? {} : { marker }),
+  exchanges,
+});
+
+/** A first page of XRP / RLUSD at 90 days, everything answering. */
+function poolInput(over: Partial<AmmPoolInput> = {}): AmmPoolInput {
+  return {
+    net: POOL_NET,
+    pool: AMM_POOL,
+    query: QUERY,
+    mode: "indexed",
+    index: indexPool(),
+    node: fulfilled(poolInfo()),
+    last: fulfilled(LAST),
+    days: fulfilled(daysPage([poolDay("2026-08-01"), poolDay("2026-10-16")])),
+    carryIn: fulfilled(daysPage([poolDay("2026-07-01")])),
+    lastDay: fulfilled(daysPage([poolDay("2026-10-16", { fees_counter_est: "12.5", fees_base_est: "30.1" })])),
+    candles: fulfilled(candlesPage([poolCandle("2026-10-16")])),
+    activity: fulfilled(swapsPage()),
+    created: fulfilled({ result: "success", count: 1, liquidity: [createEvent()] }),
+    live: fulfilled(liveOf([component()])),
+    ...over,
+  };
+}
+
+const poolPage = (over: Partial<AmmPoolInput> = {}): AmmPoolPageData => ammPoolPage(poolInput(over)).page;
+
+function stateOf(page: AmmPoolPageData) {
+  if (page.state === null) throw new Error("the page has no state card");
+  return page.state;
+}
+
+/** A stat of the state card by its id, as a single figure (all but the reserves). */
+function statOf(page: AmmPoolPageData, id: Exclude<AmmStat["id"], "reserves">) {
+  const stat = stateOf(page).stats.find((candidate) => candidate.id === id);
+  if (stat === undefined || stat.id === "reserves") throw new Error(`no stat ${id}`);
+  return stat;
+}
+
+function reservesOf(page: AmmPoolPageData): [string, string] {
+  const stat = stateOf(page).stats.find((candidate) => candidate.id === "reserves");
+  if (stat === undefined || stat.id !== "reserves") throw new Error("no reserves");
+  return stat.reserves;
+}
+
+function slotOfPage(page: AmmPoolPageData) {
+  if (page.slot === null || page.slot.state !== "ok") throw new Error("the slot card is not drawn");
+  return page.slot;
+}
+
+function listOfPage(page: { activity: AmmPoolPageData["activity"] }) {
+  if (page.activity.list.state !== "ok") throw new Error("the activity failed");
+  return page.activity.list;
+}
+
+describe("poolModeOf: every answer of the index (#1) against every answer of the node (#2) (spec 3.3, Review Focus 2)", () => {
+  const INDEX: Record<string, PromiseSettledResult<AmmPool>> = {
+    "a live pool": fulfilled(indexPool()),
+    "a deleted pool": fulfilled(indexPool({ deleted: true })),
+    "pool not found": rejected(notFound()),
+    "a 503": rejected(serverError()),
+    // An API without the AMM routes: data-api.ts reads its "Cannot GET" 404 as kind `server`, an outage.
+    'a "Cannot GET" 404': rejected(new UpstreamError("server", "data API GET /v2/amm/pools/rhWTXC… answered 404: Cannot GET /v2/amm/pools/rhWTXC…", { status: 404 })),
+    "a bad_request": rejected(new UpstreamError("bad_request", "data API GET /v2/amm/pools/rhWTXC… answered 400", { status: 400 })),
+    "a 429": rejected(new UpstreamError("rate_limited", "data API answered 429", { status: 429, retryAfter: 7 })),
+    "a timeout": rejected(new UpstreamError("timeout")),
+    "too late": rejected(new TooLate()),
+    "a bug": rejected(new TypeError("x is undefined")),
+  };
+  const NODE: Record<string, PromiseSettledResult<AmmInfo>> = {
+    "the pool": fulfilled(poolInfo()),
+    actNotFound: rejected(new UpstreamError("not_found", "node amm_info: actNotFound")),
+    actMalformed: rejected(new UpstreamError("not_found", "node amm_info: actMalformed")),
+    "a server error": rejected(new UpstreamError("server", "node amm_info answered 502", { status: 502 })),
+    "a timeout": rejected(new UpstreamError("timeout")),
+    "too late": rejected(new TooLate()),
+  };
+  const failures = ["a 503", 'a "Cannot GET" 404', "a bad_request", "a 429", "a timeout", "too late", "a bug"];
+  const EXPECTED: Record<string, Record<string, AmmPoolMode>> = {
+    "a live pool": { "the pool": "indexed", actNotFound: "gone", actMalformed: "gone", "a server error": "node-down", "a timeout": "node-down", "too late": "node-down" },
+    "a deleted pool": Object.fromEntries(Object.keys(NODE).map((node) => [node, "deleted"])),
+    "pool not found": { "the pool": "network", actNotFound: "none", actMalformed: "none", "a server error": "unavailable", "a timeout": "unavailable", "too late": "unavailable" },
+    ...Object.fromEntries(failures.map((index) => [index, Object.fromEntries(Object.keys(NODE).map((node) => [node, "unavailable"]))])),
+  };
+
+  it("has an answer for every combination", () => {
+    expect(Object.keys(EXPECTED).sort()).toEqual(Object.keys(INDEX).sort());
+    for (const row of Object.values(EXPECTED)) expect(Object.keys(row).sort()).toEqual(Object.keys(NODE).sort());
+  });
+
+  for (const [index, row] of Object.entries(EXPECTED)) {
+    for (const [node, mode] of Object.entries(row)) {
+      it(`${index} and ${node}: ${mode}`, () => {
+        expect(poolModeOf(INDEX[index]!, NODE[node]!)).toBe(mode);
+      });
+    }
+  }
+
+  it("is a 404 only when both say the pool is missing: no failure of either side is ever 'none'", () => {
+    for (const [index, row] of Object.entries(EXPECTED)) {
+      for (const [node, mode] of Object.entries(row)) {
+        if (mode === "none") expect([index, node]).toEqual(["pool not found", expect.stringMatching(/^act/)]);
+      }
+    }
+  });
+});
+
+describe("MODE_CLASS", () => {
+  it("is the class of each mode that is a page: the network's pool kept 60 s, the node's failure served and not stored", () => {
+    expect(MODE_CLASS).toEqual({
+      indexed: { cls: "live", degraded: false },
+      "node-down": { cls: "live", degraded: true },
+      gone: { cls: "live", degraded: false },
+      deleted: { cls: "slow", degraded: false },
+      network: { cls: "short", ttl: 60, degraded: false },
+    });
+  });
+
+  it("has no class for 'none' and 'unavailable', which are a 404 and a 503", () => {
+    expect(Object.keys(MODE_CLASS)).not.toContain("none");
+    expect(Object.keys(MODE_CLASS)).not.toContain("unavailable");
+  });
+});
+
+describe("poolQueries", () => {
+  it("asks for 30 days: the days of the window, the day before it, the day before T and the daily candles", () => {
+    expect(poolQueries(windowOf(DAY_T, "30d"), DAY_T)).toEqual({
+      days: { start: "2026-09-18", end: "2026-10-17", limit: 1000 },
+      carryIn: { end: "2026-09-17", descending: true, limit: 1 },
+      lastDay: { start: "2026-10-16", end: "2026-10-16", limit: 1 },
+      candles: { interval: "1day", start: "2026-09-18", end: "2026-10-17", limit: 400, amm: "only" },
+    });
+  });
+
+  it("asks for 90 days from Jul 20, with the carry-in of Jul 19", () => {
+    const q = poolQueries(windowOf(DAY_T, "90d"), DAY_T);
+    expect(q.days).toEqual({ start: "2026-07-20", end: "2026-10-17", limit: 1000 });
+    expect(q.carryIn).toEqual({ end: "2026-07-19", descending: true, limit: 1 });
+    expect(q.candles).toEqual({ interval: "1day", start: "2026-07-20", end: "2026-10-17", limit: 400, amm: "only" });
+    expect(q.lastDay).toEqual({ start: "2026-10-16", end: "2026-10-16", limit: 1 });
+  });
+
+  it("asks for the year from Monday Oct 20, 2025, with the carry-in of Oct 19 and weekly candles", () => {
+    const q = poolQueries(windowOf(DAY_T, "1y"), DAY_T);
+    expect(q.days).toEqual({ start: "2025-10-20", end: "2026-10-17", limit: 1000 });
+    expect(q.carryIn).toEqual({ end: "2025-10-19", descending: true, limit: 1 });
+    expect(q.candles).toEqual({ interval: "7day", start: "2025-10-20", end: "2026-10-17", limit: 400, amm: "only" });
+    // The last day is the same for every period: one key.
+    expect(q.lastDay).toEqual({ start: "2026-10-16", end: "2026-10-16", limit: 1 });
+  });
+
+  it("works out the day before across a month and a year", () => {
+    expect(poolQueries(windowOf("2026-03-01", "30d"), "2026-03-01").lastDay).toEqual({ start: "2026-02-28", end: "2026-02-28", limit: 1 });
+    expect(poolQueries(windowOf("2026-01-01", "30d"), "2026-01-01").carryIn.end).toBe("2025-12-02");
+  });
+});
+
+describe("ammPoolFacts", () => {
+  it("names the pair as a slug, the node's fee, the index's value, compact, and the day of the creation", () => {
+    expect(ammPoolFacts(POOL_NET, AMM_POOL, indexPool(), poolInfo(), createEvent())).toEqual({
+      pool: AMM_POOL,
+      net: "xrpl",
+      native: "XRP",
+      pair: "XRP/RLUSD",
+      deleted: false,
+      fee: "0.300%",
+      value: "3.61M",
+      created: { date: "2024-03-22", at: unixAt(CREATED_AT) },
+    });
+  });
+
+  it("takes the index's fee without the node, and leaves out what neither has", () => {
+    const facts = ammPoolFacts(POOL_NET, AMM_POOL, leaving(indexPool(), "value_native"), null, null);
+    expect(facts).toEqual({ pool: AMM_POOL, net: "xrpl", native: "XRP", pair: "XRP/RLUSD", deleted: false, fee: "0.205%" });
+  });
+
+  it("has no value for a deleted pool", () => {
+    const facts = ammPoolFacts(POOL_NET, AMM_POOL, indexPool({ deleted: true }), null, null);
+    expect(facts.deleted).toBe(true);
+    expect(facts).not.toHaveProperty("value");
+  });
+
+  it("names the pair from the node for a pool the index does not have, and has no value", () => {
+    const facts = ammPoolFacts(POOL_NET, AMM_POOL, null, usdcInfo(), null);
+    expect(facts).toMatchObject({ pair: "USDC/RLUSD", fee: "0.300%", deleted: false });
+    expect(facts).not.toHaveProperty("value");
+  });
+
+  it("reads the creation only from a create event", () => {
+    expect(ammPoolFacts(POOL_NET, AMM_POOL, indexPool(), poolInfo(), createEvent({ event: "deposit" }))).not.toHaveProperty("created");
+  });
+});
+
+describe("ammPoolPage: the crumbs and the pool card", () => {
+  it("has the crumbs of the list and the pair as a slug, the last one the page", () => {
+    expect(poolPage().crumbs).toEqual([{ label: "XRPL", href: "/xrpl" }, { label: "AMM pools", href: "/xrpl/amm" }, { label: "XRP/RLUSD" }]);
+  });
+
+  it("heads the card with the pair in its natural orientation, the pool's account and each issuer in full", () => {
+    const { header } = poolPage();
+    expect(header.title).toBe("XRP / RLUSD pool");
+    expect(header.coins).toEqual(["XRP", "RLUSD"]);
+    expect(header.account).toEqual({ address: AMM_POOL, href: `/xrpl/account/${AMM_POOL}` });
+    expect(header.issuers).toEqual([{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` } }]);
+  });
+
+  it("names each issuer of a pool of two tokens, in display order", () => {
+    const { header } = poolPage({ index: usdcPool(), node: fulfilled(usdcInfo()) });
+    expect(header.title).toBe("USDC / RLUSD pool");
+    expect(header.issuers.map((issuer) => issuer.text)).toEqual([`USDC issued by ${USDC_ISSUER}`, `RLUSD issued by ${RL}`]);
+  });
+
+  it("writes a code that has no text in full in the issuer line, as the market's header does", () => {
+    const vox = indexPool({ base_currency: VOX, base_issuer: VOX_ISSUER });
+    const info = poolInfo({ amount2: { currency: VOX, issuer: VOX_ISSUER, value: "100" } });
+    const { header } = poolPage({ index: vox, node: fulfilled(info) });
+    expect(header.title).toBe("564F58F0… / XRP pool");
+    expect(header.issuers[0]!.text).toBe(`${VOX} issued by ${VOX_ISSUER}`);
+  });
+
+  it("says when and by whom the pool was created, the day linking the transaction (spec 3.1)", () => {
+    expect(poolPage().header.created).toEqual({ date: "2024-03-22", href: `/xrpl/tx/${AMM_TX_HASH}`, by: { address: AMM_ACCOUNT, href: `/xrpl/account/${AMM_ACCOUNT}` } });
+  });
+
+  it("leaves the Created line out without a create event, and for a row of another event", () => {
+    expect(poolPage({ created: fulfilled({ result: "success", count: 0, liquidity: [] }) }).header.created).toBeNull();
+    expect(poolPage({ created: fulfilled({ result: "success", count: 1, liquidity: [createEvent({ event: "deposit" })] }) }).header.created).toBeNull();
+  });
+
+  it("leaves the Created line out when #8 failed, and logs it without degrading the page (P9)", () => {
+    const { page, problems, logged } = ammPoolPage(poolInput({ created: rejected(new TooLate()) }));
+    expect(page.header.created).toBeNull();
+    expect(problems).toEqual([]);
+    expect(logged).toEqual(["the creation event: took too long"]);
+  });
+
+  it("shows the LP token's code short and whole, from the index's lp_currency, else from the node's lp_token", () => {
+    expect(poolPage().header.lpToken).toEqual({ short: shortHash(LP_CURRENCY), code: LP_CURRENCY });
+    const nodeCode = `03${"CD".repeat(19)}`;
+    const info = poolInfo({ lp_token: { currency: nodeCode, issuer: AMM_POOL, value: "1" } });
+    expect(poolPage({ index: leaving(indexPool(), "lp_currency"), node: fulfilled(info) }).header.lpToken).toEqual({ short: "03CDCD…CDCD", code: nodeCode });
+    expect(poolPage({ index: indexPool({ lp_currency: "03ABAB" + "12".repeat(17) }) }).header.lpToken?.code).toBe("03ABAB" + "12".repeat(17));
+  });
+
+  it("links the market of the pair in the natural orientation while the markets pages are on, and is 'soon' while they are off", () => {
+    expect(poolPage().header.market).toBe(marketHref("xrpl", xrp, rlusd));
+    expect(poolPage().header.market).toBe(`/xrpl/markets/XRP/RLUSD.${RL}`);
+    expect(poolPage({ net: { ...POOL_NET, features: { ...POOL_NET.features, markets: false } } }).header.market).toBeNull();
+  });
+
+  it("has no market link for a side that does not read back from its URL form (P31)", () => {
+    const lower = { currency: "usd", issuer: AMM_ISSUER };
+    const index = indexPool({ base_currency: lower.currency, base_issuer: lower.issuer });
+    const info = poolInfo({ amount2: { ...lower, value: "100" } });
+    expect(poolPage({ index, node: fulfilled(info) }).header.market).toBeNull();
+  });
+});
+
+describe("ammPoolPage: the pool state, live from the node", () => {
+  it("is the node's state at its ledger, the caption linking the ledger", () => {
+    expect(stateOf(poolPage()).caption).toEqual({
+      text: "Live from the network at ledger #107,721,455",
+      link: { text: "#107,721,455", href: "/xrpl/ledger/107721455" },
+    });
+  });
+
+  it("has the seven stats in the board's order", () => {
+    expect(stateOf(poolPage()).stats.map((stat) => stat.label)).toEqual(["Value", "Reserves", "Pool price", "Trading fee", "LP tokens", "Swap volume, 24 h", "Fees earned, Oct 16"]);
+  });
+
+  it("values a pool of the native currency at twice the node's native reserve, compact", () => {
+    expect(statOf(poolPage(), "value")).toEqual({ id: "value", label: "Value", value: "3.7M XRP", sub: "twice the XRP reserve" });
+  });
+
+  it("values a pool of two tokens at the index's value, or a dash when neither asset has a rate", () => {
+    expect(statOf(poolPage({ index: usdcPool(), node: fulfilled(usdcInfo()) }), "value")).toMatchObject({ value: "52.3K XRP", sub: "twice a reserve at its daily XRP rate" });
+    const valueless = poolPage({ index: leaving(usdcPool(), "value_native"), node: fulfilled(usdcInfo()) });
+    expect(statOf(valueless, "value")).toMatchObject({ value: "—", sub: "neither asset has a XRP rate" });
+  });
+
+  it("writes the reserves exactly, each with its currency, in display order", () => {
+    expect(reservesOf(poolPage())).toEqual(["1,847,691.034536 XRP", "2,417,282.053464318 RLUSD"]);
+    // Whichever way round the node gives the two amounts.
+    const swapped = poolInfo({ amount: poolInfo().amount2, amount2: poolInfo().amount });
+    expect(reservesOf(poolPage({ node: fulfilled(swapped) }))).toEqual(["1,847,691.034536 XRP", "2,417,282.053464318 RLUSD"]);
+  });
+
+  it("works out the pool price, the second currency per the first, from the reserves", () => {
+    expect(statOf(poolPage(), "price")).toEqual({ id: "price", label: "Pool price", value: "1.3082718", sub: "RLUSD per XRP, from the reserves" });
+    expect(statOf(poolPage(), "price").value).toBe(exactRatio("2417282.053464318", "1847691.034536"));
+  });
+
+  it("has no price for an empty reserve", () => {
+    const empty = poolInfo({ amount: { currency: "XRP", value: "0" } });
+    expect(statOf(poolPage({ node: fulfilled(empty) }), "price").value).toBe("—");
+  });
+
+  it("says the trading fee and how many votes set it", () => {
+    expect(statOf(poolPage(), "fee")).toEqual({ id: "fee", label: "Trading fee", value: "0.300%", sub: "set by 3 votes" });
+    expect(statOf(poolPage({ node: fulfilled(poolInfo({ vote_slots: [voteSlot(AMM_HOLDER, 300, 100000)] })) }), "fee").sub).toBe("set by 1 vote");
+  });
+
+  it("writes the LP tokens in circulation exactly", () => {
+    expect(statOf(poolPage(), "lp")).toEqual({ id: "lp", label: "LP tokens", value: "1,791,055,986.845366", sub: "in circulation" });
+  });
+
+  describe("Swap volume, 24 h", () => {
+    it("is the pool's component of the live set, compact in the native currency, with its swaps and its time", () => {
+      expect(statOf(poolPage(), "volume")).toEqual({ id: "volume", label: "Swap volume, 24 h", value: "543K XRP", sub: "61 swaps, as of 17:01 UTC" });
+      expect(statOf(poolPage({ live: fulfilled(liveOf([component({ count: 1 })])) }), "volume").sub).toBe("1 swap, as of 17:01 UTC");
+    });
+
+    it("is 0 for a pool of the native currency with no component, and a dash for one without it", () => {
+      expect(statOf(poolPage({ live: fulfilled(liveOf([component({ amm_account: AMM_OTHER })])) }), "volume")).toMatchObject({ value: "0", sub: "no swaps, as of 17:01 UTC" });
+      const usdc = poolPage({ index: usdcPool(), node: fulfilled(usdcInfo()), live: fulfilled(liveOf([])) });
+      expect(statOf(usdc, "volume")).toMatchObject({ value: "—", sub: "no swaps priced in XRP, as of 17:01 UTC" });
+    });
+
+    it("is a dash that could not be loaded when #9 failed, with a problem", () => {
+      const { page, problems } = ammPoolPage(poolInput({ live: rejected(serverError("data API GET /v2/network/amm_volume answered 503")) }));
+      expect(statOf(page, "volume")).toMatchObject({ value: "—", sub: COULD_NOT });
+      expect(problems).toEqual(["the 24-hour volume: data API GET /v2/network/amm_volume answered 503"]);
+    });
+
+    it("could not be loaded either from a live set without a row or without a time", () => {
+      expect(statOf(poolPage({ live: fulfilled({ result: "success", count: 0, rows: [] }) }), "volume").sub).toBe(COULD_NOT);
+      expect(statOf(poolPage({ live: fulfilled(liveOf([component()], { end_time: "soon" })) }), "volume").sub).toBe(COULD_NOT);
+    });
+  });
+
+  describe("Fees earned, on the last complete day", () => {
+    it("are the day's two estimates, exact, in display order, named by the day before T", () => {
+      expect(statOf(poolPage(), "fees")).toEqual({ id: "fees", label: "Fees earned, Oct 16", value: "12.5 XRP + 30.1 RLUSD", sub: ESTIMATE });
+    });
+
+    it("are the same day for every period", () => {
+      expect(statOf(poolPage({ query: { ...QUERY, period: "1y" } }), "fees").label).toBe("Fees earned, Oct 16");
+    });
+
+    it("are 0 with no row that day", () => {
+      expect(statOf(poolPage({ lastDay: fulfilled(daysPage([])) }), "fees")).toMatchObject({ value: "0", sub: ESTIMATE });
+    });
+
+    it("are a dash when a swap's fee is unknown: an estimate left out of a day with swaps", () => {
+      const unknown = leaving(poolDay("2026-10-16"), "fees_base_est");
+      expect(statOf(poolPage({ lastDay: fulfilled(daysPage([unknown])) }), "fees")).toMatchObject({ value: "—", sub: "a swap's fee is unknown" });
+    });
+
+    it("are a dash that could not be loaded when #10 failed, with a problem", () => {
+      const { page, problems } = ammPoolPage(poolInput({ lastDay: rejected(new TooLate()) }));
+      expect(statOf(page, "fees")).toMatchObject({ value: "—", sub: COULD_NOT });
+      expect(problems).toEqual(["the fees of the last day: took too long"]);
+    });
+
+    it("could not be loaded without the newest ledger, which names the day", () => {
+      const { page } = ammPoolPage(poolInput({ last: rejected(serverError()), days: null, carryIn: null, lastDay: null, candles: null }));
+      expect(statOf(page, "fees")).toMatchObject({ label: "Fees earned, last day", value: "—", sub: COULD_NOT });
+    });
+  });
+});
+
+describe("ammPoolPage: the modes (spec 3.3)", () => {
+  it("indexed: no notice, the node's state, slot and votes, and no problem", () => {
+    const { page, problems, logged } = ammPoolPage(poolInput());
+    expect(page.notices).toEqual([]);
+    expect(page.state).not.toBeNull();
+    expect(page.slot?.state).toBe("ok");
+    expect(page.votes?.state).toBe("ok");
+    expect(page.meta).toMatchObject({ mode: "indexed", tab: "swaps", period: "90d", marker: false, pair: "XRP/RLUSD" });
+    expect([problems, logged]).toEqual([[], []]);
+  });
+
+  describe("node down: the index's state, a notice, no votes, and a problem", () => {
+    const input = poolInput({ mode: "node-down", node: rejected(new UpstreamError("timeout", "node amm_info took longer than 3000 ms")) });
+    const { page, problems } = ammPoolPage(input);
+
+    it("says the live state is unavailable and shown from the index", () => {
+      expect(page.notices).toEqual([
+        {
+          kind: "node-down",
+          tone: "warning",
+          title: "Live state unavailable; shown from the index",
+          text: "The network node did not answer, so the reserves, LP tokens and fee are the explorer’s index’s, and the fee votes are missing.",
+        },
+      ]);
+    });
+
+    it("shows the index's reserves, LP supply and fee, as of the index's ledger", () => {
+      expect(reservesOf(page)).toEqual(["1,800,000 XRP", "2,400,000 RLUSD"]);
+      expect(statOf(page, "lp").value).toBe("1,790,000,000");
+      expect(statOf(page, "fee")).toMatchObject({ value: "0.205%", sub: "set by the fee votes" });
+      expect(statOf(page, "value")).toMatchObject({ value: "3.6M XRP", sub: "twice the XRP reserve" });
+      expect(statOf(page, "price").value).toBe("1.3333333");
+      expect(stateOf(page).caption).toEqual({ text: "From the index, ledger #107,717,584", link: { text: "#107,717,584", href: "/xrpl/ledger/107717584" } });
+    });
+
+    it("draws the slot from the index's auction_slot, without its interval, its cost or its authorized accounts", () => {
+      expect(page.slot).toEqual({
+        state: "ok",
+        held: { holder: { address: AMM_HOLDER, href: `/xrpl/account/${AMM_HOLDER}` }, fee: "0.050%", pricePaid: "12.5 LP tokens", authorized: null },
+        until: "until Oct 18, 2026, 09:00 UTC",
+        countdownAt: EXPIRATION,
+        meter: null,
+        text: null,
+      });
+    });
+
+    it("reads the index's slot as open without a holder, or past its expiration at the newest ledger", () => {
+      expect(slotOfPage(ammPoolPage({ ...input, index: indexPool({ auction_slot: { price: "1" } }) }).page)).toMatchObject({ held: null, text: "The slot is open.", until: null });
+      const expired = indexPool({ auction_slot: { holder: AMM_HOLDER, price: "1", discounted_fee: 50, expiration: "2026-10-17T09:00:00Z" } });
+      expect(slotOfPage(ammPoolPage({ ...input, index: expired }).page)).toMatchObject({ held: null, text: "The slot is open." });
+    });
+
+    it("fails the fee votes", () => {
+      expect(page.votes).toEqual({ state: "failed", what: "the fee votes" });
+    });
+
+    it("has the node's failure as its one problem, and is degraded", () => {
+      expect(problems).toEqual(["the live state: node amm_info took longer than 3000 ms"]);
+      expect(MODE_CLASS["node-down"].degraded).toBe(true);
+    });
+
+    it("draws a dash for what the index does not know", () => {
+      const bare = leaving(indexPool(), "reserve_base", "reserve_counter", "lp_supply", "trading_fee");
+      const shown = ammPoolPage({ ...input, index: bare }).page;
+      expect(reservesOf(shown)).toEqual(["—", "—"]);
+      expect([statOf(shown, "lp").value, statOf(shown, "fee").value, statOf(shown, "price").value]).toEqual(["—", "—", "—"]);
+      expect(statOf(shown, "value")).toMatchObject({ value: "—", sub: "the XRP reserve is not known" });
+    });
+  });
+
+  it("gone: the network no longer has the pool; the index's state, no slot and no votes, and no problem", () => {
+    const { page, problems } = ammPoolPage(poolInput({ mode: "gone", node: rejected(new UpstreamError("not_found", "node amm_info: actNotFound")) }));
+    expect(page.notices).toEqual([{ kind: "gone", tone: "warning", text: "The network no longer has this pool; the index may not have seen its deletion yet." }]);
+    expect(reservesOf(page)).toEqual(["1,800,000 XRP", "2,400,000 RLUSD"]);
+    expect(stateOf(page).caption.text).toBe("From the index, ledger #107,717,584");
+    expect([page.slot, page.votes]).toEqual([null, null]);
+    expect(problems).toEqual([]);
+  });
+
+  describe("deleted: the banner, its history, and no state, slot or votes", () => {
+    const deleted = indexPool({ deleted: true, last_ledger: 99_000_123 });
+
+    it("says it was deleted and links the last ledger that touched it", () => {
+      const { page } = ammPoolPage(poolInput({ mode: "deleted", index: deleted }));
+      expect(page.notices).toEqual([
+        {
+          kind: "deleted",
+          tone: "warning",
+          text: "This pool was deleted. The last ledger that touched it is #99,000,123",
+          link: { text: "#99,000,123", href: "/xrpl/ledger/99000123" },
+        },
+      ]);
+      expect([page.state, page.slot, page.votes]).toEqual([null, null, null]);
+      expect(page.charts.value.state).toBe("ok");
+      expect(listOfPage(page).rows).toHaveLength(1);
+      expect(page.meta).toMatchObject({ mode: "deleted", deleted: true });
+    });
+
+    it("does not use the node's answer, whatever it is", () => {
+      const { page, problems } = ammPoolPage(poolInput({ mode: "deleted", index: deleted, node: rejected(serverError()), live: rejected(serverError()), lastDay: rejected(serverError()) }));
+      expect(problems).toEqual([]);
+      expect(page.notices.map((notice) => notice.kind)).toEqual(["deleted"]);
+      const frozen = ammPoolPage(poolInput({ mode: "deleted", index: deleted, node: fulfilled(poolInfo({ asset_frozen: true })) })).page;
+      expect(frozen.notices.map((notice) => notice.kind)).toEqual(["deleted"]);
+    });
+
+    it("tells the charts that the pool was deleted", () => {
+      const { page } = ammPoolPage(poolInput({ mode: "deleted", index: deleted, days: fulfilled(daysPage([poolDay("2026-08-01")])) }));
+      const value = page.charts.value;
+      if (value.state !== "ok") throw new Error("the value chart failed");
+      // The pool's life ends on its last row, Aug 1.
+      expect(value.data.series[0]!.values.at(-1)).toBeNull();
+      expect(value.data.series[0]!.values[windowOf(DAY_T, "90d").buckets.indexOf("2026-08-01")]).not.toBeNull();
+    });
+  });
+
+  describe("network: a pool the index does not have yet, shown from the node", () => {
+    const missing = rejected(notFound());
+    const networkInput = (over: Partial<AmmPoolInput> = {}) =>
+      poolInput({ mode: "network", index: null, days: missing, carryIn: missing, lastDay: missing, activity: missing, created: missing, ...over });
+
+    it("says so, and draws the pair, the header and the state from the node", () => {
+      const { page, problems, logged } = ammPoolPage(networkInput());
+      expect(page.notices).toEqual([{ kind: "network", tone: "info", text: "Not in the index yet, shown from the network. Its history appears once the index has it." }]);
+      expect(page.header.title).toBe("XRP / RLUSD pool");
+      expect(page.header.lpToken).toEqual({ short: shortHash(LP_CURRENCY), code: LP_CURRENCY });
+      expect(page.header.created).toBeNull();
+      expect(reservesOf(page)).toEqual(["1,847,691.034536 XRP", "2,417,282.053464318 RLUSD"]);
+      expect(statOf(page, "value")).toMatchObject({ value: "3.7M XRP", sub: "twice the XRP reserve" });
+      expect(stateOf(page).caption.text).toBe("Live from the network at ledger #107,721,455");
+      expect(page.slot?.state).toBe("ok");
+      expect(page.votes?.state).toBe("ok");
+      expect(page.meta).toMatchObject({ mode: "network", pair: "XRP/RLUSD", fee: "0.300%" });
+      expect(page.meta).not.toHaveProperty("value");
+      expect([problems, logged]).toEqual([[], []]);
+    });
+
+    it("reads the index's 'pool not found' on the day rows, the last day and the activity as empty answers", () => {
+      const { page } = ammPoolPage(networkInput());
+      for (const part of Object.values(page.charts)) expect(part.state, part.title).toBe("ok");
+      const value = page.charts.value;
+      if (value.state !== "ok") throw new Error("the value chart failed");
+      expect(value.data.series[0]!.values.every((v) => v === null)).toBe(true);
+      expect(listOfPage(page)).toMatchObject({ rows: [], empty: "No swaps to show.", paging: { newerHref: null, olderHref: null } });
+      expect(statOf(page, "fees")).toMatchObject({ value: "0", sub: ESTIMATE });
+    });
+
+    it("values a pool without the native currency at a dash: it is not in the index yet", () => {
+      const { page } = ammPoolPage(networkInput({ node: fulfilled(usdcInfo()), live: fulfilled(liveOf([])) }));
+      expect(page.header.title).toBe("USDC / RLUSD pool");
+      expect(statOf(page, "value")).toMatchObject({ value: "—", sub: "not in the index yet" });
+    });
+
+    it("still fails a card for a failure that is not 'pool not found'", () => {
+      const { page, problems } = ammPoolPage(networkInput({ activity: rejected(serverError()) }));
+      expect(page.activity.list).toEqual({ state: "failed", what: "the swaps" });
+      expect(problems).toHaveLength(1);
+    });
+
+    it("asks the charts in the pool's stored order, whichever way the node gives the assets", () => {
+      const swapped = poolInfo({ amount: poolInfo().amount2, amount2: poolInfo().amount });
+      const a = ammPoolPage(networkInput()).page.charts;
+      const b = ammPoolPage(networkInput({ node: fulfilled(swapped) })).page.charts;
+      expect(b).toEqual(a);
+    });
+  });
+
+  it("fails a card in the other modes for a 'pool not found' of the day rows, the last day or the activity, with a problem", () => {
+    const missing = rejected(notFound());
+    const { page, problems } = ammPoolPage(poolInput({ days: missing, lastDay: missing, activity: missing }));
+    expect(page.charts.value).toMatchObject({ state: "failed", what: "the pool value" });
+    expect(statOf(page, "fees")).toMatchObject({ value: "—", sub: COULD_NOT });
+    expect(page.activity.list).toEqual({ state: "failed", what: "the swaps" });
+    expect(problems).toEqual(["the fees of the last day: pool not found", "the day rows: pool not found", "the swaps: pool not found"]);
+  });
+});
+
+describe("ammPoolPage: an asset frozen by its issuer", () => {
+  it("says which asset of the pool is frozen, as the node marks it", () => {
+    expect(poolPage({ node: fulfilled(poolInfo({ asset_frozen: true })) }).notices).toEqual([{ kind: "frozen", tone: "warning", text: "XRP in this pool is frozen by its issuer" }]);
+    expect(poolPage({ node: fulfilled(poolInfo({ asset2_frozen: true })) }).notices).toEqual([{ kind: "frozen", tone: "warning", text: "RLUSD in this pool is frozen by its issuer" }]);
+    expect(poolPage({ node: fulfilled(poolInfo({ asset_frozen: false })) }).notices).toEqual([]);
+  });
+
+  it("follows the mode's notice", () => {
+    const missing = rejected(notFound());
+    const page = poolPage({ mode: "network", index: null, node: fulfilled(poolInfo({ asset2_frozen: true })), days: missing, carryIn: missing, lastDay: missing, activity: missing });
+    expect(page.notices.map((notice) => notice.kind)).toEqual(["network", "frozen"]);
+  });
+});
+
+describe("ammPoolPage: the auction slot", () => {
+  const cost = (info: AmmInfo, interval: number | null) =>
+    formatAmount(nextBidPrice(info.lp_token.value, info.trading_fee, interval === null ? null : { price: info.auction_slot!.price.value, interval }));
+
+  it("is held in interval 12: the 13th of 20, the cost of a new bid, and the expiration with its countdown", () => {
+    const info = poolInfo();
+    const slot = slotOfPage(poolPage());
+    expect(slot.text).toBe(`Interval 13 of 20 of the 24-hour slot. A new bid now costs at least ${cost(info, 12)} LP tokens.`);
+    expect(slot.meter).toEqual({ value: "13", max: "20", label: "Interval 13 of 20 of the 24-hour slot" });
+    expect(slot.until).toBe(`until ${formatDateTime(EXPIRATION)}`);
+    expect(slot.until).toBe("until Oct 18, 2026, 09:00 UTC");
+    expect(slot.countdownAt).toBe(EXPIRATION);
+    expect(slot.held).toEqual({ holder: { address: AMM_HOLDER, href: `/xrpl/account/${AMM_HOLDER}` }, fee: "0.022%", pricePaid: "100 LP tokens", authorized: [] });
+  });
+
+  it("links the accounts the holder authorized", () => {
+    const info = poolInfo({ auction_slot: heldSlot({ time_interval: 12, auth_accounts: [AMM_ACCOUNT, AMM_OTHER] }) });
+    expect(slotOfPage(poolPage({ node: fulfilled(info) })).held?.authorized).toEqual([
+      { address: AMM_ACCOUNT, href: `/xrpl/account/${AMM_ACCOUNT}` },
+      { address: AMM_OTHER, href: `/xrpl/account/${AMM_OTHER}` },
+    ]);
+  });
+
+  it("is open at interval 20, without a holder or without a slot: the minimum cost, no expiration and no meter", () => {
+    for (const auction_slot of [heldSlot({ time_interval: 20 }), heldSlot({ account: undefined }), undefined]) {
+      const info = leaving(poolInfo({ auction_slot }), ...(auction_slot === undefined ? (["auction_slot"] as const) : []));
+      const slot = slotOfPage(poolPage({ node: fulfilled(info) }));
+      expect(slot).toEqual({ state: "ok", held: null, until: null, countdownAt: null, meter: null, text: `The slot is open. A new bid now costs at least ${cost(info, null)} LP tokens.` });
+    }
+  });
+
+  it("leaves the cost sentence out where it is 0", () => {
+    // A held slot costs at least its price plus 5% whatever the fee: it is free only when nothing was paid for it either.
+    expect(slotOfPage(poolPage({ node: fulfilled(poolInfo({ trading_fee: 0 })) })).text).toMatch(/costs at least/);
+    const free = poolInfo({ trading_fee: 0, auction_slot: heldSlot({ time_interval: 12, price: { currency: LP_CURRENCY, issuer: AMM_POOL, value: "0" } }) });
+    expect(slotOfPage(poolPage({ node: fulfilled(free) })).text).toBe("Interval 13 of 20 of the 24-hour slot.");
+    const openFree = poolInfo({ trading_fee: 0, auction_slot: heldSlot({ time_interval: 20 }) });
+    expect(slotOfPage(poolPage({ node: fulfilled(openFree) })).text).toBe("The slot is open.");
+  });
+});
+
+describe("ammPoolPage: the fee votes", () => {
+  it("are E2's bars of the votes, and the weighted result is the pool's fee", () => {
+    const votes = poolPage().votes;
+    if (votes === null || votes.state !== "ok") throw new Error("the votes are not drawn");
+    expect(votes.data).toEqual(voteShares(poolInfo().vote_slots, "xrpl"));
+    expect(votes.text).toBe("Weighted result 0.300%, the pool's trading fee.");
+    expect(votes.figure).toBe("0.300%");
+  });
+});
+
+describe("ammPoolPage: the filters", () => {
+  it("are the three periods as links that keep the tab, the current one marked, the day rows' source and the window's note", () => {
+    const { filters } = poolPage({ query: { ...QUERY, period: "30d", tab: "liquidity" } });
+    expect(filters.period).toEqual([
+      { label: "30 days", href: `/xrpl/amm/${AMM_POOL}?period=30d&tab=liquidity`, current: true },
+      { label: "90 days", href: `/xrpl/amm/${AMM_POOL}?tab=liquidity`, current: false },
+      { label: "1 year", href: `/xrpl/amm/${AMM_POOL}?period=1y&tab=liquidity`, current: false },
+    ]);
+    expect(filters.source).toBe("/v2/amm/pools/rhWTXC…tcS3/history?interval=day");
+    expect(filters.note).toBe(`Charts cover ${windowOf(DAY_T, "30d").note}`);
+    expect(poolPage().filters.note).toBe("Charts cover the 90 days from Jul 20 to Oct 17, 2026 (UTC), today so far");
+  });
+
+  it("have no note without the newest ledger", () => {
+    expect(poolPage({ last: rejected(serverError()), days: null, carryIn: null, lastDay: null, candles: null }).filters.note).toBeNull();
+  });
+});
+
+describe("ammPoolPage: the charts", () => {
+  const window = windowOf(DAY_T, "90d");
+  const seriesOfInput = (input: AmmPoolInput): DaySeriesInput => ({
+    window,
+    pair: XRP_RLUSD,
+    native: "XRP",
+    pool: AMM_POOL,
+    deleted: false,
+    days: [poolDay("2026-08-01"), poolDay("2026-10-16")],
+    carryIn: poolDay("2026-07-01"),
+    candles: [poolCandle("2026-10-16")],
+    ...(input.mode === "deleted" ? { deleted: true } : {}),
+  });
+
+  it("are the five cards of the day rows, the carry-in and the candles of the period", () => {
+    expect(poolPage().charts).toEqual(poolCharts(seriesOfInput(poolInput())));
+    const year = poolPage({ query: { ...QUERY, period: "1y" } }).charts;
+    expect(year).toEqual(poolCharts({ ...seriesOfInput(poolInput()), window: windowOf(DAY_T, "1y") }));
+  });
+
+  it("all fail when the newest ledger failed, with one problem", () => {
+    const { page, problems } = ammPoolPage(poolInput({ last: rejected(serverError()), days: null, carryIn: null, lastDay: null, candles: null }));
+    expect(page.charts).toEqual(poolCharts(null));
+    expect(problems).toEqual([`the charts: ${serverError().message}`]);
+  });
+
+  it("fail the four cards of the day rows when #4 or #5 failed, and draw the volume without its fee estimates", () => {
+    for (const over of [{ days: rejected(new TooLate()) }, { carryIn: rejected(new TooLate()) }]) {
+      const { page, problems } = ammPoolPage(poolInput(over));
+      expect(page.charts).toEqual(poolCharts({ ...seriesOfInput(poolInput()), days: null }));
+      expect(problems).toHaveLength(1);
+    }
+    expect(ammPoolPage(poolInput({ carryIn: rejected(new TooLate()) })).problems).toEqual(["the day before the window: took too long"]);
+  });
+
+  it("fail the volume card when #6 failed", () => {
+    const { page, problems } = ammPoolPage(poolInput({ candles: rejected(serverError("data API GET /v2/exchanges answered 503")) }));
+    expect(page.charts.volume).toMatchObject({ state: "failed", what: "the swap volume" });
+    expect(page.charts.value.state).toBe("ok");
+    expect(problems).toEqual(["the swap volume: data API GET /v2/exchanges answered 503"]);
+  });
+
+  it("read a carry-in page without a row as no carry-in", () => {
+    expect(poolPage({ carryIn: fulfilled(daysPage([])) }).charts).toEqual(poolCharts({ ...seriesOfInput(poolInput()), carryIn: null }));
+  });
+});
+
+describe("ammPoolPage: the activity", () => {
+  it("has the three tabs as links that keep the period, the current one the query's", () => {
+    const { activity } = poolPage({ query: { ...QUERY, period: "1y", tab: "governance" } });
+    expect(activity.tabs).toEqual([
+      { id: "swaps", label: "Swaps", href: `/xrpl/amm/${AMM_POOL}?period=1y` },
+      { id: "liquidity", label: "Liquidity", href: `/xrpl/amm/${AMM_POOL}?period=1y&tab=liquidity` },
+      { id: "governance", label: "Votes and bids", href: `/xrpl/amm/${AMM_POOL}?period=1y&tab=governance` },
+    ]);
+    expect(activity.current).toBe("governance");
+  });
+
+  it("names the tab's route as its source line, and the display codes of the columns", () => {
+    expect(poolPage().activity).toMatchObject({ source: "/v2/amm/pools/{pool}/swaps", codes: ["XRP", "RLUSD"] });
+    const liquidity = poolPage({ query: { ...QUERY, tab: "liquidity" }, activity: fulfilled({ result: "success", count: 0, liquidity: [] }) });
+    expect(liquidity.activity.source).toBe("/v2/amm/pools/{pool}/liquidity");
+    const governance = poolPage({ query: { ...QUERY, tab: "governance" }, activity: fulfilled({ result: "success", count: 0, governance: [] }) });
+    expect(governance.activity.source).toBe("/v2/amm/pools/{pool}/governance");
+  });
+
+  it("lists the swaps in the display pair, with the notes under the table and the Older link of the next page", () => {
+    const list = listOfPage(poolPage());
+    expect(list).toEqual({
+      state: "ok",
+      tab: "swaps",
+      rows: swapRows([rlusdSwap()], XRP_RLUSD, "xrpl"),
+      empty: null,
+      paging: { newerHref: null, olderHref: ammPoolHref("xrpl", AMM_POOL, { marker: AMM_MARKER, back: [] }) },
+      notes: [
+        "Newest first. Signs are from the pool's side: + went in, − came out.",
+        "Amounts are the pool's own changes; on the asset it pays out they include the issuer's transfer fee.",
+      ],
+    });
+  });
+
+  it("lists the liquidity events and the votes and bids, the pager keeping the tab", () => {
+    const events = [ammLiquiditySample({ base_amount: "-10", counter_amount: "-20" })];
+    const liquidity = listOfPage(poolPage({ query: { ...QUERY, tab: "liquidity" }, activity: fulfilled({ result: "success", count: 1, marker: AMM_MARKER, liquidity: events }) }));
+    expect(liquidity).toMatchObject({ tab: "liquidity", rows: liquidityRows(events, XRP_RLUSD, "xrpl"), notes: ["Newest first. Signs are from the pool's side: + went in, − came out."] });
+    expect(liquidity.paging.olderHref).toBe(`/xrpl/amm/${AMM_POOL}?tab=liquidity&marker=${AMM_MARKER}`);
+
+    const rows: AmmGovernanceRow[] = [ammVoteSample(), ammBidSample()];
+    const governance = listOfPage(poolPage({ query: { ...QUERY, tab: "governance" }, activity: fulfilled({ result: "success", count: 2, governance: rows }) }));
+    expect(governance).toMatchObject({ tab: "governance", rows: governanceRows(rows, "xrpl"), empty: null, paging: { newerHref: null, olderHref: null } });
+  });
+
+  it("says when a tab has nothing to show", () => {
+    expect(listOfPage(poolPage({ activity: fulfilled(swapsPage([], null)) })).empty).toBe("No swaps to show.");
+    const liquidity = poolPage({ query: { ...QUERY, tab: "liquidity" }, activity: fulfilled({ result: "success", count: 0, liquidity: [] }) });
+    expect(listOfPage(liquidity).empty).toBe("No liquidity events to show.");
+    const governance = poolPage({ query: { ...QUERY, tab: "governance" }, activity: fulfilled({ result: "success", count: 0, governance: [] }) });
+    expect(listOfPage(governance).empty).toBe("No votes or bids to show.");
+  });
+
+  it("fails the table, never the tabs, when #7 failed, and names what could not be loaded", () => {
+    const cases: [AmmPoolQuery["tab"], string][] = [
+      ["swaps", "the swaps"],
+      ["liquidity", "the liquidity events"],
+      ["governance", "the votes and bids"],
+    ];
+    for (const [tab, what] of cases) {
+      const { page, problems } = ammPoolPage(poolInput({ query: { ...QUERY, tab }, activity: rejected(serverError()) }));
+      expect(page.activity.list).toEqual({ state: "failed", what });
+      expect(page.activity.tabs).toHaveLength(3);
+      expect(problems).toEqual([`${what}: ${serverError().message}`]);
+    }
+  });
+
+  it("fails the table for an answer without the tab's list", () => {
+    const { page, problems } = ammPoolPage(poolInput({ query: { ...QUERY, tab: "liquidity" }, activity: fulfilled(swapsPage()) }));
+    expect(page.activity.list).toEqual({ state: "failed", what: "the liquidity events" });
+    expect(problems).toHaveLength(1);
+  });
+});
+
+describe("ammPoolPage: the problems", () => {
+  it("are in the page's order, one for each failed card, and the page still stands", () => {
+    const { page, problems } = ammPoolPage(
+      poolInput({
+        mode: "node-down",
+        node: rejected(serverError("node amm_info answered 502")),
+        live: rejected(new TooLate()),
+        lastDay: rejected(new TooLate()),
+        days: rejected(new TooLate()),
+        carryIn: rejected(new TooLate()),
+        candles: rejected(new TooLate()),
+        activity: rejected(new TooLate()),
+      }),
+    );
+    expect(problems).toEqual([
+      "the live state: node amm_info answered 502",
+      "the 24-hour volume: took too long",
+      "the fees of the last day: took too long",
+      "the day rows: took too long",
+      "the day before the window: took too long",
+      "the swap volume: took too long",
+      "the swaps: took too long",
+    ]);
+    expect(page.kind).toBe("pool");
+  });
+
+  it("never put a reason in the page", () => {
+    const { page } = ammPoolPage(poolInput({ live: rejected(serverError("SECRET-REASON")), activity: rejected(serverError("SECRET-REASON")) }));
+    expect(JSON.stringify(page)).not.toContain("SECRET-REASON");
+  });
+});
+
+describe("ammHistoryPage: a page behind a marker", () => {
+  const query: AmmPoolQuery = { period: "90d", tab: "liquidity", marker: AMM_MARKER, back: ["WzEsMl0"] };
+  const events = [ammLiquiditySample()];
+  const activity: AmmActivityPage = { result: "success", count: 1, marker: "WzMsNF0", liquidity: events };
+  const page = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index: indexPool(), activity });
+
+  it("has the crumbs, and the pool card without its Created and LP token lines", () => {
+    expect(page.kind).toBe("history");
+    expect(page.crumbs).toEqual(poolPage().crumbs);
+    expect(page.header).toEqual({
+      coins: ["XRP", "RLUSD"],
+      title: "XRP / RLUSD pool",
+      market: `/xrpl/markets/XRP/RLUSD.${RL}`,
+      account: { address: AMM_POOL, href: `/xrpl/account/${AMM_POOL}` },
+      issuers: [{ code: "RLUSD", text: `RLUSD issued by ${RL}`, issuer: { address: RL, href: `/xrpl/account/${RL}` } }],
+    });
+  });
+
+  it("shows the activity of that page, paged on from it, and the way back to the pool's first page of the tab", () => {
+    expect(listOfPage(page)).toMatchObject({
+      tab: "liquidity",
+      rows: liquidityRows(events, XRP_RLUSD, "xrpl"),
+      paging: {
+        newerHref: `/xrpl/amm/${AMM_POOL}?tab=liquidity&marker=WzEsMl0`,
+        olderHref: `/xrpl/amm/${AMM_POOL}?tab=liquidity&marker=WzMsNF0&back=${AMM_MARKER}.WzEsMl0`,
+      },
+    });
+    expect(page.activity.current).toBe("liquidity");
+    expect(page.backHref).toBe(ammPoolHref("xrpl", AMM_POOL, { tab: "liquidity" }));
+    expect(page.backHref).toBe(`/xrpl/amm/${AMM_POOL}?tab=liquidity`);
+  });
+
+  it("carries the facts of its tags: behind a marker, and the mode of the index's pool", () => {
+    expect(page.meta).toMatchObject({ pair: "XRP/RLUSD", tab: "liquidity", marker: true, mode: "indexed", fee: "0.205%" });
+    const deleted = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index: indexPool({ deleted: true }), activity });
+    expect(deleted.meta).toMatchObject({ mode: "deleted", deleted: true });
+  });
+
+  it("has nothing else: no state, slot, votes or charts", () => {
+    expect(Object.keys(page).sort()).toEqual(["activity", "backHref", "crumbs", "header", "kind", "meta"]);
+  });
+});
+
+describe("the pool page: no float and no exponent reaches the page (P38)", () => {
+  /**
+   * The page's text without what is an identifier and no number, which can hold a digit, an E and a digit by chance: a transaction hash, an address (whole
+   * or short), a currency of 40 hex digits (an LP token's) and its short form, the first 8 hex digits of a code with no text, a chart's token and a marker.
+   */
+  const withoutIds = (page: unknown): string =>
+    withoutHashes(JSON.stringify(page))
+      .replace(/"token":"[0-9a-f]{8}"/g, "")
+      .replace(/[0-9A-F]{40}/g, "")
+      .replace(/[0-9A-F]{6}…[0-9A-F]{4}/g, "")
+      .replace(/r[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4}/g, "")
+      .replace(/marker=[\w-]+/g, "")
+      .replace(/back=[\w.-]+/g, "");
+
+  it("strips only identifiers: a figure in exponent form is still caught", () => {
+    expect(withoutIds({ value: "1.2e+21" })).toMatch(EXPONENT);
+    expect(withoutIds({ href: `/xrpl/tx/${"1E5".padEnd(64, "0")}`, lp: `03${"1E5".padEnd(38, "0")}` })).not.toMatch(EXPONENT);
+  });
+
+  it("writes in plain digits every amount the node and the API wrote in exponent form", () => {
+    const info = poolInfo({
+      amount: { currency: "XRP", value: "0.000001" },
+      amount2: { currency: RLUSD, issuer: RL, value: "1200000000000000000000" },
+      lp_token: { currency: LP_CURRENCY, issuer: AMM_POOL, value: "0.00000001" },
+      auction_slot: heldSlot({ time_interval: 3, price: { currency: LP_CURRENCY, issuer: AMM_POOL, value: "0.0000003" } }),
+    });
+    const exponentDay = poolDay("2026-10-16", { reserve_base: "1.2e+21", reserve_counter: "3e-7", value_native: "1000000", fees_base_est: "1.250946e-8", fees_counter_est: "2e-9" });
+    const input = poolInput({
+      node: fulfilled(info),
+      days: fulfilled(daysPage([exponentDay])),
+      lastDay: fulfilled(daysPage([exponentDay])),
+      candles: fulfilled(candlesPage([poolCandle("2026-10-16", { base_volume: "1e+21", counter_volume: "5e-7" })])),
+      live: fulfilled(liveOf([component({ rate: "7.6528766e+9", converted_amount: "1.2e+21", amount: "3e-7" })])),
+      activity: fulfilled(swapsPage([rlusdSwap({ base_amount: "1e+30", counter_amount: "1e-30", rate: "1e+60" })])),
+    });
+    const { page } = ammPoolPage(input);
+    expect(withoutIds(page)).not.toMatch(EXPONENT);
+    expect(statOf(page, "fees").value).toBe("0.000000002 XRP + 0.00000001250946 RLUSD");
+    expect(statOf(page, "volume").value).toBe("1,200,000,000T XRP");
+    // The node-down page reads the index's figures, which may be in exponent form too.
+    const down = ammPoolPage({ ...input, mode: "node-down", node: rejected(serverError()), index: indexPool({ reserve_base: "1.5e-7", reserve_counter: "1.2e+21", lp_supply: "1e+25", auction_slot: { holder: AMM_HOLDER, price: "1e-9" } }) });
+    expect(withoutIds(down.page)).not.toMatch(EXPONENT);
+    expect(reservesOf(down.page)).toEqual(["1,200,000,000,000,000,000,000 XRP", "0.00000015 RLUSD"]);
+  });
+
+  describe("every recorded pool, through the node client's own reader", () => {
+    const dir = new URL("../../test/fixtures/http/xrpl/", import.meta.url);
+    const text = (path: string): string => readFileSync(new URL(path, dir), "utf8");
+    const json = <T>(path: string): T => JSON.parse(text(path)) as T;
+    const exists = (path: string): boolean => {
+      try {
+        readFileSync(new URL(path, dir));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const pageOrEmpty = <T>(path: string, empty: T): PromiseSettledResult<T> => fulfilled(exists(path) ? json<T>(path) : empty);
+    const dayBefore = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    const assetText = (currency: string, issuer?: string) => (issuer ? `${currency}+${issuer}` : currency);
+    const passThrough = { json: <T>(_key: string, _cls: string, load: () => Promise<T>) => load() } as unknown as SubrequestCache;
+    const node = { id: "xrpl", name: "XRPL", native: "XRP", nodeUrl: "https://node.example.invalid/" } as Network;
+
+    /** The pool's `amm_info`, read from its recorded answer by node-rpc.ts's own reader; the node's `actNotFound` for a pool with no file (VOX/XRP). */
+    async function infoOf(pool: string): Promise<PromiseSettledResult<AmmInfo>> {
+      const path = `node/amm_info/${pool}.json`;
+      if (!exists(path)) return rejected(new UpstreamError("not_found", "node amm_info: actNotFound"));
+      const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(text(path), { status: 200, headers: { "Content-Type": "application/json" } }));
+      try {
+        return fulfilled(await createNodeRpc(node, passThrough).ammInfo(pool));
+      } finally {
+        spy.mockRestore();
+      }
+    }
+
+    async function recordedInput(pool: string, period: AmmPoolQuery["period"], tab: AmmPoolQuery["tab"]): Promise<AmmPoolInput> {
+      const index = json<{ pool: AmmPool }>(`data-api/amm/pools/${pool}.json`).pool;
+      const info = await infoOf(pool);
+      const mode = poolModeOf(fulfilled(index), info);
+      if (mode === "none" || mode === "unavailable") throw new Error(`${pool} is no page`);
+      const window = windowOf(DAY_T, period);
+      const q = poolQueries(window, DAY_T);
+      const at = `data-api/amm/pools/${pool}/`;
+      const days = (start: string) => pageOrEmpty<Page<"days", AmmPoolDay>>(`${at}history@end=${DAY_T}&interval=day&limit=1000&start=${start}.json`, daysPage([]));
+      const pair = `${assetText(index.base_currency, index.base_issuer)}/${assetText(index.counter_currency, index.counter_issuer)}`;
+      const candles = `data-api/exchanges/${pair}@amm=only&end=${DAY_T}&interval=${q.candles.interval}&limit=400&start=${window.start}.json`;
+      const tabFile = `${at}${tab}@descending=true&limit=20.json`;
+      const emptyTab: AmmActivityPage = tab === "swaps" ? swapsPage([], null) : tab === "liquidity" ? { result: "success", count: 0, liquidity: [] } : { result: "success", count: 0, governance: [] };
+      return {
+        net: POOL_NET,
+        pool,
+        query: { period, tab, back: [] },
+        mode,
+        index,
+        node: info,
+        last: fulfilled(json<LastValidated>("data-api/last_validated.json")),
+        days: days(window.start),
+        carryIn: pageOrEmpty(`${at}history@descending=true&end=${dayBefore(window.start)}&interval=day&limit=1.json`, daysPage([])),
+        lastDay: pageOrEmpty(`${at}history@end=${q.lastDay.end}&interval=day&limit=1&start=${q.lastDay.start}.json`, daysPage([])),
+        candles: pageOrEmpty(candles, candlesPage([])),
+        activity: pageOrEmpty(tabFile, emptyTab),
+        created: pageOrEmpty(`${at}liquidity@event=create&limit=1.json`, { result: "success", count: 0, liquidity: [] }),
+        live: fulfilled(json<Page<"rows", AmmVolumeRow>>("data-api/network/amm_volume@live=day.json")),
+      };
+    }
+
+    const SNK = "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz";
+    const DVR = "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG";
+    const USD_XRP = "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am";
+    const USDC_POOL = "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb";
+    const VOX_POOL = "rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef";
+    const cases: [string, AmmPoolQuery["period"], AmmPoolMode][] = [
+      [AMM_POOL, "30d", "indexed"],
+      [AMM_POOL, "90d", "indexed"],
+      [AMM_POOL, "1y", "indexed"],
+      [USD_XRP, "90d", "indexed"],
+      [USDC_POOL, "90d", "indexed"],
+      [DVR, "30d", "indexed"],
+      [SNK, "90d", "deleted"],
+      [SNK, "1y", "deleted"],
+      [VOX_POOL, "90d", "gone"],
+    ];
+
+    it.each(cases)("%s at %s is the %s page, whole, with no exponent on any tab", async (pool, period, mode) => {
+      for (const tab of ["swaps", "liquidity", "governance"] as const) {
+        const input = await recordedInput(pool, period, tab);
+        expect(input.mode).toBe(mode);
+        const { page, problems, logged } = ammPoolPage(input);
+        expect([problems, logged], `${pool} ${period} ${tab}`).toEqual([[], []]);
+        expect(withoutIds(page), `${pool} ${period} ${tab}`).not.toMatch(EXPONENT);
+      }
+    });
+
+    it("draws XRP / RLUSD's state card from its recorded amm_info: an expired slot is open", async () => {
+      const { page } = ammPoolPage(await recordedInput(AMM_POOL, "90d", "swaps"));
+      expect(reservesOf(page)).toEqual(["1,847,691.034536 XRP", "2,417,282.053464318 RLUSD"]);
+      expect(statOf(page, "value")).toMatchObject({ value: "3.7M XRP" });
+      expect(statOf(page, "fee")).toMatchObject({ value: "0.205%", sub: "set by 8 votes" });
+      expect(statOf(page, "fees")).toMatchObject({ value: "60.76396923 XRP + 75.07497735055 RLUSD" });
+      expect(stateOf(page).caption.text).toBe("Live from the network at ledger #107,721,455");
+      expect(slotOfPage(page)).toMatchObject({ held: null, until: null, meter: null });
+      expect(slotOfPage(page).text).toMatch(/^The slot is open\. A new bid now costs at least [\d,.]+ LP tokens\.$/);
+    });
+
+    it("names DVR/XRP's creation, the one recorded create event", async () => {
+      const { page } = ammPoolPage(await recordedInput(DVR, "30d", "swaps"));
+      expect(page.header.created).toMatchObject({ date: "2026-10-12", by: { address: "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3" } });
+      expect(page.meta.created).toEqual({ date: "2026-10-12", at: unixAt("2026-10-12T19:36:41Z") });
+    });
   });
 });

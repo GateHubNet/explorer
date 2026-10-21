@@ -1,7 +1,9 @@
 // What the AMM pages show, worked out in the Worker from the data API's answers (spec 2.4, 3.4 and 3.5). This file holds the list's builder, `ammListPage`, the
 // two pieces every AMM builder shares (the pair as it is displayed, `displayPair`, and a fee as a percent, `feePercent`), the pool's figures (the price of a ratio of
 // two amounts, the cost of the next bid, the auction slot's interval, the fee votes and the rows of the three activity tabs) and the pool's charts (the sparse day rows
-// filled into the window's buckets, `daySeries`, and the five chart cards, `poolCharts`). The pool page's own builder joins them in a later task.
+// filled into the window's buckets, `daySeries`, and the five chart cards, `poolCharts`). Then the pool page itself (spec 3.3): its mode from the index's answer and
+// the node's (`poolModeOf`), the class of each mode (`MODE_CLASS`), the queries of its day rows and candles (`poolQueries`), the facts its tags read
+// (`ammPoolFacts`), and its two builders, the first page (`ammPoolPage`) and a page behind a marker (`ammHistoryPage`).
 // No I/O, no clock, no `Intl`: each number of the page is text that BigNumber wrote in plain decimal (`compactNumber`, `toFixed()`), so no float and no exponent
 // reaches a string of the page, whatever form the data API wrote an amount in.
 //
@@ -11,16 +13,19 @@
 import BigNumber from "bignumber.js";
 
 import { accountHref } from "../domain/account-tabs";
-import { ammListHref, ammPoolHref } from "../domain/amm-params";
-import { sameAsset, type Asset, type NativeCode } from "../domain/asset";
+import { AMM_PERIODS, AMM_TABS, ammListHref, ammPoolHref, type AmmPeriod, type AmmPoolQuery, type AmmTab } from "../domain/amm-params";
+import { canonicalPair, sameAsset, type Asset, type NativeCode } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
-import { compactNumber, formatAmount, formatCurrency, formatPrice, shortAddress } from "../domain/format";
-import { naturalOrientation } from "../domain/market-pair";
+import { compactNumber, decodesCurrency, formatAmount, formatCurrency, formatPrice, formatUtc, formatUtcDay, shortAddress, shortHash } from "../domain/format";
+import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import { marketsHref } from "../domain/market-params";
 import { trailPaging, type Paging } from "../domain/paging";
 import { sharePercent } from "../domain/percent";
+import { formatDateTime } from "../domain/time-words";
 import { bucketStarts, pendingNote, utcDayOf, windowOf, type PeriodWindow } from "../domain/window";
-import type { BarListData, SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
+import type { BarListData, MeterData, SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
+import type { NoticeTone } from "../ui/components/Notice";
+import type { SegmentLink } from "../ui/components/SegmentedLinks";
 import { isNative } from "./account-view";
 import { anchorOrThrow } from "./anchor";
 import type {
@@ -36,11 +41,13 @@ import type {
   LastValidated,
   Page,
 } from "./api-types";
+import { CACHE_CLASSES, type CacheClass } from "./cache-class";
 import { BN, decimalOf, feePercent, ratioOf, valueFloor } from "./exact";
 import { issuersOf } from "./markets-view";
 import { byDay, tokened, volumeOf } from "./network-view";
 import type { Network } from "./networks";
-import type { AmmInfo } from "./node-rpc";
+import type { AmmInfo, NodeAmount } from "./node-rpc";
+import { UpstreamError } from "./upstream";
 import { clock, ledgerLink, unixOf } from "./validator-facts";
 
 const DASH = "—";
@@ -1017,5 +1024,757 @@ export function poolCharts(input: DaySeriesInput | null): PoolCharts {
       }),
       notes: [RESERVES_NOTE, NOT_COMPUTED_NOTE],
     },
+  };
+}
+
+// ---- The pool page: its modes (spec 3.3, Review Focus 2) ----------------------------------------------------------------------------------------
+
+/**
+ * What the pool page is, from the index's answer for the pool (#1) and the node's (#2):
+ * - `indexed`: the index's live pool, and the node's: everything.
+ * - `node-down`: the index's live pool, and the node failed (a `TooLate` included): the state from the index. Served, never stored.
+ * - `gone`: the index's live pool, and the node has no such pool: the index may not have seen its deletion yet.
+ * - `deleted`: the index's deleted pool, whatever the node said: its history.
+ * - `network`: the index has no such pool, and the node has: a pool younger than the aggregator's minute, shown from the network.
+ * - `none`: neither has it, a 404.
+ * - `unavailable`: the index failed, or it has no such pool and the node failed: a 503, because a missing pool cannot be told from an outage.
+ */
+export type AmmPoolMode = "indexed" | "node-down" | "gone" | "deleted" | "network" | "none" | "unavailable";
+
+/** The modes that are a page. */
+export type AmmPageMode = Exclude<AmmPoolMode, "none" | "unavailable">;
+
+/**
+ * The pool's absence: the index's `pool not found`, and the node's `actNotFound` or `actMalformed` (E3's `amm_info` reader). The "Cannot GET" 404 of an API without
+ * the AMM routes is kind `server` (data-api.ts), an outage, and so is everything else that is not this kind, a `TooLate` and a bug included.
+ */
+const isNotFound = (reason: unknown): boolean => reason instanceof UpstreamError && reason.kind === "not_found";
+
+/**
+ * The mode of the pool page (spec 3.3's table). A 404 (`none`) only when the index and the node both say the pool is missing; a failure on either side is never
+ * one, so it is never stored as one. A deleted pool shows its history, whatever the node said.
+ */
+export function poolModeOf(index: PromiseSettledResult<AmmPool>, node: PromiseSettledResult<AmmInfo>): AmmPoolMode {
+  if (index.status === "fulfilled") {
+    if (index.value.deleted === true) return "deleted";
+    if (node.status === "fulfilled") return "indexed";
+    return isNotFound(node.reason) ? "gone" : "node-down";
+  }
+  if (!isNotFound(index.reason)) return "unavailable";
+  if (node.status === "fulfilled") return "network";
+  return isNotFound(node.reason) ? "none" : "unavailable";
+}
+
+/**
+ * The edge class of each mode that is a page; `node-down` is served and not stored (`degraded`). A pool from the network is `short`, kept the aggregator's minute
+ * (the `minute` class's 60 s), after which the index has it.
+ */
+export const MODE_CLASS: Record<AmmPageMode, { cls: CacheClass; ttl?: number; degraded: boolean }> = {
+  indexed: { cls: "live", degraded: false },
+  "node-down": { cls: "live", degraded: true },
+  gone: { cls: "live", degraded: false },
+  deleted: { cls: "slow", degraded: false },
+  network: { cls: "short", ttl: CACHE_CLASSES.minute.edgeTtl, degraded: false },
+};
+
+/** The queries of #4 (the window's days), #5 (the day before it, the carry-in), #10 (the last complete day) and #6 (the pair's AMM candles). */
+export interface PoolQueries {
+  days: { start: string; end: string; limit: 1000 };
+  carryIn: { end: string; descending: true; limit: 1 };
+  lastDay: { start: string; end: string; limit: 1 };
+  candles: { interval: "1day" | "7day"; start: string; end: string; limit: 400; amm: "only" };
+}
+
+/** The UTC day before `day` (`YYYY-MM-DD`). */
+const dayBefore = (day: string): string => new Date(Date.parse(`${day}T00:00:00Z`) - DAY_MS).toISOString().slice(0, 10);
+
+/**
+ * The queries of a window of E2's `windowOf` (spec 3.2): the days from W₀ to T, the newest day before W₀, the day before `T` (the same for every period, so one
+ * key), and the candles of the window, weekly for the year (whose buckets start on Monday, as the API's `7day` do).
+ */
+export function poolQueries(window: PeriodWindow, T: string): PoolQueries {
+  return {
+    days: { start: window.start, end: window.end, limit: 1000 },
+    carryIn: { end: dayBefore(window.start), descending: true, limit: 1 },
+    lastDay: { start: dayBefore(T), end: dayBefore(T), limit: 1 },
+    candles: { interval: window.unit === "week" ? "7day" : "1day", start: window.start, end: window.end, limit: 400, amm: "only" },
+  };
+}
+
+// ---- The pool page: the facts of its tags -----------------------------------------------------------------------------------------------------
+
+/** What the tags of a pool page say of it (Task 13's `ammPoolMeta`), each fact left out where the page does not have it. */
+export interface AmmPoolFacts {
+  pool: string;
+  net: string;
+  native: string;
+  /** `XRP/RLUSD`: the display pair as a slug. */
+  pair: string;
+  deleted: boolean;
+  /** `0.300%`: the node's fee, else the index's. */
+  fee?: string;
+  /** The index's value, compact (`3.61M`); none for a deleted pool. */
+  value?: string;
+  /** The day (`YYYY-MM-DD`, UTC) and the moment (unix seconds) of the pool's creation. */
+  created?: { date: string; at: number };
+}
+
+/** What a pool page's data carries for its tags. */
+export type AmmPoolMeta = AmmPoolFacts & { tab: AmmTab; period: AmmPeriod; marker: boolean; mode: AmmPoolMode };
+
+/** An amount of the node as an asset: its currency and issuer, without its value. */
+const assetOfAmount = (amount: NodeAmount): Asset => assetOf(amount.currency, amount.issuer);
+
+/**
+ * The pool's display pair: from the index's pool, in its stored order; else from the node's two amounts, put in the order the API stores the pair (E3's
+ * `canonicalPair`), so that `flipped` says the same as it would from the index. `null` with neither.
+ */
+function poolPair(index: AmmPool | null, node: AmmInfo | null, native: NativeCode): DisplayPair | null {
+  if (index !== null) return displayPair(assetOf(index.base_currency, index.base_issuer), assetOf(index.counter_currency, index.counter_issuer), native);
+  if (node === null) return null;
+  const [base, counter] = canonicalPair(assetOfAmount(node.amount), assetOfAmount(node.amount2));
+  return displayPair(base, counter, native);
+}
+
+/** The creation of a create event (only one: `ammLiquidity({ event: "create" })` refuses rows of another event, and so does this), `null` for anything else. */
+function creationOf(event: AmmLiquidityEvent | null): { date: string; at: number; event: AmmLiquidityEvent } | null {
+  if (event?.event !== "create") return null;
+  const at = unixOf(event.executed_time);
+  return Number.isNaN(at) ? null : { date: formatUtc(event.executed_time).slice(0, 10), at, event };
+}
+
+/**
+ * The facts of a pool page (spec 5.1): the pair as a slug (the pool's short account where neither the index nor the node names it, which no page mode allows),
+ * the node's fee or the index's, the index's value of a live pool, and the day of the creation event.
+ */
+export function ammPoolFacts(
+  net: Pick<Network, "id" | "native">,
+  pool: string,
+  index: AmmPool | null,
+  node: AmmInfo | null,
+  created: AmmLiquidityEvent | null,
+): AmmPoolFacts {
+  const pair = poolPair(index, node, net.native);
+  const fee = node?.trading_fee ?? index?.trading_fee;
+  const value = index === null || index.deleted ? null : decimalOf(index.value_native);
+  const creation = creationOf(created);
+  return {
+    pool,
+    net: net.id,
+    native: net.native,
+    pair: pair?.slug ?? shortAddress(pool),
+    deleted: index?.deleted === true,
+    ...(fee === undefined ? {} : { fee: feePercent(fee) }),
+    ...(value === null ? {} : { value: compactNumber(value.toFixed()) }),
+    ...(creation === null ? {} : { created: { date: creation.date, at: creation.at } }),
+  };
+}
+
+// ---- The pool page: its data ------------------------------------------------------------------------------------------------------------------
+
+/** What a pool page reads of its network. */
+export type AmmPoolNet = Pick<Network, "id" | "name" | "native" | "features">;
+
+/** A text and the part of it that is a link: the page writes `text` with `link.text` linking `link.href`. */
+export interface Linked {
+  text: string;
+  link: { text: string; href: string };
+}
+
+/** A breadcrumb: the last one, the page itself, has no link. */
+export interface AmmCrumb {
+  label: string;
+  href?: string;
+}
+
+/** "RLUSD issued by rMxCK…": an issued side of the pair, its code (the whole 40 hex digits where it has no text, as E3's pair header) and its issuer. */
+export interface AmmIssuerLine {
+  code: string;
+  text: string;
+  issuer: AccountRef;
+}
+
+/** The pool card of both pages (spec 3.1). */
+export interface AmmPoolHead {
+  /** The display codes of the two sides, for the coins (which are decorative). */
+  coins: [string, string];
+  /** The heading: `XRP / RLUSD pool`. */
+  title: string;
+  /** E3's market of the pair in its natural orientation; `null` while the markets pages are off, or for a side that does not read back from its URL form (P31). */
+  market: string | null;
+  /** "Pool account r…": the whole address and its account page. */
+  account: AccountRef;
+  /** One for each issued side, in display order. */
+  issuers: AmmIssuerLine[];
+}
+
+/** The first page's pool card: the head, with the Created and LP token lines. */
+export interface AmmPoolHeader extends AmmPoolHead {
+  /** "Created 2024-03-22 by r…": the day links the creating transaction; `null` without a create event (or when #8 failed). */
+  created: { date: string; href: string; by: AccountRef } | null;
+  /** "LP token 03A1F7…9C2E", with a copy button for the whole code. */
+  lpToken: { short: string; code: string } | null;
+}
+
+/** A notice under the pool card (spec 3.1, 3.3 and 3.4). `node-down` is E3's `LiveStateNotice`, with its `title` and Retry; the others are a `Notice`. */
+export interface AmmNotice {
+  kind: "deleted" | "network" | "node-down" | "gone" | "frozen";
+  tone: NoticeTone;
+  title?: string;
+  text: string;
+  /** The part of `text` that is a link: the deleted pool's last ledger. */
+  link?: { text: string; href: string };
+}
+
+/** One of the seven stats of the state card; the reserves are two figures, the others a figure and the words under it. */
+export type AmmStat =
+  | { id: "value" | "price" | "fee" | "lp" | "volume" | "fees"; label: string; value: string; sub: string }
+  | { id: "reserves"; label: string; reserves: [string, string] };
+
+/** The auction slot card. `held` is `null` for an open slot; from the index (the node down), it has no interval, cost or authorized accounts. */
+export interface AmmSlotView {
+  state: "ok";
+  held: { holder: AccountRef; fee: string | null; pricePaid: string | null; authorized: AccountRef[] | null } | null;
+  /** "until Oct 18, 2026, 09:00 UTC", and the moment (unix seconds) of E6's `Countdown`; `null` for an open slot, or an expiration that is not known. */
+  until: string | null;
+  countdownAt: number | null;
+  meter: MeterData | null;
+  /** "Interval 13 of 20 of the 24-hour slot. A new bid now costs at least 1,302 LP tokens.", "The slot is open."; `null` where the interval is not known. */
+  text: string | null;
+}
+
+/** The table of the activity card: the rows of the tab of the query, or what could not be loaded. */
+export type AmmActivityList =
+  | ({ state: "ok"; empty: string | null; paging: Paging; notes: string[] } & (
+      | { tab: "swaps"; rows: SwapRow[] }
+      | { tab: "liquidity"; rows: LiquidityRow[] }
+      | { tab: "governance"; rows: GovernanceRow[] }
+    ))
+  | Failed;
+
+/** The activity card: the tabs (links, which stay when the table fails), the tab's source line, the display codes of its columns, and the table. */
+export interface AmmActivity {
+  tabs: { id: AmmTab; label: string; href: string }[];
+  current: AmmTab;
+  source: string;
+  codes: [string, string];
+  list: AmmActivityList;
+}
+
+/** The tab's list: the page of `query.tab`. */
+export type AmmActivityPage = Page<"exchanges", AmmSwap> | Page<"liquidity", AmmLiquidityEvent> | Page<"governance", AmmGovernanceRow>;
+
+/** The first page of a pool (spec 3.1). Each card is `{ state: "ok", … }`, `{ state: "failed", what }`, or `null` where the mode leaves it out. */
+export interface AmmPoolPageData {
+  kind: "pool";
+  meta: AmmPoolMeta;
+  crumbs: AmmCrumb[];
+  header: AmmPoolHeader;
+  notices: AmmNotice[];
+  /** The seven stats and the caption that says where they are from; `null` for a deleted pool. */
+  state: { state: "ok"; stats: AmmStat[]; caption: Linked } | null;
+  /** The period links (E2's `SegmentedLinks`), the day rows' source line, and the period note (`null` without a window: #3 failed). */
+  filters: { period: SegmentLink[]; source: string; note: string | null };
+  charts: PoolCharts;
+  slot: AmmSlotView | null;
+  /** E2's `BarList` of the votes, and the sentence of the result with the part the page writes in bold (`figure`). */
+  votes: { state: "ok"; data: BarListData; text: string; figure: string } | Failed | null;
+  activity: AmmActivity;
+}
+
+/** A page of the pool's activity behind a marker (spec 3.3, step 2): nothing that would be as old as the stored page. */
+export interface AmmHistoryPageData {
+  kind: "history";
+  meta: AmmPoolMeta;
+  crumbs: AmmCrumb[];
+  header: AmmPoolHead;
+  activity: AmmActivity;
+  /** The first page of the tab: "Back to the pool". */
+  backHref: string;
+}
+
+/** The input of `ammPoolPage`: the mode, and the outcomes of the loader's calls (spec 3.2). */
+export interface AmmPoolInput {
+  net: AmmPoolNet;
+  pool: string;
+  query: AmmPoolQuery;
+  mode: AmmPageMode;
+  /** #1; `null` in the network mode. */
+  index: AmmPool | null;
+  /** #2: read in the indexed and network modes only. */
+  node: PromiseSettledResult<AmmInfo>;
+  /** #3 */
+  last: PromiseSettledResult<LastValidated>;
+  /** #4, #5 and #10; `null`: not asked (#3 failed). */
+  days: PromiseSettledResult<Page<"days", AmmPoolDay>> | null;
+  carryIn: PromiseSettledResult<Page<"days", AmmPoolDay>> | null;
+  lastDay: PromiseSettledResult<Page<"days", AmmPoolDay>> | null;
+  /** #6; `null`: not asked. */
+  candles: PromiseSettledResult<Page<"exchanges", Candle>> | null;
+  /** #7: the page of `query.tab`. */
+  activity: PromiseSettledResult<AmmActivityPage>;
+  /** #8 */
+  created: PromiseSettledResult<Page<"liquidity", AmmLiquidityEvent>>;
+  /** #9 */
+  live: PromiseSettledResult<Page<"rows", AmmVolumeRow>>;
+}
+
+const COULD_NOT_LOAD = "Couldn’t load";
+const SLOT_SPAN = "of the 24-hour slot";
+const OPEN_SLOT = "The slot is open.";
+const ESTIMATE_SUB = "estimate, paid to liquidity providers";
+const NODE_DOWN_TITLE = "Live state unavailable; shown from the index";
+const NODE_DOWN_TEXT =
+  "The network node did not answer, so the reserves, LP tokens and fee are the explorer’s index’s, and the fee votes are missing.";
+const GONE_TEXT = "The network no longer has this pool; the index may not have seen its deletion yet.";
+const NETWORK_TEXT = "Not in the index yet, shown from the network. Its history appears once the index has it.";
+const PERIOD_LABELS: Record<AmmPeriod, string> = { "30d": "30 days", "90d": "90 days", "1y": "1 year" };
+const TAB_LABELS: Record<AmmTab, string> = { swaps: "Swaps", liquidity: "Liquidity", governance: "Votes and bids" };
+/** What a failed table says it could not load. */
+const TAB_WHAT: Record<AmmTab, string> = { swaps: "the swaps", liquidity: "the liquidity events", governance: "the votes and bids" };
+const TAB_EMPTY: Record<AmmTab, string> = { swaps: "No swaps to show.", liquidity: "No liquidity events to show.", governance: "No votes or bids to show." };
+/** The key of each tab's list in its answer. */
+const TAB_LIST: Record<AmmTab, string> = { swaps: "exchanges", liquidity: "liquidity", governance: "governance" };
+const SIGNS_NOTE = "Newest first. Signs are from the pool's side: + went in, − came out.";
+const SWAPS_NOTE = "Amounts are the pool's own changes; on the asset it pays out they include the issuer's transfer fee.";
+
+/** A text and the link at its end. */
+const linked = (lead: string, link: { text: string; href: string }): Linked => ({ text: `${lead} ${link.text}`, link });
+
+/** An amount as plain text, grouped, every digit kept; `null` for what is not a number. */
+function exactAmount(text: string | undefined): string | null {
+  const amount = decimalOf(text);
+  return amount === null ? null : formatAmount(amount.toFixed());
+}
+
+/** The display codes of the pair. */
+const codesOf = (pair: DisplayPair): [string, string] => [formatCurrency(pair.first.currency), formatCurrency(pair.second.currency)];
+
+function crumbsOf(net: AmmPoolNet, pair: DisplayPair): AmmCrumb[] {
+  return [{ label: net.name, href: `/${net.id}` }, { label: "AMM pools", href: ammListHref(net.id) }, { label: pair.slug }];
+}
+
+function headOf(net: AmmPoolNet, pool: string, pair: DisplayPair): AmmPoolHead {
+  const sides = [pair.first, pair.second];
+  return {
+    coins: codesOf(pair),
+    title: `${pair.text} pool`,
+    market: net.features.markets && isLinkable(sides, net.native) ? marketHref(net.id, pair.first, pair.second) : null,
+    account: accountRef(net.id, pool),
+    issuers: sides.flatMap((side) => {
+      if (side.issuer === undefined) return [];
+      const code = decodesCurrency(side.currency) ? formatCurrency(side.currency) : side.currency;
+      return [{ code, text: `${code} issued by ${side.issuer}`, issuer: accountRef(net.id, side.issuer) }];
+    }),
+  };
+}
+
+/** The tabs, the source line and the table of the activity card. `emptyWhenMissing`: the index's `pool not found` is an empty page (the network mode). */
+function activityOf(
+  net: AmmPoolNet,
+  pool: string,
+  query: AmmPoolQuery,
+  pair: DisplayPair,
+  outcome: PromiseSettledResult<AmmActivityPage>,
+  emptyWhenMissing: boolean,
+  problem: (what: string, reason: unknown) => void,
+): AmmActivity {
+  const { tab } = query;
+  const what = TAB_WHAT[tab];
+  const failed = (reason: unknown): Failed => {
+    problem(what, reason);
+    return { state: "failed", what };
+  };
+
+  let list: AmmActivityList;
+  if (outcome.status === "rejected" && !(emptyWhenMissing && isNotFound(outcome.reason))) {
+    list = failed(outcome.reason);
+  } else {
+    // A page read as far as it goes: one without the tab's list is a failed table, and never a throw.
+    const page = outcome.status === "fulfilled" ? (outcome.value as Record<string, unknown> | null) : { [TAB_LIST[tab]]: [] };
+    const rows = page?.[TAB_LIST[tab]];
+    if (!Array.isArray(rows)) {
+      list = failed(new Error(`the data API answered no ${TAB_LIST[tab]} list`));
+    } else {
+      try {
+        const next = typeof page?.marker === "string" ? page.marker : undefined;
+        const common = {
+          state: "ok" as const,
+          empty: rows.length > 0 ? null : TAB_EMPTY[tab],
+          paging: trailPaging({ marker: query.marker, back: query.back, next }, (to) => ammPoolHref(net.id, pool, { tab, ...to })),
+          notes: tab === "swaps" ? [SIGNS_NOTE, SWAPS_NOTE] : [SIGNS_NOTE],
+        };
+        list =
+          tab === "swaps"
+            ? { ...common, tab, rows: swapRows(rows as AmmSwap[], pair, net.id) }
+            : tab === "liquidity"
+              ? { ...common, tab, rows: liquidityRows(rows as AmmLiquidityEvent[], pair, net.id) }
+              : { ...common, tab, rows: governanceRows(rows as AmmGovernanceRow[], net.id) };
+      } catch (error) {
+        list = failed(error);
+      }
+    }
+  }
+
+  return {
+    tabs: AMM_TABS.map((id) => ({ id, label: TAB_LABELS[id], href: ammPoolHref(net.id, pool, { period: query.period, tab: id }) })),
+    current: tab,
+    source: `/v2/amm/pools/{pool}/${tab}`,
+    codes: codesOf(pair),
+    list,
+  };
+}
+
+/** The state the card shows, in the display pair, and where it is from. */
+interface StateSource {
+  reserves: readonly [string | undefined, string | undefined];
+  lpTokens: string | undefined;
+  fee: number | undefined;
+  /** The number of vote slots; `null` from the index, which does not have them. */
+  votes: number | null;
+  caption: Linked;
+}
+
+/** The node's state at its ledger. Its two amounts are matched to the display pair by currency and issuer, whichever way round the node gives them. */
+function nodeState(net: string, info: AmmInfo, pair: DisplayPair): StateSource {
+  const reserveOf = (asset: Asset): string | undefined => [info.amount, info.amount2].find((amount) => sameAsset(amount, asset))?.value;
+  return {
+    reserves: [reserveOf(pair.first), reserveOf(pair.second)],
+    lpTokens: info.lp_token.value,
+    fee: info.trading_fee,
+    votes: info.vote_slots.length,
+    caption: linked("Live from the network at ledger", ledgerLink(net, info.ledger_index)),
+  };
+}
+
+/** The index's state, as of the newest ledger it has seen of the pool (the node down, or no longer having the pool). */
+function indexState(net: string, index: AmmPool, pair: DisplayPair): StateSource {
+  return {
+    reserves: pair.flipped ? [index.reserve_counter, index.reserve_base] : [index.reserve_base, index.reserve_counter],
+    lpTokens: index.lp_supply,
+    fee: index.trading_fee,
+    votes: null,
+    caption: linked("From the index, ledger", ledgerLink(net, index.last_ledger)),
+  };
+}
+
+/** The node's auction slot (spec 3.1 and 3.4): held in an interval of 0 to 19, else open; the cost of a new bid, left out where it is 0. */
+function nodeSlot(net: string, info: AmmInfo): AmmSlotView {
+  const slot = info.auction_slot;
+  const interval = slotInterval(slot);
+  const held = interval === null || slot === undefined || slot.account === undefined ? null : { slot, account: slot.account, interval };
+  const cost = nextBidPrice(info.lp_token.value, info.trading_fee, held === null ? null : { price: held.slot.price.value, interval: held.interval });
+  const costText = cost === "0" ? "" : ` A new bid now costs at least ${formatAmount(cost)} LP tokens.`;
+  if (held === null) return { state: "ok", held: null, until: null, countdownAt: null, meter: null, text: `${OPEN_SLOT}${costText}` };
+
+  const label = `${intervalText(held.interval)} ${SLOT_SPAN}`;
+  const paid = exactAmount(held.slot.price.value);
+  return {
+    state: "ok",
+    held: {
+      holder: accountRef(net, held.account),
+      fee: feePercent(held.slot.discounted_fee),
+      pricePaid: paid === null ? null : `${paid} LP tokens`,
+      authorized: held.slot.auth_accounts.map((account) => accountRef(net, account)),
+    },
+    until: `until ${formatDateTime(held.slot.expiration)}`,
+    countdownAt: held.slot.expiration,
+    meter: { value: plain(held.interval + 1), max: plain(AUCTION_INTERVALS), label },
+    text: `${label}.${costText}`,
+  };
+}
+
+/**
+ * The index's auction slot, while the node is down: its holder, fee, price and expiration, without the interval, the cost or the authorized accounts it does not
+ * have. A slot with no holder is open, and so is one whose expiration is not after the newest ledger's close time (`now`, unix seconds), as on the list.
+ */
+function indexSlot(net: string, index: AmmPool, now: number | null): AmmSlotView {
+  const slot = index.auction_slot;
+  const expires = slot?.expiration === undefined ? Number.NaN : unixOf(slot.expiration);
+  const known = !Number.isNaN(expires);
+  if (slot?.holder === undefined || (known && now !== null && expires <= now)) {
+    return { state: "ok", held: null, until: null, countdownAt: null, meter: null, text: OPEN_SLOT };
+  }
+  const paid = exactAmount(slot.price);
+  return {
+    state: "ok",
+    held: {
+      holder: accountRef(net, slot.holder),
+      fee: slot.discounted_fee === undefined ? null : feePercent(slot.discounted_fee),
+      pricePaid: paid === null ? null : `${paid} LP tokens`,
+      authorized: null,
+    },
+    until: known ? `until ${formatDateTime(expires)}` : null,
+    countdownAt: known ? expires : null,
+    meter: null,
+    text: null,
+  };
+}
+
+/**
+ * The first page of a pool (spec 3.1, 3.3, 3.4 and 3.6) in its mode, from the outcomes of the loader's calls. Each card stands or fails on its own: a call that was
+ * rejected (a `TooLate` included) fails its card, and its reason is in `problems`, which the loader logs and marks the request degraded with, one for each failed
+ * card, in the page's order. In the network mode the index's `pool not found` on #4, #5, #7 and #10 is an empty answer (it has no committed state of the pool yet),
+ * and no problem. A failed #8 leaves the Created line out and is in `logged` (P9): the loader logs it, and the page is whole without it, so it is stored.
+ */
+export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; problems: string[]; logged: string[] } {
+  const { net, pool, query, mode, index } = input;
+  const { native } = net;
+  const problems: string[] = [];
+  const logged: string[] = [];
+  const problem = (what: string, reason: unknown): void => {
+    problems.push(`${what}: ${reasonText(reason)}`);
+  };
+  const fromNetwork = mode === "network";
+
+  // The node's answer is read where the mode is drawn from it: never for a deleted pool, and not when it failed.
+  const info = (mode === "indexed" || mode === "network") && input.node.status === "fulfilled" ? input.node.value : null;
+  const shown = poolPair(index, info, native);
+  // The loader builds a page only in a mode that has the index's pool or the node's: this is a bug, not an answer.
+  if (shown === null) throw new Error(`the ${mode} page of the pool ${pool} has neither the index's pool nor the node's`);
+  const pair: DisplayPair = shown;
+  const codes = codesOf(pair);
+  const holdsNative = isNative(pair.first, native) || isNative(pair.second, native);
+
+  /** The list of a page a call answered; `null` (with its problem) when the call failed or was not asked. In the network mode, a `pool not found` is an empty list. */
+  function listOf<T>(outcome: PromiseSettledResult<unknown> | null, key: string, what: string, emptyWhenMissing: boolean): T[] | null {
+    if (outcome === null) {
+      problem(what, new Error("it was not asked for"));
+      return null;
+    }
+    if (outcome.status === "rejected") {
+      if (emptyWhenMissing && isNotFound(outcome.reason)) return [];
+      problem(what, outcome.reason);
+      return null;
+    }
+    const list = (outcome.value as Record<string, unknown> | null)?.[key];
+    if (!Array.isArray(list)) {
+      problem(what, new Error(`the data API answered no ${key} list`));
+      return null;
+    }
+    return list as T[];
+  }
+
+  // #3: T, the window, and the newest ledger's close time. Its failure is the charts' problem, said where they are.
+  let window: PeriodWindow | null = null;
+  let T: string | null = null;
+  let now: number | null = null;
+  let lastFailure: unknown = null;
+  if (input.last.status === "rejected") {
+    lastFailure = input.last.reason;
+  } else {
+    try {
+      const anchor = anchorOrThrow(input.last.value);
+      T = utcDayOf(anchor.closeTime);
+      window = windowOf(T, query.period);
+      now = anchor.closeTime;
+    } catch (error) {
+      lastFailure = error;
+    }
+  }
+
+  // #8: the Created line, from a create event only.
+  let created: AmmLiquidityEvent | null = null;
+  if (input.created.status === "rejected") {
+    if (!(fromNetwork && isNotFound(input.created.reason))) logged.push(`the creation event: ${reasonText(input.created.reason)}`);
+  } else {
+    const rows = input.created.value?.liquidity;
+    created = Array.isArray(rows) && rows[0] !== undefined ? rows[0] : null;
+  }
+  const creation = creationOf(created);
+  const lpCode = index?.lp_currency ?? info?.lp_token.currency;
+
+  // The notices: the mode's, then an asset the node says is frozen.
+  const notices: AmmNotice[] = [];
+  if (mode === "node-down") {
+    notices.push({ kind: "node-down", tone: "warning", title: NODE_DOWN_TITLE, text: NODE_DOWN_TEXT });
+    problem("the live state", input.node.status === "rejected" ? input.node.reason : new Error("the node's answer is not read in this mode"));
+  } else if (mode === "gone") {
+    notices.push({ kind: "gone", tone: "warning", text: GONE_TEXT });
+  } else if (mode === "deleted" && index !== null) {
+    const last = ledgerLink(net.id, index.last_ledger);
+    notices.push({ kind: "deleted", tone: "warning", text: `This pool was deleted. The last ledger that touched it is ${last.text}`, link: last });
+  } else if (fromNetwork) {
+    notices.push({ kind: "network", tone: "info", text: NETWORK_TEXT });
+  }
+  if (info?.asset_frozen === true) notices.push({ kind: "frozen", tone: "warning", text: `${formatCurrency(info.amount.currency)} in this pool is frozen by its issuer` });
+  if (info?.asset2_frozen === true) notices.push({ kind: "frozen", tone: "warning", text: `${formatCurrency(info.amount2.currency)} in this pool is frozen by its issuer` });
+
+  /** Swap volume, 24 h (#9): the pool's component of the live set, by the pool's account. */
+  function volumeStat(): AmmStat {
+    const label = "Swap volume, 24 h";
+    const failed = (reason: unknown): AmmStat => {
+      problem("the 24-hour volume", reason);
+      return { id: "volume", label, value: DASH, sub: COULD_NOT_LOAD };
+    };
+    if (input.live.status === "rejected") return failed(input.live.reason);
+    const rows = input.live.value?.rows;
+    const row = Array.isArray(rows) ? rows[0] : undefined;
+    if (row == null) return failed(new Error("the data API answered no row"));
+    let asOf: string;
+    try {
+      asOf = clock(unixOf(row.end_time));
+    } catch (error) {
+      return failed(error);
+    }
+    const component = Array.isArray(row.components) ? row.components.find((candidate) => candidate?.amm_account === pool) : undefined;
+    if (component !== undefined) {
+      return { id: "volume", label, value: `${compactNumber(component.converted_amount)} ${native}`, sub: `${swapsWords(component.count)}, as of ${asOf} UTC` };
+    }
+    // A pool that holds the native currency always converts, so no component is no swap; one that does not may have had swaps that could not be priced.
+    return holdsNative
+      ? { id: "volume", label, value: "0", sub: `no swaps, as of ${asOf} UTC` }
+      : { id: "volume", label, value: DASH, sub: `no swaps priced in ${native}, as of ${asOf} UTC` };
+  }
+
+  /** Fees earned (#10): the two estimates of the last complete day, whatever the period, in display order. */
+  function feesStat(): AmmStat {
+    if (T === null) return { id: "fees", label: "Fees earned, last day", value: DASH, sub: COULD_NOT_LOAD };
+    const day = dayBefore(T);
+    const label = `Fees earned, ${formatUtcDay(day)}`;
+    const rows = listOf<AmmPoolDay>(input.lastDay, "days", "the fees of the last day", fromNetwork);
+    if (rows === null) return { id: "fees", label, value: DASH, sub: COULD_NOT_LOAD };
+    const row = rows.find((candidate) => startDay(candidate.date) === day);
+    if (row === undefined) return { id: "fees", label, value: "0", sub: ESTIMATE_SUB };
+    const [firstFee, secondFee] = feesOf(row, pair);
+    if (firstFee === null || secondFee === null) return { id: "fees", label, value: DASH, sub: "a swap's fee is unknown" };
+    return { id: "fees", label, value: `${formatAmount(firstFee)} ${codes[0]} + ${formatAmount(secondFee)} ${codes[1]}`, sub: ESTIMATE_SUB };
+  }
+
+  // The state card: the node's, else the index's; none for a deleted pool.
+  let state: AmmPoolPageData["state"] = null;
+  const source = mode === "deleted" ? null : info !== null ? nodeState(net.id, info, pair) : index !== null ? indexState(net.id, index, pair) : null;
+  if (source !== null) {
+    const [first, second] = source.reserves;
+
+    // Value: twice the native reserve; a pool of two tokens, the index's value (none from the network).
+    const nativeAt = isNative(pair.first, native) ? 0 : isNative(pair.second, native) ? 1 : null;
+    let value: { value: string; sub: string };
+    if (nativeAt !== null) {
+      const reserve = decimalOf(source.reserves[nativeAt]);
+      value =
+        reserve === null
+          ? { value: DASH, sub: `the ${native} reserve is not known` }
+          : { value: `${compactNumber(reserve.times(2).toFixed())} ${native}`, sub: `twice the ${native} reserve` };
+    } else if (index === null) {
+      value = { value: DASH, sub: "not in the index yet" };
+    } else {
+      const indexed = decimalOf(index.value_native);
+      value =
+        indexed === null
+          ? { value: DASH, sub: `neither asset has a ${native} rate` }
+          : { value: `${compactNumber(indexed.toFixed())} ${native}`, sub: `twice a reserve at its daily ${native} rate` };
+    }
+
+    const reserveText = (text: string | undefined, code: string): string => {
+      const amount = exactAmount(text);
+      return amount === null ? DASH : `${amount} ${code}`;
+    };
+    // The price of an empty side is none, as the chart's.
+    const empty = decimalOf(first)?.isZero() !== false || decimalOf(second)?.isZero() !== false;
+    const price = empty ? null : exactRatio(second, first);
+    const votes = source.votes;
+
+    const stats: AmmStat[] = [
+      { id: "value", label: "Value", ...value },
+      { id: "reserves", label: "Reserves", reserves: [reserveText(first, codes[0]), reserveText(second, codes[1])] },
+      { id: "price", label: "Pool price", value: price === null ? DASH : formatPrice(price), sub: `${codes[1]} per ${codes[0]}, from the reserves` },
+      {
+        id: "fee",
+        label: "Trading fee",
+        value: source.fee === undefined ? DASH : feePercent(source.fee),
+        sub: votes === null ? "set by the fee votes" : `set by ${counted(votes)} ${votes === 1 ? "vote" : "votes"}`,
+      },
+      { id: "lp", label: "LP tokens", value: exactAmount(source.lpTokens) ?? DASH, sub: "in circulation" },
+      volumeStat(),
+      feesStat(),
+    ];
+    state = { state: "ok", stats, caption: source.caption };
+  }
+
+  // The charts (#3, then #4 and #5, then #6).
+  let charts: PoolCharts;
+  if (window === null) {
+    problem("the charts", lastFailure);
+    charts = poolCharts(null);
+  } else {
+    const days = listOf<AmmPoolDay>(input.days, "days", "the day rows", fromNetwork);
+    const carryIn = listOf<AmmPoolDay>(input.carryIn, "days", "the day before the window", fromNetwork);
+    const candles = listOf<Candle>(input.candles, "exchanges", "the swap volume", false);
+    try {
+      charts = poolCharts({
+        window,
+        pair,
+        native,
+        pool,
+        deleted: index?.deleted === true,
+        days: days === null || carryIn === null ? null : days,
+        carryIn: carryIn?.[0] ?? null,
+        candles,
+      });
+    } catch (error) {
+      problem("the charts", error);
+      charts = poolCharts(null);
+    }
+  }
+
+  // The slot and the votes: the node's; while the node is down, the index's slot and failed votes; none in the other modes.
+  let slot: AmmSlotView | null = null;
+  let votes: AmmPoolPageData["votes"] = null;
+  if (info !== null) {
+    slot = nodeSlot(net.id, info);
+    const fee = feePercent(info.trading_fee);
+    votes = { state: "ok", data: voteShares(info.vote_slots, net.id), text: `Weighted result ${fee}, the pool's trading fee.`, figure: fee };
+  } else if (mode === "node-down" && index !== null) {
+    slot = indexSlot(net.id, index, now);
+    votes = { state: "failed", what: "the fee votes" };
+  }
+
+  const activity = activityOf(net, pool, query, pair, input.activity, fromNetwork, problem);
+
+  const facts = ammPoolFacts(net, pool, index, info, created);
+  const page: AmmPoolPageData = {
+    kind: "pool",
+    meta: { ...facts, tab: query.tab, period: query.period, marker: query.marker !== undefined, mode },
+    crumbs: crumbsOf(net, pair),
+    header: {
+      ...headOf(net, pool, pair),
+      created: creation === null ? null : { date: creation.date, href: `/${net.id}/tx/${creation.event.tx_hash}`, by: accountRef(net.id, creation.event.account) },
+      lpToken: lpCode === undefined ? null : { short: shortHash(lpCode), code: lpCode },
+    },
+    notices,
+    state,
+    filters: {
+      period: AMM_PERIODS.map((period) => ({
+        label: PERIOD_LABELS[period],
+        href: ammPoolHref(net.id, pool, { period, tab: query.tab }),
+        current: period === query.period,
+      })),
+      source: `/v2/amm/pools/${shortAddress(pool)}/history?interval=day`,
+      note: window === null ? null : `Charts cover ${window.note}`,
+    },
+    charts,
+    slot,
+    votes,
+    activity,
+  };
+  return { page, problems, logged };
+}
+
+/**
+ * A page of the pool's activity behind a marker (spec 3.3, step 2): the crumbs, the pool card without its Created and LP token lines, the tab's page and the way back
+ * to its first page. The loader has awaited #1 and #7 whole (a failure of either is a 404 or a 503), so nothing here can fail but a page without its list.
+ */
+export function ammHistoryPage(input: { net: AmmPoolNet; pool: string; query: AmmPoolQuery; index: AmmPool; activity: AmmActivityPage }): AmmHistoryPageData {
+  const { net, pool, query, index } = input;
+  const pair = poolPair(index, null, net.native)!;
+  const facts = ammPoolFacts(net, pool, index, null, null);
+  return {
+    kind: "history",
+    meta: { ...facts, tab: query.tab, period: query.period, marker: query.marker !== undefined, mode: index.deleted ? "deleted" : "indexed" },
+    crumbs: crumbsOf(net, pair),
+    header: headOf(net, pool, pair),
+    activity: activityOf(net, pool, query, pair, { status: "fulfilled", value: input.activity }, false, () => {}),
+    backHref: ammPoolHref(net.id, pool, { tab: query.tab }),
   };
 }
