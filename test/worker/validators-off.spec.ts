@@ -5,7 +5,7 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The validators pages with every switch "off" (the `worker-off` project, README "Switches"): `VALIDATORS` is page-level, so every view of the
 // list, every validator and every view of the amendments is the not-found page, a 404 of class `short` made before any call (the query and the key are
-// not even read: no redirect either). The `worker` project's cases are validators-page.spec.ts, validators-page-failures.spec.ts, validator-page.spec.ts,
+// not even read: no redirect either), and so is the image of a validator and of an amendment. The `worker` project's cases are validators-page.spec.ts, validators-page-failures.spec.ts, validator-page.spec.ts,
 // amendments-page.spec.ts and amendment-page.spec.ts.
 
 const { get, storedAs } = pageClient("198.51.111");
@@ -94,6 +94,31 @@ describe("an amendment with VALIDATORS off", () => {
     expect(response.status).toBe(404);
     expect(textOf(html)).toContain(`We couldn’t find the amendments on ${name}.`);
     expect(html).toMatch(/<meta name="robots" content="noindex"\/?>/);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+  });
+});
+
+describe("the images of a validator and an amendment with VALIDATORS off", () => {
+  const KEY = "nHUNLk2T5UT5mZ4RzSPCvzUw86BDAqvp3uL8SUJmaa22RZyV71Mg";
+
+  it.each([
+    [`/og/xrpl/validator/${KEY}.png`],
+    ["/og/xrpl/amendment/AMM.png"],
+    ["/og/xahau/amendment/Remit.png"],
+    // Neither the key nor the ID is read: what would be a redirect (hex, an ID in lower case) or a 404 of its own (no key, no name) is the switch's 404.
+    [`/og/xrpl/validator/${"ED".padEnd(66, "0")}.png`],
+    ["/og/xrpl/validator/summary.png"],
+    [`/og/xrpl/amendment/${"ab".repeat(32)}.png`],
+  ])("answers %s with a 404 of class short, and asks nothing upstream", async (path) => {
+    mock = mockUpstream("xrpl");
+    const response = await get(path);
+    const body = await response.text();
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(body).toContain("There is no such image.");
     expect(mock.requests).toEqual([]);
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });

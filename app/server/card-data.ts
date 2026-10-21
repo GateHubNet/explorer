@@ -1,14 +1,19 @@
-// The words and numbers of a link-preview image (spec 9, the LinkPreview board): a transaction, a ledger or an account, from the same
-// facts the page's tags are made of, so a link's text and its picture never disagree. Pure; app/og/card.tsx draws what this returns.
+// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8): a transaction, a ledger, an account, a
+// validator or an amendment, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
+// app/og/card.tsx draws what this returns.
 
 import { describe, headlineAmount, type FlowAmount } from "../domain/describe";
 import { formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
 import type { Native } from "../domain/parse/types";
+import { formatDate } from "../domain/time-words";
 import type { CardData } from "../og/types";
 import type { NetworkBrief } from "../ui/networks";
+import type { AmendmentDetail, ValidatorDetail } from "./api-types";
 import type { LedgerFacts } from "./meta-ledger";
 import { movement, type TxFacts } from "./meta-transaction";
+import type { Network } from "./networks";
 import { plainText, type TransactionPageData, type TransactionSource } from "./transaction-view";
+import { amendmentStatusView, count, versionText } from "./validator-facts";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const two = (n: number) => String(n).padStart(2, "0");
@@ -136,4 +141,83 @@ export function accountCard(account: AccountCardFacts, network: NetworkBrief): C
   };
   if (account.activatedAt !== null) card.note = `Activated ${formatCardDate(account.activatedAt)}`;
   return card;
+}
+
+/** What the cards of a validator and an amendment need of their network: the chrome's id and name, and the software its validators run. */
+type SoftwareNetwork = NetworkBrief & { software: Network["software"] };
+
+/** A text that is there: D1 may leave a field out, and an empty text says nothing. */
+const given = (text: string | undefined): string | undefined => (text === undefined || text === "" ? undefined : text);
+
+/**
+ * The card of a validator (spec 8): its domain, or the short key in mono when it has none; the whole master key under it; and, joined by `·`, the parts of what is known
+ * of it that apply: that it is on the default UNL, that its domain is verified, and the software and version it runs (the build number is the page's). The footer is the network.
+ */
+export function validatorCard(detail: ValidatorDetail, network: SoftwareNetwork): CardData {
+  const master = detail.validation_public_key;
+  const domain = given(detail.domain);
+  const version = versionText(detail, false);
+  const parts = [
+    detail.unl ? "On the default UNL" : null,
+    domain !== undefined && detail.domain_verification?.status === "verified" ? "domain verified" : null,
+    version === null ? null : `${network.software} ${version}`,
+  ].filter((part): part is string => part !== null);
+
+  const card: CardData = {
+    network: network.id,
+    networkLabel: labelOf(network),
+    kind: "Validator",
+    headline: domain !== undefined ? { text: domain, mono: false } : { text: shortHash(master), mono: true },
+    parties: [master],
+    footer: [{ text: network.name }],
+  };
+  if (parts.length > 0) card.note = parts.join(" · ");
+  return card;
+}
+
+/**
+ * The words that say where an amendment stands (spec 8), from the same view of its status as the pages. An enabled amendment says the day it was enabled; a retired one that
+ * D1 has no enabling for (the ledger does not list it) is "Always on", as the pages say it, and one that has an enabling reads like any enabled amendment. What a status
+ * lacks the data for (no majority, no tally, no day) is left out of the sentence, never made up.
+ */
+function amendmentNote(detail: AmendmentDetail): string {
+  const view = amendmentStatusView(detail);
+  switch (view.status) {
+    case "enabled": {
+      const { enabled } = detail;
+      if (enabled === undefined) return view.retired ? "Always on" : "Enabled";
+      return enabled.date === undefined ? "Enabled" : `Enabled on ${formatDate(enabled.date)}`;
+    }
+    case "majority": {
+      const { majority } = detail;
+      return majority === undefined ? "Majority" : `Majority since ${formatDate(majority.since)} · activates on or soon after ${formatDate(majority.expected_activation)}`;
+    }
+    case "voting": {
+      const { votes } = detail;
+      return votes === undefined ? "Voting" : `Voting · ${count(votes.yes)} of ${count(votes.trusted)} UNL validators vote yes`;
+    }
+    case "obsolete":
+      return "Obsolete";
+    default:
+      return "Unknown amendment";
+  }
+}
+
+/**
+ * The card of an amendment (spec 8): its name, or its short ID, in mono; where it stands; its specification and the software version that introduced it (the parts that
+ * apply, else the network); and its short ID at the end.
+ */
+export function amendmentCard(detail: AmendmentDetail, network: SoftwareNetwork): CardData {
+  const xls = given(detail.xls);
+  const introduced = given(detail.introduced);
+  const about = [xls ?? null, introduced === undefined ? null : `introduced in ${network.software} ${introduced}`].filter((part): part is string => part !== null);
+  return {
+    network: network.id,
+    networkLabel: labelOf(network),
+    kind: "Amendment",
+    headline: { text: detail.name ?? shortHash(detail.id), mono: true },
+    note: amendmentNote(detail),
+    footer: [{ text: about.length > 0 ? about.join(" · ") : network.name }],
+    footerEnd: shortHash(detail.id),
+  };
 }

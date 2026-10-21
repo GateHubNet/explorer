@@ -1,21 +1,27 @@
 import { env, exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { encodeAccountID } from "ripple-address-codec";
+import { decodeNodePublic, encodeAccountID } from "ripple-address-codec";
 
 import * as render from "../../app/og/render";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
+import xrplAmm from "../fixtures/http/xrpl/data-api/network/amendments/AMM.json";
+import { SAMPLE_KEYS } from "../support/d1-samples";
 import { decodePng, hex, pngSize } from "../support/png";
 import { pageClient } from "../support/pages";
-import { dataApiError, mockUpstream, nodeError, type Overrides, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
+import { amendmentCall, validatorCall } from "../support/validators-calls";
+import { amendmentCase, fixtureValidator, validatorCase } from "../support/validators-cases";
 
-// The link-preview images, `/og/{net}/{tx|ledger|account}/{id}.png` (spec 2, 9), on the real Worker against the recorded answers of the
-// data API and the nodes (test/fixtures/http/). The image is drawn by workers-og (Satori and resvg-wasm) with the bundled Geist fonts;
+// The link-preview images, `/og/{net}/{tx|ledger|account|validator|amendment}/{id}.png` (spec 2, 9; validators spec 8), on the real Worker against the
+// recorded answers of the data API and the nodes (test/fixtures/http/), and the generated D1 answers for validators and amendments. The image is drawn by workers-og (Satori and resvg-wasm) with the bundled Geist fonts;
 // its layout is tested in app/og/card.test.ts, here it is the answers: what is a PNG of 1200 × 630, in which cache class, from which
 // upstream, and what is a 404 or a 503.
 //
 // What a Worker stores in the Cache API stays there for the rest of the file, subrequests included (an error is never stored), so the
-// tests of failing upstreams come first, and each scenario that overrides an answer asks for an object no other scenario asks for.
+// tests of failing upstreams come first, and each scenario that overrides an answer asks for an object no other scenario asks for. The validator
+// and amendment images ask D and AD without the failure hold (no page polls them), so a failure of one is never remembered; each test still takes
+// a key of its own, because D is kept for 10 s and AD for 60 s by the Cache API.
 
 const { get, head, stored, storedAs } = pageClient("198.19.0");
 
@@ -74,6 +80,9 @@ function expectPng({ response, bytes }: Awaited<ReturnType<typeof image>>) {
 
 /** The requests a mock has seen, as `net key`, in a stable order. */
 const keys = (m: UpstreamMock) => m.requests.map((request) => `${request.net} ${request.key}`).sort();
+
+/** The 66 hex digits, in upper case, that a base58 node public key spells. */
+const keyHex = (key: string) => Array.from(decodeNodePublic(key), (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
 
 // First in the file: a failed call is never stored, but the answers that worked are, so a failing one is asked for before anything has
 // been, and for objects that nothing else in the file asks for.
@@ -138,6 +147,62 @@ describe("when an upstream fails", () => {
   });
 });
 
+// D1's two routes have no node to ask in their place: a route that does not exist (`Cannot GET`, an API that has not merged D1 behind a switch that is on) is
+// an outage and not a missing image, and is never stored.
+describe("when a D1 route fails", () => {
+  it("answers 503 with Retry-After when D says Cannot GET, draws nothing and stores nothing", async () => {
+    const key = SAMPLE_KEYS[2];
+    const path = `/og/xrpl/validator/${key}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl", { [validatorCall(key)]: dataApiError(404, `Cannot GET /v2/network/validators/${key}`) });
+      const { response } = await image(path);
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(statusesOf(mock, validatorCall(key))).toEqual([404]);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await isStored(path)).toBe(false);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("answers 503 with Retry-After when AD says Cannot GET, draws nothing and stores nothing", async () => {
+    const path = "/og/xahau/amendment/Cannotget.png";
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xahau", { [amendmentCall("Cannotget")]: dataApiError(404, "Cannot GET /v2/network/amendments/Cannotget") });
+      const { response } = await image(path);
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(statusesOf(mock, amendmentCall("Cannotget"))).toEqual([404]);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await isStored(path)).toBe(false);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it.each([
+    ["D", "validator", SAMPLE_KEYS[3], validatorCall(SAMPLE_KEYS[3])],
+    ["AD", "amendment", "Failing", amendmentCall("Failing")],
+  ] as const)("answers 503 when %s is down, and the next request asks again", async (_route, kind, id, call) => {
+    const path = `/og/xrpl/${kind}/${id}.png`;
+    mock = mockUpstream("xrpl", { [call]: () => dataApiError(500, "boom") });
+    expect((await image(path)).response.status).toBe(503);
+    expect(await isStored(path)).toBe(false);
+    // Not remembered: the image route does not ask for the failure hold, and an error is never kept by the Cache API either.
+    expect((await image(path)).response.status).toBe(503);
+    expect(statusesOf(mock, call)).toEqual([500, 500]);
+  });
+});
+
 // A 400 of the data API for an id the route has checked (64 hex digits, an index, a valid address) is the API's fault, not a missing image:
 // the same 503 as the transaction and ledger pages give, and not a 404 that would be stored for 30 s. The node is not asked in its place.
 describe("when the data API refuses an id that is well formed", () => {
@@ -160,6 +225,9 @@ describe("when the data API refuses an id that is well formed", () => {
       `/og/xrpl/account/${refused}.png`,
       { [`GET /v2/accounts/${refused}`]: () => dataApiError(400, "invalid account"), [`GET /v2/accounts/${refused}/balances`]: null },
     ],
+    // D1's routes: a key that passed `parseValidatorKey` and a ref that passed `parseAmendmentRef` are well formed, so D1 refusing one is its fault too.
+    ["xrpl", "a validator", `/og/xrpl/validator/${SAMPLE_KEYS[4]}.png`, { [validatorCall(SAMPLE_KEYS[4])]: () => dataApiError(400, "invalid validator public key") }],
+    ["xahau", "an amendment", "/og/xahau/amendment/Refused.png", { [amendmentCall("Refused")]: () => dataApiError(400, "invalid amendment") }],
   ] as const)("on %s, answers 503 for %s, stores nothing, and does not ask the node", async (net, _what, path, overrides) => {
     const drawing = vi.spyOn(render, "renderCard");
     try {
@@ -316,6 +384,8 @@ describe("a query string", () => {
     ["a transaction", `/og/xrpl/tx/${PAYMENT}.png`],
     ["a ledger", "/og/xrpl/ledger/107720688.png"],
     ["an account", `/og/xrpl/account/${ACTIVE}.png`],
+    ["a validator", `/og/xrpl/validator/${SAMPLE_KEYS[0]}.png`],
+    ["an amendment", "/og/xrpl/amendment/AMM.png"],
     ["an id that is not one", "/og/xrpl/tx/ABC123.png"],
     ["a network that does not exist", "/og/bitcoin/tx/ABC123.png"],
   ])("on the image of %s is a 302 to the bare path, class immutable, with no call and nothing drawn", async (_what, bare) => {
@@ -376,6 +446,14 @@ describe("an id that is not one", () => {
     ["a word in place of an address", "/og/xrpl/account/hello.png"],
     ["an X-address", "/og/xrpl/account/XVMgJSRJAMekfCw3mHHsRUbqYqWuZ26KqXMt3GKX2eENgJ9.png"],
     ["an address of a hash's length", `/og/xrpl/account/${PAYMENT}.png`],
+    ["a word in place of a validator key", "/og/xrpl/validator/summary.png"],
+    ["an account in place of a validator key", `/og/xrpl/validator/${ACTIVE}.png`],
+    ["a validator key cut short", `/og/xrpl/validator/${SAMPLE_KEYS[0].slice(0, -1)}.png`],
+    ["a validator key with a wrong checksum", `/og/xrpl/validator/${SAMPLE_KEYS[0].slice(0, -1)}x.png`],
+    ["66 hex digits of a key that starts with a byte no key does", `/og/xrpl/validator/04${"0".repeat(64)}.png`],
+    ["an amendment name with a dash", "/og/xrpl/amendment/fix-1201.png"],
+    ["an amendment name of 65 characters", `/og/xrpl/amendment/${"a".repeat(65)}.png`],
+    ["an amendment name that starts with a digit", "/og/xrpl/amendment/1fix.png"],
   ])("is a 404 of class short without asking anyone: %s", async (_what, path) => {
     mock = mockUpstream("xrpl");
     const { response } = await image(path);
@@ -638,5 +716,288 @@ describe("what the failing node says", () => {
     });
     const { response } = await image(`/og/xrpl/account/${address}.png`);
     expect(response.status).toBe(404);
+  });
+});
+
+// ---- A validator (validators spec 8) ----------------------------------------------------------------------------------------------------
+
+describe("a validator", () => {
+  it("is a PNG of 1200 × 630, class slow, from D alone, drawn from D's answer", async () => {
+    const { key, domain } = await validatorCase("xrpl", "verified-unl");
+    const path = `/og/xrpl/validator/${key}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    const puts: Array<string | null> = [];
+    const put = caches.default.put.bind(caches.default);
+    const storing = vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
+      puts.push((response as Response).headers.get("Cache-Control"));
+      return put(request, response);
+    });
+    try {
+      mock = mockUpstream("xrpl");
+      const answer = await image(path);
+
+      expectPng(answer);
+      expect(answer.response.headers.get("Cache-Control")).toBe("max-age=300");
+      expect(answer.response.headers.get("X-Robots-Tag")).toBe("noindex");
+      expect(await storedAs(path)).toEqual(SLOW);
+      // One call: D, the node is not asked, and nothing else of the validators.
+      expect(keys(mock)).toEqual([`xrpl ${validatorCall(key)}`]);
+      // D is kept for the page's 10 s (the page and the image share the entry).
+      await vi.waitFor(() => expect(puts).toContain("public, max-age=10"));
+
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(drawing.mock.calls[0]![0]).toMatchObject({
+        network: "xrpl",
+        networkLabel: "XRPL mainnet",
+        kind: "Validator",
+        headline: { text: domain, mono: false },
+        parties: [key],
+        note: "On the default UNL · domain verified · rippled 3.4.1",
+        footer: [{ text: "XRPL" }],
+      });
+    } finally {
+      storing.mockRestore();
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a different card for a validator with no domain, with the short key in mono, and the same one again from the edge cache", async () => {
+    const { key } = await validatorCase("xrpl", "no-domain");
+    const path = `/og/xrpl/validator/${key}.png`;
+    const detail = await fixtureValidator("xrpl", key);
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const first = await image(path);
+      expectPng(first);
+      expect(first.response.headers.get("X-Cache")).toBe("MISS");
+      expect(drawing.mock.calls[0]![0]).toMatchObject({
+        kind: "Validator",
+        headline: { text: `${key.slice(0, 6)}…${key.slice(-4)}`, mono: true },
+        parties: [key],
+      });
+      expect(drawing.mock.calls[0]![0].note ?? "").not.toContain("domain verified");
+      expect(detail.domain).toBeUndefined();
+
+      await storedAs(path);
+      const again = await image(path);
+      expect(again.response.headers.get("X-Cache")).toBe("HIT");
+      expect(again.bytes).toEqual(first.bytes);
+      expect(drawing).toHaveBeenCalledTimes(1);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("does not call a domain verified that D says is not", async () => {
+    const { key } = await validatorCase("xrpl", "unverified");
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      expectPng(await image(`/og/xrpl/validator/${key}.png`));
+      expect(drawing.mock.calls[0]![0].note ?? "").not.toContain("domain verified");
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a Xahau card in Xahau's accent, with xahaud's version, for a Xahau validator", async () => {
+    const { key } = await validatorCase("xahau", "xahau-build");
+    const path = `/og/xahau/validator/${key}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xahau");
+      const answer = await image(path);
+
+      expectPng(answer);
+      expect(await storedAs(path)).toEqual(SLOW);
+      expect(hex((await decodePng(answer.bytes)).pixel(600, 4))).toBe("#B45309");
+      expect(keys(mock)).toEqual([`xahau ${validatorCall(key)}`]);
+      expect(drawing.mock.calls[0]![0]).toMatchObject({ network: "xahau", networkLabel: "Xahau mainnet", kind: "Validator", footer: [{ text: "Xahau" }] });
+      expect(drawing.mock.calls[0]![0].note).toMatch(/xahaud \S+$/);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a 404 of class short for a key D does not know, after asking D", async () => {
+    // A key no fixture has: D answers its own not-found message, "Validator not found".
+    const key = SAMPLE_KEYS[5];
+    const path = `/og/xrpl/validator/${key}.png`;
+    mock = mockUpstream("xrpl");
+    const { response } = await image(path);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(await storedAs(path)).toEqual(SHORT);
+    expect(statusesOf(mock, validatorCall(key))).toEqual([404]);
+  });
+
+  it("is a 302 of class immutable to the base58 key for 66 hex digits, in either case, without a call", async () => {
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const base58 = SAMPLE_KEYS[6];
+      for (const spelled of [keyHex(base58), keyHex(base58).toLowerCase()]) {
+        const path = `/og/xrpl/validator/${spelled}.png`;
+        const response = await get(path);
+        await response.arrayBuffer();
+
+        expect(response.status, spelled).toBe(302);
+        expect(response.headers.get("Location"), spelled).toBe(`/og/xrpl/validator/${base58}.png`);
+        expect(response.headers.get("Content-Type"), spelled).not.toBe("image/png");
+        expect(await storedAs(path)).toEqual(IMMUTABLE);
+      }
+      expect(mock.requests).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a 302 of class slow to the master key's image for a signing key, after asking D, and draws nothing", async () => {
+    const { key, signing } = await validatorCase("xrpl", "signing-key");
+    const path = `/og/xrpl/validator/${signing}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const response = await get(path);
+      await response.arrayBuffer();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/og/xrpl/validator/${key}.png`);
+      expect(response.headers.get("Cache-Control")).toBe("max-age=300");
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(await storedAs(path)).toEqual(SLOW);
+      expect(keys(mock)).toEqual([`xrpl ${validatorCall(signing!)}`]);
+      expect(drawing).not.toHaveBeenCalled();
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is followed from a signing key to the master key's image", async () => {
+    const { key, signing } = await validatorCase("xrpl", "signing-key");
+    mock = mockUpstream("xrpl");
+    const redirect = await get(`/og/xrpl/validator/${signing}.png`);
+    await redirect.arrayBuffer();
+    expect(redirect.headers.get("Location")).toBe(`/og/xrpl/validator/${key}.png`);
+    expectPng(await image(redirect.headers.get("Location")!));
+  });
+});
+
+// ---- An amendment (validators spec 8) ---------------------------------------------------------------------------------------------------
+
+describe("an amendment", () => {
+  it.each([
+    ["enabled from the ledger", "enabled-ledger", /^Enabled on \w{3} \d{1,2}, \d{4}$/],
+    ["enabled from the metadata file", "enabled-metadata", /^Enabled on \w{3} \d{1,2}, \d{4}$/],
+    ["with a majority", "majority", /^Majority since .+ · activates on or soon after .+$/],
+    ["being voted on", "voting", /^Voting · [\d,]+ of [\d,]+ UNL validators vote yes$/],
+    ["obsolete", "obsolete", /^Obsolete$/],
+    ["nameless", "unknown", /^Unknown amendment$/],
+  ] as const)("is a PNG of 1200 × 630, class slow, from AD alone, for an amendment %s", async (_what, which, note) => {
+    const { id, name } = await amendmentCase("xrpl", which);
+    // The URL of an amendment is its name, else its ID.
+    const segment = name ?? id;
+    const path = `/og/xrpl/amendment/${segment}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const answer = await image(path);
+
+      expectPng(answer);
+      expect(answer.response.headers.get("Cache-Control")).toBe("max-age=300");
+      expect(answer.response.headers.get("X-Robots-Tag")).toBe("noindex");
+      expect(await storedAs(path)).toEqual(SLOW);
+      expect(keys(mock)).toEqual([`xrpl ${amendmentCall(segment)}`]);
+
+      expect(drawing).toHaveBeenCalledTimes(1);
+      const card = drawing.mock.calls[0]![0];
+      expect(card).toMatchObject({ network: "xrpl", kind: "Amendment", footerEnd: `${id.slice(0, 6)}…${id.slice(-4)}` });
+      expect(card.headline).toEqual(name === undefined ? { text: `${id.slice(0, 6)}…${id.slice(-4)}`, mono: true } : { text: name, mono: true });
+      expect(card.note).toMatch(note);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a PNG for a name AD holds in another case, once the redirect is followed (D1 takes a name in any case when it is unique)", async () => {
+    mock = mockUpstream("xrpl", { [amendmentCall("amm")]: xrplAmm });
+    const redirect = await get("/og/xrpl/amendment/amm.png");
+    await redirect.arrayBuffer();
+
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("Location")).toBe("/og/xrpl/amendment/AMM.png");
+    expect(redirect.headers.get("Cache-Control")).toBe("max-age=300");
+    expect(redirect.headers.get("Content-Type")).not.toBe("image/png");
+    expect(await storedAs("/og/xrpl/amendment/amm.png")).toEqual(SLOW);
+    expect(statusesOf(mock, amendmentCall("amm"))).toEqual([200]);
+    expectPng(await image(redirect.headers.get("Location")!));
+  });
+
+  it("is a 302 of class slow to the name for the ID of a named amendment in lower case, asked for in upper case", async () => {
+    const { id, name } = await amendmentCase("xahau", "majority");
+    expect(name).toBeDefined();
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xahau");
+      const path = `/og/xahau/amendment/${id.toLowerCase()}.png`;
+      const response = await get(path);
+      await response.arrayBuffer();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/og/xahau/amendment/${name}.png`);
+      expect(response.headers.get("Cache-Control")).toBe("max-age=300");
+      expect(await storedAs(path)).toEqual(SLOW);
+      expect(statusesOf(mock, amendmentCall(id))).toEqual([200]);
+      expect(drawing).not.toHaveBeenCalled();
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a 302 of class slow to the upper-case ID for the lower-case ID of a nameless amendment, and for the ID of a named amendment to its name", async () => {
+    const { id: nameless } = await amendmentCase("xrpl", "unknown");
+    mock = mockUpstream("xrpl");
+    const lower = await get(`/og/xrpl/amendment/${nameless.toLowerCase()}.png`);
+    await lower.arrayBuffer();
+    expect(lower.status).toBe(302);
+    expect(lower.headers.get("Location")).toBe(`/og/xrpl/amendment/${nameless}.png`);
+    expect(await storedAs(`/og/xrpl/amendment/${nameless.toLowerCase()}.png`)).toEqual(SLOW);
+
+    // The ID in upper case is a named amendment's, not its canonical URL either.
+    const { id, name } = await amendmentCase("xrpl", "obsolete");
+    const byId = await get(`/og/xrpl/amendment/${id}.png`);
+    await byId.arrayBuffer();
+    expect(byId.status).toBe(302);
+    expect(byId.headers.get("Location")).toBe(`/og/xrpl/amendment/${name}.png`);
+    expect(await storedAs(`/og/xrpl/amendment/${id}.png`)).toEqual(SLOW);
+  });
+
+  it("is a Xahau card in Xahau's accent for a Xahau amendment, and a retired one is drawn too", async () => {
+    const { name } = await amendmentCase("xahau", "retired");
+    const path = `/og/xahau/amendment/${name}.png`;
+    mock = mockUpstream("xahau");
+    const answer = await image(path);
+
+    expectPng(answer);
+    expect(await storedAs(path)).toEqual(SLOW);
+    expect(hex((await decodePng(answer.bytes)).pixel(600, 4))).toBe("#B45309");
+    expect(keys(mock)).toEqual([`xahau ${amendmentCall(name!)}`]);
+  });
+
+  it("is a 404 of class short for an amendment AD does not know, after asking AD", async () => {
+    // XChainBridge is XRPL's: Xahau's AD answers its own not-found message, "amendment not found".
+    const path = "/og/xahau/amendment/XChainBridge.png";
+    mock = mockUpstream("xahau");
+    const { response } = await image(path);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(await storedAs(path)).toEqual(SHORT);
+    expect(statusesOf(mock, amendmentCall("XChainBridge"))).toEqual([404]);
   });
 });
