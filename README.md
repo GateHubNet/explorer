@@ -53,7 +53,7 @@ as well; the card then draws Payments and DEX trades only, with nothing failed.
 | `pnpm api:check` | Regenerate the types from the committed `api/openapi.yaml` and fail if `app/server/openapi.d.ts` differs (needs no `data-api-new`) |
 | `pnpm fixtures:sync` | Write the generated upstream fixtures of `test/fixtures/http/` from the recorded ledgers (see "Upstream fixtures"); names files that no longer belong, never deletes |
 | `pnpm fixtures:check` | Change nothing; fail when those files are not what the generator writes (`scripts/http-fixtures.test.ts` does the same inside `pnpm test`) |
-| `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page, or the account page's analytics view, loads more than 150 KB of JavaScript (gzip), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
+| `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page, or the account page's analytics view, loads more JavaScript (gzip) than its budget (150 KB for the lookup pages, 160 KB for the dashboards and the view), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
 | `pnpm deploy:staging`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `scripts/predeploy-check.ts <env>` (refuses a placeholder or non-https upstream URL, a build for another environment, a Worker reachable on workers.dev), then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
 | `pnpm verify` | `api:check`, `typecheck`, `test`, `build`, `check:bundle` |
 
@@ -842,8 +842,9 @@ chunk on the tab's `pointerenter` and `focus`, not React Router's `prefetch="int
 `AccountAnalytics.tsx` and the kit load with `React.lazy`, as a chunk of their own. On the server the lazy module resolves during the render, so the stored HTML
 has every tile, mark and table, and the Chart/Table radios work by CSS before any script runs; in the browser, hydration leaves the server's HTML in place until
 the chunk is there, and a client-side navigation to the tab shows a waiting frame (`aria-hidden`) until the chunk and the data arrive. The two gates of
-`pnpm check:bundle` (spec 5): the account route's first load is at most 150,000 bytes (138,035 at the end of E4; the spec's target is 138,500), and so is the
-view's total, that first load with the chunk and its static imports, each file once (the row `account analytics`: 149,933, 67 bytes under). The view has its own
+`pnpm check:bundle` (spec 5): the account route's first load is at most 150,000 bytes, a lookup page's budget (138,035 at the end of E4; the spec's target is 138,500),
+and the view's total, that first load with the chunk and its static imports, each file once, at most 160,000, a dashboard's (ruling R19; it was 150,000 until then:
+the row `account analytics` was 149,933 at the end of E4, 67 bytes under). The view has its own
 copy of the kit to fit: "The client bundle check" has the figures, the copy and its cost (about 8.5 KB more for a visitor who saw the network page first).
 `test/unit/analytics-bundle.test.ts` pins that the view imports nothing from `app/server` at run time and that `AccountPage.tsx` imports it only through `import()`.
 
@@ -1189,7 +1190,7 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `test/e2e/stack.ts`, which starts the end-to-end stack, is in that config too; the Playwright config and specs are `tsconfig.e2e.json`'s, with
   the DOM types their `page.evaluate` callbacks need (and `app/ui/features.ts`, which `scripts/e2e-env.ts` imports), and `tsconfig.cloudflare.json` leaves `test/e2e` out. `vitest.config.ts` imports `app/ui/features.ts` with its extension (`allowImportingTsExtensions` in `tsconfig.node.json`),
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
-  `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
+  `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (each budget to the byte, each forbidden name,
   a `.wasm`, `.ttf` or `.bin` file in `assets/`, a missing file; the analytics view's chunk found by its `import()` in each spelling, its imports
   followed, its total to the byte, its missing files) and the command (`scripts/check-bundle.ts`, which also reads the `shell` chunk in the
   manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `shell` chunk (the closure and the modules every page of the
@@ -1555,16 +1556,18 @@ above does not see it).
 `scripts/check-bundle.test.ts`) on `build/client` after the build and exits 1 when it finds a problem. The command always runs the check, however it
 was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
-- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction, account, network, markets or market
-  pair route (`PAGES` in `scripts/bundle-budget.ts`); what it loads
+- a page loads more JavaScript, gzipped, than its budget (`BUDGETS` in `scripts/bundle-budget.ts`, ruling R19): **150 KB** (150,000 bytes) for the lookup pages,
+  the home, ledger, transaction, account and markets routes, and **160 KB** (160,000 bytes) for the dashboards, the network and market pair routes (`PAGES`, which
+  names each page's budget); what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
   and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its
-  `gzip -9` size. Sizes are in kilobytes of 1000 bytes. 150,000 bytes passes and 150,001 fails;
-- the account page's **analytics view** loads more than 150 KB in all (spec 5, the second gate; the row `account analytics`): the account route's
+  `gzip -9` size. Sizes are in kilobytes of 1000 bytes. A budget's own figure passes and one byte more fails: 150,000 and 150,001 for a lookup page, 160,000 and
+  160,001 for a dashboard;
+- the account page's **analytics view** loads more than **160 KB** in all, a dashboard's budget (spec 5, the second gate; the row `account analytics`): the account route's
   first load as above, the chunk of the view that one of its files loads with `import()` (``import(`./AccountAnalytics-….js`)``, as the build
   writes it; `ANALYTICS_VIEW` in `scripts/bundle-budget.ts`), and every file that chunk imports statically (`from"./x.js"`, `import"./x.js"`),
-  followed from file to file, each file once. So a visitor who opens the tab never loads more than the budget before the view works. An account
+  followed from file to file, each file once. So a visitor who opens the tab never loads more than the view's budget before the view works. An account
   route without that `import()`, or with two, fails, and so does a file it reaches that is missing; and so does a view that loads any file beyond
   the account page's but its own chunk (`kitCopyProblems` in `scripts/analytics-kit-copy.ts`: that is a chunk it shares with another route; see
   "The analytics view's own copy of the kit" below);
@@ -1578,7 +1581,7 @@ was reached (a link to it included): a gate that cannot tell whether it is being
   (`shellManifestProblems` in `scripts/shell-chunks.ts`: see "One shell file" below);
 - the manifest or a file it names is missing.
 
-It prints a table (page, files, bytes, KB, `ok` or `OVER`), the manifest's size and the problems.
+It prints a table (page, files, bytes, KB, `ok` or `OVER`, and the row's budget), the manifest's size and the problems.
 
 **The figures of E2** (gzip -9 bytes, each file once). *Before* is `c05ca58`, the commit E2 started from; *after* is the end of E2. The check counts the manifest since the commit that added the
 network page's end-to-end tests; the middle column is the figure without it, as the spec's target of 145,000 bytes and the earlier measurements are.
@@ -1812,6 +1815,14 @@ build), and the entry's chunk holds the entry module alone, which no chunk holds
 fails a build whose root route does not import one `shell-*.js`, or imports a `vendor-*.js`, or whose entry does not import the shell. The
 analytics view's copy of the kit passes its own checks as before: its chunk imports the shell, which holds no module of the kit.
 
+**Two budgets** (ruling R19, the owner's, 2026-10-21: "Keep 150 KB for home, ledger, transaction and account; raise the limit to 160 KB for the network,
+market pair, account analytics, validators, amendments and AMM pages"). `BUDGETS` in `scripts/bundle-budget.ts` has the two, and each page of `PAGES` names
+its own: `lookup`, 150,000 bytes, for the home, ledger, transaction and account pages and the markets list (which the owner did not name: it keeps the
+default); `dashboard`, 160,000 bytes, for the network and market pair pages and the analytics view (`ANALYTICS_VIEW`). What is counted, and how, is as
+above; the measures of R17 and R18 (one shell file with the pages' modules, the analytics view's copy of the kit) stay. At this commit: home 133,693, ledger
+132,979, transaction 135,227, account 137,788 and markets 132,758 against 150,000; network 146,744, market pair 146,445 and account analytics 149,680 against
+160,000.
+
 ## The parsing libraries in the Workers runtime
 
 `test/worker/runtime.spec.ts` runs `ripple-lib-transactionparser` 0.8.2, `ripple-address-codec` 5 and
@@ -1945,7 +1956,7 @@ staging before production:
   beat; write down for how long, and whether that needs a follow-up.
 - [ ] **A switch flip is a miss at the edge.** Deploy the same commit with `AMM_DATA` `"on"` in the environment's `vars` (README, "Switches"): the first request for each view after the deploy is a miss (`X-Cache: MISS`: the cache
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
-- [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: the network page and every other page are under 150,000 bytes with the manifest counted, and the manifest's
+- [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: every page is under its budget with the manifest counted (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19), and the manifest's
   size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
 - [ ] **The markets pages' node calls, against the deployed nodes.** With `wrangler tail --env staging --format json`, open a pair page on each network (`/xrpl/markets/XRP/RLUSD.rMxCKb…`,
   `/xahau/markets/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH`): `book_offers` accepts `limit: 60` and answers with the funded fields (`taker_gets_funded`,
@@ -1962,7 +1973,8 @@ staging before production:
   a period whose answer has no `amm_share` yet), the pool card's share, and the intro's words about swaps, at once after the deploy; and the traders card of a pair with a pool does not
   list the pool account (`rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3` for XRP/RLUSD) and says so.
 - [ ] **The bundle figures of the markets pages.** `pnpm check:bundle` on the commit being deployed: write the markets and market-pair figures down beside "The client bundle check",
-  and check every page against the gate of 150,000 bytes with the manifest, the one bar (the spec's targets of 140,000 and 146,000 are not one: ruling R15).
+  and check every page against its budget with the manifest (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19, which replaced R15's one bar; the spec's
+  targets of 140,000 and 146,000 are not budgets).
 
 The account's analytics view (E4, "Account analytics") is checked on staging once D2 is live there and `ACCOUNT_ANALYTICS` is `"on"` in the `staging` block (a deploy:
 E4 §8 step 3), and before it is turned on in production:
@@ -1983,8 +1995,8 @@ E4 §8 step 3), and before it is turned on in production:
 - [ ] **`robots.txt`.** `https://<staging host>/robots.txt` (the Worker's route, on the custom domain) has `Disallow: /*/account/*tab=analytics` beside the search and CSV rules, and a
   robots.txt tester (Google Search Console's report) reads `…/account/r…?tab=analytics&period=1y` and the other order of the query as disallowed, and `…/account/r…` as allowed.
 - [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,035 at the end of E4; the spec's
-  target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 150,000 (149,933 at the end of E4, 67 under), both written down beside "The client bundle
-  check" (its E4 table), so that the growth of each later sub-project shows. The view is that close to the gate; a route adds about 21 bytes to it through the manifest.
+  target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 160,000, a dashboard's budget (ruling R19; 149,933 at the end of E4), both written down
+  beside "The client bundle check" (its E4 table), so that the growth of each later sub-project shows. A route adds about 21 bytes to the view through the manifest.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

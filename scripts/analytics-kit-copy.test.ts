@@ -273,8 +273,8 @@ describe("checkKitCopyBundle: the bundle", () => {
 });
 
 describe("kitCopyProblems: the files of the build (pnpm check:bundle)", () => {
-  const account = { name: "account", route: "routes/net.account.$address", files: ["entry.js", "shell.js", "account.js", "table.js"], bytes: 100 };
-  const view = (files: string[]) => ({ name: "account analytics", route: account.route, chunk: "AccountAnalytics-a.js", files: [...account.files, ...files], bytes: 200 });
+  const account = { name: "account", route: "routes/net.account.$address", budget: 150_000, files: ["entry.js", "shell.js", "account.js", "table.js"], bytes: 100 };
+  const view = (files: string[]) => ({ name: "account analytics", route: account.route, budget: 160_000, chunk: "AccountAnalytics-a.js", files: [...account.files, ...files], bytes: 200 });
 
   it("is empty when the analytics view loads the account page's files and its own chunk", () => {
     expect(kitCopyProblems({ pages: [account], views: [view(["AccountAnalytics-a.js"])] })).toEqual([]);

@@ -6,7 +6,10 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ANALYTICS_VIEW, BUDGET_BYTES, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
+import { ANALYTICS_VIEW, BUDGETS, checkBundle, FORBIDDEN, formatReport, headersRules, PAGES } from "./bundle-budget";
+
+const LOOKUP = BUDGETS.lookup;
+const DASHBOARD = BUDGETS.dashboard;
 
 // A fake client build: the files `react-router build` writes to build/client, with a manifest whose routes are the seven pages' and
 // whose chunks are bytes of no pattern (they do not compress, so a chunk's gzipped size is known to within a few bytes).
@@ -118,7 +121,7 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.tx.$id", parentId: "routes/net", module: "tx.js", imports: ["shared.js"] },
   { id: "routes/net.account.$address", parentId: "routes/net", module: "account.js", imports: ["shared.js", "table.js", "qr-picture.js"] },
   { id: "routes/net.network", parentId: "routes/net", module: "network.js", imports: ["shared.js", "charts.js"] },
-  // No heavier than home's: the 150,000 B pin test sizes the home page to the limit and needs it to be the heaviest page of the build.
+  // No heavier than home's: the lookup pages' 150,000 B pin test sizes the home page to the limit and needs it to be the heaviest lookup page of the build.
   { id: "routes/net.markets", parentId: "routes/net", module: "markets.js", imports: ["shared.js", "table.js"] },
   // The pair page draws charts, as the network page does, and its own chunk is lighter than network.js: no heavier than home's either.
   { id: "routes/net.markets.$base.$counter", parentId: "routes/net", module: "pair.js", imports: ["shared.js", "charts.js"] },
@@ -148,20 +151,21 @@ const CHUNKS: FakeChunk[] = [
 ];
 
 describe("the pages", () => {
-  it("are home, ledger, transaction, account, network, markets and market-pair, by their routes", () => {
+  it("are home, ledger, transaction, account, network, markets and market-pair, by their routes, each with the name of its budget", () => {
     expect(PAGES).toEqual([
-      { name: "home", route: "routes/net._index" },
-      { name: "ledger", route: "routes/net.ledger.$id" },
-      { name: "transaction", route: "routes/net.tx.$id" },
-      { name: "account", route: "routes/net.account.$address" },
-      { name: "network", route: "routes/net.network" },
-      { name: "markets", route: "routes/net.markets" },
-      { name: "market-pair", route: "routes/net.markets.$base.$counter" },
+      { name: "home", route: "routes/net._index", budget: "lookup" },
+      { name: "ledger", route: "routes/net.ledger.$id", budget: "lookup" },
+      { name: "transaction", route: "routes/net.tx.$id", budget: "lookup" },
+      { name: "account", route: "routes/net.account.$address", budget: "lookup" },
+      { name: "network", route: "routes/net.network", budget: "dashboard" },
+      { name: "markets", route: "routes/net.markets", budget: "lookup" },
+      { name: "market-pair", route: "routes/net.markets.$base.$counter", budget: "dashboard" },
     ]);
   });
 
-  it("have a budget of 150 KB", () => {
-    expect(BUDGET_BYTES).toBe(150_000);
+  it("have the two budgets of ruling R19: 150 KB for the lookup pages, 160 KB for the dashboards and the analytics view", () => {
+    expect(BUDGETS).toEqual({ lookup: 150_000, dashboard: 160_000 });
+    expect(ANALYTICS_VIEW.budget).toBe("dashboard");
   });
 });
 
@@ -204,11 +208,11 @@ describe("checkBundle: what a page loads", () => {
   });
 
   it("holds a page to the budget with the manifest in it: a page that is under it without the manifest, and over it with it, fails", () => {
-    const over = homeAt(BUDGET_BYTES + 1);
+    const over = homeAt(LOOKUP + 1);
     const home = over.pages.find((page) => page.name === "home")!;
-    expect(home.bytes).toBe(BUDGET_BYTES + 1);
+    expect(home.bytes).toBe(LOOKUP + 1);
     // Its other files alone are under the budget: it is over it by the manifest.
-    expect(home.bytes - over.manifestBytes).toBeLessThan(BUDGET_BYTES);
+    expect(home.bytes - over.manifestBytes).toBeLessThan(LOOKUP);
     expect(over.problems.filter((problem) => problem.includes("the home page"))).toHaveLength(1);
   });
 
@@ -222,7 +226,7 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/network\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/markets\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/market-pair\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
-    expect(table).toContain("150.0 KB");
+    expect(table).toContain("budgets: 150.0 KB for the lookup pages, 160.0 KB for the dashboards");
     expect(table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair)\s+\d/.test(line))).toHaveLength(7);
     expect(table).toMatch(/\naccount analytics\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
   });
@@ -264,24 +268,56 @@ describe("checkBundle: what a page loads", () => {
     throw new Error(`no build whose home page loads ${target} bytes`);
   }
 
-  it("holds a page to 150,000 bytes gzipped: that many passes, one more fails", () => {
-    const atLimit = homeAt(BUDGET_BYTES);
+  it("holds a lookup page to 150,000 bytes gzipped: that many passes, one more fails", () => {
+    const atLimit = homeAt(LOOKUP);
     expect(atLimit.pages.find((page) => page.name === "home")!.bytes).toBe(150_000);
     expect(atLimit.problems.filter((problem) => problem.includes("the home page"))).toEqual([]);
-    expect(formatReport(atLimit)).toMatch(/home\s+\d+\s+150,000\s+150\.0 KB\s+ok/);
+    expect(formatReport(atLimit)).toMatch(/home\s+\d+\s+150,000\s+150\.0 KB\s+ok\s+150\.0 KB/);
 
-    const over = homeAt(BUDGET_BYTES + 1);
+    const over = homeAt(LOOKUP + 1);
     expect(over.pages.find((page) => page.name === "home")!.bytes).toBe(150_001);
-    expect(over.problems.filter((problem) => problem.includes("the home page"))).toHaveLength(1);
-    expect(formatReport(over)).toMatch(/home\s+\d+\s+150,001\s+150\.0 KB\s+OVER/);
+    expect(over.problems.filter((problem) => problem.includes("the home page"))).toEqual(["the home page loads 150.0 KB of JavaScript, gzipped: over its budget of 150.0 KB"]);
+    expect(formatReport(over)).toMatch(/home\s+\d+\s+150,001\s+150\.0 KB\s+OVER\s+150\.0 KB/);
     // The other pages are under it in both.
     expect(atLimit.problems.filter((problem) => !problem.includes("the home page"))).toEqual([]);
+  });
+
+  /**
+   * A build whose network page, a dashboard, loads exactly `target` bytes, gzipped: its own chunk carries what it loads beyond the others, and
+   * is adjusted a byte at a time until the sum is right. The chunk every page shares stays as it is, so every other page stays light.
+   */
+  function networkAt(target: number) {
+    let network = 130_000;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const { dir } = fakeBuild({ chunks: CHUNKS.map((chunk) => (chunk.name === "network.js" ? { ...chunk, size: network } : chunk)), routes: ROUTES });
+      const report = checkBundle(dir);
+      const bytes = report.pages.find((page) => page.name === "network")!.bytes;
+      if (bytes === target) return report;
+      network += target - bytes;
+    }
+    throw new Error(`no build whose network page loads ${target} bytes`);
+  }
+
+  it("holds a dashboard to 160,000 bytes gzipped: that many passes, one more fails, where a lookup page would have failed at 150,001", () => {
+    const atLimit = networkAt(DASHBOARD);
+    expect(atLimit.pages.find((page) => page.name === "network")!.bytes).toBe(160_000);
+    expect(atLimit.problems).toEqual([]);
+    expect(formatReport(atLimit)).toMatch(/network\s+\d+\s+160,000\s+160\.0 KB\s+ok\s+160\.0 KB/);
+
+    const between = networkAt(LOOKUP + 1);
+    expect(between.problems).toEqual([]);
+
+    const over = networkAt(DASHBOARD + 1);
+    expect(over.pages.find((page) => page.name === "network")!.bytes).toBe(160_001);
+    expect(over.problems).toEqual(["the network page loads 160.0 KB of JavaScript, gzipped: over its budget of 160.0 KB"]);
+    expect(formatReport(over)).toMatch(/network\s+\d+\s+160,001\s+160\.0 KB\s+OVER\s+160\.0 KB/);
   });
 
   it("counts a chunk the entry imports in every page", () => {
     // The entry's own imports are loaded by every page.
     const { dir } = fakeBuild({
-      chunks: [...CHUNKS, { name: "react-dom.js", size: 140_000 }],
+      // Heavy enough that every page is over its budget, a dashboard's too.
+      chunks: [...CHUNKS, { name: "react-dom.js", size: 155_000 }],
       routes: ROUTES,
       entry: { module: "entry.js", imports: ["react-dom.js"] },
     });
@@ -348,39 +384,39 @@ describe("checkBundle: the analytics view (gate 2)", () => {
   });
 
   /**
-   * A build whose analytics view loads exactly `target` bytes, gzipped: the chunk every page shares carries most of it, and the analytics
-   * chunk is adjusted a byte at a time until the sum is right. (Every page is lighter than the view, by the analytics chunk at least.)
+   * A build whose analytics view loads exactly `target` bytes, gzipped: the chunk every page shares carries 120 KB of it, and the analytics
+   * chunk is adjusted a byte at a time until the sum is right. (Every page is lighter than the view, by the analytics chunk at least, and the
+   * account page stays under its own budget.)
    */
   function viewAt(target: number) {
-    let shared = 120_000;
-    let chunk = 8000;
+    let chunk = 30_000;
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const { dir } = viewBuild([
-        { name: "shared.js", size: shared },
+        { name: "shared.js", size: 120_000 },
         { name: "AccountAnalytics-abc.js", size: chunk },
       ]);
       const report = checkBundle(dir);
       const bytes = report.views[0]!.bytes;
       if (bytes === target) return report;
-      const delta = target - bytes;
-      if (Math.abs(delta) > 3000) shared += delta - Math.sign(delta) * 1000;
-      else chunk += delta;
+      chunk += target - bytes;
     }
     throw new Error(`no build whose analytics view loads ${target} bytes`);
   }
 
-  it("holds the view to 150,000 bytes gzipped: that many passes, one more fails, and says so", () => {
-    const atLimit = viewAt(BUDGET_BYTES);
-    expect(atLimit.views[0]!.bytes).toBe(150_000);
+  it("holds the view to a dashboard's 160,000 bytes gzipped: that many passes, one more fails, and says so", () => {
+    const atLimit = viewAt(DASHBOARD);
+    expect(atLimit.views[0]!.bytes).toBe(160_000);
     expect(atLimit.problems).toEqual([]);
-    expect(formatReport(atLimit)).toMatch(/\naccount analytics\s+\d+\s+150,000\s+150\.0 KB\s+ok/);
+    expect(formatReport(atLimit)).toMatch(/\naccount analytics\s+\d+\s+160,000\s+160\.0 KB\s+ok\s+160\.0 KB/);
+    // A lookup page's budget is not the view's.
+    expect(viewAt(LOOKUP + 1).problems).toEqual([]);
 
-    const over = viewAt(BUDGET_BYTES + 1);
-    expect(over.views[0]!.bytes).toBe(150_001);
-    expect(over.problems).toEqual(["the account analytics view loads 150.0 KB of JavaScript, gzipped: over the budget of 150.0 KB"]);
-    expect(formatReport(over)).toMatch(/\naccount analytics\s+\d+\s+150,001\s+150\.0 KB\s+OVER/);
-    // The pages are under it: the account page by the analytics chunk.
-    expect(over.pages.every((page) => page.bytes < BUDGET_BYTES)).toBe(true);
+    const over = viewAt(DASHBOARD + 1);
+    expect(over.views[0]!.bytes).toBe(160_001);
+    expect(over.problems).toEqual(["the account analytics view loads 160.0 KB of JavaScript, gzipped: over its budget of 160.0 KB"]);
+    expect(formatReport(over)).toMatch(/\naccount analytics\s+\d+\s+160,001\s+160\.0 KB\s+OVER\s+160\.0 KB/);
+    // The pages are under theirs: the account page by the analytics chunk and more.
+    expect(over.pages.every((page) => page.bytes < page.budget)).toBe(true);
   });
 
   it("fails when the import() names a chunk that is not in the build, and names it", () => {
