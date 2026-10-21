@@ -12,6 +12,13 @@ import { expect, hydrated, seriousViolations, test } from "./support";
 //
 // The view is XRP/RLUSD's 30 days, which no other spec opens: the Worker keeps a pool's day rows 300 s (`PERIOD_CALL_TTL_SECONDS`), so the day rows of a
 // view the `chromium` project opened (the 90 days, the year) would still be kept, and the page would show them and not the failure.
+//
+// So the tests depend on their order:
+// - the Retry test stays last: it loads the 30-day rows again, and the Worker keeps them 300 s, so a failure test after it would see them and not the 503
+//   (a failed answer is never kept, so the failure tests can follow one another);
+// - the `live` project runs one test at a time, in file order (`workers: 1`, `fullyParallel: false`);
+// - a rerun of `--project=live` on the same stack within 5 minutes of the Retry test fails its first tests, for the same reason (`pnpm test:e2e`
+//   starts a new stack, with an empty cache, every time).
 
 test.skip(LIVE, "changes what the fixture server answers: it needs the fixture server of the stack, not a real stack or a deployed Worker");
 test.skip(featuresOff(process.env).has("AMM_PAGES"), "AMM_PAGES is off in the Worker under test: the AMM pages are not found");
@@ -26,6 +33,9 @@ const FAILED = ["Couldn’t load the pool value.", "Couldn’t load the pool pri
 const NO_FEES = "The fee estimates couldn't be loaded.";
 
 const card = (page: Page, id: string) => page.locator(`section[aria-labelledby="${id}-title"]`);
+
+/** The text as a pattern that matches only itself: the "." of each `FAILED` text is a full stop, not any character. */
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 test.afterEach(async () => {
   await fixtures.reset();
@@ -45,7 +55,7 @@ async function openFailing(page: Page): Promise<void> {
 async function expectFailedCards(page: Page): Promise<void> {
   const ids = ["pool-value", "pool-price", "pool-fee", "pool-reserves"];
   for (const [at, id] of ids.entries()) {
-    await expect(card(page, id).getByRole("alert")).toHaveText(new RegExp(`^${FAILED[at]}\\s*Retry$`));
+    await expect(card(page, id).getByRole("alert")).toHaveText(new RegExp(`^${escaped(FAILED[at])}\\s*Retry$`));
     await expect(card(page, id).locator(".chart__source")).toHaveText(`/v2/amm/pools/rhWTXC…tcS3/history?interval=day`);
   }
   await expect(page.getByRole("alert")).toHaveCount(4);

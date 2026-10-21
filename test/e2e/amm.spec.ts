@@ -375,6 +375,8 @@ test.describe("the pool page", () => {
     // Its charts have no data in the 90 days (it was deleted before them), so no slider: the page is whole with its activity.
     await hydrated(page);
     await expect(page.getByRole("table", { name: "Swaps" })).toBeVisible();
+    // No part of it failed: its banner is a notice, not an error.
+    await expect(page.getByRole("alert")).toHaveCount(0);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("SNK / XRP pool");
     await expect(page).toHaveTitle("SNK/XRP AMM pool (deleted) · XRPL · explorer");
     const banner = page.locator(".notice", { hasText: "This pool was deleted." });
