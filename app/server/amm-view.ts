@@ -1851,18 +1851,28 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
 
 /**
  * A page of the pool's activity behind a marker (spec 3.3, step 2): the crumbs, the pool card without its Created and LP token lines, the tab's page and the way back
- * to its first page. The loader has awaited #1 and #7 whole (a failure of either is a 404 or a 503), so nothing here can fail but a page without its list.
+ * to its first page. The loader has awaited #1 and #7 whole (a failure of either is a 404 or a 503), so nothing here can fail but the list, when its rows do not
+ * build: its card then says it could not load, and the reason is in `problems`, which the loader logs and marks the request degraded with, so that the failed card
+ * is never stored as the page behind the marker (`MARKER_PAGE_CLASS`, an hour).
  */
-export function ammHistoryPage(input: { net: AmmPoolNet; pool: string; query: AmmPoolQuery; index: AmmPool; activity: AmmActivityPage }): AmmHistoryPageData {
+export function ammHistoryPage(input: { net: AmmPoolNet; pool: string; query: AmmPoolQuery; index: AmmPool; activity: AmmActivityPage }): {
+  page: AmmHistoryPageData;
+  problems: string[];
+} {
   const { net, pool, query, index } = input;
+  const problems: string[] = [];
+  const problem: ProblemSink = (what, reason) => {
+    problems.push(`${what}: ${reasonText(reason)}`);
+  };
   const pair = poolPair(index, null, net.native)!;
   const facts = ammPoolFacts(net, pool, index, null, null);
-  return {
+  const page: AmmHistoryPageData = {
     kind: "history",
     meta: { ...facts, tab: query.tab, period: query.period, marker: query.marker !== undefined, mode: index.deleted ? "deleted" : "indexed" },
     crumbs: crumbsOf(net, pair),
     header: headOf(net, pool, pair),
-    activity: activityOf(net, pool, query, pair, { status: "fulfilled", value: input.activity }, false, () => {}),
+    activity: activityOf(net, pool, query, pair, { status: "fulfilled", value: input.activity }, false, problem),
     backHref: ammPoolHref(net.id, pool, { tab: query.tab }),
   };
+  return { page, problems };
 }

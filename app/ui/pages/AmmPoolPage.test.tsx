@@ -205,7 +205,7 @@ const build = (over: Partial<AmmPoolInput> = {}): AmmPoolPageData => ammPoolPage
 
 /** A page of the swaps behind a marker. */
 const history = (over: Partial<Parameters<typeof ammHistoryPage>[0]> = {}): AmmHistoryPageData =>
-  ammHistoryPage({ net: NET(), pool: AMM_POOL, query: { ...QUERY, marker: "M1", back: [] }, index: indexPool(), activity: swapsPage(), ...over });
+  ammHistoryPage({ net: NET(), pool: AMM_POOL, query: { ...QUERY, marker: "M1", back: [] }, index: indexPool(), activity: swapsPage(), ...over }).page;
 
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
 function mount(data: AmmPoolPageData | AmmHistoryPageData, at = POOL_PAGE) {

@@ -3295,7 +3295,7 @@ describe("ammHistoryPage: a page behind a marker", () => {
   const query: AmmPoolQuery = { period: "90d", tab: "liquidity", marker: AMM_MARKER, back: ["WzEsMl0"] };
   const events = [ammLiquiditySample()];
   const activity: AmmActivityPage = { result: "success", count: 1, marker: "WzMsNF0", liquidity: events };
-  const page = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index: indexPool(), activity });
+  const { page, problems } = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index: indexPool(), activity });
 
   it("has the crumbs, and the pool card without its Created and LP token lines", () => {
     expect(page.kind).toBe("history");
@@ -3325,12 +3325,25 @@ describe("ammHistoryPage: a page behind a marker", () => {
 
   it("carries the facts of its tags: behind a marker, and the mode of the index's pool", () => {
     expect(page.meta).toMatchObject({ pair: "XRP/RLUSD", tab: "liquidity", marker: true, mode: "indexed", fee: "0.205%" });
-    const deleted = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index: indexPool({ deleted: true }), activity });
+    const deleted = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query, index: indexPool({ deleted: true }), activity }).page;
     expect(deleted.meta).toMatchObject({ mode: "deleted", deleted: true });
   });
 
   it("has nothing else: no state, slot, votes or charts", () => {
     expect(Object.keys(page).sort()).toEqual(["activity", "backHref", "crumbs", "header", "kind", "meta"]);
+  });
+
+  it("has no problem when its rows build", () => {
+    expect(problems).toEqual([]);
+  });
+
+  it("fails the list's card when a row does not build, and reports it as its one problem, for the loader to log and mark the request degraded with", () => {
+    const swaps: AmmPoolQuery = { ...query, tab: "swaps" };
+    const broken = { result: "success", count: 1, exchanges: [null] } as unknown as AmmActivityPage;
+    const failed = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query: swaps, index: indexPool(), activity: broken });
+    expect(failed.page.activity.list).toEqual({ state: "failed", what: "the swaps" });
+    expect(failed.problems).toHaveLength(1);
+    expect(failed.problems[0]).toMatch(/^the swaps: /);
   });
 });
 

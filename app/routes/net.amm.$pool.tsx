@@ -84,7 +84,7 @@ function activityOf(api: DataApi, pool: string, query: AmmPoolQuery): Promise<Am
  *   `ammPoolQuery`). The path is React Router's `url` (the `.data` of the route's own request taken off) and the query the request's own text (`queryOf`:
  *   `_routes` dropped, nothing decoded), so the `.data` request of a canonical view answers its data. No call is made before these.
  * - **Behind a marker** (spec 3.3, step 2): #1 and #7, awaited whole, and stored as `MARKER_PAGE_CLASS`. The index's `pool not found`, the API refusing the
- *   marker (a 400) or nothing behind it is a 404; any other failure a 503.
+ *   marker (a 400) or nothing behind it is a 404; any other failure a 503. A list whose rows do not build is a failed card, logged, and the request degraded.
  * - **A first page** (spec 3.3, step 3): every call side by side, each call and chain raced to `CARD_DEADLINE_MS` from the start of the loader ("took too
  *   long"), all awaited (`Promise.allSettled`). Then the mode, from #1 and #2 (`poolModeOf`): neither has the pool, a 404 that offers the account page; the
  *   index failed, or it has no such pool and the node failed, a 503 (the reason of the call that decides it, a missed deadline as an outage: `asOutage`).
@@ -140,7 +140,11 @@ async function olderRows(context: Route.LoaderArgs["context"], request: Request,
   const rows = (activity.value as Partial<Record<string, unknown>>)[ROWS_KEY[query.tab]];
   if (Array.isArray(rows) && rows.length === 0) notFound({ notFound: OLDER_NOT_FOUND });
 
-  return cached(ammHistoryPage({ net, pool, query, index: index.value, activity: activity.value }), MARKER_PAGE_CLASS);
+  // A list whose rows do not build is a card that says so: logged, and the request degraded, so it is served and never stored as the page behind the marker.
+  const { page, problems } = ammHistoryPage({ net, pool, query, index: index.value, activity: activity.value });
+  for (const problem of problems) logProblem("the AMM pool page behind a marker could not load a card", problem, request);
+  if (problems.length > 0) markDegraded(context, `amm pool behind a marker: ${problems.join("; ")}`);
+  return cached(page, MARKER_PAGE_CLASS);
 }
 
 /** The first page (spec 3.2, 3.3): the ten calls, the mode, and the page from what came. */

@@ -1237,7 +1237,7 @@ XRP/RLUSD, which the markets pages read.
 
 **Tests.** The unit tests of `amm-params.ts`, `pool-link.ts`, `amm-view.ts` (every mode, `daySeries`, `nextBidPrice` against the recorded `AMMBid`), `amm-shape.ts`,
 the tags' builders and `card-data.ts`, `amm-bundle.test.ts` and `amm-fixtures.test.ts`; `AmmListPage.test.tsx` and `AmmPoolPage.test.tsx`; in the Worker
-`test/worker/amm-list.spec.ts`, `amm-pool.spec.ts`, `og.spec.ts`, `meta.spec.ts` and, with every switch off, `amm-off.spec.ts`; in the browser `amm.spec.ts`,
+`test/worker/amm-list.spec.ts`, `amm-pool.spec.ts`, `amm-pool-rows.spec.ts` (a page behind a marker whose rows do not build, past a shape check wrapped to let them through: a failed card, logged, served and not stored), `og.spec.ts`, `meta.spec.ts` and, with every switch off, `amm-off.spec.ts`; in the browser `amm.spec.ts`,
 `amm-live.spec.ts`, `og.spec.ts`, `client-meta.spec.ts` and `a11y.spec.ts` ("End-to-end tests").
 
 ## Validators and amendments
