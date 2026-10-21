@@ -279,8 +279,8 @@ function ammCell(row: MarketRow): { text: string; meter: MeterData | null } {
   return { text, meter: { value: row.amm_share, max: "1", label: `AMM share ${text}` } };
 }
 
-/** The pair's issued sides, base first: "USD rhub8V…F3wq · EUR rvYAfW…s59B". */
-function issuersOf(base: Asset, counter: Asset): string {
+/** The pair's issued sides, base first: "USD rhub8V…F3wq · EUR rvYAfW…s59B". The AMM list's rows write the same words (E5 2.1). */
+export function issuersOf(base: Asset, counter: Asset): string {
   return [base, counter]
     .filter((side) => side.issuer)
     .map((side) => `${formatCurrency(side.currency)} ${shortAddress(side.issuer!)}`)

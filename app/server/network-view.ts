@@ -219,7 +219,7 @@ const num = (value: number | string): BigNumber => new BigNumber(String(value));
 const tokened = <T extends object>(data: T): T & { token: string } => ({ ...data, token: tokenOf(data) });
 
 /** The rows by the day their time starts with: `2026-10-17T00:00:00Z` is `2026-10-17`. */
-function byDay<R>(rows: readonly R[], timeOf: (row: R) => string): Map<string, R> {
+export function byDay<R>(rows: readonly R[], timeOf: (row: R) => string): Map<string, R> {
   const byTime = new Map<string, R>();
   for (const row of rows) byTime.set(timeOf(row).slice(0, 10), row);
   return byTime;
@@ -451,8 +451,11 @@ export function feesOf(ctx: ViewContext, result: NetworkInput["feeDays"]): Part<
 
 // ---- The volumes ---------------------------------------------------------------------------------------------------------------------
 
-/** The series of a volume route's rows over W, the window's total (the buckets that have a row) and what a tile says of the pending ones. */
-function volumeOf(w: PeriodWindow, rows: ReadonlyMap<string, { total: string }>): { series: SeriesView; total: string; pendingWords: string | null } {
+/**
+ * The series of a volume route's rows over W, the window's total (the buckets that have a row) and what a tile says of the pending ones. Exported for the
+ * AMM list's chart, which draws the same series over the same window (E5 2.4).
+ */
+export function volumeOf(w: PeriodWindow, rows: ReadonlyMap<string, { total: string }>): { series: SeriesView; total: string; pendingWords: string | null } {
   let total = ZERO;
   const values = w.buckets.map((bucket) => {
     const row = rows.get(bucket);
