@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
+import { amendmentCase, validationsMarker, validatorCase } from "../support/validators-cases";
 
 // The tags of the pages (spec 9) on the real Worker against the recorded answers of the data API and the nodes: a `<title>`, a
 // description built from the page's data, a canonical URL, Open Graph and Twitter card tags with the image on the origin of the
@@ -474,6 +475,167 @@ describe("a market pair page", () => {
     expect(tags.titles).toEqual(["EVR/XAH · EVR rEvern…HXr8 · Xahau market · explorer"]);
     expect(tags.content("description")).toBe(DESCRIPTION("EVR/XAH", "the Xahau DEX", "EVR issued by rEvern…HXr8"));
     expect(tags.canonical).toEqual([`${ORIGIN}/xahau/markets/EVR.${EVR}/XAH`]);
+  });
+});
+
+describe("the validators page", () => {
+  const DESCRIPTION = (name: string) =>
+    `The validators of ${name}: the default UNL and every validator seen in the last 24 hours, with their domains, software versions, agreement, and fee and amendment votes.`;
+
+  it("has the tags of its network on the default view: a description with no numbers of the data, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/validators")).html);
+    expect(tags.titles).toEqual(["Validators · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/validators`]);
+    expect(tags.content("og:title")).toBe("Validators · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/validators`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow on any other view, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/validators?scope=all")).html);
+    expect(tags.titles).toEqual(["Validators · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/validators")).html);
+    expect(tags.titles).toEqual(["Validators · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/validators`]);
+  });
+});
+
+describe("a validator's page", () => {
+  it("has a title and a description built from D, a canonical URL on the master key, and the validator's image", async () => {
+    mock = mockUpstream("xrpl");
+    const { key } = await validatorCase("xrpl", "verified-unl");
+    const tags = head((await page(`/xrpl/validators/${key}`)).html);
+
+    // birchyard.example: on both lists, running the latest rippled, its domain verified (the fixture's).
+    const description =
+      "birchyard.example is a validator of XRPL, on the default UNL (listed by unl.xrplf.org and vl.ripple.com), running rippled 3.4.1. Its domain is verified. Agreement, fee and amendment votes, and recent validations.";
+    expect(tags.titles).toEqual(["Validator birchyard.example · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/validators/${key}`]);
+    expect(tags.content("og:title")).toBe("Validator birchyard.example · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/validators/${key}`);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/validator/${key}.png`);
+    expect(tags.content("og:image:alt")).toBe("Validator birchyard.example on XRPL");
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("names a validator with no domain by its short key, and says nothing of a domain", async () => {
+    mock = mockUpstream("xahau");
+    const { key } = await validatorCase("xahau", "no-domain");
+    const tags = head((await page(`/xahau/validators/${key}`)).html);
+    expect(tags.titles).toEqual([`Validator ${shortHash(key)} · Xahau · explorer`]);
+    expect(tags.content("description")).toMatch(new RegExp(`^${shortHash(key)} is a validator of Xahau[,.]`));
+    expect(tags.content("description")).not.toMatch(/Its domain/);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/validator/${key}.png`);
+  });
+
+  it("is noindex, follow on a page of older validations, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const { key, marker } = await validationsMarker("xrpl");
+    const tags = head((await page(`/xrpl/validators/${key}?marker=${marker}`)).html);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.content("description")).toMatch(/^Older validations of the validator .+ on XRPL\.$/);
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+});
+
+describe("the amendments page", () => {
+  const DESCRIPTION = (name: string) => `Every amendment of ${name}: which are enabled, which have a majority and when they activate, and how the default UNL votes on the rest.`;
+
+  it("has the tags of its network on the default view: a description with no numbers, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amendments")).html);
+    expect(tags.titles).toEqual(["Amendments · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amendments`]);
+    expect(tags.content("og:title")).toBe("Amendments · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/amendments`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow on a status view, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amendments?status=voting")).html);
+    expect(tags.titles).toEqual(["Amendments · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/amendments")).html);
+    expect(tags.titles).toEqual(["Amendments · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/amendments`]);
+  });
+});
+
+describe("an amendment's page", () => {
+  it("has a title and a description built from AD, a canonical URL on its name, and the amendment's image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amendments/MPTokensV1")).html);
+
+    // XRPL's majority amendment: the sentence of its status, then D1's description of it.
+    const description =
+      "MPTokensV1 has had a majority of XRPL's default UNL since Oct 7, 2026 and activates on or soon after Oct 21, 2026 if it holds. Fungible tokens that need no trust line.";
+    expect(tags.titles).toEqual(["Amendment MPTokensV1 · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amendments/MPTokensV1`]);
+    expect(tags.content("og:title")).toBe("Amendment MPTokensV1 · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/amendments/MPTokensV1`);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/amendment/MPTokensV1.png`);
+    expect(tags.content("og:image:alt")).toBe("Amendment MPTokensV1 on XRPL");
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("names a nameless amendment by its short ID, and its URLs by the ID in full", async () => {
+    mock = mockUpstream("xrpl");
+    const { id } = await amendmentCase("xrpl", "unknown");
+    const tags = head((await page(`/xrpl/amendments/${id}`)).html);
+    expect(tags.titles).toEqual([`Amendment ${shortHash(id)} · XRPL · explorer`]);
+    expect(tags.content("description")).toBe("An amendment of XRPL with no known name: its votes and history.");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amendments/${id}`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/amendment/${id}.png`);
+  });
+
+  it("is Xahau's on Xahau: an amendment enabled from the ledger, since its day and at its ledger", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/amendments/Import")).html);
+    expect(tags.titles).toEqual(["Amendment Import · Xahau · explorer"]);
+    expect(tags.content("description")).toBe("Import is enabled on Xahau since Sep 12, 2025 (ledger 17,956,865).");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/amendments/Import`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/amendment/Import.png`);
   });
 });
 

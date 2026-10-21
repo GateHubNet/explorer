@@ -1,14 +1,28 @@
 import { describe, expect, it } from "vitest";
 
+import { AMM_ID, amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, UNKNOWN_ID, validationsSample, validatorDetailSample } from "../../test/support/d1-samples";
+import type { AmendmentStatus } from "../domain/amendments-params";
 import type { FlowStep } from "../domain/describe";
+import { shortHash } from "../domain/format";
+import type { ValidatorsParams } from "../domain/validators-params";
+import type { NetworkInfo } from "../ui/networks";
+import { amendmentPage } from "./amendment-view";
+import { amendmentsPage } from "./amendments-view";
+import type { AmendmentDetail } from "./api-types";
 import { imageUrl, metaContext, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
+import { amendmentMeta } from "./meta-amendment";
+import { amendmentsMeta } from "./meta-amendments";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
 import { networkMeta } from "./meta-network";
 import { pairMeta } from "./meta-pair";
 import { transactionDescription, transactionMeta } from "./meta-transaction";
+import { validatorMeta } from "./meta-validator";
+import { validatorsMeta } from "./meta-validators";
+import { validatorHistoryPage, validatorPage } from "./validator-view";
+import { validatorsPage } from "./validators-view";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
 // view builders return for the fields the tags read; the worker specs (test/worker/meta.spec.ts) check the whole way from a
@@ -533,6 +547,7 @@ describe("imageUrl", () => {
   it("is the URL of the image route on the origin", () => {
     expect(imageUrl("https://explorer.test", "xrpl", "tx", HASH)).toBe(`https://explorer.test/og/xrpl/tx/${HASH}.png`);
     expect(imageUrl("https://explorer.test", "xahau", "ledger", "26540187")).toBe("https://explorer.test/og/xahau/ledger/26540187.png");
+    expect(imageUrl("https://explorer.test", "xrpl", "validator", SAMPLE_KEYS[0])).toBe(`https://explorer.test/og/xrpl/validator/${SAMPLE_KEYS[0]}.png`);
   });
 });
 
@@ -551,5 +566,273 @@ describe("metaContext", () => {
     expect(metaContext("xrpl", [undefined])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { network: {} } }])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { origin: 5 } }])).toBeUndefined();
+  });
+});
+
+describe("validatorsMeta", () => {
+  const DESCRIPTION = (name: string) =>
+    `The validators of ${name}: the default UNL and every validator seen in the last 24 hours, with their domains, software versions, agreement, and fee and amendment votes.`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const view = (params: ValidatorsParams) => ({ params });
+  const DEFAULT = view({ scope: "unl" });
+
+  it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = validatorsMeta(DEFAULT, XRPL);
+    expect(title(list)).toBe("Validators · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/validators");
+    expect(content(list, "og:title")).toBe("Validators · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/validators");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau, on the request's origin", () => {
+    const list = validatorsMeta(DEFAULT, { ...XAHAU, origin: "https://explorer.example" });
+    expect(title(list)).toBe("Validators · Xahau · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("Xahau"));
+    expect(link(list, "canonical")).toBe("https://explorer.example/xahau/validators");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xahau/validators");
+  });
+
+  it.each([
+    ["the All scope", { scope: "all" }],
+    ["a publisher", { scope: "unl", publisher: "vl.ripple.com" }],
+    ["an amendment", { scope: "unl", amendment: "XChainBridge" }],
+    ["a search", { scope: "unl", q: "example" }],
+    ["the All scope and a search", { scope: "all", q: "example" }],
+    ["every filter", { scope: "all", publisher: "vl.ripple.com", amendment: "XChainBridge", q: "example" }],
+  ] satisfies Array<[string, ValidatorsParams]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, on %s", (_name, params) => {
+    const list = validatorsMeta(view(params), XRPL);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(title(list)).toBe("Validators · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("takes the whole page's data as well as its params, since a route hands it the loader's answer", () => {
+    const data = validatorsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, params: { scope: "unl" }, summary: { state: "failed" }, list: { state: "failed" }, amendments: { state: "failed" } });
+    expect(link(validatorsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/validators");
+  });
+
+  it("puts no number of the data in the description: the page is stored for seconds", () => {
+    for (const ctx of [XRPL, XAHAU]) expect(content(validatorsMeta(DEFAULT, ctx), "description")!.match(/\d+/g)).toEqual(["24"]);
+  });
+});
+
+describe("validatorMeta", () => {
+  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const live = (validator = validatorDetailSample(), network = NET) =>
+    validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 } });
+  const KEY = SAMPLE_KEYS[0];
+  const TAIL = "Agreement, fee and amendment votes, and recent validations.";
+
+  it("has the tags of the live view: the title, a canonical URL on the origin, Open Graph and the validator's image", () => {
+    const list = validatorMeta(live(), XRPL);
+    expect(title(list)).toBe("Validator northpeak.example · XRPL · explorer");
+    const description = `northpeak.example is a validator of XRPL, on the default UNL (listed by unl.xrplf.org and vl.ripple.com), running rippled 3.4.1. Its domain is verified. ${TAIL}`;
+    expect(content(list, "description")).toBe(description);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/validators/${KEY}`);
+    expect(content(list, "og:url")).toBe(`https://explorer.test/xrpl/validators/${KEY}`);
+    expect(content(list, "og:title")).toBe("Validator northpeak.example · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(description);
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/validator/${KEY}.png`);
+    expect(content(list, "og:image:alt")).toBe("Validator northpeak.example on XRPL");
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("says 'not verified', and nothing for a domain not checked yet or for no domain", () => {
+    const toml_url = "https://northpeak.example/.well-known/xrp-ledger.toml";
+    const unverified = validatorDetailSample({ domain_verification: { status: "unverified", reason: "not_listed", toml_url } });
+    expect(content(validatorMeta(live(unverified), XRPL), "description")).toContain("running rippled 3.4.1. Its domain is not verified. Agreement");
+    const pending = validatorDetailSample({ domain_verification: { status: "pending", toml_url } });
+    expect(content(validatorMeta(live(pending), XRPL), "description")).toContain(`running rippled 3.4.1. ${TAIL}`);
+    const nameless = live({ ...validatorDetailSample(), domain: undefined, domain_verification: undefined });
+    const list = validatorMeta(nameless, XRPL);
+    expect(title(list)).toBe(`Validator ${shortHash(KEY)} · XRPL · explorer`);
+    expect(content(list, "description")).toBe(`${shortHash(KEY)} is a validator of XRPL, on the default UNL (listed by unl.xrplf.org and vl.ripple.com), running rippled 3.4.1. ${TAIL}`);
+  });
+
+  it("leaves out the UNL off it, and the software without a version", () => {
+    const off = validatorDetailSample({ unl: false, unl_lists: [], version: undefined, version_latest: undefined });
+    expect(content(validatorMeta(live(off), XRPL), "description")).toBe(`northpeak.example is a validator of XRPL. Its domain is verified. ${TAIL}`);
+    const one = validatorDetailSample({ unl_lists: ["vl.xahau.org"], version: "2026.10.13", version_build: 4119 });
+    expect(content(validatorMeta(live(one, { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" }), XAHAU), "description")).toBe(
+      `northpeak.example is a validator of Xahau, on the default UNL (listed by vl.xahau.org), running xahaud 2026.10.13. Its domain is verified. ${TAIL}`,
+    );
+  });
+
+  it("is noindex, follow on a page of older validations, with no canonical URL and no Open Graph or card tags", () => {
+    const history = validatorHistoryPage({ network: NET, validator: validatorDetailSample(), recent: validationsSample(), marker: "M1", back: [] });
+    const list = validatorMeta(history, XRPL);
+    expect(title(list)).toBe("Validator northpeak.example · XRPL · explorer");
+    expect(content(list, "description")).toBe("Older validations of the validator northpeak.example on XRPL.");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("puts no age and no number that moves with the chain in the description", () => {
+    // The version's figures are the only digits: no agreement, no ledger, no time.
+    expect(content(validatorMeta(live(), XRPL), "description")!.match(/\d+/g)).toEqual(["3", "4", "1"]);
+  });
+});
+
+describe("amendmentsMeta", () => {
+  const DESCRIPTION = (name: string) => `Every amendment of ${name}: which are enabled, which have a majority and when they activate, and how the default UNL votes on the rest.`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const view = (status?: AmendmentStatus) => ({ ...(status !== undefined && { status }) });
+  const DEFAULT = view();
+
+  it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = amendmentsMeta(DEFAULT, XRPL);
+    expect(title(list)).toBe("Amendments · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/amendments");
+    expect(content(list, "og:title")).toBe("Amendments · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION("XRPL"));
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/amendments");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau, on the request's origin", () => {
+    const list = amendmentsMeta(DEFAULT, { ...XAHAU, origin: "https://explorer.example" });
+    expect(title(list)).toBe("Amendments · Xahau · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION("Xahau"));
+    expect(link(list, "canonical")).toBe("https://explorer.example/xahau/amendments");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xahau/amendments");
+  });
+
+  it.each(["majority", "voting", "enabled", "obsolete", "unknown"] satisfies AmendmentStatus[])(
+    "is noindex, follow, with no canonical URL and no Open Graph or card tags, on the view of status %s",
+    (status) => {
+      const list = amendmentsMeta(view(status), XRPL);
+      expect(content(list, "robots")).toBe("noindex, follow");
+      expect(title(list)).toBe("Amendments · XRPL · explorer");
+      expect(content(list, "description")).toBe(DESCRIPTION("XRPL"));
+      expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+      expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+      expect(keys(list).sort()).toEqual(["description", "robots"]);
+    },
+  );
+
+  it("takes the whole page's data as well as its status, since a route hands it the loader's answer", () => {
+    const data = amendmentsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendments: amendmentsSample() });
+    expect(link(amendmentsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/amendments");
+    const voting = amendmentsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendments: amendmentsSample(), status: "voting" });
+    expect(content(amendmentsMeta(voting, XRPL), "robots")).toBe("noindex, follow");
+  });
+
+  it("puts no number of the data in the description: the page is stored for a minute", () => {
+    for (const ctx of [XRPL, XAHAU]) expect(content(amendmentsMeta(DEFAULT, ctx), "description")!.match(/\d+/g)).toBeNull();
+  });
+});
+
+describe("amendmentMeta", () => {
+  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  /** The sample (XChainBridge, with a majority) as `over` makes it, without D1's description and the keys `absent` (D1 leaves a key out; it never sends `null`). */
+  function amendment(over: Partial<AmendmentDetail> = {}, ...absent: (keyof AmendmentDetail)[]): AmendmentDetail {
+    const detail: AmendmentDetail = { ...amendmentDetailSample(), ...over };
+    for (const key of ["description", ...absent] as const) if (!(key in over) || absent.includes(key)) delete detail[key];
+    return detail;
+  }
+  const page = (detail: AmendmentDetail, network = NET) => amendmentPage({ network, amendment: detail, summary: { state: "failed" } });
+
+  it("has the tags of the page: the builder's title and description, a canonical URL on the origin, Open Graph and the amendment's image", () => {
+    const list = amendmentMeta(page(amendmentDetailSample()), XRPL);
+    const description =
+      "XChainBridge has had a majority of XRPL's default UNL since Oct 17, 2026 and activates on or soon after Oct 31, 2026 if it holds. Made up for the samples: bridges between two ledgers.";
+    expect(title(list)).toBe("Amendment XChainBridge · XRPL · explorer");
+    expect(content(list, "description")).toBe(description);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/amendments/XChainBridge");
+    expect(content(list, "og:title")).toBe("Amendment XChainBridge · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(description);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/amendments/XChainBridge");
+    expect(content(list, "og:image")).toBe("https://explorer.test/og/xrpl/amendment/XChainBridge.png");
+    expect(content(list, "og:image:alt")).toBe("Amendment XChainBridge on XRPL");
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
+    expect(content(list, "twitter:image")).toBe("https://explorer.test/og/xrpl/amendment/XChainBridge.png");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it.each([
+    [
+      "enabled",
+      () =>
+        amendment(
+          { id: AMM_ID, name: "AMM", status: "enabled", enabled: { ledger_index: 86836481, date: "2024-03-22T13:49:51Z", tx_hash: "A".repeat(64), source: "ledger" }, rounds: [] },
+          "votes",
+          "majority",
+        ),
+      "AMM is enabled on XRPL since Mar 22, 2024 (ledger 86,836,481).",
+    ],
+    [
+      "majority",
+      () => amendment({ id: AMM_ID, name: "AMM", majority: { since: "2026-10-09T09:34:00Z", expected_activation: "2026-10-23T09:34:00Z" } }),
+      "AMM has had a majority of XRPL's default UNL since Oct 9, 2026 and activates on or soon after Oct 23, 2026 if it holds.",
+    ],
+    [
+      "voting",
+      () => amendment({ status: "voting", votes: { ledger_index: 107748095, yes: 4, trusted: 35, needed: 29, pct: 11.43 } }, "majority"),
+      "4 of 35 validators of XRPL's default UNL vote for XChainBridge; 29 are needed.",
+    ],
+    [
+      "obsolete",
+      () => amendment({ name: "fixNFTokenNegOffer", status: "obsolete", rounds: [] }, "votes", "majority"),
+      "fixNFTokenNegOffer is obsolete on XRPL: current software can no longer vote it in.",
+    ],
+  ])("says §8's sentence of an amendment that is %s, on its canonical URL and image", (_status, detail, sentence) => {
+    const data = page(detail());
+    const list = amendmentMeta(data, XRPL);
+    expect(content(list, "description")).toBe(sentence);
+    expect(content(list, "og:description")).toBe(sentence);
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/amendments/${data.canonical}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/amendment/${data.canonical}.png`);
+  });
+
+  it("names a nameless amendment by its short ID, and its URLs by the ID in full", () => {
+    const list = amendmentMeta(page(amendment({ id: UNKNOWN_ID, status: "unknown", votes: { ledger_index: 107748095, yes: 0, trusted: 35, needed: 29, pct: 0 } }, "name", "majority")), XRPL);
+    expect(title(list)).toBe(`Amendment ${shortHash(UNKNOWN_ID)} · XRPL · explorer`);
+    expect(content(list, "description")).toBe("An amendment of XRPL with no known name: its votes and history.");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xrpl/amendments/${UNKNOWN_ID}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/amendment/${UNKNOWN_ID}.png`);
+    expect(content(list, "og:image:alt")).toBe(`Amendment ${shortHash(UNKNOWN_ID)} on XRPL`);
+  });
+
+  it("follows the sentence with D1's description when there is one", () => {
+    const list = amendmentMeta(page(amendment({ name: "fixNFTokenNegOffer", status: "obsolete", description: "Made up: a description." }, "votes", "majority")), XRPL);
+    expect(content(list, "description")).toBe("fixNFTokenNegOffer is obsolete on XRPL: current software can no longer vote it in. Made up: a description.");
+  });
+
+  it("is Xahau's on Xahau, on the request's origin", () => {
+    const xahau: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+    const list = amendmentMeta(page(amendment({ name: "Remit" }), xahau), { ...XAHAU, origin: "https://explorer.example" });
+    expect(title(list)).toBe("Amendment Remit · Xahau · explorer");
+    expect(content(list, "description")).toMatch(/^Remit has had a majority of Xahau's default UNL since /);
+    expect(link(list, "canonical")).toBe("https://explorer.example/xahau/amendments/Remit");
+    expect(content(list, "og:image")).toBe("https://explorer.example/og/xahau/amendment/Remit.png");
+    expect(content(list, "og:image:alt")).toBe("Amendment Remit on Xahau");
+  });
+
+  it("puts no age and no countdown in the description: the page is stored for a minute", () => {
+    const description = content(amendmentMeta(page(amendmentDetailSample()), XRPL), "description")!;
+    expect(description).not.toMatch(/\bago\b|\bin \d+ (days?|h|min)\b|~/);
+    // The digits are the two dates': no share, no count of votes, no time of day.
+    expect(description.match(/\d+/g)).toEqual(["17", "2026", "31", "2026"]);
   });
 });

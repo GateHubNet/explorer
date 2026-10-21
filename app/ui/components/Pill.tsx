@@ -3,11 +3,12 @@ import type { ReactNode } from "react";
 import { cx } from "../cx";
 import { CheckIcon, CrossIcon } from "./icons";
 
-export type PillTone = "ok" | "bad" | "neutral";
+/** `info` is the accent wash (an amendment about to activate); `off` is the outlined pill (obsolete, unknown, no recent vote). Colour is only for `ok` and `bad`. */
+export type PillTone = "ok" | "bad" | "neutral" | "info" | "off";
 
 /**
- * A status: an icon and a word, never colour alone (spec 7.1). `ok` and `bad` come with a check and a cross; pass `icon`
- * to change it, or `icon={null}` for none. `mono` is for result codes.
+ * A status: an icon and a word, never colour alone (spec 7.1). `ok` and `bad` come with a check and a cross; the other tones have no
+ * icon of their own, so pass one. Pass `icon` to change a default, or `icon={null}` for none. `mono` is for result codes.
  */
 export function Pill({
   tone = "neutral",

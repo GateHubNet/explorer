@@ -12,7 +12,7 @@ import {
 import { cx } from "../cx";
 import { createTipSlot, Cursor, TipSlotContext, type CursorProps, type TipSlot } from "./Cursor";
 import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, percent, tooltipSide, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
-import { bucketLabel, tickLabel } from "./labels";
+import { axisLabels, tickLabel } from "./labels";
 import type { TimeAxis, ValueKind } from "./types";
 
 export interface PlotProps {
@@ -147,9 +147,9 @@ export function Plot({
 
   const labelsOf = (width: "wide" | "narrow" | "ends") => (
     <div className={`plot__x plot__x--${width}`} aria-hidden="true">
-      {xLabelPicks(count, width).map((i) => (
+      {axisLabels(axis, xLabelPicks(count, width)).map(({ i, text }) => (
         <span key={i} style={{ left: percent(xOf(i, count, placement)) }}>
-          {bucketLabel(axis.buckets[i]!, axis.unit, "axis")}
+          {text}
         </span>
       ))}
     </div>

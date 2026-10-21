@@ -6,6 +6,7 @@
     "test/e2e/support.ts",
     "test/e2e/fixtures.ts",
     "test/e2e/fixture-control.ts",
+    "test/e2e/validators-pages.ts",
     "scripts/e2e-env.ts",
     "app/ui/features.ts"
   ],

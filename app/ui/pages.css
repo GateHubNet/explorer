@@ -1160,6 +1160,11 @@ a.example:hover {
   color: var(--muted);
 }
 
+/* A key that leads to its validator's page (while VALIDATORS is on) has the links' colour, not the muted one of a key that is text. */
+.network__first li > a.mono {
+  color: var(--link);
+}
+
 .network__first li > :last-child {
   color: var(--faint);
 }
@@ -2020,4 +2025,1162 @@ a.markets__pair:hover .markets__name {
   overflow-wrap: anywhere;
   text-overflow: clip;
   white-space: normal;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Validators: /{net}/validators (the board's layout: one column of rows, the table scrolling sideways inside its card on a phone). The classes of the
+   chart kit (charts.css, which comes before this sheet) are never defined here, the source line's and the legend's included: the swatch of the versions
+   table is this page's own. */
+
+.validators {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.validators__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.validators__lead {
+  display: flex;
+  flex: 1 1 520px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.validators__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.validators__intro {
+  color: var(--muted);
+}
+
+.validators__cross {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The six tiles: as many columns as fit at 300 px (the board's), one on a phone. */
+.validators__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 12px;
+}
+
+/* The swatch of a version's group in the table view: the legend's, in a cell. */
+.validators__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: var(--mark);
+  vertical-align: -1px;
+}
+
+/* The card: its head holds the title and source, then the scope links and the form in one wrapping row. */
+.validators__cardhead {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.validators__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.validators__form {
+  display: flex;
+  flex: 1 1 520px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-width: 0;
+}
+
+.validators__field {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.validators__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.validators__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.validators__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.validators__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.validators__select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.validators__select label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.validators__sel {
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.validators__apply {
+  min-height: 44px;
+  padding: 0 16px;
+  font-weight: 500;
+}
+
+.validators__clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The table's scroll region is a containing block for what is positioned inside it: the visually hidden words of a cell (`.sr` is `position: absolute`)
+   would otherwise sit at their place in the unscrolled table, a screen or two to the right of a phone, and the page would scroll sideways to reach them. */
+.validators__table {
+  position: relative;
+}
+
+/* "Clear filters" after "No validators match these filters." is a link inside a sentence: it is told from the words around it by more than its colour
+   (axe: link-in-text-block; in dark mode the link's colour is close to the text's). */
+.validators__table .table__empty a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A validator: the name and its marks on a line that wraps, its short key under it. */
+.validators__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 0;
+}
+
+.validators__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+/* A link of at least 24 px (WCAG 2.5.8); a long domain breaks inside its track. */
+.validators__name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.validators__sub {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.validators__version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+/* The figure at the end of its track, "incomplete" under it. */
+.validators__agreement {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.validators__fees {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+
+.validators__fee {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.validators__fee .faint,
+.validators__nofee {
+  color: var(--faint);
+}
+
+/* The disclosure: "3 yes" and a chevron that turns when it opens. A 44 px target, its ring drawn inside it where the table's scroll region does not clip it. */
+.validators__yes summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--link);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.validators__yes summary::-webkit-details-marker {
+  display: none;
+}
+
+.validators__yes summary:focus-visible {
+  outline-offset: -2px;
+}
+
+.validators__chev {
+  transition: transform 0.15s;
+}
+
+.validators__yes[open] .validators__chev {
+  transform: rotate(90deg);
+}
+
+.validators__yes ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.validators__yes li a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.validators__foot {
+  margin: 0;
+}
+
+.validators__failed {
+  padding: 16px;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .validators__cross {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .validators__title {
+    font-size: 24px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Validator: /{net}/validators/{key} (the board's layout: the identity card, the agreement tiles beside the 30-day chart, the fee votes beside the
+   amendment votes, the recent validations; each pair folds into one column on a phone, and the tables scroll sideways inside their cards). The chart kit's
+   classes (charts.css) are never defined here: the cards that are not charts use its title and source line. */
+
+.validator {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.validator__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.validator__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.validator__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.validator__kind,
+.validator__label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* The name and its marks on a line that wraps; a long domain breaks inside it. */
+.validator__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.validator__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.validator__note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The note's link (the xrp-ledger.toml) is inside its sentence: underlined, as the amendment page's are (axe: link-in-text-block). */
+.validator__note a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The facts: as many columns as fit at 240 px (the board's), one on a phone. */
+.validator__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 16px 24px;
+}
+
+.validator__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.validator__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.validator__sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The master key in full: it wraps anywhere, with its copy button after it. */
+.validator__master {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* A publisher of UNL membership: a line of its own, its status after it. */
+.validator__member {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  font-size: 13px;
+}
+
+/* An account the domain lists: a link of at least 24 px (WCAG 2.5.8). */
+.validator__account {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* Two cards side by side, under each other on a phone. */
+.validator__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+/* The three agreement tiles: a column beside the chart, as tall as it. */
+.validator__tiles {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.validator__tiles .stat {
+  flex: 1 1 auto;
+}
+
+.validator__daily {
+  flex: 999 1 600px;
+  min-width: 0;
+}
+
+.validator__pair > .validator__card {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+/* A card that is not a chart: the kit's title and source line in its head, an action at the end of it. */
+.validator__cardhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.validator__daily .validator__cardhead {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.validator__cross {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.validator__empty {
+  padding: 16px;
+  color: var(--faint);
+}
+
+.validator__daily .validator__empty {
+  padding: 0;
+}
+
+.validator__foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.validator__now,
+.validator__hash {
+  color: var(--muted);
+}
+
+.validator__now {
+  font-weight: 400;
+}
+
+.validator__amendment {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+/* The table's scroll region is a containing block for what is positioned inside it: the visually hidden words of a cell (`.sr` is `position: absolute`)
+   would otherwise sit at their place in the unscrolled table, out to the right of a phone, and the page would scroll sideways to reach them. */
+.validator__table {
+  position: relative;
+}
+
+.validator__failed {
+  padding: 16px;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .validator__cross {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .validator__identity {
+    padding: 16px;
+  }
+
+  .validator__title {
+    font-size: 22px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Amendments: /{net}/amendments (the board's layout: one column of rows, the table scrolling sideways inside its card on a phone). The classes of the chart kit
+   (charts.css, which comes before this sheet) are never defined here, the source line's and the meter's included: the cells size the meter through a box of their own. */
+
+.amendments {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.amendments__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.amendments__lead {
+  display: flex;
+  flex: 1 1 520px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.amendments__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.amendments__intro {
+  color: var(--muted);
+}
+
+.amendments__cross {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Activating soon: the board's accent border, a line for each amendment with a majority (a clock, the line and the one under it, the link to its votes). */
+.amendments__soon {
+  padding: 16px 18px;
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.amendments__soonlist {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.amendments__soonitem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.amendments__clock {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--link);
+}
+
+.amendments__soontext {
+  display: flex;
+  flex: 1 1 420px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.amendments__soonline {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The name is a link inside a sentence: it is told from the words around it by more than its colour (axe: link-in-text-block; in dark mode the accent is 1.99:1 against the text). */
+.amendments__soonname {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.amendments__soonunder {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Not a flex box: its words are a text with a hidden name in the middle ("Votes and history", the amendment's name, " →"), and a flex box would make an item of each
+   run of text and take the space before the arrow away. The 32 px target is its height and its padding. */
+.amendments__soonlink {
+  display: inline-block;
+  min-height: 32px;
+  padding-block: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.amendments__rules {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The card: its head holds the title and source, then the status chips, which wrap on a phone (six of them do not fit in a line of 343 px). */
+.amendments__cardhead {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.amendments__cardhead .netswitch {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* The table's scroll region is a containing block for what is positioned inside it: the visually hidden words of a cell (`.sr` is `position: absolute`)
+   would otherwise sit at their place in the unscrolled table, out to the right of a phone, and the page would scroll sideways to reach them. */
+.amendments__table {
+  position: relative;
+}
+
+/* Rows of 56 px (the board's), the header row the table's own 36 px. */
+.amendments__table .table__row {
+  min-height: 56px;
+}
+
+.amendments__table .table__head {
+  min-height: 36px;
+}
+
+/* A status that is longer than its column ("Activating, at the next flag ledger", which the page says for a moment that has gone) wraps inside its pill: it is nowrap
+   elsewhere, and would run over the next column. */
+.amendments__table .pill {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.amendments__rank {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The name as a link and the XLS tag after it, on a line that wraps. */
+.amendments__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.amendments__name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* A tag with a link in it is on the page's ground, not on --sunken: the Xahau accent is 4.40:1 on it in light mode, under AA (tokens.test.ts). */
+.amendments__xls--link {
+  background: transparent;
+}
+
+.amendments__introduced {
+  color: var(--muted);
+}
+
+/* The bar (6 px, with the room the tick's label needs under it) and the share, which starts where the label's room does: they do not meet, the label being at the threshold. */
+.amendments__consensus {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.amendments__bar {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  margin-bottom: -16px;
+}
+
+.amendments__share {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.amendments__enabled {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.amendments__ledger {
+  font-size: 12px;
+}
+
+.amendments__foot {
+  margin: 0;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .amendments__cross,
+  .amendments__soonlink {
+    min-height: 44px;
+  }
+
+  .amendments__soonlink {
+    padding-block: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .amendments__title {
+    font-size: 24px;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Amendment: /{net}/amendments/{name} (the board's layout: the identity card, the consensus beside the history, the votes of the UNL with the other validators in a
+   disclosure under them; the pair folds into one column on a phone, and the tables scroll inside their cards). The chart kit's classes (charts.css) are never defined
+   here: the cards that are not charts use its title and source line, and the chart's card inside the consensus card loses its frame through a class of its own. */
+
+.amendment {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.amendment__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.amendment__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.amendment__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.amendment__label {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* The name, the short ID of a nameless one and the status pill, on a line that wraps; a long name breaks inside it. */
+.amendment__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.amendment__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.amendment__short {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.amendment__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* The ID in full: it wraps anywhere, with its copy button after it. */
+.amendment__id {
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+/* The facts: as many columns as fit at 200 px (the board's), one on a phone. */
+.amendment__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 16px 24px;
+}
+
+.amendment__value {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* A link inside a sentence is told from the words around it by more than its colour (axe: link-in-text-block; in dark mode the link's colour is close to the text's). */
+.amendment__value a,
+.amendment__since a,
+.amendment__when a,
+.amendment__foot a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.amendment__about {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.amendment__about .tag {
+  margin-left: 6px;
+}
+
+.amendment__description {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+/* The consensus beside the history, under each other on a phone. */
+.amendment__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.amendment__consensus {
+  display: flex;
+  flex: 999 1 640px;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 18px 14px;
+}
+
+.amendment__history {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+/* A card's head: the kit's title and source line. The votes card has no padding of its own (its table is flush), so its head has. */
+.amendment__cardhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.amendment__votes > .amendment__cardhead {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The note in the votes card of an amendment that is no longer voted on: the card has no padding of its own. */
+.amendment__novotes {
+  padding: 14px 16px;
+}
+
+/* The yes share (the board's 44 px) and the meter beside it, the meter under it on a phone. */
+.amendment__standing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.amendment__figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 24px;
+  margin-bottom: 6px;
+}
+
+.amendment__share {
+  font-size: 44px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.amendment__meter {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.amendment__tally {
+  font-weight: 600;
+}
+
+.amendment__since {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The chart's card is part of the consensus card: no frame and no padding of its own. It keeps the kit's container, head, views and notes. */
+.amendment__chart {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.amendment__empty {
+  color: var(--faint);
+}
+
+/* History: a dot beside each item (the board's 12 px, a screen reader does not read it: the label says what the item is). */
+.amendment__events {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.amendment__event {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.amendment__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border: 2px solid;
+  border-radius: 50%;
+}
+
+.amendment__dot--pending {
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.amendment__dot--got {
+  background: var(--series-1);
+  border-color: var(--series-1);
+}
+
+.amendment__dot--lost {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.amendment__dot--enabled {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: var(--surface);
+}
+
+.amendment__eventtext {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.amendment__eventlabel {
+  font-weight: 600;
+}
+
+.amendment__flag {
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.amendment__when {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The transaction: a line of its own, a target of 24 px (WCAG 2.5.8) as wide as its words. */
+.amendment__tx {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 24px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.amendment__note {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* Votes */
+.amendment__count {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* The scroll region of a vote table is a containing block for what is positioned inside it: the visually hidden words of a cell (`.sr` is `position: absolute`)
+   would otherwise sit at their place in the unscrolled table, out to the right of a phone, and the page would scroll sideways to reach them. */
+.amendment__table {
+  position: relative;
+}
+
+.amendment__validator {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.amendment__version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+
+.amendment__lacks {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The other validators: a disclosure across the card, its summary a 48 px row whose ring is drawn inside it (the card clips what is outside its padding box). */
+.amendment__others {
+  border-top: 1px solid var(--border);
+}
+
+.amendment__others summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 48px;
+  padding: 8px 16px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.amendment__others summary::-webkit-details-marker {
+  display: none;
+}
+
+.amendment__others summary:focus-visible {
+  outline-offset: -2px;
+}
+
+.amendment__chev {
+  flex: none;
+  color: var(--faint);
+  transition: transform 0.15s;
+}
+
+.amendment__others[open] .amendment__chev {
+  transform: rotate(90deg);
+}
+
+.amendment__otherssub {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.amendment__foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .amendment__identity {
+    padding: 16px;
+  }
+
+  .amendment__title {
+    font-size: 22px;
+  }
 }

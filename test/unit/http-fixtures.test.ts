@@ -10,6 +10,7 @@ import {
   isAnalyticsGenerated,
   isMarketGenerated,
   isSynthetic,
+  isValidatorsGenerated,
   LEDGERS,
   isoTime,
   readLedgers,
@@ -81,7 +82,7 @@ describe("every fixture file", () => {
 
   it("stays within the budget that keeps the set reviewable", () => {
     const bytes = (names: string[]) => names.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
-    expect(bytes(files.filter((file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file)))).toBeLessThan(3.5 * 1024 * 1024);
+    expect(bytes(files.filter((file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file) && !isValidatorsGenerated(file)))).toBeLessThan(3.5 * 1024 * 1024);
     // The synthetic aggregates of the network page (about 2.3 MiB, a row to a line: four periods, two display currencies, three volumes) are
     // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
     // The accounts' analytics answers (scripts/analytics-fixtures.ts: 144 files, about 0.31 MiB, a row to a line) are synthetic too, and fit in it.
@@ -92,6 +93,10 @@ describe("every fixture file", () => {
     // Xahau markets tables, a row to a line; 81 files, 896,584 bytes, about 0.86 MiB) are reviewed as their generator too, and have a budget of their own.
     expect(bytes(files.filter(isMarketGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isMarketGenerated))).toBeLessThan(1.0 * 1024 * 1024);
+    // The validators and amendments pages' files (scripts/validators-fixtures.ts: D1's six routes, a row to a line; 239 files, 2,869,339 bytes, about 2.7 MiB, of
+    // which the 30 days of XRPL's majority amendment, under its name and its ID, are 0.7 MiB) are reviewed as their generator too, with a budget of their own.
+    expect(bytes(files.filter(isValidatorsGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isValidatorsGenerated))).toBeLessThan(3.0 * 1024 * 1024);
   });
 });
 

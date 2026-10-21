@@ -2,15 +2,19 @@
 //
 // Amounts are exact decimal strings, handled as text or with bignumber.js, never as JavaScript
 // numbers, and are never written in exponent notation.
+//
+// This file is in the closure of the root route's static imports, so the build puts it in the shell chunk every page loads, and whatever of
+// it a page imports is in that chunk for every page. The words only some pages use (dates, countdowns, a list as a sentence) are in
+// time-words.ts, so that a page that draws one pays for it alone. The percent rules (`sharePercent`, `wholePercent`) are in percent.ts for the same
+// reason, and this file must not import or re-export it: any edge from here pulls them back into the shell.
 
 import BigNumber from "bignumber.js";
 
 const MINUS = "\u2212";
-const EM_DASH = "\u2014";
 const ELLIPSIS = "\u2026";
 
 /** Every decimal notation a number can come in: `12`, `-1.50`, `.5`, `5.`, `1e-15`, `-1.5E+21`. */
-const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+export const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 /** Plain notation with no exponent and nothing to normalise but the sign: kept digit for digit. */
 const PLAIN_DECIMAL = /^([+-]?)(\d+)(?:\.(\d+))?$/;
 
@@ -142,29 +146,6 @@ export function formatValue(value: string, opts: { signed?: boolean } = {}): str
   return `${plus}${formatAmount(rounded.toFixed())}`;
 }
 
-/**
- * `part` as a whole percent of `whole`, half up, exactly (`58%`), and `<1%` below one half of a percent. A share of nothing
- * (a `whole` that is not above 0) or of what is not a number is a dash.
- */
-export function sharePercent(part: string, whole: string): string {
-  if (!DECIMAL.test(part) || !DECIMAL.test(whole)) return EM_DASH;
-  const share = new BigNumber(part);
-  const total = new BigNumber(whole);
-  if (share.lt(0) || !total.gt(0)) return EM_DASH;
-  // floor(100 × part ÷ whole + ½), without a division that rounds: (200 × part + whole) ÷ (2 × whole), whole part.
-  const percent = share.times(200).plus(total).idiv(total.times(2));
-  return percent.isZero() ? "<1%" : `${percent.toFixed()}%`;
-}
-
-/**
- * The one percent rule of the markets pages: `sharePercent`, except that a `part` of exactly 0 is `0%` (a share of nothing is still a dash).
- * So `<1%` always means more than 0 and less than one half of a percent.
- */
-export function wholePercent(part: string, whole: string): string {
-  if (DECIMAL.test(part) && DECIMAL.test(whole) && new BigNumber(part).isZero() && new BigNumber(whole).gt(0)) return "0%";
-  return sharePercent(part, whole);
-}
-
 const HEX_CURRENCY = /^[0-9A-Fa-f]{40}$/;
 
 /**
@@ -221,24 +202,33 @@ const ISO_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?
 const ISO_START = /^\d{4}-\d{2}-\d{2}/;
 
 /**
- * A moment as `2026-10-17 15:42:51 UTC`. A string is an ISO 8601 date and time (read as UTC when it
- * has no zone). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since
- * 2000-01-01) must be converted before it gets here, as the size of a number cannot tell the two
- * epochs apart. What is not a moment is returned as it came.
+ * The moment `at` names, or `undefined` when it names none. A string is an ISO 8601 date and time (read as UTC when it has no zone), or
+ * a date alone (UTC midnight). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since 2000-01-01) must be
+ * converted before it gets here, as the size of a number cannot tell the two epochs apart.
  */
-export function formatUtc(at: string | number): string {
+export function utcMoment(at: string | number): Date | undefined {
   let date: Date;
   if (typeof at === "number") {
     date = new Date(at * 1000);
   } else if (ISO_START.test(at)) {
     date = new Date(ISO_WITHOUT_ZONE.test(at) ? `${at.replace(" ", "T")}Z` : at);
   } else {
-    return at;
+    return undefined;
   }
 
   const year = date.getUTCFullYear(); // NaN for an invalid date
-  if (!(year >= 0 && year <= 9999)) return String(at);
-  return `${date.toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  return year >= 0 && year <= 9999 ? date : undefined;
+}
+
+/**
+ * A moment as `2026-10-17 15:42:51 UTC`. A string is an ISO 8601 date and time (read as UTC when it
+ * has no zone). A number is Unix seconds, whatever its size: a Ripple-epoch time (seconds since
+ * 2000-01-01) must be converted before it gets here, as the size of a number cannot tell the two
+ * epochs apart. What is not a moment is returned as it came.
+ */
+export function formatUtc(at: string | number): string {
+  const date = utcMoment(at);
+  return date ? `${date.toISOString().slice(0, 19).replace("T", " ")} UTC` : String(at);
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;

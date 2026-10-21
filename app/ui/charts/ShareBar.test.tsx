@@ -147,6 +147,46 @@ describe("ShareBar as the Worker prints it and the browser takes it over", () =>
   });
 });
 
+describe("ShareBar's unit, the word after a row's total (the validators page: \"35 validators\")", () => {
+  const UNIT = { one: "validator", other: "validators" };
+  const totals = (container: HTMLElement) => rowEls(container).map((row) => row.querySelector(".share__name > span")!.textContent);
+
+  it("is printed after each row's total, in the singular for exactly 1", async () => {
+    const one = shares({ rows: [{ id: "unl", label: "UNL", total: "1", segments: [{ id: "3.4.1", label: "3.4.1", slot: 1, value: "1" }] }, ...DATA.rows.slice(1)] });
+    const { container, errors } = await serverThenHydrated(<ShareBar title={TITLE} data={one} unit={UNIT} />);
+    expect(totals(container)).toEqual(["1 validator", "120 validators"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("writes the total with its separators before the word", () => {
+    const big = shares({ rows: [{ id: "all", label: "All", total: "1500", segments: [{ id: "3.4.1", label: "3.4.1", slot: 1, value: "1500" }] }] });
+    const { container } = render(<ShareBar title={TITLE} data={big} unit={UNIT} />);
+    expect(totals(container)).toEqual(["1,500 validators"]);
+  });
+
+  it("is a 0 total's too: a row with nothing to draw still says how many it holds", () => {
+    const none = shares({ rows: [{ id: "unl", label: "UNL", total: "0", segments: [] }, ...DATA.rows.slice(1)] });
+    const { container } = render(<ShareBar title={TITLE} data={none} unit={UNIT} />);
+    expect(totals(container)).toEqual(["0 validators", "120 validators"]);
+  });
+
+  it("leaves the total alone without it, as before", () => {
+    const { container } = render(<ShareBar title={TITLE} data={shares()} />);
+    expect(totals(container)).toEqual(["35", "120"]);
+  });
+
+  it("changes nothing else: the slider and the summary say their totals as before", async () => {
+    const { container } = await serverThenHydrated(<ShareBar title={TITLE} data={shares()} unit={UNIT} />);
+    expect(slider(container).getAttribute("aria-valuetext")).toBe("UNL: 3.4.1, 12 of 35 (34%)");
+  });
+
+  it("is part of what the bar is memoised on: another unit draws again", () => {
+    const { container, rerender } = render(<ShareBar title={TITLE} data={shares()} unit={UNIT} />);
+    rerender(<ShareBar title={TITLE} data={shares()} unit={{ one: "node", other: "nodes" }} />);
+    expect(totals(container)).toEqual(["35 nodes", "120 nodes"]);
+  });
+});
+
 describe("ShareBar's cursor", () => {
   it("says the first segment to the slider: the row, the segment, its value of the total, and its share", async () => {
     const { container, errors } = await serverThenHydrated(<ShareBar title={TITLE} data={shares()} />);

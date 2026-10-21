@@ -32,11 +32,13 @@ import { gunzipSync } from "node:zlib";
 import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase } from "ripple-binary-codec";
 
 import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
+import type { LedgerValidations } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 import { ammInfoFixtures } from "./amm-info-fixtures";
 import { ANALYTICS_ROW_LISTS, analyticsFixtures } from "./analytics-fixtures";
 import { marketFixtures } from "./market-fixtures";
 import { networkFixtures } from "./network-fixtures";
+import { VALIDATORS_ROW_LISTS, validatorsFixtures } from "./validators-fixtures";
 
 export const LEDGERS = new URL("../test/fixtures/ledgers/", import.meta.url);
 export const HTTP = new URL("../test/fixtures/http/", import.meta.url);
@@ -381,6 +383,15 @@ export function isAnalyticsGenerated(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/accounts\/[^/]+\/(stats|analytics)\//.test(path);
 }
 
+/**
+ * Paths (below test/fixtures/http/) of the validators and amendments pages' files that validators-fixtures.ts writes (D1's six routes: `network/validators…`,
+ * `network/amendments…`). Synthetic and reviewed in the generator, they have a size budget of their own (test/unit/http-fixtures.test.ts), and
+ * test/unit/validators-fixtures.test.ts keeps this in step with the generator.
+ */
+export function isValidatorsGenerated(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/network\/(validators|amendments)(\/|@|\.json$)/.test(path);
+}
+
 /** The hashes of the transactions the hand-written account lists name, so that every row can be opened. */
 function accountListHashes(net: NetworkName): string[] {
   const dir = new URL(`${net}/data-api/accounts/`, HTTP);
@@ -531,6 +542,13 @@ export function generate(): Map<string, string> {
       if (file !== undefined && files.has(file)) throw new Error(`${file} is generated twice`);
       put(file, body, ANALYTICS_ROW_LISTS);
     }
+
+    // The validators and amendments pages' answers (D1's six routes, validators-fixtures.ts): synthetic, over the validators of the ledger validations above, handed
+    // over in memory and never read back from the disk. `networkFixtures` is pure and quick (about 0.1 s), so it is asked again rather than the line above changed.
+    const ledgerValidations = networkFixtures(net, dataApiLastValidated(head), newestTwo)
+      .filter(({ path }) => /^\/v2\/ledgers\/[0-9A-F]{64}\/validations$/.test(path))
+      .map(({ value }) => value as LedgerValidations);
+    for (const { path, query, value } of validatorsFixtures(net, dataApiLastValidated(head), ledgerValidations)) put(dataApiFile(net, path, query), value, VALIDATORS_ROW_LISTS);
 
     // Single transactions: one per type the recordings looked for, the newest ones, and those the account lists show.
     const served = new Set([...manifestHashes(net), ...newest.map(({ tx }) => tx.hash), ...accountListHashes(net)]);

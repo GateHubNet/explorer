@@ -4,6 +4,8 @@ import type {
   AccountTxStatsRow,
   AccountValueRow,
   ActiveAccounts,
+  AmendmentDetail,
+  AmendmentsList,
   AmmVolumeComponent,
   AnalyticsBalanceChanges,
   AnalyticsBalances,
@@ -23,14 +25,28 @@ import type {
   ReducedRow,
   StatsRow,
   TxObject,
+  ValidatorDetail,
+  ValidatorsList,
+  ValidatorsSummary,
+  ValidatorValidationsPage,
   VolumeRow,
 } from "../../app/server/api-types";
-import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS, PERIOD_CALL_TTL_SECONDS, type CacheClass } from "../../app/server/cache-class";
+import {
+  CACHE_CLASSES,
+  HOME_CALL_TTL_SECONDS,
+  MARKER_PAGE_CLASS,
+  PERIOD_CALL_TTL_SECONDS,
+  VALIDATIONS_CALL_TTL_SECONDS,
+  VALIDATIONS_MARKER_TTL_SECONDS,
+  VALIDATORS_CALL_TTL_SECONDS,
+  type CacheClass,
+} from "../../app/server/cache-class";
 import { ACTIVE_ACCOUNTS_KEPT, createDataApi, UpstreamError, type DataApi, type FreshOptions } from "../../app/server/data-api";
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { ANALYTICS_SLOW_TIMEOUT_MS, DATA_API_TIMEOUT_MS } from "../../app/server/upstream";
+import { amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, summarySample, validationsSample, validatorDetailSample, validatorRowSample } from "../support/d1-samples";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 
@@ -384,6 +400,11 @@ const marketsWithAmm = (amm: "include" | "exclude" | "only") => ({
 });
 /** The window the network page asks for on 2026-10-17 (the index day): 30 days of buckets, up to and with that day. */
 const PERIOD = { start: "2026-09-18", end: "2026-10-17" };
+
+/** The list route's answer: two rows. */
+function validatorsListBody(): ValidatorsList {
+  return { result: "success", count: 2, validators: [validatorRowSample(), validatorRowSample({ validation_public_key: SAMPLE_KEYS[1], domain: "shoreline.example" })] };
+}
 
 type Case = {
   name: string;
@@ -755,6 +776,55 @@ const cases: Case[] = [
     url: "/v2/network/markets?limit=1000&period=30day&amm=only",
     body: { ...marketsWithAmm("only"), period: "30day" },
     result: { ...marketsWithAmm("only"), period: "30day" },
+  },
+  // D1's six calls (validators spec 2.1; their paths are in PENDING_PATHS). The options they take, the marker view and the failures are in "D1's validators and amendments calls".
+  {
+    name: "validatorsSummary",
+    cls: "live",
+    call: (a) => a.validatorsSummary(),
+    url: "/v2/network/validators/summary",
+    body: summarySample(),
+    result: summarySample(),
+  },
+  {
+    name: "validators",
+    cls: "live",
+    call: (a) => a.validators({ scope: "all", limit: 1000 }),
+    url: "/v2/network/validators?limit=1000&scope=all",
+    body: validatorsListBody(),
+    result: validatorsListBody(),
+  },
+  {
+    name: "validator",
+    cls: "live",
+    call: (a) => a.validator(SAMPLE_KEYS[0]),
+    url: `/v2/network/validators/${SAMPLE_KEYS[0]}`,
+    body: validatorDetailSample(),
+    result: validatorDetailSample(),
+  },
+  {
+    name: "validatorValidations, the first page",
+    cls: "live",
+    call: (a) => a.validatorValidations(SAMPLE_KEYS[0], { limit: 20 }),
+    url: `/v2/network/validators/${SAMPLE_KEYS[0]}/validations?limit=20`,
+    body: validationsSample(),
+    result: validationsSample(),
+  },
+  {
+    name: "amendments",
+    cls: "minute",
+    call: (a) => a.amendments(),
+    url: "/v2/network/amendments",
+    body: amendmentsSample(),
+    result: amendmentsSample(),
+  },
+  {
+    name: "amendment",
+    cls: "minute",
+    call: (a) => a.amendment("AMM"),
+    url: "/v2/network/amendments/AMM",
+    body: amendmentDetailSample(),
+    result: amendmentDetailSample(),
   },
 ];
 
@@ -2369,6 +2439,302 @@ describe("the account analytics calls", () => {
       for (const error of errors) expect((error as UpstreamError).kind).toBe("server");
       expect(errors[1]).toBe(errors[0]);
     });
+  });
+});
+
+// D1's six calls (validators spec 2.1 and 9; data-api-new `feat/explorer-data`, pinned at 7d495ab). Their paths are in PENDING_PATHS, outside the compile-time
+// check: openapi.yaml has no `network/validators` or `network/amendments` yet. Each answer is checked inside the load, and a 200 that is not what the reference
+// promises is a failure of kind `server` that is never stored. Failure tests first, each on a host of its own: this file's Cache API and the hold outlive a test.
+describe("D1's validators and amendments calls", () => {
+  const KEY = SAMPLE_KEYS[0];
+  const amendmentName = "AMM";
+
+  type Six = [name: string, call: (api: DataApi, opts?: FreshOptions) => Promise<unknown>, good: unknown, bad: unknown, path: string];
+  const SIX_METHODS: Six[] = [
+    ["validatorsSummary", (a, o) => a.validatorsSummary(o), summarySample(), { ...summarySample(), validators: "many" }, "/v2/network/validators/summary"],
+    [
+      "validators",
+      (a, o) => a.validators({ scope: "all", limit: 1000 }, o),
+      validatorsListBody(),
+      { ...validatorsListBody(), validators: {} },
+      "/v2/network/validators?limit=1000&scope=all",
+    ],
+    ["validator", (a, o) => a.validator(KEY, o), validatorDetailSample(), { ...validatorDetailSample(), daily_agreement: {} }, `/v2/network/validators/${KEY}`],
+    [
+      "validatorValidations",
+      (a, o) => a.validatorValidations(KEY, { limit: 20 }, o),
+      validationsSample(),
+      { ...validationsSample(), validations: {} },
+      `/v2/network/validators/${KEY}/validations?limit=20`,
+    ],
+    ["amendments", (a, o) => a.amendments(o), amendmentsSample(), { ...amendmentsSample(), amendments: {} }, "/v2/network/amendments"],
+    ["amendment", (a, o) => a.amendment(amendmentName, o), amendmentDetailSample(), { ...amendmentDetailSample(), rounds: {} }, `/v2/network/amendments/${amendmentName}`],
+  ];
+
+  /** What D1 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    if (pathname.endsWith("/validators/summary")) return json(summarySample());
+    if (pathname.endsWith("/validations")) return json(validationsSample());
+    if (pathname.endsWith("/validators")) return json(validatorsListBody());
+    if (pathname.includes("/validators/")) return json(validatorDetailSample());
+    if (pathname.endsWith("/amendments")) return json(amendmentsSample());
+    return json(amendmentDetailSample());
+  };
+
+  it.each(SIX_METHODS)("%s: a malformed 200 is a server error and is not stored", async (name, call, good, bad) => {
+    const { api, storedBy } = storing(`d1-malformed-${name}`);
+    fetchSpy.mockResolvedValueOnce(json(bad));
+
+    const error = await failureOf(call(api));
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message).toContain("answered something unexpected");
+
+    // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored.
+    fetchSpy.mockResolvedValueOnce(json(bad));
+    expect(await storedBy(() => call(api).catch(() => undefined))).toEqual([]);
+    fetchSpy.mockResolvedValueOnce(json(good));
+    expect((await storedBy(() => call(api))).length).toBeGreaterThan(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("the error names the request: the path and the query that were asked for", async () => {
+    const { api } = storing("d1-malformed-names-the-request");
+    fetchSpy.mockResolvedValueOnce(json({ ...validatorsListBody(), validators: {} }));
+
+    const error = await failureOf(api.validators({ scope: "all", limit: 1000 }));
+
+    expect(error.message).toBe("data API GET /v2/network/validators?limit=1000&scope=all answered something unexpected: validators is not a list");
+  });
+
+  it("a malformed 200 of a call that asks for the failure hold is held: one request, and both calls throw the same error", async () => {
+    const { api } = storing("d1-malformed-held");
+    fetchSpy.mockImplementation(async () => json({ ...amendmentsSample(), counts: {} }));
+
+    const first = await failureOf(api.amendments({ holdFailure: true }));
+    const second = await failureOf(api.amendments({ holdFailure: true }));
+
+    expect(first.kind).toBe("server");
+    expect(second).toBe(first);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  describe("the failures D1 answers with", () => {
+    const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+    it("keeps 'Validator not found' and 'amendment not found' as not_found, and a 400 as bad_request", async () => {
+      const { api } = storing("d1-not-found");
+      const cases: Array<[string, (api: DataApi) => Promise<unknown>, Response, UpstreamError["kind"]]> = [
+        ["validator", (a) => a.validator(KEY), notFound("Validator not found"), "not_found"],
+        ["validatorValidations", (a) => a.validatorValidations(KEY, { limit: 20 }), notFound("Validator not found"), "not_found"],
+        ["amendment", (a) => a.amendment("NoSuchAmendment"), notFound("amendment not found"), "not_found"],
+        ["validator, a key of no form", (a) => a.validator(KEY), json({ result: "error", message: "invalid validator public key" }, { status: 400 }), "bad_request"],
+        ["validators, a bad scope", (a) => a.validators({ scope: "all", limit: 1000 }), json({ result: "error", message: "invalid scope" }, { status: 400 }), "bad_request"],
+        [
+          "validatorValidations, a bad marker",
+          (a) => a.validatorValidations(KEY, { limit: 20, marker: "x" }),
+          json({ result: "error", message: "invalid marker" }, { status: 400 }),
+          "bad_request",
+        ],
+        ["validatorsSummary, a database error", (a) => a.validatorsSummary(), json({ result: "error", message: "unable to retrieve validator(s)" }, { status: 500 }), "server"],
+      ];
+      for (const [name, call, response, kind] of cases) {
+        fetchSpy.mockResolvedValueOnce(response);
+        const error = await failureOf(call(api));
+        expect([name, error.kind]).toEqual([name, kind]);
+        expect(error.message, name).not.toContain("no such route");
+      }
+    });
+
+    it.each(SIX_METHODS)("%s: a 404 'Cannot GET …' (a data API without D1) is kind server, is never stored, and is held when the call asks", async (name, call, _good, _bad, path) => {
+      const { api, storedBy } = storing(`d1-cannot-get-${name}`);
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+
+      const first = await failureOf(call(api));
+      expect(first.kind).toBe("server");
+      expect(first.status).toBe(404);
+      expect(first.message).toBe(`data API GET ${path} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(await storedBy(() => call(api).catch(() => undefined))).toEqual([]);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      fetchSpy.mockClear();
+      const held = await failureOf(call(api, { holdFailure: true }));
+      const again = await failureOf(call(api, { holdFailure: true }));
+      expect(again).toBe(held);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  it("asks D1's six paths with their queries, classes and TTLs", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.validatorsSummary({ ttl: VALIDATORS_CALL_TTL_SECONDS });
+    await api.validators({ scope: "all", limit: 1000 }, { ttl: VALIDATORS_CALL_TTL_SECONDS });
+    await api.validator(KEY, { ttl: VALIDATORS_CALL_TTL_SECONDS });
+    await api.validatorValidations(KEY, { limit: 20 }, { ttl: VALIDATIONS_CALL_TTL_SECONDS });
+    // A page after a marker is old rows: `slow`, kept 300 s whatever TTL the caller names.
+    await api.validatorValidations(KEY, { limit: 20, marker: "M1" }, { ttl: VALIDATIONS_CALL_TTL_SECONDS });
+    await api.amendments();
+    await api.amendment(amendmentName);
+
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual([
+      [`GET ${BASE}/v2/network/validators/summary [kept 10 s]`, "live", 10],
+      [`GET ${BASE}/v2/network/validators?limit=1000&scope=all [kept 10 s]`, "live", 10],
+      [`GET ${BASE}/v2/network/validators/${KEY} [kept 10 s]`, "live", 10],
+      [`GET ${BASE}/v2/network/validators/${KEY}/validations?limit=20 [kept 2 s]`, "live", 2],
+      [`GET ${BASE}/v2/network/validators/${KEY}/validations?limit=20&marker=M1 [kept 300 s]`, "slow", 300],
+      [`GET ${BASE}/v2/network/amendments`, "minute", undefined],
+      [`GET ${BASE}/v2/network/amendments/AMM`, "minute", undefined],
+    ]);
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual([
+      `${BASE}/v2/network/validators/summary`,
+      `${BASE}/v2/network/validators?limit=1000&scope=all`,
+      `${BASE}/v2/network/validators/${KEY}`,
+      `${BASE}/v2/network/validators/${KEY}/validations?limit=20`,
+      `${BASE}/v2/network/validators/${KEY}/validations?limit=20&marker=M1`,
+      `${BASE}/v2/network/amendments`,
+      `${BASE}/v2/network/amendments/AMM`,
+    ]);
+    expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+  });
+
+  it("keeps the class of each call and makes an entry of its own for a TTL a caller names (the validations before a marker are below)", async () => {
+    for (const [name, call, , , path] of SIX_METHODS) {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await call(api);
+      await call(api, { ttl: 7 });
+
+      expect(cache.calls[1]!.key, name).toBe(`${cache.calls[0]!.key} [kept 7 s]`);
+      expect(cache.calls[0]!.key, name).toBe(`GET ${BASE}${path}`);
+      expect(cache.calls[1]!.cls, name).toBe(cache.calls[0]!.cls);
+      expect(cache.calls[0]!.ttlOverride, name).toBeUndefined();
+      expect(cache.calls[1]!.ttlOverride, name).toBe(7);
+    }
+  });
+
+  it("passes the failure hold on when it is asked for, and it is no part of a key", async () => {
+    for (const [name, call] of SIX_METHODS) {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await call(api);
+      await call(api, { holdFailure: false });
+      await call(api, { holdFailure: true });
+
+      expect(cache.calls.map((c) => c.holdFailure), name).toEqual([undefined, undefined, true]);
+      expect(new Set(cache.calls.map((c) => c.key)).size, name).toBe(1);
+    }
+  });
+
+  describe("validatorValidations after a marker", () => {
+    it("is old rows: `slow`, kept 300 s whatever TTL it is asked for, and the failure hold goes on", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.validatorValidations(KEY, { limit: 20, marker: "M1" });
+      await api.validatorValidations(KEY, { limit: 20, marker: "M1" }, { ttl: 2, holdFailure: true });
+      await api.validatorValidations(KEY, { limit: 20, marker: "M1" }, { ttl: 99 });
+
+      expect(cache.calls.map((c) => [c.cls, c.ttlOverride, c.holdFailure])).toEqual([
+        ["slow", VALIDATIONS_MARKER_TTL_SECONDS, undefined],
+        ["slow", VALIDATIONS_MARKER_TTL_SECONDS, true],
+        ["slow", VALIDATIONS_MARKER_TTL_SECONDS, undefined],
+      ]);
+      // One entry for the page, whoever asked: a TTL a caller names is not part of its key.
+      expect(new Set(cache.calls.map((c) => c.key))).toEqual(new Set([`GET ${BASE}/v2/network/validators/${KEY}/validations?limit=20&marker=M1 [kept 300 s]`]));
+    });
+
+    it("escapes the marker, which is opaque text, and takes an empty marker for none", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.validatorValidations(KEY, { limit: 20, marker: "a+b/c=&d" });
+      expect(new URL(sentRequest().url).searchParams.get("marker")).toBe("a+b/c=&d");
+      expect(sentRequest().url).toBe(`${BASE}/v2/network/validators/${KEY}/validations?limit=20&marker=a%2Bb%2Fc%3D%26d`);
+
+      await api.validatorValidations(KEY, { limit: 20, marker: "" }, { ttl: 2 });
+      expect(sentRequest().url).toBe(`${BASE}/v2/network/validators/${KEY}/validations?limit=20`);
+      expect(cache.calls[1]).toMatchObject({ cls: "live", ttlOverride: 2 });
+    });
+  });
+
+  it("writes the list's query as limit, then scope, for either scope", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    await api.validators({ scope: "unl", limit: 200 });
+    expect(sentRequest().url).toBe(`${BASE}/v2/network/validators?limit=200&scope=unl`);
+    await api.validators({ scope: "all", limit: 1000 });
+    expect(sentRequest().url).toBe(`${BASE}/v2/network/validators?limit=1000&scope=all`);
+  });
+
+  it("asks the host of the network it was created for, with the key", async () => {
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xahau, env, passThroughCache).amendments();
+
+    expect(sentRequest().url).toBe("https://xahau.data.example.invalid/v2/network/amendments");
+    expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+  });
+
+  it("escapes the key and the name it puts in a path, so that an identifier cannot reach another endpoint", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    await api.validator("a/b?c#d").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/network/validators/a%2Fb%3Fc%23d`);
+    await api.validatorValidations("a/b", { limit: 20 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/network/validators/a%2Fb/validations?limit=20`);
+    await api.amendment("a/b?c#d").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/network/amendments/a%2Fb%3Fc%23d`);
+  });
+
+  it.each(["..", ".", ""])("refuses %j as a key or a name without sending anything", async (id) => {
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    expect((await failureOf(api.validator(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.validatorValidations(id, { limit: 20 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.amendment(id))).kind).toBe("bad_request");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xrpl, env, cache).validatorsSummary();
+    await createDataApi(xahau, env, cache).validatorsSummary();
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(2);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.validatorsSummary()).toEqualTypeOf<Promise<ValidatorsSummary>>();
+    expectTypeOf(api.validators({ scope: "all", limit: 1000 })).toEqualTypeOf<Promise<ValidatorsList>>();
+    expectTypeOf(api.validator(KEY)).toEqualTypeOf<Promise<ValidatorDetail>>();
+    expectTypeOf(api.validatorValidations(KEY, { limit: 20 })).toEqualTypeOf<Promise<ValidatorValidationsPage>>();
+    expectTypeOf(api.amendments()).toEqualTypeOf<Promise<AmendmentsList>>();
+    expectTypeOf(api.amendment("AMM")).toEqualTypeOf<Promise<AmendmentDetail>>();
+    // The keys the reference lets an answer go without.
+    expectTypeOf<ValidatorsSummary["ledger_index"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<ValidatorsSummary["agreement_through"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<NonNullable<ValidatorsSummary["quorum"]>["node"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<NonNullable<NonNullable<ValidatorDetail["domain_verification"]>["accounts"]>>().toEqualTypeOf<string[]>();
+    expectTypeOf<AmendmentsList["amendments"][number]["xls_url"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<NonNullable<AmendmentsList["amendments"][number]["majority"]>["ledger_index"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<NonNullable<AmendmentsList["amendments"][number]["majority"]>["tx_hash"]>().toEqualTypeOf<string | undefined>();
   });
 });
 

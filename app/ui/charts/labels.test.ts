@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { bucketLabel, cellText, emptyText, endLabelValue, gapText, plotSummary, sliderLabel, tableHeading, tickLabel, valueText } from "./labels";
+import { formatDateTime } from "../../domain/time-words";
+import { axisLabels, bucketLabel, cellText, emptyText, endLabelValue, gapText, plotSummary, sliderLabel, tableHeading, tickLabel, valueText } from "./labels";
 import type { TimeAxis, TimeSeriesData } from "./types";
 
 /** `count` days from `first` (UTC `YYYY-MM-DD`), oldest first. */
@@ -189,10 +190,23 @@ describe("bucketLabel", () => {
     expect(bucketLabel("soon", "minute", "axis")).toBe("soon");
   });
 
-  it("writes a flag ledger by its day on the axis and its day and time elsewhere", () => {
+  it("writes a flag ledger by its day on the axis and its day, time and zone elsewhere", () => {
     expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "axis")).toBe("Oct 16");
-    expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "tooltip")).toBe("Oct 16, 2026, 17:01");
-    expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "table")).toBe("Oct 16, 2026, 17:01");
+    expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "tooltip")).toBe("Oct 16, 2026, 17:01 UTC");
+    expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "table")).toBe("Oct 16, 2026, 17:01 UTC");
+    expect(bucketLabel("2026-10-16T09:34:00Z", "flag", "tooltip")).toBe("Oct 16, 2026, 09:34 UTC");
+  });
+
+  it("writes a flag ledger's tooltip, table and readout dates as formatDateTime does (the zone is part of the date, as the axis is days)", () => {
+    for (const bucket of ["2026-10-16T09:34:00Z", "2026-10-16T17:01:10Z", "2026-01-02T00:00:00Z", "2026-12-31T23:59:59Z"]) {
+      for (const where of ["tooltip", "table", "readout"] as const) expect(bucketLabel(bucket, "flag", where)).toBe(formatDateTime(bucket));
+    }
+  });
+
+  it("puts the so-far note after a running flag ledger's zone, and keeps the zone off the other time axes' tooltips and tables", () => {
+    expect(bucketLabel("2026-10-16T17:01:10Z", "flag", "tooltip", true)).toBe("Oct 16, 2026, 17:01 UTC, so far");
+    expect(bucketLabel("2026-10-17T17:00:00Z", "hour", "tooltip")).toBe("Oct 17, 2026, 17:00");
+    expect(bucketLabel("2026-10-17T17:15:00Z", "minute", "table")).toBe("Oct 17, 2026, 17:15");
   });
 
   it("writes a month as Oct 2026 on the axis, in the tooltip and in the table", () => {
@@ -227,6 +241,50 @@ describe("bucketLabel", () => {
     expect(bucketLabel("soon", "hour", "axis")).toBe("soon");
     expect(bucketLabel("soon", "month", "axis")).toBe("soon");
     expect(bucketLabel("soon", "month", "tooltip")).toBe("soon");
+  });
+});
+
+describe("axisLabels", () => {
+  /** Flag ledgers every 6 hours from Oct 15, 2026, 00:30 UTC: four a day. */
+  const flags = (count: number): TimeAxis => ({
+    unit: "flag",
+    buckets: Array.from({ length: count }, (_, i) => new Date(Date.UTC(2026, 9, 15, 6 * i, 30)).toISOString().replace(".000Z", "Z")),
+  });
+
+  it("labels each picked bucket of an axis, oldest first", () => {
+    const axis: TimeAxis = { unit: "day", buckets: ["2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"] };
+    expect(axisLabels(axis, [0, 2, 3])).toEqual([
+      { i: 0, text: "Oct 15" },
+      { i: 2, text: "Oct 17" },
+      { i: 3, text: "Oct 18" },
+    ]);
+  });
+
+  it("names each UTC day of a flag axis once, at the first of the picks that fall on it", () => {
+    // Twelve flag ledgers over three days, every second one picked: two picks a day.
+    expect(axisLabels(flags(12), [1, 3, 5, 7, 9, 11])).toEqual([
+      { i: 1, text: "Oct 15" },
+      { i: 5, text: "Oct 16" },
+      { i: 9, text: "Oct 17" },
+    ]);
+    // Picks a day or more apart are all kept.
+    expect(axisLabels(flags(12), [0, 4, 8]).map((label) => label.text)).toEqual(["Oct 15", "Oct 16", "Oct 17"]);
+  });
+
+  it("tells the days apart by the date, not by the label's words: Oct 15 of two years is two days", () => {
+    const axis: TimeAxis = { unit: "flag", buckets: ["2025-10-15T10:00:00Z", "2025-10-15T22:00:00Z", "2026-10-15T10:00:00Z"] };
+    expect(axisLabels(axis, [0, 1, 2])).toEqual([
+      { i: 0, text: "Oct 15" },
+      { i: 2, text: "Oct 15" },
+    ]);
+  });
+
+  it("leaves the other units as they are, a time of day that repeats on an hour axis too", () => {
+    const hours: TimeAxis = { unit: "hour", buckets: ["2026-10-16T17:00:00Z", "2026-10-17T17:00:00Z"] };
+    expect(axisLabels(hours, [0, 1])).toEqual([
+      { i: 0, text: "17:00" },
+      { i: 1, text: "17:00" },
+    ]);
   });
 });
 
@@ -284,7 +342,7 @@ describe("gapText", () => {
   it("names a week, and gives an hour or a flag ledger its day", () => {
     expect(gapText({ unit: "week", buckets: ["2026-10-05", "2026-10-12"] }, 0, 0)).toBe("No data for the week of Oct 5");
     expect(gapText({ unit: "hour", buckets: ["2026-10-17T16:00:00Z", "2026-10-17T17:00:00Z"] }, 0, 0)).toBe("No data for Oct 17, 2026, 16:00");
-    expect(gapText({ unit: "flag", buckets: ["2026-10-16T17:01:10Z"] }, 0, 0)).toBe("No data for Oct 16, 2026, 17:01");
+    expect(gapText({ unit: "flag", buckets: ["2026-10-16T17:01:10Z"] }, 0, 0)).toBe("No data for Oct 16, 2026, 17:01 UTC");
   });
 
   it("gives a quarter hour its day and time, as an hour has", () => {
@@ -365,6 +423,58 @@ describe("plotSummary", () => {
     flat[3] = "200";
     flat[8] = "200";
     expect(plotSummary("Fees", stack(flat))).toContain("Highest Sep 20, 200;");
+  });
+
+  describe("with extreme lowest", () => {
+    // Agreement per day: it is the lowest day that matters, not the highest.
+    const agreement = (values: (string | null)[], over: Partial<TimeSeriesData> = {}): TimeSeriesData => ({
+      axis: { unit: "day", buckets: days("2026-10-01", 19) },
+      series: [{ id: "agreement", label: "Agreement", slot: 1, values }],
+      format: { kind: "percent" },
+      token: "t",
+      ...over,
+    });
+    const rates = Array.from({ length: 19 }, () => "99.9");
+    rates[2] = "99.31"; // Oct 3
+    rates[18] = "99.98"; // Oct 19
+
+    it("names the lowest bucket and the latest", () => {
+      expect(plotSummary("Agreement per day", agreement(rates), { extreme: "lowest" })).toBe(
+        "Agreement per day, Oct 1 to Oct 19, 2026. Lowest Oct 3, 99.31%; latest Oct 19, 99.98%. Choose Table for every value.",
+      );
+    });
+
+    it("is still Highest by default and with extreme highest", () => {
+      expect(plotSummary("Agreement per day", agreement(rates))).toContain("Highest Oct 19, 99.98%; latest Oct 19, 99.98%.");
+      expect(plotSummary("Agreement per day", agreement(rates), { extreme: "highest" })).toBe(plotSummary("Agreement per day", agreement(rates)));
+      expect(plotSummary("Agreement per day", agreement(rates), {})).toBe(plotSummary("Agreement per day", agreement(rates)));
+    });
+
+    it("picks the earliest of equal lows, and skips a null", () => {
+      const equal: (string | null)[] = rates.map((_, i) => (i === 0 ? null : "100"));
+      equal[4] = "98";
+      equal[9] = "98";
+      equal[12] = "99";
+      expect(plotSummary("Agreement per day", agreement(equal), { extreme: "lowest" })).toContain("Lowest Oct 5, 98%; latest Oct 19, 100%.");
+    });
+
+    it("names the first line when there are several without totals, and says so far of a running lowest", () => {
+      const lines = agreement(rates, {
+        series: [
+          { id: "a", label: "Agreement", slot: 1, values: rates },
+          { id: "b", label: "Other", slot: 2, values: rates },
+        ],
+      });
+      expect(plotSummary("Agreement per day", lines, { extreme: "lowest" })).toContain("Lowest Agreement Oct 3, 99.31%; latest Agreement Oct 19, 99.98%.");
+      const running = rates.map((value, i) => (i === 18 ? "90" : value));
+      expect(plotSummary("Agreement per day", agreement(running, { forming: true }), { extreme: "lowest" })).toContain(
+        "Lowest Oct 19, so far, 90%; latest Oct 19, so far, 90%.",
+      );
+    });
+
+    it("says there is no data the same way", () => {
+      expect(plotSummary("Agreement per day", agreement(rates.map(() => null)), { extreme: "lowest" })).toBe("Agreement per day: No data for these 19 days.");
+    });
   });
 
   it("reads the first series when there are no totals", () => {

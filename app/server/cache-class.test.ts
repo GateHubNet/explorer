@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { CACHE_CLASSES, FAILURE_HOLD_KEYS, FAILURE_HOLD_MAX_SECONDS, FAILURE_HOLD_SECONDS, PERIOD_CALL_TTL_SECONDS, type CacheClass } from "./cache-class";
+import {
+  CACHE_CLASSES,
+  FAILURE_HOLD_KEYS,
+  FAILURE_HOLD_MAX_SECONDS,
+  FAILURE_HOLD_SECONDS,
+  PERIOD_CALL_TTL_SECONDS,
+  VALIDATIONS_CALL_TTL_SECONDS,
+  VALIDATIONS_MARKER_TTL_SECONDS,
+  VALIDATORS_CALL_TTL_SECONDS,
+  type CacheClass,
+} from "./cache-class";
 
 describe("CACHE_CLASSES", () => {
   it("holds the six classes, with the TTLs and Cache-Control values of the design (spec 4, and the markets design for `minute`)", () => {
@@ -47,5 +57,20 @@ describe("PERIOD_CALL_TTL_SECONDS", () => {
   it("is 300 s (spec 1.4): the network page's calls over a period are kept that long, in a class that would keep them an hour", () => {
     expect(PERIOD_CALL_TTL_SECONDS).toBe(300);
     expect(PERIOD_CALL_TTL_SECONDS).toBeLessThan(CACHE_CLASSES.slow.edgeTtl);
+  });
+});
+
+describe("the validators pages' call TTLs", () => {
+  it("are 10 s, 2 s and 300 s (validators spec 2.1)", () => {
+    expect(VALIDATORS_CALL_TTL_SECONDS).toBe(10);
+    expect(VALIDATIONS_CALL_TTL_SECONDS).toBe(2);
+    expect(VALIDATIONS_MARKER_TTL_SECONDS).toBe(300);
+  });
+
+  it("each is under the Cache-Control that D1 gives the route it is for (30 s, 5 s and, with a marker, 300 s)", () => {
+    expect(VALIDATORS_CALL_TTL_SECONDS).toBeLessThan(30);
+    expect(VALIDATIONS_CALL_TTL_SECONDS).toBeLessThan(5);
+    expect(VALIDATIONS_MARKER_TTL_SECONDS).toBeLessThanOrEqual(300);
+    expect(VALIDATIONS_MARKER_TTL_SECONDS).toBeLessThan(CACHE_CLASSES.slow.edgeTtl);
   });
 });

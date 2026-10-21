@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 type IconProps = { size?: number; className?: string };
 
-function icon(children: ReactNode, defaults: { strokeWidth: number; size: number }) {
+export function icon(children: ReactNode, defaults: { strokeWidth: number; size: number }) {
   return function Icon({ size = defaults.size, className }: IconProps) {
     return (
       <svg

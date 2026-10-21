@@ -6,6 +6,7 @@
 // everywhere else a time is an ISO 8601 string in UTC. Amounts are exact decimal strings in whole units of the
 // currency (the native currency included), never numbers. Types only: nothing here runs.
 
+import type { AmendmentStatus } from "../domain/amendments-params";
 import type { AnalyticsUnit } from "../domain/analytics-params";
 import type { TxJson, TxMeta } from "../domain/parse/types";
 
@@ -746,4 +747,370 @@ export interface AnalyticsExchanges {
   /** The number served. */
   count: number;
   pairs: AnalyticsPair[];
+}
+
+// ---- Validators and amendments: GET /v2/network/validators…, GET /v2/network/amendments… -----------------------------------------------------------------
+
+// D1 (data-api-new `feat/explorer-data`, pinned at `7d495ab`; the section "Validators and amendments" of its docs/api-reference.md). Keys are in the order the
+// reference lists them (its "Keys of …" lines). A key without a value is **absent**, never `null`: the keys the reference says are absent in some case are
+// optional here, and every other key is there. Instants of receipt (`first_seen`, `last_seen`, `fetched`, `checked`, `updated`, `first_datetime`, `last_datetime`)
+// are `YYYY-MM-DDTHH:mm:ss.SSSZ`; ledger and wall times (`close_time`, `expiration`, `expected`, `date`, `signing_time`, `since`) are `YYYY-MM-DDTHH:mm:ssZ`; days are
+// `YYYY-MM-DD`. Native amounts are whole units as exact decimal text (`"0.00001"`), counts are numbers, `pct` is a number to two decimals, and a `score` is text to four
+// decimals. A key is a base58 node public key (`nH…` a master key, `n9…` a signing key); an amendment ID and a transaction hash are 64 hex digits in upper case.
+
+/**
+ * One of D1's words that a newer D1 may add to (an amendment's status, a domain check's status, the status of a validator's vote, a history event): the words named, or
+ * another text. The shape checks (validators-shape.ts) let any word through, and every reader has a default for a word it does not know: the pages show it as their
+ * "Unknown" (or "not verified"), or leave it out, and never refuse the answer for it.
+ */
+export type OpenWord<Known extends string> = Known | (string & {});
+
+/** One publisher of the trusted UNL (`unl.publishers[]` of the summary). Everything after `status` is there only with a list, or after a failed fetch. */
+export interface UnlPublisher {
+  /** The URL without its scheme: `vl.ripple.com`. Also what `?publisher=` takes. */
+  id: string;
+  url: string;
+  /** The key the publisher is configured with: 66 hex digits. */
+  public_key: string;
+  /** `ok`: a current list; `expired`: only an expired list, which is still used; `unavailable`: no list in use. */
+  status: "ok" | "expired" | "unavailable";
+  sequence?: number;
+  /** The list's format version: 1 or 2. */
+  version?: number;
+  expiration?: string;
+  fetched?: string;
+  /** The validators on the list. */
+  validators?: number;
+  seen_24h?: number;
+  /** The reason code of the newest fetch, when it failed (whatever the status). */
+  last_error?: string;
+  last_error_at?: string;
+}
+
+/** The next multiple of 256 above the newest ledger, the voting ledger before it, and when it is expected (absent while the mean ledger interval is unknown). */
+export interface NextFlagLedger {
+  ledger_index: number;
+  voting_ledger: number;
+  expected?: string;
+}
+
+/** The three fees, in whole units of the native currency, exact decimal text. */
+export interface NativeFees {
+  base_fee: string;
+  reserve_base: string;
+  reserve_inc: string;
+}
+
+/** A software version and how many of the trusted validators (`unl`) and of the validators seen in 24 hours (`all`) run it. */
+export interface VersionCount {
+  version: string;
+  unl: number;
+  all: number;
+}
+
+/** A validator on the negative UNL: its master key and the ledger it was disabled in. */
+export interface NegativeUnlMember {
+  validation_public_key: string;
+  first_ledger: number;
+}
+
+/**
+ * `GET /v2/network/validators/summary`: the figures of the Validators board. The newest ledger (`ledger_index`, `close_time`) is missing from a database that has
+ * none, and with it `next_flag_ledger`; `fees`, `latest_version`, `agreement_through` and `votes_through_ledger` are missing while nothing gives them. `unl.threshold` is
+ * missing while no publisher is known; `quorum.node` is there only when the node reports a quorum above 0.
+ */
+export interface ValidatorsSummary {
+  result: "success";
+  ledger_index?: number;
+  close_time?: string;
+  validators: { seen_24h: number; unl_seen_24h: number; others_seen_24h: number; all: number };
+  unl: { trusted: number; threshold?: number; publishers: UnlPublisher[] };
+  quorum: { value: number; unl_size: number; negative_unl: number; node?: number };
+  negative_unl: NegativeUnlMember[];
+  /** There only when a validator is about to be disabled or re-enabled. */
+  negative_unl_pending?: { to_disable?: string; to_reenable?: string };
+  fees?: NativeFees;
+  next_flag_ledger?: NextFlagLedger;
+  latest_version?: string;
+  versions: VersionCount[];
+  /** The validators that reported no version. */
+  versions_unknown: { unl: number; all: number };
+  agreement_through?: string;
+  votes_through_ledger?: number;
+  updated: string;
+}
+
+/** A window of agreement: `missed` of `total` ledgers. `score` is `(total - missed) / total` as text to four decimals, absent when `total` is 0. `partial` counts the partial validations. */
+export interface Agreement {
+  missed: number;
+  total: number;
+  score?: string;
+  incomplete: boolean;
+  partial: number;
+}
+
+/**
+ * Whether a validator's domain confirms it. Absent from a row that has no `domain`. `reason` is there for `unverified` only (and `status_code` for its
+ * `http_status`), `checked` and `verified` are absent while `pending`, and `accounts` (G1) comes last, only for `verified`, and is absent when the file lists none.
+ */
+export interface DomainVerification {
+  status: OpenWord<"verified" | "unverified" | "pending">;
+  reason?: string;
+  status_code?: number;
+  toml_url: string;
+  checked?: string;
+  verified?: string;
+  accounts?: string[];
+}
+
+/** The fees a validator votes for, in whole units, and the voting ledger of the record. */
+export interface FeeVote {
+  ledger_index: number;
+  base_fee: string;
+  reserve_base: string;
+  reserve_inc: string;
+}
+
+/** An amendment a validator votes yes for: its ID, and its name where the amendments know one. */
+export interface YesEntry {
+  id: string;
+  name?: string;
+}
+
+/**
+ * A validator of the list. A member of the UNL that was never seen has only the keys down to `negative_unl` (with `signing_key` when a manifest names one);
+ * `version`, `version_build` and `version_latest` are absent for a validator that reported no version (an unrecognised number has `server_version` only), and
+ * `amendment_votes` for one without a vote record.
+ */
+export interface ValidatorRow {
+  /** The master key. */
+  validation_public_key: string;
+  domain?: string;
+  /** The ledger of the newest validation among the last 300, and `partial` whether it was partial. Both are absent when there is none. */
+  current_index?: number;
+  agreement_1h: Agreement;
+  agreement_24h: Agreement;
+  partial?: boolean;
+  unl: boolean;
+  agreement_30d: Agreement;
+  signing_key?: string;
+  domain_verification?: DomainVerification;
+  /** The ids of the publishers whose list in use names the validator, sorted. Empty off the UNL. */
+  unl_lists: string[];
+  negative_unl: boolean;
+  version?: string;
+  /** The build after the version (Xahau, when not 0). */
+  version_build?: number;
+  /** Whether `version` is at least the summary's `latest_version`. */
+  version_latest?: boolean;
+  /** The number as reported, decimal text. */
+  server_version?: string;
+  fee_vote?: FeeVote;
+  amendment_votes?: { ledger_index: number; yes: YesEntry[] };
+  first_seen?: string;
+  last_seen?: string;
+}
+
+/** `GET /v2/network/validators`: the page, domain-first alphabetical, then by key. `marker` is there only when more follow. */
+export interface ValidatorsList {
+  result: "success";
+  count: number;
+  marker?: string;
+  validators: ValidatorRow[];
+}
+
+/** A validator's vote on an amendment that is still being decided (`voting`, `majority`, or `unknown`, G4). `name` is absent for an amendment nobody has named; `none` is a validator with no vote record. */
+export interface ValidatorVote {
+  id: string;
+  name?: string;
+  status: OpenWord<"voting" | "majority" | "unknown">;
+  vote: "yes" | "no" | "none";
+}
+
+/** One of the 30 days of `daily_agreement`, oldest first: an agreement window and its day. A day with no data has `total` 0 and no `score`. */
+export interface DailyAgreement {
+  date: string;
+  missed: number;
+  total: number;
+  score?: string;
+  incomplete: boolean;
+  partial: number;
+}
+
+/** The newest manifest of a validator: its sequence, the signing key it names, how many signing keys were seen for the master key, and its domain. */
+export interface ValidatorManifest {
+  sequence: number;
+  signing_key?: string;
+  signing_keys_seen: number;
+  domain?: string;
+}
+
+/**
+ * `GET /v2/network/validators/{key}`: the row, with `amendment_votes` always there (`ledger_index` is absent for a validator with no record, and `votes` then holds
+ * `none` for every amendment being decided), then the manifest (absent without one) and the agreement of each of the last 30 days (empty while no hour is final).
+ */
+export interface ValidatorDetail extends Omit<ValidatorRow, "amendment_votes"> {
+  amendment_votes: { ledger_index?: number; yes: YesEntry[]; votes: ValidatorVote[] };
+  manifest?: ValidatorManifest;
+  daily_agreement: DailyAgreement[];
+  result: "success";
+}
+
+/**
+ * One validation of a validator: the sightings of one ledger and hash added up. `validated_hash` is there only when `validated` is `different` (the hash the indexer
+ * holds at that index). `signing_key` is that of the earliest sighting.
+ */
+export interface ValidatorValidation {
+  ledger_index: number;
+  ledger_hash: string;
+  validated: "matches" | "different" | "unknown";
+  validated_hash?: string;
+  full: boolean;
+  signing_key: string;
+  signing_time: string;
+  first_datetime: string;
+  last_datetime: string;
+  count: number;
+}
+
+/**
+ * `GET /v2/network/validators/{key}/validations`: a page of a validator's validations, newest first. `marker` (and a `Link` header) is there only when more follow.
+ * (Not `Validation`, which is the validation of a ledger by one validator.)
+ */
+export interface ValidatorValidationsPage {
+  result: "success";
+  validation_public_key: string;
+  count: number;
+  marker?: string;
+  validations: ValidatorValidation[];
+}
+
+/** The rules of the network: an amendment needs more than `threshold_percent` of the trusted validators, and holds its majority `majority_hold_seconds` before it is enabled. */
+export interface AmendmentRules {
+  threshold_percent: number;
+  majority_hold_seconds: number;
+  flag_interval: number;
+}
+
+/** The newest stored voting round: `trusted` are the validators of the UNL with a vote record, `threshold` the votes an amendment has to exceed, and `needed` the votes that pass. */
+export interface AmendmentRound {
+  ledger_index: number;
+  date: string;
+  unl_size: number;
+  trusted: number;
+  threshold: number;
+  needed: number;
+  observed: number;
+}
+
+/** What the newest round says of an amendment that is `majority`, `voting` or `unknown`. `pct` is `yes / trusted × 100` to two decimals. */
+export interface AmendmentTally {
+  ledger_index: number;
+  yes: number;
+  trusted: number;
+  needed: number;
+  pct: number;
+}
+
+/**
+ * An amendment that has a majority. `ledger_index` and `tx_hash` (G5) are those of the newest indexed EnableAmendment that gave it the majority, and are absent
+ * when none is indexed (a majority gained before the indexed history, or regained and not indexed yet).
+ */
+export interface AmendmentMajority {
+  since: string;
+  ledger_index?: number;
+  tx_hash?: string;
+  expected_activation: string;
+}
+
+/**
+ * An enabled amendment: from the indexed EnableAmendment (`source: "ledger"`, with `ledger_index`, `date` as a close time and `tx_hash`), else from the metadata file
+ * (`source: "metadata"`, where `ledger_index` and `date`, a day, may each be missing).
+ */
+export interface AmendmentEnabled {
+  ledger_index?: number;
+  date?: string;
+  tx_hash?: string;
+  source: "ledger" | "metadata";
+}
+
+/**
+ * An amendment of the list. Only `id` and `status` are always there. `name` is absent for an amendment nobody has named; `retired` is `true` or absent; `introduced`,
+ * `xls`, `xls_url` (G2, under `https://github.com/XRPLF/XRPL-Standards/`) and `description` are those of the metadata file, absent for an amendment it does not have;
+ * `votes` is there for `majority`, `voting` and `unknown` once a round is stored; `majority` for one that has a majority; `enabled` for an enabled one that the index or the metadata file knows of.
+ */
+export interface AmendmentRow {
+  /** 64 hex digits, upper case: the SHA-512Half of the name. */
+  id: string;
+  name?: string;
+  status: OpenWord<AmendmentStatus>;
+  retired?: true;
+  introduced?: string;
+  xls?: string;
+  xls_url?: string;
+  description?: string;
+  node_supported?: boolean;
+  votes?: AmendmentTally;
+  majority?: AmendmentMajority;
+  enabled?: AmendmentEnabled;
+}
+
+/** What both amendment routes start with (G3). `ledger_index`, `round` and `next_flag_ledger` are absent from the answer of a database that has no ledger, no round or no head yet. */
+export interface AmendmentsEnvelope {
+  ledger_index?: number;
+  rules: AmendmentRules;
+  round?: AmendmentRound;
+  next_flag_ledger?: NextFlagLedger;
+}
+
+/** `GET /v2/network/amendments`: the envelope, how many amendments there are of each status (all of them, whatever `status` asks for), and the amendments listed, in D1's order. */
+export interface AmendmentsList extends AmendmentsEnvelope {
+  result: "success";
+  counts: Record<AmendmentStatus, number>;
+  count: number;
+  amendments: AmendmentRow[];
+}
+
+/**
+ * How a validator votes on an amendment. `none` is a validator of the UNL with no vote record. `last_seen` is absent for a validator that was never seen, and
+ * `version_supports` (that version is at least `introduced`) when either version is unknown.
+ */
+export interface AmendmentVote {
+  validation_public_key: string;
+  domain?: string;
+  vote: "yes" | "no" | "none";
+  version?: string;
+  version_supports?: boolean;
+  last_seen?: string;
+}
+
+/** A stored voting round of the last 30 days: the votes the amendment had in it (0 when the round has no tally of it) and whether they carried it. */
+export interface AmendmentRoundPoint {
+  ledger_index: number;
+  flag_ledger: number;
+  date: string;
+  yes: number;
+  trusted: number;
+  threshold: number;
+  passes: boolean;
+}
+
+/** An indexed EnableAmendment transaction of the amendment. */
+export interface AmendmentHistoryEvent {
+  event: OpenWord<"got_majority" | "lost_majority" | "enabled">;
+  ledger_index: number;
+  date: string;
+  tx_hash: string;
+}
+
+/**
+ * `GET /v2/network/amendments/{name}`: the envelope of the list, the amendment as the list has it, how the validators vote on it (`unl_votes`: every validator of the newest
+ * round's UNL; `other_votes`: the validators seen in 24 hours that have a record and are not on it), its rounds of the last 30 days, oldest first, and its history, oldest first.
+ */
+export interface AmendmentDetail extends AmendmentsEnvelope, AmendmentRow {
+  unl_votes: AmendmentVote[];
+  other_votes: AmendmentVote[];
+  rounds: AmendmentRoundPoint[];
+  history: AmendmentHistoryEvent[];
+  result: "success";
 }

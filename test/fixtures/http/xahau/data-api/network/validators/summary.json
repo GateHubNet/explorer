@@ -1,0 +1,52 @@
+{
+  "agreement_through": "2026-10-17T17:00:00Z",
+  "close_time": "2026-10-17T17:47:11Z",
+  "fees": {
+    "base_fee": "0.00001",
+    "reserve_base": "1",
+    "reserve_inc": "0.2"
+  },
+  "latest_version": "2026.9.18",
+  "ledger_index": 26596843,
+  "negative_unl": [
+    {"first_ledger":26553600,"validation_public_key":"nHB2wVGppGkC9RwvkgykjPvXuVQyj7aEaS8hCYBPCx8bt3S573Gk"}
+  ],
+  "negative_unl_pending": {
+    "to_reenable": "nHB2wVGppGkC9RwvkgykjPvXuVQyj7aEaS8hCYBPCx8bt3S573Gk"
+  },
+  "next_flag_ledger": {
+    "expected": "2026-10-17T17:48:35Z",
+    "ledger_index": 26596864,
+    "voting_ledger": 26596863
+  },
+  "quorum": {
+    "negative_unl": 1,
+    "unl_size": 31,
+    "value": 24
+  },
+  "result": "success",
+  "unl": {
+    "publishers": [
+      {"expiration":"2027-02-14T17:47:11Z","fetched":"2026-10-17T17:43:10.568Z","id":"vl.xahau.org","public_key":"EDA4231F7D9A4009AAA55B4FF6BE4BFC9AD587B02398ACC7408B2F9F6DFBB9E539","seen_24h":30,"sequence":41,"status":"ok","url":"https://vl.xahau.org","validators":31,"version":1}
+    ],
+    "threshold": 1,
+    "trusted": 31
+  },
+  "updated": "2026-10-17T17:47:13.222Z",
+  "validators": {
+    "all": 41,
+    "others_seen_24h": 10,
+    "seen_24h": 40,
+    "unl_seen_24h": 30
+  },
+  "versions": [
+    {"all":35,"unl":26,"version":"2026.9.18"},
+    {"all":3,"unl":3,"version":"2026.7.31"},
+    {"all":1,"unl":1,"version":"2025.11.4"}
+  ],
+  "versions_unknown": {
+    "all": 1,
+    "unl": 1
+  },
+  "votes_through_ledger": 26596607
+}

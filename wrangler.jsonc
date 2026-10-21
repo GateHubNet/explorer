@@ -7,8 +7,8 @@
  *
  * `vars` and `ratelimits` are not inherited, so each environment repeats them.
  * `VALIDATORS`, `AMM_DATA`, `MARKETS` and `ACCOUNT_ANALYTICS` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
- * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` stays
- * "off" until the validators pages exist); `staging` and `production` are "off" until their data API serves what the switch needs. Set
+ * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` since the
+ * validators pages were); `staging` and `production` are "off" until their data API serves what the switch needs. Set
  * one by a commit and a deploy, never in the Cloudflare dashboard: the next deploy would undo it. The predeploy guard refuses a build
  * where one is missing, is anything but "on" or "off", or is misspelt.
  * `BUILD_ID` is not listed here: vite.config.ts adds the git commit to the vars of every build.
@@ -44,7 +44,7 @@
 		"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
 		"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
 		"XAHAU_NODE_URL": "https://xahau.network/",
-		"VALIDATORS": "off",
+		"VALIDATORS": "on",
 		"AMM_DATA": "on",
 		"MARKETS": "on",
 		"ACCOUNT_ANALYTICS": "on"

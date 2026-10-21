@@ -596,3 +596,152 @@ describe("LineChart, memoised on the token (spec 2.9)", () => {
     expect(container.querySelector("path.line")!.getAttribute("d")!.match(/[ML]/g)).toHaveLength(1 + 2 * 29);
   });
 });
+
+// The validators and amendments pages (E6, spec section 7): the yes votes of one amendment, a step line with one point per flag ledger whose
+// "Round" is a phrase, and the daily agreement of a validator, whose "Ledgers" is another.
+describe("LineChart on a flag axis, as the yes votes of an amendment", () => {
+  const COUNT = 200;
+  /** 200 flag ledgers a quarter of an hour apart, the newest on Oct 16 at 09:34 UTC (the oldest is Oct 14 at 07:49), as the board writes a moment. */
+  const flag = (i: number) => new Date(Date.UTC(2026, 9, 16, 9, 34) - (COUNT - 1 - i) * 15 * 60_000).toISOString().replace(".000Z", "Z");
+  /** Six levels, five changes. */
+  const yes = (i: number) => String([20, 24, 25, 27, 31, 29][i < 30 ? 0 : i < 60 ? 1 : i < 100 ? 2 : i < 150 ? 3 : i < 180 ? 4 : 5]);
+  const NEWEST = "flag ledger #107,721,408 · 29 of 35 UNL validators · majority";
+  const grouped = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const round = (i: number) => (i === COUNT - 1 ? NEWEST : `flag ledger #${grouped(107_721_408 - (COUNT - 1 - i) * 256)} · ${yes(i)} of 35 UNL validators`);
+
+  function votes(over: Partial<TimeSeriesData> = {}): TimeSeriesData {
+    const buckets = Array.from({ length: COUNT }, (_, i) => flag(i));
+    return {
+      axis: { unit: "flag", buckets },
+      series: [{ id: "yes", label: "Yes votes", slot: 1, values: buckets.map((_, i) => yes(i)) }],
+      format: { kind: "count", unit: "validators" },
+      extras: [{ id: "round", label: "Round", tooltip: "value", values: buckets.map((_, i) => round(i)) }],
+      token: "votes-1",
+      ...over,
+    };
+  }
+
+  it("shows its Round extra as a phrase in the tooltip, reads it in the slider, dates the bucket with its zone and keeps the days on the axis", async () => {
+    const { container, errors } = await serverThenHydrated(<LineChart title="Yes votes" data={votes()} curve="step" />);
+    fireEvent.focus(slider(container));
+
+    // The tooltip: the date with UTC, the series, and the phrase alone (no label after it, no key).
+    expect(container.querySelector(".plot__tip-date")!.textContent).toBe("Oct 16, 2026, 09:34 UTC");
+    const row = tip(container)!.lastElementChild!;
+    expect(row.className).toBe("plot__tip-row");
+    expect(row.textContent).toBe(NEWEST);
+    expect(row.querySelector(".plot__tip-name")).toBeNull();
+    expect(row.querySelector(".plot__tip-key")).toBeNull();
+    expect(lines(container)).toEqual(["Oct 16, 2026, 09:34 UTC", "29 Yes votes", NEWEST]);
+
+    // The slider says it all, the label of the extra before its phrase.
+    const text = slider(container).getAttribute("aria-valuetext")!;
+    expect(text).toBe(`Oct 16, 2026, 09:34 UTC: Yes votes 29; Round ${NEWEST}`);
+
+    // The axis is days, picked as a day axis picks them.
+    const wide = texts(container.querySelectorAll(".plot__x--wide > *"));
+    expect(wide.length).toBeGreaterThan(1);
+    for (const label of wide) expect(label).toMatch(/^Oct 1[456]$/);
+    expect(wide.at(-1)).toBe("Oct 16");
+
+    // Another bucket: its own date and phrase.
+    fireEvent.keyDown(slider(container), { key: "Home" });
+    expect(container.querySelector(".plot__tip-date")!.textContent).toBe("Oct 14, 2026, 07:49 UTC");
+    expect(tip(container)!.lastElementChild!.textContent).toBe(round(0));
+    expect(slider(container).getAttribute("aria-valuetext")).toBe(`Oct 14, 2026, 07:49 UTC: Yes votes 20; Round ${round(0)}`);
+    expect(errors).toEqual([]);
+  });
+
+  it("draws the step as 12 commands: one corner and one rise for each of its 5 changes", async () => {
+    const { container, errors } = await serverThenHydrated(<LineChart title="Yes votes" data={votes()} curve="step" />);
+    expect(lineBySlot(container, 1)!.getAttribute("d")!.match(/[ML]/g)).toHaveLength(12);
+    // The same values drawn as a line with a corner for every flag ledger.
+    const linear = await serverThenHydrated(<LineChart title="Yes votes" data={votes()} />);
+    expect(linear.container.querySelector("path.line")!.getAttribute("d")!.match(/[ML]/g)!.length).toBeGreaterThan(COUNT / 2);
+    expect(errors).toEqual([]);
+  });
+
+  it("moves pageStep flag ledgers with Page Down and Page Up, clamped, and names the keys", async () => {
+    const { container, errors } = await serverThenHydrated(<LineChart title="Yes votes" data={votes()} curve="step" pageStep={87} />);
+    expect(slider(container).getAttribute("aria-keyshortcuts")).toBe("PageUp PageDown");
+    fireEvent.focus(slider(container));
+    const index = () => Number(slider(container).getAttribute("aria-valuenow"));
+    expect(index()).toBe(COUNT - 1);
+    // From the newest: n − 88.
+    fireEvent.keyDown(slider(container), { key: "PageDown" });
+    expect(index()).toBe(COUNT - 88);
+    expect(slider(container).getAttribute("aria-valuetext")).toMatch(/^Oct 15, 2026, 11:49 UTC: Yes votes 27; Round flag ledger #107,699,136 /);
+    fireEvent.keyDown(slider(container), { key: "PageDown" });
+    expect(index()).toBe(25);
+    fireEvent.keyDown(slider(container), { key: "PageDown" });
+    expect(index()).toBe(0);
+    fireEvent.keyDown(slider(container), { key: "PageUp" });
+    expect(index()).toBe(87);
+    fireEvent.keyDown(slider(container), { key: "PageUp" });
+    fireEvent.keyDown(slider(container), { key: "PageUp" });
+    expect(index()).toBe(COUNT - 1);
+    expect(errors).toEqual([]);
+  });
+
+  it("has no page keys without a pageStep", async () => {
+    const { container } = await serverThenHydrated(<LineChart title="Yes votes" data={votes()} curve="step" />);
+    expect(slider(container).hasAttribute("aria-keyshortcuts")).toBe(false);
+    fireEvent.focus(slider(container));
+    expect(fireEvent.keyDown(slider(container), { key: "PageDown" })).toBe(true);
+    expect(slider(container).getAttribute("aria-valuenow")).toBe(String(COUNT - 1));
+  });
+
+  it("is drawn again for another pageStep or extreme: they are part of what it is memoised on", async () => {
+    const { container, rerender } = render(<LineChart title="Yes votes" data={votes()} curve="step" />);
+    const sliderOf = () => container.querySelector<HTMLElement>('[role="slider"]');
+    // Not hydrated by the helper here: render() mounts on the client, so the slider is already there once effects have run.
+    expect(sliderOf()?.hasAttribute("aria-keyshortcuts") ?? false).toBe(false);
+    rerender(<LineChart title="Yes votes" data={votes()} curve="step" pageStep={87} />);
+    expect(sliderOf()!.getAttribute("aria-keyshortcuts")).toBe("PageUp PageDown");
+    rerender(<LineChart title="Yes votes" data={votes()} curve="step" pageStep={87} extreme="lowest" />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toContain("Lowest ");
+    rerender(<LineChart title="Yes votes" data={votes()} curve="step" pageStep={87} />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toContain("Highest ");
+  });
+});
+
+describe("LineChart as the daily agreement of a validator", () => {
+  /** 19 days, Oct 1 to Oct 19, 2026: the 3rd is the lowest day. */
+  const buckets = Array.from({ length: 19 }, (_, i) => new Date(Date.UTC(2026, 9, 1 + i)).toISOString().slice(0, 10));
+  const rates = buckets.map((_, i) => (i === 2 ? "99.31" : i === 18 ? "99.98" : "99.9"));
+  const LEDGERS = "4 missed of 22,096 validated ledgers · incomplete";
+
+  function agreement(over: Partial<TimeSeriesData> = {}): TimeSeriesData {
+    return {
+      axis: { unit: "day", buckets },
+      series: [{ id: "agreement", label: "Agreement", slot: 1, values: rates }],
+      format: { kind: "percent" },
+      domain: { min: "99", max: "100" },
+      extras: [{ id: "ledgers", label: "Ledgers", tooltip: "value", values: buckets.map((_, i) => (i === 18 ? LEDGERS : "1 missed of 22,100 validated ledgers")) }],
+      token: "agreement-1",
+      ...over,
+    };
+  }
+
+  it("shows its Ledgers extra as a phrase in the tooltip, and the label in the slider", async () => {
+    const { container, errors } = await serverThenHydrated(<LineChart title="Agreement per day" data={agreement()} />);
+    fireEvent.focus(slider(container));
+    const row = tip(container)!.lastElementChild!;
+    expect(row.textContent).toBe(LEDGERS);
+    expect(row.querySelector(".plot__tip-name")).toBeNull();
+    expect(lines(container)).toEqual(["Oct 19, 2026", "99.98% Agreement", LEDGERS]);
+    expect(slider(container).getAttribute("aria-valuetext")).toBe(`Oct 19, 2026: Agreement 99.98%; Ledgers ${LEDGERS}`);
+    expect(errors).toEqual([]);
+  });
+
+  it("names its lowest day in the plot summary with extreme lowest, and its highest by default", async () => {
+    const lowest = await serverThenHydrated(<LineChart title="Agreement per day" data={agreement()} extreme="lowest" />);
+    expect(lowest.container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe(
+      "Agreement per day, Oct 1 to Oct 19, 2026. Lowest Oct 3, 99.31%; latest Oct 19, 99.98%. Choose Table for every value.",
+    );
+    const plain = await serverThenHydrated(<LineChart title="Agreement per day" data={agreement()} />);
+    expect(plain.container.querySelector('[role="img"]')!.getAttribute("aria-label")).toContain("Highest Oct 19, 99.98%; latest Oct 19, 99.98%.");
+    expect(lowest.errors).toEqual([]);
+    expect(plain.errors).toEqual([]);
+  });
+});

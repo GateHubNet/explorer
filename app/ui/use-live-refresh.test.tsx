@@ -1,10 +1,20 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { createMemoryRouter, RouterProvider, useLoaderData, useNavigate } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LIVE_REFRESH_MAX_MS, LIVE_REFRESH_MS, refreshInterval, useLiveRefresh, type LiveRefreshOptions } from "./use-live-refresh";
+import type { OnScreen } from "./on-screen";
+import { useLiveControls } from "./use-live-controls";
+import {
+  AMENDMENTS_REFRESH_MS,
+  LIVE_REFRESH_MAX_MS,
+  LIVE_REFRESH_MS,
+  refreshInterval,
+  useLiveRefresh,
+  VALIDATORS_REFRESH_MS,
+  type LiveRefreshOptions,
+} from "./use-live-refresh";
 
 // The open home page asks the explorer's own Worker for its data again every few seconds (`useRevalidator().revalidate()`: the `.data` URL of
 // the route, never the data API). These tests use a real data router with a loader that counts, and fake timers.
@@ -46,8 +56,8 @@ function Page() {
   return <p>loaded {loaded}</p>;
 }
 
-/** A page at `/` whose loader counts its runs. `gate` makes a run wait for the test to let it finish. */
-function mount(options: { gate?: () => Promise<void>; others?: boolean } = {}) {
+/** A page at `/` whose loader counts its runs. `gate` makes a run wait for the test to let it finish; `page` is another page for the route. */
+function mount(options: { gate?: () => Promise<void>; others?: boolean; page?: () => ReactNode } = {}) {
   const runs = { count: 0 };
   const router = createMemoryRouter(
     [
@@ -59,7 +69,7 @@ function mount(options: { gate?: () => Promise<void>; others?: boolean } = {}) {
           await options.gate?.();
           return runs.count;
         },
-        Component: Page,
+        Component: options.page ?? Page,
         HydrateFallback: () => null,
       },
       {
@@ -253,8 +263,111 @@ describe("useLiveRefresh", () => {
 
 describe("refreshInterval", () => {
   it("doubles with each failure in a row, from 4 s, and stops at 60 s", () => {
-    expect([0, 1, 2, 3, 4, 5, 20, 2000].map(refreshInterval)).toEqual([4000, 8000, 16_000, 32_000, 60_000, 60_000, 60_000, 60_000]);
+    // (Not `.map(refreshInterval)`: map hands the index to a second parameter, which is now the base interval.)
+    expect([0, 1, 2, 3, 4, 5, 20, 2000].map((failures) => refreshInterval(failures))).toEqual([4000, 8000, 16_000, 32_000, 60_000, 60_000, 60_000, 60_000]);
     expect(LIVE_REFRESH_MAX_MS).toBe(60_000);
+  });
+
+  it("follows everyMs and caps at max(60 s, 4 × everyMs)", () => {
+    expect(refreshInterval(0, 10_000)).toBe(10_000);
+    expect(refreshInterval(1, 10_000)).toBe(20_000);
+    expect(refreshInterval(2, 10_000)).toBe(40_000);
+    // 80 s would be past the minute, which is the most a pace of 4 or 10 s slows to.
+    expect(refreshInterval(3, 10_000)).toBe(60_000);
+    expect(refreshInterval(2, 60_000)).toBe(240_000);
+    expect(refreshInterval(9, 60_000)).toBe(240_000);
+    expect(refreshInterval(5)).toBe(60_000);
+  });
+
+  it("is the 4 s pace when it is not told another, and a negative count of failures is none", () => {
+    expect(refreshInterval(0)).toBe(LIVE_REFRESH_MS);
+    expect(refreshInterval(-3)).toBe(LIVE_REFRESH_MS);
+    expect(refreshInterval(1, LIVE_REFRESH_MS)).toBe(refreshInterval(1));
+  });
+
+  it("names the beats of the validators and amendments pages", () => {
+    expect(VALIDATORS_REFRESH_MS).toBe(10_000);
+    expect(AMENDMENTS_REFRESH_MS).toBe(60_000);
+  });
+});
+
+describe("useLiveRefresh, at another pace", () => {
+  it("beats every everyMs: no revalidation at 4 s, one at 10 s", async () => {
+    const { runs } = mount();
+    setOptions({ everyMs: VALIDATORS_REFRESH_MS });
+    await pass(4000);
+    expect(runs.count).toBe(0);
+    await pass(5999);
+    expect(runs.count).toBe(0);
+    await pass(1);
+    expect(runs.count).toBe(1);
+    await pass(9999);
+    expect(runs.count).toBe(1);
+    await pass(1);
+    expect(runs.count).toBe(2);
+  });
+
+  it("backs off from everyMs and stops at max(60 s, 4 × everyMs)", async () => {
+    const { runs } = mount();
+    // A minute's pace, three failures in a row: 8 minutes would be 480 s, the cap is 4 minutes.
+    setOptions({ everyMs: AMENDMENTS_REFRESH_MS, failures: 3 });
+    await pass(239_999);
+    expect(runs.count).toBe(0);
+    await pass(1);
+    expect(runs.count).toBe(1);
+    // A success: the minute again.
+    setOptions({ everyMs: AMENDMENTS_REFRESH_MS, failures: 0 });
+    await pass(59_999);
+    expect(runs.count).toBe(1);
+    await pass(1);
+    expect(runs.count).toBe(2);
+  });
+
+  it("keeps the hold, the pause and the tab's visibility as they were, at the new pace", async () => {
+    const { runs } = mount();
+    setOptions({ everyMs: VALIDATORS_REFRESH_MS, holding: true });
+    await pass(30_000);
+    expect(runs.count).toBe(0);
+    // Resumed from a pause it asks at once, whatever the pace.
+    setOptions({ everyMs: VALIDATORS_REFRESH_MS, paused: true });
+    await pass(30_000);
+    setOptions({ everyMs: VALIDATORS_REFRESH_MS });
+    await pass(0);
+    expect(runs.count).toBe(1);
+    // Shown again after a while hidden: at once, and the 10 s beat goes on from there.
+    act(() => setVisibility("hidden"));
+    await act(async () => setVisibility("visible"));
+    expect(runs.count).toBe(2);
+    await pass(9999);
+    expect(runs.count).toBe(2);
+    await pass(1);
+    expect(runs.count).toBe(3);
+  });
+});
+
+describe("useLiveControls, at another pace", () => {
+  const store: Pick<OnScreen<unknown>, "failures" | "subscribe"> = { failures: () => 0, subscribe: () => () => undefined };
+
+  function Plain() {
+    useLiveControls(store);
+    return null;
+  }
+  function Slow() {
+    useLiveControls(store, { everyMs: VALIDATORS_REFRESH_MS });
+    return null;
+  }
+
+  it("hands everyMs to the beat: 4 s without it, as asked with it", async () => {
+    const plain = mount({ page: Plain });
+    await pass(4000);
+    expect(plain.runs.count).toBe(1);
+    cleanup();
+
+    const slow = mount({ page: Slow });
+    await pass(9999);
+    expect(slow.runs.count).toBe(0);
+    await pass(1);
+    expect(slow.runs.count).toBe(1);
   });
 });
 

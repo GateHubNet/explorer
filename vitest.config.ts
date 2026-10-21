@@ -7,9 +7,9 @@ import { configDefaults, defineConfig } from "vitest/config";
 import { FEATURE_VARS, type FeatureVar } from "./app/ui/features.ts";
 
 // The switches at the top level of wrangler.jsonc, which the `worker` project runs with (README, "Switches"). A switch is "on" here from
-// the moment the code it gates is built (`VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`); `VALIDATORS` is "off" until E6 builds its pages. The `satisfies` fails until a new switch is
+// the moment the code it gates is built (`VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`). The `satisfies` fails until a new switch is
 // listed. The `worker-off` project does not read this: it sets every switch of `FEATURE_VARS` "off".
-const TOP_LEVEL_SWITCHES = { VALIDATORS: "off", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on" } satisfies Record<FeatureVar, "on" | "off">;
+const TOP_LEVEL_SWITCHES = { VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on" } satisfies Record<FeatureVar, "on" | "off">;
 
 // Pinned for the worker projects, so that a developer's .dev.vars (a real key, a Sentry DSN, a local
 // data API) cannot change what the tests do or where they send requests.

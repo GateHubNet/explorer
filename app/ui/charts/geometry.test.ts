@@ -390,6 +390,60 @@ describe("linePath", () => {
     expect(linePath([1, 0, null, 0.5, 1], { height: 100, placement: "points", curve: "step" })).toBe("M0,0L250,0L250,100M750,50L1000,50L1000,0");
   });
 
+  describe("a step line, compressed", () => {
+    const step = { height: 100, placement: "points", curve: "step" } as const;
+    const commandsOf = (d: string) => d.match(/[ML]/g)?.length ?? 0;
+
+    it("emits a vertex only where the value changes: a run of one value is one segment", () => {
+      expect(linePath([0.5, 0.5, 0.5], step)).toBe("M0,50L1000,50");
+      expect(linePath([1, 1, 1, 0.5, 0.5, 0, 0], step)).toBe("M0,0L500,0L500,50L833.33,50L833.33,100L1000,100");
+      // A change at the last bucket is its own corner, and the line ends there.
+      expect(linePath([0, 0, 1], step)).toBe("M0,100L1000,100L1000,0");
+      // A change at the first step: no run before it to shorten.
+      expect(linePath([0, 1, 1, 1], step)).toBe("M0,100L333.33,100L333.33,0L1000,0");
+    });
+
+    it("makes a path of 2,600 values with 5 changes of 12 commands", () => {
+      const fractions = Array.from({ length: 2600 }, (_, i) => [0.2, 0.4, 0.6, 0.4, 0.8, 1].at(i < 400 ? 0 : i < 900 ? 1 : i < 1500 ? 2 : i < 2100 ? 3 : i < 2500 ? 4 : 5)!);
+      const d = linePath(fractions, step);
+      // M, then a corner and a rise for each change (5 × 2), then the end of the last run.
+      expect(commandsOf(d)).toBe(12);
+      expect(d.startsWith("M0,80L")).toBe(true);
+      expect(d.endsWith("L1000,0")).toBe(true);
+      expect(commandsOf(linePath(fractions, { ...step, curve: "linear" }))).toBe(2600);
+    });
+
+    it("draws the line it drew: every corner of the uncompressed path is on the compressed one", () => {
+      // A staircase with flats of different lengths; the compressed path is read back as a function of x and compared at each bucket.
+      const fractions = [0, 0, 0.25, 0.25, 0.25, 0.75, 0.5, 0.5, 1, 1, 1, 1, 0];
+      const compressed = linePath(fractions, step)
+        .split(/(?=[ML])/)
+        .map((c) => c.slice(1).split(",").map(Number) as [number, number]);
+      const levelAt = (x: number): number => {
+        let level = NaN;
+        // The path's numbers are rounded to 2 decimals, so a vertex at x may be written a hair to its right.
+        for (const [px, py] of compressed) if (px <= x + 0.01) level = py;
+        return level;
+      };
+      fractions.forEach((f, i) => {
+        // Step-after: the line is at this bucket's value from its x up to the next bucket's, so a vertex of the line at x is that level.
+        const x = xOf(i, fractions.length, "points") * 1000;
+        expect(levelAt(x), `bucket ${i}`).toBeCloseTo(100 * (1 - f), 1);
+      });
+    });
+
+    it("breaks at a null as it did, and compresses each run on its own", () => {
+      expect(linePath([1, 1, null, 0.5, 0.5, 1], step)).toBe("M0,0L200,0M600,50L1000,50L1000,0");
+      expect(linePath([1, 1, 1, null, 0.5, 0.5, 0.5], step)).toBe("M0,0L333.33,0M666.67,50L1000,50");
+      expect(linePath([null, 0.5, 0.5, null], step)).toBe("M333.33,50L666.67,50");
+    });
+
+    it("keeps a lone point as its dot and leaves the linear curve alone", () => {
+      expect(linePath([null, 0.5, null], step)).toBe("M500,50L500,50");
+      expect(linePath([0.5, 0.5, 0.5], { height: 100, placement: "points" })).toBe("M0,50L500,50L1000,50");
+    });
+  });
+
   it("places bands at their centres", () => {
     expect(linePath([0, 1], { height: 100, placement: "bands" })).toBe("M250,100L750,0");
   });
@@ -435,6 +489,11 @@ describe("areaPath", () => {
 
   it("follows the steps", () => {
     expect(areaPath([1, 0], { height: 100, placement: "points", curve: "step" })).toBe("M0,0L1000,0L1000,100L0,100Z");
+  });
+
+  it("follows the compressed steps: a flat run is one edge", () => {
+    expect(areaPath([0.5, 0.5, 0.5], { height: 100, placement: "points", curve: "step" })).toBe("M0,50L1000,50L1000,100L0,100Z");
+    expect(areaPath([1, 1, 0, 0], { height: 100, placement: "points", curve: "step" })).toBe("M0,0L666.67,0L666.67,100L1000,100L0,100Z");
   });
 
   it("is empty when there is nothing to fill", () => {

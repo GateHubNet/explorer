@@ -21,12 +21,12 @@ export const CACHE_CLASSES: Record<CacheClass, CacheClassSpec> = {
     browser: { html: "max-age=60", image: "max-age=31536000, immutable" },
   },
   /**
-   * The home page, the network page, the market pair page, and their `.data` URLs. A ledger closes every 3-4 s and an open page follows the
-   * chain (see `use-live-refresh.ts`): 1 s fresh, then 2 s during which the stored copy is served while one render refreshes it, so a reload never
-   * shows a copy much older than one ledger. At the owner's request; spec 4 had 3 s + 30 s. (A copy older than 3 s is not served: the visitor
-   * waits for a render. A failing render is still replaced by the stored copy, of any age.) The home page's calls are kept
-   * `HOME_CALL_TTL_SECONDS`, below (and so are the pair page's anchor, trades and book), and the network page's calls over a period
-   * `PERIOD_CALL_TTL_SECONDS`.
+   * The home page, the network page, the market pair page, a validator's page (validators spec 2.1: its recent validations follow the chain; a page
+   * of its older validations is `slow` for 300 s), and their `.data` URLs. A ledger closes every 3-4 s and an open page follows the chain (see
+   * `use-live-refresh.ts`): 1 s fresh, then 2 s during which the stored copy is served while one render refreshes it, so a reload never shows
+   * a copy much older than one ledger. At the owner's request; spec 4 had 3 s + 30 s. (A copy older than 3 s is not served: the visitor waits
+   * for a render. A failing render is still replaced by the stored copy, of any age.) The home page's calls are kept `HOME_CALL_TTL_SECONDS`,
+   * below (and so are the pair page's anchor, trades and book), and the network page's calls over a period `PERIOD_CALL_TTL_SECONDS`.
    */
   "live-home": { edgeTtl: 1, swr: 2, browser: { html: REVALIDATE, image: REVALIDATE } },
   /** The newest ledger, an account's live state, the first page of a list. */
@@ -60,6 +60,21 @@ export const HOME_CALL_TTL_SECONDS = 2;
  * shows. The network loader asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }` on them, and so has cache entries of its own (the key says `[kept 300 s]`).
  */
 export const PERIOD_CALL_TTL_SECONDS = 300;
+
+/**
+ * How long the validators pages keep the calls to D1 (`feat/explorer-data`) in the subrequest cache (validators spec 2.1). The loaders ask for them as
+ * `{ ttl }`, so each has a cache entry of its own (the key says `[kept N s]`), and the class is the call's own.
+ *
+ * `VALIDATORS_CALL_TTL_SECONDS`: the summary, the list and one validator (class `live`). D1 builds its directory at most every 10 s and says `max-age=30`:
+ * keeping them for less buys nothing, for more holds back the counts, the negative UNL and the next flag ledger.
+ * `VALIDATIONS_CALL_TTL_SECONDS`: a validator's newest validations (class `live`). D1 reads them per request (`max-age=5`) and a row comes every ledger.
+ * `VALIDATIONS_MARKER_TTL_SECONDS`: a page of older validations, reached with a marker (class `slow`, which would keep it an hour). Old rows change only when
+ * `validated: "unknown"` becomes `matches`, and D1 says `max-age=300`. `validatorValidations` applies it itself and ignores the caller's TTL.
+ * The amendment calls take `minute` as it is and need no constant.
+ */
+export const VALIDATORS_CALL_TTL_SECONDS = 10;
+export const VALIDATIONS_CALL_TTL_SECONDS = 2;
+export const VALIDATIONS_MARKER_TTL_SECONDS = 300;
 
 /**
  * The class of a list page reached with a marker, and of the account page that shows it. A DELIBERATE DEVIATION from spec 2, which has

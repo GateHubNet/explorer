@@ -16,8 +16,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
 type Net = typeof XRPL | typeof XAHAU;
 
 // ---- Page data, as the view builder makes it ---------------------------------------------------------------------------------------------

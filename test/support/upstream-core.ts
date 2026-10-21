@@ -274,6 +274,13 @@ function dataApiAbsent(segments: string[]): Response {
     if (sub === undefined) return dataApiError(404, "Account not found");
     if (sub === "balances" || sub === "orders") return dataApiError(404, "account not found");
   }
+  // D1's validator and its validations (`summary` is a route of its own), and one amendment: the routes' own not-found messages.
+  if (version === "v2" && resource === "network") {
+    const [, , , key, page, ...rest] = segments;
+    const one = key !== undefined && rest.length === 0;
+    if (id === "validators" && one && key !== "summary" && (page === undefined || page === "validations")) return dataApiError(404, "Validator not found");
+    if (id === "amendments" && one && page === undefined) return dataApiError(404, "amendment not found");
+  }
   return dataApiError(404, `Cannot GET /${segments.join("/")}`);
 }
 

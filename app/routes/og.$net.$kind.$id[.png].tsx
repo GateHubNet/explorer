@@ -2,12 +2,15 @@ import { isValidClassicAddress } from "ripple-address-codec";
 import { redirect } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 
+import { amendmentSegment, parseAmendmentRef } from "../domain/amendment-ref";
 import { dropsToNative } from "../domain/format";
+import { parseValidatorKey } from "../domain/validator-key";
 import { renderCard } from "../og/render";
 import type { CardData } from "../og/types";
-import { accountCard, ledgerCard, transactionCard, transactionFacts } from "../server/card-data";
-import type { CacheClass } from "../server/cache-class";
+import { accountCard, amendmentCard, ledgerCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
+import { VALIDATORS_CALL_TTL_SECONDS, type CacheClass } from "../server/cache-class";
 import { activationOf } from "../server/account-view";
+import type { AmendmentDetail, ValidatorDetail } from "../server/api-types";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders } from "../server/edge-cache";
 import { getEnv } from "../server/env";
@@ -17,8 +20,9 @@ import { isNetworkId, networkOf, type Network } from "../server/networks";
 import { txFromIndex, txFromNode, type TransactionSource } from "../server/transaction-view";
 import { UpstreamError } from "../server/upstream";
 
-// `/og/{net}/{tx|ledger|account}/{id}.png` (spec 2, 4, 9): the link-preview image of a transaction, a ledger or an account, 1200 × 630,
-// drawn on the first request and kept by the edge. A resource route at the top level: no layout, no HTML.
+// `/og/{net}/{tx|ledger|account|validator|amendment}/{id}.png` (spec 2, 4, 9; validators spec 8): the link-preview image of a transaction, a
+// ledger, an account, a validator or an amendment, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
+// level: no layout, no HTML.
 //
 // - A URL with a query string is a 302 to the bare path (class `immutable`), before anything else: no call, nothing drawn, and no
 //   copy of the image per query in the edge cache.
@@ -31,6 +35,11 @@ import { UpstreamError } from "../server/upstream";
 //   an hour, as the spec has it). The newest ledger is `short`: its page is live, because its "newest" status is about to change (the
 //   next ledger closes within seconds), and an image kept for a year would keep the old status. An account whose balances could not be
 //   read is drawn without them and is `short`, to be tried again soon.
+// - A validator and an amendment (validators spec 8) are drawn from the data API's D1 routes alone (the node knows neither), in class `slow`: the
+//   UNL, the version and the domain's check change rarely, and so does an amendment's standing. They are 404s of class `short` while `VALIDATORS`
+//   is off, before any call. A key in hex is a 302 (`immutable`) to the base58 key; a signing key, and an amendment that is not named as D1 names
+//   it (a case variant, an ID of a named amendment), are a 302 (`slow`) to the master key's and the canonical image: the mapping is D1's data.
+//   D's and AD's own "not found" is the 404; every other failure, a 400 and a `Cannot GET` (an API without D1) included, is a 503.
 // - A "not found" (the API's and the node's) is a 404 of class `short`. A failure of an upstream that leaves the question open, and a
 //   card the renderer cannot draw, is a 503 with `Retry-After` that is never stored; the Worker's entry answers it with a stored copy
 //   of the image if there is one, however old. A 400 of the data API for an id the route has checked is such a failure too (the API's
@@ -89,6 +98,16 @@ function isNotFound(err: unknown): boolean {
   return err instanceof UpstreamError && err.kind === "not_found";
 }
 
+/** A redirect to the one image an object has, as the data names it (a master key, an amendment's name). The mapping is data: it is kept for an hour, not for good. */
+function slowRedirect(to: string): Response {
+  return redirect(to, { status: 302, headers: cacheClassHeaders("slow") });
+}
+
+/** The failure of a D1 route, which has no node to ask in its place: its own "not found" is a 404; everything else, a 400 included, is the API failing. */
+function d1Failure(err: unknown): Response {
+  return isNotFound(err) ? notFound() : apiFailure(err);
+}
+
 /** The PNG answer for a card, in the class it is kept under. */
 async function image(data: CardData, request: Request, cls: CacheClass, ttl?: number): Promise<Response> {
   let bytes: ArrayBuffer;
@@ -123,6 +142,10 @@ export async function loader({ params, request, context }: LoaderFunctionArgs) {
       return ledgerImage(context, network, id, request);
     case "account":
       return accountImage(context, network, id, request);
+    case "validator":
+      return validatorImage(context, network, id, request);
+    case "amendment":
+      return amendmentImage(context, network, id, request);
     default:
       return notFound();
   }
@@ -226,4 +249,43 @@ async function accountImage(context: LoaderFunctionArgs["context"], network: Net
   } catch (err) {
     return failure(err);
   }
+}
+
+// ---- A validator ---------------------------------------------------------------------------------------------------------------------
+
+async function validatorImage(context: LoaderFunctionArgs["context"], network: Network, id: string, request: Request) {
+  if (!network.features.validators) return notFound();
+  const parsed = parseValidatorKey(id);
+  if (parsed === null) return notFound();
+  if (parsed.from === "hex") return permanent(`/og/${network.id}/validator/${parsed.key}.png`);
+
+  const { api } = clientsFor(context, network);
+  let detail: ValidatorDetail;
+  try {
+    detail = await api.validator(parsed.key, { ttl: VALIDATORS_CALL_TTL_SECONDS });
+  } catch (err) {
+    return d1Failure(err);
+  }
+  // The string alone cannot tell a master key from a signing key: D says which it is.
+  if (detail.validation_public_key !== parsed.key) return slowRedirect(`/og/${network.id}/validator/${detail.validation_public_key}.png`);
+  return image(validatorCard(detail, network), request, "slow");
+}
+
+// ---- An amendment --------------------------------------------------------------------------------------------------------------------
+
+async function amendmentImage(context: LoaderFunctionArgs["context"], network: Network, id: string, request: Request) {
+  if (!network.features.validators) return notFound();
+  const ref = parseAmendmentRef(id);
+  if (ref === null) return notFound();
+
+  const { api } = clientsFor(context, network);
+  let detail: AmendmentDetail;
+  try {
+    detail = await api.amendment("id" in ref ? ref.id : ref.name);
+  } catch (err) {
+    return d1Failure(err);
+  }
+  const segment = amendmentSegment(detail);
+  if (segment !== id) return slowRedirect(`/og/${network.id}/amendment/${encodeURIComponent(segment)}.png`);
+  return image(amendmentCard(detail, network), request, "slow");
 }

@@ -14,8 +14,8 @@ const UNSHOWN = /[\p{Cf}\u0080-\u009F]/gu;
 /**
  * What was asked as the not-found page says it: without the characters that change how a sentence is drawn (`UNSHOWN`), cut to `max` code
  * points (between characters: a surrogate pair is one), in quotes, escaped as `JSON.stringify` escapes a string. The one echo of the network,
- * account, ledger, transaction and market pair routes; the ledger and the transaction routes pass 80, so that a hash of 64 with a character
- * too many is still repeated whole.
+ * account, ledger, transaction, market pair, validator and amendment routes; the ledger and the transaction routes pass 80, so that a hash of
+ * 64 with a character too many is still repeated whole.
  */
 export function echoOf(asked: string, max = ECHO_LENGTH): string {
   return JSON.stringify([...asked.replace(UNSHOWN, "")].slice(0, max).join(""));

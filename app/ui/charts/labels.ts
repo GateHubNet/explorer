@@ -93,8 +93,9 @@ function bucketText(bucket: string, unit: TimeAxis["unit"], where: BucketPlace):
       if (!moment) return bucket;
       const [, day = "", time = ""] = moment;
       if (where === "axis") return unit === "flag" ? formatUtcDay(day) : time;
-      // The readout names the zone, since it stands alone above the chart: "Oct 17, 2026, 17:00 UTC".
-      return `${formatUtcDay(day, true)}, ${time}${where === "readout" ? " UTC" : ""}`;
+      // The readout names the zone, since it stands alone above the chart: "Oct 17, 2026, 17:00 UTC". So does a flag ledger wherever it is
+      // written (the board's moment, `formatDateTime`): its axis is days, and the time of day is the one thing its date says.
+      return `${formatUtcDay(day, true)}, ${time}${where === "readout" || unit === "flag" ? " UTC" : ""}`;
     }
   }
 }
@@ -102,14 +103,31 @@ function bucketText(bucket: string, unit: TimeAxis["unit"], where: BucketPlace):
 /**
  * A bucket's date, in UTC. On the axis: `Oct 16` (a day or a week's Monday, `Oct 12`), `Oct 2026` (a month, everywhere), `17:00` (an hour)
  * or `17:15` (a quarter hour), the day of a flag ledger. In a tooltip or a table: `Oct 16, 2026`; a week is `Week of Oct 12, 2026` in a
- * tooltip and `Oct 12, 2026` in a table; an hour, a quarter hour or a flag ledger is `Oct 17, 2026, 17:00`. The running bucket (`forming`)
- * adds `, so far` in a tooltip and a table, never on the axis. The readout (the line above the candles) is the tooltip's date with `UTC` after a time of day, and the running bucket
- * adds ` · so far`: `Oct 17, 2026, 17:00 UTC · so far`, `Week of Oct 12, 2026`.
+ * tooltip and `Oct 12, 2026` in a table; an hour or a quarter hour is `Oct 17, 2026, 17:00`, and a flag ledger names its zone, `Oct 16, 2026, 09:34 UTC`
+ * (`formatDateTime`'s text). The running bucket (`forming`) adds `, so far` in a tooltip and a table, never on the axis. The readout (the
+ * line above the candles) is the tooltip's date with `UTC` after a time of day, and the running bucket adds ` · so far`:
+ * `Oct 17, 2026, 17:00 UTC · so far`, `Week of Oct 12, 2026`.
  */
 export function bucketLabel(bucket: string, unit: TimeAxis["unit"], where: BucketPlace, forming = false): string {
   const text = bucketText(bucket, unit, where);
   if (!forming || where === "axis") return text;
   return where === "readout" ? `${text} \u00b7 so far` : `${text}, so far`;
+}
+
+/**
+ * The x labels of an axis at the buckets `picks` names (`xLabelPicks`, oldest first): each bucket's axis label. A flag axis labels days and its buckets are moments,
+ * so two picks of a few days of rounds can fall on one UTC day: that day is named once, at the first of them. The other units are labelled as they are picked.
+ */
+export function axisLabels(axis: TimeAxis, picks: readonly number[]): { i: number; text: string }[] {
+  const labels = picks.map((i) => ({ i, text: bucketLabel(axis.buckets[i]!, axis.unit, "axis") }));
+  if (axis.unit !== "flag") return labels;
+  const named = new Set<string>();
+  return labels.filter(({ i }) => {
+    const day = MOMENT.exec(axis.buckets[i]!)?.[1] ?? axis.buckets[i]!;
+    if (named.has(day)) return false;
+    named.add(day);
+    return true;
+  });
 }
 
 const HEADINGS = {
@@ -189,23 +207,26 @@ function summaryDate(bucket: string, unit: TimeAxis["unit"], withYear: boolean):
  * "Highest Payments Oct 3, 45.5M XRP; latest Payments Oct 17, so far, 12.1M XRP" (the other lines are in the table). The year is on the
  * last date only, and on both when the years differ. The highest is the earliest of equal highs, the latest the newest bucket with a
  * value; a bucket that is the running one (`forming`, the newest of the axis) adds ", so far" to its date, as the tooltip does. With no
- * value at all it is "{title}: {emptyText}.", the data's own `emptyText` when it has one.
+ * value at all it is "{title}: {emptyText}.", the data's own `emptyText` when it has one. With `extreme: "lowest"` the first figure is the lowest
+ * instead ("Lowest Oct 3, 99.31%; latest Oct 19, 99.98%": for a rate, the worst day is the one that matters), and the earliest of equal lows.
  */
-export function plotSummary(title: string, data: TimeSeriesData): string {
+export function plotSummary(title: string, data: TimeSeriesData, opts: { extreme?: "highest" | "lowest" } = {}): string {
+  const { extreme = "highest" } = opts;
   const { axis, format } = data;
   const values = data.totals ?? data.series[0]?.values ?? [];
   // The figures of a chart of several lines with no totals belong to its first line: say which.
   const named = data.totals === undefined && data.series.length > 1 ? `${data.series[0]!.label} ` : "";
 
-  let highest = -1;
+  let reached = -1;
   let latest = -1;
   for (let i = 0; i < axis.buckets.length; i += 1) {
     const value = values[i];
     if (value === null || value === undefined || !Number.isFinite(Number(value))) continue;
     latest = i;
-    if (highest < 0 || Number(value) > Number(values[highest])) highest = i;
+    // Strictly beyond, so that the earliest of equal values stays.
+    if (reached < 0 || (extreme === "lowest" ? Number(value) < Number(values[reached]) : Number(value) > Number(values[reached]))) reached = i;
   }
-  if (highest < 0) return `${title}: ${data.emptyText ?? emptyText(axis)}.`;
+  if (reached < 0) return `${title}: ${data.emptyText ?? emptyText(axis)}.`;
 
   const [first = "", last = ""] = [axis.buckets[0], axis.buckets.at(-1)];
   const sameYear = first.slice(0, 4) === last.slice(0, 4);
@@ -213,6 +234,6 @@ export function plotSummary(title: string, data: TimeSeriesData): string {
   const at = (i: number) => `${named}${summaryDate(axis.buckets[i]!, axis.unit, false)}${running(i)}, ${valueText(values[i]!, format, "compact")}`;
   return (
     `${title}, ${summaryDate(first, axis.unit, !sameYear)} to ${summaryDate(last, axis.unit, true)}. ` +
-    `Highest ${at(highest)}; latest ${at(latest)}. Choose Table for every value.`
+    `${extreme === "lowest" ? "Lowest" : "Highest"} ${at(reached)}; latest ${at(latest)}. Choose Table for every value.`
   );
 }

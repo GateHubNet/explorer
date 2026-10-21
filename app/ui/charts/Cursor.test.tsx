@@ -176,9 +176,99 @@ describe("Cursor, from the keyboard", () => {
   });
 });
 
+describe("Cursor, with a pageStep", () => {
+  const now = (slider: HTMLElement) => slider.getAttribute("aria-valuenow");
+
+  it("moves that many buckets with Page Up (to the newest) and Page Down (to the oldest), stopping at the ends, and names the keys", async () => {
+    const { slider, plot, tip, errors } = await mounted(<StubPlot pageStep={7} />);
+    expect(slider().getAttribute("aria-keyshortcuts")).toBe("PageUp PageDown");
+    fireEvent.focus(slider());
+    expect(now(slider())).toBe("29");
+    const down = () => fireEvent.keyDown(slider(), { key: "PageDown" });
+    const up = () => fireEvent.keyDown(slider(), { key: "PageUp" });
+    // From the newest (29) back by 7: 22, 15, 8, 1, then the oldest, and no further.
+    const seen: (string | null)[] = [];
+    for (let k = 0; k < 6; k += 1) {
+      down();
+      seen.push(now(slider()));
+    }
+    expect(seen).toEqual(["22", "15", "8", "1", "0", "0"]);
+    expect(slider().getAttribute("aria-valuetext")).toBe("Day 0");
+    expect(plot().getAttribute("data-active")).toBe("0");
+    // And back: 7, 14, 21, 28, then the newest.
+    const forward: (string | null)[] = [];
+    for (let k = 0; k < 6; k += 1) {
+      up();
+      forward.push(now(slider()));
+    }
+    expect(forward).toEqual(["7", "14", "21", "28", "29", "29"]);
+    expect(tip()!.textContent).toContain("Oct 29");
+    expect(errors).toEqual([]);
+  });
+
+  it("keeps the page keys from scrolling the page, and still lets the other keys be", async () => {
+    const { slider } = await mounted(<StubPlot pageStep={7} />);
+    fireEvent.focus(slider());
+    for (const key of ["PageUp", "PageDown", "ArrowLeft", "Home"]) expect(fireEvent.keyDown(slider(), { key }), key).toBe(false);
+    for (const key of ["ArrowUp", "ArrowDown", "Tab", "a"]) expect(fireEvent.keyDown(slider(), { key }), key).toBe(true);
+    // The browser's own shortcuts are not the cursor's.
+    expect(fireEvent.keyDown(slider(), { key: "PageDown", ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(slider(), { key: "PageUp", altKey: true })).toBe(true);
+  });
+
+  it("shows the tooltip from the page key, as an arrow does, after Escape", async () => {
+    const { slider, tip } = await mounted(<StubPlot pageStep={10} />);
+    fireEvent.focus(slider());
+    fireEvent.keyDown(slider(), { key: "Escape" });
+    expect(tip()).toBeNull();
+    fireEvent.keyDown(slider(), { key: "PageDown" });
+    expect(tip()!.textContent).toContain("Oct 19");
+  });
+
+  it("is the arrow keys alone, and names no shortcut, without a pageStep", async () => {
+    const { slider } = await mounted(<StubPlot />);
+    expect(slider().hasAttribute("aria-keyshortcuts")).toBe(false);
+    fireEvent.focus(slider());
+    expect(fireEvent.keyDown(slider(), { key: "PageDown" })).toBe(true);
+    expect(now(slider())).toBe("29");
+  });
+});
+
 describe("steppedKey: the keys of every cursor (spec 2.6), which Cursor and ShareBar both read", () => {
-  const press = (key: string, index: number, last: number, modifiers: { altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {}) =>
-    steppedKey({ key, altKey: false, ctrlKey: false, metaKey: false, ...modifiers }, index, last);
+  const press = (
+    key: string,
+    index: number,
+    last: number,
+    modifiers: { altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {},
+    pageStep?: number,
+  ) => steppedKey({ key, altKey: false, ctrlKey: false, metaKey: false, ...modifiers }, index, last, pageStep);
+
+  it("moves pageStep buckets with Page Up towards the newest and Page Down towards the oldest, and stops at the ends", () => {
+    expect(press("PageUp", 5, 299, {}, 87)).toBe(92);
+    expect(press("PageDown", 299, 299, {}, 87)).toBe(299 - 87);
+    expect(press("PageDown", 50, 299, {}, 87)).toBe(0);
+    expect(press("PageUp", 250, 299, {}, 87)).toBe(299);
+    // A page wider than the plot is the plot's ends.
+    expect(press("PageUp", 3, 9, {}, 87)).toBe(9);
+    expect(press("PageDown", 3, 9, {}, 87)).toBe(0);
+    // One bucket: every key lands on it.
+    expect(press("PageUp", 0, 0, {}, 87)).toBe(0);
+    expect(press("PageDown", 0, 0, {}, 87)).toBe(0);
+  });
+
+  it("leaves the page keys alone without a pageStep, or with one that is no step", () => {
+    for (const pageStep of [undefined, 0, -3, Number.NaN]) {
+      expect(press("PageUp", 5, 9, {}, pageStep), String(pageStep)).toBeNull();
+      expect(press("PageDown", 5, 9, {}, pageStep), String(pageStep)).toBeNull();
+    }
+  });
+
+  it("does not take the page keys with a browser's modifier, and reads the other keys as it did", () => {
+    for (const modifier of ["altKey", "ctrlKey", "metaKey"] as const) expect(press("PageDown", 5, 9, { [modifier]: true }, 3), modifier).toBeNull();
+    expect(press("ArrowLeft", 5, 9, {}, 3)).toBe(4);
+    expect(press("Home", 5, 9, {}, 3)).toBe(0);
+    expect(press("Escape", 5, 9, {}, 3)).toBe("hide");
+  });
 
   it("moves one step with the arrow keys, to the ends with Home and End", () => {
     expect(press("ArrowLeft", 5, 9)).toBe(4);

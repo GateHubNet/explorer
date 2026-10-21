@@ -14,8 +14,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
 const NOTE = "The 30 days from Sep 18 to Oct 17, 2026 (UTC), per day. The last day is counted up to now.";
 
 const FRAME: AnalyticsFrame = {

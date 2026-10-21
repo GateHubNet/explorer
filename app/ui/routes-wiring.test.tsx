@@ -3,23 +3,47 @@ import { createElement } from "react";
 import { createMemoryRouter, Outlet, RouterProvider, useLoaderData, useParams, type ShouldRevalidateFunctionArgs } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { amendmentsHref, type AmendmentStatus } from "../domain/amendments-params";
 import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "../domain/network-params";
+import { validatorsHref, type ValidatorsParams } from "../domain/validators-params";
+import {
+  amendmentDetailSample,
+  amendmentsSample,
+  SAMPLE_KEYS,
+  SAMPLE_SIGNING_KEYS,
+  summarySample,
+  validationsSample,
+  validatorDetailSample,
+  validatorRowSample,
+} from "../../test/support/d1-samples";
+import type { Loaded } from "../server/account-view";
+import { amendmentPage, type AmendmentPageData } from "../server/amendment-view";
+import { amendmentsPage, type AmendmentsPageData } from "../server/amendments-view";
 import { forwardCacheClass } from "../server/edge-cache";
 import type { HomeLoaderData } from "../server/home-view";
 import type { AmmPart, NetworkLoaderData, SeriesView } from "../server/network-view";
 import type { LivePairData, OlderPairData, PairPageData } from "../server/pair-view";
+import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../server/validator-view";
+import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
 import type { BarListData, CandleData, TimeSeriesData } from "./charts/types";
 import * as home from "../routes/net._index";
+import * as amendment from "../routes/net.amendments.$name";
+import * as amendments from "../routes/net.amendments";
 import * as net from "../routes/net";
 import * as pair from "../routes/net.markets.$base.$counter";
 import * as network from "../routes/net.network";
+import * as validators from "../routes/net.validators";
+import * as validator from "../routes/net.validators.$key";
 
 // The real route modules, not stand-ins: `net.tsx` and `net._index.tsx` as React Router's own build would load them. What these tests pin is
 // the wiring that no other test can see because it lives between files: the layout that must not revalidate, the home route's `clientLoader`
 // that keeps the page, the page's shared `onScreen`, the hook that polls and the controls (pause, hold, status). Deleting `shouldRevalidate`
 // from net.tsx or `clientLoader` from net._index.tsx fails here (and in the browser, test/e2e/live-home.spec.ts). The network page's route,
 // `net.network.tsx`, is wired the same way and is run the same way after them: its scope per view, its merge (`keepLoaded`) and the page keyed
-// by its scope. The market pair page's, `net.markets.$base.$counter.tsx`, is last: the same wiring, and no live hook behind a marker.
+// by its scope. The market pair page's, `net.markets.$base.$counter.tsx`, comes next: the same wiring, and no live hook behind a marker. The
+// validators list's route, `net.validators.tsx`, comes next, with its own beat (10 s) and its three parts, and the validator page's,
+// `net.validators.$key.tsx`: live every ledger, and a page of older validations that never polls. The amendments list's, `net.amendments.tsx`, comes next: one part,
+// a beat of a minute, and no merge. The amendment page's, `net.amendments.$name.tsx`, is last: a beat of a minute, and S's part kept.
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
 const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl" } as const;
@@ -433,7 +457,7 @@ function networkAt(index: number, over: Partial<NetworkLoaderData> = {}, build =
       state: "ok",
       ledger: { index, hash: "AB".repeat(32) },
       count: "35",
-      first: [{ key: "nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p", short: "nHUFE9prPX…a3p", delay: "+0 ms" }],
+      first: [{ key: "nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p", short: "nHUFE9prPX…a3p", delay: "+0 ms", href: null }],
       href: null,
     },
     types: { state: "ok", chart: NETWORK_TYPES, note: "Other is every other type." },
@@ -1022,5 +1046,808 @@ describe("net.markets.$base.$counter.tsx", () => {
     await pass(0);
     expect(lastPrice()).toBe("2.101");
     expect(screen.getByRole("status")).toBeTruthy();
+  });
+});
+
+// ---- The validators list's route --------------------------------------------------------------------------------------------------------
+
+type ValidatorsData = ValidatorsPageData & { anchor: { lastValidated: number; closeTime: number }; build: string };
+
+const ok = <T,>(value: T): Loaded<T> => ({ state: "ok", value });
+const FAILED = { state: "failed" } as const;
+
+/**
+ * The list's data at ledger `index` for `params`, every part loaded, made by build `build`. The quorum is `index - 72` ("28 of 35" at ledger
+ * 100): the figure that says which answer is on screen. The one validator it lists is `northpeak.example`.
+ */
+function validatorsAt(index: number, over: Partial<ValidatorsData> = {}, build = "abc1234", params: ValidatorsParams = { scope: "unl" }): ValidatorsData {
+  return {
+    ...validatorsPage({
+      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      params,
+      summary: ok(summarySample({ quorum: { value: index - 72, unl_size: 35, negative_unl: 1, node: index - 72 } })),
+      list: ok({ result: "success", count: 1, validators: [validatorRowSample()] }),
+      amendments: ok(amendmentsSample()),
+    }),
+    anchor: { lastValidated: index, closeTime: 1792256472 + index },
+    build,
+    ...over,
+  };
+}
+
+describe("net.validators.tsx", () => {
+  /** The figure of the Quorum tile: which answer the page shows. */
+  const quorum = () => screen.getByText("Quorum").closest(".stat")!.querySelector(".stat__value")!.textContent;
+  const REQUEST = (path: string) => new Request(`https://explorer.test${path}`);
+
+  /** The data a `.data` request for `url` is answered with. */
+  type Answer = (url: URL) => Promise<ValidatorsData>;
+
+  function ValidatorsRoute() {
+    return createElement(validators.default, { loaderData: useLoaderData() as ValidatorsData, params: useParams() as { net: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the list as `net.validators.tsx` has it, in a data router, on the data the server rendered. */
+  function mountValidators(answer: Answer, first = validatorsAt(100), path = "/xrpl/validators") {
+    const layoutRuns = { count: 0 };
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [
+            {
+              id: "routes/net.validators",
+              path: "validators",
+              loader: (args) =>
+                validators.clientLoader({ params: args.params, request: args.request, serverLoader: () => answer(new URL(args.request.url)) } as never),
+              Component: ValidatorsRoute,
+            },
+          ],
+        },
+      ],
+      {
+        initialEntries: [path],
+        hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test", run: 0 }, "routes/net.validators": first } },
+      },
+    );
+    const view = render(<RouterProvider router={router} />);
+    return { router, layoutRuns, ...view };
+  }
+
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
+    expect(validators.clientLoader).toBeTypeOf("function");
+    expect(validators.default).toBeTypeOf("function");
+    expect(validators.headers).toBe(forwardCacheClass);
+    expect(validators.handle).toEqual({ navSection: "network" });
+  });
+
+  it("asks the server's loader again every 10 s, not every 4, shows what it answers, and does not ask for the layout again", async () => {
+    let at = 100;
+    const answer = vi.fn<Answer>(async () => validatorsAt(++at));
+    const { layoutRuns } = mountValidators(answer);
+    expect(quorum()).toBe("28 of 35");
+    expect(screen.getByText("Live · updates every 10 s")).toBeTruthy();
+    await pass(9999);
+    expect(answer).not.toHaveBeenCalled();
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(quorum()).toBe("29 of 35");
+    await pass(10_000);
+    expect(quorum()).toBe("30 of 35");
+    expect(layoutRuns.count).toBe(0);
+  });
+
+  describe("its clientLoader", () => {
+    const rejecting = (error: unknown) => () => Promise.reject(error);
+    const reload = (path: string, serverLoader: () => Promise<ValidatorsData>) =>
+      validators.clientLoader({ params: { net: "xrpl" }, request: REQUEST(path), serverLoader } as never);
+
+    it("reloads through the scope of the view on screen: the network and the canonical search, `xrpl/validators?scope=all` for the All scope", async () => {
+      mountValidators(async () => validatorsAt(101), validatorsAt(100, {}, "abc1234", { scope: "all" }), "/xrpl/validators?scope=all");
+      // The page of that scope is on screen, so the data it shows is what a failed load hands back...
+      expect(await reload("/xrpl/validators?scope=all", rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      // ...whatever the text of the query is, when it names the same view...
+      expect(await reload("/xrpl/validators?x=1&scope=ALL&scope=unl", rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      // ...and for no other view of the page: the UNL, a search, the other network.
+      await expect(reload("/xrpl/validators", rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload("/xrpl/validators?scope=all&q=north", rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload("/xrpl/validators?scope=all&publisher=vl.ripple.com", rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(
+        validators.clientLoader({ params: { net: "xahau" }, request: REQUEST("/xahau/validators?scope=all"), serverLoader: rejecting(new Error("503")) } as never),
+      ).rejects.toThrow("503");
+    });
+
+    it("compares nothing with another view's page: a view that is behind in the chain is not 'older'", async () => {
+      mountValidators(async () => validatorsAt(101), validatorsAt(107_000_000), "/xrpl/validators");
+      const other = validatorsAt(99, {}, "abc1234", { scope: "all" });
+      expect(await reload("/xrpl/validators?scope=all", async () => other)).toBe(other);
+    });
+
+    it("lets a redirect through, and leaves a network that does not exist to the layout's 404", async () => {
+      mountValidators(async () => validatorsAt(101));
+      const redirect = new Response(null, { status: 302, headers: { Location: "/xrpl/validators" } });
+      await expect(reload("/xrpl/validators?x=1", rejecting(redirect))).rejects.toBe(redirect);
+      const notFound = new Response(null, { status: 404 });
+      await expect(validators.clientLoader({ params: { net: "bitcoin" }, request: REQUEST("/bitcoin/validators?scope=all"), serverLoader: rejecting(notFound) } as never)).rejects.toBe(notFound);
+    });
+
+    it("has nothing to hand back once the page has left: the error screen is for the navigation that comes next", async () => {
+      const { unmount } = mountValidators(async () => validatorsAt(101));
+      unmount();
+      await expect(reload("/xrpl/validators", rejecting(new Error("503")))).rejects.toThrow("503");
+    });
+  });
+
+  it("keeps the page when a refresh is answered 503, slows down, and says so after two failures", async () => {
+    let failing = true;
+    const answer = vi.fn<Answer>(async () => {
+      if (failing) throw new Response("unavailable", { status: 503 });
+      return validatorsAt(101);
+    });
+    mountValidators(answer);
+    await pass(10_000); // the first failure: the next try is in 20 s
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(quorum()).toBe("28 of 35");
+    expect(screen.getByRole("status").textContent).toBe("");
+    await pass(20_000);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(quorum()).toBe("28 of 35");
+    expect(screen.getByRole("status").textContent).toBe("Live updates paused, retrying…");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Validators");
+
+    failing = false;
+    await pass(40_000);
+    expect(quorum()).toBe("29 of 35");
+    expect(screen.getByRole("status").textContent).toBe("Live updates reconnected");
+  });
+
+  it("keeps the list when a beat has L failed while the page shows it loaded, and takes the rest of the answer", async () => {
+    mountValidators(async () => validatorsAt(101, { list: FAILED }));
+    expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
+    await pass(10_000);
+    // The answer was taken (its quorum is on screen), and its failed list was not: the table is still there, with no error in its place.
+    expect(quorum()).toBe("29 of 35");
+    expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
+    expect(screen.getByText("northpeak.example")).toBeTruthy();
+    expect(screen.queryByText("Couldn’t load the validators.")).toBeNull();
+  });
+
+  it("keeps the overview and the amendments' filter the same way, each part on its own", async () => {
+    mountValidators(async () => validatorsAt(101, { summary: FAILED, amendments: FAILED }));
+    expect(screen.getByLabelText("Votes yes for")).toBeTruthy();
+    await pass(10_000);
+    // S and A failed in the answer: the figures and the select shown are kept, and the list (which loaded) is the answer's.
+    expect(quorum()).toBe("28 of 35");
+    expect(screen.getByLabelText("Votes yes for")).toBeTruthy();
+    expect(screen.queryByText("Couldn’t load the network overview.")).toBeNull();
+    expect(screen.queryByText("Couldn’t load the software versions.")).toBeNull();
+  });
+
+  it("shows the error of a part that was never loaded, takes it once it loads, and keeps a part that other parts' failures do not touch", async () => {
+    let at = 100;
+    const answers = [validatorsAt(101, { list: FAILED }), validatorsAt(102)];
+    mountValidators(async () => answers[at++ - 100]!, validatorsAt(100, { list: FAILED }));
+    // The page opens with its list failed: nothing loaded to keep, so the card says so, with a Retry.
+    expect(screen.getByText("Couldn’t load the validators.")).toBeTruthy();
+    expect(screen.queryByRole("table", { name: "Validators" })).toBeNull();
+    await pass(10_000);
+    expect(quorum()).toBe("29 of 35");
+    expect(screen.getByText("Couldn’t load the validators.")).toBeTruthy();
+    // The next beat has the list: it is taken.
+    await pass(10_000);
+    expect(quorum()).toBe("30 of 35");
+    expect(screen.queryByText("Couldn’t load the validators.")).toBeNull();
+    expect(screen.getByRole("table", { name: "Validators" })).toBeTruthy();
+  });
+
+  it("refuses an answer with a lower last validated ledger than the page's, and counts it as a failure", async () => {
+    const answer = vi.fn<Answer>(async () => validatorsAt(90));
+    mountValidators(answer, validatorsAt(100));
+    await pass(10_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(quorum()).toBe("28 of 35");
+    // A failure slows the next beat down to 20 s.
+    await pass(19_999);
+    expect(answer).toHaveBeenCalledTimes(1);
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(quorum()).toBe("28 of 35");
+  });
+
+  it("reloads the document, once, when the answer is of another build, and keeps the page until it does", async () => {
+    const reloadDocument = vi.spyOn(window.location, "reload").mockImplementation(() => {});
+    const answer = vi.fn<Answer>(async () => validatorsAt(101, {}, "def5678"));
+    mountValidators(answer, validatorsAt(100, {}, "abc1234"));
+    await pass(10_000);
+    expect(reloadDocument).toHaveBeenCalledTimes(1);
+    expect(quorum()).toBe("28 of 35");
+    await pass(20_000);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(reloadDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws the page of another view as a new page, keyed by its scope: a first render, which nothing on it animates", async () => {
+    const answer = vi.fn<Answer>(async (url) => validatorsAt(101, {}, "abc1234", url.search.includes("scope=all") ? { scope: "all" } : { scope: "unl" }));
+    const { router, container } = mountValidators(answer, validatorsAt(100));
+    const before = container.querySelector(".validators")!;
+    expect(before).toBeTruthy();
+
+    await act(async () => void router.navigate(validatorsHref("xrpl", { scope: "all" })));
+    await pass(0);
+    expect(answer).toHaveBeenCalledTimes(1);
+    const after = container.querySelector(".validators")!;
+    expect(after).toBeTruthy();
+    // Not the same element with other data: the page was mounted again, so its rows and figures did not 'change' on the way.
+    expect(after).not.toBe(before);
+    expect(container.querySelector(".is-entering, .is-changed")).toBeNull();
+    expect(quorum()).toBe("29 of 35");
+    // The beat that follows asks for the view on screen, and only that.
+    answer.mockClear();
+    await pass(10_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(new URL(answer.mock.calls[0]![0].href).search).toBe("?scope=all");
+  });
+
+  describe("pausing", () => {
+    it("is the tab's choice, shared with the home page: a pause there holds here", async () => {
+      sessionStorage.setItem("explorer:live-paused", "1");
+      const answer = vi.fn<Answer>(async () => validatorsAt(101));
+      mountValidators(answer);
+      expect(screen.getByRole("button", { name: "Resume live updates" })).toBeTruthy();
+      await pass(60_000);
+      expect(answer).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---- The validator page's route ---------------------------------------------------------------------------------------------------------
+
+type ValidatorData = ValidatorLiveData & { anchor: { lastValidated: number; closeTime: number }; build: string };
+
+const VALIDATOR_KEY: string = SAMPLE_KEYS[0];
+
+/**
+ * The validator page's data at ledger `index`, every part loaded, made by build `build`: its newest validation is of ledger `index - 1`, the figure that says which
+ * answer is on screen.
+ */
+function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "abc1234"): ValidatorData {
+  const page = validationsSample();
+  const [first, ...rest] = page.validations;
+  return {
+    ...validatorPage({
+      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      validator: validatorDetailSample(),
+      recent: ok({ ...page, validations: [{ ...first!, ledger_index: index - 1 }, ...rest] }),
+      summary: ok(summarySample()),
+      amendments: ok(amendmentsSample()),
+      anchor: { lastValidated: index, closeTime: 1792252452 + index },
+    }),
+    anchor: { lastValidated: index, closeTime: 1792252452 + index },
+    build,
+    ...over,
+  };
+}
+
+/** A page of the validator's older validations, behind the sample's marker. */
+const validatorHistory = (): ValidatorHistoryData =>
+  validatorHistoryPage({
+    network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+    validator: validatorDetailSample(),
+    recent: validationsSample(),
+    marker: "M1",
+    back: [],
+  });
+
+describe("net.validators.$key.tsx", () => {
+  /** The first ledger of the recent validations: which answer the page shows. */
+  const newestRow = () => within(screen.getByRole("table", { name: "Recent validations" })).getAllByRole("link")[0]!.textContent;
+  /** The status line of the live row (the copy buttons have theirs too). */
+  const liveStatus = () => document.querySelector(".hero__status [role='status']")!.textContent;
+  const REQUEST = (path: string) => new Request(`https://explorer.test${path}`);
+
+  /** The data a `.data` request for `url` is answered with. */
+  type Answer = (url: URL) => Promise<ValidatorData | ValidatorHistoryData>;
+
+  function ValidatorRoute() {
+    return createElement(validator.default, { loaderData: useLoaderData() as ValidatorData, params: useParams() as { net: string; key: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the validator as `net.validators.$key.tsx` has it, in a data router, on the data the server rendered. */
+  function mountValidator(answer: Answer, first: ValidatorData | ValidatorHistoryData = validatorAt(100), path = `/xrpl/validators/${VALIDATOR_KEY}`) {
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test" }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [
+            {
+              id: "routes/net.validators.$key",
+              path: "validators/:key",
+              loader: (args) =>
+                validator.clientLoader({ params: args.params, request: args.request, serverLoader: () => answer(new URL(args.request.url)) } as never),
+              Component: ValidatorRoute,
+            },
+          ],
+        },
+      ],
+      {
+        initialEntries: [path],
+        hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test" }, "routes/net.validators.$key": first } },
+      },
+    );
+    return { router, ...render(<RouterProvider router={router} />) };
+  }
+
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
+    expect(validator.clientLoader).toBeTypeOf("function");
+    expect(validator.default).toBeTypeOf("function");
+    expect(validator.headers).toBe(forwardCacheClass);
+    expect(validator.handle).toEqual({ navSection: "network" });
+  });
+
+  it("asks the server's loader again every ledger (4 s), and shows what it answers", async () => {
+    let at = 100;
+    const answer = vi.fn<Answer>(async () => validatorAt(++at));
+    mountValidator(answer);
+    expect(newestRow()).toBe("#99");
+    expect(screen.getByText("Live · updates every ledger")).toBeTruthy();
+    await pass(3999);
+    expect(answer).not.toHaveBeenCalled();
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(newestRow()).toBe("#100");
+    await pass(4000);
+    expect(newestRow()).toBe("#101");
+  });
+
+  it("keeps the recent validations when a beat has them failed while the page shows them loaded, and takes the rest of the answer", async () => {
+    const answer = vi.fn<Answer>(async () => validatorAt(101, { recent: { state: "failed" }, summary: { state: "failed" } }));
+    mountValidator(answer);
+    await pass(4000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    // The table is the one on screen (no error in its place), and the summary's part too: the fee votes are still compared with the fees now.
+    expect(newestRow()).toBe("#99");
+    expect(screen.queryByText("Couldn’t load the recent validations.")).toBeNull();
+    expect(screen.queryByText(/could not be loaded/)).toBeNull();
+    expect(screen.getAllByText("Same").length).toBe(3);
+  });
+
+  it("refuses an answer with a lower last validated ledger than the page's, and keeps the page when a refresh fails", async () => {
+    let failing = true;
+    const answer = vi.fn<Answer>(async () => {
+      if (failing) throw new Response("unavailable", { status: 503 });
+      return validatorAt(90);
+    });
+    mountValidator(answer);
+    await pass(4000); // a failure: the next try is in 8 s
+    expect(newestRow()).toBe("#99");
+    await pass(8000);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(liveStatus()).toBe("Live updates paused, retrying…");
+    failing = false;
+    await pass(16_000);
+    // Answered, but behind the page: not drawn.
+    expect(answer).toHaveBeenCalledTimes(3);
+    expect(newestRow()).toBe("#99");
+  });
+
+  describe("its clientLoader", () => {
+    const rejecting = (error: unknown) => () => Promise.reject(error);
+    const reload = (path: string, serverLoader: () => Promise<ValidatorData | ValidatorHistoryData>, key = VALIDATOR_KEY) =>
+      validator.clientLoader({ params: { net: "xrpl", key }, request: REQUEST(path), serverLoader } as never);
+
+    it("hands back what the page of that validator shows when a load fails, and nothing for another validator or network", async () => {
+      mountValidator(async () => validatorAt(101));
+      expect(await reload(`/xrpl/validators/${VALIDATOR_KEY}`, rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      await expect(reload(`/xrpl/validators/${SAMPLE_KEYS[1]}`, rejecting(new Error("503")), SAMPLE_KEYS[1])).rejects.toThrow("503");
+      await expect(
+        validator.clientLoader({ params: { net: "xahau", key: VALIDATOR_KEY }, request: REQUEST(`/xahau/validators/${VALIDATOR_KEY}`), serverLoader: rejecting(new Error("503")) } as never),
+      ).rejects.toThrow("503");
+    });
+
+    it("goes straight to the server's loader for a page of older validations, even with the live page of that validator on screen", async () => {
+      mountValidator(async () => validatorAt(101));
+      // Nothing is handed back and nothing compared: a marker page is history.
+      await expect(reload(`/xrpl/validators/${VALIDATOR_KEY}?marker=M1`, rejecting(new Error("503")))).rejects.toThrow("503");
+      const older = validatorHistory();
+      expect(await reload(`/xrpl/validators/${VALIDATOR_KEY}?marker=M1`, async () => older)).toBe(older);
+    });
+
+    it("lets a redirect through (a signing key, a hex key)", async () => {
+      mountValidator(async () => validatorAt(101));
+      const redirect = new Response(null, { status: 302, headers: { Location: `/xrpl/validators/${VALIDATOR_KEY}` } });
+      await expect(reload(`/xrpl/validators/${SAMPLE_SIGNING_KEYS[0]}`, rejecting(redirect), SAMPLE_SIGNING_KEYS[0])).rejects.toBe(redirect);
+    });
+  });
+
+  describe("the page of older validations", () => {
+    it("never polls, has no live row, and keeps no page for the live view", async () => {
+      const answer = vi.fn<Answer>(async () => validatorAt(101));
+      const { container } = mountValidator(answer, validatorHistory(), `/xrpl/validators/${VALIDATOR_KEY}?marker=M1`);
+      expect(screen.getByRole("table", { name: "Recent validations" })).toBeTruthy();
+      expect(container.querySelector(".hero__status-row")).toBeNull();
+      await pass(60_000);
+      expect(answer).not.toHaveBeenCalled();
+      // `onScreen` was never told of it: a failed live load of the same validator has no page to fall back on.
+      await expect(
+        validator.clientLoader({ params: { net: "xrpl", key: VALIDATOR_KEY }, request: REQUEST(`/xrpl/validators/${VALIDATOR_KEY}`), serverLoader: () => Promise.reject(new Error("503")) } as never),
+      ).rejects.toThrow("503");
+    });
+  });
+});
+
+// ---- The amendments list's route --------------------------------------------------------------------------------------------------------
+
+type AmendmentsData = AmendmentsPageData & { anchor: { lastValidated: number; closeTime: number }; build: string };
+
+/**
+ * The amendments list's data at ledger `index` for the view `status`, made by build `build`. The next flag ledger is `107,748,000 + index` ("#107,748,100" at ledger 100):
+ * the figure that says which answer is on screen.
+ */
+function amendmentsAt(index: number, status?: AmendmentStatus, build = "abc1234"): AmendmentsData {
+  return {
+    ...amendmentsPage({
+      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      amendments: amendmentsSample({ next_flag_ledger: { ledger_index: 107_748_000 + index, voting_ledger: 107_747_999 + index, expected: "2026-10-19T16:05:28Z" } }),
+      ...(status !== undefined && { status }),
+    }),
+    anchor: { lastValidated: index, closeTime: 1792256472 + index },
+    build,
+  };
+}
+
+describe("net.amendments.tsx", () => {
+  /** The flag ledger of the rules paragraph: which answer the page shows. */
+  const flagLedger = () => /Next flag ledger (#[\d,]+)/.exec(screen.getByText(/^Validators vote in the ledger before every flag ledger/).textContent ?? "")?.[1];
+  const REQUEST = (path: string) => new Request(`https://explorer.test${path}`);
+
+  /** The data a `.data` request for `url` is answered with. */
+  type Answer = (url: URL) => Promise<AmendmentsData>;
+
+  function AmendmentsRoute() {
+    return createElement(amendments.default, { loaderData: useLoaderData() as AmendmentsData, params: useParams() as { net: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the list as `net.amendments.tsx` has it, in a data router, on the data the server rendered. */
+  function mountAmendments(answer: Answer, first = amendmentsAt(100), path = "/xrpl/amendments") {
+    const layoutRuns = { count: 0 };
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [
+            {
+              id: "routes/net.amendments",
+              path: "amendments",
+              loader: (args) =>
+                amendments.clientLoader({ params: args.params, request: args.request, serverLoader: () => answer(new URL(args.request.url)) } as never),
+              Component: AmendmentsRoute,
+            },
+          ],
+        },
+      ],
+      {
+        initialEntries: [path],
+        hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test", run: 0 }, "routes/net.amendments": first } },
+      },
+    );
+    const view = render(<RouterProvider router={router} />);
+    return { router, layoutRuns, ...view };
+  }
+
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
+    expect(amendments.clientLoader).toBeTypeOf("function");
+    expect(amendments.default).toBeTypeOf("function");
+    expect(amendments.headers).toBe(forwardCacheClass);
+    expect(amendments.handle).toEqual({ navSection: "network" });
+  });
+
+  it("asks the server's loader again every minute, not every 4 or 10 s, shows what it answers, and does not ask for the layout again", async () => {
+    let at = 100;
+    const answer = vi.fn<Answer>(async () => amendmentsAt(++at));
+    const { layoutRuns } = mountAmendments(answer);
+    expect(flagLedger()).toBe("#107,748,100");
+    expect(screen.getByText("Live · updates every minute")).toBeTruthy();
+    await pass(59_999);
+    expect(answer).not.toHaveBeenCalled();
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(flagLedger()).toBe("#107,748,101");
+    await pass(60_000);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(flagLedger()).toBe("#107,748,102");
+    expect(layoutRuns.count).toBe(0);
+  });
+
+  describe("its clientLoader", () => {
+    const rejecting = (error: unknown) => () => Promise.reject(error);
+    const reload = (path: string, serverLoader: () => Promise<AmendmentsData>) =>
+      amendments.clientLoader({ params: { net: "xrpl" }, request: REQUEST(path), serverLoader } as never);
+
+    it("reloads through the scope of the view on screen: the network and the canonical status, `xrpl/amendments?status=voting` for the Voting chip", async () => {
+      mountAmendments(async () => amendmentsAt(101), amendmentsAt(100, "voting"), "/xrpl/amendments?status=voting");
+      // The page of that view is on screen, so the data it shows is what a failed load hands back...
+      expect(await reload("/xrpl/amendments?status=voting", rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      // ...whatever the text of the query is, when it names the same view...
+      expect(await reload("/xrpl/amendments?x=1&status=VOTING&status=enabled", rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      // ...and for no other view of the page: all of them, another status, the other network.
+      await expect(reload("/xrpl/amendments", rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload("/xrpl/amendments?status=enabled", rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(
+        amendments.clientLoader({ params: { net: "xahau" }, request: REQUEST("/xahau/amendments?status=voting"), serverLoader: rejecting(new Error("503")) } as never),
+      ).rejects.toThrow("503");
+    });
+
+    it("compares nothing with another view's page: a view that is behind in the chain is not 'older'", async () => {
+      mountAmendments(async () => amendmentsAt(101), amendmentsAt(107_000_000), "/xrpl/amendments");
+      const other = amendmentsAt(99, "voting");
+      expect(await reload("/xrpl/amendments?status=voting", async () => other)).toBe(other);
+    });
+
+    it("lets a redirect through, and leaves a network that does not exist to the layout's 404", async () => {
+      mountAmendments(async () => amendmentsAt(101));
+      const redirect = new Response(null, { status: 302, headers: { Location: "/xrpl/amendments" } });
+      await expect(reload("/xrpl/amendments?x=1", rejecting(redirect))).rejects.toBe(redirect);
+      const notFound = new Response(null, { status: 404 });
+      await expect(amendments.clientLoader({ params: { net: "bitcoin" }, request: REQUEST("/bitcoin/amendments?status=voting"), serverLoader: rejecting(notFound) } as never)).rejects.toBe(notFound);
+    });
+
+    it("has nothing to hand back once the page has left: the error screen is for the navigation that comes next", async () => {
+      const { unmount } = mountAmendments(async () => amendmentsAt(101));
+      unmount();
+      await expect(reload("/xrpl/amendments", rejecting(new Error("503")))).rejects.toThrow("503");
+    });
+  });
+
+  it("keeps the page when a refresh is answered 503, slows down (a minute, two, four), and says so after two failures", async () => {
+    let failing = true;
+    const answer = vi.fn<Answer>(async () => {
+      if (failing) throw new Response("unavailable", { status: 503 });
+      return amendmentsAt(101);
+    });
+    mountAmendments(answer);
+    await pass(60_000); // the first failure: the next try is in 2 minutes
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(flagLedger()).toBe("#107,748,100");
+    expect(document.querySelector(".hero__status [role='status']")!.textContent).toBe("");
+    await pass(119_999);
+    expect(answer).toHaveBeenCalledTimes(1);
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(2); // the second failure: the next try is in 4 minutes, the most
+    expect(flagLedger()).toBe("#107,748,100");
+    expect(document.querySelector(".hero__status [role='status']")!.textContent).toBe("Live updates paused, retrying…");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Amendments");
+
+    failing = false;
+    await pass(240_000);
+    expect(answer).toHaveBeenCalledTimes(3);
+    expect(flagLedger()).toBe("#107,748,101");
+    expect(document.querySelector(".hero__status [role='status']")!.textContent).toBe("Live updates reconnected");
+  });
+
+  it("refuses an answer with a lower last validated ledger than the page's, and counts it as a failure", async () => {
+    const answer = vi.fn<Answer>(async () => amendmentsAt(90));
+    mountAmendments(answer, amendmentsAt(100));
+    await pass(60_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(flagLedger()).toBe("#107,748,100");
+    // A failure slows the next beat down to 2 minutes.
+    await pass(119_999);
+    expect(answer).toHaveBeenCalledTimes(1);
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(flagLedger()).toBe("#107,748,100");
+  });
+
+  it("shows an answer as it is: the page is one part, and there is nothing to keep from the page on screen", async () => {
+    const empty: AmendmentsData = { ...amendmentsAt(101), rows: [], footer: ["0 amendments", "the tick on each bar marks 80%"] };
+    mountAmendments(async () => empty);
+    expect(within(screen.getByRole("table", { name: "Amendments" })).getAllByRole("row")).toHaveLength(6);
+    await pass(60_000);
+    expect(within(screen.getByRole("table", { name: "Amendments" })).getAllByRole("row")).toHaveLength(1);
+  });
+
+  it("reloads the document, once, when the answer is of another build, and keeps the page until it does", async () => {
+    const reloadDocument = vi.spyOn(window.location, "reload").mockImplementation(() => {});
+    const answer = vi.fn<Answer>(async () => amendmentsAt(101, undefined, "def5678"));
+    mountAmendments(answer, amendmentsAt(100, undefined, "abc1234"));
+    await pass(60_000);
+    expect(reloadDocument).toHaveBeenCalledTimes(1);
+    expect(flagLedger()).toBe("#107,748,100");
+    await pass(120_000);
+    expect(answer).toHaveBeenCalledTimes(2);
+    expect(reloadDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws the page of another view as a new page, keyed by its scope: a first render, which nothing on it animates", async () => {
+    const answer = vi.fn<Answer>(async (url) => amendmentsAt(101, url.search.includes("status=voting") ? "voting" : undefined));
+    const { router, container } = mountAmendments(answer, amendmentsAt(100));
+    const before = container.querySelector(".amendments")!;
+    expect(before).toBeTruthy();
+
+    await act(async () => void router.navigate(amendmentsHref("xrpl", { status: "voting" })));
+    await pass(0);
+    expect(answer).toHaveBeenCalledTimes(1);
+    const after = container.querySelector(".amendments")!;
+    expect(after).toBeTruthy();
+    // Not the same element with other data: the page was mounted again, so its rows did not 'enter' on the way.
+    expect(after).not.toBe(before);
+    expect(container.querySelector(".is-entering, .is-changed")).toBeNull();
+    expect(within(screen.getByRole("table", { name: "Amendments" })).getAllByRole("row")).toHaveLength(2);
+    // The beat that follows asks for the view on screen, and only that.
+    answer.mockClear();
+    await pass(60_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(new URL(answer.mock.calls[0]![0].href).search).toBe("?status=voting");
+  });
+
+  describe("pausing", () => {
+    it("is the tab's choice, shared with the home page: a pause there holds here", async () => {
+      sessionStorage.setItem("explorer:live-paused", "1");
+      const answer = vi.fn<Answer>(async () => amendmentsAt(101));
+      mountAmendments(answer);
+      expect(screen.getByRole("button", { name: "Resume live updates" })).toBeTruthy();
+      await pass(300_000);
+      expect(answer).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---- The amendment page's route ---------------------------------------------------------------------------------------------------------
+
+type AmendmentData = AmendmentPageData & { anchor: { lastValidated: number; closeTime: number }; build: string };
+
+/**
+ * The amendment page's data at ledger `index`, S loaded unless `summary` says otherwise, made by build `build`: XChainBridge with `31 + (index - 100)` yes votes of 35 ("88.6%"
+ * at ledger 100), the figure that says which answer is on screen.
+ */
+function amendmentAt(index: number, summary: Loaded<ReturnType<typeof summarySample>> = ok(summarySample()), build = "abc1234"): AmendmentData {
+  const detail = amendmentDetailSample();
+  return {
+    ...amendmentPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendment: { ...detail, votes: { ...detail.votes!, yes: 31 + (index - 100) } }, summary }),
+    anchor: { lastValidated: index, closeTime: 1792256472 + index },
+    build,
+  };
+}
+
+describe("net.amendments.$name.tsx", () => {
+  /** The yes share: which answer the page shows. */
+  const figure = () => document.querySelector(".amendment__share")!.textContent;
+  /** The head of the UNL's votes, which names the publishers of S. */
+  const head = () => document.querySelector(".amendment__count")!.textContent;
+  const REQUEST = (path: string) => new Request(`https://explorer.test${path}`);
+
+  /** The data a `.data` request for `url` is answered with. */
+  type Answer = (url: URL) => Promise<AmendmentData>;
+
+  function AmendmentRoute() {
+    return createElement(amendment.default, { loaderData: useLoaderData() as AmendmentData, params: useParams() as { net: string; name: string }, actionData: undefined, matches: [] } as never);
+  }
+
+  /** The layout as `net.tsx` has it and the amendment as `net.amendments.$name.tsx` has it, in a data router, on the data the server rendered. */
+  function mountAmendment(answer: Answer, first = amendmentAt(100), path = "/xrpl/amendments/XChainBridge") {
+    const layoutRuns = { count: 0 };
+    const router = createMemoryRouter(
+      [
+        {
+          id: "routes/net",
+          path: "/:net",
+          loader: ({ params }) => ({ network: params.net === "xahau" ? XAHAU : XRPL, origin: "https://explorer.test", run: ++layoutRuns.count }),
+          shouldRevalidate: net.shouldRevalidate,
+          Component: Outlet,
+          children: [
+            {
+              id: "routes/net.amendments.$name",
+              path: "amendments/:name",
+              loader: (args) => amendment.clientLoader({ params: args.params, request: args.request, serverLoader: () => answer(new URL(args.request.url)) } as never),
+              Component: AmendmentRoute,
+            },
+          ],
+        },
+      ],
+      {
+        initialEntries: [path],
+        hydrationData: { loaderData: { "routes/net": { network: XRPL, origin: "https://explorer.test", run: 0 }, "routes/net.amendments.$name": first } },
+      },
+    );
+    const view = render(<RouterProvider router={router} />);
+    return { router, layoutRuns, ...view };
+  }
+
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
+    expect(amendment.clientLoader).toBeTypeOf("function");
+    expect(amendment.default).toBeTypeOf("function");
+    expect(amendment.headers).toBe(forwardCacheClass);
+    expect(amendment.handle).toEqual({ navSection: "network" });
+  });
+
+  it("asks the server's loader again every minute, shows what it answers, and does not ask for the layout again", async () => {
+    let at = 100;
+    const answer = vi.fn<Answer>(async () => amendmentAt(++at));
+    const { layoutRuns } = mountAmendment(answer);
+    expect(figure()).toBe("88.6%");
+    expect(screen.getByText("Live · updates every minute")).toBeTruthy();
+    await pass(59_999);
+    expect(answer).not.toHaveBeenCalled();
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(figure()).toBe("91.4%");
+    await pass(60_000);
+    expect(figure()).toBe("94.3%");
+    expect(layoutRuns.count).toBe(0);
+  });
+
+  it("keeps S's part when a beat has it failed while the page shows it loaded, and takes the rest of the answer", async () => {
+    const answer = vi.fn<Answer>(async () => amendmentAt(101, FAILED));
+    mountAmendment(answer);
+    expect(head()).toBe("3 yes · 1 no · 1 without a recent vote, on unl.xrplf.org and vl.ripple.com");
+    await pass(60_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    // The publishers and the number of other validators seen are the ones on screen; the yes share is the answer's.
+    expect(head()).toBe("3 yes · 1 no · 1 without a recent vote, on unl.xrplf.org and vl.ripple.com");
+    expect(screen.getByText(/^Showing 2 of the 20 other validators seen/)).toBeTruthy();
+    expect(figure()).toBe("91.4%");
+  });
+
+  it("shows a beat's S as failed when the page has never had it", async () => {
+    mountAmendment(async () => amendmentAt(101, FAILED), amendmentAt(100, FAILED));
+    await pass(60_000);
+    expect(head()).toBe("3 yes · 1 no · 1 without a recent vote");
+    expect(figure()).toBe("91.4%");
+  });
+
+  it("refuses an answer with a lower last validated ledger than the page's, and slows down to 2 minutes", async () => {
+    const answer = vi.fn<Answer>(async () => amendmentAt(90));
+    mountAmendment(answer);
+    await pass(60_000);
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(figure()).toBe("88.6%");
+    await pass(119_999);
+    expect(answer).toHaveBeenCalledTimes(1);
+    await pass(1);
+    expect(answer).toHaveBeenCalledTimes(2);
+  });
+
+  describe("its clientLoader", () => {
+    const rejecting = (error: unknown) => () => Promise.reject(error);
+    const reload = (path: string, name: string, serverLoader: () => Promise<AmendmentData>, netId = "xrpl") =>
+      amendment.clientLoader({ params: { net: netId, name }, request: REQUEST(path), serverLoader } as never);
+
+    it("hands back what the page of that amendment shows when a load fails, and nothing for another amendment or network", async () => {
+      mountAmendment(async () => amendmentAt(101));
+      expect(await reload("/xrpl/amendments/XChainBridge", "XChainBridge", rejecting(new Error("503")))).toMatchObject({ anchor: { lastValidated: 100 } });
+      await expect(reload("/xrpl/amendments/AMM", "AMM", rejecting(new Error("503")))).rejects.toThrow("503");
+      await expect(reload("/xahau/amendments/XChainBridge", "XChainBridge", rejecting(new Error("503")), "xahau")).rejects.toThrow("503");
+    });
+
+    it("lets a redirect through (a case variant, an ID), and leaves a network that does not exist to the layout's 404", async () => {
+      mountAmendment(async () => amendmentAt(101));
+      const redirect = new Response(null, { status: 302, headers: { Location: "/xrpl/amendments/XChainBridge" } });
+      await expect(reload("/xrpl/amendments/xchainbridge", "xchainbridge", rejecting(redirect))).rejects.toBe(redirect);
+      const notFound = new Response(null, { status: 404 });
+      await expect(reload("/bitcoin/amendments/AMM", "AMM", rejecting(notFound), "bitcoin")).rejects.toBe(notFound);
+    });
+  });
+
+  describe("pausing", () => {
+    it("is the tab's choice, shared with the home page: a pause there holds here", async () => {
+      sessionStorage.setItem("explorer:live-paused", "1");
+      const answer = vi.fn<Answer>(async () => amendmentAt(101));
+      mountAmendment(answer);
+      expect(screen.getByRole("button", { name: "Resume live updates" })).toBeTruthy();
+      await pass(300_000);
+      expect(answer).not.toHaveBeenCalled();
+    });
   });
 });

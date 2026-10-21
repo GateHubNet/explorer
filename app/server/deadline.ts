@@ -1,6 +1,10 @@
 // The deadline of a card of the live pages (spec 1.6, step 3): a card whose call has not answered by then is `failed`, so that one slow call
-// cannot hold the whole page; and `outcome`, the settled result of one call, for the cards a page asks for only in some cases. Worker-only, with
-// no import: the loaders of the network page, the market pair page and the later live pages use it.
+// cannot hold the whole page; and `outcome`, the settled result of one call, for the cards a page asks for only in some cases. Worker-only: the
+// loaders of the network page, the market pair page and the later live pages use it, and the validators pages read what a raced call came to
+// with `partOf` and `asOutage`.
+
+import { loaded, type Loaded } from "./account-view";
+import { UpstreamError } from "./upstream";
 
 /** What a card of a live page may take, from the start of its loader: under the data API's own 5 s, so that the page is sure to have its words. */
 export const CARD_DEADLINE_MS = 4_500;
@@ -43,3 +47,16 @@ export function outcome<T>(work: Promise<T>): Promise<PromiseSettledResult<T>> {
     (reason: unknown) => ({ status: "rejected", reason }),
   );
 }
+
+/**
+ * What a card raced with `byDeadline` came to, as `Promise.allSettled` gave it, for a view builder: a call that missed the deadline (`TooLate`) has
+ * failed like one the upstream failed. What is neither is a bug, and `loaded` throws it again.
+ */
+export const partOf = <T>(result: PromiseSettledResult<T>): Loaded<T> =>
+  result.status === "rejected" && result.reason instanceof TooLate ? { state: "failed" } : loaded(result);
+
+/**
+ * A raced card's failure as `upstreamOutage` reads it, for a page that cannot be drawn without it: a call that missed the deadline is an upstream that
+ * did not answer in time (`timeout`, a 503 like the others), not a bug that `upstreamFailure` would throw again as a 500.
+ */
+export const asOutage = (reason: unknown): unknown => (reason instanceof TooLate ? new UpstreamError("timeout", reason.message, { cause: reason }) : reason);

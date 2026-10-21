@@ -4,15 +4,27 @@ import { useNavigation, useRevalidator } from "react-router";
 /** How often an open page asks for its data again, in ms: about one ledger (they close every 3-4 s). */
 export const LIVE_REFRESH_MS = 4000;
 
-/** The slowest it goes when the refreshes do not work, in ms. */
+/** The beat of the validators list, in ms: its validators and counts come from calls the edge keeps 10 s. */
+export const VALIDATORS_REFRESH_MS = 10_000;
+
+/** The beat of the amendments pages, in ms: the data API's amendment calls are kept a minute (the `minute` class). */
+export const AMENDMENTS_REFRESH_MS = 60_000;
+
+/** The slowest it goes when the refreshes do not work, in ms: for a page that beats faster than every 15 s. A slower page may go to 4 times its beat. */
 export const LIVE_REFRESH_MAX_MS = 60_000;
 
-/** The wait before the next beat after `failures` refreshes in a row did not work: 4, 8, 16, 32 s, then 60. A success starts it again from 4. */
-export function refreshInterval(failures: number): number {
-  return Math.min(LIVE_REFRESH_MS * 2 ** Math.max(0, failures), LIVE_REFRESH_MAX_MS);
+/**
+ * The wait before the next beat after `failures` refreshes in a row did not work: `everyMs`, then twice that, and so on, up to the most
+ * `max(LIVE_REFRESH_MAX_MS, 4 × everyMs)`. The home page (4 s): 4, 8, 16, 32 s, then 60. The validators list (10 s): 10, 20, 40, then 60.
+ * The amendments pages (60 s): 60, 120, then 240. A success starts it again from `everyMs`.
+ */
+export function refreshInterval(failures: number, everyMs = LIVE_REFRESH_MS): number {
+  return Math.min(everyMs * 2 ** Math.max(0, failures), Math.max(LIVE_REFRESH_MAX_MS, 4 * everyMs));
 }
 
 export interface LiveRefreshOptions {
+  /** The beat, in ms: how often the page asks again (default `LIVE_REFRESH_MS`, the home page's). The backoff starts from it (`refreshInterval`). */
+  everyMs?: number;
   /** How many refreshes in a row did not work (`OnScreen.failures`): the beat slows down with each. */
   failures?: number;
   /** The visitor paused the updates: no timer at all, and the data is asked for at once when they resume. */
@@ -22,7 +34,7 @@ export interface LiveRefreshOptions {
 }
 
 /**
- * Keeps the page's data as new as the chain: every `LIVE_REFRESH_MS` it has React Router run the route's loaders again
+ * Keeps the page's data as new as the chain: every `everyMs` (`LIVE_REFRESH_MS`, unless the page says another) it has React Router run the route's loaders again
  * (`useRevalidator().revalidate()`), which fetches the explorer's own `.data` URL for the page, never the data API, and gives the page the
  * new data (the edge cache answers most of those from a copy that is at most a few seconds old).
  *
@@ -30,18 +42,18 @@ export interface LiveRefreshOptions {
  *   once (the page may be minutes behind) and the beat goes on from there.
  * - Never two at a time, and never on top of a navigation: a beat that finds a revalidation running (`revalidator.state`) or a navigation
  *   in progress is skipped, so a slow answer is not met by another request.
- * - Slower when it does not work: `failures` refreshes in a row double the wait, up to a minute (`refreshInterval`).
+ * - Slower when it does not work: `failures` refreshes in a row double the wait, up to a minute or four beats, whichever is longer (`refreshInterval`).
  * - Not while `paused` (no timer; resuming asks at once) and not while `holding` (the beat is skipped, and letting go asks at the next one).
  * - It stops when the page is left: the timer and the listener go with the component.
  *
  * It does nothing while rendering, so the server's HTML and the first render in the browser are what they were. A revalidation that fails
  * is the route's to handle (the home route hands the page's data back, `on-screen.ts`).
  */
-export function useLiveRefresh({ failures = 0, paused = false, holding = false }: LiveRefreshOptions = {}): void {
+export function useLiveRefresh({ everyMs = LIVE_REFRESH_MS, failures = 0, paused = false, holding = false }: LiveRefreshOptions = {}): void {
   const revalidator = useRevalidator();
   const navigation = useNavigation();
   const busy = revalidator.state !== "idle" || navigation.state !== "idle";
-  const interval = refreshInterval(failures);
+  const interval = refreshInterval(failures, everyMs);
 
   // `revalidator.state` is a render behind a revalidation that has just been started, and React Router restarts one that is asked for again
   // while it runs (aborting the loads under way): what this hook started and has not seen end is kept here too.

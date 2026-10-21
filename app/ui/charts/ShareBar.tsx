@@ -1,6 +1,7 @@
 import { memo, useRef, type PointerEvent } from "react";
 
-import { formatAmount, sharePercent } from "../../domain/format";
+import { formatAmount } from "../../domain/format";
+import { sharePercent } from "../../domain/percent";
 import { cx } from "../cx";
 import { useHydrated } from "../use-hydrated";
 import { cellOf } from "./cells";
@@ -15,6 +16,8 @@ export interface ShareBarProps {
   /** The chart's name: the slider's and the summary's. */
   title: string;
   data: ShareData;
+  /** What a row's total counts, printed after it in the label column: `{ one: "validator", other: "validators" }` gives "35 validators" and "1 validator". Without it, the total is the number alone. */
+  unit?: { one: string; other: string };
 }
 
 type Row = ShareData["rows"][number];
@@ -84,10 +87,10 @@ export function shareLegend(data: ShareData): LegendItem[] {
  * plot cursor's (`useCursorState` in Cursor.tsx), so that they do not differ between forms; only the pointer is this form's own, since a
  * plot's cursor finds a bucket by its x and these segments are as wide as their values.
  *
- * Memoised on `title` and the data's `token` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the rows.
+ * Memoised on `title`, the data's `token` and the `unit` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the rows.
  */
 export const ShareBar = memo(
-  function ShareBar({ title, data }: ShareBarProps) {
+  function ShareBar({ title, data, unit }: ShareBarProps) {
     const lines = partsOf(data);
     const parts = lines.flatMap((line) => line.parts);
     const last = parts.length - 1;
@@ -144,7 +147,7 @@ export const ShareBar = memo(
                 <div key={row.id} className="share__row">
                   <span className="share__name">
                     <b>{row.label}</b>
-                    <span>{formatAmount(row.total)}</span>
+                    <span>{unit === undefined ? formatAmount(row.total) : `${formatAmount(row.total)} ${row.total === "1" ? unit.one : unit.other}`}</span>
                   </span>
                   <div className="share__track">
                     <div className="share__bar">
@@ -224,5 +227,9 @@ export const ShareBar = memo(
       </div>
     );
   },
-  (before, after) => before.title === after.title && before.data.token === after.data.token,
+  (before, after) =>
+    before.title === after.title &&
+    before.data.token === after.data.token &&
+    before.unit?.one === after.unit?.one &&
+    before.unit?.other === after.unit?.other,
 );

@@ -13,8 +13,12 @@ export interface LineChartProps {
   data: TimeSeriesData;
   /** A wash under the line, down to the baseline, for one series: the first. An area starts at 0 whatever the domain says. */
   area?: boolean;
-  /** `"step"` is step-after: level to the next bucket, then up or down to its value. */
+  /** `"step"` is step-after: level to the next bucket, then up or down to its value; a vertex only where the value changes (`linePath`). */
   curve?: "linear" | "step";
+  /** A chart of many buckets: Page Up and Page Down move its slider this many (`Cursor`). */
+  pageStep?: number;
+  /** Which bucket the plot summary names first, "Highest" (default) or "Lowest": a rate's worst day is the one that matters (`plotSummary`). */
+  extreme?: "highest" | "lowest";
 }
 
 export interface LinePlotProps extends LineChartProps {
@@ -35,7 +39,7 @@ export interface LinePlotProps extends LineChartProps {
  * threshold above the values is still on it. A value outside the domain is not clipped, and the builder's domain has to hold its values.
  * A bucket with no value in any series is a gap, and a value between two gaps is a dot (`linePath`).
  */
-export function LinePlot({ title, data, area = false, curve = "linear", panel = false }: LinePlotProps) {
+export function LinePlot({ title, data, area = false, curve = "linear", panel = false, pageStep, extreme }: LinePlotProps) {
   const { axis, format, forming = false, pending = 0 } = data;
   const count = axis.buckets.length;
 
@@ -135,7 +139,7 @@ export function LinePlot({ title, data, area = false, curve = "linear", panel = 
   return (
     <Plot
       title={title}
-      summary={plotSummary(title, data)}
+      summary={plotSummary(title, data, { extreme })}
       token={data.token}
       scale={scale}
       kind={format.kind}
@@ -145,7 +149,7 @@ export function LinePlot({ title, data, area = false, curve = "linear", panel = 
       height={panel ? "panel" : "chart"}
       empty={drawn ? null : (data.emptyText ?? emptyText(axis))}
       endLabels={endLabels}
-      cursor={{ count, placement: "points", label: sliderLabel(title, axis.unit), valueText: readOut, tooltip, crosshair: true, dots }}
+      cursor={{ count, placement: "points", label: sliderLabel(title, axis.unit), valueText: readOut, tooltip, crosshair: true, dots, pageStep }}
     >
       <svg className="lines" viewBox={`0 0 1000 ${box.height}`} preserveAspectRatio="none">
         {lines.map(({ series: s, wash }) => (wash ? <path key={s.id} className="area" data-slot={s.slot} d={wash} /> : null))}
@@ -166,13 +170,18 @@ export function LinePlot({ title, data, area = false, curve = "linear", panel = 
 }
 
 /**
- * 1 to 3 lines, or an area with its line (spec 2.11): see `LinePlot`. Memoised on `title`, `area`, `curve` and the data's `token` (spec
- * 2.9): a beat that brings the same token renders nothing.
+ * 1 to 3 lines, or an area with its line (spec 2.11): see `LinePlot`. Memoised on `title`, `area`, `curve`, `pageStep`, `extreme` and the
+ * data's `token` (spec 2.9): a beat that brings the same token renders nothing.
  */
 export const LineChart = memo(
-  function LineChart({ title, data, area, curve }: LineChartProps) {
-    return <LinePlot title={title} data={data} area={area} curve={curve} />;
+  function LineChart({ title, data, area, curve, pageStep, extreme }: LineChartProps) {
+    return <LinePlot title={title} data={data} area={area} curve={curve} pageStep={pageStep} extreme={extreme} />;
   },
   (before, after) =>
-    before.title === after.title && before.area === after.area && before.curve === after.curve && before.data.token === after.data.token,
+    before.title === after.title &&
+    before.area === after.area &&
+    before.curve === after.curve &&
+    before.pageStep === after.pageStep &&
+    before.extreme === after.extreme &&
+    before.data.token === after.data.token,
 );

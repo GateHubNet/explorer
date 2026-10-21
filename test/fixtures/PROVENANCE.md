@@ -82,6 +82,7 @@ the recordings cannot give are synthetic, and have a section of their own at the
 are synthetic ("Synthetic aggregates"), and XRPL's pair files and the pools' `amm_info` answers are derived from the recorded trades ("Derived trades and pool states").
 So are the accounts' answers for the Analytics tab (`data-api/accounts/<address>/stats/` and `.../analytics/`): synthetic, anchored to the hand-written account files ("Synthetic
 aggregates").
+The validators and amendments pages' files are synthetic too ("Synthetic validators and amendments").
 
 The account page asks the node for `account_objects` with `limit: 400` (the largest page), and a fixture is found by all the
 parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
@@ -344,3 +345,51 @@ is not what the file holds, when `validated` is anything but true or absent, whe
 one ledger, when a file is not in `fixtureText`'s layout, and when a file is in `node/book_offers/` and has no row. The six books and the rules the recorder keeps
 (`acceptAnswer`, `checkOneLedger`) are in `test/support/book-fixtures.ts`, which the recorder and the test share and the test tries without a network; this table is the
 independent pin of the pairs. `scripts/http-fixtures.test.ts` fails when the generator would write or report one of them.
+
+## Synthetic validators and amendments: `http/<net>/data-api/network/validators…` and `…/amendments…`
+
+Nothing in these files is recorded or copied. The validators and amendments pages (E6) read the six routes of D1, which the data API builds from weeks of collected
+validations, vote records, validator lists and domain checks: no recording of a few ledgers can give them, so `scripts/validators-fixtures.ts` makes them up and
+`pnpm fixtures:sync` writes them (`generate()` in `scripts/http-fixtures.ts` calls `validatorsFixtures(net, last, ledgerValidations)` for each network, after
+`networkFixtures`, with the bodies of the ledger validations that call made, in memory). The figures are invented; the shapes, the key names and orders, the sort orders and
+the rules that tie one figure to another follow the data API's reference:
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`, "Validators and amendments" | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` | the six routes' answers: keys and their order ("Keys of …, in order"), formats, D1's rules (the list's order, the summary's counts, the quorum, `needed`, `passes`, `pct`, the amendments' statuses and order, G1–G5) |
+| `apps/api/src/validators/*.ts`, `packages/shared/src/validators/consensus.ts`, `server-version.ts` | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` | read for what the reference leaves to the builders: the windows of agreement, `sfServerVersion`, the votes of `unl_votes` and `other_votes` |
+
+Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. The client's types (`app/server/api-types.ts`) and checks (`app/server/validators-shape.ts`) follow
+the same commit, and every file passes them.
+
+**Generator and seeds.** `scripts/validators-fixtures.ts`, over `scripts/synthetic.ts`: one stream `mulberry32(seedOf(net, route))` for each network and each of
+`network/validators` (the fleet: keys, domains, accounts, first sightings, manifests), `network/validators/summary` (the publishers' keys and fetch times),
+`network/validators/{key}` (the hours of agreement), `network/validators/{key}/validations` (the rows of validations) and `network/amendments` (the unknown amendment's ID,
+who votes for what, the rounds). Only integer arithmetic and the four IEEE operations are used on the numbers, BigNumber for `score` and `pct`, so every Node writes the
+same bytes. The anchor is the newest recorded ledger (`last_validated`: XRPL 107721455 at 2026-10-17T17:01:12Z, Xahau 26596843 at 17:47:11Z); a ledger closes every 3.9 s
+on XRPL and every 4 s on Xahau, E2's figures (`network-fixtures.ts`, 22,150 and 21,600 ledgers a day), so `next_flag_ledger.expected` and every date of a ledger follow
+from its index.
+
+| Files below `http/<net>/data-api/network/` | What |
+|---|---|
+| `validators/summary.json` | the summary, counted from the list: 35 trusted and 25 others seen on XRPL, 31 and 10 on Xahau; the publishers `unl.xrplf.org` and `vl.ripple.com` (XRPL), `vl.xahau.org` (Xahau), with seeded keys; the quorum by rippled's rule, `node` on XRPL only; one validator on the negative UNL, about to be re-enabled |
+| `validators@limit=1000&scope=all.json` | every validator in D1's order, a row to a line. First the validators of the ledger validations of `networkFixtures` (35 on XRPL, 25 on Xahau, in the order they were first seen, so every key the network page shows has a page), then seeded ones (`encodeNodePublic` of `0xED` and 32 bytes; signing keys `0x02`/`0x03` and 32 bytes). Each case the pages draw: a verified domain, one with `[[ACCOUNTS]]` (G1), every reason of `unverified` (spec 4.2), `pending`, no domain; on two lists, on one, on none; never seen; on the negative UNL; no vote record, a higher and a lower fee vote; an old version that lacks an amendment, a release candidate, no version, an unrecognised `server_version`, Xahau's builds; a partial newest validation; one last seen 5 hours ago, one first seen 20 minutes ago (no score yet) |
+| `validators/<KEY>.json` | each row's answer: the row, its votes on every amendment being decided (G4: the unknown one too), its manifest and its 30 days; and `<SIGNING_KEY>.json` of one validator, its master's answer (D answers a signing key) |
+| `validators/<KEY>/validations@limit=20.json` | each validator's 20 newest validations (none for the member never seen), all `matches` (the newest recorded ledger by its own hash); one validator's page has a `marker`, and its second page `…@limit=20&marker=<M>.json` holds a row of a ledger the index has a gap at (`unknown`, its newest), a fork (`different`, with the indexed hash `matches`) and a partial validation |
+| `amendments.json` | XRPL: `MPTokensV1` (majority), `DynamicNFT`, `XChainBridge`, `PermissionedDomains` (voting), an unknown ID, `DID`, `AMM` (enabled by an indexed EnableAmendment), `fix1201` (enabled, as the metadata says), `fixNFTokenNegOffer` (obsolete). Xahau: `Remit` (majority), `URIToken` (voting), `Import` (indexed), `Hooks` (metadata), `XahauGenesis` (retired), `introduced` in xahaud's date versions. IDs are SHA-512Half of the names |
+| `amendments/<NAME>.json`, `amendments/<ID>.json` | each amendment's answer, by its name and, a byte copy, by its ID (the unknown one by its ID only), with the list's envelope (G3). XRPL's majority has 30 days of rounds (about 2,600) and a got/lost/got history, the last got 10 days before the anchor, so it activates in 4; the others not enabled have 3 days of rounds (the spec's "deployment that has run three days"); a tally holds from round to round and changes at a few points only (the runs of the got/lost/got story, half-way through a majority's 3 days, a third and two thirds of a vote's climb, where the trusted count moves, and the newest round: 4 changes in the majority's 30 days, 1 to 3 in 3 days), as a deployment records them and as the spec sizes the page (6.3, 7); Xahau's majority was got before the indexed history, so it has no `majority.ledger_index` or `tx_hash` (G5) and no history |
+
+**Invented, and not checked against anything real:** every key but the given validators', every domain (`*.example`, RFC 2606: no operator is implied), the accounts of G1, the
+publishers' keys, sequences and dates; the hours of agreement and their scores; the versions and their counts; the vote records and fee votes; the amendments' statuses,
+votes, rounds, dates, ledgers, `introduced`, descriptions and `xls_url` paths (under `https://github.com/XRPLF/XRPL-Standards/`, as G2 wants), and the hashes of their
+EnableAmendment transactions and of every ledger but the recorded ones (no transaction or ledger page serves them). Where the rules leave a choice open: the files sort their
+keys as every generated fixture does (the generator builds every object in the reference's order, which the test checks); one hour of the 30 days has no final record, so
+`agreement_30d` and that day are `incomplete` for every validator (D1's `incomplete` is the window's, not the validator's); the voting amendments have 3 days of rounds while
+the majority has 30, as the spec asks, though D1 would give every amendment being decided the same rounds. Filling states (spec section 10) are overrides in the specs,
+not files. Only an end-to-end run against a real stack (`E2E_DATA_API_URL`) checks these files against real answers.
+
+**What keeps them true.** `test/unit/validators-fixtures.test.ts` works D1's rules out again from the answers (the validators' order and the summary's counts and versions, F7 for
+every round and tally, `pct`, the amendments' order, the envelope of every amendment answer, the votes against the records, the server versions decoded), checks every object's
+keys against the reference's order, runs the client's checks on every answer, and holds every case by the rules of `test/support/validators-case-rules.ts`, the ones
+`test/support/validators-cases.ts` finds a validator or an amendment of a case by for the worker specs (over the files, never by a fixed key). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
+`isValidatorsGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (239 files, about 2.7 MiB).

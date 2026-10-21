@@ -1,0 +1,104 @@
+{
+  "agreement_1h": {
+    "incomplete": false,
+    "missed": 0,
+    "partial": 0,
+    "score": "1.0000",
+    "total": 923
+  },
+  "agreement_24h": {
+    "incomplete": false,
+    "missed": 3,
+    "partial": 1,
+    "score": "0.9999",
+    "total": 22154
+  },
+  "agreement_30d": {
+    "incomplete": true,
+    "missed": 127,
+    "partial": 23,
+    "score": "0.9998",
+    "total": 663661
+  },
+  "amendment_votes": {
+    "ledger_index": 107721215,
+    "votes": [
+      {"id":"950AE2EA4654E47F04AA8739C0B214E242097E802FD372D24047A89AB1F5EC38","name":"MPTokensV1","status":"majority","vote":"yes"},
+      {"id":"C1CE18F2A268E6A849C27B3DE485006771B4C01B2FCEC4F18356FE92ECD6BB74","name":"DynamicNFT","status":"voting","vote":"yes"},
+      {"id":"C98D98EE9616ACD36E81FDEB8D41D349BF5F1B41DD64A0ABC1FE9AA5EA267E9C","name":"XChainBridge","status":"voting","vote":"no"},
+      {"id":"A730EB18A9D4BB52502C898589558B4CCEB4BE10044500EE5581137A2E80E849","name":"PermissionedDomains","status":"voting","vote":"no"},
+      {"id":"BD9C32E36FCE726661CE15DAA909411C5A2E5AA7ACB6142251E975D35DF47FDB","status":"unknown","vote":"no"}
+    ],
+    "yes": [
+      {"id":"950AE2EA4654E47F04AA8739C0B214E242097E802FD372D24047A89AB1F5EC38","name":"MPTokensV1"},
+      {"id":"C1CE18F2A268E6A849C27B3DE485006771B4C01B2FCEC4F18356FE92ECD6BB74","name":"DynamicNFT"}
+    ]
+  },
+  "current_index": 107721455,
+  "daily_agreement": [
+    {"date":"2026-09-18","incomplete":false,"missed":2,"partial":0,"score":"0.9999","total":22154},
+    {"date":"2026-09-19","incomplete":false,"missed":2,"partial":0,"score":"0.9999","total":22153},
+    {"date":"2026-09-20","incomplete":false,"missed":5,"partial":1,"score":"0.9998","total":22152},
+    {"date":"2026-09-21","incomplete":false,"missed":0,"partial":0,"score":"1.0000","total":22154},
+    {"date":"2026-09-22","incomplete":false,"missed":0,"partial":1,"score":"1.0000","total":22153},
+    {"date":"2026-09-23","incomplete":false,"missed":8,"partial":0,"score":"0.9996","total":22152},
+    {"date":"2026-09-24","incomplete":false,"missed":3,"partial":0,"score":"0.9999","total":22154},
+    {"date":"2026-09-25","incomplete":false,"missed":3,"partial":1,"score":"0.9999","total":22151},
+    {"date":"2026-09-26","incomplete":false,"missed":3,"partial":0,"score":"0.9999","total":22151},
+    {"date":"2026-09-27","incomplete":false,"missed":5,"partial":3,"score":"0.9998","total":22154},
+    {"date":"2026-09-28","incomplete":false,"missed":9,"partial":1,"score":"0.9996","total":22151},
+    {"date":"2026-09-29","incomplete":false,"missed":1,"partial":0,"score":"1.0000","total":22153},
+    {"date":"2026-09-30","incomplete":false,"missed":3,"partial":1,"score":"0.9999","total":22153},
+    {"date":"2026-10-01","incomplete":false,"missed":3,"partial":2,"score":"0.9999","total":22153},
+    {"date":"2026-10-02","incomplete":false,"missed":6,"partial":1,"score":"0.9997","total":22154},
+    {"date":"2026-10-03","incomplete":false,"missed":11,"partial":1,"score":"0.9995","total":22154},
+    {"date":"2026-10-04","incomplete":false,"missed":6,"partial":1,"score":"0.9997","total":22152},
+    {"date":"2026-10-05","incomplete":true,"missed":2,"partial":0,"score":"0.9999","total":21229},
+    {"date":"2026-10-06","incomplete":false,"missed":3,"partial":1,"score":"0.9999","total":22153},
+    {"date":"2026-10-07","incomplete":false,"missed":3,"partial":2,"score":"0.9999","total":22152},
+    {"date":"2026-10-08","incomplete":false,"missed":3,"partial":2,"score":"0.9999","total":22154},
+    {"date":"2026-10-09","incomplete":false,"missed":3,"partial":0,"score":"0.9999","total":22152},
+    {"date":"2026-10-10","incomplete":false,"missed":1,"partial":2,"score":"1.0000","total":22152},
+    {"date":"2026-10-11","incomplete":false,"missed":5,"partial":0,"score":"0.9998","total":22153},
+    {"date":"2026-10-12","incomplete":false,"missed":3,"partial":0,"score":"0.9999","total":22153},
+    {"date":"2026-10-13","incomplete":false,"missed":12,"partial":0,"score":"0.9995","total":22152},
+    {"date":"2026-10-14","incomplete":false,"missed":7,"partial":0,"score":"0.9997","total":22152},
+    {"date":"2026-10-15","incomplete":false,"missed":4,"partial":0,"score":"0.9998","total":22154},
+    {"date":"2026-10-16","incomplete":false,"missed":6,"partial":2,"score":"0.9997","total":22154},
+    {"date":"2026-10-17","incomplete":true,"missed":0,"partial":1,"score":"1.0000","total":14769}
+  ],
+  "domain": "indigonode.example",
+  "domain_verification": {
+    "checked": "2026-10-17T16:11:42.467Z",
+    "status": "verified",
+    "toml_url": "https://indigonode.example/.well-known/xrp-ledger.toml",
+    "verified": "2026-10-17T16:11:42.467Z"
+  },
+  "fee_vote": {
+    "base_fee": "0.00001",
+    "ledger_index": 107721215,
+    "reserve_base": "1",
+    "reserve_inc": "0.2"
+  },
+  "first_seen": "2025-10-12T16:35:57.250Z",
+  "last_seen": "2026-10-17T17:01:12.497Z",
+  "manifest": {
+    "domain": "indigonode.example",
+    "sequence": 3,
+    "signing_key": "n9JyKcDaTM1wZEAHpXsStZe271MTi317RC4MznWFXw5Qbnc8JBHr",
+    "signing_keys_seen": 2
+  },
+  "negative_unl": false,
+  "partial": false,
+  "result": "success",
+  "server_version": "1745992596280311808",
+  "signing_key": "n9JyKcDaTM1wZEAHpXsStZe271MTi317RC4MznWFXw5Qbnc8JBHr",
+  "unl": true,
+  "unl_lists": [
+    "unl.xrplf.org",
+    "vl.ripple.com"
+  ],
+  "validation_public_key": "nHUwCYkQ2GLNAK9TxHiVzx2oiCWeozM3qur5tGpsi3U81yoQdAE5",
+  "version": "3.4.1",
+  "version_latest": true
+}

@@ -4,7 +4,8 @@
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
 //   - the JavaScript a page loads first, gzipped, is over the page's budget (`BUDGETS`, ruling R19): 150 KB on the home, ledger, transaction,
-//     account and markets pages, 160 KB on the network and market pair pages (the route manifest is in it: see below);
+//     account and markets pages, 160 KB on the network, market pair, validators,
+//     validator, amendments and amendment pages (the route manifest is in it: see below);
 //   - the analytics view of the account page loads more than 160 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
 //     to file (each file once); or that `import()` or a file it reaches is not in the build;
@@ -27,8 +28,8 @@ import { gzipSync } from "node:zlib";
  * The two budgets, in bytes of 1000 to the KB (ruling R19, the owner's: "Keep 150 KB for home, ledger, transaction and account; raise the limit to
  * 160 KB for the network, market pair, account analytics, validators, amendments and AMM pages"). `lookup`, 150 KB: the pages a visitor opens to
  * look one thing up, and the markets list, which the owner did not name and which keeps the default. `dashboard`, 160 KB: the pages that draw the
- * network's activity in charts, and the account's analytics view. The lookup pages stand between 133.0 and 137.8 KB, the dashboards at 146.4 and
- * 146.7 KB (network the heaviest) and the view at 149.7 KB, the route manifest (about 1.2 KB) included.
+ * network's activity in charts, and the account's analytics view. The lookup pages stand between 133.6 and 139.1 KB, the dashboards between 138.6
+ * and 149.7 KB (network the heaviest) and the view at 151.3 KB, the route manifest (about 1.6 KB) included.
  */
 export const BUDGETS = { lookup: 150_000, dashboard: 160_000 } as const;
 export type BudgetName = keyof typeof BUDGETS;
@@ -42,6 +43,10 @@ export const PAGES = [
   { name: "network", route: "routes/net.network", budget: "dashboard" },
   { name: "markets", route: "routes/net.markets", budget: "lookup" },
   { name: "market-pair", route: "routes/net.markets.$base.$counter", budget: "dashboard" },
+  { name: "validators", route: "routes/net.validators", budget: "dashboard" },
+  { name: "validator", route: "routes/net.validators.$key", budget: "dashboard" },
+  { name: "amendments", route: "routes/net.amendments", budget: "dashboard" },
+  { name: "amendment", route: "routes/net.amendments.$name", budget: "dashboard" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 
 /**

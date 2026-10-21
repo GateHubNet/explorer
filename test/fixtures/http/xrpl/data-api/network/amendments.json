@@ -1,0 +1,42 @@
+{
+  "amendments": [
+    {"description":"Fungible tokens that need no trust line.","id":"950AE2EA4654E47F04AA8739C0B214E242097E802FD372D24047A89AB1F5EC38","introduced":"2.3.0","majority":{"expected_activation":"2026-10-21T17:08:46Z","ledger_index":107500033,"since":"2026-10-07T17:08:46Z","tx_hash":"3BECA0EB9A16BCD3E6E5FA449C9545D67CB720F74B801C2A22A6F2E9102E56AE"},"name":"MPTokensV1","node_supported":true,"status":"majority","votes":{"ledger_index":107721215,"needed":27,"pct":90.91,"trusted":33,"yes":30},"xls":"XLS-33","xls_url":"https://github.com/XRPLF/XRPL-Standards/tree/master/XLS-0033-multi-purpose-tokens"},
+    {"id":"C1CE18F2A268E6A849C27B3DE485006771B4C01B2FCEC4F18356FE92ECD6BB74","introduced":"3.4.0","name":"DynamicNFT","node_supported":true,"status":"voting","votes":{"ledger_index":107721215,"needed":27,"pct":60.61,"trusted":33,"yes":20},"xls":"XLS-46","xls_url":"https://github.com/XRPLF/XRPL-Standards/tree/master/XLS-0046-dynamic-non-fungible-tokens"},
+    {"id":"C98D98EE9616ACD36E81FDEB8D41D349BF5F1B41DD64A0ABC1FE9AA5EA267E9C","introduced":"2.0.0","name":"XChainBridge","node_supported":true,"status":"voting","votes":{"ledger_index":107721215,"needed":27,"pct":36.36,"trusted":33,"yes":12},"xls":"XLS-38","xls_url":"https://github.com/XRPLF/XRPL-Standards/tree/master/XLS-0038-cross-chain-bridge"},
+    {"id":"A730EB18A9D4BB52502C898589558B4CCEB4BE10044500EE5581137A2E80E849","introduced":"3.4.0","name":"PermissionedDomains","node_supported":true,"status":"voting","votes":{"ledger_index":107721215,"needed":27,"pct":15.15,"trusted":33,"yes":5},"xls":"XLS-80","xls_url":"https://github.com/XRPLF/XRPL-Standards/tree/master/XLS-0080-permissioned-domains"},
+    {"id":"BD9C32E36FCE726661CE15DAA909411C5A2E5AA7ACB6142251E975D35DF47FDB","node_supported":true,"status":"unknown","votes":{"ledger_index":107721215,"needed":27,"pct":0,"trusted":33,"yes":0}},
+    {"enabled":{"date":"2025-10-22T16:59:49Z","ledger_index":99746049,"source":"ledger","tx_hash":"5AA62988EFB1B667D84683546DE5F765F30A74E0021B7722FF31168C99FAAB73"},"id":"DB432C3A09D9D5DFC7859F39AE5FF767ABC59AED0A9FB441E83B814D8946C109","introduced":"2.0.0","name":"DID","node_supported":true,"status":"enabled","xls":"XLS-40","xls_url":"https://github.com/XRPLF/XRPL-Standards/tree/master/XLS-0040-decentralized-identity"},
+    {"description":"Automated market makers in the decentralized exchange.","enabled":{"date":"2025-03-21T16:55:58Z","ledger_index":94982913,"source":"ledger","tx_hash":"C9B5E4BCE11054462CEEF43051B94FCF71DE161D3728DA2072BC571561A6BE3D"},"id":"8CC0774A3BF66D1D22E76BBDA8E8A232E6B6313834301B3B23E8601196AE6455","introduced":"1.12.0","name":"AMM","node_supported":true,"status":"enabled","xls":"XLS-30","xls_url":"https://github.com/XRPLF/XRPL-Standards/tree/master/XLS-0030-automated-market-maker"},
+    {"enabled":{"date":"2017-11-14","source":"metadata"},"id":"B4D44CC3111ADD964E846FC57760C8B50FFCD5A82C86A72756F6B058DDDF96AD","introduced":"0.80.0","name":"fix1201","node_supported":true,"status":"enabled"},
+    {"id":"36799EA497B1369B170805C078AEFE6188345F9B3E324C21E9CA3FF574E3C3D6","introduced":"1.9.0","name":"fixNFTokenNegOffer","node_supported":true,"status":"obsolete"}
+  ],
+  "count": 9,
+  "counts": {
+    "enabled": 3,
+    "majority": 1,
+    "obsolete": 1,
+    "unknown": 1,
+    "voting": 3
+  },
+  "ledger_index": 107721455,
+  "next_flag_ledger": {
+    "expected": "2026-10-17T17:02:18Z",
+    "ledger_index": 107721472,
+    "voting_ledger": 107721471
+  },
+  "result": "success",
+  "round": {
+    "date": "2026-10-17T16:45:36Z",
+    "ledger_index": 107721215,
+    "needed": 27,
+    "observed": 34,
+    "threshold": 26,
+    "trusted": 33,
+    "unl_size": 35
+  },
+  "rules": {
+    "flag_interval": 256,
+    "majority_hold_seconds": 1209600,
+    "threshold_percent": 80
+  }
+}

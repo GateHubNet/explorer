@@ -23,7 +23,7 @@ const UNITS: Record<TimeAxis["unit"], { buckets: string[]; newest: string; headi
   month: { buckets: ["2026-09-01", "2026-10-01"], newest: "Oct 2026", oldest: "Sep 2026", heading: "Month (UTC)" },
   hour: { buckets: ["2026-10-16T16:00:00Z", "2026-10-16T17:00:00Z"], newest: "Oct 16, 2026, 17:00", oldest: "Oct 16, 2026, 16:00", heading: "Hour (UTC)" },
   minute: { buckets: ["2026-10-16T17:00:00Z", "2026-10-16T17:15:00Z"], newest: "Oct 16, 2026, 17:15", oldest: "Oct 16, 2026, 17:00", heading: "Time (UTC)" },
-  flag: { buckets: ["2026-10-15T17:01:10Z", "2026-10-16T17:01:10Z"], newest: "Oct 16, 2026, 17:01", oldest: "Oct 15, 2026, 17:01", heading: "Flag ledger (UTC)" },
+  flag: { buckets: ["2026-10-15T17:01:10Z", "2026-10-16T17:01:10Z"], newest: "Oct 16, 2026, 17:01 UTC", oldest: "Oct 15, 2026, 17:01 UTC", heading: "Flag ledger (UTC)" },
 };
 const unitNames = Object.keys(UNITS) as TimeAxis["unit"][];
 

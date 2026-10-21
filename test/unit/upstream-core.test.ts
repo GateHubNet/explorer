@@ -218,6 +218,37 @@ describe("createUpstream", () => {
     expect(await jsonOf(unknown)).toEqual({ result: "error", message: "ledger not found" });
   });
 
+  it("answers an unknown validator and amendment with the routes' own not-found messages", async () => {
+    const upstream = make();
+    const key = "nHUkKoJy83JptKcB56T38wQwjvH3EVYdcvwAfLDHwH7QBkLEv4nD";
+    for (const path of [`/v2/network/validators/${key}`, `/v2/network/validators/${key}/validations?limit=20`]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: "Validator not found" });
+    }
+    const amendment = await upstream.handle(get("/xrpl/v2/network/amendments/fixNothing"));
+    expect(amendment!.status).toBe(404);
+    expect(await jsonOf(amendment)).toEqual({ result: "error", message: "amendment not found" });
+    // A `null` override is the same "absent" answer.
+    const removed = await make({ [`GET /v2/network/validators/${key}`]: null }).handle(get(`/xrpl/v2/network/validators/${key}`));
+    expect(await jsonOf(removed)).toEqual({ result: "error", message: "Validator not found" });
+
+    // The summary, the list, the amendments and any other path below them stay D1's missing routes: `Cannot GET`, an outage.
+    for (const path of [
+      "/v2/network/validators/summary",
+      "/v2/network/validators",
+      "/v2/network/amendments",
+      "/v2/network/validators/summary/validations",
+      `/v2/network/validators/${key}/manifests`,
+      `/v2/network/validators/${key}/validations/more`,
+      "/v2/network/amendments/AMM/votes",
+    ]) {
+      const answer = await upstream.handle(get(`/xrpl${path}?limit=1`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: `Cannot GET ${path}` });
+    }
+  });
+
   it("answers 401 without the key, 404 for a method the API does not have, and never caches an error", async () => {
     const upstream = make();
     const noKey = await upstream.handle(get("/xrpl/v2/last_validated", null));

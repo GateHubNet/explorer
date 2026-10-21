@@ -43,8 +43,8 @@ afterEach(() => {
 
 // ---- The world of the tests: the page data as the view builders make it, for an index whose newest day is Oct 17, 2026 --------------
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
 type Net = typeof XRPL | typeof XAHAU;
 
 const T = "2026-10-17";

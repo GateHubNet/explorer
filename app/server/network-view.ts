@@ -5,9 +5,11 @@
 import BigNumber from "bignumber.js";
 
 import { tokenOf } from "../domain/fnv";
-import { compactNumber, formatAmount, formatCurrency, formatUtcDay, shortAddress, sharePercent } from "../domain/format";
+import { compactNumber, formatAmount, formatCurrency, formatUtcDay, shortAddress } from "../domain/format";
 import { displaysOf, type Display, type NetworkParams } from "../domain/network-params";
+import { sharePercent } from "../domain/percent";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
+import { validatorHref } from "../domain/validators-params";
 import { bucketStarts, pendingCount, utcDayOf, windowOf, type PeriodWindow } from "../domain/window";
 import type { BarListData, Delta, Series, TimeSeriesData } from "../ui/charts/types";
 import { anchorOf, type Anchor } from "./anchor";
@@ -69,7 +71,8 @@ export interface OpenLedgerView {
 export interface ValidatorsView {
   ledger: { index: number; hash: string };
   count: string;
-  first: { key: string; short: string; delay: string }[];
+  /** The five first seen; `href` is the validator's page while the `VALIDATORS` switch is on, else `null` (the key is text). */
+  first: { key: string; short: string; delay: string; href: string | null }[];
   href: string | null;
 }
 export interface MetricsView {
@@ -539,7 +542,13 @@ export function validatorsOf(ctx: ViewContext, result: NetworkInput["validators"
       ledger: { index: ledger.index, hash: ledger.hash },
       // With a next page there are more than the limit asked for.
       count: answer.marker ? `${formatAmount(String(VALIDATIONS_LIMIT))}+` : formatAmount(String(answer.validations.length)),
-      first: seen.slice(0, FIRST_SEEN).map(({ key, at }) => ({ key, short: shortKey(key), delay: `+${formatAmount(String(at - earliest))} ms` })),
+      first: seen.slice(0, FIRST_SEEN).map(({ key, at }) => ({
+        key,
+        short: shortKey(key),
+        delay: `+${formatAmount(String(at - earliest))} ms`,
+        // The answer names master keys; a signing key there would be redirected to its master by the validator's page (spec 1.2).
+        href: ctx.net.features.validators ? validatorHref(ctx.net.id, key) : null,
+      })),
       href: ctx.net.features.validators ? `/${ctx.net.id}/validators?scope=all` : null,
     };
   });
