@@ -68,7 +68,6 @@ describe("PENDING_PATHS", () => {
       ammPoolGovernance: "/v2/amm/pools/{pool}/governance",
     };
     expect(Object.fromEntries(Object.keys(expected).map((name) => [name, PENDING_PATHS[name as keyof typeof expected]]))).toEqual(expected);
-    // Each is among the values, so the two tests above cover it: absent from api/openapi.yaml, and named in the message once it arrives.
-    expect(Object.values(PENDING_PATHS)).toEqual(expect.arrayContaining(Object.values(expected)));
+    // Each is a value of PENDING_PATHS, so the two tests above cover it: absent from api/openapi.yaml, and named in the message once it arrives.
   });
 });

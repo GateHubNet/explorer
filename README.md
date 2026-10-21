@@ -37,8 +37,8 @@ are decided. To develop against a running data API, put its address in `.dev.var
 values there replace the `vars` of `wrangler.jsonc` locally.
 
 A data API on `main` has no `amm_volume` route yet, and the top level of `wrangler.jsonc` has `AMM_DATA` `"on"` (see "Switches"). Against such an API every render of the
-network page has its AMM part failed: the volume card says "AMM swaps couldn’t be loaded.", and the page is degraded and never stored. For that API put `AMM_DATA=off` in `.dev.vars`
-as well; the card then draws Payments and DEX trades only, with nothing failed.
+network page has its AMM part failed: the volume card says "AMM swaps couldn’t be loaded.", and the page is degraded and never stored. For that API put `AMM_DATA=off` and `AMM_PAGES=off` in `.dev.vars`
+as well (the AMM pages are all AMM data: `AMM_PAGES` on over `AMM_DATA` off is the combination the pre-deploy guard refuses); the card then draws Payments and DEX trades only, with nothing failed.
 
 ## Scripts
 
@@ -121,7 +121,8 @@ The conditions for turning a switch on in `staging` or `production` (by a commit
   gauges `syncer_rates_daily_missing_days` and `syncer_account_rollups_pending_accounts` are 0 there (E4 §8).
 - `AMM_PAGES` (`ammPages`, E5): the AMM pool pages. "on" at the top level (development and the tests), "off" in staging and production. It goes "on" in an environment
   once `AMM_DATA` is "on" there, `feat/amm-data` is merged into the data API's `main` and deployed to it, and the data is re-ingested from ledger 86795265 and
-  back-filled. The pre-deploy guard refuses a build that has `AMM_PAGES` "on" and `AMM_DATA` anything but "on". Rolling back is `"off"` and a deploy.
+  back-filled. The pre-deploy guard refuses a build that has `AMM_PAGES` "on" and `AMM_DATA` anything but "on". Rolling back is `"off"` and a deploy. Locally the same
+  rule holds by hand: against a data API without `feat/amm-data`, set `AMM_DATA=off` and `AMM_PAGES=off` together in `.dev.vars` (see "Getting started").
 
 **A switch is never set in the Cloudflare dashboard.** The Cloudflare Vite plugin writes the build's vars, so the next deploy would undo it.
 
