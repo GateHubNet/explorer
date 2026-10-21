@@ -3356,8 +3356,10 @@ a.markets__pair:hover .markets__name {
   overflow-wrap: anywhere;
 }
 
+/* 8 px above and below a row's content, so that a row a long figure or the issuers wrap in does not touch its borders. */
 .amm__table .table__row {
   min-height: 58px;
+  padding-block: 8px;
 }
 
 .amm__table .table__head {
@@ -3412,12 +3414,12 @@ a.markets__pair:hover .markets__name {
   font-weight: 600;
 }
 
+/* The account and the issuers wrap, at their separators first: a pool of two issued assets shows both issuers in full, never cut. */
 .amm__detail {
-  overflow: hidden;
   color: var(--faint);
   font-size: 11.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .amm__pool .tag {
@@ -3452,8 +3454,8 @@ a.markets__pair:hover .markets__name {
   font-size: 12.5px;
 }
 
-/* The pager's buttons are 44 px targets here as the form's button is (the kit's are 36 px on a desktop). */
-.amm__foot .pager .btn {
+/* The pagers of the AMM pages (the list's, and the pool page's tabs') have 44 px buttons, as the form's button is (the kit's are 36 px on a desktop). */
+.amm .pager .btn {
   min-height: 44px;
 }
 

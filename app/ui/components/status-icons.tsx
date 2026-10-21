@@ -1,10 +1,10 @@
-// The icons of the status marks of the validators and amendments pages (StatusMarks.tsx, spec 2.5), in the style of icons.tsx (24 px grid, rounded
-// strokes, aria-hidden; its `icon` helper draws them). They live apart from icons.tsx because the header imports that, and so every page loads it:
-// a page that draws these marks pays for the icons it uses, and the others pay nothing.
+// The icons of the status marks of the validators and amendments pages (StatusMarks.tsx, spec 2.5) and of the AMM pages' statuses ("Deleted", "Open"),
+// in the style of icons.tsx (24 px grid, rounded strokes, aria-hidden; its `icon` helper draws them). They live apart from icons.tsx because the
+// header imports that, and so every page loads it: a page that draws these marks pays for the icons it uses, and the others pay nothing.
 //
-// They sit in 12 px pills and quiet texts, so they are small and heavier than the chrome's; the drawings are the mock's. An icon of two shapes
-// wraps them in a `<g>`, not a fragment: a fragment's `Fragment` is read when the module loads, which the bundler keeps for an icon that nothing
-// imports (a few bytes on every page that loads the module), and a `<g>` costs nothing.
+// They sit in 12 px pills and quiet texts, so they are small and heavier than the chrome's; the drawings are the mock's (the AMM pair's are E5's).
+// An icon of two shapes wraps them in a `<g>`, not a fragment: a fragment's `Fragment` is read when the module loads, which the bundler keeps for
+// an icon that nothing imports (a few bytes on every page that loads the module), and a `<g>` costs nothing.
 
 import { icon } from "./icons";
 
@@ -59,3 +59,21 @@ export const DashIcon = icon(<path d="M6 12h12" />, { strokeWidth: 3, size: 12 }
 export const EqualsIcon = icon(<path d="M6 9.5h12M6 14.5h12" />, { strokeWidth: 3, size: 11 });
 export const ArrowUpIcon = icon(<path d="M12 19V5M6 11l6-6 6 6" />, { strokeWidth: 3, size: 11 });
 export const ArrowDownIcon = icon(<path d="M12 5v14M6 13l6 6 6-6" />, { strokeWidth: 3, size: 11 });
+// The AMM pages' two are marked pure: the bundler cannot tell that `icon()` has no side effect, and would otherwise keep both in every page that loads
+// this module for its other marks (about 60 B on the validators and amendments pages); unused, they are dropped.
+/** A pool that was deleted (the AMM pages' "Deleted" tag): a bin. */
+export const DeletedIcon = /* @__PURE__ */ icon(
+  <g>
+    <path d="M4 7h16M9 7V4h6v3" />
+    <path d="M6 7l1 13h10l1-13" />
+  </g>,
+  { strokeWidth: 2.4, size: 12 },
+);
+/** An auction slot nobody holds (the AMM pages' "Open"): an open lock. */
+export const OpenIcon = /* @__PURE__ */ icon(
+  <g>
+    <rect x="5" y="11" width="14" height="9" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 7.7-1.5" />
+  </g>,
+  { strokeWidth: 2.4, size: 12 },
+);

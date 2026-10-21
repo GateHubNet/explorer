@@ -125,8 +125,11 @@ export interface AmmRowView {
   reserves: [string, string];
   fee: string;
   volume: string;
-  /** The holder of the auction slot and the page of its account, or `Open` (or `—`) with no link. */
-  slot: { text: string; href: string | null };
+  /**
+   * The auction slot: the holder, short, and the page of its account; `Open` with no link and `open` true (a status, which the page draws with its icon); or
+   * `—`, with neither, for a slot that cannot be told (no time to compare a held slot with, or a deleted pool).
+   */
+  slot: { text: string; href: string | null; open: boolean };
   /** `#86,800,123` and the ledger, or `—` with no link. */
   created: { text: string; href: string | null };
 }
@@ -143,7 +146,8 @@ export interface AmmListPageData {
   /** The form: the asset as it is written in a URL (or what was typed, when it does not parse), whether the deleted pools are included, and the message under the field. */
   filter: { value: string; deleted: boolean; error?: string };
   totals: { state: "ok"; tiles: [AmmTile, AmmTile, AmmTile]; note: string } | (Failed & { labels: TileLabels });
-  chart: { state: "ok"; title: string; source: string; data: TimeSeriesData; note: string | null } | Failed;
+  /** A failed chart keeps its title and source line, as a failed card shows them (`ChartCard`), so the page writes neither. */
+  chart: { state: "ok"; title: string; source: string; data: TimeSeriesData; note: string | null } | (Failed & { title: string; source: string });
   pools:
     | {
         state: "ok";
@@ -156,7 +160,8 @@ export interface AmmListPageData {
         note: string | null;
         footnote: string;
       }
-    | Failed
+    /** A failed table keeps its source line, as a failed chart does. */
+    | (Failed & { source: string })
     | { state: "skipped" };
 }
 
@@ -186,12 +191,16 @@ export interface AmmListInput {
 
 // ---- The list ---------------------------------------------------------------------------------------------------------------------------------
 
-const TOTALS_WHAT = "the 24-hour volume";
+/** What the totals' `SectionError` says it could not load: "Couldn’t load the 24-hour figures." (the plan's words for the three tiles). */
+const TOTALS_WHAT = "the 24-hour figures";
 const CHART_WHAT = "the swap volume";
 const POOLS_WHAT = "the pools";
 const TILE_LABELS: TileLabels = ["Swap volume, 24 h", "Pools with swaps, 24 h", "Busiest pool, 24 h"];
-/** The pools card's note while the live set is missing, and the Volume column is `—`: what a `SectionError` says of the totals, in the same words. */
-const NO_VOLUME_NOTE = `Couldn’t load ${TOTALS_WHAT}`;
+/**
+ * The pools card's note while the live set is missing, and the Volume column is `—` (spec 2.2's words). It names the one figure of the table that is
+ * missing, where the totals' `SectionError` names the three tiles: two texts, each its own.
+ */
+const NO_VOLUME_NOTE = "Couldn’t load the 24-hour volume";
 const POOLS_SOURCE = "/v2/amm/pools · ordered by value";
 const CHART_SOURCE = "/v2/network/amm_volume?interval=day";
 /** An error message cut to what the field of the form repeats of what was typed. */
@@ -232,17 +241,19 @@ function tilesOf(net: AmmListInput["net"], row: AmmVolumeRow): [AmmTile, AmmTile
 /**
  * The auction slot cell: the holder, or `Open` (spec 2.1). A slot is open when it has no holder, or its expiration is not after `now`, the data's own (the live
  * set's `end_time`, else the close time of the newest ledger), so that a stored page does not depend on when it was drawn. Without a `now` a held slot cannot be told
- * from an expired one: `—`.
+ * from an expired one: `—`. A deleted pool has no slot to hold or bid for: `—`, whatever the index kept of it.
  */
 function slotOf(net: AmmListInput["net"], pool: AmmPool, now: number | null): AmmRowView["slot"] {
-  const open = { text: "Open", href: null };
+  const open = { text: "Open", href: null, open: true };
+  const unknown = { text: DASH, href: null, open: false };
+  if (pool.deleted) return unknown;
   const holder = pool.auction_slot?.holder;
   if (holder === undefined) return open;
-  const held = { text: shortAddress(holder), href: accountHref(net.id, holder, {}) };
+  const held = { text: shortAddress(holder), href: accountHref(net.id, holder, {}), open: false };
   const expires = pool.auction_slot?.expiration === undefined ? Number.NaN : Date.parse(pool.auction_slot.expiration);
   // The ledger sets an expiration with every holder; one that is missing leaves nothing to compare, and the slot as the index has it.
   if (Number.isNaN(expires)) return held;
-  if (now === null) return { text: DASH, href: null };
+  if (now === null) return unknown;
   return expires > now ? held : open;
 }
 
@@ -325,14 +336,16 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
   const nowAt = liveRow ? Date.parse(liveRow.end_time) : closedAt;
   const now = Number.isNaN(nowAt) ? null : nowAt;
 
-  // #1 and #4: the chart.
+  // #1 and #4: the chart. A failed one keeps its title and source line.
+  const chartTitle = `AMM swap volume per day, in ${native}, last 30 days`;
+  const failedChart = (reason: unknown): AmmListPageData["chart"] => ({ ...failed(CHART_WHAT, reason), title: chartTitle, source: CHART_SOURCE });
   let chart: AmmListPageData["chart"];
   if (input.last.status === "rejected") {
-    chart = failed(CHART_WHAT, input.last.reason);
+    chart = failedChart(input.last.reason);
   } else if (input.history === null) {
-    chart = failed(CHART_WHAT, new Error("the volume of the days was not asked for"));
+    chart = failedChart(new Error("the volume of the days was not asked for"));
   } else if (input.history.status === "rejected") {
-    chart = failed(CHART_WHAT, input.history.reason);
+    chart = failedChart(input.history.reason);
   } else {
     try {
       // E2's window and series: the 30 days up to the UTC day of the newest ledger, the running day marked "so far", a day with no row not computed yet.
@@ -359,23 +372,24 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
       };
       chart = {
         state: "ok",
-        title: `AMM swap volume per day, in ${native}, last 30 days`,
+        title: chartTitle,
         source: CHART_SOURCE,
         data: tokened(data),
         note: pendingNote(window.buckets, series.pending, window.unit),
       };
     } catch (error) {
-      chart = failed(CHART_WHAT, error);
+      chart = failedChart(error);
     }
   }
 
-  // #2: the table. An asset that does not parse asks for none.
+  // #2: the table. An asset that does not parse asks for none. A failed one keeps its source line.
   const filterAsset = asset !== null && "asset" in asset ? asset : null;
+  const failedPools = (reason: unknown): AmmListPageData["pools"] => ({ ...failed(POOLS_WHAT, reason), source: POOLS_SOURCE });
   let pools: AmmListPageData["pools"];
   if (input.pools === null) {
     pools = { state: "skipped" };
   } else if (input.pools.status === "rejected") {
-    pools = failed(POOLS_WHAT, input.pools.reason);
+    pools = failedPools(input.pools.reason);
   } else {
     try {
       const page = input.pools.value;
@@ -395,7 +409,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
           (liveRow ? ` Volume 24 h is the swap volume of the last 24 hours in ${native}, as of ${liveAsOf} UTC.` : ""),
       };
     } catch (error) {
-      pools = failed(POOLS_WHAT, error);
+      pools = failedPools(error);
     }
   }
 

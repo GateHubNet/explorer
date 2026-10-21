@@ -9,41 +9,18 @@ import { ColumnChart } from "../charts/ColumnChart";
 import { cx } from "../cx";
 import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
-import { AlertIcon, icon, SearchIcon } from "../components/icons";
+import { AlertIcon, SearchIcon } from "../components/icons";
 import { Pager } from "../components/Pager";
 import { SectionError } from "../components/SectionError";
 import { StatGrid, StatTile } from "../components/StatTile";
+import { DeletedIcon, OpenIcon } from "../components/status-icons";
 import { useRetry } from "../use-retry";
 
+/** What a tile of totals that could not be loaded shows under its label. */
 const DASH = "—";
 
 /** The list is ordered by value, not by time: its pager's words (spec 2.1). */
 const PAGER_LABELS = { newer: "Previous", older: "More pools" } as const;
-
-/**
- * The chart card's title and source line while its data could not be loaded: a card that failed keeps both (`ChartCard`), and the failed state of the
- * view builder carries only what failed. They are the words the builder writes with the data.
- */
-const chartTitle = (native: string) => `AMM swap volume per day, in ${native}, last 30 days`;
-const CHART_SOURCE = "/v2/network/amm_volume?interval=day";
-
-// A `<g>`, not a fragment, around an icon of two shapes (status-icons.tsx says why).
-/** A pool that was deleted: a bin. */
-const DeletedIcon = icon(
-  <g>
-    <path d="M4 7h16M9 7V4h6v3" />
-    <path d="M6 7l1 13h10l1-13" />
-  </g>,
-  { strokeWidth: 2.4, size: 12 },
-);
-/** An auction slot nobody holds: an open lock. */
-const OpenIcon = icon(
-  <g>
-    <rect x="5" y="11" width="14" height="9" rx="2" />
-    <path d="M8 11V7a4 4 0 0 1 7.7-1.5" />
-  </g>,
-  { strokeWidth: 2.4, size: 12 },
-);
 
 /** The first three characters of a currency's display code, in a coin (decorative: the pair says it in full). */
 const coinText = (code: string) => [...code].slice(0, 3).join("");
@@ -75,7 +52,7 @@ function PoolCell({ row }: { row: AmmRowView }) {
   );
 }
 
-/** The holder of the slot, linked; "Open", a status with its icon; or the dash of a slot that cannot be told. */
+/** The holder of the slot, linked; "Open", a status with its icon; or the dash of a slot that cannot be told (the view builder says which). */
 function SlotCell({ slot }: { slot: AmmRowView["slot"] }) {
   if (slot.href !== null) {
     return (
@@ -84,7 +61,7 @@ function SlotCell({ slot }: { slot: AmmRowView["slot"] }) {
       </Link>
     );
   }
-  if (slot.text === DASH) return <span className="muted">{DASH}</span>;
+  if (!slot.open) return <span className="muted">{slot.text}</span>;
   return (
     <span className="st st--quiet">
       <OpenIcon />
@@ -204,15 +181,17 @@ function Totals({ totals, onRetry, retrying }: { totals: AmmListPageData["totals
   );
 }
 
-/** The swap volume of the 30 days, one column a day, the running day "so far" (E2's `ColumnChart`, as the network page draws its AMM series). */
-function VolumeChart({ data, onRetry, retrying }: { data: AmmListPageData; onRetry: () => void; retrying: boolean }) {
-  const { chart } = data;
+/**
+ * The swap volume of the 30 days, one column a day, the running day "so far" (E2's `ColumnChart`, as the network page draws its AMM series). A failed card
+ * keeps the title and the source line the view builder gives it.
+ */
+function VolumeChart({ chart, onRetry, retrying }: { chart: AmmListPageData["chart"]; onRetry: () => void; retrying: boolean }) {
   const ok = chart.state === "ok" ? chart : null;
   return (
     <ChartCard
       id="amm-volume"
-      title={ok ? ok.title : chartTitle(data.native)}
-      source={ok ? ok.source : CHART_SOURCE}
+      title={chart.title}
+      source={chart.source}
       // What a failed card says it could not load; a card with its data says nothing of it.
       what={chart.state === "failed" ? chart.what : ""}
       state={chart.state}
@@ -226,12 +205,15 @@ function VolumeChart({ data, onRetry, retrying }: { data: AmmListPageData; onRet
   );
 }
 
-/** The Pools card: the table, the words under it and the pager; its `SectionError` when the pools failed. None for an asset that does not parse. */
+/**
+ * The Pools card: the source line, the table, the words under it and the pager; the source line and its `SectionError` when the pools failed. None for an
+ * asset that does not parse.
+ */
 function Pools({ data, onRetry, retrying }: { data: AmmListPageData; onRetry: () => void; retrying: boolean }) {
   const { pools } = data;
   if (pools.state === "skipped") return null;
   return (
-    <Card title="Pools" flush action={pools.state === "ok" ? <span className="chart__source">{pools.source}</span> : undefined}>
+    <Card title="Pools" flush action={<span className="chart__source">{pools.source}</span>}>
       {pools.state === "failed" ? (
         <div className="amm__failed">
           <SectionError what={pools.what} onRetry={onRetry} retrying={retrying} />
@@ -283,7 +265,7 @@ export function AmmListPage({ data }: { data: AmmListPageData }) {
       </div>
       <Filter net={data.net} filter={data.filter} />
       <Totals totals={data.totals} onRetry={retry} retrying={retrying} />
-      <VolumeChart data={data} onRetry={retry} retrying={retrying} />
+      <VolumeChart chart={data.chart} onRetry={retry} retrying={retrying} />
       <Pools data={data} onRetry={retry} retrying={retrying} />
     </div>
   );

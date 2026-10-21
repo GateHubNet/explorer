@@ -279,7 +279,8 @@ describe("AmmListPage: the totals", () => {
       ["Busiest pool, 24 h", "—"],
     ]);
     const alerts = screen.getAllByRole("alert");
-    expect(alerts.map((alert) => alert.textContent)).toEqual(["Couldn’t load the 24-hour volume.Retry"]);
+    // The tiles' words (the three figures), not the pools card's note (the one column): two texts.
+    expect(alerts.map((alert) => alert.textContent)).toEqual(["Couldn’t load the 24-hour figures.Retry"]);
     expect(screen.queryByText(/^As of/)).toBeNull();
   });
 });
@@ -358,6 +359,20 @@ describe("AmmListPage: the pools", () => {
     expect(within(tokenRow![6]!).queryByRole("link")).toBeNull();
     // The deleted pool: unknown reserves are dashes.
     expect(deletedRow![2]!.textContent).toBe("——");
+    // A deleted pool has no slot to hold or bid for: a dash, not "Open", and no status icon.
+    expect(deletedRow![5]!.textContent).toBe("—");
+    expect(deletedRow![5]!.querySelector("svg")).toBeNull();
+  });
+
+  it("draws a held slot it cannot compare with a time as a dash, with no link and no status icon", () => {
+    // Neither the live set nor the newest ledger answered: the data has no "now" to tell a held slot from an expired one.
+    mount(build({ live: rejected(new Error("503")), last: rejected(new Error("503")), history: null }));
+    const slot = cellsOf(rowsOf()[0]!)[5]!;
+    expect(slot.textContent).toBe("—");
+    expect(within(slot).queryByRole("link")).toBeNull();
+    expect(slot.querySelector("svg")).toBeNull();
+    // A slot nobody holds is Open whatever the time.
+    expect(cellsOf(rowsOf()[1]!)[5]!.textContent).toBe("Open");
   });
 
   it("tags a deleted pool with E3's tag, an icon and the word, and no other pool", () => {
@@ -401,6 +416,8 @@ describe("AmmListPage: the pools", () => {
     mount(build({ pools: rejected(new Error("503")) }));
     const card = poolsCard();
     expect(within(card).getByRole("alert").textContent).toContain("Couldn’t load the pools.");
+    // The source line stays, as a failed chart's does: the view builder gives it with the failure.
+    expect(within(card).getByText("/v2/amm/pools · ordered by value")).toBeTruthy();
     expect(within(card).queryByRole("table")).toBeNull();
     expect(within(card).queryByRole("navigation")).toBeNull();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
@@ -425,13 +442,29 @@ describe("AmmListPage: the pools", () => {
     const huge = ammPoolSample({ ...XRP_RLUSD, reserve_base: "1e+96" });
     mount(build({ pools: fulfilled(ammPoolsSample({ marker: undefined, count: 1, pools: [huge] })) }));
     const reserves = cellsOf(rowsOf()[0]!)[2]!;
+    // The rule reaches the table the page draws: its scroll region carries the class.
+    expect(reserves.closest(".table-scroll")!.classList.contains("amm__table")).toBe(true);
     expect(reserves.textContent).toContain(`${compactNumber("1e+96")} RLUSD`);
     expect(compactNumber("1e+96").length).toBeGreaterThan(90);
   });
 
+  it("wraps the account and the issuers under a pair, never cutting them, and keeps 8 px inside a row's borders", () => {
+    const css = read("../pages.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const detail = /(?:^|\})\s*\.amm__detail\s*\{([^}]*)\}/.exec(css)![1]!;
+    expect(detail).toMatch(/white-space:\s*normal/);
+    expect(detail).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(detail).not.toMatch(/text-overflow|overflow:\s*hidden|nowrap/);
+    expect(/(?:^|\})\s*\.amm__table \.table__row\s*\{([^}]*)\}/.exec(css)![1]).toMatch(/padding-block:\s*8px/);
+    // Both issuers of a pool of two issued assets are in the row, in full (short addresses, as the builder writes them).
+    mount(build());
+    expect(cellsOf(rowsOf()[2]!)[0]!.querySelector(".amm__detail")!.textContent).toBe(
+      `${shortAddress(ammPoolAccount(7))} · RLUSD ${shortAddress(RL)} · USD ${shortAddress(AMM_ISSUER)}`,
+    );
+  });
+
   it("gives the form's checkbox label and button, and the pager's buttons, 44 px targets", () => {
     const css = read("../pages.css").replace(/\/\*[\s\S]*?\*\//g, "");
-    for (const selector of [".amm__check", ".amm__submit", ".amm__foot .pager .btn"]) {
+    for (const selector of [".amm__check", ".amm__submit", ".amm .pager .btn"]) {
       const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const rule = new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css);
       expect(rule?.[1], selector).toMatch(/min-height:\s*44px/);

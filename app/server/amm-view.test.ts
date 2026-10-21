@@ -93,7 +93,9 @@ const LIVE_END = "2026-10-17T17:01:00Z";
 /** The words over the three tiles, which a failed totals card keeps; and the pools card's note while the live set is missing (a typographic apostrophe, as a `SectionError` writes it). */
 const TILE_LABELS = ["Swap volume, 24 h", "Pools with swaps, 24 h", "Busiest pool, 24 h"];
 const NO_VOLUME_NOTE = "Couldn’t load the 24-hour volume";
-const TOTALS_FAILED = { state: "failed", what: "the 24-hour volume", labels: TILE_LABELS };
+const TOTALS_FAILED = { state: "failed", what: "the 24-hour figures", labels: TILE_LABELS };
+/** A failed chart keeps its title and source line, so the page draws the card around its SectionError without words of its own. */
+const CHART_FAILED = { state: "failed", what: "the swap volume", title: "AMM swap volume per day, in XRP, last 30 days", source: "/v2/network/amm_volume?interval=day" };
 
 const XRPL: AmmListInput["net"] = { id: "xrpl", native: "XRP", features: { ...NO_FEATURES, ammPages: true, markets: true } };
 const XAHAU: Parameters<typeof noAmmPage>[0] = { id: "xahau", features: { ...NO_FEATURES, ammPages: true, markets: true } };
@@ -379,8 +381,9 @@ describe("the list: a row of the table", () => {
     const slot = (over: Partial<NonNullable<AmmPool["auction_slot"]>> | null, input: Partial<AmmListInput> = {}) =>
       rowsOf({ pools: fulfilled(ammPoolsSample({ pools: [xrpRlusd({ auction_slot: over === null ? undefined : { holder: AMM_HOLDER, ...over } })] })), ...input })[0]!.slot;
 
-    const HELD = { text: "rPT1Sj…pAYe", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe" };
-    const OPEN = { text: "Open", href: null };
+    const HELD = { text: "rPT1Sj…pAYe", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe", open: false };
+    const OPEN = { text: "Open", href: null, open: true };
+    const UNKNOWN = { text: "—", href: null, open: false };
 
     it("is the holder, short, linking its account, while the expiration is after the live set's end", () => {
       expect(slot({ expiration: "2026-10-17T17:01:01Z" })).toEqual(HELD);
@@ -414,7 +417,7 @@ describe("the list: a row of the table", () => {
 
     it("is a dash for a held slot when there is no time at all: the live set and the newest ledger both failed", () => {
       const neither = { live: rejected(new TooLate()), last: rejected(new TooLate()), history: null };
-      expect(slot({ expiration: "2026-10-17T17:01:13Z" }, neither)).toEqual({ text: "—", href: null });
+      expect(slot({ expiration: "2026-10-17T17:01:13Z" }, neither)).toEqual(UNKNOWN);
     });
 
     it("is still Open without a holder when there is no time at all: nobody holds it", () => {
@@ -424,6 +427,19 @@ describe("the list: a row of the table", () => {
 
     it("shows a holder with no expiration as the holder: the index has no time to compare", () => {
       expect(slot({})).toEqual(HELD);
+    });
+
+    it("is a dash for a deleted pool, held or not: a deleted pool has no slot to hold or bid for", () => {
+      const deleted = (auction_slot: AmmPool["auction_slot"]) =>
+        rowsOf({ pools: fulfilled(ammPoolsSample({ pools: [xrpRlusd({ deleted: true, auction_slot })] })) })[0]!.slot;
+      expect(deleted({ holder: AMM_HOLDER, expiration: "2027-01-01T00:00:00Z" })).toEqual(UNKNOWN);
+      expect(deleted({ holder: AMM_HOLDER })).toEqual(UNKNOWN);
+      expect(deleted(undefined)).toEqual(UNKNOWN);
+    });
+
+    it("says that it is open only for Open: a holder and a dash are not", () => {
+      const neither = { live: rejected(new TooLate()), last: rejected(new TooLate()), history: null };
+      expect([slot(null).open, slot({ expiration: "2027-01-01T00:00:00Z" }).open, slot({ expiration: "2027-01-01T00:00:00Z" }, neither).open]).toEqual([true, false, false]);
     });
   });
 
@@ -680,7 +696,7 @@ describe("the list: the filter and the facts of its tags", () => {
 describe("the list: what failed", () => {
   it("fails the table alone when the pools call was rejected, and says why in a problem", () => {
     const { page, problems } = ammListPage(inputOf({ pools: rejected(new TooLate()) }));
-    expect(page.pools).toEqual({ state: "failed", what: "the pools" });
+    expect(page.pools).toEqual({ state: "failed", what: "the pools", source: "/v2/amm/pools · ordered by value" });
     expect(page.totals.state).toBe("ok");
     expect(page.chart.state).toBe("ok");
     expect(problems).toEqual(["the pools: took too long"]);
@@ -692,12 +708,12 @@ describe("the list: what failed", () => {
     expect(page.chart.state).toBe("ok");
     expect(page.pools).toMatchObject({ state: "ok", note: NO_VOLUME_NOTE });
     expect(rowsOf({ live: rejected(new Error("x")) }).map((row) => row.volume)).toEqual(["—"]);
-    expect(problems).toEqual(["the 24-hour volume: data API GET /v2/network/amm_volume answered 503"]);
+    expect(problems).toEqual(["the 24-hour figures: data API GET /v2/network/amm_volume answered 503"]);
   });
 
   it("fails the chart alone when the newest ledger was rejected, whatever history is", () => {
     const { page, problems } = ammListPage(inputOf({ last: rejected(new TooLate()), history: null }));
-    expect(page.chart).toEqual({ state: "failed", what: "the swap volume" });
+    expect(page.chart).toEqual(CHART_FAILED);
     expect(page.totals.state).toBe("ok");
     expect(page.pools.state).toBe("ok");
     expect(problems).toEqual(["the swap volume: took too long"]);
@@ -705,14 +721,14 @@ describe("the list: what failed", () => {
 
   it("fails the chart alone when the history was rejected", () => {
     const { page, problems } = ammListPage(inputOf({ history: rejected(new TooLate()) }));
-    expect(page.chart).toEqual({ state: "failed", what: "the swap volume" });
+    expect(page.chart).toEqual(CHART_FAILED);
     expect(page.totals.state).toBe("ok");
     expect(problems).toEqual(["the swap volume: took too long"]);
   });
 
   it("fails the chart when the newest ledger has a close time no day can be worked out of, and says so without throwing", () => {
     const { page, problems } = ammListPage(inputOf({ last: fulfilled({ ...LAST, close_time: "yesterday" }) }));
-    expect(page.chart).toEqual({ state: "failed", what: "the swap volume" });
+    expect(page.chart).toEqual(CHART_FAILED);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(/^the swap volume: /);
   });
@@ -728,14 +744,14 @@ describe("the list: what failed", () => {
     const empty: Page<"rows", AmmVolumeRow> = { result: "success", count: 0, rows: [] };
     const { page, problems } = ammListPage(inputOf({ live: fulfilled(empty) }));
     expect(page.totals).toEqual(TOTALS_FAILED);
-    expect(problems).toEqual(["the 24-hour volume: the data API answered no row"]);
+    expect(problems).toEqual(["the 24-hour figures: the data API answered no row"]);
   });
 
   describe("an answer that is not what the data API promises is a failed card, never a throw", () => {
     /** A pool whose slot is held until just after the newest ledger closed (17:01:12): held by the ledger's close time, as the live set is not there. */
     const held = (over: Partial<AmmListInput> = {}) =>
       rowsOf({ pools: fulfilled(ammPoolsSample({ pools: [xrpRlusd({ auction_slot: { holder: AMM_HOLDER, expiration: "2026-10-17T17:01:13Z" } })] })), ...over })[0]!;
-    const HELD = { text: "rPT1Sj…pAYe", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe" };
+    const HELD = { text: "rPT1Sj…pAYe", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe", open: false };
 
     it.each([
       ["has no rows at all", { result: "success", count: 0 }],
@@ -750,7 +766,7 @@ describe("the list: what failed", () => {
       expect(page.pools).toMatchObject({ state: "ok", note: NO_VOLUME_NOTE });
       expect(page.chart.state).toBe("ok");
       expect(problems).toHaveLength(1);
-      expect(problems[0]).toMatch(/^the 24-hour volume: /);
+      expect(problems[0]).toMatch(/^the 24-hour figures: /);
       // No live set: the Volume column is a dash, and the slot is read against the newest ledger's close time.
       const row = held({ live });
       expect(row.volume).toBe("—");
@@ -763,7 +779,7 @@ describe("the list: what failed", () => {
     ])("fails the chart when the newest ledger %s, and the rest stands with the live set's time", (_what, answer) => {
       const last = fulfilled(answer as unknown as LastValidated);
       const { page, problems } = ammListPage(inputOf({ last }));
-      expect(page.chart).toEqual({ state: "failed", what: "the swap volume" });
+      expect(page.chart).toEqual(CHART_FAILED);
       expect(page.totals.state).toBe("ok");
       expect(problems).toHaveLength(1);
       expect(problems[0]).toMatch(/^the swap volume: /);
@@ -774,14 +790,14 @@ describe("the list: what failed", () => {
     it("has no time at all when the newest ledger and the live set both failed, and still stands", () => {
       const neither = { last: rejected(new TooLate()), live: rejected(new TooLate()), history: null };
       const { page, problems } = ammListPage(inputOf(neither));
-      expect(page).toMatchObject({ kind: "list", totals: TOTALS_FAILED, chart: { state: "failed", what: "the swap volume" }, pools: { state: "ok", note: NO_VOLUME_NOTE } });
-      expect(problems).toEqual(["the 24-hour volume: took too long", "the swap volume: took too long"]);
-      expect(held(neither)).toMatchObject({ volume: "—", slot: { text: "—", href: null } });
+      expect(page).toMatchObject({ kind: "list", totals: TOTALS_FAILED, chart: CHART_FAILED, pools: { state: "ok", note: NO_VOLUME_NOTE } });
+      expect(problems).toEqual(["the 24-hour figures: took too long", "the swap volume: took too long"]);
+      expect(held(neither)).toMatchObject({ volume: "—", slot: { text: "—", href: null, open: false } });
     });
 
     it("has no time at all when the live set failed and the newest ledger is null, and still stands", () => {
       const neither = { last: fulfilled(null as unknown as LastValidated), live: rejected(new TooLate()), history: null };
-      expect(held(neither).slot).toEqual({ text: "—", href: null });
+      expect(held(neither).slot).toEqual({ text: "—", href: null, open: false });
       expect(ammListPage(inputOf(neither)).page.pools.state).toBe("ok");
     });
   });
@@ -790,7 +806,7 @@ describe("the list: what failed", () => {
     const everything = ammListPage(
       inputOf({ pools: rejected(new TooLate()), live: rejected(new TooLate()), last: rejected(new TooLate()), history: null }),
     );
-    expect(everything.problems).toEqual(["the 24-hour volume: took too long", "the swap volume: took too long", "the pools: took too long"]);
+    expect(everything.problems).toEqual(["the 24-hour figures: took too long", "the swap volume: took too long", "the pools: took too long"]);
     expect(everything.page).toMatchObject({
       kind: "list",
       totals: { state: "failed" },
