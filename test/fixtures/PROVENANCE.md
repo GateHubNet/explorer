@@ -461,8 +461,8 @@ closed at 17:01:12Z), in the pages' windows (E2's `windowOf`: the 30 and 90 days
   (SNK/XRP, 2025-11-11). A day is active or quiet (no row) by a draw; the creation, the deletion, T, each day of a recorded liquidity event and XRP/RLUSD's 2026-10-10 are
   active. An active day's swaps, drawn once, make its row and its candle. Each swap is at the pool's closing price of the day (counter per base, 8 significant digits; on
   the day a withdrawal emptied the pool, the price just before it), and its native leg is above the 0.0005 the aggregates leave out. The row has the swaps' count, what went
-  into the pool by side, each side's estimate (volume × `trading_fee` / 100000, exact; neither on XRP/RLUSD's 2026-10-10, whose swaps had no known fee, the spec's one day
-  without an estimate), the day's recorded liquidity events of the pool (a creation counts as a deposit), and the closing reserves, `lp_supply`, `trading_fee` and
+  into the pool by side, each side's estimate (volume × `trading_fee` / 100000, exact; neither on XRP/RLUSD's 2026-10-10, a synthetic day made for the spec's one day
+  without an estimate: see "differs" below), the day's recorded liquidity events of the pool (a creation counts as a deposit), and the closing reserves, `lp_supply`, `trading_fee` and
   `value_native` (2 × the native reserve, `valueText`; none for USDC/RLUSD, nor on the day of the deletion, which closes in the deleted pool's state). The day before closes
   with the day's swaps and liquidity taken back, so the last day closes in the derived state (T for a live pool: the day so far) and every earlier day follows from it. A
   draw steers that walk: the base reserve of each day before is pulled towards a triangle wave below the derived one, so the price moves and the reserves stay positive.
@@ -470,7 +470,8 @@ closed at 17:01:12Z), in the pages' windows (E2's `windowOf`: the 30 and 90 days
   USDC/RLUSD 213, XRP/USD 274, DVR/XRP 5, SNK/XRP 26.
 - **The live set**, `network/amm_volume@live=day.json`, drawn from `mulberry32(seedOf("xrpl", "amm_volume", "live"))`, a pool at a time in account order: the rolling day
   from 2026-10-16T17:01:00Z to 2026-10-17T17:01:00Z (the aggregator's minute), a component for each of the 50 live pools with the native currency but VOX/XRP (the pages'
-  pool without swaps); the issued-only pools (USDC/RLUSD among them) have none. A component's native volume is a share of the pool's native reserve, its base volume that at
+  pool without swaps); the issued-only pools (USDC/RLUSD among them) have none, a synthetic choice so that the list has a pool whose 24-hour volume is "—" (see "differs"
+  below). A component's native volume is a share of the pool's native reserve, its base volume that at
   the pool's price (a draw for the one pool whose other reserve the recordings do not hold), 1,534 swaps and 893,025.375 XRP in all.
 
 Which files (P2 of E5 scopes them: the 1.3 MiB of every period of every pool would not fit a reviewable budget):
@@ -494,13 +495,17 @@ Which files (P2 of E5 scopes them: the 1.3 MiB of every period of every pool wou
 | | Repository, ref | Commit | For |
 |---|---|---|---|
 | `docs/api-reference.md` ("AMM": `/history?interval=day`; `/v2/network/amm_volume`; `/v2/exchanges/{base}/{counter}`, "Candles") | `data-api-new`, `feat/amm-data` | `c3e23026b3405fc2fd27fc897e724df4dfe106f1` | the PoolDay and its key order, the window of the days (a day whose start is within `start` and `end`), the live row and its AMM component |
-| `packages/shared/src/aggregate/amm-daily.job.ts` | same | same | a day's figures: what went in by side, the estimates (input × fee / 100000, left out when a swap into the side had no known fee, `"0"` when none went in), the liquidity flows (a creation a deposit, a clawback a withdrawal, a deletion neither), the closing state and its value |
+| `packages/shared/src/aggregate/amm-daily.job.ts` | same | same | a day's figures: what went in by side, the estimates (input × fee / 100000, left out when a swap into the side had no known fee, which happens only before the pool's first known fee, `"0"` when none went in), the liquidity flows (a creation a deposit, a clawback a withdrawal, a deletion neither), the closing state and its value |
 | `apps/api/src/amm/amm-pools.service.ts` (`days`); `apps/api/src/common/pagination.ts` | same | same | the days' marker: the start of the last day of a page, unix seconds (`encodeMarker`), when the page is not the last |
 | `apps/api/src/network/volume-object.ts`; `apps/api/src/network/volume.service.ts` (`live`) | same | same | the live row (`components, count, exchange, total, exchange_rate, start_time, end_time`) and its AMM component (`amm_account, base, counter, count, amount, rate, converted_amount`), sorted by converted amount then account; `rate` amount / converted at 8 digits |
 | `scripts/market-aggregates.ts` (`candlesOf`, E3's port; "Derived trades and pool states" names its commits) | this repository | | the candles from the swaps: open and close, high and low, exact sums, `buy_volume` the base the takers bought, buckets from `start`, weeks from Monday |
 
 Where the synthetic part differs from what the API would serve for real pools: the fee never changes and no taker holds the auction slot, so an estimate is the volume ×
-the fee; every swap of a day is at the day's closing price, so a candle's prices are within the rounding of its amounts of one another; the series do not hold the pools'
+the fee; XRP/RLUSD's 2026-10-10 has neither estimate in the middle of a series with estimates around it, which the API cannot serve (amm-daily.job.ts leaves an estimate
+out only for a swap with no known fee, so only before the pool's first known fee): a synthetic day, made for the spec's one day without an estimate; the live set has no
+component for USDC/RLUSD or the other issued-only pools, a synthetic choice for the list's "—" case, where the API would list USDC/RLUSD converted through RLUSD, whose
+rate the XRP/RLUSD market and pool give (it leaves out only a pool with no rate on either side); every swap of a day is at the day's closing price, so a candle's prices
+are within the rounding of its amounts of one another; the series do not hold the pools'
 recorded swaps (the Swaps tabs list those) and are not E3's derived XRP/RLUSD trades and candles (P33: each page is checked against its own fixtures); the live set is
 drawn apart from the series; its converted amounts are whole 64ths of a coin, so that the API's sum of doubles (`String(total)`) is exact; and SNK/XRP's dust reserves (the
 0.0000851206393053295 SNK and 0.021974 XRP its last withdrawal took) give base estimates in BigNumber's exponent form (`1.250946e-8`), as the API writes such a sum.

@@ -232,9 +232,14 @@ export function dataApiLastValidated(raw: RawLedger): LastValidated {
   };
 }
 
+/** A data API page's marker (`encodeMarker` of the reference's `common/pagination.ts`): the base64url of the JSON array of its last row's key values. */
+export function encodeMarker(values: readonly unknown[]): string {
+  return Buffer.from(JSON.stringify(values)).toString("base64url");
+}
+
 /** The marker of a list that continues after a transaction: the base64url of `[ledger_index, tx_index]`. */
 export function txMarker(ledgerIndex: number, txIndex: number): string {
-  return Buffer.from(JSON.stringify([ledgerIndex, txIndex])).toString("base64url");
+  return encodeMarker([ledgerIndex, txIndex]);
 }
 
 /** A row of `/v2/network/fees` (`interval=ledger`): the fees the transactions of a ledger paid, in whole native units. */

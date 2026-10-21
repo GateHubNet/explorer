@@ -33,7 +33,7 @@ import type { Asset } from "../app/domain/asset";
 import { candleWindow, type Interval } from "../app/domain/market-params";
 import type { ActiveAccount, ActiveAccounts, ActiveAccountSide, AmmFilter, Candle, MarketRow, MarketsResponse, Page, PairExchange, ReducedRow } from "../app/server/api-types";
 import type { NetworkName } from "../test/support/upstream-core";
-import { isoTime } from "./http-fixtures";
+import { encodeMarker, isoTime } from "./http-fixtures";
 
 // ---- Numbers ---------------------------------------------------------------------------------------------------------
 
@@ -46,7 +46,7 @@ const Percent = BigNumber.clone({ DECIMAL_PLACES: 2, ROUNDING_MODE: BigNumber.RO
 
 const ratio = (a: BigNumber.Value, b: BigNumber.Value): BigNumber => new Api(new Wide(a).dividedBy(b));
 /** A rate, a price or a vwap as the API writes it: 8 significant digits (`precision8`). */
-const precision8 = (value: BigNumber.Value): string => new Api(value).toPrecision(8);
+export const precision8 = (value: BigNumber.Value): string => new Api(value).toPrecision(8);
 const ZERO_PRICE = precision8(0);
 /** The significant digits of a native volume worked out by a rate (`QUOTIENT_DIGITS`). */
 const QUOTIENT_DIGITS = 17;
@@ -111,7 +111,8 @@ export interface Fill {
 }
 
 const DUST = new Api("0.0005");
-const isNative = (asset: Asset, native: string): boolean => asset.issuer === undefined && asset.currency === native;
+/** The network's native currency (`native` its code): no issuer. */
+export const isNative = (asset: Asset, native: string): boolean => asset.issuer === undefined && asset.currency === native;
 export const baseOf = (row: PairExchange): Asset => sideOf(row.base_currency, row.base_issuer);
 export const counterOf = (row: PairExchange): Asset => sideOf(row.counter_currency, row.counter_issuer);
 export function sideOf(currency: string, issuer: string | undefined): Asset {
@@ -141,8 +142,6 @@ export const compareKey = (a: readonly number[], b: readonly number[]): number =
 };
 export const byKey = (a: { key: readonly number[] }, b: { key: readonly number[] }): number => compareKey(a.key, b.key);
 export const rowKey = (row: PairExchange): [number, number, number] => [row.ledger_index, row.tx_index, row.node_index];
-/** The marker of a page: the base64url of the JSON of the key of its last row (`encodeMarker` of the reference). */
-const markerOf = (values: readonly number[]): string => Buffer.from(JSON.stringify(values)).toString("base64url");
 
 /** A Trades filter as the API reads `amm`, or none (`include`, the default). */
 export type Filter = AmmFilter | undefined;
@@ -204,7 +203,7 @@ export function listPages(rows: readonly PairExchange[], limit: number): Array<{
   let marker: string | undefined;
   for (let at = 0; at === 0 || at < newest.length; at += limit) {
     const exchanges = newest.slice(at, at + limit);
-    const next = at + limit < newest.length ? markerOf(rowKey(exchanges.at(-1)!)) : undefined;
+    const next = at + limit < newest.length ? encodeMarker(rowKey(exchanges.at(-1)!)) : undefined;
     pages.push({ ...(marker !== undefined && { marker }), page: { result: "success", count: exchanges.length, ...(next !== undefined && { marker: next }), exchanges } });
     marker = next;
   }
@@ -243,7 +242,7 @@ export function candlesOf(fills: readonly Fill[], interval: Interval, start: str
       ...pairFields(base, counter),
     };
   });
-  const marker = all.length > limit ? markerOf([Date.parse(shown.at(-1)![0]) / 1000]) : undefined;
+  const marker = all.length > limit ? encodeMarker([Date.parse(shown.at(-1)![0]) / 1000]) : undefined;
   return { result: "success", count: exchanges.length, ...(marker !== undefined && { marker }), exchanges };
 }
 

@@ -95,6 +95,12 @@ const rippleIso = (seconds: number): string => new Date((seconds + RIPPLE_EPOCH)
 type NodeSlot = { Account?: string; Price?: { value: string }; DiscountedFee?: number; Expiration?: number; AuthAccounts?: Array<{ AuthAccount: { Account: string } }> };
 type LpBalance = { currency: string; value: string } | undefined;
 const swaps = derivedExchanges(xrpl).filter((row): row is AmmSwap => row.amm_account !== undefined);
+/**
+ * The generators' output, drawn once for the whole file: every generated file (`generate()`), and the AMM pages' (`ammFixtures()`). That a second run writes
+ * the same text is scripts/http-fixtures.test.ts's case of two runs.
+ */
+const generated = generate();
+const ammFiles = ammFixtures();
 const poolOf = (account: string): AmmPool => {
   const pool = derived.pools.find((p) => p.amm_account === account);
   if (pool === undefined) throw new Error(`${account}: not a derived pool`);
@@ -551,11 +557,11 @@ describe("the reference's rules, on the objects before serialization", () => {
 });
 
 describe("the files", () => {
-  const files = ammFixtures();
+  const files = ammFiles;
   const live = derived.pools.filter((pool) => !pool.deleted).sort(listOrder);
 
   it("are named by isAmmGenerated, which is true of no other generated file, and are on disk", () => {
-    expect([...generate().keys()].filter(isAmmGenerated).sort()).toEqual([...files.keys()].sort());
+    expect([...generated.keys()].filter(isAmmGenerated).sort()).toEqual([...files.keys()].sort());
     const onDisk = readdirSync(HTTP, { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => `${entry.parentPath.slice(HTTP.pathname.length)}/${entry.name}`.replace(/^\//, ""))
@@ -578,15 +584,15 @@ describe("the files", () => {
       expect([isSynthetic(path), isMarketGenerated(path)], path).toEqual([false, false]);
     }
     // E3's `amm=only` files of the pair page (no `end`) and E2's 30-day `amm_volume` files stay theirs: the real names the generator writes.
-    const generated = [...generate().keys()];
-    const amm = generated.filter((path) => /\/exchanges\/.*@amm=only&/.test(path));
+    const names = [...generated.keys()];
+    const amm = names.filter((path) => /\/exchanges\/.*@amm=only&/.test(path));
     const [mine, theirs] = [amm.filter((path) => /@amm=only&end=/.test(path)), amm.filter((path) => !/@amm=only&end=/.test(path))];
     expect(theirs).toContain(`xrpl/data-api/exchanges/XRP/524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De@amm=only&interval=1day&limit=61&start=2026-08-19T00:00:00Z.json`);
     for (const path of theirs) expect([isAmmGenerated(path), isMarketGenerated(path)], path).toEqual([false, true]);
     expect(mine).toEqual(expect.arrayContaining(ours.slice(0, 3)));
     for (const path of mine) expect([isAmmGenerated(path), isMarketGenerated(path)], path).toEqual([true, false]);
     // E2's historical files are the `amm_volume@end=…` ones; the one live set beside them is ours.
-    const volumes = generated.filter((path) => path.startsWith("xrpl/data-api/network/amm_volume@"));
+    const volumes = names.filter((path) => path.startsWith("xrpl/data-api/network/amm_volume@"));
     const historical = volumes.filter((path) => path.startsWith("xrpl/data-api/network/amm_volume@end="));
     expect(historical).toContain("xrpl/data-api/network/amm_volume@end=2026-10-17&interval=day&limit=1000&start=2026-09-18.json");
     expect(historical).toHaveLength(8);
@@ -742,7 +748,6 @@ describe("the files", () => {
 describe("the featured pools' amm_info (AMM_INFO_POOLS)", () => {
   it("are XRP/RLUSD (E3's) and USDC/RLUSD, XRP/USD and DVR/XRP, each in its natural orientation; VOX/XRP has none (only its vote is recorded)", () => {
     expect(AMM_INFO_POOLS.map((entry) => entry.pool)).toEqual([FEATURED_POOLS["XRP/RLUSD"], FEATURED_POOLS["USDC/RLUSD"], FEATURED_POOLS["XRP/USD"], FEATURED_POOLS["DVR/XRP"]]);
-    const generated = generate();
     for (const entry of AMM_INFO_POOLS) {
       const pool = poolOf(entry.pool);
       const { base, counter } = naturalOrientation(baseOf(pool), counterOf(pool), NATIVE);
@@ -827,7 +832,7 @@ describe("the synthetic day rows, candles and live volume", () => {
   const precision8 = (value: BigNumber.Value): string => new BigNumber(value).toPrecision(8);
   const sum = (values: readonly BigNumber.Value[]): BigNumber => values.reduce<BigNumber>((total, value) => total.plus(value), new BigNumber(0));
 
-  const files = ammFixtures();
+  const files = ammFiles;
   const series = ammSeries(xrpl);
   const seriesOf = (name: Name) => {
     const found = series.find((one) => one.name === name);
@@ -881,7 +886,7 @@ describe("the synthetic day rows, candles and live volume", () => {
     expect(series.map((one) => one.name).sort()).toEqual([...NAMES].sort());
   });
 
-  it("hold one series per pool, the same on every run: days from 2025-10-01 or its creation to T or its deletion, oldest first, each once, quiet days without a row", () => {
+  it("hold one series per pool: days from 2025-10-01 or its creation to T or its deletion, oldest first, each once, quiet days without a row", () => {
     for (const name of NAMES) {
       const { pool, days } = seriesOf(name);
       expect(pool).toEqual(poolOf(accountOf(name)));
@@ -900,7 +905,6 @@ describe("the synthetic day rows, candles and live volume", () => {
       const span = (secondsOf(T) - secondsOf(WINDOWS[period].start)) / 86_400 + 1;
       expect(daysPage(windowFile("XRP/RLUSD", period)).days.length, period).toBeLessThan(span);
     }
-    expect(ammSeries(xrpl)).toEqual(series);
   });
 
   it("hold in each window the rows whose day is from its start to T, oldest first, within the limit; the 30 days the 90 days' last rows, the 90 days the year's", () => {
@@ -1194,7 +1198,11 @@ describe("the synthetic day rows, candles and live volume", () => {
     expect(row.count).toBe(row.components.reduce((total, component) => total + component.count, 0));
   });
 
-  it("have the reference's key orders in the objects before serialization, the amounts as the API writes them, and are the files", () => {
+  it("have the reference's key orders in the objects before serialization, a day's sums as BigNumber's toString (plain, or the exponent form below 1e-6), and are the files", () => {
+    // amm-daily.job.ts writes a day's sums with `toString()` of a BigNumber of the default configuration: the exponent form below 1e-6 and from 1e21.
+    const ApiNumber = BigNumber.clone({ EXPONENTIAL_AT: [-7, 20] });
+    const SUMS = ["volume_base", "volume_counter", "fees_base_est", "fees_counter_est", "liquidity_in_base", "liquidity_in_counter", "liquidity_out_base", "liquidity_out_counter"] as const;
+    let sums = 0;
     const answers = ammSynthetic(xrpl);
     expect(answers.length).toBe([...files.keys()].filter((path) => /\/history@/.test(path) || !path.startsWith("xrpl/data-api/amm/")).length);
     for (const { path, query, value } of answers) {
@@ -1205,6 +1213,12 @@ describe("the synthetic day rows, candles and live volume", () => {
         for (const row of body.days as AmmPoolDay[]) {
           expect(Object.keys(row), where).toEqual(ordered(row, DAY_KEYS));
           for (const key of ["reserve_base", "reserve_counter", "lp_supply"] as const) expect(row[key], `${where} ${key}`).toMatch(UNSIGNED);
+          for (const key of SUMS) {
+            const text = row[key];
+            if (text === undefined) continue;
+            expect(text, `${where} ${row.date} ${key}`).toBe(new ApiNumber(text).toString());
+            sums++;
+          }
           for (const key of ["swap_count", "deposit_count", "withdraw_count", "trading_fee"] as const) expect(isWhole(row[key]), `${where} ${key}`).toBe(true);
         }
       } else if (Array.isArray(body.exchanges)) {
@@ -1222,6 +1236,11 @@ describe("the synthetic day rows, candles and live volume", () => {
       }
       expect(JSON.parse(files.get(file(path, query))!), where).toEqual(value);
     }
+    expect(sums).toBeGreaterThan(4000);
+    // SNK/XRP's dust: the base estimate of its deletion day is below 1e-6, in the exponent form, as the API writes it.
+    const deletion = seriesOf("SNK/XRP").days.at(-1)!;
+    expect([deletion.date, deletion.fees_base_est]).toEqual(["2025-11-11T00:00:00Z", "1.250946e-8"]);
+    expect(daysPage(carryFile("SNK/XRP", "30d")).days[0]!.fees_base_est).toBe("1.250946e-8");
   });
 });
 

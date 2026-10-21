@@ -26,6 +26,7 @@ import type { IssuedAmount } from "../app/domain/parse/types";
 import type { AmmAuctionSlot, AmmBid, AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmVote } from "../app/server/api-types";
 import { NATIVE } from "./derived-trades";
 import { inLedgerOrder, isoTime, unixOf, type RawLedger, type RawTx } from "./http-fixtures";
+import { isNative } from "./market-aggregates";
 
 /** A pool's state after one transaction (`GET /v2/amm/pools/{pool}/history`): the reference's PoolState, every value carried forward. */
 export interface AmmState {
@@ -481,8 +482,6 @@ function governanceObject(row: StoredGovernance & Place): AmmGovernanceRow {
 
 // ---- The pool ---------------------------------------------------------------------------------------------------------
 
-const isNative = (asset: { currency: string; issuer?: string }): boolean => asset.currency === NATIVE && asset.issuer === undefined;
-
 /**
  * The value the API stores for a pool (`value_native` of `amm_pools`, a Float64): 2 × the native reserve, `null` for a deleted pool, for one without the native
  * currency (see the head of this file) and for one whose native reserve is not known. The list is ordered by it, and its marker holds it (`encodePoolsMarker`).
@@ -491,7 +490,7 @@ export function storedValue(pool: AmmPool): number | null {
   if (pool.deleted) return null;
   const base = { currency: pool.base_currency, issuer: pool.base_issuer };
   const counter = { currency: pool.counter_currency, issuer: pool.counter_issuer };
-  const reserve = isNative(base) ? pool.reserve_base : isNative(counter) ? pool.reserve_counter : undefined;
+  const reserve = isNative(base, NATIVE) ? pool.reserve_base : isNative(counter, NATIVE) ? pool.reserve_counter : undefined;
   if (reserve === undefined) return null;
   const value = new BigNumber(reserve).times(2).toNumber();
   return Number.isFinite(value) ? value : null;

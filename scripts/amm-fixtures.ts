@@ -42,8 +42,8 @@ import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmPoolDay, AmmSwap,
 import { dataApiFile } from "../test/support/upstream-core";
 import { deriveAmm, storedValue, valueText, type DerivedAmm } from "./amm-derive";
 import { derivedExchanges, NATIVE } from "./derived-trades";
-import { fixtureText, isoTime, readLedgers, txMarker, unixOf, type RawLedger } from "./http-fixtures";
-import { Api, candlesOf, exactOf, listPages, Wide, type Fill } from "./market-aggregates";
+import { encodeMarker, fixtureText, isoTime, readLedgers, txMarker, unixOf, type RawLedger } from "./http-fixtures";
+import { Api, candlesOf, exactOf, isNative, listPages, precision8, Wide, type Fill } from "./market-aggregates";
 import { mulberry32, seedOf } from "./synthetic";
 
 /** The pools the AMM pages' fixtures and tests are about, real pools of the recordings named in E3's natural orientation (spec section 9). */
@@ -88,7 +88,7 @@ function listOrder(a: AmmPool, b: AmmPool): number {
 }
 
 /** The marker of a page of pools that ends with `last`: `encodePoolsMarker(value_native, amm_account)`, the value the stored Float64. */
-const poolsMarker = (last: AmmPool): string => Buffer.from(JSON.stringify([storedValue(last), last.amm_account])).toString("base64url");
+const poolsMarker = (last: AmmPool): string => encodeMarker([storedValue(last), last.amm_account]);
 
 /** The pages of the pools in list order, `LIMIT` to a page: the marker each is reached by (none for the first), and the page. */
 function poolPages(pools: readonly AmmPool[]): Array<{ marker?: string; page: Page<"pools", AmmPool> }> {
@@ -199,8 +199,10 @@ export function ammFixtures(): Map<string, string> {
 //     withdrawal empties the pool, of those just before it; its amounts are the pool's own changes (what went in, what went out), the native leg above the
 //     0.0005 the aggregates leave out, so every swap is in its candle;
 //   - the row (amm-daily.job.ts): `swap_count`, `volume_*` what went into the pool by side, `fees_*_est` each side's volume × `trading_fee` / 100000, exact
-//     (the fee does not change, and no taker holds the slot), but on XRP/RLUSD's 2026-10-10, whose swaps had no known fee, where neither estimate is served
-//     (Ruling R-A26: the spec's one day without an estimate); the day's recorded liquidity events of the pool (Task 4's: a creation counts as a deposit), which
+//     (the fee does not change, and no taker holds the slot), but on XRP/RLUSD's 2026-10-10, where neither estimate is served: a synthetic day, made for the
+//     spec's one day without an estimate. The API leaves an estimate out only for a swap into its side with no known fee (Ruling R-A26), which is only before
+//     the pool's first known fee, so it could not serve such a day in the middle of a series with estimates around it; the day's recorded liquidity events
+//     of the pool (Task 4's: a creation counts as a deposit), which
 //     no synthetic day has; and the closing state: the reserves, `lp_supply`, `trading_fee`, and `value_native` 2 × the native reserve (`valueText`), none for
 //     an issued-only pool or on the day of the deletion;
 //   - the candle (market-aggregates.ts `candlesOf`, E3's port of the reference's rules): both legs of every swap, the base the takers bought being what went
@@ -213,7 +215,7 @@ export function ammFixtures(): Map<string, string> {
 
 /** Where a series starts at the latest: the year's carry-in (2025-10-19) needs days before the year's window. */
 const HISTORY_FROM = "2025-10-01";
-/** The day whose swaps had no known fee, and so no estimate on either side. */
+/** The day without an estimate on either side, as if its swaps had no known fee: synthetic, for the spec's case (the API has such days only before a pool's first fee). */
 const UNKNOWN_FEE = { name: "XRP/RLUSD", day: "2026-10-10" } as const;
 /** The aggregates leave out a swap whose native leg is this or less; every synthetic swap is above it. */
 const DUST = new BigNumber("0.0005");
@@ -269,15 +271,12 @@ export interface SyntheticAnswer {
 
 /** The close time of the newest recorded ledger, unix seconds: T is its UTC day. */
 const headOf = (ledgers: readonly RawLedger[]): number => unixOf(ledgers.at(-1)!.ledger.close_time);
-const isNativeAsset = (asset: Asset): boolean => asset.issuer === undefined && asset.currency === NATIVE;
 const secondsOf = (day: string): number => Date.parse(`${day}T00:00:00Z`) / 1000;
 const dayBefore = (day: string): string => utcDayOf(secondsOf(day) - DAY_SECONDS);
-/** An amount as the API writes a sum: BigNumber's `toString()`. */
-const sumText = (value: BigNumber): string => new Api(value).toString();
-/** A rate or a price as the API writes it: 8 significant digits. */
-const precision8 = (value: BigNumber.Value): string => new Api(value).toPrecision(8);
+/** An amount of a day row or a volume component as the API writes it: BigNumber's `toString()` (the exponent form below 1e-6 and from 1e21). */
+const amountText = (value: BigNumber): string => new Api(value).toString();
 /** A marker of a page of days (amm-pools.service.ts `days`): the base64url JSON of the start of its last day, in unix seconds. */
-const dayMarker = (row: AmmPoolDay): string => Buffer.from(JSON.stringify([Date.parse(row.date) / 1000])).toString("base64url");
+const dayMarker = (row: AmmPoolDay): string => encodeMarker([Date.parse(row.date) / 1000]);
 
 /** The featured pools' series (the tests read them beside the files). */
 export function ammSeries(ledgers: readonly RawLedger[]): PoolSeries[] {
@@ -361,7 +360,7 @@ function drawSeries(name: SeriesName, pool: AmmPool, events: readonly AmmLiquidi
     const dayStart = secondsOf(day);
     const from = created !== undefined && day === first ? Date.parse(created.executed_time) / 1000 + 1 : dayStart;
     const to = day === T ? head + 1 : pool.deleted && day === last ? Date.parse(lastStateTime) / 1000 : dayStart + DAY_SECONDS;
-    const native = isNativeAsset(counter) ? "counter" : isNativeAsset(base) ? "base" : undefined;
+    const native = isNative(counter, NATIVE) ? "counter" : isNative(base, NATIVE) ? "base" : undefined;
     const swaps = drawSwaps(shape, native, at, price, anchor, age, next, draw, name === UNKNOWN_FEE.name && day === UNKNOWN_FEE.day);
     const times = swaps.map(() => from + Math.floor(next() * (to - from))).sort((a, b) => a - b);
     // The order of the day's swaps: a shuffle of the drawn ones over the sorted times.
@@ -375,7 +374,7 @@ function drawSeries(name: SeriesName, pool: AmmPool, events: readonly AmmLiquidi
     const outOf = (side: "base" | "counter") => swaps.filter((swap) => swap.into !== side).reduce((total, swap) => total.plus(swap[side]), new BigNumber(0));
     const [volumeBase, volumeCounter] = [into("base"), into("counter")];
     const known = !(name === UNKNOWN_FEE.name && day === UNKNOWN_FEE.day);
-    const estimate = (volume: BigNumber) => sumText(volume.times(fee).shiftedBy(-5));
+    const estimate = (volume: BigNumber) => amountText(volume.times(fee).shiftedBy(-5));
     const nativeReserve = native === undefined ? undefined : close[native];
     const value = nativeReserve === undefined || (pool.deleted && day === last) ? undefined : valueText(nativeReserve.times(2).toNumber());
     days.push({
@@ -386,15 +385,15 @@ function drawSeries(name: SeriesName, pool: AmmPool, events: readonly AmmLiquidi
       counter_currency: pool.counter_currency,
       ...(pool.counter_issuer !== undefined && { counter_issuer: pool.counter_issuer }),
       swap_count: swaps.length,
-      volume_base: sumText(volumeBase),
-      volume_counter: sumText(volumeCounter),
+      volume_base: amountText(volumeBase),
+      volume_counter: amountText(volumeCounter),
       ...(known && { fees_base_est: estimate(volumeBase), fees_counter_est: estimate(volumeCounter) }),
       deposit_count: own.filter((event) => event.event === "create" || event.event === "deposit").length,
       withdraw_count: own.filter((event) => event.event === "withdraw" || event.event === "clawback").length,
-      liquidity_in_base: sumText(flows.inBase),
-      liquidity_in_counter: sumText(flows.inCounter),
-      liquidity_out_base: sumText(flows.outBase),
-      liquidity_out_counter: sumText(flows.outCounter),
+      liquidity_in_base: amountText(flows.inBase),
+      liquidity_in_counter: amountText(flows.inCounter),
+      liquidity_out_base: amountText(flows.outBase),
+      liquidity_out_counter: amountText(flows.outCounter),
       reserve_base: close.base.toFixed(),
       reserve_counter: close.counter.toFixed(),
       lp_supply: close.lp.toFixed(),
@@ -524,7 +523,9 @@ function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] 
 /**
  * `GET /v2/network/amm_volume?live=day`: the one row of the rolling day that ends at the aggregator's minute before T's close (`[now − 1 day, now)`), drawn from
  * `mulberry32(seedOf("xrpl", "amm_volume", "live"))`, a pool at a time in account order. A component for each live pool with the native currency but VOX/XRP
- * (the pages' pool without swaps); USDC/RLUSD and the other issued-only pools have none (the fixtures have no rate for their assets). As volume-object.ts
+ * (the pages' pool without swaps). The issued-only pools, USDC/RLUSD among them, have none: a synthetic choice, so the list has a pool whose 24-hour volume is
+ * "—". The API would list USDC/RLUSD, converted through RLUSD, whose rate the XRP/RLUSD market and pool give (it leaves out only a pool with no rate on either
+ * side). As volume-object.ts
  * makes it: the native currency as the `counter`, `amount` the base volume, `converted_amount` the native volume, `rate` = amount / converted at 8 significant
  * digits, the components by `converted_amount` descending then account, `total` their sum and `count` the swaps. The API sums and divides doubles: the native
  * volumes are whole 64ths of a coin, so their sum is exact, and the rate is checked to be the same either way.
@@ -533,11 +534,11 @@ function liveVolume(derived: DerivedAmm, head: number): Page<"rows", AmmVolumeRo
   const end = Math.floor(head / 60) * 60;
   const next = mulberry32(seedOf("xrpl", "amm_volume", "live"));
   const pools = derived.pools
-    .filter((pool) => !pool.deleted && pool.amm_account !== FEATURED_POOLS["VOX/XRP"] && (isNativeAsset(baseOf(pool)) || isNativeAsset(counterOf(pool))))
+    .filter((pool) => !pool.deleted && pool.amm_account !== FEATURED_POOLS["VOX/XRP"] && (isNative(baseOf(pool), NATIVE) || isNative(counterOf(pool), NATIVE)))
     .sort((a, b) => byAccount(a.amm_account, b.amm_account));
   const parts = pools.map((pool) => {
     const [u, v, w] = [next(), next(), next()];
-    const nativeFirst = isNativeAsset(baseOf(pool));
+    const nativeFirst = isNative(baseOf(pool), NATIVE);
     const other = nativeFirst ? counterOf(pool) : baseOf(pool);
     const [nativeReserve, otherReserve] = nativeFirst ? [pool.reserve_base, pool.reserve_counter] : [pool.reserve_counter, pool.reserve_base];
     if (nativeReserve === undefined) throw new Error(`${pool.amm_account}: a live pool with the native currency and no native reserve`);
@@ -556,7 +557,7 @@ function liveVolume(derived: DerivedAmm, head: number): Page<"rows", AmmVolumeRo
       base: other.issuer === undefined ? { currency: other.currency } : { currency: other.currency, issuer: other.issuer },
       counter: { currency: NATIVE },
       count: Math.max(1, Math.round((3 + 60 * u) * (0.7 + 0.6 * w))),
-      amount: sumText(amount),
+      amount: amountText(amount),
       rate: exactRate(),
       converted_amount: converted.toFixed(),
     };
