@@ -7,10 +7,11 @@ import { dropsToNative } from "../domain/format";
 import { parseValidatorKey } from "../domain/validator-key";
 import { renderCard } from "../og/render";
 import type { CardData } from "../og/types";
-import { accountCard, amendmentCard, ledgerCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
+import { accountCard, amendmentCard, ledgerCard, poolCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
 import { VALIDATORS_CALL_TTL_SECONDS, type CacheClass } from "../server/cache-class";
 import { activationOf } from "../server/account-view";
-import type { AmendmentDetail, ValidatorDetail } from "../server/api-types";
+import { ammPoolFacts } from "../server/amm-view";
+import type { AmendmentDetail, AmmLiquidityEvent, ValidatorDetail } from "../server/api-types";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders } from "../server/edge-cache";
 import { getEnv } from "../server/env";
@@ -18,10 +19,10 @@ import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "
 import { logProblem } from "../server/logging";
 import { isNetworkId, networkOf, type Network } from "../server/networks";
 import { txFromIndex, txFromNode, type TransactionSource } from "../server/transaction-view";
-import { UpstreamError } from "../server/upstream";
+import { isMissingRoute, UpstreamError } from "../server/upstream";
 
-// `/og/{net}/{tx|ledger|account|validator|amendment}/{id}.png` (spec 2, 4, 9; validators spec 8): the link-preview image of a transaction, a
-// ledger, an account, a validator or an amendment, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
+// `/og/{net}/{tx|ledger|account|validator|amendment|amm}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2): the link-preview image of a transaction, a
+// ledger, an account, a validator, an amendment or an AMM pool, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
 // level: no layout, no HTML.
 //
 // - A URL with a query string is a 302 to the bare path (class `immutable`), before anything else: no call, nothing drawn, and no
@@ -40,6 +41,11 @@ import { UpstreamError } from "../server/upstream";
 //   is off, before any call. A key in hex is a 302 (`immutable`) to the base58 key; a signing key, and an amendment that is not named as D1 names
 //   it (a case variant, an ID of a named amendment), are a 302 (`slow`) to the master key's and the canonical image: the mapping is D1's data.
 //   D's and AD's own "not found" is the 404; every other failure, a 400 and a `Cannot GET` (an API without D1) included, is a 503.
+// - An AMM pool (AMM spec 5.2) is drawn from the index alone, so an image never costs a node call: the pool (#1) and its create event (#8) are asked side by
+//   side. It is class `slow` (its card holds its value, so it is kept for an hour, as an account's is); a failed #8 leaves the day of the creation out of the
+//   card and makes it `short`, to be tried again soon. The index's own "pool not found" is the 404 (a pool younger than the aggregator's minute has no image for
+//   that minute); every other failure of #1, a 400 and a `Cannot GET` (an API without the AMM routes) included, is a 503. It is a 404 of class `short`, before any
+//   call, while `AMM_PAGES` is off, on a network without AMM, and for an id that is not a classic address.
 // - A "not found" (the API's and the node's) is a 404 of class `short`. A failure of an upstream that leaves the question open, and a
 //   card the renderer cannot draw, is a 503 with `Retry-After` that is never stored; the Worker's entry answers it with a stored copy
 //   of the image if there is one, however old. A 400 of the data API for an id the route has checked is such a failure too (the API's
@@ -103,8 +109,8 @@ function slowRedirect(to: string): Response {
   return redirect(to, { status: 302, headers: cacheClassHeaders("slow") });
 }
 
-/** The failure of a D1 route, which has no node to ask in its place: its own "not found" is a 404; everything else, a 400 included, is the API failing. */
-function d1Failure(err: unknown): Response {
+/** The failure of a route that has no node to ask in its place (D1's two, the AMM pool's): its own "not found" is a 404; everything else, a 400 included, is the API failing. */
+function indexOnlyFailure(err: unknown): Response {
   return isNotFound(err) ? notFound() : apiFailure(err);
 }
 
@@ -146,6 +152,8 @@ export async function loader({ params, request, context }: LoaderFunctionArgs) {
       return validatorImage(context, network, id, request);
     case "amendment":
       return amendmentImage(context, network, id, request);
+    case "amm":
+      return ammImage(context, network, id, request);
     default:
       return notFound();
   }
@@ -264,7 +272,7 @@ async function validatorImage(context: LoaderFunctionArgs["context"], network: N
   try {
     detail = await api.validator(parsed.key, { ttl: VALIDATORS_CALL_TTL_SECONDS });
   } catch (err) {
-    return d1Failure(err);
+    return indexOnlyFailure(err);
   }
   // The string alone cannot tell a master key from a signing key: D says which it is.
   if (detail.validation_public_key !== parsed.key) return slowRedirect(`/og/${network.id}/validator/${detail.validation_public_key}.png`);
@@ -283,9 +291,41 @@ async function amendmentImage(context: LoaderFunctionArgs["context"], network: N
   try {
     detail = await api.amendment("id" in ref ? ref.id : ref.name);
   } catch (err) {
-    return d1Failure(err);
+    return indexOnlyFailure(err);
   }
   const segment = amendmentSegment(detail);
   if (segment !== id) return slowRedirect(`/og/${network.id}/amendment/${encodeURIComponent(segment)}.png`);
   return image(amendmentCard(detail, network), request, "slow");
+}
+
+// ---- An AMM pool ---------------------------------------------------------------------------------------------------------------------
+
+async function ammImage(context: LoaderFunctionArgs["context"], network: Network, pool: string, request: Request) {
+  // Off, a network without AMM and an id that is no classic address (an X-address included: a pool takes no tag) are one 404, before any call.
+  if (!network.features.ammPages || !network.hasAmm || !isValidClassicAddress(pool)) return notFound();
+
+  const { api } = clientsFor(context, network);
+  // #1 and #8 of the page, side by side: the node is not asked, and the page's keys are the same, so the page and its image share the answers.
+  const [found, created] = await Promise.allSettled([api.ammPool(pool), api.ammLiquidity(pool, { event: "create", limit: 1 })]);
+  if (found.status === "rejected") {
+    // An API without the AMM routes behind a switch that is on is an outage to be seen, not a pool that does not exist.
+    if (isMissingRoute(found.reason)) logProblem("the data API serves no AMM pools", found.reason, request);
+    return indexOnlyFailure(found.reason);
+  }
+
+  // The creation is on the card when it could be read; a pool the index has no create event of (older than its first ledger) simply has none, and a failure to read
+  // it is not a reason to have no card, only to ask again soon.
+  let creation: AmmLiquidityEvent | null = null;
+  let complete = true;
+  if (created.status === "fulfilled") {
+    const rows = created.value.liquidity;
+    creation = Array.isArray(rows) && rows[0] !== undefined ? rows[0] : null;
+  } else {
+    if (!(created.reason instanceof UpstreamError)) throw created.reason;
+    logProblem("an AMM pool's link-preview image left out its creation", created.reason, request);
+    complete = false;
+  }
+
+  const card = poolCard(ammPoolFacts(network, pool, found.value, null, creation), network);
+  return image(card, request, complete ? "slow" : "short");
 }

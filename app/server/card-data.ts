@@ -1,5 +1,5 @@
-// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8): a transaction, a ledger, an account, a
-// validator or an amendment, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
+// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8; AMM spec 5.2): a transaction, a ledger, an account, a
+// validator, an amendment or an AMM pool, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
 // app/og/card.tsx draws what this returns.
 
 import { describe, headlineAmount, type FlowAmount } from "../domain/describe";
@@ -8,6 +8,7 @@ import type { Native } from "../domain/parse/types";
 import { formatDate } from "../domain/time-words";
 import type { CardData } from "../og/types";
 import type { NetworkBrief } from "../ui/networks";
+import type { AmmPoolFacts } from "./amm-view";
 import type { AmendmentDetail, ValidatorDetail } from "./api-types";
 import type { LedgerFacts } from "./meta-ledger";
 import { movement, type TxFacts } from "./meta-transaction";
@@ -220,4 +221,27 @@ export function amendmentCard(detail: AmendmentDetail, network: SoftwareNetwork)
     footer: [{ text: about.length > 0 ? about.join(" · ") : network.name }],
     footerEnd: shortHash(detail.id),
   };
+}
+
+/**
+ * The card of an AMM pool (AMM spec 5.2), made of the facts the page's tags are (`ammPoolFacts`), so a link's text and its picture agree: the pair in the text font
+ * ("XRP / RLUSD": the page's slug with spaces round its slash), the pool's whole account under it, and, joined by `·`, the value and the trading fee where the facts
+ * have them, or "Deleted pool". The footer is the day of the pool's creation, else the network. Every figure is the facts' own text: none is worked out here.
+ */
+export function poolCard(facts: AmmPoolFacts, network: NetworkBrief): CardData {
+  const known = [facts.value === undefined ? null : `Value ${facts.value} ${facts.native}`, facts.fee === undefined ? null : `trading fee ${facts.fee}`].filter(
+    (part): part is string => part !== null,
+  );
+  const note = facts.deleted ? "Deleted pool" : known.join(" · ");
+
+  const card: CardData = {
+    network: network.id,
+    networkLabel: labelOf(network),
+    kind: "AMM pool",
+    headline: { text: facts.pair.split("/").join(" / "), mono: false },
+    parties: [facts.pool],
+    footer: [{ text: facts.created === undefined ? `AMM pool on ${network.name}` : `Created ${formatCardDate(facts.created.at)}` }],
+  };
+  if (note !== "") card.note = note;
+  return card;
 }

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { FlowStep } from "../domain/describe";
 import { shortHash } from "../domain/format";
+import { AMM_POOL, ammLiquiditySample, ammPoolSample } from "../../test/support/amm-samples";
 import { AMM_ID, amendmentDetailSample, SAMPLE_KEYS, UNKNOWN_ID, validatorDetailSample, XCB_ID } from "../../test/support/d1-samples";
+import { ammPoolFacts, type AmmPoolFacts } from "./amm-view";
 import type { AmendmentDetail, ValidatorDetail } from "./api-types";
-import { accountCard, amendmentCard, formatCardTime, ledgerCard, transactionCard, transactionFacts, validatorCard } from "./card-data";
+import { accountCard, amendmentCard, formatCardTime, ledgerCard, poolCard, transactionCard, transactionFacts, validatorCard } from "./card-data";
 
 // What the link-preview image says (spec 9, the LinkPreview board): the words and numbers of the card for a transaction, a ledger and an
 // account, from the same facts the page's tags are built from. The layout is app/og/card.test.ts; the PNG is test/worker/og.spec.ts.
@@ -370,5 +372,85 @@ describe("amendmentCard", () => {
     expect(card.network).toBe("xahau");
     expect(card.networkLabel).toBe("Xahau mainnet");
     expect(card.footer).toEqual([{ text: "introduced in xahaud 2024.2.1" }]);
+  });
+});
+
+// ---- An AMM pool (AMM spec 5.2) --------------------------------------------------------------------------------------------------------------
+
+/** What the page's tags are made of (`ammPoolFacts`): the card is made of the same facts, so a link's text and its picture agree. */
+const poolFacts = (over: Partial<AmmPoolFacts> = {}): AmmPoolFacts => ({
+  pool: AMM_POOL,
+  net: "xrpl",
+  native: "XRP",
+  pair: "XRP/RLUSD",
+  deleted: false,
+  fee: "0.300%",
+  value: "3.61M",
+  created: { date: "2024-03-22", at: Date.UTC(2024, 2, 22, 9, 30) / 1000 },
+  ...over,
+});
+
+describe("poolCard", () => {
+  it("is the board: the pair in the text font, the pool's whole account, its value and trading fee, the day it was created", () => {
+    expect(poolCard(poolFacts(), XRPL)).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "AMM pool",
+      headline: { text: "XRP / RLUSD", mono: false },
+      parties: [AMM_POOL],
+      note: "Value 3.61M XRP · trading fee 0.300%",
+      footer: [{ text: "Created 22 Mar 2024" }],
+    });
+  });
+
+  it("says only the part of the note that is known, and has no note when none is", () => {
+    expect(poolCard(poolFacts({ value: undefined }), XRPL).note).toBe("trading fee 0.300%");
+    expect(poolCard(poolFacts({ fee: undefined }), XRPL).note).toBe("Value 3.61M XRP");
+    const bare = poolCard(poolFacts({ fee: undefined, value: undefined }), XRPL);
+    expect(bare.note).toBeUndefined();
+    expect("note" in bare).toBe(false);
+  });
+
+  it("says that a deleted pool is deleted, and nothing of a value or a fee it no longer has", () => {
+    const card = poolCard(poolFacts({ deleted: true, value: undefined }), XRPL);
+    expect(card.note).toBe("Deleted pool");
+    expect(card.headline).toEqual({ text: "XRP / RLUSD", mono: false });
+    expect(card.parties).toEqual([AMM_POOL]);
+    expect(poolCard(poolFacts({ deleted: true, value: undefined, fee: undefined }), XRPL).note).toBe("Deleted pool");
+  });
+
+  it("names the network where the creation is not known", () => {
+    expect(poolCard(poolFacts({ created: undefined }), XRPL).footer).toEqual([{ text: "AMM pool on XRPL" }]);
+    const { created: _created, ...without } = poolFacts();
+    expect(poolCard(without, XRPL).footer).toEqual([{ text: "AMM pool on XRPL" }]);
+  });
+
+  it("is a Xahau card in Xahau's words, with its native currency", () => {
+    const card = poolCard(poolFacts({ net: "xahau", native: "XAH", created: undefined }), XAHAU);
+    expect(card.network).toBe("xahau");
+    expect(card.networkLabel).toBe("Xahau mainnet");
+    expect(card.note).toBe("Value 3.61M XAH · trading fee 0.300%");
+    expect(card.footer).toEqual([{ text: "AMM pool on Xahau" }]);
+  });
+
+  it("puts spaces around the slash of the page's slug, whatever the codes are (a code with no text is its first eight digits)", () => {
+    expect(poolCard(poolFacts({ pair: "USDC/RLUSD" }), XRPL).headline).toEqual({ text: "USDC / RLUSD", mono: false });
+    expect(poolCard(poolFacts({ pair: "564F58F0…/XRP" }), XRPL).headline).toEqual({ text: "564F58F0… / XRP", mono: false });
+  });
+
+  it("is made of the page's own facts: the day, the value and the fee are the ones the tags say, and none is written as a float or with an exponent", () => {
+    const net = { id: "xrpl", native: "XRP" } as const;
+    const create = ammLiquiditySample({ event: "create", executed_time: "2024-03-22T09:30:00Z" });
+    const cases = [
+      ["123456789012345678901234567890.5", "Value 123,000,000,000,000,000T XRP · trading fee 0.205%"],
+      ["0.00000000012", "Value 0.00000000012 XRP · trading fee 0.205%"],
+      ["1250.5", "Value 1,250.5 XRP · trading fee 0.205%"],
+    ] as const;
+    for (const [value, note] of cases) {
+      const card = poolCard(ammPoolFacts(net, AMM_POOL, ammPoolSample({ value_native: value, trading_fee: 205 }), null, create), XRPL);
+      expect(card.note, value).toBe(note);
+      expect(card.footer, value).toEqual([{ text: "Created 22 Mar 2024" }]);
+      expect(JSON.stringify(card), value).not.toMatch(/\d[eE][+-]?\d/);
+    }
   });
 });

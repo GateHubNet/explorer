@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { decodeNodePublic, encodeAccountID } from "ripple-address-codec";
 
 import * as render from "../../app/og/render";
+import { loader as ogLoader } from "../../app/routes/og.$net.$kind.$id[.png]";
 import { edgeCacheKey } from "../../app/server/edge-cache";
-import { cacheGeneration } from "../../app/server/env";
+import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import xrplAmm from "../fixtures/http/xrpl/data-api/network/amendments/AMM.json";
 import { SAMPLE_KEYS } from "../support/d1-samples";
 import { decodePng, hex, pngSize } from "../support/png";
@@ -13,8 +14,8 @@ import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type
 import { amendmentCall, validatorCall } from "../support/validators-calls";
 import { amendmentCase, fixtureValidator, validatorCase } from "../support/validators-cases";
 
-// The link-preview images, `/og/{net}/{tx|ledger|account|validator|amendment}/{id}.png` (spec 2, 9; validators spec 8), on the real Worker against the
-// recorded answers of the data API and the nodes (test/fixtures/http/), and the generated D1 answers for validators and amendments. The image is drawn by workers-og (Satori and resvg-wasm) with the bundled Geist fonts;
+// The link-preview images, `/og/{net}/{tx|ledger|account|validator|amendment|amm}/{id}.png` (spec 2, 9; validators spec 8; AMM spec 5.2), on the real Worker against the
+// recorded answers of the data API and the nodes (test/fixtures/http/), and the generated D1 and AMM answers for validators, amendments and pools. The image is drawn by workers-og (Satori and resvg-wasm) with the bundled Geist fonts;
 // its layout is tested in app/og/card.test.ts, here it is the answers: what is a PNG of 1200 × 630, in which cache class, from which
 // upstream, and what is a 404 or a 503.
 //
@@ -50,6 +51,26 @@ const ACTIVE = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
 const XAHAU_ACTIVE = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 const DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
 const NEVER_FUNDED = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
+
+// The AMM pools of the fixtures (test/fixtures/http/xrpl/data-api/amm/pools/), one test to a pool: what the data API's client keeps (the pool 60 s, the create event 1 h)
+// stays for the rest of the file by the real clock, so a test that lists the calls, or fails one, takes a pool that no other test asks for.
+/** XRP/RLUSD, stored RLUSD/XRP: the featured pool. The index has its fee and value, and no create event. */
+const AMM_POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+/** USDC/RLUSD. */
+const AMM_USDC_POOL = "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb";
+/** Pools of the list's fixtures that have no create event file and no fee in the index: FLR/USD and PUPPET/XRP (two to fail #8 with), HODL/XRP (a value), ARK/PLX (neither). */
+const AMM_FLR_POOL = "r3H95bncyedqbcTYDGUGSxbnCcTSbK1CyF";
+const AMM_PUPPET_POOL = "r3nu9JfF7jdWjJzUuauTWx3KqE7V8VCAaJ";
+const AMM_HODL_POOL = "r4e1htydorPRyra5MBV83sVaBtHbYaU8RH";
+const AMM_ARK_POOL = "r3KQLa6bNT3LcBsApVqCraMaWGJKwD9faa";
+/** DVR/XRP: the pool with a create event (12 Oct 2026). */
+const AMM_DVR_POOL = "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG";
+/** SNK/XRP: deleted. */
+const AMM_SNK_POOL = "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz";
+/** VOX/XRP: the index's pool with no value and no reserves, whose code has no text. */
+const AMM_VOX_POOL = "rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef";
+const ammPoolCall = (pool: string) => `GET /v2/amm/pools/${pool}`;
+const ammCreateCall = (pool: string) => `GET /v2/amm/pools/${pool}/liquidity?event=create&limit=1`;
 
 /** A valid address that no recording has: 20 bytes of `n`. */
 const account = (n: number) => encodeAccountID(new Uint8Array(20).fill(n));
@@ -245,6 +266,127 @@ describe("when the data API refuses an id that is well formed", () => {
   });
 });
 
+// An AMM pool's image (AMM spec 5.2) asks the index alone: #1 (the pool) and #8 (its create event) side by side, never the node. The pool's own "not found" is the 404;
+// every other failure of #1, a 400 and an API without the AMM routes (`Cannot GET`) included, is an outage, and never a stored 404 (AMM spec 1.3). A failed #8 only
+// leaves the day of the creation out. Each test takes a pool no other test asks for.
+describe("when an upstream fails for an AMM pool", () => {
+  /** A valid account that no recording has, one to a test. */
+  const pool = (n: number) => account(0x60 + n);
+
+  it("answers 503 with Retry-After when the index fails for the pool, draws nothing, asks no node, and stores nothing", async () => {
+    const id = pool(1);
+    const path = `/og/xrpl/amm/${id}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl", { [ammPoolCall(id)]: () => dataApiError(503, "unavailable") });
+      const { response } = await image(path);
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(statusesOf(mock, ammPoolCall(id))).toEqual([503]);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await isStored(path)).toBe(false);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("answers 503 with Retry-After when the data API is limiting us", async () => {
+    const id = pool(2);
+    const path = `/og/xrpl/amm/${id}.png`;
+    mock = mockUpstream("xrpl", { [ammPoolCall(id)]: () => dataApiError(429, "slow down", { "Retry-After": "7" }) });
+    expect((await image(path)).response.status).toBe(503);
+    expect(await isStored(path)).toBe(false);
+  });
+
+  it("answers 503 for a 400 of the index: the address is checked, so the refusal is the API's fault and not a missing image", async () => {
+    const id = pool(3);
+    const path = `/og/xrpl/amm/${id}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl", { [ammPoolCall(id)]: () => dataApiError(400, "invalid account") });
+      const { response } = await image(path);
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await isStored(path)).toBe(false);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("answers 503, logged and not stored, for an API without the AMM routes (its Cannot GET 404), never a stored 404", async () => {
+    const id = pool(4);
+    const path = `/og/xrpl/amm/${id}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mock = mockUpstream("xrpl", { [ammPoolCall(id)]: dataApiError(404, `Cannot GET /v2/amm/pools/${id}`) });
+      const { response } = await image(path);
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(statusesOf(mock, ammPoolCall(id))).toEqual([404]);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+      expect(await isStored(path)).toBe(false);
+      const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the data API serves no AMM pools"));
+      expect(logged).toHaveLength(1);
+      expect(logged[0]).toContain("Cannot GET");
+      expect(logged[0]).toContain(path);
+    } finally {
+      errors.mockRestore();
+      drawing.mockRestore();
+    }
+  });
+
+  it("answers 503 for a 500 of the index, and asks again the next time: the failure is not remembered", async () => {
+    const id = pool(5);
+    const path = `/og/xrpl/amm/${id}.png`;
+    mock = mockUpstream("xrpl", { [ammPoolCall(id)]: () => dataApiError(500, "boom") });
+    expect((await image(path)).response.status).toBe(503);
+    expect(await isStored(path)).toBe(false);
+    // The image route does not ask for the failure hold, and an error is never kept by the Cache API either.
+    expect((await image(path)).response.status).toBe(503);
+    expect(statusesOf(mock, ammPoolCall(id))).toEqual([500, 500]);
+  });
+
+  it.each([
+    ["a 503", AMM_FLR_POOL, () => dataApiError(503, "unavailable")],
+    // The index lists the pool, so a "pool not found" of its create event is no 404 of the image: the creation is left out.
+    ["a pool not found", AMM_PUPPET_POOL, () => dataApiError(404, "pool not found")],
+  ] as const)("is drawn without the day of its creation when #8 fails with %s, and then stored as short, to be asked again soon", async (_what, id, failure) => {
+    const path = `/og/xrpl/amm/${id}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mock = mockUpstream("xrpl", { [ammCreateCall(id)]: failure });
+      const answer = await image(path);
+
+      expectPng(answer);
+      expect(answer.response.headers.get("Cache-Control")).toBe("max-age=0");
+      expect(await storedAs(path)).toEqual(SHORT);
+      expect(statusesOf(mock, ammPoolCall(id))).toEqual([200]);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(drawing.mock.calls[0]![0]).toMatchObject({ kind: "AMM pool", parties: [id], footer: [{ text: "AMM pool on XRPL" }] });
+      // Told, as the page tells a line it left out.
+      const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("an AMM pool's link-preview image left out its creation"));
+      expect(logged).toHaveLength(1);
+      expect(logged[0]).toContain(path);
+    } finally {
+      errors.mockRestore();
+      drawing.mockRestore();
+    }
+  });
+});
+
 // A card the renderer cannot draw is an outage of this answer, not a missing image: the same 503 as a failing upstream.
 describe("when the card cannot be drawn", () => {
   it("answers 503 with Retry-After, stores nothing, and logs what happened", async () => {
@@ -386,6 +528,8 @@ describe("a query string", () => {
     ["an account", `/og/xrpl/account/${ACTIVE}.png`],
     ["a validator", `/og/xrpl/validator/${SAMPLE_KEYS[0]}.png`],
     ["an amendment", "/og/xrpl/amendment/AMM.png"],
+    ["an AMM pool", `/og/xrpl/amm/${AMM_POOL}.png`],
+    ["an AMM pool that is not an address", "/og/xrpl/amm/nope.png"],
     ["an id that is not one", "/og/xrpl/tx/ABC123.png"],
     ["a network that does not exist", "/og/bitcoin/tx/ABC123.png"],
   ])("on the image of %s is a 302 to the bare path, class immutable, with no call and nothing drawn", async (_what, bare) => {
@@ -454,6 +598,11 @@ describe("an id that is not one", () => {
     ["an amendment name with a dash", "/og/xrpl/amendment/fix-1201.png"],
     ["an amendment name of 65 characters", `/og/xrpl/amendment/${"a".repeat(65)}.png`],
     ["an amendment name that starts with a digit", "/og/xrpl/amendment/1fix.png"],
+    ["an AMM pool that is a word and not an address", "/og/xrpl/amm/nope.png"],
+    ["an AMM pool with a wrong checksum", `/og/xrpl/amm/${AMM_POOL.slice(0, -1)}x.png`],
+    ["an X-address in place of an AMM pool (a pool takes no tag)", "/og/xrpl/amm/XVMgJSRJAMekfCw3mHHsRUbqYqWuZ26KqXMt3GKX2eENgJ9.png"],
+    ["an AMM pool on Xahau, which has no AMM", `/og/xahau/amm/${AMM_POOL}.png`],
+    ["an AMM pool in the place of a kind that does not exist", `/og/xrpl/pool/${AMM_POOL}.png`],
   ])("is a 404 of class short without asking anyone: %s", async (_what, path) => {
     mock = mockUpstream("xrpl");
     const { response } = await image(path);
@@ -999,5 +1148,184 @@ describe("an amendment", () => {
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
     expect(await storedAs(path)).toEqual(SHORT);
     expect(statusesOf(mock, amendmentCall("XChainBridge"))).toEqual([404]);
+  });
+});
+
+// ---- An AMM pool (AMM spec 5.2) ---------------------------------------------------------------------------------------------------------
+
+describe("an AMM pool", () => {
+  it("is a PNG of 1200 × 630, class slow, from the index alone: the pool and its create event, the page's keys, never the node", async () => {
+    const path = `/og/xrpl/amm/${AMM_POOL}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const first = await image(path);
+
+      expectPng(first);
+      expect(first.response.headers.get("Cache-Control")).toBe("max-age=300");
+      expect(first.response.headers.get("X-Robots-Tag")).toBe("noindex");
+      expect(first.response.headers.get("X-Cache")).toBe("MISS");
+      expect(await storedAs(path)).toEqual(SLOW);
+      // Two calls, side by side, the page's own: the node is not asked, so an image costs no node call.
+      expect(keys(mock)).toEqual([`xrpl ${ammCreateCall(AMM_POOL)}`, `xrpl ${ammPoolCall(AMM_POOL)}`].sort());
+
+      // The pair as the page's heading has it (the pool is stored RLUSD/XRP), the whole account, the index's value and fee; the index has no creation of it.
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(drawing.mock.calls[0]![0]).toEqual({
+        network: "xrpl",
+        networkLabel: "XRPL mainnet",
+        kind: "AMM pool",
+        headline: { text: "XRP / RLUSD", mono: false },
+        parties: [AMM_POOL],
+        note: "Value 3.7M XRP · trading fee 0.205%",
+        footer: [{ text: "AMM pool on XRPL" }],
+      });
+
+      // The same card again from the edge cache: nothing drawn, nothing asked.
+      const again = await image(path);
+      expect(again.response.headers.get("X-Cache")).toBe("HIT");
+      expect(again.bytes).toEqual(first.bytes);
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(mock.requests.length).toBe(2);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is drawn in XRPL's accent, with text on it", async () => {
+    mock = mockUpstream("xrpl");
+    const png = await decodePng((await image(`/og/xrpl/amm/${AMM_POOL}.png`)).bytes);
+    expect(hex(png.pixel(600, 4))).toBe("#2F5BEA");
+    expect(hex(png.pixel(10, 300))).toBe("#FFFFFF");
+    let dark = 0;
+    for (let y = 200; y < 420; y += 2) for (let x = 60; x < 1140; x += 2) if (png.pixel(x, y)[0]! < 80) dark += 1;
+    expect(dark).toBeGreaterThan(300);
+  });
+
+  it("says the day of the creation where the index has the create event, and the pair in the page's orientation", async () => {
+    const path = `/og/xrpl/amm/${AMM_DVR_POOL}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const answer = await image(path);
+
+      expectPng(answer);
+      expect(await storedAs(path)).toEqual(SLOW);
+      expect(keys(mock)).toEqual([`xrpl ${ammCreateCall(AMM_DVR_POOL)}`, `xrpl ${ammPoolCall(AMM_DVR_POOL)}`].sort());
+      expect(drawing.mock.calls[0]![0]).toMatchObject({
+        headline: { text: "DVR / XRP", mono: false },
+        parties: [AMM_DVR_POOL],
+        note: "Value 1,000 XRP · trading fee 1.000%",
+        footer: [{ text: "Created 12 Oct 2026" }],
+      });
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a card of two tokens in display order", async () => {
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      expectPng(await image(`/og/xrpl/amm/${AMM_USDC_POOL}.png`));
+      expect(drawing.mock.calls[0]![0]).toMatchObject({ headline: { text: "USDC / RLUSD", mono: false }, kind: "AMM pool" });
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("says only the part of the note the index has: a value without a fee, and neither", async () => {
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      expectPng(await image(`/og/xrpl/amm/${AMM_ARK_POOL}.png`));
+      expectPng(await image(`/og/xrpl/amm/${AMM_HODL_POOL}.png`));
+      const [neither, valueOnly] = drawing.mock.calls.map(([card]) => card);
+      expect(neither).toMatchObject({ headline: { text: "ARK / PLX", mono: false }, parties: [AMM_ARK_POOL] });
+      expect("note" in neither!).toBe(false);
+      expect(valueOnly).toMatchObject({ headline: { text: "HODL / XRP", mono: false }, note: "Value 4,550.13 XRP", footer: [{ text: "AMM pool on XRPL" }] });
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a card of a deleted pool, class slow like a live one, that says it is deleted and nothing of a value", async () => {
+    const path = `/og/xrpl/amm/${AMM_SNK_POOL}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const answer = await image(path);
+
+      expectPng(answer);
+      expect(await storedAs(path)).toEqual(SLOW);
+      expect(drawing.mock.calls[0]![0]).toMatchObject({ headline: { text: "SNK / XRP", mono: false }, note: "Deleted pool", parties: [AMM_SNK_POOL] });
+      expect(drawing.mock.calls[0]![0].note).not.toContain("Value");
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is drawn for a pool whose code has no text, with the digits the page shows, and for a pool with no value, with only its fee", async () => {
+    const path = `/og/xrpl/amm/${AMM_VOX_POOL}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const answer = await image(path);
+
+      expectPng(answer);
+      expect(await storedAs(path)).toEqual(SLOW);
+      const card = drawing.mock.calls[0]![0];
+      // The code is 40 hex digits that are no text: its first eight and an ellipsis, as everywhere (formatCurrency). Not the name it was given by hand.
+      expect(card.headline.text).toMatch(/^[0-9A-F]{8}… \/ XRP$/);
+      expect(card.headline.mono).toBe(false);
+      expect(card.note).toBe("trading fee 1.000%");
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a 404 of class short when the index has no such pool, and the node is not asked in its place", async () => {
+    // A pool younger than the aggregator's minute has no image for that minute: the page shows it from the node, the image does not.
+    const id = account(0x71);
+    const path = `/og/xrpl/amm/${id}.png`;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const { response } = await image(path);
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+      expect(await storedAs(path)).toEqual(SHORT);
+      expect(statusesOf(mock, ammPoolCall(id))).toEqual([404]);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("is a 404 of class short, with no call, whenever AMM_PAGES is off: the route reads the switch of its environment", async () => {
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+      const off = createLoadContext({ ...(env as unknown as Env), AMM_PAGES: "off" }, ctx);
+      const path = `/og/xrpl/amm/${AMM_POOL}.png`;
+      const response = (await ogLoader({
+        request: new Request(`https://explorer.test${path}`),
+        params: { net: "xrpl", kind: "amm", id: AMM_POOL },
+        context: off,
+      } as never)) as Response;
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get("Content-Type")).not.toBe("image/png");
+      expect(response.headers.get("X-Cache-Class")).toBe("short");
+      expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+      expect(mock.requests).toEqual([]);
+      expect(drawing).not.toHaveBeenCalled();
+    } finally {
+      drawing.mockRestore();
+    }
   });
 });
