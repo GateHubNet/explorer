@@ -9,6 +9,8 @@
 // A check makes the types of api-types.ts true: every key they do not mark optional is there, with the type they give it. Extra keys are not
 // refused (the API may add a column, and the reference's own example of a fee row is a ledger's, with a `ledger_index` that a day's has not).
 
+import { isValidClassicAddress } from "ripple-address-codec";
+
 import type {
   ActiveAccounts,
   AmmFilter,
@@ -64,7 +66,9 @@ const isText = (value: unknown): value is string => typeof value === "string";
 /** A name that is there: a currency, an account, a hash. */
 export const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
 const isShare = (value: unknown): value is string => isDecimalText(value) && SHARE.test(value);
-const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+export const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+/** An account: a classic address with its checksum. An X-address is not one (it holds a tag, and the pages link accounts, not destinations). */
+export const isAccount = (value: unknown): value is string => typeof value === "string" && isValidClassicAddress(value);
 
 /** The list that the answer keeps its rows under, each row an object. */
 export function rowsOf(what: string, body: unknown, key: string): Array<Record<string, unknown>> {
@@ -230,7 +234,7 @@ export function listOf(what: string, body: unknown, key: string): Array<Record<s
 }
 
 /** The pair a trade, a candle or a reduced row is of: two currencies, and an issuer for each that has one. */
-function checkPairOf(what: string, where: string, row: Record<string, unknown>): void {
+export function checkPairOf(what: string, where: string, row: Record<string, unknown>): void {
   fields(what, where, row, ["base_currency", "counter_currency"], isName, "a currency");
   optionalFields(what, where, row, ["base_issuer", "counter_issuer"], isName, "an issuer");
 }

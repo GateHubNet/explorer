@@ -375,7 +375,7 @@ export interface DataApi {
   ammSwaps(pool: string, q: ListQuery): Promise<Page<"exchanges", AmmSwap>>;
   /**
    * The creation, deposits, withdrawals, clawbacks and deletion of the pool. Class `live`, `MARKER_PAGE_CLASS` behind a marker, newest first; with `event` (the pool's
-   * creation, `{ event: "create", limit: 1 }`: the event never changes) class `slow`.
+   * creation, `{ event: "create", limit: 1 }`: the event never changes) class `slow`, and every row must be that event (an API that ignored the filter is kind `server`).
    */
   ammLiquidity(pool: string, q: ListQuery & { event?: "create" }): Promise<Page<"liquidity", AmmLiquidityEvent>>;
   /** The votes on the pool's trading fee and the bids for its auction slot. Class `live`, `MARKER_PAGE_CLASS` behind a marker, newest first (`listClass`). */
@@ -774,7 +774,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     // The create event is the pool's first and never changes: `slow` whatever the page. `event` goes first (`liquidity?event=create&limit=1`).
     ammLiquidity: (pool, q) =>
       get<Page<"liquidity", AmmLiquidityEvent>>(PENDING_PATHS.ammPoolLiquidity, { pool }, { event: q.event, ...listQuery(q) }, q.event ? "slow" : listClass(q), {
-        finish: checkLiquidityPage,
+        finish: (page) => checkLiquidityPage(page, q.event),
       }),
     ammGovernance: (pool, q) =>
       get<Page<"governance", AmmGovernanceRow>>(PENDING_PATHS.ammPoolGovernance, { pool }, listQuery(q), listClass(q), { finish: checkGovernancePage }),

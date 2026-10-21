@@ -102,6 +102,12 @@ const poolDefects: Array<[what: string, field: string, change: (pool: Body) => v
   ["an empty counter_currency", "counter_currency", (p) => (p.counter_currency = "")],
   ["a base_issuer that is a number", "base_issuer", (p) => (p.base_issuer = 5)],
   ["an auction_slot that is text", "auction_slot", (p) => (p.auction_slot = "none")],
+  // `null` is never served (an unknown key is left out): it is not "not known" here, it is not what the API writes.
+  ["an auction_slot that is null", "auction_slot", (p) => (p.auction_slot = null)],
+  ["a reserve_base that is null", "reserve_base", (p) => (p.reserve_base = null)],
+  ["a trading_fee that is null", "trading_fee", (p) => (p.trading_fee = null)],
+  ["a value_native that is null", "value_native", (p) => (p.value_native = null)],
+  ["a created_by that is null", "created_by", (p) => (p.created_by = null)],
   ["an auction_slot whose holder is no address", "holder", (p) => (p.auction_slot.holder = "rNope")],
   ["an auction_slot whose price is a number", "price", (p) => (p.auction_slot.price = 12.5)],
   ["an auction_slot whose discounted_fee is above 1000", "discounted_fee", (p) => (p.auction_slot.discounted_fee = 1001)],
@@ -202,6 +208,13 @@ describe("checkDaysPage", () => {
     ["a volume_counter that is no number", "volume_counter", (b) => (b.days[0].volume_counter = "lots")],
     ["a fees_base_est that is a number", "fees_base_est", (b) => (b.days[0].fees_base_est = 0.85)],
     ["a fees_counter_est that is empty", "fees_counter_est", (b) => (b.days[0].fees_counter_est = "")],
+    // An estimate that is not known is left out, never `null`.
+    ["a fees_base_est that is null", "fees_base_est", (b) => (b.days[0].fees_base_est = null)],
+    ["a fees_counter_est that is null", "fees_counter_est", (b) => (b.days[0].fees_counter_est = null)],
+    ["a reserve_base that is null", "reserve_base", (b) => (b.days[0].reserve_base = null)],
+    ["an lp_supply that is null", "lp_supply", (b) => (b.days[0].lp_supply = null)],
+    ["a trading_fee that is null", "trading_fee", (b) => (b.days[0].trading_fee = null)],
+    ["a value_native that is null", "value_native", (b) => (b.days[0].value_native = null)],
     ["no liquidity_in_base", "liquidity_in_base", (b) => delete b.days[0].liquidity_in_base],
     ["a liquidity_in_counter that is a number", "liquidity_in_counter", (b) => (b.days[0].liquidity_in_counter = 20)],
     ["a liquidity_out_base that is NaN", "liquidity_out_base", (b) => (b.days[0].liquidity_out_base = "NaN")],
@@ -334,6 +347,35 @@ describe("checkLiquidityPage", () => {
   it.each([null, undefined, "liquidity", 7, [], [deposit]])("refuses %j as the answer", (body) => {
     refuses(checkLiquidityPage, body, "liquidity");
   });
+
+  describe("the event that was asked for", () => {
+    const create = { ...deposit, event: "create", mode: undefined };
+
+    it("takes rows that are all that event, and an empty page", () => {
+      const page = { result: "success", count: 2, liquidity: [create, { ...create, tx_index: 13 }] };
+      expect(checkLiquidityPage(page, "create")).toBe(page);
+      const none = { result: "success", count: 0, liquidity: [] };
+      expect(checkLiquidityPage(none, "create")).toBe(none);
+    });
+
+    it("refuses a row of another event (an API that ignored the filter), and names the field and both events", () => {
+      const page = { result: "success", count: 2, liquidity: [create, deposit] };
+      refuses((body) => checkLiquidityPage(body, "create"), page, "liquidity[1].event");
+      let error: unknown;
+      try {
+        checkLiquidityPage(page, "create");
+      } catch (caught) {
+        error = caught;
+      }
+      expect((error as UpstreamError).message).toContain('"deposit"');
+      expect((error as UpstreamError).message).toContain('"create"');
+    });
+
+    it("takes any event when none was asked for", () => {
+      const page = { result: "success", count: 2, liquidity: [create, deposit] };
+      expect(checkLiquidityPage(page)).toBe(page);
+    });
+  });
 });
 
 // ---- A pool's governance ------------------------------------------------------------------------------------------------------------------------
@@ -373,6 +415,9 @@ describe("checkGovernancePage", () => {
     ["a slot whose auth_accounts is not a list", "auth_accounts", (b) => (b.governance[1].auction_slot.auth_accounts = OTHER)],
     ["an auth_accounts entry that is no address", "auth_accounts", (b) => (b.governance[1].auction_slot.auth_accounts = [OTHER, "rNope"])],
     ["an auth_accounts entry that is a number", "auth_accounts", (b) => (b.governance[1].auction_slot.auth_accounts = [7])],
+    ["a fee_voted that is null", "fee_voted", (b) => (b.governance[0].fee_voted = null)],
+    ["a bid_min that is null", "bid_min", (b) => (b.governance[1].bid_min = null)],
+    ["an auction_slot that is null", "auction_slot", (b) => (b.governance[1].auction_slot = null)],
   ]);
 
   it("takes a vote and a bid with only what they always have, and the boundaries of a fee", () => {

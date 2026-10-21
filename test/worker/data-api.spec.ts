@@ -57,6 +57,7 @@ import {
   ammDaysSample,
   ammGovernanceSample,
   ammLiquidityPageSample,
+  ammLiquiditySample,
   ammLiveVolumeSample,
   ammPoolAccount,
   ammPoolSample,
@@ -2081,13 +2082,15 @@ describe("the AMM pool calls", () => {
 
   /** What the data API answers a request of these calls, by its path: a good answer, for the pool asked for where the path names one. */
   function ammAnswer(input: RequestInfo | URL): Response {
-    const parts = new URL(input instanceof Request ? input.url : String(input)).pathname.split("/").filter(Boolean);
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const parts = url.pathname.split("/").filter(Boolean);
     if (parts[1] === "network") return json(ammLiveVolumeSample());
     const [, , , pool, tail] = parts;
     if (pool === undefined) return json(ammPoolsSample());
     if (tail === "history") return json(ammDaysSample());
     if (tail === "swaps") return json(ammSwapsSample());
-    if (tail === "liquidity") return json(ammLiquidityPageSample());
+    // A request that asks for an event is answered with that event.
+    if (tail === "liquidity") return json(ammLiquidityPageSample({ liquidity: [ammLiquiditySample({ event: (url.searchParams.get("event") ?? "deposit") as "create" | "deposit" })] }));
     if (tail === "governance") return json(ammGovernanceSample());
     // A pool by its account is that pool; by its pair, the sample's.
     return json({ result: "success", pool: ammPoolSample(tail === undefined ? { amm_account: pool } : {}) });
@@ -2201,7 +2204,7 @@ describe("the AMM pool calls", () => {
       expect(error.message).toContain("pool not found");
     });
 
-    it.each(everyCall)("%s: `Cannot GET …` (a data API without feat/amm-data) is kind server, the API missing and not a pool; nothing is stored or held", async (_name, c) => {
+    it.each(everyCall)("%s: `Cannot GET …` (a data API without feat/amm-data) is kind server, the API missing and not a pool; nothing is stored", async (_name, c) => {
       const pool = freshPool();
       const key = c.key(pool);
       const { api, mock: seen } = throughCache({ [key]: dataApiError(404, `Cannot GET ${key.slice("GET ".length)}`) });
@@ -2271,6 +2274,24 @@ describe("the AMM pool calls", () => {
       expect(first.message).toContain(asked);
       expect(first.message).toContain(other);
       expect(statusesOf(seen, key)).toEqual([200, 200]);
+    });
+
+    it("ammLiquidity({ event: \"create\" }) answered with rows of another event (an API that ignored the filter) is kind server, and not stored", async () => {
+      const pool = freshPool();
+      const key = `GET /v2/amm/pools/${pool}/liquidity?event=create&limit=1`;
+      // The sample is a deposit: not the creation that the page would show it as.
+      const { api, mock: seen } = throughCache({ [key]: ammLiquidityPageSample() });
+
+      const first = await failureOf(api.ammLiquidity(pool, { event: "create", limit: 1 }));
+      await failureOf(api.ammLiquidity(pool, { event: "create", limit: 1 }));
+
+      expect(first.kind).toBe("server");
+      expect(first.status).toBe(200);
+      expect(first.message).toContain("liquidity[0].event");
+      expect(statusesOf(seen, key)).toEqual([200, 200]);
+      // The same rows are a good answer to a request that asked for no event.
+      const { api: unfiltered } = throughCache({ [`GET /v2/amm/pools/${pool}/liquidity?limit=1`]: ammLiquidityPageSample() });
+      expect((await unfiltered.ammLiquidity(pool, { limit: 1 })).liquidity).toHaveLength(1);
     });
 
     it.each([

@@ -3,7 +3,7 @@
 // the types are in api-types.ts, "Account analytics"). Like `aggregate-shape.ts`, the data API client runs the checks inside the load its subrequest cache
 // runs: a 200 that is not what the reference promises is an `UpstreamError` of kind `server` (status 200 marks it as an answer of the upstream), is held
 // when the call asks, and is never stored, and the card of the call fails with it (spec 2.8). Each check takes the whole body and returns it, typed, as it is.
-// Worker-only code (it checks an address with `ripple-address-codec`), no I/O.
+// Worker-only code (an address is checked by `isAccount` of aggregate-shape.ts, with `ripple-address-codec`), no I/O.
 //
 // What is checked: lists are lists; the answer says `success`; the date of a row is a UTC midnight that starts a bucket of the interval asked for (a Monday
 // for a week, the 1st for a month: an API without D2 ignores `interval` and answers days); the `interval` an answer echoes is the one asked for; amounts and
@@ -12,10 +12,8 @@
 // characters or 40 hex digits; `stats/{family}` has no `marker`. Extra keys are not refused (the API may add a column), and a key the API leaves out when it
 // has no value (`counterparty`, `issuer`, `change_type`, `native_volume`) is checked when it is there: `null` is never served.
 
-import { isValidClassicAddress } from "ripple-address-codec";
-
 import type { AnalyticsUnit } from "../domain/analytics-params";
-import { fields, isIsoTime, isName, isNumberText, isWhole, optionalFields, rowsOf } from "./aggregate-shape";
+import { fields, isAccount, isIsoTime, isName, isNumberText, isWhole, optionalFields, rowsOf } from "./aggregate-shape";
 import type {
   AccountTxStatsRow,
   AccountValueRow,
@@ -51,8 +49,6 @@ function isBucketStart(value: unknown, unit: AnalyticsUnit): value is string {
 }
 
 const isCurrency = (value: unknown): value is string => typeof value === "string" && CURRENCY.test(value);
-/** An account: a classic address with its checksum. An X-address is not one (it holds a tag, and the page links accounts, not destinations). */
-const isAccount = (value: unknown): value is string => typeof value === "string" && isValidClassicAddress(value);
 
 /** The answer as an object that says `success`. */
 function headOf(what: string, body: unknown): Record<string, unknown> {

@@ -3,7 +3,7 @@
 // `apps/api/src/amm/amm-objects.ts`; the types are in api-types.ts, "AMM"). Like `aggregate-shape.ts`, the data API client runs the checks inside the load its subrequest
 // cache runs, as `get()`'s `finish`: a 200 that is not what the reference promises is an `UpstreamError` of kind `server` (status 200 marks it as an answer of the
 // upstream), is held when the call asks, and is never stored, and the card of the call fails with it. A check takes the whole body (the pool checks, the object under `pool`)
-// and returns it, typed, as it is. Worker-only code (it checks an address with `ripple-address-codec`), no I/O.
+// and returns it, typed, as it is. Worker-only code, no I/O.
 //
 // What is checked: lists are lists, with a count and a marker (`listOf`); amounts are numbers as text (`isNumberText`: the API writes them with BigNumber's `toString()`, in
 // exponent form below 1e-6 and from 1e21, as E3's and E4's calls of the same API are taken), except `value_native`, which is a plain decimal; fees (`trading_fee`,
@@ -12,9 +12,22 @@
 // address, because it goes into a link; `date`, `executed_time` and `expiration` are times; `event` and `type` are the words of the reference. Extra keys are not refused (the
 // API may add a column), and a key the API leaves out when it has no value is checked when it is there: `null` is never served.
 
-import { isValidClassicAddress } from "ripple-address-codec";
-
-import { checkPairExchanges, checkVolumePage, fields, isDecimalText, isIsoTime, isName, isNumberText, isWhole, listOf, optionalFields, rowsOf } from "./aggregate-shape";
+import {
+  checkPairExchanges,
+  checkPairOf,
+  checkVolumePage,
+  fields,
+  isAccount,
+  isBoolean,
+  isDecimalText,
+  isIsoTime,
+  isName,
+  isNumberText,
+  isWhole,
+  listOf,
+  optionalFields,
+  rowsOf,
+} from "./aggregate-shape";
 import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmPoolDay, AmmSwap, AmmVolumeRow, Page } from "./api-types";
 import { isObject, malformed } from "./tx-shape";
 
@@ -24,20 +37,11 @@ const ACCOUNT = "an account";
 const FEE = "a whole number from 0 to 1000";
 const TIME = "a time";
 
-/** An account: a classic address with its checksum. An X-address is not one (it holds a tag, and the pages link accounts). */
-const isAccount = (value: unknown): value is string => typeof value === "string" && isValidClassicAddress(value);
 /** A fee in units of 1/100000: a whole number from 0 to 1000 (1%, the ledger's largest). */
 const isFee = (value: unknown): value is number => isWhole(value) && value <= 1000;
-const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 
 const EVENTS: readonly string[] = ["create", "deposit", "withdraw", "clawback", "delete"];
 const isEvent = (value: unknown): value is AmmLiquidityEvent["event"] => typeof value === "string" && EVENTS.includes(value);
-
-/** The pair a pool or a day is of: two currencies, and an issuer for each that has one. */
-function checkPair(what: string, where: string, row: Record<string, unknown>): void {
-  fields(what, where, row, ["base_currency", "counter_currency"], isName, "a currency");
-  optionalFields(what, where, row, ["base_issuer", "counter_issuer"], isName, "an issuer");
-}
 
 /** The auction slot of a pool: every part is there only when known. */
 function checkSlot(what: string, where: string, slot: unknown): void {
@@ -51,7 +55,7 @@ function checkSlot(what: string, where: string, slot: unknown): void {
 /** A pool (`Pool`): the keys it always has, and the ones it has when known. */
 function checkPoolRow(what: string, where: string, row: Record<string, unknown>): void {
   fields(what, where, row, ["amm_account"], isAccount, ACCOUNT);
-  checkPair(what, where, row);
+  checkPairOf(what, where, row);
   optionalFields(what, where, row, ["reserve_base", "reserve_counter", "lp_supply"], isNumberText, NUMBER);
   optionalFields(what, where, row, ["lp_currency"], isName, "a currency");
   optionalFields(what, where, row, ["trading_fee"], isFee, FEE);
@@ -92,7 +96,7 @@ export function checkDaysPage(body: unknown): Page<"days", AmmPoolDay> {
     const where = `days[${index}]`;
     fields(what, where, row, ["amm_account"], isAccount, ACCOUNT);
     fields(what, where, row, ["date"], isIsoTime, TIME);
-    checkPair(what, where, row);
+    checkPairOf(what, where, row);
     fields(what, where, row, ["swap_count", "deposit_count", "withdraw_count"], isWhole, WHOLE);
     fields(
       what,
@@ -123,8 +127,11 @@ export function checkSwapsPage(body: unknown): Page<"exchanges", AmmSwap> {
   return body as Page<"exchanges", AmmSwap>;
 }
 
-/** `GET /v2/amm/pools/{pool}/liquidity`: the creation, deposits, withdrawals, clawbacks and deletion of the pool (`LiquidityEvent`), under `liquidity`. */
-export function checkLiquidityPage(body: unknown): Page<"liquidity", AmmLiquidityEvent> {
+/**
+ * `GET /v2/amm/pools/{pool}/liquidity`: the creation, deposits, withdrawals, clawbacks and deletion of the pool (`LiquidityEvent`), under `liquidity`. `asked` is the `event`
+ * the request filtered by, if any: a row of another event is not the answer to that request (an API that ignored the parameter), and a page would show it as the pool's creation.
+ */
+export function checkLiquidityPage(body: unknown, asked?: AmmLiquidityEvent["event"]): Page<"liquidity", AmmLiquidityEvent> {
   const what = "data API AMM liquidity";
   for (const [index, row] of listOf(what, body, "liquidity").entries()) {
     const where = `liquidity[${index}]`;
@@ -133,6 +140,9 @@ export function checkLiquidityPage(body: unknown): Page<"liquidity", AmmLiquidit
     fields(what, where, row, ["tx_hash"], isName, "text");
     fields(what, where, row, ["executed_time"], isIsoTime, TIME);
     fields(what, where, row, ["event"], isEvent, "create, deposit, withdraw, clawback or delete");
+    if (asked !== undefined && row.event !== asked) {
+      throw malformed(what, `${where}.event is ${JSON.stringify(row.event)}, not the ${JSON.stringify(asked)} that was asked for (an API that ignored the filter?)`);
+    }
     optionalFields(what, where, row, ["mode"], isName, "text");
     // Signed from the pool's side: a withdrawal's amounts and burned tokens are negative.
     fields(what, where, row, ["base_amount", "counter_amount", "lp_tokens"], isNumberText, NUMBER);
