@@ -32,14 +32,12 @@
 import type { Plugin } from "vite";
 
 import type { BundleReport } from "./bundle-budget.ts";
+import { closureOf, fileOf, normalize } from "./module-graph.ts";
 import type { BundleFile } from "./shell-chunks.ts";
 
 /** The query of a copy: the view's copy of `app/ui/charts/Plot.tsx` is `…/app/ui/charts/Plot.tsx?analytics-kit`. */
 export const KIT_COPY = "?analytics-kit";
 
-const normalize = (path: string) => path.replaceAll("\\", "/").replace(/\/+$/, "");
-/** A module's file: its id without the query, with `/`. */
-const fileOf = (id: string) => normalize(id).split("?")[0]!;
 const isCopy = (id: string) => id.endsWith(KIT_COPY);
 
 /** The view, the kit's directory and the kit's two files outside it, below the app directory. */
@@ -90,21 +88,6 @@ export interface KitCopy {
 const fail = (message: string): never => {
   throw new Error(`analytics kit copy: ${message}`);
 };
-
-/** The static closure of `start`, with the module that first imported each (`""` for `start`). */
-function closureOf(graph: KitGraph, start: string): Map<string, string> {
-  const importerOf = new Map<string, string>([[start, ""]]);
-  const stack = [start];
-  while (stack.length > 0) {
-    const id = stack.pop()!;
-    for (const next of graph.info(id)?.importedIds ?? []) {
-      if (importerOf.has(next)) continue;
-      importerOf.set(next, id);
-      stack.push(next);
-    }
-  }
-  return importerOf;
-}
 
 const WHERE = "scripts/analytics-kit-copy.ts names the view and the kit; update it, or the kit's chunks are shared again";
 

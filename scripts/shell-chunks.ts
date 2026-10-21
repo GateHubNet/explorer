@@ -27,6 +27,7 @@
 import type { Plugin, Rolldown } from "vite";
 
 import { PAGES } from "./bundle-budget.ts";
+import { closureOf, fileOf, normalize } from "./module-graph.ts";
 
 /** What the plugin needs of the module graph: every module, and each one's static imports and whether it is an entry. */
 export interface ModuleGraph {
@@ -55,28 +56,11 @@ const CLIENT_ENTRY = /[\\/]entry\.client\.[cm]?[jt]sx?$/;
  */
 const CLIENT_ROUTE = "?__react-router-build-client-route";
 
-const normalize = (path: string) => path.replaceAll("\\", "/").replace(/\/+$/, "");
-/** A module's file: its id without the query, with `/`. */
-const fileOf = (id: string) => normalize(id).split("?")[0]!;
-
 /** The module of the route `route` (`routes/net._index`, `root`) as React Router's client build names it: `app/<route>.tsx` with the build's query. */
 function isRouteModule(id: string, appDirectory: string, route: string): boolean {
   const path = fileOf(id);
   const stem = `${appDirectory}/${route}.`;
   return path.startsWith(stem) && /^[cm]?[jt]sx?$/.test(path.slice(stem.length));
-}
-
-/** The static closure of `start`: `start` and every module it imports, directly or through another (an `import()` is not followed). */
-function closureOf(graph: ModuleGraph, start: string): Set<string> {
-  const seen = new Set<string>();
-  const stack = [start];
-  while (stack.length > 0) {
-    const id = stack.pop()!;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    stack.push(...(graph.info(id)?.importedIds ?? []));
-  }
-  return seen;
 }
 
 /**
@@ -102,14 +86,14 @@ export function shellModules(graph: ModuleGraph, appDirectory: string, routes: r
     return found[0]!;
   });
 
-  const shell = new Set([...closureOf(graph, entry), ...closureOf(graph, roots[0]!)]);
+  const shell = new Set([...closureOf(graph, entry).keys(), ...closureOf(graph, roots[0]!).keys()]);
   shell.delete(entry);
 
   // What every page of the budget loads beyond the closure: in the shell, it is one file fewer on each of those pages. A route module stays
   // its route's chunk (`app/routes/`: React Router imports it by its URL).
   const gated = new Set<string>();
   const closures = pages.map((page) => closureOf(graph, page));
-  for (const id of closures[0] ?? []) {
+  for (const id of closures[0]?.keys() ?? []) {
     if (shell.has(id) || id === entry || graph.info(id)?.isEntry || fileOf(id).startsWith(`${app}/routes/`)) continue;
     if (closures.every((closure) => closure.has(id))) gated.add(id);
   }

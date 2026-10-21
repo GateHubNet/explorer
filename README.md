@@ -828,7 +828,8 @@ the page is served with `Cache-Control: no-store` and is not stored, and a Retry
 An analytics route that answers "Cannot GET …" (an API without D2) is an outage by E2's route-missing rule, held and never stored, so it fails its card; D2 answers
 an unknown address with empty answers, so a `not_found` from these routes fails its card too. `analytics-shape.ts` checks each answer inside its cached load: lists
 are lists; dates are on a start of the interval asked for (a Monday, the first of a month), so an API that ignores `interval` and answers days fails; the echoed
-`interval` is the one asked for; amounts and values are decimal strings and counts whole numbers; an account is a classic address; a currency is 3 characters or
+`interval` is the one asked for; amounts and values are numbers as text (`isNumberText`: a decimal, or the exponent form bignumber.js's `toString()` writes below
+1e-6 and from 1e21) and counts whole numbers; an account is a classic address; a currency is 3 characters or
 40 hex digits; `stats/{family}` has no `marker`. So a wrong 200 is kind `server` and is not kept. Retry is `useRetry()` (`app/ui/use-retry.ts`), the route's own
 `.data` URL again: the calls that loaded are warm for 60 s, and only the failed or late one is asked again.
 
@@ -1293,7 +1294,8 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `shell` chunk (the closure and the modules every page of the
   budget loads, over a made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest); `scripts/analytics-kit-copy.test.ts`
   the analytics view's own copy of the kit (what the kit is, what an import resolves to, the check of a made-up module graph and bundle in each
-  way it fails, the plugin's hooks, and the same check on the module graph of the app's sources). No test reads `build/`: what the build
+  way it fails, the plugin's hooks, and the same check on the module graph of the app's sources); `scripts/module-graph.test.ts` what the two
+  plugins share (`scripts/module-graph.ts`: a module's id read as a path, and the walk of its static imports). No test reads `build/`: what the build
   holds is `pnpm check:bundle`'s;
   `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through, `E2E_FEATURES_OFF`); `test/unit/e2e-stack.test.ts`
