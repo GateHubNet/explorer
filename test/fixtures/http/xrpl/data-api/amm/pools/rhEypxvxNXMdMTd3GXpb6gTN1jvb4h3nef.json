@@ -1,0 +1,20 @@
+{
+  "pool": {
+    "amm_account": "rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef",
+    "auction_slot": {
+      "discounted_fee": 100,
+      "expiration": "2026-10-13T12:56:30Z",
+      "holder": "rKHM6vJYeVFqBvmj8VKRkdFY9ygkLRHWgZ",
+      "price": "0"
+    },
+    "base_currency": "564F58F09F97BD00000000000000000000000000",
+    "base_issuer": "rBnJZMDB9HZ6UxUoeQc7eaAQHA3Y1v6Hk3",
+    "counter_currency": "XRP",
+    "deleted": false,
+    "last_ledger": 107644916,
+    "lp_currency": "03BAEDE9870DA0FC0B480B45E46AABB97B8EB931",
+    "lp_supply": "7881180.64345377",
+    "trading_fee": 1000
+  },
+  "result": "success"
+}

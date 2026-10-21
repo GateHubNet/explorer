@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rUwuqjuHmiAnzybqDswusrHkeWtgFkntPy",
+    "base_currency": "VOX",
+    "base_issuer": "rUiHyCL7UuFfn4gRSFFfRyVZgzRtLVQyQc",
+    "counter_currency": "XRP",
+    "deleted": false,
+    "last_ledger": 107698848,
+    "reserve_base": "158580.8731486465",
+    "reserve_counter": "558.432376",
+    "value_native": "1116.8648"
+  },
+  "result": "success"
+}

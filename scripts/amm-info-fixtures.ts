@@ -32,7 +32,11 @@ export interface AmmInfoPool {
   asset2: Asset;
 }
 
-/** The pools whose `amm_info` is a fixture. E3: XRP/RLUSD. E5 appends its featured pools. */
+/**
+ * The pools whose `amm_info` is a fixture. E3: XRP/RLUSD. E5 appends its featured live pools (scripts/amm-fixtures.ts, `FEATURED_POOLS`) whose nodes the
+ * recordings hold, each asset as the pool's recorded AMM node has it: USDC/RLUSD, XRP/USD and DVR/XRP. VOX/XRP has none: the recordings hold only its AMM
+ * node (its vote), not its account or its VOX line, so the node's answer is `actNotFound`, and the pool page shows it as gone (P3).
+ */
 export const AMM_INFO_POOLS: AmmInfoPool[] = [
   {
     pool: "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3",
@@ -40,6 +44,21 @@ export const AMM_INFO_POOLS: AmmInfoPool[] = [
     // derived-trades.ts is the first of them to be loaded this list is made before `NATIVE` is (undefined in Vitest, a ReferenceError in Node).
     asset: { currency: "XRP" },
     asset2: { currency: "524C555344000000000000000000000000000000", issuer: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" },
+  },
+  {
+    pool: "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+    asset: { currency: "5553444300000000000000000000000000000000", issuer: "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE" },
+    asset2: { currency: "524C555344000000000000000000000000000000", issuer: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" },
+  },
+  {
+    pool: "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am",
+    asset: { currency: "XRP" },
+    asset2: { currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B" },
+  },
+  {
+    pool: "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+    asset: { currency: "DVR", issuer: "rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9" },
+    asset2: { currency: "XRP" },
   },
 ];
 

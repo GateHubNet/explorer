@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "exchanges": [
+    {"amm_account":"rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb","base_amount":"22.19651885465","base_currency":"524C555344000000000000000000000000000000","base_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","buyer":"rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb","counter_amount":"22.21468168488","counter_currency":"5553444300000000000000000000000000000000","counter_issuer":"rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE","executed_time":"2026-02-12T01:07:50Z","ledger_index":102186243,"node_index":1,"offer_sequence":0,"provider":"rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb","rate":"1.0008183","seller":"rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6","taker":"rogue5HnPRSszD9CWGSUz8UGHMVwSSKF6","tx_hash":"B9C56D941C726140DCDE385A5045EDF976745F434153EA49908AAE92969B1469","tx_index":35,"tx_type":"Payment"}
+  ],
+  "result": "success"
+}

@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rKXWJa6WnxtNqMUdr8pKfWzCaQQwQ3SY4U",
+    "base_currency": "FBI",
+    "base_issuer": "rHqMFkx1KWABcgdJLCvZYyUNCbL6NX3QMg",
+    "counter_currency": "XRP",
+    "deleted": false,
+    "last_ledger": 107612573,
+    "reserve_base": "976459.0478909486",
+    "reserve_counter": "71.703421",
+    "value_native": "143.40684"
+  },
+  "result": "success"
+}

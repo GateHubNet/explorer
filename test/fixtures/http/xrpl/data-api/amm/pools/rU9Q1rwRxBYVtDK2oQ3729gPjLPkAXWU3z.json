@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rU9Q1rwRxBYVtDK2oQ3729gPjLPkAXWU3z",
+    "base_currency": "58434F5245000000000000000000000000000000",
+    "base_issuer": "r3dVizzUAS3U29WKaaSALqkieytA2LCoRe",
+    "counter_currency": "CSC",
+    "counter_issuer": "rCSCManTZ8ME9EoLrSHHYKW8PPwWMgkwr",
+    "deleted": false,
+    "last_ledger": 102186243,
+    "reserve_base": "567.4206806954131",
+    "reserve_counter": "288000.86535925"
+  },
+  "result": "success"
+}

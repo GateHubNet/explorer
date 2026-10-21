@@ -1,0 +1,9 @@
+{
+  "count": 2,
+  "exchanges": [
+    {"amm_account":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","base_amount":"1.468965646539","base_currency":"USD","base_issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","buyer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","counter_amount":"1.014212","counter_currency":"XRP","executed_time":"2026-10-08T01:43:52Z","ledger_index":107506489,"node_index":2,"offer_sequence":0,"provider":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","rate":"0.69042595","seller":"rhUvv3UU894VkVacnnGvSGWjffj59c8VUT","taker":"rhUvv3UU894VkVacnnGvSGWjffj59c8VUT","tx_hash":"871B0B1E27F61A40A63AA404009E9297A7F1DED16BCBE8A17A79FDDD9E1E9554","tx_index":19,"tx_type":"Payment"},
+    {"amm_account":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","base_amount":"1.468583632016","base_currency":"USD","base_issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","buyer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","counter_amount":"1.014569","counter_currency":"XRP","executed_time":"2026-10-08T01:43:52Z","ledger_index":107506489,"node_index":5,"offer_sequence":0,"provider":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","rate":"0.69084864","seller":"rhUvv3UU894VkVacnnGvSGWjffj59c8VUT","taker":"rhUvv3UU894VkVacnnGvSGWjffj59c8VUT","tx_hash":"78029F1E36EC992713E28E07AB72880AF5274D566925610CCC42F5A257036D60","tx_index":17,"tx_type":"Payment"}
+  ],
+  "marker": "WzEwNzUwNjQ4OSwxNyw1XQ",
+  "result": "success"
+}

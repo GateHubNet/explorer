@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rhckmDCzpKgtdaZET35kBXgbsJFEAXmrY5",
+    "base_currency": "5349474D41000000000000000000000000000000",
+    "base_issuer": "rfKYWZ84fm9eVEdoTcsQCo1WdqMPyaUF5z",
+    "counter_currency": "XRP",
+    "deleted": false,
+    "last_ledger": 102186243,
+    "reserve_base": "5297119312.822294",
+    "reserve_counter": "21371.152659",
+    "value_native": "42742.305"
+  },
+  "result": "success"
+}

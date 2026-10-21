@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "governance": [
+    {"account":"r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h","amm_account":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","auction_slot":{"auth_accounts":[],"discounted_fee":22,"expiration":"2026-08-06T09:15:00Z","holder":"r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h"},"bid_max":"294.354152174","bid_min":"294.354152174","executed_time":"2026-08-05T09:15:01Z","ledger_index":106084525,"price_paid":"294.354152174","tx_hash":"2D66C6FD02977F96126FB352AAD691CA556790DBF71E0CDF3B701E18A49B9427","tx_index":79,"type":"bid"}
+  ],
+  "result": "success"
+}

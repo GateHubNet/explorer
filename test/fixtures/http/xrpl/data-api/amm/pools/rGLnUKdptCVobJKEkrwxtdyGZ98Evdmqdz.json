@@ -1,0 +1,22 @@
+{
+  "pool": {
+    "amm_account": "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz",
+    "auction_slot": {
+      "discounted_fee": 25,
+      "expiration": "2025-08-20T15:08:30Z",
+      "holder": "rJxRjYD2ic9D56gJhsc2v5ZgSZ8JdJqEEG",
+      "price": "0"
+    },
+    "base_currency": "SNK",
+    "base_issuer": "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm",
+    "counter_currency": "XRP",
+    "deleted": true,
+    "last_ledger": 100132150,
+    "lp_currency": "03BEE087CAB9A53DE035A3E3F7550EEC26048A1B",
+    "lp_supply": "0",
+    "reserve_base": "0",
+    "reserve_counter": "0",
+    "trading_fee": 250
+  },
+  "result": "success"
+}

@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "liquidity": [
+    {"account":"rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3","amm_account":"rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG","base_amount":"1000000","counter_amount":"500","event":"create","executed_time":"2026-10-12T19:36:41Z","initiator":"rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3","ledger_index":107612573,"lp_tokens":"22360679.77499789","tx_hash":"B9A146300E7755D109BF92B6B51725B8C45BA1CCFB6683C0E01DA679B2FB0675","tx_index":43}
+  ],
+  "result": "success"
+}

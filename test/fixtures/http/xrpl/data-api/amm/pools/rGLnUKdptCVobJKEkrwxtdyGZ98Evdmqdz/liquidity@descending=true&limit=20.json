@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "liquidity": [
+    {"account":"rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP","amm_account":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","base_amount":"-0.0000851206393053295","counter_amount":"-0.021974","event":"withdraw","executed_time":"2025-11-11T06:48:31Z","initiator":"rHjzfruAe7qbEPjzvdfQ4zvjoZnQHcomwP","ledger_index":100132150,"lp_tokens":"-1.18871683962","mode":"withdraw_all","tx_hash":"B44F14E085567F8C25DD20456FCAD9B0A289BA2EA2AB3469D6F29E582059F63F","tx_index":45}
+  ],
+  "result": "success"
+}

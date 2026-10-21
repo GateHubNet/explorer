@@ -7,6 +7,7 @@ import {
   dataApiTx,
   HTTP,
   inLedgerOrder,
+  isAmmGenerated,
   isAnalyticsGenerated,
   isMarketGenerated,
   isSynthetic,
@@ -63,11 +64,19 @@ describe("every fixture file", () => {
   });
 
   it("is named by the rule that finds it: a sorted query after `@`, and upper-case hashes", () => {
+    // A file's query is the decoded text of the request's (`canonicalQuery`), so it is sent encoded again: a `+` in it is a value's (an asset's `CUR+issuer`,
+    // which the client sends as `%2B`), not a space.
+    const sent = (query: string) =>
+      query
+        .split("&")
+        .filter((pair) => pair !== "")
+        .map((pair) => pair.split("=").map(encodeURIComponent).join("="))
+        .join("&");
     for (const file of files.filter((f) => f.includes("/data-api/"))) {
       const [path, query = ""] = file.replace(/\.json$/, "").split("@");
       const [net, , ...rest] = path!.split("/");
-      expect(file, "a data API file").toBe(dataApiFile(net as Net, `/v2/${rest.join("/")}`, query));
-      expect(canonicalQuery(query), file).toBe(query);
+      expect(file, "a data API file").toBe(dataApiFile(net as Net, `/v2/${rest.join("/")}`, sent(query)));
+      expect(canonicalQuery(sent(query)), file).toBe(query);
     }
     for (const file of files) for (const hash of file.match(/[0-9a-fA-F]{64}/g) ?? []) expect(hash, file).toBe(hash.toUpperCase());
   });
@@ -82,7 +91,9 @@ describe("every fixture file", () => {
 
   it("stays within the budget that keeps the set reviewable", () => {
     const bytes = (names: string[]) => names.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
-    expect(bytes(files.filter((file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file) && !isValidatorsGenerated(file)))).toBeLessThan(3.5 * 1024 * 1024);
+    expect(
+      bytes(files.filter((file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file) && !isValidatorsGenerated(file) && !isAmmGenerated(file))),
+    ).toBeLessThan(3.5 * 1024 * 1024);
     // The synthetic aggregates of the network page (about 2.3 MiB, a row to a line: four periods, two display currencies, three volumes) are
     // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
     // The accounts' analytics answers (scripts/analytics-fixtures.ts: 144 files, about 0.31 MiB, a row to a line) are synthetic too, and fit in it.
@@ -97,6 +108,10 @@ describe("every fixture file", () => {
     // which the 30 days of XRPL's majority amendment, under its name and its ID, are 0.7 MiB) are reviewed as their generator too, with a budget of their own.
     expect(bytes(files.filter(isValidatorsGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isValidatorsGenerated))).toBeLessThan(3.0 * 1024 * 1024);
+    // The AMM pages' files (scripts/amm-fixtures.ts: the pool routes derived from the recordings, a row to a line; 185 files, 142,231 bytes, about 0.14 MiB)
+    // are reviewed as their generator too, with a budget of their own (P2 of E5), which the AMM pages' synthetic files raise with their data, never above 1.0 MiB.
+    expect(bytes(files.filter(isAmmGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isAmmGenerated))).toBeLessThan(0.2 * 1024 * 1024);
   });
 });
 

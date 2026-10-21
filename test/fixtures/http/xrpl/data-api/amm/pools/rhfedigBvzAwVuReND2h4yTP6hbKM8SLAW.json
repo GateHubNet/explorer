@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rhfedigBvzAwVuReND2h4yTP6hbKM8SLAW",
+    "base_currency": "4249547800000000000000000000000000000000",
+    "base_issuer": "rBitcoiNXev8VoVxV7pwoQx1sSfonVP9i3",
+    "counter_currency": "4D41534B00000000000000000000000000000000",
+    "counter_issuer": "rUc3QqLuP1wi3aHCey3hjzDFocmYrbFRKD",
+    "deleted": false,
+    "last_ledger": 105257303,
+    "reserve_base": "0.06972595821815661",
+    "reserve_counter": "0.691138727485796"
+  },
+  "result": "success"
+}

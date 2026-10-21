@@ -1,0 +1,9 @@
+{
+  "count": 2,
+  "liquidity": [
+    {"account":"rN6iUvsnjWGvGpWMsTptvDjxXXGBf4Cws2","amm_account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","base_amount":"0","counter_amount":"-49.999999","event":"withdraw","executed_time":"2026-10-17T06:18:50Z","initiator":"rN6iUvsnjWGvGpWMsTptvDjxXXGBf4Cws2","ledger_index":107711512,"lp_tokens":"-24262.103601","mode":"single_asset","tx_hash":"2D6FF646176D364EAD12395D67CCA6D459E1875F537D035D9B10B7754ACA07A3","tx_index":60},
+    {"account":"rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z","amm_account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","base_amount":"108.041216585","counter_amount":"82.769304","event":"deposit","executed_time":"2026-10-16T21:57:22Z","initiator":"rfzppK1YerX4U8Utr2kVvBuVPLF3m4Yu3z","ledger_index":107703707,"lp_tokens":"80142.926261","mode":"two_asset","tx_hash":"20254F31198DE60948CB0488464D9D9E55B262486D5C366FD6046374254ADF25","tx_index":36}
+  ],
+  "marker": "WzEwNzcwMzcwNywzNl0",
+  "result": "success"
+}

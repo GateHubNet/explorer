@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rGuYK1v7kyrKEa86wPN2M9CHpT9LiWFr5m",
+    "base_currency": "TUJ",
+    "base_issuer": "rKqSPjN6okYt7iPk3xzWvuW9oN1Nk7vSUV",
+    "counter_currency": "XRP",
+    "deleted": false,
+    "last_ledger": 93663334,
+    "reserve_base": "87637118.62037774",
+    "reserve_counter": "229.307133",
+    "value_native": "458.61427"
+  },
+  "result": "success"
+}

@@ -1,0 +1,23 @@
+{
+  "pool": {
+    "amm_account": "rprDM9hEWv7ACi1y9ZXrtRyySoWVLuU5zs",
+    "auction_slot": {
+      "discounted_fee": 68,
+      "expiration": "2024-09-14T12:01:52Z",
+      "holder": "rpRLdCRgqywcgMaRbCBZQEKv1fk3ZsuDVU",
+      "price": "46195.55395962456"
+    },
+    "base_currency": "XLM",
+    "base_issuer": "rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y",
+    "counter_currency": "XRP",
+    "deleted": false,
+    "last_ledger": 107671558,
+    "lp_currency": "03B9D5AED48B20CC0926373FB46775329CFDB52E",
+    "lp_supply": "378815190.4019352",
+    "reserve_base": "1095120.937848475",
+    "reserve_counter": "151090.758078",
+    "trading_fee": 684,
+    "value_native": "302181.52"
+  },
+  "result": "success"
+}

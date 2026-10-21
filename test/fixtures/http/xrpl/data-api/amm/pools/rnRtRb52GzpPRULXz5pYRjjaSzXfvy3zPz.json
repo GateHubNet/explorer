@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rnRtRb52GzpPRULXz5pYRjjaSzXfvy3zPz",
+    "base_currency": "5553444300000000000000000000000000000000",
+    "base_issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+    "counter_currency": "GZX",
+    "counter_issuer": "rNgsoCk6mjBq5jcqitBpg1gdfYhKajXsM2",
+    "deleted": false,
+    "last_ledger": 105257303,
+    "reserve_base": "388.0730331464983",
+    "reserve_counter": "5077664.080049839"
+  },
+  "result": "success"
+}

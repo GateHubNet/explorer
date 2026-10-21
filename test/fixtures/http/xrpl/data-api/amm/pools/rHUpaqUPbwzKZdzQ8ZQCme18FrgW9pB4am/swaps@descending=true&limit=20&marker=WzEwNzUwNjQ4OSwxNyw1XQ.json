@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "exchanges": [
+    {"amm_account":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","autobridged_currency":"524C555344000000000000000000000000000000","autobridged_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","base_amount":"22.973794175164","base_currency":"USD","base_issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","buyer":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","counter_amount":"15.952677","counter_currency":"XRP","executed_time":"2026-10-08T01:43:52Z","ledger_index":107506489,"node_index":10,"offer_sequence":0,"provider":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","rate":"0.69438582","seller":"rsPrWzpYp5jj278vHVgp1tMvbKdHAZGFbi","taker":"rsPrWzpYp5jj278vHVgp1tMvbKdHAZGFbi","tx_hash":"4254B439B920F1AA72CAEA282BE2EB5737E900A72D957460C7857717FDE6334B","tx_index":12,"tx_type":"OfferCreate"}
+  ],
+  "result": "success"
+}

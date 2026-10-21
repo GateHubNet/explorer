@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rNauugE1qZvWjd6PFLG7uwYQR1aYCEd1bZ",
+    "base_currency": "BMD",
+    "base_issuer": "rUZZ7ibh5oXRkxU2veuLWcMzN8YcFhHngR",
+    "counter_currency": "XRP",
+    "deleted": false,
+    "last_ledger": 107698848,
+    "reserve_base": "239978260.1686969",
+    "reserve_counter": "127.039145",
+    "value_native": "254.07829"
+  },
+  "result": "success"
+}

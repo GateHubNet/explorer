@@ -1,0 +1,25 @@
+{
+  "pool": {
+    "amm_account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+    "auction_slot": {
+      "discounted_fee": 100,
+      "expiration": "2026-10-13T19:36:40Z",
+      "holder": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+      "price": "0"
+    },
+    "base_currency": "DVR",
+    "base_issuer": "rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9",
+    "counter_currency": "XRP",
+    "created_by": "rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3",
+    "created_ledger": 107612573,
+    "deleted": false,
+    "last_ledger": 107612573,
+    "lp_currency": "036D9072B9D0C769D60E61FCC2E38D12E1C6BD27",
+    "lp_supply": "22360679.77499789",
+    "reserve_base": "1000000",
+    "reserve_counter": "500",
+    "trading_fee": 1000,
+    "value_native": "1000"
+  },
+  "result": "success"
+}

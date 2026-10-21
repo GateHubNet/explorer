@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rhhyXaD64uJ2LmvvRhAPBjFsRvCcZfmC5N",
+    "base_currency": "5844617767730000000000000000000000000000",
+    "base_issuer": "raKhUVtNw6B892bKtATUT3frX35oawfsey",
+    "counter_currency": "PLX",
+    "counter_issuer": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+    "deleted": false,
+    "last_ledger": 107671538,
+    "reserve_base": "2002378.607657464",
+    "reserve_counter": "161756.6454680199"
+  },
+  "result": "success"
+}

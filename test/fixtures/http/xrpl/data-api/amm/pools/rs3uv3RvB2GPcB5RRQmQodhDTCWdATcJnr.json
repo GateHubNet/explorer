@@ -1,0 +1,25 @@
+{
+  "pool": {
+    "amm_account": "rs3uv3RvB2GPcB5RRQmQodhDTCWdATcJnr",
+    "auction_slot": {
+      "discounted_fee": 25,
+      "expiration": "2026-10-16T11:01:32Z",
+      "holder": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+      "price": "0"
+    },
+    "base_currency": "PLX",
+    "base_issuer": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+    "counter_currency": "XRV",
+    "counter_issuer": "rfozJfYGi7oSwnvyV6ev7TaC1NPN9sCXqW",
+    "created_by": "rpbq46kfJh41YsqNUaW2W7dRD2H2KBRFQt",
+    "created_ledger": 107671317,
+    "deleted": false,
+    "last_ledger": 107671317,
+    "lp_currency": "0305EB443064B9E9DCA84E1DCDA1D3174EBDA574",
+    "lp_supply": "29255.76030053546",
+    "reserve_base": "27452.95114",
+    "reserve_counter": "31176.958222",
+    "trading_fee": 250
+  },
+  "result": "success"
+}

@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "liquidity": [
+    {"account":"rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f","amm_account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","base_amount":"0","counter_amount":"1010","event":"deposit","executed_time":"2026-10-16T16:41:31Z","initiator":"rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f","ledger_index":107698848,"lp_tokens":"489501.888267","mode":"single_asset","tx_hash":"94E38B2BCCA96997BCEC32925AEB289D35EC9FD67977995102D91A7E3DD71FEF","tx_index":41}
+  ],
+  "result": "success"
+}

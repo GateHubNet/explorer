@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rPSPvh4P56nb6V9Gu2A1VB9bEDks8uo44P",
+    "base_currency": "2443616D656C546F650000000000000000000000",
+    "base_issuer": "rM1BJWAQ3hfCStboh4wCXTnGyHqcAvJZy3",
+    "counter_currency": "ARK",
+    "counter_issuer": "rf5Jzzy6oAFBJjLhokha1v8pXVgYYjee3b",
+    "deleted": false,
+    "last_ledger": 105257303,
+    "reserve_base": "12002.89707305245",
+    "reserve_counter": "2599.676407524075"
+  },
+  "result": "success"
+}

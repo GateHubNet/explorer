@@ -1,0 +1,8 @@
+{
+  "count": 2,
+  "exchanges": [
+    {"amm_account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","autobridged_currency":"XAH","autobridged_issuer":"rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv","base_amount":"1","base_currency":"524C555344000000000000000000000000000000","base_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","buyer":"rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7","counter_amount":"0.766153","counter_currency":"XRP","executed_time":"2026-10-16T16:50:02Z","ledger_index":107698980,"node_index":7,"offer_sequence":0,"provider":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","rate":"0.76615300","seller":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","taker":"rnCEEqDnCuSjDsHiJrca4VYUqaMyi4vGF7","tx_hash":"F9F304F7B20FA2B1A340C1AB5DD0D6F410A50E80444EE698A47D556BA78E34FC","tx_index":30,"tx_type":"OfferCreate"},
+    {"amm_account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","base_amount":"179.448166793","base_currency":"524C555344000000000000000000000000000000","base_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","buyer":"rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W","counter_amount":"134","counter_currency":"XRP","executed_time":"2026-10-16T12:13:51Z","ledger_index":107694747,"node_index":1,"offer_sequence":0,"provider":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","rate":"0.74673374","seller":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","taker":"rMsrQGK9fZ6B2164QGLnjLMxBYSCY5xJ4W","tx_hash":"52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60","tx_index":0,"tx_type":"Payment"}
+  ],
+  "result": "success"
+}

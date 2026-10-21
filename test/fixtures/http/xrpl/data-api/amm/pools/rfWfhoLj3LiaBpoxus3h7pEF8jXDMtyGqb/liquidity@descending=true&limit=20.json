@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "liquidity": [
+    {"account":"rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV","amm_account":"rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb","base_amount":"-4.18049701822","counter_amount":"-4.17981839135","event":"withdraw","executed_time":"2026-06-29T14:18:01Z","initiator":"rwzSeSjHXGjTPbB5NQuqWsQnpT7Jm3rAqV","ledger_index":105257303,"lp_tokens":"-4.16712896228","mode":"two_asset","tx_hash":"781C5A2707D3A3E9BB00B483A8719345A6ECF0E5532E0CB5FA4016E1D5D6A832","tx_index":29}
+  ],
+  "result": "success"
+}

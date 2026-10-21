@@ -1,0 +1,7 @@
+{
+  "count": 1,
+  "governance": [
+    {"account":"rthwVkuErKQtat6Sn6X2vAeveCEWfFBnt","amm_account":"rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef","executed_time":"2026-10-14T06:32:20Z","fee_voted":1000,"ledger_index":107644916,"trading_fee_after":1000,"tx_hash":"EF35220095FC32B7036D130A460CFB31B80BAF973C0C7F7A9812B0665E33701B","tx_index":12,"type":"vote"}
+  ],
+  "result": "success"
+}

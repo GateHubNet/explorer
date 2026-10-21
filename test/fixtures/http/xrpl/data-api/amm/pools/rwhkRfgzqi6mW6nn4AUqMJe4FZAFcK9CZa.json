@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rwhkRfgzqi6mW6nn4AUqMJe4FZAFcK9CZa",
+    "base_currency": "4249547800000000000000000000000000000000",
+    "base_issuer": "rBitcoiNXev8VoVxV7pwoQx1sSfonVP9i3",
+    "counter_currency": "PWT",
+    "counter_issuer": "rwCVQcyZyxcDma5BEdFpaRErnH9Z7VjFxt",
+    "deleted": false,
+    "last_ledger": 107506489,
+    "reserve_base": "1.45637793648391",
+    "reserve_counter": "25560439745.82467"
+  },
+  "result": "success"
+}

@@ -42,8 +42,10 @@ function closingAt(closeTime: number): RawLedger[] {
 }
 
 describe("the pools", () => {
-  it("are listed with their assets in the natural orientation: XRP/RLUSD, pool rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3", () => {
-    expect(AMM_INFO_POOLS).toEqual([{ pool: POOL, asset: { currency: "XRP" }, asset2: { currency: RLUSD, issuer: RLUSD_ISSUER } }]);
+  it("are listed with their assets in the natural orientation: XRP/RLUSD, pool rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3, then E5's featured live pools", () => {
+    expect(AMM_INFO_POOLS[0]).toEqual({ pool: POOL, asset: { currency: "XRP" }, asset2: { currency: RLUSD, issuer: RLUSD_ISSUER } });
+    // E5 (scripts/amm-fixtures.ts, `FEATURED_POOLS`): USDC/RLUSD, XRP/USD and DVR/XRP; test/unit/amm-fixtures.test.ts checks them against the derived pools.
+    expect(AMM_INFO_POOLS.map(({ pool }) => pool)).toEqual([POOL, "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb", "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am", "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG"]);
     for (const { asset, asset2 } of AMM_INFO_POOLS) {
       expect(naturalOrientation(asset, asset2, "XRP")).toEqual({ base: asset, counter: asset2, inverted: false });
     }
@@ -226,7 +228,12 @@ describe("ammInfoFixtures", () => {
 
   it("names the file of the pool and the file of the pair, each as the mock finds a request by", () => {
     const pair = "xrpl/node/amm_info/XRP_524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De.json";
-    expect([...files.keys()].sort()).toEqual([`xrpl/node/amm_info/${POOL}.json`, pair].sort());
+    expect([...files.keys()].slice(0, 2).sort()).toEqual([`xrpl/node/amm_info/${POOL}.json`, pair].sort());
+    // Two files for each pool of the list, by account and by pair.
+    const sent = ({ currency, issuer }: { currency: string; issuer?: string }) => (issuer === undefined ? { currency } : { currency, issuer });
+    expect([...files.keys()].sort()).toEqual(
+      AMM_INFO_POOLS.flatMap(({ pool, asset, asset2 }) => [nodeFile("xrpl", "amm_info", { amm_account: pool }), nodeFile("xrpl", "amm_info", { asset: sent(asset), asset2: sent(asset2) })]).sort(),
+    );
     // The requests the client makes (`ledger_index: "validated"` is the default and not in the name).
     expect(nodeFile("xrpl", "amm_info", { amm_account: POOL, ledger_index: "validated" })).toBe(`xrpl/node/amm_info/${POOL}.json`);
     expect(

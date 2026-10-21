@@ -1,0 +1,17 @@
+{
+  "result": {
+    "amm": {
+      "account": "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG",
+      "amount": {"currency":"DVR","issuer":"rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9","value":"1000000"},
+      "amount2": "500000000",
+      "auction_slot": {"account":"rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3","discounted_fee":100,"expiration":"2026-10-13T19:36:40+0000","price":{"currency":"036D9072B9D0C769D60E61FCC2E38D12E1C6BD27","issuer":"rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG","value":"0"},"time_interval":20},
+      "lp_token": {"currency":"036D9072B9D0C769D60E61FCC2E38D12E1C6BD27","issuer":"rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG","value":"22360679.77499789"},
+      "trading_fee": 1000,
+      "vote_slots": [{"account":"rEh4WnsrdmE7V1XeTsWi5dM7FHH8hYuea3","trading_fee":1000,"vote_weight":100000}]
+    },
+    "ledger_hash": "68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092",
+    "ledger_index": 107721455,
+    "status": "success",
+    "validated": true
+  }
+}

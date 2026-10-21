@@ -1,0 +1,23 @@
+{
+  "pool": {
+    "amm_account": "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb",
+    "auction_slot": {
+      "discounted_fee": 14,
+      "expiration": "2025-06-13T22:55:21Z",
+      "holder": "rUv4X1NEcqA6rtnd8DjiYycSCDYVrn1Tc8",
+      "price": "0"
+    },
+    "base_currency": "524C555344000000000000000000000000000000",
+    "base_issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+    "counter_currency": "5553444300000000000000000000000000000000",
+    "counter_issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+    "deleted": false,
+    "last_ledger": 105257303,
+    "lp_currency": "03F20B853FF03B7648B755D6F942165CCBDA3FCA",
+    "lp_supply": "26029.03771618391",
+    "reserve_base": "26112.53828344373",
+    "reserve_counter": "26108.29939269826",
+    "trading_fee": 144
+  },
+  "result": "success"
+}

@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "amm_account": "rP898fSsaoMd4zBgoNTc2CdRMSvsMZKjPx",
+    "base_currency": "CSC",
+    "base_issuer": "rCSCManTZ8ME9EoLrSHHYKW8PPwWMgkwr",
+    "counter_currency": "PLX",
+    "counter_issuer": "rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q",
+    "deleted": false,
+    "last_ledger": 107506489,
+    "reserve_base": "361411.7244643658",
+    "reserve_counter": "117069.6695410559"
+  },
+  "result": "success"
+}
