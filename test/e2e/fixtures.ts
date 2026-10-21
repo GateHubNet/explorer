@@ -33,6 +33,23 @@ export const NEVER_FUNDED = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
 /** Well formed, and nothing has it. */
 export const NO_SUCH_TRANSACTION = "0".repeat(64);
 
+// The AMM pages' featured pools (README "AMM pools", "Upstream fixtures"): real pools of the recorded XRPL ledgers, named in their natural orientation.
+// Each page is checked against its own fixtures only: the pool page's day rows, candles and live set are seeded, and are not E3's derived trades of the
+// same pair (the markets pages').
+
+/** XRP/RLUSD: every period of the pool page (30 days, 90 days, a year), swaps and liquidity events in two pages each, its `amm_info` by its account. */
+export const XRP_RLUSD_POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+
+/** SNK/XRP, the pool a withdrawal emptied: the index has it `deleted`, and it is on the fourth page of the list with the deleted pools included. */
+export const SNK_XRP_POOL = "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz";
+/** SNK's issuer: the list's form finds the deleted pool by `SNK.rDDYXY…` with "Include deleted pools". */
+export const SNK_ISSUER = "rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm";
+/** The ledger of the withdrawal that emptied SNK/XRP, the last that touched it (its `last_ledger`). */
+export const SNK_XRP_LAST_LEDGER = 100132150;
+
+/** A Payment that swapped through the XRP/RLUSD pool: its flow's pool step and its sentence's pair lead to the pool's page while AMM_PAGES is on. */
+export const SWAP_THROUGH_POOL = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
+
 /**
  * Whether the suite runs against a real stack or a deployed Worker (E2E_DATA_API_URL, E2E_BASE_URL) and not the fixtures. The
  * recorded ledgers and transactions are the same there; what the fixtures hold by hand is not (the account files: six transactions in

@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
-import { count, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRPL_ACCOUNT } from "./fixtures";
+import { count, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
 import { expect, hydrated, test } from "./support";
 
 // The tags of a page are made by its `meta` export, which the browser runs too when a visitor follows a link inside the page: no new
@@ -170,6 +170,51 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await expect(page).toHaveTitle("Analytics · Account rBbW6i…W5jh · XRPL · explorer");
     await page.goBack();
     await page.waitForURL((url) => url.pathname === account && url.search === "");
+    await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
+    expect(await head(page)).toEqual(first);
+    expect(await sameDocument(page)).toBe(true);
+  });
+
+  test("follow the AMM list to a pool's page, lose the canonical link and the sharing tags and gain `noindex` behind its marker, and get them back", async ({ page, baseURL }) => {
+    test.skip(featuresOff(process.env).has("AMM_PAGES"), "AMM_PAGES is off in the Worker under test: the AMM pages are not found");
+    const origin = new URL(baseURL!).origin;
+    const pool = `/xrpl/amm/${XRP_RLUSD_POOL}`;
+    await page.goto("/xrpl/amm");
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+    expect((await head(page)).canonical).toBe(`${origin}/xrpl/amm`);
+
+    // A row's pair: a link in the page, to the pool's page.
+    await page.getByRole("table", { name: "Pools" }).getByRole("link", { name: "XRP / RLUSD", exact: true }).click();
+    await page.waitForURL(`**${pool}`);
+    await expect(page).toHaveTitle("XRP/RLUSD AMM pool · XRPL · explorer");
+    const first = await head(page);
+    expect(first).toEqual({
+      title: "XRP/RLUSD AMM pool · XRPL · explorer",
+      canonical: `${origin}${pool}`,
+      robots: null,
+      ogTitle: "XRP/RLUSD AMM pool · XRPL · explorer",
+      ogUrl: `${origin}${pool}`,
+      ogImage: `${origin}/og/xrpl/amm/${XRP_RLUSD_POOL}.png`,
+      twitterCard: "summary_large_image",
+    });
+
+    // Its older swaps: a page behind a marker, kept out of the index, with nothing to share and no canonical URL.
+    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    await page.waitForURL(/\?marker=/);
+    await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
+    expect(await head(page)).toEqual({
+      title: "Older swaps of the XRP/RLUSD AMM pool · XRPL · explorer",
+      canonical: null,
+      robots: "noindex, follow",
+      ogTitle: null,
+      ogUrl: null,
+      ogImage: null,
+      twitterCard: null,
+    });
+
+    await page.getByRole("link", { name: "Back to the pool" }).click();
+    await page.waitForURL((url) => url.pathname === pool && url.search === "");
     await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);
     expect(await head(page)).toEqual(first);
     expect(await sameDocument(page)).toBe(true);

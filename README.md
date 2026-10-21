@@ -1091,6 +1091,155 @@ again by every beat of every open tab. A Retry within the hold gets the held fai
 `market-pair-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The fixtures (XRP/RLUSD and LIONS/XRP derived from the recorded ledgers, the recorded books,
 the derived pool, Xahau's EVR/XAH and the markets sets seeded around them) are in "Upstream fixtures".
 
+## AMM pools
+
+Three routes of E5 (`docs/superpowers/specs/2026-10-19-amm-pools-design.md`), behind the switch `AMM_PAGES` ("Switches"), and one kind of link-preview image: the pools of
+the network's AMM, one pool, and a pool by its pair. They are made from the data API's AMM routes (`feat/amm-data`, pinned at data-api-new `c3e2302`: its
+`docs/api-reference.md`, section "AMM", and `apps/api/src/amm/amm-objects.ts`) and, for a pool's live state, the node's `amm_info`.
+
+| Path | Route | Edge class | Indexable |
+|---|---|---|---|
+| `/{net}/amm` | `routes/net.amm._index.tsx` | `live` (5 s + 30 s), the first page and a page behind a marker, filtered or not; `short` with an asset that does not parse; `/xahau/amm` `slow` | the default view only |
+| `/{net}/amm/{pool}` | `routes/net.amm.$pool.tsx` | by the pool's mode (below): `live`, a deleted pool `slow`, a pool shown from the network `short` kept 60 s; a page behind a marker `MARKER_PAGE_CLASS` (`slow`) | the default period, any tab (the canonical URL keeps `?tab=` unless it is the first); not a pool shown from the network |
+| `/{net}/amm/{base}/{counter}` | `routes/net.amm.$base.$counter.tsx` | a 302 to the pool's page: `slow` to a live pool, `short` to a deleted one (a new pool of the pair may come) | no page of its own |
+| `/og/{net}/amm/{pool}.png` | the image route ("The image route") | `slow` (1 h); `short` when the create event could not be read | no |
+
+The three routes export `handle = { navSection: "amm" }`: the header's AMM item is `aria-current="page"` on the list (whatever its query) and `"true"` on a pool page,
+with the breadcrumb `XRPL / AMM pools / XRP/RLUSD`. **Files:** the routes above; `app/domain/amm-params.ts` (the parsers and the links, pure: `parseAmmListParams`,
+`parseAmmPoolParams`, `ammListHref`, `ammPoolHref`, `AMM_TABS`, `AMM_PERIODS`) and `app/domain/pool-link.ts` (`ammPoolPath` and `poolLink`, which the other pages load
+alone); the view builders in `app/server/amm-view.ts` (`ammListPage`, `ammPoolPage`, `ammHistoryPage`, `poolModeOf`, `MODE_CLASS`, `poolQueries`, `daySeries`,
+`nextBidPrice`; pure, unit-tested, BigNumber throughout); the shape checks `app/server/amm-shape.ts`; the tags `app/server/meta-amm-list.ts` and `meta-amm-pool.ts`;
+the pages `app/ui/pages/AmmListPage.tsx`, `AmmPoolPage.tsx` and `NoAmmPage.tsx`, which draw data and never fetch, and import nothing at run time from `app/server`,
+`app/domain/describe`, `app/domain/parse`, `app/domain/asset` or `ripple-*` (`test/unit/amm-bundle.test.ts`). Every number in the page data is a string made from the
+API's or the node's text, or with BigNumber; the list shows compact figures (`compactNumber`), the pool page exact ones. Every pair is E3's natural orientation
+(`naturalOrientation`: "XRP / RLUSD" on the page, `XRP/RLUSD` in breadcrumbs, titles and 404s, prices in RLUSD per XRP); `canonicalPair` only talks to the API,
+which stores XRP/RLUSD as RLUSD/XRP.
+
+**One URL per view.** Each loader reads its own parameters, and a query that is not exactly the canonical form of its view is a 302 to it, class `short`, before
+any call. The canonical form drops defaults (`?period=90d`, `?tab=swaps`, an empty `asset`), unknown values, repeats (the first is read) and unknown parameters,
+drops `back` without a `marker` and `period` beside one (a page of older rows has no charts), writes `asset` in E3's one asset form (`assetText`, a standard code
+upper-cased: `?asset=usd.r…` is `?asset=USD.r…`) and orders the rest:
+
+| Page | Parameters, in order | Default |
+|---|---|---|
+| the list | `asset`: one asset, E3's form (`XRP`, `RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De`; a space, which a raw `+` becomes in a query, is read as the separator); `deleted`: `1` adds the deleted pools; `marker`, `back`: the page trail (`trailPaging`) | none |
+| a pool | `period`: `30d`, `90d`, `1y`; `tab`: `swaps`, `liquidity`, `governance`; `marker`, `back`: the tab's page trail | `90d`, `swaps` |
+| a pair | none: any query is a 302 to the bare path; a pair path not in E3's one spelling (`xrp/usd+r…`) is a 302 to it, `immutable` | |
+
+The selectors (the period, the tabs, Newer and Older, the list's pager "Previous" and "More pools") are links, so they work without JavaScript; with it a click is a
+client-side navigation that keeps the window where it is (`preventScrollReset`). The list's filter is a GET form to `/{net}/amm`: the field "Pools with this asset"
+(placeholder "XRP or RLUSD.rMxCK…"), the checkbox "Include deleted pools" (`deleted=1`) and "Show pools".
+
+**Validation, before any call.** A pool is a classic address with a good checksum (an X-address is not: a pool takes no tag), an asset passes `parseAssetText`,
+a pair has two different assets, a marker passes `isMarker`.
+
+| Request | Answer |
+|---|---|
+| any AMM route or image while `AMM_PAGES` is off | 404 "We couldn’t find the AMM pages on XRPL", class `short`, no call |
+| `/{net}/amm/{x}` where `x` is not a classic address; a pair with an asset that does not parse, or one asset twice; a `marker` that is none | 404, class `short`, no call |
+| `/xahau/amm` | 200 `NoAmmPage`: "Xahau has no AMM", "See Xahau markets →" (E3's `marketsHref`, the "soon" style while `MARKETS` is off) and "Switch to XRPL pools"; `noindex, follow`, class `slow`, no call |
+| `/xahau/amm/{valid address}` | 404 "We couldn’t find AMM pool rhWTXC…tcS3 on Xahau", note "Xahau has no AMM, so this pool exists only on the XRP Ledger.", suggestion "Open it on XRPL" (`/xrpl/amm/{pool}`), no call |
+| `/{net}/amm?asset=…` with an asset that does not parse | 200: the list with "Write an asset as XRP, or as a currency and its issuer: RLUSD.rMxCK…" under the field (`aria-invalid`, `aria-describedby`), what was typed kept, no pools call; `noindex, follow`, class `short` |
+| a marker the API refuses (400), or a page with nothing behind its marker | 404, class `short` |
+| a pair the index has no pool for | 404 "We couldn’t find an AMM pool for XRP/USD on XRPL" |
+
+**The list** (`ammListPage`). The heading and its intro ("Automated market maker pools on the XRP Ledger. Swaps against them also count as DEX trades."), the form,
+three tiles of the last 24 hours ("Swap volume, 24 h", "Pools with swaps, 24 h", "Busiest pool, 24 h", the last a link to its pool) with "As of HH:MM UTC.", the AMM
+swap volume per day of the last 30 days (E2's `ColumnChart`, today "so far", the extra "Swaps"), and the Pools table: Pool (the pair, a link, the account and the
+issuers under it, a "Deleted" tag with its icon), Value, Reserves, Fee (`trading_fee` in three decimals, `300` is `0.300%`), Volume 24 h (the live set's component;
+"0" for a pool with the native currency and none, "—" otherwise), Auction slot (the holder, or "Open", by the live set's `end_time`, not the clock; "—" for a
+deleted pool) and Created (the creation ledger, or "—"). The API orders the pools by value: no sort, and one asset as its only filter (it has no filter by a
+currency alone or an issuer). No fee figures before D2b (section 7 of the spec).
+
+| # | Call | Kept (class) | Feeds | If it fails |
+|---|---|---|---|---|
+| 1 | `last_validated` | 2 s, the home page's entry (`live`) | the chart's window | the chart: "Couldn’t load the swap volume" |
+| 2 | `/v2/amm/pools?limit=20[&asset=…][&include_deleted=true][&marker=…]` (`ammPools`) | 60 s (`minute`) | the table | the Pools card: "Couldn’t load the pools"; a refused marker is the 404 |
+| 3 | `/v2/network/amm_volume?live=day` (`ammVolume({ live: "day" })`) | 60 s (`minute`), the pool page's entry | the tiles, Volume 24 h, "Open" | the tiles "—" under their labels with one `SectionError` "Couldn’t load the 24-hour figures.", the Volume 24 h column "—" and the card's note "Couldn’t load the 24-hour volume" |
+| 4 | `/v2/network/amm_volume` over E2's 30 days (`ammVolume` with E2's query), after #1 | 300 s (`slow`, `PERIOD_CALL_TTL_SECONDS`), the network page's entry | the chart | as #1 |
+
+**The pool page** (`ammPoolPage`). The breadcrumb; the pool card (the `<h1>` "XRP / RLUSD pool", "Market →" to E3's market page, the pool account in full with a
+copy button, each issuer, "Created {date} by {account}" from the create event, the LP token's code with a copy button); the mode's notice; the pool state (seven
+stats: Value, Reserves exact in the display order, Pool price, Trading fee "set by N votes", LP tokens, Swap volume 24 h, and Fees earned on the last whole day by
+asset, "Oct 16"), with "Live from the network at ledger #N" or "From the index, ledger #N"; the period, its source line and its window's note ("Charts cover the 90
+days from Jul 20 to Oct 17, 2026 (UTC), today so far"); five charts (Pool value, Swap volume with the extras "Swaps" and the fees by asset, Pool price, Trading fee,
+Reserves in two panels), the running day or week "so far", and the cards of the day rows note "A day without rows may not be computed yet." (`NOT_COMPUTED_NOTE`,
+until D2b names the computed days); the auction slot (until when, E6's `Countdown` in the browser, the holder, the interval in the kit's `Meter`, "The slot is
+open." and what a new bid costs at least, `nextBidPrice`, rippled's `AMMBid.cpp`); the fee votes (E2's `BarList`, each vote's share of the LP tokens at its tip,
+"Weighted result 0.205%, the pool's trading fee."; "No fee votes." for a pool with none); and the pool's activity, tabs that are links (Swaps, Liquidity, Votes and
+bids), 20 rows a page, newest first, Newer and Older. A page behind a marker (`ammHistoryPage`) is the breadcrumb, the pool card without its Created and LP
+token lines, "Back to the pool" and the tab's older rows, titled "Older swaps of the XRP/RLUSD AMM pool": nothing that would be as old as the stored page.
+
+| #1 index | #2 node | Mode | Shown | Class |
+|---|---|---|---|---|
+| a live pool | the pool | indexed | everything | `live` |
+| a live pool | failed (a `TooLate` too) | node down | the state from the index, "Live state unavailable; shown from the index" with Retry (E3's `LiveStateNotice`, no `role`), the slot without its interval, cost or authorized accounts, "Couldn’t load the fee votes" | degraded: served, not stored |
+| a live pool | `not_found` | gone | "The network no longer has this pool; the index may not have seen its deletion yet." and the state from the index; no slot or votes | `live` |
+| a deleted pool | not read | deleted | "This pool was deleted. The last ledger that touched it is #N" (a link), the charts and the activity; no state, slot or votes | `slow` |
+| `pool not found` | the pool | from the network | "Not in the index yet, shown from the network. Its history appears once the index has it."; a `pool not found` of the day rows or the tab is an empty answer | `short`, 60 s, `noindex` |
+| `pool not found` | `not_found` | none | 404 "We couldn’t find AMM pool r… on XRPL", suggestion "Open it as an account" | `short` |
+| `pool not found` | failed; or #1 failed (5xx, 429, a malformed 200, a "Cannot GET") | none | 503 (`upstreamOutage`), with `Retry-After` | not stored |
+
+The calls of a first page, side by side, each card's call or chain raced against `CARD_DEADLINE_MS` (4.5 s from the start of the loader, "took too long"), all
+awaited (`Promise.allSettled`); nothing is deferred, nothing polls, and no call asks for the failure hold. `T` is the close time of #3, `W₀`–`W₁` E2's
+`windowOf(T, period)`:
+
+| # | Call | Kept (class) | Feeds | If it fails |
+|---|---|---|---|---|
+| 1 | `/v2/amm/pools/{pool}` (`ammPool`) | 60 s (`minute`), the image's entry | the mode, the pair, the pool card, a non-native pool's value, the index's state | the table above |
+| 2 | node `amm_info` by `amm_account` (`ammInfo(pool)`) | 5 s (`live`) | the state, the slot, the votes | the table above |
+| 3 | `last_validated` | 2 s, the home page's entry | `T`, the window | the five charts: one "Couldn’t load the charts" |
+| 4 | `/v2/amm/pools/{pool}/history?interval=day&start=W₀&end=W₁&limit=1000` (`ammPoolDays`), after #3 | 300 s (`slow`) | value, price, fee, reserves, the fee extras | each of the four: "Couldn’t load the pool value." (the price, the trading fee, the reserves); the volume card drawn without its fees, "The fee estimates couldn't be loaded." |
+| 5 | the same, `end=W₀ − 1 day&descending=true&limit=1`: the carry-in | 300 s (`slow`) | the state before the window | as #4 |
+| 6 | `/v2/exchanges/{base}/{counter}?amm=only&interval=1day\|7day&start=W₀&end=W₁&limit=400` (E3's `pairCandles`, the pair in its stored order), after #3 and the pair | 300 s (`slow`) | the swap volume and its swaps | "Couldn’t load the swap volume" |
+| 7 | `/v2/amm/pools/{pool}/swaps\|liquidity\|governance?descending=true&limit=20[&marker=…]` (the tab) | `live`; `MARKER_PAGE_CLASS` behind a marker | the tab | the table: "Couldn’t load the swaps" (the liquidity events, the votes and bids), the tabs stay links |
+| 8 | `/v2/amm/pools/{pool}/liquidity?event=create&limit=1` | 1 h (`slow`), the image's entry | the Created line | the line is left out and logged; the page is whole, and stored |
+| 9 | `/v2/network/amm_volume?live=day` | 60 s (`minute`), the list's entry | Swap volume, 24 h | "—", "Couldn’t load" |
+| 10 | `/v2/amm/pools/{pool}/history?interval=day&start=T−1&end=T−1&limit=1` | 300 s (`slow`), one entry for every period | Fees earned on the last whole day | "—", "Couldn’t load" |
+
+A card that failed is told in its place and logged (`logProblem`), and the request is degraded (`markDegraded`): a 200 with `Cache-Control: no-store`, not
+stored. Retry is `useRetry` (the route's own `.data` URL). The pages do not follow the chain: the state card says the ledger it was read at, and a reload gets
+a copy at most 5 s fresh and 30 s stale. A "Cannot GET" 404 (an API without the AMM routes, behind a switch that is on) is kind `server`: a 503 or a failed
+card, logged ("the data API serves no AMM pools", "… no AMM volume"), never a stored 404; the routes' own `pool not found` stays `not_found`.
+
+**The node calls.** `ammInfo(pool)` is E3's one reader of `amm_info` (`app/server/node-rpc.ts`), asked by `amm_account`, kept 5 s: drops to whole units at the
+boundary, `vote_slots` and `auth_accounts` defaulted to `[]`, the slot's `expiration` in unix seconds, the ledger it was read at. `actNotFound` (an account that is
+not a pool) and `actMalformed` (an address that holds no account: a deleted pool's) are `not_found`, because the Worker checked the address. Both were seen from
+`https://s1.ripple.com:51234/` on 2026-10-20 (the record above E3's readers in `node-rpc.ts`: `actNotFound` for `rBbW6i…W5jh`, `actMalformed` for the deleted
+`rGLnUK…mqdz`, a success for `rhWTXC…tcS3`); check them again against the configured node on staging (the checklist).
+
+**The switch.** `AMM_PAGES` is `"on"` at the top level and `"off"` in staging and production; it goes on in an environment only once `AMM_DATA` is on there (the
+pre-deploy guard refuses the other way round; "Switches", "The pipeline and deploying"). While it is off every AMM route and image is the 404 above with no
+call, the header's AMM is the "soon" label, and every pool link (a sentence's `pool` segment, the flow's pool step, an LP token on the account page, E3's pool
+card) goes to the pool's account page: `poolLink(net, pool, features)` (`app/domain/pool-link.ts`) is the one place that decides, from `net.features` in a
+view builder and `useFeatures()` in a component (`NO_FEATURES`, so the account page, without the layout's data). While it is on, those links go to
+`/{net}/amm/{pool}`, the flow's label "XRP/RLUSD AMM pool" becomes a link over its account link, and a pool's own account page says "This account is an AMM
+pool. See the pool →". The switch is in the cache generation, so a flip never meets a page stored under the other value.
+
+**The image** (kind `amm`, `poolCard` in `card-data.ts`, from the same facts as `ammPoolMeta`): `kind` "AMM pool", the pair as the headline, the pool account,
+a note "Value 3.7M XRP · trading fee 0.205%" with the parts that are known and starting with a capital ("Trading fee 0.144%"), or "Deleted pool", and the footer
+"Created 22 Mar 2024", or "AMM pool on XRPL" without a create event. `pool not found` is a 404 `short`: the image never asks the node.
+
+**Tags.** The list: "AMM pools · XRPL · explorer", a description with no figures, canonical and `og:*` (no image); filtered, with the deleted pools, behind a
+marker or with an asset error ("AMM pools with RLUSD", "(deleted included)", "More AMM pools"), `noindex, follow` and neither. A pool: "XRP/RLUSD AMM pool ·
+XRPL · explorer", "(deleted)" after "pool" for a deleted one, "· liquidity" or "· votes and bids" for those tabs, canonical, `og:*` with the image and
+`twitter:card=summary_large_image`; another period ("· last 30 days", "· last year"), `noindex, follow` and neither; from the network, `noindex`.
+
+**Fixtures.** Generated from the recorded XRPL ledgers ("Upstream fixtures", "The AMM pages' files"): every pool of the recordings (136, the deleted SNK/XRP
+one included, on the fourth of the 7 pages with the deleted pools), the featured pools' activity and their `amm_info`, and seeded day rows, candles and live
+set. The featured pools are XRP/RLUSD (`rhWTXC…tcS3`, every period), USDC/RLUSD (issued only) and XRP/USD (a bid) the 90 days, DVR/XRP (a creation) the 30 days
+only, SNK/XRP (`rGLnUK…mqdz`, deleted) and VOX/XRP (`rhEypx…3nef`, a vote; its code is not text, so it shows as hex): VOX/XRP has no `amm_info`, so under the
+fixtures it is the "gone" mode, with the 90-day files only. The figures are each page's own: the pool page's seeded candles and live set are not E3's trades of
+XRP/RLUSD, which the markets pages read.
+
+**Bundle.** Both pages are dashboards (ruling R19, `budget: "dashboard"`, 160,000 bytes with the manifest): the list 143,810 bytes (22 files) and the pool page
+152,202 (35 files) at the end of E5 ("The client bundle check", "The figures of E5"). No `CursorSlot` (ruling R15).
+
+**Tests.** The unit tests of `amm-params.ts`, `pool-link.ts`, `amm-view.ts` (every mode, `daySeries`, `nextBidPrice` against the recorded `AMMBid`), `amm-shape.ts`,
+the tags' builders and `card-data.ts`, `amm-bundle.test.ts` and `amm-fixtures.test.ts`; `AmmListPage.test.tsx` and `AmmPoolPage.test.tsx`; in the Worker
+`test/worker/amm-list.spec.ts`, `amm-pool.spec.ts`, `og.spec.ts`, `meta.spec.ts` and, with every switch off, `amm-off.spec.ts`; in the browser `amm.spec.ts`,
+`amm-live.spec.ts`, `og.spec.ts`, `client-meta.spec.ts` and `a11y.spec.ts` ("End-to-end tests").
+
 ## Validators and amendments
 
 Four pages under `/:net` and two kinds of link-preview image (E6, `docs/superpowers/specs/2026-10-19-validators-amendments-pages-design.md`), made from the data
@@ -1236,8 +1385,9 @@ re-export of a `meta-<page>.ts`; it fails a builder module that another page imp
 
 ### The image route
 
-`/og/{net}/{tx|ledger|account|validator|amendment}/{id}.png` (`routes/og.$net.$kind.$id[.png].tsx`): 1200 × 630, `image/png`, `X-Robots-Tag: noindex`. The five kinds
-are a transaction, a ledger, an account, a validator (`{id}` its master key) and an amendment (`{id}` its name as D1 writes it, or the upper-case ID of one with no name).
+`/og/{net}/{tx|ledger|account|validator|amendment|amm}/{id}.png` (`routes/og.$net.$kind.$id[.png].tsx`): 1200 × 630, `image/png`, `X-Robots-Tag: noindex`. The six kinds
+are a transaction, a ledger, an account, a validator (`{id}` its master key), an amendment (`{id}` its name as D1 writes it, or the upper-case ID of one with no name) and
+an AMM pool (`{id}` the pool's account; `ImageKind` `amm`, "AMM pools").
 
 | Case | Answer |
 |---|---|
@@ -1254,11 +1404,13 @@ are a transaction, a ledger, an account, a validator (`{id}` its master key) and
 | a validator or an amendment while `VALIDATORS` is off | 404, class `short`, before the id is read and before any call |
 | a validator's key in hex (66 digits); a signing key; an amendment named otherwise than D1 names it (a case variant, the ID of a named one, an ID in lower case) | 302 to the master key's or the canonical image: `immutable` for the hex (a pure conversion, no call), `slow` for the others (the mapping is D1's data) |
 | a validator (D) or an amendment (AD) the data API has | `slow` (1 h): the UNL, the version, the domain's check and an amendment's standing change rarely. D1's `Validator not found` and `amendment not found` are a 404 of class `short`; a `Cannot GET` (an API without D1) is a 503, not stored |
+| an AMM pool while `AMM_PAGES` is off, on a network without AMM (Xahau), or by an id that is not a classic address | 404, class `short`, before any call |
+| an AMM pool the index has (the pool page's #1 and #8, the same keys, side by side; the node is not asked) | `slow` (1 h, `max-age=300`): its value changes; drawn without its creation and `short` when the create event could not be read. `pool not found` is a 404 of class `short` (a pool younger than the aggregator's minute has no image for that minute); a `Cannot GET` is a 503, not stored, and logged |
 
 A HEAD of an image is answered from the stored copy, or draws it once and stores it (see "The Worker entry"). The data comes through the same clients as the page: `describe` (title, result, sentence, flow) and `headlineAmount` for a transaction
 (`transactionFacts` in `app/server/card-data.ts`; the balance changes, objects touched and raw JSON the page also works out are not),
-`ledgerPage` for a ledger, `activationOf` and the native balance of `/balances` for an account, D (`validatorCard`) for a validator and AD (`amendmentCard`) for an
-amendment. `card-data.ts` makes plain data of it
+`ledgerPage` for a ledger, `activationOf` and the native balance of `/balances` for an account, D (`validatorCard`) for a validator, AD (`amendmentCard`) for an
+amendment, and the pool and its create event (`ammPoolFacts`, then `poolCard`) for an AMM pool. `card-data.ts` makes plain data of it
 (`CardData`, `app/og/types.ts`), `app/og/card.tsx` lays it out (the `LinkPreview` board: the accent bar, logo and pill of the network, the kind
 and result, the big line, the accounts, the footer) and `app/og/render.ts` draws it with `workers-og` (Satori and resvg-wasm).
 
@@ -1601,7 +1753,7 @@ otherwise; never 5173) and never reuses a server that is already running.
 | `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:staging` leaves) is refused |
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
-| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `AMM_PAGES`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`, and `a11y.spec.ts` leaves the analytics views out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
+| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `AMM_PAGES`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`; `amm.spec.ts` the "soon" header, the AMM pages' 404s and the swap's links to the pool's account page; `og.spec.ts` the pool image's 404; and `a11y.spec.ts` leaves the analytics views and the AMM pages out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
 | `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
@@ -1641,9 +1793,9 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `network-page.spec.ts` | The network page, reading the fixtures and changing none: "Network" in the header leads to `/xrpl/network` in one document and is the current item (`aria-current="page"`); with JavaScript off the 30 columns are drawn and checking Table hides the chart and shows 31 rows; "1 year" changes the URL to `?period=1y`, draws 52 columns, adds `noindex`, drops the canonical link and Back restores them; "USD" sets `in=usd`, and `/xahau/network` has no "Amounts in"; a pointer over the stacked chart shows a tooltip with the date and "total", and Tab to its slider then Arrow Left changes `aria-valuenow` and the text it says; the AMM line and its legend entry are there (or, with `AMM_DATA` in `E2E_FEATURES_OFF`, the `off` wording); the newest column's tooltip reads "Oct 17, 2026, so far" and the volume card notes "Oct 17 is not computed yet." (skipped against a real stack, which has another day) |
 | `analytics-kit-copy.spec.ts` | The analytics view after the network page, in one document (the header's search to the account, its Analytics tab, then Back twice): each copy of the chart kit draws with its own contexts, the tooltip of a plot in that plot's slot (beside its scroll region, not in it) and the panels of the balance history on one bucket, and the network page's chart after it the same (skipped when `E2E_FEATURES_OFF` lists `ACCOUNT_ANALYTICS`) |
 | `theme.spec.ts` | See below |
-| `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the same on the Analytics tab (no canonical, `og:*` or `twitter:card`; the title of the view and of its year) and their return on the way back,
+| `client-meta.spec.ts` | The path `test/worker/meta.spec.ts` cannot see: the `<title>`, canonical link, `og:*` and `twitter:card` after a client-side navigation (ledger → next ledger → a transaction → Back, in one document), the loss of the canonical link and the gain of `noindex` on a page behind a marker and their return, the same on the Analytics tab (no canonical, `og:*` or `twitter:card`; the title of the view and of its year) and their return on the way back, the same from the AMM list to the XRP/RLUSD pool's page (its title, canonical link, `og:*` with the image and `twitter:card`), lost with `noindex` on its page of older swaps and back by "Back to the pool" (skipped where `E2E_FEATURES_OFF` lists `AMM_PAGES`),
 the network switch, and that moving between the routes asks for no `/__manifest` |
-| `og.spec.ts` | For a transaction, a ledger and an account: `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id |
+| `og.spec.ts` | For a transaction, a ledger, an account and, while `AMM_PAGES` is on, the XRP/RLUSD pool (`/og/xrpl/amm/rhWTXC….png`, `max-age=300`): `/og/...png` answers 200, `image/png`, the class's `Cache-Control`, `X-Robots-Tag: noindex`, the PNG signature and an IHDR of 1200 × 630; the page's `og:image` is that URL and a browser loads it at a natural size of 1200 × 630; no image for a missing transaction or an invalid id, a pool by an id that is no address, a pool on Xahau, and every pool while `AMM_PAGES` is off |
 | `assets.spec.ts` | The stylesheet, scripts and font of a page carry `Cache-Control: public, max-age=31536000, immutable` from `public/_headers` (the local runtime applies it); a page and the favicon do not |
 | `guard.spec.ts` | The check at the end of every test (above): it fails a test whose client-side navigation got a 503, whose route module or stylesheet is missing, or whose page threw in a `contextFor` context; it lets a 404 page through and honours `allowConsoleErrors`; a `contextFor` context has the test's visitor address and takes options |
 | `live-home.spec.ts` | The `live` project of `playwright.config.ts`, which runs alone after the others (what the tests do to the fixture server would show in every page the Worker renders meanwhile; `--no-deps` runs it without them), one test at a time, each `test.slow()`. The fixture server says the newest XRPL ledger is the one before the recordings' newest, the home page is opened, and the fixture server goes back to the recordings: the new ledger appears without a reload (the document is the same; the browser asked only the explorer's own `.data` URL for the page's route), the new rows have `.is-entering` and the rows that were there were sent back to slide (a `MutationObserver` of the page records it, and the `animation-name` of each row and figure *as it was added*, so that the next beat is no race), the figures that changed ticked in; under `reducedMotion: "reduce"` nothing is transformed and the animation is the wash and the mark alone; nothing animates when the page is first opened; the pause button pauses and resumes (its label switches, it is not `aria-pressed`, the status line says what was done), is 44 px, and the choice survives a reload of the tab; the hero says the page waits while the mouse is over a table, and a real click on a spot of a table (which focuses its scroll region) does not leave the page held once the mouse has left; and when the Worker answers 503 the page is the page it was (no error screen), the hero says "Live updates paused, retrying…" after two refusals (the second 8 s after the first), and "Live updates reconnected" when the Worker answers again |
@@ -1652,6 +1804,8 @@ the network switch, and that moving between the routes asks for no `/__manifest`
 | `market-pair.spec.ts` | The market pair page on `/xrpl/markets/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De`, reading the fixtures and changing none: "4 h" is `?interval=4h` (the readout's newest bucket 16:00, the slider's words change, `noindex`, the title's "4 h candles", one document); "Show RLUSD/XRP" goes to the inverted pair, which is `noindex` with no canonical link or `og:*` and links back; on `?trades=book`, Older and Newer keep `trades` and the page behind the marker has no live row, no price card and no book (skipped with `AMM_DATA` in `E2E_FEATURES_OFF`); a trade's time leads to its transaction (an OfferCreate the fixtures hold); the issuer leads to its account page (the fixtures do not hold that account: its page is the 503 there, the one console error the test lets through); the pointer on a candle shows it in the readout and a tooltip, and the readout goes back when it leaves; Tab to the slider then Arrow Left changes `aria-valuetext`; with JavaScript off the candles, the volume, the Table view (61 rows), the book (20 levels) and the trades (20) are there and no slider or pause button; the Via column and the Trades filter are there (with `AMM_DATA` off: checked absent, then skipped); the traders card does not list the pool `rhWTXC…tcS3`; and every depth bar of the book lies inside its own row, at 1280 and 375 px (Chromium; the ARIA table over `div` rows is for WebKit, which no Playwright WebKit here has checked) |
 | `market-pair-live.spec.ts` | In the `live` project too. With `xrplPairOneTradeBehind()` in, the page opened and `fixtures.reset()`: the new trade enters with `.is-entering` (`row-enter, live-flash, row-mark`), the rows that were there slide, the price and the book's last price tick in, the document is the same and the only request is `…/XRP/RLUSD.r….data?…&_routes=routes%2Fnet.markets.%24base.%24counter`; with `reducedMotion: "reduce"` nothing slides and only the colours change; paused, nothing is asked for 6 s and resuming takes the trade at once; the pointer on the trades holds the page ("Paused while you look at the trades") and nothing is asked until it leaves; with the `.data` requests answered 503 the page stays and says "Live updates paused, retrying…" after two, and "reconnected" when they work; both `book_offers` failing (`nodeNotSynced()`): on a fresh load "Live state unavailable" in place of the whole book, the rest of the page there, no alert and one `role="status"`, and axe's gate in both system themes; a book once shown is kept, with its ledger, through beats whose book failed (`keepLoaded`); and `GET /v2/network/markets?limit=1000&period=day` taken away (`null`): a view of the 24 hours that has no stored copy answers 503 (each asked once, 20 s apart, the last 62 s after the override, when the Worker's kept answer has surely gone), the default view is its stored copy or the 503, and the pair page is unaffected |
 | `account-analytics-live.spec.ts` | In the `live` project too. A card of the analytics view whose call fails: `stats/transactions` of the Xahau account's year (a view no other spec opens; the Worker keeps an analytics call 60 s) answers 503, the card says "Couldn’t load the transactions sent." in its place with a Retry (its title and source stay; its tile is "—" over "Couldn’t load"), and the other cards are drawn; after `fixtures.reset()`, Retry brings the card's 52 columns back (it is pressed until it does: a Retry within the 5 s hold is given the held failure), and the view has no error left |
+| `amm.spec.ts` | The AMM pages ("AMM pools"), reading the fixtures and changing none: "AMM" in the header leads to `/xrpl/amm` in one document and is the current item (`aria-current="page"`); the swap `52E2AD…1C60` links the XRP/RLUSD pool from its sentence and its flow's pool label, which leads to the pool page in one document (`aria-current="true"`); the list has 20 pools, "More pools" is the next 20 with `noindex` and no canonical link or `og:*` ("More AMM pools"), and "Previous" is the first page again; the form with `XRP` and with `RLUSD.rMxCK…` lists only pools that hold it (four for RLUSD), and with `nope` says "Write an asset as XRP, or as a currency and its issuer: RLUSD.rMxCK…" under the field (`aria-invalid`, `aria-describedby`) with no table; "Include deleted pools" with `SNK.rDDYXY…` shows SNK/XRP with its "Deleted" tag and "—" for its value and slot; the XRP/RLUSD row leads to the pool page, whose state card is the fixture's `amm_info` (the reserves, the price, the fee "set by 8 votes", the LP tokens, "Live from the network at ledger #107,721,455"); the tabs are `?tab=` links; Older on Swaps is a page behind a marker with "Back to the pool" and no state, period or slider, and Newer is the first page again; "1 year" is `?period=1y` (52 weekly columns, the week's slider name, `noindex`, no canonical link or `og:*`, "· last year") and Back restores the 90 days; the pair URL, either way round, lands on the pool; the deleted pool has its banner with its last ledger, and no state, slot or votes; `/xahau/amm` says Xahau has no AMM and leads to the XRPL pools, and a pool on Xahau is the 404 with its note and "Open it on XRPL"; at a 480 px tall window "More pools", a tab, a period, Older and Newer leave it where it was, or as far down as a shorter page goes (`preventScrollReset`); without JavaScript the tabs, the period, the form and the volume card's Table radio (53 rows) work; a pointer over the volume chart shows the day with its swaps, and Tab to its slider and Arrow Left change `aria-valuenow` and the text, "Swaps" included. Where `E2E_FEATURES_OFF` lists `AMM_PAGES`, the header's "soon" label, the 404s of `/xrpl/amm`, the pool, the pair and `/xahau/amm`, and the swap's links to the pool's account page run instead; against a real stack the tests that read the fixtures' figures (the state card) skip themselves or leave those figures out. The XRP/RLUSD pool's 30 days and DVR/XRP's default view are opened by no test here |
+| `amm-live.spec.ts` | In the `live` project too. The XRP/RLUSD pool's 30-day day rows (`history?…&start=2026-09-18`, a view no other spec opens: the Worker keeps a pool's day rows 300 s) answer 503: the value, price, fee and reserves cards each say "Couldn’t load the pool value." (and so on) in their place with a Retry, their title and source line kept, the volume card is drawn without its fees and says "The fee estimates couldn't be loaded.", the state card, the votes and the tab are there, and axe finds no serious or critical violation at 1280 and 375 px in the two system themes; after `fixtures.reset()`, Retry brings the four charts and the volume card's fees back, in one document, asking the explorer's own Worker only |
 | `a11y.spec.ts` | See below |
 | `validators.spec.ts` | The validators list and a validator's page ("Validators and amendments"), every validator read from the pages (`test/e2e/validators-pages.ts`: `listedValidator`, and `withHistory`, the one validator whose older validations the fixtures hold, or against a real stack the list's first), so it runs against a real stack too: from the network page "All validators" lands on `/xrpl/validators?scope=all` and a first-seen key on its validator's page, in one document; the default list (the UNL, as many rows as the scope link counts, the live row, a canonical link, no `noindex`, the filters' search landmark); "All" is `?scope=all` with `noindex` and no canonical link, and Back restores the head; a search through the form with JavaScript goes straight to `?q=…` (no 3xx, and the page's `.data` asks for `q` alone) and without it the Worker's 302 tidies the empty fields the form sent; "Votes yes for" (`?amendment=`) and "Listed by" (`?publisher=…&amendment=…`, in the canonical order) on XRPL, then Clear filters back to the scope; no "Listed by" on Xahau; a row leads to its validator; the versions card's Table radio with JavaScript off; on a validator's page the copy buttons (the clipboard holds the master key, then the signing key, and the status says "Copied"), the agreement slider's arrow keys change `aria-valuetext`, Older (`?marker=`, no live row, `noindex`) and Newer, and the key in hex (from `decodeNodePublic`) lands on the base58 URL. With `VALIDATORS` in `E2E_FEATURES_OFF` these skip themselves and the off-case runs: the four pages are 404s, "All validators" is "soon" and the five keys are text |
 | `amendments.spec.ts` | The amendments list and an amendment's page, the amendment read from the list (an amendment with a majority: what needs one skips itself on a real stack that has none, and fails under the fixtures, which hold every case: `needs` in `test/e2e/validators-pages.ts`, as for every case the specs and the accessibility block read from the pages): the status chips (a chip is `?status=…`, `noindex`, its rows its count; All is the default view and its canonical link); the line of an amendment activating soon leads to its page; on the yes-votes chart the arrows move a flag ledger and Page Down and Page Up the rounds of a day (`pageStep`; the slider's dates a day apart) and the Table radio shows the changes-only table; the other validators' disclosure; the ID in lower case lands on the name's URL; a ledger link and an EnableAmendment link of the history land on `/{net}/ledger/{n}` and `/{net}/tx/{hash}` (under the fixtures those are made up, so the explorer's not-found page of the kind answers: the link is what is checked); the countdowns are the absolute time with JavaScript off (nothing says "in …") and tick with it on (a browser clock installed half an hour and half a minute before the moment: "in 31 min", a minute later "in 30 min", then past it) |
@@ -1677,17 +1831,19 @@ after the stylesheet fails (1) and (3).
 
 **Accessibility.** `@axe-core/playwright` with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` (the rules of WCAG 2.2 AA, including
 `color-contrast`, `target-size` and `label-content-name-mismatch`, which the spec checks ran). The gate is no violation of impact `serious` or
-`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction, account, 404, network (`/xrpl/network`), markets (`/xrpl/markets`) and market pair (`/xrpl/markets/XRP/RLUSD.rMxCKb…`) pages and the XRPL active account's analytics view (`?tab=analytics`)
+`critical`; the failure message names the rule and the elements. The matrix: the home, ledger (Xahau 26540187), transaction (a payment, and the swap `52E2AD…1C60` through the XRP/RLUSD pool, whose flow's pool label is a link over its account link while `AMM_PAGES` is on: E5's fix of their targets, WCAG 2.5.8), account, 404, network (`/xrpl/network`), markets (`/xrpl/markets`), market pair (`/xrpl/markets/XRP/RLUSD.rMxCKb…`), AMM list (`/xrpl/amm`) and AMM pool (`/xrpl/amm/rhWTXC…tcS3`) pages and the XRPL active account's analytics view (`?tab=analytics`)
 × a 1280 px desktop and a 375 px phone × four settings: light and dark by `prefers-color-scheme`, and dark and light chosen with the toggle
 (against the opposite system theme; the spec checks the page really has that `color-scheme`). Twenty-two more pages (the other tabs of an account, a page
 behind a marker, a never-activated account, a missing transaction, the search help, the newest ledger, the Xahau home and account, a ledger of 66
 transactions, the network page in a year in USD, on Xahau, with every Table radio checked and with a slider focused and its tooltip shown, and the analytics
 view's year and All, the Xahau account's view, the deleted account's, every Table radio of the view checked and a slider of it focused with its tooltip) run in
 the two system themes, and so do seven of the markets pages (`/xahau/markets`, `/xrpl/markets?period=30d&quote=usd`, the markets page with the text filter in use, the pair the other way round, a page of its
-older trades reached by Older from `?trades=book`, the pair page's 404 and the pair with the candles' slider focused); the network page and the analytics view with a card that failed (`stats/type` of the 7 days, `stats/transactions` of the Xahau account's 90 days, failed
-through the fixture server) run in the two system themes at both widths, and the pair page with its node failing (`book_offers`) in the two system themes in `market-pair-live.spec.ts`, which may change the fixture server's answers. The markets pages are left out while `E2E_FEATURES_OFF` lists `MARKETS`. An analytics view is whole when nothing in it is `aria-busy` and, with the fixtures, the script has given its
-plots their sliders (the view is a lazy chunk and hydrates after the page); with `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF` the views are left out. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, the analytics view among them, and another the rules
-about ARIA attributes with "needs review" results counted as failures, the analytics view among its pages (axe reports a name on an element that cannot have one that way, so the gate
+older trades reached by Older from `?trades=book`, the pair page's 404 and the pair with the candles' slider focused), and so do thirteen of the AMM pages (the list filtered by RLUSD, with the deleted
+pools, behind a marker by "More pools" and with an asset that does not parse; the pool's Liquidity and Votes and bids tabs, its year, its older swaps by Older, every Table radio checked and the volume
+chart's slider focused with its tooltip; the deleted SNK/XRP pool; `/xahau/amm`; and the Xahau pool's 404); the network page and the analytics view with a card that failed (`stats/type` of the 7 days, `stats/transactions` of the Xahau account's 90 days, failed
+through the fixture server) run in the two system themes at both widths, and the pair page with its node failing (`book_offers`) in the two system themes in `market-pair-live.spec.ts`, which may change the fixture server's answers, as the pool page with its day rows failing does at both widths in `amm-live.spec.ts`. The markets pages are left out while `E2E_FEATURES_OFF` lists `MARKETS`, and the AMM pages while it lists `AMM_PAGES`. The links inside a sentence of the pool page (the state card's ledger, the deleted pool's last ledger) are underlined: axe's `link-in-text-block` found their colour alone too close to the text's. An analytics view is whole when nothing in it is `aria-busy` and, with the fixtures, the script has given its
+plots their sliders (the view is a lazy chunk and hydrates after the page); with `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF` the views are left out. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, the analytics view and the AMM pages among them, and another the rules
+about ARIA attributes with "needs review" results counted as failures, the analytics view, the swap and the AMM pages among its pages (axe reports a name on an element that cannot have one that way, so the gate
 above does not see it).
 
 The validators and amendments pages have their own block (the spec's "Accessibility"): the list, a verified UNL validator, the amendments list and the amendment
@@ -1706,7 +1862,7 @@ was reached (a link to it included): a gate that cannot tell whether it is being
 
 - a page loads more JavaScript, gzipped, than its budget (`BUDGETS` in `scripts/bundle-budget.ts`, ruling R19): **150 KB** (150,000 bytes) for the lookup pages,
   the home, ledger, transaction, account and markets routes, and **160 KB** (160,000 bytes) for the dashboards, the network, market pair, validators, validator, amendments and amendment
-  routes (`PAGES`, which names each page's budget); what it loads
+  routes and the two AMM pages, `amm` and `amm-pool` (`PAGES`, which names each page's budget); what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
   and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its
@@ -1966,8 +2122,8 @@ analytics view's copy of the kit passes its own checks as before: its chunk impo
 **Two budgets** (ruling R19, the owner's, 2026-10-21: "Keep 150 KB for home, ledger, transaction and account; raise the limit to 160 KB for the network,
 market pair, account analytics, validators, amendments and AMM pages"). `BUDGETS` in `scripts/bundle-budget.ts` has the two, and each page of `PAGES` names
 its own: `lookup`, 150,000 bytes, for the home, ledger, transaction and account pages and the markets list (which the owner did not name: it keeps the
-default); `dashboard`, 160,000 bytes, for the network, market pair, validators, validator, amendments and amendment pages and the analytics view
-(`ANALYTICS_VIEW`). What is counted, and how, is as
+default); `dashboard`, 160,000 bytes, for the network, market pair, validators, validator, amendments and amendment pages, the AMM list and pool pages (E5) and the
+analytics view (`ANALYTICS_VIEW`). What is counted, and how, is as
 above; the measures of R17 and R18 (one shell file with the pages' modules, the analytics view's copy of the kit) stay. At `7c77254`, the commit that made the two: home 133,693, ledger
 132,979, transaction 135,227, account 137,788 and markets 132,758 against 150,000; network 146,744, market pair 146,445 and account analytics 149,680 against
 160,000.
@@ -2037,6 +2193,38 @@ axis, the lowest extreme, the page steps). Under the one budget of 150,000 the v
 of this merge and not taken: a copy of the kit for E6's four pages, as R18's for the view (network 147,929, pair 147,532, the four pages
 0.3 to 1.1 KB lighter, the view 151,201: the view's growth is the components'), and the account page's list panels in a chunk of their own, with
 `DataTable` kept in the shell (account 136,579, the view 148,752, the lists' view 139,788, every other page as here).
+
+**The figures of E5** (the AMM list and pool pages, with the pool links on the other pages; `pnpm build && pnpm check:bundle` at the end of E5, gzip -9 bytes as the
+check counts them, each file once, the manifest included). *Before* is the table above, after the merge of E6; the change is everything the branch gained since, E5's three
+routes, its links into them and its fixes. Both AMM pages are dashboards (ruling R19, `budget: "dashboard"`); E2's target of 145,000 and its `CursorSlot` fallback do not apply
+(ruling R15), and over 160,000 would stop the work.
+
+| page | Before | After (files) | Change | Budget | Under it by |
+|---|---:|---:|---:|---:|---:|
+| home | 134,448 (15) | 134,814 (15) | +366 | 150,000 | 15,186 |
+| ledger | 133,972 (18) | 134,672 (19) | +700 | 150,000 | 15,328 |
+| transaction | 136,215 (19) | 136,969 (20) | +754 | 150,000 | 13,031 |
+| account | 139,082 (22) | 140,158 (24) | +1,076 | 150,000 | 9,842 |
+| network | 149,700 (24) | 150,690 (26) | +990 | 160,000 | 9,310 |
+| markets | 133,564 (13) | 133,936 (13) | +372 | 150,000 | 16,064 |
+| market-pair | 148,638 (25) | 149,564 (27) | +926 | 160,000 | 10,436 |
+| validators | 148,246 (24) | 149,043 (26) | +797 | 160,000 | 10,957 |
+| validator | 148,324 (24) | 149,149 (26) | +825 | 160,000 | 10,851 |
+| amendments | 138,568 (17) | 139,402 (19) | +834 | 160,000 | 20,598 |
+| amendment | 146,928 (21) | 147,721 (23) | +793 | 160,000 | 12,279 |
+| amm | | **143,810** (22) | | 160,000 | 16,190 |
+| amm-pool | | **152,202** (35) | | 160,000 | 7,798 |
+| account analytics (gate 2) | 151,255 (23) | 152,329 (25) | +1,074 | 160,000 | 7,671 |
+| manifest `assets/manifest-*.js` (in each) | 1,590 | 1,875 | +285 | | |
+
+- **The manifest** grew 285 bytes for the three routes (the list, the pool and the pair form), about 95 a route, as E2 projected.
+- **The pages that draw a pool link** (`Sentence`, `Flow`, the account page's LP tokens and pool line) load `app/domain/pool-link.ts` (`ammPoolPath`, `poolLink`), which
+  imports only `account-tabs.ts`: one small shared chunk, and not `amm-params.ts` (`test/unit/amm-bundle.test.ts`, `app/domain/pool-link.test.ts`). The ledger, transaction
+  and account pages grew most (+700 to +1,076): that chunk, the manifest, and the re-splitting each new route causes ("The shell and vendor chunks" above).
+- **The pool page** is the heaviest page, 7,798 bytes under its budget: it loads `ColumnChart`, `LineChart`, `SmallMultiples`, `BarList`, `Meter`, the cursor, `Countdown`,
+  `Tabs`, `Pager` and `DataTable`, the most of any page. **The list** loads the column chart, the form and the table.
+- The last commit of E5's pages changed no script, only a stylesheet rule (the underlined links of the pool page): the stylesheet's new hash, which the root chunk names,
+  took 16 to 49 bytes off every figure (measured: the same build with the stylesheet before that rule gives 143,839 and 152,251 for the two AMM pages).
 
 ## The parsing libraries in the Workers runtime
 
@@ -2235,6 +2423,33 @@ E4 §8 step 3), and before it is turned on in production:
 - [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,035 at the end of E4; the spec's
   target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 160,000, a dashboard's budget (ruling R19; 149,933 at the end of E4), both written down
   beside "The client bundle check" (its E4 table), so that the growth of each later sub-project shows. A route adds about 21 bytes to the view through the manifest.
+
+The AMM pages (E5, "AMM pools") are checked on staging once the data API there has merged and deployed `feat/amm-data`, re-ingested from ledger 86795265 and back-filled
+`amm_daily`, `AMM_DATA` is `"on"` for staging and then `AMM_PAGES` (a deploy each: rollout steps 2 and 3 of the AMM spec), and before `AMM_PAGES` is turned on in production.
+Run the suite against staging with `AMM_PAGES` no longer in `E2E_FEATURES_OFF`; before it is on, it passes with `AMM_PAGES` listed (the off-case: the header's "soon", the 404s).
+
+- [ ] **The pool state against the node.** For three pools, a native one (XRP/RLUSD, `/xrpl/amm/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3`), an issued-only one (USDC/RLUSD,
+  `rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb`) and one whose auction slot has a holder: the state card's reserves, LP tokens, trading fee and "set by N votes", the slot's holder,
+  interval and authorized accounts and the fee votes against the configured node's `amm_info` (`{"method":"amm_info","params":[{"amm_account":"r…","ledger_index":"validated"}]}`)
+  at the ledger the caption names ("Live from the network at ledger #N").
+- [ ] **A 90-day chart against its rows.** On one pool, the value, price, fee and reserves of a few days against `/v2/amm/pools/{pool}/history?interval=day&…` (a day with no
+  row keeps the day before), and the swap volume's columns and swaps against `/v2/exchanges/{base}/{counter}?amm=only&interval=1day&…` in the pool's stored order; the running
+  day "so far". Write down whether days are missing that were not quiet (the cards' "A day without rows may not be computed yet." until D2b).
+- [ ] **The list's pages.** Follow "More pools" from `/xrpl/amm` to the end, within a minute (the aggregator rebuilds `amm_pools` every minute): the pages concatenate to the
+  API's list (`/v2/amm/pools?limit=…` paged by its markers), in the same order, with no pool shown twice; and the same with "Include deleted pools".
+- [ ] **A deleted pool's page.** One the index has `deleted` (SNK/XRP, `rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz`): the banner with its last ledger, the charts and the activity, no
+  state, slot or votes, class `slow`.
+- [ ] **The pair redirect.** `/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De` and the other way round are a 302 to the pool's page, class `slow`; a pair with no pool is
+  the 404 "We couldn’t find an AMM pool for … on XRPL".
+- [ ] **The pool's image.** `/og/xrpl/amm/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3.png`: 1200 × 630, `image/png`, class `slow` (`max-age=300`), the pair, the pool account, the
+  value and the trading fee, and its page's `og:image`.
+- [ ] **The switch is in the cache generation.** The deploy that turns `AMM_PAGES` on: the first request for each AMM view, for `/xrpl` (its header) and for a transaction
+  through a pool after it is `X-Cache: MISS`, and the header's AMM, the pool links and the pages are there at once.
+- [ ] **The bundle figures of both pages.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `amm` and `amm-pool` rows under a dashboard's 160,000 bytes with
+  the manifest (ruling R19; 143,810 and 152,202 at the end of E5), written down beside "The client bundle check".
+- [ ] **`actNotFound` and `actMalformed` from the configured node.** `amm_info` by `amm_account` for an ordinary account answers `actNotFound`, and for a deleted pool's address
+  (`rGLnUK…mqdz`) `actMalformed`, as `https://s1.ripple.com:51234/` did on 2026-10-20 (`node-rpc.ts`): both are read as `not_found`. Another answer for them would make a pool
+  that is not there a 503, not the 404 that offers its account page.
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

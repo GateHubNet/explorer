@@ -1,12 +1,19 @@
-import { count, NO_SUCH_TRANSACTION, XAHAU_LEDGER, XRPL_ACCOUNT, XRPL_PAYMENT } from "./fixtures";
+import { featuresOff } from "../../scripts/e2e-env";
+import { count, NO_SUCH_TRANSACTION, XAHAU_LEDGER, XRP_RLUSD_POOL, XRPL_ACCOUNT, XRPL_PAYMENT } from "./fixtures";
 import { expect, test } from "./support";
 
 // The link-preview images (spec 9): drawn by the Worker (Satori and resvg-wasm), 1200 x 630.
+
+/** The AMM pool's image is there while AMM_PAGES is on; off, it is a 404 (below). */
+const AMM_OFF = featuresOff(process.env).has("AMM_PAGES");
+const POOL_IMAGE = `/og/xrpl/amm/${XRP_RLUSD_POOL}.png`;
 
 const IMAGES = [
   { kind: "transaction", path: `/og/xrpl/tx/${XRPL_PAYMENT}.png`, page: `/xrpl/tx/${XRPL_PAYMENT}`, cache: /immutable/ },
   { kind: "ledger", path: `/og/xahau/ledger/${XAHAU_LEDGER}.png`, page: `/xahau/ledger/${XAHAU_LEDGER}`, cache: /immutable/ },
   { kind: "account", path: `/og/xrpl/account/${XRPL_ACCOUNT}.png`, page: `/xrpl/account/${XRPL_ACCOUNT}`, cache: /max-age=300/ },
+  // An AMM pool (kind `amm`): class `slow`, as an account's, since its value changes.
+  ...(AMM_OFF ? [] : [{ kind: "pool", path: POOL_IMAGE, page: `/xrpl/amm/${XRP_RLUSD_POOL}`, cache: /max-age=300/ }]),
 ];
 
 test.describe("the Open Graph image", () => {
@@ -44,7 +51,9 @@ test.describe("the Open Graph image", () => {
   }
 
   test("is not drawn for something that is not there, nor for an id that is not one", async ({ request }) => {
-    for (const path of [`/og/xrpl/tx/${NO_SUCH_TRANSACTION}.png`, "/og/xrpl/tx/nothing.png", "/og/nonet/tx/x.png"]) {
+    // An AMM pool by something that is not an address, a pool on Xahau (which has no AMM) and, with AMM_PAGES off, every pool's.
+    const pools = ["/og/xrpl/amm/nothing.png", `/og/xahau/amm/${XRP_RLUSD_POOL}.png`, ...(AMM_OFF ? [POOL_IMAGE] : [])];
+    for (const path of [`/og/xrpl/tx/${NO_SUCH_TRANSACTION}.png`, "/og/xrpl/tx/nothing.png", "/og/nonet/tx/x.png", ...pools]) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(404);
       expect(response.headers()["content-type"], path).not.toContain("image/png");

@@ -7,8 +7,11 @@ import {
   LIVE,
   NEVER_FUNDED,
   NO_SUCH_TRANSACTION,
+  SNK_XRP_POOL,
+  SWAP_THROUGH_POOL,
   XAHAU_ACCOUNT,
   XAHAU_LEDGER,
+  XRP_RLUSD_POOL,
   XRPL_ACCOUNT,
   XRPL_DELETED,
   XRPL_HEAD_LEDGER,
@@ -19,8 +22,8 @@ import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support"
 import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
-// ledger, transaction, account, network, markets, market pair and 404 pages and the account's analytics view, in light and in dark, on a
-// desktop and on a 375 px phone. Dark is reached both ways it can be: the system's (`prefers-color-scheme`) and the visitor's (the theme
+// ledger, transaction (a payment, and a swap through an AMM pool), account, network, markets, market pair, AMM list, AMM pool and 404 pages and
+// the account's analytics view, in light and in dark, on a desktop and on a 375 px phone. Dark is reached both ways it can be: the system's (`prefers-color-scheme`) and the visitor's (the theme
 // toggle, which wins over the system).
 
 type Theme = "light" | "dark";
@@ -64,6 +67,38 @@ const MARKETS: PageUnderTest = { name: "markets", path: "/xrpl/markets", ready: 
 const MARKET_PAIR: PageUnderTest = { name: "market pair", path: PAIR, ready: pairReady };
 
 /**
+ * A Payment that swapped through the XRP/RLUSD pool: while `AMM_PAGES` is on its flow's pool label is a link to the pool's page, over the account link,
+ * and each is a target of its own (E5's fix of `.flow__label > a`, WCAG 2.5.8).
+ */
+const SWAP: PageUnderTest = {
+  name: "swap through an AMM pool",
+  path: `/xrpl/tx/${SWAP_THROUGH_POOL}`,
+  ready: async (page) => void (await expect(page.getByRole("tablist", { name: "Raw data" })).toBeVisible()),
+};
+
+// The AMM pages (E5), while `AMM_PAGES` is on in the Worker under test: off, they are not found and the header says "soon".
+const AMM_ON = !FEATURES_OFF.has("AMM_PAGES");
+const AMM_POOL_PATH = `/xrpl/amm/${XRP_RLUSD_POOL}`;
+
+/** The AMM list is whole when its table is drawn and the script has given the 30-day chart its slider. */
+const ammListReady = async (page: Page) => {
+  await visible("Pools")(page);
+  await expect(page.getByRole("slider").first()).toBeAttached();
+};
+/** The pool page is whole when its tab's table is drawn and the script has given the charts their sliders. */
+const ammPoolReady =
+  (table = "Swaps") =>
+  async (page: Page) => {
+    await visible(table)(page);
+    await expect(page.getByRole("slider").first()).toBeAttached();
+  };
+/** The pool's swap volume card (`ChartCard id="pool-volume"`). */
+const poolVolume = (page: Page) => page.locator('section[aria-labelledby="pool-volume-title"]');
+
+const AMM_LIST: PageUnderTest = { name: "AMM list", path: "/xrpl/amm", ready: ammListReady };
+const AMM_POOL: PageUnderTest = { name: "AMM pool", path: AMM_POOL_PATH, ready: ammPoolReady() };
+
+/**
  * The account's analytics view is whole when its frame and every part have streamed in (nothing in it is `aria-busy`) and, with the fixtures,
  * whose charts all have data, the script has given its plots their sliders: the view is a lazy chunk, which hydrates after the page.
  */
@@ -88,6 +123,8 @@ const MAIN: PageUnderTest[] = [
   NETWORK,
   ...(MARKETS_ON ? [MARKETS, MARKET_PAIR] : []),
   ...analyticsViews([ANALYTICS]),
+  SWAP,
+  ...(AMM_ON ? [AMM_LIST, AMM_POOL] : []),
 ];
 
 /** More of what a visitor sees, in light and dark (the system's) only. */
@@ -173,6 +210,77 @@ const MORE: PageUnderTest[] = [
             await page.getByRole("slider", { name: "XRP/RLUSD price, hour by hour" }).focus();
             await expect(page.locator('section[aria-labelledby="pair-price-title"] .plot__tip')).toBeVisible();
           },
+        },
+      ]
+    : []),
+  // The AMM pages in their other forms: the list filtered by an asset, with the deleted pools, behind a marker (by "More pools") and with an asset that
+  // does not parse; the pool's other tabs, its year (weeks), its older swaps (by Older), every chart as a table and the volume chart's slider with its
+  // tooltip; the deleted pool; Xahau's page and its pool 404. (The pool with a card that failed needs the fixture server to fail a call, which only the
+  // `live` project may do: it is in amm-live.spec.ts.)
+  ...(AMM_ON
+    ? [
+        { name: "AMM list, filtered by RLUSD", path: `/xrpl/amm?asset=RLUSD.${RLUSD_ISSUER}`, ready: visible("Pools") },
+        { name: "AMM list, with the deleted pools", path: "/xrpl/amm?deleted=1", ready: visible("Pools") },
+        {
+          name: "AMM list, behind a marker",
+          path: "/xrpl/amm",
+          ready: ammListReady,
+          act: async (page: Page) => {
+            await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "More pools" }).click();
+            await page.waitForURL((url) => url.searchParams.has("marker"));
+            await expect(page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Previous" })).toBeVisible();
+          },
+        },
+        {
+          name: "AMM list, an asset that does not parse",
+          path: "/xrpl/amm?asset=nope",
+          ready: async (page: Page) => void (await expect(page.getByText("Write an asset as XRP, or as a currency and its issuer: RLUSD.rMxCK…")).toBeVisible()),
+        },
+        { name: "AMM pool, Liquidity", path: `${AMM_POOL_PATH}?tab=liquidity`, ready: ammPoolReady("Liquidity events") },
+        { name: "AMM pool, Votes and bids", path: `${AMM_POOL_PATH}?tab=governance`, ready: ammPoolReady("Votes and bids") },
+        { name: "AMM pool, a year", path: `${AMM_POOL_PATH}?period=1y`, ready: ammPoolReady() },
+        {
+          name: "AMM pool, older swaps",
+          path: AMM_POOL_PATH,
+          ready: ammPoolReady(),
+          act: async (page: Page) => {
+            await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+            await page.waitForURL((url) => url.searchParams.has("marker"));
+            await expect(page.getByRole("link", { name: "Back to the pool" })).toBeVisible();
+          },
+        },
+        {
+          name: "AMM pool, every table view",
+          path: AMM_POOL_PATH,
+          ready: ammPoolReady(),
+          act: async (page: Page) => {
+            for (const radio of await page.getByRole("radio", { name: "Table" }).all()) await radio.check();
+            await expect(page.locator(".chart__table").first()).toBeVisible();
+            await expect(page.locator(".chart__view").first()).toBeHidden();
+          },
+        },
+        {
+          name: "AMM pool, the volume slider focused",
+          path: AMM_POOL_PATH,
+          ready: ammPoolReady(),
+          act: async (page: Page) => {
+            await poolVolume(page).getByRole("slider").focus();
+            await expect(poolVolume(page).locator(".plot__tip")).toBeVisible();
+          },
+        },
+        {
+          name: "deleted AMM pool",
+          path: `/xrpl/amm/${SNK_XRP_POOL}`,
+          ready: async (page: Page) => {
+            await expect(page.getByText("This pool was deleted.")).toBeVisible();
+            await visible("Swaps")(page);
+          },
+        },
+        { name: "Xahau AMM", path: "/xahau/amm", ready: async (page: Page) => void (await expect(page.getByRole("heading", { name: "Xahau has no AMM" })).toBeVisible()) },
+        {
+          name: "AMM pool on Xahau, not found",
+          path: `/xahau/amm/${XRP_RLUSD_POOL}`,
+          ready: async (page: Page) => void (await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible()),
         },
       ]
     : []),
@@ -278,6 +386,8 @@ test.describe("names", () => {
     ...MORE.filter((page) => page.name.startsWith("newest ledger")),
     ...(MARKETS_ON ? [MARKETS, MARKET_PAIR] : []),
     ...analyticsViews([ANALYTICS]),
+    SWAP,
+    ...(AMM_ON ? [AMM_LIST, AMM_POOL] : []),
   ]) {
     test(`${under.name}: nothing is given a name it cannot have`, async ({ page }) => {
       await page.goto(under.path);
