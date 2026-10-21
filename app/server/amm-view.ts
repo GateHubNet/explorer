@@ -22,7 +22,7 @@ import { marketsHref } from "../domain/market-params";
 import { trailPaging, type Paging } from "../domain/paging";
 import { sharePercent } from "../domain/percent";
 import { formatDateTime } from "../domain/time-words";
-import { bucketStarts, pendingNote, utcDayOf, windowOf, type PeriodWindow } from "../domain/window";
+import { addDays, bucketStarts, pendingNote, utcDayOf, windowOf, type PeriodWindow } from "../domain/window";
 import type { BarListData, MeterData, SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
 import type { NoticeTone } from "../ui/components/Notice";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
@@ -1085,9 +1085,6 @@ export interface PoolQueries {
   candles: { interval: "1day" | "7day"; start: string; end: string; limit: 400; amm: "only" };
 }
 
-/** The UTC day before `day` (`YYYY-MM-DD`). */
-const dayBefore = (day: string): string => new Date(Date.parse(`${day}T00:00:00Z`) - DAY_MS).toISOString().slice(0, 10);
-
 /**
  * The queries of a window of E2's `windowOf` (spec 3.2): the days from W₀ to T, the newest day before W₀, the day before `T` (the same for every period, so one
  * key), and the candles of the window, weekly for the year (whose buckets start on Monday, as the API's `7day` do).
@@ -1095,8 +1092,8 @@ const dayBefore = (day: string): string => new Date(Date.parse(`${day}T00:00:00Z
 export function poolQueries(window: PeriodWindow, T: string): PoolQueries {
   return {
     days: { start: window.start, end: window.end, limit: 1000 },
-    carryIn: { end: dayBefore(window.start), descending: true, limit: 1 },
-    lastDay: { start: dayBefore(T), end: dayBefore(T), limit: 1 },
+    carryIn: { end: addDays(window.start, -1), descending: true, limit: 1 },
+    lastDay: { start: addDays(T, -1), end: addDays(T, -1), limit: 1 },
     candles: { interval: window.unit === "week" ? "7day" : "1day", start: window.start, end: window.end, limit: 400, amm: "only" },
   };
 }
@@ -1239,7 +1236,10 @@ export interface AmmSlotView {
   until: string | null;
   countdownAt: number | null;
   meter: MeterData | null;
-  /** "Interval 13 of 20 of the 24-hour slot. A new bid now costs at least 1,302 LP tokens.", "The slot is open."; `null` where the interval is not known. */
+  /**
+   * "Interval 13 of 20 of the 24-hour slot. A new bid now costs at least 1,302 LP tokens.", "The slot is open."; `—` for an index's slot whose state cannot be
+   * told (no newest ledger to compare its expiration with), and `null` for a held one of the index, whose interval is not known.
+   */
   text: string | null;
 }
 
@@ -1277,8 +1277,11 @@ export interface AmmPoolPageData {
   filters: { period: SegmentLink[]; source: string; note: string | null };
   charts: PoolCharts;
   slot: AmmSlotView | null;
-  /** E2's `BarList` of the votes, and the sentence of the result with the part the page writes in bold (`figure`). */
-  votes: { state: "ok"; data: BarListData; text: string; figure: string } | Failed | null;
+  /**
+   * E2's `BarList` of the votes, and the sentence of the result with the part the page writes in bold (`figure`). A pool with no vote slots has no bars and no
+   * result (`data` and `figure` `null`), and the text says so.
+   */
+  votes: { state: "ok"; data: BarListData | null; text: string; figure: string | null } | Failed | null;
   activity: AmmActivity;
 }
 
@@ -1322,10 +1325,13 @@ export interface AmmPoolInput {
 const COULD_NOT_LOAD = "Couldn’t load";
 const SLOT_SPAN = "of the 24-hour slot";
 const OPEN_SLOT = "The slot is open.";
+/** The fee's words, and the votes card's, for a pool without a vote slot (rippled removes a voter's slot with its last LP token). */
+const NO_VOTES_SUB = "no fee votes";
+const NO_VOTES_TEXT = "No fee votes.";
 const ESTIMATE_SUB = "estimate, paid to liquidity providers";
 const NODE_DOWN_TITLE = "Live state unavailable; shown from the index";
 const NODE_DOWN_TEXT =
-  "The network node did not answer, so the reserves, LP tokens and fee are the explorer’s index’s, and the fee votes are missing.";
+  "The network node did not answer, so the reserves, LP tokens, fee and auction slot are from the explorer’s index, and the fee votes are missing.";
 const GONE_TEXT = "The network no longer has this pool; the index may not have seen its deletion yet.";
 const NETWORK_TEXT = "Not in the index yet, shown from the network. Its history appears once the index has it.";
 const PERIOD_LABELS: Record<AmmPeriod, string> = { "30d": "30 days", "90d": "90 days", "1y": "1 year" };
@@ -1369,6 +1375,32 @@ function headOf(net: AmmPoolNet, pool: string, pair: DisplayPair): AmmPoolHead {
   };
 }
 
+/** Where a builder puts the reason a card failed: `"{what}: {reason}"` in its problems. */
+type ProblemSink = (what: string, reason: unknown) => void;
+
+/**
+ * The list `key` of the page a call answered, read as far as it goes: an answer without it is no list, and never a throw. `null`, with its problem, when the call
+ * failed, was not asked (`null`), or answered no list. `emptyWhenMissing` (the network mode): the index's `pool not found` is an empty list, as the index has no
+ * committed state of the pool yet.
+ */
+function listOfAnswer<T>(outcome: PromiseSettledResult<unknown> | null, key: string, what: string, emptyWhenMissing: boolean, problem: ProblemSink): T[] | null {
+  if (outcome === null) {
+    problem(what, new Error("it was not asked for"));
+    return null;
+  }
+  if (outcome.status === "rejected") {
+    if (emptyWhenMissing && isNotFound(outcome.reason)) return [];
+    problem(what, outcome.reason);
+    return null;
+  }
+  const list = (outcome.value as Record<string, unknown> | null)?.[key];
+  if (!Array.isArray(list)) {
+    problem(what, new Error(`the data API answered no ${key} list`));
+    return null;
+  }
+  return list as T[];
+}
+
 /** The tabs, the source line and the table of the activity card. `emptyWhenMissing`: the index's `pool not found` is an empty page (the network mode). */
 function activityOf(
   net: AmmPoolNet,
@@ -1377,42 +1409,34 @@ function activityOf(
   pair: DisplayPair,
   outcome: PromiseSettledResult<AmmActivityPage>,
   emptyWhenMissing: boolean,
-  problem: (what: string, reason: unknown) => void,
+  problem: ProblemSink,
 ): AmmActivity {
   const { tab } = query;
   const what = TAB_WHAT[tab];
-  const failed = (reason: unknown): Failed => {
-    problem(what, reason);
-    return { state: "failed", what };
-  };
+  const failed: Failed = { state: "failed", what };
 
-  let list: AmmActivityList;
-  if (outcome.status === "rejected" && !(emptyWhenMissing && isNotFound(outcome.reason))) {
-    list = failed(outcome.reason);
-  } else {
-    // A page read as far as it goes: one without the tab's list is a failed table, and never a throw.
-    const page = outcome.status === "fulfilled" ? (outcome.value as Record<string, unknown> | null) : { [TAB_LIST[tab]]: [] };
-    const rows = page?.[TAB_LIST[tab]];
-    if (!Array.isArray(rows)) {
-      list = failed(new Error(`the data API answered no ${TAB_LIST[tab]} list`));
-    } else {
-      try {
-        const next = typeof page?.marker === "string" ? page.marker : undefined;
-        const common = {
-          state: "ok" as const,
-          empty: rows.length > 0 ? null : TAB_EMPTY[tab],
-          paging: trailPaging({ marker: query.marker, back: query.back, next }, (to) => ammPoolHref(net.id, pool, { tab, ...to })),
-          notes: tab === "swaps" ? [SIGNS_NOTE, SWAPS_NOTE] : [SIGNS_NOTE],
-        };
-        list =
-          tab === "swaps"
-            ? { ...common, tab, rows: swapRows(rows as AmmSwap[], pair, net.id) }
-            : tab === "liquidity"
-              ? { ...common, tab, rows: liquidityRows(rows as AmmLiquidityEvent[], pair, net.id) }
-              : { ...common, tab, rows: governanceRows(rows as AmmGovernanceRow[], net.id) };
-      } catch (error) {
-        list = failed(error);
-      }
+  let list: AmmActivityList = failed;
+  const rows = listOfAnswer<unknown>(outcome, TAB_LIST[tab], what, emptyWhenMissing, problem);
+  if (rows !== null) {
+    try {
+      // An empty answer read from a `pool not found` has no marker: the first page is the last.
+      const marker = outcome.status === "fulfilled" ? (outcome.value as { marker?: unknown } | null)?.marker : undefined;
+      const common = {
+        state: "ok" as const,
+        empty: rows.length > 0 ? null : TAB_EMPTY[tab],
+        paging: trailPaging({ marker: query.marker, back: query.back, next: typeof marker === "string" ? marker : undefined }, (to) =>
+          ammPoolHref(net.id, pool, { tab, ...to }),
+        ),
+        notes: tab === "swaps" ? [SIGNS_NOTE, SWAPS_NOTE] : [SIGNS_NOTE],
+      };
+      list =
+        tab === "swaps"
+          ? { ...common, tab, rows: swapRows(rows as AmmSwap[], pair, net.id) }
+          : tab === "liquidity"
+            ? { ...common, tab, rows: liquidityRows(rows as AmmLiquidityEvent[], pair, net.id) }
+            : { ...common, tab, rows: governanceRows(rows as AmmGovernanceRow[], net.id) };
+    } catch (error) {
+      problem(what, error);
     }
   }
 
@@ -1486,15 +1510,17 @@ function nodeSlot(net: string, info: AmmInfo): AmmSlotView {
 
 /**
  * The index's auction slot, while the node is down: its holder, fee, price and expiration, without the interval, the cost or the authorized accounts it does not
- * have. A slot with no holder is open, and so is one whose expiration is not after the newest ledger's close time (`now`, unix seconds), as on the list.
+ * have. As the list's `slotOf` reads it: a slot with no holder is open; one with no expiration to compare is held, as the index has it; otherwise it is held only
+ * while its expiration is after the newest ledger's close time (`now`, unix seconds), and without a `now` a held slot cannot be told from an expired one: a dash.
  */
 function indexSlot(net: string, index: AmmPool, now: number | null): AmmSlotView {
+  const nothing = { state: "ok", held: null, until: null, countdownAt: null, meter: null } as const;
   const slot = index.auction_slot;
-  const expires = slot?.expiration === undefined ? Number.NaN : unixOf(slot.expiration);
+  if (slot?.holder === undefined) return { ...nothing, text: OPEN_SLOT };
+  const expires = slot.expiration === undefined ? Number.NaN : unixOf(slot.expiration);
   const known = !Number.isNaN(expires);
-  if (slot?.holder === undefined || (known && now !== null && expires <= now)) {
-    return { state: "ok", held: null, until: null, countdownAt: null, meter: null, text: OPEN_SLOT };
-  }
+  if (known && now === null) return { ...nothing, text: DASH };
+  if (known && now !== null && expires <= now) return { ...nothing, text: OPEN_SLOT };
   const paid = exactAmount(slot.price);
   return {
     state: "ok",
@@ -1522,7 +1548,7 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
   const { native } = net;
   const problems: string[] = [];
   const logged: string[] = [];
-  const problem = (what: string, reason: unknown): void => {
+  const problem: ProblemSink = (what, reason) => {
     problems.push(`${what}: ${reasonText(reason)}`);
   };
   const fromNetwork = mode === "network";
@@ -1536,24 +1562,8 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
   const codes = codesOf(pair);
   const holdsNative = isNative(pair.first, native) || isNative(pair.second, native);
 
-  /** The list of a page a call answered; `null` (with its problem) when the call failed or was not asked. In the network mode, a `pool not found` is an empty list. */
-  function listOf<T>(outcome: PromiseSettledResult<unknown> | null, key: string, what: string, emptyWhenMissing: boolean): T[] | null {
-    if (outcome === null) {
-      problem(what, new Error("it was not asked for"));
-      return null;
-    }
-    if (outcome.status === "rejected") {
-      if (emptyWhenMissing && isNotFound(outcome.reason)) return [];
-      problem(what, outcome.reason);
-      return null;
-    }
-    const list = (outcome.value as Record<string, unknown> | null)?.[key];
-    if (!Array.isArray(list)) {
-      problem(what, new Error(`the data API answered no ${key} list`));
-      return null;
-    }
-    return list as T[];
-  }
+  const listOf = <T>(outcome: PromiseSettledResult<unknown> | null, key: string, what: string, emptyWhenMissing: boolean): T[] | null =>
+    listOfAnswer<T>(outcome, key, what, emptyWhenMissing, problem);
 
   // #3: T, the window, and the newest ledger's close time. Its failure is the charts' problem, said where they are.
   let window: PeriodWindow | null = null;
@@ -1630,7 +1640,7 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
   /** Fees earned (#10): the two estimates of the last complete day, whatever the period, in display order. */
   function feesStat(): AmmStat {
     if (T === null) return { id: "fees", label: "Fees earned, last day", value: DASH, sub: COULD_NOT_LOAD };
-    const day = dayBefore(T);
+    const day = addDays(T, -1);
     const label = `Fees earned, ${formatUtcDay(day)}`;
     const rows = listOf<AmmPoolDay>(input.lastDay, "days", "the fees of the last day", fromNetwork);
     if (rows === null) return { id: "fees", label, value: DASH, sub: COULD_NOT_LOAD };
@@ -1683,7 +1693,7 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
         id: "fee",
         label: "Trading fee",
         value: source.fee === undefined ? DASH : feePercent(source.fee),
-        sub: votes === null ? "set by the fee votes" : `set by ${counted(votes)} ${votes === 1 ? "vote" : "votes"}`,
+        sub: votes === null ? "set by the fee votes" : votes === 0 ? NO_VOTES_SUB : `set by ${counted(votes)} ${votes === 1 ? "vote" : "votes"}`,
       },
       { id: "lp", label: "LP tokens", value: exactAmount(source.lpTokens) ?? DASH, sub: "in circulation" },
       volumeStat(),
@@ -1724,7 +1734,10 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
   if (info !== null) {
     slot = nodeSlot(net.id, info);
     const fee = feePercent(info.trading_fee);
-    votes = { state: "ok", data: voteShares(info.vote_slots, net.id), text: `Weighted result ${fee}, the pool's trading fee.`, figure: fee };
+    votes =
+      info.vote_slots.length === 0
+        ? { state: "ok", data: null, text: NO_VOTES_TEXT, figure: null }
+        : { state: "ok", data: voteShares(info.vote_slots, net.id), text: `Weighted result ${fee}, the pool's trading fee.`, figure: fee };
   } else if (mode === "node-down" && index !== null) {
     slot = indexSlot(net.id, index, now);
     votes = { state: "failed", what: "the fee votes" };

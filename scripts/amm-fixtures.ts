@@ -29,6 +29,9 @@
 //                                             the marker of its day (unix seconds) when older rows exist; else an empty list
 //   amm/pools/<POOL>/history@end=<T − 1>&interval=day&limit=1&start=<T − 1>.json      the last whole day
 //   exchanges/<B>/<C>@amm=only&end=T&interval=<1day|7day>&limit=400&start=<W₀>.json   the series' swaps as candles, the pair in its stored order
+//
+// VOX/XRP has no series, but the index has its states, so the API answers its page's day rows with empty lists, not `pool not found` (docs/api-reference.md
+// "AMM", "Empty and 404"): the same four files for its 90 days (the page's default period), each with an empty list and no marker.
 //   network/amm_volume@live=day.json          the rolling day to T's minute: a component for each live pool with the native currency but VOX/XRP (no swaps), drawn
 //                                             from `mulberry32(seedOf("xrpl", "amm_volume", "live"))` (apps/api/src/network/volume-object.ts for the row)
 //
@@ -514,8 +517,34 @@ function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] 
     }
     answers.push({ path: history, query: queryOf({ end: lastDay, interval: "day", limit: 1, start: lastDay }), value: days(rows.filter((row) => dayOfRow(row) === lastDay)) });
   }
+  answers.push(...emptyAnswers(derived, FEATURED_POOLS["VOX/XRP"], windowOf(T, "90d"), T));
   answers.push({ path: "/v2/network/amm_volume", query: queryOf({ live: "day" }), value: liveVolume(derived, head) });
   return answers;
+}
+
+/**
+ * The answers of a pool page's day rows, carry-in, last day and candles for a pool the index has states of and no day rows (VOX/XRP, P3: only its vote is recorded),
+ * for one window: each an empty list without a marker, as the API answers a pool with states and no day in a range (docs/api-reference.md "AMM", "Empty and
+ * 404"), and the candles of a pair without AMM swaps in it.
+ */
+function emptyAnswers(derived: DerivedAmm, account: string, window: ReturnType<typeof windowOf>, T: string): SyntheticAnswer[] {
+  const pool = derived.pools.find((candidate) => candidate.amm_account === account);
+  if (pool === undefined) throw new Error(`${account}: a featured pool that the recordings do not have`);
+  const empty: Page<"days", AmmPoolDay> = { result: "success", count: 0, days: [] };
+  const history = `/v2/amm/pools/${account}/history`;
+  const pair = `/v2/exchanges/${encodeURIComponent(apiAssetText(baseOf(pool)))}/${encodeURIComponent(apiAssetText(counterOf(pool)))}`;
+  const weeks = window.unit === "week";
+  const lastDay = dayBefore(T);
+  return [
+    { path: history, query: queryOf({ end: T, interval: "day", limit: DAYS_LIMIT, start: window.start }), value: empty },
+    { path: history, query: queryOf({ descending: "true", end: dayBefore(window.start), interval: "day", limit: 1 }), value: empty },
+    { path: history, query: queryOf({ end: lastDay, interval: "day", limit: 1, start: lastDay }), value: empty },
+    {
+      path: pair,
+      query: queryOf({ amm: "only", end: T, interval: weeks ? "7day" : "1day", limit: CANDLES_LIMIT, start: window.start }),
+      value: candlesOf([], weeks ? "1w" : "1d", `${window.start}T00:00:00Z`, baseOf(pool), counterOf(pool), CANDLES_LIMIT),
+    },
+  ];
 }
 
 // ---- The live volume -----------------------------------------------------------------------------------------------------

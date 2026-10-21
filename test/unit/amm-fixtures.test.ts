@@ -795,7 +795,8 @@ describe("the featured pools' amm_info (AMM_INFO_POOLS)", () => {
 describe("the synthetic day rows, candles and live volume", () => {
   // The day rows (`history?interval=day`), the pairs' AMM-only candles and the live `amm_volume` set are synthetic: one seeded daily series per featured pool,
   // of which the files are views by the API's rules, and one seeded live set. P2 of E5 scopes them: every period of XRP/RLUSD; the 90 days of USDC/RLUSD and
-  // XRP/USD; DVR/XRP's creation in the 30 days; SNK/XRP's deletion in the year; nothing of VOX/XRP (P3). The rules are written out here again, apart from the
+  // XRP/USD; DVR/XRP's creation in the 30 days; SNK/XRP's deletion in the year; VOX/XRP's 90 days, each empty (P3: it has no series, but the index has its
+  // states, so its day rows are empty lists, not `pool not found`; docs/api-reference.md "Empty and 404"). The rules are written out here again, apart from the
   // generator: the windows, the carry-in and its marker, the estimates, the candles (E3's rules) and the live set (docs/api-reference.md, "AMM" and
   // `/v2/network/amm_volume`; apps/api/src/network/volume-object.ts).
   const T = "2026-10-17";
@@ -869,7 +870,21 @@ describe("the synthetic day rows, candles and live volume", () => {
     expect(new Date(`${WINDOWS["1y"].start}T00:00:00Z`).getUTCDay()).toBe(1);
   });
 
-  it("are the files P2 scopes, and no more: each pool's windows, carry-ins, last day and candles, and the live set; none for VOX/XRP", () => {
+  /** VOX/XRP's four files: its 90 days' rows, carry-in and candles, and its last day. */
+  const voxFiles = (): string[] => {
+    const account = FEATURED_POOLS["VOX/XRP"];
+    const vox = poolOf(account);
+    const voxHistory = `/v2/amm/pools/${account}/history`;
+    const pair = `/v2/exchanges/${encodeURIComponent(apiAssetText(baseOf(vox)))}/${encodeURIComponent(apiAssetText(counterOf(vox)))}`;
+    return [
+      file(voxHistory, `end=${T}&interval=day&limit=1000&start=${WINDOWS["90d"].start}`),
+      file(voxHistory, `descending=true&end=${WINDOWS["90d"].carry}&interval=day&limit=1`),
+      file(voxHistory, `end=${LAST_DAY}&interval=day&limit=1&start=${LAST_DAY}`),
+      file(pair, `amm=only&end=${T}&interval=1day&limit=400&start=${WINDOWS["90d"].start}`),
+    ];
+  };
+
+  it("are the files P2 scopes, and no more: each pool's windows, carry-ins, last day and candles, the live set, and VOX/XRP's 90 days", () => {
     const expected = [
       LIVE,
       ...NAMES.flatMap((name) => [
@@ -877,13 +892,20 @@ describe("the synthetic day rows, candles and live volume", () => {
         ...SCOPE[name].carryIns.map((period) => carryFile(name, period)),
         lastDayFile(name),
       ]),
+      ...voxFiles(),
     ];
     const synthetic = [...files.keys()].filter((path) => /\/history@/.test(path) || !path.startsWith("xrpl/data-api/amm/"));
     expect(synthetic.sort()).toEqual([...new Set(expected)].sort());
     expect(expected).toHaveLength(new Set(expected).size);
-    expect(synthetic.some((path) => path.includes(FEATURED_POOLS["VOX/XRP"]))).toBe(false);
     for (const path of synthetic) expect(isAmmGenerated(path), path).toBe(true);
     expect(series.map((one) => one.name).sort()).toEqual([...NAMES].sort());
+  });
+
+  it("answer VOX/XRP's day rows, carry-in and last day with empty lists and no marker, and its pair with no candles", () => {
+    const [window, carry, last, candles] = voxFiles();
+    for (const path of [window!, carry!, last!]) expect(daysPage(path), path).toEqual(EMPTY);
+    expect(candlePage(candles!)).toEqual({ result: "success", count: 0, exchanges: [] });
+    expect(series.some((one) => one.pool.amm_account === FEATURED_POOLS["VOX/XRP"])).toBe(false);
   });
 
   it("hold one series per pool: days from 2025-10-01 or its creation to T or its deletion, oldest first, each once, quiet days without a row", () => {

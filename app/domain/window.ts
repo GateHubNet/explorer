@@ -23,8 +23,8 @@ export interface PeriodWindow {
 const DAYS = { "7d": 7, "30d": 30, "90d": 90 } as const;
 const WEEKS = 52;
 
-/** The day `days` days after `day` (before it when negative). */
-function addDays(day: string, days: number): string {
+/** The UTC day (`YYYY-MM-DD`) `days` days after `day` (before it when negative). */
+export function addDays(day: string, days: number): string {
   const [year, month, date] = day.split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(year, month - 1, date + days)).toISOString().slice(0, 10);
 }

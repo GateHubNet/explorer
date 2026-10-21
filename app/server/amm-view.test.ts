@@ -9,7 +9,7 @@ import { tokenOf } from "../domain/fnv";
 import { formatAmount, formatPrice, shortHash } from "../domain/format";
 import { marketHref, naturalOrientation, QUOTE_RANK } from "../domain/market-pair";
 import { formatDateTime } from "../domain/time-words";
-import { windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
+import { addDays, windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
 import type { SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
 import { NO_FEATURES } from "../ui/features";
 import {
@@ -2216,7 +2216,6 @@ describe("poolCharts: the recorded days", () => {
   const dir = new URL("../../test/fixtures/http/xrpl/data-api/", import.meta.url);
   const json = <T>(path: string): T => JSON.parse(readFileSync(new URL(path, dir), "utf8")) as T;
   const assetText = (currency: string, issuer?: string) => (issuer ? `${currency}+${issuer}` : currency);
-  const dayBefore = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   /** The input of a recorded pool's charts for a period, from the files the loader's calls #4, #5 and #6 read. */
   function recorded(pool: string, period: WindowPeriod): DaySeriesInput {
     const window = windowOf(DAY_T, period);
@@ -2224,7 +2223,7 @@ describe("poolCharts: the recorded days", () => {
     const base = { currency: stored.base_currency, ...(stored.base_issuer ? { issuer: stored.base_issuer } : {}) };
     const counter = { currency: stored.counter_currency, ...(stored.counter_issuer ? { issuer: stored.counter_issuer } : {}) };
     const days = json<Page<"days", AmmPoolDay>>(`amm/pools/${pool}/history@end=${DAY_T}&interval=day&limit=1000&start=${window.start}.json`).days;
-    const carryIn = json<Page<"days", AmmPoolDay>>(`amm/pools/${pool}/history@descending=true&end=${dayBefore(window.start)}&interval=day&limit=1.json`).days[0] ?? null;
+    const carryIn = json<Page<"days", AmmPoolDay>>(`amm/pools/${pool}/history@descending=true&end=${addDays(window.start, -1)}&interval=day&limit=1.json`).days[0] ?? null;
     const interval = period === "1y" ? "7day" : "1day";
     const candles = json<Page<"exchanges", Candle>>(
       `exchanges/${assetText(base.currency, base.issuer)}/${assetText(counter.currency, counter.issuer)}@amm=only&end=${DAY_T}&interval=${interval}&limit=400&start=${window.start}.json`,
@@ -2760,7 +2759,7 @@ describe("ammPoolPage: the modes (spec 3.3)", () => {
           kind: "node-down",
           tone: "warning",
           title: "Live state unavailable; shown from the index",
-          text: "The network node did not answer, so the reserves, LP tokens and fee are the explorer’s index’s, and the fee votes are missing.",
+          text: "The network node did not answer, so the reserves, LP tokens, fee and auction slot are from the explorer’s index, and the fee votes are missing.",
         },
       ]);
     });
@@ -2789,6 +2788,18 @@ describe("ammPoolPage: the modes (spec 3.3)", () => {
       expect(slotOfPage(ammPoolPage({ ...input, index: indexPool({ auction_slot: { price: "1" } }) }).page)).toMatchObject({ held: null, text: "The slot is open.", until: null });
       const expired = indexPool({ auction_slot: { holder: AMM_HOLDER, price: "1", discounted_fee: 50, expiration: "2026-10-17T09:00:00Z" } });
       expect(slotOfPage(ammPoolPage({ ...input, index: expired }).page)).toMatchObject({ held: null, text: "The slot is open." });
+    });
+
+    it("cannot tell the index's held slot from an expired one without the newest ledger: a dash, as the list's slot cell", () => {
+      const blind = { ...input, last: rejected(serverError()), days: null, carryIn: null, lastDay: null, candles: null };
+      const expired = indexPool({ auction_slot: { holder: AMM_HOLDER, price: "1", discounted_fee: 50, expiration: "2026-10-17T09:00:00Z" } });
+      for (const index of [expired, indexPool()]) {
+        expect(ammPoolPage({ ...blind, index }).page.slot).toEqual({ state: "ok", held: null, until: null, countdownAt: null, meter: null, text: "—" });
+      }
+      // Without a holder it is open, and without an expiration it is held as the index has it, whatever the newest ledger.
+      expect(slotOfPage(ammPoolPage({ ...blind, index: indexPool({ auction_slot: { price: "1" } }) }).page).text).toBe("The slot is open.");
+      const undated = ammPoolPage({ ...blind, index: indexPool({ auction_slot: { holder: AMM_HOLDER, price: "1" } }) }).page;
+      expect(slotOfPage(undated)).toMatchObject({ held: { holder: { address: AMM_HOLDER } }, until: null, countdownAt: null, text: null });
     });
 
     it("fails the fee votes", () => {
@@ -2892,6 +2903,13 @@ describe("ammPoolPage: the modes (spec 3.3)", () => {
       expect(statOf(page, "value")).toMatchObject({ value: "—", sub: "not in the index yet" });
     });
 
+    it("logs a failure of the creation event that is not 'pool not found', without degrading the page", () => {
+      const { page, problems, logged } = ammPoolPage(networkInput({ created: rejected(serverError("data API GET /v2/amm/pools/…/liquidity answered 503")) }));
+      expect(page.header.created).toBeNull();
+      expect(problems).toEqual([]);
+      expect(logged).toEqual(["the creation event: data API GET /v2/amm/pools/…/liquidity answered 503"]);
+    });
+
     it("still fails a card for a failure that is not 'pool not found'", () => {
       const { page, problems } = ammPoolPage(networkInput({ activity: rejected(serverError()) }));
       expect(page.activity.list).toEqual({ state: "failed", what: "the swaps" });
@@ -2904,6 +2922,13 @@ describe("ammPoolPage: the modes (spec 3.3)", () => {
       const b = ammPoolPage(networkInput({ node: fulfilled(swapped) })).page.charts;
       expect(b).toEqual(a);
     });
+  });
+
+  it("fails the four cards of the day rows in the other modes for a 'pool not found' of the carry-in, with a problem", () => {
+    const { page, problems } = ammPoolPage(poolInput({ carryIn: rejected(notFound()) }));
+    for (const part of [page.charts.value, page.charts.price, page.charts.fee, page.charts.reserves]) expect(part.state, part.title).toBe("failed");
+    expect(page.charts.volume.state).toBe("ok");
+    expect(problems).toEqual(["the day before the window: pool not found"]);
   });
 
   it("fails a card in the other modes for a 'pool not found' of the day rows, the last day or the activity, with a problem", () => {
@@ -2978,6 +3003,12 @@ describe("ammPoolPage: the fee votes", () => {
     expect(votes.data).toEqual(voteShares(poolInfo().vote_slots, "xrpl"));
     expect(votes.text).toBe("Weighted result 0.300%, the pool's trading fee.");
     expect(votes.figure).toBe("0.300%");
+  });
+
+  it("are none for a pool without a vote slot: no bars, no weighted result, and the fee is set by no vote", () => {
+    const page = poolPage({ node: fulfilled(poolInfo({ trading_fee: 500, vote_slots: [] })) });
+    expect(page.votes).toEqual({ state: "ok", data: null, text: "No fee votes.", figure: null });
+    expect(statOf(page, "fee")).toMatchObject({ value: "0.500%", sub: "no fee votes" });
   });
 });
 
@@ -3252,8 +3283,17 @@ describe("the pool page: no float and no exponent reaches the page (P38)", () =>
         return false;
       }
     };
-    const pageOrEmpty = <T>(path: string, empty: T): PromiseSettledResult<T> => fulfilled(exists(path) ? json<T>(path) : empty);
-    const dayBefore = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    /**
+     * A recorded answer, or what the fixture server answers for a file it does not have (test/support/upstream-core.ts `dataApiAbsent`), as the data API client
+     * reads it: `pool not found` below a pool's route (kind `not_found`), and the missing route's "Cannot GET" elsewhere (kind `server`).
+     */
+    const answerOf = <T>(path: string): PromiseSettledResult<T> => {
+      if (exists(path)) return fulfilled(json<T>(path));
+      const route = `/v2/${path.replace(/^data-api\//, "").replace(/@.*$/, "").replace(/\.json$/, "")}`;
+      return /^\/v2\/amm\/pools\/[^/]+\/.+/.test(route)
+        ? rejected(new UpstreamError("not_found", `data API GET ${route} answered 404: pool not found`, { status: 404 }))
+        : rejected(new UpstreamError("server", `data API GET ${route} answered 404: Cannot GET ${route} (the data API has no such route)`, { status: 404 }));
+    };
     const assetText = (currency: string, issuer?: string) => (issuer ? `${currency}+${issuer}` : currency);
     const passThrough = { json: <T>(_key: string, _cls: string, load: () => Promise<T>) => load() } as unknown as SubrequestCache;
     const node = { id: "xrpl", name: "XRPL", native: "XRP", nodeUrl: "https://node.example.invalid/" } as Network;
@@ -3278,11 +3318,9 @@ describe("the pool page: no float and no exponent reaches the page (P38)", () =>
       const window = windowOf(DAY_T, period);
       const q = poolQueries(window, DAY_T);
       const at = `data-api/amm/pools/${pool}/`;
-      const days = (start: string) => pageOrEmpty<Page<"days", AmmPoolDay>>(`${at}history@end=${DAY_T}&interval=day&limit=1000&start=${start}.json`, daysPage([]));
+      const days = (start: string) => answerOf<Page<"days", AmmPoolDay>>(`${at}history@end=${DAY_T}&interval=day&limit=1000&start=${start}.json`);
       const pair = `${assetText(index.base_currency, index.base_issuer)}/${assetText(index.counter_currency, index.counter_issuer)}`;
       const candles = `data-api/exchanges/${pair}@amm=only&end=${DAY_T}&interval=${q.candles.interval}&limit=400&start=${window.start}.json`;
-      const tabFile = `${at}${tab}@descending=true&limit=20.json`;
-      const emptyTab: AmmActivityPage = tab === "swaps" ? swapsPage([], null) : tab === "liquidity" ? { result: "success", count: 0, liquidity: [] } : { result: "success", count: 0, governance: [] };
       return {
         net: POOL_NET,
         pool,
@@ -3292,11 +3330,11 @@ describe("the pool page: no float and no exponent reaches the page (P38)", () =>
         node: info,
         last: fulfilled(json<LastValidated>("data-api/last_validated.json")),
         days: days(window.start),
-        carryIn: pageOrEmpty(`${at}history@descending=true&end=${dayBefore(window.start)}&interval=day&limit=1.json`, daysPage([])),
-        lastDay: pageOrEmpty(`${at}history@end=${q.lastDay.end}&interval=day&limit=1&start=${q.lastDay.start}.json`, daysPage([])),
-        candles: pageOrEmpty(candles, candlesPage([])),
-        activity: pageOrEmpty(tabFile, emptyTab),
-        created: pageOrEmpty(`${at}liquidity@event=create&limit=1.json`, { result: "success", count: 0, liquidity: [] }),
+        carryIn: answerOf(`${at}history@descending=true&end=${q.carryIn.end}&interval=day&limit=1.json`),
+        lastDay: answerOf(`${at}history@end=${q.lastDay.end}&interval=day&limit=1&start=${q.lastDay.start}.json`),
+        candles: answerOf(candles),
+        activity: answerOf<AmmActivityPage>(`${at}${tab}@descending=true&limit=20.json`),
+        created: answerOf(`${at}liquidity@event=create&limit=1.json`),
         live: fulfilled(json<Page<"rows", AmmVolumeRow>>("data-api/network/amm_volume@live=day.json")),
       };
     }
@@ -3337,6 +3375,33 @@ describe("the pool page: no float and no exponent reaches the page (P38)", () =>
       expect(stateOf(page).caption.text).toBe("Live from the network at ledger #107,721,455");
       expect(slotOfPage(page)).toMatchObject({ held: null, until: null, meter: null });
       expect(slotOfPage(page).text).toMatch(/^The slot is open\. A new bid now costs at least [\d,.]+ LP tokens\.$/);
+    });
+
+    it("draws VOX/XRP's gone page whole: the index's state, every chart drawn with no data, and the tables", async () => {
+      for (const tab of ["swaps", "liquidity", "governance"] as const) {
+        const { page, problems, logged } = ammPoolPage(await recordedInput(VOX_POOL, "90d", tab));
+        expect([problems, logged], tab).toEqual([[], []]);
+        expect(page.notices.map((notice) => notice.kind)).toEqual(["gone"]);
+        for (const part of Object.values(page.charts)) expect(part.state, `${tab} ${part.title}`).toBe("ok");
+        expect(page.activity.list.state, tab).toBe("ok");
+        expect(statOf(page, "fees").value).toBe("0");
+        expect([page.slot, page.votes]).toEqual([null, null]);
+      }
+      // The answers are what the API serves for a pool with states and no day: empty lists, so no chart has a value.
+      const value = ammPoolPage(await recordedInput(VOX_POOL, "90d", "swaps")).page.charts.value;
+      if (value.state !== "ok") throw new Error("the value chart failed");
+      expect(value.data.series[0]!.values.every((v) => v === null)).toBe(true);
+    });
+
+    it("answers a file the fixtures do not have as the fixture server does", () => {
+      expect(answerOf(`data-api/amm/pools/${VOX_POOL}/history@end=${DAY_T}&interval=day&limit=1000&start=2026-09-18.json`)).toMatchObject({
+        status: "rejected",
+        reason: { kind: "not_found" },
+      });
+      expect(answerOf(`data-api/exchanges/${VOX}+${VOX_ISSUER}/XRP@amm=only&end=${DAY_T}&interval=1day&limit=400&start=2026-09-18.json`)).toMatchObject({
+        status: "rejected",
+        reason: { kind: "server" },
+      });
     });
 
     it("names DVR/XRP's creation, the one recorded create event", async () => {

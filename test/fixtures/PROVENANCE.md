@@ -468,6 +468,9 @@ closed at 17:01:12Z), in the pages' windows (E2's `windowOf`: the 30 and 90 days
   draw steers that walk: the base reserve of each day before is pulled towards a triangle wave below the derived one, so the price moves and the reserves stay positive.
   DVR/XRP's recordings end with its creation, so its swaps are round trips and the walk lands on nothing before the creation. Over the whole series: XRP/RLUSD 334 rows,
   USDC/RLUSD 213, XRP/USD 274, DVR/XRP 5, SNK/XRP 26.
+- **VOX/XRP's empty answers.** It has no series, but the index has its states, so the API answers its pool page's day rows with empty lists, not `pool not found`
+  (docs/api-reference.md "AMM", "Empty and 404"): its 90 days (the page's default period) have empty day rows, an empty carry-in and last day, and no AMM candles, each
+  without a marker, so its "gone" page is whole under the fixtures.
 - **The live set**, `network/amm_volume@live=day.json`, drawn from `mulberry32(seedOf("xrpl", "amm_volume", "live"))`, a pool at a time in account order: the rolling day
   from 2026-10-16T17:01:00Z to 2026-10-17T17:01:00Z (the aggregator's minute), a component for each of the 50 live pools with the native currency but VOX/XRP (the pages'
   pool without swaps); the issued-only pools (USDC/RLUSD among them) have none, a synthetic choice so that the list has a pool whose 24-hour volume is "—" (see "differs"
@@ -482,7 +485,7 @@ Which files (P2 of E5 scopes them: the 1.3 MiB of every period of every pool wou
 | USDC/RLUSD, XRP/USD | 90 days | 90 days | yes |
 | DVR/XRP | 30 days (its creation inside it) | the three, each empty | yes |
 | SNK/XRP | 30 days and 90 days (empty), 1 year (its deletion inside it) | the three: its deletion day for the 30 and 90 days | yes (empty) |
-| VOX/XRP | none | none | none |
+| VOX/XRP | 90 days, both empty (no series) | 90 days, empty | yes (empty) |
 
 | Files below `http/xrpl/` | What |
 |---|---|
@@ -508,7 +511,9 @@ rate the XRP/RLUSD market and pool give (it leaves out only a pool with no rate 
 are within the rounding of its amounts of one another; the series do not hold the pools'
 recorded swaps (the Swaps tabs list those) and are not E3's derived XRP/RLUSD trades and candles (P33: each page is checked against its own fixtures); the live set is
 drawn apart from the series; its converted amounts are whole 64ths of a coin, so that the API's sum of doubles (`String(total)`) is exact; and SNK/XRP's dust reserves (the
-0.0000851206393053295 SNK and 0.021974 XRP its last withdrawal took) give base estimates in BigNumber's exponent form (`1.250946e-8`), as the API writes such a sum.
+0.0000851206393053295 SNK and 0.021974 XRP its last withdrawal took) give base estimates in BigNumber's exponent form (`1.250946e-8`), as the API writes such a sum. VOX/XRP's
+90 days are empty, where the API would hold a row for 2026-10-14, the day of its recorded vote (amm-daily.job.ts has a row for every day a transaction touched the pool):
+a row with no swap and no liquidity, the vote's fee and LP supply, and no reserves (only the AMM node is recorded), which no series draws (P3).
 
 **What keeps them true.** `test/unit/amm-fixtures.test.ts` checks the derivation against the reference's counts over the `xrpl-amm` ledgers, the featured pools' roles, the
 reference's key orders, amounts, numbers, `value_native`, stored pair order and liquidity signs (against each transaction's own nodes), the list's order and markers, the
@@ -517,4 +522,4 @@ filters, the pair forms, the tabs' pages, and the featured pools' `amm_info` aga
 deletion, T's closing state against the derived pool, the liquidity of each day against the recorded events, the estimates, `value_native`, each candle against its day
 and each week against its days, the reserves' walk against the candles and the rows, the live set's components, order, sums and rates, and the key orders.
 `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes. `isAmmGenerated` (`scripts/http-fixtures.ts`) names the files, which have a size budget
-of their own in `test/unit/http-fixtures.test.ts` (220 files, 655,245 bytes, about 0.62 MiB, of which the 35 synthetic files are 513,014 bytes).
+of their own in `test/unit/http-fixtures.test.ts` (224 files, 655,466 bytes, about 0.63 MiB, of which the 39 synthetic files are 513,235 bytes).

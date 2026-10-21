@@ -126,8 +126,9 @@ describe("every fixture file", () => {
     expect(bytes(files.filter(isValidatorsGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isValidatorsGenerated))).toBeLessThan(3.0 * 1024 * 1024);
     // The AMM pages' files (scripts/amm-fixtures.ts, a row to a line: the pool routes derived from the recordings, 185 files of 142,231 bytes, and the synthetic
-    // day rows, AMM-only candles and live volume as P2 of E5 scopes them, 35 files of 513,014 bytes; 220 files, 655,245 bytes, about 0.62 MiB) are reviewed as
-    // their generator too, with a budget of their own (P2), which a later file raises with its data, never above 1.0 MiB.
+    // day rows, AMM-only candles and live volume as P2 of E5 scopes them, VOX/XRP's four empty answers among them, 39 files of 513,235 bytes; 224 files,
+    // 655,466 bytes, about 0.63 MiB) are reviewed as their generator too, with a budget of their own (P2), which a later file raises with its data, never above
+    // 1.0 MiB.
     expect(bytes(files.filter(isAmmGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isAmmGenerated))).toBeLessThan(0.65 * 1024 * 1024);
   });
