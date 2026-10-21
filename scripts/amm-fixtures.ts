@@ -41,7 +41,7 @@
 import BigNumber from "bignumber.js";
 
 import { apiAssetText, sameAsset, type Asset } from "../app/domain/asset";
-import { bucketStarts, utcDayOf, windowOf } from "../app/domain/window";
+import { addDays, bucketStarts, utcDayOf, windowOf } from "../app/domain/window";
 import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmPoolDay, AmmSwap, AmmVolumeComponent, AmmVolumeRow, Page } from "../app/server/api-types";
 import { dataApiFile } from "../test/support/upstream-core";
 import { deriveAmm, storedValue, valueText, type DerivedAmm } from "./amm-derive";
@@ -278,7 +278,6 @@ export interface SyntheticAnswer {
 /** The close time of the newest recorded ledger, unix seconds: T is its UTC day. */
 const headOf = (ledgers: readonly RawLedger[]): number => unixOf(ledgers.at(-1)!.ledger.close_time);
 const secondsOf = (day: string): number => Date.parse(`${day}T00:00:00Z`) / 1000;
-const dayBefore = (day: string): string => utcDayOf(secondsOf(day) - DAY_SECONDS);
 /** An amount of a day row or a volume component as the API writes it: BigNumber's `toString()` (the exponent form below 1e-6 and from 1e21). */
 const amountText = (value: BigNumber): string => new Api(value).toString();
 /** A marker of a page of days (amm-pools.service.ts `days`): the base64url JSON of the start of its last day, in unix seconds. */
@@ -493,7 +492,7 @@ function drawSwaps(
 /** The answers the series make, by the pages' requests, and the live volume. */
 function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] {
   const T = utcDayOf(head);
-  const lastDay = dayBefore(T);
+  const lastDay = addDays(T, -1);
   const answers: SyntheticAnswer[] = [];
   const days = (rows: AmmPoolDay[], marker?: string): Page<"days", AmmPoolDay> => ({ result: "success", count: rows.length, ...(marker !== undefined && { marker }), days: rows });
   const dayOfRow = (row: AmmPoolDay): string => row.date.slice(0, 10);
@@ -512,7 +511,7 @@ function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] 
       answers.push({ path: pair, query: queryOf({ amm: "only", end: T, interval: weeks ? "7day" : "1day", limit: CANDLES_LIMIT, start: window.start }), value: candles });
     }
     for (const period of shape.carryIns) {
-      const end = dayBefore(windowOf(T, period).start);
+      const end = addDays(windowOf(T, period).start, -1);
       const before = rows.filter((row) => dayOfRow(row) <= end);
       const newest = before.at(-1);
       const value = newest === undefined ? days([]) : days([newest], before.length > 1 ? dayMarker(newest) : undefined);
@@ -537,10 +536,10 @@ function emptyAnswers(derived: DerivedAmm, account: string, window: ReturnType<t
   const history = `/v2/amm/pools/${account}/history`;
   const pair = `/v2/exchanges/${encodeURIComponent(apiAssetText(baseOf(pool)))}/${encodeURIComponent(apiAssetText(counterOf(pool)))}`;
   const weeks = window.unit === "week";
-  const lastDay = dayBefore(T);
+  const lastDay = addDays(T, -1);
   return [
     { path: history, query: queryOf({ end: T, interval: "day", limit: DAYS_LIMIT, start: window.start }), value: empty },
-    { path: history, query: queryOf({ descending: "true", end: dayBefore(window.start), interval: "day", limit: 1 }), value: empty },
+    { path: history, query: queryOf({ descending: "true", end: addDays(window.start, -1), interval: "day", limit: 1 }), value: empty },
     { path: history, query: queryOf({ end: lastDay, interval: "day", limit: 1, start: lastDay }), value: empty },
     {
       path: pair,

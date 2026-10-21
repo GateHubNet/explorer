@@ -48,6 +48,7 @@ import { encodeAccountID } from "ripple-address-codec";
 
 import { analyticsWindow, ANALYTICS_PERIODS, type AnalyticsUnit, type AnalyticsWindow } from "../app/domain/analytics-params";
 import { canonicalPair, type Asset, type NativeCode } from "../app/domain/asset";
+import { addDays } from "../app/domain/window";
 import type {
   AccountTxStatsRow,
   AccountValueRow,
@@ -278,11 +279,6 @@ const unitsOf = (amount: number, decimals: number): Decimal => {
 };
 
 // ---- Days ----------------------------------------------------------------------------------------------------------------
-
-function addDays(day: string, days: number): string {
-  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
 
 function daysFrom(first: string, last: string): string[] {
   const days: string[] = [];
