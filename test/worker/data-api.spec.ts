@@ -51,7 +51,7 @@ import { ACTIVE_ACCOUNTS_KEPT, createDataApi, UpstreamError, type DataApi, type 
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
-import { ANALYTICS_SLOW_TIMEOUT_MS, DATA_API_TIMEOUT_MS, isMissingRoute } from "../../app/server/upstream";
+import { ANALYTICS_SLOW_TIMEOUT_MS, DATA_API_TIMEOUT_MS, isMissingRoute, isNotFound } from "../../app/server/upstream";
 import {
   AMM_POOL,
   ammDaysSample,
@@ -1045,8 +1045,9 @@ describe("errors", () => {
     expect(error.kind).toBe("server");
     expect(error.status).toBe(404);
     expect(error.message).toBe(`data API GET ${path} answered 404: Cannot GET ${path} (the data API has no such route)`);
-    // `isMissingRoute` (upstream.ts) is what a page reads it by.
+    // `isMissingRoute` (upstream.ts) is what a page reads it by; it is never `isNotFound`, so no page takes it for a thing that does not exist.
     expect(isMissingRoute(error)).toBe(true);
+    expect(isNotFound(error)).toBe(false);
 
     // A route with an id in it too: the rule is about the message, not about which routes may be missing.
     fetchSpy.mockResolvedValueOnce(json({ result: "error", message: `Cannot GET /v2/transactions/${HASH}` }, { status: 404 }));
@@ -1067,6 +1068,7 @@ describe("errors", () => {
     expect(error.status).toBe(404);
     expect(error.message).not.toContain("no such route");
     expect(isMissingRoute(error)).toBe(false);
+    expect(isNotFound(error)).toBe(true);
   });
 
   it("a 404 without a message, or with one that is not text, is still not_found", async () => {

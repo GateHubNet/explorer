@@ -59,6 +59,14 @@ export function isMissingRoute(reason: unknown): boolean {
   return reason instanceof UpstreamError && reason.kind === "server" && reason.status === 404;
 }
 
+/**
+ * Whether a failure is the upstream saying that the thing asked for does not exist: kind `not_found` (a data API 404, a node's `actNotFound`). The data API's
+ * "Cannot GET" is kind `server` (`isMissingRoute`), an outage, and so is everything that is not an `UpstreamError` (a `TooLate`, a bug).
+ */
+export function isNotFound(reason: unknown): boolean {
+  return reason instanceof UpstreamError && reason.kind === "not_found";
+}
+
 /** The seconds in a `Retry-After` header, when it holds a whole number of seconds (the data API's always does). */
 export function retryAfterOf(headers: Headers): number | undefined {
   const value = headers.get("Retry-After")?.trim();

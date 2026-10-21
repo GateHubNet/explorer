@@ -19,7 +19,7 @@ import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "
 import { logProblem } from "../server/logging";
 import { isNetworkId, networkOf, type Network } from "../server/networks";
 import { txFromIndex, txFromNode, type TransactionSource } from "../server/transaction-view";
-import { isMissingRoute, UpstreamError } from "../server/upstream";
+import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 
 // `/og/{net}/{tx|ledger|account|validator|amendment|amm}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2): the link-preview image of a transaction, a
 // ledger, an account, a validator, an amendment or an AMM pool, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
@@ -98,10 +98,6 @@ function failure(err: unknown, outage = false): Response {
  */
 function apiFailure(err: unknown): Response {
   return failure(err, true);
-}
-
-function isNotFound(err: unknown): boolean {
-  return err instanceof UpstreamError && err.kind === "not_found";
 }
 
 /** A redirect to the one image an object has, as the data names it (a master key, an amendment's name). The mapping is data: it is kept for an hour, not for good. */

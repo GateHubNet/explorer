@@ -47,7 +47,7 @@ import { issuersOf } from "./markets-view";
 import { anchoredWindow, byDay, tokened, volumeOf } from "./network-view";
 import type { Network } from "./networks";
 import type { AmmInfo, NodeAmount } from "./node-rpc";
-import { UpstreamError } from "./upstream";
+import { isNotFound } from "./upstream";
 import { clock, ledgerLink, unixOf } from "./validator-facts";
 
 const DASH = "—";
@@ -1096,14 +1096,10 @@ export type AmmPoolMode = "indexed" | "node-down" | "gone" | "deleted" | "networ
 export type AmmPageMode = Exclude<AmmPoolMode, "none" | "unavailable">;
 
 /**
- * The pool's absence: the index's `pool not found`, and the node's `actNotFound` or `actMalformed` (E3's `amm_info` reader). The "Cannot GET" 404 of an API without
- * the AMM routes is kind `server` (data-api.ts), an outage, and so is everything else that is not this kind, a `TooLate` and a bug included.
- */
-const isNotFound = (reason: unknown): boolean => reason instanceof UpstreamError && reason.kind === "not_found";
-
-/**
  * The mode of the pool page (spec 3.3's table). A 404 (`none`) only when the index and the node both say the pool is missing; a failure on either side is never
- * one, so it is never stored as one. A deleted pool shows its history, whatever the node said.
+ * one, so it is never stored as one. A deleted pool shows its history, whatever the node said. The pool's absence is upstream.ts's `isNotFound`: the index's
+ * `pool not found`, and the node's `actNotFound` or `actMalformed` (E3's `amm_info` reader). The "Cannot GET" 404 of an API without the AMM routes is kind
+ * `server` (data-api.ts), an outage, and so is everything else that is not that kind, a `TooLate` and a bug included.
  */
 export function poolModeOf(index: PromiseSettledResult<AmmPool>, node: PromiseSettledResult<AmmInfo>): AmmPoolMode {
   if (index.status === "fulfilled") {
@@ -1413,8 +1409,8 @@ const TAB_LABELS: Record<AmmTab, string> = { swaps: "Swaps", liquidity: "Liquidi
 /** What a failed table says it could not load. */
 const TAB_WHAT: Record<AmmTab, string> = { swaps: "the swaps", liquidity: "the liquidity events", governance: "the votes and bids" };
 const TAB_EMPTY: Record<AmmTab, string> = { swaps: "No swaps to show.", liquidity: "No liquidity events to show.", governance: "No votes or bids to show." };
-/** The key of each tab's list in its answer. */
-const TAB_LIST: Record<AmmTab, string> = { swaps: "exchanges", liquidity: "liquidity", governance: "governance" };
+/** The key of each tab's list in its answer: the pool route reads it too, for a page behind a marker that has nothing in it. */
+export const TAB_LIST: Record<AmmTab, string> = { swaps: "exchanges", liquidity: "liquidity", governance: "governance" };
 const SIGNS_NOTE = "Newest first. Signs are from the pool's side: + went in, − came out.";
 const SWAPS_NOTE = "Amounts are the pool's own changes; on the asset it pays out they include the issuer's transfer fee.";
 

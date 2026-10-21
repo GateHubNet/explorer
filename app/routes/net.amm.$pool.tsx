@@ -7,7 +7,7 @@ import { shortAddress } from "../domain/format";
 import { queryOf } from "../domain/query-of";
 import { utcDayOf } from "../domain/window";
 import { anchorOrThrow } from "../server/anchor";
-import { ammHistoryPage, ammPoolPage, MODE_CLASS, poolModeOf, poolQueries, storedPair, type AmmActivityPage, type PoolQueries } from "../server/amm-view";
+import { ammHistoryPage, ammPoolPage, MODE_CLASS, poolModeOf, poolQueries, storedPair, TAB_LIST, type AmmActivityPage, type PoolQueries } from "../server/amm-view";
 import type { LastValidated } from "../server/api-types";
 import { HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS, PERIOD_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
@@ -25,7 +25,7 @@ import { requireNetwork } from "../server/network-route";
 import { anchoredWindow } from "../server/network-view";
 import type { Network } from "../server/networks";
 import { redirectToCanonical } from "../server/pair-route";
-import { isMissingRoute, UpstreamError } from "../server/upstream";
+import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 import { findNetwork } from "../ui/networks";
 import { AmmPoolPage } from "../ui/pages/AmmPoolPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
@@ -45,12 +45,6 @@ const ROWS_PAGE = 20;
 
 /** What the not-found page says of a page of older rows that is not there: a marker that is none, one the API refuses, or one with nothing behind it. */
 const OLDER_NOT_FOUND = "that page of the AMM pool";
-
-/** The key of each tab's list in its answer: what a page behind a marker has nothing in when it is past the last row. */
-const ROWS_KEY = { swaps: "exchanges", liquidity: "liquidity", governance: "governance" } as const satisfies Record<AmmPoolQuery["tab"], string>;
-
-/** An upstream's "there is no such thing": the index's `pool not found`, the node's `actNotFound` or `actMalformed`. */
-const isNotFound = (reason: unknown): boolean => reason instanceof UpstreamError && reason.kind === "not_found";
 
 /**
  * Logs a failure that leaves no page (a 503): an API without the AMM routes (its "Cannot GET", `isMissingRoute`) as what it is, anything else in the words of
@@ -137,7 +131,8 @@ async function olderRows(context: Route.LoaderArgs["context"], request: Request,
     logOutage(`the AMM pool page behind a marker could not load its page of ${query.tab}`, activity.reason, request);
     return upstreamOutage(activity.reason, "the AMM pool's older rows");
   }
-  const rows = (activity.value as Partial<Record<string, unknown>>)[ROWS_KEY[query.tab]];
+  // The tab's list (amm-view's `TAB_LIST`): a page behind a marker has nothing in it when it is past the last row.
+  const rows = (activity.value as Partial<Record<string, unknown>>)[TAB_LIST[query.tab]];
   if (Array.isArray(rows) && rows.length === 0) notFound({ notFound: OLDER_NOT_FOUND });
 
   // A list whose rows do not build is a card that says so: logged, and the request degraded, so it is served and never stored as the page behind the marker.
