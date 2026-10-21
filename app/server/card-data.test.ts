@@ -383,6 +383,7 @@ const poolFacts = (over: Partial<AmmPoolFacts> = {}): AmmPoolFacts => ({
   net: "xrpl",
   native: "XRP",
   pair: "XRP/RLUSD",
+  text: "XRP / RLUSD",
   deleted: false,
   fee: "0.300%",
   value: "3.61M",
@@ -433,9 +434,18 @@ describe("poolCard", () => {
     expect(card.footer).toEqual([{ text: "AMM pool on Xahau" }]);
   });
 
-  it("puts spaces around the slash of the page's slug, whatever the codes are (a code with no text is its first eight digits)", () => {
-    expect(poolCard(poolFacts({ pair: "USDC/RLUSD" }), XRPL).headline).toEqual({ text: "USDC / RLUSD", mono: false });
-    expect(poolCard(poolFacts({ pair: "564F58F0…/XRP" }), XRPL).headline).toEqual({ text: "564F58F0… / XRP", mono: false });
+  it("heads the card with the facts' text, whatever the codes are (a code with no text is its first eight digits)", () => {
+    expect(poolCard(poolFacts({ pair: "USDC/RLUSD", text: "USDC / RLUSD" }), XRPL).headline).toEqual({ text: "USDC / RLUSD", mono: false });
+    expect(poolCard(poolFacts({ pair: "564F58F0…/XRP", text: "564F58F0… / XRP" }), XRPL).headline).toEqual({ text: "564F58F0… / XRP", mono: false });
+  });
+
+  it("keeps a \"/\" of a code's own text: the headline is the display pair as the page writes it, not the slug split again", () => {
+    // "USD/EUR" in 40 hex digits (55 53 44 2F 45 55 52, then zeros): a code that is not 3 characters, whose text formatCurrency decodes, slash included.
+    const slashed = "5553442F455552".padEnd(40, "0");
+    const facts = ammPoolFacts({ id: "xrpl", native: "XRP" }, AMM_POOL, ammPoolSample({ base_currency: slashed }), null, null);
+    expect([facts.pair, facts.text]).toEqual(["USD/EUR/XRP", "USD/EUR / XRP"]);
+    // The slug split again at each "/" would be "USD / EUR / XRP".
+    expect(poolCard(facts, XRPL).headline).toEqual({ text: "USD/EUR / XRP", mono: false });
   });
 
   it("is made of the page's own facts: the day, the value and the fee are the ones the tags say, and none is written as a float or with an exponent", () => {

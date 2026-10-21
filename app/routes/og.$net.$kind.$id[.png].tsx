@@ -10,7 +10,7 @@ import type { CardData } from "../og/types";
 import { accountCard, amendmentCard, ledgerCard, poolCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
 import { VALIDATORS_CALL_TTL_SECONDS, type CacheClass } from "../server/cache-class";
 import { activationOf } from "../server/account-view";
-import { ammPoolFacts } from "../server/amm-view";
+import { ammPoolFacts, createdOf } from "../server/amm-view";
 import type { AmendmentDetail, AmmLiquidityEvent, ValidatorDetail } from "../server/api-types";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders } from "../server/edge-cache";
@@ -318,8 +318,7 @@ async function ammImage(context: LoaderFunctionArgs["context"], network: Network
   let creation: AmmLiquidityEvent | null = null;
   let complete = true;
   if (created.status === "fulfilled") {
-    const rows = created.value.liquidity;
-    creation = Array.isArray(rows) && rows[0] !== undefined ? rows[0] : null;
+    creation = createdOf(created.value);
   } else {
     if (!(created.reason instanceof UpstreamError)) throw created.reason;
     logProblem("an AMM pool's link-preview image left out its creation", created.reason, request);

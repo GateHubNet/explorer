@@ -56,6 +56,7 @@ import {
   ammListWindow,
   ammPoolFacts,
   ammPoolPage,
+  createdOf,
   MODE_CLASS,
   nextBidPrice,
   noAmmPage,
@@ -2551,13 +2552,13 @@ describe("poolModeOf: every answer of the index (#1) against every answer of the
 });
 
 describe("MODE_CLASS", () => {
-  it("is the class of each mode that is a page: the network's pool kept 60 s, the node's failure served and not stored", () => {
+  it("is the class of each mode that is a page: the network's pool kept 60 s", () => {
     expect(MODE_CLASS).toEqual({
-      indexed: { cls: "live", degraded: false },
-      "node-down": { cls: "live", degraded: true },
-      gone: { cls: "live", degraded: false },
-      deleted: { cls: "slow", degraded: false },
-      network: { cls: "short", ttl: 60, degraded: false },
+      indexed: { cls: "live" },
+      "node-down": { cls: "live" },
+      gone: { cls: "live" },
+      deleted: { cls: "slow" },
+      network: { cls: "short", ttl: 60 },
     });
   });
 
@@ -2623,6 +2624,7 @@ describe("ammPoolFacts", () => {
       net: "xrpl",
       native: "XRP",
       pair: "XRP/RLUSD",
+      text: "XRP / RLUSD",
       deleted: false,
       fee: "0.300%",
       value: "3.61M",
@@ -2632,7 +2634,7 @@ describe("ammPoolFacts", () => {
 
   it("takes the index's fee without the node, and leaves out what neither has", () => {
     const facts = ammPoolFacts(POOL_NET, AMM_POOL, leaving(indexPool(), "value_native"), null, null);
-    expect(facts).toEqual({ pool: AMM_POOL, net: "xrpl", native: "XRP", pair: "XRP/RLUSD", deleted: false, fee: "0.205%" });
+    expect(facts).toEqual({ pool: AMM_POOL, net: "xrpl", native: "XRP", pair: "XRP/RLUSD", text: "XRP / RLUSD", deleted: false, fee: "0.205%" });
   });
 
   it("has no value for a deleted pool", () => {
@@ -2643,12 +2645,34 @@ describe("ammPoolFacts", () => {
 
   it("names the pair from the node for a pool the index does not have, and has no value", () => {
     const facts = ammPoolFacts(POOL_NET, AMM_POOL, null, usdcInfo(), null);
-    expect(facts).toMatchObject({ pair: "USDC/RLUSD", fee: "0.300%", deleted: false });
+    expect(facts).toMatchObject({ pair: "USDC/RLUSD", text: "USDC / RLUSD", fee: "0.300%", deleted: false });
     expect(facts).not.toHaveProperty("value");
   });
 
   it("reads the creation only from a create event", () => {
     expect(ammPoolFacts(POOL_NET, AMM_POOL, indexPool(), poolInfo(), createEvent({ event: "deposit" }))).not.toHaveProperty("created");
+  });
+});
+
+describe("createdOf", () => {
+  const liquidity = (rows: AmmLiquidityEvent[]): Page<"liquidity", AmmLiquidityEvent> => ({ result: "success", count: rows.length, liquidity: rows });
+
+  it("is the first row of #8's page when it is a create event", () => {
+    const event = createEvent();
+    expect(createdOf(liquidity([event]))).toBe(event);
+  });
+
+  it("is null for an empty page, a row of another event and a create event without a time", () => {
+    expect(createdOf(liquidity([]))).toBeNull();
+    expect(createdOf(liquidity([createEvent({ event: "deposit" })]))).toBeNull();
+    expect(createdOf(liquidity([createEvent({ executed_time: "not a time" })]))).toBeNull();
+  });
+
+  it("is what the pool page's Created line and the facts of its tags (and so its image) read", () => {
+    const page = liquidity([createEvent()]);
+    const facts = ammPoolFacts(POOL_NET, AMM_POOL, indexPool(), poolInfo(), createdOf(page));
+    expect(facts.created).toEqual({ date: "2024-03-22", at: unixAt(CREATED_AT) });
+    expect(poolPage({ created: fulfilled(page) }).header.created?.date).toBe(facts.created?.date);
   });
 });
 
@@ -2890,9 +2914,8 @@ describe("ammPoolPage: the modes (spec 3.3)", () => {
       expect(page.votes).toEqual({ state: "failed", what: "the fee votes" });
     });
 
-    it("has the node's failure as its one problem, and is degraded", () => {
+    it("has the node's failure as its one problem, which marks the request degraded", () => {
       expect(problems).toEqual(["the live state: node amm_info took longer than 3000 ms"]);
-      expect(MODE_CLASS["node-down"].degraded).toBe(true);
     });
 
     it("draws a dash for what the index does not know", () => {

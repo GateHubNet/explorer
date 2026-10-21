@@ -225,8 +225,8 @@ export function amendmentCard(detail: AmendmentDetail, network: SoftwareNetwork)
 
 /**
  * The card of an AMM pool (AMM spec 5.2), made of the facts the page's tags are (`ammPoolFacts`), so a link's text and its picture agree: the pair in the text font
- * ("XRP / RLUSD": the page's slug with spaces round its slash), the pool's whole account under it, and, joined by `·`, the value and the trading fee where the facts
- * have them (the note starts with a capital, as every card's does), or "Deleted pool". The footer is the day of the pool's creation, else the network. Every figure is the facts' own text: none is worked out here.
+ * ("XRP / RLUSD": the facts' `text`, never the slug split again, since a code's text may have a "/" of its own), the pool's whole account under it, and, joined by
+ * `·`, the value and the trading fee where the facts have them (the note starts with a capital, as every card's does), or "Deleted pool". The footer is the day of the pool's creation, else the network. Every figure is the facts' own text: none is worked out here.
  */
 export function poolCard(facts: AmmPoolFacts, network: NetworkBrief): CardData {
   const known = [facts.value === undefined ? null : `Value ${facts.value} ${facts.native}`, facts.fee === undefined ? null : `trading fee ${facts.fee}`].filter(
@@ -240,7 +240,7 @@ export function poolCard(facts: AmmPoolFacts, network: NetworkBrief): CardData {
     network: network.id,
     networkLabel: labelOf(network),
     kind: "AMM pool",
-    headline: { text: facts.pair.split("/").join(" / "), mono: false },
+    headline: { text: facts.text, mono: false },
     parties: [facts.pool],
     footer: [{ text: facts.created === undefined ? `AMM pool on ${network.name}` : `Created ${formatCardDate(facts.created.at)}` }],
   };

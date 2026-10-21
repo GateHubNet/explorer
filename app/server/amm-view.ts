@@ -1117,15 +1117,15 @@ export function poolModeOf(index: PromiseSettledResult<AmmPool>, node: PromiseSe
 }
 
 /**
- * The edge class of each mode that is a page; `node-down` is served and not stored (`degraded`). A pool from the network is `short`, kept the aggregator's minute
- * (the `minute` class's 60 s), after which the index has it.
+ * The edge class of each mode that is a page. A pool from the network is `short`, kept the aggregator's minute (the `minute` class's 60 s), after which the index
+ * has it. `node-down` is served and not stored: not by its class, but by its problem ("the live state", `ammPoolPage`), which the loader marks degraded.
  */
-export const MODE_CLASS: Record<AmmPageMode, { cls: CacheClass; ttl?: number; degraded: boolean }> = {
-  indexed: { cls: "live", degraded: false },
-  "node-down": { cls: "live", degraded: true },
-  gone: { cls: "live", degraded: false },
-  deleted: { cls: "slow", degraded: false },
-  network: { cls: "short", ttl: CACHE_CLASSES.minute.edgeTtl, degraded: false },
+export const MODE_CLASS: Record<AmmPageMode, { cls: CacheClass; ttl?: number }> = {
+  indexed: { cls: "live" },
+  "node-down": { cls: "live" },
+  gone: { cls: "live" },
+  deleted: { cls: "slow" },
+  network: { cls: "short", ttl: CACHE_CLASSES.minute.edgeTtl },
 };
 
 /** The queries of #4 (the window's days), #5 (the day before it, the carry-in), #10 (the last complete day) and #6 (the pair's AMM candles). */
@@ -1158,6 +1158,8 @@ export interface AmmPoolFacts {
   native: string;
   /** `XRP/RLUSD`: the display pair as a slug. */
   pair: string;
+  /** `XRP / RLUSD`: the display pair as the page writes it (DisplayPair's `text`), for the image's headline: a code's text may have a "/" of its own. */
+  text: string;
   deleted: boolean;
   /** `0.300%`: the node's fee, else the index's. */
   fee?: string;
@@ -1199,6 +1201,15 @@ function creationOf(event: AmmLiquidityEvent | null): { date: string; at: number
 }
 
 /**
+ * The pool's create event in #8's answer (`ammLiquidity(pool, { event: "create", limit: 1 })`): its first row, when that is a creation (`creationOf`); `null` for an
+ * empty page, and for anything else. The pool page and its image (og route) read it here, so both read the creation the same way.
+ */
+export function createdOf(page: Page<"liquidity", AmmLiquidityEvent>): AmmLiquidityEvent | null {
+  const rows = page.liquidity;
+  return creationOf(Array.isArray(rows) ? (rows[0] ?? null) : null)?.event ?? null;
+}
+
+/**
  * The facts of a pool page (spec 5.1): the pair as a slug (the pool's short account where neither the index nor the node names it, which no page mode allows),
  * the node's fee or the index's, the index's value of a live pool, and the day of the creation event.
  */
@@ -1218,6 +1229,7 @@ export function ammPoolFacts(
     net: net.id,
     native: net.native,
     pair: pair?.slug ?? shortAddress(pool),
+    text: pair?.text ?? shortAddress(pool),
     deleted: index?.deleted === true,
     ...(fee === undefined ? {} : { fee: feePercent(fee) }),
     ...(value === null ? {} : { value: compactNumber(value.toFixed()) }),
@@ -1652,8 +1664,7 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
   if (input.created.status === "rejected") {
     if (!(fromNetwork && isNotFound(input.created.reason))) logged.push(`the creation event: ${reasonText(input.created.reason)}`);
   } else {
-    const rows = input.created.value?.liquidity;
-    created = Array.isArray(rows) && rows[0] !== undefined ? rows[0] : null;
+    created = createdOf(input.created.value);
   }
   const creation = creationOf(created);
   const lpCode = index?.lp_currency ?? info?.lp_token.currency;

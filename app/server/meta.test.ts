@@ -915,6 +915,7 @@ describe("ammPoolMeta", () => {
     net: "xrpl",
     native: "XRP",
     pair: "XRP/RLUSD",
+    text: "XRP / RLUSD",
     deleted: false,
     fee: "0.300%",
     value: "3.61M",
