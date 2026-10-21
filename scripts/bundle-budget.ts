@@ -3,7 +3,7 @@
 // command is check-bundle.ts, which always runs it. (The command used to decide whether it was being run by comparing this module's URL
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
-//   - the JavaScript a page loads first, gzipped, is over 150 KB on the home, ledger, transaction, account, network, markets, validators, validator or amendments page (the route
+//   - the JavaScript a page loads first, gzipped, is over 150 KB on the home, ledger, transaction, account, network, markets, validators, validator, amendments or amendment page (the route
 //     manifest is in it: see below);
 //   - a file of the build holds something that belongs to the Worker alone: the image renderer, the transaction parser's vocabulary,
 //     the binary codec or the QR encoder (they would weigh on every visitor, and the pages are drawn from data that is ready);

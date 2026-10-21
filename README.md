@@ -822,7 +822,9 @@ come right within seconds of D1's deploy, with no change here. D1's own `Validat
 
 **The calls**, each through `clientsFor(context, net)` and the subrequest cache, side by side, all awaited with `Promise.allSettled` before anything is thrown, and on
 the pages that poll with `holdFailure: true` (the hold: one failing call per 5 s per key per Worker instance). The six paths are in `PENDING_PATHS` until `pnpm api:sync`
-brings D1 in; the types are written from D1's `docs/api-reference.md` at data-api-new `7d495ab`, and every answer's shape is checked inside the cached load.
+brings D1 in; the types are written from D1's `docs/api-reference.md` at data-api-new `7d495ab`, and every answer's shape is checked inside the cached load. A word a newer
+D1 may add (an amendment's status, a domain check's status, the status of a validator's vote, a history event) passes as any text that is not empty, and the pages show it
+as their default ("Unknown", "not verified") or leave it out, never a 503 (`validators-new-words.spec.ts`).
 
 | Call | Kept | Pages |
 |---|---|---|
@@ -870,7 +872,7 @@ unit-tested); the pages `app/ui/pages/ValidatorsPage.tsx`, `ValidatorPage.tsx`, 
 `app/ui/components/Countdown.tsx`, `StatusMarks.tsx` (every status an icon and a word, never colour alone) and `status-icons.tsx`.
 
 **Tests.** The view builders' and parsers' unit tests, the pages' component tests, in the Worker `validators-page.spec.ts`, `validators-page-failures.spec.ts`,
-`validator-page.spec.ts`, `amendments-page.spec.ts`, `amendment-page.spec.ts` (with the 30-day fixture's document under 150,000 bytes gzipped), `validators-off.spec.ts`,
+`validator-page.spec.ts`, `amendments-page.spec.ts`, `amendment-page.spec.ts` (with the 30-day fixture's document under 150,000 bytes gzipped), `validators-off.spec.ts`, `validators-new-words.spec.ts`,
 `og.spec.ts` and `meta.spec.ts`, and in the browser `validators.spec.ts`, `amendments.spec.ts`, `validators-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The
 answers they read are generated ("Upstream fixtures", "The validators and amendments pages' files").
 
@@ -1346,7 +1348,7 @@ too close to the text's for axe's `link-in-text-block`. Their page with a card t
 `scripts/check-bundle.test.ts`) on `build/client` after the build and exits 1 when it finds a problem. The command always runs the check, however it
 was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
-- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction, account or network route; what it loads
+- a page loads more than **150 KB** (150,000 bytes) of JavaScript, gzipped. A page is the home, ledger, transaction, account, network, markets, validators, validator, amendments or amendment route; what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
   and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its
@@ -1654,8 +1656,13 @@ staging before production:
 - [ ] **A page answered 503, not stored, against an API without D1.** A staging Worker with `VALIDATORS` `"on"` in front of a data API that has no D1 routes (before D1's
   deploy, or a stack without it): the validators list, a validator, the amendments list, an amendment and both images answer 503 (a `Cannot GET` is an outage), a second
   request is not an `X-Cache: HIT`, and the pages come right with no deploy of the explorer once D1 answers.
+- [ ] **The size of a real majority amendment's page, against the staging stack.** Take an amendment with a majority (else the one with the most rounds) and measure its stored
+  document gzipped (`curl -s --compressed -o page.html https://<staging host>/xrpl/amendments/{name}`, then `gzip -9 -c page.html | wc -c`) and the rows of its yes votes table
+  ("changes only", the chart's Table view). The fixtures hold the yes votes between a few changes, as votes behave, and `amendment-page.spec.ts` pins their document under
+  150,000 bytes; rounds whose count moves at every flag ledger make a row each (the 30-day fixture with a change every round was about 161 KB gzipped), and the table would then
+  need a cap. Write both figures down.
 - [ ] **The four bundle figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the validators, validator, amendments and amendment pages under 150,000
-  bytes with the manifest counted (148,656, 148,545, 139,123 and 147,014 at E6), and the network page (149,144 at E6), written down beside "The client bundle check".
+  bytes with the manifest counted (148,717, 148,504, 139,185 and 147,135 at E6), and the network page (149,154 at E6), written down beside "The client bundle check".
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.
