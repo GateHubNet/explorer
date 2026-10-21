@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ammPoolHref, type AmmPoolQuery } from "../domain/amm-params";
 import type { Asset } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
-import { formatAmount, formatPrice, shortHash } from "../domain/format";
+import { formatAmount, formatPrice, shortAddress, shortHash } from "../domain/format";
 import { marketHref, naturalOrientation, QUOTE_RANK } from "../domain/market-pair";
 import { formatDateTime } from "../domain/time-words";
 import { addDays, windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
@@ -1350,6 +1350,27 @@ describe("swapRows", () => {
 
   it("is no rows for no rows", () => {
     expect(swapRows([], pair, "xrpl")).toEqual([]);
+  });
+
+  it("names each side's issuer for a pool of one code on both sides, where the direction alone reads 'USD → USD' (Task 7's Minor 3)", () => {
+    // USD of two issuers, stored with AMM_ISSUER's as the base. The pool paid out the base (seller is the pool): RL's USD went in, AMM_ISSUER's came out.
+    const ours: Asset = { currency: "USD", issuer: AMM_ISSUER };
+    const theirs: Asset = { currency: "USD", issuer: RL };
+    const usdUsd = displayPair(ours, theirs, "XRP");
+    const usdSwap = (over: Partial<AmmSwap>): AmmSwap =>
+      ammSwapSample({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL, base_amount: "10", counter_amount: "9.9", ...over });
+    const [poolSells, poolBuys] = swapRows([usdSwap({ seller: AMM_POOL, buyer: AMM_ACCOUNT }), usdSwap({ buyer: AMM_POOL, seller: AMM_ACCOUNT })], usdUsd, "xrpl");
+    expect(poolSells!.direction).toBe("USD → USD");
+    expect(poolSells!.directionTitle).toBe(`USD of ${shortAddress(RL)} → USD of ${shortAddress(AMM_ISSUER)}`);
+    expect(poolBuys!.directionTitle).toBe(`USD of ${shortAddress(AMM_ISSUER)} → USD of ${shortAddress(RL)}`);
+    // Whichever side the pair shows first, the title follows what went in and what came out.
+    const [shownOtherWay] = swapRows([usdSwap({ seller: AMM_POOL, buyer: AMM_ACCOUNT })], { ...usdUsd, first: usdUsd.second, second: usdUsd.first, flipped: !usdUsd.flipped }, "xrpl");
+    expect(shownOtherWay!.directionTitle).toBe(poolSells!.directionTitle);
+  });
+
+  it("has no direction title for a pool whose codes tell its sides apart", () => {
+    const [row] = swapRows([swap({ seller: AMM_POOL })], pair, "xrpl");
+    expect(row!.directionTitle).toBeNull();
   });
 });
 

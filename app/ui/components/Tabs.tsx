@@ -18,8 +18,22 @@ export interface TabItem {
   onIntent?: () => void;
 }
 
-/** Tabs as navigation: the current one is `aria-current="page"`; one that is not there yet is a disabled label with a "soon" tag. */
-export function Tabs({ label, items, current }: { label: string; items: readonly TabItem[]; current: string }) {
+/**
+ * Tabs as navigation: the current one is `aria-current="page"`; one that is not there yet is a disabled label with a "soon" tag.
+ * `preventScrollReset` makes a click on any tab a client-side navigation that keeps the window where it is, for tabs that are not at the top
+ * of their page (the pool page's activity); left out, a tab is a link as it was, and the navigation goes to the top.
+ */
+export function Tabs({
+  label,
+  items,
+  current,
+  preventScrollReset = false,
+}: {
+  label: string;
+  items: readonly TabItem[];
+  current: string;
+  preventScrollReset?: boolean;
+}) {
   return (
     <nav className="tabs" aria-label={label}>
       <ul>
@@ -34,6 +48,7 @@ export function Tabs({ label, items, current }: { label: string; items: readonly
               <Link
                 to={item.href}
                 rel={item.rel}
+                preventScrollReset={preventScrollReset}
                 className={cx("tabs__item", item.id === current && "is-current")}
                 aria-current={item.id === current ? "page" : undefined}
                 onPointerEnter={item.onIntent}

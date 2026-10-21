@@ -351,3 +351,68 @@ describe("BarList, memoised on the token (spec 2.9)", () => {
     expect(container.querySelector("ol")!.classList.contains("barlist--dense")).toBe(true);
   });
 });
+
+describe('BarList with tip="share-of" (E5\'s fee votes, P17)', () => {
+  // The votes of a pool: the value is the exact percent of the LP tokens a vote weighs, which draws the bar; the share is the whole percent the tip says.
+  const VOTES: BarListData = {
+    items: [
+      { id: "a", label: "rPT1Sj…bpAYe", sublabel: "votes for 0.300%", value: "50", share: "50%", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe" },
+      { id: "b", label: "rGz1sP…dwQ4Y6x", sublabel: "votes for 0.250%", value: "21.4", share: "21%", href: "/xrpl/account/rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x" },
+      { id: "c", label: "rBbW6i…x9oW5jh", sublabel: "votes for 0.400%", value: "0.3", share: "<1%" },
+    ],
+    format: { kind: "percent", unit: "LP tokens" },
+    token: "v1",
+  };
+
+  it("reads '21% of LP tokens' at the tip: the share strong, then the format's unit, and no value", async () => {
+    const { container, errors } = await serverThenHydrated(routed(<BarList data={VOTES} tip="share-of" />));
+    expect(tips(container).map((tip) => tip.textContent)).toEqual(["50% of LP tokens", "21% of LP tokens", "<1% of LP tokens"]);
+    expect(tips(container).map((tip) => tip.querySelector("b")!.textContent)).toEqual(["50%", "21%", "<1%"]);
+    // The exact percent draws the bar only: it is in no text of the list.
+    expect(container.textContent).not.toContain("21.4");
+    expect(errors).toEqual([]);
+  });
+
+  it("draws each bar from the value, against the largest, as the default tip does", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={VOTES} tip="share-of" />));
+    expect(bars(container).map((bar) => bar.style.width)).toEqual(["100%", "42.8%", "0.6%"]);
+    const unsorted = { ...VOTES, items: [VOTES.items[1]!, VOTES.items[0]!] };
+    const byLargest = await serverThenHydrated(routed(<BarList data={unsorted} tip="share-of" />));
+    expect(bars(byLargest.container).map((bar) => bar.style.width)).toEqual(["42.8%", "100%"]);
+  });
+
+  it("makes room for the longest tip, the unit included", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={VOTES} tip="share-of" />));
+    // '<1% of LP tokens' (and '50% of LP tokens') is 16 characters, the longest; one more for the bold.
+    expect(container.querySelector<HTMLElement>("ol")!.style.getPropertyValue("--tip")).toBe("calc(17ch + 10px)");
+  });
+
+  it("writes the share alone for a format without a unit, and nothing at the tip of an item without a share", async () => {
+    const data: BarListData = { ...VOTES, format: { kind: "percent" }, items: [VOTES.items[0]!, { id: "d", label: "D", value: "10" }] };
+    const { container, html } = await serverThenHydrated(routed(<BarList data={data} tip="share-of" />));
+    expect(tips(container).map((tip) => tip.textContent)).toEqual(["50%", ""]);
+    expect(tips(container)[1]!.querySelector("b")).toBeNull();
+    expect(html).not.toContain("undefined");
+  });
+
+  it("keeps the links, the sublabels and the bars as pictures, as in the other tips", async () => {
+    const { container } = await serverThenHydrated(routed(<BarList data={VOTES} tip="share-of" dense />));
+    expect(links(container).map((link) => link.textContent)).toEqual(["rPT1Sj…bpAYe", "rGz1sP…dwQ4Y6x"]);
+    expect(items(container)[1]!.textContent).toBe("rGz1sP…dwQ4Y6x" + "votes for 0.250%" + "21% of LP tokens");
+    for (const bar of bars(container)) expect(bar.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("leaves the default and the count tips as they were for the same data", async () => {
+    const share = await serverThenHydrated(routed(<BarList data={VOTES} />));
+    expect(tips(share.container).map((tip) => tip.textContent)).toEqual(["50% · 50%", "21.4% · 21%", "0.3% · <1%"]);
+    const counted = await serverThenHydrated(routed(<BarList data={{ ...VOTES, items: VOTES.items.map((item) => ({ ...item, count: "2" })) }} tip="count" />));
+    expect(tips(counted.container)[0]!.textContent).toBe("50% · 2 trades");
+  });
+
+  it("is drawn again when the tip changes to share-of, which is part of what it is memoised on", () => {
+    const { container, rerender } = render(routed(<BarList data={VOTES} />));
+    expect(tips(container)[1]!.textContent).toBe("21.4% · 21%");
+    rerender(routed(<BarList data={VOTES} tip="share-of" />));
+    expect(tips(container)[1]!.textContent).toBe("21% of LP tokens");
+  });
+});

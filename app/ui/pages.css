@@ -3512,3 +3512,266 @@ a.markets__pair:hover .markets__name {
     padding: 24px 16px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   AMM pool: /{net}/amm/{pool} (the board's layout: the pool card, the state, the period, the charts and the slot and votes in pairs that fold under
+   each other on a phone, then the activity). The root is the list's `.amm` as well, for its column and its 44 px pager. The kit's classes (the
+   chart cards, the stat tiles, the bar list, the meter) are the kit's: this sheet sets only where they sit and the state card's figures. */
+
+/* The house target size for the page's copy buttons (the board's are 30 px). */
+.amm-pool .copy {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.amm-pool__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+}
+
+.amm-pool__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+/* The board's 34 px coins, over the list's style. */
+.amm-pool__coins .amm__coin {
+  width: 34px;
+  height: 34px;
+  font-size: 10px;
+}
+
+.amm-pool__coins .amm__coin + .amm__coin {
+  margin-left: -8px;
+}
+
+.amm-pool__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.amm-pool__market {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The header's "soon" style, as a word of the card's heading row: it starts at its text, not 10 px in. */
+.amm-pool__market.nav-item {
+  padding-inline: 0;
+}
+
+/* The pool's account, the issuers (each in full) and the Created and LP token lines: they wrap, inside an address on a phone, never past the card. */
+.amm-pool__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.amm-pool__fact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+  min-width: 0;
+}
+
+.amm-pool__lp {
+  font-size: 12px;
+}
+
+/* The state: one card, its seven figures in the board's grid, without the tiles' own borders; the caption under them. */
+.amm-pool__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.amm-pool__stats .stat {
+  gap: 2px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* The exact figures are long (an LP supply has 20 characters and more): 16 px mono, and the reserves 13 px, so that the usual ones hold in a tile of
+   170 px; a longer one wraps inside its tile (`.stat__value`), never past it. The Value is the board's 24 px sans figure. */
+.amm-pool__stats .stat__value {
+  font-size: 16px;
+}
+
+.amm-pool__stats .stat--figure .stat__value {
+  font-size: 24px;
+}
+
+.amm-pool__reserves {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+.amm-pool__caption {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.amm-pool__filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.amm-pool__period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+
+.amm-pool__note {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* The cards in pairs: each is 420 px at least, so two fit in a row and one folds under the other on a phone. */
+.amm-pool__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.amm-pool__half {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+/* The words at the end of a side card's head: until when the slot is held, what the votes are weighted by. */
+.amm-pool__aside {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.amm-pool__slot,
+.amm-pool__votes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.amm-pool__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  font-size: 13px;
+}
+
+.amm-pool__field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.amm-pool__field dt {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.amm-pool__field dd {
+  margin: 0;
+}
+
+.amm-pool__slot-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.amm-pool__open {
+  flex: none;
+}
+
+.amm-pool__result {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.amm-pool__result strong {
+  color: var(--fg);
+}
+
+/* The activity's head: the tabs, then the tab's source line at the end of the row (under the tabs when they do not leave room). */
+.amm-pool__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.amm-pool__tabs .tabs {
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* An exact amount longer than its track wraps inside its cell (the cells inherit it from the scroll region), so it never widens the table. */
+.amm-pool__table {
+  overflow-wrap: anywhere;
+}
+
+.amm-pool__mode {
+  font-size: 12px;
+}
+
+.amm-pool__notes {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.amm-pool__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .amm-pool__card {
+    padding: 16px;
+  }
+
+  .amm-pool__title {
+    font-size: 22px;
+  }
+
+  .amm-pool__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

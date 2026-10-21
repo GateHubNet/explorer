@@ -549,6 +549,56 @@ describe("Tabs", () => {
     fireEvent.focus(links[0]!);
     expect(onIntent).toHaveBeenCalledTimes(2);
   });
+
+  /** The tabs in a data router at the account's first tab, a click on Payments, and the navigation's state after it. */
+  async function clickPayments(props: { preventScrollReset?: boolean }) {
+    const router = createMemoryRouter([{ path: "*", element: <Tabs label="Account activity" items={items} current="transactions" {...props} /> }], {
+      initialEntries: ["/xrpl/account/A"],
+    });
+    render(<RouterProvider router={router} />);
+    await act(async () => void fireEvent.click(screen.getByRole("link", { name: "Payments" })));
+    expect(router.state.location.pathname + router.state.location.search).toBe("/xrpl/account/A?tab=payments");
+    return router.state;
+  }
+
+  // P16: happy-dom has no ScrollRestoration, so a reset cannot be seen as a scroll here: what the router is told is the navigation's state (the e2e suite
+  // sees the window stay where it was).
+  it("navigates keeping the window where it is with preventScrollReset, on every tab", async () => {
+    expect((await clickPayments({ preventScrollReset: true })).preventScrollReset).toBe(true);
+    cleanup();
+    const router = createMemoryRouter([{ path: "*", element: <Tabs label="Account activity" items={items} current="payments" preventScrollReset /> }], {
+      initialEntries: ["/xrpl/account/A?tab=payments"],
+    });
+    render(<RouterProvider router={router} />);
+    await act(async () => void fireEvent.click(screen.getByRole("link", { name: "Transactions" })));
+    expect(router.state.location.search).toBe("?tab=transactions");
+    expect(router.state.preventScrollReset).toBe(true);
+  });
+
+  it("navigates as a link does without preventScrollReset, and with preventScrollReset={false}: the router resets the scroll", async () => {
+    expect((await clickPayments({})).preventScrollReset).toBe(false);
+    cleanup();
+    expect((await clickPayments({ preventScrollReset: false })).preventScrollReset).toBe(false);
+  });
+
+  it("keeps rel and onIntent with preventScrollReset", async () => {
+    const onIntent = vi.fn();
+    const withIntent = [...items.slice(0, 2), { id: "analytics", label: "Analytics", href: "?tab=analytics", rel: "nofollow", onIntent }];
+    const router = createMemoryRouter([{ path: "*", element: <Tabs label="Account activity" items={withIntent} current="payments" preventScrollReset /> }], {
+      initialEntries: ["/xrpl/account/A?tab=payments"],
+    });
+    render(<RouterProvider router={router} />);
+    const analytics = screen.getByRole("link", { name: "Analytics" });
+    expect(analytics.getAttribute("rel")).toBe("nofollow");
+    fireEvent.pointerEnter(analytics);
+    fireEvent.focus(analytics);
+    expect(onIntent).toHaveBeenCalledTimes(2);
+    await act(async () => void fireEvent.click(analytics));
+    expect(router.state.location.search).toBe("?tab=analytics");
+    expect(router.state.preventScrollReset).toBe(true);
+    // A soon tab stays a label: there is nothing to navigate.
+    expect(screen.queryByRole("link", { name: /soon/ })).toBeNull();
+  });
 });
 
 describe("Pager", () => {

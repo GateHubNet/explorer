@@ -37,6 +37,7 @@ import { SectionError } from "../components/SectionError";
 import { Sentence } from "../components/Sentence";
 import { Tabs, type TabItem } from "../components/Tabs";
 import { TypeTag } from "../components/TypeTag";
+import { When } from "../components/WhenCell";
 import { ResultPill } from "../components/Pill";
 import type { NetworkInfo } from "../networks";
 import { useRetry } from "../use-retry";
@@ -69,12 +70,6 @@ const warmAnalytics = () => void import("./AccountAnalytics").catch(() => {});
 
 const count = (n: number) => formatAmount(String(n));
 const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
-
-/** `2026-10-17 16:11:02 UTC` as the date and the time of day, which the lists print on two lines. */
-function whenOf(time: number): { date: string; clock: string; full: string } {
-  const full = formatUtc(time);
-  return { date: full.slice(0, 10), clock: full.slice(11, 19), full };
-}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The page
@@ -575,18 +570,6 @@ function Panel({
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tables
-
-function When({ net, hash, time }: { net: NetworkInfo["id"]; hash: string; time: number }) {
-  const { date, clock } = whenOf(time);
-  return (
-    <span className="when num">
-      <Link to={`/${net}/tx/${hash}`} aria-label={`${date}, transaction ${shortHash(hash)}`}>
-        {date}
-      </Link>
-      <span className="faint">{clock}</span>
-    </span>
-  );
-}
 
 function Change({ change }: { change: ChangeView }) {
   return (

@@ -553,6 +553,11 @@ export interface SwapRow {
   hash: string;
   /** What went in, then what came out: `XRP → RLUSD`. */
   direction: string;
+  /**
+   * The direction with each side's issuer, for a pool whose two sides show one code (USD of two issuers), where `direction` reads `USD → USD`:
+   * `USD of rhub8V…zF3wq → USD of rMxCKb…m5De`, the cell's accessible name and title. `null` where the codes tell the sides apart.
+   */
+  directionTitle: string | null;
   /** `+512.4 XRP`: what the pool received. */
   into: string;
   /** `−1,250 RLUSD`: what the pool paid out. */
@@ -584,6 +589,12 @@ function rowIsFlipped(row: StoredSides, pair: DisplayPair): boolean {
  */
 export function swapRows(rows: readonly AmmSwap[], pair: DisplayPair, net: string): SwapRow[] {
   const codes = [formatCurrency(pair.first.currency), formatCurrency(pair.second.currency)] as const;
+  // A side with its issuer, for a pair whose codes are the same: only the issuers tell its sides apart.
+  const sameCode = codes[0] === codes[1];
+  const sideText = (at: 0 | 1): string => {
+    const issuer = (at === 0 ? pair.first : pair.second).issuer;
+    return issuer === undefined ? codes[at] : `${codes[at]} of ${shortAddress(issuer)}`;
+  };
   return rows.map((row) => {
     const flipped = rowIsFlipped(row, pair);
     const amounts = flipped ? ([row.counter_amount, row.base_amount] as const) : ([row.base_amount, row.counter_amount] as const);
@@ -597,6 +608,7 @@ export function swapRows(rows: readonly AmmSwap[], pair: DisplayPair, net: strin
       time: unixOf(row.executed_time),
       hash: row.tx_hash,
       direction: `${codes[inAt]} → ${codes[outAt]}`,
+      directionTitle: sameCode ? `${sideText(inAt)} → ${sideText(outAt)}` : null,
       into: withCode(signedAmount(amounts[inAt], 1), inAt),
       out: withCode(signedAmount(amounts[outAt], -1), outAt),
       price: price === null ? DASH : formatPrice(price),
