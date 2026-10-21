@@ -1,5 +1,6 @@
-// What the AMM pages show, worked out in the Worker from the data API's answers (spec 2.4 and 3.4). This file holds the list's builder, `ammListPage`, and the two
-// pieces every AMM builder shares: the pair as it is displayed (`displayPair`) and a fee as a percent (`feePercent`). The pool page's builders join it in a later task.
+// What the AMM pages show, worked out in the Worker from the data API's answers (spec 2.4 and 3.4). This file holds the list's builder, `ammListPage`, the two
+// pieces every AMM builder shares (the pair as it is displayed, `displayPair`, and a fee as a percent, `feePercent`), and the pool's figures: the price of a ratio of two
+// amounts, the cost of the next bid, the auction slot's interval, the fee votes and the rows of the three activity tabs. The pool page's own builder joins them in a later task.
 // No I/O, no clock, no `Intl`: each number of the page is text that BigNumber wrote in plain decimal (`compactNumber`, `toFixed()`), so no float and no exponent
 // reaches a string of the page, whatever form the data API wrote an amount in.
 //
@@ -10,23 +11,28 @@ import BigNumber from "bignumber.js";
 
 import { accountHref } from "../domain/account-tabs";
 import { ammListHref, ammPoolHref } from "../domain/amm-params";
-import type { Asset, NativeCode } from "../domain/asset";
+import { sameAsset, type Asset, type NativeCode } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
-import { compactNumber, formatAmount, formatCurrency, shortAddress } from "../domain/format";
+import { compactNumber, formatAmount, formatCurrency, formatPrice, shortAddress } from "../domain/format";
 import { naturalOrientation } from "../domain/market-pair";
 import { marketsHref } from "../domain/market-params";
 import { trailPaging, type Paging } from "../domain/paging";
+import { sharePercent } from "../domain/percent";
 import { pendingNote, utcDayOf, windowOf } from "../domain/window";
-import type { TimeSeriesData } from "../ui/charts/types";
+import type { BarListData, TimeSeriesData } from "../ui/charts/types";
 import { isNative } from "./account-view";
+import { isNumberText } from "./aggregate-shape";
 import { anchorOrThrow } from "./anchor";
-import type { AmmPool, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "./api-types";
+import type { AmmBid, AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmSwap, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "./api-types";
+import { feePercent, ratioOf } from "./exact";
 import { issuersOf } from "./markets-view";
 import { byDay, volumeOf } from "./network-view";
 import type { Network } from "./networks";
+import type { AmmInfo } from "./node-rpc";
 import { clock, ledgerLink, unixOf } from "./validator-facts";
 
 const DASH = "—";
+const MINUS = "−";
 const SEPARATOR = " · ";
 
 /** A day the data API has no row for may not be computed yet (spec 3.1, D2b): the one sentence the cards that read the pool's day rows say of it. */
@@ -57,10 +63,9 @@ export function displayPair(storedBase: Asset, storedCounter: Asset, native: Nat
   return { first: base, second: counter, flipped: inverted, text: codes.join(" / "), slug: codes.join("/") };
 }
 
-/** A fee in units of 1/100000 as a percent with three decimals (`300` is `0.300%`, the ledger's largest, `1000`, `1.000%`). */
-export function feePercent(units: number): string {
-  return `${new BigNumber(units).shiftedBy(-3).toFixed(3)}%`;
-}
+// A fee in units of 1/100000 as a percent with three decimals (`205` is `0.205%`, the ledger's largest, `1000`, `1.000%`) is `exact.ts`'s, which the pair page's pool card
+// writes its fee with too; the AMM builders import it from here.
+export { feePercent };
 
 // ---- The data of the list ---------------------------------------------------------------------------------------------------------------------
 
@@ -399,4 +404,249 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
 /** Xahau's page: no pools, and a way to its markets while the markets pages are on. */
 export function noAmmPage(net: Pick<Network, "id" | "features">): NoAmmPageData {
   return { kind: "none", marketsHref: net.features.markets ? marketsHref(net.id) : null };
+}
+
+// ---- The pool's figures -----------------------------------------------------------------------------------------------------------------------
+
+/** A number as the API or the node writes it (a decimal, or one in exponent form), exactly; `null` for anything else, which `BigNumber` would partly read. */
+const decimalOf = (text: string | undefined): BigNumber | null => (isNumberText(text) ? new BigNumber(text) : null);
+
+/**
+ * `numerator ÷ denominator` to 8 significant digits, half up, as plain decimal text with no trailing zeros and no exponent, whatever the size of the amounts (E3's
+ * `ratioOf`, which divides on the amounts scaled into [1, 10) at 80 places). `null` for a zero or a missing divisor, and for what is not a number.
+ */
+export function exactRatio(numerator: string | undefined, denominator: string | undefined): string | null {
+  const [top, bottom] = [decimalOf(numerator), decimalOf(denominator)];
+  if (top === null || bottom === null || bottom.isZero()) return null;
+  return ratioOf(top, bottom).toFixed();
+}
+
+// The auction slot (XLS-30, rippled's AMMBid.cpp and AMMCore.h): a slot lasts 24 hours in 20 intervals; the minimum price of a slot is the pool's LP supply times its
+// trading fee, over 100000 and over 25; a bid in the first interval must top the price paid by 5%, and later ones by a premium that falls to nothing by the last.
+const AUCTION_INTERVALS = 20;
+const TRADING_FEE_SCALE = 100_000;
+const MIN_FEE_FRACTION = 25;
+const OUTBID_PREMIUM = "1.05";
+const PREMIUM_DECAY_POWER = 60;
+const BID_SIGNIFICANT_DIGITS = 6;
+/** Two hundred decimal places: the divisions of the cost are exact decimals, so nothing is rounded before the last step. */
+const BID_ARITHMETIC = BigNumber.clone({ DECIMAL_PLACES: 200, ROUNDING_MODE: BigNumber.ROUND_HALF_UP });
+
+/**
+ * The cheapest bid that wins the slot now, in LP tokens, rounded UP to 6 significant digits (so that "at least" stays true), as plain decimal text. `min` is the
+ * pool's LP supply times its trading fee (units of 1/100000), over 100000 and over 25:
+ *
+ *   open slot (`null`, or an interval of 20 or more):  min
+ *   interval 0:                                        price × 1.05 + min
+ *   interval n (1 to 19):                              price × 1.05 × (1 − ((n + 1) / 20)^60) + min
+ *
+ * `"0"` where nothing is to pay (a fee of 0, an empty pool) and where the cost cannot be worked out (an amount that is no number): the caller leaves the sentence
+ * out, so that a figure that is not known is never stated.
+ */
+export function nextBidPrice(lpSupply: string, tradingFee: number, slot: { price: string; interval: number } | null): string {
+  const supply = decimalOf(lpSupply);
+  if (supply === null || !Number.isFinite(tradingFee)) return "0";
+  const min = new BID_ARITHMETIC(supply).times(tradingFee).div(TRADING_FEE_SCALE).div(MIN_FEE_FRACTION);
+
+  let cost = min;
+  if (slot !== null && slot.interval < AUCTION_INTERVALS) {
+    const price = decimalOf(slot.price);
+    if (price === null) return "0";
+    const premium = new BID_ARITHMETIC(price).times(OUTBID_PREMIUM);
+    const decay = new BID_ARITHMETIC(slot.interval + 1).div(AUCTION_INTERVALS).pow(PREMIUM_DECAY_POWER);
+    cost = (slot.interval === 0 ? premium : premium.times(new BID_ARITHMETIC(1).minus(decay))).plus(min);
+  }
+  return cost.isFinite() && cost.gt(0) ? cost.precision(BID_SIGNIFICANT_DIGITS, BigNumber.ROUND_UP).toFixed() : "0";
+}
+
+/** The interval (0 to 19) a held auction slot is in; `null` for an open one: an interval of 20, no slot, or a slot with no holder. */
+export function slotInterval(slot: AmmInfo["auction_slot"]): number | null {
+  if (slot === undefined || slot.account === undefined) return null;
+  return Number.isInteger(slot.time_interval) && slot.time_interval >= 0 && slot.time_interval < AUCTION_INTERVALS ? slot.time_interval : null;
+}
+
+/** The words of an interval: `Interval 14 of 20` for the interval 13 (they count from 1). */
+export const intervalText = (interval: number): string => `Interval ${plain(interval + 1)} of ${AUCTION_INTERVALS}`;
+
+/** The unit of a vote's weight (rippled's `VoteWeight`): 1/100000 of the LP tokens, so that the weights of all votes add up to 100000 at most. */
+const VOTE_WEIGHT_WHOLE = "100000";
+/** A vote's weight in thousandths of a percent of the LP tokens: `21400` is 21.4%. */
+const VOTE_WEIGHT_PERCENT_SHIFT = -3;
+
+/**
+ * The fee votes as a `BarList` (spec 3.1 and 3.4): one item for each vote slot, the heaviest first and then by account. The item's `value` is the exact percent of the
+ * LP tokens the weight is (`21.4`), which only draws the bar; `share` is the whole percent the tip says (`21%`, `<1%` below one half). `net` is for the account's page.
+ */
+export function voteShares(votes: AmmInfo["vote_slots"], net: string): BarListData {
+  const ordered = [...votes].sort((a, b) => b.vote_weight - a.vote_weight || (a.account < b.account ? -1 : a.account > b.account ? 1 : 0));
+  const items = ordered.map((vote) => ({
+    id: vote.account,
+    label: shortAddress(vote.account),
+    sublabel: `votes for ${feePercent(vote.trading_fee)}`,
+    value: new BigNumber(vote.vote_weight).shiftedBy(VOTE_WEIGHT_PERCENT_SHIFT).toFixed(),
+    share: sharePercent(plain(vote.vote_weight), VOTE_WEIGHT_WHOLE),
+    href: accountHref(net, vote.account, {}),
+  }));
+  const format: BarListData["format"] = { kind: "percent", unit: "LP tokens" };
+  return { items, format, token: tokenOf({ items, format }) };
+}
+
+// ---- The rows of the activity tabs ------------------------------------------------------------------------------------------------------------
+
+/** An account in a row: the whole address (the page writes the short form) and the page it links to. */
+export interface AccountRef {
+  address: string;
+  href: string;
+}
+
+const accountRef = (net: string, address: string): AccountRef => ({ address, href: accountHref(net, address, {}) });
+
+/** An amount in a column: grouped, every digit kept, with the sign it came with (`+` above 0, U+2212 below), a plain `0`, and a dash for what is no number. */
+function signedAmount(value: string | undefined, force?: 1 | -1): string {
+  const amount = decimalOf(value);
+  if (amount === null) return DASH;
+  if (amount.isZero()) return "0";
+  const sign = force ?? (amount.isNegative() ? -1 : 1);
+  return `${sign === 1 ? "+" : MINUS}${formatAmount(amount.abs().toFixed())}`;
+}
+
+/** A swap of the pool, a row of the Swaps tab: every field is a string ready to show, `time` is unix seconds and `hash` the transaction (the time cell links it). */
+export interface SwapRow {
+  /** `tx_hash:node_index`. */
+  key: string;
+  time: number;
+  hash: string;
+  /** What went in, then what came out: `XRP → RLUSD`. */
+  direction: string;
+  /** `+512.4 XRP`: what the pool received. */
+  into: string;
+  /** `−1,250 RLUSD`: what the pool paid out. */
+  out: string;
+  /** The second currency per the first, 8 significant digits (`formatPrice`); `—` for a swap with no amount of the first. */
+  price: string;
+  taker: AccountRef;
+}
+
+/** Whether the first side of the display pair is the row's counter, from the assets the row names (a row is in the pool's stored pair); the pair's own say where they match neither. */
+function swapIsFlipped(row: AmmSwap, pair: DisplayPair): boolean {
+  const [base, counter] = [assetOf(row.base_currency, row.base_issuer), assetOf(row.counter_currency, row.counter_issuer)];
+  if (sameAsset(base, pair.second) && sameAsset(counter, pair.first)) return true;
+  if (sameAsset(base, pair.first) && sameAsset(counter, pair.second)) return false;
+  return pair.flipped;
+}
+
+/**
+ * The rows of the Swaps tab (spec 3.1 and 3.4) in the display pair. The reference: if the base flowed out of the pool, the seller is the pool; otherwise the base
+ * went in. The amounts are the pool's own changes, unsigned, so the page puts the signs: `+` on what went in, U+2212 on what came out. The price is the effective
+ * one, fee included: the second currency's amount over the first's.
+ */
+export function swapRows(rows: readonly AmmSwap[], pair: DisplayPair, net: string): SwapRow[] {
+  const codes = [formatCurrency(pair.first.currency), formatCurrency(pair.second.currency)] as const;
+  return rows.map((row) => {
+    const flipped = swapIsFlipped(row, pair);
+    const amounts = flipped ? ([row.counter_amount, row.base_amount] as const) : ([row.base_amount, row.counter_amount] as const);
+    const baseOut = row.seller === row.amm_account;
+    const firstOut = flipped ? !baseOut : baseOut;
+    const [inAt, outAt] = firstOut ? ([1, 0] as const) : ([0, 1] as const);
+    const withCode = (text: string, at: 0 | 1): string => (text === DASH ? DASH : `${text} ${codes[at]}`);
+    const price = exactRatio(amounts[1], amounts[0]);
+    return {
+      key: `${row.tx_hash}:${plain(row.node_index)}`,
+      time: unixOf(row.executed_time),
+      hash: row.tx_hash,
+      direction: `${codes[inAt]} → ${codes[outAt]}`,
+      into: withCode(signedAmount(amounts[inAt], 1), inAt),
+      out: withCode(signedAmount(amounts[outAt], -1), outAt),
+      price: price === null ? DASH : formatPrice(price),
+      taker: accountRef(net, row.taker),
+    };
+  });
+}
+
+/** The tag of a liquidity event. */
+export type LiquidityTag = "Create" | "Deposit" | "Withdraw" | "Clawback" | "Delete";
+const EVENT_TAGS: Record<AmmLiquidityEvent["event"], LiquidityTag> = { create: "Create", deposit: "Deposit", withdraw: "Withdraw", clawback: "Clawback", delete: "Delete" };
+
+/** An event of the pool's liquidity, a row of the Liquidity tab. The three amounts carry their signs (`+10`, `−10`, a plain `0`); the columns are the display pair's. */
+export interface LiquidityRow {
+  /** `ledger_index:tx_index`. */
+  key: string;
+  time: number;
+  hash: string;
+  event: LiquidityTag;
+  /** As served, `""` for an event with none. */
+  mode: string;
+  /** The first currency's column. */
+  first: string;
+  /** The second currency's column. */
+  second: string;
+  lpTokens: string;
+  provider: AccountRef;
+  /** The sender of a clawback (the issuer: the provider is the holder); `null` for the other events. */
+  by: AccountRef | null;
+}
+
+/**
+ * The rows of the Liquidity tab (spec 3.1 and 3.4). The amounts are signed from the pool's side as served, on the pool's stored base and counter: the pair says which
+ * is the first column.
+ */
+export function liquidityRows(rows: readonly AmmLiquidityEvent[], pair: DisplayPair, net: string): LiquidityRow[] {
+  return rows.map((row) => {
+    const [first, second] = pair.flipped ? [row.counter_amount, row.base_amount] : [row.base_amount, row.counter_amount];
+    return {
+      key: `${plain(row.ledger_index)}:${plain(row.tx_index)}`,
+      time: unixOf(row.executed_time),
+      hash: row.tx_hash,
+      event: EVENT_TAGS[row.event],
+      mode: row.mode ?? "",
+      first: signedAmount(first),
+      second: signedAmount(second),
+      lpTokens: signedAmount(row.lp_tokens),
+      provider: accountRef(net, row.account),
+      by: row.event === "clawback" ? accountRef(net, row.initiator) : null,
+    };
+  });
+}
+
+/** A vote or a bid, a row of the Votes and bids tab. */
+export interface GovernanceRow {
+  /** `ledger_index:tx_index`. */
+  key: string;
+  time: number;
+  hash: string;
+  kind: "Vote" | "Bid";
+  account: AccountRef;
+  /** `Voted for 0.400%`; `Won the auction slot for 1,240 LP tokens; fee 0.030% for the holder and 2 authorized accounts`, the parts the row has. */
+  what: string;
+  /** A vote's fee after it; `—` for a bid, which carries none. */
+  feeAfter: string;
+}
+
+/** The sentence of a bid: what it burned, and the fee of the slot after it for the holder and for the accounts it authorized. */
+function bidWords(row: AmmBid): string {
+  const paid = decimalOf(row.price_paid);
+  const slot = row.auction_slot;
+  const authorized = Array.isArray(slot?.auth_accounts) ? slot.auth_accounts.length : 0;
+  const accounts = authorized === 0 ? null : `${plain(authorized)} authorized ${authorized === 1 ? "account" : "accounts"}`;
+  const fee = slot?.discounted_fee === undefined ? null : `fee ${feePercent(slot.discounted_fee)} for the holder`;
+  const clause = [fee, accounts].filter((part): part is string => part !== null).join(" and ");
+  return `Won the auction slot${paid === null ? "" : ` for ${formatAmount(paid.toFixed())} LP tokens`}${clause === "" ? "" : `; ${clause}`}`;
+}
+
+/** The rows of the Votes and bids tab (spec 3.1 and 3.4). */
+export function governanceRows(rows: readonly AmmGovernanceRow[], net: string): GovernanceRow[] {
+  return rows.map((row) => {
+    const common = { key: `${plain(row.ledger_index)}:${plain(row.tx_index)}`, time: unixOf(row.executed_time), hash: row.tx_hash };
+    const account = accountRef(net, row.account);
+    if (row.type === "vote") {
+      return {
+        ...common,
+        kind: "Vote",
+        account,
+        what: row.fee_voted === undefined ? "Voted" : `Voted for ${feePercent(row.fee_voted)}`,
+        feeAfter: row.trading_fee_after === undefined ? DASH : feePercent(row.trading_fee_after),
+      };
+    }
+    return { ...common, kind: "Bid", account, what: bidWords(row), feeAfter: DASH };
+  });
 }

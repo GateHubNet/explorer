@@ -33,14 +33,13 @@ import type { Loaded } from "./account-view";
 import { isNumberText } from "./aggregate-shape";
 import type { Anchor } from "./anchor";
 import type { ActiveAccounts, Candle, Page, PairExchange, ReducedRow } from "./api-types";
+import { BN, feePercent, ratioOf } from "./exact";
 import type { Network } from "./networks";
 import type { AmmInfo, Book, BookOffer, NodeAmount } from "./node-rpc";
 
 /** The pair page's candle windows are market-params.ts's (Node-safe: the fixture generator uses them); the pair view names the one it uses (P20). */
 export { candleWindow };
 
-/** Eighty decimal places, half up: the arithmetic of every view builder. */
-const BN = BigNumber.clone({ DECIMAL_PLACES: 80, ROUNDING_MODE: BigNumber.ROUND_HALF_UP });
 const HALF_UP = BigNumber.ROUND_HALF_UP;
 const DASH = "—";
 
@@ -84,16 +83,6 @@ function decimalOf(text: string | undefined): BigNumber | null {
 /** The number of an amount the node wrote, or `null` where it is not one. */
 function numberOf(amount: NodeAmount | undefined): BigNumber | null {
   return decimalOf(amount?.value);
-}
-
-/**
- * `numerator ÷ denominator` (both above 0) to 8 significant digits, half up. The division is made on the two amounts scaled into [1, 10), so that
- * its 80 places are 80 significant digits whatever the size of the amounts: 1e-81 ÷ 9.999999999999999e95 is 1e-177, which 80 places alone would
- * have made 0.
- */
-function ratioOf(numerator: BigNumber, denominator: BigNumber): BigNumber {
-  const [above, below] = [numerator.e ?? 0, denominator.e ?? 0];
-  return numerator.shiftedBy(-above).div(denominator.shiftedBy(-below)).shiftedBy(above - below).precision(8, HALF_UP);
 }
 
 /** An offer as the side it is on reads it: the price of the full amounts (the offer's quality), and the base that is funded (its size). */
@@ -594,7 +583,7 @@ export function poolOf(
       : DASH;
   const title = poolTitle(head);
   const reserves = `${summaryText(sides.base.value)} ${head.base} · ${summaryText(sides.counter.value)} ${head.counter}`;
-  const fee = `${new BN(info.trading_fee).div(1000).toFixed(3)}%`;
+  const fee = feePercent(info.trading_fee);
   const link = { href: accountHref(net, info.account, {}), label: "Pool account →" };
   const source = `${POOL_SOURCE}${LEDGER_WORDS}`;
   return { state: "ok", title, source, ledger, reserves, price, fee, link, token: tokenOf({ title, reserves, price, fee, link }) };

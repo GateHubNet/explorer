@@ -1,23 +1,49 @@
 import { readdirSync, readFileSync } from "node:fs";
 
+import BigNumber from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
 import type { Asset } from "../domain/asset";
+import { formatPrice } from "../domain/format";
 import { naturalOrientation, QUOTE_RANK } from "../domain/market-pair";
 import { NO_FEATURES } from "../ui/features";
 import {
+  AMM_ACCOUNT,
   AMM_HOLDER,
   AMM_ISSUER,
   AMM_MARKER,
   AMM_OTHER,
   AMM_POOL,
+  AMM_TX_HASH,
+  ammBidSample,
+  ammLiquiditySample,
   ammLiveVolumeSample,
   ammPoolSample,
   ammPoolsSample,
+  ammSwapSample,
+  ammVoteSample,
 } from "../../test/support/amm-samples";
-import type { AmmPool, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "./api-types";
-import { displayPair, feePercent, NOT_COMPUTED_NOTE, ammListPage, noAmmPage, type AmmListInput, type AmmListPageData } from "./amm-view";
+import { loadTx } from "../../test/support/ledgers";
+import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmSwap, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "./api-types";
+import {
+  displayPair,
+  exactRatio,
+  feePercent,
+  governanceRows,
+  intervalText,
+  liquidityRows,
+  NOT_COMPUTED_NOTE,
+  ammListPage,
+  nextBidPrice,
+  noAmmPage,
+  slotInterval,
+  swapRows,
+  voteShares,
+  type AmmListInput,
+  type AmmListPageData,
+} from "./amm-view";
 import { TooLate } from "./deadline";
+import type { AmmInfo } from "./node-rpc";
 
 // ---- The world of the tests: T is Oct 17, the live set ends at 17:01 UTC --------------------------------------------------------------------------
 
@@ -865,5 +891,556 @@ describe("noAmmPage", () => {
 
   it("has no link while the markets pages are off", () => {
     expect(noAmmPage({ ...XAHAU, features: { ...NO_FEATURES, ammPages: true } })).toEqual({ kind: "none", marketsHref: null });
+  });
+});
+
+// ---- The pool's figures: prices, votes, the auction slot, the activity rows ----------------------------------------------------------------------
+
+/** A digit, an `e` and a digit: what an exponent looks like, which no word of the page is made of (P38). */
+const EXPONENT = /\d[eE][+-]?\d/;
+/** The text of rows without what is an identifier and no number, which can hold a digit, an E and a digit by chance: a transaction hash, an address, a key made of them. */
+const withoutHashes = (json: string): string =>
+  json
+    .replace(/[0-9A-F]{64}/g, "")
+    .replace(/r[1-9A-HJ-NP-Za-km-z]{24,34}/g, "")
+    .replace(/[0-9A-F]{8}…/g, "");
+
+const LP_CURRENCY = `03${"AB".repeat(19)}`;
+const heldSlot = (over: Partial<NonNullable<AmmInfo["auction_slot"]>> = {}): NonNullable<AmmInfo["auction_slot"]> => ({
+  account: AMM_HOLDER,
+  auth_accounts: [],
+  discounted_fee: 22,
+  expiration: 1_792_000_000,
+  price: { currency: LP_CURRENCY, issuer: AMM_POOL, value: "100" },
+  time_interval: 5,
+  ...over,
+});
+
+describe("exactRatio", () => {
+  it("divides to 8 significant digits, as plain decimal text", () => {
+    expect(exactRatio("1250", "512.4")).toBe("2.4395004");
+    expect(exactRatio("2", "3")).toBe("0.66666667");
+    expect(exactRatio("1", "8")).toBe("0.125");
+  });
+
+  it("writes a quotient below 1e-20 in plain digits, with no exponent", () => {
+    expect(exactRatio("0.001", "1000000000000000000000000")).toBe("0.000000000000000000000000001");
+  });
+
+  it("writes a quotient above 1e12 in plain digits, with no exponent", () => {
+    expect(exactRatio("1000000000", "0.000001")).toBe("1000000000000000");
+  });
+
+  it("divides exactly at the extremes of an amount, and takes the exponent text the API writes", () => {
+    expect(exactRatio("1e-81", "9.999999999999999e95")).toBe(`0.${"0".repeat(176)}1`);
+    expect(exactRatio("1.250946e-8", "2.5e+3")).toBe(`0.${"0".repeat(11)}5003784`);
+    expect(exactRatio("7.6528766e+9", "1")).toBe("7652876600");
+  });
+
+  it("has no answer for a zero or a missing divisor, or for what is not a number", () => {
+    expect(exactRatio("5", "0")).toBeNull();
+    expect(exactRatio("5", "0.000")).toBeNull();
+    expect(exactRatio("5", undefined)).toBeNull();
+    expect(exactRatio(undefined, "5")).toBeNull();
+    expect(exactRatio("abc", "5")).toBeNull();
+    expect(exactRatio("5", "NaN")).toBeNull();
+    expect(exactRatio("5", "1e999999999")).toBeNull();
+  });
+
+  it("is 0 for a numerator of 0", () => {
+    expect(exactRatio("0", "7")).toBe("0");
+  });
+});
+
+describe("nextBidPrice", () => {
+  it("is the minimum of an open slot: the LP supply times the fee, over 100000 and over 25, rounded up to 6 significant digits", () => {
+    expect(nextBidPrice("3340945.788887548", 220, null)).toBe("294.004");
+    // 1,000,000 × 500 ÷ 100,000 ÷ 25.
+    expect(nextBidPrice("1000000", 500, null)).toBe("200");
+  });
+
+  it("is the price paid plus 5%, plus the minimum, in the slot's first interval", () => {
+    expect(nextBidPrice("1000000", 500, { price: "100", interval: 0 })).toBe("305");
+  });
+
+  it("falls with the interval: price × 1.05 × (1 − ((n + 1) / 20)^60) + the minimum", () => {
+    // 105 × (1 − 0.95^60) + 200 = 300.16267…, rounded up.
+    expect(nextBidPrice("1000000", 500, { price: "100", interval: 18 })).toBe("300.163");
+    // The last interval costs the minimum only.
+    expect(nextBidPrice("1000000", 500, { price: "100", interval: 19 })).toBe("200");
+  });
+
+  it("is never below the minimum, and never rises from one interval to the next", () => {
+    const costs = Array.from({ length: 20 }, (_, interval) => new BigNumber(nextBidPrice("1000000", 500, { price: "100", interval })));
+    for (const cost of costs) expect(cost.gte(200)).toBe(true);
+    for (let at = 1; at < costs.length; at += 1) expect(costs[at]!.lte(costs[at - 1]!)).toBe(true);
+    // Interval 1: 105 × (1 − 0.1^60) + 200 is 305 less 1e-58, which rounds up to 305.
+    expect(costs[1]!.toFixed()).toBe("305");
+    // Interval 17: 105 × (1 − 0.9^60) + 200 = 304.81131…, rounded up.
+    expect(costs[17]!.toFixed()).toBe("304.812");
+  });
+
+  it("rounds up, never to the nearest, so that 'at least' stays true", () => {
+    // 1.000000000000196: a half-up rounding to 6 digits would say 1, which is less than the cost.
+    expect(nextBidPrice("2500000.00000049", 1, null)).toBe("1.00001");
+    // 3340945.788887548 × 220 ÷ 100,000 ÷ 25 = 294.0032…: nearest would say 294.003.
+    expect(nextBidPrice("3340945.788887548", 220, null)).toBe("294.004");
+    // What needs no rounding is as it is: 1 × 1 ÷ 100,000 ÷ 25 is 4e-7.
+    expect(nextBidPrice("1", 1, null)).toBe("0.0000004");
+  });
+
+  it("is 0 where nothing is to pay, and where it cannot be worked out", () => {
+    expect(nextBidPrice("3340945.788887548", 0, null)).toBe("0");
+    expect(nextBidPrice("0", 220, null)).toBe("0");
+    expect(nextBidPrice("not a number", 220, null)).toBe("0");
+    expect(nextBidPrice("1000000", 500, { price: "not a number", interval: 3 })).toBe("0");
+  });
+
+  it("is 0 for a negative supply or fee: a cost is never a negative number", () => {
+    expect(nextBidPrice("1000000", -500, null)).toBe("0");
+    expect(nextBidPrice("-1000000", 500, null)).toBe("0");
+    expect(nextBidPrice("1000000", Number.NaN, null)).toBe("0");
+  });
+
+  it("takes exponent text and writes plain digits", () => {
+    expect(nextBidPrice("2.5e+6", 400, null)).toBe("400");
+    // 400.000000105, rounded up at the 6th digit.
+    expect(nextBidPrice("2.5e+6", 400, { price: "1e-7", interval: 0 })).toBe("400.001");
+    expect(nextBidPrice("1e-20", 1000, null)).toBe(`0.${"0".repeat(23)}4`);
+    expect(nextBidPrice("1e-20", 1000, null)).not.toMatch(EXPONENT);
+  });
+
+  it("reads an interval of 20 as an open slot", () => {
+    expect(nextBidPrice("1000000", 500, { price: "100", interval: 20 })).toBe("200");
+  });
+
+  describe("against the recorded AMMBid (ledger 106084525)", () => {
+    const BID = "2D66C6FD02977F96126FB352AAD691CA556790DBF71E0CDF3B701E18A49B9427";
+    const RIPPLE_EPOCH_DAY = 86_400;
+    const INTERVAL_SECONDS = 4_320;
+
+    /** The AMM entry of the transaction's metadata: the slot as it was, and the pool's fee and supply. */
+    function recorded() {
+      const { meta, closeTime } = loadTx("xrpl-amm", BID);
+      const node = meta.AffectedNodes.flatMap((affected) => ("ModifiedNode" in affected ? [affected.ModifiedNode] : [])).find((body) => body.LedgerEntryType === "AMM");
+      if (node?.FinalFields === undefined || node.PreviousFields === undefined) throw new Error("the recorded AMMBid has no AMM node");
+      const before = node.PreviousFields as { AuctionSlot: { Expiration: number; Price: { value: string } }; LPTokenBalance: { value: string } };
+      const after = node.FinalFields as { TradingFee: number; AuctionSlot: { Price: { value: string } } };
+      return { closeTime, before, after };
+    }
+
+    it("costs at most what the bid paid, from the pool as it was before the bid", () => {
+      const { closeTime, before, after } = recorded();
+      expect(after.AuctionSlot.Price.value).toBe("294.354152174");
+      // The slot before it had run out: its interval is 20 or more, which is an open slot.
+      const interval = Math.floor((closeTime - (before.AuctionSlot.Expiration - RIPPLE_EPOCH_DAY)) / INTERVAL_SECONDS);
+      expect(interval).toBeGreaterThanOrEqual(20);
+      const cost = nextBidPrice(before.LPTokenBalance.value, after.TradingFee, interval >= 20 ? null : { price: before.AuctionSlot.Price.value, interval });
+      expect(cost).toBe("294.004");
+      expect(new BigNumber(cost).lte(after.AuctionSlot.Price.value)).toBe(true);
+    });
+
+    it("would cost more than the bid paid if the slot before it had still been running its first interval: the formula reads the slot", () => {
+      const { before, after } = recorded();
+      const held = nextBidPrice(before.LPTokenBalance.value, after.TradingFee, { price: before.AuctionSlot.Price.value, interval: 0 });
+      expect(new BigNumber(held).gt(after.AuctionSlot.Price.value)).toBe(true);
+    });
+  });
+});
+
+describe("slotInterval", () => {
+  it("is the interval of a held slot, 0 to 19", () => {
+    expect(slotInterval(heldSlot({ time_interval: 0 }))).toBe(0);
+    expect(slotInterval(heldSlot({ time_interval: 13 }))).toBe(13);
+    expect(slotInterval(heldSlot({ time_interval: 19 }))).toBe(19);
+  });
+
+  it("is null for an open slot: interval 20, no slot, or a slot with no holder", () => {
+    expect(slotInterval(heldSlot({ time_interval: 20 }))).toBeNull();
+    expect(slotInterval(undefined)).toBeNull();
+    const { account: _holder, ...noHolder } = heldSlot({ time_interval: 3 });
+    expect(slotInterval(noHolder)).toBeNull();
+  });
+
+  it("says 'Interval {n + 1} of 20'", () => {
+    expect(intervalText(13)).toBe("Interval 14 of 20");
+    expect(intervalText(0)).toBe("Interval 1 of 20");
+    expect(intervalText(19)).toBe("Interval 20 of 20");
+  });
+});
+
+describe("voteShares", () => {
+  const vote = (account: string, trading_fee: number, vote_weight: number) => ({ account, trading_fee, vote_weight });
+
+  it("shows each weight, in units of 1/100000 of the LP tokens, as a whole percent, and '<1%' below one half", () => {
+    const { items } = voteShares([vote(AMM_ACCOUNT, 250, 21400), vote(AMM_HOLDER, 300, 400), vote(AMM_OTHER, 400, 500)], "xrpl");
+    expect(items.map((item) => [item.id, item.share])).toEqual([
+      [AMM_ACCOUNT, "21%"],
+      [AMM_OTHER, "1%"],
+      [AMM_HOLDER, "<1%"],
+    ]);
+  });
+
+  it("gives each item the exact percent as its value, the short account, what it votes for, and the account's page", () => {
+    const data = voteShares([vote(AMM_ACCOUNT, 250, 21400)], "xrpl");
+    expect(data.items).toEqual([
+      { id: AMM_ACCOUNT, label: "rGz1sP…4Y6x", sublabel: "votes for 0.250%", value: "21.4", share: "21%", href: `/xrpl/account/${AMM_ACCOUNT}` },
+    ]);
+    expect(data.format).toEqual({ kind: "percent", unit: "LP tokens" });
+  });
+
+  it("sorts by weight, largest first, then by account", () => {
+    const accounts = [AMM_ACCOUNT, AMM_HOLDER, AMM_OTHER].sort();
+    const data = voteShares([vote(accounts[2]!, 1, 100), vote(accounts[0]!, 1, 100), vote(AMM_POOL, 1, 5000), vote(accounts[1]!, 1, 100)], "xrpl");
+    expect(data.items.map((item) => item.id)).toEqual([AMM_POOL, accounts[0], accounts[1], accounts[2]]);
+  });
+
+  it("writes the value exactly, to the thousandth", () => {
+    const { items } = voteShares([vote(AMM_ACCOUNT, 10, 4320), vote(AMM_HOLDER, 10, 1), vote(AMM_OTHER, 10, 0)], "xahau");
+    expect(items.map((item) => item.value)).toEqual(["4.32", "0.001", "0"]);
+    expect(items.map((item) => item.share)).toEqual(["4%", "<1%", "<1%"]);
+    expect(items[0]!.href).toBe(`/xahau/account/${AMM_ACCOUNT}`);
+  });
+
+  it("has no items for no votes, and a token that follows the data", () => {
+    const none = voteShares([], "xrpl");
+    expect(none.items).toEqual([]);
+    expect(none.token).toMatch(/^[0-9a-f]{8}$/);
+    const one = voteShares([vote(AMM_ACCOUNT, 250, 21400)], "xrpl");
+    const other = voteShares([vote(AMM_ACCOUNT, 250, 21401)], "xrpl");
+    expect(one.token).not.toBe(other.token);
+    expect(one.token).toBe(voteShares([vote(AMM_ACCOUNT, 250, 21400)], "xrpl").token);
+  });
+
+  it("does not change the votes it is given", () => {
+    const votes = [vote(AMM_HOLDER, 1, 1), vote(AMM_ACCOUNT, 1, 2)];
+    voteShares(votes, "xrpl");
+    expect(votes.map((entry) => entry.account)).toEqual([AMM_HOLDER, AMM_ACCOUNT]);
+  });
+});
+
+describe("swapRows", () => {
+  /** XRP / RLUSD, stored RLUSD / XRP. */
+  const pair = displayPair(rlusd, xrp, "XRP");
+  /** A swap of the pool, in the stored order: RLUSD is the base, XRP the counter. */
+  const swap = (over: Partial<AmmSwap> = {}): AmmSwap =>
+    ammSwapSample({ base_currency: RLUSD, base_issuer: RL, counter_currency: "XRP", base_amount: "1250", counter_amount: "512.4", ...over });
+
+  it("reads a swap whose seller is the pool (base out, counter in) as XRP in, RLUSD out", () => {
+    const [row] = swapRows([swap({ seller: AMM_POOL, buyer: AMM_ACCOUNT })], pair, "xrpl");
+    expect(row).toMatchObject({
+      direction: "XRP → RLUSD",
+      into: "+512.4 XRP",
+      out: "−1,250 RLUSD",
+      price: formatPrice(exactRatio("1250", "512.4")!),
+    });
+    expect(row!.price).toBe("2.4395004");
+  });
+
+  it("reads a swap whose buyer is the pool (base in, counter out) the other way round: RLUSD in, XRP out", () => {
+    const [row] = swapRows([swap({ buyer: AMM_POOL, seller: AMM_ACCOUNT })], pair, "xrpl");
+    expect(row).toMatchObject({ direction: "RLUSD → XRP", into: "+1,250 RLUSD", out: "−512.4 XRP", price: "2.4395004" });
+  });
+
+  it("has the same price both ways: the second currency per the first, from the row's own amounts", () => {
+    const [seller, buyer] = swapRows([swap({ seller: AMM_POOL, buyer: AMM_ACCOUNT }), swap({ buyer: AMM_POOL, seller: AMM_ACCOUNT })], pair, "xrpl");
+    expect(seller!.price).toBe(buyer!.price);
+  });
+
+  it("is the row's time, hash, taker and key, `tx_hash:node_index`", () => {
+    const [row] = swapRows([swap({ node_index: 9, taker: AMM_ACCOUNT, executed_time: "2026-10-17T12:00:03Z" })], pair, "xrpl");
+    expect(row).toMatchObject({
+      key: `${AMM_TX_HASH}:9`,
+      time: Date.parse("2026-10-17T12:00:03Z") / 1000,
+      hash: AMM_TX_HASH,
+      taker: { address: AMM_ACCOUNT, href: `/xrpl/account/${AMM_ACCOUNT}` },
+    });
+  });
+
+  it("keeps the order of the rows, and gives a swap of the same transaction against another node its own key", () => {
+    const rows = swapRows([swap({ node_index: 9 }), swap({ node_index: 3 })], pair, "xrpl");
+    expect(rows.map((row) => row.key)).toEqual([`${AMM_TX_HASH}:9`, `${AMM_TX_HASH}:3`]);
+  });
+
+  it("is the same for a pool stored the way it is shown: the base is the first", () => {
+    const eur: Asset = { currency: "EUR", issuer: AMM_OTHER };
+    const usd: Asset = { currency: "USD", issuer: AMM_ISSUER };
+    const straight = displayPair(eur, usd, "XRP");
+    expect(straight.flipped).toBe(false);
+    const [row] = swapRows(
+      [ammSwapSample({ base_currency: "EUR", base_issuer: AMM_OTHER, counter_currency: "USD", counter_issuer: AMM_ISSUER, base_amount: "100", counter_amount: "108.5", seller: AMM_POOL })],
+      straight,
+      "xrpl",
+    );
+    expect(row).toMatchObject({ direction: "USD → EUR", into: "+108.5 USD", out: "−100 EUR", price: "1.085" });
+  });
+
+  it("matches the sides by asset, not by the stored order the caller believes in", () => {
+    // The caller says 'not flipped' of a pool whose rows are the other way round: the row's own currencies decide.
+    const wrong = { ...pair, flipped: false };
+    const [row] = swapRows([swap({ seller: AMM_POOL })], wrong, "xrpl");
+    expect(row).toMatchObject({ direction: "XRP → RLUSD", into: "+512.4 XRP", out: "−1,250 RLUSD" });
+  });
+
+  it("takes the pair's own order for a row that names neither of its sides", () => {
+    // A row of another pair (the caller's mistake) is still a row: the stored order the caller gave decides, and nothing throws.
+    const other = ammSwapSample({ base_currency: "EUR", base_issuer: AMM_OTHER, counter_currency: "USD", counter_issuer: AMM_ISSUER, base_amount: "100", counter_amount: "50", seller: AMM_POOL });
+    // Flipped, as the pair says: the first column (XRP) is the row's counter (50), and the pool is the seller, so the base (100) went out.
+    expect(swapRows([other], pair, "xrpl")[0]).toMatchObject({ direction: "XRP → RLUSD", into: "+50 XRP", out: "−100 RLUSD" });
+    expect(swapRows([other], { ...pair, flipped: false }, "xrpl")[0]).toMatchObject({ direction: "RLUSD → XRP", into: "+50 RLUSD", out: "−100 XRP" });
+  });
+
+  it("shows a currency with no text as hex, and an amount in exponent form in plain digits", () => {
+    const vox: Asset = { currency: VOX, issuer: VOX_ISSUER };
+    const shown = displayPair(vox, xrp, "XRP");
+    const [row] = swapRows(
+      [ammSwapSample({ base_currency: VOX, base_issuer: VOX_ISSUER, counter_currency: "XRP", base_amount: "2.5e+9", counter_amount: "1.250946e-8", seller: AMM_POOL })],
+      shown,
+      "xrpl",
+    );
+    expect(row).toMatchObject({ direction: "XRP → 564F58F0…", into: "+0.00000001250946 XRP", out: "−2,500,000,000 564F58F0…" });
+    expect(withoutHashes(JSON.stringify(row))).not.toMatch(EXPONENT);
+  });
+
+  it("has a dash for a price it cannot work out, and for an amount that is no number", () => {
+    const [zero, junk] = swapRows([swap({ counter_amount: "0" }), swap({ base_amount: "n/a" })], pair, "xrpl");
+    expect(zero).toMatchObject({ price: "—", into: "0 XRP", out: "−1,250 RLUSD" });
+    expect(junk).toMatchObject({ price: "—", out: "—" });
+  });
+
+  it("is no rows for no rows", () => {
+    expect(swapRows([], pair, "xrpl")).toEqual([]);
+  });
+});
+
+describe("liquidityRows", () => {
+  const pair = displayPair(rlusd, xrp, "XRP");
+  const event = (over: Partial<AmmLiquidityEvent> = {}): AmmLiquidityEvent => ammLiquiditySample({ base_amount: "1250", counter_amount: "512.4", lp_tokens: "800.25", ...over });
+
+  it("maps the stored base and counter to the display columns: XRP first, RLUSD second, for a pool stored RLUSD / XRP", () => {
+    const [row] = liquidityRows([event()], pair, "xrpl");
+    expect(row).toMatchObject({ first: "+512.4", second: "+1,250", lpTokens: "+800.25" });
+  });
+
+  it("keeps the stored order for a pool shown the way it is stored", () => {
+    const straight = displayPair({ currency: "EUR", issuer: AMM_OTHER }, { currency: "USD", issuer: AMM_ISSUER }, "XRP");
+    const [row] = liquidityRows([event()], straight, "xrpl");
+    expect(row).toMatchObject({ first: "+1,250", second: "+512.4" });
+  });
+
+  it("shows a deposit with a plus, a withdrawal with U+2212, and a zero plain", () => {
+    const rows = liquidityRows(
+      [
+        event({ event: "deposit" }),
+        event({ event: "withdraw", base_amount: "-1250", counter_amount: "-512.4", lp_tokens: "-800.25" }),
+        event({ event: "deposit", mode: "single_asset", base_amount: "0", counter_amount: "10", lp_tokens: "0.5" }),
+      ],
+      pair,
+      "xrpl",
+    );
+    expect(rows.map((row) => [row.first, row.second, row.lpTokens])).toEqual([
+      ["+512.4", "+1,250", "+800.25"],
+      ["−512.4", "−1,250", "−800.25"],
+      ["+10", "0", "+0.5"],
+    ]);
+  });
+
+  it("tags the event: Create, Deposit, Withdraw, Clawback, Delete", () => {
+    const rows = liquidityRows((["create", "deposit", "withdraw", "clawback", "delete"] as const).map((kind) => event({ event: kind })), pair, "xrpl");
+    expect(rows.map((row) => row.event)).toEqual(["Create", "Deposit", "Withdraw", "Clawback", "Delete"]);
+  });
+
+  it("gives the mode as served, and an empty text where the event has none", () => {
+    const { mode: _mode, ...noMode } = event({ event: "create" });
+    const rows = liquidityRows([event({ mode: "two_asset" }), event({ mode: "withdraw_all", event: "withdraw" }), noMode], pair, "xrpl");
+    expect(rows.map((row) => row.mode)).toEqual(["two_asset", "withdraw_all", ""]);
+  });
+
+  it("names the provider, and the initiator only for a clawback", () => {
+    const [deposit, clawback] = liquidityRows(
+      [event({ account: AMM_ACCOUNT, initiator: AMM_ACCOUNT }), event({ event: "clawback", account: AMM_ACCOUNT, initiator: AMM_ISSUER, base_amount: "-3", counter_amount: "0", lp_tokens: "-1" })],
+      pair,
+      "xrpl",
+    );
+    expect(deposit).toMatchObject({ provider: { address: AMM_ACCOUNT, href: `/xrpl/account/${AMM_ACCOUNT}` }, by: null });
+    expect(clawback).toMatchObject({
+      provider: { address: AMM_ACCOUNT, href: `/xrpl/account/${AMM_ACCOUNT}` },
+      by: { address: AMM_ISSUER, href: `/xrpl/account/${AMM_ISSUER}` },
+    });
+  });
+
+  it("names no initiator for a deposit that someone else sent", () => {
+    const [row] = liquidityRows([event({ account: AMM_ACCOUNT, initiator: AMM_OTHER })], pair, "xrpl");
+    expect(row!.by).toBeNull();
+  });
+
+  it("is the row's time, hash and key, `ledger_index:tx_index`", () => {
+    const [row] = liquidityRows([event({ ledger_index: 107703707, tx_index: 12, executed_time: "2026-10-17T10:24:11Z" })], pair, "xrpl");
+    expect(row).toMatchObject({ key: "107703707:12", time: Date.parse("2026-10-17T10:24:11Z") / 1000, hash: AMM_TX_HASH });
+  });
+
+  it("writes amounts in exponent form in plain digits, and a dash for what is no number", () => {
+    const rows = liquidityRows([event({ base_amount: "1.5e-7", counter_amount: "-2.5e+21", lp_tokens: "oops" })], pair, "xrpl");
+    expect(rows[0]).toMatchObject({ first: "−2,500,000,000,000,000,000,000", second: "+0.00000015", lpTokens: "—" });
+    expect(withoutHashes(JSON.stringify(rows))).not.toMatch(EXPONENT);
+  });
+});
+
+describe("governanceRows", () => {
+  const bid = (over: Partial<Extract<AmmGovernanceRow, { type: "bid" }>> = {}) =>
+    ammBidSample({
+      price_paid: "1240",
+      auction_slot: { holder: AMM_HOLDER, discounted_fee: 30, expiration: "2026-10-17T09:00:00Z", auth_accounts: [AMM_OTHER, AMM_POOL] },
+      ...over,
+    });
+
+  it("says a vote: 'Voted for 0.400%', with the fee after the vote", () => {
+    const [row] = governanceRows([ammVoteSample({ fee_voted: 400, trading_fee_after: 205 })], "xrpl");
+    expect(row).toMatchObject({ kind: "Vote", what: "Voted for 0.400%", feeAfter: "0.205%" });
+  });
+
+  it("says a vote with nothing in it: no fee voted, no fee after", () => {
+    const { fee_voted: _voted, trading_fee_after: _after, ...bare } = ammVoteSample();
+    const [row] = governanceRows([bare], "xrpl");
+    expect(row).toMatchObject({ kind: "Vote", what: "Voted", feeAfter: "—" });
+  });
+
+  it("says a bid: the LP tokens it burned, the fee for the holder and the authorized accounts; no fee after", () => {
+    const [row] = governanceRows([bid()], "xrpl");
+    expect(row).toMatchObject({
+      kind: "Bid",
+      what: "Won the auction slot for 1,240 LP tokens; fee 0.030% for the holder and 2 authorized accounts",
+      feeAfter: "—",
+    });
+  });
+
+  it("says one authorized account in the singular, and none as the holder alone", () => {
+    const slotWith = (auth_accounts: string[]) => ({ holder: AMM_HOLDER, discounted_fee: 30, expiration: "2026-10-17T09:00:00Z", auth_accounts });
+    const rows = governanceRows([bid({ auction_slot: slotWith([AMM_OTHER]) }), bid({ auction_slot: slotWith([]) })], "xrpl");
+    expect(rows.map((row) => row.what)).toEqual([
+      "Won the auction slot for 1,240 LP tokens; fee 0.030% for the holder and 1 authorized account",
+      "Won the auction slot for 1,240 LP tokens; fee 0.030% for the holder",
+    ]);
+  });
+
+  it("leaves out the parts the row does not have", () => {
+    const { price_paid: _paid, ...noPrice } = bid();
+    const { auction_slot: _slot, ...noSlot } = bid();
+    const rows = governanceRows([noPrice, noSlot], "xrpl");
+    expect(rows.map((row) => row.what)).toEqual([
+      "Won the auction slot; fee 0.030% for the holder and 2 authorized accounts",
+      "Won the auction slot for 1,240 LP tokens",
+    ]);
+  });
+
+  it("is a bare 'Won the auction slot' for a bid with nothing else", () => {
+    const { price_paid: _paid, auction_slot: _slot, ...bare } = bid();
+    expect(governanceRows([bare], "xrpl")[0]!.what).toBe("Won the auction slot");
+  });
+
+  it("says the authorized accounts alone where the slot has no discounted fee", () => {
+    const [row] = governanceRows([bid({ auction_slot: { holder: AMM_HOLDER, auth_accounts: [AMM_OTHER] } })], "xrpl");
+    expect(row!.what).toBe("Won the auction slot for 1,240 LP tokens; 1 authorized account");
+  });
+
+  it("writes the LP tokens exactly, grouped, and in plain digits from exponent text", () => {
+    const rows = governanceRows([bid({ price_paid: "294.354152174" }), bid({ price_paid: "1.5e+21" }), bid({ price_paid: "2.5e-7" }), bid({ price_paid: "n/a" })], "xrpl");
+    expect(rows.map((row) => row.what.split(";")[0])).toEqual([
+      "Won the auction slot for 294.354152174 LP tokens",
+      "Won the auction slot for 1,500,000,000,000,000,000,000 LP tokens",
+      "Won the auction slot for 0.00000025 LP tokens",
+      "Won the auction slot",
+    ]);
+  });
+
+  it("is the account, time, hash and key, `ledger_index:tx_index`", () => {
+    const rows = governanceRows([ammVoteSample({ ledger_index: 107644916, tx_index: 7, account: AMM_ACCOUNT }), bid({ ledger_index: 107650001, tx_index: 3, account: AMM_OTHER })], "xahau");
+    expect(rows[0]).toMatchObject({
+      key: "107644916:7",
+      time: Date.parse("2026-10-16T08:00:00Z") / 1000,
+      hash: AMM_TX_HASH,
+      account: { address: AMM_ACCOUNT, href: `/xahau/account/${AMM_ACCOUNT}` },
+    });
+    expect(rows[1]).toMatchObject({ key: "107650001:3", account: { address: AMM_OTHER, href: `/xahau/account/${AMM_OTHER}` } });
+  });
+});
+
+describe("the pool's rows: the recorded pages", () => {
+  const dir = new URL("../../test/fixtures/http/xrpl/data-api/amm/pools/", import.meta.url);
+  const json = <T>(path: string): T => JSON.parse(readFileSync(new URL(path, dir), "utf8")) as T;
+  const names = readdirSync(dir);
+  const pools = names.filter((name) => name.endsWith(".json")).map((name) => json<{ pool: AmmPool }>(name).pool);
+  // A pool with activity pages has a folder of its account beside its file.
+  const withActivity = pools.filter((pool) => names.includes(pool.amm_account));
+  const pairOf = (pool: AmmPool) =>
+    displayPair({ currency: pool.base_currency, ...(pool.base_issuer ? { issuer: pool.base_issuer } : {}) }, { currency: pool.counter_currency, ...(pool.counter_issuer ? { issuer: pool.counter_issuer } : {}) }, "XRP");
+
+  it("covers the six pools that have activity pages", () => {
+    expect(withActivity).toHaveLength(6);
+  });
+
+  it("builds a row for every recorded swap, liquidity event and governance row, with no exponent", () => {
+    let swaps = 0;
+    let liquidity = 0;
+    let governance = 0;
+    for (const pool of withActivity) {
+      const dirOf = new URL(`${pool.amm_account}/`, dir);
+      for (const name of readdirSync(dirOf)) {
+        const read = <T>() => JSON.parse(readFileSync(new URL(name, dirOf), "utf8")) as T;
+        if (name.startsWith("swaps@")) {
+          const rows = swapRows(read<Page<"exchanges", AmmSwap>>().exchanges, pairOf(pool), "xrpl");
+          swaps += rows.length;
+          for (const row of rows) {
+            expect(row.direction, name).toMatch(/^.+ → .+$/);
+            expect(row.into.startsWith("+") || row.into === "0" || row.into.startsWith("0 "), name).toBe(true);
+            expect(row.out.startsWith("−") || row.out.startsWith("0 "), name).toBe(true);
+          }
+          expect(withoutHashes(JSON.stringify(rows)), name).not.toMatch(EXPONENT);
+        } else if (name.startsWith("liquidity@")) {
+          const rows = liquidityRows(read<Page<"liquidity", AmmLiquidityEvent>>().liquidity, pairOf(pool), "xrpl");
+          liquidity += rows.length;
+          expect(withoutHashes(JSON.stringify(rows)), name).not.toMatch(EXPONENT);
+        } else if (name.startsWith("governance@")) {
+          const rows = governanceRows(read<Page<"governance", AmmGovernanceRow>>().governance, "xrpl");
+          governance += rows.length;
+          expect(withoutHashes(JSON.stringify(rows)), name).not.toMatch(EXPONENT);
+        }
+      }
+    }
+    // The recordings hold 8 swaps, 7 liquidity events (a pool's creation among them) and 2 governance rows.
+    expect(swaps).toBeGreaterThanOrEqual(8);
+    expect(liquidity).toBeGreaterThanOrEqual(7);
+    expect(governance).toBeGreaterThanOrEqual(2);
+  });
+
+  it("reads the recorded XRP / RLUSD swaps: the two sides of the first page", () => {
+    const pool = pools.find((candidate) => candidate.amm_account === AMM_POOL)!;
+    const page = json<Page<"exchanges", AmmSwap>>(`${AMM_POOL}/swaps@descending=true&limit=20.json`);
+    const rows = swapRows(page.exchanges, pairOf(pool), "xrpl");
+    // The pool is the seller of the first (RLUSD out, XRP in) and the buyer of the second (RLUSD in, XRP out).
+    expect(rows[0]).toMatchObject({ direction: "XRP → RLUSD", into: "+1.015604 XRP", out: "−1.325962092 RLUSD", price: "1.3055897" });
+    expect(rows[1]).toMatchObject({ direction: "RLUSD → XRP", into: "+543.870850376 RLUSD", out: "−417.277515 XRP", price: "1.3033792" });
+  });
+
+  it("reads the recorded XRP / RLUSD liquidity: a single-asset withdrawal of XRP, and a two-asset deposit, in the display columns", () => {
+    const pool = pools.find((candidate) => candidate.amm_account === AMM_POOL)!;
+    const page = json<Page<"liquidity", AmmLiquidityEvent>>(`${AMM_POOL}/liquidity@descending=true&limit=20.json`);
+    const rows = liquidityRows(page.liquidity, pairOf(pool), "xrpl");
+    // Stored RLUSD / XRP, shown XRP / RLUSD: the stored counter (XRP) is the first column; the stored base amount of 0 is a plain 0.
+    expect(rows[0]).toMatchObject({ key: "107711512:60", event: "Withdraw", mode: "single_asset", first: "−49.999999", second: "0", lpTokens: "−24,262.103601", by: null });
+    expect(rows[1]).toMatchObject({ key: "107703707:36", event: "Deposit", mode: "two_asset", first: "+82.769304", second: "+108.041216585", lpTokens: "+80,142.926261" });
+  });
+
+  it("reads the recorded bid and vote", () => {
+    const bidPage = json<Page<"governance", AmmGovernanceRow>>("rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am/governance@descending=true&limit=20.json");
+    expect(governanceRows(bidPage.governance, "xrpl")[0]).toMatchObject({
+      key: "106084525:79",
+      kind: "Bid",
+      what: "Won the auction slot for 294.354152174 LP tokens; fee 0.022% for the holder",
+      feeAfter: "—",
+      account: { address: "r4S6hRiKREKkmMeqs8dpgyYAotGyck9g3h" },
+    });
+    const votePage = json<Page<"governance", AmmGovernanceRow>>("rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef/governance@descending=true&limit=20.json");
+    expect(governanceRows(votePage.governance, "xrpl")[0]).toMatchObject({ key: "107644916:12", kind: "Vote", what: "Voted for 1.000%", feeAfter: "1.000%" });
   });
 });
