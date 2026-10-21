@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 import { expect, hydrated, test } from "./support";
-import { amendmentsTable, headOf, listedAmendment, rowsOf, SKIP_OFF, VALIDATORS_OFF } from "./validators-pages";
+import { amendmentsTable, headOf, listedAmendment, needs, rowsOf, SKIP_OFF, VALIDATORS_OFF } from "./validators-pages";
 
 // The amendments list (`/{net}/amendments`) and an amendment's page (`/{net}/amendments/{name}`) in a browser: the status chips, the line of an
 // amendment about to activate, the yes-votes chart's keys and table, the other validators' votes, an ID in lower case, the links to a ledger and to an
@@ -15,10 +15,10 @@ test.skip(VALIDATORS_OFF, SKIP_OFF);
 const sameDocument = (page: Page) => page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument === true);
 const markDocument = (page: Page) => page.evaluate(() => Object.assign(window, { sameDocument: true }));
 
-/** The amendment with a majority that the list names first, opened; the test is skipped where there is none (a real stack between votes). */
+/** The amendment with a majority that the list names first, opened; where there is none, `needs` skips the test (a real stack between votes) or fails it (the fixtures). */
 async function openMajority(page: Page): Promise<{ name: string; href: string }> {
   const majority = await listedAmendment(page, "majority");
-  test.skip(majority === null, "no amendment has a majority on the stack under test");
+  needs(majority !== null, "amendment with a majority");
   await page.goto(majority!.href);
   await hydrated(page);
   return majority!;
@@ -78,7 +78,7 @@ test.describe("the list", () => {
     await page.goto("/xrpl/amendments");
     await hydrated(page);
     const soon = page.getByRole("region", { name: "Activating soon" });
-    test.skip((await soon.count()) === 0, "no amendment has a majority on the stack under test");
+    needs((await soon.count()) > 0, `amendment activating soon (the "Activating soon" card)`);
     const line = soon.getByRole("listitem").first();
     const name = (await line.locator("a.amendments__soonname").textContent())!.trim();
     await expect(line).toContainText("more than 80%");
@@ -164,7 +164,7 @@ test.describe("an amendment's page", () => {
     const { href } = await openMajority(page);
     await markDocument(page);
     const event = page.locator(".amendment__event", { has: page.locator("a.amendment__tx") }).first();
-    test.skip((await event.count()) === 0, "no EnableAmendment of the amendment is in the indexed history of the stack under test");
+    needs((await event.count()) > 0, "EnableAmendment of the amendment in the indexed history");
 
     // Under the fixtures a ledger and a transaction of the history are made up, and the explorer's own not-found page of their kind answers: the link
     // is what is checked, it lands on the route of its kind.

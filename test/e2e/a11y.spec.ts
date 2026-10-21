@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 import { fixtures, unavailable } from "./fixture-control";
 import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_ACCOUNT, XAHAU_LEDGER, XRPL_ACCOUNT, XRPL_HEAD_LEDGER, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
 import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
-import { listedAmendment, listedValidator, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
+import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
 // ledger, transaction, account, network and 404 pages, in light and in dark, on a desktop and on a 375 px phone. Dark is reached both ways it
@@ -335,10 +335,10 @@ const VALIDATORS_MORE: ValidatorsPageUnderTest[] = [
   },
 ];
 
-/** The page's path, read from the stack's pages where it is a function; the test is skipped where the stack has no such page. */
+/** The page's path, read from the stack's pages where it is a function; where the stack has no such page, `needs` skips the test (a real stack) or fails it (the fixtures). */
 async function pathOf(page: Page, under: ValidatorsPageUnderTest): Promise<PageUnderTest> {
   const path = typeof under.path === "string" ? under.path : await under.path(page);
-  test.skip(path === null, `the stack under test has no page for "${under.name}"`);
+  needs(path !== null, `page for "${under.name}"`);
   return { ...under, path: path! };
 }
 

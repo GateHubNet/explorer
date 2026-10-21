@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 
 import { LIVE } from "./fixtures";
 import { expect, hydrated, test } from "./support";
-import { headOf, listedValidator, rowsOf, SKIP_OFF, VALIDATORS_OFF, validatorsTable, withHistory } from "./validators-pages";
+import { headOf, listedValidator, needs, rowsOf, SKIP_OFF, VALIDATORS_OFF, validatorsTable, withHistory } from "./validators-pages";
 
 // The validators list (`/{net}/validators`) and a validator's page (`/{net}/validators/{key}`) in a browser: the way from the network page, the views
 // (a scope and a filter are URLs), the filter form with and without JavaScript, the versions chart without it, and on a validator's page the copy
@@ -153,7 +153,7 @@ test.describe("with VALIDATORS on", () => {
 
       const votes = page.getByLabel("Votes yes for");
       // "any amendment", then the ones being voted on: a stack between votes may have none.
-      test.skip((await votes.locator("option").count()) < 2, "no amendment is being voted on on the stack under test");
+      needs((await votes.locator("option").count()) >= 2, `amendment being voted on ("Votes yes for" and its options)`);
       const amendment = (await votes.locator("option").nth(1).getAttribute("value"))!;
       await votes.selectOption(amendment);
       await page.getByRole("button", { name: "Apply" }).click();

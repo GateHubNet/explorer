@@ -8,12 +8,21 @@ import type { Locator, Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
 import { LIVE } from "./fixtures";
-import { expect, hydrated } from "./support";
+import { expect, hydrated, test } from "./support";
 
 /** Whether the Worker under test has the validators pages off (`E2E_FEATURES_OFF` lists `VALIDATORS`): the tests of the pages skip themselves. */
 export const VALIDATORS_OFF = featuresOff(process.env).has("VALIDATORS");
 
 export const SKIP_OFF = "VALIDATORS is off in the Worker under test: the off-case is checked in validators.spec.ts";
+
+/**
+ * What a test needs of the data and a real stack may not have (an amendment with a majority between votes, an EnableAmendment in the indexed history):
+ * there the test is skipped; under the fixtures, which hold every case, it fails, so that a page or a control that went missing is not hidden by a skip.
+ */
+export function needs(present: boolean, what: string): void {
+  if (LIVE) test.skip(!present, `the stack under test has no ${what}`);
+  else expect(present, `the fixtures have ${what}`).toBe(true);
+}
 
 /** The rows of a table, without its head. */
 export const rowsOf = (table: Locator) => table.locator('[role="row"]:not(.table__head)');
@@ -72,11 +81,13 @@ export const amendmentsTable = (page: Page) => page.getByRole("table", { name: "
 
 /**
  * The first amendment of a view of the amendments list (`?status=…`), as the link to its page; `null` when the view has none (a real stack may have no
- * amendment with a majority, or none of an unknown name).
+ * amendment with a majority, or none of an unknown name: the caller says what it `needs`). The table is there first: a page that is not the list (a 404,
+ * a 503) fails here rather than reading as a view with no amendment.
  */
 export async function listedAmendment(page: Page, status: "majority" | "voting" | "enabled" | "unknown", net = "xrpl"): Promise<{ name: string; href: string } | null> {
   await page.goto(`/${net}/amendments?status=${status}`);
   await hydrated(page);
+  await expect(amendmentsTable(page)).toBeVisible();
   const links = rowsOf(amendmentsTable(page)).locator("a.amendments__name");
   if ((await links.count()) === 0) return null;
   return { name: (await links.first().textContent())!.trim(), href: (await links.first().getAttribute("href"))! };
