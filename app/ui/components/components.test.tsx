@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Segment } from "../../domain/describe";
 import { shortAddress, shortHash } from "../../domain/format";
 import { allSwitches } from "../../../test/support/switches";
+import { renderUnderNetwork } from "../../../test/support/under-network";
 import { THEME_STORAGE_KEY } from "../theme-script";
 import { AccountLink } from "./AccountLink";
 import { Amount } from "./Amount";
@@ -62,26 +63,6 @@ afterEach(() => {
 /** Components that link or submit need a data router around them, as they have in the app. */
 function renderInRouter(ui: ReactElement, path = "/xrpl") {
   const router = createMemoryRouter([{ path: "*", element: ui }], { initialEntries: [path] });
-  return render(<RouterProvider router={router} />);
-}
-
-/** `ui` under the `/:net` layout whose data holds `features`, as a page of the app has it: what `useFeatures()` reads. Wait for what it draws. */
-function renderUnderLayout(ui: ReactElement, features: Features, path = "/xrpl") {
-  const router = createMemoryRouter(
-    [
-      {
-        id: NETWORK_ROUTE_ID,
-        path: "/:net",
-        loader: () => ({ network: { ...XRPL, features } }),
-        element: <Outlet />,
-        children: [
-          { index: true, element: ui },
-          { path: "*", element: ui },
-        ],
-      },
-    ],
-    { initialEntries: [path] },
-  );
   return render(<RouterProvider router={router} />);
 }
 
@@ -267,17 +248,17 @@ describe("Sentence", () => {
 
     it("leads to the pool page while it is on, chip or compact, on the network of the sentence", async () => {
       const on = { ...NO_FEATURES, ammPages: true };
-      renderUnderLayout(<Sentence net="xrpl" segments={pool} />, on);
+      renderUnderNetwork(<Sentence net="xrpl" segments={pool} />, on);
       const link = await screen.findByRole("link", { name: "XRP/RLUSD" });
       expect(link.getAttribute("href")).toBe(`/xrpl/amm/${POOL}`);
       expect(link.classList.contains("ent")).toBe(true);
       cleanup();
-      renderUnderLayout(<Sentence net="xahau" segments={pool} compact />, on, "/xahau");
+      renderUnderNetwork(<Sentence net="xahau" segments={pool} compact />, on, { network: XAHAU });
       expect((await screen.findByRole("link", { name: "XRP/RLUSD" })).getAttribute("href")).toBe(`/xahau/amm/${POOL}`);
     });
 
     it("leads to the pool's account page while it is off, whatever the other switches are", async () => {
-      renderUnderLayout(<Sentence net="xrpl" segments={pool} />, { ...featuresOf(allSwitches("on")), ammPages: false });
+      renderUnderNetwork(<Sentence net="xrpl" segments={pool} />, { ...featuresOf(allSwitches("on")), ammPages: false });
       expect((await screen.findByRole("link", { name: "XRP/RLUSD" })).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
     });
 
@@ -1079,20 +1060,7 @@ describe("Header and Shell", () => {
      * carries the switches, its child (the index, and `*` for any deeper path) the page and the section it names.
      */
     async function renderHeaderWithFeatures(features: Features, path = "/xrpl", handle?: NetworkRouteHandle) {
-      const page = { element: <Header net={XRPL} />, handle };
-      const router = createMemoryRouter(
-        [
-          {
-            id: NETWORK_ROUTE_ID,
-            path: "/:net",
-            loader: () => ({ network: { ...XRPL, features } }),
-            element: <Outlet />,
-            children: [{ index: true, ...page }, { path: "*", ...page }],
-          },
-        ],
-        { initialEntries: [path] },
-      );
-      render(<RouterProvider router={router} />);
+      renderUnderNetwork(<Header net={XRPL} />, features, { path, handle });
       return within(await screen.findByRole("navigation", { name: "Main" }));
     }
 
@@ -1319,11 +1287,7 @@ describe("Header and Shell", () => {
       });
 
       it("links the AMM pools of Xahau on Xahau (its page explains that it has none)", async () => {
-        const router = createMemoryRouter(
-          [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network: { ...XAHAU, features: AMM_ON } }), element: <Header net={XAHAU} /> }],
-          { initialEntries: ["/xahau"] },
-        );
-        render(<RouterProvider router={router} />);
+        renderUnderNetwork(<Header net={XAHAU} />, AMM_ON, { network: XAHAU });
         const nav = within(await screen.findByRole("navigation", { name: "Main" }));
         expect(nav.getByRole("link", { name: "AMM" }).getAttribute("href")).toBe("/xahau/amm");
       });

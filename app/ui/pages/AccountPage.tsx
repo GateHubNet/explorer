@@ -2,9 +2,9 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { Await, Link } from "react-router";
 
 import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
-import { ammPoolHref, poolLink } from "../../domain/amm-params";
 import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { poolLink } from "../../domain/pool-link";
 import type {
   AccountAnalyticsPageData,
   AccountHeader,
@@ -206,7 +206,7 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
 
         {isPool && features.ammPages && (
           <p className="account-id__meta account-id__pool">
-            This account is an AMM pool. <Link to={ammPoolHref(net, address)}>See the pool →</Link>
+            This account is an AMM pool. <Link to={poolLink(net, address, features)}>See the pool →</Link>
           </p>
         )}
 

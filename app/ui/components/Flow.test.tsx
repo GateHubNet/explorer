@@ -1,13 +1,13 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { allSwitches } from "../../../test/support/switches";
+import { renderUnderNetwork } from "../../../test/support/under-network";
 import type { FlowStep } from "../../domain/describe";
 import { shortAddress } from "../../domain/format";
 import { featuresOf, NO_FEATURES, type Features } from "../features";
-import { NETWORK_ROUTE_ID } from "../use-network";
 import { Flow } from "./Flow";
 
 afterEach(cleanup);
@@ -28,15 +28,8 @@ function renderInRouter(ui: ReactElement) {
   return render(<RouterProvider router={router} />);
 }
 
-/** `ui` under the `/:net` layout whose data holds `features`, as the transaction page has it: what `useFeatures()` reads. */
-function renderUnderLayout(ui: ReactElement, features: Features, path = "/xrpl/tx/AB") {
-  const network = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", features };
-  const router = createMemoryRouter(
-    [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network }), element: <Outlet />, children: [{ path: "*", element: ui }] }],
-    { initialEntries: [path] },
-  );
-  return render(<RouterProvider router={router} />);
-}
+/** `ui` under the `/:net` layout whose data holds `features`, on a transaction page: what `useFeatures()` reads. */
+const renderUnderLayout = (ui: ReactElement, features: Features) => renderUnderNetwork(ui, features, { path: "/xrpl/tx/AB" });
 
 describe("Flow", () => {
   it("is a group named for what it shows, with a node per step in order", () => {

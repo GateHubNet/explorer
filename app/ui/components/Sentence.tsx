@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 
-import { poolLink } from "../../domain/amm-params";
 import type { Segment } from "../../domain/describe";
+import { poolLink } from "../../domain/pool-link";
 import type { NetworkId } from "../../server/networks";
 import { useFeatures } from "../use-network";
 import { AccountLink } from "./AccountLink";

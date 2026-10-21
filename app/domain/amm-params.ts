@@ -1,6 +1,6 @@
-// The AMM pages' views and the links to them (spec 1.2). Pure and safe for the browser: the loaders, the view builders and the pages import
-// this file, and so does every page that shows a pool link (`poolLink`), so it imports nothing of the Worker, of `asset.ts` (the issuer
-// checksums of `ripple-address-codec`) or of the describe and parse trees. Types are imported, and erased.
+// The AMM pages' views and the links to them (spec 1.2). Pure and safe for the browser: the loaders, the view builders and the AMM pages import
+// this file, so it imports nothing of the Worker, of `asset.ts` (the issuer checksums of `ripple-address-codec`) or of the describe and parse trees.
+// Types are imported, and erased. The other pages that show a pool link import `poolLink` from pool-link.ts, which this file re-exports.
 //
 // One URL per view (E2 1.2): `parseAmmListParams` and `parseAmmPoolParams` give the view a query names, and `ammListHref` and
 // `ammPoolHref` write its canonical URL, from a path (`ammListPath`, `ammPoolPath`) and a query (`ammListQuery`, `ammPoolQuery`, without
@@ -9,11 +9,13 @@
 // defaults, unknown values, repeats and unknown parameters, and orders the rest as in the table of the spec. Every value is written with
 // `queryValue`, so the query is what a URL parser leaves as it is once it is serialized: a redirect to it ends.
 
-import type { Features } from "../ui/features";
-import { accountHref } from "./account-tabs";
 import { parseTrail } from "./paging";
+import { ammPoolPath } from "./pool-link";
 import { queryValue } from "./query-of";
 import type { WindowPeriod } from "./window";
+
+// A pool's path and the decision where a pool link goes live in pool-link.ts, which the pages with a pool link that are no AMM page load alone.
+export { ammPoolPath, poolLink } from "./pool-link";
 
 /** The pool page's tabs, in the order of their selector; the first is the default. */
 export const AMM_TABS = ["swaps", "liquidity", "governance"] as const;
@@ -122,11 +124,6 @@ export function ammListHref(net: string, q: Partial<AmmListQuery> = {}): string 
   return withQuery(ammListPath(net), ammListQuery(q));
 }
 
-/** A pool's path: `/xrpl/amm/rhWTXC…`. The pool is the address a loader has validated, so nothing of it is escaped in practice. */
-export function ammPoolPath(net: string, pool: string): string {
-  return `/${net}/amm/${encodeURIComponent(pool)}`;
-}
-
 /**
  * The canonical query of a view of a pool's page, without its `?` (the empty text when it has none): `period` (not the default, and not
  * behind a marker, where there are no charts), `tab` (not the first), `marker` and `back`, in that order. An absent `marker` is the first
@@ -143,9 +140,4 @@ export function ammPoolQuery(q: Partial<AmmPoolQuery> = {}): string {
 /** The link to a pool's page: the path of `ammPoolPath`, then the query of `ammPoolQuery`. */
 export function ammPoolHref(net: string, pool: string, q: Partial<AmmPoolQuery> = {}): string {
   return withQuery(ammPoolPath(net, pool), ammPoolQuery(q));
-}
-
-/** The one place that decides where a pool link goes: the pool page when `features.ammPages`, else the account page. */
-export function poolLink(net: string, pool: string, features: Features): string {
-  return features.ammPages ? ammPoolHref(net, pool) : accountHref(net, pool, {});
 }

@@ -1,8 +1,8 @@
 import { Fragment } from "react";
 import { Link } from "react-router";
 
-import { poolLink } from "../../domain/amm-params";
 import type { FlowStep } from "../../domain/describe";
+import { poolLink } from "../../domain/pool-link";
 import type { NetworkId } from "../../server/networks";
 import { cx } from "../cx";
 import { useFeatures } from "../use-network";

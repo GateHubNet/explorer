@@ -7,10 +7,10 @@ import { staticClosure, valueImports } from "../support/value-imports";
 // (`app/server/amm-view.ts`, which value-imports `app/domain/asset.ts` and `market-pair.ts`, and with them the issuer checksums of
 // `ripple-address-codec`) put every href, label and figure in the page data. So the files the browser runs for these pages import none of the
 // Worker's code as a value (AMM plan, "Browser bundle"): nothing of `app/server`, of the describe and parse trees, of `domain/asset.ts` or of
-// `ripple-*`. `amm-params.ts` is among them: every page that shows a pool link loads it. So are the two tags' builders, `meta-amm-list.ts` and
-// `meta-amm-pool.ts`: a page's `meta` is part of its route module. A type import is erased and costs nothing; a value import is the bug. (The
-// routes import the server for their loaders; React Router drops a loader and what only it uses from the browser's build, and
-// `pnpm check:bundle` holds the result to the budget.)
+// `ripple-*`. `amm-params.ts` is among them, and `pool-link.ts`, which every page that shows a pool link loads. So are the two tags' builders,
+// `meta-amm-list.ts` and `meta-amm-pool.ts`: a page's `meta` is part of its route module. A type import is erased and costs nothing; a value
+// import is the bug. (The routes import the server for their loaders; React Router drops a loader and what only it uses from the browser's build,
+// and `pnpm check:bundle` holds the result to the budget.)
 
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
@@ -20,7 +20,7 @@ const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/asset
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
 /** The files of the pages and the links to them. */
-const PAGE_FILES = ["ui/pages/AmmListPage.tsx", "ui/pages/AmmPoolPage.tsx", "ui/pages/NoAmmPage.tsx", "domain/amm-params.ts"];
+const PAGE_FILES = ["ui/pages/AmmListPage.tsx", "ui/pages/AmmPoolPage.tsx", "ui/pages/NoAmmPage.tsx", "domain/amm-params.ts", "domain/pool-link.ts"];
 
 /** The tags' builders, which the browser runs as the routes' `meta`. They are files of app/server that import nothing of it but `./meta`. */
 const META_FILES = ["server/meta-amm-list.ts", "server/meta-amm-pool.ts"];

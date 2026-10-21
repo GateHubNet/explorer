@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { useState, type ReactElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { createMemoryRouter, createStaticHandler, createStaticRouter, Outlet, RouterProvider, StaticRouterProvider } from "react-router";
+import { createMemoryRouter, createStaticHandler, createStaticRouter, RouterProvider, StaticRouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnalyticsPeriod } from "../../domain/analytics-params";
@@ -10,8 +10,8 @@ import { shortAddress } from "../../domain/format";
 import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountPageData, NeverActivatedData, TabList, TxRow } from "../../server/account-view";
 import type { AnalyticsData } from "../../server/analytics-view";
 import { allSwitches } from "../../../test/support/switches";
+import { renderUnderNetwork } from "../../../test/support/under-network";
 import { featuresOf, NO_FEATURES, type Features } from "../features";
-import { NETWORK_ROUTE_ID } from "../use-network";
 import { AccountPage, NeverActivatedPage } from "./AccountPage";
 
 afterEach(cleanup);
@@ -158,13 +158,7 @@ function renderInRouter(ui: ReactElement, loader: () => null = () => null) {
 }
 
 /** The page under the `/:net` layout whose data holds `features`, as the app has it: what `useFeatures()` reads (the AMM pool links). */
-function renderUnderLayout(ui: ReactElement, features: Features) {
-  const router = createMemoryRouter(
-    [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network: { ...XRPL, features } }), element: <Outlet />, children: [{ path: "*", element: ui }] }],
-    { initialEntries: [`/xrpl/account/${ADDRESS}`] },
-  );
-  return render(<RouterProvider router={router} />);
-}
+const renderUnderLayout = (ui: ReactElement, features: Features) => renderUnderNetwork(ui, features, { path: `/xrpl/account/${ADDRESS}` });
 
 describe("the header", () => {
   it("shows the address as the page's title, with a copy button, a QR code in a closed details, and a picture of the address", async () => {

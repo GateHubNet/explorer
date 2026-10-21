@@ -935,19 +935,43 @@ describe("the AMM parts", () => {
     expect(text).toContain("Trading fee 0.205%");
     // The pool is the other side of every swap: left out of the traders, and the note says so.
     const traders = html.slice(html.indexOf("Most active traders, 24 h"));
-    expect(anchors(traders).some((a) => a.attrs.includes(`/xrpl/account/${POOL}"`) && a.text !== "Pool account →")).toBe(false);
+    expect(anchors(traders).some((a) => a.attrs.includes(`/xrpl/account/${POOL}"`))).toBe(false);
     expect(text).toContain("The XRP/RLUSD AMM pool, the other side of every swap, is left out.");
+    // AMM_PAGES is on (the top level): the pool card leads to the pool page (poolLink), and nothing on the page to the pool's account.
+    const poolPage = anchors(html).filter((a) => a.text === "Pool page →");
+    expect(poolPage).toHaveLength(1);
+    expect(poolPage[0]!.attrs).toContain(`href="/xrpl/amm/${POOL}"`);
+    expect(anchors(html).some((a) => a.text === "Pool account →")).toBe(false);
+  });
+
+  /** The route's loader with a load context of its own: the top level's switches, but `vars`. */
+  const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+  const loadWith = (vars: Partial<Env>, path: string) =>
+    loader({
+      request: new Request(`https://explorer.test${path}`),
+      url: new URL(`https://explorer.test${path}`),
+      params: { net: "xrpl" },
+      context: createLoadContext({ ...(env as unknown as Env), ...vars }, ctx),
+    } as never);
+
+  // The likely rollout: the markets pages on (MARKETS) before the AMM pages (AMM_PAGES), which production keeps off until the owner turns them on.
+  describe("with AMM_PAGES off and MARKETS on (the route's loader, with a load context of its own)", () => {
+    it("links the pool card to the pool's account page, 'Pool account →', and keeps the card and the AMM parts", async () => {
+      mock = mockUpstream("xrpl");
+      const result = (await loadWith({ AMM_PAGES: "off" }, PAIR)) as Cached<LivePairData>;
+      const page = result.data;
+
+      expect(page.mode).toBe("live");
+      expect(page.ammParts).toBe(true);
+      if (page.pool.state !== "ok") throw new Error(`the pool card is ${page.pool.state}`);
+      expect(page.pool.title).toBe("XRP/RLUSD AMM pool");
+      expect(page.pool.link).toEqual({ href: `/xrpl/account/${POOL}`, label: "Pool account →" });
+      expect(JSON.stringify(page)).not.toContain(`/xrpl/amm/`);
+    });
   });
 
   describe("with AMM_DATA off (the route's loader, with a load context of its own)", () => {
-    const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
-    const run = (path: string) =>
-      loader({
-        request: new Request(`https://explorer.test${path}`),
-        url: new URL(`https://explorer.test${path}`),
-        params: { net: "xrpl" },
-        context: createLoadContext({ ...(env as unknown as Env), AMM_DATA: "off" }, ctx),
-      } as never);
+    const run = (path: string) => loadWith({ AMM_DATA: "off" }, path);
 
     it("has no Via, no Trades filter and no share, and makes no #9 call; the pool card stays", async () => {
       mock = mockUpstream("xrpl");

@@ -10,7 +10,6 @@
 import BigNumber from "bignumber.js";
 
 import { accountHref } from "../domain/account-tabs";
-import { poolLink } from "../domain/amm-params";
 import { sameAsset, type Asset } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
 import {
@@ -28,6 +27,7 @@ import { marketHref, naturalOrientation } from "../domain/market-pair";
 import { candleWindow, INTERVALS, pairQuery, TRADES_API, type Interval, type PairParams, type TradesFilter } from "../domain/market-params";
 import { trailPaging, type Paging } from "../domain/paging";
 import { wholePercent } from "../domain/percent";
+import { poolLink } from "../domain/pool-link";
 import type { BarListData, CandleData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
 import type { Features } from "../ui/features";

@@ -21,6 +21,7 @@ import {
   type AmmPoolQuery,
 } from "./amm-params";
 import { assetText, parseAssetText } from "./asset";
+import * as poolLinkModule from "./pool-link";
 import { queryOf } from "./query-of";
 
 const P = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
@@ -424,6 +425,20 @@ describe("poolLink", () => {
     expect(poolLink("xrpl", P, { ...NO_FEATURES, ...others, ammPages: false })).toBe(`/xrpl/account/${P}`);
     expect(poolLink("xrpl", P, { ...NO_FEATURES, ...others, ammPages: true })).toBe(`/xrpl/amm/${P}`);
   });
+
+  // poolLink and ammPoolPath live in pool-link.ts, which the pages with a pool link that are no AMM page load without this file's query writers.
+  it("is the pool page's canonical URL while they are on: ammPoolHref with no query, for any pool", () => {
+    const on = { ...NO_FEATURES, ammPages: true };
+    for (const [net, address] of [["xrpl", P], ["xahau", P], ["xrpl", ISSUER]] as const) {
+      expect(poolLink(net, address, on)).toBe(ammPoolHref(net, address));
+      expect(poolLink(net, address, on)).toBe(ammPoolHref(net, address, {}));
+    }
+  });
+
+  it("is pool-link.ts's own, re-exported here with ammPoolPath: one function, not a copy", () => {
+    expect(poolLink).toBe(poolLinkModule.poolLink);
+    expect(ammPoolPath).toBe(poolLinkModule.ammPoolPath);
+  });
 });
 
 describe("the browser bundle", () => {
@@ -442,13 +457,13 @@ describe("the browser bundle", () => {
     expect(valueImports(read("domain/amm-params.ts")).filter(FORBIDDEN)).toEqual([]);
   });
 
-  it("imports only account-tabs.ts, paging.ts and query-of.ts at run time", () => {
-    expect(valueImports(read("domain/amm-params.ts")).sort()).toEqual(["./account-tabs", "./paging", "./query-of"]);
+  it("imports only paging.ts, pool-link.ts and query-of.ts at run time", () => {
+    expect([...new Set(valueImports(read("domain/amm-params.ts")))].sort()).toEqual(["./paging", "./pool-link", "./query-of"]);
   });
 
   it("loads none of those through the files it imports either; the only file of app/server it reaches is the marker alphabet, a leaf", () => {
     const closure = staticClosure(appDir, "domain/amm-params.ts");
-    expect(closure).toEqual(["domain/account-tabs.ts", "domain/amm-params.ts", "domain/paging.ts", "domain/query-of.ts", "server/marker.ts"]);
+    expect(closure).toEqual(["domain/account-tabs.ts", "domain/amm-params.ts", "domain/paging.ts", "domain/pool-link.ts", "domain/query-of.ts", "server/marker.ts"]);
     expect(closure.filter((path) => FORBIDDEN(path) && path !== "server/marker.ts")).toEqual([]);
     // the two leaves import nothing at all
     expect(valueImports(read("server/marker.ts"))).toEqual([]);
