@@ -31,8 +31,7 @@ import { gunzipSync } from "node:zlib";
 
 import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase } from "ripple-binary-codec";
 
-import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
-import type { LedgerValidations } from "../app/server/api-types";
+import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerValidations, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 import { ammInfoFixtures } from "./amm-info-fixtures";
 import { ANALYTICS_ROW_LISTS, analyticsFixtures } from "./analytics-fixtures";
@@ -534,7 +533,8 @@ export function generate(): Map<string, string> {
     // The network page's aggregates, fee snapshot and validations: synthetic. The validations are of the two newest ledgers (the end-to-end suite
     // moves the chain back by one), which are the first two rows of the list above.
     const newestTwo = rows.slice(0, 2).map((row, at) => ({ index: row.ledger_index, hash: ledgers[ledgers.length - 1 - at]!.ledger_hash, date: row.date }));
-    for (const { path, query, value } of networkFixtures(net, dataApiLastValidated(head), newestTwo)) put(dataApiFile(net, path, query), value, SYNTHETIC_ROW_LISTS);
+    const networkAnswers = networkFixtures(net, dataApiLastValidated(head), newestTwo);
+    for (const { path, query, value } of networkAnswers) put(dataApiFile(net, path, query), value, SYNTHETIC_ROW_LISTS);
 
     // The Analytics tab's answers of the three accounts: synthetic, for the windows of the four periods at T, the UTC day of the newest ledger's close.
     for (const { path, query, body } of analyticsFixtures(net, isoTime(unixOf(head.ledger.close_time)).slice(0, 10))) {
@@ -544,8 +544,8 @@ export function generate(): Map<string, string> {
     }
 
     // The validators and amendments pages' answers (D1's six routes, validators-fixtures.ts): synthetic, over the validators of the ledger validations above, handed
-    // over in memory and never read back from the disk. `networkFixtures` is pure and quick (about 0.1 s), so it is asked again rather than the line above changed.
-    const ledgerValidations = networkFixtures(net, dataApiLastValidated(head), newestTwo)
+    // over in memory and never read back from the disk. They are the network page's answers above (`put` leaves them as they were), the ledger validations among them.
+    const ledgerValidations = networkAnswers
       .filter(({ path }) => /^\/v2\/ledgers\/[0-9A-F]{64}\/validations$/.test(path))
       .map(({ value }) => value as LedgerValidations);
     for (const { path, query, value } of validatorsFixtures(net, dataApiLastValidated(head), ledgerValidations)) put(dataApiFile(net, path, query), value, VALIDATORS_ROW_LISTS);
