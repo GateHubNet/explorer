@@ -24,8 +24,8 @@ import { join, posix, sep } from "node:path";
 import { gzipSync } from "node:zlib";
 
 /**
- * 150 KB of 1000 bytes, for each page and for the analytics view. The pages stand between 134.0 and 147.7 KB (network and the market pair page
- * the heaviest) and the view at 150.7 KB, the route manifest (about 1.2 KB) included.
+ * 150 KB of 1000 bytes, for each page and for the analytics view. The pages stand between 133.0 and 146.7 KB (network and the market pair page
+ * the heaviest) and the view at 149.7 KB, the route manifest (about 1.2 KB) included.
  */
 export const BUDGET_BYTES = 150_000;
 

@@ -59,16 +59,21 @@ function fakeBuild(options: {
   headers?: string | null;
   extra?: Record<string, string | Buffer>;
   manifest?: boolean;
-  /** The two chunks every page loads (scripts/shell-chunks.ts): the root route imports `vendor` and `shell`, the entry `vendor`. */
-  shell?: boolean;
+  /**
+   * The chunk every page loads (scripts/shell-chunks.ts): the root route and the entry import `shell`. `"vendor"` is the layout before R18:
+   * the root route imports `vendor` and `shell`, the entry `vendor`.
+   */
+  shell?: boolean | "vendor";
 }): { dir: string; sizes: Map<string, number> } {
   if (options.shell) {
     const { routes, entry } = options;
+    const vendor = options.shell === "vendor";
+    const files = vendor ? ["vendor-abc123.js", "shell-abc123.js"] : ["shell-abc123.js"];
     options = {
       ...options,
-      chunks: [...options.chunks, { name: "vendor-abc123.js", size: 900 }, { name: "shell-abc123.js", size: 800 }],
-      routes: routes.map((route) => (route.id === "root" ? { ...route, imports: [...(route.imports ?? []), "vendor-abc123.js", "shell-abc123.js"] } : route)),
-      entry: { module: entry?.module ?? "entry.js", imports: [...(entry?.imports ?? []), "vendor-abc123.js"] },
+      chunks: [...options.chunks, ...(vendor ? [{ name: "vendor-abc123.js", size: 900 }, { name: "shell-abc123.js", size: 800 }] : [{ name: "shell-abc123.js", size: 1700 }])],
+      routes: routes.map((route) => (route.id === "root" ? { ...route, imports: [...(route.imports ?? []), ...files] } : route)),
+      entry: { module: entry?.module ?? "entry.js", imports: [...(entry?.imports ?? []), files[0]!] },
     };
   }
   const dir = mkdtempSync(join(tmpdir(), "t15b-check-bundle-"));
@@ -527,13 +532,20 @@ describe("the command", () => {
     expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
   }, 30_000);
 
-  it("exits 1 for a build without the vendor and shell chunks (a build from before scripts/shell-chunks.ts), and says so", () => {
+  it("exits 1 for a build without the shell chunk (a build from before scripts/shell-chunks.ts), and says so", () => {
     const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES });
     const result = run(dir);
     expect(result.status).toBe(1);
     expect(result.stdout).toMatch(/home\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
-    expect(result.stdout).toContain("the root route imports 0 vendor-*.js chunks, not one");
     expect(result.stdout).toContain("the root route imports 0 shell-*.js chunks, not one");
+  }, 30_000);
+
+  it("exits 1 for a build with the packages in a vendor chunk beside the shell (the layout before R18), and says so", () => {
+    const { dir } = fakeBuild({ chunks: CHUNKS, routes: ROUTES, shell: "vendor" });
+    const result = run(dir);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("the root route imports /assets/vendor-abc123.js: the packages belong in the shell chunk");
+    expect(result.stdout).toContain("the entry does not import /assets/shell-abc123.js");
   }, 30_000);
 
   it("exits 1 for a build that is not there, or has no manifest, and says so", () => {

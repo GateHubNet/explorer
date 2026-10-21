@@ -1191,9 +1191,9 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   because Vite's native config loader, which is to become the default, warns about a config import without one; `vite.config.ts` still prints that notice for `./scripts/build-id`.)
   `scripts/check-bundle.test.ts` runs the bundle check (`scripts/bundle-budget.ts`) over a fake build (the budget to the byte, each forbidden name,
   a `.wasm`, `.ttf` or `.bin` file in `assets/`, a missing file; the analytics view's chunk found by its `import()` in each spelling, its imports
-  followed, its total to the byte, its missing files) and the command (`scripts/check-bundle.ts`, which also reads the `vendor` and `shell`
-  chunks in the manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `vendor` and `shell` chunks (the closure over a
-  made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest); `scripts/analytics-kit-copy.test.ts`
+  followed, its total to the byte, its missing files) and the command (`scripts/check-bundle.ts`, which also reads the `shell` chunk in the
+  manifest) through a link to it; `scripts/shell-chunks.test.ts` the client build's `shell` chunk (the closure and the modules every page of the
+  budget loads, over a made-up module graph, the plugin's wiring, its check of a made-up bundle and of a made-up route manifest); `scripts/analytics-kit-copy.test.ts`
   the analytics view's own copy of the kit (what the kit is, what an import resolves to, the check of a made-up module graph and bundle in each
   way it fails, the plugin's hooks, and the same check on the module graph of the app's sources). No test reads `build/`: what the build
   holds is `pnpm check:bundle`'s;
@@ -1574,6 +1574,8 @@ was reached (a link to it included): a gate that cannot tell whether it is being
   and images are not read;
 - `build/client/assets` holds a `.wasm`, `.ttf` or `.bin` file: WebAssembly, or a font that is not the pages' own WOFF2 (the image renderer's);
 - `build/client/_headers` is missing or lacks the rule that keeps `/assets/*` for a year;
+- the root route does not import one `shell-*.js` chunk, or imports a `vendor-*.js` one, or the entry does not import that shell chunk
+  (`shellManifestProblems` in `scripts/shell-chunks.ts`: see "One shell file" below);
 - the manifest or a file it names is missing.
 
 It prints a table (page, files, bytes, KB, `ok` or `OVER`), the manifest's size and the problems.
@@ -1637,7 +1639,7 @@ that the markets page uses) and 1,159 of file boundaries (273 of `import`/`expor
   it has made, in every client build, a deploy's too: the vendor modules in one chunk named `vendor` and the shell's in one named `shell` (known by
   what they hold: a page's own `shell.tsx` may make another chunk of that name), and an entry chunk that holds the entry module alone, which no
   other chunk holds or imports, or the build fails; `pnpm check:bundle` reads the same two chunks in the route manifest (the root route imports both,
-  the entry `vendor`). `vendor` changes with a dependency, or when the app uses more or less of one: it kept its name over the markets commit, where React's and the format chunk's did too and a one-file shell did not. The
+  the entry `vendor`). `vendor` changes with a dependency, or when the app uses more or less of one: it kept its name over the markets commit, where React's and the format chunk's did too and a one-file shell did not. (Since ruling R18, at the merge of E4, the two are one file, with the modules every page of the budget loads: see "One shell file" at the end of this section.) The
   build adds a runtime chunk (512 bytes) when chunks are grouped, as it did for the cursor's fallback; the figures count it. The dev server is untouched;
 - the tags' builders, one module for each page (see "SEO and link previews"): 1.1 to 1.6 KB off each figure;
 - the markets page's `useHydrated` from outside the kit (see "The kit's boundaries"): 3.3 KB off the markets page. It was measured with a copy of
@@ -1773,6 +1775,42 @@ table cards are `aria-busy` while their part has not come), which every page loa
 included): home 134,709, ledger 133,997, transaction 136,250, account 138,828 (19 files), network 147,731, markets 133,698, market pair 147,445, and
 **account analytics 150,734** (20 files), 734 bytes over the budget (manifest 1,188), as E4's final review projected (about 150.7 KB once E3's pair
 route is in). The view takes the lever ruling R18 approved for that case.
+
+**One shell file** (ruling R18: R17's two levers, which E4 measured as "E5a + E5b", for a page or the view over the budget at a merge).
+`scripts/shell-chunks.ts` now puts what every page loads in one file, `shell`, where it was two (`vendor`, the packages, and `shell`, the app's
+modules), and adds to it what the routes of all seven pages of the budget reach statically beyond that, the route modules excepted (`GATED_ROUTES`,
+the routes of `PAGES`; after the merge of E4 that is `DataTable.tsx`, `use-live-rows.ts`, `motion.ts`, `app/server/meta.ts` and `app/og/types.ts`,
+which were a chunk of their own that every page loaded). Each lever alone left the view over the budget, measured on the merge the same way: the one
+file at 150,111, the pages' modules at 150,327. Both:
+
+| | After the merge | One shell file, with the pages' modules | Change |
+|---|---:|---:|---:|
+| home | 134,709 (16 files) | 133,693 (14) | −1,016 |
+| ledger | 133,997 (17) | 132,979 (15) | −1,018 |
+| transaction | 136,250 (18) | 135,227 (16) | −1,023 |
+| account | 138,828 (19) | 137,788 (17) | −1,040 |
+| network | 147,731 (18) | 146,744 (16) | −987 |
+| markets | 133,698 (13) | 132,758 (11) | −940 |
+| market pair | 147,445 (18) | 146,445 (16) | −1,000 |
+| account analytics (gate 2) | 150,734 (20) | **149,680** (18) | −1,054 |
+| manifest `assets/manifest-*.js` (in each) | 1,188 | 1,154 | −34 |
+
+The view is 320 bytes under the budget, and the network page 3,256. No page of the budget loads a module it did not load before. What it costs:
+
+- **Cache reuse.** The shell is one file of 124,223 bytes (gzipped), where `vendor` was 116,430, the app's shell 6,760 and `DataTable`'s chunk
+  1,862. A deploy that changes a module of the app's shell or one of the pages' modules changes the whole file, the packages with it; `vendor`
+  changed only with a dependency, or when the app used more or less of one.
+- **The pages outside the budget** load the pages' modules too: the search page 127,171 → 128,133 (+962) and the not-found page 125,504 →
+  126,490 (+986).
+- **The rule knows the pages of the budget.** A page added to `PAGES` is in it at once; a page of `PAGES` whose route the build does not have
+  fails the build.
+
+The checks of the plugin are the same rules over one file: `shellModules` throws when the client entry, the root route or the route of a page of
+the budget is not in the module graph (a route's module, `?__react-router-build-client-route`, not its split chunks); `checkShellBundle` throws
+unless every module of the shell is in one chunk, named `shell` (so a `vendor` chunk of the packages, or a chunk of the pages' modules, fails the
+build), and the entry's chunk holds the entry module alone, which no chunk holds too or imports; `shellManifestProblems` (`pnpm check:bundle`)
+fails a build whose root route does not import one `shell-*.js`, or imports a `vendor-*.js`, or whose entry does not import the shell. The
+analytics view's copy of the kit passes its own checks as before: its chunk imports the shell, which holds no module of the kit.
 
 ## The parsing libraries in the Workers runtime
 

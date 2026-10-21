@@ -18,7 +18,7 @@ export default defineConfig({
       config: { vars: { BUILD_ID: resolveBuildId() } },
     }),
     reactRouter(),
-    // What every page loads, in two files (the packages, the app's shell) instead of about nine: scripts/shell-chunks.ts.
+    // What every page loads, and what every page of the budget loads, in one file instead of about nine: scripts/shell-chunks.ts.
     shellChunks({ appDirectory: fileURLToPath(new URL("./app", import.meta.url)) }),
   ],
   resolve: {

@@ -1,6 +1,6 @@
 // The command of the client bundle check: `tsx scripts/check-bundle.ts [dir]` (`pnpm check:bundle`, the last step of `pnpm verify`). What
-// it checks is in bundle-budget.ts, and, in the same route manifest, that the build has the two chunks every page loads (`vendor` and
-// `shell`, shell-chunks.ts), and in the same files that the analytics view loads none beyond the account page's but its own chunk
+// it checks is in bundle-budget.ts, and, in the same route manifest, that the build has the chunk every page loads (`shell`, with the
+// packages in it: shell-chunks.ts), and in the same files that the analytics view loads none beyond the account page's but its own chunk
 // (analytics-kit-copy.ts). This file does nothing but run them, every time it is run, however it was reached (a link, a relative path,
 // another working directory): a gate that cannot tell whether it is the command must fail, not pass, so it does not try to tell. A missing
 // build or manifest fails, and says so.
