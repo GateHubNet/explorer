@@ -12,6 +12,7 @@ import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.j
 import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
+import { cold, SUBREQUESTS } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { AMENDMENTS, LAST_VALIDATED, SUMMARY, validationsCall, validatorCall } from "../support/validators-calls";
 import { fixtureValidator, fixtureValidatorKeys, validationsMarker, validatorCase } from "../support/validators-cases";
@@ -107,7 +108,6 @@ async function expectDegraded(path: string, response: Response) {
 
 const unavailable = () => dataApiError(503, "unavailable");
 const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
-const SUBREQUESTS = "https://subrequest-cache.invalid/";
 const urlOf = (request: RequestInfo | URL) => (request instanceof Request ? request.url : String(request));
 
 /**
@@ -266,8 +266,7 @@ describe("the first render of a validator", () => {
     const key = await fresh("xrpl");
     mock = mockUpstream("xrpl");
     // What the Cache API kept of the tests above (XRPL's S, A and lastValidated) must not answer here: every call of this render reaches the mock.
-    const match = caches.default.match.bind(caches.default);
-    vi.spyOn(caches.default, "match").mockImplementation((request, options) => (urlOf(request).startsWith(SUBREQUESTS) ? Promise.resolve(undefined) : match(request, options)));
+    cold();
     const puts: Array<string | null> = [];
     const put = caches.default.put.bind(caches.default);
     vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {

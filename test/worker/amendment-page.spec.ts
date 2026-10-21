@@ -7,6 +7,7 @@ import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.jso
 import xrplAmm from "../fixtures/http/xrpl/data-api/network/amendments/AMM.json";
 import xrplMajority from "../fixtures/http/xrpl/data-api/network/amendments/MPTokensV1.json";
 import { anchors, elementText, pageClient, textOf } from "../support/pages";
+import { cold, SUBREQUESTS } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { amendmentCall, LAST_VALIDATED, SUMMARY } from "../support/validators-calls";
 import { amendmentCase } from "../support/validators-cases";
@@ -48,7 +49,6 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const unavailable = () => dataApiError(503, "unavailable");
 const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
 
-const SUBREQUESTS = "https://subrequest-cache.invalid/";
 const urlOf = (request: RequestInfo | URL) => (request instanceof Request ? request.url : String(request));
 
 /**
@@ -63,12 +63,6 @@ function subrequestLookups(): string[] {
     return match(request, options);
   });
   return urls;
-}
-
-/** What the Cache API kept of the tests above must not answer: every call of the render reaches the mock. */
-function cold(): void {
-  const match = caches.default.match.bind(caches.default);
-  vi.spyOn(caches.default, "match").mockImplementation((request, options) => (urlOf(request).startsWith(SUBREQUESTS) ? Promise.resolve(undefined) : match(request, options)));
 }
 
 /** Whether the edge cache holds a copy of `path` now: it is stored behind the answer, so a store that is not wanted gets a moment to show. */

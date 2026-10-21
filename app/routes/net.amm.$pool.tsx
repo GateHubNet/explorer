@@ -52,6 +52,14 @@ const ROWS_KEY = { swaps: "exchanges", liquidity: "liquidity", governance: "gove
 /** An upstream's "there is no such thing": the index's `pool not found`, the node's `actNotFound` or `actMalformed`. */
 const isNotFound = (reason: unknown): boolean => reason instanceof UpstreamError && reason.kind === "not_found";
 
+/**
+ * Logs a failure that leaves no page (a 503): an API without the AMM routes (its "Cannot GET", `isMissingRoute`) as what it is, anything else in the words of
+ * the part that failed.
+ */
+function logOutage(what: string, reason: unknown, request: Request): void {
+  logProblem(isMissingRoute(reason) ? "the data API serves no AMM pools" : what, reason, request);
+}
+
 /** #7: the page of the tab of the query, newest first, behind the query's marker when it has one. */
 function activityOf(api: DataApi, pool: string, query: AmmPoolQuery): Promise<AmmActivityPage> {
   const q = { descending: true, limit: ROWS_PAGE, marker: query.marker };
@@ -111,20 +119,22 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   );
   if (tidied) return tidied;
 
-  return query.marker === undefined ? firstPage(context, request, started, net, pool, query) : olderRows(context, net, pool, query);
+  return query.marker === undefined ? firstPage(context, request, started, net, pool, query) : olderRows(context, request, net, pool, query);
 }
 
 /** A page of older rows (spec 3.3, step 2): #1 and #7, awaited whole. */
-async function olderRows(context: Route.LoaderArgs["context"], net: Network, pool: string, query: AmmPoolQuery) {
+async function olderRows(context: Route.LoaderArgs["context"], request: Request, net: Network, pool: string, query: AmmPoolQuery) {
   const { api } = clientsFor(context, net);
   const [index, activity] = await Promise.allSettled([api.ammPool(pool), activityOf(api, pool, query)]);
   if (index.status === "rejected") {
     if (isNotFound(index.reason)) notFound({ notFound: `AMM pool ${shortAddress(pool)}` });
+    logOutage("the AMM pool page behind a marker could not load the pool", index.reason, request);
     return upstreamOutage(index.reason, "the AMM pool's older rows");
   }
   if (activity.status === "rejected") {
     // The API refuses a marker that is not one of its own (a 400): the page does not exist.
     if (activity.reason instanceof UpstreamError && activity.reason.kind === "bad_request") notFound({ notFound: OLDER_NOT_FOUND });
+    logOutage(`the AMM pool page behind a marker could not load its page of ${query.tab}`, activity.reason, request);
     return upstreamOutage(activity.reason, "the AMM pool's older rows");
   }
   const rows = (activity.value as Partial<Record<string, unknown>>)[ROWS_KEY[query.tab]];
@@ -179,7 +189,7 @@ async function firstPage(context: Route.LoaderArgs["context"], request: Request,
   if (mode === "unavailable") {
     // The call that decides it: the index's failure, or the node's when the index has no such pool (its `Retry-After`).
     const reason = index.status === "rejected" && !isNotFound(index.reason) ? index.reason : info.status === "rejected" ? info.reason : undefined;
-    logProblem(isMissingRoute(reason) ? "the data API serves no AMM pools" : "the AMM pool page cannot tell the pool's mode", reason, request);
+    logOutage("the AMM pool page cannot tell the pool's mode", reason, request);
     return upstreamOutage(asOutage(reason), "the AMM pool");
   }
 

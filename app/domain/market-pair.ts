@@ -72,8 +72,8 @@ export function isLinkable(sides: readonly Asset[], native: NativeCode): boolean
   });
 }
 
-/** A segment of the pair's path: the URL form of an asset, escaped for a path. */
-function segmentOf(asset: Asset): string {
+/** A segment of a pair's path: the URL form of an asset, escaped for a path. The market pair's path and the AMM pair form's are made of it. */
+export function segmentOf(asset: Asset): string {
   return encodeURIComponent(assetText(asset));
 }
 

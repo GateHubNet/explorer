@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { cold } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 import { pageClient } from "../support/pages";
 
@@ -166,10 +167,7 @@ describe("the network page's calls", () => {
   it("shares a held last_validated with the home page, which is one key: a /xahau render that failed holds it for /xahau/network", async () => {
     mock = mockUpstream("xahau", { [LAST_VALIDATED]: dataApiError(503, "unavailable") });
     // `last_validated` of Xahau was kept 2 s by the tests above: this one must reach the mock.
-    const match = caches.default.match.bind(caches.default);
-    vi.spyOn(caches.default, "match").mockImplementation((request, options) =>
-      (request instanceof Request ? request.url : String(request)).startsWith("https://subrequest-cache.invalid/") ? Promise.resolve(undefined) : match(request, options),
-    );
+    cold();
 
     expect(await statusOf("/xahau?hold=shared-1")).toBe(503);
     advance(1_000);

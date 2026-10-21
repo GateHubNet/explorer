@@ -9,6 +9,7 @@ import xahauSummary from "../fixtures/http/xahau/data-api/network/validators/sum
 import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
+import { cold } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { AMENDMENTS, LAST_VALIDATED, LIST, SUMMARY } from "../support/validators-calls";
 
@@ -225,10 +226,7 @@ describe("a call the list cannot be built without", () => {
 
   it("xrpl: S, L and A all past the deadline is a 503 too, not a crash: a card that took too long is an outage when no card is left", async () => {
     // What the Cache API kept for XRPL's S, L and A in the tests above must not stand in for the calls that never answer.
-    const match = caches.default.match.bind(caches.default);
-    vi.spyOn(caches.default, "match").mockImplementation((request, options) =>
-      (request instanceof Request ? request.url : String(request)).startsWith("https://subrequest-cache.invalid/") ? Promise.resolve(undefined) : match(request, options),
-    );
+    cold();
     const never = () => new Promise<Response>(() => {});
     mock = mockUpstream("xrpl", { [SUMMARY]: never, [LIST]: never, [AMENDMENTS]: never });
     const path = "/xrpl/validators?scope=all";

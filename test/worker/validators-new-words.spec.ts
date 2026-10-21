@@ -4,6 +4,7 @@ import type { AmendmentDetail, AmendmentsList, ValidatorDetail } from "../../app
 import xrplAmendments from "../fixtures/http/xrpl/data-api/network/amendments.json";
 import xrplDynamicNft from "../fixtures/http/xrpl/data-api/network/amendments/DynamicNFT.json";
 import { elementText, pageClient, tableRows, textOf } from "../support/pages";
+import { cold } from "../support/subrequest-miss";
 import { mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { AMENDMENTS, amendmentCall, validatorCall } from "../support/validators-calls";
 import { fixtureValidator, validatorCase } from "../support/validators-cases";
@@ -36,15 +37,6 @@ async function render(path: string) {
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
-
-const SUBREQUESTS = "https://subrequest-cache.invalid/";
-const urlOf = (request: RequestInfo | URL) => (request instanceof Request ? request.url : String(request));
-
-/** What the Cache API kept of the tests above must not answer: every call of the render reaches the mock (A is kept 60 s, and the validator page asks for it too). */
-function cold(): void {
-  const match = caches.default.match.bind(caches.default);
-  vi.spyOn(caches.default, "match").mockImplementation((request, options) => (urlOf(request).startsWith(SUBREQUESTS) ? Promise.resolve(undefined) : match(request, options)));
-}
 
 describe("a word a newer D1 sends", () => {
   it("an amendment's status and a history event: the page is Unknown, still voted on, and leaves the event out", async () => {

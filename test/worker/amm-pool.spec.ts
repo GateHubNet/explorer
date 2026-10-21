@@ -6,6 +6,7 @@ import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import usdPool from "../fixtures/http/xrpl/node/amm_info/rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am.json";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
+import { cold, keptFor, storedEntries } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type UpstreamMock } from "../support/upstream";
 
 // One AMM pool's page, `/{net}/amm/{pool}`, and the pair form that leads to it, `/{net}/amm/{base}/{counter}` (AMM spec 1.2, 1.3, 3 and 4), on the real
@@ -17,7 +18,7 @@ import { dataApiError, mockUpstream, nodeError, statusesOf, type UpstreamMock } 
 // What a Worker stores in the Cache API stays there for the rest of the file by the real clock (the pool and the live set 60 s, `last_validated` 2 s, the day
 // rows and the candles 300 s), and an error or a degraded page is never stored, while the edge answers a 503 with a stored copy of the page when it has one.
 // So the tests that fail a call come first, each on a pool account or a view that no later test reads (a valid made-up account with its calls overridden, or
-// a view of a featured pool that only that test asks for), and every test takes the subrequest entries away (`cold`): each call of a render reaches the
+// a view of a featured pool that only that test asks for), and every test takes the subrequest entries away (`cold`, test/support/subrequest-miss.ts): each call of a render reaches the
 // mock, so an override is always the answer and a list of calls does not depend on the order of the tests. The page does not poll, so no call asks for the
 // failure hold; `Date` alone is faked all the same and moved 301 s on after each test, past the longest keep (the edge cache's freshness reads `Date`). The
 // afterEach below fails a test whose override no request used.
@@ -51,38 +52,6 @@ afterAll(() => {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const unavailable = () => dataApiError(503, "unavailable");
 const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
-
-const SUBREQUESTS = "https://subrequest-cache.invalid/";
-const urlOf = (request: RequestInfo | URL) => (typeof request === "string" ? request : request instanceof URL ? request.href : request.url);
-
-/**
- * The subrequest cache with nothing in it for this test (amm-list.spec.ts's): every lookup of an entry misses, so every call of a render reaches the mock
- * (what is stored is still written). `kept` is the `Cache-Control` of every entry stored, by the entry's URL.
- */
-function cold(): { kept: Map<string, string | null> } {
-  const kept = new Map<string, string | null>();
-  const match = caches.default.match.bind(caches.default);
-  const put = caches.default.put.bind(caches.default);
-  vi.spyOn(caches.default, "match").mockImplementation((request, options) => (urlOf(request).startsWith(SUBREQUESTS) ? Promise.resolve(undefined) : match(request, options)));
-  vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
-    if (urlOf(request).startsWith(SUBREQUESTS)) kept.set(urlOf(request), response.headers.get("Cache-Control"));
-    return put(request, response);
-  });
-  return { kept };
-}
-
-/** The URL the subrequest cache stores a key under (edge-cache.ts: the build and the SHA-256 of the key). */
-async function entryOf(key: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
-  return `${SUBREQUESTS}${encodeURIComponent(env.BUILD_ID)}/${Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-}
-
-/** How long the entry of `key` was stored for (`max-age=N`), once it has been: it is written behind the answer. */
-async function keptFor(kept: Map<string, string | null>, key: string): Promise<string | null | undefined> {
-  const entry = await entryOf(key);
-  await vi.waitFor(() => expect(kept.has(entry), `nothing stored for ${key}`).toBe(true), { timeout: 5_000 });
-  return kept.get(entry);
-}
 
 /** Whether the edge cache holds a copy of `path` now (for after the answer has been read; waits a moment for a store that is not wanted). */
 async function isStored(path: string) {
@@ -306,7 +275,7 @@ describe("the index or the node failing for the whole page (spec 1.3, 3.3, 3.6)"
     cold();
     const pool = MADE_UP.slow;
     mock = mockUpstream("xrpl", { [poolKey(pool)]: () => new Promise<Response>(() => {}) });
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const path = `/xrpl/amm/${pool}`;
     const started = performance.now();
     const { response } = await render(path);
@@ -314,7 +283,12 @@ describe("the index or the node failing for the whole page (spec 1.3, 3.3, 3.6)"
 
     await expectOutage(path, response);
     expect(took).toBeGreaterThanOrEqual(4_400);
-    expect(took).toBeLessThan(5_000);
+    // What gave up is the card deadline (4.5 s, "took too long"), not the data API client's own 5 s ("did not answer within 5000 ms"): the line says which.
+    expect(took).toBeLessThan(12_000);
+    const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the AMM pool page cannot tell the pool's mode"));
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("took too long");
+    expect(logged[0]).not.toContain("did not answer");
   }, 15_000);
 
   it("is a 404 of class short that offers the account page when neither the index nor the node has the pool", async () => {
@@ -519,17 +493,38 @@ describe("a page of older rows (spec 3.3, step 2)", () => {
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });
 
-  it("is a 404 of class short when the index has no such pool, and a 503 when it fails", async () => {
+  it("is a 404 of class short when the index has no such pool, and a 503 when it fails, which is logged", async () => {
     cold();
     mock = mockUpstream("xrpl", { [poolKey(MADE_UP.olderFailing)]: unavailable() });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const missing = `/xrpl/amm/${MADE_UP.olderMissing}?marker=CCCC`;
     const first = await render(missing);
     expect(first.response.status).toBe(404);
     expect(statusesOf(mock, poolKey(MADE_UP.olderMissing))).toEqual([404]);
     expect(await storedAs(missing)).toEqual({ cls: "short", ttl: 30 });
+    expect(errors).not.toHaveBeenCalled();
 
     const failing = `/xrpl/amm/${MADE_UP.olderFailing}?marker=CCCC`;
     await expectOutage(failing, (await render(failing)).response);
+    const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the AMM pool page behind a marker could not load the pool"));
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("answered 503");
+  });
+
+  it("is a 503, not stored, when the tab's page behind the marker fails: an API without the route is logged as what it is", async () => {
+    cold();
+    const key = tabKey(POOL, "liquidity", "DDDD");
+    mock = mockUpstream("xrpl", { [key]: dataApiError(404, `Cannot GET /v2/amm/pools/${POOL}/liquidity`) });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const path = `/xrpl/amm/${POOL}?tab=liquidity&marker=DDDD`;
+    const { response, html } = await render(path);
+
+    await expectOutage(path, response);
+    expect(statusesOf(mock, key)).toEqual([404]);
+    const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the data API serves no AMM pools"));
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("Cannot GET");
+    expect(html).not.toContain("Cannot GET");
   });
 
   it("asks for the pool and the tab's page only, is stored as MARKER_PAGE_CLASS, noindex, follow, with the way back to the pool", async () => {
@@ -571,7 +566,8 @@ describe("a page of older rows (spec 3.3, step 2)", () => {
 
 describe("the first page", () => {
   it("is stored as live (5 s) and makes exactly the ten calls of spec 3.2, each kept as long as its class says", async () => {
-    const { kept } = cold();
+    cold();
+    const kept = storedEntries();
     mock = mockUpstream("xrpl");
     const path = `/xrpl/amm/${POOL}`;
     const { response, html, text } = await render(path);
@@ -739,6 +735,29 @@ describe("the query of the URL (spec 1.2)", () => {
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });
 
+  it("redirects an escaped query to the canonical one: the query is the request's own text (queryOf), not React Router's url.search", async () => {
+    mock = mockUpstream("xrpl");
+    // `%33%30d` is `30d`: a URL parser that serialises the query again may leave it as it is, so a check of a decoded or re-serialised query would
+    // call the two the same and serve a page under a second URL, or redirect to itself. The request's own text differs from the canonical one: one 302.
+    const path = `/xrpl/amm/${POOL}?period=%33%30d`;
+    const response = await get(path);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/amm/${POOL}?period=30d`);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+
+    // The `.data` request of a client-side navigation: React Router takes `_routes` out of the query it hands the loader (`url.search`), and the query it
+    // writes back is decoded and serialised again (`period=30d`). Read from `url.search`, the escaped view would be answered as a page of its own.
+    const data = await get(`/xrpl/amm/${POOL}.data?period=%33%30d&_routes=routes%2Fnet.amm.%24pool`);
+    const body = await data.text();
+    expect(data.status).toBe(202);
+    expect(body).toContain("SingleFetchRedirect");
+    expect(body).toContain(`/xrpl/amm/${POOL}?period=30d`);
+    expect(mock.requests).toEqual([]);
+  });
+
   it("redirects the path /xrpl/AMM/{pool} to /xrpl/amm/{pool}, class immutable (the path alone), before any call", async () => {
     mock = mockUpstream("xrpl");
     const path = `/xrpl/AMM/${POOL}`;
@@ -790,6 +809,34 @@ describe("the pair form, /{net}/amm/{base}/{counter} (spec 1.3)", () => {
     expect(response.headers.get("Location")).toBe(`/xrpl/amm/${POOL}`);
     expect(keysOf(mock.requests)).toEqual([pairKey("XRP", RLUSD)]);
     expect(await storedAs(path)).toEqual({ cls: "slow", ttl: 3600 });
+  });
+
+  it("answers its .data URL with a redirect for React Router to follow to the pool, not a 404 or a redirect to itself", async () => {
+    cold();
+    mock = mockUpstream("xrpl");
+    const dataPath = "/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De.data?_routes=routes%2Fnet.amm.%24base.%24counter";
+    const data = await get(dataPath);
+    const body = await data.text();
+
+    expect(data.status).toBe(202);
+    expect(body).toContain("SingleFetchRedirect");
+    expect(body).toContain(`/xrpl/amm/${POOL}`);
+    expect(keysOf(mock.requests)).toEqual([pairKey("XRP", RLUSD)]);
+  });
+
+  it.each([
+    ["/xrpl/amm/xrp/usd+rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq", "/xrpl/amm/XRP/USD.rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"],
+    [`/xrpl/amm/XRP/${RLUSD}`, "/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"],
+    ["/xrpl/amm/XRP/USD%20rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq", "/xrpl/amm/XRP/USD.rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq"],
+  ])("redirects the spelling %s to the pair's one, %s, class immutable (the path alone), before any call", async (from, to) => {
+    mock = mockUpstream("xrpl");
+    const response = await get(from);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(to);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(from)).toEqual({ cls: "immutable", ttl: 31_536_000 });
   });
 
   it("redirects a pair whose pool was deleted to it, class short: a new pool of the pair may come", async () => {
@@ -857,14 +904,17 @@ describe("the pair form, /{net}/amm/{base}/{counter} (spec 1.3)", () => {
     expect(mock.requests).toEqual([]);
   });
 
-  it("redirects a query to the bare pair, class short, before any call: the form has no parameters", async () => {
+  it.each([
+    ["/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De?tab=liquidity", "/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"],
+    // The spelling and the query, in one redirect.
+    ["/xrpl/amm/xrp/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De?x=1", "/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"],
+  ])("redirects %s to the bare pair, class short, before any call: the form has no parameters", async (path, to) => {
     mock = mockUpstream("xrpl");
-    const path = "/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De?tab=liquidity";
     const response = await get(path);
     await response.text();
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De");
+    expect(response.headers.get("Location")).toBe(to);
     expect(mock.requests).toEqual([]);
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
   });

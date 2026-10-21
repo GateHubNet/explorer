@@ -610,6 +610,15 @@ describe("an AMM pool's page", () => {
   it("is noindex for its 404s: on Xahau, and for a pool neither the index nor the node has", async () => {
     mock = mockUpstream("xahau");
     expect(head((await page(`/xahau/amm/${POOL}`, 404)).html).content("robots")).toBe("noindex");
+    mock.restore();
+    // A valid account that is no pool of the fixtures: the index's pool not found and the node's actNotFound, the "none" mode.
+    mock = mockUpstream("xrpl");
+    const none = await page("/xrpl/amm/rG4ApsEa4JYbPmcChXdw4ytapqAJxhVUYo", 404);
+    expect(none.html).toContain("Open it as an account");
+    const tags = head(none.html);
+    expect(tags.content("robots")).toBe("noindex");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
   });
 });
 

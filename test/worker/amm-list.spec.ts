@@ -5,6 +5,7 @@ import { loader } from "../../app/routes/net.amm._index";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
+import { cold, entryOf, keptFor, storedEntries } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 
 // The AMM pools list, `/{net}/amm` (AMM spec 1.2, 1.3, 2 and 4), on the real Worker against the generated AMM answers of the data API
@@ -14,7 +15,7 @@ import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../su
 //
 // What a Worker stores in the Cache API stays there for the rest of the file by the real clock, subrequests included (`last_validated` 2 s, the
 // pools and the live set 60 s, the 30 days 300 s), and an error or a degraded page is never stored. So the tests that fail a call come first, each
-// on a view that no later test reads, and every test takes the subrequest entries away (`cold`): each call of a render reaches the mock, so an
+// on a view that no later test reads, and every test takes the subrequest entries away (`cold`, test/support/subrequest-miss.ts): each call of a render reaches the mock, so an
 // override is always the answer and a list of calls does not depend on the order of the tests. The page does not poll, so no call asks for the
 // failure hold; `Date` alone is faked all the same and moved 301 s on after each test, past the longest keep (the edge cache's freshness reads
 // `Date`), so that no test reads what an earlier one left. The afterEach below fails a test whose override no request used.
@@ -44,44 +45,6 @@ afterAll(() => {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const unavailable = () => dataApiError(503, "unavailable");
 const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
-
-const SUBREQUESTS = "https://subrequest-cache.invalid/";
-const urlOf = (request: RequestInfo | URL) => (typeof request === "string" ? request : request instanceof URL ? request.href : request.url);
-
-/**
- * The subrequest cache with nothing in it for this test: every lookup of an entry misses, so every call of a render reaches the mock (what is stored
- * is still written). `looked` is every entry looked up, in order (each call of a render looks its entry up before it reaches the API), and `kept` the
- * `Cache-Control` of every entry stored, by the entry's URL.
- */
-function cold(): { looked: string[]; kept: Map<string, string | null> } {
-  const looked: string[] = [];
-  const kept = new Map<string, string | null>();
-  const match = caches.default.match.bind(caches.default);
-  const put = caches.default.put.bind(caches.default);
-  vi.spyOn(caches.default, "match").mockImplementation((request, options) => {
-    if (!urlOf(request).startsWith(SUBREQUESTS)) return match(request, options);
-    looked.push(urlOf(request));
-    return Promise.resolve(undefined);
-  });
-  vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
-    if (urlOf(request).startsWith(SUBREQUESTS)) kept.set(urlOf(request), response.headers.get("Cache-Control"));
-    return put(request, response);
-  });
-  return { looked, kept };
-}
-
-/** The URL the subrequest cache stores a key under (edge-cache.ts: the build and the SHA-256 of the key). */
-async function entryOf(key: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
-  return `${SUBREQUESTS}${encodeURIComponent(env.BUILD_ID)}/${Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-}
-
-/** How long the entry of `key` was stored for (`max-age=N`), once it has been: it is written behind the answer. */
-async function keptFor(kept: Map<string, string | null>, key: string): Promise<string | null | undefined> {
-  const entry = await entryOf(key);
-  await vi.waitFor(() => expect(kept.has(entry), `nothing stored for ${key}`).toBe(true), { timeout: 5_000 });
-  return kept.get(entry);
-}
 
 /** Whether the edge cache holds a copy of `path` now (for after the answer has been read; waits a moment for a store that is not wanted). */
 async function isStored(path: string) {
@@ -323,7 +286,8 @@ describe("a page behind a marker that is not there (spec 1.3)", () => {
 
 describe("the first page", () => {
   it("is stored as live (5 s) and makes exactly the four calls of spec 2.2, the kept ones under the home and network pages' keys", async () => {
-    const { kept } = cold();
+    cold();
+    const kept = storedEntries();
     mock = mockUpstream("xrpl");
     const { response, html, text } = await render("/xrpl/amm");
 
