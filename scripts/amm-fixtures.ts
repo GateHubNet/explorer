@@ -32,7 +32,9 @@
 //   exchanges/<B>/<C>@amm=only&end=T&interval=<1day|7day>&limit=400&start=<W₀>.json   the series' swaps as candles, the pair in its stored order
 //
 // VOX/XRP has no series, but the index has its states, so the API answers its page's day rows with empty lists, not `pool not found` (docs/api-reference.md
-// "AMM", "Empty and 404"): the same four files for its 90 days (the page's default period), each with an empty list and no marker.
+// "AMM", "Empty and 404"): the same four files for its 90 days (the page's default period), each with an empty list and no marker. The real API would also
+// serve 2026-10-14, the day of its recorded vote, as a row (amm_daily writes one for every day a transaction touches the pool); the fixtures leave that row
+// out so that the "gone" page has no series (P3).
 //   network/amm_volume@live=day.json          the rolling day to T's minute: a component for each live pool with the native currency but VOX/XRP (no swaps), drawn
 //                                             from `mulberry32(seedOf("xrpl", "amm_volume", "live"))` (apps/api/src/network/volume-object.ts for the row)
 //

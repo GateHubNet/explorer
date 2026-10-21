@@ -471,7 +471,8 @@ closed at 17:01:12Z), in the pages' windows (E2's `windowOf`: the 30 and 90 days
   USDC/RLUSD 213, XRP/USD 274, DVR/XRP 5, SNK/XRP 26.
 - **VOX/XRP's empty answers.** It has no series, but the index has its states, so the API answers its pool page's day rows with empty lists, not `pool not found`
   (docs/api-reference.md "AMM", "Empty and 404"): its 90 days (the page's default period) have empty day rows, an empty carry-in and last day, and no AMM candles, each
-  without a marker, so its "gone" page is whole under the fixtures.
+  without a marker, so its "gone" page is whole under the fixtures. The real API would also serve 2026-10-14, the day of its recorded vote, as a row (amm_daily writes one
+  for every day a transaction touches the pool); the fixtures leave that row out so that the "gone" page has no series (P3).
 - **The live set**, `network/amm_volume@live=day.json`, drawn from `mulberry32(seedOf("xrpl", "amm_volume", "live"))`, a pool at a time in account order: the rolling day
   from 2026-10-16T17:01:00Z to 2026-10-17T17:01:00Z (the aggregator's minute), a component for each of the 50 live pools with the native currency but VOX/XRP (the pages'
   pool without swaps); the issued-only pools (USDC/RLUSD among them) have none, a synthetic choice so that the list has a pool whose 24-hour volume is "—" (see "differs"
@@ -514,7 +515,8 @@ recorded swaps (the Swaps tabs list those) and are not E3's derived XRP/RLUSD tr
 drawn apart from the series; its converted amounts are whole 64ths of a coin, so that the API's sum of doubles (`String(total)`) is exact; and SNK/XRP's dust reserves (the
 0.0000851206393053295 SNK and 0.021974 XRP its last withdrawal took) give base estimates in BigNumber's exponent form (`1.250946e-8`), as the API writes such a sum. VOX/XRP's
 90 days are empty, where the API would hold a row for 2026-10-14, the day of its recorded vote (amm-daily.job.ts has a row for every day a transaction touched the pool):
-a row with no swap and no liquidity, the vote's fee and LP supply, and no reserves (only the AMM node is recorded), which no series draws (P3).
+a row with no swap and no liquidity, the vote's fee and LP supply, and no reserves (only the AMM node is recorded). The fixtures leave that row out so that VOX/XRP's
+"gone" page has no series (P3).
 
 **What keeps them true.** `test/unit/amm-fixtures.test.ts` checks the derivation against the reference's counts over the `xrpl-amm` ledgers, the featured pools' roles, the
 reference's key orders, amounts, numbers, `value_native`, stored pair order and liquidity signs (against each transaction's own nodes), the list's order and markers, the
