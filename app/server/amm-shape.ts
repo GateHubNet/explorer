@@ -186,10 +186,15 @@ export function checkGovernancePage(body: unknown): Page<"governance", AmmGovern
 
 /**
  * `GET /v2/network/amm_volume?live=day`: the volume of a rolling day. It is a volume page (`checkVolumePage("amm")`) of exactly one row: the period ending now. An answer
- * with no row, or with more than one, is not that.
+ * with no row, or with more than one, is not that. Each component's `amm_account` is a classic address: E2's volume check takes any text there, and the list links it
+ * (the busiest pool's tile, `ammPoolHref`) and joins the pools on it.
  */
 export function checkLiveVolume(body: unknown): Page<"rows", AmmVolumeRow> {
+  const what = "data API AMM volume";
   const page = checkVolumePage("amm", body);
-  if (page.rows.length !== 1) throw malformed("data API AMM volume", `${page.rows.length} rows, not one`);
+  if (page.rows.length !== 1) throw malformed(what, `${page.rows.length} rows, not one`);
+  for (const [at, component] of page.rows[0]!.components.entries()) {
+    fields(what, `rows[0].components[${at}]`, component as unknown as Record<string, unknown>, ["amm_account"], isAccount, ACCOUNT);
+  }
   return page;
 }

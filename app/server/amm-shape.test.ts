@@ -461,6 +461,9 @@ describe("checkLiveVolume", () => {
     ["a start_time that is not a time", "start_time", (b) => (b.rows[0].start_time = "now")],
     ["components that are not a list", "components", (b) => (b.rows[0].components = {})],
     ["a component with no amm_account", "amm_account", (b) => delete b.rows[0].components[0].amm_account],
+    // It goes into a link and the account join: text that is no classic address is refused, as every account of the AMM routes is.
+    ["a component whose amm_account is not an account", "amm_account", (b) => (b.rows[0].components[0].amm_account = "nope")],
+    ["a component whose amm_account is an X-address", "amm_account", (b) => (b.rows[0].components[0].amm_account = "X7AcgcsBL6XDcUb289X4mJ8djcdyKaB5hJDWMArnXr61cqZ")],
     ["a component whose converted_amount is a number", "converted_amount", (b) => (b.rows[0].components[0].converted_amount = 3000.5)],
     ["a component whose base is not a currency", "base", (b) => (b.rows[0].components[0].base = "USD")],
   ]);
