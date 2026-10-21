@@ -1,10 +1,13 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { allSwitches } from "../../../test/support/switches";
 import type { FlowStep } from "../../domain/describe";
 import { shortAddress } from "../../domain/format";
+import { featuresOf, NO_FEATURES, type Features } from "../features";
+import { NETWORK_ROUTE_ID } from "../use-network";
 import { Flow } from "./Flow";
 
 afterEach(cleanup);
@@ -22,6 +25,16 @@ const steps: FlowStep[] = [
 
 function renderInRouter(ui: ReactElement) {
   const router = createMemoryRouter([{ path: "*", element: ui }], { initialEntries: ["/xrpl/tx/AB"] });
+  return render(<RouterProvider router={router} />);
+}
+
+/** `ui` under the `/:net` layout whose data holds `features`, as the transaction page has it: what `useFeatures()` reads. */
+function renderUnderLayout(ui: ReactElement, features: Features, path = "/xrpl/tx/AB") {
+  const network = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", features };
+  const router = createMemoryRouter(
+    [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network }), element: <Outlet />, children: [{ path: "*", element: ui }] }],
+    { initialEntries: [path] },
+  );
   return render(<RouterProvider router={router} />);
 }
 
@@ -80,5 +93,46 @@ describe("Flow", () => {
       <Flow net="xrpl" steps={[{ role: "destination", account: BOB, label: "Destination", amount: { value: "3", currency: "524C555344000000000000000000000000000000", issuer: USD.issuer } }]} />,
     );
     expect(screen.getByRole("group").querySelector(".amt")?.textContent).toBe("+3 RLUSD");
+  });
+
+  describe("a pool's label, which follows AMM_PAGES", () => {
+    const XRP_RLUSD = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+    const swap: FlowStep[] = [
+      { role: "sender", account: ALICE, label: "Sender", amount: { value: "180", currency: "XRP" } },
+      { role: "pool", account: XRP_RLUSD, label: "XRP/RLUSD AMM pool", amount: { value: "179.448166793", currency: "RLUSD", issuer: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" } },
+      { role: "destination", account: ALICE, label: "Destination" },
+    ];
+    const poolNode = () => screen.getByRole("group", { name: "Flow of funds" }).querySelectorAll(".flow__node")[1] as HTMLElement;
+
+    it("is a link to the pool page while it is on, and the account link stays", async () => {
+      renderUnderLayout(<Flow net="xrpl" steps={swap} />, { ...NO_FEATURES, ammPages: true });
+      const label = await screen.findByRole("link", { name: "XRP/RLUSD AMM pool" });
+      expect(label.getAttribute("href")).toBe(`/xrpl/amm/${XRP_RLUSD}`);
+      expect(label.closest(".flow__label")).not.toBeNull();
+      const links = within(poolNode()).getAllByRole("link");
+      expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+        ["XRP/RLUSD AMM pool", `/xrpl/amm/${XRP_RLUSD}`],
+        [shortAddress(XRP_RLUSD), `/xrpl/account/${XRP_RLUSD}`],
+      ]);
+      expect(poolNode().querySelector(".flow__label")!.textContent).toBe("XRP/RLUSD AMM pool");
+    });
+
+    it("leaves the other steps' labels as text while it is on: only a pool has a page", async () => {
+      renderUnderLayout(<Flow net="xrpl" steps={[...swap, { role: "offer", account: BOB, label: "DEX offer" }]} />, { ...NO_FEATURES, ammPages: true });
+      await screen.findByRole("link", { name: "XRP/RLUSD AMM pool" });
+      const labels = [...screen.getByRole("group").querySelectorAll(".flow__label")];
+      expect(labels.map((label) => label.querySelector("a") !== null)).toEqual([false, true, false, false]);
+    });
+
+    it("is text while it is off, whatever the other switches are, and without the layout's data", async () => {
+      renderUnderLayout(<Flow net="xrpl" steps={swap} />, { ...featuresOf(allSwitches("on")), ammPages: false });
+      await screen.findByRole("group", { name: "Flow of funds" });
+      expect(poolNode().querySelector(".flow__label")!.querySelector("a")).toBeNull();
+      expect(within(poolNode()).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${XRP_RLUSD}`]);
+      cleanup();
+      renderInRouter(<Flow net="xrpl" steps={swap} />);
+      expect(poolNode().querySelector(".flow__label")!.querySelector("a")).toBeNull();
+      expect(screen.queryByRole("link", { name: "XRP/RLUSD AMM pool" })).toBeNull();
+    });
   });
 });

@@ -2,13 +2,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { useState, type ReactElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { createMemoryRouter, createStaticHandler, createStaticRouter, RouterProvider, StaticRouterProvider } from "react-router";
+import { createMemoryRouter, createStaticHandler, createStaticRouter, Outlet, RouterProvider, StaticRouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
 import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountPageData, NeverActivatedData, TabList, TxRow } from "../../server/account-view";
 import type { AnalyticsData } from "../../server/analytics-view";
+import { allSwitches } from "../../../test/support/switches";
+import { featuresOf, NO_FEATURES, type Features } from "../features";
+import { NETWORK_ROUTE_ID } from "../use-network";
 import { AccountPage, NeverActivatedPage } from "./AccountPage";
 
 afterEach(cleanup);
@@ -152,6 +155,15 @@ function analyticsPage(over: Partial<AccountAnalyticsPageData> = {}): AccountAna
 function renderInRouter(ui: ReactElement, loader: () => null = () => null) {
   const router = createMemoryRouter([{ path: "*", element: ui, loader }], { initialEntries: [`/xrpl/account/${ADDRESS}`] });
   return { router, ...render(<RouterProvider router={router} />) };
+}
+
+/** The page under the `/:net` layout whose data holds `features`, as the app has it: what `useFeatures()` reads (the AMM pool links). */
+function renderUnderLayout(ui: ReactElement, features: Features) {
+  const router = createMemoryRouter(
+    [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network: { ...XRPL, features } }), element: <Outlet />, children: [{ path: "*", element: ui }] }],
+    { initialEntries: [`/xrpl/account/${ADDRESS}`] },
+  );
+  return render(<RouterProvider router={router} />);
 }
 
 describe("the header", () => {
@@ -356,6 +368,83 @@ describe("the margin", () => {
   it("says when the counts are of the first page of objects only", async () => {
     renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ owned: { counts: [{ type: "RippleState", label: "trust lines", count: 400 }], truncated: true } }) })} />);
     expect(await screen.findByText(/Counted over the first 400 objects/)).toBeTruthy();
+  });
+});
+
+// AMM_PAGES (AMM spec 5.3): while it is on, an LP token's pool and a pool account's own page lead to the pool page; while it is off, the page is
+// as it was, with the pool's account link. The account page reads the switch with `useFeatures()`, from the layout's data.
+describe("the links to the AMM pool page", () => {
+  const AMM_ON = { ...NO_FEATURES, ammPages: true };
+  const AMM_OFF = { ...featuresOf(allSwitches("on")), ammPages: false };
+  const LINE = "This account is an AMM pool. See the pool →";
+  const ok = header().live as Extract<AccountHeader["live"], { state: "ok" }>;
+  /** The header of a pool account: the node names its `amm` flag (account-view.ts's flags of an AccountRoot). */
+  const poolAccount = (over: Partial<AccountHeader> = {}) => header({ live: { ...ok, flags: [{ id: "amm", label: "AMM pool account" }] }, ...over });
+  const tokensCard = async () => (await screen.findByRole("heading", { name: "Tokens" })).closest("section")!;
+
+  it("makes an LP token's 'AMM pool r…' one link to the pool page while it is on", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={data()} />, AMM_ON);
+    const card = await tokensCard();
+    const link = within(card).getByRole("link", { name: `AMM pool ${shortAddress(POOL)}` });
+    expect(link.getAttribute("href")).toBe(`/xrpl/amm/${POOL}`);
+    expect(link.closest(".token__issuer")!.textContent).toBe(`AMM pool ${shortAddress(POOL)}`);
+    // The pool's account page is not linked from the card; the other token's issuer still is.
+    expect(within(card).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${ISSUER}`, `/xrpl/amm/${POOL}`]);
+  });
+
+  it("keeps an LP token's pool as 'AMM pool' and the account link while it is off, and without the layout's data", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={data()} />, AMM_OFF);
+    let card = await tokensCard();
+    expect(within(card).getByRole("link", { name: shortAddress(POOL) }).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
+    expect(card.querySelector(".token__issuer a[href*='/amm/']")).toBeNull();
+    expect(card.innerHTML).not.toContain("/xrpl/amm/");
+    cleanup();
+    renderInRouter(<AccountPage network={XRPL} data={data()} />);
+    card = await tokensCard();
+    expect(within(card).getByRole("link", { name: shortAddress(POOL) }).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
+    expect(card.innerHTML).not.toContain("/xrpl/amm/");
+  });
+
+  it("says under the address of a pool account that it is one, with a link to its pool page, while it is on", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ address: POOL, header: poolAccount() })} />, AMM_ON);
+    const line = (await screen.findByText(/This account is an AMM pool\./)).closest("p")!;
+    expect(line.textContent).toBe(LINE);
+    const link = within(line).getByRole("link", { name: "See the pool →" });
+    expect(link.getAttribute("href")).toBe(`/xrpl/amm/${POOL}`);
+    expect(within(line).getAllByRole("link")).toHaveLength(1);
+    // Under the address: after the address's own block, before the activation.
+    const card = screen.getByRole("region", { name: "Account" });
+    const order = [card.querySelector(".account-id__top")!, line, screen.getByText(/Activated on/).closest("p")!];
+    for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The flag stays where the flags are.
+    expect(document.querySelector(".account-flags")!.textContent).toContain("AMM pool account");
+  });
+
+  it("says nothing of the pool page on a pool account while it is off, or without the layout's data", async () => {
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ address: POOL, header: poolAccount() })} />, AMM_OFF);
+    await screen.findByText("AMM pool account");
+    expect(screen.queryByText(/This account is an AMM pool/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "See the pool →" })).toBeNull();
+    cleanup();
+    renderInRouter(<AccountPage network={XRPL} data={data({ address: POOL, header: poolAccount() })} />);
+    await screen.findByText("AMM pool account");
+    expect(screen.queryByText(/This account is an AMM pool/)).toBeNull();
+  });
+
+  it("has no pool line when the node did not answer (the flag comes from account_info), on a deleted account, or on an account that is no pool", async () => {
+    for (const live of [{ state: "unavailable" }, { state: "none" }] as const) {
+      renderUnderLayout(<AccountPage network={XRPL} data={data({ address: POOL, header: poolAccount({ live, owned: null, nodeProblem: live.state === "unavailable" }) })} />, AMM_ON);
+      await screen.findByRole("heading", { level: 1, name: POOL });
+      expect(screen.queryByText(/This account is an AMM pool/), live.state).toBeNull();
+      cleanup();
+    }
+    renderUnderLayout(<AccountPage network={XRPL} data={data({ address: POOL, header: poolAccount({ status: "deleted", live: { state: "none" }, balance: null, tokens: { state: "none" }, owned: null }) })} />, AMM_ON);
+    await screen.findByRole("heading", { level: 1, name: POOL });
+    expect(screen.queryByText(/This account is an AMM pool/)).toBeNull();
+    cleanup();
+    renderUnderLayout(<AccountPage network={XRPL} data={data()} />, AMM_ON);
+    await screen.findByText("Requires destination tag");
+    expect(screen.queryByText(/This account is an AMM pool/)).toBeNull();
   });
 });
 

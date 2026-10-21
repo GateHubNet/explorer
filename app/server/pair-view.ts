@@ -10,6 +10,7 @@
 import BigNumber from "bignumber.js";
 
 import { accountHref } from "../domain/account-tabs";
+import { poolLink } from "../domain/amm-params";
 import { sameAsset, type Asset } from "../domain/asset";
 import { tokenOf } from "../domain/fnv";
 import {
@@ -29,6 +30,7 @@ import { trailPaging, type Paging } from "../domain/paging";
 import { wholePercent } from "../domain/percent";
 import type { BarListData, CandleData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
+import type { Features } from "../ui/features";
 import type { Loaded } from "./account-view";
 import { isNumberText } from "./aggregate-shape";
 import type { Anchor } from "./anchor";
@@ -554,9 +556,10 @@ const poolTitle = (head: PairHead): string => `${head.title} AMM pool`;
 /**
  * The pool card of the pair (spec 3.1 and 3.7): its reserves compact and oriented to the page, the spot price (the counter reserve over the base
  * reserve, fee-free, 8 significant digits, with the counter's code: "2.4393 USD"), the fee (the node's units of 1/100000 are thousandths of a percent)
- * and the link to the pool account. The pool must be the pair's: its amounts are matched to the page's assets, and a pool of another pair is a bug of
- * the caller's (`pairPage` makes it a failed card). The source is the line up to the ledger, which the page puts after it. The token is of the
- * figures and the link; the ledger, which changes every ledger, is not in it.
+ * and the link to the pool (`poolLink`, AMM spec 5.3): "Pool page →" to its page while `features.ammPages` is on, "Pool account →" to its account
+ * page while it is off. The pool must be the pair's: its amounts are matched to the page's assets, and a pool of another pair is a bug of the caller's
+ * (`pairPage` makes it a failed card). The source is the line up to the ledger, which the page puts after it. The token is of the figures and the
+ * link; the ledger, which changes every ledger, is not in it.
  */
 export function poolOf(
   info: AmmInfo,
@@ -564,6 +567,7 @@ export function poolOf(
   base: Asset,
   counter: Asset,
   head: PairHead,
+  features: Features,
 ): Extract<LivePairData["pool"], { state: "ok" }> {
   const sides = poolSides(info, base, counter);
   if (sides === null) throw new RangeError(`the pool ${info.account} does not hold ${head.title}`);
@@ -576,7 +580,7 @@ export function poolOf(
   const title = poolTitle(head);
   const reserves = `${summaryText(sides.base.value)} ${head.base} · ${summaryText(sides.counter.value)} ${head.counter}`;
   const fee = feePercent(info.trading_fee);
-  const link = { href: accountHref(net, info.account, {}), label: "Pool account →" };
+  const link = { href: poolLink(net, info.account, features), label: features.ammPages ? "Pool page →" : "Pool account →" };
   const source = `${POOL_SOURCE}${LEDGER_WORDS}`;
   return { state: "ok", title, source, ledger, reserves, price, fee, link, token: tokenOf({ title, reserves, price, fee, link }) };
 }
@@ -708,7 +712,7 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
     !network.hasAmm || input.pool === null || input.pool.state === "missing"
       ? { state: "missing" }
       : input.pool.state === "ok" && poolSides(input.pool.value, base, counter) !== null
-        ? poolOf(input.pool.value, network.id, base, counter, head)
+        ? poolOf(input.pool.value, network.id, base, counter, head, network.features)
         : { state: "failed", title: poolTitle(head), source: POOL_SOURCE };
   const poolAccount = input.pool?.state === "ok" && pool.state === "ok" ? input.pool.value.account : null;
   const traders: LivePairData["traders"] =

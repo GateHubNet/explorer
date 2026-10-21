@@ -501,11 +501,25 @@ describe("a Payment through an AMM pool", () => {
 
     expect(elementText(html, "sentence")).toContain("through the XRP/RLUSD AMM pool");
     const flow = /aria-label="Flow of funds"[\s\S]*?<\/section>/.exec(html)![0];
-    const labels = [...flow.matchAll(/class="flow__label">([^<]*)</g)].map((m) => m[1]);
+    // A label's text, a link in it or not (the pool's is one while AMM_PAGES is on).
+    const labels = [...flow.matchAll(/class="flow__label">([\s\S]*?)<\/span>/g)].map((m) => textOf(m[1]!));
     expect(labels).toEqual(["Sender", "XRP/RLUSD AMM pool", "Destination"]);
     expect(textOf(flow)).toContain("pays out 179.448166793 RLUSD");
     expect(hrefs(html)).toContain("/xrpl/account/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3");
     expect(text).toContain("AMM pool");
+  });
+
+  it("links the pool page from the sentence and from the flow's label while AMM_PAGES is on, and keeps the flow's account link", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${SWAP}`);
+    const pool = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+
+    const flow = /aria-label="Flow of funds"[\s\S]*?<\/section>/.exec(html)![0];
+    const label = anchors(flow).find((a) => a.text === "XRP/RLUSD AMM pool");
+    expect(label?.attrs).toContain(`href="/xrpl/amm/${pool}"`);
+    expect(hrefs(flow)).toContain(`/xrpl/account/${pool}`);
+    const sentence = anchors(html).find((a) => a.text === "XRP/RLUSD");
+    expect(sentence?.attrs).toContain(`href="/xrpl/amm/${pool}"`);
   });
 
   it("marks the pool's balance changes", async () => {

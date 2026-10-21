@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { Await, Link } from "react-router";
 
 import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
+import { ammPoolHref, poolLink } from "../../domain/amm-params";
 import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
 import type {
@@ -39,7 +40,9 @@ import { Tabs, type TabItem } from "../components/Tabs";
 import { TypeTag } from "../components/TypeTag";
 import { When } from "../components/WhenCell";
 import { ResultPill } from "../components/Pill";
+import type { Features } from "../features";
 import type { NetworkInfo } from "../networks";
+import { useFeatures } from "../use-network";
 import { useRetry } from "../use-retry";
 import { AnalyticsFilters } from "./AnalyticsFilters";
 import { NotFoundPage } from "./NotFoundPage";
@@ -178,9 +181,13 @@ function Flag({ children }: { children: ReactNode }) {
 function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
   const net = network.id;
   const { header, address } = data;
+  const features = useFeatures();
   const activation = header.status === "history" ? null : header.activation;
   const live = header.status === "history" ? null : header.live;
   const domain = live?.state === "ok" ? live.domain : null;
+  // A pool account's own page leads to its pool page while `AMM_PAGES` is on. The flag is the node's (`account_info`), so the line is there only when
+  // the node answered.
+  const isPool = live?.state === "ok" && live.flags.some((flag) => flag.id === "amm");
 
   return (
     <section className="card account-card" aria-label="Account">
@@ -196,6 +203,12 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
             </div>
           </div>
         </div>
+
+        {isPool && features.ammPages && (
+          <p className="account-id__meta account-id__pool">
+            This account is an AMM pool. <Link to={ammPoolHref(net, address)}>See the pool →</Link>
+          </p>
+        )}
 
         {header.status !== "history" && (
           <p className="account-id__meta">
@@ -307,7 +320,11 @@ function BalancePanel({ network, data }: { network: NetworkInfo; data: AccountPa
 // ---------------------------------------------------------------------------------------------------------------------------
 // The margin
 
-function TokenRow({ net, token }: { net: NetworkInfo["id"]; token: Token }) {
+/**
+ * A trust line of the Tokens card: its code, its issuer and its balance. An LP token's issuer is its AMM pool: "AMM pool r…", one link to the pool
+ * page while `AMM_PAGES` is on, and "AMM pool" before the pool's account link while it is off.
+ */
+function TokenRow({ net, token, features }: { net: NetworkInfo["id"]; token: Token; features: Features }) {
   const name = formatCurrency(token.currency);
   const badge = token.lp ? "LP" : name.slice(0, 3);
   return (
@@ -318,8 +335,16 @@ function TokenRow({ net, token }: { net: NetworkInfo["id"]; token: Token }) {
       <div className="token__name">
         <span title={name === token.currency ? undefined : token.currency}>{name}</span>
         <span className="token__issuer">
-          {token.lp ? "AMM pool " : ""}
-          <AccountLink net={net} address={token.issuer} />
+          {token.lp && features.ammPages ? (
+            <Link to={poolLink(net, token.issuer, features)} title={token.issuer}>
+              AMM pool <span className="mono">{shortAddress(token.issuer)}</span>
+            </Link>
+          ) : (
+            <>
+              {token.lp ? "AMM pool " : ""}
+              <AccountLink net={net} address={token.issuer} />
+            </>
+          )}
         </span>
       </div>
       <span className="amt num">{formatAmount(token.value)}</span>
@@ -330,6 +355,7 @@ function TokenRow({ net, token }: { net: NetworkInfo["id"]; token: Token }) {
 function TokensCard({ network, header }: { network: NetworkInfo; header: AccountHeader }) {
   const { tokens } = header;
   const { retry, retrying } = useRetry();
+  const features = useFeatures();
   if (tokens.state === "none") return null;
 
   if (tokens.state === "failed") {
@@ -354,13 +380,13 @@ function TokensCard({ network, header }: { network: NetworkInfo; header: Account
       ) : (
         <>
           {shown.map((token) => (
-            <TokenRow key={`${token.currency}:${token.issuer}`} net={network.id} token={token} />
+            <TokenRow key={`${token.currency}:${token.issuer}`} net={network.id} token={token} features={features} />
           ))}
           {rest.length > 0 && (
             <details className="more">
               <summary>{`Show ${count(rest.length)} more`}</summary>
               {rest.map((token) => (
-                <TokenRow key={`${token.currency}:${token.issuer}`} net={network.id} token={token} />
+                <TokenRow key={`${token.currency}:${token.issuer}`} net={network.id} token={token} features={features} />
               ))}
             </details>
           )}

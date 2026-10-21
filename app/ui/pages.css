@@ -443,6 +443,20 @@ a.example:hover {
   font-size: 12px;
 }
 
+/* While AMM_PAGES is on, a pool's label links its pool page (Flow.tsx, AMM spec 5.3): a second target in the box, above the account link. The label's
+   link is 24 px high (its 18 px line and the padding, taken back by the margin), and the account link's 44 px box starts where that one ends, the
+   padding under its text instead of round it: the two targets touch and never overlap (WCAG 2.2, 2.5.8), and nothing in the box moves. */
+.flow__label > a {
+  display: inline-block;
+  padding-block: 4px;
+  margin-block: -4px;
+}
+
+.flow__label:has(> a) + a {
+  padding-block: 0 24px;
+  margin-block: 0 -24px;
+}
+
 .flow__sub {
   color: var(--muted);
   font-size: 13px;

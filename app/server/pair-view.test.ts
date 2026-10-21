@@ -9,7 +9,7 @@ import { compactNumber, dropsToNative } from "../domain/format";
 import { candleWindow as marketParamsWindow, INTERVALS, type Interval, type PairParams } from "../domain/market-params";
 import type { Loaded } from "./account-view";
 import type { ActiveAccount, ActiveAccounts, Candle, Page, PairExchange, ReducedRow } from "./api-types";
-import { NO_FEATURES } from "../ui/features";
+import { NO_FEATURES, type Features } from "../ui/features";
 import { keepLoaded } from "../ui/live-page";
 import type { AmmInfo, Book, BookOffer, NodeAmount } from "./node-rpc";
 import {
@@ -1042,7 +1042,7 @@ describe("statsOf", () => {
 
 describe("poolOf", () => {
   it("writes the pool card of XRP / USD: reserves, the spot price, the fee and the link", () => {
-    expect(poolOf(poolInfo(), "xrpl", XRP_ASSET, USD_ASSET, HEAD)).toEqual({
+    expect(poolOf(poolInfo(), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES)).toEqual({
       state: "ok",
       title: "XRP/USD AMM pool",
       // The line up to the ledger, which the page puts after it as a figure that ticks.
@@ -1058,19 +1058,19 @@ describe("poolOf", () => {
 
   it("matches the pool's amounts to the page by asset: amount2 as the base is the same card", () => {
     const swapped = poolInfo({ amount: usd("4390740"), amount2: xrp("1800000") });
-    expect(poolOf(swapped, "xrpl", XRP_ASSET, USD_ASSET, HEAD)).toEqual(poolOf(poolInfo(), "xrpl", XRP_ASSET, USD_ASSET, HEAD));
+    expect(poolOf(swapped, "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES)).toEqual(poolOf(poolInfo(), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES));
   });
 
   it("orients the card to the inverted page: USD / XRP shows the USD reserve first and the price in XRP per USD", () => {
     const head = pairHead(XRPL, USD_ASSET, XRP_ASSET, DEFAULT_PARAMS);
     for (const info of [poolInfo(), poolInfo({ amount: usd("4390740"), amount2: xrp("1800000") })]) {
-      const card = poolOf(info, "xrpl", USD_ASSET, XRP_ASSET, head);
+      const card = poolOf(info, "xrpl", USD_ASSET, XRP_ASSET, head, FEATURES);
       expect(card).toMatchObject({ title: "USD/XRP AMM pool", reserves: "4.39M USD · 1.8M XRP", price: "0.40995368 XRP" });
     }
   });
 
   it("writes the fee as the node's units over 1000 with three decimals and a percent sign", () => {
-    const fee = (trading_fee: number) => poolOf(poolInfo({ trading_fee }), "xrpl", XRP_ASSET, USD_ASSET, HEAD).fee;
+    const fee = (trading_fee: number) => poolOf(poolInfo({ trading_fee }), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES).fee;
     expect(fee(300)).toBe("0.300%");
     expect(fee(0)).toBe("0.000%");
     expect(fee(1000)).toBe("1.000%");
@@ -1081,29 +1081,41 @@ describe("poolOf", () => {
   it("matches a pool of two issued currencies by currency and issuer", () => {
     const eur = { currency: "EUR", issuer: BS, value: "1000" };
     const head = pairHead(XRPL, EUR_ASSET, USD_ASSET, DEFAULT_PARAMS);
-    const card = poolOf(poolInfo({ amount: usd("1090"), amount2: eur }), "xrpl", EUR_ASSET, USD_ASSET, head);
+    const card = poolOf(poolInfo({ amount: usd("1090"), amount2: eur }), "xrpl", EUR_ASSET, USD_ASSET, head, FEATURES);
     expect(card).toMatchObject({ title: "EUR/USD AMM pool", reserves: "1,000 EUR · 1,090 USD", price: "1.09 USD" });
   });
 
   it("has no price for a pool whose base reserve is nothing", () => {
-    expect(poolOf(poolInfo({ amount: xrp("0") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD)).toMatchObject({ price: "—", reserves: "0 XRP · 4.39M USD" });
-    expect(poolOf(poolInfo({ amount2: usd("0") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD)).toMatchObject({ price: "—" });
+    expect(poolOf(poolInfo({ amount: xrp("0") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES)).toMatchObject({ price: "—", reserves: "0 XRP · 4.39M USD" });
+    expect(poolOf(poolInfo({ amount2: usd("0") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES)).toMatchObject({ price: "—" });
   });
 
   it("gets 8 digits right at any size: a price of 1e-30 and of 1e30 in plain digits", () => {
-    const tiny = poolOf(poolInfo({ amount: xrp("1000000000000000"), amount2: usd("0.000000000000000000000000000001") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD);
+    const tiny = poolOf(poolInfo({ amount: xrp("1000000000000000"), amount2: usd("0.000000000000000000000000000001") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES);
     expect(tiny.price).toBe(`0.${"0".repeat(44)}1 USD`);
     expect(tiny.price).not.toMatch(EXPONENT);
-    const huge = poolOf(poolInfo({ amount: xrp("0.000000000001"), amount2: usd("1000000000000000000") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD);
+    const huge = poolOf(poolInfo({ amount: xrp("0.000000000001"), amount2: usd("1000000000000000000") }), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES);
     expect(huge.price.replaceAll(",", "")).toBe(`1${"0".repeat(30)} USD`);
   });
 
   it("links the pool account on the network of the page", () => {
-    expect(poolOf(poolInfo(), "xahau", XRP_ASSET, USD_ASSET, HEAD).link.href).toBe(`/xahau/account/${POOL}`);
+    expect(poolOf(poolInfo(), "xahau", XRP_ASSET, USD_ASSET, HEAD, FEATURES).link.href).toBe(`/xahau/account/${POOL}`);
+  });
+
+  // AMM_PAGES (AMM spec 5.3): the card's link is `poolLink`'s, so it follows the switch with every other link to a pool.
+  it("links the pool page, 'Pool page →', while AMM_PAGES is on, and the pool account, 'Pool account →', while it is off", () => {
+    const card = (features: Features) => poolOf(poolInfo(), "xrpl", XRP_ASSET, USD_ASSET, HEAD, features);
+    expect(card({ ...FEATURES, ammPages: true }).link).toEqual({ href: `/xrpl/amm/${POOL}`, label: "Pool page →" });
+    expect(card({ ...NO_FEATURES, ammPages: true }).link).toEqual({ href: `/xrpl/amm/${POOL}`, label: "Pool page →" });
+    expect(card({ ...FEATURES, ammPages: false }).link).toEqual({ href: `/xrpl/account/${POOL}`, label: "Pool account →" });
+    expect(card(NO_FEATURES).link).toEqual({ href: `/xrpl/account/${POOL}`, label: "Pool account →" });
+    expect(poolOf(poolInfo(), "xahau", XRP_ASSET, USD_ASSET, HEAD, { ...FEATURES, ammPages: true }).link.href).toBe(`/xahau/amm/${POOL}`);
+    // The link is drawn, so the token changes with it.
+    expect(card({ ...FEATURES, ammPages: true }).token).not.toBe(card(FEATURES).token);
   });
 
   it("keeps the token of a pool whose figures have not changed when only the ledger has, and changes it with any figure", () => {
-    const token = (info: AmmInfo) => poolOf(info, "xrpl", XRP_ASSET, USD_ASSET, HEAD).token;
+    const token = (info: AmmInfo) => poolOf(info, "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES).token;
     const base = token(poolInfo());
     expect(token(poolInfo({ ledger_index: 107_780_246 }))).toBe(base);
     for (const info of [
@@ -1116,11 +1128,11 @@ describe("poolOf", () => {
     ]) {
       expect(token(info)).not.toBe(base);
     }
-    expect(poolOf(poolInfo({ ledger_index: 107_780_246 }), "xrpl", XRP_ASSET, USD_ASSET, HEAD).ledger).toBe("107,780,246");
+    expect(poolOf(poolInfo({ ledger_index: 107_780_246 }), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES).ledger).toBe("107,780,246");
   });
 
   it("does not write a pool of another pair: the amounts must be the page's assets", () => {
-    expect(() => poolOf(poolInfo({ amount2: { currency: "EUR", issuer: BS, value: "5" } }), "xrpl", XRP_ASSET, USD_ASSET, HEAD)).toThrow(/does not hold/);
+    expect(() => poolOf(poolInfo({ amount2: { currency: "EUR", issuer: BS, value: "5" } }), "xrpl", XRP_ASSET, USD_ASSET, HEAD, FEATURES)).toThrow(/does not hold/);
   });
 });
 
@@ -1311,6 +1323,16 @@ describe("pairPage", () => {
     // The route adds the anchor and the build.
     expect(built).not.toHaveProperty("anchor");
     expect(built).not.toHaveProperty("build");
+  });
+
+  it("links the pool card by the network's AMM_PAGES: the pool page while it is on, the pool account while it is off", () => {
+    const link = (network: PairInput["network"]) => {
+      const { page } = build({ network });
+      if (page.pool.state !== "ok") throw new Error("pool");
+      return page.pool.link;
+    };
+    expect(link({ ...XRPL, features: { ...FEATURES, ammPages: true } })).toEqual({ href: `/xrpl/amm/${POOL}`, label: "Pool page →" });
+    expect(link(XRPL)).toEqual({ href: `/xrpl/account/${POOL}`, label: "Pool account →" });
   });
 
   it("draws the candles in the 60-bucket window that ends with the bucket that holds the close time", () => {

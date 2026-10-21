@@ -65,6 +65,26 @@ function renderInRouter(ui: ReactElement, path = "/xrpl") {
   return render(<RouterProvider router={router} />);
 }
 
+/** `ui` under the `/:net` layout whose data holds `features`, as a page of the app has it: what `useFeatures()` reads. Wait for what it draws. */
+function renderUnderLayout(ui: ReactElement, features: Features, path = "/xrpl") {
+  const router = createMemoryRouter(
+    [
+      {
+        id: NETWORK_ROUTE_ID,
+        path: "/:net",
+        loader: () => ({ network: { ...XRPL, features } }),
+        element: <Outlet />,
+        children: [
+          { index: true, element: ui },
+          { path: "*", element: ui },
+        ],
+      },
+    ],
+    { initialEntries: [path] },
+  );
+  return render(<RouterProvider router={router} />);
+}
+
 describe("Pill", () => {
   it("shows an icon and the text, never the colour alone", () => {
     const { container } = render(<Pill tone="ok">Success</Pill>);
@@ -239,6 +259,32 @@ describe("Sentence", () => {
   it("without it, accounts and pools are chips", () => {
     const { container } = renderInRouter(<Sentence net="xrpl" segments={segments} />);
     expect(container.querySelectorAll(".ent")).toHaveLength(3);
+  });
+
+  describe("the pool's link follows AMM_PAGES (poolLink)", () => {
+    const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+    const pool: Segment[] = [{ t: "text", v: "Swapped through " }, { t: "pool", v: POOL, pair: "XRP/RLUSD" }];
+
+    it("leads to the pool page while it is on, chip or compact, on the network of the sentence", async () => {
+      const on = { ...NO_FEATURES, ammPages: true };
+      renderUnderLayout(<Sentence net="xrpl" segments={pool} />, on);
+      const link = await screen.findByRole("link", { name: "XRP/RLUSD" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/amm/${POOL}`);
+      expect(link.classList.contains("ent")).toBe(true);
+      cleanup();
+      renderUnderLayout(<Sentence net="xahau" segments={pool} compact />, on, "/xahau");
+      expect((await screen.findByRole("link", { name: "XRP/RLUSD" })).getAttribute("href")).toBe(`/xahau/amm/${POOL}`);
+    });
+
+    it("leads to the pool's account page while it is off, whatever the other switches are", async () => {
+      renderUnderLayout(<Sentence net="xrpl" segments={pool} />, { ...featuresOf(allSwitches("on")), ammPages: false });
+      expect((await screen.findByRole("link", { name: "XRP/RLUSD" })).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
+    });
+
+    it("leads to the account page without the layout's data (NO_FEATURES), and outside a data router's layout", () => {
+      renderInRouter(<Sentence net="xrpl" segments={pool} />);
+      expect(screen.getByRole("link", { name: "XRP/RLUSD" }).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
+    });
   });
 });
 
@@ -1146,7 +1192,7 @@ describe("Header and Shell", () => {
       }
     });
 
-    // Markets (E3) leads to the markets page while MARKETS is on; AMM is still a later sub-project's label.
+    // Markets (E3) leads to the markets page while MARKETS is on, AMM (E5) to the AMM pools while AMM_PAGES is on.
     it("shows Markets and AMM as labels with a soon tag, not as links, without the layout's data (every switch off)", () => {
       const nav = renderHeaderAt("/xrpl");
       expectSoon(nav, "Markets");
@@ -1159,14 +1205,18 @@ describe("Header and Shell", () => {
       expectSoon(nav, "AMM");
     });
 
-    it("links Markets to the markets page of the network, with every switch on, while AMM is still a label with a soon tag", async () => {
+    it("links Markets to the markets page of the network, and AMM to its AMM pools, with every switch on", async () => {
       const nav = await renderHeaderWithLayout(true);
-      const link = nav.getByRole("link", { name: "Markets" });
-      expect(link.getAttribute("href")).toBe("/xrpl/markets");
-      expect(link.classList.contains("is-soon")).toBe(false);
-      expect(link.hasAttribute("aria-disabled")).toBe(false);
-      expect(link.textContent).not.toContain("soon");
-      expectSoon(nav, "AMM");
+      for (const [label, href] of [
+        ["Markets", "/xrpl/markets"],
+        ["AMM", "/xrpl/amm"],
+      ] as const) {
+        const link = nav.getByRole("link", { name: label });
+        expect(link.getAttribute("href")).toBe(href);
+        expect(link.classList.contains("is-soon")).toBe(false);
+        expect(link.hasAttribute("aria-disabled")).toBe(false);
+        expect(link.textContent).not.toContain("soon");
+      }
     });
 
     it("shows Markets as a label with a soon tag while MARKETS is off, whatever the other switches are", async () => {
@@ -1239,10 +1289,74 @@ describe("Header and Shell", () => {
       expect(nav.getByRole("link", { name: "Markets" }).getAttribute("href")).toBe("/xahau/markets");
     });
 
-    it("shows AMM as a label with a soon tag, not as a link, without the layout's data and with every switch on", async () => {
-      expectSoon(renderHeaderAt("/xrpl"), "AMM");
-      cleanup();
-      expectSoon(await renderHeaderWithLayout(true), "AMM");
+    describe("AMM, while AMM_PAGES is off and on", () => {
+      const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+      const AMM_ON = { ...NO_FEATURES, ammPages: true };
+
+      it("is a label with a soon tag, not a link, without the layout's data (NO_FEATURES), even on an AMM page", () => {
+        const nav = renderHeaderAt("/xrpl/amm", { navSection: "amm" });
+        expectSoon(nav, "AMM");
+        expect(nav.getByText("AMM").closest(".nav-item.is-soon")).not.toBeNull();
+      });
+
+      it("is a label with a soon tag while AMM_PAGES is off, whatever the other switches are", async () => {
+        expectSoon(await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), ammPages: false }), "AMM");
+        cleanup();
+        // An AMM page names its section, but the item it would mark is a label: nothing is current.
+        const nav = await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), ammPages: false }, "/xrpl/amm", { navSection: "amm" });
+        expectSoon(nav, "AMM");
+        expect(nav.queryAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toEqual([]);
+      });
+
+      it("links the AMM pools of the network while only AMM_PAGES is on", async () => {
+        const nav = await renderHeaderWithFeatures(AMM_ON);
+        const link = nav.getByRole("link", { name: "AMM" });
+        expect(link.getAttribute("href")).toBe("/xrpl/amm");
+        expect(link.classList.contains("nav-item")).toBe(true);
+        expect(link.classList.contains("is-soon")).toBe(false);
+        expect(link.hasAttribute("aria-current")).toBe(false);
+        expect(link.classList.contains("is-current")).toBe(false);
+      });
+
+      it("links the AMM pools of Xahau on Xahau (its page explains that it has none)", async () => {
+        const router = createMemoryRouter(
+          [{ id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network: { ...XAHAU, features: AMM_ON } }), element: <Header net={XAHAU} /> }],
+          { initialEntries: ["/xahau"] },
+        );
+        render(<RouterProvider router={router} />);
+        const nav = within(await screen.findByRole("navigation", { name: "Main" }));
+        expect(nav.getByRole("link", { name: "AMM" }).getAttribute("href")).toBe("/xahau/amm");
+      });
+
+      it('is the current page on the list, under any query: .is-current and aria-current="page"', async () => {
+        for (const path of ["/xrpl/amm", "/xrpl/amm?asset=XRP", "/xrpl/amm?deleted=1"]) {
+          const nav = await renderHeaderWithFeatures(AMM_ON, path, { navSection: "amm" });
+          const link = nav.getByRole("link", { name: "AMM" });
+          expect(link.getAttribute("aria-current"), path).toBe("page");
+          expect(link.classList.contains("is-current"), path).toBe(true);
+          // The section is AMM alone.
+          expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+          cleanup();
+        }
+      });
+
+      it('names the section on a pool page with aria-current="true"', async () => {
+        const nav = await renderHeaderWithFeatures(AMM_ON, `/xrpl/amm/${POOL}`, { navSection: "amm" });
+        const link = nav.getByRole("link", { name: "AMM" });
+        expect(link.getAttribute("href")).toBe("/xrpl/amm");
+        expect(link.getAttribute("aria-current")).toBe("true");
+        expect(link.classList.contains("is-current")).toBe(true);
+      });
+
+      it("is a plain link on a page that names no section, and on the markets page", async () => {
+        const elsewhere = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/amm");
+        expect(elsewhere.getByRole("link", { name: "AMM" }).hasAttribute("aria-current")).toBe(false);
+        cleanup();
+        const markets = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/markets", { navSection: "markets" });
+        const amm = markets.getByRole("link", { name: "AMM" });
+        expect(amm.hasAttribute("aria-current")).toBe(false);
+        expect(amm.classList.contains("is-current")).toBe(false);
+      });
     });
 
     it("links Network with every switch off, since it has none", async () => {

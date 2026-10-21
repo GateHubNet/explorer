@@ -163,6 +163,25 @@ describe("the account link in a box of the flow", () => {
     expect(20 + 2 * padding).toBeGreaterThanOrEqual(44);
     expect(Number.parseFloat(link["margin-block"]!)).toBe(-padding);
   });
+
+  // While AMM_PAGES is on, a pool's label is a link to its pool page (Flow.tsx): a second target in the box, right above the account link.
+  it("is at least 24 px under a pool's label that is a link, which is a 24 px target of its own, and the two boxes never overlap", () => {
+    const label = rule(pagesCss, ".flow__label > a");
+    expect(label.display).toBe("inline-block");
+    const around = Number.parseFloat(label["padding-block"]!);
+    // The label's 18 px line (12 px type), and the padding the margin takes back.
+    expect(18 + 2 * around).toBeGreaterThanOrEqual(24);
+    expect(Number.parseFloat(label["margin-block"]!)).toBe(-around);
+
+    // Under such a label the account link's box starts at its text: its padding is all below, taken back by the margin below.
+    const account = rule(pagesCss, ".flow__label:has(> a) + a");
+    const [top, below] = account["padding-block"]!.split(/\s+/).map(Number.parseFloat) as [number, number];
+    expect(top).toBe(0);
+    expect(20 + below).toBeGreaterThanOrEqual(44);
+    expect(account["margin-block"]!.split(/\s+/).map(Number.parseFloat)).toEqual([0, -below]);
+    // So the label's box, which reaches `around` below its line, ends where the gap of the box does: before the account link's.
+    expect(Number.parseFloat(rule(pagesCss, ".flow__node").gap!)).toBeGreaterThanOrEqual(around);
+  });
 });
 
 describe("the margin's controls", () => {

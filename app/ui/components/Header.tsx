@@ -20,14 +20,15 @@ import { ThemeToggle } from "./ThemeToggle";
  */
 type NavItem = { label: string; to?: (net: NetworkBrief) => string; section?: NavSection; feature?: Feature };
 
-// Ledgers and Transactions lead to the home page's two lists, Network to the network page, Markets to the markets page while `MARKETS` is on (a label with
-// a "soon" tag while it is off). AMM is a later sub-project's: a label with a "soon" tag.
+// Ledgers and Transactions lead to the home page's two lists, Network to the network page, Markets to the markets page while `MARKETS` is on, and AMM to
+// the AMM pools while `AMM_PAGES` is on (on both networks: Xahau's page says it has none). Markets and AMM are a label with a "soon" tag while their
+// switch is off.
 const NAV: readonly NavItem[] = [
   { label: "Ledgers", to: (net) => `/${net.id}#${LATEST_LEDGERS_ID}` },
   { label: "Transactions", to: (net) => `/${net.id}#${LATEST_TRANSACTIONS_ID}` },
   { label: "Network", to: (net) => `/${net.id}/network`, section: "network" },
   { label: "Markets", to: (net) => `/${net.id}/markets`, section: "markets", feature: "markets" },
-  { label: "AMM" },
+  { label: "AMM", to: (net) => `/${net.id}/amm`, section: "amm", feature: "ammPages" },
 ];
 
 /** An href without its query and its fragment. */

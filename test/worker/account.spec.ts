@@ -753,7 +753,20 @@ describe("what the recordings do not hold", () => {
     expect(text).toContain(`LP token AMM pool ${shortAddress(pool)} 1,042.77`);
     expect(text).toContain(`USD ${shortAddress(account(97))} 3,120.50`);
     expect(text).toContain("Tokens 2 trust lines");
-    expect(hrefs(html)).toContain(`/xrpl/account/${pool}`);
+    // AMM_PAGES is on (the top level): "AMM pool r…" is one link, to the pool page. worker-off's amm-off.spec.ts has the account page's link.
+    const poolLink = anchors(html).find((a) => a.text === `AMM pool ${shortAddress(pool)}`);
+    expect(poolLink?.attrs).toContain(`href="/xrpl/amm/${pool}"`);
+    expect(hrefs(html)).not.toContain(`/xrpl/account/${pool}`);
+  });
+
+  it("says on a pool account's page that it is one, with a link to the pool page, while AMM_PAGES is on", async () => {
+    const a = account(70);
+    mock = mockUpstream("xrpl", { ...(await withHistory(a, { info: { Flags: 0x02000000 } })) });
+    const { html } = await page(`/xrpl/account/${a}`);
+    const text = textOf(html);
+    expect(text).toContain("AMM pool account");
+    expect(elementText(html, "account-id__pool")).toBe("This account is an AMM pool. See the pool →");
+    expect(anchors(html).find((a) => a.text === "See the pool →")?.attrs).toContain(`href="/xrpl/amm/${a}"`);
   });
 
   it("shows more than ten tokens with the rest under 'Show N more'", async () => {
