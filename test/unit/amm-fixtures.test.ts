@@ -4,12 +4,12 @@ import { isValidClassicAddress } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
 // http-fixtures.ts first: the generators it joins (amm-fixtures.ts among them) and derived-trades.ts import it in turn.
-import { fixtureText, generate, HTTP, isAmmGenerated, LEDGERS, readLedgers, txMarker, type RawLedger } from "../../scripts/http-fixtures";
+import { fixtureText, generate, HTTP, isAmmGenerated, isMarketGenerated, isSynthetic, LEDGERS, readLedgers, txMarker, type RawLedger } from "../../scripts/http-fixtures";
 import { derivedExchanges } from "../../scripts/derived-trades";
 import { AMM_INFO_POOLS, ammInfoResult } from "../../scripts/amm-info-fixtures";
-import { deriveAmm } from "../../scripts/amm-derive";
+import { deriveAmm, type AmmState } from "../../scripts/amm-derive";
 import { ammFixtures, FEATURED_POOLS } from "../../scripts/amm-fixtures";
-import { apiAssetText, canonicalPair, sameAsset, type Asset } from "../../app/domain/asset";
+import { apiAssetText, sameAsset, type Asset } from "../../app/domain/asset";
 import { formatCurrency } from "../../app/domain/format";
 import { naturalOrientation } from "../../app/domain/market-pair";
 import { nodesOf } from "../../app/domain/parse/objects";
@@ -36,6 +36,8 @@ const POOL_KEYS = [
   "trading_fee", "auction_slot", "value_native", "created_ledger", "created_by", "last_ledger", "deleted",
 ];
 const SLOT_KEYS = ["holder", "price", "discounted_fee", "expiration"];
+/** The values a state carries forward (`POOL_FIELDS`), the slot's by its four keys. */
+const VALUE_KEYS = ["reserve_base", "reserve_counter", "lp_supply", "lp_currency", "trading_fee", "holder", "price", "discounted_fee", "expiration"] as const;
 const STATE_KEYS = [
   "amm_account", "ledger_index", "tx_index", "tx_hash", "tx_type", "executed_time", "base_currency", "base_issuer", "counter_currency", "counter_issuer",
   "reserve_base", "reserve_counter", "lp_supply", "lp_currency", "trading_fee", "auction_slot", "deleted",
@@ -68,6 +70,15 @@ function ammSet(all: readonly RawLedger[]): RawLedger[] {
 
 const xrpl = readLedgers("xrpl");
 const derived = deriveAmm(xrpl);
+/** The recorded transactions by hash, and their nodes (E3's `nodesOf`): what the tests read the recordings with, apart from the generator's walk. */
+const recordedTxs = new Map(xrpl.flatMap((raw) => raw.ledger.transactions.map((tx) => [tx.hash, tx] as const)));
+const nodesOfTx = (hash: string) => nodesOf(recordedTxs.get(hash)!.metaData as unknown as TxMeta);
+const ammNodeOf = (hash: string, pool: string) => nodesOfTx(hash).find((node) => node.type === "AMM" && node.fields.Account === pool);
+/** Seconds from the unix epoch to the Ripple epoch, and a Ripple-epoch time as the API writes it (`YYYY-MM-DDTHH:mm:ssZ`), written out here. */
+const RIPPLE_EPOCH = 946_684_800;
+const rippleIso = (seconds: number): string => new Date((seconds + RIPPLE_EPOCH) * 1000).toISOString().replace(/\.000Z$/, "Z");
+type NodeSlot = { Account?: string; Price?: { value: string }; DiscountedFee?: number; Expiration?: number; AuthAccounts?: Array<{ AuthAccount: { Account: string } }> };
+type LpBalance = { currency: string; value: string } | undefined;
 const swaps = derivedExchanges(xrpl).filter((row): row is AmmSwap => row.amm_account !== undefined);
 const poolOf = (account: string): AmmPool => {
   const pool = derived.pools.find((p) => p.amm_account === account);
@@ -114,8 +125,9 @@ function chain<K extends string, T>(first: string, next: (marker: string) => str
 }
 const newestFirst = (a: { ledger_index: number; tx_index: number; node_index?: number }, b: { ledger_index: number; tx_index: number; node_index?: number }): number =>
   b.ledger_index - a.ledger_index || b.tx_index - a.tx_index || (b.node_index ?? 0) - (a.node_index ?? 0);
-/** A plain decimal, signed or not, never the exponent form. */
-const PLAIN = /^-?\d+(\.\d+)?$/;
+/** A plain decimal, never the exponent form: unsigned for a holding, a supply, a price, a bid and what it paid; signed only for a liquidity event's amounts. */
+const UNSIGNED = /^\d+(\.\d+)?$/;
+const SIGNED = /^-?\d+(\.\d+)?$/;
 const isWhole = (value: unknown): boolean => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 /** A value with its objects' keys sorted, as `fixtureText` writes them. */
 const sortedKeys = (value: unknown): unknown =>
@@ -210,6 +222,43 @@ describe("the featured pools", () => {
     expect(derived.governance.filter((row) => row.amm_account === pool).map((row) => [row.type, row.ledger_index])).toEqual([["bid", 106084525]]);
   });
 
+  it("serve each vote and bid as its transaction and the pool's AMM node say: the fee voted and the fee after, the LP tokens burned, the slot won", () => {
+    for (const row of derived.governance) {
+      const tx = recordedTxs.get(row.tx_hash)!;
+      const amm = ammNodeOf(row.tx_hash, row.amm_account)!;
+      expect(amm, row.tx_hash).toBeDefined();
+      expect(row.account).toBe(tx.Account);
+      if (row.type === "vote") {
+        expect(tx.TransactionType).toBe("AMMVote");
+        // The fee the voter asked for is the AMMVote's `TradingFee`; the fee after it the AMM node's final one.
+        expect(row.fee_voted).toBe(tx.TradingFee);
+        expect(row.trading_fee_after).toBe((amm.fields.TradingFee as number | undefined) ?? 0);
+        continue;
+      }
+      expect(tx.TransactionType).toBe("AMMBid");
+      // The price paid is the LP tokens the bid burned: the AMM node's LPTokenBalance before less after, positive.
+      const burned = new BigNumber((amm.previous.LPTokenBalance as LpBalance)!.value).minus((amm.fields.LPTokenBalance as LpBalance)!.value);
+      expect(burned.gt(0), row.tx_hash).toBe(true);
+      expect(row.price_paid).toBe(burned.toFixed());
+      for (const [key, field] of [["bid_min", "BidMin"], ["bid_max", "BidMax"]] as const) {
+        const asked = tx[field] as { value: string } | undefined;
+        expect(row[key], key).toBe(asked === undefined ? undefined : new BigNumber(asked.value).toFixed());
+      }
+      // The slot after the bid: the AMM node's AuctionSlot, its expiration a Ripple-epoch time.
+      const slot = amm.fields.AuctionSlot as NodeSlot;
+      expect(row.auction_slot).toEqual({
+        ...(slot.Account !== undefined && { holder: slot.Account }),
+        discounted_fee: slot.DiscountedFee ?? 0,
+        ...(slot.Expiration !== undefined && { expiration: rippleIso(slot.Expiration) }),
+        auth_accounts: (slot.AuthAccounts ?? []).map((entry) => entry.AuthAccount.Account),
+      });
+    }
+    const vote = derived.governance.find((row) => row.amm_account === FEATURED_POOLS["VOX/XRP"])!;
+    const bid = derived.governance.find((row) => row.amm_account === FEATURED_POOLS["XRP/USD"])!;
+    expect([vote.type, bid.type]).toEqual(["vote", "bid"]);
+    expect(bid.type === "bid" && bid.auction_slot?.holder).toBe(bid.account);
+  });
+
   it("DVR/XRP was created in ledger 107612573, by the sender of its AMMCreate", () => {
     const pool = poolOf(FEATURED_POOLS["DVR/XRP"]);
     expect(pool.created_ledger).toBe(107612573);
@@ -258,10 +307,10 @@ describe("the reference's rules, on the objects before serialization", () => {
   });
 
   it("writes amounts as plain decimal strings, and fees, counts and ledgers as whole numbers, deleted a boolean, no key undefined", () => {
-    const amounts = (o: object, keys: string[]) => {
+    const amounts = (o: object, keys: string[], pattern = UNSIGNED) => {
       for (const key of keys) {
         const value = (o as Record<string, unknown>)[key];
-        if (value !== undefined) expect(value, key).toMatch(PLAIN);
+        if (value !== undefined) expect(value, key).toMatch(pattern);
       }
     };
     const wholes = (o: object, keys: string[]) => {
@@ -272,14 +321,14 @@ describe("the reference's rules, on the objects before serialization", () => {
     };
     for (const o of [...derived.pools, ...derived.states]) {
       amounts(o, ["reserve_base", "reserve_counter", "lp_supply"]);
-      if (o.auction_slot?.price !== undefined) expect(o.auction_slot.price).toMatch(PLAIN);
+      if (o.auction_slot?.price !== undefined) expect(o.auction_slot.price).toMatch(UNSIGNED);
       wholes(o, ["trading_fee", "ledger_index", "tx_index", "created_ledger", "last_ledger"]);
       if (o.auction_slot?.discounted_fee !== undefined) expect(isWhole(o.auction_slot.discounted_fee)).toBe(true);
       expect(typeof o.deleted).toBe("boolean");
       expect(Object.values(o).every((value) => value !== undefined && value !== null)).toBe(true);
     }
     for (const event of derived.liquidity) {
-      amounts(event, ["base_amount", "counter_amount", "lp_tokens"]);
+      amounts(event, ["base_amount", "counter_amount", "lp_tokens"], SIGNED);
       wholes(event, ["ledger_index", "tx_index"]);
     }
     for (const row of derived.governance) {
@@ -307,14 +356,46 @@ describe("the reference's rules, on the objects before serialization", () => {
     expect(valued).toBeGreaterThanOrEqual(20);
   });
 
-  it("stores every pair in the API's order (canonicalPair), the same in a pool and all its states and events", () => {
+  it("stores every pair in the API's order, of the two assets the recordings show the pool holds, the same in all its states and swaps", () => {
+    // The order key of the Ripple Data API, written out here: the lower-cased currency and issuer, the native currency's issuer the text `undefined`.
+    const orderKey = (asset: Asset): string => `${asset.currency}${asset.issuer ?? "undefined"}`.toLowerCase();
+    const key = (asset: Asset): string => `${asset.currency}+${asset.issuer ?? ""}`;
+    // A pool's assets, from the recordings: the two its AMM node names; for a pool no recorded AMM node names, those of its reserve lines (`lsfAMMNode`, the
+    // pool on one side) and the native currency when its account holds a balance.
+    const named = new Map<string, Set<string>>();
+    const held = new Map<string, Set<string>>();
+    const add = (map: Map<string, Set<string>>, pool: string, asset: Asset) => map.set(pool, (map.get(pool) ?? new Set()).add(key(asset)));
+    for (const raw of xrpl) {
+      for (const tx of raw.ledger.transactions) {
+        if (tx.metaData.TransactionResult !== "tesSUCCESS") continue;
+        for (const node of nodesOfTx(tx.hash)) {
+          if (node.type === "AMM") {
+            for (const field of [node.fields.Asset, node.fields.Asset2]) {
+              const { currency, issuer } = (field ?? { currency: NATIVE }) as { currency: string; issuer?: string };
+              add(named, node.fields.Account as string, issuer === undefined ? { currency } : { currency, issuer });
+            }
+          } else if (node.type === "AccountRoot" && "AMMID" in node.fields && !new BigNumber((node.fields.Balance as string | undefined) ?? 0).isZero()) {
+            add(held, node.fields.Account as string, { currency: NATIVE });
+          } else if (node.type === "RippleState" && (Number(node.fields.Flags ?? 0) & 0x01000000) !== 0) {
+            const [low, high] = [node.fields.LowLimit, node.fields.HighLimit] as Array<{ issuer: string; currency: string }>;
+            add(held, low!.issuer, { currency: low!.currency, issuer: high!.issuer });
+            add(held, high!.issuer, { currency: low!.currency, issuer: low!.issuer });
+          }
+        }
+      }
+    }
+    for (const account of Object.values(FEATURED_POOLS)) expect(named.has(account), account).toBe(true);
+    let byNode = 0;
     for (const pool of derived.pools) {
-      const [first, second] = canonicalPair(baseOf(pool), counterOf(pool));
-      expect(sameAsset(first, baseOf(pool)) && sameAsset(second, counterOf(pool)), pool.amm_account).toBe(true);
+      expect(orderKey(baseOf(pool)) < orderKey(counterOf(pool)), pool.amm_account).toBe(true);
+      const pair = new Set([key(baseOf(pool)), key(counterOf(pool))]);
+      if (named.has(pool.amm_account)) byNode++;
+      expect(pair, pool.amm_account).toEqual(named.get(pool.amm_account) ?? held.get(pool.amm_account));
       for (const state of derived.states.filter((s) => s.amm_account === pool.amm_account)) {
         expect([baseOf(state), counterOf(state)]).toEqual([baseOf(pool), counterOf(pool)]);
       }
     }
+    expect(byNode).toBeGreaterThanOrEqual(6);
     for (const row of swaps) {
       const pool = poolOf(row.amm_account);
       expect([baseOf(row), counterOf(row)], row.tx_hash).toEqual([baseOf(pool), counterOf(pool)]);
@@ -322,7 +403,6 @@ describe("the reference's rules, on the objects before serialization", () => {
   });
 
   it("signs a liquidity event from the pool's side: a deposit's amounts in, a withdrawal's out, LP tokens minted positive, as its own nodes moved", () => {
-    const recorded = new Map(xrpl.flatMap((raw) => raw.ledger.transactions.map((tx) => [tx.hash, tx] as const)));
     for (const event of derived.liquidity) {
       const [base, counter, lp] = [event.base_amount, event.counter_amount, event.lp_tokens].map((value) => new BigNumber(value));
       if (event.event === "create" || event.event === "deposit") {
@@ -335,7 +415,7 @@ describe("the reference's rules, on the objects before serialization", () => {
       // The pool's holding of each side after the transaction less the one before it, read from the transaction's own nodes (E3's `nodesOf`, not the
       // generator's walk), is the event's amount: + into the pool.
       const pool = poolOf(event.amm_account);
-      const nodes = nodesOf(recorded.get(event.tx_hash)!.metaData as unknown as TxMeta);
+      const nodes = nodesOfTx(event.tx_hash);
       const moved = (asset: Asset): BigNumber => {
         if (asset.issuer === undefined) {
           const root = nodes.find((node) => node.type === "AccountRoot" && node.fields.Account === pool.amm_account);
@@ -370,14 +450,78 @@ describe("the reference's rules, on the objects before serialization", () => {
     }
   });
 
-  it("carries every value of a state forward from the newest earlier state that had one, and folds the last into the pool", () => {
+  it("takes each value of a state from its own transaction's nodes, else from the newest earlier state, and folds the last state into the pool", () => {
+    type Values = Partial<Record<(typeof VALUE_KEYS)[number], string | number>>;
+    /** What one transaction's nodes say of the pool, read here apart from the generator: its holdings, LP supply and currency, fee and slot. */
+    const valuesOf = (hash: string, pool: AmmPool): Values => {
+      const nodes = nodesOfTx(hash);
+      const values: Values = {};
+      const holding = (asset: Asset): string | undefined => {
+        if (asset.issuer === undefined) {
+          const root = nodes.find((node) => node.type === "AccountRoot" && node.fields.Account === pool.amm_account);
+          return root === undefined ? undefined : new BigNumber((root.fields.Balance as string | undefined) ?? 0).shiftedBy(-6).toFixed();
+        }
+        const line = nodes.find((node) => {
+          if (node.type !== "RippleState") return false;
+          const [low, high] = [node.fields.LowLimit, node.fields.HighLimit] as Array<{ issuer: string; currency: string }>;
+          return low!.currency === asset.currency && [low!.issuer, high!.issuer].sort().join() === [pool.amm_account, asset.issuer].sort().join();
+        });
+        if (line === undefined) return undefined;
+        const sign = (line.fields.LowLimit as { issuer: string }).issuer === pool.amm_account ? 1 : -1;
+        return new BigNumber((line.fields.Balance as { value: string } | undefined)?.value ?? 0).times(sign).toFixed();
+      };
+      const [base, counter] = [holding(baseOf(pool)), holding(counterOf(pool))];
+      if (base !== undefined) values.reserve_base = base;
+      if (counter !== undefined) values.reserve_counter = counter;
+      const amm = nodes.find((node) => node.type === "AMM" && node.fields.Account === pool.amm_account);
+      if (amm !== undefined) {
+        const lp = amm.fields.LPTokenBalance as LpBalance;
+        if (amm.change === "deleted") values.lp_supply = "0";
+        else if (lp !== undefined) values.lp_supply = new BigNumber(lp.value).toFixed();
+        if (lp !== undefined) values.lp_currency = lp.currency;
+        values.trading_fee = (amm.fields.TradingFee as number | undefined) ?? 0;
+        const slot = amm.fields.AuctionSlot as NodeSlot | undefined;
+        if (slot !== undefined) {
+          if (slot.Account !== undefined) values.holder = slot.Account;
+          if (slot.Price !== undefined) values.price = new BigNumber(slot.Price.value).toFixed();
+          values.discounted_fee = slot.DiscountedFee ?? 0;
+          if (slot.Expiration !== undefined) values.expiration = rippleIso(slot.Expiration);
+        }
+      }
+      return values;
+    };
+    const served = (state: AmmState): Values => ({
+      reserve_base: state.reserve_base,
+      reserve_counter: state.reserve_counter,
+      lp_supply: state.lp_supply,
+      lp_currency: state.lp_currency,
+      trading_fee: state.trading_fee,
+      holder: state.auction_slot?.holder,
+      price: state.auction_slot?.price,
+      discounted_fee: state.auction_slot?.discounted_fee,
+      expiration: state.auction_slot?.expiration,
+    });
+    let fromOwn = 0;
+    let carried = 0;
     for (const pool of derived.pools) {
       const own = derived.states.filter((s) => s.amm_account === pool.amm_account);
       expect(own.map((s) => [s.ledger_index, s.tx_index])).toEqual([...own].sort((a, b) => a.ledger_index - b.ledger_index || a.tx_index - b.tx_index).map((s) => [s.ledger_index, s.tx_index]));
-      for (let at = 1; at < own.length; at++) {
-        for (const key of ["reserve_base", "reserve_counter", "lp_supply", "lp_currency", "trading_fee"] as const) {
-          if (own[at - 1]![key] !== undefined) expect(own[at]![key], `${pool.amm_account} ${key}`).toBeDefined();
+      let before: Values = {};
+      for (const state of own) {
+        const now = served(state);
+        const read = valuesOf(state.tx_hash, pool);
+        for (const key of VALUE_KEYS) {
+          const where = `${pool.amm_account} ${state.tx_hash} ${key}`;
+          if (read[key] !== undefined) {
+            fromOwn++;
+            expect(now[key], where).toBe(read[key]);
+          } else {
+            // Not in the transaction's nodes: the newest earlier state's value, or none before the first state that had one.
+            if (before[key] !== undefined) carried++;
+            expect(now[key], where).toBe(before[key]);
+          }
         }
+        before = now;
       }
       const last = own.at(-1)!;
       const { amm_account, base_currency, base_issuer, counter_currency, counter_issuer, reserve_base, reserve_counter, lp_supply, lp_currency, trading_fee, auction_slot, deleted } = last;
@@ -385,6 +529,9 @@ describe("the reference's rules, on the objects before serialization", () => {
       expect(pool).toMatchObject(JSON.parse(JSON.stringify(folded)));
       expect(pool.last_ledger).toBe(last.ledger_index);
     }
+    // Both branches are exercised: values a transaction's nodes carry, and values carried from an earlier state.
+    expect(fromOwn).toBeGreaterThan(100);
+    expect(carried).toBeGreaterThan(5);
   });
 });
 
@@ -400,6 +547,30 @@ describe("the files", () => {
       .filter(isAmmGenerated);
     expect(onDisk.sort()).toEqual([...files.keys()].sort());
     for (const [path, text] of files) expect(read(path), path).toBe(text);
+  });
+
+  it("isAmmGenerated is true of the AMM pages' candles and live volume (Task 5), and of none of E3's candles or E2's volumes", () => {
+    const pair = "524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De/XRP";
+    const ours = [
+      `xrpl/data-api/exchanges/${pair}@amm=only&end=2026-10-17&interval=1day&limit=400&start=2026-09-18.json`,
+      `xrpl/data-api/exchanges/${pair}@amm=only&end=2026-10-17&interval=1day&limit=400&start=2026-07-20.json`,
+      `xrpl/data-api/exchanges/${pair}@amm=only&end=2026-10-17&interval=7day&limit=400&start=2025-10-20.json`,
+      "xrpl/data-api/network/amm_volume@live=day.json",
+      "xrpl/data-api/amm/pools@limit=20.json",
+    ];
+    for (const path of ours) {
+      expect(isAmmGenerated(path), path).toBe(true);
+      expect([isSynthetic(path), isMarketGenerated(path)], path).toEqual([false, false]);
+    }
+    // E3's `amm=only` files of the pair page (no `end`) and E2's 30-day `amm_volume` files stay theirs: the real names the generator writes.
+    const generated = [...generate().keys()];
+    const theirs = generated.filter((path) => /\/exchanges\/.*@amm=only&/.test(path));
+    expect(theirs).toContain(`xrpl/data-api/exchanges/XRP/524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De@amm=only&interval=1day&limit=61&start=2026-08-19T00:00:00Z.json`);
+    for (const path of theirs) expect([isAmmGenerated(path), isMarketGenerated(path)], path).toEqual([false, true]);
+    const volumes = generated.filter((path) => path.startsWith("xrpl/data-api/network/amm_volume@"));
+    expect(volumes).toContain("xrpl/data-api/network/amm_volume@end=2026-10-17&interval=day&limit=1000&start=2026-09-18.json");
+    expect(volumes).toHaveLength(8);
+    for (const path of volumes) expect([isAmmGenerated(path), isSynthetic(path)], path).toEqual([false, true]);
   });
 
   it("hold a pool file for every derived pool, `{ result, pool }`, that the client's check takes", () => {
@@ -552,10 +723,18 @@ describe("the featured pools' amm_info (AMM_INFO_POOLS)", () => {
     expect(generate().has(`xrpl/node/amm_info/${FEATURED_POOLS["VOX/XRP"]}.json`)).toBe(false);
   });
 
-  it("hold the same reserves, LP supply and fee as the derived pool: two derivations of the same nodes agree", () => {
+  it("hold the same reserves, LP supply, fee and auction slot as the derived pool: two derivations of the same nodes agree", () => {
     for (const entry of AMM_INFO_POOLS) {
       const pool = poolOf(entry.pool);
-      const { amm } = ammInfoResult(xrpl, entry) as { amm: { amount: unknown; amount2: unknown; lp_token: { value: string; currency: string }; trading_fee: number } };
+      const { amm } = ammInfoResult(xrpl, entry) as {
+        amm: {
+          amount: unknown;
+          amount2: unknown;
+          lp_token: { value: string; currency: string };
+          trading_fee: number;
+          auction_slot?: { account?: string; discounted_fee: number; expiration: string; price: { value: string } };
+        };
+      };
       const holding = (asset: Asset): string => {
         for (const amount of [amm.amount, amm.amount2]) {
           if (typeof amount === "string" && asset.issuer === undefined) return new BigNumber(amount).shiftedBy(-6).toFixed();
@@ -568,6 +747,13 @@ describe("the featured pools' amm_info (AMM_INFO_POOLS)", () => {
       expect(new BigNumber(amm.lp_token.value).eq(pool.lp_supply!), entry.pool).toBe(true);
       expect(amm.lp_token.currency).toBe(pool.lp_currency);
       expect(amm.trading_fee).toBe(pool.trading_fee);
+      // The auction slot: the holder, the discounted fee, the price and the expiration, as one instant (the node writes `+0000`, the API `Z`).
+      const slot = amm.auction_slot;
+      expect(slot, entry.pool).toBeDefined();
+      expect(slot!.account).toBe(pool.auction_slot!.holder);
+      expect(slot!.discounted_fee).toBe(pool.auction_slot!.discounted_fee);
+      expect(new BigNumber(slot!.price.value).eq(pool.auction_slot!.price!), entry.pool).toBe(true);
+      expect(Date.parse(slot!.expiration.replace(/([+-]\d{2})(\d{2})$/, "$1:$2")), entry.pool).toBe(Date.parse(pool.auction_slot!.expiration!));
     }
   });
 });

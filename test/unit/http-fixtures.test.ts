@@ -63,22 +63,39 @@ describe("every fixture file", () => {
     for (const file of files) expect(() => JSON.parse(readFileSync(new URL(file, HTTP), "utf8")), file).not.toThrow();
   });
 
+  /**
+   * The request a data API file's name stands for, read back: the file it finds and the canonical form of its query. A file's query is the decoded text of the
+   * request's (`canonicalQuery`), where a `+` is a value's (an asset's `CUR+issuer`, which the client sends as `%2B`), so only the `+` is sent encoded again;
+   * any other escape in a name (`%2B`, `%3D`) reads back as another name, as it did before the AMM files.
+   */
+  const readBack = (file: string): { found: string | undefined; query: string; canonical: string } => {
+    const [path, query = ""] = file.replace(/\.json$/, "").split("@");
+    const [net, , ...rest] = path!.split("/");
+    const sent = query.replace(/\+/g, "%2B");
+    return { found: dataApiFile(net as Net, `/v2/${rest.join("/")}`, sent), query, canonical: canonicalQuery(sent) };
+  };
+
   it("is named by the rule that finds it: a sorted query after `@`, and upper-case hashes", () => {
-    // A file's query is the decoded text of the request's (`canonicalQuery`), so it is sent encoded again: a `+` in it is a value's (an asset's `CUR+issuer`,
-    // which the client sends as `%2B`), not a space.
-    const sent = (query: string) =>
-      query
-        .split("&")
-        .filter((pair) => pair !== "")
-        .map((pair) => pair.split("=").map(encodeURIComponent).join("="))
-        .join("&");
     for (const file of files.filter((f) => f.includes("/data-api/"))) {
-      const [path, query = ""] = file.replace(/\.json$/, "").split("@");
-      const [net, , ...rest] = path!.split("/");
-      expect(file, "a data API file").toBe(dataApiFile(net as Net, `/v2/${rest.join("/")}`, sent(query)));
-      expect(canonicalQuery(sent(query)), file).toBe(query);
+      const { found, query, canonical } = readBack(file);
+      expect(file, "a data API file").toBe(found);
+      expect(canonical, file).toBe(query);
     }
     for (const file of files) for (const hash of file.match(/[0-9a-fA-F]{64}/g) ?? []) expect(hash, file).toBe(hash.toUpperCase());
+  });
+
+  it("takes a `+` of an asset's `CUR+issuer` in a query as the value's, and no escaped name: `%2B` and `%3D` read back as another file", () => {
+    const named = (file: string) => {
+      const { found, query, canonical } = readBack(file);
+      return found === file && canonical === query;
+    };
+    const amm = "xrpl/data-api/amm/pools@asset=524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De&limit=20.json";
+    expect(files).toContain(amm);
+    expect(named(amm)).toBe(true);
+    expect(named(amm.replace("+", "%2B"))).toBe(false);
+    expect(named("xrpl/data-api/amm/pools@limit=20&marker=WzEsInIiXQ%3D%3D.json")).toBe(false);
+    expect(named("xrpl/data-api/transactions@descending=true&limit=8.json")).toBe(true);
+    expect(named("xrpl/data-api/transactions@limit=8&descending=true.json")).toBe(false);
   });
 
   it("holds no API key", () => {
