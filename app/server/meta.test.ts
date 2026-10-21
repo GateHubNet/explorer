@@ -8,13 +8,14 @@ import type { ValidatorsParams } from "../domain/validators-params";
 import type { NetworkInfo } from "../ui/networks";
 import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
-import type { AmmListFacts } from "./amm-view";
+import type { AmmListFacts, AmmPoolMeta } from "./amm-view";
 import type { AmendmentDetail } from "./api-types";
 import { imageUrl, metaContext, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
 import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
 import { ammListMeta } from "./meta-amm-list";
+import { ammPoolMeta } from "./meta-amm-pool";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
@@ -899,5 +900,135 @@ describe("ammListMeta", () => {
   it("puts no number in the description: the page is stored for seconds", () => {
     expect(content(ammListMeta(facts(), XRPL), "description")).not.toMatch(/\d/);
     expect(content(ammListMeta({ none: true }, XAHAU), "description")).not.toMatch(/\d/);
+  });
+});
+
+describe("ammPoolMeta", () => {
+  const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+  const DESCRIPTION = "XRP/RLUSD AMM pool on XRPL, account rhWTXC…tcS3: trading fee 0.300%, created 2024-03-22. Reserves, price, swaps, liquidity and votes.";
+  const URL = `https://explorer.test/xrpl/amm/${POOL}`;
+  const IMAGE = `https://explorer.test/og/xrpl/amm/${POOL}.png`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  /** The facts of the first page of an indexed pool, as the view builder writes them (`AmmPoolPageData.meta`). */
+  const facts = (more: Partial<AmmPoolMeta> = {}): AmmPoolMeta => ({
+    pool: POOL,
+    net: "xrpl",
+    native: "XRP",
+    pair: "XRP/RLUSD",
+    deleted: false,
+    fee: "0.300%",
+    value: "3.61M",
+    created: { date: "2024-03-22", at: 1711065600 },
+    tab: "swaps",
+    period: "90d",
+    marker: false,
+    mode: "indexed",
+    ...more,
+  });
+  /** Whether the tags are those of a page that is not shared: no canonical URL, no Open Graph or card tags. */
+  const unshared = (list: ReadonlyArray<unknown>) => {
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  };
+
+  it("has the tags of the default view: the pair's title, its facts, the canonical URL, Open Graph with the pool's image and a large card", () => {
+    const list = ammPoolMeta(facts(), XRPL);
+    expect(title(list)).toBe("XRP/RLUSD AMM pool · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe(URL);
+    expect(content(list, "og:title")).toBe("XRP/RLUSD AMM pool · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe(URL);
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:image")).toBe(IMAGE);
+    expect(content(list, "og:image:alt")).toBe("XRP/RLUSD AMM pool on XRPL");
+    expect(content(list, "twitter:card")).toBe("summary_large_image");
+    expect(content(list, "twitter:image")).toBe(IMAGE);
+    expect(keys(list)).not.toContain("robots");
+    // The image is the og route's kind `amm`.
+    expect(imageUrl("https://explorer.test", "xrpl", "amm", POOL)).toBe(IMAGE);
+  });
+
+  it("is on the request's origin", () => {
+    const list = ammPoolMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe(`https://explorer.example/xrpl/amm/${POOL}`);
+    expect(content(list, "og:image")).toBe(`https://explorer.example/og/xrpl/amm/${POOL}.png`);
+  });
+
+  it.each([
+    ["no fee", { fee: undefined }, "XRP/RLUSD AMM pool on XRPL, account rhWTXC…tcS3: created 2024-03-22. Reserves, price, swaps, liquidity and votes."],
+    ["no creation", { created: undefined }, "XRP/RLUSD AMM pool on XRPL, account rhWTXC…tcS3: trading fee 0.300%. Reserves, price, swaps, liquidity and votes."],
+    ["neither", { fee: undefined, created: undefined }, "XRP/RLUSD AMM pool on XRPL, account rhWTXC…tcS3. Reserves, price, swaps, liquidity and votes."],
+  ] satisfies Array<[string, Partial<AmmPoolMeta>, string]>)("leaves out a fact the page lacks, with its words: %s", (_what, more, expected) => {
+    expect(content(ammPoolMeta(facts(more), XRPL), "description")).toBe(expected);
+  });
+
+  it.each([
+    ["liquidity", "XRP/RLUSD AMM pool · liquidity · XRPL · explorer", `${URL}?tab=liquidity`],
+    ["governance", "XRP/RLUSD AMM pool · votes and bids · XRPL · explorer", `${URL}?tab=governance`],
+  ] as const)("names the %s tab in the title and in the canonical URL", (tab, expected, url) => {
+    const list = ammPoolMeta(facts({ tab }), XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe(url);
+    expect(content(list, "og:url")).toBe(url);
+    expect(content(list, "og:image")).toBe(IMAGE);
+  });
+
+  it("says a deleted pool is deleted, after pool", () => {
+    const list = ammPoolMeta(facts({ deleted: true, pair: "SNK/XRP", value: undefined }), XRPL);
+    expect(title(list)).toBe("SNK/XRP AMM pool (deleted) · XRPL · explorer");
+    expect(content(list, "description")).toBe("SNK/XRP AMM pool (deleted) on XRPL, account rhWTXC…tcS3: trading fee 0.300%, created 2024-03-22. Reserves, price, swaps, liquidity and votes.");
+    expect(link(list, "canonical")).toBe(URL);
+  });
+
+  it.each([
+    ["30d", "swaps", "XRP/RLUSD AMM pool · last 30 days · XRPL · explorer"],
+    ["1y", "swaps", "XRP/RLUSD AMM pool · last year · XRPL · explorer"],
+    ["30d", "governance", "XRP/RLUSD AMM pool · votes and bids · last 30 days · XRPL · explorer"],
+  ] as const)("is noindex, follow, with no canonical URL and no Open Graph or card tags, at the period %s (tab %s)", (period, tab, expected) => {
+    const list = ammPoolMeta(facts({ period, tab }), XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    unshared(list);
+  });
+
+  it.each([
+    ["swaps", "Older swaps of the XRP/RLUSD AMM pool · XRPL · explorer"],
+    ["liquidity", "Older liquidity events of the XRP/RLUSD AMM pool · XRPL · explorer"],
+    ["governance", "Older votes and bids of the XRP/RLUSD AMM pool · XRPL · explorer"],
+  ] as const)("names the older %s behind a marker: noindex, follow, with no canonical URL and nothing to share", (tab, expected) => {
+    const list = ammPoolMeta(facts({ tab, marker: true, fee: undefined, created: undefined, value: undefined }), XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(`${expected.split(" · ")[0]} on XRPL, account rhWTXC…tcS3.`);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    unshared(list);
+  });
+
+  it("names a deleted pool's older rows as deleted", () => {
+    expect(title(ammPoolMeta(facts({ deleted: true, pair: "SNK/XRP", marker: true }), XRPL))).toBe("Older swaps of the SNK/XRP AMM pool (deleted) · XRPL · explorer");
+  });
+
+  it("keeps a pool shown from the network out of the index: the default title and description, noindex, no canonical URL, nothing to share", () => {
+    const list = ammPoolMeta(facts({ mode: "network", value: undefined, created: undefined }), XRPL);
+    expect(title(list)).toBe("XRP/RLUSD AMM pool · XRPL · explorer");
+    expect(content(list, "description")).toBe("XRP/RLUSD AMM pool on XRPL, account rhWTXC…tcS3: trading fee 0.300%. Reserves, price, swaps, liquidity and votes.");
+    expect(content(list, "robots")).toBe("noindex");
+    unshared(list);
+    // Another period of it too: a stand-in for 60 s, whatever its view.
+    expect(content(ammPoolMeta(facts({ mode: "network", period: "30d" }), XRPL), "robots")).toBe("noindex");
+  });
+
+  it.each(["node-down", "gone"] as const)("indexes the first page of a pool in the %s mode, as the indexed one", (mode) => {
+    const list = ammPoolMeta(facts({ mode }), XRPL);
+    expect(title(list)).toBe("XRP/RLUSD AMM pool · XRPL · explorer");
+    expect(link(list, "canonical")).toBe(URL);
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("puts no figure of the pool's state in the description: its value changes with each swap", () => {
+    expect(content(ammPoolMeta(facts(), XRPL), "description")).not.toContain("3.61M");
   });
 });

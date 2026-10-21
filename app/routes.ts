@@ -11,6 +11,9 @@ export default [
     route("markets", "routes/net.markets.tsx"),
     route("markets/:base/:counter", "routes/net.markets.$base.$counter.tsx"),
     route("amm", "routes/net.amm._index.tsx"),
+    route("amm/:pool", "routes/net.amm.$pool.tsx"),
+    // The pool of a pair: a redirect to `amm/:pool`, or a 404.
+    route("amm/:base/:counter", "routes/net.amm.$base.$counter.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

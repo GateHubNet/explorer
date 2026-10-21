@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { valueImports } from "../../test/support/value-imports";
+import { staticClosure, valueImports } from "../../test/support/value-imports";
 import { redirectToCanonical } from "../server/pair-route";
 import { NO_FEATURES } from "../ui/features";
 import { accountHref } from "./account-tabs";
@@ -438,35 +438,6 @@ describe("the browser bundle", () => {
     /(^|\/)domain\/(describe|parse|asset)(\/|\.ts|$)/.test(from) ||
     /^\.\/(describe|parse|asset)(\/|\.ts|$)/.test(from);
 
-  /** The file of the app (a path below app/) that `specifier`, a relative import of `from`, names. */
-  function resolve(from: string, specifier: string): string {
-    const target = new URL(specifier, new URL(from, appDir)).href.slice(appDir.href.length);
-    for (const candidate of [target, `${target}.ts`, `${target}.tsx`, `${target}/index.ts`]) {
-      if (!/\.tsx?$/.test(candidate)) continue;
-      try {
-        read(candidate);
-        return candidate;
-      } catch {
-        // not a file of the app: try the next form
-      }
-    }
-    throw new Error(`${from} imports ${specifier}, which is no file of the app`);
-  }
-
-  /** The files of the app that `file` (a path below app/) loads with it: the closure of its static, relative value imports. */
-  function staticClosure(file: string): string[] {
-    const seen = new Set<string>();
-    const stack = [file];
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      if (seen.has(current)) continue;
-      seen.add(current);
-      const source = read(current).replace(/\bimport\(\s*["'][^"']+["']\s*\)/g, "");
-      for (const from of valueImports(source).filter((specifier) => specifier.startsWith("."))) stack.push(resolve(current, from));
-    }
-    return [...seen].sort();
-  }
-
   it("amm-params.ts imports nothing of app/server, domain/describe, domain/parse, domain/asset or ripple-* as a value", () => {
     expect(valueImports(read("domain/amm-params.ts")).filter(FORBIDDEN)).toEqual([]);
   });
@@ -476,7 +447,7 @@ describe("the browser bundle", () => {
   });
 
   it("loads none of those through the files it imports either; the only file of app/server it reaches is the marker alphabet, a leaf", () => {
-    const closure = staticClosure("domain/amm-params.ts");
+    const closure = staticClosure(appDir, "domain/amm-params.ts");
     expect(closure).toEqual(["domain/account-tabs.ts", "domain/amm-params.ts", "domain/paging.ts", "domain/query-of.ts", "server/marker.ts"]);
     expect(closure.filter((path) => FORBIDDEN(path) && path !== "server/marker.ts")).toEqual([]);
     // the two leaves import nothing at all

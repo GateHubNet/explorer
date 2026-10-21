@@ -1453,6 +1453,52 @@ describe("RouteErrorScreen", () => {
     expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).not.toContain("https://example.com/x");
   });
 
+  describe("a 404 with a note (AMM spec 1.3)", () => {
+    const POOL = "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz";
+    const NOTE = "Xahau has no AMM, so this pool exists only on the XRP Ledger.";
+    const suggestion = { href: `/xrpl/amm/${POOL}`, label: "Open it on XRPL" };
+    /** Whether `later` comes after `earlier` in the document. */
+    const follows = (earlier: Node, later: Node) => (earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+    it("shows the sentence, then the note in a paragraph of its own, then the offer", () => {
+      renderInRouter(<RouteErrorScreen error={response(404, { notFound: "AMM pool rGLnUK…mqdz", note: NOTE, suggestion })} net={XAHAU} />, "/xahau");
+      const sentence = screen.getByText("We couldn’t find AMM pool rGLnUK…mqdz on Xahau.");
+      const note = screen.getByText(NOTE);
+      const offer = screen.getByRole("link", { name: "Open it on XRPL" });
+      expect(note.tagName).toBe("P");
+      expect(note).not.toBe(sentence);
+      expect(offer.getAttribute("href")).toBe(`/xrpl/amm/${POOL}`);
+      expect(follows(sentence, note)).toBe(true);
+      expect(follows(note, offer)).toBe(true);
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Not found");
+    });
+
+    it("shows a note of 300 characters, and one without an offer", () => {
+      const long = `${"x".repeat(299)}.`;
+      renderInRouter(<RouteErrorScreen error={response(404, { notFound: "AMM pool rGLnUK…mqdz", note: long })} net={XAHAU} />, "/xahau");
+      expect(screen.getByText(/We couldn.t find AMM pool rGLnUK…mqdz on Xahau/)).toBeTruthy();
+      expect(screen.getByText(long).tagName).toBe("P");
+    });
+
+    it.each([
+      ["a number", 5],
+      ["longer than 300 characters", `${"x".repeat(300)}.`],
+      ["an object", { text: NOTE }],
+      ["a list", [NOTE]],
+      ["empty", ""],
+      ["null", null],
+    ])("leaves out a note that is %s, and shows the rest", (_what, note) => {
+      const { container } = renderInRouter(<RouteErrorScreen error={response(404, { notFound: "AMM pool rGLnUK…mqdz", note, suggestion })} net={XAHAU} />, "/xahau");
+      expect(screen.getByText("We couldn’t find AMM pool rGLnUK…mqdz on Xahau.")).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Open it on XRPL" }).getAttribute("href")).toBe(`/xrpl/amm/${POOL}`);
+      // The sentence and the link's paragraphs (the offer, the way home), and no other.
+      const paragraphs = [...container.querySelectorAll(".notfound > p")].map((p) => p.textContent);
+      expect(paragraphs).toEqual(["We couldn’t find AMM pool rGLnUK…mqdz on Xahau.", "Open it on XRPL", "Go to the Xahau home"]);
+      expect(container.textContent).not.toContain("xxxx");
+      expect(container.textContent).not.toContain("[object");
+    });
+  });
+
   it("shows any other 404 as a page that does not exist", () => {
     renderInRouter(<RouteErrorScreen error={response(404, "Not Found")} net={XRPL} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Page not found");

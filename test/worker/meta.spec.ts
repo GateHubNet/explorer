@@ -558,6 +558,61 @@ describe("the AMM pools list", () => {
   });
 });
 
+describe("an AMM pool's page", () => {
+  const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+  // The node's fee (205, 0.205%); the generated XRP/RLUSD pool has no create event, so the description says no day of creation.
+  const DESCRIPTION = "XRP/RLUSD AMM pool on XRPL, account rhWTXC…tcS3: trading fee 0.205%. Reserves, price, swaps, liquidity and votes.";
+
+  it("has the tags of the default view: the pair's title, its facts, a canonical URL, and the pool's image on a large card", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/amm/${POOL}`)).html);
+    expect(tags.titles).toEqual(["XRP/RLUSD AMM pool · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amm/${POOL}`]);
+    expect(tags.content("og:title")).toBe("XRP/RLUSD AMM pool · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/amm/${POOL}`);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/amm/${POOL}.png`);
+    expect(tags.content("og:image:alt")).toBe("XRP/RLUSD AMM pool on XRPL");
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("twitter:image")).toBe(`${ORIGIN}/og/xrpl/amm/${POOL}.png`);
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("names a tab that is not the first in its title and its canonical URL", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/amm/${POOL}?tab=governance`)).html);
+    expect(tags.titles).toEqual(["XRP/RLUSD AMM pool · votes and bids · XRPL · explorer"]);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amm/${POOL}?tab=governance`]);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/amm/${POOL}?tab=governance`);
+  });
+
+  it("is noindex, follow at another period, with no canonical URL or sharing tags, and says the day of the pool's creation where it has one", async () => {
+    mock = mockUpstream("xrpl");
+    // DVR/XRP: the one generated pool with a create event, and the 30 days only.
+    const tags = head((await page("/xrpl/amm/rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG?period=30d")).html);
+    expect(tags.titles).toEqual(["DVR/XRP AMM pool · last 30 days · XRPL · explorer"]);
+    expect(tags.content("description")).toBe("DVR/XRP AMM pool on XRPL, account rUAEvY…QPsG: trading fee 1.000%, created 2026-10-12. Reserves, price, swaps, liquidity and votes.");
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("names the older rows behind a marker: noindex, follow, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/amm/${POOL}?marker=WzEwNzY5OTY1NiwxNCwzXQ`)).html);
+    expect(tags.titles).toEqual(["Older swaps of the XRP/RLUSD AMM pool · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is noindex for its 404s: on Xahau, and for a pool neither the index nor the node has", async () => {
+    mock = mockUpstream("xahau");
+    expect(head((await page(`/xahau/amm/${POOL}`, 404)).html).content("robots")).toBe("noindex");
+  });
+});
+
 describe("a validator's page", () => {
   it("has a title and a description built from D, a canonical URL on the master key, and the validator's image", async () => {
     mock = mockUpstream("xrpl");

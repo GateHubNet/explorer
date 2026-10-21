@@ -1,8 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
-import { posix } from "node:path";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { valueImports } from "../support/value-imports";
+import { staticClosure, valueImports } from "../support/value-imports";
 
 // The markets pages are drawn in the browser too (a client-side navigation renders them there), and the pages never fetch and get strings: the
 // view builders (`app/server/markets-view.ts`, which value-imports `app/domain/asset.ts` and `market-pair.ts`, and with them the issuer
@@ -14,28 +13,6 @@ import { valueImports } from "../support/value-imports";
 
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
-
-/**
- * The app's files that `file` (a path below app/) loads with it: the closure of its static, relative value imports (an `import()` is loaded
- * when needed, and a package is not a file of the app). Stylesheets are left out.
- */
-function staticClosure(file: string): string[] {
-  const seen = new Set<string>();
-  const stack = [file];
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    if (seen.has(current)) continue;
-    seen.add(current);
-    const source = read(current).replace(/\bimport\(\s*["'][^"']+["']\s*\)/g, "");
-    for (const from of valueImports(source).filter((specifier) => specifier.startsWith(".") && !specifier.endsWith(".css"))) {
-      const base = posix.normalize(posix.join(posix.dirname(current), from));
-      const resolved = [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find((path) => /\.tsx?$/.test(path) && existsSync(new URL(path, appDir)));
-      if (resolved === undefined) throw new Error(`${current} imports ${from}, which is no file of the app`);
-      stack.push(resolved);
-    }
-  }
-  return [...seen].sort();
-}
 
 const SERVER = (from: string) => /(^|\/)server(\/|$)/.test(from);
 const ASSET_CODE = (from: string) => /ripple-/.test(from) || /(^|\/)domain\/asset(\.ts)?$/.test(from) || /(^|\/)domain\/market-pair(\.ts)?$/.test(from);
@@ -59,16 +36,16 @@ describe("the files of the markets pages that run in the browser", () => {
   });
 
   it("MarketsPage.tsx loads neither charts/Plot nor charts/Cursor, through any of its imports: it draws no plot, and either would put the plot's modules in its first JavaScript", () => {
-    const closure = staticClosure("ui/pages/MarketsPage.tsx");
+    const closure = staticClosure(appDir, "ui/pages/MarketsPage.tsx");
     // The walk reaches what the page draws with (the meter and the sparkline of the kit, the table).
     expect(closure).toEqual(expect.arrayContaining(["ui/pages/MarketsPage.tsx", "ui/charts/Meter.tsx", "ui/charts/Sparkline.tsx", "ui/components/DataTable.tsx", "ui/use-hydrated.ts"]));
     expect(closure.filter((path) => /^ui\/charts\/(Plot|Cursor)\.tsx$/.test(path))).toEqual([]);
   });
 
   it("walks the closure through every file, and sees Plot and Cursor where a page does load them", () => {
-    expect(staticClosure("ui/charts/ShareBar.tsx")).toEqual(expect.arrayContaining(["ui/charts/Plot.tsx", "ui/charts/Cursor.tsx", "ui/use-hydrated.ts"]));
+    expect(staticClosure(appDir, "ui/charts/ShareBar.tsx")).toEqual(expect.arrayContaining(["ui/charts/Plot.tsx", "ui/charts/Cursor.tsx", "ui/use-hydrated.ts"]));
     // The network page draws plots: its closure holds both, the second one through Plot.
-    expect(staticClosure("ui/pages/NetworkPage.tsx")).toEqual(expect.arrayContaining(["ui/charts/Plot.tsx", "ui/charts/Cursor.tsx"]));
+    expect(staticClosure(appDir, "ui/pages/NetworkPage.tsx")).toEqual(expect.arrayContaining(["ui/charts/Plot.tsx", "ui/charts/Cursor.tsx"]));
   });
 
   it("ui/use-hydrated.ts, where MarketsPage.tsx and the kit take useHydrated from, imports only react", () => {

@@ -5,7 +5,7 @@ import type { NetworkBrief } from "../networks";
 import { NotFoundPage, type NotFoundSuggestion } from "./NotFoundPage";
 
 type Shown =
-  | { kind: "not-found"; title: string; what?: string; suggestion?: NotFoundSuggestion }
+  | { kind: "not-found"; title: string; what?: string; suggestion?: NotFoundSuggestion; note?: string }
   | { kind: "unavailable"; title: string }
   | { kind: "rate-limited"; title: string; retryAfter?: number }
   | { kind: "error"; title: string };
@@ -27,6 +27,19 @@ function notFoundSuggestion(data: unknown): NotFoundSuggestion | undefined {
   // A link that stays on this site: the data came from the Worker, but a path is all a suggestion is.
   if (typeof href !== "string" || typeof label !== "string" || !href.startsWith("/") || href.startsWith("//")) return undefined;
   return { href, label };
+}
+
+/** The longest note the screen shows, in characters: a sentence or two, never a page of text from wherever the data came. */
+const MAX_NOTE = 300;
+
+/**
+ * The sentence a loader threw with a 404 to say why (`{ notFound, note }`: "Xahau has no AMM, so this pool exists only on the XRP Ledger."), if it is plain
+ * text of at most `MAX_NOTE` characters. Anything else is left out, as an offer that is not a path of this site is.
+ */
+function notFoundNote(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null || !("note" in data)) return undefined;
+  const { note } = data;
+  return typeof note === "string" && note !== "" && note.length <= MAX_NOTE ? note : undefined;
 }
 
 /** The longest wait the screen names. A longer one (or none) is "a moment": the screen is for a limit counted in seconds. */
@@ -58,7 +71,8 @@ function shownFor(error: unknown, unknownNetwork: string | undefined): Shown {
       const what = notFoundPhrase(error.data);
       if (what === undefined) return { kind: "not-found", title: "Page not found" };
       const suggestion = notFoundSuggestion(error.data);
-      return suggestion ? { kind: "not-found", title: "Not found", what, suggestion } : { kind: "not-found", title: "Not found", what };
+      const note = notFoundNote(error.data);
+      return { kind: "not-found", title: "Not found", what, ...(suggestion ? { suggestion } : {}), ...(note === undefined ? {} : { note }) };
     }
     if (error.status === 429) {
       const retryAfter = retryAfterOf(error.data);
@@ -88,8 +102,8 @@ export function errorMeta(error: unknown, unknownNetwork?: string): MetaDescript
 }
 
 /**
- * What an error boundary shows: the not-found page for a 404, a "try again" page for a 503, and a plain apology for
- * everything else (the error is logged and reported by the server, and its message is not shown to visitors).
+ * What an error boundary shows: the not-found page for a 404 (with the note and the offer a loader threw it with), a "try again" page for a 503, and a plain
+ * apology for everything else (the error is logged and reported by the server, and its message is not shown to visitors).
  * `unknownNetwork` is the `:net` segment when it names no network.
  */
 export function RouteErrorScreen({
@@ -114,7 +128,12 @@ export function RouteErrorScreen({
         />
       );
     }
-    return <NotFoundPage net={net} title={shown.title} what={shown.what} suggestion={shown.suggestion} />;
+    // The note follows "We couldn't find …" (the page's `children`), which it explains: it does not take the sentence's place.
+    return (
+      <NotFoundPage net={net} title={shown.title} what={shown.what} suggestion={shown.suggestion}>
+        {shown.note !== undefined && <p>{shown.note}</p>}
+      </NotFoundPage>
+    );
   }
 
   return (

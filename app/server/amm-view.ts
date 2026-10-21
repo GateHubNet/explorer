@@ -1174,14 +1174,21 @@ export type AmmPoolMeta = AmmPoolFacts & { tab: AmmTab; period: AmmPeriod; marke
 const assetOfAmount = (amount: NodeAmount): Asset => assetOf(amount.currency, amount.issuer);
 
 /**
- * The pool's display pair: from the index's pool, in its stored order; else from the node's two amounts, put in the order the API stores the pair (E3's
- * `canonicalPair`), so that `flipped` says the same as it would from the index. `null` with neither.
+ * The pool's pair in the order the API stores it: the index's `base_*` and `counter_*`, or the node's two amounts put in that order (E3's `canonicalPair`). The
+ * display pair is made from it, and the loader asks for the pool's candles (#6) in it, so that the API inverts nothing.
+ */
+export function storedPair(from: { index: AmmPool } | { node: AmmInfo }): [Asset, Asset] {
+  if ("index" in from) return [assetOf(from.index.base_currency, from.index.base_issuer), assetOf(from.index.counter_currency, from.index.counter_issuer)];
+  return canonicalPair(assetOfAmount(from.node.amount), assetOfAmount(from.node.amount2));
+}
+
+/**
+ * The pool's display pair: from the index's pool, in its stored order; else from the node's two amounts, put in the order the API stores the pair
+ * (`storedPair`), so that `flipped` says the same as it would from the index. `null` with neither.
  */
 function poolPair(index: AmmPool | null, node: AmmInfo | null, native: NativeCode): DisplayPair | null {
-  if (index !== null) return displayPair(assetOf(index.base_currency, index.base_issuer), assetOf(index.counter_currency, index.counter_issuer), native);
-  if (node === null) return null;
-  const [base, counter] = canonicalPair(assetOfAmount(node.amount), assetOfAmount(node.amount2));
-  return displayPair(base, counter, native);
+  const stored = index !== null ? storedPair({ index }) : node !== null ? storedPair({ node }) : null;
+  return stored === null ? null : displayPair(stored[0], stored[1], native);
 }
 
 /** The creation of a create event (only one: `ammLiquidity({ event: "create" })` refuses rows of another event, and so does this), `null` for anything else. */

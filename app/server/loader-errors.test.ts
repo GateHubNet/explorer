@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { UpstreamError, type UpstreamErrorKind } from "./upstream";
-import { upstreamFailure, upstreamOutage } from "./loader-errors";
+import { notFound, upstreamFailure, upstreamOutage } from "./loader-errors";
 
 /** What `upstreamFailure` throws. */
 function thrownBy(fn: () => never): unknown {
@@ -93,5 +93,32 @@ describe("upstreamOutage", () => {
   it("rethrows anything else untouched", () => {
     const bug = new TypeError("x is not a function");
     expect(thrownBy(() => upstreamOutage(bug, "x"))).toBe(bug);
+  });
+});
+
+describe("notFound", () => {
+  it("throws a 404 of class short with what was not found, the note and the offer, as the not-found page reads them", () => {
+    const found = {
+      notFound: "AMM pool rGLnUK…mqdz",
+      suggestion: { href: "/xrpl/amm/rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz", label: "Open it on XRPL" },
+      note: "Xahau has no AMM, so this pool exists only on the XRP Ledger.",
+    };
+    const { data, status, headers } = asData(thrownBy(() => notFound(found)));
+    expect(status).toBe(404);
+    expect(data).toEqual(found);
+    expect(Object.keys(data as object)).toEqual(["notFound", "suggestion", "note"]);
+    expect(headers.get("X-Cache-Class")).toBe("short");
+  });
+
+  it("carries only what it is given: no note and no offer are no keys", () => {
+    expect(asData(thrownBy(() => notFound({ notFound: "the AMM pages" }))).data).toEqual({ notFound: "the AMM pages" });
+    expect(Object.keys(asData(thrownBy(() => notFound({ notFound: "x", note: "y" }))).data as object)).toEqual(["notFound", "note"]);
+  });
+
+  it("is the 404 that upstreamFailure throws for a not_found, with the offer", () => {
+    const offer = { href: "/xahau/ledger/99", label: "Open it on Xahau" };
+    const failed = asData(thrownBy(() => upstreamFailure(new UpstreamError("not_found", "no such ledger", { status: 404 }), "ledger 99", offer)));
+    const thrown = asData(thrownBy(() => notFound({ notFound: "ledger 99", suggestion: offer })));
+    expect(failed).toEqual(thrown);
   });
 });

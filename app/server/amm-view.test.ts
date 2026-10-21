@@ -63,6 +63,7 @@ import {
   poolModeOf,
   poolQueries,
   slotInterval,
+  storedPair,
   swapRows,
   voteShares,
   type AmmActivityPage,
@@ -2596,6 +2597,22 @@ describe("poolQueries", () => {
   it("works out the day before across a month and a year", () => {
     expect(poolQueries(windowOf("2026-03-01", "30d"), "2026-03-01").lastDay).toEqual({ start: "2026-02-28", end: "2026-02-28", limit: 1 });
     expect(poolQueries(windowOf("2026-01-01", "30d"), "2026-01-01").carryIn.end).toBe("2025-12-02");
+  });
+});
+
+describe("storedPair", () => {
+  it("is the index's base and counter, in the order the API stores them", () => {
+    expect(storedPair({ index: indexPool() })).toEqual([{ currency: RLUSD, issuer: RL }, { currency: "XRP" }]);
+    expect(storedPair({ index: usdcPool() })).toEqual([{ currency: RLUSD, issuer: RL }, { currency: USDC, issuer: USDC_ISSUER }]);
+  });
+
+  it("puts the node's two amounts, without their values, in the order the API stores the pair, whichever order the node gives them in", () => {
+    const stored = [{ currency: RLUSD, issuer: RL }, { currency: "XRP" }];
+    expect(storedPair({ node: poolInfo() })).toEqual(stored);
+    expect(storedPair({ node: poolInfo({ amount: poolInfo().amount2, amount2: poolInfo().amount }) })).toEqual(stored);
+    // As the index stores the same pool: the candles of a pool from the network are asked for as they would be once the index has it.
+    expect(storedPair({ node: usdcInfo() })).toEqual(storedPair({ index: usdcPool() }));
+    expect(storedPair({ node: usdcInfo({ amount: usdcInfo().amount2, amount2: usdcInfo().amount }) })).toEqual(storedPair({ index: usdcPool() }));
   });
 });
 

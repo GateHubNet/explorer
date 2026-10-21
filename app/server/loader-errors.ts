@@ -15,6 +15,22 @@ export interface NotFoundOffer {
 }
 
 /**
+ * What a 404 a loader throws carries, which the error boundaries show as the not-found page (`RouteErrorScreen`): `notFound`, what was asked for as a phrase
+ * that follows "We couldn't find ..."; `suggestion`, the one link the page offers besides the way home; and `note`, a sentence of plain text (at most 300
+ * characters) that the page shows after "We couldn't find ..." to say why (`"Xahau has no AMM, so this pool exists only on the XRP Ledger."`).
+ */
+export interface NotFoundData {
+  notFound: string;
+  suggestion?: NotFoundOffer;
+  note?: string;
+}
+
+/** Throws the 404 of class `short` whose data is `found` (`NotFoundData`). A route that calls this needs `export const headers = forwardCacheClass`. */
+export function notFound(found: NotFoundData): never {
+  throw cached(found, "short", { status: 404 });
+}
+
+/**
  * Throws the response a page answers a failed upstream call with. `what` names what was asked for, as a phrase that
  * follows "We couldn't find ..." (`"ledger 107695660"`, `"transaction 67F91E…7C31"`).
  *
@@ -28,7 +44,7 @@ export interface NotFoundOffer {
 export function upstreamFailure(err: unknown, what: string, offer?: NotFoundOffer): never {
   if (err instanceof UpstreamError) {
     if (err.kind === "not_found" || err.kind === "bad_request") {
-      throw cached(offer ? { notFound: what, suggestion: offer } : { notFound: what }, "short", { status: 404 });
+      notFound(offer ? { notFound: what, suggestion: offer } : { notFound: what });
     }
     const wait = err.retryAfter !== undefined && Number.isInteger(err.retryAfter) && err.retryAfter > 0 ? err.retryAfter : DEFAULT_RETRY_AFTER;
     throw data({ unavailable: what }, { status: 503, headers: { "Retry-After": String(wait) } });

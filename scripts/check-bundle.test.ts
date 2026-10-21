@@ -131,6 +131,8 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.amendments.$name", parentId: "routes/net", module: "amendment.js", imports: ["shared.js", "table.js"] },
   // The AMM pools list draws a chart and a table, as the network page and the lists do.
   { id: "routes/net.amm._index", parentId: "routes/net", module: "amm.js", imports: ["shared.js", "table.js", "charts.js"] },
+  // The AMM pool page draws five charts, its tables and the slot's meter.
+  { id: "routes/net.amm.$pool", parentId: "routes/net", module: "amm-pool.js", imports: ["shared.js", "table.js", "charts.js"] },
   // Not one of the pages: its chunk is loaded only when somebody goes there.
   { id: "routes/net.search", parentId: "routes/net", module: "search.js", imports: ["shared.js", "search-page.js"] },
 ];
@@ -155,6 +157,7 @@ const CHUNKS: FakeChunk[] = [
   { name: "amendments.js", size: 1800 },
   { name: "amendment.js", size: 1900 },
   { name: "amm.js", size: 1200 },
+  { name: "amm-pool.js", size: 2100 },
   { name: "charts.js", size: 6000 },
   { name: "qr-picture.js", size: 700 },
   { name: "search.js", size: 500 },
@@ -162,7 +165,7 @@ const CHUNKS: FakeChunk[] = [
 ];
 
 describe("the pages", () => {
-  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment and amm, by their routes, each with the name of its budget", () => {
+  it("are home, ledger, transaction, account, network, markets, market-pair, validators, validator, amendments, amendment, amm and amm-pool, by their routes, each with the name of its budget", () => {
     expect(PAGES).toEqual([
       { name: "home", route: "routes/net._index", budget: "lookup" },
       { name: "ledger", route: "routes/net.ledger.$id", budget: "lookup" },
@@ -176,6 +179,7 @@ describe("the pages", () => {
       { name: "amendments", route: "routes/net.amendments", budget: "dashboard" },
       { name: "amendment", route: "routes/net.amendments.$name", budget: "dashboard" },
       { name: "amm", route: "routes/net.amm._index", budget: "dashboard" },
+      { name: "amm-pool", route: "routes/net.amm.$pool", budget: "dashboard" },
     ]);
   });
 
@@ -195,7 +199,7 @@ describe("checkBundle: what a page loads", () => {
     // The route manifest is one of the files every page loads, and counts like the others.
     const common = ["entry.js", "root.js", "net.js", "shared.js", "shell.js", MANIFEST];
     const byPage = Object.fromEntries(report.pages.map((page) => [page.name, page]));
-    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm"]);
+    expect(Object.keys(byPage)).toEqual(["home", "ledger", "transaction", "account", "network", "markets", "market-pair", "validators", "validator", "amendments", "amendment", "amm", "amm-pool"]);
     expect(byPage.home!.bytes).toBe(sum([...common, "table.js", "home.js"]));
     expect(byPage.ledger!.bytes).toBe(sum([...common, "table.js", "ledger.js"]));
     expect(byPage.transaction!.bytes).toBe(sum([...common, "tx.js"]));
@@ -208,6 +212,7 @@ describe("checkBundle: what a page loads", () => {
     expect(byPage.amendments!.bytes).toBe(sum([...common, "table.js", "amendments.js"]));
     expect(byPage.amendment!.bytes).toBe(sum([...common, "table.js", "amendment.js"]));
     expect(byPage.amm!.bytes).toBe(sum([...common, "table.js", "charts.js", "amm.js"]));
+    expect(byPage["amm-pool"]!.bytes).toBe(sum([...common, "table.js", "charts.js", "amm-pool.js"]));
     // The chunk of a route that is not a page, and the ones only it imports, are in none of the pages.
     expect(report.pages.flatMap((page) => page.files)).not.toContain("search-page.js");
     expect(byPage.home!.files).toEqual(expect.arrayContaining([...common, "table.js", "home.js"]));
@@ -252,10 +257,11 @@ describe("checkBundle: what a page loads", () => {
     expect(table).toMatch(/amendments\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/amendment\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toMatch(/\namm\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
+    expect(table).toMatch(/\namm-pool\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
     expect(table).toContain("budgets: 150.0 KB for the lookup pages, 160.0 KB for the dashboards");
     expect(
-      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm)\s+\d/.test(line)),
-    ).toHaveLength(12);
+      table.split("\n").filter((line) => /^\s*(home|ledger|transaction|account|network|markets|market-pair|validators|validator|amendments|amendment|amm|amm-pool)\s+\d/.test(line)),
+    ).toHaveLength(13);
     expect(table).toMatch(/\naccount analytics\s+\d+\s+[\d,]+\s+[\d.]+ KB\s+ok/);
   });
 
@@ -351,8 +357,8 @@ describe("checkBundle: what a page loads", () => {
     });
     const report = checkBundle(dir);
     expect(report.pages.every((page) => page.files.includes("react-dom.js"))).toBe(true);
-    // The twelve pages, and the analytics view, which is the account page's files and more.
-    expect(report.problems).toHaveLength(13);
+    // The thirteen pages, and the analytics view, which is the account page's files and more.
+    expect(report.problems).toHaveLength(14);
   });
 });
 
