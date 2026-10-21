@@ -404,7 +404,7 @@ describe("poolCard", () => {
   });
 
   it("says only the part of the note that is known, and has no note when none is", () => {
-    expect(poolCard(poolFacts({ value: undefined }), XRPL).note).toBe("trading fee 0.300%");
+    expect(poolCard(poolFacts({ value: undefined }), XRPL).note).toBe("Trading fee 0.300%");
     expect(poolCard(poolFacts({ fee: undefined }), XRPL).note).toBe("Value 3.61M XRP");
     const bare = poolCard(poolFacts({ fee: undefined, value: undefined }), XRPL);
     expect(bare.note).toBeUndefined();

@@ -1278,7 +1278,7 @@ describe("an AMM pool", () => {
       // The code is 40 hex digits that are no text: its first eight and an ellipsis, as everywhere (formatCurrency). Not the name it was given by hand.
       expect(card.headline.text).toMatch(/^[0-9A-F]{8}… \/ XRP$/);
       expect(card.headline.mono).toBe(false);
-      expect(card.note).toBe("trading fee 1.000%");
+      expect(card.note).toBe("Trading fee 1.000%");
     } finally {
       drawing.mockRestore();
     }

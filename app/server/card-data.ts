@@ -226,13 +226,15 @@ export function amendmentCard(detail: AmendmentDetail, network: SoftwareNetwork)
 /**
  * The card of an AMM pool (AMM spec 5.2), made of the facts the page's tags are (`ammPoolFacts`), so a link's text and its picture agree: the pair in the text font
  * ("XRP / RLUSD": the page's slug with spaces round its slash), the pool's whole account under it, and, joined by `·`, the value and the trading fee where the facts
- * have them, or "Deleted pool". The footer is the day of the pool's creation, else the network. Every figure is the facts' own text: none is worked out here.
+ * have them (the note starts with a capital, as every card's does), or "Deleted pool". The footer is the day of the pool's creation, else the network. Every figure is the facts' own text: none is worked out here.
  */
 export function poolCard(facts: AmmPoolFacts, network: NetworkBrief): CardData {
   const known = [facts.value === undefined ? null : `Value ${facts.value} ${facts.native}`, facts.fee === undefined ? null : `trading fee ${facts.fee}`].filter(
     (part): part is string => part !== null,
   );
-  const note = facts.deleted ? "Deleted pool" : known.join(" · ");
+  // Joined, then capitalised, as every card's note starts: "Value 3.61M XRP · trading fee 0.300%", and "Trading fee 0.300%" where the value is not known.
+  const joined = known.join(" · ");
+  const note = facts.deleted ? "Deleted pool" : `${joined.charAt(0).toUpperCase()}${joined.slice(1)}`;
 
   const card: CardData = {
     network: network.id,
