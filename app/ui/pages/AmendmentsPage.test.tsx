@@ -449,6 +449,18 @@ describe("AmendmentsPage, enabled on", () => {
     expect(within(cell).queryByRole("link")).toBeNull();
   });
 
+  it("is the date over its ledger, not 'Always on', for a retired amendment the ledger lists", () => {
+    const list = everyStatus();
+    const listed: AmendmentRow = { ...RETIRED, enabled: { ledger_index: 5, date: "2023-10-30T12:00:00Z", tx_hash: "A".repeat(64), source: "ledger" } };
+    mount(build({ network: XAHAU, amendments: { ...list, amendments: [...list.amendments, listed] } }));
+    const cell = enabledCell("XahauGenesis");
+    expect(text(cell)).toBe("Oct 30, 2023#5");
+    expect(within(cell).getByRole("link", { name: "#5" }).getAttribute("href")).toBe("/xahau/ledger/5");
+    expect(cell.querySelector(".sr")).toBeNull();
+    // The retired tag stays beside its status.
+    expect(Array.from(cellsOf(rowOf("XahauGenesis"))[4]!.querySelectorAll(".tag"), text)).toEqual(["retired"]);
+  });
+
   it("is a dash for an amendment that is not enabled, with the words for a screen reader", () => {
     mount(build());
     for (const name of ["XChainBridge", "DID", "fixNFTokenNegOffer"]) {

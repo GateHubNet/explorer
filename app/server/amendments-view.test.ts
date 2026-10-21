@@ -163,9 +163,19 @@ describe("amendmentsPage: retired rows", () => {
     expect(row.meter).toBeNull();
   });
 
-  it("are always on whatever enabled data the row has", () => {
-    const row = build({ amendments: listWith([{ ...retired, enabled: { ledger_index: 5, date: "2023-10-30", source: "ledger" } }]) }).rows[0]!;
-    expect(row.enabled).toBe("always");
+  // D1 serves `enabled` for a retired name only when the ledger lists it: the row then reads like any enabled amendment, with its retired tag (as the amendment page does).
+  it("read like any enabled amendment when D1 serves its EnableAmendment from the ledger: the date over the link, and the retired tag", () => {
+    const row = build({ network: XAHAU, amendments: listWith([{ ...retired, enabled: { ledger_index: 5, date: "2023-10-30T12:00:00Z", tx_hash: "A".repeat(64), source: "ledger" } }]) }).rows[0]!;
+    expect(row.enabled).toEqual({ date: "Oct 30, 2023", ledger: { text: "#5", href: "/xahau/ledger/5" } });
+    expect(row.status).toEqual({ status: "enabled", retired: true });
+  });
+
+  it("read like any enabled amendment when D1 serves its day from the metadata file: the date alone, and the retired tag", () => {
+    const row = build({ network: XAHAU, amendments: listWith([{ ...retired, enabled: { ledger_index: 5, date: "2023-10-30", source: "metadata" } }]) }).rows[0]!;
+    expect(row.enabled).toEqual({ date: "Oct 30, 2023", ledger: null });
+    expect(row.status).toEqual({ status: "enabled", retired: true });
+    // An `enabled` with no day is a dash, as for any enabled amendment: not "always", which says the ledger does not list it.
+    expect(build({ network: XAHAU, amendments: listWith([{ ...retired, enabled: { source: "metadata" } }]) }).rows[0]!.enabled).toEqual({ date: "—", ledger: null });
   });
 
   it("are the only rows that say so", () => {

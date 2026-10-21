@@ -90,7 +90,7 @@ function ConsensusCell({ meter }: { meter: AmendmentListRow["meter"] }) {
   );
 }
 
-/** The date over the link to its ledger; "Always on" for a retired amendment (it is in no ledger), a dash where it is not enabled. */
+/** The date over the link to its ledger; "Always on" for a retired amendment the ledger does not list (the builder's `"always"`), a dash where it is not enabled. */
 function EnabledCell({ enabled }: { enabled: AmendmentListRow["enabled"] }) {
   if (enabled === "always") {
     return (

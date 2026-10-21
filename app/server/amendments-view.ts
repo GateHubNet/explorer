@@ -38,14 +38,17 @@ export interface AmendmentListRow {
   href: string;
   /** The XLS tag: a link only to a document of the XRPL-Standards repository (spec 2.8); `null` for an amendment with no XLS. */
   xls: { text: string; href: string | null } | null;
-  /** A retired amendment is always on: it is in no ledger's EnableAmendment. */
+  /** D1 marks the amendment retired: the software applies it whatever the ledger says (the status pill has the tag). */
   retired: boolean;
   /** `—` for an amendment the metadata file does not know. */
   introduced: string;
   /** The yes share of the UNL for `majority`, `voting` and `unknown`; `null` where no vote is running (or none is recorded). The text is the cell's words under the bar. */
   meter: { data: MeterData; text: string } | null;
   status: AmendmentStatusView;
-  /** The date over a link to its ledger (none for a date from the metadata file), `"always"` for a retired amendment, `null` for one that is not enabled. */
+  /**
+   * The date over a link to its ledger (none for a date from the metadata file); `"always"` for a retired amendment that the ledger does not list (D1 serves no `enabled` for
+   * it); `null` for one that is not enabled. A retired amendment the ledger lists has its date, as any enabled one.
+   */
   enabled: { date: string; ledger: { text: string; href: string } | null } | "always" | null;
 }
 
@@ -129,11 +132,14 @@ function meterOf(row: AmendmentRow, view: AmendmentStatusView, rules: AmendmentR
   };
 }
 
-/** When an amendment was enabled, as the "Enabled on" cell shows it. A date from the metadata file has no link: the ledger it names is not one the index has seen enabled. */
+/**
+ * When an amendment was enabled, as the "Enabled on" cell shows it. A date from the metadata file has no link: the ledger it names is not one the index has seen enabled. A retired
+ * amendment is "always on" only when D1 serves no `enabled` for it (the ledger does not list it); with one, it reads as any enabled amendment does (as the amendment page's grid).
+ */
 function enabledOf(net: string, row: AmendmentRow, view: AmendmentStatusView): AmendmentListRow["enabled"] {
-  if (row.retired === true) return "always";
   if (view.status !== "enabled") return null;
   const { enabled } = row;
+  if (enabled === undefined && row.retired === true) return "always";
   if (enabled?.date === undefined) return { date: DASH, ledger: null };
   return { date: formatDate(enabled.date), ledger: enabled.source === "ledger" && enabled.ledger_index !== undefined ? ledgerLink(net, enabled.ledger_index) : null };
 }
