@@ -8,6 +8,8 @@ import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, VALIDATIONS_CALL_TTL_SECONDS, VAL
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
 import type { NetworkId } from "../../app/server/networks";
+import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
+import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
@@ -441,5 +443,34 @@ describe("the stored page", () => {
     // What is there instead: absolute times, and the day an activation is expected.
     expect(html).toMatch(/<time[^>]*>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC<\/time>/);
     expect(textOf(html)).toMatch(/Activating, expected [A-Z][a-z]{2} \d{1,2}/);
+  });
+});
+
+// ---- A last_validated that is not a number --------------------------------------------------------------------------------------------------
+// Last, because the answer cannot have a key of its own: `last_validated` is one key for every page of a network, a malformed 200 is kept like any
+// other for 2 s, and the tests above kept good ones (and a test after this one would be given this one). So the block waits for what is kept to
+// expire, and each of its tests is on another network, so that neither finds the other's (network-page.spec.ts does the same). Without a ledger index
+// and a close time there is no anchor to build the page on, and that is the data API failing, not a page with no ledger: a 503 that is not stored.
+
+describe("a last_validated that the anchor cannot be worked out from", () => {
+  beforeAll(() => sleep(2_100));
+
+  it.each([
+    ["xahau", "a close time that is not a time", { close_time: "yesterday" }, xahauLastValidated],
+    ["xrpl", "a ledger index that is not a number", { ledger_index: "latest" }, xrplLastValidated],
+  ] as const)("the validator answers 503, and not a page with no ledger, on %s when last_validated has %s", async (net, _what, broken, recorded) => {
+    const key = await fresh(net);
+    mock = mockUpstream(net, { [LAST_VALIDATED]: { ...recorded, ...broken } });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const path = `/${net}/validators/${key}`;
+    const { response } = await render(path);
+
+    expect(response.status).toBe(503);
+    expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(await isStored(path)).toBe(false);
+    expect(statusesOf(mock, LAST_VALIDATED)).toEqual([200]);
+    // The validator itself was there: it is the anchor that is missing.
+    expect(statusesOf(mock, validatorCall(key))).toEqual([200]);
+    expect(errors.mock.calls.some(([line]) => String(line).includes("the validator page has no anchor"))).toBe(true);
   });
 });

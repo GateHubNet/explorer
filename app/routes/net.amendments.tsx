@@ -4,12 +4,13 @@ import { redirect } from "react-router";
 import { amendmentsHref, parseAmendmentsParams, type AmendmentStatus } from "../domain/amendments-params";
 import { queryOf } from "../domain/query-of";
 import { amendmentsPage, type AmendmentsPageData } from "../server/amendments-view";
-import { anchorOf, type Anchor } from "../server/anchor";
+import { anchorOrThrow, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
+import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { amendmentsMeta } from "../server/meta-amendments";
 import { requireNetwork } from "../server/network-route";
@@ -47,7 +48,7 @@ const scopeOf = (net: string, status: AmendmentStatus | undefined): string => am
  *   the builder filters), each asking for the failure hold (the page polls). Neither is raced: A is the page, and `lastValidated` is its anchor. Nothing is thrown until both
  *   have settled.
  * - **Either failing is a 503** that is not stored (spec 5.3): the page has no card that could fail on its own. An API without D1 is this case: A answers `Cannot GET`, which is
- *   an outage.
+ *   an outage. So is a `lastValidated` whose ledger index or close time is not a number (`anchorOrThrow`): no anchor can be worked out from it.
  *
  * The data carries the ledger it was built from (`anchor`) and the Worker's `BUILD_ID`.
  */
@@ -66,12 +67,20 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
   // Thrown only now that both calls have settled.
   if (last.status === "rejected") return upstreamOutage(last.reason, "the network");
+  let anchor: Anchor;
+  try {
+    anchor = anchorOrThrow(last.value);
+  } catch (error) {
+    // A 200 whose ledger or close time is not a number, which the page cannot be anchored on: the API failing.
+    logProblem("the amendments list has no anchor", error, request);
+    return upstreamOutage(error, "the amendments");
+  }
   if (amendments.status === "rejected") return upstreamOutage(amendments.reason, "the amendments");
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
   const { id, name, native, software } = net;
   const page = amendmentsPage({ network: { id, name, native, software }, amendments: amendments.value, status });
-  return cached({ ...page, anchor: anchorOf(last.value), build: getEnv(context).BUILD_ID } satisfies AmendmentsLoaderData, "minute");
+  return cached({ ...page, anchor, build: getEnv(context).BUILD_ID } satisfies AmendmentsLoaderData, "minute");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {

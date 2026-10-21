@@ -2,6 +2,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { formatUtc, shortHash } from "../../app/domain/format";
 import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../../app/server/cache-class";
+import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
+import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import xrplAmm from "../fixtures/http/xrpl/data-api/network/amendments/AMM.json";
 import xrplMajority from "../fixtures/http/xrpl/data-api/network/amendments/MPTokensV1.json";
 import { anchors, elementText, pageClient, textOf } from "../support/pages";
@@ -365,5 +367,33 @@ describe("the stored page", () => {
     expect(html).not.toContain('aria-label="Votes of the UNL validators"');
     expect(html).not.toContain("amendment__count");
     expect(text).not.toContain("Other validators, not on the UNL");
+  });
+});
+
+// ---- A last_validated that is not a number --------------------------------------------------------------------------------------------------
+// Last, because the answer cannot have a key of its own: `last_validated` is one key for every page of a network, a malformed 200 is kept like any
+// other for 2 s, and the tests above kept good ones (and a test after this one would be given this one). So the block waits for what is kept to
+// expire, and each of its tests is on another network, so that neither finds the other's (network-page.spec.ts does the same). Without a ledger index
+// and a close time there is no anchor to build the page on, and that is the data API failing, not a page with no ledger: a 503 that is not stored.
+
+describe("a last_validated that the anchor cannot be worked out from", () => {
+  beforeAll(() => sleep(2_100));
+
+  it.each([
+    ["xahau", "Hooks", "a close time that is not a time", { close_time: "yesterday" }, xahauLastValidated],
+    ["xrpl", "DID", "a ledger index that is not a number", { ledger_index: "latest" }, xrplLastValidated],
+  ] as const)("the amendment answers 503, and not a page with no ledger, on %s (%s) when last_validated has %s", async (net, name, _what, broken, recorded) => {
+    mock = mockUpstream(net, { [LAST_VALIDATED]: { ...recorded, ...broken } });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const path = `/${net}/amendments/${name}`;
+    const { response } = await render(path);
+
+    expect(response.status).toBe(503);
+    expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(await isStored(path)).toBe(false);
+    expect(statusesOf(mock, LAST_VALIDATED)).toEqual([200]);
+    // The amendment itself was there: it is the anchor that is missing.
+    expect(statusesOf(mock, amendmentCall(name))).toEqual([200]);
+    expect(errors.mock.calls.some(([line]) => String(line).includes("the amendment page has no anchor"))).toBe(true);
   });
 });

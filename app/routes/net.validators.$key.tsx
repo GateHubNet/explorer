@@ -6,7 +6,7 @@ import { parseTrail } from "../domain/paging";
 import { queryOf } from "../domain/query-of";
 import { parseValidatorKey } from "../domain/validator-key";
 import { validatorHref } from "../domain/validators-params";
-import { anchorOf, type Anchor } from "../server/anchor";
+import { anchorOrThrow, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS, VALIDATIONS_CALL_TTL_SECONDS, VALIDATIONS_MARKER_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
 import { byDeadline, CARD_DEADLINE_MS, partOf } from "../server/deadline";
@@ -70,7 +70,8 @@ const publicOf = ({ id, name, native, software }: Network) => ({ id, name, nativ
  *   loader's start ("took too long"); `lastValidated` and D are the page and are not raced. Nothing is thrown until everything has settled.
  * - **D decides the page** (spec 1.2, 4.4): its 404 `Validator not found` is the not-found page (class `short`) with the offer of the other network; any other
  *   failure (a 400 for a key that passed the parser, a 5xx, a timeout, an API without D1's `Cannot GET`) is a 503 that is not stored. A key that is not the
- *   master key D answers with (a signing key) is a 302 to the master's URL, `marker` and `back` kept, class `slow` (the mapping is D1's data).
+ *   master key D answers with (a signing key) is a 302 to the master's URL, `marker` and `back` kept, class `slow` (the mapping is D1's data). A `lastValidated` whose
+ *   ledger index or close time is not a number (`anchorOrThrow`) is a 503 too, whatever D answered: no anchor can be worked out from it.
  * - **A part that failed is told in its place** (spec 4.4): the view builder gives VV, S and A each their own `failed` state, the failure is logged and the
  *   request is degraded, so that the page is served and not stored.
  * - **A page of older validations** (spec 4.5) asks for D and VV with the marker only, and no hold (it does not poll). A marker VV refuses (a 400) or a page
@@ -134,11 +135,18 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
 
   // Thrown only now that every call has settled.
   if (last.status === "rejected") return upstreamOutage(last.reason, "the network");
+  let anchor: Anchor;
+  try {
+    anchor = anchorOrThrow(last.value);
+  } catch (error) {
+    // A 200 whose ledger or close time is not a number, which the page cannot be anchored on: the API failing.
+    logProblem("the validator page has no anchor", error, request);
+    return upstreamOutage(error, "the validator");
+  }
   if (validator.status === "rejected") return validatorFailure(validator.reason, net, key);
   const master = toMaster(net, key, validator.value.validation_public_key, {});
   if (master !== null) return master;
 
-  const anchor = anchorOf(last.value);
   const page = validatorPage({
     network: publicOf(net),
     validator: validator.value,

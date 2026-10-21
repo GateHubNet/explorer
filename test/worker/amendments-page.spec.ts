@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CACHE_CLASSES, HOME_CALL_TTL_SECONDS } from "../../app/server/cache-class";
+import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
+import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import xrplAmendments from "../fixtures/http/xrpl/data-api/network/amendments.json";
 import xahauAmendments from "../fixtures/http/xahau/data-api/network/amendments.json";
 import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
@@ -360,5 +362,32 @@ describe("the page without JavaScript", () => {
     expect(text).toContain("Changes to the XRPL protocol. Each one activates only after the validators on the default UNL vote it in.");
     expect(text).toContain("Live · updates every minute");
     expect(hrefs(html)).toEqual(expect.arrayContaining(["/xrpl/validators", "/xrpl/network", "/xrpl/amendments?status=majority"]));
+  });
+});
+
+// ---- A last_validated that is not a number --------------------------------------------------------------------------------------------------
+// Last, because the answer cannot have a key of its own: `last_validated` is one key for every page of a network, a malformed 200 is kept like any
+// other for 2 s, and the tests above kept good ones (and a test after this one would be given this one). So the block waits for what is kept to
+// expire, and each of its tests is on another network, so that neither finds the other's (network-page.spec.ts does the same). Without a ledger index
+// and a close time there is no anchor to build the page on, and that is the data API failing, not a page with no ledger: a 503 that is not stored.
+
+describe("a last_validated that the anchor cannot be worked out from", () => {
+  beforeAll(() => sleep(2_100));
+
+  it.each([
+    ["xahau", "a close time that is not a time", { close_time: "yesterday" }, xahauLastValidated],
+    ["xrpl", "a ledger index that is not a number", { ledger_index: "latest" }, xrplLastValidated],
+  ] as const)("the list answers 503, and not a page with no ledger, on %s when last_validated has %s", async (net, _what, broken, recorded) => {
+    mock = mockUpstream(net, { [LAST_VALIDATED]: { ...recorded, ...broken } });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    // A view that no test above has a stored page of: a failed render is answered with the stored copy of its page, if there is one.
+    const path = `/${net}/amendments?status=${net === "xahau" ? "obsolete" : "enabled"}`;
+    const { response } = await render(path);
+
+    expect(response.status).toBe(503);
+    expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(await isStored(path)).toBe(false);
+    expect(statusesOf(mock, LAST_VALIDATED)).toEqual([200]);
+    expect(errors.mock.calls.some(([line]) => String(line).includes("the amendments list has no anchor"))).toBe(true);
   });
 });

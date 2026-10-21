@@ -3,7 +3,7 @@ import { redirect } from "react-router";
 
 import { queryOf } from "../domain/query-of";
 import { canonicalValidatorsParams, parseValidatorsParams, validatorsHref, type ValidatorsParams } from "../domain/validators-params";
-import { anchorOf, type Anchor } from "../server/anchor";
+import { anchorOrThrow, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS, VALIDATORS_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
 import { asOutage, byDeadline, CARD_DEADLINE_MS, partOf } from "../server/deadline";
@@ -56,8 +56,8 @@ const scopeOf = (net: string, params: ValidatorsParams): string => validatorsHre
  *   A (the amendments), each asking for the failure hold (the page polls). S, L and A are cards, and each is raced against `CARD_DEADLINE_MS` from the
  *   loader's start ("took too long"); `lastValidated` is the page and is not raced. Nothing is thrown until everything has settled.
  * - **A part that failed is told in its place** (spec 3.3): the view builder gives S, L and A each their own `failed` state, the failure is logged and the
- *   request is degraded, so that the page is served and not stored. `lastValidated` failing, or S, L and A all failing (an API without D1 is this case:
- *   each answers `Cannot GET`, which is an outage), is a 503 that is not stored.
+ *   request is degraded, so that the page is served and not stored. `lastValidated` failing or answering a ledger index or close time that is not a number
+ *   (`anchorOrThrow`), or S, L and A all failing (an API without D1 is this case: each answers `Cannot GET`, which is an outage), is a 503 that is not stored.
  *
  * The data carries the ledger it was built from (`anchor`) and the Worker's `BUILD_ID`.
  */
@@ -86,6 +86,14 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
   // Thrown only now that every call has settled.
   if (last.status === "rejected") return upstreamOutage(last.reason, "the network");
+  let anchor: Anchor;
+  try {
+    anchor = anchorOrThrow(last.value);
+  } catch (error) {
+    // A 200 whose ledger or close time is not a number, which the page cannot be anchored on: the API failing.
+    logProblem("the validators list has no anchor", error, request);
+    return upstreamOutage(error, "the validators");
+  }
   if (summary.status === "rejected" && list.status === "rejected" && amendments.status === "rejected") {
     return upstreamOutage(asOutage(summary.reason), "the validators");
   }
@@ -110,7 +118,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   for (const { part, error } of failures) logProblem(`the validators list's ${part} could not be loaded`, error, request);
   if (failures.length > 0) markDegraded(context, `validators: ${failures.map(({ part }) => part).join(", ")}`);
 
-  return cached({ ...page, anchor: anchorOf(last.value), build: getEnv(context).BUILD_ID } satisfies ValidatorsLoaderData, "live");
+  return cached({ ...page, anchor, build: getEnv(context).BUILD_ID } satisfies ValidatorsLoaderData, "live");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
