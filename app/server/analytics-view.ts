@@ -14,7 +14,6 @@ import BigNumber from "bignumber.js";
 
 import { analyticsPhrases, type AnalyticsPeriod, type AnalyticsPhrases, type AnalyticsWindow } from "../domain/analytics-params";
 import { apiAssetText, type Asset } from "../domain/asset";
-import { tokenOf } from "../domain/fnv";
 import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue, shortAddress } from "../domain/format";
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import type { Native } from "../domain/parse/types";
@@ -32,6 +31,7 @@ import type {
   Page,
 } from "./api-types";
 import { divided, percentText, valueFloor } from "./exact";
+import { tokened } from "./network-view";
 import type { Network, NetworkId } from "./networks";
 
 /** A card of the tab: what its call gave, or that it failed or came too late (spec 2.8). Each stands on its own. */
@@ -197,9 +197,6 @@ function numberOf(value: string, field: string): BigNumber {
 
 /** What a chart draws: its data without the token. */
 type Drawn<T extends { token: string }> = Omit<T, "token">;
-
-/** The data of a chart with its token, which is the hash of everything the chart draws, extras and words included. */
-const tokened = <T extends object>(data: T): T & { token: string } => ({ ...data, token: tokenOf(data) });
 
 /** The rows by the day their `date` starts with, laid on the frame's buckets: the row of each bucket, or `null` where it has none. */
 function aligned<R extends { date: string }>(buckets: readonly string[], rows: readonly R[]): (R | null)[] {

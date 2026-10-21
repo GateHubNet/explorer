@@ -38,7 +38,7 @@ import type {
 } from "./api-types";
 import { BN, decimalOf, feePercent, ratioOf, valueFloor } from "./exact";
 import { issuersOf } from "./markets-view";
-import { byDay, volumeOf } from "./network-view";
+import { byDay, tokened, volumeOf } from "./network-view";
 import type { Network } from "./networks";
 import type { AmmInfo } from "./node-rpc";
 import { clock, ledgerLink, unixOf } from "./validator-facts";
@@ -354,7 +354,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
         state: "ok",
         title: `AMM swap volume per day, in ${native}, last 30 days`,
         source: CHART_SOURCE,
-        data: { ...data, token: tokenOf(data) },
+        data: tokened(data),
         note: pendingNote(window.buckets, series.pending, window.unit),
       };
     } catch (error) {
@@ -883,9 +883,6 @@ const RESERVES_NOTE = "Each asset on its own scale.";
 const FEES_FAILED_NOTE = "The fee estimates couldn't be loaded.";
 /** The titles of the cards where there is no window, and so no period and no pair, to name (#3 failed). */
 const BARE_TITLES = { value: "Pool value", volume: "Swap volume", price: "Pool price", fee: "Trading fee", reserves: "Reserves" } as const;
-
-/** A chart's data with E2's token: the hash of all it draws, its extras included. */
-const tokened = <T extends object>(data: T): T & { token: string } => ({ ...data, token: tokenOf(data) });
 
 /**
  * The five chart cards of the pool page (spec 3.5 and 3.6), from the day series. Each card stands or fails on its own: without the day rows (#4 or #5) the four

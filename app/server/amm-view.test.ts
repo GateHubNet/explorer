@@ -2241,6 +2241,16 @@ describe("poolCharts: the recorded days", () => {
     expect(s.feesFirst.at(-1)).toBe(last.fees_counter_est);
   });
 
+  it("starts XRP / RLUSD's 30-day price axis at 1.2 RLUSD, the nice floor of its recorded prices, and says so", () => {
+    const price = drawn(poolCharts(recorded(AMM_POOL, "30d")).price);
+    // From 1.2003 (Sep 18) to 1.3083 (Oct 17) RLUSD per XRP: a third of the range is a step of 0.05, and the lowest price's multiple of it is 1.2.
+    const prices = price.data.series[0]!.values.map((value) => new BigNumber(value!));
+    const lowest = BigNumber.minimum(...prices);
+    expect(lowest.gte("1.2") && lowest.lt("1.25")).toBe(true);
+    expect(price.data.domain).toEqual({ min: "1.2" });
+    expect(price.notes).toEqual(["The axis starts at 1.2 RLUSD.", NOT_COMPUTED_NOTE]);
+  });
+
   it("reads SNK/XRP over the year: deleted on Nov 11, 2025, in its week; the estimates in exponent form in plain digits", () => {
     const s = daySeries(recorded(SNK, "1y"));
     const week = bucket("2025-11-10", W1Y);

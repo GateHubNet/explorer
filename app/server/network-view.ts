@@ -216,7 +216,8 @@ function settle<V, X extends object>(ctx: ViewContext, part: string, result: Pro
 }
 
 const num = (value: number | string): BigNumber => new BigNumber(String(value));
-const tokened = <T extends object>(data: T): T & { token: string } => ({ ...data, token: tokenOf(data) });
+/** The data of a chart with its token, which is the hash of everything the chart draws, extras and words included. The one copy: every view builder uses it. */
+export const tokened = <T extends object>(data: T): T & { token: string } => ({ ...data, token: tokenOf(data) });
 
 /** The rows by the day their time starts with: `2026-10-17T00:00:00Z` is `2026-10-17`. */
 export function byDay<R>(rows: readonly R[], timeOf: (row: R) => string): Map<string, R> {
