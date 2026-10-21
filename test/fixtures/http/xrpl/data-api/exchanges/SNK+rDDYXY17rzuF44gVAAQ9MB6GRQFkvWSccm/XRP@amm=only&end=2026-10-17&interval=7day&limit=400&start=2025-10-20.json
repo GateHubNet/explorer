@@ -1,0 +1,10 @@
+{
+  "count": 4,
+  "exchanges": [
+    {"base_currency":"SNK","base_issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","base_volume":"0.000019337292","buy_volume":0.000008569475,"close":"299.69087","close_time":"2025-10-26T15:56:48Z","count":7,"counter_currency":"XRP","counter_volume":"0.006018","high":"332.01211","low":"299.69087","open":"332.01211","open_time":"2025-10-22T03:06:50Z","start":"2025-10-20T00:00:00Z","vwap":"311.21214"},
+    {"base_currency":"SNK","base_issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","base_volume":"0.000016886661","buy_volume":0.000007845009,"close":"291.02026","close_time":"2025-10-31T09:53:33Z","count":7,"counter_currency":"XRP","counter_volume":"0.005035","high":"308.24176","low":"291.02026","open":"308.24176","open_time":"2025-10-27T06:04:45Z","start":"2025-10-27T00:00:00Z","vwap":"298.16433"},
+    {"base_currency":"SNK","base_issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","base_volume":"0.000019995175","buy_volume":0.000008732384,"close":"273.65334","close_time":"2025-11-09T16:49:25Z","count":9,"counter_currency":"XRP","counter_volume":"0.005498","high":"276.03505","low":"273.65334","open":"276.03505","open_time":"2025-11-03T06:39:47Z","start":"2025-11-03T00:00:00Z","vwap":"274.96634"},
+    {"base_currency":"SNK","base_issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","base_volume":"0.00001151401","buy_volume":0.000004444116,"close":"258.20459","close_time":"2025-11-11T05:49:28Z","count":4,"counter_currency":"XRP","counter_volume":"0.003183","high":"290.57959","low":"258.20459","open":"290.57959","open_time":"2025-11-10T09:11:52Z","start":"2025-11-10T00:00:00Z","vwap":"276.44583"}
+  ],
+  "result": "success"
+}

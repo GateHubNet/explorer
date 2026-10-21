@@ -497,8 +497,11 @@ export function storedValue(pool: AmmPool): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-/** `valueText` of amm-objects.ts: eight significant digits of the stored value, a plain decimal without trailing zeros. */
-const valueText = (value: number): string => new BigNumber(new BigNumber(value).toPrecision(8)).toFixed();
+/**
+ * `valueText` of amm-objects.ts: eight significant digits of the stored value, a plain decimal without trailing zeros. amm-fixtures.ts writes the synthetic day
+ * rows' `value_native` with it too.
+ */
+export const valueText = (value: number): string => new BigNumber(new BigNumber(value).toPrecision(8)).toFixed();
 
 /** `toPoolObject` of the pool's states (oldest first, carried forward) and its first create event, if the recordings have one. */
 function poolObject(states: ReadonlyArray<StoredState & Place>, create: (StoredLiquidity & Place) | undefined): AmmPool {

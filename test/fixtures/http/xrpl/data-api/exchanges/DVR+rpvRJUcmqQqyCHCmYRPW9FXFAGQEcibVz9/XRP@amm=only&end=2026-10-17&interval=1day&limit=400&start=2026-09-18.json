@@ -1,0 +1,11 @@
+{
+  "count": 5,
+  "exchanges": [
+    {"base_currency":"DVR","base_issuer":"rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9","base_volume":"57263.4","buy_volume":28631.7,"close":"0.00050000000","close_time":"2026-10-12T22:59:17Z","count":2,"counter_currency":"XRP","counter_volume":"28.6317","high":"0.00050000000","low":"0.00050000000","open":"0.00050000000","open_time":"2026-10-12T21:47:11Z","start":"2026-10-12T00:00:00Z","vwap":"0.00050000000"},
+    {"base_currency":"DVR","base_issuer":"rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9","base_volume":"5502.08","buy_volume":2751.04,"close":"0.00050000000","close_time":"2026-10-13T22:46:16Z","count":6,"counter_currency":"XRP","counter_volume":"2.75104","high":"0.00050000000","low":"0.00050000000","open":"0.00050000000","open_time":"2026-10-13T04:28:05Z","start":"2026-10-13T00:00:00Z","vwap":"0.00050000000"},
+    {"base_currency":"DVR","base_issuer":"rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9","base_volume":"61084.84","buy_volume":30542.42,"close":"0.00050000000","close_time":"2026-10-15T20:26:16Z","count":4,"counter_currency":"XRP","counter_volume":"30.54242","high":"0.00050000000","low":"0.00050000000","open":"0.00050000000","open_time":"2026-10-15T00:22:14Z","start":"2026-10-15T00:00:00Z","vwap":"0.00050000000"},
+    {"base_currency":"DVR","base_issuer":"rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9","base_volume":"26369.06","buy_volume":13184.53,"close":"0.00050000000","close_time":"2026-10-16T20:23:18Z","count":2,"counter_currency":"XRP","counter_volume":"13.18453","high":"0.00050000000","low":"0.00050000000","open":"0.00050000000","open_time":"2026-10-16T18:40:37Z","start":"2026-10-16T00:00:00Z","vwap":"0.00050000000"},
+    {"base_currency":"DVR","base_issuer":"rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9","base_volume":"79299.16","buy_volume":39649.58,"close":"0.00050000000","close_time":"2026-10-17T11:48:23Z","count":2,"counter_currency":"XRP","counter_volume":"39.64958","high":"0.00050000000","low":"0.00050000000","open":"0.00050000000","open_time":"2026-10-17T08:16:11Z","start":"2026-10-17T00:00:00Z","vwap":"0.00050000000"}
+  ],
+  "result": "success"
+}

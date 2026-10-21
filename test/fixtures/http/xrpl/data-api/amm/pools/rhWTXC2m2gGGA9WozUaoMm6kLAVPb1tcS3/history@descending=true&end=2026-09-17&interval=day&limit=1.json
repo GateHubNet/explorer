@@ -1,0 +1,8 @@
+{
+  "count": 1,
+  "days": [
+    {"amm_account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","base_currency":"524C555344000000000000000000000000000000","base_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","counter_currency":"XRP","date":"2026-09-17T00:00:00Z","deposit_count":0,"fees_base_est":"75.2731188152","fees_counter_est":"58.39043365235","liquidity_in_base":"0","liquidity_in_counter":"0","liquidity_out_base":"0","liquidity_out_counter":"0","lp_supply":"1790510604.134439","reserve_base":"2310551.640525733","reserve_counter":"1930992.920954","swap_count":24,"trading_fee":205,"value_native":"3861985.8","volume_base":"36718.594544","volume_counter":"28483.138367","withdraw_count":0}
+  ],
+  "marker": "WzE3ODk2MDMyMDBd",
+  "result": "success"
+}

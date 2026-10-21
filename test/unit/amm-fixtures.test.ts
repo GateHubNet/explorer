@@ -4,18 +4,33 @@ import { isValidClassicAddress } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
 // http-fixtures.ts first: the generators it joins (amm-fixtures.ts among them) and derived-trades.ts import it in turn.
-import { fixtureText, generate, HTTP, isAmmGenerated, isMarketGenerated, isSynthetic, LEDGERS, readLedgers, txMarker, type RawLedger } from "../../scripts/http-fixtures";
+import {
+  fixtureText,
+  generate,
+  HTTP,
+  isAmmGenerated,
+  isMarketGenerated,
+  isoTime,
+  isSynthetic,
+  LEDGERS,
+  readLedgers,
+  txMarker,
+  unixOf,
+  type RawLedger,
+} from "../../scripts/http-fixtures";
 import { derivedExchanges } from "../../scripts/derived-trades";
 import { AMM_INFO_POOLS, ammInfoResult } from "../../scripts/amm-info-fixtures";
 import { deriveAmm, type AmmState } from "../../scripts/amm-derive";
-import { ammFixtures, FEATURED_POOLS } from "../../scripts/amm-fixtures";
+import { ammFixtures, ammSeries, ammSynthetic, FEATURED_POOLS } from "../../scripts/amm-fixtures";
 import { apiAssetText, sameAsset, type Asset } from "../../app/domain/asset";
 import { formatCurrency } from "../../app/domain/format";
 import { naturalOrientation } from "../../app/domain/market-pair";
 import { nodesOf } from "../../app/domain/parse/objects";
 import type { TxMeta } from "../../app/domain/parse/types";
-import { checkGovernancePage, checkLiquidityPage, checkPool, checkPoolsPage, checkSwapsPage } from "../../app/server/amm-shape";
-import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmSwap, Page, PairExchange } from "../../app/server/api-types";
+import { windowOf } from "../../app/domain/window";
+import { checkCandles } from "../../app/server/aggregate-shape";
+import { checkDaysPage, checkGovernancePage, checkLiquidityPage, checkLiveVolume, checkPool, checkPoolsPage, checkSwapsPage } from "../../app/server/amm-shape";
+import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmPoolDay, AmmSwap, AmmVolumeRow, Candle, Page, PairExchange } from "../../app/server/api-types";
 import { dataApiFile } from "../support/upstream-core";
 
 // What the derived AMM fixtures promise the tests that use them: the data API's answers of the pool routes that scripts/amm-fixtures.ts writes
@@ -564,13 +579,19 @@ describe("the files", () => {
     }
     // E3's `amm=only` files of the pair page (no `end`) and E2's 30-day `amm_volume` files stay theirs: the real names the generator writes.
     const generated = [...generate().keys()];
-    const theirs = generated.filter((path) => /\/exchanges\/.*@amm=only&/.test(path));
+    const amm = generated.filter((path) => /\/exchanges\/.*@amm=only&/.test(path));
+    const [mine, theirs] = [amm.filter((path) => /@amm=only&end=/.test(path)), amm.filter((path) => !/@amm=only&end=/.test(path))];
     expect(theirs).toContain(`xrpl/data-api/exchanges/XRP/524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De@amm=only&interval=1day&limit=61&start=2026-08-19T00:00:00Z.json`);
     for (const path of theirs) expect([isAmmGenerated(path), isMarketGenerated(path)], path).toEqual([false, true]);
+    expect(mine).toEqual(expect.arrayContaining(ours.slice(0, 3)));
+    for (const path of mine) expect([isAmmGenerated(path), isMarketGenerated(path)], path).toEqual([true, false]);
+    // E2's historical files are the `amm_volume@end=…` ones; the one live set beside them is ours.
     const volumes = generated.filter((path) => path.startsWith("xrpl/data-api/network/amm_volume@"));
-    expect(volumes).toContain("xrpl/data-api/network/amm_volume@end=2026-10-17&interval=day&limit=1000&start=2026-09-18.json");
-    expect(volumes).toHaveLength(8);
-    for (const path of volumes) expect([isAmmGenerated(path), isSynthetic(path)], path).toEqual([false, true]);
+    const historical = volumes.filter((path) => path.startsWith("xrpl/data-api/network/amm_volume@end="));
+    expect(historical).toContain("xrpl/data-api/network/amm_volume@end=2026-10-17&interval=day&limit=1000&start=2026-09-18.json");
+    expect(historical).toHaveLength(8);
+    for (const path of historical) expect([isAmmGenerated(path), isSynthetic(path)], path).toEqual([false, true]);
+    expect(volumes.filter((path) => !historical.includes(path))).toEqual(["xrpl/data-api/network/amm_volume@live=day.json"]);
   });
 
   it("hold a pool file for every derived pool, `{ result, pool }`, that the client's check takes", () => {
@@ -688,21 +709,28 @@ describe("the files", () => {
     expect((json(file(`/v2/amm/pools/${FEATURED_POOLS["DVR/XRP"]}/liquidity`, "event=create&limit=1")) as Page<"liquidity", AmmLiquidityEvent>).count).toBe(1);
   });
 
-  it("write a list's rows one to a line, keys sorted, as fixtureText does", () => {
+  it("write a list's rows one to a line, keys sorted, as fixtureText does: a pool, a swap, an event, a day, a candle, a volume component", () => {
+    let rows = 0;
     for (const [path, text] of files) {
       const body = JSON.parse(text) as Record<string, unknown>;
-      const list = ["pools", "exchanges", "liquidity", "governance"].find((key) => Array.isArray(body[key]));
-      if (list === undefined) {
+      const lines = text.split("\n").map((line) => line.trim().replace(/,$/, ""));
+      // The live volume's one row holds its components, one to a line.
+      const live = Array.isArray(body.rows) ? (body.rows as Array<{ components: unknown[] }>).flatMap((row) => row.components) : undefined;
+      const list = ["pools", "exchanges", "liquidity", "governance", "days"].find((key) => Array.isArray(body[key]));
+      const listed = live ?? (list === undefined ? undefined : (body[list] as unknown[]));
+      if (listed === undefined) {
         expect(text, path).toBe(fixtureText(body));
         continue;
       }
-      const lines = text.split("\n").map((line) => line.trim().replace(/,$/, ""));
-      for (const row of body[list] as unknown[]) expect(lines, path).toContain(JSON.stringify(sortedKeys(row)));
+      for (const row of listed) expect(lines, path).toContain(JSON.stringify(sortedKeys(row)));
+      rows += listed.length;
     }
+    expect(rows).toBeGreaterThan(500);
   });
 
   it("write no swap, event or governance row that is not the derived one", () => {
-    for (const [path, text] of files) {
+    // The pool routes' files; the candles below `exchanges/` and the day rows are synthetic (the next block).
+    for (const [path, text] of [...files].filter(([path]) => path.startsWith("xrpl/data-api/amm/"))) {
       const body = JSON.parse(text) as { exchanges?: PairExchange[]; liquidity?: AmmLiquidityEvent[]; governance?: AmmGovernanceRow[] };
       for (const row of body.exchanges ?? []) expect(swaps, path).toContainEqual(row);
       for (const row of body.liquidity ?? []) expect(derived.liquidity, path).toContainEqual(row);
@@ -714,13 +742,14 @@ describe("the files", () => {
 describe("the featured pools' amm_info (AMM_INFO_POOLS)", () => {
   it("are XRP/RLUSD (E3's) and USDC/RLUSD, XRP/USD and DVR/XRP, each in its natural orientation; VOX/XRP has none (only its vote is recorded)", () => {
     expect(AMM_INFO_POOLS.map((entry) => entry.pool)).toEqual([FEATURED_POOLS["XRP/RLUSD"], FEATURED_POOLS["USDC/RLUSD"], FEATURED_POOLS["XRP/USD"], FEATURED_POOLS["DVR/XRP"]]);
+    const generated = generate();
     for (const entry of AMM_INFO_POOLS) {
       const pool = poolOf(entry.pool);
       const { base, counter } = naturalOrientation(baseOf(pool), counterOf(pool), NATIVE);
       expect([entry.asset, entry.asset2], entry.pool).toEqual([base, counter]);
-      expect(generate().has(`xrpl/node/amm_info/${entry.pool}.json`)).toBe(true);
+      expect(generated.has(`xrpl/node/amm_info/${entry.pool}.json`)).toBe(true);
     }
-    expect(generate().has(`xrpl/node/amm_info/${FEATURED_POOLS["VOX/XRP"]}.json`)).toBe(false);
+    expect(generated.has(`xrpl/node/amm_info/${FEATURED_POOLS["VOX/XRP"]}.json`)).toBe(false);
   });
 
   it("hold the same reserves, LP supply, fee and auction slot as the derived pool: two derivations of the same nodes agree", () => {
@@ -758,6 +787,444 @@ describe("the featured pools' amm_info (AMM_INFO_POOLS)", () => {
   });
 });
 
+describe("the synthetic day rows, candles and live volume", () => {
+  // The day rows (`history?interval=day`), the pairs' AMM-only candles and the live `amm_volume` set are synthetic: one seeded daily series per featured pool,
+  // of which the files are views by the API's rules, and one seeded live set. P2 of E5 scopes them: every period of XRP/RLUSD; the 90 days of USDC/RLUSD and
+  // XRP/USD; DVR/XRP's creation in the 30 days; SNK/XRP's deletion in the year; nothing of VOX/XRP (P3). The rules are written out here again, apart from the
+  // generator: the windows, the carry-in and its marker, the estimates, the candles (E3's rules) and the live set (docs/api-reference.md, "AMM" and
+  // `/v2/network/amm_volume`; apps/api/src/network/volume-object.ts).
+  const T = "2026-10-17";
+  const LAST_DAY = "2026-10-16";
+  const WINDOWS = {
+    "30d": { start: "2026-09-18", carry: "2026-09-17", interval: "1day", days: 1 },
+    "90d": { start: "2026-07-20", carry: "2026-07-19", interval: "1day", days: 1 },
+    "1y": { start: "2025-10-20", carry: "2025-10-19", interval: "7day", days: 7 },
+  } as const;
+  type Period = keyof typeof WINDOWS;
+  type Name = "XRP/RLUSD" | "USDC/RLUSD" | "XRP/USD" | "DVR/XRP" | "SNK/XRP";
+  const SCOPE: Record<Name, { windows: Period[]; carryIns: Period[] }> = {
+    "XRP/RLUSD": { windows: ["30d", "90d", "1y"], carryIns: ["30d", "90d", "1y"] },
+    "USDC/RLUSD": { windows: ["90d"], carryIns: ["90d"] },
+    "XRP/USD": { windows: ["90d"], carryIns: ["90d"] },
+    "DVR/XRP": { windows: ["30d"], carryIns: ["30d", "90d", "1y"] },
+    "SNK/XRP": { windows: ["30d", "90d", "1y"], carryIns: ["30d", "90d", "1y"] },
+  };
+  const NAMES = Object.keys(SCOPE) as Name[];
+  /** The keys of a PoolDay (amm-objects.ts), a candle (docs/api-reference.md, "Candles"), a volume row and an AMM component (volume-object.ts), in order. */
+  const DAY_KEYS = [
+    "amm_account", "date", "base_currency", "base_issuer", "counter_currency", "counter_issuer", "swap_count", "volume_base", "volume_counter", "fees_base_est",
+    "fees_counter_est", "deposit_count", "withdraw_count", "liquidity_in_base", "liquidity_in_counter", "liquidity_out_base", "liquidity_out_counter", "reserve_base",
+    "reserve_counter", "lp_supply", "trading_fee", "value_native",
+  ];
+  const CANDLE_KEYS = [
+    "base_volume", "buy_volume", "close", "close_time", "count", "counter_volume", "high", "low", "open", "open_time", "start", "vwap", "base_currency", "base_issuer",
+    "counter_currency", "counter_issuer",
+  ];
+  const ROW_KEYS = ["components", "count", "exchange", "total", "exchange_rate", "start_time", "end_time"];
+  const COMPONENT_KEYS = ["amm_account", "base", "counter", "count", "amount", "rate", "converted_amount"];
+  /** Room for the API's quotients of exact decimals, and its 8 significant digits of a rate or a price. */
+  const Exact = BigNumber.clone({ DECIMAL_PLACES: 60 });
+  const precision8 = (value: BigNumber.Value): string => new BigNumber(value).toPrecision(8);
+  const sum = (values: readonly BigNumber.Value[]): BigNumber => values.reduce<BigNumber>((total, value) => total.plus(value), new BigNumber(0));
+
+  const files = ammFixtures();
+  const series = ammSeries(xrpl);
+  const seriesOf = (name: Name) => {
+    const found = series.find((one) => one.name === name);
+    if (found === undefined) throw new Error(`${name}: no series`);
+    return found;
+  };
+  const accountOf = (name: Name): string => FEATURED_POOLS[name];
+  const dayOf = (row: { date: string }): string => row.date.slice(0, 10);
+  const secondsOf = (day: string): number => Date.parse(`${day}T00:00:00Z`) / 1000;
+  const addDays = (day: string, days: number): string => new Date((secondsOf(day) + days * 86_400) * 1000).toISOString().slice(0, 10);
+  const history = (name: Name) => `/v2/amm/pools/${accountOf(name)}/history`;
+  const windowFile = (name: Name, period: Period) => file(history(name), `end=${T}&interval=day&limit=1000&start=${WINDOWS[period].start}`);
+  const carryFile = (name: Name, period: Period) => file(history(name), `descending=true&end=${WINDOWS[period].carry}&interval=day&limit=1`);
+  const lastDayFile = (name: Name) => file(history(name), `end=${LAST_DAY}&interval=day&limit=1&start=${LAST_DAY}`);
+  const candleFile = (name: Name, period: Period) => {
+    const pool = poolOf(accountOf(name));
+    const pair = `/v2/exchanges/${encodeURIComponent(apiAssetText(baseOf(pool)))}/${encodeURIComponent(apiAssetText(counterOf(pool)))}`;
+    return file(pair, `amm=only&end=${T}&interval=${WINDOWS[period].interval}&limit=400&start=${WINDOWS[period].start}`);
+  };
+  const LIVE = file("/v2/network/amm_volume", "live=day");
+  const daysPage = (path: string) => json(path) as Page<"days", AmmPoolDay>;
+  const candlePage = (path: string) => json(path) as Page<"exchanges", Candle>;
+  /** The pool's recorded liquidity events of a day (the derived ones, which the Liquidity tab lists). */
+  const eventsOf = (name: Name, day: string) => derived.liquidity.filter((event) => event.amm_account === accountOf(name) && event.executed_time.slice(0, 10) === day);
+  const EMPTY = { result: "success", count: 0, days: [] };
+
+  it("are at T, the UTC day of the recorded last_validated, in E2's windows: the 30 and 90 days to T, the 52 weeks from Monday", () => {
+    expect(isoTime(unixOf(xrpl.at(-1)!.ledger.close_time))).toBe("2026-10-17T17:01:12Z");
+    for (const period of Object.keys(WINDOWS) as Period[]) {
+      const w = windowOf(T, period);
+      expect([w.start, w.end], period).toEqual([WINDOWS[period].start, T]);
+      expect(addDays(w.start, -1)).toBe(WINDOWS[period].carry);
+    }
+    expect(new Date(`${WINDOWS["1y"].start}T00:00:00Z`).getUTCDay()).toBe(1);
+  });
+
+  it("are the files P2 scopes, and no more: each pool's windows, carry-ins, last day and candles, and the live set; none for VOX/XRP", () => {
+    const expected = [
+      LIVE,
+      ...NAMES.flatMap((name) => [
+        ...SCOPE[name].windows.flatMap((period) => [windowFile(name, period), candleFile(name, period)]),
+        ...SCOPE[name].carryIns.map((period) => carryFile(name, period)),
+        lastDayFile(name),
+      ]),
+    ];
+    const synthetic = [...files.keys()].filter((path) => /\/history@/.test(path) || !path.startsWith("xrpl/data-api/amm/"));
+    expect(synthetic.sort()).toEqual([...new Set(expected)].sort());
+    expect(expected).toHaveLength(new Set(expected).size);
+    expect(synthetic.some((path) => path.includes(FEATURED_POOLS["VOX/XRP"]))).toBe(false);
+    for (const path of synthetic) expect(isAmmGenerated(path), path).toBe(true);
+    expect(series.map((one) => one.name).sort()).toEqual([...NAMES].sort());
+  });
+
+  it("hold one series per pool, the same on every run: days from 2025-10-01 or its creation to T or its deletion, oldest first, each once, quiet days without a row", () => {
+    for (const name of NAMES) {
+      const { pool, days } = seriesOf(name);
+      expect(pool).toEqual(poolOf(accountOf(name)));
+      const dates = days.map(dayOf);
+      expect(dates, name).toEqual([...new Set(dates)].sort());
+      expect(dates[0]! >= "2025-10-01" && dates.at(-1)! <= T, name).toBe(true);
+      for (const row of days) {
+        expect(row.date).toBe(`${dayOf(row)}T00:00:00Z`);
+        expect(row.amm_account).toBe(pool.amm_account);
+        expect([row.base_currency, row.base_issuer, row.counter_currency, row.counter_issuer]).toEqual([pool.base_currency, pool.base_issuer, pool.counter_currency, pool.counter_issuer]);
+      }
+    }
+    // A pool that has no creation in the recordings has days from before the year's window; the busy pool has quiet days in every window.
+    for (const name of ["XRP/RLUSD", "USDC/RLUSD", "XRP/USD", "SNK/XRP"] as const) expect(dayOf(seriesOf(name).days[0]!) < WINDOWS["1y"].carry, name).toBe(true);
+    for (const period of ["30d", "90d", "1y"] as const) {
+      const span = (secondsOf(T) - secondsOf(WINDOWS[period].start)) / 86_400 + 1;
+      expect(daysPage(windowFile("XRP/RLUSD", period)).days.length, period).toBeLessThan(span);
+    }
+    expect(ammSeries(xrpl)).toEqual(series);
+  });
+
+  it("hold in each window the rows whose day is from its start to T, oldest first, within the limit; the 30 days the 90 days' last rows, the 90 days the year's", () => {
+    for (const name of NAMES) {
+      const { days } = seriesOf(name);
+      const pages = new Map<Period, Page<"days", AmmPoolDay>>();
+      for (const period of SCOPE[name].windows) {
+        const page = daysPage(windowFile(name, period));
+        expect(() => checkDaysPage(page)).not.toThrow();
+        const rows = days.filter((row) => dayOf(row) >= WINDOWS[period].start && dayOf(row) <= T);
+        expect(rows.length).toBeLessThanOrEqual(1000);
+        expect(page, `${name} ${period}`).toEqual({ result: "success", count: rows.length, days: rows });
+        pages.set(period, page);
+      }
+      const [month, quarter, year] = [pages.get("30d"), pages.get("90d"), pages.get("1y")];
+      if (month && quarter) expect(quarter.days.slice(quarter.days.length - month.days.length), name).toEqual(month.days);
+      if (quarter && year) expect(year.days.slice(year.days.length - quarter.days.length), name).toEqual(quarter.days);
+    }
+    expect(daysPage(windowFile("XRP/RLUSD", "1y")).days.length).toBeGreaterThan(200);
+  });
+
+  it("answer each carry-in with the newest row on or before its end, with the marker of that day when older rows exist, else an empty list; the last day its row", () => {
+    for (const name of NAMES) {
+      const { days } = seriesOf(name);
+      for (const period of SCOPE[name].carryIns) {
+        const page = daysPage(carryFile(name, period));
+        expect(() => checkDaysPage(page)).not.toThrow();
+        const before = days.filter((row) => dayOf(row) <= WINDOWS[period].carry);
+        const newest = before.at(-1);
+        // The marker of a page of days is the start of its last day, in unix seconds (amm-pools.service.ts `days`, `encodeMarker`).
+        const expected =
+          newest === undefined ? EMPTY : { result: "success", count: 1, ...(before.length > 1 && { marker: marker([secondsOf(dayOf(newest))]) }), days: [newest] };
+        expect(page, `${name} ${period}`).toEqual(expected);
+      }
+      const last = days.filter((row) => dayOf(row) === LAST_DAY);
+      expect(daysPage(lastDayFile(name)), name).toEqual({ result: "success", count: last.length, days: last });
+    }
+    for (const period of ["30d", "90d", "1y"] as const) {
+      const page = daysPage(carryFile("XRP/RLUSD", period));
+      expect(decoded(page.marker!), period).toEqual([secondsOf(dayOf(page.days[0]!))]);
+    }
+    expect(daysPage(lastDayFile("XRP/RLUSD")).count).toBe(1);
+  });
+
+  it("start DVR/XRP's days on its creation, inside the 30 days and with nothing before; end SNK/XRP's on its deletion, inside the year and before the 30 and 90 days", () => {
+    const dvr = seriesOf("DVR/XRP").days;
+    const created = derived.liquidity.find((event) => event.amm_account === accountOf("DVR/XRP") && event.event === "create")!;
+    expect(created.executed_time.slice(0, 10)).toBe("2026-10-12");
+    expect(dvr[0]!.date).toBe("2026-10-12T00:00:00Z");
+    expect(daysPage(windowFile("DVR/XRP", "30d")).days[0]).toEqual(dvr[0]);
+    for (const period of ["30d", "90d", "1y"] as const) expect(daysPage(carryFile("DVR/XRP", period)), period).toEqual(EMPTY);
+    // The creation counts as the day's deposit.
+    expect(dvr[0]).toMatchObject({ deposit_count: 1, withdraw_count: 0, liquidity_in_base: created.base_amount, liquidity_in_counter: created.counter_amount });
+    expect([dvr[0]!.liquidity_out_base, dvr[0]!.liquidity_out_counter]).toEqual(["0", "0"]);
+
+    const snk = seriesOf("SNK/XRP").days;
+    const pool = poolOf(accountOf("SNK/XRP"));
+    const deletion = derived.states.filter((state) => state.amm_account === pool.amm_account).at(-1)!;
+    expect([deletion.ledger_index, deletion.executed_time.slice(0, 10)]).toEqual([100132150, "2025-11-11"]);
+    expect(snk.at(-1)!.date).toBe("2025-11-11T00:00:00Z");
+    expect(daysPage(windowFile("SNK/XRP", "1y")).days.at(-1)).toEqual(snk.at(-1));
+    for (const period of ["30d", "90d"] as const) expect(daysPage(windowFile("SNK/XRP", period)), period).toEqual(EMPTY);
+    for (const period of ["30d", "90d"] as const) expect(daysPage(carryFile("SNK/XRP", period)).days, period).toEqual([snk.at(-1)]);
+    // The withdrawal that emptied it is the day's: its amounts went out, and the day closes in the deleted pool's state, without a value.
+    const emptied = derived.liquidity.find((event) => event.amm_account === pool.amm_account && event.event === "withdraw")!;
+    expect(snk.at(-1)).toMatchObject({
+      withdraw_count: 1,
+      liquidity_out_base: new BigNumber(emptied.base_amount).negated().toString(),
+      liquidity_out_counter: new BigNumber(emptied.counter_amount).negated().toString(),
+      reserve_base: pool.reserve_base,
+      reserve_counter: pool.reserve_counter,
+      lp_supply: pool.lp_supply,
+      trading_fee: pool.trading_fee,
+    });
+    expect(snk.at(-1)).not.toHaveProperty("value_native");
+  });
+
+  it("close each live featured pool's day T, the day so far, in its derived pool's state: the reserves, LP supply, fee and value", () => {
+    const livePools = NAMES.filter((name) => !poolOf(accountOf(name)).deleted);
+    expect(livePools).toEqual(["XRP/RLUSD", "USDC/RLUSD", "XRP/USD", "DVR/XRP"]);
+    for (const name of livePools) {
+      const pool = poolOf(accountOf(name));
+      const last = seriesOf(name).days.at(-1)!;
+      expect(last.date, name).toBe(`${T}T00:00:00Z`);
+      expect(last.swap_count).toBeGreaterThan(0);
+      expect([last.reserve_base, last.reserve_counter, last.lp_supply, last.trading_fee, last.value_native], name).toEqual([
+        pool.reserve_base,
+        pool.reserve_counter,
+        pool.lp_supply,
+        pool.trading_fee,
+        pool.value_native,
+      ]);
+      expect(daysPage(windowFile(name, SCOPE[name].windows[0]!)).days.at(-1), name).toEqual(last);
+    }
+  });
+
+  it("count each day's recorded liquidity events of the pool, a creation as a deposit, and none on the other days", () => {
+    for (const name of NAMES) {
+      const { days } = seriesOf(name);
+      const [first, last] = [dayOf(days[0]!), dayOf(days.at(-1)!)];
+      for (const event of derived.liquidity.filter((e) => e.amm_account === accountOf(name))) {
+        const day = event.executed_time.slice(0, 10);
+        if (day >= first && day <= last) expect(days.map(dayOf), `${name} ${day}`).toContain(day);
+      }
+      for (const row of days) {
+        const events = eventsOf(name, dayOf(row));
+        const flow = (side: "base_amount" | "counter_amount", sign: 1 | -1) => sum(events.map((e) => BigNumber.max(new BigNumber(e[side]).times(sign), 0)));
+        expect(row.deposit_count, row.date).toBe(events.filter((e) => e.event === "create" || e.event === "deposit").length);
+        expect(row.withdraw_count, row.date).toBe(events.filter((e) => e.event === "withdraw" || e.event === "clawback").length);
+        expect(new BigNumber(row.liquidity_in_base).eq(flow("base_amount", 1)), row.date).toBe(true);
+        expect(new BigNumber(row.liquidity_in_counter).eq(flow("counter_amount", 1)), row.date).toBe(true);
+        expect(new BigNumber(row.liquidity_out_base).eq(flow("base_amount", -1)), row.date).toBe(true);
+        expect(new BigNumber(row.liquidity_out_counter).eq(flow("counter_amount", -1)), row.date).toBe(true);
+        if (events.length === 0) expect([row.liquidity_in_base, row.liquidity_in_counter, row.liquidity_out_base, row.liquidity_out_counter]).toEqual(["0", "0", "0", "0"]);
+      }
+    }
+    const rlusd = seriesOf("XRP/RLUSD").days;
+    expect(rlusd.find((row) => dayOf(row) === "2026-10-16")).toMatchObject({ deposit_count: 2, withdraw_count: 0 });
+    expect(rlusd.at(-1)).toMatchObject({ deposit_count: 0, withdraw_count: 1 });
+  });
+
+  it("estimate each side's fees as its volume × trading_fee / 100000, exactly, on every row but XRP/RLUSD's 2026-10-10, which has swaps both ways and neither", () => {
+    let knownZero = 0;
+    for (const name of NAMES) {
+      for (const row of seriesOf(name).days) {
+        expect(row.swap_count, row.date).toBeGreaterThan(0);
+        if (name === "XRP/RLUSD" && dayOf(row) === "2026-10-10") {
+          // An estimate is left out when a swap into its side had no known fee: both sides had swaps into them.
+          expect(row).not.toHaveProperty("fees_base_est");
+          expect(row).not.toHaveProperty("fees_counter_est");
+          expect(new BigNumber(row.volume_base).gt(0) && new BigNumber(row.volume_counter).gt(0)).toBe(true);
+          continue;
+        }
+        for (const side of ["base", "counter"] as const) {
+          const estimate = row[`fees_${side}_est`];
+          expect(estimate, `${name} ${row.date} ${side}`).toBeDefined();
+          expect(new BigNumber(estimate!).eq(new BigNumber(row[`volume_${side}`]).times(row.trading_fee!).shiftedBy(-5)), `${name} ${row.date} ${side}`).toBe(true);
+          if (estimate === "0") knownZero++;
+        }
+      }
+    }
+    // A side no swap went into has the known zero, "0", not a missing estimate.
+    expect(knownZero).toBeGreaterThan(0);
+    expect(daysPage(windowFile("XRP/RLUSD", "30d")).days.filter((row) => !("fees_base_est" in row)).map((row) => row.date)).toEqual(["2026-10-10T00:00:00Z"]);
+  });
+
+  it("write value_native as 2 × the closing native reserve, as a pool's (valueText); none for USDC/RLUSD or for the day of the deletion", () => {
+    for (const name of NAMES) {
+      const { pool, days } = seriesOf(name);
+      for (const row of days) {
+        const reserve = isNative(counterOf(pool)) ? row.reserve_counter : isNative(baseOf(pool)) ? row.reserve_base : undefined;
+        if (reserve === undefined || (pool.deleted && row === days.at(-1))) {
+          expect(row, `${name} ${row.date}`).not.toHaveProperty("value_native");
+          continue;
+        }
+        expect(row.value_native, `${name} ${row.date}`).toBe(new BigNumber(new BigNumber(new BigNumber(reserve).times(2).toNumber()).toPrecision(8)).toFixed());
+      }
+    }
+    expect(seriesOf("USDC/RLUSD").days.some((row) => "value_native" in row)).toBe(false);
+  });
+
+  it("give each day with swaps its candle in the stored pair, its count the day's swaps: the day's volume went in, the base the takers bought went out", () => {
+    for (const name of NAMES) {
+      const pool = poolOf(accountOf(name));
+      for (const period of SCOPE[name].windows.filter((p) => p !== "1y")) {
+        const page = candlePage(candleFile(name, period));
+        expect(() => checkCandles(page)).not.toThrow();
+        expect(page.count).toBe(page.exchanges.length);
+        expect(page).not.toHaveProperty("marker");
+        const rows = daysPage(windowFile(name, period)).days.filter((row) => row.swap_count > 0);
+        expect(page.exchanges.map((candle) => candle.start), `${name} ${period}`).toEqual(rows.map((row) => row.date));
+        page.exchanges.forEach((candle, at) => {
+          const row = rows[at]!;
+          const where = `${name} ${candle.start}`;
+          expect(candle.count, where).toBe(row.swap_count);
+          expect([candle.base_currency, candle.base_issuer, candle.counter_currency, candle.counter_issuer]).toEqual([pool.base_currency, pool.base_issuer, pool.counter_currency, pool.counter_issuer]);
+          expect(new BigNumber(candle.base_volume).minus(String(candle.buy_volume)).eq(row.volume_base), where).toBe(true);
+          expect(new BigNumber(candle.counter_volume).gt(row.volume_counter) || new BigNumber(candle.counter_volume).eq(row.volume_counter), where).toBe(true);
+          expect(candle.open_time >= candle.start && candle.open_time <= candle.close_time && candle.close_time < `${addDays(dayOf(row), 1)}T00:00:00Z`, where).toBe(true);
+          for (const price of [candle.open, candle.high, candle.low, candle.close, candle.vwap]) expect(precision8(price), where).toBe(price);
+          const [low, high] = [Number(candle.low), Number(candle.high)];
+          for (const price of [candle.open, candle.close, candle.vwap]) expect(Number(price) >= low && Number(price) <= high, where).toBe(true);
+          expect(candle.vwap, where).toBe(precision8(new Exact(candle.counter_volume).dividedBy(candle.base_volume)));
+          // The swaps of a day are at the pool's closing price, to the digits of their amounts.
+          const closing = new Exact(row.reserve_counter!).dividedBy(row.reserve_base!);
+          expect(new Exact(candle.close).dividedBy(closing).minus(1).abs().lt(0.002), where).toBe(true);
+        });
+      }
+    }
+  });
+
+  it("add up a week's days in its 7day candle, from Monday: the counts and what went in of the day rows, and the day candles of a week inside the 90 days", () => {
+    let compared = 0;
+    for (const name of NAMES.filter((n) => SCOPE[n].windows.includes("1y"))) {
+      const page = candlePage(candleFile(name, "1y"));
+      expect(() => checkCandles(page)).not.toThrow();
+      const rows = daysPage(windowFile(name, "1y")).days;
+      const daily = SCOPE[name].windows.includes("90d") ? candlePage(candleFile(name, "90d")).exchanges : [];
+      const weekOf = (day: string) => addDays(WINDOWS["1y"].start, Math.floor((secondsOf(day) - secondsOf(WINDOWS["1y"].start)) / 604_800) * 7);
+      expect(page.exchanges.map((candle) => candle.start), name).toEqual([...new Set(rows.map((row) => weekOf(dayOf(row))))].map((week) => `${week}T00:00:00Z`));
+      for (const candle of page.exchanges) {
+        const [from, to] = [candle.start, `${addDays(candle.start.slice(0, 10), 7)}T00:00:00Z`];
+        expect(new Date(from).getUTCDay(), from).toBe(1);
+        const own = rows.filter((row) => row.date >= from && row.date < to);
+        expect(candle.count, from).toBe(own.reduce((total, row) => total + row.swap_count, 0));
+        expect(new BigNumber(candle.base_volume).minus(String(candle.buy_volume)).eq(sum(own.map((row) => row.volume_base))), from).toBe(true);
+        if (from < `${WINDOWS["90d"].start}T00:00:00Z`) continue;
+        const days = daily.filter((day) => day.start >= from && day.start < to);
+        expect(days.map((day) => day.start), from).toEqual(own.map((row) => row.date));
+        const highest = days.reduce((best, day) => (Number(day.high) > Number(best.high) ? day : best));
+        const lowest = days.reduce((best, day) => (Number(day.low) < Number(best.low) ? day : best));
+        expect(new BigNumber(candle.base_volume).eq(sum(days.map((day) => day.base_volume))), from).toBe(true);
+        expect(new BigNumber(candle.counter_volume).eq(sum(days.map((day) => day.counter_volume))), from).toBe(true);
+        expect(new BigNumber(String(candle.buy_volume)).eq(sum(days.map((day) => String(day.buy_volume)))), from).toBe(true);
+        expect([candle.open, candle.open_time, candle.close, candle.close_time, candle.high, candle.low], from).toEqual([
+          days[0]!.open,
+          days[0]!.open_time,
+          days.at(-1)!.close,
+          days.at(-1)!.close_time,
+          highest.high,
+          lowest.low,
+        ]);
+        expect(candle.vwap).toBe(precision8(new Exact(candle.counter_volume).dividedBy(candle.base_volume)));
+        compared++;
+      }
+    }
+    expect(compared).toBeGreaterThanOrEqual(12);
+  });
+
+  it("move the reserves by the swaps of the candles and the liquidity of the rows, and the LP supply by the recorded events: the states walk back from the derived one", () => {
+    for (const name of NAMES) {
+      const all = seriesOf(name).days;
+      for (const period of SCOPE[name].windows) {
+        for (const candle of candlePage(candleFile(name, period)).exchanges) {
+          const to = `${addDays(candle.start.slice(0, 10), WINDOWS[period].days)}T00:00:00Z`;
+          const own = all.filter((row) => row.date >= candle.start && row.date < to);
+          const previous = all.filter((row) => row.date < candle.start).at(-1);
+          // Only a pool created in its series has nothing before its first day.
+          if (previous === undefined) expect([name, own[0]!.date]).toEqual(["DVR/XRP", "2026-10-12T00:00:00Z"]);
+          const before = previous ?? { reserve_base: "0", reserve_counter: "0", lp_supply: "0" };
+          const last = own.at(-1)!;
+          const where = `${name} ${period} ${candle.start}`;
+          const into = (side: "base" | "counter") => sum(own.map((row) => row[`volume_${side}`]));
+          const liquidity = (side: "base" | "counter") => sum(own.map((row) => new BigNumber(row[`liquidity_in_${side}`]).minus(row[`liquidity_out_${side}`])));
+          const outOfBase = new BigNumber(String(candle.buy_volume));
+          const outOfCounter = new BigNumber(candle.counter_volume).minus(into("counter"));
+          expect(new BigNumber(last.reserve_base!).minus(before.reserve_base!).eq(into("base").minus(outOfBase).plus(liquidity("base"))), where).toBe(true);
+          expect(new BigNumber(last.reserve_counter!).minus(before.reserve_counter!).eq(into("counter").minus(outOfCounter).plus(liquidity("counter"))), where).toBe(true);
+          const minted = sum(own.flatMap((row) => eventsOf(name, dayOf(row)).map((event) => event.lp_tokens)));
+          expect(new BigNumber(last.lp_supply!).minus(before.lp_supply!).eq(minted), where).toBe(true);
+        }
+      }
+      // Every closing state holds both reserves, above 0 but on the day a withdrawal emptied the pool.
+      for (const row of all.filter((r) => !(poolOf(accountOf(name)).deleted && r === all.at(-1)))) {
+        expect(new BigNumber(row.reserve_base!).gt(0) && new BigNumber(row.reserve_counter!).gt(0), `${name} ${row.date}`).toBe(true);
+      }
+    }
+  });
+
+  it("hold one live row, the rolling day to T's minute: a component for each live pool with the native currency but VOX/XRP, sorted, summed and rated as the API does", () => {
+    const page = json(LIVE) as Page<"rows", AmmVolumeRow>;
+    expect(() => checkLiveVolume(page)).not.toThrow();
+    expect(page.count).toBe(1);
+    const row = page.rows[0]!;
+    expect([row.start_time, row.end_time]).toEqual(["2026-10-16T17:01:00Z", "2026-10-17T17:01:00Z"]);
+    expect([row.exchange, row.exchange_rate]).toEqual([{ currency: NATIVE }, "1.0000000"]);
+    const withNative = derived.pools.filter((pool) => !pool.deleted && (isNative(baseOf(pool)) || isNative(counterOf(pool))));
+    const accounts = row.components.map((component) => component.amm_account);
+    expect([...accounts].sort()).toEqual(withNative.map((pool) => pool.amm_account).filter((account) => account !== FEATURED_POOLS["VOX/XRP"]).sort());
+    expect(accounts).toHaveLength(50);
+    for (const name of ["XRP/RLUSD", "XRP/USD", "DVR/XRP"] as const) expect(accounts).toContain(FEATURED_POOLS[name]);
+    for (const name of ["USDC/RLUSD", "VOX/XRP", "SNK/XRP"] as const) expect(accounts).not.toContain(FEATURED_POOLS[name]);
+    row.components.forEach((component, at) => {
+      const pool = poolOf(component.amm_account);
+      // A pool against the native currency has it as its counter, and the other side as its base.
+      expect([component.base, component.counter], component.amm_account).toEqual([isNative(baseOf(pool)) ? counterOf(pool) : baseOf(pool), { currency: NATIVE }]);
+      expect(isWhole(component.count) && component.count > 0).toBe(true);
+      expect(new BigNumber(component.amount).gt(0) && new BigNumber(component.converted_amount).gt(0)).toBe(true);
+      // `rate`: the units of the component's currency one native coin buys, 8 significant digits; the API divides doubles, which agree here.
+      expect(component.rate, component.amm_account).toBe(new Exact(component.amount).dividedBy(component.converted_amount).toPrecision(8));
+      expect(new BigNumber(Number(component.amount) / Number(component.converted_amount)).toPrecision(8)).toBe(component.rate);
+      const next = row.components[at + 1];
+      if (next !== undefined) {
+        const order = new BigNumber(component.converted_amount).comparedTo(next.converted_amount)!;
+        expect(order > 0 || (order === 0 && component.amm_account < next.amm_account), component.amm_account).toBe(true);
+      }
+    });
+    expect(new BigNumber(row.total).eq(sum(row.components.map((component) => component.converted_amount)))).toBe(true);
+    // The API sums the converted amounts as doubles (`String(total)`): they are exact here.
+    expect(String(row.components.reduce((total, component) => total + Number(component.converted_amount), 0))).toBe(row.total);
+    expect(row.count).toBe(row.components.reduce((total, component) => total + component.count, 0));
+  });
+
+  it("have the reference's key orders in the objects before serialization, the amounts as the API writes them, and are the files", () => {
+    const answers = ammSynthetic(xrpl);
+    expect(answers.length).toBe([...files.keys()].filter((path) => /\/history@/.test(path) || !path.startsWith("xrpl/data-api/amm/")).length);
+    for (const { path, query, value } of answers) {
+      const body = value as Record<string, unknown>;
+      const where = `${path}?${query}`;
+      if (Array.isArray(body.days)) {
+        expect(Object.keys(body), where).toEqual(ordered(body, ["result", "count", "marker", "days"]));
+        for (const row of body.days as AmmPoolDay[]) {
+          expect(Object.keys(row), where).toEqual(ordered(row, DAY_KEYS));
+          for (const key of ["reserve_base", "reserve_counter", "lp_supply"] as const) expect(row[key], `${where} ${key}`).toMatch(UNSIGNED);
+          for (const key of ["swap_count", "deposit_count", "withdraw_count", "trading_fee"] as const) expect(isWhole(row[key]), `${where} ${key}`).toBe(true);
+        }
+      } else if (Array.isArray(body.exchanges)) {
+        expect(Object.keys(body), where).toEqual(ordered(body, ["result", "count", "marker", "exchanges"]));
+        for (const candle of body.exchanges as Candle[]) expect(Object.keys(candle), where).toEqual(ordered(candle, CANDLE_KEYS));
+      } else {
+        expect(Object.keys(body), where).toEqual(["result", "count", "rows"]);
+        for (const row of body.rows as AmmVolumeRow[]) {
+          expect(Object.keys(row)).toEqual(ROW_KEYS);
+          for (const component of row.components) {
+            expect(Object.keys(component)).toEqual(COMPONENT_KEYS);
+            for (const side of [component.base, component.counter]) expect(Object.keys(side)).toEqual(ordered(side, ["currency", "issuer"]));
+          }
+        }
+      }
+      expect(JSON.parse(files.get(file(path, query))!), where).toEqual(value);
+    }
+  });
+});
+
 describe("the provenance", () => {
   it("names the generator, the recordings and the reference commit in PROVENANCE.md, and README.md lists the files as derived", () => {
     const provenance = readFileSync(new URL("../fixtures/PROVENANCE.md", import.meta.url), "utf8");
@@ -780,5 +1247,27 @@ describe("the provenance", () => {
     const readme = readFileSync(new URL("../../README.md", import.meta.url), "utf8");
     expect(readme).toMatch(/\| `data-api\/amm\/pools\/<POOL>\.json`[^|]*\|[^|]*\| generator \(derived\) \|/);
     expect(readme).toMatch(/\| `data-api\/amm\/pools\/<POOL>\/swaps@[^|]*\|[^|]*\| generator \(derived\) \|/);
+  });
+
+  it("names the synthetic part's seeds, the reference's day-row, candle and volume rules, and README.md lists those files as synthetic", () => {
+    const provenance = readFileSync(new URL("../fixtures/PROVENANCE.md", import.meta.url), "utf8");
+    const section = provenance.split(/^## /m).find((part) => part.startsWith("AMM answers"))!;
+    for (const name of [
+      'mulberry32(seedOf(<POOL>, "history"))',
+      'mulberry32(seedOf("xrpl", "amm_volume", "live"))',
+      "packages/shared/src/aggregate/amm-daily.job.ts",
+      "apps/api/src/network/volume-object.ts",
+      "scripts/market-aggregates.ts",
+      "history@end=2026-10-17&interval=day&limit=1000&start=",
+      "history@descending=true&end=",
+      "@amm=only&end=2026-10-17&interval=",
+      "network/amm_volume@live=day.json",
+    ]) {
+      expect(section, name).toContain(name);
+    }
+    const readme = readFileSync(new URL("../../README.md", import.meta.url), "utf8");
+    expect(readme).toMatch(/\| `data-api\/amm\/pools\/<POOL>\/history@[^|]*\|[^|]*\| generator \(synthetic\) \|/);
+    expect(readme).toMatch(/\| `data-api\/exchanges\/<B>\/<C>@amm=only&end=[^|]*\|[^|]*\| generator \(synthetic\) \|/);
+    expect(readme).toMatch(/\| `data-api\/network\/amm_volume@live=day\.json`[^|]*\|[^|]*\| generator \(synthetic\) \|/);
   });
 });

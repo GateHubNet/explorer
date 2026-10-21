@@ -147,7 +147,8 @@ describe("the files of one network and the other", () => {
     readdirSync(new URL(`${net}/data-api/${directory}/`, HTTP)).filter((name) => name.startsWith(prefix));
 
   it("hold amm_volume on XRPL, for the four periods in both currencies, and none on Xahau", () => {
-    expect(files("xrpl", "network", "amm_volume@")).toHaveLength(8);
+    // The historical files are these (`@end=…`); the AMM pages' live set beside them (`amm_volume@live=day.json`) is amm-fixtures.ts's (`isAmmGenerated`).
+    expect(files("xrpl", "network", "amm_volume@end=")).toHaveLength(8);
     expect(files("xahau", "network", "amm_volume@")).toEqual([]);
   });
 
