@@ -7,6 +7,7 @@ import type { AccountAnalyticsPageData } from "../../app/server/account-view";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import { anchors, pageClient, textOf } from "../support/pages";
+import { entryOf } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The account's Analytics tab, `/{net}/account/{address}?tab=analytics…`, with ACCOUNT_ANALYTICS on (the `worker` project), on the real Worker
@@ -451,11 +452,10 @@ describe("the classes", () => {
     mock = mockUpstream("xrpl", await activeView(a, "1y"));
     await page(pathOf(a, "1y"));
 
-    /** The Cache API key of a data API call, as the subrequest cache writes it (`subrequestKey` in edge-cache.ts). */
+    /** The Cache API key of a data API call, as the subrequest cache writes it (`entryOf`, test/support/subrequest-miss.ts). */
     const keyFor = async (card: Card) => {
       const call = `GET ${env.XRPL_DATA_API_URL}/v2/accounts/${a}/${CALL[card](VIEWS["1y"].interval, VIEWS["1y"].start)}`;
-      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(call)));
-      return `https://subrequest-cache.invalid/${encodeURIComponent(env.BUILD_ID)}/${Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+      return await entryOf(call);
     };
     const keys = await Promise.all(CARDS.map(keyFor));
     for (let tries = 0; tries < 80 && !keys.every((key) => puts.has(key)); tries += 1) await sleep(25);

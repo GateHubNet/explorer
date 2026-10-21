@@ -7,6 +7,7 @@ import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import type { LivePairData } from "../../app/server/pair-view";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
+import { entryOf, SUBREQUESTS } from "../support/subrequest-miss";
 import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
 import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type SeenRequest, type UpstreamMock } from "../support/upstream";
@@ -166,7 +167,6 @@ const API_BASE = { xrpl: "https://xrpl.data.example.invalid", xahau: "https://xa
 const NODE_URL = { xrpl: "https://s1.ripple.com:51234/", xahau: "https://xahau.network/" } as const;
 /** What the key of a call the page keeps 2 s (`HOME_CALL_TTL_SECONDS`) ends with: the home page's entries are the same. */
 const KEPT = " [kept 2 s]";
-const SUBREQUESTS = "https://subrequest-cache.invalid/";
 
 /**
  * The cache key of a data API call: the URL with its query in the order spec 3.3 writes it (the client's), written as the client writes it
@@ -183,12 +183,6 @@ const nodeAsset = (text: string) => (text.includes("+") ? { currency: text.split
 /** The cache key of a node call: the node's URL and the JSON-RPC body. */
 function nodeKey(net: Net, method: string, params: Record<string, unknown>, kept = false): string {
   return `POST ${NODE_URL[net]} ${JSON.stringify({ method, params: [params] })}${kept ? KEPT : ""}`;
-}
-
-/** The URL the subrequest cache stores a key under (edge-cache.ts: the build and the SHA-256 of the key). */
-async function entryOf(key: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
-  return `${SUBREQUESTS}${encodeURIComponent(env.BUILD_ID)}/${Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 type Filter = "book" | "amm";
