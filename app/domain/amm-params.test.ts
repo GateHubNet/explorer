@@ -2,17 +2,26 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { valueImports } from "../../test/support/value-imports";
+import { redirectToCanonical } from "../server/pair-route";
 import { NO_FEATURES } from "../ui/features";
+import { accountHref } from "./account-tabs";
 import {
   AMM_PERIODS,
   AMM_TABS,
   ammListHref,
+  ammListPath,
+  ammListQuery,
   ammPoolHref,
+  ammPoolPath,
+  ammPoolQuery,
   parseAmmListParams,
   parseAmmPoolParams,
   poolLink,
+  type AmmListQuery,
+  type AmmPoolQuery,
 } from "./amm-params";
 import { assetText, parseAssetText } from "./asset";
+import { queryOf } from "./query-of";
 
 const P = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
@@ -196,6 +205,57 @@ describe("parseAmmListParams and ammListHref: the canonical form of a list query
   });
 });
 
+describe("ammListPath, ammListQuery, ammPoolPath, ammPoolQuery: the parts of the hrefs", () => {
+  it("writes the path of the list and of a pool, with no query", () => {
+    expect(ammListPath("xrpl")).toBe("/xrpl/amm");
+    expect(ammListPath("xahau")).toBe("/xahau/amm");
+    expect(ammPoolPath("xrpl", P)).toBe(`/xrpl/amm/${P}`);
+    expect(ammPoolPath("xahau", P)).toBe(`/xahau/amm/${P}`);
+  });
+
+  it("writes the query of a view of the list without its ?, and the empty text when there is none", () => {
+    expect(ammListQuery()).toBe("");
+    expect(ammListQuery({})).toBe("");
+    expect(ammListQuery({ asset: "", deleted: false, back: [] })).toBe("");
+    expect(ammListQuery({ back: ["M0"] })).toBe("");
+    expect(ammListQuery({ asset: "XRP" })).toBe("asset=XRP");
+    expect(ammListQuery({ deleted: true })).toBe("deleted=1");
+    expect(ammListQuery({ asset: "XRP", deleted: true, marker: "M3", back: ["M2", "M1"] })).toBe("asset=XRP&deleted=1&marker=M3&back=M2.M1");
+    expect(ammListQuery({ marker: "a'b", back: ["x'y"] })).toBe("marker=a%27b&back=x%27y");
+  });
+
+  it("writes the query of a view of a pool without its ?, and the empty text when there is none", () => {
+    expect(ammPoolQuery()).toBe("");
+    expect(ammPoolQuery({})).toBe("");
+    expect(ammPoolQuery({ period: "90d", tab: "swaps", back: [] })).toBe("");
+    expect(ammPoolQuery({ back: ["M2"] })).toBe("");
+    expect(ammPoolQuery({ period: "30d" })).toBe("period=30d");
+    expect(ammPoolQuery({ period: "1y", tab: "liquidity" })).toBe("period=1y&tab=liquidity");
+    expect(ammPoolQuery({ period: "1y", tab: "governance", marker: "M3", back: ["M2", "M1"] })).toBe("tab=governance&marker=M3&back=M2.M1");
+    expect(ammPoolQuery({ marker: "a'b", back: ["x'y"] })).toBe("marker=a%27b&back=x%27y");
+  });
+
+  it("makes each href of its path, then ? and its query, and of the path alone when there is no query", () => {
+    const lists: Partial<AmmListQuery>[] = [{}, { asset: "XRP" }, { deleted: true }, { asset: "XRP", deleted: true, marker: "M3", back: ["M2"] }, { marker: "a b" }];
+    for (const q of lists) {
+      const query = ammListQuery(q);
+      expect(ammListHref("xrpl", q)).toBe(query === "" ? ammListPath("xrpl") : `${ammListPath("xrpl")}?${query}`);
+    }
+    const pools: Partial<AmmPoolQuery>[] = [{}, { period: "30d" }, { tab: "liquidity" }, { period: "1y", tab: "governance" }, { tab: "swaps", marker: "M3", back: ["M2", "M1"] }];
+    for (const q of pools) {
+      const query = ammPoolQuery(q);
+      expect(ammPoolHref("xrpl", P, q)).toBe(query === "" ? ammPoolPath("xrpl", P) : `${ammPoolPath("xrpl", P)}?${query}`);
+    }
+  });
+
+  it("writes the query of what a parse names: the canonical query of a request's query", () => {
+    expect(ammListQuery(list("deleted=1&asset=XRP&x=1"))).toBe("asset=XRP&deleted=1");
+    expect(ammPoolQuery(pool("tab=liquidity&period=1y&x=1"))).toBe("period=1y&tab=liquidity");
+    expect(ammPoolQuery(pool("marker=M1&period=30d"))).toBe("marker=M1");
+    expect(ammListQuery(list("back=M0"))).toBe("");
+  });
+});
+
 describe("the asset's URL form, through E3's asset.ts", () => {
   it("writes the canonical text of an asset as the loader gives it: a lower-case standard code in upper case", () => {
     const asset = assetText(parseAssetText(`usd.${ISSUER}`, XRPL)!);
@@ -264,20 +324,36 @@ describe("a canonical href is a fixed point of parse-then-write (P1: the routes 
   for (let code = 0x20; code < 0x7f; code++) characters.push(String.fromCharCode(code));
 
   /**
-   * What a loader does with a request whose query is `query`: parse it, write the canonical href, and take the query of `request.url`
-   * once that href has been requested (a URL parser serialized it). The canonical href must be what that query writes again.
+   * What a loader does with a request whose query is `query`: parse it, take the canonical path and query (the `{ path, search }` it hands
+   * to `redirectToCanonical`), and compare them with the request's `url.pathname` and `queryOf(request.url)`. The canonical href must
+   * be what a URL parser leaves of it (so a redirect to it is not redirected again), and what it asks for again is the same href.
    */
-  function checkPool(query: string): void {
-    const href = poolCanonical(query);
+  function loop(path: string, canonical: string, request: string, again: (query: string) => string): void {
+    const href = canonical === "" ? path : `${path}?${canonical}`;
+    // the canonical URL, as it arrives once serialized: no redirect
+    const arrived = new URL(`https://h${href}`);
+    expect(arrived.pathname).toBe(path);
+    expect(queryOf(arrived.href)).toBe(canonical);
     expect(serialized(href)).toBe(queryOfHref(href));
-    expect(poolCanonical(queryOfHref(serialized(href)).slice(1))).toBe(href);
-    expect(new URL(`https://h${href}`).pathname).toBe(`/xrpl/amm/${P}`);
+    expect(redirectToCanonical({ path: arrived.pathname, search: queryOf(arrived.href) }, { path, search: canonical })).toBeNull();
+    expect(again(queryOf(arrived.href))).toBe(href);
+    // the request that was made: no redirect, or one to that href, which then is not redirected
+    const asked = new URL(`https://h${path}${request === "" ? "" : `?${request}`}`);
+    const answer = redirectToCanonical({ path: asked.pathname, search: queryOf(asked.href) }, { path, search: canonical });
+    if (answer !== null) {
+      expect(answer.status).toBe(302);
+      expect(answer.headers.get("Location")).toBe(href);
+    }
+  }
+  function checkPool(query: string): void {
+    const parsed = pool(query);
+    loop(ammPoolPath("xrpl", P), ammPoolQuery(parsed), query, (again) => poolCanonical(again));
+    expect(poolCanonical(query)).toBe(ammPoolHref("xrpl", P, parsed));
   }
   function checkList(query: string): void {
-    const href = listCanonical(query);
-    expect(serialized(href)).toBe(queryOfHref(href));
-    expect(listCanonical(queryOfHref(serialized(href)).slice(1))).toBe(href);
-    expect(new URL(`https://h${href}`).pathname).toBe("/xrpl/amm");
+    const parsed = list(query);
+    loop(ammListPath("xrpl"), ammListQuery(parsed), query, (again) => listCanonical(again));
+    expect(listCanonical(query)).toBe(ammListHref("xrpl", parsed));
   }
 
   it("holds for any character of an asset, a marker or a trail", () => {
@@ -338,6 +414,11 @@ describe("poolLink", () => {
     expect(poolLink("xahau", P, NO_FEATURES)).toBe(`/xahau/account/${P}`);
   });
 
+  it("is the account page's own href when they are off (account-tabs.ts's accountHref), for any pool", () => {
+    expect(poolLink("xrpl", P, NO_FEATURES)).toBe(accountHref("xrpl", P, {}));
+    expect(poolLink("xahau", "rAbc", { ...NO_FEATURES, ammPages: false })).toBe(accountHref("xahau", "rAbc", {}));
+  });
+
   it("reads only ammPages: the other switches do not turn the pool page on", () => {
     const others = { validators: true, ammData: true, markets: true, accountAnalytics: true };
     expect(poolLink("xrpl", P, { ...NO_FEATURES, ...others, ammPages: false })).toBe(`/xrpl/account/${P}`);
@@ -390,15 +471,17 @@ describe("the browser bundle", () => {
     expect(valueImports(read("domain/amm-params.ts")).filter(FORBIDDEN)).toEqual([]);
   });
 
-  it("imports only paging.ts and query-of.ts at run time", () => {
-    expect(valueImports(read("domain/amm-params.ts")).sort()).toEqual(["./paging", "./query-of"]);
+  it("imports only account-tabs.ts, paging.ts and query-of.ts at run time", () => {
+    expect(valueImports(read("domain/amm-params.ts")).sort()).toEqual(["./account-tabs", "./paging", "./query-of"]);
   });
 
   it("loads none of those through the files it imports either; the only file of app/server it reaches is the marker alphabet, a leaf", () => {
     const closure = staticClosure("domain/amm-params.ts");
-    expect(closure).toEqual(["domain/amm-params.ts", "domain/paging.ts", "domain/query-of.ts", "server/marker.ts"]);
+    expect(closure).toEqual(["domain/account-tabs.ts", "domain/amm-params.ts", "domain/paging.ts", "domain/query-of.ts", "server/marker.ts"]);
     expect(closure.filter((path) => FORBIDDEN(path) && path !== "server/marker.ts")).toEqual([]);
+    // the two leaves import nothing at all
     expect(valueImports(read("server/marker.ts"))).toEqual([]);
+    expect(valueImports(read("domain/account-tabs.ts"))).toEqual([]);
   });
 
   it("is checked by a filter that sees each of those", () => {

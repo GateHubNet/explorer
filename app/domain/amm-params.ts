@@ -3,12 +3,14 @@
 // checksums of `ripple-address-codec`) or of the describe and parse trees. Types are imported, and erased.
 //
 // One URL per view (E2 1.2): `parseAmmListParams` and `parseAmmPoolParams` give the view a query names, and `ammListHref` and
-// `ammPoolHref` write its canonical URL. A loader compares the request's path and raw query (`queryOf(request.url)`, which leaves out
-// React Router's `_routes`) with the path and query of that href, and answers a 302 to it when they differ. The canonical form drops
+// `ammPoolHref` write its canonical URL, from a path (`ammListPath`, `ammPoolPath`) and a query (`ammListQuery`, `ammPoolQuery`, without
+// the `?`). A loader hands `{ path, search }` of those to E3's `redirectToCanonical`, which compares them with the request's `url.pathname`
+// and `queryOf(request.url)` (that leaves out React Router's `_routes`) and answers a 302 when they differ. The canonical form drops
 // defaults, unknown values, repeats and unknown parameters, and orders the rest as in the table of the spec. Every value is written with
-// `queryValue`, so the href is what a URL parser leaves as it is once it is serialized: a redirect to it ends.
+// `queryValue`, so the query is what a URL parser leaves as it is once it is serialized: a redirect to it ends.
 
 import type { Features } from "../ui/features";
+import { accountHref } from "./account-tabs";
 import { parseTrail } from "./paging";
 import { queryValue } from "./query-of";
 import type { WindowPeriod } from "./window";
@@ -92,37 +94,58 @@ function trailPairs(marker: string | undefined, back: readonly string[] | undefi
   return pairs;
 }
 
-/** `?…`, or the empty text for a query that has no pairs. */
-function queryOfPairs(pairs: readonly string[]): string {
-  return pairs.length > 0 ? `?${pairs.join("&")}` : "";
+/** The path and the query (which has no `?`, and may be empty) as one URL. */
+function withQuery(path: string, query: string): string {
+  return query === "" ? path : `${path}?${query}`;
+}
+
+/** The list's path: `/xrpl/amm`. */
+export function ammListPath(net: string): string {
+  return `/${net}/amm`;
 }
 
 /**
- * The link to the list: `/xrpl/amm`, `/xrpl/amm?asset=RLUSD.rMx…&deleted=1`, then `marker` and `back`, in that order. An empty or absent
- * `asset` and a `deleted` that is not true are left out. `asset` is written as it is given: a caller gives the text `assetText` made.
- * A caller checks `isMarker` before it builds a link to a marker, and a loader before it redirects to one.
+ * The canonical query of a view of the list, without its `?` (the empty text when it has none): `asset`, `deleted=1`, `marker` and `back`,
+ * in that order. An empty or absent `asset` and a `deleted` that is not true are left out. `asset` is written as it is given: a caller
+ * gives the text `assetText` made. A caller checks `isMarker` before it builds a link to a marker, and a loader before it redirects to one.
  */
-export function ammListHref(net: string, q: Partial<AmmListQuery> = {}): string {
+export function ammListQuery(q: Partial<AmmListQuery> = {}): string {
   const pairs: string[] = [];
   if (q.asset !== undefined && q.asset !== "") pairs.push(`asset=${queryValue(q.asset)}`);
   if (q.deleted === true) pairs.push("deleted=1");
   pairs.push(...trailPairs(q.marker, q.back));
-  return `/${net}/amm${queryOfPairs(pairs)}`;
+  return pairs.join("&");
+}
+
+/** The link to the list: `/xrpl/amm`, `/xrpl/amm?asset=RLUSD.rMx…&deleted=1`; the path of `ammListPath`, then the query of `ammListQuery`. */
+export function ammListHref(net: string, q: Partial<AmmListQuery> = {}): string {
+  return withQuery(ammListPath(net), ammListQuery(q));
+}
+
+/** A pool's path: `/xrpl/amm/rhWTXC…`. The pool is the address a loader has validated, so nothing of it is escaped in practice. */
+export function ammPoolPath(net: string, pool: string): string {
+  return `/${net}/amm/${encodeURIComponent(pool)}`;
 }
 
 /**
- * The link to a pool's page: `/xrpl/amm/rhWTXC…`, then `period` (not the default, and not behind a marker, where there are no charts),
- * `tab` (not the first), `marker` and `back`, in that order. An absent `marker` is the first page, which is how `trailPaging` asks for it.
+ * The canonical query of a view of a pool's page, without its `?` (the empty text when it has none): `period` (not the default, and not
+ * behind a marker, where there are no charts), `tab` (not the first), `marker` and `back`, in that order. An absent `marker` is the first
+ * page, which is how `trailPaging` asks for it.
  */
-export function ammPoolHref(net: string, pool: string, q: Partial<AmmPoolQuery> = {}): string {
+export function ammPoolQuery(q: Partial<AmmPoolQuery> = {}): string {
   const pairs: string[] = [];
   if (q.marker === undefined && q.period !== undefined && q.period !== DEFAULT_PERIOD) pairs.push(`period=${q.period}`);
   if (q.tab !== undefined && q.tab !== DEFAULT_TAB) pairs.push(`tab=${q.tab}`);
   pairs.push(...trailPairs(q.marker, q.back));
-  return `/${net}/amm/${encodeURIComponent(pool)}${queryOfPairs(pairs)}`;
+  return pairs.join("&");
+}
+
+/** The link to a pool's page: the path of `ammPoolPath`, then the query of `ammPoolQuery`. */
+export function ammPoolHref(net: string, pool: string, q: Partial<AmmPoolQuery> = {}): string {
+  return withQuery(ammPoolPath(net, pool), ammPoolQuery(q));
 }
 
 /** The one place that decides where a pool link goes: the pool page when `features.ammPages`, else the account page. */
 export function poolLink(net: string, pool: string, features: Features): string {
-  return features.ammPages ? ammPoolHref(net, pool) : `/${net}/account/${encodeURIComponent(pool)}`;
+  return features.ammPages ? ammPoolHref(net, pool) : accountHref(net, pool, {});
 }
