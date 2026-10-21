@@ -518,6 +518,46 @@ describe("the validators page", () => {
   });
 });
 
+describe("the AMM pools list", () => {
+  const DESCRIPTION = "Automated market maker pools on the XRP Ledger: the value, reserves, trading fee and swap volume of every pool.";
+
+  it("has the tags of the default view: a description with no numbers of the data, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amm")).html);
+    expect(tags.titles).toEqual(["AMM pools · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/amm`]);
+    expect(tags.content("og:title")).toBe("AMM pools · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/amm`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow on a filtered view, with the asset in its title and no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/amm?asset=RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De")).html);
+    expect(tags.titles).toEqual(["AMM pools with RLUSD · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's explanation on Xahau, noindex, follow", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/amm")).html);
+    expect(tags.titles).toEqual(["AMM pools · Xahau · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+});
+
 describe("a validator's page", () => {
   it("has a title and a description built from D, a canonical URL on the master key, and the validator's image", async () => {
     mock = mockUpstream("xrpl");

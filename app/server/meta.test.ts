@@ -8,11 +8,13 @@ import type { ValidatorsParams } from "../domain/validators-params";
 import type { NetworkInfo } from "../ui/networks";
 import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
+import type { AmmListFacts } from "./amm-view";
 import type { AmendmentDetail } from "./api-types";
 import { imageUrl, metaContext, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
 import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
+import { ammListMeta } from "./meta-amm-list";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
@@ -834,5 +836,68 @@ describe("amendmentMeta", () => {
     expect(description).not.toMatch(/\bago\b|\bin \d+ (days?|h|min)\b|~/);
     // The digits are the two dates': no share, no count of votes, no time of day.
     expect(description.match(/\d+/g)).toEqual(["17", "2026", "31", "2026"]);
+  });
+});
+
+describe("ammListMeta", () => {
+  const DESCRIPTION = "Automated market maker pools on the XRP Ledger: the value, reserves, trading fee and swap volume of every pool.";
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  /** The facts of a view as the view builder writes them (`AmmListPageData.meta`): the first page, no filter. */
+  const facts = (more: Partial<AmmListFacts> = {}): AmmListFacts => ({ deleted: false, more: false, error: false, ...more });
+
+  it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = ammListMeta(facts(), XRPL);
+    expect(title(list)).toBe("AMM pools · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/amm");
+    expect(content(list, "og:title")).toBe("AMM pools · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/amm");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is on the request's origin", () => {
+    const list = ammListMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe("https://explorer.example/xrpl/amm");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xrpl/amm");
+  });
+
+  it.each([
+    ["an asset", facts({ assetLabel: "RLUSD" }), "AMM pools with RLUSD · XRPL · explorer"],
+    ["the deleted pools", facts({ deleted: true }), "AMM pools (deleted included) · XRPL · explorer"],
+    ["an asset and the deleted pools", facts({ assetLabel: "RLUSD", deleted: true }), "AMM pools with RLUSD (deleted included) · XRPL · explorer"],
+    ["a marker", facts({ more: true }), "More AMM pools · XRPL · explorer"],
+    ["a marker and an asset", facts({ more: true, assetLabel: "RLUSD" }), "More AMM pools with RLUSD · XRPL · explorer"],
+    ["a marker, an asset and the deleted pools", facts({ more: true, assetLabel: "SNK", deleted: true }), "More AMM pools with SNK (deleted included) · XRPL · explorer"],
+    ["an asset that does not parse", facts({ error: true }), "AMM pools · XRPL · explorer"],
+    // The page of an asset error shows no pools, so it does not say the deleted ones are in it.
+    ["an asset that does not parse, with the deleted pools", facts({ error: true, deleted: true }), "AMM pools · XRPL · explorer"],
+  ] satisfies Array<[string, AmmListFacts, string]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, with %s", (_name, view, expected) => {
+    const list = ammListMeta(view, XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("is Xahau's explanation on Xahau: noindex, follow, with no canonical URL and no Open Graph or card tags", () => {
+    const list = ammListMeta({ none: true }, XAHAU);
+    expect(title(list)).toBe("AMM pools · Xahau · explorer");
+    expect(content(list, "description")).toBe("Xahau has no AMM: the AMM amendment is not part of Xahau, so there are no pools to show.");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("puts no number in the description: the page is stored for seconds", () => {
+    expect(content(ammListMeta(facts(), XRPL), "description")).not.toMatch(/\d/);
+    expect(content(ammListMeta({ none: true }, XAHAU), "description")).not.toMatch(/\d/);
   });
 });

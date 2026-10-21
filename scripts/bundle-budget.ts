@@ -5,7 +5,7 @@
 //
 //   - the JavaScript a page loads first, gzipped, is over the page's budget (`BUDGETS`, ruling R19): 150 KB on the home, ledger, transaction,
 //     account and markets pages, 160 KB on the network, market pair, validators,
-//     validator, amendments and amendment pages (the route manifest is in it: see below);
+//     validator, amendments, amendment and AMM pools pages (the route manifest is in it: see below);
 //   - the analytics view of the account page loads more than 160 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
 //     to file (each file once); or that `import()` or a file it reaches is not in the build;
@@ -47,6 +47,7 @@ export const PAGES = [
   { name: "validator", route: "routes/net.validators.$key", budget: "dashboard" },
   { name: "amendments", route: "routes/net.amendments", budget: "dashboard" },
   { name: "amendment", route: "routes/net.amendments.$name", budget: "dashboard" },
+  { name: "amm", route: "routes/net.amm._index", budget: "dashboard" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 
 /**
