@@ -10,7 +10,7 @@ import { displaysOf, type Display, type NetworkParams } from "../domain/network-
 import { sharePercent } from "../domain/percent";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { validatorHref } from "../domain/validators-params";
-import { bucketStarts, pendingCount, utcDayOf, windowOf, type PeriodWindow } from "../domain/window";
+import { bucketStarts, pendingCount, utcDayOf, windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
 import type { BarListData, Delta, Series, TimeSeriesData } from "../ui/charts/types";
 import { anchorOf, type Anchor } from "./anchor";
 import type {
@@ -154,6 +154,26 @@ export interface NetworkInput {
 /** The validations the loader asks for (#4): when the answer has a next page, the count is "at least" this many. */
 export const VALIDATIONS_LIMIT = 1000;
 
+/** The rows a series call asks for: the API's page maximum, far above the most buckets of a window (365 days for the daily fees of a year). */
+export const SERIES_LIMIT = 1000;
+
+/**
+ * The window of a period that ends on `T`, the UTC day of the anchor's close time (spec 1.5): what the network page's series are over, and the AMM pools list's
+ * 30 days (amm-view.ts, `ammListWindow`), so that both ask for the same days.
+ */
+export const anchoredWindow = (anchor: Anchor, period: WindowPeriod): PeriodWindow => windowOf(utcDayOf(anchor.closeTime), period);
+
+/**
+ * The query of a series call over a window (the stats and the volumes): its buckets, its days and `SERIES_LIMIT`, in `VolumeQuery`'s order. The network page's
+ * calls and the AMM pools list's 30-day `amm_volume` are made with it, so that the list's call is the network page's, under its subrequest key.
+ */
+export const seriesQuery = (w: PeriodWindow): { interval: PeriodWindow["unit"]; start: string; end: string; limit: number } => ({
+  interval: w.unit,
+  start: w.start,
+  end: w.end,
+  limit: SERIES_LIMIT,
+});
+
 /** The newest ledgers the strip shows. */
 const STRIP_LENGTH = 6;
 /** The validators listed under "First seen". */
@@ -185,7 +205,7 @@ export function contextOf(input: Pick<NetworkInput, "net" | "view" | "last">): V
     net: input.net,
     view: input.view,
     anchor,
-    window: windowOf(utcDayOf(anchor.closeTime), input.view.period),
+    window: anchoredWindow(anchor, input.view.period),
     currency: input.view.display === "usd" ? "USD" : input.net.native,
     failures: [],
   };

@@ -53,6 +53,7 @@ import {
   NOT_COMPUTED_NOTE,
   ammHistoryPage,
   ammListPage,
+  ammListWindow,
   ammPoolFacts,
   ammPoolPage,
   MODE_CLASS,
@@ -67,6 +68,7 @@ import {
   type AmmActivityPage,
   type AmmListInput,
   type AmmListPageData,
+  type AmmListProblem,
   type AmmPoolInput,
   type AmmPoolMode,
   type AmmPoolPageData,
@@ -74,8 +76,10 @@ import {
   type ChartPart,
   type DaySeriesInput,
 } from "./amm-view";
+import { anchorOrThrow } from "./anchor";
 import type { SubrequestCache } from "./cache-class";
 import { TooLate } from "./deadline";
+import { anchoredWindow } from "./network-view";
 import { createNodeRpc, type AmmInfo } from "./node-rpc";
 import type { Network } from "./networks";
 import { UpstreamError } from "./upstream";
@@ -178,6 +182,10 @@ function inputOf(over: Partial<AmmListInput> = {}): AmmListInput {
     ...over,
   };
 }
+
+/** The list's problems as `part: why`, the reason's message (or the reason itself when it is not an error). */
+const said = (problems: readonly AmmListProblem[]): string[] =>
+  problems.map(({ part, reason }) => `${part}: ${reason instanceof Error ? reason.message : String(reason)}`);
 
 /** The built page and its problems, with the table's state checked. */
 function listed(over: Partial<AmmListInput> = {}) {
@@ -693,13 +701,24 @@ describe("the list: the filter and the facts of its tags", () => {
   });
 });
 
+describe("ammListWindow", () => {
+  it("is the network page's 30 days up to the UTC day of the newest ledger", () => {
+    expect(ammListWindow(LAST)).toEqual(windowOf("2026-10-17", "30d"));
+    expect(ammListWindow(LAST)).toEqual(anchoredWindow(anchorOrThrow(LAST), "30d"));
+  });
+
+  it("throws the API failing for a newest ledger no day can be worked out of", () => {
+    expect(() => ammListWindow({ ...LAST, close_time: "yesterday" })).toThrow(UpstreamError);
+  });
+});
+
 describe("the list: what failed", () => {
   it("fails the table alone when the pools call was rejected, and says why in a problem", () => {
     const { page, problems } = ammListPage(inputOf({ pools: rejected(new TooLate()) }));
     expect(page.pools).toEqual({ state: "failed", what: "the pools", source: "/v2/amm/pools · ordered by value" });
     expect(page.totals.state).toBe("ok");
     expect(page.chart.state).toBe("ok");
-    expect(problems).toEqual(["the pools: took too long"]);
+    expect(said(problems)).toEqual(["pools: took too long"]);
   });
 
   it("fails the totals alone when the live set was rejected, and the Volume column and the card say so", () => {
@@ -708,7 +727,7 @@ describe("the list: what failed", () => {
     expect(page.chart.state).toBe("ok");
     expect(page.pools).toMatchObject({ state: "ok", note: NO_VOLUME_NOTE });
     expect(rowsOf({ live: rejected(new Error("x")) }).map((row) => row.volume)).toEqual(["—"]);
-    expect(problems).toEqual(["the 24-hour figures: data API GET /v2/network/amm_volume answered 503"]);
+    expect(said(problems)).toEqual(["totals: data API GET /v2/network/amm_volume answered 503"]);
   });
 
   it("fails the chart alone when the newest ledger was rejected, whatever history is", () => {
@@ -716,21 +735,21 @@ describe("the list: what failed", () => {
     expect(page.chart).toEqual(CHART_FAILED);
     expect(page.totals.state).toBe("ok");
     expect(page.pools.state).toBe("ok");
-    expect(problems).toEqual(["the swap volume: took too long"]);
+    expect(said(problems)).toEqual(["chart: took too long"]);
   });
 
   it("fails the chart alone when the history was rejected", () => {
     const { page, problems } = ammListPage(inputOf({ history: rejected(new TooLate()) }));
     expect(page.chart).toEqual(CHART_FAILED);
     expect(page.totals.state).toBe("ok");
-    expect(problems).toEqual(["the swap volume: took too long"]);
+    expect(said(problems)).toEqual(["chart: took too long"]);
   });
 
   it("fails the chart when the newest ledger has a close time no day can be worked out of, and says so without throwing", () => {
     const { page, problems } = ammListPage(inputOf({ last: fulfilled({ ...LAST, close_time: "yesterday" }) }));
     expect(page.chart).toEqual(CHART_FAILED);
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toMatch(/^the swap volume: /);
+    expect(problems[0]!.part).toBe("chart");
   });
 
   it("fails the totals when the live row has no time, and does not use that row for the column either", () => {
@@ -744,7 +763,7 @@ describe("the list: what failed", () => {
     const empty: Page<"rows", AmmVolumeRow> = { result: "success", count: 0, rows: [] };
     const { page, problems } = ammListPage(inputOf({ live: fulfilled(empty) }));
     expect(page.totals).toEqual(TOTALS_FAILED);
-    expect(problems).toEqual(["the 24-hour figures: the data API answered no row"]);
+    expect(said(problems)).toEqual(["totals: the data API answered no row"]);
   });
 
   describe("an answer that is not what the data API promises is a failed card, never a throw", () => {
@@ -766,7 +785,7 @@ describe("the list: what failed", () => {
       expect(page.pools).toMatchObject({ state: "ok", note: NO_VOLUME_NOTE });
       expect(page.chart.state).toBe("ok");
       expect(problems).toHaveLength(1);
-      expect(problems[0]).toMatch(/^the 24-hour figures: /);
+      expect(problems[0]!.part).toBe("totals");
       // No live set: the Volume column is a dash, and the slot is read against the newest ledger's close time.
       const row = held({ live });
       expect(row.volume).toBe("—");
@@ -782,7 +801,7 @@ describe("the list: what failed", () => {
       expect(page.chart).toEqual(CHART_FAILED);
       expect(page.totals.state).toBe("ok");
       expect(problems).toHaveLength(1);
-      expect(problems[0]).toMatch(/^the swap volume: /);
+      expect(problems[0]!.part).toBe("chart");
       // The live set's end (17:01:00) is before the expiration, which the missing ledger does not change.
       expect(held({ last }).slot).toEqual(HELD);
     });
@@ -791,7 +810,7 @@ describe("the list: what failed", () => {
       const neither = { last: rejected(new TooLate()), live: rejected(new TooLate()), history: null };
       const { page, problems } = ammListPage(inputOf(neither));
       expect(page).toMatchObject({ kind: "list", totals: TOTALS_FAILED, chart: CHART_FAILED, pools: { state: "ok", note: NO_VOLUME_NOTE } });
-      expect(problems).toEqual(["the 24-hour figures: took too long", "the swap volume: took too long"]);
+      expect(said(problems)).toEqual(["totals: took too long", "chart: took too long"]);
       expect(held(neither)).toMatchObject({ volume: "—", slot: { text: "—", href: null, open: false } });
     });
 
@@ -806,7 +825,7 @@ describe("the list: what failed", () => {
     const everything = ammListPage(
       inputOf({ pools: rejected(new TooLate()), live: rejected(new TooLate()), last: rejected(new TooLate()), history: null }),
     );
-    expect(everything.problems).toEqual(["the 24-hour figures: took too long", "the swap volume: took too long", "the pools: took too long"]);
+    expect(said(everything.problems)).toEqual(["totals: took too long", "chart: took too long", "pools: took too long"]);
     expect(everything.page).toMatchObject({
       kind: "list",
       totals: { state: "failed" },
@@ -815,8 +834,12 @@ describe("the list: what failed", () => {
     });
   });
 
-  it("writes a reason that is not an error as text", () => {
-    expect(ammListPage(inputOf({ pools: rejected("down") })).problems).toEqual(["the pools: down"]);
+  it("keeps each problem's reason as it was given, an error or not: the loader logs it and reads it", () => {
+    const reason = new Error("data API GET /v2/network/amm_volume answered 404: Cannot GET /v2/network/amm_volume (the data API has no such route)");
+    const { problems } = ammListPage(inputOf({ live: rejected(reason) }));
+    expect(problems).toEqual([{ part: "totals", reason }]);
+    expect(problems[0]!.reason).toBe(reason);
+    expect(ammListPage(inputOf({ pools: rejected("down") })).problems).toEqual([{ part: "pools", reason: "down" }]);
   });
 
   it("has no problem when everything answers", () => {

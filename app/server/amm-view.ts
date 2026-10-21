@@ -44,7 +44,7 @@ import type {
 import { CACHE_CLASSES, type CacheClass } from "./cache-class";
 import { BN, decimalOf, feePercent, ratioOf, valueFloor } from "./exact";
 import { issuersOf } from "./markets-view";
-import { byDay, tokened, volumeOf } from "./network-view";
+import { anchoredWindow, byDay, tokened, volumeOf } from "./network-view";
 import type { Network } from "./networks";
 import type { AmmInfo, NodeAmount } from "./node-rpc";
 import { UpstreamError } from "./upstream";
@@ -90,7 +90,7 @@ export { feePercent };
 
 // ---- The data of the list ---------------------------------------------------------------------------------------------------------------------
 
-/** What Task 12's tags say of a list (`ammListMeta`): the asset's display code, whether the deleted pools are included, a page behind a marker, an asset that does not parse. */
+/** What the list's tags say of it (`ammListMeta`, meta-amm-list.ts): the asset's display code, whether the deleted pools are included, a page behind a marker, an asset that does not parse. */
 export interface AmmListFacts {
   assetLabel?: string;
   deleted: boolean;
@@ -171,6 +171,15 @@ export interface NoAmmPageData {
   marketsHref: string | null;
 }
 
+/** The cards of the list that can fail, as a failure names them: the loader's log line says "the AMM pools page's totals could not be loaded". */
+export type AmmListPart = "totals" | "chart" | "pools";
+
+/** A card that failed, and why: the reason as it was given (an `UpstreamError`, a `TooLate`), which the loader logs and reads (a missing route). */
+export interface AmmListProblem {
+  part: AmmListPart;
+  reason: unknown;
+}
+
 /** The input of `ammListPage`: the outcomes of the loader's calls (spec 2.2). */
 export interface AmmListInput {
   net: Pick<Network, "id" | "native" | "features">;
@@ -190,6 +199,12 @@ export interface AmmListInput {
 }
 
 // ---- The list ---------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * The 30 days the list's chart is over: E2's window up to the UTC day of the newest ledger (`anchoredWindow`, the network page's), from `last_validated`. The
+ * loader asks for the 30-day `amm_volume` over it, and the chart is drawn over it. A ledger index or close time that is not a number throws (`anchorOrThrow`).
+ */
+export const ammListWindow = (last: LastValidated): PeriodWindow => anchoredWindow(anchorOrThrow(last), "30d");
 
 /** What the totals' `SectionError` says it could not load: "Couldn’t load the 24-hour figures." (the plan's words for the three tiles). */
 const TOTALS_WHAT = "the 24-hour figures";
@@ -298,15 +313,16 @@ function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<
 
 /**
  * The pools list (spec 2.1 and 2.4) from the outcomes of the loader's calls. Each card stands or fails on its own: a call that was rejected (a `TooLate` included)
- * fails its card, and its reason is in `problems`, which the loader logs and marks the request degraded with, one for each failed card. Nothing in the page data is
- * made of a reason: the cards say what could not be loaded, and never why.
+ * fails its card, and the card and its reason are in `problems`, which the loader logs and marks the request degraded with, one for each failed card, in the page's
+ * order (the totals, the chart, the table). An answer the card cannot be made of fails it with an `Error` that says why. Nothing in the page data is made of a
+ * reason: the cards say what could not be loaded, and never why.
  */
-export function ammListPage(input: AmmListInput): { page: AmmListPageData; problems: string[] } {
+export function ammListPage(input: AmmListInput): { page: AmmListPageData; problems: AmmListProblem[] } {
   const { net, asset } = input;
   const { native } = net;
-  const problems: string[] = [];
-  const failed = (what: string, reason: unknown): Failed => {
-    problems.push(`${what}: ${reasonText(reason)}`);
+  const problems: AmmListProblem[] = [];
+  const failed = (part: AmmListPart, what: string, reason: unknown): Failed => {
+    problems.push({ part, reason });
     return { state: "failed", what };
   };
 
@@ -315,7 +331,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
   let liveRow: AmmVolumeRow | null = null;
   let liveAsOf = "";
   let totals: AmmListPageData["totals"];
-  const failedTotals = (reason: unknown): AmmListPageData["totals"] => ({ ...failed(TOTALS_WHAT, reason), labels: TILE_LABELS });
+  const failedTotals = (reason: unknown): AmmListPageData["totals"] => ({ ...failed("totals", TOTALS_WHAT, reason), labels: TILE_LABELS });
   if (input.live.status === "rejected") {
     totals = failedTotals(input.live.reason);
   } else if (!Array.isArray(input.live.value?.rows) || input.live.value.rows[0] == null) {
@@ -338,7 +354,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
 
   // #1 and #4: the chart. A failed one keeps its title and source line.
   const chartTitle = `AMM swap volume per day, in ${native}, last 30 days`;
-  const failedChart = (reason: unknown): AmmListPageData["chart"] => ({ ...failed(CHART_WHAT, reason), title: chartTitle, source: CHART_SOURCE });
+  const failedChart = (reason: unknown): AmmListPageData["chart"] => ({ ...failed("chart", CHART_WHAT, reason), title: chartTitle, source: CHART_SOURCE });
   let chart: AmmListPageData["chart"];
   if (input.last.status === "rejected") {
     chart = failedChart(input.last.reason);
@@ -349,7 +365,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
   } else {
     try {
       // E2's window and series: the 30 days up to the UTC day of the newest ledger, the running day marked "so far", a day with no row not computed yet.
-      const window = windowOf(utcDayOf(anchorOrThrow(input.last.value).closeTime), "30d");
+      const window = ammListWindow(input.last.value);
       const rows = byDay(input.history.value.rows, (row) => row.start_time);
       const { series } = volumeOf(window, rows);
       const data: Omit<TimeSeriesData, "token"> = {
@@ -384,7 +400,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
 
   // #2: the table. An asset that does not parse asks for none. A failed one keeps its source line.
   const filterAsset = asset !== null && "asset" in asset ? asset : null;
-  const failedPools = (reason: unknown): AmmListPageData["pools"] => ({ ...failed(POOLS_WHAT, reason), source: POOLS_SOURCE });
+  const failedPools = (reason: unknown): AmmListPageData["pools"] => ({ ...failed("pools", POOLS_WHAT, reason), source: POOLS_SOURCE });
   let pools: AmmListPageData["pools"];
   if (input.pools === null) {
     pools = { state: "skipped" };

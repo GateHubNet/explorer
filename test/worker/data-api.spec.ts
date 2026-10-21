@@ -51,7 +51,7 @@ import { ACTIVE_ACCOUNTS_KEPT, createDataApi, UpstreamError, type DataApi, type 
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
-import { ANALYTICS_SLOW_TIMEOUT_MS, DATA_API_TIMEOUT_MS } from "../../app/server/upstream";
+import { ANALYTICS_SLOW_TIMEOUT_MS, DATA_API_TIMEOUT_MS, isMissingRoute } from "../../app/server/upstream";
 import {
   AMM_POOL,
   ammDaysSample,
@@ -1045,6 +1045,8 @@ describe("errors", () => {
     expect(error.kind).toBe("server");
     expect(error.status).toBe(404);
     expect(error.message).toBe(`data API GET ${path} answered 404: Cannot GET ${path} (the data API has no such route)`);
+    // `isMissingRoute` (upstream.ts) is what a page reads it by.
+    expect(isMissingRoute(error)).toBe(true);
 
     // A route with an id in it too: the rule is about the message, not about which routes may be missing.
     fetchSpy.mockResolvedValueOnce(json({ result: "error", message: `Cannot GET /v2/transactions/${HASH}` }, { status: 404 }));
@@ -1064,6 +1066,7 @@ describe("errors", () => {
     expect(error.kind).toBe("not_found");
     expect(error.status).toBe(404);
     expect(error.message).not.toContain("no such route");
+    expect(isMissingRoute(error)).toBe(false);
   });
 
   it("a 404 without a message, or with one that is not text, is still not_found", async () => {
@@ -1080,6 +1083,10 @@ describe("errors", () => {
     const error = await failureOf(api().lastValidated());
     expect(error.kind).toBe("server");
     expect(error.message).not.toContain("no such route");
+    // A 500 is an outage of its own, not a missing route; neither is anything that is not an upstream's error.
+    expect(isMissingRoute(error)).toBe(false);
+    expect(isMissingRoute(new Error("Cannot GET /v2/last_validated"))).toBe(false);
+    expect(isMissingRoute(new UpstreamError("server", "data API GET /v2/x answered 404", { status: 404 }))).toBe(true);
   });
 
   describe("through the Worker's subrequest cache", () => {

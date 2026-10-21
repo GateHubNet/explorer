@@ -50,6 +50,15 @@ export class UpstreamError extends Error {
   }
 }
 
+/**
+ * Whether a failure is the data API having no such route: its framework's `Cannot GET …` 404, which the client makes the one 404 of kind `server` (data-api.ts,
+ * `throwUnlessOk`: every other 404, each route's own not-found message included, is `not_found`). An API deployed without the sub-project that adds a route
+ * answers so; a page that has the route's card says it for what it is (the AMM pages: "the data API serves no AMM volume"), never as a thing that does not exist.
+ */
+export function isMissingRoute(reason: unknown): boolean {
+  return reason instanceof UpstreamError && reason.kind === "server" && reason.status === 404;
+}
+
 /** The seconds in a `Retry-After` header, when it holds a whole number of seconds (the data API's always does). */
 export function retryAfterOf(headers: Headers): number | undefined {
   const value = headers.get("Retry-After")?.trim();

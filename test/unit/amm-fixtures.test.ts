@@ -644,6 +644,34 @@ describe("the files", () => {
     expect(listed.findIndex((pool) => pool.value_native === undefined)).toBeGreaterThan(0);
   });
 
+  it("list every pool once with include_deleted=true, the deleted ones too, in the same order and with the same markers as the live list", () => {
+    const pages = chain<"pools", AmmPool>(
+      file("/v2/amm/pools", "include_deleted=true&limit=20"),
+      (m) => file("/v2/amm/pools", `include_deleted=true&limit=20&marker=${m}`),
+      "pools",
+    );
+    pages.forEach((page, i) => {
+      expect(() => checkPoolsPage(page)).not.toThrow();
+      expect(page.count).toBe(page.pools.length);
+      const last = page.pools.at(-1)!;
+      if (i < pages.length - 1) {
+        expect(page.pools).toHaveLength(PAGE);
+        expect(page.marker).toBe(marker([storedValue(last), last.amm_account]));
+      } else {
+        expect(page).not.toHaveProperty("marker");
+      }
+    });
+    const everything = [...derived.pools].sort(listOrder);
+    expect(pages.flatMap((page) => page.pools)).toEqual(everything);
+    const deleted = everything.filter((pool) => pool.deleted);
+    expect(deleted.map((pool) => pool.amm_account)).toEqual([FEATURED_POOLS["SNK/XRP"]]);
+    // A deleted pool has no value: it is among the pools without one, so the pages before it are the live list's.
+    const at = pages.findIndex((page) => page.pools.some((pool) => pool.deleted));
+    expect(at).toBeGreaterThan(0);
+    const livePage = (m?: string) => json(file("/v2/amm/pools", m === undefined ? "limit=20" : `limit=20&marker=${m}`)) as Page<"pools", AmmPool>;
+    for (let i = 0; i < at; i += 1) expect(pages[i]).toEqual(livePage(i === 0 ? undefined : pages[i - 1]!.marker));
+  });
+
   it("hold the first page of each filter: pools with the asset on either side, deleted ones only when asked", () => {
     const has = (asset: Asset) => (pool: AmmPool) => sameAsset(baseOf(pool), asset) || sameAsset(counterOf(pool), asset);
     const cases: Array<{ query: string; pools: AmmPool[] }> = [

@@ -1,12 +1,10 @@
 import { ammListPath, ammListQuery, parseAmmListParams, type AmmListQuery } from "../domain/amm-params";
 import { assetText, parseAssetText } from "../domain/asset";
 import { queryOf } from "../domain/query-of";
-import { utcDayOf, windowOf } from "../domain/window";
-import { ammListPage, noAmmPage, type AmmListInput } from "../server/amm-view";
-import { anchorOrThrow } from "../server/anchor";
+import { ammListPage, ammListWindow, noAmmPage, type AmmListInput } from "../server/amm-view";
 import { HOME_CALL_TTL_SECONDS, PERIOD_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
-import { byDeadline, CARD_DEADLINE_MS, outcome } from "../server/deadline";
+import { byDeadline, CARD_DEADLINE_MS, outcome, TooLate } from "../server/deadline";
 import { cached, forwardCacheClass } from "../server/edge-cache";
 import { markDegraded } from "../server/env";
 import { logProblem } from "../server/logging";
@@ -14,8 +12,9 @@ import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { ammListMeta } from "../server/meta-amm-list";
 import { requireNetwork } from "../server/network-route";
+import { seriesQuery } from "../server/network-view";
 import { redirectToCanonical } from "../server/pair-route";
-import { UpstreamError } from "../server/upstream";
+import { isMissingRoute, UpstreamError } from "../server/upstream";
 import { AmmListPage } from "../ui/pages/AmmListPage";
 import { NoAmmPage } from "../ui/pages/NoAmmPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
@@ -32,17 +31,8 @@ export const handle = { navSection: "amm" } satisfies NetworkRouteHandle;
 /** The pools of a page of the list (spec 2.2). */
 const POOLS_PAGE = 20;
 
-/** The rows the 30-day call asks for: the network page's (its `SERIES_LIMIT`), so that the call is that page's 30-day view, under its key (spec 4). */
-const SERIES_LIMIT = 1000;
-
 /** What the not-found page says of a page of the list that is not there: a marker that is none, one the API refuses, or one with nothing behind it. */
 const MORE_NOT_FOUND = "that page of the AMM pools";
-
-/**
- * The failure of an API without the AMM routes: its framework's `Cannot GET` 404, which E2's missing-route rule (data-api.ts, `throwUnlessOk`) makes
- * the one 404 of kind `server` (every other 404 is `not_found`).
- */
-const isMissingRoute = (reason: unknown): boolean => reason instanceof UpstreamError && reason.kind === "server" && reason.status === 404;
 
 /**
  * `/{net}/amm` (AMM spec 2): the pools of the network's AMM, the most valuable first, with the swap volume of the last 24 hours and of the last 30 days.
@@ -89,12 +79,10 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
 
   const { api } = clientsFor(context, net);
   const deadline = started + CARD_DEADLINE_MS;
-  // #1 is the anchor of the chart: #4 asks for the 30 days up to its UTC day, and fails with it.
+  // #1 is the anchor of the chart: #4 asks for the 30 days up to its UTC day (the chart's window, `ammListWindow`) with the network page's query and TTL, so
+  // that it is that page's call under its key, and fails with #1.
   const lastCall = api.lastValidated({ ttl: HOME_CALL_TTL_SECONDS });
-  const monthCall = lastCall.then((last) => {
-    const window = windowOf(utcDayOf(anchorOrThrow(last).closeTime), "30d");
-    return api.ammVolume({ interval: window.unit, start: window.start, end: window.end, limit: SERIES_LIMIT }, { ttl: PERIOD_CALL_TTL_SECONDS });
-  });
+  const monthCall = lastCall.then((last) => api.ammVolume(seriesQuery(ammListWindow(last)), { ttl: PERIOD_CALL_TTL_SECONDS }));
   const poolsCall =
     typo !== null
       ? null
@@ -125,12 +113,15 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
     history: last.status === "rejected" ? null : month,
   };
   const { page, problems } = ammListPage(input);
-  // The problems are in the page's order, the totals first: when #3 failed, the first is its, and an API without the route is said for what it is.
-  const noVolume = live.status === "rejected" && isMissingRoute(live.reason);
-  problems.forEach((problem, at) => {
-    logProblem(at === 0 && noVolume ? "the data API serves no AMM volume" : "the AMM pools page could not load a card", problem, request);
-  });
-  if (problems.length > 0) markDegraded(context, `amm list: ${problems.join("; ")}`);
+  for (const { part, reason } of problems) {
+    // The totals are the live set's card: an API without its route is said for what it is.
+    const what =
+      part === "totals" && isMissingRoute(reason)
+        ? "the data API serves no AMM volume"
+        : `the AMM pools page's ${part} ${reason instanceof TooLate ? "took too long" : "could not be loaded"}`;
+    logProblem(what, reason, request);
+  }
+  if (problems.length > 0) markDegraded(context, `amm list: ${problems.map(({ part }) => part).join(", ")}`);
 
   return cached(page, typo !== null ? "short" : "live");
 }

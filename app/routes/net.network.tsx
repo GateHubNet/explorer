@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { redirect } from "react-router";
 
 import { networkHref, networkScope, parseNetworkParams, queryOf, USD_ISSUER } from "../domain/network-params";
-import { utcDayOf, windowOf } from "../domain/window";
 import { anchorOrThrow, type Anchor } from "../server/anchor";
 import { HOME_CALL_TTL_SECONDS, PERIOD_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
@@ -14,7 +13,7 @@ import { upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { networkMeta } from "../server/meta-network";
-import { networkPage, VALIDATIONS_LIMIT, type NetworkInput, type NetworkLoaderData } from "../server/network-view";
+import { anchoredWindow, networkPage, SERIES_LIMIT, seriesQuery, VALIDATIONS_LIMIT, type NetworkInput, type NetworkLoaderData } from "../server/network-view";
 import { requireNetwork } from "../server/network-route";
 import { UpstreamError } from "../server/upstream";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
@@ -35,9 +34,6 @@ export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
 
 /** The parts of the page that a beat may keep when its answer has them failed and the page shows them loaded (`keepLoaded`, spec 1.9), one for each call or chain. */
 const NETWORK_PARTS = ["openLedger", "validators", "types", "metrics", "fees", "payments", "exchanges", "amm"] as const;
-
-/** The rows a series call asks for: the API's page maximum, far above the most buckets of a window (365 days for the daily fees of a year). */
-const SERIES_LIMIT = 1000;
 
 /**
  * `/{net}/network` (spec 1): the dashboard of a network, from the data API alone. The class is `live-home`, as the home page's: it follows the
@@ -84,9 +80,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     logProblem("the network page has no anchor", error, request);
     return upstreamOutage(error, "the network");
   }
-  const w = windowOf(utcDayOf(anchor.closeTime), view.period);
+  const w = anchoredWindow(anchor, view.period);
   const usd = view.display === "usd" ? { exchangeCurrency: "USD", exchangeIssuer: USD_ISSUER } : {};
-  const series = { interval: w.unit, start: w.start, end: w.end, limit: SERIES_LIMIT };
+  const series = seriesQuery(w);
   const volume = { ...series, ...usd };
   const deadline = started + CARD_DEADLINE_MS;
 

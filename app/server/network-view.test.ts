@@ -20,6 +20,7 @@ import type {
 import { TooLate } from "./deadline";
 import {
   ammOf,
+  anchoredWindow,
   contextOf,
   exchangesOf,
   feesOf,
@@ -27,6 +28,8 @@ import {
   networkPage,
   openLedgerOf,
   paymentsOf,
+  SERIES_LIMIT,
+  seriesQuery,
   stripOf,
   typesOf,
   validatorsOf,
@@ -199,6 +202,25 @@ function input(overrides: Partial<NetworkInput> = {}): NetworkInput {
     ...overrides,
   };
 }
+
+// ---- The window and the series calls ---------------------------------------------------------------------------------------------
+
+describe("anchoredWindow and seriesQuery", () => {
+  it("is E2's window of the period up to the UTC day of the anchor's close time", () => {
+    // 17:01:12 UTC on 2026-10-17, and a second before midnight that day.
+    expect(anchoredWindow({ lastValidated: 107721455, closeTime: 1792256472 }, "30d")).toEqual(windowOf("2026-10-17", "30d"));
+    expect(anchoredWindow({ lastValidated: 1, closeTime: 1792281599 }, "1y")).toEqual(windowOf("2026-10-17", "1y"));
+    expect(anchoredWindow({ lastValidated: 1, closeTime: 1792281600 }, "7d")).toEqual(windowOf("2026-10-18", "7d"));
+  });
+
+  it("asks for the window's buckets and days, and the API's page maximum, in VolumeQuery's order", () => {
+    expect(SERIES_LIMIT).toBe(1000);
+    const query = seriesQuery(windowOf("2026-10-17", "30d"));
+    expect(query).toEqual({ interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 });
+    expect(Object.keys(query)).toEqual(["interval", "start", "end", "limit"]);
+    expect(seriesQuery(windowOf("2026-10-17", "1y"))).toMatchObject({ interval: "week", end: "2026-10-17", limit: 1000 });
+  });
+});
 
 // ---- The strip ---------------------------------------------------------------------------------------------------------------------
 

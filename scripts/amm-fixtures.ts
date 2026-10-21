@@ -10,6 +10,7 @@
 //   amm/pools/<A>/<B>.json                    the pair form of each featured pool, in both orders, each side its `apiAssetText`
 //   amm/pools@limit=20[&marker=<M>].json      the live pools, by `value_native` descending (the stored Float64; the pools without one last), then account; the
 //                                             marker of a page is `encodePoolsMarker`: the base64url JSON of `[value | null, amm_account]` of its last pool
+//   amm/pools@include_deleted=true&limit=20[&marker=<M>].json   every pool, the deleted ones too, in the same order and with the same markers
 //   amm/pools@asset=…[&include_deleted=true]&limit=20.json   the first page of three filters: XRP, RLUSD, and SNK with the deleted pools
 //   amm/pools/<POOL>/swaps|liquidity|governance@descending=true&limit=20[&marker=<M>].json   each featured pool's rows, newest first: split into two pages
 //                                             when it has two or more (the newer half, rounded up, and the marker of its last row, then the rest), so the
@@ -147,9 +148,11 @@ export function ammFixtures(): Map<string, string> {
   const inOrder = [...pools].sort(listOrder);
   const live = inOrder.filter((pool) => !pool.deleted);
 
-  // Every pool, and the list of the live ones with each page its marker names.
+  // Every pool, and the list of the live ones with each page its marker names; then the list with the deleted pools too (`include_deleted=true`), every
+  // page of it: the API drops its `deleted = 0` and keeps its order and markers, so a deleted pool (no value) is among the pools without one, by account.
   for (const pool of pools) put(`/v2/amm/pools/${pool.amm_account}`, "", { result: "success", pool });
   for (const { marker, page } of poolPages(live)) put("/v2/amm/pools", queryOf({ limit: LIMIT, marker }), page);
+  for (const { marker, page } of poolPages(inOrder)) put("/v2/amm/pools", queryOf({ include_deleted: "true", limit: LIMIT, marker }), page);
 
   // The first page of each filter the tests ask for.
   const filters: Array<{ asset: Asset; includeDeleted: boolean }> = [

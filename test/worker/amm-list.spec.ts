@@ -50,18 +50,24 @@ const urlOf = (request: RequestInfo | URL) => (typeof request === "string" ? req
 
 /**
  * The subrequest cache with nothing in it for this test: every lookup of an entry misses, so every call of a render reaches the mock (what is stored
- * is still written), and the `Cache-Control` of every entry stored, by the entry's URL.
+ * is still written). `looked` is every entry looked up, in order (each call of a render looks its entry up before it reaches the API), and `kept` the
+ * `Cache-Control` of every entry stored, by the entry's URL.
  */
-function cold(): Map<string, string | null> {
+function cold(): { looked: string[]; kept: Map<string, string | null> } {
+  const looked: string[] = [];
   const kept = new Map<string, string | null>();
   const match = caches.default.match.bind(caches.default);
   const put = caches.default.put.bind(caches.default);
-  vi.spyOn(caches.default, "match").mockImplementation((request, options) => (urlOf(request).startsWith(SUBREQUESTS) ? Promise.resolve(undefined) : match(request, options)));
+  vi.spyOn(caches.default, "match").mockImplementation((request, options) => {
+    if (!urlOf(request).startsWith(SUBREQUESTS)) return match(request, options);
+    looked.push(urlOf(request));
+    return Promise.resolve(undefined);
+  });
   vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
     if (urlOf(request).startsWith(SUBREQUESTS)) kept.set(urlOf(request), response.headers.get("Cache-Control"));
     return put(request, response);
   });
-  return kept;
+  return { looked, kept };
 }
 
 /** The URL the subrequest cache stores a key under (edge-cache.ts: the build and the SHA-256 of the key). */
@@ -134,6 +140,7 @@ const MONTH_ENTRY = `GET ${API_BASE}/v2/network/amm_volume?interval=day&start=20
 const SECOND = "WzExNTE4LjA3NjI3OCwick1mREZOVDRCU1J4b0EySGIzam9SQWNGOVFZc1pRSk03SiJd";
 const THIRD = "WzYzNy4yMTY0MTQsInJOQjJaY1czOHN3WkJuRnVSNE11cEVrcjFKWWZWOGV5RHkiXQ";
 const FOURTH = "W251bGwsInI5cnkycUxvR2lWTTM2ODlMN2JmRU0zU3NFTExiYkRLdm4iXQ";
+const FIFTH = "W251bGwsInJKRVZ1NzF6RVpKNzRUdW1LdGNnZkJRZGNFd2lRUHpxaWQiXQ";
 
 const RLUSD = "RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
 const SNK = "SNK.rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm";
@@ -203,7 +210,10 @@ describe("a call that fails (spec 2.5)", () => {
     expect(tiles(html).map((tile) => tile.value)).not.toContain("—");
     expect((html.match(/class="col"/g) ?? []).length).toBe(30);
     expect((html.match(/role="alert"/g) ?? []).length).toBe(1);
-    expect(errors.mock.calls.map(([line]) => String(line)).some((line) => line.includes("the pools: data API GET /v2/amm/pools"))).toBe(true);
+    // Logged under the card's name, with the error itself.
+    const logged = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the AMM pools page's pools could not be loaded"));
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("data API GET /v2/amm/pools?limit=20&include_deleted=true answered 503");
   });
 
   it("draws the Pools card as a SectionError, never a stored 404, when the API refuses the first page (#2, a 400 with no marker)", async () => {
@@ -250,6 +260,27 @@ describe("a call that fails (spec 2.5)", () => {
   });
 });
 
+describe("a card that has not answered (spec 2.3)", () => {
+  it("gives up on the live set 4.5 s after the loader began, logs that it took too long, and answers 200 all the same, not stored", async () => {
+    cold();
+    mock = mockUpstream("xrpl", { [LIVE]: () => new Promise<Response>(() => {}) });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const path = `/xrpl/amm?marker=${FIFTH}`;
+    const started = performance.now();
+    const { response, html, text } = await render(path);
+    const took = performance.now() - started;
+
+    await expectDegraded(path, response);
+    // The card's deadline; the data API client would have given up at 5 s.
+    expect(took).toBeGreaterThanOrEqual(4_400);
+    expect(took).toBeLessThan(5_000);
+    expect(tiles(html).map((tile) => tile.value)).toEqual(["—", "—", "—"]);
+    expect(text).toContain("Couldn’t load the 24-hour figures.");
+    expect(new Set(volumes(html))).toEqual(new Set(["—"]));
+    expect(errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the AMM pools page's totals took too long"))).toHaveLength(1);
+  }, 15_000);
+});
+
 describe("a page behind a marker that is not there (spec 1.3)", () => {
   it("is a 404 of class short when the API refuses the marker (a 400)", async () => {
     cold();
@@ -292,7 +323,7 @@ describe("a page behind a marker that is not there (spec 1.3)", () => {
 
 describe("the first page", () => {
   it("is stored as live (5 s) and makes exactly the four calls of spec 2.2, the kept ones under the home and network pages' keys", async () => {
-    const kept = cold();
+    const { kept } = cold();
     mock = mockUpstream("xrpl");
     const { response, html, text } = await render("/xrpl/amm");
 
@@ -320,6 +351,19 @@ describe("the first page", () => {
     expect(html).toContain('<link rel="canonical" href="https://explorer.test/xrpl/amm"/>');
     expect(isNoindex(html)).toBe(false);
     expect((html.match(/role="alert"/g) ?? []).length).toBe(0);
+  });
+
+  it("asks for the 30 days with the network page's own call: its 30-day view looks up the same entry, as it does last_validated's", async () => {
+    const { looked } = cold();
+    mock = mockUpstream("xrpl");
+    expect((await render("/xrpl/amm?asset=XRP&marker=AAAA")).response.status).toBe(200);
+    const list = [...looked];
+    expect(list).toHaveLength(4);
+    looked.length = 0;
+    // The network page's default view is its 30 days.
+    expect((await render("/xrpl/network")).response.status).toBe(200);
+    const shared = list.filter((entry) => looked.includes(entry));
+    expect(shared.sort()).toEqual([await entryOf(LAST_VALIDATED_ENTRY), await entryOf(MONTH_ENTRY)].sort());
   });
 
   it("holds the chart's columns and its table in the HTML, without JavaScript, the running day marked so far", async () => {
@@ -354,6 +398,22 @@ describe("the first page", () => {
     // The browser never gets the API's answer: the rows are the view builder's, and no host or key is in them.
     expect(body).not.toContain("value_native");
     expect(body).not.toContain("data.example.invalid");
+  });
+
+  it("answers the .data URL of a page behind a marker, as the pager asks for it, with its data and not a redirect", async () => {
+    cold();
+    mock = mockUpstream("xrpl");
+    const dataPath = `/xrpl/amm.data?marker=${SECOND}&_routes=routes%2Fnet.amm._index`;
+    const data = await get(dataPath);
+    const body = await data.text();
+
+    expect(data.status).toBe(200);
+    expect(data.headers.get("Content-Type")).toContain("text/x-script");
+    expect(body).not.toContain("SingleFetchRedirect");
+    expect(keysOf(mock.requests)).toContain(`GET /v2/amm/pools?limit=20&marker=${SECOND}`);
+    // The link to the page after it, as the page's data has it.
+    expect(body).toContain(`/xrpl/amm?marker=${THIRD}&back=${SECOND}`);
+    expect(await storedAs(dataPath)).toEqual({ cls: "live", ttl: 5 });
   });
 
   it("is a page of its own behind the marker of its More pools link: live, noindex, follow, with Previous back to the first page", async () => {
@@ -396,6 +456,38 @@ describe("the filter (spec 1.2, 1.3)", () => {
     // The form shows the filter as the URL has it.
     expect(html).toContain(`value="${SNK}"`);
     expect(text).toContain("Include deleted pools");
+  });
+
+  it("lists the deleted pools too with ?deleted=1, page after page, the deleted SNK/XRP among the pools without a value with its Deleted tag", async () => {
+    cold();
+    mock = mockUpstream("xrpl");
+    let path: string | undefined = "/xrpl/amm?deleted=1";
+    const seen: string[] = [];
+    let found: string[] | undefined;
+    while (path !== undefined && found === undefined) {
+      const { response, html } = await render(path);
+      expect(response.status, path).toBe(200);
+      expect(await storedAs(path)).toEqual({ cls: "live", ttl: 5 });
+      expect(isNoindex(html)).toBe(true);
+      seen.push(path);
+      found = poolRows(html).find((row) => row[0]!.includes("SNK / XRP"));
+      if (found !== undefined) expect(html).toContain('<span class="tag tag--icon">');
+      // The pager keeps the filter.
+      const next = anchors(html).find((a) => a.text === "More pools");
+      path = next === undefined ? undefined : /href="([^"]*)"/.exec(next.attrs)![1]!.replace(/&amp;/g, "&");
+    }
+    expect(found?.[0]).toContain("Deleted");
+    // A deleted pool has no value and no slot; its reserves are the index's last, emptied by the withdrawal that deleted it.
+    expect(found?.slice(1, 3)).toEqual(["—", "0 SNK 0 XRP"]);
+    expect(found?.[5]).toBe("—");
+    expect(seen).toEqual(["/xrpl/amm?deleted=1", `/xrpl/amm?deleted=1&marker=${SECOND}`, `/xrpl/amm?deleted=1&marker=${THIRD}&back=${SECOND}`, `/xrpl/amm?deleted=1&marker=${FOURTH}&back=${THIRD}.${SECOND}`]);
+    expect(keysOf(mock.requests).filter((key) => key.startsWith("GET /v2/amm/pools?"))).toEqual([
+      "GET /v2/amm/pools?include_deleted=true&limit=20",
+      `GET /v2/amm/pools?include_deleted=true&limit=20&marker=${SECOND}`,
+      `GET /v2/amm/pools?include_deleted=true&limit=20&marker=${THIRD}`,
+      `GET /v2/amm/pools?include_deleted=true&limit=20&marker=${FOURTH}`,
+    ]);
+    expect(mock.requests.every((request) => request.status === 200)).toBe(true);
   });
 
   it("says what is wrong under the field for an asset that does not parse, asks for no pools, and is short, noindex, follow", async () => {
