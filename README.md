@@ -1168,7 +1168,8 @@ until D2b names the computed days); the auction slot (until when, E6's `Countdow
 open." and what a new bid costs at least, `nextBidPrice`, rippled's `AMMBid.cpp`); the fee votes (E2's `BarList`, each vote's share of the LP tokens at its tip,
 "Weighted result 0.205%, the pool's trading fee."; "No fee votes." for a pool with none); and the pool's activity, tabs that are links (Swaps, Liquidity, Votes and
 bids), 20 rows a page, newest first, Newer and Older. A page behind a marker (`ammHistoryPage`) is the breadcrumb, the pool card without its Created and LP
-token lines, "Back to the pool" and the tab's older rows, titled "Older swaps of the XRP/RLUSD AMM pool": nothing that would be as old as the stored page.
+token lines, "Back to the pool" and the tab's older rows, titled "Older swaps of the XRP/RLUSD AMM pool": nothing that would be as old as the stored page. A list
+whose rows do not build is its table's "Couldn’t load the swaps", logged, and the request degraded, so it is never stored as that page.
 
 | #1 index | #2 node | Mode | Shown | Class |
 |---|---|---|---|---|
