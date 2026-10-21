@@ -72,7 +72,7 @@ per request, over the data centre's Cache API, built with `BUILD_ID`).
 |---|---|---|
 | `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL` | var | `wrangler.jsonc`, per environment (placeholders for now) |
 | `XRPL_NODE_URL`, `XAHAU_NODE_URL` | var | `wrangler.jsonc`, per environment (`https://s1.ripple.com:51234/`, `https://xahau.network/`) |
-| `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
+| `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
 | `VISITOR_LIMITER` | `ratelimits` binding, 60 per 10 s | `wrangler.jsonc`, per environment (own namespace each) |
 | `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-staging` and `x-explorer-production` as a secret |
 | `SENTRY_DSN` | secret, optional | the same |
@@ -86,7 +86,7 @@ inherited, so each environment repeats them. The top level of `wrangler.jsonc` i
 
 A switch turns a page, or a part of one, on or off for one environment, from one commit. It is a Worker variable, `"on"` or `"off"`, set per environment in
 `wrangler.jsonc`. `app/ui/features.ts` is the one list of them (`FEATURE_VARS`), and nothing else lists their names. It is pure, with no React and no server import,
-so the Worker, the browser, the scripts and the tests all import it. `featuresOf(vars)` turns the variables into `Features` (`validators`, `ammData`, `markets`, `accountAnalytics`): `"on"` is
+so the Worker, the browser, the scripts and the tests all import it. `featuresOf(vars)` turns the variables into `Features` (`validators`, `ammData`, `markets`, `accountAnalytics`, `ammPages`): `"on"` is
 `true`, and anything else, a missing value too, is `false`. `NO_FEATURES` (frozen) is every switch off.
 
 | Variable | In `Features` | Gates |
@@ -95,6 +95,7 @@ so the Worker, the browser, the scripts and the tests all import it. `featuresOf
 | `AMM_DATA` | `ammData` | every part derived from the AMM data in the index: the network page's AMM volume series and its "AMM swaps included" wording; on the markets pages (XRPL only), the Trades filter of each page, the Via column, the AMM share tile and column, the pool card's share and the intro's words about swaps |
 | `MARKETS` | `markets` | the markets pages (E3), the header's Markets link and every link into them |
 | `ACCOUNT_ANALYTICS` | `accountAnalytics` | the account page's Analytics tab (E4): the tab itself, its "soon" label while off, and the `?tab=analytics` URLs |
+| `AMM_PAGES` | `ammPages` | the AMM pool pages (E5): the routes under `/{net}/amm` and the `/og/{net}/amm/…` images (a 404 of class `short`, without a call, while off), the header's AMM link ("soon" while off) and every link to a pool, which goes to the account page while off |
 
 Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). The values:
 
@@ -104,6 +105,7 @@ Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). T
 | `AMM_DATA` | `"on"` | `"off"` | `"off"` |
 | `MARKETS` | `"on"` | `"off"` | `"off"` |
 | `ACCOUNT_ANALYTICS` | `"on"` | `"off"` | `"off"` |
+| `AMM_PAGES` | `"on"` | `"off"` | `"off"` |
 
 The conditions for turning a switch on in `staging` or `production` (by a commit and a deploy):
 
@@ -117,6 +119,9 @@ The conditions for turning a switch on in `staging` or `production` (by a commit
   Until then it is `"off"` there; the top level has it `"on"`.
 - `ACCOUNT_ANALYTICS` (`accountAnalytics`, E4): the account page's Analytics tab. "on" at the top level (development and the tests), "off" in staging and production until D2's
   gauges `syncer_rates_daily_missing_days` and `syncer_account_rollups_pending_accounts` are 0 there (E4 §8).
+- `AMM_PAGES` (`ammPages`, E5): the AMM pool pages. "on" at the top level (development and the tests), "off" in staging and production. It goes "on" in an environment
+  once `AMM_DATA` is "on" there, `feat/amm-data` is merged into the data API's `main` and deployed to it, and the data is re-ingested from ledger 86795265 and
+  back-filled. The pre-deploy guard refuses a build that has `AMM_PAGES` "on" and `AMM_DATA` anything but "on". Rolling back is `"off"` and a deploy.
 
 **A switch is never set in the Cloudflare dashboard.** The Cloudflare Vite plugin writes the build's vars, so the next deploy would undo it.
 
@@ -132,7 +137,7 @@ How a switch reaches the code:
   that depends on them takes its "off" form.
 
 **The cache generation.** `cacheGeneration(env)` (`app/server/env.ts`) is `BUILD_ID`, a colon, and every switch as `NAME=value`, sorted by name and joined by commas:
-`3f2a9c1:ACCOUNT_ANALYTICS=on,AMM_DATA=on,MARKETS=on,VALIDATORS=off`. The edge cache keys every page, image and `.data` URL with it (`edgeCacheKey(url, cacheGeneration(env))`, the `__build` parameter of
+`3f2a9c1:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off`. The edge cache keys every page, image and `.data` URL with it (`edgeCacheKey(url, cacheGeneration(env))`, the `__build` parameter of
 the key). A flip is a deploy of the same commit with another value, and it is a new key for everything, so a copy stored under the other value is never served. The
 subrequest cache keeps `BUILD_ID` alone, because it holds upstream data, which no switch changes. The live pages' `build` field keeps `BUILD_ID` too, because it says
 which code drew the page: a flip does not reload an open tab. Its route's data follows on the next beat (the `.data` key changed), and the layout's data (the header)
@@ -1574,7 +1579,7 @@ otherwise; never 5173) and never reuses a server that is already running.
 | `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:staging` leaves) is refused |
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
-| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`, and `a11y.spec.ts` leaves the analytics views out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
+| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `AMM_PAGES`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`, and `a11y.spec.ts` leaves the analytics views out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
 | `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
@@ -2057,8 +2062,9 @@ its exit code stops the deploy. It reads the config the plugin wrote (`build/ser
 
 - an upstream var (`XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL`, `XAHAU_NODE_URL`) is a placeholder (a host under `.invalid`, which is what
   `wrangler.jsonc` holds until the hosts are decided: a Worker deployed with them answers every page with a 503), is not an `https` URL, or is missing;
-- a switch (`VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`; the list is `FEATURE_VARS` in `app/ui/features.ts`) is missing from the build's vars, or its value is not exactly `"on"` or `"off"`, or a var
+- a switch (`VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`; the list is `FEATURE_VARS` in `app/ui/features.ts`) is missing from the build's vars, or its value is not exactly `"on"` or `"off"`, or a var
   that is not a switch has the value `"on"` or `"off"` (a misspelt switch, such as `MARKET`: see "Switches");
+- `AMM_PAGES` is `"on"` while `AMM_DATA` is not (`AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data`): the pool pages are all AMM data;
 - the build is not for the environment asked for, or for none (a build without `CLOUDFLARE_ENV` is the top level, local development);
 - `workers_dev` or `preview_urls` is not `false` in the build, so that the Worker would be reachable on `*.workers.dev`;
 - `.wrangler/deploy/config.json`, the redirect `wrangler deploy` follows, is missing or does not lead to that very file (it would then deploy

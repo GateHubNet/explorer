@@ -100,6 +100,37 @@ describe("the ACCOUNT_ANALYTICS switch", () => {
   });
 });
 
+// AMM_PAGES (E5): the AMM pool pages, the header's AMM link and every link into them.
+describe("the AMM_PAGES switch", () => {
+  // Its place is the fifth, after E2's two, E3's MARKETS and E4's ACCOUNT_ANALYTICS. Checked as a prefix of both lists, not as their last entry, so that a
+  // switch appended after it by a later plan leaves this test as it is.
+  it("is the fifth switch, after E2's two, E3's MARKETS and E4's ACCOUNT_ANALYTICS, and its feature is ammPages", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES"];
+    expect(FEATURE_VARS.slice(0, 5)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("AMM_PAGES")).toBe(4);
+    expect(Object.keys(FEATURE_NAME).slice(0, 5)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("AMM_PAGES")).toBe(4);
+    expect(FEATURE_NAME.AMM_PAGES).toBe("ammPages");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ AMM_PAGES: "on" }).ammPages).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ AMM_PAGES: value }).ammPages, String(value)).toBe(false);
+    expect(featuresOf({}).ammPages).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.ammPages).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on (AMM_DATA least of all)", () => {
+    expect(featuresOf({ AMM_PAGES: "on" })).toEqual({ ...NO_FEATURES, ammPages: true });
+    expect(featuresOf({ ...allSwitches("on"), AMM_PAGES: "off" }).ammPages).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on" }).ammPages).toBe(false);
+    expect(featuresOf({ AMM_DATA: "on" }).ammPages).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

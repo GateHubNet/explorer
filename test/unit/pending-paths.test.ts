@@ -54,4 +54,21 @@ describe("PENDING_PATHS", () => {
       amendment: "/v2/network/amendments/{name}",
     });
   });
+
+  // E5's seven AMM pool routes (`feat/amm-data`, pinned at c3e2302), in the spellings of that branch's OpenAPI document: the pool is `{pool}`, the pair is
+  // `{base}/{counter}`. Without them the API answers `Cannot GET`, which the client reads as an outage, never as a missing pool (which answers `pool not found`).
+  it("has the seven AMM pool routes of feat/amm-data (pinned at c3e2302), with the path parameter names of its openapi.yaml: `pool`, `base` and `counter`", () => {
+    const expected = {
+      ammPools: "/v2/amm/pools",
+      ammPool: "/v2/amm/pools/{pool}",
+      ammPoolByPair: "/v2/amm/pools/{base}/{counter}",
+      ammPoolHistory: "/v2/amm/pools/{pool}/history",
+      ammPoolSwaps: "/v2/amm/pools/{pool}/swaps",
+      ammPoolLiquidity: "/v2/amm/pools/{pool}/liquidity",
+      ammPoolGovernance: "/v2/amm/pools/{pool}/governance",
+    };
+    expect(Object.fromEntries(Object.keys(expected).map((name) => [name, PENDING_PATHS[name as keyof typeof expected]]))).toEqual(expected);
+    // Each is among the values, so the two tests above cover it: absent from api/openapi.yaml, and named in the message once it arrives.
+    expect(Object.values(PENDING_PATHS)).toEqual(expect.arrayContaining(Object.values(expected)));
+  });
 });

@@ -73,6 +73,11 @@ describe("networkOf", () => {
     expect(networkOf("xrpl", { ...env, ACCOUNT_ANALYTICS: "on" }).features.accountAnalytics).toBe(true);
     expect(networkOf("xahau", { ...env, ACCOUNT_ANALYTICS: "on" }).features.accountAnalytics).toBe(true);
     expect(networkOf("xrpl", { ...env, AMM_DATA: "on", MARKETS: "on", VALIDATORS: "on" }).features.accountAnalytics).toBe(false);
+    // AMM_PAGES likewise, and AMM_DATA being on (as it is in this env) does not turn it on.
+    expect(networkOf("xrpl", env).features.ammPages).toBe(false);
+    expect(networkOf("xrpl", { ...env, AMM_PAGES: "on" }).features.ammPages).toBe(true);
+    expect(networkOf("xahau", { ...env, AMM_PAGES: "on" }).features.ammPages).toBe(true);
+    expect(networkOf("xrpl", { ...env, AMM_DATA: "on", MARKETS: "on", VALIDATORS: "on", ACCOUNT_ANALYTICS: "on" }).features.ammPages).toBe(false);
   });
 
   it("points each network at the other", () => {

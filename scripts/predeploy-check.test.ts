@@ -222,6 +222,78 @@ describe("deployProblems", () => {
       });
     });
 
+    // AMM_PAGES (E5): the AMM pool pages. A staging or production build must say it, say it right, and never have the pages on over data that is off.
+    describe("AMM_PAGES", () => {
+      const NEEDS_DATA = "AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data";
+
+      it("passes a build whose AMM_PAGES is off or on, and the passing configs carry it, off", () => {
+        expect((good("staging").vars as Config).AMM_PAGES).toBe("off");
+        expect((good("production").vars as Config).AMM_PAGES).toBe("off");
+        expect(deployProblems(good("staging"), "staging")).toEqual([]);
+        expect(deployProblems(withVars(allSwitches("on")), "staging")).toEqual([]);
+        expect(deployProblems(withVars(allSwitches("on"), "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ AMM_PAGES: "off" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without AMM_PAGES, and names it", () => {
+        const vars = { ...(good().vars as Config) };
+        delete vars.AMM_PAGES;
+        const problems = deployProblems(good("staging", { vars }), "staging");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("AMM_PAGES is not set");
+        expect(problems[0]).toContain('"on" or "off"');
+      });
+
+      it('refuses AMM_PAGES: "yes", and names it', () => {
+        const problems = deployProblems(withVars({ AMM_PAGES: "yes" }, "production"), "production");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("AMM_PAGES");
+        expect(problems[0]).toContain('"yes"');
+        expect(problems[0]).toContain('not exactly "on" or "off"');
+      });
+
+      it('refuses a misspelt AMM_PAGE: "on" as a var that is not a switch, naming AMM_PAGES among the switches', () => {
+        const problems = deployProblems(withVars({ AMM_PAGE: "on" }), "staging");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("AMM_PAGE is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("AMM_PAGES");
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+
+      // Spec 10: AMM_PAGES goes on in an environment only once AMM_DATA is on there. The pages are all AMM data.
+      it.each(["staging", "production"] as const)("refuses AMM_PAGES on with AMM_DATA off in %s, with that reason alone", (env) => {
+        expect(deployProblems(withVars({ AMM_PAGES: "on", AMM_DATA: "off" }, env), env)).toEqual([NEEDS_DATA]);
+      });
+
+      it("accepts AMM_PAGES on with AMM_DATA on, and AMM_PAGES off with AMM_DATA either way", () => {
+        expect(deployProblems(withVars({ AMM_PAGES: "on", AMM_DATA: "on" }), "staging")).toEqual([]);
+        expect(deployProblems(withVars({ AMM_PAGES: "off", AMM_DATA: "on" }), "staging")).toEqual([]);
+        expect(deployProblems(withVars({ AMM_PAGES: "off", AMM_DATA: "off" }), "staging")).toEqual([]);
+      });
+
+      it("gives the reason after the switches' own, when AMM_DATA is missing or is not on or off, and only for AMM_PAGES exactly on", () => {
+        const vars: Config = { ...(good().vars as Config), AMM_PAGES: "on" };
+        delete vars.AMM_DATA;
+        const missing = deployProblems(good("staging", { vars }), "staging");
+        expect(missing).toHaveLength(2);
+        expect(missing[0]).toContain("AMM_DATA is not set");
+        expect(missing[1]).toBe(NEEDS_DATA);
+
+        const yes = deployProblems(withVars({ AMM_PAGES: "on", AMM_DATA: "yes" }), "staging");
+        expect(yes).toHaveLength(2);
+        expect(yes[0]).toContain("AMM_DATA");
+        expect(yes[1]).toBe(NEEDS_DATA);
+
+        // AMM_PAGES that is not exactly "on" is refused for itself, and does not claim the pages are on.
+        for (const value of ["ON", "yes", true]) {
+          const problems = deployProblems(withVars({ AMM_PAGES: value, AMM_DATA: "off" }), "staging");
+          expect(problems, String(value)).toHaveLength(1);
+          expect(problems[0]).not.toBe(NEEDS_DATA);
+        }
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "staging")).toEqual([]);
     });
@@ -318,6 +390,12 @@ describe("checkBuild", () => {
     const problems = checkBuild(root({ config: good("staging", { vars }) }), "staging").problems;
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("AMM_DATA");
+  });
+
+  it("refuses a build with AMM_PAGES on over AMM_DATA off, and passes it with both on", () => {
+    const refused = checkBuild(root({ config: withVars({ AMM_PAGES: "on", AMM_DATA: "off" }) }), "staging").problems;
+    expect(refused).toEqual(["AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data"]);
+    expect(checkBuild(root({ config: withVars({ AMM_PAGES: "on", AMM_DATA: "on" }) }), "staging").problems).toEqual([]);
   });
 
   it("refuses a build with a placeholder, and one for another environment", () => {
@@ -438,5 +516,17 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(vars().ACCOUNT_ANALYTICS).toBe("on");
     expect(vars("staging").ACCOUNT_ANALYTICS).toBe("off");
     expect(vars("production").ACCOUNT_ANALYTICS).toBe("off");
+  });
+
+  // AMM_PAGES (README "Switches"): on in development and the tests (the top level), off in staging and production until AMM_DATA is on there and `feat/amm-data`
+  // is merged, re-ingested and back-filled. A flip is a commit, so it is read from the file. In no block is it on over an AMM_DATA that is off (the guard's rule).
+  it("has AMM_PAGES on at the top level and off in staging and production, and never on over AMM_DATA off", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().AMM_PAGES).toBe("on");
+    expect(vars("staging").AMM_PAGES).toBe("off");
+    expect(vars("production").AMM_PAGES).toBe("off");
+    for (const env of [undefined, "staging", "production"]) {
+      if (vars(env).AMM_PAGES === "on") expect(vars(env).AMM_DATA, env ?? "top level").toBe("on");
+    }
   });
 });

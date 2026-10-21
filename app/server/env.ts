@@ -8,7 +8,7 @@ import { createDegradedMark, createSubrequestCache, type DegradedMark } from "./
  * What the Worker is configured with: `vars` and `ratelimits` of wrangler.jsonc, the two secrets
  * (`.dev.vars` locally) and `BUILD_ID`, which vite.config.ts adds to the vars of every build.
  *
- * `VALIDATORS`, `AMM_DATA`, `MARKETS` and `ACCOUNT_ANALYTICS` are the switches (app/ui/features.ts lists them, README "Switches" says what each gates): each is "on"
+ * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS` and `AMM_PAGES` are the switches (app/ui/features.ts lists them, README "Switches" says what each gates): each is "on"
  * or "off" in every environment of wrangler.jsonc, and the predeploy guard refuses a build where one is anything else.
  */
 export interface Env {
@@ -23,6 +23,7 @@ export interface Env {
   AMM_DATA: "on" | "off";
   MARKETS: "on" | "off";
   ACCOUNT_ANALYTICS: "on" | "off";
+  AMM_PAGES: "on" | "off";
   VISITOR_LIMITER: RateLimit;
 }
 
@@ -30,7 +31,7 @@ const SORTED_SWITCHES = [...FEATURE_VARS].sort();
 
 /**
  * What the edge cache keys every page, image and `.data` URL with (`edgeCacheKey` in edge-cache.ts): `BUILD_ID`, a colon, and every
- * switch as `NAME=value`, sorted by name and joined by commas (`3f2a9c1:ACCOUNT_ANALYTICS=on,AMM_DATA=on,MARKETS=on,VALIDATORS=off`). A deploy with another commit or
+ * switch as `NAME=value`, sorted by name and joined by commas (`3f2a9c1:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off`). A deploy with another commit or
  * another switch value therefore never serves a copy stored under the old one. The subrequest cache keeps `BUILD_ID` alone: it holds
  * upstream data, which no switch changes. (edge-cache.ts and this file import each other; neither uses the other's exports until a
  * request is served, so the cycle is harmless. Keep it that way.)

@@ -32,4 +32,17 @@ export const PENDING_PATHS = {
   validatorValidations: "/v2/network/validators/{key}/validations",
   amendments: "/v2/network/amendments",
   amendment: "/v2/network/amendments/{name}",
+  /**
+   * The AMM pool routes (data-api-new `feat/amm-data`, pinned at `c3e2302`, the spellings of its `docs/openapi.yaml`: the pool is `{pool}`, the pair `{base}/{counter}`):
+   * the pools list, one pool by its account, one by its pair (a redirect to the pool), and a pool's history, swaps, liquidity events and governance. The AMM pages
+   * (E5) ask for them only while `AMM_PAGES` is on. Without `feat/amm-data` the API answers `Cannot GET`, which the client reads as an outage (`throwUnlessOk`),
+   * never as a missing pool: a pool that is not there answers `pool not found`.
+   */
+  ammPools: "/v2/amm/pools",
+  ammPool: "/v2/amm/pools/{pool}",
+  ammPoolByPair: "/v2/amm/pools/{base}/{counter}",
+  ammPoolHistory: "/v2/amm/pools/{pool}/history",
+  ammPoolSwaps: "/v2/amm/pools/{pool}/swaps",
+  ammPoolLiquidity: "/v2/amm/pools/{pool}/liquidity",
+  ammPoolGovernance: "/v2/amm/pools/{pool}/governance",
 } as const;

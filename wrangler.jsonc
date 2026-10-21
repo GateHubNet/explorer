@@ -6,11 +6,11 @@
  * the Cloudflare Vite plugin writes a flattened config for the selected environment.
  *
  * `vars` and `ratelimits` are not inherited, so each environment repeats them.
- * `VALIDATORS`, `AMM_DATA`, `MARKETS` and `ACCOUNT_ANALYTICS` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
+ * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS` and `AMM_PAGES` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
  * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` since the
  * validators pages were); `staging` and `production` are "off" until their data API serves what the switch needs. Set
  * one by a commit and a deploy, never in the Cloudflare dashboard: the next deploy would undo it. The predeploy guard refuses a build
- * where one is missing, is anything but "on" or "off", or is misspelt.
+ * where one is missing, is anything but "on" or "off", or is misspelt, or where `AMM_PAGES` is "on" and `AMM_DATA` is not (the AMM pages need the AMM data).
  * `BUILD_ID` is not listed here: vite.config.ts adds the git commit to the vars of every build.
  * Secrets (`DATA_API_KEY`, `SENTRY_DSN`) are never listed: `.dev.vars` locally,
  * `wrangler secret put --env <env>` when deployed.
@@ -47,7 +47,8 @@
 		"VALIDATORS": "on",
 		"AMM_DATA": "on",
 		"MARKETS": "on",
-		"ACCOUNT_ANALYTICS": "on"
+		"ACCOUNT_ANALYTICS": "on",
+		"AMM_PAGES": "on"
 	},
 	"ratelimits": [
 		{
@@ -69,7 +70,8 @@
 				"VALIDATORS": "off",
 				"AMM_DATA": "off",
 				"MARKETS": "off",
-				"ACCOUNT_ANALYTICS": "off"
+				"ACCOUNT_ANALYTICS": "off",
+				"AMM_PAGES": "off"
 			},
 			"ratelimits": [
 				{
@@ -91,7 +93,8 @@
 				"VALIDATORS": "off",
 				"AMM_DATA": "off",
 				"MARKETS": "off",
-				"ACCOUNT_ANALYTICS": "off"
+				"ACCOUNT_ANALYTICS": "off",
+				"AMM_PAGES": "off"
 			},
 			"ratelimits": [
 				{

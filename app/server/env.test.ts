@@ -76,12 +76,17 @@ describe("cacheGeneration", () => {
     expect(generation).toContain("VALIDATORS=off");
   });
 
-  it("names MARKETS=on between AMM_DATA and VALIDATORS in its sorted list", () => {
-    expect(cacheGeneration(env)).toContain("AMM_DATA=on,MARKETS=on,VALIDATORS=off");
+  it("names MARKETS=on after AMM_DATA and AMM_PAGES, and before VALIDATORS, in its sorted list", () => {
+    expect(cacheGeneration(env)).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
   });
 
   it("names ACCOUNT_ANALYTICS=on first after the colon, ahead of AMM_DATA", () => {
-    expect(cacheGeneration(env)).toBe("test-build:ACCOUNT_ANALYTICS=on,AMM_DATA=on,MARKETS=on,VALIDATORS=off");
+    expect(cacheGeneration(env)).toBe("test-build:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
+  });
+
+  it("names AMM_PAGES between AMM_DATA and MARKETS, whichever value each has", () => {
+    expect(cacheGeneration({ ...env, AMM_PAGES: "on" })).toBe("test-build:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=on,MARKETS=on,VALIDATORS=off");
+    expect(cacheGeneration({ ...env, AMM_DATA: "off", AMM_PAGES: "on" })).toContain("AMM_DATA=off,AMM_PAGES=on,MARKETS=on");
   });
 
   it("changes when a switch is flipped, and when the build is", () => {
@@ -91,10 +96,13 @@ describe("cacheGeneration", () => {
     expect(cacheGeneration({ ...env, VALIDATORS: "on" })).not.toBe(cacheGeneration(env));
     const markets = cacheGeneration({ ...env, MARKETS: "off" });
     expect(markets).not.toBe(cacheGeneration(env));
-    expect(markets).toContain("AMM_DATA=on,MARKETS=off,VALIDATORS=off");
+    expect(markets).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=off,VALIDATORS=off");
     const analytics = cacheGeneration({ ...env, ACCOUNT_ANALYTICS: "off" });
     expect(analytics).not.toBe(cacheGeneration(env));
-    expect(analytics).toBe("test-build:ACCOUNT_ANALYTICS=off,AMM_DATA=on,MARKETS=on,VALIDATORS=off");
+    expect(analytics).toBe("test-build:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
+    const pages = cacheGeneration({ ...env, AMM_PAGES: "on" });
+    expect(pages).not.toBe(cacheGeneration(env));
+    expect(pages).toContain("AMM_PAGES=on");
     expect(cacheGeneration({ ...env, BUILD_ID: "other-build" })).not.toBe(cacheGeneration(env));
   });
 

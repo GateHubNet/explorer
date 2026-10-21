@@ -9,6 +9,7 @@ import { compactNumber, dropsToNative } from "../domain/format";
 import { candleWindow as marketParamsWindow, INTERVALS, type Interval, type PairParams } from "../domain/market-params";
 import type { Loaded } from "./account-view";
 import type { ActiveAccount, ActiveAccounts, Candle, Page, PairExchange, ReducedRow } from "./api-types";
+import { NO_FEATURES } from "../ui/features";
 import { keepLoaded } from "../ui/live-page";
 import type { AmmInfo, Book, BookOffer, NodeAmount } from "./node-rpc";
 import {
@@ -672,7 +673,7 @@ const XRP_ASSET: Asset = { currency: "XRP" };
 const USD_ASSET: Asset = { currency: "USD", issuer: GH };
 const EUR_ASSET: Asset = { currency: "EUR", issuer: BS };
 
-const FEATURES = { validators: false, ammData: true, markets: true, accountAnalytics: true };
+const FEATURES = { ...NO_FEATURES, ammData: true, markets: true, accountAnalytics: true };
 const XRPL: PairInput["network"] = { id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true, features: FEATURES };
 const XRPL_AMM_OFF: PairInput["network"] = { ...XRPL, features: { ...FEATURES, ammData: false } };
 /** The switch is "on" at the top level of every environment, Xahau's included: `hasAmm` is what rules there. */

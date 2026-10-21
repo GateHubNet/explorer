@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatPrice } from "../domain/format";
 import type { MarketsParams } from "../domain/market-params";
+import { NO_FEATURES } from "../ui/features";
 import { checkMarkets } from "./aggregate-shape";
 import type { MarketRow, MarketsResponse, SparklineDay } from "./api-types";
 import { marketsPage, type MarketsPageData } from "./markets-view";
@@ -18,7 +19,7 @@ const RLUSD_HEX = "524C555344000000000000000000000000000000";
 const LIONS_HEX = "4C494F4E53000000000000000000000000000000";
 
 type Input = Parameters<typeof marketsPage>[0];
-const FEATURES = { validators: false, ammData: true, markets: true, accountAnalytics: true };
+const FEATURES = { ...NO_FEATURES, ammData: true, markets: true, accountAnalytics: true };
 const XRPL: Input["network"] = { id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true, features: FEATURES };
 const XRPL_AMM_OFF: Input["network"] = { ...XRPL, features: { ...FEATURES, ammData: false } };
 /** The switch is "on" at the top level of every environment, Xahau's included: `hasAmm` is what rules there. */

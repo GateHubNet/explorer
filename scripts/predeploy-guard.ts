@@ -9,6 +9,7 @@
 //    deployed with them answers every page with a 503) or is not an https URL, or is missing;
 //  - a switch (app/ui/features.ts, README "Switches") is missing from the build's vars, is not exactly "on" or "off", or a var that is not a
 //    switch has the value "on" or "off" (a misspelt switch, such as `MARKET`: the page it should gate would be served as if it were off);
+//  - `AMM_PAGES` is "on" while `AMM_DATA` is not: the AMM pages are all AMM data, so (spec 10) the pages go on in an environment only once the data is on there;
 //  - the build is not for the environment asked for (or for none: the top level is local development);
 //  - the Worker would be served from workers.dev (`workers_dev`, `preview_urls`), where the Cache API does nothing;
 //  - `wrangler deploy` would not be sent to this build file, in which case it would deploy something else (wrangler.jsonc's top level).
@@ -81,6 +82,15 @@ function switchProblems(vars: Record<string, unknown>, environment: string): str
 }
 
 /**
+ * The reasons a combination of switches is wrong, each switch being fine on its own. `AMM_PAGES` on needs `AMM_DATA` on (spec 10): every AMM page reads
+ * the data that switch gates, so pages on over data that is off would be served from an index the environment has not got. An `AMM_DATA` that is
+ * missing or is not "on" counts as off (and has its reason from `switchProblems` as well, which comes first); an `AMM_PAGES` that is not exactly "on" is off.
+ */
+function crossSwitchProblems(vars: Record<string, unknown>): string[] {
+  return vars.AMM_PAGES === "on" && vars.AMM_DATA !== "on" ? ["AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data"] : [];
+}
+
+/**
  * Every reason the config of a build must not be deployed as the Worker of `asked`; empty when it may be. `config` is whatever the build file
  * parsed to, `asked` whatever the command was given: neither is trusted.
  */
@@ -111,8 +121,8 @@ export function deployProblems(config: unknown, asked: unknown): string[] {
     if (problem) problems.push(problem);
   }
 
-  // The switches: a Worker variable each, "on" or "off", in every environment.
-  problems.push(...switchProblems(vars, environment));
+  // The switches: a Worker variable each, "on" or "off", in every environment; then the ones that must not be on together with another off.
+  problems.push(...switchProblems(vars, environment), ...crossSwitchProblems(vars));
 
   // Reachable on <name>.<subdomain>.workers.dev, the Worker would be a second site that renders every request and calls the data API
   // (the Cache API does nothing there). Both must be false in the build, not merely not true.
