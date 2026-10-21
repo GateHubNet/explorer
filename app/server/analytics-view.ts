@@ -19,7 +19,6 @@ import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue,
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import type { Native } from "../domain/parse/types";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
-import { niceScale } from "../ui/charts/geometry";
 import { bucketLabel } from "../ui/charts/labels";
 import type { SmallMultiplesData, TimeAxis, TimeSeriesData } from "../ui/charts/types";
 import type {
@@ -32,7 +31,7 @@ import type {
   BalanceChangeTotal,
   Page,
 } from "./api-types";
-import { divided, percentText } from "./exact";
+import { divided, percentText, valueFloor } from "./exact";
 import type { Network, NetworkId } from "./networks";
 
 /** A card of the tab: what its call gave, or that it failed or came too late (spec 2.8). Each stands on its own. */
@@ -292,24 +291,6 @@ function valueDelta(frame: AnalyticsFrame, values: readonly (BigNumber | null)[]
   const words =
     baseAt > 0 ? `since ${bucketLabel(axis.buckets[baseAt]!, axis.unit, "axis")}` : period === "all" ? phrase.title : `over the ${phrase.title}`;
   return { text, direction, words };
-}
-
-/**
- * The nice floor of the axis of a line that stays far above 0 (spec 3.4): ⌊min ÷ step⌋ × step, where the step is the nice step of a third of the
- * range, that is the smallest of {1, 2, 2.5, 5} × 10ⁿ at or above it. `niceScale` gives the smallest such step at or above a quarter of the
- * largest value it is given, so it is given 4⁄3 of the range, and the step it answers is read back as the decimal it is. `null` when the floor is
- * not above 0 (the axis then starts at 0, as every area does) or when the values are all equal.
- */
-function valueFloor(values: readonly (BigNumber | null)[]): BigNumber | null {
-  const present = values.filter((value): value is BigNumber => value !== null);
-  if (present.length === 0) return null;
-  const min = BigNumber.minimum(...present);
-  const range = BigNumber.maximum(...present).minus(min);
-  if (!range.gt(0) || !min.gt(0)) return null;
-
-  const step = new BigNumber(String(niceScale([range.times(4).div(3).toNumber()]).step));
-  const floor = min.idiv(step).times(step);
-  return floor.gt(0) ? floor : null;
 }
 
 /**

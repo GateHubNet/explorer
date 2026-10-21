@@ -1,7 +1,7 @@
 import BigNumber from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
-import { BN, decimalOf, divided, feePercent, percentText, ratioOf } from "./exact";
+import { BN, decimalOf, divided, feePercent, percentText, ratioOf, valueFloor } from "./exact";
 
 const n = (value: string) => new BigNumber(value);
 
@@ -104,5 +104,32 @@ describe("decimalOf", () => {
     const third = decimalOf("1")!.div(decimalOf("3")!);
     expect(third.decimalPlaces()).toBe(80);
     expect(third instanceof BN).toBe(true);
+  });
+});
+
+describe("valueFloor", () => {
+  const floorOf = (...values: (string | null)[]) => valueFloor(values.map((value) => (value === null ? null : n(value))))?.toFixed() ?? null;
+
+  it("is the lowest value's multiple of the nice step of a third of the range", () => {
+    // [lowest, highest, floor]: a third of the range rounded up to 1, 2, 2.5 or 5 × 10ⁿ.
+    expect(floorOf("12345", "15000")).toBe("12000");
+    expect(floorOf("1.1968912", "1.2903226")).toBe("1.15");
+    expect(floorOf("16787.15", "16900")).toBe("16750");
+    expect(floorOf("1.2972973", null, "1.2972974")).toBe("1.2972973");
+  });
+
+  it("is null when the floor is not above 0, when the values are all equal, and when there is none", () => {
+    expect(floorOf("0.5", "10")).toBeNull();
+    expect(floorOf("3", "3", "3")).toBeNull();
+    expect(floorOf("3")).toBeNull();
+    expect(floorOf(null, null)).toBeNull();
+    expect(floorOf()).toBeNull();
+    expect(floorOf("-2", "5")).toBeNull();
+  });
+
+  it("works on the values themselves at the extremes, where a float would write an exponent: the floor's own text is plain", () => {
+    expect(floorOf("1e-60", "1.5e-60")).toBe(`0.${"0".repeat(59)}1`);
+    expect(floorOf("1.29e+60", "1.3e+60")).toBe(`129${"0".repeat(58)}`);
+    expect(floorOf("1e-177", "3e-177")).toBe(`0.${"0".repeat(176)}1`);
   });
 });

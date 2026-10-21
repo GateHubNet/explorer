@@ -1,10 +1,11 @@
 // The exact arithmetic that the view builders share (spec 3.1: "Exact quotients, half up"): the percents, the price of a ratio of two amounts, a fee as a
-// percent, the guard before a number. No builder has a copy of any of it that could drift. Pure: bignumber.js, `formatAmount` and the number guard, no I/O, no clock, no
-// `Intl`.
+// percent, the guard before a number, the nice floor of a line's axis. No builder has a copy of any of it that could drift. Pure: bignumber.js, `formatAmount`, the
+// number guard and the chart kit's `niceScale` (a pure function of numbers), no I/O, no clock, no `Intl`.
 
 import BigNumber from "bignumber.js";
 
 import { formatAmount } from "../domain/format";
+import { niceScale } from "../ui/charts/geometry";
 import { isNumberText } from "./aggregate-shape";
 
 const MINUS = "−";
@@ -49,4 +50,25 @@ export function ratioOf(numerator: BigNumber, denominator: BigNumber): BigNumber
 /** A fee in units of 1/100000 (the ledger's, the node's and the data API's) as a percent with three decimals: `205` is `0.205%`, `1000` (the largest) is `1.000%`. */
 export function feePercent(units: number): string {
   return `${new BigNumber(units).shiftedBy(-3).toFixed(3)}%`;
+}
+
+/**
+ * The nice floor of the axis of a line that stays far above 0 (E4's account value, E5's pool price): ⌊min ÷ step⌋ × step, where the step is the nice step of a
+ * third of the range, that is the smallest of {1, 2, 2.5, 5} × 10ⁿ at or above it. `niceScale` gives the smallest such step at or above a quarter of the largest
+ * value it is given, so it is given 4⁄3 of the range, and the step it answers is read back as the decimal it is. `null` when the floor is not above 0 (the axis
+ * then starts at 0, as every area does) or when the values are all equal. The floor is a BigNumber, so a price of 1e-60 has a floor that `toFixed()` writes in
+ * plain digits; `niceScale(…, { from: lowest })` would start at the lowest value itself, which is no nice number and which a float can only write with an exponent.
+ *
+ * The 4⁄3 is taken as a float, which is what `niceScale` reads: a BigNumber's division rounds at its 20 places, which leave nothing of a range of 1e-60.
+ */
+export function valueFloor(values: readonly (BigNumber | null)[]): BigNumber | null {
+  const present = values.filter((value): value is BigNumber => value !== null);
+  if (present.length === 0) return null;
+  const min = BigNumber.minimum(...present);
+  const range = BigNumber.maximum(...present).minus(min);
+  if (!range.gt(0) || !min.gt(0)) return null;
+
+  const step = new BigNumber(String(niceScale([range.times(4).toNumber() / 3]).step));
+  const floor = min.idiv(step).times(step);
+  return floor.gt(0) ? floor : null;
 }

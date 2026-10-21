@@ -4,8 +4,11 @@ import BigNumber from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
 import type { Asset } from "../domain/asset";
+import { tokenOf } from "../domain/fnv";
 import { formatPrice } from "../domain/format";
 import { naturalOrientation, QUOTE_RANK } from "../domain/market-pair";
+import { windowOf, type PeriodWindow, type WindowPeriod } from "../domain/window";
+import type { SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
 import { NO_FEATURES } from "../ui/features";
 import {
   AMM_ACCOUNT,
@@ -16,6 +19,7 @@ import {
   AMM_POOL,
   AMM_TX_HASH,
   ammBidSample,
+  ammDaySample,
   ammLiquiditySample,
   ammLiveVolumeSample,
   ammPoolSample,
@@ -24,8 +28,20 @@ import {
   ammVoteSample,
 } from "../../test/support/amm-samples";
 import { loadTx } from "../../test/support/ledgers";
-import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmSwap, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "./api-types";
+import type {
+  AmmGovernanceRow,
+  AmmLiquidityEvent,
+  AmmPool,
+  AmmPoolDay,
+  AmmSwap,
+  AmmVolumeComponent,
+  AmmVolumeRow,
+  Candle,
+  LastValidated,
+  Page,
+} from "./api-types";
 import {
+  daySeries,
   displayPair,
   exactRatio,
   feePercent,
@@ -36,11 +52,14 @@ import {
   ammListPage,
   nextBidPrice,
   noAmmPage,
+  poolCharts,
   slotInterval,
   swapRows,
   voteShares,
   type AmmListInput,
   type AmmListPageData,
+  type ChartPart,
+  type DaySeriesInput,
 } from "./amm-view";
 import { TooLate } from "./deadline";
 import type { AmmInfo } from "./node-rpc";
@@ -1531,5 +1550,752 @@ describe("the pool's rows: the recorded pages", () => {
     });
     const votePage = json<Page<"governance", AmmGovernanceRow>>("rhEypxvxNXMdMTd3GXpb6gTN1jvb4h3nef/governance@descending=true&limit=20.json");
     expect(governanceRows(votePage.governance, "xrpl")[0]).toMatchObject({ key: "107644916:12", kind: "Vote", what: "Voted for 1.000%", feeAfter: "1.000%" });
+  });
+});
+
+// ---- The pool's charts: the day series ----------------------------------------------------------------------------------------------------------
+// Hand-made rows, T = Oct 17, 2026, and E2's 30-day window unless a test names another (spec 3.5, rules 1 to 6).
+
+const DAY_T = "2026-10-17";
+const W30 = windowOf(DAY_T, "30d");
+const W1Y = windowOf(DAY_T, "1y");
+const usdcAsset: Asset = { currency: USDC, issuer: USDC_ISSUER };
+const voxAsset: Asset = { currency: VOX, issuer: VOX_ISSUER };
+/** XRP / RLUSD, stored RLUSD / XRP: `first` is the stored counter. */
+const XRP_RLUSD = displayPair(rlusd, xrp, "XRP");
+/** USDC / RLUSD, stored RLUSD / USDC (P35): `first` is the stored counter, and neither side is the native currency. */
+const USDC_RLUSD = displayPair(rlusd, usdcAsset, "XRP");
+/** VOX / XRP, stored as it is shown: the native currency is the second side. */
+const VOX_XRP = displayPair(voxAsset, xrp, "XRP");
+
+/** A day of XRP / RLUSD as the API stores the pool, RLUSD / XRP: the base is the RLUSD (the second side shown), the counter the XRP (the first). */
+const poolDay = (date: string, over: Partial<AmmPoolDay> = {}): AmmPoolDay =>
+  ammDaySample({
+    date: `${date}T00:00:00Z`,
+    base_currency: RLUSD,
+    base_issuer: RL,
+    counter_currency: "XRP",
+    swap_count: 3,
+    fees_base_est: "1.5",
+    fees_counter_est: "2.5",
+    reserve_base: "2400000",
+    reserve_counter: "1850000",
+    trading_fee: 205,
+    value_native: "3700000",
+    ...over,
+  });
+
+/** A day of USDC / RLUSD as the API stores the pool, RLUSD / USDC, with no value: neither asset has an XRP rate. */
+const usdcDay = (date: string, over: Partial<AmmPoolDay> = {}): AmmPoolDay =>
+  leaving(poolDay(date, { counter_currency: USDC, counter_issuer: USDC_ISSUER, reserve_base: "26100", reserve_counter: "26200", ...over }), "value_native");
+
+/** The row without the fields named: what the API leaves out (a field it does not know, a deleted pool's state, an unknown fee estimate). */
+function leaving<T extends object>(row: T, ...keys: (keyof T)[]): T {
+  const copy = { ...row };
+  for (const key of keys) delete copy[key];
+  return copy;
+}
+
+/** A candle of the pair in the pool's stored order, RLUSD / XRP: 4 swaps, 1,300 RLUSD and 1,000 XRP. */
+const poolCandle = (start: string, over: Partial<Candle> = {}): Candle => ({
+  base_volume: "1300",
+  buy_volume: 650,
+  close: "1.3",
+  close_time: `${start}T21:00:00Z`,
+  count: 4,
+  counter_volume: "1000",
+  high: "1.3",
+  low: "1.3",
+  open: "1.3",
+  open_time: `${start}T01:00:00Z`,
+  start: `${start}T00:00:00Z`,
+  vwap: "1.3",
+  base_currency: RLUSD,
+  base_issuer: RL,
+  counter_currency: "XRP",
+  ...over,
+});
+
+const seriesInput = (over: Partial<DaySeriesInput> = {}): DaySeriesInput => ({
+  window: W30,
+  pair: XRP_RLUSD,
+  native: "XRP",
+  pool: AMM_POOL,
+  deleted: false,
+  days: [],
+  carryIn: null,
+  candles: [],
+  ...over,
+});
+
+/** The index of a bucket of the window. */
+function bucket(day: string, window: PeriodWindow = W30): number {
+  const index = window.buckets.indexOf(day);
+  if (index < 0) throw new Error(`${day} is no bucket of the window`);
+  return index;
+}
+
+const SERIES = ["value", "price", "fee", "reserveFirst", "reserveSecond", "volume", "swaps", "feesFirst", "feesSecond"] as const;
+const STATES = ["value", "price", "fee", "reserveFirst", "reserveSecond"] as const;
+
+describe("daySeries: when the pool exists (rule 1)", () => {
+  it("has one value per bucket in each series, for days and for weeks", () => {
+    const days = daySeries(seriesInput());
+    const weeks = daySeries(seriesInput({ window: W1Y }));
+    for (const name of SERIES) {
+      expect(days[name], name).toHaveLength(30);
+      expect(weeks[name], name).toHaveLength(52);
+    }
+  });
+
+  it("exists from the first bucket with a carry-in: the pool was there before the window", () => {
+    const s = daySeries(seriesInput({ carryIn: poolDay("2026-09-10", { value_native: "3600000" }), days: [poolDay("2026-10-01")] }));
+    for (const name of SERIES) expect(s[name].every((value) => value !== null), name).toBe(true);
+    expect(s.value[0]).toBe("3600000");
+    expect(s.value[bucket("2026-10-01")]).toBe("3700000");
+  });
+
+  it("exists from its first row's day without one: every bucket before Oct 12 is null in every series", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-12"), poolDay("2026-10-14")], candles: [poolCandle("2026-10-12"), poolCandle("2026-10-15")] }));
+    const first = bucket("2026-10-12");
+    for (const name of SERIES) {
+      expect(s[name].slice(0, first).every((value) => value === null), name).toBe(true);
+      expect(s[name].slice(first).every((value) => value !== null), name).toBe(true);
+    }
+  });
+
+  it("ends a deleted pool with its last row: every bucket after it is null in every series", () => {
+    // The day of a deletion has a row (the deletion touched the pool) and no closing state: the API leaves out its reserves, LP supply, fee and value.
+    const deletion = leaving(poolDay("2026-10-05", { withdraw_count: 1 }), "reserve_base", "reserve_counter", "lp_supply", "trading_fee", "value_native");
+    const s = daySeries(
+      seriesInput({ deleted: true, carryIn: poolDay("2026-09-01"), days: [poolDay("2026-09-25"), deletion], candles: [poolCandle("2026-10-05"), poolCandle("2026-10-06")] }),
+    );
+    const last = bucket("2026-10-05");
+    for (const name of SERIES) expect(s[name].slice(last + 1).every((value) => value === null), name).toBe(true);
+    // The day of the deletion is inside the pool's life: its flows and fees are there, and its state is what its row has, which is none.
+    expect(s.volume[last]).toBe("1000");
+    expect(s.feesFirst[last]).toBe("2.5");
+    for (const name of STATES) expect(s[name][last], name).toBeNull();
+    expect(s.value[last - 1]).toBe("3700000");
+    expect(s.value[0]).toBe("3700000");
+  });
+
+  it("is null everywhere for a pool deleted before the window, whose last row is the carry-in", () => {
+    const deletion = leaving(poolDay("2026-08-01"), "reserve_base", "reserve_counter", "trading_fee", "value_native");
+    const s = daySeries(seriesInput({ deleted: true, carryIn: deletion, candles: [poolCandle("2026-09-20"), poolCandle("2026-10-17")] }));
+    for (const name of SERIES) expect(s[name].every((value) => value === null), name).toBe(true);
+  });
+
+  it("is null everywhere for a pool with no row and no carry-in: the index has no day of it yet (a pool from the network)", () => {
+    const s = daySeries(seriesInput({ candles: [poolCandle("2026-10-17")] }));
+    for (const name of SERIES) expect(s[name].every((value) => value === null), name).toBe(true);
+  });
+
+  it("is the carry-in's state over the whole window for a live pool with no row in it", () => {
+    const s = daySeries(seriesInput({ carryIn: poolDay("2026-08-01", { value_native: "100" }) }));
+    expect(new Set(s.value)).toEqual(new Set(["100"]));
+    expect(new Set(s.reserveFirst)).toEqual(new Set(["1850000"]));
+    expect(new Set(s.volume)).toEqual(new Set(["0"]));
+    expect(new Set(s.feesFirst)).toEqual(new Set(["0"]));
+  });
+
+  it("reads no row outside the window: a deleted pool's row past T does not lengthen its life, nor one before the window start it", () => {
+    const outside = [poolDay("2026-09-01", { value_native: "1" }), poolDay("2026-10-05", { value_native: "5" }), poolDay("2026-10-18", { value_native: "18" })];
+    const s = daySeries(seriesInput({ deleted: true, days: outside }));
+    const day = bucket("2026-10-05");
+    for (const name of SERIES) {
+      expect(s[name].slice(0, day).every((value) => value === null), name).toBe(true);
+      expect(s[name].slice(day + 1).every((value) => value === null), name).toBe(true);
+    }
+    expect(s.value[day]).toBe("5");
+  });
+});
+
+describe("daySeries: the states, value, price, fee and reserves (rule 2)", () => {
+  it("takes a day's fields from its row, in the display pair: XRP / RLUSD is stored RLUSD / XRP, so the XRP reserve is `reserve_counter`", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01")] }));
+    const at = bucket("2026-10-01");
+    expect(s.reserveFirst[at]).toBe("1850000");
+    expect(s.reserveSecond[at]).toBe("2400000");
+    expect(s.value[at]).toBe("3700000");
+    expect(s.fee[at]).toBe("0.205");
+    // RLUSD per XRP: the second's reserve over the first's, to exactRatio's 8 significant digits.
+    expect(s.price[at]).toBe("1.2972973");
+    expect(s.price[at]).toBe(exactRatio("2400000", "1850000"));
+  });
+
+  it("keeps the stored order for a pool shown the way it is stored: VOX / XRP's first reserve is `reserve_base`", () => {
+    const row = poolDay("2026-10-01", { base_currency: VOX, base_issuer: VOX_ISSUER, reserve_base: "800", reserve_counter: "20" });
+    const s = daySeries(seriesInput({ pair: VOX_XRP, days: [row] }));
+    const at = bucket("2026-10-01");
+    expect([s.reserveFirst[at], s.reserveSecond[at], s.price[at]]).toEqual(["800", "20", "0.025"]);
+  });
+
+  it("reads the sides from the row's own assets, as the swaps are read: a row whose base is XRP has the XRP reserve in `reserve_base`", () => {
+    const row = poolDay("2026-10-01", { base_currency: "XRP", base_issuer: undefined, counter_currency: RLUSD, counter_issuer: RL, reserve_base: "1850000", reserve_counter: "2400000" });
+    const s = daySeries(seriesInput({ days: [leaving(row, "base_issuer")] }));
+    const at = bucket("2026-10-01");
+    expect([s.reserveFirst[at], s.reserveSecond[at], s.price[at]]).toEqual(["1850000", "2400000", "1.2972973"]);
+  });
+
+  it("has null for a field the row leaves out, and a quiet day after it takes that null: the day before's value", () => {
+    const s = daySeries(seriesInput({ carryIn: poolDay("2026-09-10"), days: [leaving(poolDay("2026-10-01"), "value_native", "trading_fee")] }));
+    const at = bucket("2026-10-01");
+    expect([s.value[at], s.fee[at], s.value[at + 1], s.fee[at + 1]]).toEqual([null, null, null, null]);
+    expect(s.reserveFirst[at + 1]).toBe("1850000");
+    expect(s.value[at - 1]).toBe("3700000");
+  });
+
+  it("gives a quiet day the day before's value, and the first days the carry-in's", () => {
+    const s = daySeries(
+      seriesInput({
+        carryIn: poolDay("2026-09-10", { value_native: "3600000", trading_fee: 300 }),
+        days: [poolDay("2026-10-01"), poolDay("2026-10-09", { value_native: "3800000" })],
+      }),
+    );
+    const [first, second] = [bucket("2026-10-01"), bucket("2026-10-09")];
+    expect(s.value.slice(0, first)).toEqual(Array(first).fill("3600000"));
+    expect(s.fee.slice(0, first)).toEqual(Array(first).fill("0.3"));
+    expect(s.value.slice(first, second)).toEqual(Array(8).fill("3700000"));
+    expect(s.value.slice(second)).toEqual(Array(9).fill("3800000"));
+  });
+
+  it("has no price with a zero reserve on either side, and keeps the reserves", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01", { reserve_counter: "0" }), poolDay("2026-10-02", { reserve_base: "0" })] }));
+    expect(s.price[bucket("2026-10-01")]).toBeNull();
+    expect(s.price[bucket("2026-10-02")]).toBeNull();
+    expect(s.reserveFirst[bucket("2026-10-01")]).toBe("0");
+    expect(s.reserveSecond[bucket("2026-10-02")]).toBe("0");
+  });
+
+  it("writes the trading fee in percent, by BigNumber: 205 is 0.205, 1000 is 1 and 0 is 0", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01"), poolDay("2026-10-02", { trading_fee: 1000 }), poolDay("2026-10-03", { trading_fee: 0 })] }));
+    expect([s.fee[bucket("2026-10-01")], s.fee[bucket("2026-10-02")], s.fee[bucket("2026-10-03")]]).toEqual(["0.205", "1", "0"]);
+  });
+
+  it("writes what the API wrote in exponent form in plain digits, and divides exactly at the extremes", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01", { reserve_base: "1e+30", reserve_counter: "1e-30", value_native: "2.5e+21" })] }));
+    const at = bucket("2026-10-01");
+    expect(s.reserveSecond[at]).toBe(`1${"0".repeat(30)}`);
+    expect(s.reserveFirst[at]).toBe(`0.${"0".repeat(29)}1`);
+    expect(s.value[at]).toBe(`25${"0".repeat(20)}`);
+    expect(s.price[at]).toBe(`1${"0".repeat(60)}`);
+  });
+
+  it("reads a field that is no number as unknown", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01", { reserve_base: "abc", value_native: "" })] }));
+    const at = bucket("2026-10-01");
+    expect([s.reserveSecond[at], s.price[at], s.value[at]]).toEqual([null, null, null]);
+    expect(s.reserveFirst[at]).toBe("1850000");
+  });
+});
+
+describe("daySeries: weeks (the year)", () => {
+  it("gives a week the state of its last day, and the running week (Oct 12) that of Oct 17, T", () => {
+    const s = daySeries(
+      seriesInput({
+        window: W1Y,
+        carryIn: poolDay("2025-10-01", { value_native: "1" }),
+        days: [poolDay("2026-10-06", { value_native: "6" }), poolDay("2026-10-13", { value_native: "13" }), poolDay("2026-10-17", { value_native: "17" })],
+      }),
+    );
+    expect(s.value[0]).toBe("1");
+    expect(s.value[bucket("2026-09-28", W1Y)]).toBe("1");
+    // The week of Oct 5 ends on Sunday Oct 11, a quiet day that keeps Oct 6's value.
+    expect(s.value[bucket("2026-10-05", W1Y)]).toBe("6");
+    expect(s.value[bucket("2026-10-12", W1Y)]).toBe("17");
+  });
+
+  it("takes nothing after T: a row past the window's end is no state of the running week", () => {
+    const s = daySeries(seriesInput({ window: W1Y, carryIn: poolDay("2025-10-01"), days: [poolDay("2026-10-13", { value_native: "13" }), poolDay("2026-10-18", { value_native: "18" })] }));
+    expect(s.value[bucket("2026-10-12", W1Y)]).toBe("13");
+  });
+
+  it("starts a pool created inside a week with that week, which takes the state of its Sunday", () => {
+    const s = daySeries(seriesInput({ window: W1Y, days: [poolDay("2026-09-23", { value_native: "23" }), poolDay("2026-09-26", { value_native: "26" })] }));
+    for (const name of SERIES) expect(s[name].slice(0, bucket("2026-09-21", W1Y)).every((value) => value === null), name).toBe(true);
+    expect(s.value[bucket("2026-09-21", W1Y)]).toBe("26");
+    expect(s.value[bucket("2026-09-28", W1Y)]).toBe("26");
+  });
+
+  it("ends a pool deleted inside a week with that week, which takes the state of its last row and not of the Sunday after it", () => {
+    const s = daySeries(
+      seriesInput({
+        window: W1Y,
+        deleted: true,
+        carryIn: poolDay("2025-10-01"),
+        days: [poolDay("2026-09-23", { value_native: "23" }), poolDay("2026-09-30", { value_native: "30" })],
+        candles: [poolCandle("2026-09-28"), poolCandle("2026-10-05")],
+      }),
+    );
+    const week = bucket("2026-09-28", W1Y);
+    expect(s.value[week]).toBe("30");
+    expect(s.volume[week]).toBe("1000");
+    for (const name of SERIES) expect(s[name].slice(week + 1).every((value) => value === null), name).toBe(true);
+  });
+
+  it("takes a week's candle by its Monday, and 0 for a week without one", () => {
+    const s = daySeries(seriesInput({ window: W1Y, carryIn: poolDay("2025-10-01"), candles: [poolCandle("2026-10-05", { counter_volume: "7000", count: 28 })] }));
+    expect([s.volume[bucket("2026-10-05", W1Y)], s.swaps[bucket("2026-10-05", W1Y)]]).toEqual(["7000", "28"]);
+    expect([s.volume[bucket("2026-09-28", W1Y)], s.swaps[bucket("2026-09-28", W1Y)]]).toEqual(["0", "0"]);
+  });
+
+  it("sums a week's fee estimates over its days, and is null when any of them is", () => {
+    const s = daySeries(
+      seriesInput({
+        window: W1Y,
+        carryIn: poolDay("2025-10-01"),
+        days: [
+          poolDay("2026-10-06", { fees_counter_est: "2.5", fees_base_est: "1.5" }),
+          leaving(poolDay("2026-10-08", { fees_counter_est: "0.25" }), "fees_base_est"),
+          poolDay("2026-10-13", { fees_counter_est: "1", fees_base_est: "2" }),
+          poolDay("2026-10-16", { fees_counter_est: "0.000000001", fees_base_est: "0" }),
+        ],
+      }),
+    );
+    // XRP is the stored counter, RLUSD the stored base. Oct 8 had swaps and no RLUSD estimate: the week's RLUSD fees are not known.
+    expect([s.feesFirst[bucket("2026-10-05", W1Y)], s.feesSecond[bucket("2026-10-05", W1Y)]]).toEqual(["2.75", null]);
+    expect([s.feesFirst[bucket("2026-10-12", W1Y)], s.feesSecond[bucket("2026-10-12", W1Y)]]).toEqual(["1.000000001", "2"]);
+    expect([s.feesFirst[bucket("2026-09-28", W1Y)], s.feesSecond[bucket("2026-09-28", W1Y)]]).toEqual(["0", "0"]);
+  });
+
+  it("sums only the days inside the pool's life: the days of a creation week before the creation count for nothing", () => {
+    const s = daySeries(
+      seriesInput({ window: W1Y, days: [poolDay("2026-09-24", { fees_counter_est: "2.5", fees_base_est: "1.5" }), poolDay("2026-09-26", { fees_counter_est: "0.5", fees_base_est: "0" })] }),
+    );
+    expect([s.feesFirst[bucket("2026-09-21", W1Y)], s.feesSecond[bucket("2026-09-21", W1Y)]]).toEqual(["3", "1.5"]);
+  });
+});
+
+describe("daySeries: the flows, swap volume and swaps (rule 3)", () => {
+  const carried = { carryIn: poolDay("2026-09-10") };
+
+  it("takes a bucket's candle: the volume on the native side (XRP / RLUSD is stored RLUSD / XRP: `counter_volume`) and its count", () => {
+    const s = daySeries(seriesInput({ ...carried, candles: [poolCandle("2026-10-01")] }));
+    expect([s.volume[bucket("2026-10-01")], s.swaps[bucket("2026-10-01")]]).toEqual(["1000", "4"]);
+  });
+
+  it("is 0 inside the pool's life for a bucket without a candle, or with a count of 0, whatever volume such a candle holds", () => {
+    const s = daySeries(seriesInput({ ...carried, candles: [poolCandle("2026-10-01", { count: 0, base_volume: "0", counter_volume: "12" })] }));
+    expect([s.volume[bucket("2026-10-01")], s.swaps[bucket("2026-10-01")]]).toEqual(["0", "0"]);
+    expect([s.volume[bucket("2026-10-02")], s.swaps[bucket("2026-10-02")]]).toEqual(["0", "0"]);
+  });
+
+  it("takes the side of the first currency for a pool without the native currency: USDC / RLUSD, stored RLUSD / USDC, has its USDC as `counter_volume`", () => {
+    const candle = poolCandle("2026-10-01", { counter_currency: USDC, counter_issuer: USDC_ISSUER, base_volume: "1300", counter_volume: "1000" });
+    const s = daySeries(seriesInput({ pair: USDC_RLUSD, carryIn: usdcDay("2026-09-10"), candles: [candle] }));
+    expect(s.volume[bucket("2026-10-01")]).toBe("1000");
+  });
+
+  it("takes the native side where it is the second currency: VOX / XRP's volume is its XRP, not the first's", () => {
+    const candle = poolCandle("2026-10-01", { base_currency: VOX, base_issuer: VOX_ISSUER, base_volume: "800000", counter_volume: "1000" });
+    const s = daySeries(seriesInput({ pair: VOX_XRP, carryIn: poolDay("2026-09-10", { base_currency: VOX, base_issuer: VOX_ISSUER }), candles: [candle] }));
+    expect(s.volume[bucket("2026-10-01")]).toBe("1000");
+  });
+
+  it("reads the sides from the candle's own assets: a candle of XRP / RLUSD has its XRP in `base_volume`", () => {
+    const candle = leaving(poolCandle("2026-10-01", { base_currency: "XRP", counter_currency: RLUSD, counter_issuer: RL, base_volume: "1000", counter_volume: "1300" }), "base_issuer");
+    const s = daySeries(seriesInput({ ...carried, candles: [candle] }));
+    expect(s.volume[bucket("2026-10-01")]).toBe("1000");
+  });
+
+  it("writes a volume and a count from their text and their digits, never through a float", () => {
+    const s = daySeries(seriesInput({ ...carried, candles: [poolCandle("2026-10-01", { counter_volume: "1.5e+21", count: 9007199254740991 })] }));
+    expect([s.volume[bucket("2026-10-01")], s.swaps[bucket("2026-10-01")]]).toEqual([`15${"0".repeat(20)}`, "9007199254740991"]);
+  });
+
+  it("aligns a candle by its start as a moment, as E3's candles are, and leaves out one that starts on no bucket", () => {
+    const candles = [poolCandle("2026-10-01", { start: "2026-10-01T00:00:00.000Z" }), poolCandle("2026-10-18"), poolCandle("2026-10-05", { start: "2026-10-05T12:00:00Z" })];
+    const s = daySeries(seriesInput({ ...carried, candles }));
+    expect(s.volume[bucket("2026-10-01")]).toBe("1000");
+    expect(s.volume.filter((value) => value !== "0")).toEqual(["1000"]);
+  });
+});
+
+describe("daySeries: the fee estimates (rule 4)", () => {
+  it("takes a day's estimates in the display pair: the XRP's is `fees_counter_est`, the RLUSD's `fees_base_est`", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01", { fees_counter_est: "2.5", fees_base_est: "1.5" })] }));
+    expect([s.feesFirst[bucket("2026-10-01")], s.feesSecond[bucket("2026-10-01")]]).toEqual(["2.5", "1.5"]);
+  });
+
+  it("is null, not known, for a side whose estimate a row with swaps leaves out", () => {
+    const s = daySeries(seriesInput({ days: [leaving(poolDay("2026-10-01", { swap_count: 20 }), "fees_base_est")] }));
+    expect([s.feesFirst[bucket("2026-10-01")], s.feesSecond[bucket("2026-10-01")]]).toEqual(["2.5", null]);
+  });
+
+  it("is 0 for a row without swaps that leaves an estimate out, and for a quiet day inside the pool's life", () => {
+    const s = daySeries(seriesInput({ days: [leaving(poolDay("2026-10-01", { swap_count: 0, deposit_count: 1 }), "fees_base_est", "fees_counter_est")] }));
+    expect([s.feesFirst[bucket("2026-10-01")], s.feesSecond[bucket("2026-10-01")]]).toEqual(["0", "0"]);
+    expect([s.feesFirst[bucket("2026-10-02")], s.feesSecond[bucket("2026-10-02")]]).toEqual(["0", "0"]);
+    expect([s.feesFirst[bucket("2026-09-30")], s.feesSecond[bucket("2026-09-30")]]).toEqual([null, null]);
+  });
+
+  it("keeps a known zero as 0", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01", { fees_counter_est: "0", fees_base_est: "0.0" })] }));
+    expect([s.feesFirst[bucket("2026-10-01")], s.feesSecond[bucket("2026-10-01")]]).toEqual(["0", "0"]);
+  });
+
+  it("writes an estimate in exponent form in plain digits (SNK/XRP's 1.250946e-8), and reads one that is no number as not known", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-01", { fees_base_est: "1.250946e-8", fees_counter_est: "abc" })] }));
+    expect([s.feesFirst[bucket("2026-10-01")], s.feesSecond[bucket("2026-10-01")]]).toEqual([null, "0.00000001250946"]);
+  });
+});
+
+describe("daySeries: an earlier pool of the pair, and the running day (rules 5 and 6)", () => {
+  it("masks the pair's candles from before this pool's first day: an earlier pool's swaps are not this pool's", () => {
+    const s = daySeries(seriesInput({ days: [poolDay("2026-10-12")], candles: [poolCandle("2026-10-01", { count: 9 }), poolCandle("2026-10-11"), poolCandle("2026-10-12")] }));
+    expect([s.volume[bucket("2026-10-01")], s.swaps[bucket("2026-10-01")], s.volume[bucket("2026-10-11")]]).toEqual([null, null, null]);
+    expect([s.volume[bucket("2026-10-12")], s.swaps[bucket("2026-10-12")]]).toEqual(["1000", "4"]);
+  });
+
+  /** A running day's candle, still forming: one swap so far. */
+  const forming = [poolCandle("2026-10-17", { count: 1, counter_volume: "5" })];
+
+  it("reads the running day from its row when the aggregator has written one, and its forming candle", () => {
+    const days = [poolDay("2026-10-16", { value_native: "16" }), poolDay("2026-10-17", { value_native: "17" })];
+    const s = daySeries(seriesInput({ carryIn: poolDay("2026-09-10"), days, candles: forming }));
+    expect([s.value.at(-1), s.volume.at(-1), s.swaps.at(-1), s.feesFirst.at(-1)]).toEqual(["17", "5", "1", "2.5"]);
+  });
+
+  it("reads a running day with no row as a quiet day: the day before's state, no fee, and its forming candle", () => {
+    const s = daySeries(seriesInput({ carryIn: poolDay("2026-09-10"), days: [poolDay("2026-10-16", { value_native: "16" })], candles: forming }));
+    expect([s.value.at(-1), s.volume.at(-1), s.swaps.at(-1), s.feesFirst.at(-1), s.feesSecond.at(-1)]).toEqual(["16", "5", "1", "0", "0"]);
+  });
+});
+
+describe("daySeries: a call that failed", () => {
+  it("has no state and no fee estimate without the day rows, and takes the candles unmasked: there is no life to mask them with", () => {
+    const s = daySeries(seriesInput({ deleted: true, days: null, candles: [poolCandle("2026-09-20"), poolCandle("2026-10-12")] }));
+    for (const name of [...STATES, "feesFirst", "feesSecond"] as const) expect(s[name].every((value) => value === null), name).toBe(true);
+    expect(s.volume.every((value) => value !== null)).toBe(true);
+    expect([s.volume[bucket("2026-09-20")], s.volume[bucket("2026-09-21")], s.swaps[bucket("2026-10-12")]]).toEqual(["1000", "0", "4"]);
+  });
+
+  it("has no flow without the candles, and the states and fee estimates stand", () => {
+    const s = daySeries(seriesInput({ carryIn: poolDay("2026-09-10"), days: [poolDay("2026-10-01")], candles: null }));
+    expect(s.volume.every((value) => value === null)).toBe(true);
+    expect(s.swaps.every((value) => value === null)).toBe(true);
+    expect(s.value.every((value) => value === "3700000")).toBe(true);
+    expect(s.feesFirst[bucket("2026-10-01")]).toBe("2.5");
+  });
+});
+
+// ---- The pool's charts: the five cards ----------------------------------------------------------------------------------------------------------
+
+/** The days of XRP / RLUSD over 30 days: a carry-in, three rows whose reserves move the price from 1.1968912 to 1.2903226 RLUSD per XRP, and three candles. */
+const chartInput = (over: Partial<DaySeriesInput> = {}): DaySeriesInput =>
+  seriesInput({
+    carryIn: poolDay("2026-09-10", { reserve_base: "2310000", reserve_counter: "1930000" }),
+    days: [
+      poolDay("2026-09-20", { reserve_base: "2320000", reserve_counter: "1920000" }),
+      poolDay("2026-10-01", { reserve_base: "2340000", reserve_counter: "1900000" }),
+      poolDay("2026-10-16", { reserve_base: "2400000", reserve_counter: "1860000" }),
+    ],
+    candles: [poolCandle("2026-09-20"), poolCandle("2026-10-01"), poolCandle("2026-10-17")],
+    ...over,
+  });
+
+function drawn<T>(part: ChartPart<T>): Extract<ChartPart<T>, { state: "ok" }> {
+  if (part.state !== "ok") throw new Error(`the chart ${part.title} failed`);
+  return part;
+}
+
+const KEEPS_NOTE = "A day without activity keeps the value of the day before.";
+const DUST_NOTE = "Swaps with a XRP leg of 0.0005 or less are left out, as in every DEX aggregate of the data API.";
+const HISTORY_SOURCE = "/v2/amm/pools/rhWTXC…tcS3/history?interval=day";
+
+describe("poolCharts: the five cards", () => {
+  it("draws every chart with its running bucket marked so far, on the window's buckets", () => {
+    const charts = poolCharts(chartInput());
+    for (const part of [charts.value, charts.volume, charts.price, charts.fee, charts.reserves]) {
+      const { data } = drawn<TimeSeriesData | SmallMultiplesData>(part);
+      expect(data.forming, part.title).toBe(true);
+      expect(data.axis, part.title).toEqual({ unit: "day", buckets: W30.buckets });
+    }
+    expect(drawn(poolCharts(chartInput({ window: W1Y })).value).data.axis).toEqual({ unit: "week", buckets: W1Y.buckets });
+  });
+
+  it("titles the cards in the native currency and the display pair", () => {
+    const charts = poolCharts(chartInput());
+    expect([charts.value.title, charts.volume.title, charts.price.title, charts.fee.title, charts.reserves.title]).toEqual([
+      "Pool value, in XRP",
+      "Swap volume per day, in XRP",
+      "Pool price, RLUSD per XRP",
+      "Trading fee",
+      "Reserves",
+    ]);
+  });
+
+  it("titles the volume per week over a year, and in the first currency for a pool without the native currency", () => {
+    expect(poolCharts(chartInput({ window: W1Y })).volume.title).toBe("Swap volume per week, in XRP");
+    const usdc = poolCharts(seriesInput({ pair: USDC_RLUSD, carryIn: usdcDay("2026-09-10"), days: [usdcDay("2026-10-01")] }));
+    expect([usdc.value.title, usdc.volume.title, usdc.price.title]).toEqual(["Pool value, in XRP", "Swap volume per day, in USDC", "Pool price, RLUSD per USDC"]);
+    expect(drawn(usdc.volume).data.format).toEqual({ kind: "amount", unit: "USDC" });
+  });
+
+  it("names the routes: the short pool for the cards of the day rows, the pair's AMM candles for the volume", () => {
+    const charts = poolCharts(chartInput());
+    for (const part of [charts.value, charts.price, charts.fee, charts.reserves]) expect(drawn<unknown>(part).source, part.title).toBe(HISTORY_SOURCE);
+    expect(drawn(charts.volume).source).toBe("/v2/exchanges/{base}/{counter}?amm=only&interval=1day");
+    expect(drawn(poolCharts(chartInput({ window: W1Y })).volume).source).toBe("/v2/exchanges/{base}/{counter}?amm=only&interval=7day");
+  });
+
+  it("draws the value in the native currency, with its two notes", () => {
+    const input = chartInput();
+    const value = drawn(poolCharts(input).value);
+    expect(value.data.series).toEqual([{ id: "value", label: "Pool value", slot: 1, values: daySeries(input).value }]);
+    expect(value.data.format).toEqual({ kind: "value", unit: "XRP" });
+    expect(value.data.domain).toBeUndefined();
+    expect(value.notes).toEqual([KEEPS_NOTE, NOT_COMPUTED_NOTE]);
+  });
+
+  it("says why a pool with no value anywhere has none", () => {
+    const value = drawn(poolCharts(seriesInput({ pair: USDC_RLUSD, carryIn: usdcDay("2026-09-10"), days: [usdcDay("2026-10-01")] })).value);
+    expect(value.data.series[0]!.values.every((v) => v === null)).toBe(true);
+    expect(value.notes).toEqual(["No value in XRP: neither asset of this pool has a XRP rate.", NOT_COMPUTED_NOTE]);
+  });
+
+  it("says nothing of a rate where the pool is not in the window at all, or where it holds the native currency", () => {
+    // No day of the pool: the chart's "No data", not a pool without a rate.
+    expect(drawn(poolCharts(seriesInput({ pair: USDC_RLUSD })).value).notes).toEqual([KEEPS_NOTE, NOT_COMPUTED_NOTE]);
+    // XRP / RLUSD deleted on the first day of the window: the one day of its life has no value, and the pool holds XRP.
+    const deletion = leaving(poolDay(W30.start), "reserve_base", "reserve_counter", "trading_fee", "value_native");
+    expect(drawn(poolCharts(seriesInput({ deleted: true, days: [deletion] })).value).notes).toEqual([KEEPS_NOTE, NOT_COMPUTED_NOTE]);
+  });
+
+  it("draws the volume from the candles, with the extras Swaps and the fee estimates of both sides, in the display order", () => {
+    const input = chartInput();
+    const series = daySeries(input);
+    const volume = drawn(poolCharts(input).volume);
+    expect(volume.data.series).toEqual([{ id: "volume", label: "Swap volume", slot: 1, values: series.volume }]);
+    expect(volume.data.format).toEqual({ kind: "amount", unit: "XRP" });
+    expect(volume.data.extras).toEqual([
+      { id: "swaps", label: "Swaps", values: series.swaps, format: { kind: "count" } },
+      { id: "fees-first", label: "Fees, est., XRP", values: series.feesFirst, format: { kind: "amount", unit: "XRP" } },
+      { id: "fees-second", label: "Fees, est., RLUSD", values: series.feesSecond, format: { kind: "amount", unit: "RLUSD" } },
+    ]);
+    expect(volume.notes).toEqual([DUST_NOTE, NOT_COMPUTED_NOTE]);
+  });
+
+  it("draws the price, the second per the first, from the nice floor of its values, and says where the axis starts", () => {
+    const input = chartInput();
+    const price = drawn(poolCharts(input).price);
+    expect(price.data.series).toEqual([{ id: "price", label: "Pool price", slot: 1, values: daySeries(input).price }]);
+    expect(price.data.series[0]!.values[0]).toBe("1.1968912");
+    expect(price.data.series[0]!.values.at(-1)).toBe("1.2903226");
+    expect(price.data.format).toEqual({ kind: "price", unit: "RLUSD" });
+    // A third of the range (0.0934314) is a step of 0.05, and the lowest price's multiple of it is 1.15: the axis's own start, with no top (P13).
+    expect(price.data.domain).toEqual({ min: "1.15" });
+    expect(price.notes).toEqual(["The axis starts at 1.15 RLUSD.", NOT_COMPUTED_NOTE]);
+  });
+
+  it("starts the price axis at 0, with no note, when the floor is not above 0 and when the price does not move", () => {
+    // From 0.5 to 10 RLUSD per XRP: a third of the range is a step of 5, and the lowest price's multiple of it is 0.
+    const days = [poolDay("2026-10-01", { reserve_base: "1", reserve_counter: "2" }), poolDay("2026-10-02", { reserve_base: "10", reserve_counter: "1" })];
+    const wide = drawn(poolCharts(seriesInput({ days })).price);
+    expect(wide.data.domain).toBeUndefined();
+    expect(wide.notes).toEqual([NOT_COMPUTED_NOTE]);
+    const flat = drawn(poolCharts(seriesInput({ carryIn: poolDay("2026-09-10") })).price);
+    expect(flat.data.domain).toBeUndefined();
+    expect(flat.notes).toEqual([NOT_COMPUTED_NOTE]);
+  });
+
+  it("writes the axis start of an extreme price in plain digits", () => {
+    const days = [poolDay("2026-10-01", { reserve_base: "1e-30", reserve_counter: "1e+30" }), poolDay("2026-10-02", { reserve_base: "1.5e-30", reserve_counter: "1e+30" })];
+    const price = drawn(poolCharts(seriesInput({ days })).price);
+    expect(price.data.domain).toEqual({ min: `0.${"0".repeat(59)}1` });
+    expect(price.notes[0]).toBe(`The axis starts at 0.${"0".repeat(59)}1 RLUSD.`);
+  });
+
+  it("draws the trading fee in percent, from 0, with its notes", () => {
+    const fee = drawn(poolCharts(chartInput()).fee);
+    expect(fee.data.series).toEqual([{ id: "fee", label: "Trading fee", slot: 1, values: Array(30).fill("0.205") }]);
+    expect(fee.data.format).toEqual({ kind: "percent" });
+    // A line with no domain starts at 0 (niceScale's bottom is 0 unless a value is below it): no note is owed.
+    expect(fee.data.domain).toBeUndefined();
+    expect(fee.notes).toEqual(["Each vote moves the fee; the Votes and bids tab lists them.", NOT_COMPUTED_NOTE]);
+  });
+
+  it("draws the reserves as two panels, each with its currency, its issuer and its own scale", () => {
+    const input = chartInput();
+    const series = daySeries(input);
+    const reserves = drawn(poolCharts(input).reserves);
+    expect(reserves.data.panels).toEqual([
+      { id: "first", label: "XRP", values: series.reserveFirst, format: { kind: "amount", unit: "XRP" } },
+      { id: "second", label: "RLUSD", sublabel: "rMxCKb…m5De", values: series.reserveSecond, format: { kind: "amount", unit: "RLUSD" } },
+    ]);
+    expect(reserves.notes).toEqual(["Each asset on its own scale.", NOT_COMPUTED_NOTE]);
+  });
+
+  it("writes a currency with no text as the hex formatCurrency writes, in the titles, the units and the labels", () => {
+    const charts = poolCharts(seriesInput({ pair: VOX_XRP, carryIn: poolDay("2026-09-10", { base_currency: VOX, base_issuer: VOX_ISSUER }) }));
+    expect(charts.price.title).toBe("Pool price, XRP per 564F58F0…");
+    expect(drawn(charts.reserves).data.panels.map((panel) => [panel.label, panel.sublabel])).toEqual([
+      ["564F58F0…", "rBnJZM…6Hk3"],
+      ["XRP", undefined],
+    ]);
+    expect(drawn(charts.volume).data.extras!.map((extra) => extra.label)).toEqual(["Swaps", "Fees, est., 564F58F0…", "Fees, est., XRP"]);
+  });
+});
+
+describe("poolCharts: what failed", () => {
+  it("fails the four cards of the day rows without them, and draws the volume without its fee estimates, unmasked, and says so", () => {
+    const input = chartInput({ days: null });
+    const charts = poolCharts(input);
+    expect(charts.value).toEqual({ state: "failed", title: "Pool value, in XRP", what: "the pool value" });
+    expect(charts.price).toEqual({ state: "failed", title: "Pool price, RLUSD per XRP", what: "the pool price" });
+    expect(charts.fee).toEqual({ state: "failed", title: "Trading fee", what: "the trading fee" });
+    expect(charts.reserves).toEqual({ state: "failed", title: "Reserves", what: "the reserves" });
+    const volume = drawn(charts.volume);
+    expect(volume.data.extras!.map((extra) => extra.id)).toEqual(["swaps"]);
+    expect(volume.data.series[0]!.values.every((value) => value !== null)).toBe(true);
+    expect(volume.notes).toEqual([DUST_NOTE, "The fee estimates couldn't be loaded."]);
+  });
+
+  it("fails the volume card alone without the candles", () => {
+    const charts = poolCharts(chartInput({ candles: null }));
+    expect(charts.volume).toEqual({ state: "failed", title: "Swap volume per day, in XRP", what: "the swap volume" });
+    for (const part of [charts.value, charts.price, charts.fee, charts.reserves]) expect(part.state, part.title).toBe("ok");
+  });
+
+  it("fails all five cards without a window (#3 failed): the charts", () => {
+    const charts = poolCharts(null);
+    expect(charts).toEqual({
+      value: { state: "failed", title: "Pool value", what: "the charts" },
+      volume: { state: "failed", title: "Swap volume", what: "the charts" },
+      price: { state: "failed", title: "Pool price", what: "the charts" },
+      fee: { state: "failed", title: "Trading fee", what: "the charts" },
+      reserves: { state: "failed", title: "Reserves", what: "the charts" },
+    });
+  });
+});
+
+describe("poolCharts: the tokens", () => {
+  const tokens = (input: DaySeriesInput) => {
+    const charts = poolCharts(input);
+    return Object.fromEntries(Object.entries(charts).map(([name, part]) => [name, drawn<{ token: string }>(part).data.token]));
+  };
+
+  it("is the hash of what each chart draws, and the same for the same input", () => {
+    const charts = poolCharts(chartInput());
+    for (const part of [charts.value, charts.volume, charts.price, charts.fee, charts.reserves]) {
+      const { token, ...rest } = drawn<{ token: string }>(part).data;
+      expect(token, part.title).toBe(tokenOf(rest));
+    }
+    expect(tokens(chartInput())).toEqual(tokens(chartInput()));
+  });
+
+  it("changes with one value, and with one extra", () => {
+    const before = tokens(chartInput());
+    const valued = tokens(chartInput({ days: [poolDay("2026-09-20", { reserve_base: "2320000", reserve_counter: "1920000", value_native: "3700001" })] }));
+    expect(valued.value).not.toBe(before.value);
+    const days = chartInput().days!.map((row) => (row.date.startsWith("2026-10-01") ? { ...row, fees_base_est: "1.6" } : row));
+    const fees = tokens(chartInput({ days }));
+    expect(fees.volume).not.toBe(before.volume);
+    expect(fees.value).toBe(before.value);
+  });
+});
+
+describe("poolCharts: the recorded days", () => {
+  const dir = new URL("../../test/fixtures/http/xrpl/data-api/", import.meta.url);
+  const json = <T>(path: string): T => JSON.parse(readFileSync(new URL(path, dir), "utf8")) as T;
+  const assetText = (currency: string, issuer?: string) => (issuer ? `${currency}+${issuer}` : currency);
+  const dayBefore = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  /** The input of a recorded pool's charts for a period, from the files the loader's calls #4, #5 and #6 read. */
+  function recorded(pool: string, period: WindowPeriod): DaySeriesInput {
+    const window = windowOf(DAY_T, period);
+    const stored = json<{ pool: AmmPool }>(`amm/pools/${pool}.json`).pool;
+    const base = { currency: stored.base_currency, ...(stored.base_issuer ? { issuer: stored.base_issuer } : {}) };
+    const counter = { currency: stored.counter_currency, ...(stored.counter_issuer ? { issuer: stored.counter_issuer } : {}) };
+    const days = json<Page<"days", AmmPoolDay>>(`amm/pools/${pool}/history@end=${DAY_T}&interval=day&limit=1000&start=${window.start}.json`).days;
+    const carryIn = json<Page<"days", AmmPoolDay>>(`amm/pools/${pool}/history@descending=true&end=${dayBefore(window.start)}&interval=day&limit=1.json`).days[0] ?? null;
+    const interval = period === "1y" ? "7day" : "1day";
+    const candles = json<Page<"exchanges", Candle>>(
+      `exchanges/${assetText(base.currency, base.issuer)}/${assetText(counter.currency, counter.issuer)}@amm=only&end=${DAY_T}&interval=${interval}&limit=400&start=${window.start}.json`,
+    ).exchanges;
+    return { window, pair: displayPair(base, counter, "XRP"), native: "XRP", pool, deleted: stored.deleted, days, carryIn, candles };
+  }
+  const SNK = "rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz";
+  const USD_XRP = "rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am";
+  const DVR = "rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG";
+  const USDC_POOL = "rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb";
+  const withoutIds = (text: string): string => withoutHashes(text.replace(/"token":"[0-9a-f]{8}"/g, "").replace(/r[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4}/g, ""));
+
+  it("reads XRP / RLUSD over 30 days: the quiet days keep the day before, and Oct 10's unknown estimates are null", () => {
+    const input = recorded(AMM_POOL, "30d");
+    const s = daySeries(input);
+    for (const name of [...STATES, "volume", "swaps"] as const) expect(s[name].every((value) => value !== null), name).toBe(true);
+    // Sep 23 has no row: the value of Sep 22, no fee, and no candle.
+    expect([s.value[bucket("2026-09-23")], s.feesFirst[bucket("2026-09-23")], s.volume[bucket("2026-09-23")]]).toEqual(["3851200.9", "0", "0"]);
+    // Oct 10 is the synthetic day with swaps and neither estimate.
+    expect([s.feesFirst[bucket("2026-10-10")], s.feesSecond[bucket("2026-10-10")]]).toEqual([null, null]);
+    // Oct 17, the running day: its row and its candle, the XRP side (the stored counter).
+    const last = input.days!.at(-1)!;
+    const candle = input.candles!.at(-1)!;
+    expect([s.price.at(-1), s.reserveFirst.at(-1), s.volume.at(-1), s.swaps.at(-1)]).toEqual([
+      exactRatio(last.reserve_base, last.reserve_counter),
+      last.reserve_counter,
+      candle.counter_volume,
+      String(candle.count),
+    ]);
+    expect(s.feesFirst.at(-1)).toBe(last.fees_counter_est);
+  });
+
+  it("reads SNK/XRP over the year: deleted on Nov 11, 2025, in its week; the estimates in exponent form in plain digits", () => {
+    const s = daySeries(recorded(SNK, "1y"));
+    const week = bucket("2025-11-10", W1Y);
+    for (const name of SERIES) expect(s[name].slice(week + 1).every((value) => value === null), name).toBe(true);
+    // The deletion day's row closes the pool with empty reserves: no price, and no value.
+    expect([s.reserveFirst[week], s.reserveSecond[week], s.price[week], s.value[week], s.fee[week]]).toEqual(["0", "0", null, null, "0.25"]);
+    // SNK is the first side and the stored base. The week of Oct 20 has rows on Oct 22, 24, 25 and 26; that of Nov 10 on Nov 10 and 11.
+    expect([s.feesFirst[0], s.feesSecond[0]]).toEqual(["0.0000000269195425", "0.0000067525"]);
+    expect([s.feesFirst[week], s.feesSecond[week]]).toEqual(["0.000000017674735", "0.0000032275"]);
+    expect([s.volume[0], s.swaps[0]]).toEqual(["0.006018", "7"]);
+  });
+
+  it("reads SNK/XRP over 30 and 90 days as nothing: it was deleted before those windows", () => {
+    for (const period of ["30d", "90d"] as const) {
+      const s = daySeries(recorded(SNK, period));
+      for (const name of SERIES) expect(s[name].every((value) => value === null), `${period} ${name}`).toBe(true);
+    }
+  });
+
+  it("reads DVR/XRP over 30 days from its creation, Oct 12: it has no carry-in", () => {
+    const input = recorded(DVR, "30d");
+    expect(input.carryIn).toBeNull();
+    const s = daySeries(input);
+    const first = bucket("2026-10-12");
+    for (const name of SERIES) {
+      expect(s[name].slice(0, first).every((value) => value === null), name).toBe(true);
+      expect(s[name].slice(first).every((value) => value !== null), name).toBe(true);
+    }
+  });
+
+  it("reads USDC / RLUSD over 90 days: the volume in USDC, and no value in XRP", () => {
+    const charts = poolCharts(recorded(USDC_POOL, "90d"));
+    expect(charts.volume.title).toBe("Swap volume per day, in USDC");
+    expect(drawn(charts.value).notes[0]).toBe("No value in XRP: neither asset of this pool has a XRP rate.");
+    expect(drawn(charts.volume).data.series[0]!.values.some((value) => value !== null && value !== "0")).toBe(true);
+  });
+
+  it("has no exponent in any chart of the recorded pools, at every period they have (P38)", () => {
+    const cases: [string, WindowPeriod][] = [
+      [AMM_POOL, "30d"],
+      [AMM_POOL, "90d"],
+      [AMM_POOL, "1y"],
+      [USD_XRP, "90d"],
+      [USDC_POOL, "90d"],
+      [DVR, "30d"],
+      [SNK, "30d"],
+      [SNK, "90d"],
+      [SNK, "1y"],
+    ];
+    for (const [pool, period] of cases) {
+      const charts = poolCharts(recorded(pool, period));
+      for (const part of Object.values(charts)) expect(part.state, `${pool} ${period} ${part.title}`).toBe("ok");
+      expect(withoutIds(JSON.stringify(charts)), `${pool} ${period}`).not.toMatch(EXPONENT);
+    }
+    // The year of SNK/XRP does hold estimates in exponent form, so the test is not vacuous.
+    expect(recorded(SNK, "1y").days!.some((row) => /e-/.test(row.fees_base_est ?? ""))).toBe(true);
   });
 });
