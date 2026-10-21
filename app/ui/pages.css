@@ -1160,6 +1160,11 @@ a.example:hover {
   color: var(--muted);
 }
 
+/* A key that leads to its validator's page (while VALIDATORS is on) has the links' colour, not the muted one of a key that is text. */
+.network__first li > a.mono {
+  color: var(--link);
+}
+
 .network__first li > :last-child {
   color: var(--faint);
 }
@@ -2062,6 +2067,13 @@ a.markets__pair:hover .markets__name {
   position: relative;
 }
 
+/* "Clear filters" after "No validators match these filters." is a link inside a sentence: it is told from the words around it by more than its colour
+   (axe: link-in-text-block; in dark mode the link's colour is close to the text's). */
+.validators__table .table__empty a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* A validator: the name and its marks on a line that wraps, its short key under it. */
 .validators__who {
   display: flex;
@@ -2253,6 +2265,12 @@ a.markets__pair:hover .markets__name {
 .validator__note {
   color: var(--muted);
   font-size: 13px;
+}
+
+/* The note's link (the xrp-ledger.toml) is inside its sentence: underlined, as the amendment page's are (axe: link-in-text-block). */
+.validator__note a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* The facts: as many columns as fit at 240 px (the board's), one on a phone. */

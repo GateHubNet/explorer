@@ -729,7 +729,7 @@ describe("validatorsOf", () => {
     const { first } = partOf(answer(validations));
     expect(first).toHaveLength(5);
     expect(first.map((validator) => validator.delay)).toEqual(["+0 ms", "+40 ms", "+80 ms", "+120 ms", "+160 ms"]);
-    expect(first[0]).toEqual({ key: KEY, short: "nHUFE9prPX…a3p", delay: "+0 ms" });
+    expect(first[0]).toEqual({ key: KEY, short: "nHUFE9prPX…a3p", delay: "+0 ms", href: `/xrpl/validators/${KEY}` });
     expect(first.map((validator) => validator.key)).toEqual([KEY, keyOf(4), keyOf(3), keyOf(5), keyOf(0)]);
   });
 
@@ -758,6 +758,14 @@ describe("validatorsOf", () => {
 
   it("is an empty list for no validations", () => {
     expect(partOf(answer([]))).toMatchObject({ count: "0", first: [] });
+  });
+
+  it("links each of the five keys to its validator's page with the switch on, and to nothing (text) with it off", () => {
+    expect(partOf(answer(validations)).first.map((validator) => validator.href)).toEqual([KEY, keyOf(4), keyOf(3), keyOf(5), keyOf(0)].map((key) => `/xrpl/validators/${key}`));
+    const off = ctxOf("7d", { net: { ...XRPL, features: { validators: false, ammData: true, markets: true } } });
+    expect(partOf(answer(validations), off).first.map((validator) => validator.href)).toEqual([null, null, null, null, null]);
+    const xahau = ctxOf("7d", { net: { ...XAHAU, features: { validators: true, ammData: false, markets: false } } });
+    expect(partOf(answer(validations), xahau).first[0]!.href).toBe(`/xahau/validators/${KEY}`);
   });
 });
 

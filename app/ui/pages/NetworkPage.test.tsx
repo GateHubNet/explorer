@@ -87,11 +87,11 @@ function page(over: Partial<NetworkPageData> = {}): NetworkPageData {
       ledger: { index: 107695660, hash: HASH },
       count: "35",
       first: [
-        { key: "nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p", short: "nHUFE9prPX…a3p", delay: "+0 ms" },
-        { key: "nHBidG3pZK11zQD6kpNDoAhDxH6WLGui6ZxSbUx7LSqLHsgzMPec", short: "nHBidG3pZK…Pec", delay: "+12 ms" },
-        { key: "nHUon2tpyJEHHYGmxqeGu37cvPYHzrMtUNQFVdCgGNvEkjmCpTqK", short: "nHUon2tpyJ…TqK", delay: "+40 ms" },
-        { key: "nHUpcmNsxAw47yt2ADDoNoQrzLyTJPgnAvbdHnSvoBsMbd6CXnqF", short: "nHUpcmNsxA…nqF", delay: "+55 ms" },
-        { key: "nHU95JxeaHJoSdpE7R49Mxp4611Yk5yL9SGEc12UDJLr4oEUN4NT", short: "nHU95JxeaH…4NT", delay: "+81 ms" },
+        { key: "nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p", short: "nHUFE9prPX…a3p", delay: "+0 ms", href: "/xrpl/validators/nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p" },
+        { key: "nHBidG3pZK11zQD6kpNDoAhDxH6WLGui6ZxSbUx7LSqLHsgzMPec", short: "nHBidG3pZK…Pec", delay: "+12 ms", href: "/xrpl/validators/nHBidG3pZK11zQD6kpNDoAhDxH6WLGui6ZxSbUx7LSqLHsgzMPec" },
+        { key: "nHUon2tpyJEHHYGmxqeGu37cvPYHzrMtUNQFVdCgGNvEkjmCpTqK", short: "nHUon2tpyJ…TqK", delay: "+40 ms", href: "/xrpl/validators/nHUon2tpyJEHHYGmxqeGu37cvPYHzrMtUNQFVdCgGNvEkjmCpTqK" },
+        { key: "nHUpcmNsxAw47yt2ADDoNoQrzLyTJPgnAvbdHnSvoBsMbd6CXnqF", short: "nHUpcmNsxA…nqF", delay: "+55 ms", href: "/xrpl/validators/nHUpcmNsxAw47yt2ADDoNoQrzLyTJPgnAvbdHnSvoBsMbd6CXnqF" },
+        { key: "nHU95JxeaHJoSdpE7R49Mxp4611Yk5yL9SGEc12UDJLr4oEUN4NT", short: "nHU95JxeaH…4NT", delay: "+81 ms", href: "/xrpl/validators/nHU95JxeaHJoSdpE7R49Mxp4611Yk5yL9SGEc12UDJLr4oEUN4NT" },
       ],
       href: "/xrpl/validators?scope=all",
     },
@@ -117,8 +117,17 @@ function page(over: Partial<NetworkPageData> = {}): NetworkPageData {
   };
 }
 
-const XAHAU_PAGE = (over: Partial<NetworkPageData> = {}) =>
-  page({ displays: ["native"], currency: "XAH", amm: { state: "none" }, validators: { ...(page().validators as object), href: null } as NetworkPageData["validators"], ...over });
+/** Xahau with the validators' switch off: "All validators" and the five keys have no address. */
+const XAHAU_PAGE = (over: Partial<NetworkPageData> = {}) => {
+  const validators = page().validators as Extract<NetworkPageData["validators"], { state: "ok" }>;
+  return page({
+    displays: ["native"],
+    currency: "XAH",
+    amm: { state: "none" },
+    validators: { ...validators, first: validators.first.map((validator) => ({ ...validator, href: null })), href: null },
+    ...over,
+  });
+};
 
 const failed = (reason = "data API GET /v2/x answered 503") => ({ state: "failed", reason }) as const;
 
@@ -688,6 +697,34 @@ describe("NetworkPage, the validators", () => {
     ]);
     // One list, the whole of it one figure that ticks in with its ledger.
     expect(validators.querySelectorAll(".network__first ol")).toHaveLength(1);
+  });
+
+  it("links each of the five keys to its validator's page while the page is given their addresses", () => {
+    mount(page());
+    const first = card("Validators").querySelector<HTMLElement>(".network__first")!;
+    const links = within(first).getAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["nHUFE9prPX…a3p", "/xrpl/validators/nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p"],
+      ["nHBidG3pZK…Pec", "/xrpl/validators/nHBidG3pZK11zQD6kpNDoAhDxH6WLGui6ZxSbUx7LSqLHsgzMPec"],
+      ["nHUon2tpyJ…TqK", "/xrpl/validators/nHUon2tpyJEHHYGmxqeGu37cvPYHzrMtUNQFVdCgGNvEkjmCpTqK"],
+      ["nHUpcmNsxA…nqF", "/xrpl/validators/nHUpcmNsxAw47yt2ADDoNoQrzLyTJPgnAvbdHnSvoBsMbd6CXnqF"],
+      ["nHU95JxeaH…4NT", "/xrpl/validators/nHU95JxeaHJoSdpE7R49Mxp4611Yk5yL9SGEc12UDJLr4oEUN4NT"],
+    ]);
+    // The short key in mono is the link.
+    for (const link of links) expect(link.classList.contains("mono")).toBe(true);
+  });
+
+  it("draws the five keys as text, in mono, when they have no address", () => {
+    mount(XAHAU_PAGE(), { network: XAHAU });
+    const first = card("Validators").querySelector<HTMLElement>(".network__first")!;
+    expect(within(first).queryAllByRole("link")).toEqual([]);
+    expect(Array.from(first.querySelectorAll("li .mono")).map((key) => [key.tagName, key.textContent])).toEqual([
+      ["SPAN", "nHUFE9prPX…a3p"],
+      ["SPAN", "nHBidG3pZK…Pec"],
+      ["SPAN", "nHUon2tpyJ…TqK"],
+      ["SPAN", "nHUpcmNsxA…nqF"],
+      ["SPAN", "nHU95JxeaH…4NT"],
+    ]);
   });
 
   it("says what the count counts", () => {

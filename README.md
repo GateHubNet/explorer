@@ -91,7 +91,7 @@ so the Worker, the browser, the scripts and the tests all import it. `featuresOf
 
 | Variable | In `Features` | Gates |
 |---|---|---|
-| `VALIDATORS` | `validators` | every link into the validators and amendments pages (the network page's "All validators") and those pages' routes |
+| `VALIDATORS` | `validators` | every link into the validators and amendments pages (the network page's "All validators" and its five first-seen keys), those pages' routes and their two kinds of image (`/og/{net}/validator/…`, `/og/{net}/amendment/…`) |
 | `AMM_DATA` | `ammData` | every part derived from the AMM data in the index: the network page's AMM volume series and its "AMM swaps included" wording |
 | `MARKETS` | `markets` | the markets pages (E3), the header's Markets link and every link into them |
 
@@ -99,7 +99,7 @@ Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). T
 
 | Variable | Top level (local development and the tests) | `staging` | `production` |
 |---|---|---|---|
-| `VALIDATORS` | `"off"` until E6 builds its pages: a link to a route that does not exist yet would only be a 404 | `"off"` | `"off"` |
+| `VALIDATORS` | `"on"` | `"off"` | `"off"` |
 | `AMM_DATA` | `"on"` | `"off"` | `"off"` |
 | `MARKETS` | `"on"` | `"off"` | `"off"` |
 
@@ -107,7 +107,9 @@ The conditions for turning a switch on in `staging` or `production` (by a commit
 
 - `AMM_DATA`: the environment's data API has merged `feat/amm-data`, has re-ingested and back-filled, and D2b is deployed (`syncer_markets_live_amm_share_known` is 1).
   (Locally the top level has it `"on"`: against a data API that has not merged it, set `AMM_DATA=off` in `.dev.vars`, see "Getting started".)
-- `VALIDATORS`: E6, the validators and amendments pages.
+- `VALIDATORS` (`validators`, E6): the validators and amendments pages. "on" at the top level, "off" in staging and production until D1 (the data API's validators and
+  amendments routes) has served that environment on both networks for at least two hours, so that the votes and tallies are back-filled (D1's estimate). Rolling back is
+  `"off"` and a deploy. See "Validators and amendments".
 - `MARKETS` (`markets`, E3): the markets pages, the header's Markets link and every link into them. "on" at the top level, "off" in staging and production until the
   data API there serves `/v2/network/markets` with D2 §16.4's gauges at their marks.
 
@@ -359,7 +361,7 @@ delta) is the view builder's: the kit measures numbers and does not compute them
 | `LineChart` | 1 to 3 lines, with `area`, `curve="step"` (a vertex only where the value changes: 2,600 buckets with 5 changes are 12 commands), a `domain` and `references` (dashed thresholds), and end labels. `pageStep` gives its slider Page Up and Page Down; `extreme="lowest"` makes the plot summary name the lowest bucket |
 | `SmallMultiples` | A grid of one-series lines (6 at most), each on a scale of its own, one cursor for all |
 | `Candles` | Candlesticks over a volume pane that share one cursor and one readout. `mark={false}` redraws a changed token with no ring, `empty` is the price pane's words when no candle is drawn |
-| `ShareBar` | 100% stacked horizontal rows, a label under a segment of 18% or more |
+| `ShareBar` | 100% stacked horizontal rows, a label under a segment of 18% or more. `unit` (`{ one, other }`) puts the word after a row's total: "35 validators", "1 validator" |
 | `BarList` | An `<ol>` of labelled bars with the value and share at each tip: "**1.24B XRP** · 58%". An item's `href` makes its label a link (`components/RouteLink.tsx`: the kit may not import `react-router`; the bar is not a target; the link's hit area is 27.6 px high around its line (21.6 px in a dense list, so that neighbours do not overlap), and on touch screens and phones the row is 44 px and the area 45.6 px); `tip="count"` ends the tip with the count instead ("**6.1M XRP** · 312 trades"), the bars measured against the first item |
 | `Meter` | One ratio on a track, 12 px (6 px `small`), with a threshold tick and its label. `decorative` hides it from assistive technology (`aria-hidden`, no image role) for a cell that says the value in text |
 | `InlineBar` | A depth wash behind a table row (bids, asks), or an out/in bar in a cell. The depth form needs the row to be `position: relative`, the bar to be the row's first child and the cells after it to be elements: the stylesheet puts those above the wash, so the text keeps its contrast on it, and a bare text node in the row would sit under it |
@@ -419,7 +421,7 @@ slider, `cellText` in the table) and is shown as given when there is not; `null`
   zeros dropped, grouped, never compact and never an exponent (`0.4099 USD`, `12,345.679 USD`), and a price in exponent text (`1e-10`, which the data
   API writes) is read. An end label is the compact figure and the series' `short` name, with no unit: "**45.5M** payments" (the card's title names the
   currency). The table has the exact string. A `BarList` tip is compact with the unit, then the share text the builder wrote ("58%", "<1%").
-- **Time.** Every bucket is UTC. An axis writes "Oct 16" (a week: its Monday, "Oct 12"), "17:00" for an hour, "17:15" for a quarter hour (`minute`) and the day for a flag ledger. A tooltip or a table
+- **Time.** Every bucket is UTC. An axis writes "Oct 16" (a week: its Monday, "Oct 12"), "17:00" for an hour, "17:15" for a quarter hour (`minute`) and the day for a flag ledger (each day once: the flag ledgers of a day after its first carry no label). A tooltip or a table
   cell writes "Oct 16, 2026", "Oct 17, 2026, 17:00" for an hour or a quarter hour and "Oct 16, 2026, 09:34 UTC" for a flag ledger. A week is "Week of Oct 12, 2026" in a tooltip only; its table cell is
   "Oct 12, 2026" under the heading "Week of (UTC)" (a quarter hour's heading is "Time (UTC)"). The `Candles` readout, which stands alone above the
   chart, names the zone: "Oct 17, 2026, 17:00 UTC", "Week of Oct 12, 2026", and " · so far" after the running bucket. `forming: true` marks the newest bucket as the running one and adds ", so far" to the tooltip, the slider text and the table, never
@@ -777,12 +779,100 @@ shows its error. The scope of the page on screen is the network and the canonica
 another period, currency or network is a navigation and a first render, which is not animated, and a chart that changes after it is mounted gets the ring of a changed figure.
 
 **Switches.** `AMM_DATA` gates #11 and the AMM wording. `VALIDATORS` gates the card's "All validators" link (`/{net}/validators?scope=all`): while it is off, the link is the header's "soon" style.
-The view builder puts the link in the card's data, so the stored HTML and the data agree. Both are in "Switches".
+It gates the five "First seen" keys too: each is a link to `/{net}/validators/{key}` while it is on, and text while it is off (`first[].href`, a path or `null`).
+The view builder puts the links in the card's data, so the stored HTML and the data agree. Both are in "Switches".
 
 **Tests.** `app/server/network-view.test.ts` (the view builder, in exact arithmetic), `app/domain/window.test.ts`, `network-params.test.ts` and `type-groups.test.ts`;
 `NetworkPage.test.tsx` and `routes-wiring.test.tsx` (the cards, the chips, the hold, the scope per view, `keepLoaded`); in the Worker, `test/worker/network-page.spec.ts` (failures first, then the class,
 the redirects, the page without JavaScript), `network-calls.spec.ts` (the exact calls of each view), `network-hold.spec.ts` and, with every switch off, `network-off.spec.ts`; in the browser,
 `network-page.spec.ts`, `network-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The synthetic aggregates the Worker and the browser read are in "Upstream fixtures".
+
+## Validators and amendments
+
+Four pages under `/:net` and two kinds of link-preview image (E6, `docs/superpowers/specs/2026-10-19-validators-amendments-pages-design.md`), made from the data
+API's validators and amendments routes (D1) alone: the node is not called.
+
+| Path | Route | Edge class | Indexable |
+|---|---|---|---|
+| `/{net}/validators` | `routes/net.validators.tsx` | `live` (5 s + 30 s) | the default view only |
+| `/{net}/validators/{key}` | `routes/net.validators.$key.tsx` | `live-home` (1 s + 2 s); a page of older validations (`?marker=`) `slow` with a TTL of 300 s | yes; a page of older validations is `noindex, follow` |
+| `/{net}/amendments` | `routes/net.amendments.tsx` | `minute` (60 s + 30 s, E3's class) | the default view only |
+| `/{net}/amendments/{name}` | `routes/net.amendments.$name.tsx` | `minute` | yes |
+| `/og/{net}/validator/{key}.png`, `/og/{net}/amendment/{name}.png` | the image route ("The image route") | `slow` | no |
+
+The four are in the header's Network section (`handle = { navSection: "network" }`: the Network link is `aria-current="true"` on them, `"page"` on the network page
+itself), with the breadcrumbs `XRPL / Network / Validators / …` and `XRPL / Network / Amendments / …`. They link to each other ("Amendments →", "Validators →", "All
+amendments →", "All validators →"), and the network page links to them: "All validators" to `/{net}/validators?scope=all` (the card counts every validator the collectors
+heard) and each of its five "First seen" keys to `/{net}/validators/{key}` (the validations name master keys; a signing key would be redirected to its master). Nothing
+else links to them.
+
+**The switch.** `VALIDATORS` ("Switches") gates the four routes, the two kinds of image and every link into them. It is `"on"` at the top level (development and the
+tests) and `"off"` in `staging` and `production` until D1 has served that environment on both networks for at least two hours (the votes and tallies are back-filled
+by then). Turning it on is a deploy with `"on"` in that environment's `vars`; the cache generation changes, so nothing stored under `"off"` is served. **Rolling back is
+`"off"` and a deploy.** While it is off, the four pages and both images are the not-found page, a 404 of class `short`, before the key or the name is read and
+before any call (an image's query string is a 302 to the bare path first, as for every image; a page's query is not read), and the network page's "All validators" is the header's "soon" style and its five keys are text (`test/worker/validators-off.spec.ts`, and
+`validators.spec.ts` with `VALIDATORS` in `E2E_FEATURES_OFF`).
+
+**The fallback, inside the switch.** In front of a data API without D1, every D1 route answers `404 Cannot GET …`, which the client's route-missing rule makes an
+error of kind `server`: an outage, held by the failure hold and **never stored**. A switch turned on too early therefore serves 503 "try again" pages, never a stored
+404: the list when S, L and A all fail, a validator when D fails, the amendments list when A fails, an amendment when AD fails, an image when D or AD fails. The pages
+come right within seconds of D1's deploy, with no change here. D1's own `Validator not found` and `amendment not found` stay `not_found`: the not-found page (class
+`short`, 30 s), with the offer of the other network. While D1 fills (hours for votes, 30 days for agreement) the pages draw what it has: "No vote recorded",
+"Unknown", "incomplete", "not checked yet".
+
+**The calls**, each through `clientsFor(context, net)` and the subrequest cache, side by side, all awaited with `Promise.allSettled` before anything is thrown, and on
+the pages that poll with `holdFailure: true` (the hold: one failing call per 5 s per key per Worker instance). The six paths are in `PENDING_PATHS` until `pnpm api:sync`
+brings D1 in; the types are written from D1's `docs/api-reference.md` at data-api-new `7d495ab`, and every answer's shape is checked inside the cached load.
+
+| Call | Kept | Pages |
+|---|---|---|
+| `lastValidated` (the pages' `anchor`) | 2 s (`HOME_CALL_TTL_SECONDS`, the home page's key, so it costs nothing new) | the four (not a page of older validations) |
+| S `validatorsSummary()` | 10 s (`VALIDATORS_CALL_TTL_SECONDS`; D1 rebuilds its directory at most every 10 s) | the list, a validator, an amendment |
+| L `validators({ scope: "all", limit: 1000 })` | 10 s | the list: always this one query, so one cached call per network serves every view; the scope and filters are applied in the Worker |
+| D `validator(key)` | 10 s | a validator (and a page of its older validations), its image |
+| VV `validatorValidations(key, { limit: 20 })` | 2 s (`VALIDATIONS_CALL_TTL_SECONDS`); with a marker `slow`, 300 s (`VALIDATIONS_MARKER_TTL_SECONDS`) | a validator |
+| A `amendments()` | `minute` (60 s, no constant) | the list ("Votes yes for"), a validator, the amendments list |
+| AD `amendment(ref)` | `minute`; it carries A's envelope, so the amendment page needs no A | an amendment, its image |
+
+A card's call (VV, S and A on a validator's page; S, L and A on the list; S on an amendment) is raced against `CARD_DEADLINE_MS` (4.5 s from the loader's start; past
+it the card fails with "took too long"); the calls that are the page (`lastValidated`, D, AD, and A on the amendments list) are not. A failed card is told in its place,
+logged, and the request degraded: a 200 that is never stored. The worst age of what a page shows (what D1 holds, what the Worker keeps, the edge's fresh and stale
+time): the list 55 s, a validator 5 s for its validations and 23 s for the rest, the amendment pages 160 s.
+
+**The beats.** A validator's page asks for its `.data` every `LIVE_REFRESH_MS` (4 s), as the home and network pages do; the list every `VALIDATORS_REFRESH_MS` (10 s);
+the amendment pages every `AMENDMENTS_REFRESH_MS` (60 s). After a failure the beat backs off to at most `max(LIVE_REFRESH_MAX_MS, 4 × the beat)`. A page of older
+validations does not refresh. Under each `<h1>` is the live row ("Live · updates every ledger", "every 10 s", "every minute") with its pause button; a mouse over a live
+table, or keyboard focus on a link or button in it, holds the page ("Paused while you look at the table"). A beat whose answer has a card failed that the page shows loaded
+keeps the card (`keepLoaded`: `recent`, `summary` and `amendments` on a validator's page, `summary`, `list` and `amendments` on the list, `summary` on an amendment).
+Rows enter and slide (`DataTable live`, keyed by master key, ledger and hash, or amendment ID), figures tick in (`LiveValue`). No age and no countdown is in the stored
+HTML: the server prints the absolute time and `RelativeTime` and `Countdown` tick in the browser.
+
+**One URL per view.** Each loader reads its own parameters only. A query that is not exactly the canonical form of the view it names is a 302 to it
+(`cacheClassHeaders("short")`); the canonical form drops defaults, empty values, unknown values, repeats (the first is read) and unknown parameters, and orders the rest:
+
+| Page | Parameters, in order | Notes |
+|---|---|---|
+| the list | `scope` (`unl`, the default, or `all`), `publisher` (an id of S, as S writes it), `amendment` (one in `majority`, `voting` or `unknown`, as A names it), `q` (trimmed, at most 100 characters) | `scope` and `q` are checked before any call; `publisher` and `amendment` once S and A answered, in the same 302. When S or A failed, its parameter is applied as given (the page is degraded, so not stored, and the next render checks again) |
+| a validator | `marker` (else the page does not exist: a 404 of class `short`), `back` (dropped without a marker) | as the account page |
+| the amendments list | `status`: `majority`, `voting`, `enabled`, `obsolete` or `unknown` (the chips say "Activating", "Voting", "Activated", "Obsolete", "Unknown") | |
+| an amendment | none | any query string is a 302 to the bare path |
+
+The key of a validator's URL is its master key in base58. 66 hex digits are a 302 to it, class `immutable` and no call (a pure conversion); a signing key is a 302 to
+its master's URL, class `slow` (D says which it is, and the mapping is D1's data); anything else (`summary`, a classic address, a truncated key) is a 404 of class
+`short` with no call. An amendment's URL names it as D1 does (`AMM`, `fixNFTokenNegOffer`), or by its upper-case ID when it has no name; another spelling (a case variant,
+the ID of a named one, an ID in lower case) is a 302 to it, class `slow`. Only the default views are indexable (a canonical link on the request's origin, `og:*`); every
+other view is `noindex, follow`, with no canonical link and no `og:*`. Their tags' builders are `meta-validators.ts`, `meta-validator.ts`, `meta-amendments.ts` and
+`meta-amendment.ts` ("SEO and link previews").
+
+**Files.** The routes above; `app/domain/validator-key.ts`, `amendment-ref.ts`, `validators-params.ts` and `amendments-params.ts` (the parsers and the links, pure); the
+view builders `app/server/validators-view.ts`, `validator-view.ts`, `amendments-view.ts`, `amendment-view.ts` and what they share, `validator-facts.ts` (pure,
+unit-tested); the pages `app/ui/pages/ValidatorsPage.tsx`, `ValidatorPage.tsx`, `AmendmentsPage.tsx` and `AmendmentPage.tsx`, which draw data and never fetch;
+`app/ui/components/Countdown.tsx`, `StatusMarks.tsx` (every status an icon and a word, never colour alone) and `status-icons.tsx`.
+
+**Tests.** The view builders' and parsers' unit tests, the pages' component tests, in the Worker `validators-page.spec.ts`, `validators-page-failures.spec.ts`,
+`validator-page.spec.ts`, `amendments-page.spec.ts`, `amendment-page.spec.ts` (with the 30-day fixture's document under 150,000 bytes gzipped), `validators-off.spec.ts`,
+`og.spec.ts` and `meta.spec.ts`, and in the browser `validators.spec.ts`, `amendments.spec.ts`, `validators-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The
+answers they read are generated ("Upstream fixtures", "The validators and amendments pages' files").
 
 ## Search
 
@@ -840,7 +930,8 @@ re-export of a `meta-<page>.ts`; it fails a builder module that another page imp
 
 ### The image route
 
-`/og/{net}/{tx|ledger|account}/{id}.png` (`routes/og.$net.$kind.$id[.png].tsx`): 1200 × 630, `image/png`, `X-Robots-Tag: noindex`.
+`/og/{net}/{tx|ledger|account|validator|amendment}/{id}.png` (`routes/og.$net.$kind.$id[.png].tsx`): 1200 × 630, `image/png`, `X-Robots-Tag: noindex`. The five kinds
+are a transaction, a ledger, an account, a validator (`{id}` its master key) and an amendment (`{id}` its name as D1 writes it, or the upper-case ID of one with no name).
 
 | Case | Answer |
 |---|---|
@@ -854,10 +945,14 @@ re-export of a `meta-<page>.ts`; it fails a builder module that another page imp
 | from the node (the API says "not found"; for an account, no creation record) | `short` with a TTL of 60 s, like the page |
 | "not found" at both | 404, class `short` |
 | an upstream failure that leaves the question open (5xx, 429, timeout, a 400 for an id the route has checked; `last_validated` for a ledger), or a card the renderer cannot draw | 503, never stored; the entry serves the stored copy, however old, if there is one, and otherwise answers with its own 503 page (`Retry-After: 30`, whatever wait the route or the upstream named). A render failure is logged (`a link-preview image could not be drawn`) |
+| a validator or an amendment while `VALIDATORS` is off | 404, class `short`, before the id is read and before any call |
+| a validator's key in hex (66 digits); a signing key; an amendment named otherwise than D1 names it (a case variant, the ID of a named one, an ID in lower case) | 302 to the master key's or the canonical image: `immutable` for the hex (a pure conversion, no call), `slow` for the others (the mapping is D1's data) |
+| a validator (D) or an amendment (AD) the data API has | `slow` (1 h): the UNL, the version, the domain's check and an amendment's standing change rarely. D1's `Validator not found` and `amendment not found` are a 404 of class `short`; a `Cannot GET` (an API without D1) is a 503, not stored |
 
 A HEAD of an image is answered from the stored copy, or draws it once and stores it (see "The Worker entry"). The data comes through the same clients as the page: `describe` (title, result, sentence, flow) and `headlineAmount` for a transaction
 (`transactionFacts` in `app/server/card-data.ts`; the balance changes, objects touched and raw JSON the page also works out are not),
-`ledgerPage` for a ledger, `activationOf` and the native balance of `/balances` for an account. `card-data.ts` makes plain data of it
+`ledgerPage` for a ledger, `activationOf` and the native balance of `/balances` for an account, D (`validatorCard`) for a validator and AD (`amendmentCard`) for an
+amendment. `card-data.ts` makes plain data of it
 (`CardData`, `app/og/types.ts`), `app/og/card.tsx` lays it out (the `LinkPreview` board: the accent bar, logo and pill of the network, the kind
 and result, the big line, the accounts, the footer) and `app/og/render.ts` draws it with `workers-og` (Satori and resvg-wasm).
 
@@ -1204,6 +1299,9 @@ for a 5xx, a missing manifest or asset, and an exception in such a context.
 | `live-home.spec.ts` | The `live` project of `playwright.config.ts`, which runs alone after the others (what the tests do to the fixture server would show in every page the Worker renders meanwhile; `--no-deps` runs it without them), one test at a time, each `test.slow()`. The fixture server says the newest XRPL ledger is the one before the recordings' newest, the home page is opened, and the fixture server goes back to the recordings: the new ledger appears without a reload (the document is the same; the browser asked only the explorer's own `.data` URL for the page's route), the new rows have `.is-entering` and the rows that were there were sent back to slide (a `MutationObserver` of the page records it, and the `animation-name` of each row and figure *as it was added*, so that the next beat is no race), the figures that changed ticked in; under `reducedMotion: "reduce"` nothing is transformed and the animation is the wash and the mark alone; nothing animates when the page is first opened; the pause button pauses and resumes (its label switches, it is not `aria-pressed`, the status line says what was done), is 44 px, and the choice survives a reload of the tab; the hero says the page waits while the mouse is over a table, and a real click on a spot of a table (which focuses its scroll region) does not leave the page held once the mouse has left; and when the Worker answers 503 the page is the page it was (no error screen), the hero says "Live updates paused, retrying…" after two refusals (the second 8 s after the first), and "Live updates reconnected" when the Worker answers again |
 | `network-live.spec.ts` | In the `live` project too (`*-live.spec.ts`, below). A card that cannot be loaded: `stats/type` of `?period=90d&in=usd` answers 503 (`unavailable()`), the card says "Couldn’t load transactions by type" in its place with a Retry, and after `fixtures.reset()` it is back by itself within 10 s (the hold, then a beat); `amm_volume` of `?period=7d&in=usd` has no route (`null`), the volume card says "AMM swaps couldn’t be loaded." with a Retry and the line comes back when the route does. The chain moves on (`xrplHomeOneLedgerBehind()`, then `fixtures.reset()`) under `?period=90d`: the new chip has `.is-entering`, the chips that were there get a transform, the validators card follows, the document is the same and the only request is `/xrpl/network.data?…&_routes=routes%2Fnet.network`; with `reducedMotion: "reduce"` there is no transform and the chip does not slide; nothing animates when the page is opened; the pause button pauses (the status line says so, the choice survives a reload) and resuming asks at once; a mouse over the strip says "Paused while you look at the ledgers" in the row and not in the status line; with the browser's `.data` requests answered 503 the page stays and says "Live updates paused, retrying…" after two refusals, and "reconnected" when they work; and with `xrplNextDay()` in (the newest ledger closed after midnight, so every call over a period has no answer) the window's words move on to Oct 18, and the AMM line and every card the page had stay (`keepLoaded`), for two beats, with nothing said |
 | `a11y.spec.ts` | See below |
+| `validators.spec.ts` | The validators list and a validator's page ("Validators and amendments"), every validator read from the pages (`test/e2e/validators-pages.ts`: `listedValidator`, and `withHistory`, the one validator whose older validations the fixtures hold, or against a real stack the list's first), so it runs against a real stack too: from the network page "All validators" lands on `/xrpl/validators?scope=all` and a first-seen key on its validator's page, in one document; the default list (the UNL, as many rows as the scope link counts, the live row, a canonical link, no `noindex`, the filters' search landmark); "All" is `?scope=all` with `noindex` and no canonical link, and Back restores the head; a search through the form with JavaScript goes straight to `?q=…` (no 3xx, and the page's `.data` asks for `q` alone) and without it the Worker's 302 tidies the empty fields the form sent; "Votes yes for" (`?amendment=`) and "Listed by" (`?publisher=…&amendment=…`, in the canonical order) on XRPL, then Clear filters back to the scope; no "Listed by" on Xahau; a row leads to its validator; the versions card's Table radio with JavaScript off; on a validator's page the copy buttons (the clipboard holds the master key, then the signing key, and the status says "Copied"), the agreement slider's arrow keys change `aria-valuetext`, Older (`?marker=`, no live row, `noindex`) and Newer, and the key in hex (from `decodeNodePublic`) lands on the base58 URL. With `VALIDATORS` in `E2E_FEATURES_OFF` these skip themselves and the off-case runs: the four pages are 404s, "All validators" is "soon" and the five keys are text |
+| `amendments.spec.ts` | The amendments list and an amendment's page, the amendment read from the list (an amendment with a majority: what needs one skips itself on a stack that has none): the status chips (a chip is `?status=…`, `noindex`, its rows its count; All is the default view and its canonical link); the line of an amendment activating soon leads to its page; on the yes-votes chart the arrows move a flag ledger and Page Down and Page Up the rounds of a day (`pageStep`; the slider's dates a day apart) and the Table radio shows the changes-only table; the other validators' disclosure; the ID in lower case lands on the name's URL; a ledger link and an EnableAmendment link of the history land on `/{net}/ledger/{n}` and `/{net}/tx/{hash}` (under the fixtures those are made up, so the explorer's not-found page of the kind answers: the link is what is checked); the countdowns are the absolute time with JavaScript off (nothing says "in …") and tick with it on (a browser clock installed half an hour and half a minute before the moment: "in 31 min", a minute later "in 30 min", then past it) |
+| `validators-live.spec.ts` | The `live` project (`*-live.spec.ts`). Each test opens its page once a render of it is of the recordings' newest ledger (its `anchor` in the HTML): `network-live.spec.ts`, just before, moves the chain a day on, the Worker keeps `last_validated` 2 s, and a page whose anchor is ahead refuses every beat after it (an older ledger). With `/v2/network/amendments` answering 503 before the list loads, "Votes yes for" is missing (the rest of the page is there, nothing is an alert) and comes by itself within the hold and a beat once the answer is back; an open list whose beat then fails keeps its select (`keepLoaded`): the Worker keeps the amendments 60 s and the list is served stale for 35 s, so this test waits for a beat answered `no-store` (degraded), up to about 100 s, and the test before it is the first of the project to ask for the amendments. A validator's page whose newest validation the fixture server held back gets it without a reload: the row enters with `.is-entering`, the rows that were there slide, the document is the same and the only request is the route's `.data`; with `reducedMotion: "reduce"` nothing slides; the pause button (the choice survives a reload, resuming asks at once); a mouse over the validations holds the page and says so in the row; with the browser's `.data` answered 503 the page stays and says "Live updates paused, retrying…" after two refusals, then "reconnected". Last, the accessibility gate on a validator's page whose validations failed (a card with its error and Retry), at both widths in the two system themes: `a11y.spec.ts`'s page with a failed card, here because it fails a call of the fixture server |
 
 **Changing what the fixture server answers.** `test/e2e/fixture-control.ts` puts answers into the fixture server from the tests' process (`fixtures.override`, a JSON object of override keys, each `GET /v2/…` with the query sorted by name; one `PUT` replaces the overrides before it; `fixtures.reset` goes back to the recordings). JSON cannot carry a failing `Response`, so an error is written `unavailable()` (`{ $error: { status: 503, message: "unavailable" } }`) and the control path turns it into the data API's own error answer (`test/support/fixture-server.ts`); `null` is the API's "Cannot GET" 404. `xrplHomeOneLedgerBehind()` says the chain is one ledger behind the recordings (the home page's and the network page's tests move it on), and `xrplNextDay()` says the newest ledger closed after midnight UTC, so that no call over a period has a fixture. A change shows in every page the Worker renders meanwhile, so the specs that make one are the `live` project's (`LIVE_SPECS` in `playwright.config.ts`: `live-home.spec.ts` and every `*-live.spec.ts`, so a later plan's needs no edit there), which runs alone after the `chromium` project and with **one worker**, across its files as well as in each (`fullyParallel: false` only keeps the tests of a file together; two files would otherwise put their overrides over each other's). The Worker keeps a period's answers for 300 s, so a test that takes one away has to be the first of the run to ask for it: `network-live.spec.ts` uses views no other spec opens (`?period=90d&in=usd`, `?period=7d&in=usd`, every 90-day view), in the order that keeps it so. The one spec of the `chromium` project that fails a call, `a11y.spec.ts`, fails `stats/type` of `?period=7d`, which nothing else asks for, in a group of four tests that run in one worker, and takes the override away after them.
 
@@ -1233,6 +1331,14 @@ transactions, and the network page in a year in USD, on Xahau, with every Table 
 the two system themes, and the network page with a card that failed (`stats/type` of the 7 days, failed through the fixture server) in the two system themes at both widths. The first contrast check of the header's current item (`.is-current`: `--fg` on `--sunken`) is the network page's. A separate test runs axe's `landmark-unique` (a best practice, so outside the WCAG tags) on the main pages, and another the rules
 about ARIA attributes with "needs review" results counted as failures (axe reports a name on an element that cannot have one that way, so the gate
 above does not see it).
+
+The validators and amendments pages have their own block (the spec's "Accessibility"): the list, a verified UNL validator, the amendments list and the amendment
+with a majority in the whole matrix, and twelve more views in the two system themes at both widths (Xahau's list and amendments, a search with no match, a validator with
+no domain, a page of older validations, an enabled amendment and one of no known name, every Table radio checked on the list, a validator and the amendment, the yes votes'
+slider focused with its tooltip, the other validators' votes open), each validator and amendment read from the pages; at 375 px each of them is also checked not to scroll
+sideways (the tables and the 30-day charts scroll inside their cards), and `landmark-unique` runs on the four, the filter form's search landmark beside the header's. Links
+inside a sentence there are underlined (the toml link of a validator's note, "Clear filters" after "No validators match these filters."): in dark mode the link colour is
+too close to the text's for axe's `link-in-text-block`. Their page with a card that failed is in `validators-live.spec.ts`.
 
 ## The client bundle check
 
@@ -1361,6 +1467,43 @@ where the real page will. Measured and not taken (every page's figure at `3d4986
   more on the search and not-found pages, and the rule would have to know the gate's pages;
 - `routeDiscovery: { mode: "lazy" }`: the figures do not move. The build still writes `assets/manifest-*.js` and the check counts it; the browser would
   not load it first (the matched routes come in the HTML), but would ask `/__manifest` for the rest, the Worker invocations the setting avoids.
+
+**The figures of E6** (the validators, validator, amendments and amendment pages; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, the
+manifest included). *Before* is `b327802`, the commit E6 started from (rebuilt and measured again for this table: the same figures to the byte); *after* is the end of
+E6. Besides its four routes E6 carries E4's chart-kit commits `89ef591` and `c15dba2`, cherry-picked (`extras`, the month axis and the value kind: about +400 bytes on the
+network page), and the bundle fixes of `17c75eb` (`sharePercent` and `wholePercent` in `app/domain/percent.ts`, `queryOf` in `app/domain/query-of.ts`: modules the shell
+does not load, 77 to 293 bytes off each page). For E6 the one bar is the budget, **150,000 bytes per page with the manifest counted**: E2's target of 145,000 and its
+`CursorSlot` fallback do not apply (the fallback was measured heavier, above), and a page over the budget stops the work.
+
+| | Before (`b327802`) | After | Change |
+|---|---|---|---|
+| home | 134,172 | 135,043 | +871 |
+| ledger | 133,272 | 134,604 | +1,332 |
+| transaction | 135,529 | 136,858 | +1,329 |
+| account | 136,387 | 138,100 | +1,713 |
+| network | 145,419 | **149,144** | +3,725 (856 under the budget) |
+| markets | 133,001 | 134,086 | +1,085 |
+| validators | | 148,656 | (1,344 under) |
+| validator | | 148,545 | (1,455 under) |
+| amendments | | 139,123 | |
+| amendment | | 147,014 | |
+| manifest, the check's `gzipSync` (no file name) | 1,027 | 1,488 | +461, 14 routes to 18 |
+| manifest, `gzip -9 -c build/client/assets/manifest-*.js \| wc -c` | 1,053 | 1,516 | +463 |
+| shared base (the 7 files every page loads, the manifest not counted) | 126,376 | 126,501 | +125 |
+| the home figure less its route chunk and the manifest | 130,899 | 131,296 | +397 |
+
+- **The manifest** grew 461 bytes for the four routes, about 115 a route, above E2's projection of 90 to 95: each lists the chunks it imports, and the four list 14 to
+  21 (the network route 18, the ledger route 14). A route costs every page about 0.1 KB.
+- **The shared base** (the entry, the runtime, `vendor`, the root, `shell`, the `/:net` layout and `DataTable`) grew 125 bytes: the shell chunk +123, `vendor` +4, the
+  entry and the layout −1 each. Every helper only E6's pages use is out of it (`time-words.ts`, `percent.ts`, `query-of.ts`, `status-icons.tsx`, not `format.ts` or the header's `icons.tsx`;
+  `test/unit/validators-bundle.test.ts` keeps the four pages' browser files off `app/server` and the address codec, and `charts-bundle.test.ts` the kit's imports to its
+  allow-list).
+- **The network page** grew 3,725 bytes over E6: the manifest's 461, E4's kit commits (about 400), the flag axis' labels (83), its five first-seen links (25, the last
+  commit), and the rest the re-splitting of the kit's and the components' chunks each new route causes (Rolldown makes one chunk for each set of pages that load a module;
+  "The shell and vendor chunks" above), close to the projection of 149,108 for four routes. It is the heaviest page, 856 bytes under the budget.
+- **The other older pages** grew 871 to 1,713 bytes, of which 461 is the manifest and the rest the same re-splitting; none of them loads a module of E6's pages.
+- **The four new pages** stand between 139,123 (the amendments list, with no chart) and 148,656 (the validators list: the share bar, the meter's geometry, the table, the
+  filter form and its builder of hrefs).
 
 ## The parsing libraries in the Workers runtime
 
@@ -1497,6 +1640,22 @@ staging before production:
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
 - [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: the network page and every other page are under 150,000 bytes with the manifest counted, and the manifest's
   size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
+- [ ] **The validators and amendments pages, against the staging stack** ("Validators and amendments"), once `VALIDATORS` is `"on"` for staging (D1 has served staging on
+  both networks for two hours): `/xrpl/validators` and `/xahau/validators` in their views, a validator of each network (its validations follow the chain; Older and Newer),
+  `/xrpl/amendments` and `/xahau/amendments`, an amendment of each (one with a majority where there is one), and the images of a validator and of an amendment
+  (`/og/xrpl/validator/{key}.png`, `/og/xrpl/amendment/{name}.png`, 1200 × 630, class `slow`). Every card has data or its own error, and `validators.spec.ts`,
+  `amendments.spec.ts` and the block of `a11y.spec.ts` pass against the staging stack (`E2E_DATA_API_URL=…`); before the switch is on, they pass with `VALIDATORS` in
+  `E2E_FEATURES_OFF` (the off-case: the four pages are 404s, "All validators" is "soon").
+- [ ] **The validators pages' failure hold, in `wrangler tail`.** With one of their cards failing (S, A or a validator's VV refused), `wrangler tail --env staging --format json`
+  shows one failing call per 5 s per Worker instance for as long as the card fails, not one per beat of every open tab, and the card comes back by itself within the hold
+  and a beat.
+- [ ] **One L request per 10 s per instance, whatever the filters.** Open the validators list in several views at once (`?scope=all`, `?q=…`, `?publisher=…`, `?amendment=…`)
+  in a few tabs: `wrangler tail` and the data API's log show `/v2/network/validators?limit=1000&scope=all` at most once per 10 s per Worker instance.
+- [ ] **A page answered 503, not stored, against an API without D1.** A staging Worker with `VALIDATORS` `"on"` in front of a data API that has no D1 routes (before D1's
+  deploy, or a stack without it): the validators list, a validator, the amendments list, an amendment and both images answer 503 (a `Cannot GET` is an outage), a second
+  request is not an `X-Cache: HIT`, and the pages come right with no deploy of the explorer once D1 answers.
+- [ ] **The four bundle figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the validators, validator, amendments and amendment pages under 150,000
+  bytes with the manifest counted (148,656, 148,545, 139,123 and 147,014 at E6), and the network page (149,144 at E6), written down beside "The client bundle check".
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

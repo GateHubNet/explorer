@@ -454,7 +454,7 @@ function networkAt(index: number, over: Partial<NetworkLoaderData> = {}, build =
       state: "ok",
       ledger: { index, hash: "AB".repeat(32) },
       count: "35",
-      first: [{ key: "nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p", short: "nHUFE9prPX…a3p", delay: "+0 ms" }],
+      first: [{ key: "nHUFE9prPXPrHcG3SkwP1UzAQbSphqyQkQK9ATXLZsfkezhhda3p", short: "nHUFE9prPX…a3p", delay: "+0 ms", href: null }],
       href: null,
     },
     types: { state: "ok", chart: NETWORK_TYPES, note: "Other is every other type." },

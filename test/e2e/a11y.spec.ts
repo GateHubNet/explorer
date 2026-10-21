@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import { fixtures, unavailable } from "./fixture-control";
 import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_ACCOUNT, XAHAU_LEDGER, XRPL_ACCOUNT, XRPL_HEAD_LEDGER, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
 import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
+import { listedAmendment, listedValidator, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
 // ledger, transaction, account, network and 404 pages, in light and in dark, on a desktop and on a 375 px phone. Dark is reached both ways it
@@ -249,4 +250,132 @@ test.describe("a network page with a card that failed", () => {
       });
     }
   }
+});
+
+// ---- The validators and amendments pages ------------------------------------------------------------------------------------------------------
+// Their spec's "Accessibility": the four XRPL pages at both widths in the four settings, and more of them in the two system themes (Xahau, a search
+// with no match, a validator with no domain, a page of older validations, an enabled and an unknown amendment, every table view, the yes votes'
+// slider with its tooltip, the other validators' votes open). The validators and amendments are read from the pages (`path` is then a function of
+// the page; `null` where the stack under test has none). At 375 px no page scrolls sideways: the tables and the 30-day charts scroll inside their
+// cards. The page with a card that failed is validators-live.spec.ts's: it fails a call of the fixture server, which only the `live` project does.
+// Where E2E_FEATURES_OFF lists VALIDATORS, the pages are not there and the block skips itself.
+
+interface ValidatorsPageUnderTest extends Omit<PageUnderTest, "path"> {
+  path: string | ((page: Page) => Promise<string | null>);
+}
+
+const slidersReady = async (page: Page) => void (await expect(page.getByRole("slider").first()).toBeAttached());
+const validatorsListReady = async (page: Page) => {
+  await visible("Validators")(page);
+  await slidersReady(page);
+};
+const validatorReady = async (page: Page) => {
+  await visible("Recent validations")(page);
+  await slidersReady(page);
+};
+const amendmentReady = async (page: Page) => {
+  await visible("Votes of the UNL validators")(page);
+  await slidersReady(page);
+};
+const checkEveryTable = async (page: Page) => {
+  for (const radio of await page.getByRole("radio", { name: "Table" }).all()) await radio.check();
+  await expect(page.locator(".chart__table").first()).toBeVisible();
+};
+
+const VERIFIED_VALIDATOR = async (page: Page) => (await listedValidator(page, "verified")).href;
+const MAJORITY_AMENDMENT = async (page: Page) => (await listedAmendment(page, "majority"))?.href ?? null;
+
+const VALIDATORS_MAIN: ValidatorsPageUnderTest[] = [
+  { name: "validators", path: "/xrpl/validators", ready: validatorsListReady },
+  { name: "a verified UNL validator", path: VERIFIED_VALIDATOR, ready: validatorReady },
+  { name: "amendments", path: "/xrpl/amendments", ready: visible("Amendments") },
+  { name: "the amendment with a majority", path: MAJORITY_AMENDMENT, ready: amendmentReady },
+];
+
+const VALIDATORS_MORE: ValidatorsPageUnderTest[] = [
+  { name: "Xahau validators", path: "/xahau/validators", ready: validatorsListReady },
+  {
+    name: "validators, all, a search with no match",
+    path: "/xrpl/validators?scope=all&q=no-such-validator",
+    ready: async (page) => void (await expect(page.getByText("No validators match these filters.")).toBeVisible()),
+  },
+  // The first with no domain is one the data API has never seen: no day of agreement, so no chart.
+  { name: "a validator with no domain", path: async (page) => (await listedValidator(page, "no domain")).href, ready: visible("Recent validations") },
+  {
+    name: "a validator's older validations",
+    path: async (page) => {
+      await page.goto(`/xrpl/validators/${await withHistory(page)}`);
+      return page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).getAttribute("href");
+    },
+    ready: visible("Recent validations"),
+  },
+  { name: "Xahau amendments", path: "/xahau/amendments", ready: visible("Amendments") },
+  { name: "an enabled amendment", path: async (page) => (await listedAmendment(page, "enabled"))?.href ?? null, ready: visible("Votes of the UNL validators") },
+  { name: "an amendment of no known name", path: async (page) => (await listedAmendment(page, "unknown"))?.href ?? null, ready: visible("Votes of the UNL validators") },
+  { name: "validators, every table view", path: "/xrpl/validators", ready: validatorsListReady, act: checkEveryTable },
+  { name: "a validator, every table view", path: VERIFIED_VALIDATOR, ready: validatorReady, act: checkEveryTable },
+  { name: "the amendment, every table view", path: MAJORITY_AMENDMENT, ready: amendmentReady, act: checkEveryTable },
+  {
+    name: "the amendment, its slider focused",
+    path: MAJORITY_AMENDMENT,
+    ready: amendmentReady,
+    act: async (page) => {
+      await page.getByRole("slider").first().focus();
+      await expect(page.locator(".plot__tip").first()).toBeVisible();
+    },
+  },
+  {
+    name: "the amendment, the other validators' votes open",
+    path: MAJORITY_AMENDMENT,
+    ready: amendmentReady,
+    act: async (page) => {
+      await page.locator("details.amendment__others summary").click();
+      await expect(page.getByRole("table", { name: "Votes of other validators" })).toBeVisible();
+    },
+  },
+];
+
+/** The page's path, read from the stack's pages where it is a function; the test is skipped where the stack has no such page. */
+async function pathOf(page: Page, under: ValidatorsPageUnderTest): Promise<PageUnderTest> {
+  const path = typeof under.path === "string" ? under.path : await under.path(page);
+  test.skip(path === null, `the stack under test has no page for "${under.name}"`);
+  return { ...under, path: path! };
+}
+
+/** How far the page scrolls sideways: none, at any width (the tables and charts scroll inside their cards). */
+const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+test.describe("the validators and amendments pages", () => {
+  test.skip(VALIDATORS_OFF, SKIP_OFF);
+
+  for (const viewport of VIEWPORTS) {
+    test.describe(`axe at ${viewport.name}`, () => {
+      for (const setting of SETTINGS) {
+        test.describe(`${setting.name}`, () => {
+          test.use({ viewport: viewport.size, colorScheme: setting.system });
+          for (const under of [...VALIDATORS_MAIN, ...(setting.toggle === undefined ? VALIDATORS_MORE : [])]) {
+            test(`${under.name} has no serious or critical violation${viewport.size.width === 375 ? ", and does not scroll sideways" : ""}`, async ({ page }) => {
+              await open(page, await pathOf(page, under), setting);
+              expect(await seriousViolations(page)).toEqual([]);
+              if (viewport.size.width === 375) expect(await sideways(page)).toBeLessThanOrEqual(0);
+            });
+          }
+        });
+      }
+    });
+  }
+
+  // The filter form is a search landmark of its own ("Filter validators"), beside the header's.
+  test.describe("landmarks", () => {
+    for (const under of VALIDATORS_MAIN) {
+      test(`${under.name} has no two landmarks of one role and name`, async ({ page }) => {
+        const resolved = await pathOf(page, under);
+        await page.goto(resolved.path);
+        await hydrated(page);
+        await resolved.ready(page);
+        const results = await new AxeBuilder({ page }).withRules(["landmark-unique"]).analyze();
+        expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(" | ")}`)).toEqual([]);
+      });
+    }
+  });
 });

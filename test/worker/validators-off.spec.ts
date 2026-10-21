@@ -6,7 +6,8 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 // The validators pages with every switch "off" (the `worker-off` project, README "Switches"): `VALIDATORS` is page-level, so every view of the
 // list, every validator and every view of the amendments is the not-found page, a 404 of class `short` made before any call (the query and the key are
 // not even read: no redirect either), and so is the image of a validator and of an amendment. The `worker` project's cases are validators-page.spec.ts, validators-page-failures.spec.ts, validator-page.spec.ts,
-// amendments-page.spec.ts and amendment-page.spec.ts.
+// amendments-page.spec.ts and amendment-page.spec.ts. Nothing links to them either: the network page's "All validators" is "soon" and its five first-seen
+// keys are text (the last case here; with the switch on they are links, network-view.test.ts and NetworkPage.test.tsx).
 
 const { get, storedAs } = pageClient("198.51.111");
 
@@ -121,5 +122,26 @@ describe("the images of a validator and an amendment with VALIDATORS off", () =>
     expect(body).toContain("There is no such image.");
     expect(mock.requests).toEqual([]);
     expect(await storedAs(path)).toEqual({ cls: "short", ttl: 30 });
+  });
+});
+
+describe("the network page with VALIDATORS off", () => {
+  it("draws its five first-seen keys as text and 'All validators' in the header's 'soon' style: nothing links to the validators pages", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get("/xrpl/network");
+    const html = await response.text();
+    expect(response.status, html.slice(0, 400)).toBe(200);
+
+    const first = /<div class="network__first">([\s\S]*?)<\/ol>/.exec(html)?.[1];
+    expect(first, "the network page lists the first-seen validators").toBeDefined();
+    const keys = [...first!.matchAll(/<li[^>]*>(<[^>]+>)([^<]*)</g)].map((match) => [match[1], match[2]]);
+    expect(keys).toHaveLength(5);
+    for (const [tag, short] of keys) {
+      expect(tag).toBe('<span class="mono">');
+      expect(short).toMatch(/^n[1-9A-HJ-NP-Za-km-z]{9}…[1-9A-HJ-NP-Za-km-z]{3}$/);
+    }
+    expect(first).not.toContain("<a ");
+    expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true">All validators <span class="soon">soon</span></span>');
+    expect(html).not.toMatch(/href="\/xrpl\/validators/);
   });
 });

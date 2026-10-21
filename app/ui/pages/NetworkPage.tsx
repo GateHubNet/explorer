@@ -305,7 +305,8 @@ function CurrenciesCard({ data, onRetry }: { data: NetworkPageData; onRetry: () 
 /**
  * How many validators signed the newest ledger, and the five that were first. The count, the ledger and the list tick in when the ledger
  * does (the list is one figure, keyed by the ledger's hash). "All validators" is a link while the page is given where it leads, and the
- * header's "soon" style while it is not (`href` comes from the view builder, which reads the switch).
+ * header's "soon" style while it is not; each of the five keys is a link to its validator's page, or text (`href` comes from the view
+ * builder, which reads the switch).
  */
 function ValidatorsCard({ net, part, onRetry }: { net: Net; part: NetworkPageData["validators"]; onRetry: () => void }) {
   const titleId = useId();
@@ -337,7 +338,13 @@ function ValidatorsCard({ net, part, onRetry }: { net: Net; part: NetworkPageDat
                 <ol>
                   {part.first.map((validator) => (
                     <li key={validator.key}>
-                      <span className="mono">{validator.short}</span>
+                      {validator.href !== null ? (
+                        <Link to={validator.href} className="mono">
+                          {validator.short}
+                        </Link>
+                      ) : (
+                        <span className="mono">{validator.short}</span>
+                      )}
                       <span>{validator.delay}</span>
                     </li>
                   ))}
