@@ -21,10 +21,9 @@ import { sharePercent } from "../domain/percent";
 import { pendingNote, utcDayOf, windowOf } from "../domain/window";
 import type { BarListData, TimeSeriesData } from "../ui/charts/types";
 import { isNative } from "./account-view";
-import { isNumberText } from "./aggregate-shape";
 import { anchorOrThrow } from "./anchor";
 import type { AmmBid, AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmSwap, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "./api-types";
-import { feePercent, ratioOf } from "./exact";
+import { decimalOf, feePercent, ratioOf } from "./exact";
 import { issuersOf } from "./markets-view";
 import { byDay, volumeOf } from "./network-view";
 import type { Network } from "./networks";
@@ -63,8 +62,10 @@ export function displayPair(storedBase: Asset, storedCounter: Asset, native: Nat
   return { first: base, second: counter, flipped: inverted, text: codes.join(" / "), slug: codes.join("/") };
 }
 
-// A fee in units of 1/100000 as a percent with three decimals (`205` is `0.205%`, the ledger's largest, `1000`, `1.000%`) is `exact.ts`'s, which the pair page's pool card
-// writes its fee with too; the AMM builders import it from here.
+/**
+ * A fee in units of 1/100000 (the ledger's, the node's and the data API's) as a percent with three decimals: `205` is `0.205%`, `1000` (the largest) is `1.000%`. It is
+ * written once, in exact.ts, where the pair page's pool card gets it too, and is re-exported here for the AMM builders.
+ */
 export { feePercent };
 
 // ---- The data of the list ---------------------------------------------------------------------------------------------------------------------
@@ -408,9 +409,6 @@ export function noAmmPage(net: Pick<Network, "id" | "features">): NoAmmPageData 
 
 // ---- The pool's figures -----------------------------------------------------------------------------------------------------------------------
 
-/** A number as the API or the node writes it (a decimal, or one in exponent form), exactly; `null` for anything else, which `BigNumber` would partly read. */
-const decimalOf = (text: string | undefined): BigNumber | null => (isNumberText(text) ? new BigNumber(text) : null);
-
 /**
  * `numerator ÷ denominator` to 8 significant digits, half up, as plain decimal text with no trailing zeros and no exponent, whatever the size of the amounts (E3's
  * `ratioOf`, which divides on the amounts scaled into [1, 10) at 80 places). `null` for a zero or a missing divisor, and for what is not a number.
@@ -440,13 +438,16 @@ const BID_ARITHMETIC = BigNumber.clone({ DECIMAL_PLACES: 200, ROUNDING_MODE: Big
  *   interval 0:                                        price × 1.05 + min
  *   interval n (1 to 19):                              price × 1.05 × (1 − ((n + 1) / 20)^60) + min
  *
- * `"0"` where nothing is to pay (a fee of 0, an empty pool) and where the cost cannot be worked out (an amount that is no number): the caller leaves the sentence
- * out, so that a figure that is not known is never stated.
+ * `"0"` where nothing is to pay (a fee of 0, an empty pool) and where the cost cannot be worked out (an amount that is no number, or an interval that is not a whole
+ * number from 0 to 20): the caller leaves the sentence out, so that a figure that is not known is never stated.
  */
 export function nextBidPrice(lpSupply: string, tradingFee: number, slot: { price: string; interval: number } | null): string {
   const supply = decimalOf(lpSupply);
   if (supply === null || !Number.isFinite(tradingFee)) return "0";
   const min = new BID_ARITHMETIC(supply).times(tradingFee).div(TRADING_FEE_SCALE).div(MIN_FEE_FRACTION);
+
+  // The node's `time_interval` is a whole number from 0 to 20; anything else is not an interval of a slot, and the formula has no meaning for it.
+  if (slot !== null && !(Number.isInteger(slot.interval) && slot.interval >= 0 && slot.interval <= AUCTION_INTERVALS)) return "0";
 
   let cost = min;
   if (slot !== null && slot.interval < AUCTION_INTERVALS) {
@@ -527,12 +528,16 @@ export interface SwapRow {
   taker: AccountRef;
 }
 
-/** Whether the first side of the display pair is the row's counter, from the assets the row names (a row is in the pool's stored pair); the pair's own say where they match neither. */
+/**
+ * Whether the first side of the display pair is the row's counter, from the assets the row names (a row is in the pool's stored pair). A row that names one side only is
+ * read from that side: its base being the pair's second, or its counter the pair's first, means flipped; the base being the first, or the counter the second, means
+ * not. The pair's own `flipped` is for a row that names neither side, or whose two sides disagree.
+ */
 function swapIsFlipped(row: AmmSwap, pair: DisplayPair): boolean {
   const [base, counter] = [assetOf(row.base_currency, row.base_issuer), assetOf(row.counter_currency, row.counter_issuer)];
-  if (sameAsset(base, pair.second) && sameAsset(counter, pair.first)) return true;
-  if (sameAsset(base, pair.first) && sameAsset(counter, pair.second)) return false;
-  return pair.flipped;
+  const flipped = sameAsset(base, pair.second) || sameAsset(counter, pair.first);
+  const straight = sameAsset(base, pair.first) || sameAsset(counter, pair.second);
+  return flipped === straight ? pair.flipped : flipped;
 }
 
 /**

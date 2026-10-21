@@ -1014,6 +1014,15 @@ describe("nextBidPrice", () => {
     expect(nextBidPrice("1000000", 500, { price: "100", interval: 20 })).toBe("200");
   });
 
+  it("is 0 for an interval that is not a whole number from 0 to 20: it is no interval of a slot", () => {
+    for (const interval of [-1, 0.5, 18.5, 21, 100, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(nextBidPrice("1000000", 500, { price: "100", interval }), String(interval)).toBe("0");
+    }
+    // The whole numbers at the edges are intervals.
+    expect(nextBidPrice("1000000", 500, { price: "100", interval: 0 })).toBe("305");
+    expect(nextBidPrice("1000000", 500, { price: "100", interval: 20 })).toBe("200");
+  });
+
   describe("against the recorded AMMBid (ledger 106084525)", () => {
     const BID = "2D66C6FD02977F96126FB352AAD691CA556790DBF71E0CDF3B701E18A49B9427";
     const RIPPLE_EPOCH_DAY = 86_400;
@@ -1182,6 +1191,46 @@ describe("swapRows", () => {
     expect(row).toMatchObject({ direction: "XRP → RLUSD", into: "+512.4 XRP", out: "−1,250 RLUSD" });
   });
 
+  /** A swap of the pool between two assets (nothing is left of the sample's own issuer): the base went out of the pool, 100 of it, for 50 of the counter. */
+  const swapBetween = (base: Asset, counter: Asset): AmmSwap => {
+    const { base_issuer: _base, counter_issuer: _counter, ...sample } = ammSwapSample({ base_amount: "100", counter_amount: "50", seller: AMM_POOL });
+    return {
+      ...sample,
+      base_currency: base.currency,
+      ...(base.issuer ? { base_issuer: base.issuer } : {}),
+      counter_currency: counter.currency,
+      ...(counter.issuer ? { counter_issuer: counter.issuer } : {}),
+    };
+  };
+
+  it("reads a row that names one side only from that side, whatever the pair says of itself", () => {
+    // XRP / RLUSD, stored RLUSD / XRP: the first column is XRP. A row whose base is RLUSD (the second) or whose counter is XRP (the first) is stored flipped; a row
+    // whose base is XRP or whose counter is RLUSD is not. The other side is an asset the pair does not hold, so only one side can decide.
+    const eur: Asset = { currency: "EUR", issuer: AMM_OTHER };
+    const cases: { name: string; row: AmmSwap; flipped: boolean }[] = [
+      { name: "base is the second", row: swapBetween(rlusd, eur), flipped: true },
+      { name: "counter is the first", row: swapBetween(eur, xrp), flipped: true },
+      { name: "base is the first", row: swapBetween(xrp, eur), flipped: false },
+      { name: "counter is the second", row: swapBetween(eur, rlusd), flipped: false },
+    ];
+    for (const { name, row, flipped } of cases) {
+      // The base (100) went out of the pool. Flipped: the first column (XRP) is the counter, so the 50 went in as XRP and the 100 came out as RLUSD.
+      const expected = flipped
+        ? { direction: "XRP → RLUSD", into: "+50 XRP", out: "−100 RLUSD" }
+        : { direction: "RLUSD → XRP", into: "+50 RLUSD", out: "−100 XRP" };
+      // The pair's own flag is set both ways: the row decides.
+      expect(swapRows([row], { ...pair, flipped: true }, "xrpl")[0], `${name}, pair says flipped`).toMatchObject(expected);
+      expect(swapRows([row], { ...pair, flipped: false }, "xrpl")[0], `${name}, pair says straight`).toMatchObject(expected);
+    }
+  });
+
+  it("takes the pair's own order for a row whose two sides disagree", () => {
+    // The base is the first side and the counter is the first side too: neither can be trusted over the other.
+    const odd = swapBetween(xrp, xrp);
+    expect(swapRows([odd], { ...pair, flipped: true }, "xrpl")[0]).toMatchObject({ direction: "XRP → RLUSD" });
+    expect(swapRows([odd], { ...pair, flipped: false }, "xrpl")[0]).toMatchObject({ direction: "RLUSD → XRP" });
+  });
+
   it("takes the pair's own order for a row that names neither of its sides", () => {
     // A row of another pair (the caller's mistake) is still a row: the stored order the caller gave decides, and nothing throws.
     const other = ammSwapSample({ base_currency: "EUR", base_issuer: AMM_OTHER, counter_currency: "USD", counter_issuer: AMM_ISSUER, base_amount: "100", counter_amount: "50", seller: AMM_POOL });
@@ -1200,6 +1249,46 @@ describe("swapRows", () => {
     );
     expect(row).toMatchObject({ direction: "XRP → 564F58F0…", into: "+0.00000001250946 XRP", out: "−2,500,000,000 564F58F0…" });
     expect(withoutHashes(JSON.stringify(row))).not.toMatch(EXPONENT);
+  });
+
+  describe("at the extremes of an amount (1e+30 and 1e-30), through the whole path", () => {
+    const HUGE = `1${",000".repeat(10)}`; // 1e+30, grouped
+    const TINY = `0.${"0".repeat(29)}1`; // 1e-30
+    const price = (exponent: number) => (exponent > 0 ? `1${",000".repeat(exponent / 3)}` : `0.${"0".repeat(-exponent - 1)}1`);
+    const rowOf = (over: Partial<AmmSwap>): AmmSwap => ammSwapSample({ base_currency: RLUSD, base_issuer: RL, counter_currency: "XRP", ...over });
+
+    it("shows a huge RLUSD amount against a tiny XRP amount in plain digits, the price a huge RLUSD per XRP, both directions", () => {
+      const amounts = { base_amount: "1e+30", counter_amount: "1e-30" };
+      const [poolSells, poolBuys] = swapRows([rowOf({ ...amounts, seller: AMM_POOL, buyer: AMM_ACCOUNT }), rowOf({ ...amounts, buyer: AMM_POOL, seller: AMM_ACCOUNT })], pair, "xrpl");
+      // RLUSD / XRP = 1e60 RLUSD per XRP.
+      expect(poolSells).toMatchObject({ direction: "XRP → RLUSD", into: `+${TINY} XRP`, out: `−${HUGE} RLUSD`, price: price(60) });
+      expect(poolBuys).toMatchObject({ direction: "RLUSD → XRP", into: `+${HUGE} RLUSD`, out: `−${TINY} XRP`, price: price(60) });
+    });
+
+    it("shows a tiny RLUSD amount against a huge XRP amount in plain digits, the price a tiny RLUSD per XRP, both directions", () => {
+      const amounts = { base_amount: "1e-30", counter_amount: "1e+30" };
+      const [poolSells, poolBuys] = swapRows([rowOf({ ...amounts, seller: AMM_POOL, buyer: AMM_ACCOUNT }), rowOf({ ...amounts, buyer: AMM_POOL, seller: AMM_ACCOUNT })], pair, "xrpl");
+      expect(poolSells).toMatchObject({ direction: "XRP → RLUSD", into: `+${HUGE} XRP`, out: `−${TINY} RLUSD`, price: price(-60) });
+      expect(poolBuys).toMatchObject({ direction: "RLUSD → XRP", into: `+${TINY} RLUSD`, out: `−${HUGE} XRP`, price: price(-60) });
+    });
+
+    it("keeps the orientation for a pool shown the way it is stored: the counter per the base", () => {
+      const eur = displayPair({ currency: "EUR", issuer: AMM_OTHER }, { currency: "USD", issuer: AMM_ISSUER }, "XRP");
+      const row = ammSwapSample({ base_currency: "EUR", base_issuer: AMM_OTHER, counter_currency: "USD", counter_issuer: AMM_ISSUER, base_amount: "1e+30", counter_amount: "1e-30" });
+      // USD / EUR = 1e-60 USD per EUR.
+      expect(swapRows([{ ...row, seller: AMM_POOL }], eur, "xrpl")[0]).toMatchObject({ direction: "USD → EUR", into: `+${TINY} USD`, out: `−${HUGE} EUR`, price: price(-60) });
+    });
+
+    it("writes no exponent in any row of the extremes", () => {
+      const rows = swapRows(
+        [rowOf({ base_amount: "1e+30", counter_amount: "1e-30" }), rowOf({ base_amount: "1e-30", counter_amount: "1e+30", seller: AMM_POOL }), rowOf({ base_amount: "9.999999999999999e+95", counter_amount: "1e-81" })],
+        pair,
+        "xrpl",
+      );
+      expect(withoutHashes(JSON.stringify(rows))).not.toMatch(EXPONENT);
+      // The limits of a ledger amount: 9.999999999999999e95 per 1e-81 is 1e177 (to 8 digits), and keeps its digits.
+      expect(rows[2]!.price).toBe(price(177));
+    });
   });
 
   it("has a dash for a price it cannot work out, and for an amount that is no number", () => {

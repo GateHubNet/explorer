@@ -33,7 +33,7 @@ import type { Loaded } from "./account-view";
 import { isNumberText } from "./aggregate-shape";
 import type { Anchor } from "./anchor";
 import type { ActiveAccounts, Candle, Page, PairExchange, ReducedRow } from "./api-types";
-import { BN, feePercent, ratioOf } from "./exact";
+import { BN, decimalOf, feePercent, ratioOf } from "./exact";
 import type { Network } from "./networks";
 import type { AmmInfo, Book, BookOffer, NodeAmount } from "./node-rpc";
 
@@ -70,14 +70,6 @@ export interface BookParts {
   spread: string;
   /** `tokenOf` the levels (`asks` and `bids`) alone: the ledger and the spread are left out, so a book that has not changed keeps its token as the chain moves. */
   token: string;
-}
-
-/**
- * A number as text (the node's plain decimals, the API's decimal or exponent text): `isNumberText` is the guard before `bignumber.js`, which is strict
- * and throws on what is not a number. `null` where it is not one.
- */
-function decimalOf(text: string | undefined): BigNumber | null {
-  return isNumberText(text) ? new BN(text) : null;
 }
 
 /** The number of an amount the node wrote, or `null` where it is not one. */

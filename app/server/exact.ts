@@ -1,14 +1,24 @@
 // The exact arithmetic that the view builders share (spec 3.1: "Exact quotients, half up"): the percents, the price of a ratio of two amounts, a fee as a
-// percent. No builder has a copy of any of it that could drift. Pure: bignumber.js and `formatAmount`, no I/O, no clock, no `Intl`.
+// percent, the guard before a number. No builder has a copy of any of it that could drift. Pure: bignumber.js, `formatAmount` and the number guard, no I/O, no clock, no
+// `Intl`.
 
 import BigNumber from "bignumber.js";
 
 import { formatAmount } from "../domain/format";
+import { isNumberText } from "./aggregate-shape";
 
 const MINUS = "−";
 
 /** Eighty decimal places, half up: the arithmetic of every view builder that divides. */
 export const BN = BigNumber.clone({ DECIMAL_PLACES: 80, ROUNDING_MODE: BigNumber.ROUND_HALF_UP });
+
+/**
+ * A number as the API or the node wrote it (a decimal, or one in exponent form: `isNumberText`) at the arithmetic of `BN`, or `null` where it is not one. The text is
+ * tested first: bignumber.js is strict, so `new BigNumber("abc")` throws instead of giving NaN.
+ */
+export function decimalOf(text: string | undefined): BigNumber | null {
+  return isNumberText(text) ? new BN(text) : null;
+}
 
 /** `n ÷ d` (d above 0) to `places` decimals, half away from zero, exactly: BigNumber's own division rounds at 20 places before we round. */
 export function divided(n: BigNumber, d: BigNumber, places: number): BigNumber {

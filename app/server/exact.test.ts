@@ -1,7 +1,7 @@
 import BigNumber from "bignumber.js";
 import { describe, expect, it } from "vitest";
 
-import { divided, feePercent, percentText, ratioOf } from "./exact";
+import { BN, decimalOf, divided, feePercent, percentText, ratioOf } from "./exact";
 
 const n = (value: string) => new BigNumber(value);
 
@@ -81,5 +81,28 @@ describe("feePercent", () => {
     expect(feePercent(0)).toBe("0.000%");
     expect(feePercent(1000)).toBe("1.000%");
     expect(feePercent(1)).toBe("0.001%");
+  });
+});
+
+describe("decimalOf", () => {
+  it("reads a decimal, and the exponent text the API writes, exactly", () => {
+    expect(decimalOf("1250.50")?.toFixed()).toBe("1250.5");
+    expect(decimalOf("-0.001")?.toFixed()).toBe("-0.001");
+    expect(decimalOf("1.250946e-8")?.toFixed()).toBe("0.00000001250946");
+    expect(decimalOf("7.6528766e+9")?.toFixed()).toBe("7652876600");
+    expect(decimalOf("0")?.isZero()).toBe(true);
+  });
+
+  it("is null for what is not number text, and for a missing value, instead of a throw or a partial reading", () => {
+    for (const text of ["", "abc", "NaN", "Infinity", "0x10", "1,250", " 1", "1 ", "1e", ".5", "1e9999", "1e999999999"]) {
+      expect(decimalOf(text), JSON.stringify(text)).toBeNull();
+    }
+    expect(decimalOf(undefined)).toBeNull();
+  });
+
+  it("is a BN: its divisions keep 80 places, half up", () => {
+    const third = decimalOf("1")!.div(decimalOf("3")!);
+    expect(third.decimalPlaces()).toBe(80);
+    expect(third instanceof BN).toBe(true);
   });
 });

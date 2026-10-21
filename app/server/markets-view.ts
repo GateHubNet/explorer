@@ -23,8 +23,8 @@ import { marketsHref, PERIODS, QUOTES, TRADES_API, type MarketsParams, type Quot
 import { wholePercent } from "../domain/percent";
 import type { MeterData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
-import { isNumberText } from "./aggregate-shape";
 import type { MarketRow, MarketsResponse } from "./api-types";
+import { BN, decimalOf } from "./exact";
 import type { Network } from "./networks";
 
 /** XRPL with `AMM_DATA` on · XRPL with it off (the AMM fields are not read, whatever the answer holds) · Xahau (whatever the answer says). */
@@ -85,8 +85,6 @@ export interface MarketsInput {
   answer: MarketsResponse;
 }
 
-/** Eighty decimal places hold the 8 significant digits of any inverse the scaling in `inverse` leaves in [1, 10]. */
-const BN = BigNumber.clone({ DECIMAL_PLACES: 80, ROUNDING_MODE: BigNumber.ROUND_HALF_UP });
 const HALF_UP = BigNumber.ROUND_HALF_UP;
 
 const DASH = "\u2014";
@@ -98,23 +96,15 @@ const PLAIN_DECIMAL = /^-?\d+(?:\.\d+)?$/;
 
 // ---- Numbers --------------------------------------------------------------------------------------------------------------------------
 
-/**
- * A number the API wrote (decimal or exponent text, `isNumberText`), or `null` where it is not one. The text is tested first: bignumber.js is
- * strict, so `new BigNumber("abc")` throws instead of giving NaN.
- */
-function numberOf(text: string | undefined): BigNumber | null {
-  return isNumberText(text) ? new BN(text) : null;
-}
-
 /** A plain decimal text: as it was written when it already is one, and written out in full when it is in exponent form; `null` for no number. */
 function plainText(text: string): string | null {
   if (PLAIN_DECIMAL.test(text)) return text;
-  return numberOf(text)?.toFixed() ?? null;
+  return decimalOf(text)?.toFixed() ?? null;
 }
 
 /** A price as the page shows it: `formatPrice`, or a dash where the text is no number. */
 function priceText(text: string): string {
-  return numberOf(text) === null ? DASH : formatPrice(text);
+  return decimalOf(text) === null ? DASH : formatPrice(text);
 }
 
 /**
@@ -123,7 +113,7 @@ function priceText(text: string): string {
  * the places alone would have made it 0.
  */
 function inverse(price: string): BigNumber | null {
-  const value = numberOf(price);
+  const value = decimalOf(price);
   if (value === null || !value.gt(0)) return null;
   const shift = (value.e ?? 0) + 1;
   return new BN(1).shiftedBy(shift).div(value).shiftedBy(-shift);
@@ -214,14 +204,14 @@ function changeOf(change: BigNumber | null): { text: string; dir: "up" | "down" 
 
 /** `(open ÷ last − 1) × 100`, which is the change of the inverse price; `null` where either price is not above 0. */
 function invertedChange(open: string, last: string): BigNumber | null {
-  const [from, to] = [numberOf(open), numberOf(last)];
+  const [from, to] = [decimalOf(open), decimalOf(last)];
   if (from === null || to === null || !from.gt(0) || !to.gt(0)) return null;
   return from.div(to).minus(1).times(100);
 }
 
 function storedPrices(row: MarketRow): Prices {
-  const last = numberOf(row.last);
-  const change = numberOf(row.change);
+  const last = decimalOf(row.last);
+  const change = decimalOf(row.change);
   const [low, high] = [priceText(row.low), priceText(row.high)];
   return {
     last: priceText(row.last),
@@ -259,8 +249,8 @@ function sparkLabel(closes: readonly (string | null)[]): string {
   const seen = closes.filter((close): close is string => close !== null);
   const [first, last] = [seen[0], seen[seen.length - 1]];
   if (first === undefined || last === undefined) return "No trades in the last 7 days";
-  const from = numberOf(first);
-  const to = numberOf(last);
+  const from = decimalOf(first);
+  const to = decimalOf(last);
   const running = closes[closes.length - 1] === last ? " (today so far)" : "";
   const head = `7-day price, from ${priceText(first)} to ${priceText(last)}${running}`;
   if (from === null || to === null || !from.gt(0)) return head;
@@ -271,7 +261,7 @@ function sparkLabel(closes: readonly (string | null)[]): string {
 
 /** The AMM cell of a row: its share of the pair's volume as a whole percent, and a meter of it (decorative: the text says the value). */
 function ammCell(row: MarketRow): { text: string; meter: MeterData | null } {
-  const share = numberOf(row.amm_share);
+  const share = decimalOf(row.amm_share);
   if (row.amm_share === undefined || share === null) return { text: DASH, meter: null };
   // A share of 0 for a pair with no pool says so; a share above 0 without a pool (deleted in the window) keeps its percent.
   if (share.isZero() && row.amm_pool === false) return { text: "no pool", meter: null };
@@ -320,7 +310,7 @@ function tilesOf(
   const { answer, params, network } = input;
   if (answer.totals === undefined) return null;
   const sub = `last ${PERIODS[params.period].words}, pairs listed`;
-  const volume = rows.reduce((sum, row) => sum.plus(numberOf(row.native_volume) ?? 0), new BN(0));
+  const volume = rows.reduce((sum, row) => sum.plus(decimalOf(row.native_volume) ?? 0), new BN(0));
   const trades = rows.reduce((sum, row) => sum.plus(row.count), new BN(0));
   const tiles = [
     { label: "DEX volume", value: `${compactNumber(volume.toFixed())} ${network.native}`, sub },
@@ -405,7 +395,7 @@ export function marketsPage(input: MarketsInput): MarketsPageData {
   const [lastRanks, changeRanks, volumeRanks, tradesRanks] = [
     ranksOf(prices.map((price) => price.lastValue)),
     ranksOf(prices.map((price) => price.changeValue)),
-    ranksOf(listed.map(({ row }) => numberOf(row.native_volume))),
+    ranksOf(listed.map(({ row }) => decimalOf(row.native_volume))),
     ranksOf(listed.map(({ row }) => new BN(row.count))),
   ];
 
@@ -422,7 +412,7 @@ export function marketsPage(input: MarketsInput): MarketsPageData {
       last: price.last,
       change: price.change,
       range: price.range,
-      volume: numberOf(row.native_volume) === null ? DASH : compactNumber(row.native_volume!),
+      volume: decimalOf(row.native_volume) === null ? DASH : compactNumber(row.native_volume!),
       trades: groupedCount(row.count),
       amm: ammState === "on" ? ammCell(row) : null,
       spark: { closes: price.closes, label, token: tokenOf(price.closes) },
