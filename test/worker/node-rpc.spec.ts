@@ -1,3 +1,4 @@
+import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import type { Asset } from "../../app/domain/asset";
@@ -1110,6 +1111,8 @@ const ammResult = (amm: unknown = ammBlock(), extra: Record<string, unknown> = {
   validated: true,
   ...extra,
 });
+/** A classic address of its own for each `at`: an account ID of 20 bytes, each `at + 1`. */
+const accountAt = (at: number) => encodeAccountID(new Uint8Array(20).fill(at + 1));
 /** A pool's answer after `change` has altered its `amm`. */
 function ammChanged(change: (amm: Record<string, any>) => void): Record<string, unknown> {
   const amm = ammBlock();
@@ -1358,6 +1361,9 @@ describe("amm_info", () => {
       ["vote_slots that is not a list", () => ammChanged((amm) => (amm.vote_slots = {}))],
       ["a vote slot that is not an object", () => ammChanged((amm) => (amm.vote_slots = ["rJ4X"]))],
       ["a vote slot without an account", () => ammChanged((amm) => delete amm.vote_slots[0].account)],
+      // The accounts of the votes, the slot's holder and its authorised accounts go into links: each is a classic address with a valid checksum.
+      ["a vote slot account that is not an address", () => ammChanged((amm) => (amm.vote_slots[0].account = "nope"))],
+      ["a vote slot account with a wrong checksum", () => ammChanged((amm) => (amm.vote_slots[1].account = "rDu4vMpZU5WcwVME6oorzSov4DMLWXUEDg"))],
       ["a vote slot fee above 1000", () => ammChanged((amm) => (amm.vote_slots[0].trading_fee = 1001))],
       ["a vote slot without a weight", () => ammChanged((amm) => delete amm.vote_slots[0].vote_weight)],
       ["a vote slot weight that is negative", () => ammChanged((amm) => (amm.vote_slots[0].vote_weight = -1))],
@@ -1371,9 +1377,12 @@ describe("amm_info", () => {
       ["an auction slot without a discounted_fee", () => ammChanged((amm) => delete amm.auction_slot.discounted_fee)],
       ["an auction slot discounted_fee that is not whole", () => ammChanged((amm) => (amm.auction_slot.discounted_fee = 0.5))],
       ["an auction slot account that is not text", () => ammChanged((amm) => (amm.auction_slot.account = 5))],
+      ["an auction slot account that is not an address", () => ammChanged((amm) => (amm.auction_slot.account = "r4uKh2"))],
+      ["an auction slot account that is an X-address", () => ammChanged((amm) => (amm.auction_slot.account = "X7AcgcsBL6XDcUb289X4mJ8djcdyKaB5hJDWMArnXr61cqZ"))],
       ["auth_accounts that is not a list", () => ammChanged((amm) => (amm.auction_slot.auth_accounts = "none"))],
       ["an authorised account that is not an object", () => ammChanged((amm) => (amm.auction_slot.auth_accounts = ["rNy9"]))],
       ["an authorised account without an address", () => ammChanged((amm) => (amm.auction_slot.auth_accounts = [{}]))],
+      ["an authorised account that is not an address", () => ammChanged((amm) => (amm.auction_slot.auth_accounts[1] = { account: "rJrF\"><b>" }))],
       ["an asset_frozen that is not true or false", () => ammChanged((amm) => (amm.asset_frozen = "no"))],
       ["no ledger_index", () => ammResult(ammBlock(), { ledger_index: undefined })],
       ["a ledger_index that is text", () => ammResult(ammBlock(), { ledger_index: "107779805" })],
@@ -1390,18 +1399,32 @@ describe("amm_info", () => {
       expect((await failureOf(rpc().ammInfo(POOL))).kind).toBe("server");
     });
 
+    it("says which account is not a classic address: a vote's, the slot holder's or an authorised account's", async () => {
+      const cases: Array<[string, (amm: Record<string, any>) => void]> = [
+        ['a vote slot\'s "account" is not a classic address', (amm) => (amm.vote_slots[0].account = "nope")],
+        ['the auction slot\'s "account" is not a classic address', (amm) => (amm.auction_slot.account = "nope")],
+        ['an authorised account\'s "account" is not a classic address', (amm) => (amm.auction_slot.auth_accounts[0].account = "nope")],
+      ];
+      for (const [message, change] of cases) {
+        fetchSpy.mockResolvedValueOnce(success(ammChanged(change)));
+        const error = await failureOf(rpc().ammInfo(POOL));
+        expect(error.kind, message).toBe("server");
+        expect(error.message).toContain(message);
+      }
+    });
+
     it("the most vote slots and authorised accounts there can be are fine", async () => {
       fetchSpy.mockResolvedValueOnce(
         success(
           ammChanged((amm) => {
-            amm.vote_slots = Array.from({ length: 8 }, (_, at) => ({ account: `rVote${at}`, trading_fee: 100 + at, vote_weight: 12_500 }));
-            amm.auction_slot.auth_accounts = Array.from({ length: 4 }, (_, at) => ({ account: `rAuth${at}` }));
+            amm.vote_slots = Array.from({ length: 8 }, (_, at) => ({ account: accountAt(at), trading_fee: 100 + at, vote_weight: 12_500 }));
+            amm.auction_slot.auth_accounts = Array.from({ length: 4 }, (_, at) => ({ account: accountAt(10 + at) }));
           }),
         ),
       );
       const pool = await rpc().ammInfo(POOL);
       expect(pool.vote_slots).toHaveLength(8);
-      expect(pool.auction_slot!.auth_accounts).toEqual(["rAuth0", "rAuth1", "rAuth2", "rAuth3"]);
+      expect(pool.auction_slot!.auth_accounts).toEqual([10, 11, 12, 13].map(accountAt));
     });
 
     it("says what is wrong without repeating a node's text in full", async () => {

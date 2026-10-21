@@ -14,6 +14,7 @@
 // Requests are API version 1, the node's default: the shapes below are rippled's v1 shapes.
 
 import BigNumber from "bignumber.js";
+import { isValidClassicAddress } from "ripple-address-codec";
 
 import { sameAsset, type Asset } from "../domain/asset";
 import { dropsToNative } from "../domain/format";
@@ -261,6 +262,15 @@ function objectField(what: string, from: Json, key: string): Json {
 function textField(what: string, from: Json, key: string): string {
   const value = from[key];
   if (typeof value !== "string") throw malformed(what, `no "${key}" text`);
+  return value;
+}
+/**
+ * An account that a page links (`accountHref`, which does not escape): a classic address with a valid checksum, as the data API's side refuses any other
+ * account "because it goes into a link" (amm-shape.ts). `whose` names the part it is in.
+ */
+function accountField(what: string, from: Json, key: string, whose: string): string {
+  const value = from[key];
+  if (typeof value !== "string" || !isValidClassicAddress(value)) throw malformed(what, `${whose} "${key}" is not a classic address`);
   return value;
 }
 function numberField(what: string, from: Json, key: string): number {
@@ -571,8 +581,8 @@ const MAX_AUTH_ACCOUNTS = 4;
 type AmmAsked = { pool: string } | { assets: readonly [Asset, Asset] };
 
 function toAuctionSlot(what: string, slot: Json): NonNullable<AmmInfo["auction_slot"]> {
-  const account = slot.account;
-  if (account !== undefined && typeof account !== "string") throw malformed(what, 'the auction slot\'s "account" is not text');
+  // The holder, when the slot has one: the pool page links it.
+  const account = slot.account === undefined ? undefined : accountField(what, slot, "account", "the auction slot's");
 
   const accounts = slot.auth_accounts;
   if (accounts !== undefined && !Array.isArray(accounts)) throw malformed(what, 'the auction slot\'s "auth_accounts" is not a list');
@@ -586,7 +596,7 @@ function toAuctionSlot(what: string, slot: Json): NonNullable<AmmInfo["auction_s
     ...(account !== undefined && { account }),
     auth_accounts: ((accounts ?? []) as unknown[]).map((entry) => {
       if (!isObject(entry)) throw malformed(what, "an authorised account that is not an object");
-      return textField(what, entry, "account");
+      return accountField(what, entry, "account", "an authorised account's");
     }),
     discounted_fee: integerField(what, slot, "discounted_fee", 0, 1000),
     expiration,
@@ -642,7 +652,7 @@ function toAmmInfo(what: string, native: string, asked: AmmAsked, result: Json):
     vote_slots: ((voteSlots ?? []) as unknown[]).map((entry) => {
       if (!isObject(entry)) throw malformed(what, "a vote slot that is not an object");
       return {
-        account: textField(what, entry, "account"),
+        account: accountField(what, entry, "account", "a vote slot's"),
         trading_fee: integerField(what, entry, "trading_fee", 0, 1000),
         vote_weight: integerField(what, entry, "vote_weight", 0),
       };
