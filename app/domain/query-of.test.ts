@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { queryOf } from "./query-of";
+import { queryOf, queryValue } from "./query-of";
 
 describe("queryOf", () => {
   it("takes the raw query of a URL, without the question mark", () => {
@@ -25,5 +25,24 @@ describe("queryOf", () => {
   it("stops at a fragment, and keeps a pair that only starts with _routes", () => {
     expect(queryOf("/xrpl/network?period=1y#top")).toBe("period=1y");
     expect(queryOf("/xrpl/network?_routes_x=1&period=1y")).toBe("_routes_x=1&period=1y");
+  });
+});
+
+describe("queryValue", () => {
+  it("is encodeURIComponent, and writes ' as %27 too", () => {
+    expect(queryValue("M1_a-b")).toBe("M1_a-b");
+    expect(queryValue("a b&c=d")).toBe("a%20b%26c%3Dd");
+    expect(queryValue("A+B=")).toBe("A%2BB%3D");
+    expect(queryValue("x#y")).toBe("x%23y");
+    expect(queryValue("a'b''c")).toBe("a%27b%27%27c");
+    expect(queryValue("é")).toBe("%C3%A9");
+    expect(queryValue("")).toBe("");
+  });
+
+  it("is what a URL parser leaves as it is, for every printable ASCII character", () => {
+    for (let code = 0x20; code < 0x7f; code++) {
+      const value = queryValue(`a${String.fromCharCode(code)}b`);
+      expect(new URL(`https://h/p?v=${value}`).search).toBe(`?v=${value}`);
+    }
   });
 });

@@ -8,6 +8,7 @@
 
 import type { NativeCode } from "./asset";
 import { parseTrail } from "./paging";
+import { queryValue } from "./query-of";
 
 /** The markets page's period, and the quotes and trades filter that narrow its table. */
 export type MarketsPeriod = "24h" | "7d" | "30d";
@@ -122,14 +123,6 @@ export function parseMarketsParams(search: URLSearchParams, ctx: ParamsContext):
 /** The link to a view of the markets page: `/xrpl/markets`, `/xrpl/markets?period=7d&quote=usd`. A parameter that is left out is the default's. */
 export function marketsHref(net: string, params: Partial<MarketsParams> = {}): string {
   return `/${net}/markets${marketsQuery(params)}`;
-}
-
-/**
- * A marker as a value of the query: `encodeURIComponent`, and `'` too, which that leaves as it is and a URL parser rewrites to `%27` in a
- * query. The canonical query must be what the request's URL says once it is serialized, or a redirect to it would not end.
- */
-function queryValue(text: string): string {
-  return encodeURIComponent(text).replace(/'/g, "%27");
 }
 
 /**

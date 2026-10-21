@@ -1,4 +1,5 @@
-// The raw query of a request's URL. Pure: the loaders, the routes and the browser import this file.
+// The raw query of a request's URL, and the form a canonical query writes its values in. Pure: the loaders, the routes and the browser
+// import this file.
 //
 // It is apart from network-params.ts so that a route that needs only this (the validators list) does not import the network page's
 // periods, displays and hrefs: the build puts a module that several routes import in a chunk those routes share, and the network page's
@@ -18,4 +19,13 @@ export function queryOf(url: string): string {
     .split("&")
     .filter((pair) => pair.split("=", 1)[0] !== "_routes")
     .join("&");
+}
+
+/**
+ * A value of a query, as the canonical queries write it: `encodeURIComponent`, and `'` too, which that leaves as it is and a URL parser
+ * rewrites to `%27` in a query. The canonical query must be what the request's URL says once it is serialized (`queryOf(request.url)`),
+ * or a redirect to it would not end. Every page's canonical query writes its free-text values (a marker, an asset's text) with this.
+ */
+export function queryValue(text: string): string {
+  return encodeURIComponent(text).replace(/'/g, "%27");
 }

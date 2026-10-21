@@ -28,6 +28,7 @@
     "app/domain/market-pair.ts",
     "app/domain/market-params.ts",
     "app/domain/paging.ts",
+    "app/domain/query-of.ts",
     "app/domain/parse/amm-hops.ts",
     "app/domain/parse/objects.ts",
     "app/domain/parse/types.ts",
