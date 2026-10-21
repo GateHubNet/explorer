@@ -559,6 +559,60 @@ describe("Pager", () => {
     expect(within(nav).queryByRole("link", { name: /Newer/ })).toBeNull();
     expect(within(nav).getByText(/Newer/).closest("[aria-disabled]")!.getAttribute("aria-disabled")).toBe("true");
   });
+
+  it("reads Newer and Older without labels, and the labels it is given with them, in a nav named Pagination either way", () => {
+    renderInRouter(<Pager newerHref="/xrpl/amm" olderHref="/xrpl/amm?marker=abc" />);
+    let nav = screen.getByRole("navigation", { name: "Pagination" });
+    expect(within(nav).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Newer", "/xrpl/amm"],
+      ["Older", "/xrpl/amm?marker=abc"],
+    ]);
+    cleanup();
+
+    renderInRouter(<Pager newerHref="/xrpl/amm" olderHref="/xrpl/amm?marker=abc" labels={{ newer: "Previous", older: "More pools" }} />);
+    nav = screen.getByRole("navigation", { name: "Pagination" });
+    expect(within(nav).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Previous", "/xrpl/amm"],
+      ["More pools", "/xrpl/amm?marker=abc"],
+    ]);
+    expect(nav.textContent).not.toMatch(/Newer|Older/);
+  });
+
+  it("gives a disabled direction its label too", () => {
+    renderInRouter(<Pager newerHref={null} olderHref={null} labels={{ newer: "Previous", older: "More pools" }} />);
+    const nav = screen.getByRole("navigation", { name: "Pagination" });
+    expect(within(nav).queryAllByRole("link")).toEqual([]);
+    expect([...nav.querySelectorAll('[aria-disabled="true"]')].map((part) => part.textContent)).toEqual(["Previous", "More pools"]);
+  });
+
+  /** The pager in a data router at `/xrpl/amm`, a click on its second link, and the navigation's state after it. */
+  async function clickOlder(props: { preventScrollReset?: boolean }) {
+    const router = createMemoryRouter([{ path: "*", element: <Pager newerHref="/xrpl/amm" olderHref="/xrpl/amm?marker=abc" {...props} /> }], { initialEntries: ["/xrpl/amm"] });
+    render(<RouterProvider router={router} />);
+    await act(async () => void fireEvent.click(screen.getByRole("link", { name: /Older/ })));
+    expect(router.state.location.pathname + router.state.location.search).toBe("/xrpl/amm?marker=abc");
+    return router.state;
+  }
+
+  // happy-dom has no ScrollRestoration, so a reset cannot be seen as a scroll here: what the router is told is the navigation's state (the e2e suite
+  // sees the window stay where it was).
+  it("navigates keeping the window where it is with preventScrollReset", async () => {
+    expect((await clickOlder({ preventScrollReset: true })).preventScrollReset).toBe(true);
+  });
+
+  it("navigates as a link does without preventScrollReset, and with preventScrollReset={false}", async () => {
+    expect((await clickOlder({})).preventScrollReset).toBe(false);
+    cleanup();
+    expect((await clickOlder({ preventScrollReset: false })).preventScrollReset).toBe(false);
+  });
+
+  it("passes preventScrollReset to the Newer link as well", async () => {
+    const router = createMemoryRouter([{ path: "*", element: <Pager newerHref="/xrpl/amm" olderHref={null} preventScrollReset /> }], { initialEntries: ["/xrpl/amm?marker=abc"] });
+    render(<RouterProvider router={router} />);
+    await act(async () => void fireEvent.click(screen.getByRole("link", { name: /Newer/ })));
+    expect(router.state.location.search).toBe("");
+    expect(router.state.preventScrollReset).toBe(true);
+  });
 });
 
 describe("Breadcrumbs", () => {

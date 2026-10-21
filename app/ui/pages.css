@@ -3184,3 +3184,329 @@ a.markets__pair:hover .markets__name {
     font-size: 22px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   AMM pools: /{net}/amm (the board's layout: one column of rows, the table scrolling sideways inside its card on a phone), and Xahau's card in
+   place of the list. The classes of the chart kit (charts.css) are never defined here, the source line's included; the "Deleted" tag is the
+   components' `.tag tag--icon` and "Open" their `.st st--quiet`, as they are. */
+
+.amm {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.amm__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.amm__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.amm__intro {
+  color: var(--muted);
+}
+
+/* The filter: the field with its visible label, the checkbox and the button on one line while they fit, each 44 px high; the message of an asset
+   that does not parse on a line of its own under them. */
+.amm__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+
+.amm__asset {
+  display: flex;
+  flex: 0 1 480px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.amm__label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.amm__field {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+/* An asset that does not parse: the field's border says it with the message, which is tied to the field (`aria-describedby`). */
+.amm__field.is-invalid {
+  border-color: var(--bad);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.amm__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.amm__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.amm__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.amm__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+/* The checkbox's label is its target: 44 px high, the box and the words. */
+.amm__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.amm__check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.amm__submit {
+  min-height: 44px;
+}
+
+.amm__error {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.amm__error svg {
+  flex: none;
+}
+
+/* The tiles, then the time of the live set (or the totals' SectionError) under them. */
+.amm__totals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.amm__note {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.amm__failed {
+  padding: 16px;
+}
+
+/* The pools card's word that the 24-hour volume is missing, over the table whose Volume column is dashes. */
+.amm__problem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.amm__problem svg {
+  flex: none;
+  color: var(--bad);
+}
+
+/* The table: rows of 58 px (the board's), the header row 40 px. A figure longer than its track wraps inside its cell (the cells inherit it from the
+   scroll region: the cell's own class is the kit's, which this sheet does not define): a compact number stops at "T", so an absurd reserve is a
+   hundred digits, and it must never widen the table. */
+.amm__table {
+  overflow-wrap: anywhere;
+}
+
+.amm__table .table__row {
+  min-height: 58px;
+}
+
+.amm__table .table__head {
+  min-height: 40px;
+}
+
+.amm__pool {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.amm__coins {
+  display: flex;
+  flex: none;
+}
+
+.amm__coin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--sunken);
+  box-shadow: 0 0 0 1px var(--border);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* The board's overlap is 8 px, which covers the last letter of the first coin: 4 px keeps three letters of each in sight. */
+.amm__coin + .amm__coin {
+  margin-left: -4px;
+}
+
+.amm__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The pair is the row's link to the pool: in --fg, at least 24 px high, underlined on hover as every link is. */
+.amm__pair {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 24px;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.amm__detail {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amm__pool .tag {
+  flex: none;
+}
+
+.amm__figure {
+  font-weight: 500;
+}
+
+/* The two reserves, one under the other, in display order. */
+.amm__reserves {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.amm__slot {
+  font-size: 12.5px;
+}
+
+.amm__created {
+  font-size: 13px;
+}
+
+.amm__foot p {
+  flex: 1 1 320px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+/* The pager's buttons are 44 px targets here as the form's button is (the kit's are 36 px on a desktop). */
+.amm__foot .pager .btn {
+  min-height: 44px;
+}
+
+/* Xahau: the board's card, an icon over the heading, the sentence and the two ways on. */
+.amm__none {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 640px;
+  padding: 40px 28px;
+}
+
+.amm__none-icon {
+  color: var(--faint);
+}
+
+.amm__none-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.amm__none-text {
+  color: var(--muted);
+}
+
+.amm__none-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
+}
+
+.amm__none-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+/* The header's "soon" style, as a line of the card: it starts at the card's text, not 10 px in. */
+.amm__none-links > .nav-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 0;
+}
+
+@media (max-width: 640px) {
+  .amm__title {
+    font-size: 24px;
+  }
+
+  .amm__none {
+    padding: 24px 16px;
+  }
+}
