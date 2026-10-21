@@ -479,16 +479,19 @@ function sentenceFor(description: Parameters<typeof rowSentence>[0], sender: str
   return [{ t: "account", v: sender }, { t: "text", v: " " }, ...(first ? [first] : []), ...rest];
 }
 
+/** Whether a currency and its issuer (if any) are the network's native currency: the code alone. An issued `XAH` on XRPL is not. */
+export const isNative = (side: { currency: string; issuer?: string }, native: string): boolean => side.issuer === undefined && side.currency === native;
+
 /** Of the changes the transaction made to the account's balances, the one to show (see `ChangeView`). */
 function changeOf(tx: TxObject, address: string, native: Native): ChangeView | null {
   const mine = balanceChanges(tx.tx, tx.meta, native).filter((change) => change.account === address && !isZero(change.value));
-  const isNative = (change: { currency: string; issuer?: string }) => change.issuer === undefined && change.currency === native;
+  const isNativeChange = (change: { currency: string; issuer?: string }) => isNative(change, native);
   const fee = new BigNumber(dropsToNative(tx.tx.Fee)).negated();
   // The sender's native change includes the fee. When that is all of it, the change that is not the fee is the one that matters.
-  const feeOnly = (change: { value: string; currency: string; issuer?: string }) => tx.tx.Account === address && isNative(change) && new BigNumber(change.value).isEqualTo(fee);
+  const feeOnly = (change: { value: string; currency: string; issuer?: string }) => tx.tx.Account === address && isNativeChange(change) && new BigNumber(change.value).isEqualTo(fee);
   const meaningful = mine.filter((change) => !feeOnly(change));
   const pool = meaningful.length > 0 ? meaningful : mine;
-  const ordered = [...pool.filter(isNative), ...pool.filter((change) => !isNative(change))];
+  const ordered = [...pool.filter(isNativeChange), ...pool.filter((change) => !isNativeChange(change))];
   const first = ordered[0];
   return first ? { value: first.value, currency: first.currency, more: ordered.length - 1 } : null;
 }

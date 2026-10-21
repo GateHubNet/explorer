@@ -29,6 +29,10 @@ const USDC_ISSUER = "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE";
 const VOX = "564F58F09F97BD00000000000000000000000000";
 const VOX_ISSUER = "rBnJZMDB9HZ6UxUoeQc7eaAQHA3Y1v6Hk3";
 const LIVE_END = "2026-10-17T17:01:00Z";
+/** The words over the three tiles, which a failed totals card keeps; and the pools card's note while the live set is missing (a typographic apostrophe, as a `SectionError` writes it). */
+const TILE_LABELS = ["Swap volume, 24 h", "Pools with swaps, 24 h", "Busiest pool, 24 h"];
+const NO_VOLUME_NOTE = "Couldn’t load the 24-hour volume";
+const TOTALS_FAILED = { state: "failed", what: "the 24-hour volume", labels: TILE_LABELS };
 
 const XRPL: AmmListInput["net"] = { id: "xrpl", native: "XRP", features: { ...NO_FEATURES, ammPages: true, markets: true } };
 const XAHAU: Parameters<typeof noAmmPage>[0] = { id: "xahau", features: { ...NO_FEATURES, ammPages: true, markets: true } };
@@ -214,6 +218,8 @@ describe("the list: a row of the table", () => {
     });
     expect(row!.pair).toBe("USDC / RLUSD");
     expect(row!.detail).toBe("rhWTXC…tcS3 · USDC rGm7WC…uWhE · RLUSD rMxCKb…m5De");
+    // Stored RLUSD/USDC: the sample's base reserve (1250.5) is the RLUSD's, its counter reserve (2500) the USDC's, which is shown first.
+    expect(row!.reserves).toEqual(["2,500 USDC", "1,250.5 RLUSD"]);
   });
 
   describe("Value", () => {
@@ -542,7 +548,7 @@ describe("the list: paging and the words under the table", () => {
     const { pools } = listed({ live: rejected(new TooLate()) });
     if (pools.state !== "ok") throw new Error("failed");
     expect(pools.footnote).toBe("Value is twice the XRP reserve, or twice a reserve at its daily XRP rate.");
-    expect(pools.note).toBe("Couldn't load the 24-hour volume");
+    expect(pools.note).toBe(NO_VOLUME_NOTE);
   });
 
   it("says which asset has no pools for an empty page of a filter", () => {
@@ -621,9 +627,9 @@ describe("the list: what failed", () => {
 
   it("fails the totals alone when the live set was rejected, and the Volume column and the card say so", () => {
     const { page, problems } = ammListPage(inputOf({ live: rejected(new Error("data API GET /v2/network/amm_volume answered 503")) }));
-    expect(page.totals).toEqual({ state: "failed", what: "the 24-hour volume" });
+    expect(page.totals).toEqual(TOTALS_FAILED);
     expect(page.chart.state).toBe("ok");
-    expect(page.pools).toMatchObject({ state: "ok", note: "Couldn't load the 24-hour volume" });
+    expect(page.pools).toMatchObject({ state: "ok", note: NO_VOLUME_NOTE });
     expect(rowsOf({ live: rejected(new Error("x")) }).map((row) => row.volume)).toEqual(["—"]);
     expect(problems).toEqual(["the 24-hour volume: data API GET /v2/network/amm_volume answered 503"]);
   });
@@ -652,16 +658,71 @@ describe("the list: what failed", () => {
 
   it("fails the totals when the live row has no time, and does not use that row for the column either", () => {
     const { page, problems } = ammListPage(inputOf({ live: fulfilled(liveOf([component()], { end_time: "soon" })) }));
-    expect(page.totals).toEqual({ state: "failed", what: "the 24-hour volume" });
-    expect(page.pools).toMatchObject({ state: "ok", note: "Couldn't load the 24-hour volume" });
+    expect(page.totals).toEqual(TOTALS_FAILED);
+    expect(page.pools).toMatchObject({ state: "ok", note: NO_VOLUME_NOTE });
     expect(problems).toHaveLength(1);
   });
 
   it("fails the totals when the live set has no row", () => {
     const empty: Page<"rows", AmmVolumeRow> = { result: "success", count: 0, rows: [] };
     const { page, problems } = ammListPage(inputOf({ live: fulfilled(empty) }));
-    expect(page.totals).toEqual({ state: "failed", what: "the 24-hour volume" });
+    expect(page.totals).toEqual(TOTALS_FAILED);
     expect(problems).toEqual(["the 24-hour volume: the data API answered no row"]);
+  });
+
+  describe("an answer that is not what the data API promises is a failed card, never a throw", () => {
+    /** A pool whose slot is held until just after the newest ledger closed (17:01:12): held by the ledger's close time, as the live set is not there. */
+    const held = (over: Partial<AmmListInput> = {}) =>
+      rowsOf({ pools: fulfilled(ammPoolsSample({ pools: [xrpRlusd({ auction_slot: { holder: AMM_HOLDER, expiration: "2026-10-17T17:01:13Z" } })] })), ...over })[0]!;
+    const HELD = { text: "rPT1Sj…pAYe", href: "/xrpl/account/rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe" };
+
+    it.each([
+      ["has no rows at all", { result: "success", count: 0 }],
+      ["is null", null],
+      ["has rows that are not a list", { result: "success", count: 1, rows: {} }],
+      ["has a row with no components", { result: "success", count: 1, rows: [{ end_time: LIVE_END, total: "1", count: 1 }] }],
+      ["has a row that is null", { result: "success", count: 1, rows: [null] }],
+    ])("fails the totals when the live answer %s, with a problem, and the table and the chart stand", (_what, answer) => {
+      const live = fulfilled(answer as unknown as Page<"rows", AmmVolumeRow>);
+      const { page, problems } = ammListPage(inputOf({ live }));
+      expect(page.totals).toEqual(TOTALS_FAILED);
+      expect(page.pools).toMatchObject({ state: "ok", note: NO_VOLUME_NOTE });
+      expect(page.chart.state).toBe("ok");
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toMatch(/^the 24-hour volume: /);
+      // No live set: the Volume column is a dash, and the slot is read against the newest ledger's close time.
+      const row = held({ live });
+      expect(row.volume).toBe("—");
+      expect(row.slot).toEqual(HELD);
+    });
+
+    it.each([
+      ["is null", null],
+      ["has no close time", { result: "success", ledger_index: "1" }],
+    ])("fails the chart when the newest ledger %s, and the rest stands with the live set's time", (_what, answer) => {
+      const last = fulfilled(answer as unknown as LastValidated);
+      const { page, problems } = ammListPage(inputOf({ last }));
+      expect(page.chart).toEqual({ state: "failed", what: "the swap volume" });
+      expect(page.totals.state).toBe("ok");
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toMatch(/^the swap volume: /);
+      // The live set's end (17:01:00) is before the expiration, which the missing ledger does not change.
+      expect(held({ last }).slot).toEqual(HELD);
+    });
+
+    it("has no time at all when the newest ledger and the live set both failed, and still stands", () => {
+      const neither = { last: rejected(new TooLate()), live: rejected(new TooLate()), history: null };
+      const { page, problems } = ammListPage(inputOf(neither));
+      expect(page).toMatchObject({ kind: "list", totals: TOTALS_FAILED, chart: { state: "failed", what: "the swap volume" }, pools: { state: "ok", note: NO_VOLUME_NOTE } });
+      expect(problems).toEqual(["the 24-hour volume: took too long", "the swap volume: took too long"]);
+      expect(held(neither)).toMatchObject({ volume: "—", slot: { text: "—", href: null } });
+    });
+
+    it("has no time at all when the live set failed and the newest ledger is null, and still stands", () => {
+      const neither = { last: fulfilled(null as unknown as LastValidated), live: rejected(new TooLate()), history: null };
+      expect(held(neither).slot).toEqual({ text: "—", href: null });
+      expect(ammListPage(inputOf(neither)).page.pools.state).toBe("ok");
+    });
   });
 
   it("keeps the problems in the order of the page, one for each failed card, and the page still stands", () => {

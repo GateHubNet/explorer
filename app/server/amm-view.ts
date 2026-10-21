@@ -18,11 +18,13 @@ import { marketsHref } from "../domain/market-params";
 import { trailPaging, type Paging } from "../domain/paging";
 import { pendingNote, utcDayOf, windowOf } from "../domain/window";
 import type { TimeSeriesData } from "../ui/charts/types";
+import { isNative } from "./account-view";
 import { anchorOrThrow } from "./anchor";
 import type { AmmPool, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "./api-types";
 import { issuersOf } from "./markets-view";
 import { byDay, volumeOf } from "./network-view";
 import type { Network } from "./networks";
+import { clock, ledgerLink, unixOf } from "./validator-facts";
 
 const DASH = "—";
 const SEPARATOR = " · ";
@@ -104,6 +106,8 @@ export interface AmmRowView {
 }
 
 export type Failed = { state: "failed"; what: string };
+/** The words over the three tiles, in their order: a failed totals card keeps them, so the page draws three dashes under the same labels. */
+export type TileLabels = readonly [string, string, string];
 
 export interface AmmListPageData {
   kind: "list";
@@ -112,7 +116,7 @@ export interface AmmListPageData {
   meta: AmmListFacts;
   /** The form: the asset as it is written in a URL (or what was typed, when it does not parse), whether the deleted pools are included, and the message under the field. */
   filter: { value: string; deleted: boolean; error?: string };
-  totals: { state: "ok"; tiles: [AmmTile, AmmTile, AmmTile]; note: string } | Failed;
+  totals: { state: "ok"; tiles: [AmmTile, AmmTile, AmmTile]; note: string } | (Failed & { labels: TileLabels });
   chart: { state: "ok"; title: string; source: string; data: TimeSeriesData; note: string | null } | Failed;
   pools:
     | {
@@ -159,8 +163,9 @@ export interface AmmListInput {
 const TOTALS_WHAT = "the 24-hour volume";
 const CHART_WHAT = "the swap volume";
 const POOLS_WHAT = "the pools";
-/** The pools card's note while the live set is missing, and the Volume column is `—`. */
-const NO_VOLUME_NOTE = "Couldn't load the 24-hour volume";
+const TILE_LABELS: TileLabels = ["Swap volume, 24 h", "Pools with swaps, 24 h", "Busiest pool, 24 h"];
+/** The pools card's note while the live set is missing, and the Volume column is `—`: what a `SectionError` says of the totals, in the same words. */
+const NO_VOLUME_NOTE = `Couldn’t load ${TOTALS_WHAT}`;
 const POOLS_SOURCE = "/v2/amm/pools · ordered by value";
 const CHART_SOURCE = "/v2/network/amm_volume?interval=day";
 /** An error message cut to what the field of the form repeats of what was typed. */
@@ -174,14 +179,8 @@ const counted = (n: number): string => formatAmount(plain(n));
 /** An asset of the data API's flat pair (`base_currency`, `base_issuer?`): the native currency has no issuer. */
 const assetOf = (currency: string, issuer: string | undefined): Asset => (issuer === undefined ? { currency } : { currency, issuer });
 
-/** Whether an asset is the network's native currency: the code alone. An issued `XAH` on XRPL is not. */
-const isNative = (asset: Asset, native: NativeCode): boolean => asset.issuer === undefined && asset.currency === native;
-
 /** Why a call failed, as a problem says it: the reason's message (a `TooLate` is `took too long`). The problems are logged, never part of the page. */
 const reasonText = (reason: unknown): string => (reason instanceof Error ? reason.message : String(reason));
-
-/** `HH:MM` (UTC) of a time of the data API. */
-const clockOf = (time: string): string => new Date(Date.parse(time)).toISOString().slice(11, 16);
 
 /** The words of a swap count: `1,284 swaps`. */
 const swapsWords = (count: number): string => `${counted(count)} ${count === 1 ? "swap" : "swaps"}`;
@@ -191,16 +190,16 @@ function tilesOf(net: AmmListInput["net"], row: AmmVolumeRow): [AmmTile, AmmTile
   const { native } = net;
   const busiest = row.components[0];
   return [
-    { label: "Swap volume, 24 h", value: `${compactNumber(row.total)} ${native}`, sub: swapsWords(row.count), href: null },
-    { label: "Pools with swaps, 24 h", value: counted(row.components.length), sub: `that could be priced in ${native}`, href: null },
+    { label: TILE_LABELS[0], value: `${compactNumber(row.total)} ${native}`, sub: swapsWords(row.count), href: null },
+    { label: TILE_LABELS[1], value: counted(row.components.length), sub: `that could be priced in ${native}`, href: null },
     busiest
       ? {
-          label: "Busiest pool, 24 h",
+          label: TILE_LABELS[2],
           value: displayPair(busiest.base, busiest.counter, native).text,
           sub: `${compactNumber(busiest.converted_amount)} ${native} of swaps`,
           href: ammPoolHref(net.id, busiest.amm_account),
         }
-      : { label: "Busiest pool, 24 h", value: DASH, sub: "no swaps in the last 24 hours", href: null },
+      : { label: TILE_LABELS[2], value: DASH, sub: "no swaps in the last 24 hours", href: null },
   ];
 }
 
@@ -256,10 +255,7 @@ function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<
     fee: pool.trading_fee === undefined ? DASH : feePercent(pool.trading_fee),
     volume,
     slot: slotOf(net, pool, now),
-    created:
-      pool.created_ledger === undefined
-        ? { text: DASH, href: null }
-        : { text: `#${counted(pool.created_ledger)}`, href: `/${net.id}/ledger/${plain(pool.created_ledger)}` },
+    created: pool.created_ledger === undefined ? { text: DASH, href: null } : ledgerLink(net.id, pool.created_ledger),
   };
 }
 
@@ -277,25 +273,30 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
     return { state: "failed", what };
   };
 
-  // #3: the live row, and the tiles that say what it is. A row the tiles cannot be made of is no row: the column and the note must not use it either.
+  // #3: the live row, and the tiles that say what it is. A row the tiles cannot be made of is no row: the column and the note must not use it either. An answer
+  // is read as far as it goes (`?.`): one without `rows`, or a `null`, is no row, and so is a failed card and not a throw.
   let liveRow: AmmVolumeRow | null = null;
+  let liveAsOf = "";
   let totals: AmmListPageData["totals"];
+  const failedTotals = (reason: unknown): AmmListPageData["totals"] => ({ ...failed(TOTALS_WHAT, reason), labels: TILE_LABELS });
   if (input.live.status === "rejected") {
-    totals = failed(TOTALS_WHAT, input.live.reason);
-  } else if (input.live.value.rows[0] === undefined) {
-    totals = failed(TOTALS_WHAT, new Error("the data API answered no row"));
+    totals = failedTotals(input.live.reason);
+  } else if (!Array.isArray(input.live.value?.rows) || input.live.value.rows[0] == null) {
+    totals = failedTotals(new Error("the data API answered no row"));
   } else {
     try {
       const row = input.live.value.rows[0];
-      totals = { state: "ok", tiles: tilesOf(net, row), note: `As of ${clockOf(row.end_time)} UTC.` };
+      liveAsOf = clock(unixOf(row.end_time));
+      totals = { state: "ok", tiles: tilesOf(net, row), note: `As of ${liveAsOf} UTC.` };
       liveRow = row;
     } catch (error) {
-      totals = failed(TOTALS_WHAT, error);
+      totals = failedTotals(error);
     }
   }
 
-  // The data's own "now": the live set's end, else the newest ledger's close time.
-  const nowAt = liveRow ? Date.parse(liveRow.end_time) : input.last.status === "fulfilled" ? Date.parse(input.last.value.close_time) : Number.NaN;
+  // The data's own "now": the live set's end, else the newest ledger's close time (none when neither is a time).
+  const closedAt = input.last.status === "fulfilled" ? Date.parse(input.last.value?.close_time) : Number.NaN;
+  const nowAt = liveRow ? Date.parse(liveRow.end_time) : closedAt;
   const now = Number.isNaN(nowAt) ? null : nowAt;
 
   // #1 and #4: the chart.
@@ -365,7 +366,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
         note: liveRow ? null : NO_VOLUME_NOTE,
         footnote:
           `Value is twice the ${native} reserve, or twice a reserve at its daily ${native} rate.` +
-          (liveRow ? ` Volume 24 h is the swap volume of the last 24 hours in ${native}, as of ${clockOf(liveRow.end_time)} UTC.` : ""),
+          (liveRow ? ` Volume 24 h is the swap volume of the last 24 hours in ${native}, as of ${liveAsOf} UTC.` : ""),
       };
     } catch (error) {
       pools = failed(POOLS_WHAT, error);
