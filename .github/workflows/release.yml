@@ -1,0 +1,128 @@
+# A release, on every pushed tag v* (v1.4.0, or a pre-release such as v1.4.0-rc.1):
+#   1. test     the whole CI workflow (verify, fixtures:check, the end-to-end suite);
+#   2. image    the explorer image (Dockerfile: the built Worker under workerd) for linux/amd64 and linux/arm64, pushed to
+#               GitHub Packages (ghcr.io) as the tag's version without its v (1.4.0) and as latest;
+#   3. deploy   `pnpm deploy:production` to Cloudflare, only while the repository variable CLOUDFLARE_DEPLOY is "true": the
+#               pre-deploy guard refuses production until its hosts and routes are set (README "Hosts and routes");
+#   4. release  the GitHub release of the tag: its body is the changelog since the previous tag (cliff.toml), which is also
+#               attached as CHANGELOG.md. A tag with a "-" is marked a pre-release.
+# A release exists only for a tag whose tests passed, whose image is out and, when the deploy is on, that is deployed.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Image names on ghcr.io must be lower case.
+  IMAGE: ghcr.io/gatehubnet/explorer
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    name: Image
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Worker is built once on the runner's own platform; only the runtime stage is per platform (arm64 under emulation).
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          # Every tag moves latest, a pre-release included.
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      # BUILD_ID is the short commit, as a build from a checkout would have it (the image's build context has no .git).
+      - id: build-id
+        run: echo "value=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_ID=${{ steps.build-id.outputs.value }}
+          cache-from: type=gha,scope=explorer
+          cache-to: type=gha,mode=max,scope=explorer
+
+  deploy:
+    name: Deploy to Cloudflare (production)
+    needs: test
+    if: ${{ vars.CLOUDFLARE_DEPLOY == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Protection rules (a required reviewer, which tags may deploy) go on this environment in the repository's settings.
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      # Build for production, the pre-deploy guard, `wrangler deploy` (README "The pipeline and deploying").
+      - name: pnpm deploy:production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          export BUILD_ID="${GITHUB_SHA::7}"
+          pnpm deploy:production
+
+  release:
+    name: GitHub release
+    needs: [image, deploy]
+    # A deploy that is off (skipped) does not hold the release; one that ran must have passed.
+    if: ${{ !cancelled() && needs.image.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Changelog since the previous tag
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --current --strip header
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$TAG" CHANGELOG.md --verify-tag --title "$TAG" --notes-file CHANGELOG.md $prerelease
