@@ -7,67 +7,56 @@ import { PENDING_PATHS } from "../../app/server/pending-paths";
 // `pnpm api:sync` brings it in, it belongs in PATHS, where the compiler checks it: this fails until it is moved.
 
 /** Throws, naming the entry to move, for each pending path the document has as a path key. */
-function checkPending(yaml: string): void {
-  const arrived = Object.entries(PENDING_PATHS).filter(([, path]) => yaml.includes(`  "${path}":`));
+function checkPending(yaml: string, pending: Record<string, string> = PENDING_PATHS): void {
+  const arrived = Object.entries(pending).filter(([, path]) => yaml.includes(`  "${path}":`));
   if (arrived.length > 0) {
     throw new Error(arrived.map(([name]) => `move "${name}" from PENDING_PATHS to PATHS in app/server/data-api.ts`).join("; "));
   }
 }
 
+const yaml = readFileSync(new URL("../../api/openapi.yaml", import.meta.url), "utf8");
+
 describe("PENDING_PATHS", () => {
   it("lists only paths that api/openapi.yaml does not have yet", () => {
-    const yaml = readFileSync(new URL("../../api/openapi.yaml", import.meta.url), "utf8");
-
     expect(() => checkPending(yaml)).not.toThrow();
   });
 
   it("fails, and says what to move, once the document has a path", () => {
-    for (const [name, path] of Object.entries(PENDING_PATHS)) {
-      const yaml = `openapi: 3.0.0\npaths:\n  "/v2/last_validated":\n    get: {}\n  "${path}":\n    get: {}\n`;
+    // PENDING_PATHS is empty for now: a route of a later sub-project stands in for its entries.
+    const pending = { ...PENDING_PATHS, laterRoute: "/v2/later/{id}" };
+    for (const [name, path] of Object.entries(pending)) {
+      const document = `openapi: 3.0.0\npaths:\n  "/v2/last_validated":\n    get: {}\n  "${path}":\n    get: {}\n`;
 
-      expect(() => checkPending(yaml)).toThrow(`move "${name}" from PENDING_PATHS to PATHS in app/server/data-api.ts`);
+      expect(() => checkPending(document, pending)).toThrow(`move "${name}" from PENDING_PATHS to PATHS in app/server/data-api.ts`);
     }
   });
 
-  it("has the AMM volume route, which only the data API's feat/amm-data branch has", () => {
-    expect(PENDING_PATHS.ammVolume).toBe("/v2/network/amm_volume");
-  });
-
-  it("has the markets route, which only a data API that has merged D2 (`feat/explorer-data`) has", () => {
-    expect(PENDING_PATHS.networkMarkets).toBe("/v2/network/markets");
-  });
-
-  it("has the six routes of D1 (`feat/explorer-data`, pinned at 7d495ab), with the path parameter names of its openapi.yaml: `key` and `name`", () => {
-    expect({
-      validatorsSummary: PENDING_PATHS.validatorsSummary,
-      validators: PENDING_PATHS.validators,
-      validator: PENDING_PATHS.validator,
-      validatorValidations: PENDING_PATHS.validatorValidations,
-      amendments: PENDING_PATHS.amendments,
-      amendment: PENDING_PATHS.amendment,
-    }).toEqual({
-      validatorsSummary: "/v2/network/validators/summary",
-      validators: "/v2/network/validators",
-      validator: "/v2/network/validators/{key}",
-      validatorValidations: "/v2/network/validators/{key}/validations",
-      amendments: "/v2/network/amendments",
-      amendment: "/v2/network/amendments/{name}",
-    });
-  });
-
-  // E5's seven AMM pool routes (`feat/amm-data`, pinned at c3e2302), in the spellings of that branch's OpenAPI document: the pool is `{pool}`, the pair is
-  // `{base}/{counter}`. Without them the API answers `Cannot GET`, which the client reads as an outage, never as a missing pool (which answers `pool not found`).
-  it("has the seven AMM pool routes of feat/amm-data (pinned at c3e2302), with the path parameter names of its openapi.yaml: `pool`, `base` and `counter`", () => {
-    const expected = {
-      ammPools: "/v2/amm/pools",
-      ammPool: "/v2/amm/pools/{pool}",
-      ammPoolByPair: "/v2/amm/pools/{base}/{counter}",
-      ammPoolHistory: "/v2/amm/pools/{pool}/history",
-      ammPoolSwaps: "/v2/amm/pools/{pool}/swaps",
-      ammPoolLiquidity: "/v2/amm/pools/{pool}/liquidity",
-      ammPoolGovernance: "/v2/amm/pools/{pool}/governance",
-    };
-    expect(Object.fromEntries(Object.keys(expected).map((name) => [name, PENDING_PATHS[name as keyof typeof expected]]))).toEqual(expected);
-    // Each is a value of PENDING_PATHS, so the two tests above cover it: absent from api/openapi.yaml, and named in the message once it arrives.
+  // The routes that waited here, synced with data-api-new `main` 9dbbd8a (D1, D2, the AMM data and D2b), are in PATHS now, where the compiler checks them against
+  // openapi.d.ts. The document has each under the name the client calls: D1's path parameters are `key` and `name`, the AMM pools' `pool` and `base`/`counter`.
+  it("is empty since data-api-new 9dbbd8a: the document has every route of D1, D2 and the AMM data the client calls", () => {
+    expect(PENDING_PATHS).toEqual({});
+    for (const path of [
+      "/v2/network/amm_volume",
+      "/v2/network/markets",
+      "/v2/accounts/{address}/analytics/balances",
+      "/v2/accounts/{address}/analytics/balance_changes",
+      "/v2/accounts/{address}/analytics/counterparties",
+      "/v2/accounts/{address}/analytics/exchanges",
+      "/v2/network/validators/summary",
+      "/v2/network/validators",
+      "/v2/network/validators/{key}",
+      "/v2/network/validators/{key}/validations",
+      "/v2/network/amendments",
+      "/v2/network/amendments/{name}",
+      "/v2/amm/pools",
+      "/v2/amm/pools/{pool}",
+      "/v2/amm/pools/{base}/{counter}",
+      "/v2/amm/pools/{pool}/history",
+      "/v2/amm/pools/{pool}/swaps",
+      "/v2/amm/pools/{pool}/liquidity",
+      "/v2/amm/pools/{pool}/governance",
+    ]) {
+      expect(yaml, path).toContain(`  "${path}":`);
+    }
   });
 });

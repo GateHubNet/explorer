@@ -133,8 +133,9 @@ no function an engine may round differently (no `Math.sin`, `Math.exp` or fracti
 | `docs/api-reference.md` | `data-api-new`, `feat/amm-data` | `c3e23026b3405fc2fd27fc897e724df4dfe106f1` | `amm_volume` |
 | `packages/shared/config/markets/xrpl.json` (version 1), `.../xahau.json` (version 3) | `data-api-new`, `main` | `ff659c95c6ce9fbf12e6745c91984fedc5f3ca16` | the trade markets and payment currencies that are the volume components; copied into the generator (`MARKETS`) |
 
-Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. `feat/amm-data` is not merged: `amm_volume` is in `PENDING_PATHS` (`app/server/pending-paths.ts`) and
-the fixtures hold it because the top level of `wrangler.jsonc` and the tests have `AMM_DATA` on (the `worker-off` project never asks for it).
+Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. `feat/amm-data` was not merged when these were made; it is in data-api-new `main` since
+9dbbd8a, whose `openapi.yaml` the client's `PATHS` follow. The fixtures hold `amm_volume` because the top level of `wrangler.jsonc` and the tests have `AMM_DATA` on (the
+`worker-off` project never asks for it).
 
 **The markets pages' aggregates** (`network/markets`, and the pair routes of the markets pages). The data API client's types (`app/server/api-types.ts`: `MarketsResponse`,
 `MarketRow`, `PairExchange`, `Candle`, `ReducedRow`, `ActiveAccounts`) and the checks it runs inside its cached loads (`app/server/aggregate-shape.ts`: `checkMarkets`,

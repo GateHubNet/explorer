@@ -446,8 +446,10 @@ paths:
         the rate is 1/rate. With `interval`, the candles of the buckets that start
         between `start` and `end` (open, high, low, close, vwap, volumes, count);
         with `reduce=true`, one such row of the whole window. An exchange whose native
-        leg is 0.0005 or less is left out of both. `format=csv` gives the rows as
-        a CSV file.'
+        leg is 0.0005 or less is left out of both. A swap against an AMM pool is an
+        exchange too: it has `amm_account` as its last key, and `amm` lists it (`include`,
+        the default), leaves it out (`exclude`) or lists only the swaps (`only`).
+        `format=csv` gives the rows as a CSV file.'
       parameters:
       - name: base
         required: true
@@ -488,6 +490,18 @@ paths:
         description: Newest first.
         schema:
           type: boolean
+      - name: amm
+        required: false
+        in: query
+        description: Swaps against AMM pools are exchanges too (they carry `amm_account`,
+          the pool). `include` (default) lists them with the order-book exchanges,
+          `exclude` lists the order-book exchanges only, `only` the swaps only.
+        schema:
+          enum:
+          - include
+          - exclude
+          - only
+          type: string
       - name: autobridged
         required: false
         in: query
@@ -570,6 +584,18 @@ paths:
         description: Newest first.
         schema:
           type: boolean
+      - name: amm
+        required: false
+        in: query
+        description: Swaps against AMM pools are exchanges too (they carry `amm_account`,
+          the pool). `include` (default) lists them with the order-book exchanges,
+          `exclude` lists the order-book exchanges only, `only` the swaps only.
+        schema:
+          enum:
+          - include
+          - exclude
+          - only
+          type: string
       - name: autobridged
         required: false
         in: query
@@ -982,7 +1008,10 @@ paths:
         With `base`, only the trades of that asset, and with `counter` only against
         that asset, in whichever order the pair is stored: a trade stored the other
         way round is inverted (base and counter, buyer and seller swap, the rate is
-        1/rate). `format=csv` gives the trades as a CSV file.'
+        1/rate). A swap against an AMM pool is an exchange too: it has `amm_account`
+        as its last key, and `amm` lists it (`include`, the default), leaves it out
+        (`exclude`) or lists only the swaps (`only`). `format=csv` gives the trades
+        as a CSV file.'
       parameters:
       - name: address
         required: true
@@ -1016,6 +1045,18 @@ paths:
         description: Newest first.
         schema:
           type: boolean
+      - name: amm
+        required: false
+        in: query
+        description: Swaps against AMM pools are exchanges too (they carry `amm_account`,
+          the pool). `include` (default) lists them with the order-book exchanges,
+          `exclude` lists the order-book exchanges only, `only` the swaps only.
+        schema:
+          enum:
+          - include
+          - exclude
+          - only
+          type: string
       - name: end
         required: false
         in: query
@@ -1052,7 +1093,10 @@ paths:
         With `base`, only the trades of that asset, and with `counter` only against
         that asset, in whichever order the pair is stored: a trade stored the other
         way round is inverted (base and counter, buyer and seller swap, the rate is
-        1/rate). `format=csv` gives the trades as a CSV file.'
+        1/rate). A swap against an AMM pool is an exchange too: it has `amm_account`
+        as its last key, and `amm` lists it (`include`, the default), leaves it out
+        (`exclude`) or lists only the swaps (`only`). `format=csv` gives the trades
+        as a CSV file.'
       parameters:
       - name: address
         required: true
@@ -1086,6 +1130,18 @@ paths:
         description: Newest first.
         schema:
           type: boolean
+      - name: amm
+        required: false
+        in: query
+        description: Swaps against AMM pools are exchanges too (they carry `amm_account`,
+          the pool). `include` (default) lists them with the order-book exchanges,
+          `exclude` lists the order-book exchanges only, `only` the swaps only.
+        schema:
+          enum:
+          - include
+          - exclude
+          - only
+          type: string
       - name: end
         required: false
         in: query
@@ -1122,7 +1178,10 @@ paths:
         With `base`, only the trades of that asset, and with `counter` only against
         that asset, in whichever order the pair is stored: a trade stored the other
         way round is inverted (base and counter, buyer and seller swap, the rate is
-        1/rate). `format=csv` gives the trades as a CSV file.'
+        1/rate). A swap against an AMM pool is an exchange too: it has `amm_account`
+        as its last key, and `amm` lists it (`include`, the default), leaves it out
+        (`exclude`) or lists only the swaps (`only`). `format=csv` gives the trades
+        as a CSV file.'
       parameters:
       - name: address
         required: true
@@ -1156,6 +1215,18 @@ paths:
         description: Newest first.
         schema:
           type: boolean
+      - name: amm
+        required: false
+        in: query
+        description: Swaps against AMM pools are exchanges too (they carry `amm_account`,
+          the pool). `include` (default) lists them with the order-book exchanges,
+          `exclude` lists the order-book exchanges only, `only` the swaps only.
+        schema:
+          enum:
+          - include
+          - exclude
+          - only
+          type: string
       - name: end
         required: false
         in: query
@@ -1396,7 +1467,16 @@ paths:
         their number, or the accounts with `accounts`. The values are in the native
         currency: an issued currency counts at the rate of the day (`/v2/exchange_rates`,
         in strict mode), and as 0 where it has none. `payments` lists each payment
-        with its delivered amount. `format=csv` gives the reports as a CSV file.'
+        with its delivered amount. `format=csv` gives the reports as a CSV file. With
+        `interval` (`week` from Monday, or `month`; `day` is the default) a report
+        is a bucket, from the bucket of `start` to the bucket of `end` (`/{date}`
+        is the one that holds the date), `date` being the start of the bucket and
+        the bucket whole, up to now. The limit is 200 buckets: 200 days, 200 weeks
+        or 200 months. A bucket adds up the values of its days (each at the rate of
+        its day), takes the largest of their highs and adds up the payment counts;
+        its counterparties are counted (or listed, in the order of their first payment
+        in the bucket) over the whole bucket, so one that was paid on two days is
+        one. `payments` can only be listed with `interval=day`.'
       parameters:
       - name: address
         required: true
@@ -1422,9 +1502,20 @@ paths:
       - name: payments
         required: false
         in: query
-        description: List the payments of each day.
+        description: List the payments of each day. Only with `interval=day`.
         schema:
           type: boolean
+      - name: interval
+        required: false
+        in: query
+        description: 'A report per day, week (from Monday) or month, UTC. Default:
+          day.'
+        schema:
+          enum:
+          - day
+          - week
+          - month
+          type: string
       - name: accounts
         required: false
         in: query
@@ -1464,7 +1555,16 @@ paths:
         their number, or the accounts with `accounts`. The values are in the native
         currency: an issued currency counts at the rate of the day (`/v2/exchange_rates`,
         in strict mode), and as 0 where it has none. `payments` lists each payment
-        with its delivered amount. `format=csv` gives the reports as a CSV file.'
+        with its delivered amount. `format=csv` gives the reports as a CSV file. With
+        `interval` (`week` from Monday, or `month`; `day` is the default) a report
+        is a bucket, from the bucket of `start` to the bucket of `end` (`/{date}`
+        is the one that holds the date), `date` being the start of the bucket and
+        the bucket whole, up to now. The limit is 200 buckets: 200 days, 200 weeks
+        or 200 months. A bucket adds up the values of its days (each at the rate of
+        its day), takes the largest of their highs and adds up the payment counts;
+        its counterparties are counted (or listed, in the order of their first payment
+        in the bucket) over the whole bucket, so one that was paid on two days is
+        one. `payments` can only be listed with `interval=day`.'
       parameters:
       - name: address
         required: true
@@ -1490,9 +1590,20 @@ paths:
       - name: payments
         required: false
         in: query
-        description: List the payments of each day.
+        description: List the payments of each day. Only with `interval=day`.
         schema:
           type: boolean
+      - name: interval
+        required: false
+        in: query
+        description: 'A report per day, week (from Monday) or month, UTC. Default:
+          day.'
+        schema:
+          enum:
+          - day
+          - week
+          - month
+          type: string
       - name: accounts
         required: false
         in: query
@@ -1532,7 +1643,16 @@ paths:
         the account held at the end of the day in the native currency (the native
         balance, plus each issued currency it holds at the rate of the day, as a string;
         what the account owes is not counted) and how many times its balances changed
-        that day, not counting the fee. `format=csv` gives the rows as a CSV file.'
+        that day, not counting the fee. `format=csv` gives the rows as a CSV file.
+        With `interval` (`day`, `week` from Monday or `month`) the rows are buckets
+        instead of days, `date` being the start of the bucket: a bucket is a row when
+        its start is at or after `start` and before `end`. `transactions` has a row
+        for each bucket in which the account sent a transaction, with the counts of
+        the whole bucket. `value` has a row for every bucket from the first one in
+        which the account had a balance to the last before `end`, active or not, but
+        none that has not begun (the rows stop at the bucket that holds now, whatever
+        `end` says): its value at the end of the last day of the bucket (today, for
+        the current one) and the number of balance changes in it (0 for a quiet bucket).'
       parameters:
       - name: address
         required: true
@@ -1572,9 +1692,20 @@ paths:
       - name: descending
         required: false
         in: query
-        description: Newest day first.
+        description: Newest day or bucket first.
         schema:
           type: boolean
+      - name: interval
+        required: false
+        in: query
+        description: 'Rows per day, week (from Monday) or month, UTC. Without it:
+          a row per active day.'
+        schema:
+          enum:
+          - day
+          - week
+          - month
+          type: string
       - name: end
         required: false
         in: query
@@ -1585,6 +1716,393 @@ paths:
         required: false
         in: query
         description: 'The first day, from its midnight on. Default: 2013-01-01.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - accounts
+  "/v2/accounts/{address}/analytics/balances":
+    get:
+      operationId: AccountAnalyticsController_balances
+      summary: Get the balance history of an account, per line
+      description: 'A line is a currency and its counterparty (none for the native
+        currency). `lines` are the lines of the account that changed up to the end
+        of the window, after the filters, ranked: the native line first, then the
+        lines that have a rate by their balance over that rate (the rate of the asset
+        `(currency, counterparty)` on the newest valid day at or before the end of
+        the window), largest first, then the others by the size of the balance; the
+        first `limit` are served, and `lines_total` counts them all. `balance` of
+        a line is its balance at the end of the window. `rows` are the balance of
+        each of those lines at the end of each bucket: the last balance up to then,
+        so a bucket without a change carries the balance before it. A line has rows
+        from the bucket of its first change, or from the first bucket of the window
+        when it changed before it, and a line that went back to 0 keeps its rows of
+        "0". A balance below 0 is what the account owes on that line. A bucket that
+        has not begun has no row, so the rows stop at the bucket that holds now whatever
+        the end. The window is whole UTC days, from the day of `start` to the day
+        of `end` (both included, whatever the time of day), widened to whole buckets
+        when there is an `interval`; the answer''s `start` is the start of the first
+        day or bucket and `end` the start of the one after the last, so it is exclusive.
+        An `end` before `start` is an empty answer. At most 1000 buckets. `format=csv`
+        gives the rows as a CSV file.'
+      parameters:
+      - name: address
+        required: true
+        in: path
+        description: The address of the account.
+        schema:
+          type: string
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: limit
+        required: false
+        in: query
+        description: How many lines. Default 10, at most 50.
+        schema:
+          type: number
+      - name: counterparty
+        required: false
+        in: query
+        description: 'Only the lines with this account; not with the native currency.
+          Alias: issuer.'
+        schema: {}
+      - name: currency
+        required: false
+        in: query
+        description: Only the lines of this currency (upper-cased).
+        schema: {}
+      - name: interval
+        required: false
+        in: query
+        description: 'The bucket of a row: day, week (from Monday) or month, UTC.
+          Default: day.'
+        schema:
+          enum:
+          - day
+          - week
+          - month
+          type: string
+      - name: end
+        required: false
+        in: query
+        description: 'The last day, whole. Default: now.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'The first day. Default: 2013-01-01.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - accounts
+  "/v2/accounts/{address}/analytics/balance_changes":
+    get:
+      operationId: AccountAnalyticsController_balanceChanges
+      summary: Get the sums of the balance changes of an account by change type and
+        currency
+      description: Every balance change of the window counts once, the fees (`transaction_cost`)
+        too. A change type is one of transaction_cost, payment_destination, payment_source,
+        exchange, intermediary, escrow_create, escrow_finish, escrow_cancel, paychannel_fund,
+        paychannel_payout; the changes of transaction types that have none are grouped
+        without a `change_type`. `in` is the sum of the positive changes and `out`
+        the sum of the negative ones as a positive amount; `in_value` and `out_value`
+        are their values in the native currency (the native currency is worth itself,
+        an issued amount its amount over the rate of its day, cut to 17 significant
+        digits per change type, asset and day, and 0 without a rate; a change on a
+        line the account owes on is a change of its own currency), and `net_value`
+        is `in_value` minus `out_value`. `totals` has an entry for each change type
+        that has a change, in that order. Without `interval` `rows` are per change
+        type and asset (`issuer` is left out for the native currency), the largest
+        `in_value + out_value` first; with one they are per bucket and change type,
+        with `date` the start of the bucket. The window is whole UTC days, from the
+        day of `start` to the day of `end` (both included, whatever the time of day),
+        widened to whole buckets when there is an `interval`; the answer's `start`
+        is the start of the first day or bucket and `end` the start of the one after
+        the last, so it is exclusive. An `end` before `start` is an empty answer.
+        With an interval, at most 1000 buckets. `format=csv` gives the rows as a CSV
+        file.
+      parameters:
+      - name: address
+        required: true
+        in: path
+        description: The address of the account.
+        schema:
+          type: string
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: interval
+        required: false
+        in: query
+        description: Rows per bucket (day, week from Monday, month; UTC) and change
+          type instead of per change type and asset.
+        schema:
+          enum:
+          - day
+          - week
+          - month
+          type: string
+      - name: end
+        required: false
+        in: query
+        description: 'The last day, whole. Default: now.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'The first day. Default: 2013-01-01.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - accounts
+  "/v2/accounts/{address}/analytics/counterparties":
+    get:
+      operationId: AccountAnalyticsController_counterparties
+      summary: Get the accounts an account paid and was paid by, with what the payments
+        were worth
+      description: 'The payments of the account in the window, each once, by the account
+        on the other side. A payment to oneself is a payment sent, its counterparty
+        being the account itself. `sent_value` is what the account paid the counterparty
+        and `received_value` what the counterparty paid the account: the delivered
+        amounts, the native currency worth itself and an issued amount its amount
+        over the rate of its day (cut to 17 significant digits per counterparty, direction,
+        asset and day, and 0 without a rate); `total_value` is their sum. `payments_sent`
+        and `payments_received` are the numbers of payments each way, `first` and
+        `last` the times of the first and the last payment between the two in the
+        window. `total` is the number of different counterparties in the window and
+        `count` the number served: the first `limit` by `sort`, the largest first,
+        then by the account. The window is whole UTC days, from the day of `start`
+        to the day of `end` (both included, whatever the time of day), widened to
+        whole buckets when there is an `interval`; the answer''s `start` is the start
+        of the first day or bucket and `end` the start of the one after the last,
+        so it is exclusive. An `end` before `start` is an empty answer. The route
+        has no `interval`. `format=csv` gives the counterparties as a CSV file.'
+      parameters:
+      - name: address
+        required: true
+        in: path
+        description: The address of the account.
+        schema:
+          type: string
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: limit
+        required: false
+        in: query
+        description: How many counterparties. Default 20, at most 1000.
+        schema:
+          type: number
+      - name: sort
+        required: false
+        in: query
+        description: 'value (`total_value`) or count (`payments_sent + payments_received`).
+          Default: value.'
+        schema:
+          enum:
+          - value
+          - count
+          type: string
+      - name: end
+        required: false
+        in: query
+        description: 'The last day, whole. Default: now.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'The first day. Default: 2013-01-01.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - accounts
+  "/v2/accounts/{address}/analytics/exchanges":
+    get:
+      operationId: AccountAnalyticsController_exchanges
+      summary: Get the summary of the trades of an account on the exchange, per pair
+      description: 'The trades of the account in the window (it is the buyer or the
+        seller), each once, per pair in the canonical stored order. `bought` is the
+        base the account received (it was the buyer) and `sold` the base it gave (it
+        was the seller), `bought_counter` the counter it paid for what it bought and
+        `sold_counter` the counter it received for what it sold; a trade with oneself
+        is in both. `native_volume` is, for a pair with a native side, the volume
+        of that side; for another, per day the base volume over the rate of the base,
+        or, without one, the counter volume over the rate of the counter (cut to 17
+        significant digits per day), summed; it is left out when no day of the pair
+        had a rate. The pairs are sorted by `native_volume`, the largest first, the
+        pairs without one last by `count`, then by the pair; `total` is the number
+        of pairs in the window and `count` the number served: the first `limit`. The
+        window is whole UTC days, from the day of `start` to the day of `end` (both
+        included, whatever the time of day), widened to whole buckets when there is
+        an `interval`; the answer''s `start` is the start of the first day or bucket
+        and `end` the start of the one after the last, so it is exclusive. An `end`
+        before `start` is an empty answer. The route has no `interval`. `format=csv`
+        gives the pairs as a CSV file.'
+      parameters:
+      - name: address
+        required: true
+        in: path
+        description: The address of the account.
+        schema:
+          type: string
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: limit
+        required: false
+        in: query
+        description: How many pairs. Default 20, at most 1000.
+        schema:
+          type: number
+      - name: end
+        required: false
+        in: query
+        description: 'The last day, whole. Default: now.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'The first day. Default: 2013-01-01.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - accounts
+  "/v2/accounts/{address}/amm_liquidity":
+    get:
+      operationId: AccountAmmController_liquidity
+      summary: Get the AMM liquidity events of an account
+      description: 'The creations, deposits, withdrawals, clawbacks and deletions
+        of AMM pools in which the account was the liquidity provider, in the ledgers
+        that closed between `start` and `end`, oldest first. Each is the event `GET
+        /v2/amm/pools/:pool/liquidity` serves: `{amm_account, ledger_index, tx_index,
+        tx_hash, executed_time, account, initiator, event, mode?, base_amount, counter_amount,
+        lp_tokens}`, with the amounts signed from the pool side. `pool` and `event`
+        keep the events of that pool, of that kind. `format=csv` gives the events
+        as a CSV file.'
+      parameters:
+      - name: address
+        required: true
+        in: path
+        description: The address of the liquidity provider.
+        schema:
+          type: string
+      - name: descending
+        required: false
+        in: query
+        description: Newest first.
+        schema:
+          type: boolean
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: event
+        required: false
+        in: query
+        description: Only the events of this kind.
+        schema:
+          enum:
+          - create
+          - deposit
+          - withdraw
+          - clawback
+          - delete
+          type: string
+      - name: pool
+        required: false
+        in: query
+        description: Only the events of the pool with this account.
+        schema: {}
+      - name: end
+        required: false
+        in: query
+        description: 'End time. Default: the newest ledger.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'Start time. Default: the first ledger.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - accounts
+  "/v2/accounts/{address}/amm_positions":
+    get:
+      operationId: AccountAmmController_positions
+      summary: Get the AMM positions of an account
+      description: 'The LP tokens the account holds, one position for each AMM pool:
+        `{pool, lp_currency, lp_balance, share, base_amount?, counter_amount?}`, sorted
+        by pool. `lp_balance` is the account''s last balance of the pool''s LP token
+        at `date` (now without one: the last ledger that closed at or before it),
+        `share` is that balance over the LP supply of the pool at the same ledger,
+        and each amount is the same share of the reserve of the pool on that side
+        (the pool''s base and counter, as `GET /v2/amm/pools/:pool` gives them). They
+        are exact decimal strings (30 significant digits where they do not end sooner).
+        A zero balance, a deleted pool and a pool without a supply have no position;
+        neither has a line that is not the LP token the pool names.'
+      parameters:
+      - name: address
+        required: true
+        in: path
+        description: The address of the liquidity provider.
+        schema:
+          type: string
+      - name: date
+        required: false
+        in: query
+        description: 'The time the positions are of. Default: now.'
         schema: {}
       responses:
         '200':
@@ -1934,6 +2452,193 @@ paths:
           description: ''
       tags:
       - network
+  "/v2/network/amm_volume":
+    get:
+      operationId: VolumeController_ammVolume
+      summary: Get the volume of the swaps against the AMM pools on the network
+      description: 'The swaps against the AMM pools, per pool, in the native currency:
+        per pool the account, its assets, the number of swaps, the volume of the base
+        and the rate, and the volume converted to the native currency (a pool against
+        the native currency by its own native volume, the others through the rate
+        of the base or of the counter, from the configured markets against the native
+        currency or else from the pools; a pool without a rate is left out). Every
+        pool with swaps counts, not only the configured markets; swaps of 0.0005 of
+        the native currency or less are left out. Without `start` and `end`, the live
+        row of the rolling period `live` (hour, day, 3day, 7day, 30day; default day).
+        With them, a row per `interval` (day, week from Monday, month, UTC) for the
+        days that were computed: a bucket is a row when it starts within `start` and
+        `end`, whole. `exchange_currency` / `exchange_issuer` show the amounts in
+        another currency, as for the exchange volume. The live row of the rolling
+        day (`live=day`) also has `fees_est`, the estimated trading fees the pool
+        charged on the swaps of the 24 hours, per pool and as the sum of the row,
+        in the currency of `converted_amount`; a pool whose fees are not known has
+        none, and then the row has none. The other rows have no `fees_est`: the fees
+        of a pool per day are in `/v2/amm/pools/{pool}/history?interval=day`. The
+        trade volume (`exchange_volume`) counts the swaps as well.'
+      parameters:
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      - name: exchange_issuer
+        required: false
+        in: query
+        description: Required for every currency but the native one.
+        schema: {}
+      - name: exchange_currency
+        required: false
+        in: query
+        description: 'Default: the native currency.'
+        schema: {}
+      - name: interval
+        required: false
+        in: query
+        description: 'Default: day.'
+        schema:
+          enum:
+          - day
+          - week
+          - month
+          type: string
+      - name: end
+        required: false
+        in: query
+        description: 'End time of the historical rows. Default: now.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'Start time of the historical rows. Default: the epoch.'
+        schema: {}
+      - name: live
+        required: false
+        in: query
+        description: 'Default: day. Ignored with start or end.'
+        schema:
+          enum:
+          - hour
+          - day
+          - 3day
+          - 7day
+          - 30day
+          type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
+  "/v2/network/markets":
+    get:
+      operationId: MarketsController_list
+      summary: Get the trade statistics of every market in a live period
+      description: 'Every pair that traded in the period (not the markets config),
+        in the canonical stored order of its currencies; a price is counter per base.
+        The pairs with at least `min_trades` trades are listed, by `native_volume`,
+        the largest first, the pairs without one last by `count`, then by the pair;
+        at most `limit`. A trade counts when its native leg is above 0.0005 (as candles).
+        `open`, `high`, `low` and `last` have 8 significant digits; `change` is `(last
+        / open - 1) * 100` in percent, rounded half up to 2 decimals; the volumes
+        are exact. `native_volume` is the volume of the native side of a pair that
+        has one; for another pair the base volume over the rate of the base, or, without
+        one, the counter volume over the rate of the counter (an asset has a rate
+        when it traded against the native currency in the period), cut to 17 significant
+        digits; a pair without a rate has none. `sparkline` is the close of each of
+        the last 7 UTC days, ending with today (a day without a trade carries the
+        close before it; `close` is left out where there is none). `start_time` and
+        `end_time` are the window of the set. `totals.pairs` counts the listed pairs,
+        whatever the limit; `pairs_traded`, `count` and `native_volume` are over every
+        pair that traded. With `exchange_currency` the answer has `exchange` and `exchange_rate`
+        (units of it per native coin, at the rate of the latest trades) and a `converted_volume`
+        (the native volume times the rate) on the totals and on every market that
+        has a native volume. With `amm` the pairs, volumes, prices and counts are
+        those of the trades it keeps (`exclude`: the order book; `only`: the swaps
+        against AMM pools), and the answer has `amm`. `amm_share` is the part of the
+        pair''s base volume that was swaps, over every trade of the pair in the window,
+        text with 4 decimals (the same in every filter; it does not change if a consumer
+        shows the pair inverted), `amm_pool` whether the pair has a pool that is not
+        deleted, and `totals.amm_share` the part of the native volume that was swaps.
+        They are left out unless every ledger of the window was parsed with AMM support:
+        an absent field means not known, never 0 or false. The sets are written every
+        minute (day) or five minutes (7day, 30day); before the first one the answer
+        has no markets.'
+      parameters:
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json (csv: markets.csv).'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: limit
+        required: false
+        in: query
+        description: Default 1000, at most 5000.
+        schema:
+          type: number
+      - name: amm
+        required: false
+        in: query
+        description: 'From the AMM data: `include` (default) counts every trade, `exclude`
+          the order-book trades only, `only` the swaps. The AMM fields are there only
+          when every ledger of the window was parsed with AMM.'
+        schema:
+          enum:
+          - include
+          - exclude
+          - only
+          type: string
+      - name: exchange_issuer
+        required: false
+        in: query
+        description: Required for every currency but the native one.
+        schema: {}
+      - name: exchange_currency
+        required: false
+        in: query
+        description: 'Also show the volumes in this currency. Default: the native
+          currency (nothing is added).'
+        schema: {}
+      - name: min_trades
+        required: false
+        in: query
+        description: 'List the pairs with at least this many trades: a whole number
+          from 1 to 1000000. Default: 10.'
+        schema:
+          type: number
+      - name: period
+        required: false
+        in: query
+        description: 'The rolling period: the last 24 hours, 7 days or 30 days. Default:
+          day.'
+        schema:
+          enum:
+          - day
+          - 7day
+          - 30day
+          type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
   "/v2/ledgers/{ledger_hash}/validations":
     get:
       operationId: ValidationsController_list
@@ -2058,6 +2763,199 @@ paths:
           description: ''
       tags:
       - ledgers
+  "/v2/network/validators/summary":
+    get:
+      operationId: ValidatorsController_summary
+      summary: Get the summary of the validators of the network
+      description: 'The figures of the Validators board: the validators seen in the
+        last 24 hours, the trusted UNL with its publishers and the quorum, the negative
+        UNL, the fees, the next flag ledger, the software versions and how far the
+        agreement and the votes are computed. There are no parameters.'
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
+  "/v2/network/validators":
+    get:
+      operationId: ValidatorsController_list
+      summary: Get the validators of the network
+      description: 'The validators of the trusted UNL, or of the UNL and every validator
+        seen in the last 24 hours, with their agreement, their domain and its verification,
+        the lists they are on, their software version, and what they vote for: fees
+        and amendments. Validators with a domain come first, by domain, then the others
+        by key. `format=csv` gives the rows as a CSV file.'
+      parameters:
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      - name: q
+        required: false
+        in: query
+        description: A part of the domain, the master key or the signing key (at most
+          100 characters).
+        schema: {}
+      - name: amendment
+        required: false
+        in: query
+        description: 'The name or the ID (64 hex digits) of an amendment: the validators
+          that vote for it.'
+        schema: {}
+      - name: publisher
+        required: false
+        in: query
+        description: 'The id of a publisher of the summary: its list in use.'
+        schema: {}
+      - name: scope
+        required: false
+        in: query
+        description: 'Default: unl.'
+        schema:
+          enum:
+          - unl
+          - all
+          type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
+  "/v2/network/validators/{key}":
+    get:
+      operationId: ValidatorsController_detail
+      summary: Get a validator of the network
+      description: 'One validator by its master key, its signing key or 66 hex digits:
+        the row of the list, its vote on every amendment being decided, its manifest
+        and its agreement of each of the last 30 days. JSON only.'
+      parameters:
+      - name: key
+        required: true
+        in: path
+        description: A master key (nH...), a signing key (n9...) or 66 hex digits
+          (02, 03 or ED first).
+        schema:
+          type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
+  "/v2/network/validators/{key}/validations":
+    get:
+      operationId: ValidatorsController_validatorValidations
+      summary: Get the validations of a validator
+      description: 'The validations one validator made in the last 7 days, newest
+        first: for each ledger and hash the sightings added up, whether the ledger
+        is the one the indexer holds, and the first and last time the validation was
+        seen. The rows recorded under the validator''s signing keys are its own. `format=csv`
+        gives the page as a CSV file.'
+      parameters:
+      - name: key
+        required: true
+        in: path
+        description: A master key (nH...), a signing key (n9...) or 66 hex digits
+          (02, 03 or ED first).
+        schema:
+          type: string
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: descending
+        required: false
+        in: query
+        description: Default true; false lists the oldest first.
+        schema:
+          type: boolean
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
+  "/v2/network/amendments":
+    get:
+      operationId: AmendmentsController_list
+      summary: Get the amendments of the network
+      description: 'Every amendment the network knows: enabled, with a majority, voting,
+        obsolete or unknown, with the votes of the newest voting round and, for the
+        enabled ones, when they were enabled. The answer states the rules, the newest
+        round and the next flag ledger. `format=csv` gives the amendments as a CSV
+        file.'
+      parameters:
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: status
+        required: false
+        in: query
+        description: 'A comma list of enabled, majority, voting, obsolete and unknown.
+          Default: all.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
+  "/v2/network/amendments/{name}":
+    get:
+      operationId: AmendmentsController_detail
+      summary: Get an amendment of the network
+      description: One amendment by its name or its ID, with the envelope of the list,
+        how each validator votes on it, its rounds of the last 30 days and its history.
+        JSON only.
+      parameters:
+      - name: name
+        required: true
+        in: path
+        description: The name of the amendment (as written, else in any case when
+          only one has it) or its ID (64 hex digits).
+        schema:
+          type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+      - network
   "/v2/stats":
     get:
       operationId: StatsController_list
@@ -2337,6 +3235,396 @@ paths:
           description: ''
       tags:
       - stats
+  "/v2/amm/pools":
+    get:
+      operationId: AmmPoolsController_list
+      summary: Get the AMM pools
+      description: 'The pools in their current state, the most valuable first (`value_native`
+        descending, the pools without a value last, then the account). A pool is `{amm_account,
+        base_currency, base_issuer?, counter_currency, counter_issuer?, reserve_base?,
+        reserve_counter?, lp_supply?, lp_currency?, trading_fee?, auction_slot?, value_native?,
+        created_ledger?, created_by?, last_ledger, deleted}`: the pair in the order
+        it is stored in, the amounts as exact strings, `trading_fee` in units of 1/100000,
+        `value_native` (eight significant digits) the pool worth in the native currency,
+        left out when no asset has a rate and for a deleted pool. `format=csv` gives
+        the pools as a CSV file.'
+      parameters:
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      - name: include_deleted
+        required: false
+        in: query
+        description: Also the pools that were deleted.
+        schema:
+          type: boolean
+      - name: asset2
+        required: false
+        in: query
+        description: Written like `asset`; with both, the pools that have both.
+        schema: {}
+      - name: asset
+        required: false
+        in: query
+        description: 'Only the pools that have this asset on either side: `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`,
+          or the native currency alone. A raw `+` (which a query string decodes as
+          a space) works; `%2B` is the strict form.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - amm
+  "/v2/amm/pools/{pool}/history":
+    get:
+      operationId: AmmPoolsController_history
+      summary: Get the history of a pool
+      description: 'Every state of the pool in the ledgers that closed between `start`
+        and `end`, oldest first: the pool after each transaction that touched it.
+        A transaction only tells the values of the pool nodes it changed, so each
+        state has its missing values carried forward from the newest earlier state,
+        also from before `start`. With `interval=day` instead the days of the pool
+        with activity (`swap_count`, `volume_base` and `volume_counter` by side, `fees_*_est`,
+        estimates, left out when a swap into the side had no known fee, liquidity
+        in and out, and the closing state), a day when its start is within `start`
+        and `end`. `format=csv` gives the rows as a CSV file. With `interval=day`
+        the answer also has `computed_start` and `computed_end` (`YYYY-MM-DD`, after
+        `result`, not in the CSV): the days of the request''s window that the daily
+        figures have been computed for. `computed_end` is the newest day of the window
+        that has been computed, and `computed_start` the oldest day from which every
+        day up to it has been. A day inside the range without a row of the pool is
+        a day it was quiet; a day outside it is not computed yet. Both are left out
+        when no day of the window has been computed, and they are the same on every
+        page of an answer.'
+      parameters:
+      - name: pool
+        required: true
+        in: path
+        description: The address of the pool account.
+        schema:
+          type: string
+      - name: descending
+        required: false
+        in: query
+        description: Newest first.
+        schema:
+          type: boolean
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: interval
+        required: false
+        in: query
+        description: 'Without it every state; `day`: one row a day.'
+        schema:
+          enum:
+          - day
+          type: string
+      - name: end
+        required: false
+        in: query
+        description: 'End time. Default: the newest ledger.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'Start time. Default: the first ledger.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - amm
+  "/v2/amm/pools/{pool}":
+    get:
+      operationId: AmmPoolsController_detail
+      summary: Get a pool
+      description: The pool of an account in its current state, deleted or not; 404
+        `pool not found` when there is none.
+      parameters:
+      - name: pool
+        required: true
+        in: path
+        description: The address of the pool account.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+      - amm
+  "/v2/amm/pools/{pool}/swaps":
+    get:
+      operationId: AmmEventsController_swaps
+      summary: Get the swaps of a pool
+      description: 'The exchanges that were swaps against the pool, in the ledgers
+        that closed between `start` and `end`, oldest first: what `GET /v2/exchanges/:base/:counter?amm=only`
+        serves for the pair of the pool, restricted to the pool, with the same rows,
+        the same markers and the same params (`autobridged`, the limit of at most
+        400), in the pair as the pool stores it (`amm_account` is the last key of
+        each). `amm` is ignored: these are always the swaps. `format=csv` gives the
+        swaps as a CSV file.'
+      parameters:
+      - name: pool
+        required: true
+        in: path
+        description: The address of the pool account.
+        schema:
+          type: string
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 400.
+        schema:
+          type: number
+      - name: descending
+        required: false
+        in: query
+        description: Newest first.
+        schema:
+          type: boolean
+      - name: autobridged
+        required: false
+        in: query
+        description: Only the autobridged exchanges.
+        schema:
+          type: boolean
+      - name: end
+        required: false
+        in: query
+        description: 'End time. Default: the newest ledger.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'Start time. Default: 2013-01-01.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - amm
+  "/v2/amm/pools/{pool}/liquidity":
+    get:
+      operationId: AmmEventsController_liquidity
+      summary: Get the liquidity events of a pool
+      description: 'The creation, the deposits, the withdrawals, the clawbacks and
+        the deletion of the pool in the ledgers that closed between `start` and `end`,
+        oldest first: `{amm_account, ledger_index, tx_index, tx_hash, executed_time,
+        account, initiator, event, mode?, base_amount, counter_amount, lp_tokens}`.
+        The amounts are exact strings, signed from the pool side (positive into the
+        pool, negative out of it); `lp_tokens` is positive when LP tokens were minted
+        and negative when burned; `account` is the liquidity provider and `initiator`
+        who sent the transaction (not the same for a clawback); `mode` is the mode
+        of a deposit or withdrawal. `event` and `account` keep the events of that
+        kind, of that provider. `format=csv` gives the events as a CSV file.'
+      parameters:
+      - name: pool
+        required: true
+        in: path
+        description: The address of the pool account.
+        schema:
+          type: string
+      - name: descending
+        required: false
+        in: query
+        description: Newest first.
+        schema:
+          type: boolean
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: account
+        required: false
+        in: query
+        description: Only the events of this liquidity provider.
+        schema: {}
+      - name: event
+        required: false
+        in: query
+        description: Only the events of this kind.
+        schema:
+          enum:
+          - create
+          - deposit
+          - withdraw
+          - clawback
+          - delete
+          type: string
+      - name: end
+        required: false
+        in: query
+        description: 'End time. Default: the newest ledger.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'Start time. Default: the first ledger.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - amm
+  "/v2/amm/pools/{pool}/governance":
+    get:
+      operationId: AmmEventsController_governance
+      summary: Get the votes and bids of a pool
+      description: 'The votes (`type` `vote`: `fee_voted`, the fee the voter asked
+        for, and `trading_fee_after`, the fee of the pool after it) and the bids (`type`
+        `bid`: `bid_min`, `bid_max`, `price_paid`, the LP tokens the bid burned, and
+        `auction_slot`, the slot after the bid with its authorized accounts) of the
+        pool in the ledgers that closed between `start` and `end`, oldest first. `type`
+        keeps one kind. `format=csv` gives the rows as a CSV file, with the columns
+        of both kinds.'
+      parameters:
+      - name: pool
+        required: true
+        in: path
+        description: The address of the pool account.
+        schema:
+          type: string
+      - name: descending
+        required: false
+        in: query
+        description: Newest first.
+        schema:
+          type: boolean
+      - name: limit
+        required: false
+        in: query
+        description: Default 200, at most 1000.
+        schema:
+          type: number
+      - name: marker
+        required: false
+        in: query
+        description: From the previous page.
+        schema: {}
+      - name: format
+        required: false
+        in: query
+        description: 'Default: json.'
+        schema:
+          enum:
+          - json
+          - csv
+          type: string
+      - name: type
+        required: false
+        in: query
+        description: Only the votes, or only the bids.
+        schema:
+          enum:
+          - vote
+          - bid
+          type: string
+      - name: end
+        required: false
+        in: query
+        description: 'End time. Default: the newest ledger.'
+        schema: {}
+      - name: start
+        required: false
+        in: query
+        description: 'Start time. Default: the first ledger.'
+        schema: {}
+      responses:
+        '200':
+          description: ''
+      tags:
+      - amm
+  "/v2/amm/pools/{base}/{counter}":
+    get:
+      operationId: AmmPairController_pair
+      summary: Get the pool of a pair
+      description: The live pool of the pair, in whichever order the assets are given;
+        when the pair has none, the pool that was deleted last. 404 `pool not found`
+        when the pair never had one.
+      parameters:
+      - name: base
+        required: true
+        in: path
+        description: A currency and its issuer, `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`,
+          or the native currency alone.
+        schema:
+          type: string
+      - name: counter
+        required: true
+        in: path
+        description: The other side of the pair, written like `base`.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+      - amm
 info:
   title: data-api
   description: Ripple Data API v2 compatible API for XRPL and Xahau, served from ClickHouse.

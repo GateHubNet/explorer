@@ -166,7 +166,7 @@ export interface paths {
         };
         /**
          * Get the exchanges of a pair
-         * @description The trades between `base` and `counter` of the ledgers that closed between `start` and `end`, oldest first. A pair asked for in the reverse order of the stored one is inverted: base and counter, buyer and seller swap and the rate is 1/rate. With `interval`, the candles of the buckets that start between `start` and `end` (open, high, low, close, vwap, volumes, count); with `reduce=true`, one such row of the whole window. An exchange whose native leg is 0.0005 or less is left out of both. `format=csv` gives the rows as a CSV file.
+         * @description The trades between `base` and `counter` of the ledgers that closed between `start` and `end`, oldest first. A pair asked for in the reverse order of the stored one is inverted: base and counter, buyer and seller swap and the rate is 1/rate. With `interval`, the candles of the buckets that start between `start` and `end` (open, high, low, close, vwap, volumes, count); with `reduce=true`, one such row of the whole window. An exchange whose native leg is 0.0005 or less is left out of both. A swap against an AMM pool is an exchange too: it has `amm_account` as its last key, and `amm` lists it (`include`, the default), leaves it out (`exclude`) or lists only the swaps (`only`). `format=csv` gives the rows as a CSV file.
          */
         get: operations["ExchangesController_pair"];
         put?: never;
@@ -346,7 +346,7 @@ export interface paths {
         };
         /**
          * Get the exchanges of an account
-         * @description The trades the account took part in, as buyer or as seller, in the ledgers that closed between `start` and `end`, oldest first. Each is the exchange `GET /v2/exchanges` serves, plus the `client` when there is one. With `base`, only the trades of that asset, and with `counter` only against that asset, in whichever order the pair is stored: a trade stored the other way round is inverted (base and counter, buyer and seller swap, the rate is 1/rate). `format=csv` gives the trades as a CSV file.
+         * @description The trades the account took part in, as buyer or as seller, in the ledgers that closed between `start` and `end`, oldest first. Each is the exchange `GET /v2/exchanges` serves, plus the `client` when there is one. With `base`, only the trades of that asset, and with `counter` only against that asset, in whichever order the pair is stored: a trade stored the other way round is inverted (base and counter, buyer and seller swap, the rate is 1/rate). A swap against an AMM pool is an exchange too: it has `amm_account` as its last key, and `amm` lists it (`include`, the default), leaves it out (`exclude`) or lists only the swaps (`only`). `format=csv` gives the trades as a CSV file.
          */
         get: operations["AccountExchangesController_list"];
         put?: never;
@@ -366,7 +366,7 @@ export interface paths {
         };
         /**
          * Get the exchanges of an account
-         * @description The trades the account took part in, as buyer or as seller, in the ledgers that closed between `start` and `end`, oldest first. Each is the exchange `GET /v2/exchanges` serves, plus the `client` when there is one. With `base`, only the trades of that asset, and with `counter` only against that asset, in whichever order the pair is stored: a trade stored the other way round is inverted (base and counter, buyer and seller swap, the rate is 1/rate). `format=csv` gives the trades as a CSV file.
+         * @description The trades the account took part in, as buyer or as seller, in the ledgers that closed between `start` and `end`, oldest first. Each is the exchange `GET /v2/exchanges` serves, plus the `client` when there is one. With `base`, only the trades of that asset, and with `counter` only against that asset, in whichever order the pair is stored: a trade stored the other way round is inverted (base and counter, buyer and seller swap, the rate is 1/rate). A swap against an AMM pool is an exchange too: it has `amm_account` as its last key, and `amm` lists it (`include`, the default), leaves it out (`exclude`) or lists only the swaps (`only`). `format=csv` gives the trades as a CSV file.
          */
         get: operations["AccountExchangesController_list"];
         put?: never;
@@ -386,7 +386,7 @@ export interface paths {
         };
         /**
          * Get the exchanges of an account
-         * @description The trades the account took part in, as buyer or as seller, in the ledgers that closed between `start` and `end`, oldest first. Each is the exchange `GET /v2/exchanges` serves, plus the `client` when there is one. With `base`, only the trades of that asset, and with `counter` only against that asset, in whichever order the pair is stored: a trade stored the other way round is inverted (base and counter, buyer and seller swap, the rate is 1/rate). `format=csv` gives the trades as a CSV file.
+         * @description The trades the account took part in, as buyer or as seller, in the ledgers that closed between `start` and `end`, oldest first. Each is the exchange `GET /v2/exchanges` serves, plus the `client` when there is one. With `base`, only the trades of that asset, and with `counter` only against that asset, in whichever order the pair is stored: a trade stored the other way round is inverted (base and counter, buyer and seller swap, the rate is 1/rate). A swap against an AMM pool is an exchange too: it has `amm_account` as its last key, and `amm` lists it (`include`, the default), leaves it out (`exclude`) or lists only the swaps (`only`). `format=csv` gives the trades as a CSV file.
          */
         get: operations["AccountExchangesController_list"];
         put?: never;
@@ -466,7 +466,7 @@ export interface paths {
         };
         /**
          * Get the daily reports of an account
-         * @description A report for each UTC day from `start` to `end` (at most 200 days; `/{date}` is the one day), with zeros for a day without payments. It has the number of `Payment`s the account sent and received, the largest of each and their total value (`total_value` is the two totals together), and the accounts it paid (`receiving_counterparties`) and was paid by (`sending_counterparties`): their number, or the accounts with `accounts`. The values are in the native currency: an issued currency counts at the rate of the day (`/v2/exchange_rates`, in strict mode), and as 0 where it has none. `payments` lists each payment with its delivered amount. `format=csv` gives the reports as a CSV file.
+         * @description A report for each UTC day from `start` to `end` (at most 200 days; `/{date}` is the one day), with zeros for a day without payments. It has the number of `Payment`s the account sent and received, the largest of each and their total value (`total_value` is the two totals together), and the accounts it paid (`receiving_counterparties`) and was paid by (`sending_counterparties`): their number, or the accounts with `accounts`. The values are in the native currency: an issued currency counts at the rate of the day (`/v2/exchange_rates`, in strict mode), and as 0 where it has none. `payments` lists each payment with its delivered amount. `format=csv` gives the reports as a CSV file. With `interval` (`week` from Monday, or `month`; `day` is the default) a report is a bucket, from the bucket of `start` to the bucket of `end` (`/{date}` is the one that holds the date), `date` being the start of the bucket and the bucket whole, up to now. The limit is 200 buckets: 200 days, 200 weeks or 200 months. A bucket adds up the values of its days (each at the rate of its day), takes the largest of their highs and adds up the payment counts; its counterparties are counted (or listed, in the order of their first payment in the bucket) over the whole bucket, so one that was paid on two days is one. `payments` can only be listed with `interval=day`.
          */
         get: operations["AccountReportsController_report"];
         put?: never;
@@ -486,7 +486,7 @@ export interface paths {
         };
         /**
          * Get the daily reports of an account
-         * @description A report for each UTC day from `start` to `end` (at most 200 days; `/{date}` is the one day), with zeros for a day without payments. It has the number of `Payment`s the account sent and received, the largest of each and their total value (`total_value` is the two totals together), and the accounts it paid (`receiving_counterparties`) and was paid by (`sending_counterparties`): their number, or the accounts with `accounts`. The values are in the native currency: an issued currency counts at the rate of the day (`/v2/exchange_rates`, in strict mode), and as 0 where it has none. `payments` lists each payment with its delivered amount. `format=csv` gives the reports as a CSV file.
+         * @description A report for each UTC day from `start` to `end` (at most 200 days; `/{date}` is the one day), with zeros for a day without payments. It has the number of `Payment`s the account sent and received, the largest of each and their total value (`total_value` is the two totals together), and the accounts it paid (`receiving_counterparties`) and was paid by (`sending_counterparties`): their number, or the accounts with `accounts`. The values are in the native currency: an issued currency counts at the rate of the day (`/v2/exchange_rates`, in strict mode), and as 0 where it has none. `payments` lists each payment with its delivered amount. `format=csv` gives the reports as a CSV file. With `interval` (`week` from Monday, or `month`; `day` is the default) a report is a bucket, from the bucket of `start` to the bucket of `end` (`/{date}` is the one that holds the date), `date` being the start of the bucket and the bucket whole, up to now. The limit is 200 buckets: 200 days, 200 weeks or 200 months. A bucket adds up the values of its days (each at the rate of its day), takes the largest of their highs and adds up the payment counts; its counterparties are counted (or listed, in the order of their first payment in the bucket) over the whole bucket, so one that was paid on two days is one. `payments` can only be listed with `interval=day`.
          */
         get: operations["AccountReportsController_report"];
         put?: never;
@@ -506,9 +506,129 @@ export interface paths {
         };
         /**
          * Get the daily stats of an account
-         * @description A row for each UTC day from `start` up to, but not including, `end`, in which the account was active; a day without activity has no row. `family=transactions`: `{date, transaction_count, result, type}`, the transactions the account sent that day, with how many had each result code and each transaction type. `family=value`: `{date, account_value, balance_change_count}`, what the account held at the end of the day in the native currency (the native balance, plus each issued currency it holds at the rate of the day, as a string; what the account owes is not counted) and how many times its balances changed that day, not counting the fee. `format=csv` gives the rows as a CSV file.
+         * @description A row for each UTC day from `start` up to, but not including, `end`, in which the account was active; a day without activity has no row. `family=transactions`: `{date, transaction_count, result, type}`, the transactions the account sent that day, with how many had each result code and each transaction type. `family=value`: `{date, account_value, balance_change_count}`, what the account held at the end of the day in the native currency (the native balance, plus each issued currency it holds at the rate of the day, as a string; what the account owes is not counted) and how many times its balances changed that day, not counting the fee. `format=csv` gives the rows as a CSV file. With `interval` (`day`, `week` from Monday or `month`) the rows are buckets instead of days, `date` being the start of the bucket: a bucket is a row when its start is at or after `start` and before `end`. `transactions` has a row for each bucket in which the account sent a transaction, with the counts of the whole bucket. `value` has a row for every bucket from the first one in which the account had a balance to the last before `end`, active or not, but none that has not begun (the rows stop at the bucket that holds now, whatever `end` says): its value at the end of the last day of the bucket (today, for the current one) and the number of balance changes in it (0 for a quiet bucket).
          */
         get: operations["AccountStatsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/analytics/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the balance history of an account, per line
+         * @description A line is a currency and its counterparty (none for the native currency). `lines` are the lines of the account that changed up to the end of the window, after the filters, ranked: the native line first, then the lines that have a rate by their balance over that rate (the rate of the asset `(currency, counterparty)` on the newest valid day at or before the end of the window), largest first, then the others by the size of the balance; the first `limit` are served, and `lines_total` counts them all. `balance` of a line is its balance at the end of the window. `rows` are the balance of each of those lines at the end of each bucket: the last balance up to then, so a bucket without a change carries the balance before it. A line has rows from the bucket of its first change, or from the first bucket of the window when it changed before it, and a line that went back to 0 keeps its rows of "0". A balance below 0 is what the account owes on that line. A bucket that has not begun has no row, so the rows stop at the bucket that holds now whatever the end. The window is whole UTC days, from the day of `start` to the day of `end` (both included, whatever the time of day), widened to whole buckets when there is an `interval`; the answer's `start` is the start of the first day or bucket and `end` the start of the one after the last, so it is exclusive. An `end` before `start` is an empty answer. At most 1000 buckets. `format=csv` gives the rows as a CSV file.
+         */
+        get: operations["AccountAnalyticsController_balances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/analytics/balance_changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the sums of the balance changes of an account by change type and currency
+         * @description Every balance change of the window counts once, the fees (`transaction_cost`) too. A change type is one of transaction_cost, payment_destination, payment_source, exchange, intermediary, escrow_create, escrow_finish, escrow_cancel, paychannel_fund, paychannel_payout; the changes of transaction types that have none are grouped without a `change_type`. `in` is the sum of the positive changes and `out` the sum of the negative ones as a positive amount; `in_value` and `out_value` are their values in the native currency (the native currency is worth itself, an issued amount its amount over the rate of its day, cut to 17 significant digits per change type, asset and day, and 0 without a rate; a change on a line the account owes on is a change of its own currency), and `net_value` is `in_value` minus `out_value`. `totals` has an entry for each change type that has a change, in that order. Without `interval` `rows` are per change type and asset (`issuer` is left out for the native currency), the largest `in_value + out_value` first; with one they are per bucket and change type, with `date` the start of the bucket. The window is whole UTC days, from the day of `start` to the day of `end` (both included, whatever the time of day), widened to whole buckets when there is an `interval`; the answer's `start` is the start of the first day or bucket and `end` the start of the one after the last, so it is exclusive. An `end` before `start` is an empty answer. With an interval, at most 1000 buckets. `format=csv` gives the rows as a CSV file.
+         */
+        get: operations["AccountAnalyticsController_balanceChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/analytics/counterparties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the accounts an account paid and was paid by, with what the payments were worth
+         * @description The payments of the account in the window, each once, by the account on the other side. A payment to oneself is a payment sent, its counterparty being the account itself. `sent_value` is what the account paid the counterparty and `received_value` what the counterparty paid the account: the delivered amounts, the native currency worth itself and an issued amount its amount over the rate of its day (cut to 17 significant digits per counterparty, direction, asset and day, and 0 without a rate); `total_value` is their sum. `payments_sent` and `payments_received` are the numbers of payments each way, `first` and `last` the times of the first and the last payment between the two in the window. `total` is the number of different counterparties in the window and `count` the number served: the first `limit` by `sort`, the largest first, then by the account. The window is whole UTC days, from the day of `start` to the day of `end` (both included, whatever the time of day), widened to whole buckets when there is an `interval`; the answer's `start` is the start of the first day or bucket and `end` the start of the one after the last, so it is exclusive. An `end` before `start` is an empty answer. The route has no `interval`. `format=csv` gives the counterparties as a CSV file.
+         */
+        get: operations["AccountAnalyticsController_counterparties"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/analytics/exchanges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the summary of the trades of an account on the exchange, per pair
+         * @description The trades of the account in the window (it is the buyer or the seller), each once, per pair in the canonical stored order. `bought` is the base the account received (it was the buyer) and `sold` the base it gave (it was the seller), `bought_counter` the counter it paid for what it bought and `sold_counter` the counter it received for what it sold; a trade with oneself is in both. `native_volume` is, for a pair with a native side, the volume of that side; for another, per day the base volume over the rate of the base, or, without one, the counter volume over the rate of the counter (cut to 17 significant digits per day), summed; it is left out when no day of the pair had a rate. The pairs are sorted by `native_volume`, the largest first, the pairs without one last by `count`, then by the pair; `total` is the number of pairs in the window and `count` the number served: the first `limit`. The window is whole UTC days, from the day of `start` to the day of `end` (both included, whatever the time of day), widened to whole buckets when there is an `interval`; the answer's `start` is the start of the first day or bucket and `end` the start of the one after the last, so it is exclusive. An `end` before `start` is an empty answer. The route has no `interval`. `format=csv` gives the pairs as a CSV file.
+         */
+        get: operations["AccountAnalyticsController_exchanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/amm_liquidity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the AMM liquidity events of an account
+         * @description The creations, deposits, withdrawals, clawbacks and deletions of AMM pools in which the account was the liquidity provider, in the ledgers that closed between `start` and `end`, oldest first. Each is the event `GET /v2/amm/pools/:pool/liquidity` serves: `{amm_account, ledger_index, tx_index, tx_hash, executed_time, account, initiator, event, mode?, base_amount, counter_amount, lp_tokens}`, with the amounts signed from the pool side. `pool` and `event` keep the events of that pool, of that kind. `format=csv` gives the events as a CSV file.
+         */
+        get: operations["AccountAmmController_liquidity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/amm_positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the AMM positions of an account
+         * @description The LP tokens the account holds, one position for each AMM pool: `{pool, lp_currency, lp_balance, share, base_amount?, counter_amount?}`, sorted by pool. `lp_balance` is the account's last balance of the pool's LP token at `date` (now without one: the last ledger that closed at or before it), `share` is that balance over the LP supply of the pool at the same ledger, and each amount is the same share of the reserve of the pool on that side (the pool's base and counter, as `GET /v2/amm/pools/:pool` gives them). They are exact decimal strings (30 significant digits where they do not end sooner). A zero balance, a deleted pool and a pool without a supply have no position; neither has a line that is not the LP token the pool names.
+         */
+        get: operations["AccountAmmController_positions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -617,6 +737,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/network/amm_volume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the volume of the swaps against the AMM pools on the network
+         * @description The swaps against the AMM pools, per pool, in the native currency: per pool the account, its assets, the number of swaps, the volume of the base and the rate, and the volume converted to the native currency (a pool against the native currency by its own native volume, the others through the rate of the base or of the counter, from the configured markets against the native currency or else from the pools; a pool without a rate is left out). Every pool with swaps counts, not only the configured markets; swaps of 0.0005 of the native currency or less are left out. Without `start` and `end`, the live row of the rolling period `live` (hour, day, 3day, 7day, 30day; default day). With them, a row per `interval` (day, week from Monday, month, UTC) for the days that were computed: a bucket is a row when it starts within `start` and `end`, whole. `exchange_currency` / `exchange_issuer` show the amounts in another currency, as for the exchange volume. The live row of the rolling day (`live=day`) also has `fees_est`, the estimated trading fees the pool charged on the swaps of the 24 hours, per pool and as the sum of the row, in the currency of `converted_amount`; a pool whose fees are not known has none, and then the row has none. The other rows have no `fees_est`: the fees of a pool per day are in `/v2/amm/pools/{pool}/history?interval=day`. The trade volume (`exchange_volume`) counts the swaps as well.
+         */
+        get: operations["VolumeController_ammVolume"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/markets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the trade statistics of every market in a live period
+         * @description Every pair that traded in the period (not the markets config), in the canonical stored order of its currencies; a price is counter per base. The pairs with at least `min_trades` trades are listed, by `native_volume`, the largest first, the pairs without one last by `count`, then by the pair; at most `limit`. A trade counts when its native leg is above 0.0005 (as candles). `open`, `high`, `low` and `last` have 8 significant digits; `change` is `(last / open - 1) * 100` in percent, rounded half up to 2 decimals; the volumes are exact. `native_volume` is the volume of the native side of a pair that has one; for another pair the base volume over the rate of the base, or, without one, the counter volume over the rate of the counter (an asset has a rate when it traded against the native currency in the period), cut to 17 significant digits; a pair without a rate has none. `sparkline` is the close of each of the last 7 UTC days, ending with today (a day without a trade carries the close before it; `close` is left out where there is none). `start_time` and `end_time` are the window of the set. `totals.pairs` counts the listed pairs, whatever the limit; `pairs_traded`, `count` and `native_volume` are over every pair that traded. With `exchange_currency` the answer has `exchange` and `exchange_rate` (units of it per native coin, at the rate of the latest trades) and a `converted_volume` (the native volume times the rate) on the totals and on every market that has a native volume. With `amm` the pairs, volumes, prices and counts are those of the trades it keeps (`exclude`: the order book; `only`: the swaps against AMM pools), and the answer has `amm`. `amm_share` is the part of the pair's base volume that was swaps, over every trade of the pair in the window, text with 4 decimals (the same in every filter; it does not change if a consumer shows the pair inverted), `amm_pool` whether the pair has a pool that is not deleted, and `totals.amm_share` the part of the native volume that was swaps. They are left out unless every ledger of the window was parsed with AMM support: an absent field means not known, never 0 or false. The sets are written every minute (day) or five minutes (7day, 30day); before the first one the answer has no markets.
+         */
+        get: operations["MarketsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/ledgers/{ledger_hash}/validations": {
         parameters: {
             query?: never;
@@ -697,6 +857,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/network/validators/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the summary of the validators of the network
+         * @description The figures of the Validators board: the validators seen in the last 24 hours, the trusted UNL with its publishers and the quorum, the negative UNL, the fees, the next flag ledger, the software versions and how far the agreement and the votes are computed. There are no parameters.
+         */
+        get: operations["ValidatorsController_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/validators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the validators of the network
+         * @description The validators of the trusted UNL, or of the UNL and every validator seen in the last 24 hours, with their agreement, their domain and its verification, the lists they are on, their software version, and what they vote for: fees and amendments. Validators with a domain come first, by domain, then the others by key. `format=csv` gives the rows as a CSV file.
+         */
+        get: operations["ValidatorsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/validators/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a validator of the network
+         * @description One validator by its master key, its signing key or 66 hex digits: the row of the list, its vote on every amendment being decided, its manifest and its agreement of each of the last 30 days. JSON only.
+         */
+        get: operations["ValidatorsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/validators/{key}/validations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the validations of a validator
+         * @description The validations one validator made in the last 7 days, newest first: for each ledger and hash the sightings added up, whether the ledger is the one the indexer holds, and the first and last time the validation was seen. The rows recorded under the validator's signing keys are its own. `format=csv` gives the page as a CSV file.
+         */
+        get: operations["ValidatorsController_validatorValidations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/amendments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the amendments of the network
+         * @description Every amendment the network knows: enabled, with a majority, voting, obsolete or unknown, with the votes of the newest voting round and, for the enabled ones, when they were enabled. The answer states the rules, the newest round and the next flag ledger. `format=csv` gives the amendments as a CSV file.
+         */
+        get: operations["AmendmentsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/amendments/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an amendment of the network
+         * @description One amendment by its name or its ID, with the envelope of the list, how each validator votes on it, its rounds of the last 30 days and its history. JSON only.
+         */
+        get: operations["AmendmentsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/stats": {
         parameters: {
             query?: never;
@@ -749,6 +1029,146 @@ export interface paths {
          * @description Transactions (by type and by result), payments, exchanges, created accounts and ledgers per hour, day or week (Monday to Sunday, UTC), with the average number of transactions per ledger and the average time between ledgers. Without a family a row is `{date, type, result, metric}`; with `type`, `result` or `metric` (in the path or in `family`) it holds the values of that family and `date`, and `metrics` (a list) or the last part of the path picks some of them. What is zero is left out. A bucket is listed when it starts within `start` and `end`. `format=csv` gives the rows as a CSV file.
          */
         get: operations["StatsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/amm/pools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the AMM pools
+         * @description The pools in their current state, the most valuable first (`value_native` descending, the pools without a value last, then the account). A pool is `{amm_account, base_currency, base_issuer?, counter_currency, counter_issuer?, reserve_base?, reserve_counter?, lp_supply?, lp_currency?, trading_fee?, auction_slot?, value_native?, created_ledger?, created_by?, last_ledger, deleted}`: the pair in the order it is stored in, the amounts as exact strings, `trading_fee` in units of 1/100000, `value_native` (eight significant digits) the pool worth in the native currency, left out when no asset has a rate and for a deleted pool. `format=csv` gives the pools as a CSV file.
+         */
+        get: operations["AmmPoolsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/amm/pools/{pool}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the history of a pool
+         * @description Every state of the pool in the ledgers that closed between `start` and `end`, oldest first: the pool after each transaction that touched it. A transaction only tells the values of the pool nodes it changed, so each state has its missing values carried forward from the newest earlier state, also from before `start`. With `interval=day` instead the days of the pool with activity (`swap_count`, `volume_base` and `volume_counter` by side, `fees_*_est`, estimates, left out when a swap into the side had no known fee, liquidity in and out, and the closing state), a day when its start is within `start` and `end`. `format=csv` gives the rows as a CSV file. With `interval=day` the answer also has `computed_start` and `computed_end` (`YYYY-MM-DD`, after `result`, not in the CSV): the days of the request's window that the daily figures have been computed for. `computed_end` is the newest day of the window that has been computed, and `computed_start` the oldest day from which every day up to it has been. A day inside the range without a row of the pool is a day it was quiet; a day outside it is not computed yet. Both are left out when no day of the window has been computed, and they are the same on every page of an answer.
+         */
+        get: operations["AmmPoolsController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/amm/pools/{pool}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a pool
+         * @description The pool of an account in its current state, deleted or not; 404 `pool not found` when there is none.
+         */
+        get: operations["AmmPoolsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/amm/pools/{pool}/swaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the swaps of a pool
+         * @description The exchanges that were swaps against the pool, in the ledgers that closed between `start` and `end`, oldest first: what `GET /v2/exchanges/:base/:counter?amm=only` serves for the pair of the pool, restricted to the pool, with the same rows, the same markers and the same params (`autobridged`, the limit of at most 400), in the pair as the pool stores it (`amm_account` is the last key of each). `amm` is ignored: these are always the swaps. `format=csv` gives the swaps as a CSV file.
+         */
+        get: operations["AmmEventsController_swaps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/amm/pools/{pool}/liquidity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the liquidity events of a pool
+         * @description The creation, the deposits, the withdrawals, the clawbacks and the deletion of the pool in the ledgers that closed between `start` and `end`, oldest first: `{amm_account, ledger_index, tx_index, tx_hash, executed_time, account, initiator, event, mode?, base_amount, counter_amount, lp_tokens}`. The amounts are exact strings, signed from the pool side (positive into the pool, negative out of it); `lp_tokens` is positive when LP tokens were minted and negative when burned; `account` is the liquidity provider and `initiator` who sent the transaction (not the same for a clawback); `mode` is the mode of a deposit or withdrawal. `event` and `account` keep the events of that kind, of that provider. `format=csv` gives the events as a CSV file.
+         */
+        get: operations["AmmEventsController_liquidity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/amm/pools/{pool}/governance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the votes and bids of a pool
+         * @description The votes (`type` `vote`: `fee_voted`, the fee the voter asked for, and `trading_fee_after`, the fee of the pool after it) and the bids (`type` `bid`: `bid_min`, `bid_max`, `price_paid`, the LP tokens the bid burned, and `auction_slot`, the slot after the bid with its authorized accounts) of the pool in the ledgers that closed between `start` and `end`, oldest first. `type` keeps one kind. `format=csv` gives the rows as a CSV file, with the columns of both kinds.
+         */
+        get: operations["AmmEventsController_governance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/amm/pools/{base}/{counter}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the pool of a pair
+         * @description The live pool of the pair, in whichever order the assets are given; when the pair has none, the pool that was deleted last. 404 `pool not found` when the pair never had one.
+         */
+        get: operations["AmmPairController_pair"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1104,6 +1524,8 @@ export interface operations {
                 limit?: number;
                 /** @description Newest first. */
                 descending?: boolean;
+                /** @description Swaps against AMM pools are exchanges too (they carry `amm_account`, the pool). `include` (default) lists them with the order-book exchanges, `exclude` lists the order-book exchanges only, `only` the swaps only. */
+                amm?: "include" | "exclude" | "only";
                 /** @description Only the autobridged exchanges. */
                 autobridged?: boolean;
                 /** @description One row of all the exchanges of the window. Not with `interval`. */
@@ -1145,6 +1567,8 @@ export interface operations {
                 limit?: number;
                 /** @description Newest first. */
                 descending?: boolean;
+                /** @description Swaps against AMM pools are exchanges too (they carry `amm_account`, the pool). `include` (default) lists them with the order-book exchanges, `exclude` lists the order-book exchanges only, `only` the swaps only. */
+                amm?: "include" | "exclude" | "only";
                 /** @description Only the autobridged exchanges. */
                 autobridged?: boolean;
                 /** @description End time. Default: the newest ledger. */
@@ -1401,6 +1825,8 @@ export interface operations {
                 limit?: number;
                 /** @description Newest first. */
                 descending?: boolean;
+                /** @description Swaps against AMM pools are exchanges too (they carry `amm_account`, the pool). `include` (default) lists them with the order-book exchanges, `exclude` lists the order-book exchanges only, `only` the swaps only. */
+                amm?: "include" | "exclude" | "only";
                 /** @description End time. Default: the newest ledger. */
                 end?: unknown;
                 /** @description Start time. Default: 2013-01-01. */
@@ -1438,6 +1864,8 @@ export interface operations {
                 limit?: number;
                 /** @description Newest first. */
                 descending?: boolean;
+                /** @description Swaps against AMM pools are exchanges too (they carry `amm_account`, the pool). `include` (default) lists them with the order-book exchanges, `exclude` lists the order-book exchanges only, `only` the swaps only. */
+                amm?: "include" | "exclude" | "only";
                 /** @description End time. Default: the newest ledger. */
                 end?: unknown;
                 /** @description Start time. Default: 2013-01-01. */
@@ -1475,6 +1903,8 @@ export interface operations {
                 limit?: number;
                 /** @description Newest first. */
                 descending?: boolean;
+                /** @description Swaps against AMM pools are exchanges too (they carry `amm_account`, the pool). `include` (default) lists them with the order-book exchanges, `exclude` lists the order-book exchanges only, `only` the swaps only. */
+                amm?: "include" | "exclude" | "only";
                 /** @description End time. Default: the newest ledger. */
                 end?: unknown;
                 /** @description Start time. Default: 2013-01-01. */
@@ -1613,8 +2043,10 @@ export interface operations {
                 format?: "json" | "csv";
                 /** @description Newest day first. */
                 descending?: boolean;
-                /** @description List the payments of each day. */
+                /** @description List the payments of each day. Only with `interval=day`. */
                 payments?: boolean;
+                /** @description A report per day, week (from Monday) or month, UTC. Default: day. */
+                interval?: "day" | "week" | "month";
                 /** @description The counterparties themselves instead of their number. Alias: `counterparties`. */
                 accounts?: boolean;
                 /** @description The last day, whole. Default: now. */
@@ -1648,8 +2080,10 @@ export interface operations {
                 format?: "json" | "csv";
                 /** @description Newest day first. */
                 descending?: boolean;
-                /** @description List the payments of each day. */
+                /** @description List the payments of each day. Only with `interval=day`. */
                 payments?: boolean;
+                /** @description A report per day, week (from Monday) or month, UTC. Default: day. */
+                interval?: "day" | "week" | "month";
                 /** @description The counterparties themselves instead of their number. Alias: `counterparties`. */
                 accounts?: boolean;
                 /** @description The last day, whole. Default: now. */
@@ -1685,8 +2119,10 @@ export interface operations {
                 marker?: unknown;
                 /** @description Default 200, at most 1000. */
                 limit?: number;
-                /** @description Newest day first. */
+                /** @description Newest day or bucket first. */
                 descending?: boolean;
+                /** @description Rows per day, week (from Monday) or month, UTC. Without it: a row per active day. */
+                interval?: "day" | "week" | "month";
                 /** @description Where the days stop, exclusive: `end=2015-01-16` is the days before it. Default: now. */
                 end?: unknown;
                 /** @description The first day, from its midnight on. Default: 2013-01-01. */
@@ -1698,6 +2134,190 @@ export interface operations {
                 address: string;
                 /** @description What to count: `transactions` or `value`. */
                 family: "transactions" | "value";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountAnalyticsController_balances: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description How many lines. Default 10, at most 50. */
+                limit?: number;
+                /** @description Only the lines with this account; not with the native currency. Alias: issuer. */
+                counterparty?: unknown;
+                /** @description Only the lines of this currency (upper-cased). */
+                currency?: unknown;
+                /** @description The bucket of a row: day, week (from Monday) or month, UTC. Default: day. */
+                interval?: "day" | "week" | "month";
+                /** @description The last day, whole. Default: now. */
+                end?: unknown;
+                /** @description The first day. Default: 2013-01-01. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountAnalyticsController_balanceChanges: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Rows per bucket (day, week from Monday, month; UTC) and change type instead of per change type and asset. */
+                interval?: "day" | "week" | "month";
+                /** @description The last day, whole. Default: now. */
+                end?: unknown;
+                /** @description The first day. Default: 2013-01-01. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountAnalyticsController_counterparties: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description How many counterparties. Default 20, at most 1000. */
+                limit?: number;
+                /** @description value (`total_value`) or count (`payments_sent + payments_received`). Default: value. */
+                sort?: "value" | "count";
+                /** @description The last day, whole. Default: now. */
+                end?: unknown;
+                /** @description The first day. Default: 2013-01-01. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountAnalyticsController_exchanges: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description How many pairs. Default 20, at most 1000. */
+                limit?: number;
+                /** @description The last day, whole. Default: now. */
+                end?: unknown;
+                /** @description The first day. Default: 2013-01-01. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountAmmController_liquidity: {
+        parameters: {
+            query?: {
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Only the events of this kind. */
+                event?: "create" | "deposit" | "withdraw" | "clawback" | "delete";
+                /** @description Only the events of the pool with this account. */
+                pool?: unknown;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the liquidity provider. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountAmmController_positions: {
+        parameters: {
+            query?: {
+                /** @description The time the positions are of. Default: now. */
+                date?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the liquidity provider. */
+                address: string;
             };
             cookie?: never;
         };
@@ -1878,6 +2498,74 @@ export interface operations {
             };
         };
     };
+    VolumeController_ammVolume: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Required for every currency but the native one. */
+                exchange_issuer?: unknown;
+                /** @description Default: the native currency. */
+                exchange_currency?: unknown;
+                /** @description Default: day. */
+                interval?: "day" | "week" | "month";
+                /** @description End time of the historical rows. Default: now. */
+                end?: unknown;
+                /** @description Start time of the historical rows. Default: the epoch. */
+                start?: unknown;
+                /** @description Default: day. Ignored with start or end. */
+                live?: "hour" | "day" | "3day" | "7day" | "30day";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MarketsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json (csv: markets.csv). */
+                format?: "json" | "csv";
+                /** @description Default 1000, at most 5000. */
+                limit?: number;
+                /** @description From the AMM data: `include` (default) counts every trade, `exclude` the order-book trades only, `only` the swaps. The AMM fields are there only when every ledger of the window was parsed with AMM. */
+                amm?: "include" | "exclude" | "only";
+                /** @description Required for every currency but the native one. */
+                exchange_issuer?: unknown;
+                /** @description Also show the volumes in this currency. Default: the native currency (nothing is added). */
+                exchange_currency?: unknown;
+                /** @description List the pairs with at least this many trades: a whole number from 1 to 1000000. Default: 10. */
+                min_trades?: number;
+                /** @description The rolling period: the last 24 hours, 7 days or 30 days. Default: day. */
+                period?: "day" | "7day" | "30day";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ValidationsController_list: {
         parameters: {
             query?: {
@@ -1976,7 +2664,24 @@ export interface operations {
             };
         };
     };
-    StatsController_list: {
+    ValidatorsController_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ValidatorsController_list: {
         parameters: {
             query?: {
                 /** @description Default: json. */
@@ -1985,24 +2690,107 @@ export interface operations {
                 marker?: unknown;
                 /** @description Default 200, at most 1000. */
                 limit?: number;
-                /** @description Newest first. */
+                /** @description A part of the domain, the master key or the signing key (at most 100 characters). */
+                q?: unknown;
+                /** @description The name or the ID (64 hex digits) of an amendment: the validators that vote for it. */
+                amendment?: unknown;
+                /** @description The id of a publisher of the summary: its list in use. */
+                publisher?: unknown;
+                /** @description Default: unl. */
+                scope?: "unl" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ValidatorsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A master key (nH...), a signing key (n9...) or 66 hex digits (02, 03 or ED first). */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ValidatorsController_validatorValidations: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Default true; false lists the oldest first. */
                 descending?: boolean;
-                /** @description End time. Default: now. */
-                end?: unknown;
-                /** @description Start time. Default: 2013-01-01. */
-                start?: unknown;
-                /** @description Comma separated names in the family; needs a family. */
-                metrics?: unknown;
-                /** @description As in the path. */
-                family?: "type" | "result" | "metric";
-                /** @description Default: day. */
-                interval?: "hour" | "day" | "week";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
             };
             header?: never;
             path: {
-                /** @description A transaction type, a result code or a metric of the family. */
-                metric: unknown;
-                family: "type" | "result" | "metric";
+                /** @description A master key (nH...), a signing key (n9...) or 66 hex digits (02, 03 or ED first). */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmendmentsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description A comma list of enabled, majority, voting, obsolete and unknown. Default: all. */
+                status?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmendmentsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the amendment (as written, else in any case when only one has it) or its ID (64 hex digits). */
+                name: string;
             };
             cookie?: never;
         };
@@ -2083,6 +2871,260 @@ export interface operations {
                 /** @description A transaction type, a result code or a metric of the family. */
                 metric: unknown;
                 family: "type" | "result" | "metric";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    StatsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: now. */
+                end?: unknown;
+                /** @description Start time. Default: 2013-01-01. */
+                start?: unknown;
+                /** @description Comma separated names in the family; needs a family. */
+                metrics?: unknown;
+                /** @description As in the path. */
+                family?: "type" | "result" | "metric";
+                /** @description Default: day. */
+                interval?: "hour" | "day" | "week";
+            };
+            header?: never;
+            path: {
+                /** @description A transaction type, a result code or a metric of the family. */
+                metric: unknown;
+                family: "type" | "result" | "metric";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmmPoolsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Also the pools that were deleted. */
+                include_deleted?: boolean;
+                /** @description Written like `asset`; with both, the pools that have both. */
+                asset2?: unknown;
+                /** @description Only the pools that have this asset on either side: `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`, or the native currency alone. A raw `+` (which a query string decodes as a space) works; `%2B` is the strict form. */
+                asset?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmmPoolsController_history: {
+        parameters: {
+            query?: {
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Without it every state; `day`: one row a day. */
+                interval?: "day";
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the pool account. */
+                pool: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmmPoolsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The address of the pool account. */
+                pool: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmmEventsController_swaps: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 400. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description Only the autobridged exchanges. */
+                autobridged?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: 2013-01-01. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the pool account. */
+                pool: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmmEventsController_liquidity: {
+        parameters: {
+            query?: {
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Only the events of this liquidity provider. */
+                account?: unknown;
+                /** @description Only the events of this kind. */
+                event?: "create" | "deposit" | "withdraw" | "clawback" | "delete";
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the pool account. */
+                pool: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmmEventsController_governance: {
+        parameters: {
+            query?: {
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Only the votes, or only the bids. */
+                type?: "vote" | "bid";
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the pool account. */
+                pool: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmmPairController_pair: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A currency and its issuer, `USD+rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B`, or the native currency alone. */
+                base: string;
+                /** @description The other side of the pair, written like `base`. */
+                counter: string;
             };
             cookie?: never;
         };

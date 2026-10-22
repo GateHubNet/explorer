@@ -666,7 +666,7 @@ const cases: Case[] = [
     result: exchangeVolumeBody,
   },
   {
-    // Its path is in PENDING_PATHS: openapi.yaml has no `amm_volume` yet.
+    // `feat/amm-data`'s route: in openapi.yaml since data-api-new `main` 9dbbd8a.
     name: "ammVolume",
     cls: "slow",
     fresh: true,
@@ -772,7 +772,7 @@ const cases: Case[] = [
     result: activeAccountsBody,
   },
   {
-    // Its path is in PENDING_PATHS: openapi.yaml has no `network/markets` yet (data-api-new `feat/explorer-data`).
+    // D2's route: in openapi.yaml since data-api-new `main` 9dbbd8a.
     name: "networkMarkets",
     cls: "minute",
     call: (a, o) => a.networkMarkets({ period: "day", limit: 1000 }, o),
@@ -796,7 +796,7 @@ const cases: Case[] = [
     body: { ...marketsWithAmm("only"), period: "30day" },
     result: { ...marketsWithAmm("only"), period: "30day" },
   },
-  // D1's six calls (validators spec 2.1; their paths are in PENDING_PATHS). The options they take, the marker view and the failures are in "D1's validators and amendments calls".
+  // D1's six calls (validators spec 2.1; their paths in openapi.yaml since data-api-new `main` 9dbbd8a). The options they take, the marker view and the failures are in "D1's validators and amendments calls".
   {
     name: "validatorsSummary",
     cls: "live",
@@ -2961,8 +2961,8 @@ describe("the account analytics calls", () => {
   });
 });
 
-// D1's six calls (validators spec 2.1 and 9; data-api-new `feat/explorer-data`, pinned at 7d495ab). Their paths are in PENDING_PATHS, outside the compile-time
-// check: openapi.yaml has no `network/validators` or `network/amendments` yet. Each answer is checked inside the load, and a 200 that is not what the reference
+// D1's six calls (validators spec 2.1 and 9; data-api-new `feat/explorer-data`, pinned at 7d495ab). Their paths are in PATHS, checked at compile time since
+// data-api-new `main` 9dbbd8a brought them into openapi.yaml. Each answer is checked inside the load, and a 200 that is not what the reference
 // promises is a failure of kind `server` that is never stored. Failure tests first, each on a host of its own: this file's Cache API and the hold outlive a test.
 describe("D1's validators and amendments calls", () => {
   const KEY = SAMPLE_KEYS[0];

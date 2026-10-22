@@ -127,6 +127,32 @@ const PATHS = {
   ledgerValidations: "/v2/ledgers/{ledger_hash}/validations",
   pairExchanges: "/v2/exchanges/{base}/{counter}",
   activeAccounts: "/v2/active_accounts/{base}/{counter}",
+  // The routes of D1, D2, the AMM data and D2b, which were in PENDING_PATHS until `pnpm api:sync` brought them in with data-api-new `main` 9dbbd8a. A deployed data
+  // API that has not merged them answers `Cannot GET`, which the client reads as an outage (`throwUnlessOk`), never as a missing validator, amendment or pool.
+  /** The volume of the swaps against AMM pools. The network page asks for it only while `AMM_DATA` is on. */
+  ammVolume: "/v2/network/amm_volume",
+  /** The trade statistics of every pair that traded in a live period, in one call: the markets page's table (D2). */
+  networkMarkets: "/v2/network/markets",
+  /** The four analytics routes of an account (D2), which the account page's Analytics tab asks for while `ACCOUNT_ANALYTICS` is on. */
+  analyticsBalances: "/v2/accounts/{address}/analytics/balances",
+  analyticsBalanceChanges: "/v2/accounts/{address}/analytics/balance_changes",
+  analyticsCounterparties: "/v2/accounts/{address}/analytics/counterparties",
+  analyticsExchanges: "/v2/accounts/{address}/analytics/exchanges",
+  /** D1's six routes, validators and amendments; the path parameters are `key` and `name`. */
+  validatorsSummary: "/v2/network/validators/summary",
+  validators: "/v2/network/validators",
+  validator: "/v2/network/validators/{key}",
+  validatorValidations: "/v2/network/validators/{key}/validations",
+  amendments: "/v2/network/amendments",
+  amendment: "/v2/network/amendments/{name}",
+  /** The AMM pool routes, which the AMM pages (E5) ask for only while `AMM_PAGES` is on; the pool is `{pool}`, the pair `{base}/{counter}`. */
+  ammPools: "/v2/amm/pools",
+  ammPool: "/v2/amm/pools/{pool}",
+  ammPoolByPair: "/v2/amm/pools/{base}/{counter}",
+  ammPoolHistory: "/v2/amm/pools/{pool}/history",
+  ammPoolSwaps: "/v2/amm/pools/{pool}/swaps",
+  ammPoolLiquidity: "/v2/amm/pools/{pool}/liquidity",
+  ammPoolGovernance: "/v2/amm/pools/{pool}/governance",
 } as const satisfies Record<string, keyof paths>;
 
 /** A path of `PATHS` or of `PENDING_PATHS` (the routes `openapi.yaml` does not have yet, which the compiler cannot check). */
@@ -257,7 +283,7 @@ export interface DataApi {
   /** The trade volume of the tracked markets, per day or week. Class `slow`; the network page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`. */
   exchangeVolume(q: VolumeQuery, opts?: FreshOptions): Promise<Page<"rows", VolumeRow<ExchangeVolumeComponent>>>;
   /**
-   * The volume of the swaps against AMM pools, one component per pool. Only a data API that has merged `feat/amm-data` has the route (`PENDING_PATHS`): without it the
+   * The volume of the swaps against AMM pools, one component per pool. Only a data API that has merged `feat/amm-data` has the route: without it the
    * call fails with the missing-route outage (kind `server`), so a page asks only while `AMM_DATA` is on.
    *
    * With a `VolumeQuery`, per day or week: class `slow`; the network page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
@@ -295,7 +321,7 @@ export interface DataApi {
   activeAccounts(base: Asset, counter: Asset, opts?: FreshOptions): Promise<ActiveAccounts>;
   /**
    * The trade statistics of every pair that traded in a live period (`day`, `7day`, `30day`), the markets page's table: at most `limit` markets, with `amm`
-   * narrowing them like the trades'. Only a data API that has D2 (`feat/explorer-data`) has the route (`PENDING_PATHS`): without it the call fails with the
+   * narrowing them like the trades'. Only a data API that has D2 (`feat/explorer-data`) has the route: without it the call fails with the
    * missing-route outage (kind `server`), held when the call asks and never stored. Class `minute` (60 s). An answer to a filter that does not echo it in
    * `amm` (a data API that ignored the parameter) is kind `server` too: its rows are the unfiltered ones.
    */
@@ -323,7 +349,7 @@ export interface DataApi {
   /** The first `limit` pairs the account traded, by native volume, largest first. */
   analyticsExchanges(address: string, q: Pick<AnalyticsQuery, "limit" | "start">): Promise<AnalyticsExchanges>;
 
-  // D1 (data-api-new `feat/explorer-data`, pinned at `7d495ab`): the validators and amendments pages. Only a data API that has merged D1 has the routes (`PENDING_PATHS`):
+  // D1 (data-api-new `feat/explorer-data`, pinned at `7d495ab`): the validators and amendments pages. Only a data API that has merged D1 has the routes:
   // without it each call fails with the missing-route outage (kind `server`), held when the call asks and never stored; the routes' own "Validator not found" and
   // "amendment not found" stay `not_found`. Every answer is checked inside the load (validators-shape.ts), and one that is not what the reference promises is kind `server` too.
   // The pages ask for `{ ttl }` (VALIDATORS_CALL_TTL_SECONDS, VALIDATIONS_CALL_TTL_SECONDS) and, on a polled page, `holdFailure`: each has a cache entry of its own.
@@ -349,7 +375,7 @@ export interface DataApi {
   /** One amendment by its name or its 64-digit ID, with the envelope of the list, how the validators vote on it, its rounds and its history. Class `minute`. `amendment not found` is `not_found`. */
   amendment(ref: string, opts?: FreshOptions): Promise<AmendmentDetail>;
 
-  // E5's AMM pool calls (data-api-new `feat/amm-data`, pinned at `c3e2302`). Only a data API that has merged it has the routes (`PENDING_PATHS`): without it each call fails with the
+  // E5's AMM pool calls (data-api-new `feat/amm-data`, pinned at `c3e2302`). Only a data API that has merged it has the routes: without it each call fails with the
   // missing-route outage (kind `server`, never stored), and the routes' own `pool not found` stays `not_found`. The AMM pages ask only while `AMM_PAGES` is on. Every answer is
   // checked inside the load (amm-shape.ts), and one that is not what the reference promises is kind `server` too. These calls take no `FreshOptions`: the pages do not poll, so
   // none asks for the failure hold, and each is kept for the class its page needs (`ammVolume` keeps the options E2 gave it).
@@ -661,8 +687,8 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     // The live form is the AMM pages' (`live=day`, no window): a minute, and exactly one row. The historical form is the network page's, and keeps its class, key and answer.
     ammVolume: (q, opts) =>
       "live" in q
-        ? get<Page<"rows", AmmVolumeRow>>(PENDING_PATHS.ammVolume, {}, { live: q.live }, "minute", { ...fresh(opts), finish: checkLiveVolume })
-        : get<Page<"rows", AmmVolumeRow>>(PENDING_PATHS.ammVolume, {}, volumeQuery(q), "slow", {
+        ? get<Page<"rows", AmmVolumeRow>>(PATHS.ammVolume, {}, { live: q.live }, "minute", { ...fresh(opts), finish: checkLiveVolume })
+        : get<Page<"rows", AmmVolumeRow>>(PATHS.ammVolume, {}, volumeQuery(q), "slow", {
             ...fresh(opts),
             finish: (page) => checkVolumePage("amm", page),
           }),
@@ -703,7 +729,7 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         },
       }),
     networkMarkets: (q, opts) =>
-      get<MarketsResponse>(PENDING_PATHS.networkMarkets, {}, { limit: q.limit, period: q.period, amm: q.amm }, "minute", {
+      get<MarketsResponse>(PATHS.networkMarkets, {}, { limit: q.limit, period: q.period, amm: q.amm }, "minute", {
         ...fresh(opts),
         finish: (body) => checkMarkets(body, q.amm),
       }),
@@ -717,66 +743,66 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         { ...analyticsOptions, finish: (body) => checkAccountStats(body, family, q.interval, `data API account ${family} stats`) },
       )) as DataApi["accountStats"],
     analyticsBalances: (address, q) =>
-      get<AnalyticsBalances>(PENDING_PATHS.analyticsBalances, { address }, { interval: q.interval, limit: q.limit, start: q.start }, "minute", {
+      get<AnalyticsBalances>(PATHS.analyticsBalances, { address }, { interval: q.interval, limit: q.limit, start: q.start }, "minute", {
         ...analyticsOptions,
         finish: (body) => checkAnalyticsBalances(body, q.interval, "data API analytics balances"),
       }),
     analyticsBalanceChanges: (address, q) =>
-      get<AnalyticsBalanceChanges>(PENDING_PATHS.analyticsBalanceChanges, { address }, { interval: q.interval, start: q.start }, "minute", {
+      get<AnalyticsBalanceChanges>(PATHS.analyticsBalanceChanges, { address }, { interval: q.interval, start: q.start }, "minute", {
         ...analyticsOptions,
         finish: (body) => checkBalanceChanges(body, q.interval, "data API analytics balance changes"),
       }),
     analyticsCounterparties: (address, q) =>
-      get<AnalyticsCounterparties>(PENDING_PATHS.analyticsCounterparties, { address }, { limit: q.limit, start: q.start }, "minute", {
+      get<AnalyticsCounterparties>(PATHS.analyticsCounterparties, { address }, { limit: q.limit, start: q.start }, "minute", {
         ...analyticsOptions,
         // The slow one (D2 sections 9 and 13); the other calls keep the 5 s.
         timeoutMs: ANALYTICS_SLOW_TIMEOUT_MS,
         finish: (body) => checkCounterparties(body, "data API analytics counterparties"),
       }),
     analyticsExchanges: (address, q) =>
-      get<AnalyticsExchanges>(PENDING_PATHS.analyticsExchanges, { address }, { limit: q.limit, start: q.start }, "minute", {
+      get<AnalyticsExchanges>(PATHS.analyticsExchanges, { address }, { limit: q.limit, start: q.start }, "minute", {
         ...analyticsOptions,
         finish: (body) => checkAnalyticsExchanges(body, "data API analytics exchanges"),
       }),
     // D1's six calls. A query is written in the order `limit`, `marker`, `scope`. A validator is addressed by `key` and an amendment by `name`, as D1's openapi.yaml names them.
-    validatorsSummary: (opts) => get<ValidatorsSummary>(PENDING_PATHS.validatorsSummary, {}, {}, "live", { ...fresh(opts), finish: checkValidatorsSummary }),
-    validators: (q, opts) => get<ValidatorsList>(PENDING_PATHS.validators, {}, { limit: q.limit, scope: q.scope }, "live", { ...fresh(opts), finish: checkValidatorsList }),
-    validator: (key, opts) => get<ValidatorDetail>(PENDING_PATHS.validator, { key }, {}, "live", { ...fresh(opts), finish: checkValidatorDetail }),
+    validatorsSummary: (opts) => get<ValidatorsSummary>(PATHS.validatorsSummary, {}, {}, "live", { ...fresh(opts), finish: checkValidatorsSummary }),
+    validators: (q, opts) => get<ValidatorsList>(PATHS.validators, {}, { limit: q.limit, scope: q.scope }, "live", { ...fresh(opts), finish: checkValidatorsList }),
+    validator: (key, opts) => get<ValidatorDetail>(PATHS.validator, { key }, {}, "live", { ...fresh(opts), finish: checkValidatorDetail }),
     validatorValidations: (key, q, opts) =>
-      get<ValidatorValidationsPage>(PENDING_PATHS.validatorValidations, { key }, { limit: q.limit, marker: q.marker || undefined }, q.marker ? "slow" : "live", {
+      get<ValidatorValidationsPage>(PATHS.validatorValidations, { key }, { limit: q.limit, marker: q.marker || undefined }, q.marker ? "slow" : "live", {
         // A page after a marker is old rows, read from a call kept as long as D1 says (`max-age=300`): the caller's TTL (the newest rows') does not apply to it.
         ttl: q.marker ? VALIDATIONS_MARKER_TTL_SECONDS : opts?.ttl,
         holdFailure: opts?.holdFailure,
         finish: checkValidatorValidations,
       }),
-    amendments: (opts) => get<AmendmentsList>(PENDING_PATHS.amendments, {}, {}, "minute", { ...fresh(opts), finish: checkAmendments }),
-    amendment: (ref, opts) => get<AmendmentDetail>(PENDING_PATHS.amendment, { name: ref }, {}, "minute", { ...fresh(opts), finish: checkAmendmentDetail }),
+    amendments: (opts) => get<AmendmentsList>(PATHS.amendments, {}, {}, "minute", { ...fresh(opts), finish: checkAmendments }),
+    amendment: (ref, opts) => get<AmendmentDetail>(PATHS.amendment, { name: ref }, {}, "minute", { ...fresh(opts), finish: checkAmendmentDetail }),
     // E5's AMM pool calls. A pool is the `pool` of its answer; a pair is in the exchanges' path form, in the order asked.
     ammPools: (q) =>
       get<Page<"pools", AmmPool>>(
-        PENDING_PATHS.ammPools,
+        PATHS.ammPools,
         {},
         { limit: q.limit, asset: q.asset === undefined ? undefined : apiAssetText(q.asset), include_deleted: q.includeDeleted, marker: q.marker || undefined },
         "minute",
         { finish: checkPoolsPage },
       ),
-    ammPool: (pool) => get<AmmPool>(PENDING_PATHS.ammPool, { pool }, {}, "minute", { unwrap: "pool", finish: (found) => checkPool(found, pool) }),
-    ammPoolByPair: (base, counter) => get<AmmPool>(PENDING_PATHS.ammPoolByPair, pairOf(base, counter), {}, "minute", { unwrap: "pool", finish: (found) => checkPool(found) }),
+    ammPool: (pool) => get<AmmPool>(PATHS.ammPool, { pool }, {}, "minute", { unwrap: "pool", finish: (found) => checkPool(found, pool) }),
+    ammPoolByPair: (base, counter) => get<AmmPool>(PATHS.ammPoolByPair, pairOf(base, counter), {}, "minute", { unwrap: "pool", finish: (found) => checkPool(found) }),
     ammPoolDays: (pool, q) =>
       get<Page<"days", AmmPoolDay>>(
-        PENDING_PATHS.ammPoolHistory,
+        PATHS.ammPoolHistory,
         { pool },
         { interval: "day", start: q.start, end: q.end, descending: q.descending, limit: q.limit },
         "slow",
         { ttl: PERIOD_CALL_TTL_SECONDS, finish: checkDaysPage },
       ),
-    ammSwaps: (pool, q) => get<Page<"exchanges", AmmSwap>>(PENDING_PATHS.ammPoolSwaps, { pool }, listQuery(q), listClass(q), { finish: checkSwapsPage }),
+    ammSwaps: (pool, q) => get<Page<"exchanges", AmmSwap>>(PATHS.ammPoolSwaps, { pool }, listQuery(q), listClass(q), { finish: checkSwapsPage }),
     // The create event is the pool's first and never changes: `slow` whatever the page. `event` goes first (`liquidity?event=create&limit=1`).
     ammLiquidity: (pool, q) =>
-      get<Page<"liquidity", AmmLiquidityEvent>>(PENDING_PATHS.ammPoolLiquidity, { pool }, { event: q.event, ...listQuery(q) }, q.event ? "slow" : listClass(q), {
+      get<Page<"liquidity", AmmLiquidityEvent>>(PATHS.ammPoolLiquidity, { pool }, { event: q.event, ...listQuery(q) }, q.event ? "slow" : listClass(q), {
         finish: (page) => checkLiquidityPage(page, q.event),
       }),
     ammGovernance: (pool, q) =>
-      get<Page<"governance", AmmGovernanceRow>>(PENDING_PATHS.ammPoolGovernance, { pool }, listQuery(q), listClass(q), { finish: checkGovernancePage }),
+      get<Page<"governance", AmmGovernanceRow>>(PATHS.ammPoolGovernance, { pool }, listQuery(q), listClass(q), { finish: checkGovernancePage }),
   };
 }
