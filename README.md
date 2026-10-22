@@ -2268,7 +2268,7 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
   1. **Test:** the whole of `ci.yml`.
   2. **Image:** the image below for `linux/amd64` and `linux/arm64`, pushed to GitHub Packages as `ghcr.io/gatehubnet/explorer`. It
      gets two tags: the version without its `v` (`1.4.0`), and `latest`, which every tag moves, a pre-release included.
-  3. **Deploy:** `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
+  3. **Deploy:** once the image is out, `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
      `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Until production has its hosts and routes,
      the guard refuses the deploy ("Hosts and routes" below), so the deploy stays off until they are set. It needs the secrets
      `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. A required reviewer, if wanted, goes on the `production` environment.
@@ -2279,7 +2279,7 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
   commit of `master` and push the tag: `git tag v1.4.0 && git push origin v1.4.0`. The image is pushed with the workflow's own
   `GITHUB_TOKEN`. A new package on ghcr.io starts **private**: make it public in its Package settings if it should be pulled without a login.
 
-**The container image** (`Dockerfile`, `docker/entrypoint.sh`) is the built Worker run by workerd through `wrangler dev`, the way the
+**The container image** (`Dockerfile`, `docker/entrypoint.sh`, `docker/write-env-file.sh`) is the built Worker run by workerd through `wrangler dev`, the way the
 end-to-end suite runs it, on port 8080. It is for self-hosting and local use; production is the Cloudflare deploy. Its Cache API and rate
 limiter are workerd's local ones, kept in `/app/state`.
 - **Build:** the Worker is built once on the build machine's platform, from the top level of `wrangler.jsonc` with `BUILD_ID` from the
@@ -2291,7 +2291,9 @@ limiter are workerd's local ones, kept in `/app/state`.
   - the switches `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`.
 
   A name left unset keeps the build's value. The top level's data API hosts are placeholders, so the two data API URLs and
-  `DATA_API_KEY` must be set:
+  `DATA_API_KEY` must be set. Each value reaches the Worker unchanged (`$` included), written the way `formatEnvFile` writes the
+  end-to-end suite's env file. A value with a line break, a backslash, or all three quote characters cannot be carried over, so the
+  container stops at start and names it (`test/unit/docker-env-file.test.ts`):
 
 ```sh
 docker run -p 8080:8080 \

@@ -2,7 +2,7 @@
 #   1. test     the whole CI workflow (verify, fixtures:check, the end-to-end suite);
 #   2. image    the explorer image (Dockerfile: the built Worker under workerd) for linux/amd64 and linux/arm64, pushed to
 #               GitHub Packages (ghcr.io) as the tag's version without its v (1.4.0) and as latest;
-#   3. deploy   `pnpm deploy:production` to Cloudflare, only while the repository variable CLOUDFLARE_DEPLOY is "true": the
+#   3. deploy   once the image is out, `pnpm deploy:production` to Cloudflare, only while the repository variable CLOUDFLARE_DEPLOY is "true": the
 #               pre-deploy guard refuses production until its hosts and routes are set (README "Hosts and routes");
 #   4. release  the GitHub release of the tag: its body is the changelog since the previous tag (cliff.toml), which is also
 #               attached as CHANGELOG.md. A tag with a "-" is marked a pre-release.
@@ -78,7 +78,8 @@ jobs:
 
   deploy:
     name: Deploy to Cloudflare (production)
-    needs: test
+    # After the image too: a deploy that went out before an image that then failed would be a version with no image and no release.
+    needs: [test, image]
     if: ${{ vars.CLOUDFLARE_DEPLOY == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
