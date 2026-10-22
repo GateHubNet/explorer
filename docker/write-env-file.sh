@@ -29,7 +29,11 @@ refuse() {
 
 lines=""
 for name in $NAMES; do
-  value="$(printenv "$name" || true)"
+  # A command substitution drops every trailing line break, so the value is read with a sentinel after it; then the sentinel and
+  # printenv's own line break are taken off, and a line break the value ends with is still there to be refused.
+  value="$(printenv "$name" && printf x)" || continue
+  value="${value%x}"
+  value="${value%"$nl"}"
   [ -n "$value" ] || continue
   if contains "$value" "$nl" || contains "$value" "$cr" || contains "$value" "\\"; then
     refuse "$name" "holds a line break or a backslash"

@@ -63,6 +63,8 @@ describe("docker/write-env-file.sh", () => {
   it.each([
     ["a backslash", "a\\nb"],
     ["a line break", "a\nb"],
+    // A command substitution drops trailing line breaks: the script must still see this one, not pass the key on shortened.
+    ["a trailing line break", "key\n"],
     ["every kind of quote", "\"'`"],
   ])("refuses a value with %s, by name, rather than corrupt it", (_what, value) => {
     const { file, status, stderr } = write({ DATA_API_KEY: value });
