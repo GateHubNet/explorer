@@ -2243,8 +2243,8 @@ optimizer does not resolve, and it loads without it.
 
 ## The pipeline and deploying
 
-There is no CI configuration in this repository: which system runs the pipeline is still to be decided (spec 13). The pipeline is these
-steps, in this order, and a system that runs them is a pipeline. The explorer depends on no private package, so it needs no npm token.
+GitHub Actions runs the pipeline (`.github/workflows/`; see "CI and releases" below). The pipeline is these steps, in this order. The
+explorer depends on no private package, so it needs no npm token.
 
 ```sh
 pnpm install --frozen-lockfile     # the lockfile as it is; fails if package.json disagrees (the postinstall hook runs wrangler types)
@@ -2255,6 +2255,54 @@ pnpm deploy:staging                # CLOUDFLARE_ENV=staging react-router build &
 # ...the rollout below...
 pnpm deploy:production             # CLOUDFLARE_ENV=production react-router build && tsx scripts/predeploy-check.ts production && wrangler deploy
 ```
+
+**CI and releases.** GitHub Actions runs two workflows:
+
+- **`ci.yml`**, on every pull request to `master` and every push to `master`. It has three jobs:
+  - `pnpm verify` and `pnpm fixtures:check`;
+  - `pnpm test:e2e`, which builds the Worker and runs it under `wrangler dev`, with Playwright's Chromium (the report of a failed run is kept as an artifact);
+  - a job summary with the changelog of what is not released yet.
+
+  A newer push to a pull request cancels its older run.
+- **`release.yml`**, on every pushed tag `v*` (`v1.4.0`, or a pre-release such as `v1.4.0-rc.1`). It runs:
+  1. **Test:** the whole of `ci.yml`.
+  2. **Image:** the image below for `linux/amd64` and `linux/arm64`, pushed to GitHub Packages as `ghcr.io/gatehubnet/explorer`. It
+     gets two tags: the version without its `v` (`1.4.0`), and `latest`, which every tag moves, a pre-release included.
+  3. **Deploy:** once the image is out, `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
+     `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Until production has its hosts and routes,
+     the guard refuses the deploy ("Hosts and routes" below), so the deploy stays off until they are set. It needs the secrets
+     `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. A required reviewer, if wanted, goes on the `production` environment.
+  4. **Release:** the GitHub release of the tag. Its body is the changelog since the previous tag, made by [git-cliff](https://git-cliff.org)
+     from the Conventional Commits (`cliff.toml`) and attached as `CHANGELOG.md`. A tag with a `-` is a pre-release.
+
+  The release is created only when the tests pass, the image is out and, while the deploy is on, the deploy passed. To release, tag a
+  commit of `master` and push the tag: `git tag v1.4.0 && git push origin v1.4.0`. The image is pushed with the workflow's own
+  `GITHUB_TOKEN`. A new package on ghcr.io starts **private**: make it public in its Package settings if it should be pulled without a login.
+
+**The container image** (`Dockerfile`, `docker/entrypoint.sh`, `docker/write-env-file.sh`) is the built Worker run by workerd through `wrangler dev`, the way the
+end-to-end suite runs it, on port 8080. It is for self-hosting and local use; production is the Cloudflare deploy. Its Cache API and rate
+limiter are workerd's local ones, kept in `/app/state`.
+- **Build:** the Worker is built once on the build machine's platform, from the top level of `wrangler.jsonc` with `BUILD_ID` from the
+  build argument (the release passes the short commit; default `dev`). Only the runtime stage, Node 24 and the lockfile's wrangler,
+  is per platform.
+- **Configuration:** the container's environment sets the Worker's variables and secrets. Only these names reach the Worker:
+  - `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL`, `XAHAU_NODE_URL`;
+  - `DATA_API_KEY`, `SENTRY_DSN`;
+  - the switches `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`.
+
+  A name left unset keeps the build's value. The top level's data API hosts are placeholders, so the two data API URLs and
+  `DATA_API_KEY` must be set. Each value reaches the Worker unchanged (`$` included), written the way `formatEnvFile` writes the
+  end-to-end suite's env file. A value with a line break, a backslash, or all three quote characters cannot be carried over, so the
+  container stops at start and names it (`test/unit/docker-env-file.test.ts`):
+
+```sh
+docker run -p 8080:8080 \
+  -e XRPL_DATA_API_URL=https://xrpl.data.example.com -e XAHAU_DATA_API_URL=https://xahau.data.example.com \
+  -e DATA_API_KEY=... ghcr.io/gatehubnet/explorer:latest
+```
+
+- **Health:** the image's health check fetches `/robots.txt`, which the Worker answers without calling the data API.
+- **Logs:** `WRANGLER_LOG_LEVEL` (default `info`) sets wrangler's log level.
 
 **`wrangler deploy --env <env>` and the Cloudflare Vite plugin.** The environment is chosen when the Worker is *built*, not when it is deployed:
 the plugin writes `build/server/wrangler.json` for the environment `CLOUDFLARE_ENV` names (its name, vars and rate-limit namespace flattened to the top level;
