@@ -1,0 +1,27 @@
+# The build context is the project root (Dockerfile: `COPY . .`). The Worker's build needs app/, workers/, public/, scripts/
+# (vite.config.ts imports from it), the configs and the lockfile; the rest stays out of the builder's layers.
+
+# dependencies and build output are made inside the image
+node_modules
+build
+.react-router
+.wrangler
+worker-configuration.d.ts
+
+# secrets and local state: .dev.vars holds DATA_API_KEY
+.dev.vars
+.env
+.env.*
+
+# tests, their output and the docs
+test
+test-results
+playwright-report
+coverage
+docs
+
+# VCS, CI and local tooling
+.git
+.github
+.claude
+.superpowers
