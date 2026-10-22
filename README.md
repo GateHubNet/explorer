@@ -2265,15 +2265,18 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
 
   A newer push to a pull request cancels its older run.
 - **`release.yml`**, on every pushed version tag: `v1.4.0`, or a pre-release such as `v1.4.0-rc.1`. It runs:
-  1. **Version:** the tag must be a semantic version, `vMAJOR.MINOR.PATCH` with an optional `-pre-release` and no `+build`.
-     Anything else (`vtest`, `v1.4`) stops the run, and nothing is published or deployed.
+  1. **Version:** the tag must be a semantic version, `vMAJOR.MINOR.PATCH` with an optional `-pre-release` and no `+build`. As in
+     SemVer, numbers have no leading zeros, in the pre-release too. Anything else (`vtest`, `v1.4`, `v1.2.3-rc.01`) stops the run, and
+     nothing is published or deployed.
   2. **Test:** the whole of `ci.yml`.
   3. **Image:** the image below for `linux/amd64` and `linux/arm64`, pushed to GitHub Packages as `ghcr.io/gatehubnet/explorer`,
      tagged with the version without its `v` (`1.4.0`).
   4. **Latest:** `latest` points at the newest version tag, a pre-release included, whose image is published. Every release works this
      out again when it reaches this step, one release at a time. So:
      - a release that finishes after a newer one leaves `latest` on the newer one;
-     - a late patch for an older line, such as `v1.3.5` after `v1.4.0`, publishes `1.3.5` and leaves `latest` alone.
+     - a late patch for an older line, such as `v1.3.5` after `v1.4.0`, publishes `1.3.5` and leaves `latest` alone;
+     - a registry error is retried, and if it persists the step fails and leaves `latest` alone. Only the registry's "not found"
+       counts as not published.
   5. **Deploy:** once the image is out, `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
      `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Until production has its hosts and routes,
      the guard refuses the deploy ("Hosts and routes" below), so the deploy stays off until they are set. It needs the secrets
