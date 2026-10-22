@@ -2264,18 +2264,25 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
   - a job summary with the changelog of what is not released yet.
 
   A newer push to a pull request cancels its older run.
-- **`release.yml`**, on every pushed tag `v*` (`v1.4.0`, or a pre-release such as `v1.4.0-rc.1`). It runs:
-  1. **Test:** the whole of `ci.yml`.
-  2. **Image:** the image below for `linux/amd64` and `linux/arm64`, pushed to GitHub Packages as `ghcr.io/gatehubnet/explorer`. It
-     gets two tags: the version without its `v` (`1.4.0`), and `latest`, which every tag moves, a pre-release included.
-  3. **Deploy:** once the image is out, `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
+- **`release.yml`**, on every pushed version tag: `v1.4.0`, or a pre-release such as `v1.4.0-rc.1`. It runs:
+  1. **Version:** the tag must be a semantic version, `vMAJOR.MINOR.PATCH` with an optional `-pre-release` and no `+build`.
+     Anything else (`vtest`, `v1.4`) stops the run, and nothing is published or deployed.
+  2. **Test:** the whole of `ci.yml`.
+  3. **Image:** the image below for `linux/amd64` and `linux/arm64`, pushed to GitHub Packages as `ghcr.io/gatehubnet/explorer`,
+     tagged with the version without its `v` (`1.4.0`).
+  4. **Latest:** `latest` points at the newest version tag, a pre-release included, whose image is published. Every release works this
+     out again when it reaches this step, one release at a time. So:
+     - a release that finishes after a newer one leaves `latest` on the newer one;
+     - a late patch for an older line, such as `v1.3.5` after `v1.4.0`, publishes `1.3.5` and leaves `latest` alone.
+  5. **Deploy:** once the image is out, `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
      `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Until production has its hosts and routes,
      the guard refuses the deploy ("Hosts and routes" below), so the deploy stays off until they are set. It needs the secrets
      `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. A required reviewer, if wanted, goes on the `production` environment.
-  4. **Release:** the GitHub release of the tag. Its body is the changelog since the previous tag, made by [git-cliff](https://git-cliff.org)
+  6. **Release:** the GitHub release of the tag. Its body is the changelog since the previous tag, made by [git-cliff](https://git-cliff.org)
      from the Conventional Commits (`cliff.toml`) and attached as `CHANGELOG.md`. A tag with a `-` is a pre-release.
 
-  The release is created only when the tests pass, the image is out and, while the deploy is on, the deploy passed. To release, tag a
+  The release is created only when the tag is a version, the tests pass, the image is out and, while the deploy is on, the deploy
+  passed. It does not wait for step 4. To release, tag a
   commit of `master` and push the tag: `git tag v1.4.0 && git push origin v1.4.0`. The image is pushed with the workflow's own
   `GITHUB_TOKEN`. A new package on ghcr.io starts **private**: make it public in its Package settings if it should be pulled without a login.
 
