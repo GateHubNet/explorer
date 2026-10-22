@@ -29,7 +29,7 @@ RUN npm install --global --no-fund --no-audit "wrangler@$(cat /tmp/wrangler-vers
   && rm /tmp/wrangler-version \
   && npm cache clean --force
 COPY --from=builder /app/build ./build
-COPY docker/entrypoint.sh ./entrypoint.sh
+COPY docker/entrypoint.sh docker/write-env-file.sh ./
 RUN mkdir -p /app/state && chown -R node:node /app
 USER node
 ENV PORT=8080 \

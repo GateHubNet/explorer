@@ -8,8 +8,9 @@ build
 .wrangler
 worker-configuration.d.ts
 
-# secrets and local state: .dev.vars holds DATA_API_KEY
+# secrets and local state: .dev.vars holds DATA_API_KEY, and .dev.vars.<env> the secrets of an environment
 .dev.vars
+.dev.vars.*
 .env
 .env.*
 
