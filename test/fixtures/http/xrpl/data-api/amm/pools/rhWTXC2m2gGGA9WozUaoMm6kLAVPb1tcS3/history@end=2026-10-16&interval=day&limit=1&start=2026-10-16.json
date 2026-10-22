@@ -1,4 +1,6 @@
 {
+  "computed_end": "2026-10-16",
+  "computed_start": "2026-10-16",
   "count": 1,
   "days": [
     {"amm_account":"rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3","base_currency":"524C555344000000000000000000000000000000","base_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","counter_currency":"XRP","date":"2026-10-16T00:00:00Z","deposit_count":2,"fees_base_est":"75.07497735055","fees_counter_est":"60.76396923","liquidity_in_base":"108.041216585","liquidity_in_counter":"1092.769304","liquidity_out_base":"0","liquidity_out_counter":"0","lp_supply":"1791080248.948967","reserve_base":"2399219.361440318","reserve_counter":"1861547.563319","swap_count":40,"trading_fee":205,"value_native":"3723095.1","volume_base":"36621.940171","volume_counter":"29640.9606","withdraw_count":0}

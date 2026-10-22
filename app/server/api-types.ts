@@ -432,8 +432,8 @@ export interface MarketsTotals {
  * `GET /v2/network/markets` (`period`, `limit`, `amm`): the trade statistics of every pair that traded in a live period, in one call. The shape is that of
  * the data API's `docs/api-reference.md` at data-api-new `feat/explorer-data` commit `7d495ab` (the merge of D2; section `GET /v2/network/markets`), with the AMM
  * keys placed as D2 spec 7 and formatted as D2b.1 say (they are not in that reference, which serves no AMM field): `amm` after `period`, `totals.amm_share`
- * after `converted_volume`, `amm_share` and `amm_pool` before `sparkline`. `amm` echoes the filter that was asked for; the client refuses a filtered answer
- * that does not (an API that ignored the filter), and reads no `amm` of an unfiltered one. `exchange` and `exchange_rate` (after `end_time`) answer an `exchange_currency`, which the explorer does not
+ * after `converted_volume`, `amm_share` and `amm_pool` before `sparkline`. `amm` echoes the filter that was asked for, `include` when none was (D2b.1 at
+ * data-api-new 9dbbd8a); the client refuses a filtered answer that does not (an API that ignored the filter), and reads no `amm` of an unfiltered one (a D2 API has none). `exchange` and `exchange_rate` (after `end_time`) answer an `exchange_currency`, which the explorer does not
  * send. `start_time` (the hour that is a window before `end_time`) and `end_time` (the close time of the newest ledger the set covers) and `totals` are
  * missing when the aggregator has not written a set yet: `{ result, period: "day", count: 0, markets: [] }`. `count` is the number of markets served.
  */
@@ -545,6 +545,11 @@ export interface AmmVolumeComponent {
   amount: string;
   rate: string;
   converted_amount: string;
+  /**
+   * Only on the live day row (`live=day`, D2b.3): the trading fees the pool's swaps of the 24 hours are estimated to have paid, converted like `converted_amount` and
+   * written like it; left out when a swap's fee is not known. The explorer does not read it.
+   */
+  fees_est?: string;
 }
 
 /**
@@ -562,8 +567,11 @@ export interface VolumeRow<C> {
   end_time: string;
 }
 
-/** A row of `amm_volume`: one per bucket of the historical form, and the one row of a rolling day (`live=day`) of the live form. */
-export type AmmVolumeRow = VolumeRow<AmmVolumeComponent>;
+/**
+ * A row of `amm_volume`: one per bucket of the historical form, and the one row of a rolling day (`live=day`) of the live form. `fees_est` (after `end_time`, D2b.3) is
+ * on that live day row only, the sum of its components' estimates, and only when it lists a component and every one has one.
+ */
+export type AmmVolumeRow = VolumeRow<AmmVolumeComponent> & { fees_est?: string };
 
 // ---- AMM: GET /v2/amm/pools, /v2/amm/pools/{pool}, /v2/amm/pools/{base}/{counter} and /v2/amm/pools/{pool}/{history,swaps,liquidity,governance} ------------
 
@@ -635,6 +643,20 @@ export interface AmmPoolDay {
   lp_supply?: string;
   trading_fee?: number;
   value_native?: string;
+}
+
+/**
+ * A page of `GET /v2/amm/pools/{pool}/history?interval=day`, in the reference's key order. `computed_start` and `computed_end` (`YYYY-MM-DD`, D2b.4) are the days of the
+ * request's window that the data API has computed for every pool: a day inside the range without a row is a quiet day of the pool, a day outside it is not computed
+ * yet. Both are left out when no day of the window is computed, and are the same on every page of an answer. The explorer does not read them.
+ */
+export interface AmmPoolDaysPage {
+  result: "success";
+  computed_start?: string;
+  computed_end?: string;
+  count: number;
+  marker?: string;
+  days: AmmPoolDay[];
 }
 
 /** A swap against a pool (`GET /v2/amm/pools/{pool}/swaps`): an exchange of the pool's own pair, with the pool as its `amm_account`. */

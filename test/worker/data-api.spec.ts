@@ -11,7 +11,6 @@ import type {
   AmmPool,
   AmmPoolDay,
   AmmSwap,
-  AmmVolumeComponent,
   AmmVolumeRow,
   AnalyticsBalanceChanges,
   AnalyticsBalances,
@@ -993,7 +992,7 @@ describe("requests", () => {
     expectTypeOf(api.stats("type", period)).toEqualTypeOf<Promise<Page<"stats", StatsRow>>>();
     expectTypeOf(api.paymentVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<PaymentVolumeComponent>>>>();
     expectTypeOf(api.exchangeVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<ExchangeVolumeComponent>>>>();
-    expectTypeOf(api.ammVolume(period)).toEqualTypeOf<Promise<Page<"rows", VolumeRow<AmmVolumeComponent>>>>();
+    expectTypeOf(api.ammVolume(period)).toEqualTypeOf<Promise<Page<"rows", AmmVolumeRow>>>();
     expectTypeOf(api.ledgerValidations(HASH, { limit: 1000 })).toEqualTypeOf<Promise<LedgerValidations>>();
     expectTypeOf(api.pairExchanges(XRP_ASSET, RLUSD_ASSET, { limit: 20 })).toEqualTypeOf<Promise<Page<"exchanges", PairExchange>>>();
     expectTypeOf(api.pairCandles(XRP_ASSET, RLUSD_ASSET, { interval: "1hour", start: "2026-10-14T05:00:00Z", limit: 61 })).toEqualTypeOf<Promise<Page<"exchanges", Candle>>>();
@@ -2550,7 +2549,7 @@ describe("the AMM pool calls", () => {
     expectTypeOf(api.ammLiquidity(AMM_POOL, { limit: 20 })).toEqualTypeOf<Promise<Page<"liquidity", AmmLiquidityEvent>>>();
     expectTypeOf(api.ammGovernance(AMM_POOL, { limit: 20 })).toEqualTypeOf<Promise<Page<"governance", AmmGovernanceRow>>>();
     expectTypeOf(api.ammVolume({ live: "day" })).toEqualTypeOf<Promise<Page<"rows", AmmVolumeRow>>>();
-    expectTypeOf(api.ammVolume({ interval: "day", ...PERIOD, limit: 1000 })).toEqualTypeOf<Promise<Page<"rows", VolumeRow<AmmVolumeComponent>>>>();
+    expectTypeOf(api.ammVolume({ interval: "day", ...PERIOD, limit: 1000 })).toEqualTypeOf<Promise<Page<"rows", AmmVolumeRow>>>();
     // The only event the page asks the liquidity route for is the creation.
     expectTypeOf<NonNullable<Parameters<DataApi["ammLiquidity"]>[1]["event"]>>().toEqualTypeOf<"create">();
   });

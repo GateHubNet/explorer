@@ -489,7 +489,7 @@ describe("the market fixtures of EVR/XAH, which are synthetic", () => {
 
 // ---- The markets table -----------------------------------------------------------------------------------------------
 
-const ANSWER_KEYS = ["count", "end_time", "markets", "period", "result", "start_time", "totals"];
+const ANSWER_KEYS = ["amm", "count", "end_time", "markets", "period", "result", "start_time", "totals"];
 const ROW_KEYS = [
   "base_currency",
   "base_issuer",
@@ -569,11 +569,11 @@ function expectedRow(net: Net, trades: PairExchange[], period: Period, amm: Filt
 describe.each(marketViews)("the markets table of $net, $period, amm $amm", ({ net, period, amm }) => {
   const answer = (): MarketsResponse => answerOf(net, period, amm);
 
-  it("is the answer of the reference: its keys, the window from the hour a period before T to T, and amm echoed only when asked", () => {
+  it("is the answer of the reference: its keys, the window from the hour a period before T to T, and amm echoed always, include when none was asked", () => {
     const body = answer();
-    expect(Object.keys(body).sort()).toEqual([...ANSWER_KEYS, ...(amm === null ? [] : ["amm"])].sort());
+    expect(Object.keys(body).sort()).toEqual(ANSWER_KEYS);
     expect(body).toMatchObject({ result: "success", period });
-    expect(body.amm).toBe(amm ?? undefined);
+    expect(body.amm).toBe(amm ?? "include");
     expect(body.start_time).toBe(iso(floorHour(T[net]) - PERIOD_HOURS[period] * 3600));
     expect(body.end_time).toBe(iso(T[net]));
     expect(Object.keys(body.totals!).sort()).toEqual(["amm_share", "count", "native_volume", "pairs", "pairs_traded"]);

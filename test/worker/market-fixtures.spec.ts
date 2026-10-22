@@ -108,15 +108,16 @@ describe("the market files, read by the data API client in the Workers runtime",
     allFromFiles();
   });
 
-  it("serve the markets table of every period on both networks, and of each Trades filter on XRPL, which it echoes", async () => {
+  it("serve the markets table of every period on both networks, and of each Trades filter on XRPL, which it echoes (include without one)", async () => {
     mock = mockUpstream("xrpl");
     for (const period of ["day", "7day", "30day"] as const) {
       for (const amm of [undefined, "exclude", "only"] as const) {
         const answer = await createDataApi(xrpl, env, passThroughCache).networkMarkets({ period, limit: 1000, amm });
-        expect([answer.period, answer.amm]).toEqual([period, amm]);
+        expect([answer.period, answer.amm]).toEqual([period, amm ?? "include"]);
         expect(answer.markets.length).toBeGreaterThan(0);
       }
-      expect((await createDataApi(xahau, env, passThroughCache).networkMarkets({ period, limit: 1000 })).totals?.amm_share).toBe("0.0000");
+      const xahauAnswer = await createDataApi(xahau, env, passThroughCache).networkMarkets({ period, limit: 1000 });
+      expect([xahauAnswer.amm, xahauAnswer.totals?.amm_share]).toEqual(["include", "0.0000"]);
     }
     allFromFiles();
   });

@@ -826,9 +826,12 @@ describe("the synthetic day rows, candles and live volume", () => {
   // XRP/USD; DVR/XRP's creation in the 30 days; SNK/XRP's deletion in the year; VOX/XRP's 90 days, each empty (P3: it has no series, but the index has its
   // states, so its day rows are empty lists, not `pool not found`; docs/api-reference.md "Empty and 404"). The rules are written out here again, apart from the
   // generator: the windows, the carry-in and its marker, the estimates, the candles (E3's rules) and the live set (docs/api-reference.md, "AMM" and
-  // `/v2/network/amm_volume`; apps/api/src/network/volume-object.ts).
+  // `/v2/network/amm_volume`; apps/api/src/network/volume-object.ts). D2b (data-api-new 9dbbd8a) adds the computed range of a page of days and the live set's
+  // fee estimates.
   const T = "2026-10-17";
   const LAST_DAY = "2026-10-16";
+  /** The first day the synthetic data API has computed: where the series start (D2b.4's back-fill starts at the first pool activity). */
+  const COMPUTED_FROM = "2025-10-01";
   const WINDOWS = {
     "30d": { start: "2026-09-18", carry: "2026-09-17", interval: "1day", days: 1 },
     "90d": { start: "2026-07-20", carry: "2026-07-19", interval: "1day", days: 1 },
@@ -854,8 +857,8 @@ describe("the synthetic day rows, candles and live volume", () => {
     "base_volume", "buy_volume", "close", "close_time", "count", "counter_volume", "high", "low", "open", "open_time", "start", "vwap", "base_currency", "base_issuer",
     "counter_currency", "counter_issuer",
   ];
-  const ROW_KEYS = ["components", "count", "exchange", "total", "exchange_rate", "start_time", "end_time"];
-  const COMPONENT_KEYS = ["amm_account", "base", "counter", "count", "amount", "rate", "converted_amount"];
+  const ROW_KEYS = ["components", "count", "exchange", "total", "exchange_rate", "start_time", "end_time", "fees_est"];
+  const COMPONENT_KEYS = ["amm_account", "base", "counter", "count", "amount", "rate", "converted_amount", "fees_est"];
   /** Room for the API's quotients of exact decimals, and its 8 significant digits of a rate or a price. */
   const Exact = BigNumber.clone({ DECIMAL_PLACES: 60 });
   const precision8 = (value: BigNumber.Value): string => new BigNumber(value).toPrecision(8);
@@ -887,6 +890,8 @@ describe("the synthetic day rows, candles and live volume", () => {
   /** The pool's recorded liquidity events of a day (the derived ones, which the Liquidity tab lists). */
   const eventsOf = (name: Name, day: string) => derived.liquidity.filter((event) => event.amm_account === accountOf(name) && event.executed_time.slice(0, 10) === day);
   const EMPTY = { result: "success", count: 0, days: [] };
+  /** `computed_start` and `computed_end` of a window (D2b.4): every day from COMPUTED_FROM to T is computed, for every pool. */
+  const computed = (start: string, end: string) => ({ computed_start: start, computed_end: end });
 
   it("are at T, the UTC day of the recorded last_validated, in E2's windows: the 30 and 90 days to T, the 52 weeks from Monday", () => {
     expect(isoTime(unixOf(xrpl.at(-1)!.ledger.close_time))).toBe("2026-10-17T17:01:12Z");
@@ -929,9 +934,11 @@ describe("the synthetic day rows, candles and live volume", () => {
     expect(series.map((one) => one.name).sort()).toEqual([...NAMES].sort());
   });
 
-  it("answer VOX/XRP's day rows, carry-in and last day with empty lists and no marker, and its pair with no candles", () => {
+  it("answer VOX/XRP's day rows, carry-in and last day with empty lists, no marker and the computed range (quiet days), and its pair with no candles", () => {
     const [window, carry, last, candles] = voxFiles();
-    for (const path of [window!, carry!, last!]) expect(daysPage(path), path).toEqual(EMPTY);
+    expect(daysPage(window!)).toEqual({ ...EMPTY, ...computed(WINDOWS["90d"].start, T) });
+    expect(daysPage(carry!)).toEqual({ ...EMPTY, ...computed(COMPUTED_FROM, WINDOWS["90d"].carry) });
+    expect(daysPage(last!)).toEqual({ ...EMPTY, ...computed(LAST_DAY, LAST_DAY) });
     expect(candlePage(candles!)).toEqual({ result: "success", count: 0, exchanges: [] });
     expect(series.some((one) => one.pool.amm_account === FEATURED_POOLS["VOX/XRP"])).toBe(false);
   });
@@ -966,7 +973,7 @@ describe("the synthetic day rows, candles and live volume", () => {
         expect(() => checkDaysPage(page)).not.toThrow();
         const rows = days.filter((row) => dayOf(row) >= WINDOWS[period].start && dayOf(row) <= T);
         expect(rows.length).toBeLessThanOrEqual(1000);
-        expect(page, `${name} ${period}`).toEqual({ result: "success", count: rows.length, days: rows });
+        expect(page, `${name} ${period}`).toEqual({ result: "success", ...computed(WINDOWS[period].start, T), count: rows.length, days: rows });
         pages.set(period, page);
       }
       const [month, quarter, year] = [pages.get("30d"), pages.get("90d"), pages.get("1y")];
@@ -985,12 +992,16 @@ describe("the synthetic day rows, candles and live volume", () => {
         const before = days.filter((row) => dayOf(row) <= WINDOWS[period].carry);
         const newest = before.at(-1);
         // The marker of a page of days is the start of its last day, in unix seconds (amm-pools.service.ts `days`, `encodeMarker`).
+        // A carry-in's window has no start: the computed range starts where the computed days do.
+        const range = computed(COMPUTED_FROM, WINDOWS[period].carry);
         const expected =
-          newest === undefined ? EMPTY : { result: "success", count: 1, ...(before.length > 1 && { marker: marker([secondsOf(dayOf(newest))]) }), days: [newest] };
+          newest === undefined
+            ? { ...EMPTY, ...range }
+            : { result: "success", ...range, count: 1, ...(before.length > 1 && { marker: marker([secondsOf(dayOf(newest))]) }), days: [newest] };
         expect(page, `${name} ${period}`).toEqual(expected);
       }
       const last = days.filter((row) => dayOf(row) === LAST_DAY);
-      expect(daysPage(lastDayFile(name)), name).toEqual({ result: "success", count: last.length, days: last });
+      expect(daysPage(lastDayFile(name)), name).toEqual({ result: "success", ...computed(LAST_DAY, LAST_DAY), count: last.length, days: last });
     }
     for (const period of ["30d", "90d", "1y"] as const) {
       const page = daysPage(carryFile("XRP/RLUSD", period));
@@ -1005,7 +1016,10 @@ describe("the synthetic day rows, candles and live volume", () => {
     expect(created.executed_time.slice(0, 10)).toBe("2026-10-12");
     expect(dvr[0]!.date).toBe("2026-10-12T00:00:00Z");
     expect(daysPage(windowFile("DVR/XRP", "30d")).days[0]).toEqual(dvr[0]);
-    for (const period of ["30d", "90d", "1y"] as const) expect(daysPage(carryFile("DVR/XRP", period)), period).toEqual(EMPTY);
+    // Days before the creation are computed, and quiet for the pool.
+    for (const period of ["30d", "90d", "1y"] as const) {
+      expect(daysPage(carryFile("DVR/XRP", period)), period).toEqual({ ...EMPTY, ...computed(COMPUTED_FROM, WINDOWS[period].carry) });
+    }
     // The creation counts as the day's deposit.
     expect(dvr[0]).toMatchObject({ deposit_count: 1, withdraw_count: 0, liquidity_in_base: created.base_amount, liquidity_in_counter: created.counter_amount });
     expect([dvr[0]!.liquidity_out_base, dvr[0]!.liquidity_out_counter]).toEqual(["0", "0"]);
@@ -1016,7 +1030,9 @@ describe("the synthetic day rows, candles and live volume", () => {
     expect([deletion.ledger_index, deletion.executed_time.slice(0, 10)]).toEqual([100132150, "2025-11-11"]);
     expect(snk.at(-1)!.date).toBe("2025-11-11T00:00:00Z");
     expect(daysPage(windowFile("SNK/XRP", "1y")).days.at(-1)).toEqual(snk.at(-1));
-    for (const period of ["30d", "90d"] as const) expect(daysPage(windowFile("SNK/XRP", period)), period).toEqual(EMPTY);
+    for (const period of ["30d", "90d"] as const) {
+      expect(daysPage(windowFile("SNK/XRP", period)), period).toEqual({ ...EMPTY, ...computed(WINDOWS[period].start, T) });
+    }
     for (const period of ["30d", "90d"] as const) expect(daysPage(carryFile("SNK/XRP", period)).days, period).toEqual([snk.at(-1)]);
     // The withdrawal that emptied it is the day's: its amounts went out, and the day closes in the deleted pool's state, without a value.
     const emptied = derived.liquidity.find((event) => event.amm_account === pool.amm_account && event.event === "withdraw")!;
@@ -1246,6 +1262,19 @@ describe("the synthetic day rows, candles and live volume", () => {
     // The API sums the converted amounts as doubles (`String(total)`): they are exact here.
     expect(String(row.components.reduce((total, component) => total + Number(component.converted_amount), 0))).toBe(row.total);
     expect(row.count).toBe(row.components.reduce((total, component) => total + component.count, 0));
+    // D2b.3's estimates, on every component and so on the row: a component's is its converted amount times its pool's trading fee over 100000 (a fee from 0 to
+    // 1000 drawn for a pool whose fee the recordings do not show), in doubles, written by `String`; the row's is the sum of the components' in their order.
+    for (const component of row.components) {
+      const fees = Number(component.fees_est);
+      expect(Number.isFinite(fees) && fees >= 0, component.amm_account).toBe(true);
+      expect(String(fees)).toBe(component.fees_est);
+      const known = poolOf(component.amm_account).trading_fee;
+      if (known !== undefined) expect(component.fees_est, component.amm_account).toBe(String((Number(component.converted_amount) * known) / 100_000));
+      const fee = (fees * 100_000) / Number(component.converted_amount);
+      expect(Math.abs(fee - Math.round(fee)) < 1e-6 && Math.round(fee) >= 0 && Math.round(fee) <= 1000, component.amm_account).toBe(true);
+    }
+    expect(row.components.filter((component) => poolOf(component.amm_account).trading_fee !== undefined).length).toBeGreaterThan(0);
+    expect(row.fees_est).toBe(String(row.components.reduce((total, component) => total + Number(component.fees_est), 0)));
   });
 
   it("have the reference's key orders in the objects before serialization, a day's sums as BigNumber's toString (plain, or the exponent form below 1e-6), and are the files", () => {
@@ -1259,7 +1288,8 @@ describe("the synthetic day rows, candles and live volume", () => {
       const body = value as Record<string, unknown>;
       const where = `${path}?${query}`;
       if (Array.isArray(body.days)) {
-        expect(Object.keys(body), where).toEqual(ordered(body, ["result", "count", "marker", "days"]));
+        expect(Object.keys(body), where).toEqual(ordered(body, ["result", "computed_start", "computed_end", "count", "marker", "days"]));
+        expect([body.computed_start, body.computed_end].every((day) => typeof day === "string"), where).toBe(true);
         for (const row of body.days as AmmPoolDay[]) {
           expect(Object.keys(row), where).toEqual(ordered(row, DAY_KEYS));
           for (const key of ["reserve_base", "reserve_counter", "lp_supply"] as const) expect(row[key], `${where} ${key}`).toMatch(UNSIGNED);

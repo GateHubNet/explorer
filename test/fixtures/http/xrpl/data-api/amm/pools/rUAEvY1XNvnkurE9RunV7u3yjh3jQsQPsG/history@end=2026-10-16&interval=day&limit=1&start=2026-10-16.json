@@ -1,4 +1,6 @@
 {
+  "computed_end": "2026-10-16",
+  "computed_start": "2026-10-16",
   "count": 1,
   "days": [
     {"amm_account":"rUAEvY1XNvnkurE9RunV7u3yjh3jQsQPsG","base_currency":"DVR","base_issuer":"rpvRJUcmqQqyCHCmYRPW9FXFAGQEcibVz9","counter_currency":"XRP","date":"2026-10-16T00:00:00Z","deposit_count":0,"fees_base_est":"131.8453","fees_counter_est":"0.06592265","liquidity_in_base":"0","liquidity_in_counter":"0","liquidity_out_base":"0","liquidity_out_counter":"0","lp_supply":"22360679.77499789","reserve_base":"1000000","reserve_counter":"500","swap_count":2,"trading_fee":1000,"value_native":"1000","volume_base":"13184.53","volume_counter":"6.592265","withdraw_count":0}

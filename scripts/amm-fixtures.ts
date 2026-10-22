@@ -31,12 +31,18 @@
 //   amm/pools/<POOL>/history@end=<T − 1>&interval=day&limit=1&start=<T − 1>.json      the last whole day
 //   exchanges/<B>/<C>@amm=only&end=T&interval=<1day|7day>&limit=400&start=<W₀>.json   the series' swaps as candles, the pair in its stored order
 //
+// Each page of days has `computed_start` and `computed_end` after `result` (D2b.4, data-api-new 9dbbd8a): the synthetic data API has computed every day from
+// HISTORY_FROM, where the series start (its first pool activity, the start of `amm_daily`'s back-fill), to T, today's set included; a page's range is the part of
+// its request's window in that span (a carry-in's window has no start: HISTORY_FROM). It is the same for every pool, so the quiet days inside it have no row.
+//
 // VOX/XRP has no series, but the index has its states, so the API answers its page's day rows with empty lists, not `pool not found` (docs/api-reference.md
 // "AMM", "Empty and 404"): the same four files for its 90 days (the page's default period), each with an empty list and no marker. The real API would also
 // serve 2026-10-14, the day of its recorded vote, as a row (amm_daily writes one for every day a transaction touches the pool); the fixtures leave that row
 // out so that the "gone" page has no series (P3).
 //   network/amm_volume@live=day.json          the rolling day to T's minute: a component for each live pool with the native currency but VOX/XRP (no swaps), drawn
-//                                             from `mulberry32(seedOf("xrpl", "amm_volume", "live"))` (apps/api/src/network/volume-object.ts for the row)
+//                                             from `mulberry32(seedOf("xrpl", "amm_volume", "live"))` (apps/api/src/network/volume-object.ts for the row), with
+//                                             D2b.3's `fees_est` on each component and the row (the fees of a pool whose fee the recordings do not show drawn from
+//                                             `mulberry32(seedOf("xrpl", "amm_volume", "live", "fees"))`)
 //
 // A list's rows are one line each (`fixtureText`'s `rowLists`), as in the other generated files: a pool, a swap, an event, a day, a candle, a volume component.
 
@@ -44,7 +50,7 @@ import BigNumber from "bignumber.js";
 
 import { apiAssetText, sameAsset, type Asset } from "../app/domain/asset";
 import { addDays, bucketStarts, utcDayOf, windowOf } from "../app/domain/window";
-import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmPoolDay, AmmSwap, AmmVolumeComponent, AmmVolumeRow, Page } from "../app/server/api-types";
+import type { AmmGovernanceRow, AmmLiquidityEvent, AmmPool, AmmPoolDay, AmmPoolDaysPage, AmmSwap, AmmVolumeComponent, AmmVolumeRow, Page } from "../app/server/api-types";
 import { dataApiFile } from "../test/support/upstream-core";
 import { deriveAmm, storedValue, valueText, type DerivedAmm } from "./amm-derive";
 import { derivedExchanges, NATIVE } from "./derived-trades";
@@ -285,6 +291,25 @@ const amountText = (value: BigNumber): string => new Api(value).toString();
 /** A marker of a page of days (amm-pools.service.ts `days`): the base64url JSON of the start of its last day, in unix seconds. */
 const dayMarker = (row: AmmPoolDay): string => encodeMarker([Date.parse(row.date) / 1000]);
 
+/**
+ * `computed_start` and `computed_end` of a request's window of days (D2b.4, amm-pools.service.ts): the part of it that the synthetic data API has computed, every day
+ * from HISTORY_FROM to T; neither when the window has none of those days. `start` is left out for a window from the first ledger (a carry-in).
+ */
+function computedRange(window: { start?: string; end: string }, T: string): Pick<AmmPoolDaysPage, "computed_start" | "computed_end"> {
+  const from = window.start === undefined || window.start < HISTORY_FROM ? HISTORY_FROM : window.start;
+  const to = window.end < T ? window.end : T;
+  return from <= to ? { computed_start: from, computed_end: to } : {};
+}
+
+/** A page of days of a request's window, in the reference's key order (`result, computed_start?, computed_end?, count, marker?, days`). */
+const daysPage = (window: { start?: string; end: string }, T: string, rows: AmmPoolDay[], marker?: string): AmmPoolDaysPage => ({
+  result: "success",
+  ...computedRange(window, T),
+  count: rows.length,
+  ...(marker !== undefined && { marker }),
+  days: rows,
+});
+
 /** The featured pools' series (the tests read them beside the files). */
 export function ammSeries(ledgers: readonly RawLedger[]): PoolSeries[] {
   return seriesOfPools(deriveAmm(ledgers), headOf(ledgers));
@@ -496,7 +521,6 @@ function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] 
   const T = utcDayOf(head);
   const lastDay = addDays(T, -1);
   const answers: SyntheticAnswer[] = [];
-  const days = (rows: AmmPoolDay[], marker?: string): Page<"days", AmmPoolDay> => ({ result: "success", count: rows.length, ...(marker !== undefined && { marker }), days: rows });
   const dayOfRow = (row: AmmPoolDay): string => row.date.slice(0, 10);
 
   for (const { name, pool, days: rows, fills } of seriesOfPools(derived, head)) {
@@ -507,7 +531,7 @@ function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] 
       const window = windowOf(T, period);
       const shown = rows.filter((row) => dayOfRow(row) >= window.start && dayOfRow(row) <= T);
       if (shown.length > DAYS_LIMIT) throw new Error(`${name} ${period}: more days than a page holds`);
-      answers.push({ path: history, query: queryOf({ end: T, interval: "day", limit: DAYS_LIMIT, start: window.start }), value: days(shown) });
+      answers.push({ path: history, query: queryOf({ end: T, interval: "day", limit: DAYS_LIMIT, start: window.start }), value: daysPage({ start: window.start, end: T }, T, shown) });
       const weeks = window.unit === "week";
       const candles = candlesOf(fills, weeks ? "1w" : "1d", `${window.start}T00:00:00Z`, baseOf(pool), counterOf(pool), CANDLES_LIMIT);
       answers.push({ path: pair, query: queryOf({ amm: "only", end: T, interval: weeks ? "7day" : "1day", limit: CANDLES_LIMIT, start: window.start }), value: candles });
@@ -516,10 +540,11 @@ function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] 
       const end = addDays(windowOf(T, period).start, -1);
       const before = rows.filter((row) => dayOfRow(row) <= end);
       const newest = before.at(-1);
-      const value = newest === undefined ? days([]) : days([newest], before.length > 1 ? dayMarker(newest) : undefined);
+      const value = daysPage({ end }, T, newest === undefined ? [] : [newest], newest !== undefined && before.length > 1 ? dayMarker(newest) : undefined);
       answers.push({ path: history, query: queryOf({ descending: "true", end, interval: "day", limit: 1 }), value });
     }
-    answers.push({ path: history, query: queryOf({ end: lastDay, interval: "day", limit: 1, start: lastDay }), value: days(rows.filter((row) => dayOfRow(row) === lastDay)) });
+    const last = rows.filter((row) => dayOfRow(row) === lastDay);
+    answers.push({ path: history, query: queryOf({ end: lastDay, interval: "day", limit: 1, start: lastDay }), value: daysPage({ start: lastDay, end: lastDay }, T, last) });
   }
   answers.push(...emptyAnswers(derived, FEATURED_POOLS["VOX/XRP"], windowOf(T, "90d"), T));
   answers.push({ path: "/v2/network/amm_volume", query: queryOf({ live: "day" }), value: liveVolume(derived, head) });
@@ -529,20 +554,19 @@ function syntheticAnswers(derived: DerivedAmm, head: number): SyntheticAnswer[] 
 /**
  * The answers of a pool page's day rows, carry-in, last day and candles for a pool the index has states of and no day rows (VOX/XRP, P3: only its vote is recorded),
  * for one window: each an empty list without a marker, as the API answers a pool with states and no day in a range (docs/api-reference.md "AMM", "Empty and
- * 404"), and the candles of a pair without AMM swaps in it.
+ * 404"), with the computed range of its window (the days are computed and quiet), and the candles of a pair without AMM swaps in it.
  */
 function emptyAnswers(derived: DerivedAmm, account: string, window: ReturnType<typeof windowOf>, T: string): SyntheticAnswer[] {
   const pool = derived.pools.find((candidate) => candidate.amm_account === account);
   if (pool === undefined) throw new Error(`${account}: a featured pool that the recordings do not have`);
-  const empty: Page<"days", AmmPoolDay> = { result: "success", count: 0, days: [] };
   const history = `/v2/amm/pools/${account}/history`;
   const pair = `/v2/exchanges/${encodeURIComponent(apiAssetText(baseOf(pool)))}/${encodeURIComponent(apiAssetText(counterOf(pool)))}`;
   const weeks = window.unit === "week";
   const lastDay = addDays(T, -1);
   return [
-    { path: history, query: queryOf({ end: T, interval: "day", limit: DAYS_LIMIT, start: window.start }), value: empty },
-    { path: history, query: queryOf({ descending: "true", end: addDays(window.start, -1), interval: "day", limit: 1 }), value: empty },
-    { path: history, query: queryOf({ end: lastDay, interval: "day", limit: 1, start: lastDay }), value: empty },
+    { path: history, query: queryOf({ end: T, interval: "day", limit: DAYS_LIMIT, start: window.start }), value: daysPage({ start: window.start, end: T }, T, []) },
+    { path: history, query: queryOf({ descending: "true", end: addDays(window.start, -1), interval: "day", limit: 1 }), value: daysPage({ end: addDays(window.start, -1) }, T, []) },
+    { path: history, query: queryOf({ end: lastDay, interval: "day", limit: 1, start: lastDay }), value: daysPage({ start: lastDay, end: lastDay }, T, []) },
     {
       path: pair,
       query: queryOf({ amm: "only", end: T, interval: weeks ? "7day" : "1day", limit: CANDLES_LIMIT, start: window.start }),
@@ -562,15 +586,24 @@ function emptyAnswers(derived: DerivedAmm, account: string, window: ReturnType<t
  * makes it: the native currency as the `counter`, `amount` the base volume, `converted_amount` the native volume, `rate` = amount / converted at 8 significant
  * digits, the components by `converted_amount` descending then account, `total` their sum and `count` the swaps. The API sums and divides doubles: the native
  * volumes are whole 64ths of a coin, so their sum is exact, and the rate is checked to be the same either way.
+ *
+ * `fees_est` (D2b.3), after `converted_amount` and after the row's `end_time`: a component's is its converted amount times the pool's trading fee (units of
+ * 1/100000), as if every swap of the day paid the fee in force at the end of the recordings (no auction slot discount), worked out in doubles and written by
+ * `String`, as the API writes the stored Float64; the row's is the sum of the components', in their order, as volume-object.ts adds them. A pool whose fee the
+ * recordings do not show (most: a fee is seen only in a transaction of the recorded ledgers) has one drawn from 0 to 1000 from
+ * `mulberry32(seedOf("xrpl", "amm_volume", "live", "fees"))`, one draw for each such pool in account order: a stream of its own, so that the set's other draws
+ * stay as they were. Every component then has an estimate, and so has the row.
  */
 function liveVolume(derived: DerivedAmm, head: number): Page<"rows", AmmVolumeRow> {
   const end = Math.floor(head / 60) * 60;
   const next = mulberry32(seedOf("xrpl", "amm_volume", "live"));
+  const nextFee = mulberry32(seedOf("xrpl", "amm_volume", "live", "fees"));
   const pools = derived.pools
     .filter((pool) => !pool.deleted && pool.amm_account !== FEATURED_POOLS["VOX/XRP"] && (isNative(baseOf(pool), NATIVE) || isNative(counterOf(pool), NATIVE)))
     .sort((a, b) => byAccount(a.amm_account, b.amm_account));
   const parts = pools.map((pool) => {
     const [u, v, w] = [next(), next(), next()];
+    const fee = pool.trading_fee ?? Math.floor(nextFee() * 1001);
     const nativeFirst = isNative(baseOf(pool), NATIVE);
     const other = nativeFirst ? counterOf(pool) : baseOf(pool);
     const [nativeReserve, otherReserve] = nativeFirst ? [pool.reserve_base, pool.reserve_counter] : [pool.reserve_counter, pool.reserve_base];
@@ -593,6 +626,7 @@ function liveVolume(derived: DerivedAmm, head: number): Page<"rows", AmmVolumeRo
       amount: amountText(amount),
       rate: exactRate(),
       converted_amount: converted.toFixed(),
+      fees_est: String((converted.toNumber() * fee) / 100_000),
     };
     return { component, converted };
   });
@@ -607,6 +641,7 @@ function liveVolume(derived: DerivedAmm, head: number): Page<"rows", AmmVolumeRo
     exchange_rate: precision8(1),
     start_time: isoTime(end - DAY_SECONDS),
     end_time: isoTime(end),
+    fees_est: String(parts.reduce((sum, { component }) => sum + Number(component.fees_est), 0)),
   };
   return { result: "success", count: 1, rows: [row] };
 }

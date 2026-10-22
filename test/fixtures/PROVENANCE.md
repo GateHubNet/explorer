@@ -147,6 +147,7 @@ fixtures make; read with the same `git -C ../data-api-new show <commit>:<path>`.
 | `docs/api-reference.md` | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` (the merge of D2) | **the markets shape**: the section `GET /v2/network/markets` (keys, formats, `period`, `limit`, the display currency's `exchange`, `exchange_rate` and `converted_volume`, the empty answer of a database with no set yet). Its `change` is optional, as the reference has it (the design's key list has it required) |
 | `docs/superpowers/specs/2026-10-19-account-market-aggregates-design.md` | `data-api-new`, `feat/explorer-data` | `7d495ab50cc7ad9b1434ab8e28b2ca5f7cbde13e` | the **places of the AMM keys** (section 7: `amm` after `period`, `totals.amm_share` after `converted_volume`, `amm_share` and `amm_pool` before `sparkline`) and their **formats** (section D2b.1: a share is a string with exactly 4 decimals, `amm_pool` a boolean, both present only when known, `"0.0000"` and `false` on Xahau). The reference at that commit serves no AMM field |
 | `docs/api-reference.md` | `data-api-new`, `feat/amm-data` | `c3e23026b3405fc2fd27fc897e724df4dfe106f1` | the `amm` filter (`include`, `exclude`, `only`) of the exchange lists and `amm_account` on a swap, which is the last key of a trade |
+| `docs/superpowers/specs/2026-10-19-account-market-aggregates-design.md`, `docs/api-reference.md` | `data-api-new`, `main` | `9dbbd8a5b5ad99254c2b000433b05fba1501bba3` (D2b merged, with the owner's decisions on D2b.1) | **`amm` in every answer**: echoed after `period`, `include` when the request has none, the answer without a set too |
 | `docs/api-reference.md` | `data-api-new`, `main` | `ff659c95c6ce9fbf12e6745c91984fedc5f3ca16` | the pair routes `GET /v2/exchanges/{base}/{counter}` (trades, `interval` candles, `reduce`) and `GET /v2/active_accounts/{base}/{counter}`; their sections are the same at `7d495ab` |
 
 The API writes a price, a rate or a vwap with `toPrecision(8)` of BigNumber (`apps/api/src/common/format.ts`, `precision8`), and a sum with its `toString()`, so a figure below 1e-6 or
@@ -176,8 +177,8 @@ closes and native volumes agree with the trades they are of, and the filtered se
 absent-field contract (section 8 of the design, D2b.1): present because the set is known; `amm_share` is the AMM part of the pair's base volume over all the trades of the
 window, the same in every filter's set; `amm_pool` whether the pair has a pool (a seeded pair has one by a draw, and some pools have no swap: a share of `"0.0000"` and `true`);
 `totals.amm_share` is Σ native volume × share ÷ Σ native volume over the set's pairs with a native volume, of the exact shares, rounded once to 4 decimals (D2b.1 gives the
-formula, not the rounding); on Xahau `"0.0000"` and `false`. `amm` is in a filtered answer only (`exclude`, `only`); the answer without a filter has none, which the client
-reads as the default.
+formula, not the rounding); on Xahau `"0.0000"` and `false`. `amm` is in every answer, after `period`: the filter asked for, or `include` without one (D2b.1 as data-api-new
+`9dbbd8a` settles it); the client reads it of a filtered answer only.
 
 **Invented, and not checked against anything real:** every count and every amount; the prices (XRP at about 2.4 USD, XAH at about 0.04 USD, BTC at 96,000 USD, 0.92 EUR to the dollar, EVR
 at 0.14 USD, RVN at 0.03 USD) and their daily drift; the volumes and the shares of the components; the pools and their accounts; the validators' keys, the collector's key and the
@@ -474,11 +475,18 @@ closed at 17:01:12Z), in the pages' windows (E2's `windowOf`: the 30 and 90 days
   (docs/api-reference.md "AMM", "Empty and 404"): its 90 days (the page's default period) have empty day rows, an empty carry-in and last day, and no AMM candles, each
   without a marker, so its "gone" page is whole under the fixtures. The real API would also serve 2026-10-14, the day of its recorded vote, as a row (amm_daily writes one
   for every day a transaction touches the pool); the fixtures leave that row out so that the "gone" page has no series (P3).
+- **The computed range of a page of days** (D2b.4): every page of days has `computed_start` and `computed_end` after `result`, the part of its request's window that the
+  data API has computed. The synthetic data API has computed every day from 2025-10-01, where the series start (`amm_daily`'s back-fill starts at the first pool
+  activity), to T, for every pool: a window's page has its start to T, a carry-in (no `start`) 2025-10-01 to its end, the last day that day. So VOX/XRP's empty pages,
+  DVR/XRP's before its creation and SNK/XRP's after its deletion are computed quiet days, as the API would serve them.
 - **The live set**, `network/amm_volume@live=day.json`, drawn from `mulberry32(seedOf("xrpl", "amm_volume", "live"))`, a pool at a time in account order: the rolling day
   from 2026-10-16T17:01:00Z to 2026-10-17T17:01:00Z (the aggregator's minute), a component for each of the 50 live pools with the native currency but VOX/XRP (the pages'
   pool without swaps); the issued-only pools (USDC/RLUSD among them) have none, a synthetic choice so that the list has a pool whose 24-hour volume is "—" (see "differs"
   below). A component's native volume is a share of the pool's native reserve, its base volume that at
-  the pool's price (a draw for the one pool whose other reserve the recordings do not hold), 1,534 swaps and 893,025.375 XRP in all.
+  the pool's price (a draw for the one pool whose other reserve the recordings do not hold), 1,534 swaps and 893,025.375 XRP in all. Each component has D2b.3's
+  `fees_est`, its converted amount × the pool's `trading_fee` / 100000 in doubles, written by `String` (the API writes the stored Float64), and the row the sum of the
+  components' (4,098.12715171875 XRP). The recordings show the fee of 6 of the 50 pools; the others' fees are drawn from 0 to 1000 from
+  `mulberry32(seedOf("xrpl", "amm_volume", "live", "fees"))`, a stream of its own, so the other draws of the set are what they were before D2b.
 
 Which files (P2 of E5 scopes them: the 1.3 MiB of every period of every pool would not fit a reviewable budget):
 
@@ -492,9 +500,9 @@ Which files (P2 of E5 scopes them: the 1.3 MiB of every period of every pool wou
 
 | Files below `http/xrpl/` | What |
 |---|---|
-| `data-api/amm/pools/<POOL>/history@end=2026-10-17&interval=day&limit=1000&start=<W₀>.json` | the rows whose day is from W₀ to T, oldest first (W₀ 2026-09-18, 2026-07-20 or 2025-10-20) |
-| `data-api/amm/pools/<POOL>/history@descending=true&end=<W₀ − 1 day>&interval=day&limit=1.json` | the carry-in: the newest row on or before the day before W₀, with the marker of its day (the base64url JSON of its start in unix seconds) when older rows exist; else `days: []` |
-| `data-api/amm/pools/<POOL>/history@end=2026-10-16&interval=day&limit=1&start=2026-10-16.json` | the last whole day's row, or `days: []` |
+| `data-api/amm/pools/<POOL>/history@end=2026-10-17&interval=day&limit=1000&start=<W₀>.json` | the rows whose day is from W₀ to T, oldest first (W₀ 2026-09-18, 2026-07-20 or 2025-10-20); computed from W₀ to T |
+| `data-api/amm/pools/<POOL>/history@descending=true&end=<W₀ − 1 day>&interval=day&limit=1.json` | the carry-in: the newest row on or before the day before W₀, with the marker of its day (the base64url JSON of its start in unix seconds) when older rows exist; else `days: []`; computed from 2025-10-01 to W₀ − 1 day |
+| `data-api/amm/pools/<POOL>/history@end=2026-10-16&interval=day&limit=1&start=2026-10-16.json` | the last whole day's row, or `days: []`; computed 2026-10-16 to 2026-10-16 |
 | `data-api/exchanges/<B>/<C>@amm=only&end=2026-10-17&interval=<1day or 7day>&limit=400&start=<W₀>.json` | the series' swaps as candles, `<B>/<C>` the pool's stored pair, each side its `apiAssetText` (`524C…+rMx…/XRP`); a candle for each day (week from Monday) with swaps |
 | `data-api/network/amm_volume@live=day.json` | the live set above |
 
@@ -504,13 +512,15 @@ Which files (P2 of E5 scopes them: the 1.3 MiB of every period of every pool wou
 | `packages/shared/src/aggregate/amm-daily.job.ts` | same | same | a day's figures: what went in by side, the estimates (input × fee / 100000, left out when a swap into the side had no known fee, which happens only before the pool's first known fee, `"0"` when none went in), the liquidity flows (a creation a deposit, a clawback a withdrawal, a deletion neither), the closing state and its value |
 | `apps/api/src/amm/amm-pools.service.ts` (`days`); `apps/api/src/common/pagination.ts` | same | same | the days' marker: the start of the last day of a page, unix seconds (`encodeMarker`), when the page is not the last |
 | `apps/api/src/network/volume-object.ts`; `apps/api/src/network/volume.service.ts` (`live`) | same | same | the live row (`components, count, exchange, total, exchange_rate, start_time, end_time`) and its AMM component (`amm_account, base, counter, count, amount, rate, converted_amount`), sorted by converted amount then account; `rate` amount / converted at 8 digits |
+| `docs/api-reference.md` (`/v2/network/amm_volume`, "`fees_est`"; `/history`, "The days the figures are computed for"); `apps/api/src/network/volume-object.ts` (`toVolumeRow`); `apps/api/src/amm/amm-pools.service.ts` | `data-api-new`, `main` | `9dbbd8a5b5ad99254c2b000433b05fba1501bba3` (D2b) | `fees_est` last in the live day's component and row (`String` of the stored double; the row's only when every listed component has one), and `computed_start`, `computed_end` after `result` of a page of days |
 | `scripts/market-aggregates.ts` (`candlesOf`, E3's port; "Derived trades and pool states" names its commits) | this repository | | the candles from the swaps: open and close, high and low, exact sums, `buy_volume` the base the takers bought, buckets from `start`, weeks from Monday |
 
 Where the synthetic part differs from what the API would serve for real pools: the fee never changes and no taker holds the auction slot, so an estimate is the volume ×
 the fee; XRP/RLUSD's 2026-10-10 has neither estimate in the middle of a series with estimates around it, which the API cannot serve (amm-daily.job.ts leaves an estimate
 out only for a swap with no known fee, so only before the pool's first known fee): a synthetic day, made for the spec's one day without an estimate; the live set has no
 component for USDC/RLUSD or the other issued-only pools, a synthetic choice for the list's "—" case, where the API would list USDC/RLUSD converted through RLUSD, whose
-rate the XRP/RLUSD market and pool give (it leaves out only a pool with no rate on either side); every swap of a day is at the day's closing price, so a candle's prices
+rate the XRP/RLUSD market and pool give (it leaves out only a pool with no rate on either side); the live set's fee estimates are its volume × the fee, where the
+API sums each swap's input × the fee in force for it, and most of the fees are drawn (the API would carry each pool's fee in from before the window); every swap of a day is at the day's closing price, so a candle's prices
 are within the rounding of its amounts of one another; the series do not hold the pools'
 recorded swaps (the Swaps tabs list those) and are not E3's derived XRP/RLUSD trades and candles (P33: each page is checked against its own fixtures); the live set is
 drawn apart from the series; its converted amounts are whole 64ths of a coin, so that the API's sum of doubles (`String(total)`) is exact; and SNK/XRP's dust reserves (the
@@ -524,6 +534,7 @@ reference's key orders, amounts, numbers, `value_native`, stored pair order and 
 filters, the pair forms, the tabs' pages, and the featured pools' `amm_info` against the derived pools (two derivations of the same nodes), and runs the client's checks
 (`app/server/amm-shape.ts`) on every answer. For the synthetic part it checks the windows and their nesting, the carry-ins and their markers, the creation and the
 deletion, T's closing state against the derived pool, the liquidity of each day against the recorded events, the estimates, `value_native`, each candle against its day
-and each week against its days, the reserves' walk against the candles and the rows, the live set's components, order, sums and rates, and the key orders.
+and each week against its days, the reserves' walk against the candles and the rows, the live set's components, order, sums, rates and fee estimates, the
+computed range of every page of days, and the key orders.
 `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes. `isAmmGenerated` (`scripts/http-fixtures.ts`) names the files, which have a size budget
-of their own in `test/unit/http-fixtures.test.ts` (224 files, 655,466 bytes, about 0.63 MiB, of which the 39 synthetic files are 513,235 bytes).
+of their own in `test/unit/http-fixtures.test.ts` (231 files, 709,489 bytes, about 0.68 MiB, of which the 39 synthetic files are 516,361 bytes).

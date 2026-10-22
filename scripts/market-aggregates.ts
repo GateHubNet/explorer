@@ -20,7 +20,7 @@
 //                                                   the AMM fields: `amm_share` (the AMM part of the pair's base volume, all trades of the window, 4
 //                                                   decimals, the same in every filter's set), `amm_pool`, `totals.amm_share` (Σ native × share ÷
 //                                                   Σ native over the set's pairs, of the exact shares, rounded once); `"0.0000"` and `false` on Xahau;
-//                                                   `amm` echoed after `period` by a filtered answer
+//                                                   `amm` echoed after `period` by every answer, `include` when none was asked for
 //
 // A derived trade's rate is known to its first 8 significant digits only (`rate`): that is all a candle, a reduced row, a market's prices and its closes
 // show, and the order of 8-digit rates is the order of the rates. `change` is of the exact rates: for a derived pair it is worked out at both ends of what
@@ -382,8 +382,8 @@ const shareText = (share: BigNumber): string => share.toFixed(4, BigNumber.ROUND
 
 /**
  * The answer of `GET /v2/network/markets?limit=1000&period=…[&amm=…]` at T: one set of the reference's markets job and the route's answer of it. A trade
- * counts when its native leg is above 0.0005. `amm`: the filter asked for, echoed after `period`; the rates of the assets and the AMM shares are of all
- * the trades of the window, whatever the filter.
+ * counts when its native leg is above 0.0005. `amm`: the filter asked for, echoed after `period` (`include` when none was); the rates of the assets and
+ * the AMM shares are of all the trades of the window, whatever the filter.
  */
 export function marketsAnswer(net: NetworkName, native: string, pairs: readonly MarketPair[], period: MarketsPeriod, amm: Filter, now: number): MarketsResponse {
   const hour = Math.floor(now / HOUR) * HOUR;
@@ -479,7 +479,7 @@ export function marketsAnswer(net: NetworkName, native: string, pairs: readonly 
   return {
     result: "success",
     period,
-    ...(amm !== undefined && { amm }),
+    amm: amm ?? "include",
     start_time: isoTime(start),
     end_time: isoTime(now),
     totals: {

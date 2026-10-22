@@ -118,7 +118,7 @@ describe("every fixture file", () => {
     expect(bytes(files.filter(isAnalyticsGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(synthetic))).toBeLessThan(2.7 * 1024 * 1024);
     // The markets pages' files (scripts/market-fixtures.ts: the pairs' trades, candles, 24-hour rows and active accounts, and the nine XRPL and three
-    // Xahau markets tables, a row to a line; 81 files, 896,584 bytes, about 0.86 MiB) are reviewed as their generator too, and have a budget of their own.
+    // Xahau markets tables, a row to a line; 81 files, 896,704 bytes, about 0.86 MiB) are reviewed as their generator too, and have a budget of their own.
     expect(bytes(files.filter(isMarketGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isMarketGenerated))).toBeLessThan(1.0 * 1024 * 1024);
     // The validators and amendments pages' files (scripts/validators-fixtures.ts: D1's six routes, a row to a line; 239 files, 2,869,339 bytes, about 2.7 MiB, of
@@ -127,7 +127,7 @@ describe("every fixture file", () => {
     expect(bytes(files.filter(isValidatorsGenerated))).toBeLessThan(3.0 * 1024 * 1024);
     // The AMM pages' files (scripts/amm-fixtures.ts, a row to a line: the pool routes derived from the recordings, 192 files of 193,128 bytes, the list with the
     // deleted pools' 7 pages of 50,897 among them, and the synthetic day rows, AMM-only candles and live volume as P2 of E5 scopes them, VOX/XRP's four empty
-    // answers among them, 39 files of 513,235 bytes; 231 files, 706,363 bytes, about 0.67 MiB) are reviewed as their generator too, with a budget of their own
+    // answers among them, 39 files of 516,361 bytes; 231 files, 709,489 bytes, about 0.68 MiB) are reviewed as their generator too, with a budget of their own
     // (P2), which a later file raises with its data, never above 1.0 MiB.
     expect(bytes(files.filter(isAmmGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isAmmGenerated))).toBeLessThan(0.7 * 1024 * 1024);

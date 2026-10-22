@@ -1,4 +1,6 @@
 {
+  "computed_end": "2025-10-19",
+  "computed_start": "2025-10-01",
   "count": 1,
   "days": [
     {"amm_account":"rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz","base_currency":"SNK","base_issuer":"rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm","counter_currency":"XRP","date":"2025-10-18T00:00:00Z","deposit_count":0,"fees_base_est":"8.6369075e-9","fees_counter_est":"0.0000015","liquidity_in_base":"0","liquidity_in_counter":"0","liquidity_out_base":"0","liquidity_out_counter":"0","lp_supply":"1.18871683962","reserve_base":"0.0000765694693053295","reserve_counter":"0.024222","swap_count":2,"trading_fee":250,"value_native":"0.048444","volume_base":"0.000003454763","volume_counter":"0.0006","withdraw_count":0}

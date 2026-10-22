@@ -321,7 +321,8 @@ const MARKETS_PERIODS = ["day", "7day", "30day"];
 
 /**
  * The `amm` a filtered answer carries must be the filter asked for: otherwise the API ignored it (D2 has no such parameter) and the rows are the unfiltered
- * ones. An unfiltered request reads no `amm`, whatever its value: whether D2b.1 echoes the default there is not settled, and the rows are the same.
+ * ones. An unfiltered request reads no `amm`, whatever its value: D2b.1 always echoes it (`include` when the request has none, data-api-new 9dbbd8a), but a D2
+ * API has none, and the rows are the unfiltered ones either way.
  */
 function checkAmmEchoed(what: string, echoed: unknown, asked: AmmFilter | undefined): void {
   if (asked === undefined || echoed === asked) return;
