@@ -58,13 +58,16 @@ test.describe("the tags of a page reached by a link in the page", () => {
     expect(next.ogTitle).toBe(next.title);
     expect(next.ogImage).toBe(`${origin}/og/xahau/ledger/${XAHAU_LEDGER_NEXT}.png`);
 
-    // A transaction of that ledger.
-    const link = page.locator('a[href^="/xahau/tx/"]').first();
-    const hash = (await link.getAttribute("href"))!.split("/").pop()!;
-    await link.click();
+    // A transaction of that ledger, clicked by the very href that was read (see "ask for no route manifest").
+    const href = (await page.locator('a[href^="/xahau/tx/"]').first().getAttribute("href"))!;
+    const hash = href.split("/").pop()!;
+    await page.locator(`a[href="${href}"]`).first().click();
     await page.waitForURL(`**/xahau/tx/${hash}`);
+    // The URL changes before the transaction page is drawn: until its title names the hash, the heading read would be the ledger's.
+    const short = `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+    await expect(page).toHaveTitle(new RegExp(` ${short} · Xahau · explorer$`));
     const type = await page.getByRole("heading", { level: 1 }).innerText();
-    await expect(page).toHaveTitle(`${type} ${hash.slice(0, 6)}…${hash.slice(-4)} · Xahau · explorer`);
+    await expect(page).toHaveTitle(`${type} ${short} · Xahau · explorer`);
     const tx = await head(page);
     expect(tx.canonical).toBe(`${origin}/xahau/tx/${hash}`);
     expect(tx.ogUrl).toBe(tx.canonical);
