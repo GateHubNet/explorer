@@ -72,6 +72,17 @@ export async function hydrated(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Dark theme" })).toHaveAttribute("aria-pressed", /^(true|false)$/);
 }
 
+/**
+ * The HTML of `path` as the Worker gives it now, or `undefined` while it serves a stored copy past its TTL (`X-Cache: STALE`, app/server/edge-cache.ts).
+ * Serving a stale copy starts one render that refreshes it, and that render may still read an answer of the data API the Worker kept from before a
+ * fixture override (for a second or two): the stale copy can say what the fixture server says now while the copy that replaces it says what it said
+ * before. A test that asks until the page shows an override's state, and then opens it, must not take a stale copy's word for it.
+ */
+export async function freshHtml(page: Page, path: string): Promise<string | undefined> {
+  const response = await page.request.get(path);
+  return response.headers()["x-cache"] === "STALE" ? undefined : await response.text();
+}
+
 export const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 /** The accessibility violations of the page as it is, with axe's WCAG 2.2 AA rules, worse than "moderate", one line each. */
