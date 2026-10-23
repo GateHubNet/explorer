@@ -89,14 +89,17 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await hydrated(page);
     await page.evaluate(() => Object.assign(window, { sameDocument: true }));
 
-    const ledger = page.locator('a[href^="/xahau/ledger/"]').first();
-    const ledgerHref = (await ledger.getAttribute("href"))!;
+    // Each link is clicked by the very href that was read: `.first()` is looked up again on every action, and the page it looks in can
+    // change between two of them.
+    const ledgerHref = (await page.locator('a[href^="/xahau/ledger/"]').first().getAttribute("href"))!;
+    const ledger = page.locator(`a[href="${ledgerHref}"]`).first();
     await ledger.hover();
     await ledger.click();
     await page.waitForURL(`**${ledgerHref}`);
-    const tx = page.locator('a[href^="/xahau/tx/"]').first();
-    const txHref = (await tx.getAttribute("href"))!;
-    await tx.click();
+    // The URL changes before the ledger page is drawn: until its title is there, the first transaction link would be the home page's.
+    await expect(page).toHaveTitle(/^Ledger #/);
+    const txHref = (await page.locator('a[href^="/xahau/tx/"]').first().getAttribute("href"))!;
+    await page.locator(`a[href="${txHref}"]`).first().click();
     await page.waitForURL(`**${txHref}`);
     await page.getByRole("group", { name: "Network" }).getByRole("link", { name: "XRPL" }).click();
     await page.waitForURL("**/xrpl");

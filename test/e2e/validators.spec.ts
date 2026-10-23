@@ -114,9 +114,11 @@ test.describe("with VALIDATORS on", () => {
       await page.getByRole("searchbox", { name: "Search validators by domain or key" }).fill(`  ${name}  `);
       await page.getByRole("button", { name: "Apply" }).click();
       await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === `?q=${encodeURIComponent(name)}`);
+      // Retrying assertions, not a loop over `rows.all()`: the URL changes before the filtered list is drawn, and the validator was picked
+      // from the unfiltered one, whose first row may be it. The old rows would be taken, then go away under the loop.
       const rows = rowsOf(validatorsTable(page));
       await expect(rows.first()).toContainText(name);
-      for (const row of await rows.all()) await expect(row).toContainText(name);
+      await expect(rows.filter({ hasNotText: name })).toHaveCount(0);
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
 
       expect(redirects).toEqual([]);
@@ -168,7 +170,8 @@ test.describe("with VALIDATORS on", () => {
       // In the canonical order: the publisher, then the amendment.
       await page.waitForURL((url) => url.search === `?publisher=${encodeURIComponent(publisher)}&amendment=${encodeURIComponent(amendment)}`);
       await expect(listedBy).toHaveValue(publisher);
-      for (const row of await rowsOf(validatorsTable(page)).all()) await expect(row).toContainText(publisher);
+      // Retrying (see the search test): the list may still be the one before Apply.
+      await expect(rowsOf(validatorsTable(page)).filter({ hasNotText: publisher })).toHaveCount(0);
 
       await page.getByRole("link", { name: "Clear filters" }).click();
       await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "");
