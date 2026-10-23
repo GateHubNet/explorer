@@ -257,7 +257,7 @@ pre{margin:0;padding:14px 16px;overflow:auto;font-size:12px;line-height:1.6;back
             </div>
             <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;">
               <sc-if value="{{isNormal}}" hint-placeholder-val="{{true}}"><label class="chk"><input type="checkbox" checked>Stop at the first one that fails</label></sc-if>
-              <button type="button" class="btn primary" onClick="{{toConfirm}}">{{sendButton}}</button>
+              <button type="button" class="btn primary" onClick="{{toConfirm}}" disabled="{{sendBlocked}}">{{sendButton}}</button>
             </div>
           </div>
         </sc-if>
@@ -354,7 +354,8 @@ class Component extends DCLogic {
     const key = multi ? 'textMulti' : 'textNormal';
     const text = this.state[key] ?? examples.join('\n');
     const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
-    const isSecret = (l) => /^s[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(l);
+    // A family seed (s…), or a private key in hex: 64 digits, or 66 with the ED (ed25519) or 00 (secp256k1) prefix.
+    const isSecret = (l) => /^s[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(l) || /^(?:ED|00)?[0-9A-Fa-f]{64}$/i.test(l);
     const isHex = (l) => /^[0-9A-Fa-f]+$/.test(l) && l.length % 2 === 0 && l.length >= 200;
     const secretAt = lines.findIndex(isSecret);
     const sent = stage === 'sent';
@@ -443,6 +444,8 @@ class Component extends DCLogic {
     ];
 
     const readyN = sendable;
+    // Nothing to confirm: no line can be sent, or the signatures fall short of the quorum.
+    const sendBlocked = multi ? !enough : readyN === 0;
     const normalFee = (0.000012 * 2 + 0.000015).toFixed(6);
 
     return {
@@ -484,7 +487,8 @@ class Component extends DCLogic {
       sendSub: multi ? 'Weight ' + weight + ' of ' + quorum + ' · fee ' + (feeDrops / 1e6).toFixed(6) + ' ' + cur + ' · to ' + netName + ' mainnet'
         : 'Lines that can\'t be sent are left out · fees ' + normalFee + ' ' + cur + ' · to ' + netName + ' mainnet',
       sendButton: multi ? 'Send to ' + netName : 'Send ' + readyN + ' transactions',
-      toConfirm: () => this.setState({ stage: 'confirm' }),
+      sendBlocked,
+      toConfirm: () => { if (!sendBlocked) this.setState({ stage: 'confirm' }); },
       toReview: () => this.setState({ stage: 'review' }),
       toSent: () => this.setState({ stage: 'sent' }),
       again: () => this.setState({ stage: 'review' }),
