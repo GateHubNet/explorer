@@ -170,7 +170,9 @@ test.describe("with VALIDATORS on", () => {
       // In the canonical order: the publisher, then the amendment.
       await page.waitForURL((url) => url.search === `?publisher=${encodeURIComponent(publisher)}&amendment=${encodeURIComponent(amendment)}`);
       await expect(listedBy).toHaveValue(publisher);
-      // Retrying (see the search test): the list may still be the one before Apply.
+      // Retrying (see the search test): the list may still be the one before Apply. A row of the publisher first, so that an empty table
+      // (which has no row without it either) does not pass.
+      await expect(rowsOf(validatorsTable(page)).first()).toContainText(publisher);
       await expect(rowsOf(validatorsTable(page)).filter({ hasNotText: publisher })).toHaveCount(0);
 
       await page.getByRole("link", { name: "Clear filters" }).click();
