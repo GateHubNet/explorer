@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Submit signed transactions</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F3F4F7;--surface:#FFFFFF;--sunken:#ECEEF2;--border:#DEE0E6;--border-strong:#C3C6CF;--fg:#121317;--muted:#4E5059;--faint:#626674;--link:color-mix(in srgb,var(--accent) 82%,#000000);--ok:#3D6E00;--ok-bg:#EAF5D6;--bad:#C8174F;--bad-bg:#FDE7EE;--s1:#0A6CF1;--track:#D5E5FD;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#121317;--surface:#202229;--sunken:#292B34;--border:#333642;--border-strong:#4E5059;--fg:#F2F3F5;--muted:#A9ACB7;--faint:#8E929F;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#8DB845;--ok-bg:#24301A;--bad:#FF6B94;--bad-bg:#3A1C27;--s1:#3D8BFF;--track:#183059}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp textarea{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.card-h{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;gap:8px 12px;flex-wrap:wrap}
+.card-h h2{margin:0;font-size:15px;font-weight:600}
+.src{font-size:12px;color:var(--faint)}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:14px;padding:0 16px;min-height:46px;border-top:1px solid var(--border)}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.r{text-align:right;justify-self:end}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.ok{color:var(--ok);background:var(--ok-bg)}
+.bad{color:var(--bad);background:var(--bad-bg)}
+.info{color:var(--fg);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.off{color:var(--muted);background:transparent;border:1px solid var(--border)}
+.type{font-size:12px;font-weight:500;padding:2px 7px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);color:var(--fg);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 14px;min-height:40px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff!important;font-weight:600}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.mode{flex:1 1 260px;display:flex;gap:12px;align-items:flex-start;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:14px 16px;cursor:pointer;min-height:44px}
+.mode:hover{border-color:var(--border-strong)}
+.mode.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.dot{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid var(--border-strong);margin-top:2px;box-sizing:border-box}
+.mode.on .dot{border:5px solid var(--accent)}
+.box{display:flex;border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;background:var(--surface)}
+.gut{flex:none;padding:12px 0;background:var(--sunken);border-right:1px solid var(--border);color:var(--faint);font-size:12.5px;line-height:24px;text-align:right;min-width:36px;user-select:none}
+.gut span{display:block;padding:0 9px}
+.gut span.badl{color:var(--bad);font-weight:600}
+textarea.blobs{flex:1 1 auto;min-width:0;border:0;outline:none;resize:vertical;background:transparent;padding:12px 14px;font-size:12.5px;line-height:24px;white-space:pre;overflow-x:auto;min-height:150px}
+.note{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;font-size:13px}
+.note.warn{background:var(--bad-bg);color:var(--fg)}
+.note.warn svg{color:var(--bad)}
+.note.plain{background:var(--sunken);color:var(--muted)}
+.kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:4px 16px;padding:10px 0;border-top:1px solid var(--border);align-items:baseline}
+.kv dt{color:var(--faint);font-size:13px}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.amt{font-family:'Geist Mono',ui-monospace,monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.meter{height:10px;border-radius:999px;background:var(--track);position:relative;overflow:hidden}
+.meter span{position:absolute;inset:0 auto 0 0;background:var(--s1);border-radius:999px}
+.meter i{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--fg)}
+.step{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted)}
+.step b{flex:none;width:22px;height:22px;border-radius:50%;background:var(--sunken);border:1px solid var(--border);color:var(--fg);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
+pre{margin:0;padding:14px 16px;overflow:auto;font-size:12px;line-height:1.6;background:var(--sunken);white-space:pre-wrap;word-break:break-all;max-height:140px}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:44px;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+@media (max-width:640px){.kv{grid-template-columns:1fr}}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" style="display: flex; padding: 3px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px;">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav" href="Network.dc.html">Network</a>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav cur" href="Submit.dc.html" aria-current="page">Submit</a>
+    </nav>
+    <form role="search" style="flex: 1 1 260px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 20px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Submit</span>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; gap: 8px; max-width: 780px;">
+    <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Submit signed transactions</h1>
+    <p style="margin: 0; font-size: 15px; color: var(--muted);">Paste transactions signed somewhere else: offline, on a hardware wallet, or in another tool. The page decodes and checks every line in your browser. Nothing goes to {{netName}} until you confirm, and no secret key is ever asked for.</p>
+  </div>
+
+  <div role="radiogroup" aria-label="Mode" style="display: flex; flex-wrap: wrap; gap: 12px;">
+    <button type="button" role="radio" class="mode {{normalCls}}" aria-checked="{{isNormal}}" onClick="{{pickNormal}}">
+      <span class="dot" aria-hidden="true"></span>
+      <span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 600;">Single-signed</span><span style="font-size: 13px; color: var(--muted);">One line, one transaction. Each one is checked and sent on its own.</span></span>
+    </button>
+    <button type="button" role="radio" class="mode {{multiCls}}" aria-checked="{{isMulti}}" onClick="{{pickMulti}}">
+      <span class="dot" aria-hidden="true"></span>
+      <span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 600;">Multisigned</span><span style="font-size: 13px; color: var(--muted);">One line, one signer's signature. All lines are combined into one transaction.</span></span>
+    </button>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+    <div style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+
+      <section aria-labelledby="in-title" class="card">
+        <div class="card-h">
+          <h2 id="in-title">{{inputTitle}}</h2>
+          <span class="src">{{inputHint}}</span>
+        </div>
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <label for="blobs" class="sr">{{inputTitle}}</label>
+          <div class="box">
+            <div class="gut mono num" aria-hidden="true"><sc-for list="{{gutter}}" as="g" hint-placeholder-count="5"><span class="{{g.cls}}">{{g.n}}</span></sc-for></div>
+            <textarea id="blobs" class="blobs mono" wrap="off" spellcheck="false" autocomplete="off" aria-describedby="blobs-sum" onChange="{{onText}}" placeholder="{{placeholder}}">{{text}}</textarea>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px;">
+            <span id="blobs-sum" style="font-size: 13px; color: var(--muted);">{{summary}}</span>
+            <span style="display: flex; gap: 8px;">
+              <button type="button" class="btn" onClick="{{fillExample}}">Paste an example</button>
+              <button type="button" class="btn" onClick="{{clear}}">Clear</button>
+            </span>
+          </div>
+          <sc-if value="{{hasSecret}}" hint-placeholder-val="{{true}}">
+            <div class="note warn" role="alert">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px;"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+              <span><b>Line {{secretLine}} looks like a secret key.</b> Remove it and treat the key as exposed. It was not sent anywhere: the page only reads signed transactions, and this line is left out.</span>
+            </div>
+          </sc-if>
+        </div>
+      </section>
+
+      <sc-if value="{{isNormal}}" hint-placeholder-val="{{true}}">
+        <section aria-labelledby="chk-title" class="card" style="overflow: hidden;">
+          <div class="card-h">
+            <h2 id="chk-title">{{checkTitle}}</h2>
+            <span class="src">decoded in your browser · sequence and balance read live from the node</span>
+          </div>
+          <div style="overflow-x: auto;">
+            <div role="table" aria-label="Transactions" style="min-width: 780px; --cols: 30px 118px minmax(120px, 1fr) minmax(150px, 1.5fr) 74px 200px;">
+              <div role="row" class="tr th"><span role="columnheader">Line</span><span role="columnheader">Transaction</span><span role="columnheader">Account</span><span role="columnheader">What it does</span><span role="columnheader" class="r">Fee</span><span role="columnheader">{{statusHead}}</span></div>
+              <sc-for list="{{rows}}" as="t" hint-placeholder-count="5">
+                <div role="row" class="tr">
+                  <span role="cell" class="mono num" style="color: var(--faint);">{{t.line}}</span>
+                  <span role="cell" style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; padding: 6px 0;"><sc-if value="{{t.hasType}}" hint-placeholder-val="{{true}}"><span class="type">{{t.type}}</span><span class="mono" style="font-size: 12px; color: var(--faint);">{{t.hash}}</span></sc-if><sc-if value="{{t.noType}}" hint-placeholder-val="{{false}}"><span style="color: var(--faint);">—</span></sc-if></span>
+                  <span role="cell" style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><sc-if value="{{t.hasType}}" hint-placeholder-val="{{true}}"><a class="mono ell" href="Account.dc.html">{{t.acct}}</a><span style="font-size: 12px; color: var(--faint);">sequence <span class="mono num">{{t.seq}}</span></span></sc-if></span>
+                  <span role="cell" style="color: var(--muted); min-width: 0;">{{t.what}}</span>
+                  <span role="cell" class="r amt" style="font-weight: 400;">{{t.fee}}</span>
+                  <span role="cell" style="display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 6px 0;">
+                    <span class="pill {{t.pill}}" style="align-self: flex-start;"><sc-if value="{{t.good}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if><sc-if value="{{t.wrong}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"></path></svg></sc-if><sc-if value="{{t.wait}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.5 2"></path></svg></sc-if>{{t.status}}</span>
+                    <span style="font-size: 12px; color: var(--faint); white-space: normal;">{{t.detail}}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{isMulti}}" hint-placeholder-val="{{false}}">
+        <section aria-labelledby="mtx-title" class="card" style="padding: 16px 20px 6px;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; margin-bottom: 8px;">
+            <h2 id="mtx-title" style="margin: 0; font-size: 15px; font-weight: 600;">The transaction being signed</h2>
+            <span class="pill ok"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Lines 1–3 sign the same transaction</span>
+          </div>
+          <p style="margin: 0 0 12px; font-size: 17px; line-height: 1.8;"><a class="mono" href="Account.dc.html">rMuLt1…s9Xq</a> pays <span class="amt">25,000 {{cur}}</span> to <a class="mono" href="Account.dc.html">rDstn8…Kq5</a>.</p>
+          <dl style="margin: 0;">
+            <div class="kv"><dt>Type</dt><dd><span class="type">Payment</span></dd></div>
+            <div class="kv"><dt>Account</dt><dd><a class="mono" href="Account.dc.html" style="font-size: 13px;">rMuLt1sigQhJ2rUJfS4dVvFqTnN3cW7s9Xq</a> <span style="color: var(--faint);">· SigningPubKey empty, as a multisigned transaction has</span></dd></div>
+            <div class="kv"><dt>Sequence</dt><dd><span class="mono num">88,104</span> <span style="color: var(--faint);">· the account's next, read live</span></dd></div>
+            <div class="kv"><dt>Fee</dt><dd><span class="amt">{{mFee}}</span> <span style="color: var(--faint);">· {{mFeeNote}}</span></dd></div>
+            <div class="kv"><dt>Last ledger</dt><dd><span class="mono num">#{{lastLedger}}</span> <span style="color: var(--faint);">· about {{minutesLeft}} min left to send it</span></dd></div>
+          </dl>
+        </section>
+
+        <section aria-labelledby="sig-title" class="card" style="overflow: hidden;">
+          <div class="card-h">
+            <h2 id="sig-title">Signatures</h2>
+            <span class="src">checked against the account's SignerList · read live from the node</span>
+          </div>
+          <div style="overflow-x: auto;">
+            <div role="table" aria-label="Signatures" style="min-width: 700px; --cols: 34px minmax(200px, 1.4fr) 70px minmax(240px, 1.6fr);">
+              <div role="row" class="tr th"><span role="columnheader">Line</span><span role="columnheader">Signer</span><span role="columnheader" class="r">Weight</span><span role="columnheader">Signature</span></div>
+              <sc-for list="{{sigs}}" as="s" hint-placeholder-count="5">
+                <div role="row" class="tr">
+                  <span role="cell" class="mono num" style="color: var(--faint);">{{s.line}}</span>
+                  <span role="cell" class="mono ell"><a href="Account.dc.html">{{s.signer}}</a></span>
+                  <span role="cell" class="r mono num">{{s.weight}}</span>
+                  <span role="cell" style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 0;">
+                    <span class="pill {{s.pill}}"><sc-if value="{{s.good}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if><sc-if value="{{s.wrong}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"></path></svg></sc-if>{{s.status}}</span>
+                    <span style="font-size: 12px; color: var(--faint);">{{s.detail}}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="padding: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+              <span style="font-weight: 600;">Weight <span class="mono num">{{weight}}</span> of quorum <span class="mono num">{{quorum}}</span></span>
+              <span class="pill {{quorumPill}}">{{quorumText}}</span>
+            </div>
+            <div class="meter" role="meter" aria-label="Signer weight against the quorum" aria-valuemin="0" aria-valuemax="{{totalWeight}}" aria-valuenow="{{weight}}"><span style="width: {{weightPct}};"></span><i style="left: {{quorumPct}};"></i></div>
+            <span style="font-size: 12px; color: var(--faint);">The bar is the weight of the valid signatures; the mark is the quorum ({{quorum}} of {{totalWeight}}). Not signed yet: <a class="mono" href="Account.dc.html">rDave4…mPq2</a> (weight 1).</span>
+          </div>
+        </section>
+
+        <section aria-labelledby="cmb-title" class="card" style="overflow: hidden;">
+          <div class="card-h">
+            <h2 id="cmb-title">Combined transaction</h2>
+            <span class="src">signatures sorted by signer, as the ledger requires · combined in your browser</span>
+          </div>
+          <div style="padding: 14px 16px 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px;">
+            <span><span style="color: var(--faint);">Hash</span> <span class="mono">{{mHash}}</span></span>
+            <span><span style="color: var(--faint);">Signers</span> <span class="mono num">3</span></span>
+            <span><span style="color: var(--faint);">Size</span> <span class="mono num">612</span> bytes</span>
+          </div>
+          <div style="padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px;">
+            <pre class="mono">{{combinedBlob}}</pre>
+            <span style="display: flex; gap: 8px;"><button type="button" class="btn">Copy blob</button><button type="button" class="btn">Copy JSON</button></span>
+          </div>
+        </section>
+      </sc-if>
+
+      <section aria-labelledby="send-title" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+        <h2 id="send-title" class="sr">Send</h2>
+        <sc-if value="{{stageReview}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 20px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-weight: 600;">{{sendLine}}</span>
+              <span style="font-size: 13px; color: var(--muted);">{{sendSub}}</span>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;">
+              <sc-if value="{{isNormal}}" hint-placeholder-val="{{true}}"><label class="chk"><input type="checkbox" checked>Stop at the first one that fails</label></sc-if>
+              <button type="button" class="btn primary" onClick="{{toConfirm}}">{{sendButton}}</button>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{stageConfirm}}" hint-placeholder-val="{{false}}">
+          <div class="note warn" role="alertdialog" aria-labelledby="cf-title" aria-describedby="cf-text" style="flex-direction: column; gap: 12px; padding: 16px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px;"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+              <span style="display: flex; flex-direction: column; gap: 4px;"><b id="cf-title">{{confirmTitle}}</b><span id="cf-text" style="color: var(--muted);">Once a ledger validates it, a transaction is final: it can't be cancelled or reversed. Fees are burned even when a transaction fails.</span></span>
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end; align-self: stretch;">
+              <button type="button" class="btn" onClick="{{toReview}}">Back</button>
+              <button type="button" class="btn primary" onClick="{{toSent}}">{{confirmButton}}</button>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{stageSent}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 20px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-weight: 600;">{{sentLine}}</span>
+              <span style="font-size: 13px; color: var(--muted);">{{sentSub}}</span>
+            </div>
+            <span style="display: flex; gap: 8px;"><sc-if value="{{isMulti}}" hint-placeholder-val="{{false}}"><a class="btn" href="Transaction.dc.html">Open the transaction</a></sc-if><button type="button" class="btn" onClick="{{again}}">Submit more</button></span>
+          </div>
+        </sc-if>
+      </section>
+    </div>
+
+    <aside aria-label="How it works" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">How it works</span>
+        <sc-for list="{{steps}}" as="p" hint-placeholder-count="4">
+          <div class="step"><b>{{p.n}}</b><span>{{p.text}}</span></div>
+        </sc-for>
+      </div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">Checked on every line</span>
+        <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted);">
+          <sc-for list="{{checks}}" as="c" hint-placeholder-count="5"><li>{{c}}</li></sc-for>
+        </ul>
+      </div>
+      <div class="note plain">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px;"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+        <span>Signing happens before this page. Paste signed blobs only, never a secret, a seed or a mnemonic: the explorer never asks for one.</span>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"mode":{"editor":"enum","options":["normal","multisign"],"default":"normal"},"stage":{"editor":"enum","options":["review","confirm","sent"],"default":"review"},"accent":{"editor":"color","options":["#0A6CF1","#0F766E","#6D28D9","#111827"],"default":"#0A6CF1","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2100}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl' };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'dark') === 'dark';
+    const accent = this.props.accent ?? '#0A6CF1';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const cur = x ? 'XRP' : 'XAH';
+    const netName = x ? 'XRPL' : 'Xahau';
+    const mode = this.state.mode ?? this.props.mode ?? 'normal';
+    const multi = mode === 'multisign';
+    const stage = this.state.stage ?? this.props.stage ?? 'review';
+    const fmt = (n) => n.toLocaleString('en-US');
+    const base = x ? 107695660 : 17482913;
+
+    // Made-up signed blobs: a prefix that reads like a transaction's fields, then deterministic hex.
+    const hex = (seed, n) => { let s = ''; let v = seed; while (s.length < n) { v = (v * 1103515245 + 12345) % 2147483648; s += v.toString(16).toUpperCase().padStart(8, '0'); } return s.slice(0, n); };
+    const blob = (prefix, seed) => prefix + hex(seed, 236);
+    const NORMAL = [
+      blob('1200002200000000240' + '2BFB59E201B', 11),
+      blob('1200072200080000240' + '2BFB59F201B', 23),
+      blob('1200142200020000240' + '2BFB5A0201B', 37),
+      blob('1200002200000000240' + '00E4C11201B', 41),
+      'sEdV19BLfeQeKdEXyYA4NhjPJe6XBfG'
+    ];
+    const MULTI = [
+      blob('120000220000000024000158287300F3E010' + '7321', 51),
+      blob('120000220000000024000158287300F3E010' + '7321', 52),
+      blob('120000220000000024000158287300F3E010' + '7321', 53),
+      blob('120000220000000024000158287300F3E010' + '7321', 52),
+      blob('120000220000000024000158297300F3E010' + '7321', 54)
+    ];
+    const examples = multi ? MULTI : NORMAL;
+    const key = multi ? 'textMulti' : 'textNormal';
+    const text = this.state[key] ?? examples.join('\n');
+    const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    const isSecret = (l) => /^s[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(l);
+    const isHex = (l) => /^[0-9A-Fa-f]+$/.test(l) && l.length % 2 === 0 && l.length >= 200;
+    const secretAt = lines.findIndex(isSecret);
+    const sent = stage === 'sent';
+
+    // ---- Single-signed: what each line decodes to, and what the network said once it was sent.
+    const DECODED = [
+      { type: 'Payment', acct: 'rJF2Xa…FQvg', seq: '46,118,302', what: 'pays 1,250.00 USD to rNYbL8…Kq5', fee: '0.000012', hash: '67F91E…7C31',
+        sent: ['ok', 'Validated', 'tesSUCCESS · ledger #' + fmt(base + 2), 'good'] },
+      { type: 'OfferCreate', acct: 'rJF2Xa…FQvg', seq: '46,118,303', what: 'sells 5,000 ' + cur + ' for 12,190 USD', fee: '0.000012', hash: 'CB56CF…8AD5',
+        sent: ['bad', 'Failed, fee burned', 'tecUNFUNDED_OFFER · ledger #' + fmt(base + 2), 'wrong'] },
+      { type: 'TrustSet', acct: 'rYogZ7…GaWm', seq: '9,201', what: 'trusts rA7wzf…g95 for up to 10,000 EUR', fee: '0.000015', hash: 'FC1CF6…1ED4',
+        sent: ['info', 'Waiting for a ledger', 'queued by the node · terQUEUED', 'wait'] },
+      { type: 'Payment', acct: 'r6vquF…aaRB', seq: '14,977', what: 'pays 320 ' + cur + ' to rwisR4…nnkW', fee: '0.000012', hash: 'E205A6…1E33', expired: true }
+    ];
+    const rows = lines.map((l, i) => {
+      const n = i + 1;
+      if (isSecret(l)) return { line: n, hasType: false, noType: true, what: 'A secret key, not a transaction', fee: '', hash: '', pill: 'bad', status: 'Secret key', detail: 'left out; never sent', good: false, wrong: true, wait: false };
+      if (!isHex(l)) return { line: n, hasType: false, noType: true, what: 'Not a signed transaction', fee: '', hash: '', pill: 'bad', status: "Can't decode", detail: 'expected hex from a signing tool', good: false, wrong: true, wait: false };
+      const d = DECODED[examples.indexOf(l)] ?? { type: 'Payment', acct: 'rPT1Sj…6Tbf', seq: '1,024', what: 'pays 10 ' + cur + ' to rUn84C…7ukm', fee: '0.000012', hash: hex(n * 7, 6) + '…' + hex(n * 9, 4) };
+      const r = { line: n, hasType: true, noType: false, type: d.type, acct: d.acct, seq: d.seq, what: d.what, fee: d.fee, hash: d.hash };
+      if (d.expired) return { ...r, pill: 'bad', status: 'Expired', detail: 'LastLedgerSequence #' + fmt(base - 40) + ' has passed', good: false, wrong: true, wait: false };
+      if (!sent) return { ...r, pill: 'ok', status: 'Ready', detail: 'signature valid · sequence is next', good: true, wrong: false, wait: false };
+      const s = d.sent ?? ['ok', 'Validated', 'tesSUCCESS · ledger #' + fmt(base + 2), 'good'];
+      return { ...r, pill: s[0], status: s[1], detail: s[2], good: s[3] === 'good', wrong: s[3] === 'wrong', wait: s[3] === 'wait' };
+    });
+    const sendable = rows.filter((r) => r.hasType && r.status !== 'Expired').length;
+
+    // ---- Multisigned: each line one signer's signature over the same transaction.
+    const SIGNERS = [
+      { signer: 'rAlice7…Tz4P', weight: 1 },
+      { signer: 'rBob9Ns…x8Lk', weight: 2 },
+      { signer: 'rCarol3…Qe1v', weight: 1 }
+    ];
+    const seen = new Set();
+    const sigs = lines.map((l, i) => {
+      const n = i + 1;
+      if (isSecret(l)) return { line: n, signer: '—', weight: '—', pill: 'bad', status: 'Secret key', detail: 'left out; never sent', good: false, wrong: true };
+      if (!isHex(l)) return { line: n, signer: '—', weight: '—', pill: 'bad', status: "Can't decode", detail: 'expected hex from a signing tool', good: false, wrong: true };
+      const at = examples.indexOf(l);
+      if (at === 4) return { line: n, signer: 'rDave4…mPq2', weight: '1', pill: 'bad', status: 'Different transaction', detail: 'Sequence 88,105, not 88,104: it signs something else', good: false, wrong: true };
+      const s = SIGNERS[at === 3 ? 1 : at] ?? { signer: 'rEve55…Hh7c', weight: 0 };
+      if (s.weight === 0) return { line: n, signer: s.signer, weight: '—', pill: 'bad', status: 'Not a signer', detail: 'not in the SignerList', good: false, wrong: true };
+      if (seen.has(s.signer)) return { line: n, signer: s.signer, weight: String(s.weight), pill: 'off', status: 'Duplicate', detail: 'same signer as an earlier line; counted once', good: false, wrong: false };
+      seen.add(s.signer);
+      return { line: n, signer: s.signer, weight: String(s.weight), pill: 'ok', status: 'Valid', detail: 'signature checks out', good: true, wrong: false, s };
+    });
+    const valid = sigs.filter((s) => s.status === 'Valid');
+    const weight = valid.reduce((a, s) => a + Number(s.weight), 0);
+    const quorum = 3, totalWeight = 5;
+    const enough = weight >= quorum;
+    const signersN = valid.length;
+    const feeDrops = 12 * (1 + Math.max(signersN, 1));
+
+    const gutter = lines.length ? lines.map((l, i) => {
+      const bad = multi ? sigs[i].wrong : rows[i].wrong;
+      return { n: i + 1, cls: bad ? 'badl' : '' };
+    }) : [{ n: 1, cls: '' }];
+
+    const summary = !lines.length ? 'Nothing pasted yet.'
+      : multi ? lines.length + ' lines · ' + valid.length + ' valid signatures · ' + (lines.length - valid.length) + ' left out'
+      : lines.length + ' lines · ' + sendable + ' ready · ' + (lines.length - sendable) + ' can\'t be sent';
+
+    const steps = multi ? [
+      { n: 1, text: 'Each signer signs the same transaction with their own key, in their own tool, as a multisigner (signAs).' },
+      { n: 2, text: 'Paste one signature per line, in any order. Lines for a different transaction or from outside the SignerList are left out.' },
+      { n: 3, text: 'When the weight reaches the quorum, the page sorts the signers, combines them into one blob, and shows its hash.' },
+      { n: 4, text: 'Send it. The explorer passes the one combined blob to its node with submit and follows it until a ledger validates it.' }
+    ] : [
+      { n: 1, text: 'Sign each transaction elsewhere and copy its hex blob (tx_blob).' },
+      { n: 2, text: 'Paste one blob per line. Each is decoded and checked here, before anything is sent.' },
+      { n: 3, text: 'Confirm. The explorer sends them in line order with submit, one after the other, to keep the sequences in order.' },
+      { n: 4, text: 'Each row follows its transaction until a ledger validates it, then links to its page.' }
+    ];
+    const checks = multi ? [
+      'Every line signs the same transaction (all fields but the signature)',
+      'The signer is in the account\'s SignerList, once',
+      'The signature is valid for that signer',
+      'The fee covers the signers: base × (1 + signers)',
+      (x ? 'No NetworkID, as XRPL mainnet wants' : 'NetworkID is 21337, Xahau mainnet\'s')
+    ] : [
+      'It decodes, and is signed (TxnSignature and SigningPubKey)',
+      'The signature is valid for the account',
+      'Its Sequence is the account\'s next, or follows a line above',
+      'LastLedgerSequence has not passed',
+      (x ? 'No NetworkID, as XRPL mainnet wants' : 'NetworkID is 21337, Xahau mainnet\'s')
+    ];
+
+    const readyN = sendable;
+    const normalFee = (0.000012 * 2 + 0.000015).toFixed(6);
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl' }),
+      pickXahau: () => this.setState({ net: 'xahau' }),
+      netName, cur,
+      isNormal: !multi, isMulti: multi,
+      normalCls: multi ? '' : 'on', multiCls: multi ? 'on' : '',
+      pickNormal: () => this.setState({ mode: 'normal', stage: 'review' }),
+      pickMulti: () => this.setState({ mode: 'multisign', stage: 'review' }),
+      inputTitle: multi ? 'Signatures, one per line' : 'Signed transactions, one per line',
+      inputHint: multi ? 'hex blobs of the same transaction, each signed by one signer' : 'hex blobs (tx_blob), in the order to send them',
+      placeholder: multi ? 'One signer\'s signed blob per line' : 'One signed transaction blob per line',
+      text, gutter, summary,
+      onText: (e) => this.setState({ [key]: e.target.value, stage: 'review' }),
+      fillExample: () => this.setState({ [key]: examples.join('\n'), stage: 'review' }),
+      clear: () => this.setState({ [key]: '', stage: 'review' }),
+      hasSecret: secretAt >= 0, secretLine: secretAt + 1,
+      checkTitle: sent ? 'Sent' : 'Checked',
+      statusHead: sent ? 'Result' : 'Check',
+      rows,
+      sigs, weight, quorum, totalWeight,
+      weightPct: Math.min(100, (weight / totalWeight) * 100) + '%',
+      quorumPct: (quorum / totalWeight) * 100 + '%',
+      quorumPill: enough ? 'ok' : 'off',
+      quorumText: enough ? 'Enough to send' : 'Needs ' + (quorum - weight) + ' more',
+      mFee: (feeDrops / 1e6).toFixed(6) + ' ' + cur,
+      mFeeNote: feeDrops + ' drops, enough for ' + signersN + ' signers: 12 × (1 + ' + signersN + ')',
+      lastLedger: fmt(base + 120), minutesLeft: 8,
+      mHash: 'A91C07…3FE2',
+      combinedBlob: '120000220000000024000158282E' + hex(61, 40) + '201B' + (base + 120).toString(16).toUpperCase().padStart(8, '0') + '61400000005D21DBA0' + '6840000000000000307300' + '8114' + hex(62, 40) + '8314' + hex(63, 40) + 'F3E010' + '7321' + hex(64, 66) + '7440' + hex(65, 140) + '8114' + hex(66, 40) + 'E1E0107321' + hex(67, 66) + '…F1',
+      stageReview: stage === 'review', stageConfirm: stage === 'confirm', stageSent: sent,
+      sendLine: multi ? (enough ? 'Ready to send one multisigned transaction' : 'Not enough signatures yet') : readyN + ' of ' + rows.length + ' lines ready to send',
+      sendSub: multi ? 'Weight ' + weight + ' of ' + quorum + ' · fee ' + (feeDrops / 1e6).toFixed(6) + ' ' + cur + ' · to ' + netName + ' mainnet'
+        : 'Lines that can\'t be sent are left out · fees ' + normalFee + ' ' + cur + ' · to ' + netName + ' mainnet',
+      sendButton: multi ? 'Send to ' + netName : 'Send ' + readyN + ' transactions',
+      toConfirm: () => this.setState({ stage: 'confirm' }),
+      toReview: () => this.setState({ stage: 'review' }),
+      toSent: () => this.setState({ stage: 'sent' }),
+      again: () => this.setState({ stage: 'review' }),
+      confirmTitle: multi ? 'Send this multisigned payment of 25,000 ' + cur + ' to ' + netName + ' mainnet?' : 'Send ' + readyN + ' transactions to ' + netName + ' mainnet?',
+      confirmButton: multi ? 'Yes, send it' : 'Yes, send ' + readyN,
+      sentLine: multi ? 'Validated in ledger #' + fmt(base + 3) : '3 sent: 1 validated, 1 failed, 1 waiting',
+      sentSub: multi ? 'tesSUCCESS · hash A91C07…3FE2 · fee 0.000048 ' + cur + ' burned' : 'The waiting one updates here when a ledger takes it; you can leave the page, its hash is FC1CF6…1ED4.',
+      steps, checks
+    };
+  }
+}
+</script>
+</body>
+</html>
