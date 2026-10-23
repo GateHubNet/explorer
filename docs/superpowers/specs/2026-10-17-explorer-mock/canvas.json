@@ -20,7 +20,8 @@
     "Validator.dc.html": { "x": 1520, "y": 7600, "w": 1440, "h": 2050, "title": "Validator", "expand": "fill", "is_interactive": true },
     "Amendments.dc.html": { "x": 3040, "y": 7600, "w": 1440, "h": 1700, "title": "Amendments", "expand": "fill", "is_interactive": true },
     "Amendment.dc.html": { "x": 4560, "y": 7600, "w": 1440, "h": 1950, "title": "Amendment", "expand": "fill", "is_interactive": true },
-    "AccountAnalytics.dc.html": { "x": 6080, "y": 7600, "w": 1440, "h": 2800, "title": "Account analytics", "expand": "fill", "is_interactive": true }
+    "AccountAnalytics.dc.html": { "x": 6080, "y": 7600, "w": 1440, "h": 2800, "title": "Account analytics", "expand": "fill", "is_interactive": true },
+    "Submit.dc.html": { "x": 0, "y": 10600, "w": 1440, "h": 2100, "title": "Submit signed transactions", "expand": "fill", "is_interactive": true }
   },
   "order": [
     "Main.dc.html",
@@ -38,13 +39,15 @@
     "Validator.dc.html",
     "Amendments.dc.html",
     "Amendment.dc.html",
-    "AccountAnalytics.dc.html"
+    "AccountAnalytics.dc.html",
+    "Submit.dc.html"
   ],
   "notes": {
     "row1": { "x": 0, "y": -300, "text": "Explorer v1 · core lookup pages", "kind": "title1", "maxW": 6000 },
     "row2": { "x": 0, "y": 2420, "text": "Phone and link preview", "kind": "title1", "maxW": 1670 },
     "row3": { "x": 0, "y": 4500, "text": "Later sub-projects · network, markets, AMM", "kind": "title1", "maxW": 7520 },
-    "row4": { "x": 0, "y": 7300, "text": "Validators, amendments and account analytics", "kind": "title1", "maxW": 7520 }
+    "row4": { "x": 0, "y": 7300, "text": "Validators, amendments and account analytics", "kind": "title1", "maxW": 7520 },
+    "row5": { "x": 0, "y": 10300, "text": "Submitting signed transactions", "kind": "title1", "maxW": 1440 }
   },
   "designSystems": []
 }
