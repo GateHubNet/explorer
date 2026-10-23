@@ -272,12 +272,14 @@ test.describe("with VALIDATORS on", () => {
 
       await pager.getByRole("link", { name: "Older" }).click();
       await page.waitForURL((url) => url.pathname === `/xrpl/validators/${key}` && url.searchParams.has("marker"));
+      // The URL changes before the older page is drawn, and the live page's first row already lacks its oldest ledger: wait for what
+      // only the older page has (it is kept out of the index), then compare, retrying.
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
       await expect(rows.first()).not.toContainText(oldestHere);
       const ledgerOf = (text: string) => Number(text.replace(/\D/g, ""));
-      expect(ledgerOf((await rows.first().locator("a").first().textContent())!)).toBeLessThan(ledgerOf(oldestHere));
+      await expect.poll(async () => ledgerOf((await rows.first().locator("a").first().textContent()) ?? "")).toBeLessThan(ledgerOf(oldestHere));
       await expect(page.getByText("Live · updates every ledger")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Pause live updates" })).toHaveCount(0);
-      await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
       await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
 
       await pager.getByRole("link", { name: "Newer" }).click();
