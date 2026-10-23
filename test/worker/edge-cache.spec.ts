@@ -536,7 +536,7 @@ describe("when the render fails", () => {
       expect(html).toContain('<meta name="robots" content="noindex">');
       expect(html).toContain('<a href="/">');
       // The page background and text colours of the design tokens (spec 8), light and dark.
-      for (const colour of ["#F5F6F8", "#0F1217", "#0B0E12", "#E7EBF0"]) expect(html).toContain(colour);
+      for (const colour of ["#F3F4F7", "#121317", "#F2F3F5"]) expect(html).toContain(colour);
       expect(html).not.toContain("boom");
       expect(html).not.toContain("the route's own page");
     }
@@ -1421,8 +1421,8 @@ describe("the visitor limit", () => {
     // A client-side navigation gets this page as the text of an ErrorResponse, without its headers: the wait is in the page too (RouteErrorScreen).
     expect(html).toContain('<meta name="retry-after" content="10">');
     expect(html).toContain('<a href="/">');
-    expect(html).toContain("#F5F6F8");
-    expect(html).toContain("#0B0E12");
+    expect(html).toContain("#F3F4F7");
+    expect(html).toContain("#F2F3F5");
     expect(render).not.toHaveBeenCalled();
     expect(await caches.default.match(edgeCacheKey(url, cacheGeneration(h.env)))).toBeUndefined();
   });

@@ -12,8 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
 <style>
 body{margin:0}
-.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--ok:#17733F;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
-.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--ok:#5BD08F}
+.xp{--bg:#F3F4F7;--surface:#FFFFFF;--sunken:#ECEEF2;--border:#DEE0E6;--border-strong:#C3C6CF;--fg:#121317;--muted:#4E5059;--faint:#626674;--link:color-mix(in srgb,var(--accent) 82%,#000000);--grid:#ECEEF2;--axis:#C3C6CF;--s1:#0A6CF1;--ok:#3D6E00;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#121317;--surface:#202229;--sunken:#292B34;--border:#333642;--border-strong:#4E5059;--fg:#F2F3F5;--muted:#A9ACB7;--faint:#8E929F;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--grid:#262830;--axis:#4E5059;--s1:#3D8BFF;--ok:#8DB845}
 .xp a{color:var(--link);text-decoration:none}
 .xp a:hover{text-decoration:underline}
 .xp button,.xp input{font:inherit;color:inherit}
@@ -302,13 +302,13 @@ body{margin:0}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2300}}'>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"accent":{"editor":"color","options":["#0A6CF1","#0F766E","#6D28D9","#111827"],"default":"#0A6CF1","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2300}}'>
 class Component extends DCLogic {
   state = { net: 'xrpl', range: '90d', tab: 'swaps', vHov: -1, sHov: -1 };
 
   renderVals() {
     const dark = (this.props.theme ?? 'light') === 'dark';
-    const accent = this.props.accent ?? '#2F5BEA';
+    const accent = this.props.accent ?? '#0A6CF1';
     const xahauAccent = this.props.xahauAccent ?? '#B45309';
     const x = this.state.net === 'xrpl';
     const st = this.state;

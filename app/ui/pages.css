@@ -407,7 +407,7 @@ a.example:hover {
 }
 
 /* Where the money went: boxes joined by arrows. The way through (a pool, an offer) is set apart by a tint that is not plain
-   --sunken: the account link in it is the accent, and the Xahau accent is 4.40:1 on --sunken (the same blend as a hovered row). */
+   --sunken: the account link in it is the accent, kept clear of AA by the same blend as a hovered row (transaction-css.test.ts). */
 .flow {
   display: flex;
   flex-wrap: wrap;
@@ -798,7 +798,7 @@ a.example:hover {
   background: var(--sunken);
 }
 
-/* A panel that holds a link is not plain --sunken (the Xahau accent is 4.40:1 on it): the blend the table rows hover with. */
+/* A panel that holds a link is not plain --sunken: the blend the table rows hover with, as every ground with a link is. */
 .account-balance--soft {
   background: color-mix(in srgb, var(--sunken) 60%, var(--surface));
 }
@@ -2758,7 +2758,7 @@ a.markets__pair:hover .markets__name {
   overflow-wrap: anywhere;
 }
 
-/* A tag with a link in it is on the page's ground, not on --sunken: the Xahau accent is 4.40:1 on it in light mode, under AA (tokens.test.ts). */
+/* A tag with a link in it is on the page's ground, not on --sunken, as every link is (tokens.test.ts). */
 .amendments__xls--link {
   background: transparent;
 }

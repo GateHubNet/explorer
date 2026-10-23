@@ -221,7 +221,7 @@ describe("contrast under the highlight", () => {
   // What is behind a highlighted element, and the text colours that can be inside it. The page (`--bg`, where the hero's status line and its
   // examples' labels are) or a card or a tile (`--surface`) holds text of every colour the page has. The animation replaces a hovered row's
   // colour, so a row's backdrop is its card's. A chip of the network page's strip is on `--sunken`, and its text is `--fg` and `--muted` only:
-  // light `--faint` on `--sunken` is 4.59:1 and falls to 4.47:1 under the wash, and the Xahau link on it is 4.40:1 (spec 1.3).
+  // light `--faint` on `--sunken` is 4.92:1, too close to 4.5:1 to rely on (spec 1.3).
   type Text = "--fg" | "--muted" | "--faint" | "--link";
   const EVERY_TEXT: readonly Text[] = ["--fg", "--muted", "--faint", "--link"];
   const BACKDROPS: Record<"--bg" | "--surface" | "--sunken", readonly Text[]> = {
@@ -235,7 +235,7 @@ describe("contrast under the highlight", () => {
     let found = { ratio: Number.POSITIVE_INFINITY, where: "" };
     for (const [name, t] of Object.entries(themes)) {
       for (const [net, accent] of Object.entries(accents)) {
-        const link = name === "light" ? accent : mix(accent, [255, 255, 255], 0.55);
+        const link = name === "light" ? mix(accent, [0, 0, 0], 0.82) : mix(accent, [255, 255, 255], 0.55);
         for (const [backdrop, texts] of Object.entries(BACKDROPS)) {
           const peak = mix(accent, rgb(t[backdrop]!), at);
           for (const token of texts) {
@@ -256,7 +256,7 @@ describe("contrast under the highlight", () => {
 
   describe.each(Object.entries(themes))("%s", (name, t) => {
     describe.each(Object.entries(accents))("with the %s accent", (_net, accent) => {
-      const link = name === "light" ? accent : mix(accent, [255, 255, 255], 0.55);
+      const link = name === "light" ? mix(accent, [0, 0, 0], 0.82) : mix(accent, [255, 255, 255], 0.55);
 
       describe.each(Object.entries(BACKDROPS))("on %s", (backdrop, texts) => {
         // The highlight is the accent at `share` over what is behind the element.
@@ -270,19 +270,9 @@ describe("contrast under the highlight", () => {
     });
   });
 
-  it("leaves --faint and the link out of the chips because they would not do on --sunken: light --faint falls under 4.5:1 with the wash, the Xahau link is under it without", () => {
-    const light = themes.light;
-    const sunken = rgb(light["--sunken"]!);
-    expect(contrast(rgb(light["--faint"]!), sunken)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(rgb(light["--faint"]!), mix(accents.xrpl, sunken, share))).toBeLessThan(4.5);
-    expect(contrast(accents.xahau, sunken)).toBeLessThan(4.5);
-  });
-
-  it("is the strongest wash that keeps all of them at 4.5:1: a whole percent more would not (the Xahau link in light mode, on the page's own background)", () => {
+  it("keeps all of them at 4.5:1 for any wash up to the 5% cap, so the wash can be tuned without a contrast check of its own", () => {
     expect(worst(share).ratio).toBeGreaterThanOrEqual(4.5);
-    expect(worst(share + 0.01).ratio).toBeLessThan(4.5);
-    // And where it is the page's background that it is least on:
-    expect(worst(share + 0.01).where).toMatch(/--link on --bg, light, xahau/);
+    expect(worst(0.05).ratio, worst(0.05).where).toBeGreaterThanOrEqual(4.5);
   });
 });
 

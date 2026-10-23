@@ -12,8 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
 <style>
 body{margin:0}
-.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--grid:#EEF0F3;--axis:#CDD2D9;--up:#2a78d6;--down:#e34948;--up-wash:rgba(42,120,214,.13);--down-wash:rgba(227,73,72,.12);--s1:#2a78d6;--s-other:#B4BAC3;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
-.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--grid:#1D232B;--axis:#323B46;--up:#3987e5;--down:#e66767;--up-wash:rgba(57,135,229,.18);--down-wash:rgba(230,103,103,.16);--s1:#3987e5;--s-other:#4A525D}
+.xp{--bg:#F3F4F7;--surface:#FFFFFF;--sunken:#ECEEF2;--border:#DEE0E6;--border-strong:#C3C6CF;--fg:#121317;--muted:#4E5059;--faint:#626674;--link:color-mix(in srgb,var(--accent) 82%,#000000);--grid:#ECEEF2;--axis:#C3C6CF;--up:#3D7A00;--down:#E0245E;--up-wash:rgba(61,122,0,.12);--down-wash:rgba(224,36,94,.10);--s1:#0A6CF1;--s-other:#B5B8C2;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#121317;--surface:#202229;--sunken:#292B34;--border:#333642;--border-strong:#4E5059;--fg:#F2F3F5;--muted:#A9ACB7;--faint:#8E929F;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--grid:#262830;--axis:#4E5059;--up:#6DA307;--down:#E8336A;--up-wash:rgba(109,163,7,.18);--down-wash:rgba(232,51,106,.16);--s1:#3D8BFF;--s-other:#4A4D59}
 .xp a{color:var(--link);text-decoration:none}
 .xp a:hover{text-decoration:underline}
 .xp button,.xp input{font:inherit;color:inherit}
@@ -239,13 +239,13 @@ body{margin:0}
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2150}}'>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"accent":{"editor":"color","options":["#0A6CF1","#0F766E","#6D28D9","#111827"],"default":"#0A6CF1","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2150}}'>
 class Component extends DCLogic {
   state = { net: 'xrpl', iv: '1h', source: 'include', inv: false, hov: -1 };
 
   renderVals() {
     const dark = (this.props.theme ?? 'light') === 'dark';
-    const accent = this.props.accent ?? '#2F5BEA';
+    const accent = this.props.accent ?? '#0A6CF1';
     const xahauAccent = this.props.xahauAccent ?? '#B45309';
     const x = this.state.net === 'xrpl';
     const st = this.state;

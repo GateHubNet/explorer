@@ -11,7 +11,7 @@ import { PRODUCT_NAME } from "../ui/brand";
 import { CARD_HEIGHT, CARD_WIDTH, type CardData, type CardRun } from "./types";
 
 /** A network's accent (spec 8, `--accent-xrpl` and `--accent-xahau` of app/ui/tokens.css). */
-export const ACCENTS = { xrpl: "#2F5BEA", xahau: "#B45309" } as const;
+export const ACCENTS = { xrpl: "#0A6CF1", xahau: "#B45309" } as const;
 
 /** What `card` returns: an element of the kind Satori reads, `{ type, props }`. */
 export type CardElement = ReactElement<{ style?: CSSProperties; children?: ReactNode; [prop: string]: unknown }, string>;
@@ -21,14 +21,14 @@ const TEXT = "Geist";
 const MONO = "Geist Mono";
 
 // The board's colours that are not accents (the light column of spec 8 and the board's own greys).
-const INK = "#0F1217";
-const SECONDARY = "#3B434E";
-const MUTED = "#4F5864";
-const BORDER = "#E1E4E9";
-const RULE = "#EEF0F3";
-const ARROW = "#7A8390";
-const SUCCESS = { color: "#17733F", background: "#E3F3E9" };
-const FAILURE = { color: "#B42318", background: "#FCEBE9" };
+const INK = "#121317";
+const SECONDARY = "#3B3F4D";
+const MUTED = "#4E5059";
+const BORDER = "#DEE0E6";
+const RULE = "#ECEEF2";
+const ARROW = "#7C808C";
+const SUCCESS = { color: "#3D6E00", background: "#EAF5D6" };
+const FAILURE = { color: "#C8174F", background: "#FDE7EE" };
 
 /** The width between the card's side padding. */
 const CONTENT_WIDTH = CARD_WIDTH - 2 * 72;

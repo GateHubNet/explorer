@@ -72,7 +72,7 @@ describe("the card", () => {
   });
 
   it("draws the accent of the network on the top bar, the logo and the pill", () => {
-    expect(ACCENTS).toEqual({ xrpl: "#2F5BEA", xahau: "#B45309" });
+    expect(ACCENTS).toEqual({ xrpl: "#0A6CF1", xahau: "#B45309" });
     for (const [network, accent] of Object.entries(ACCENTS)) {
       const root = card({ ...PAYMENT, network: network as "xrpl" | "xahau" });
       const painted = nodes(root).filter((node) => JSON.stringify(node.props).includes(accent));

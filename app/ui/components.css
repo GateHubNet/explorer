@@ -808,7 +808,7 @@ a.btn {
   background: var(--surface);
 }
 
-/* Not plain --sunken as in the mock: the Xahau accent in light mode is 4.40:1 on it, under AA for the links in the row. */
+/* Not plain --sunken as in the mock: a lighter ground keeps the links in the row clear of AA whatever the accent (tokens.test.ts). */
 .table__row:not(.table__head):hover {
   background: color-mix(in srgb, var(--sunken) 60%, var(--surface));
 }
@@ -924,7 +924,7 @@ a.btn {
 /* ---------------------------------------------------------------------------------------------------------------
    Chips: the strip of the newest ledgers on the network page (NetworkPage; README, "Live updates"). A list of links on `--sunken`, in rows
    of 6 on a wide screen and 3 on a narrower one, one under another on a phone, where only the newest 3 show. The text is --fg and --muted
-   only: light --faint on --sunken is 4.59:1 and falls under 4.5:1 with the live wash, and the Xahau link is 4.40:1 on it.
+   only: light --faint on --sunken is 4.92:1, too close to 4.5:1 to rely on.
 
    A new chip (`.is-entering`, put on it by `useLiveRows`) slides in from 8 px to its left, which is where the chips are lined up, as a new row
    slides in from above. Its wash and its mark are on its link, not on the chip: the wash is an animated `background-color`, and on the chip
