@@ -52,14 +52,15 @@ function token(name: string, from = 0): string {
 }
 const DARK_AT = tokensCss.indexOf("@media (prefers-color-scheme: dark)");
 
-const ACCENTS = { xrpl: "#2f5bea", xahau: "#b45309" };
+const ACCENTS = { xrpl: "#0a6cf1", xahau: "#b45309" };
 const WHITE = rgb("#ffffff");
+const BLACK = rgb("#000000");
 
 describe("the box of a pool or an offer in the flow", () => {
   const background = rule(pagesCss, ".flow__node--via").background!;
   const share = Number(/color-mix\(in srgb,\s*var\(--sunken\)\s+(\d+)%,\s*var\(--surface\)\)/.exec(background ?? "")?.[1]) / 100;
 
-  it("is a blend of --sunken and --surface, not plain --sunken (where the Xahau accent is 4.40:1)", () => {
+  it("is a blend of --sunken and --surface, not plain --sunken", () => {
     expect(Number.isFinite(share)).toBe(true);
     expect(share).toBeGreaterThan(0);
     expect(share).toBeLessThan(1);
@@ -73,13 +74,9 @@ describe("the box of a pool or an offer in the flow", () => {
     const surface = rgb(token("--surface", from));
     const box = mix(sunken, surface, share);
     for (const [net, accent] of Object.entries(ACCENTS)) {
-      const link = mode === "light" ? rgb(accent) : mix(rgb(accent), WHITE, 0.55);
+      const link = mode === "light" ? mix(rgb(accent), BLACK, 0.82) : mix(rgb(accent), WHITE, 0.55);
       expect(contrast(link, box), `${net} in ${mode}`).toBeGreaterThanOrEqual(4.5);
     }
-  });
-
-  it("would fail the check if it were plain --sunken (the check can tell)", () => {
-    expect(contrast(rgb(ACCENTS.xahau), rgb(token("--sunken")))).toBeLessThan(4.5);
   });
 });
 

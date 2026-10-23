@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // What the stylesheets of the account page must keep: focus rings that the cards do not clip, a panel that holds a link on a blend and
-// not on plain --sunken (the Xahau accent is 4.40:1 there), targets of 44 px, and the boxes that must be allowed to shrink so that a
+// not on plain --sunken, targets of 44 px, and the boxes that must be allowed to shrink so that a
 // phone does not scroll sideways.
 
 const read = (name: string) => readFileSync(new URL(`../../app/ui/${name}`, import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -48,6 +48,7 @@ function token(name: string, from = 0): string {
 }
 const DARK_AT = tokensCss.indexOf("@media (prefers-color-scheme: dark)");
 const WHITE = rgb("#ffffff");
+const BLACK = rgb("#000000");
 
 describe("the panel of the account page that holds a link", () => {
   const background = rule(pagesCss, ".account-balance--soft").background!;
@@ -64,8 +65,8 @@ describe("the panel of the account page that holds a link", () => {
     ["dark", DARK_AT],
   ] as const)("keeps a link of either network's accent at 4.5:1 or more in %s", (mode, from) => {
     const box = mix(rgb(token("--sunken", from)), rgb(token("--surface", from)), share);
-    for (const [net, accent] of Object.entries({ xrpl: "#2f5bea", xahau: "#b45309" })) {
-      const link = mode === "light" ? rgb(accent) : mix(rgb(accent), WHITE, 0.55);
+    for (const [net, accent] of Object.entries({ xrpl: "#0a6cf1", xahau: "#b45309" })) {
+      const link = mode === "light" ? mix(rgb(accent), BLACK, 0.82) : mix(rgb(accent), WHITE, 0.55);
       expect(contrast(link, box), `${net} in ${mode}`).toBeGreaterThanOrEqual(4.5);
     }
   });

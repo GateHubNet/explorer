@@ -203,23 +203,23 @@ A failed transaction reads "Tried to …" followed by the plain-language text of
 
 ## 8. Visual design
 
-The mock defines the system; these are its tokens.
+The mock defines the system; these are its tokens. The palette is GateHub's markets page (gatehub.net/markets): its dark greys, its blue as the XRPL accent, its bid green and ask pink; the light theme is the same hues on white. Every text pair is WCAG AA (4.5:1).
 
 | Token | Light | Dark |
 |---|---|---|
-| page background | `#F5F6F8` | `#0B0E12` |
-| surface | `#FFFFFF` | `#12161C` |
-| sunken | `#EEF0F3` | `#181D24` |
-| border / strong | `#E1E4E9` / `#CDD2D9` | `#232A33` / `#323B46` |
-| text / muted / faint | `#0F1217` / `#4F5864` / `#646D7A` | `#E7EBF0` / `#A3ACB9` / `#8D97A5` |
-| success text / background | `#17733F` / `#E3F3E9` | `#5BD08F` / `#10281B` |
-| failure text / background | `#B42318` / `#FCEBE9` | `#F28B80` / `#30161A` |
-| accent, XRPL | `#2F5BEA` | links: the accent mixed 55% with white |
-| accent, Xahau | `#B45309` | links: the accent mixed 55% with white |
+| page background | `#F3F4F7` | `#121317` |
+| surface | `#FFFFFF` | `#202229` |
+| sunken | `#ECEEF2` | `#292B34` |
+| border / strong | `#DEE0E6` / `#C3C6CF` | `#333642` / `#4E5059` |
+| text / muted / faint | `#121317` / `#4E5059` / `#626674` | `#F2F3F5` / `#A9ACB7` / `#8E929F` |
+| success text / background | `#3D6E00` / `#EAF5D6` | `#8DB845` / `#24301A` |
+| failure text / background | `#C8174F` / `#FDE7EE` | `#FF6B94` / `#3A1C27` |
+| accent, XRPL | `#0A6CF1`; links: the accent mixed 82% with black | links: the accent mixed 55% with white |
+| accent, Xahau | `#B45309`; links: the accent mixed 82% with black | links: the accent mixed 55% with white |
 
 - **Type**: Geist for text and Geist Mono for hashes, addresses and amounts (tabular figures in columns), self-hosted from the build rather than loaded from Google Fonts.
 - **Shape**: cards with a 1 px border and 12 px radius, 46 px table rows, 44 px minimum touch targets, 1240 px maximum content width, 20 px side gutter (16 px on phones).
-- **Charts** (used from sub-project 2 on, defined here so every sub-project shares them): series colours, in this fixed order, `#2a78d6`, `#eb6834`, `#1baf7a`, `#eda100`, `#e87ba4` in light and `#3987e5`, `#d95926`, `#199e70`, `#c98500`, `#d55181` in dark, plus a neutral grey for "Other". Up/down is `#2a78d6`/`#e34948` (dark `#3987e5`/`#e66767`). Both sets passed the dataviz palette validator against the surfaces above in both modes. Three light-mode series are below 3:1 contrast, so a chart that uses them needs visible labels or a table view, as the mock's stacked chart has.
+- **Charts** (used from sub-project 2 on, defined here so every sub-project shares them): series colours, in this fixed order, `#0a6cf1`, `#eb6834`, `#1baf7a`, `#eda100`, `#e87ba4` in light and `#3d8bff`, `#d95926`, `#199e70`, `#c98500`, `#d55181` in dark, plus a neutral grey for "Other". Up/down is GateHub's bid green and ask pink, `#3d7a00`/`#e0245e` (dark `#6da307`/`#e8336a`). Both sets passed the dataviz palette validator against the surfaces above in both modes; dark up/down is 7.8 ΔE apart for deuteranopes, the floor band, legal only with a second cue: an arrow and a sign on a change, the side of the axis for money in and out, the side of the spread in the order book, and for candles only the legend and the table view. Three light-mode series are below 3:1 contrast, so a chart that uses them needs visible labels or a table view, as the mock's stacked chart has.
 - **Phones**: tables scroll inside their card, the header collapses to logo, network pill, search and menu, as on the `TransactionMobile` board.
 
 ## 9. SEO and link previews

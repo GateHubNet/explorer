@@ -447,7 +447,7 @@ Series slots, "Other" and up/down are the tokens of foundation section 8 (`--ser
 | Mode, surface | Lightness / chroma | Worst adjacent CVD ΔE | Normal-vision floor | Contrast |
 |---|---|---|---|---|
 | light, `#FFFFFF` | pass | 9.1 (protan) | 19.6 | WARN: `#1baf7a` 2.82, `#eda100` 2.17, `#e87ba4` 2.69 |
-| dark, `#12161C` | pass | 8.4 (protan) | 19.3 | pass |
+| dark, `#202229` | pass | 8.4 (protan) | 19.3 | pass |
 
 The light contrast WARN obligates relief: every chart has the table view, every multi-series chart a legend, and lines of 4 series or fewer have end labels. All-pairs forms (small multiples, scatter) take slot 1 only, or at most three slots.
 
@@ -455,11 +455,11 @@ New tokens in `tokens.css`, in all three blocks (`tokens.test.ts` keeps the dark
 
 | Token | Light | Dark | Use / check |
 |---|---|---|---|
-| `--grid` | `#EEF0F3` | `#1D232B` | gridlines, 1 px solid |
-| `--axis` | `#CDD2D9` | `#323B46` | baseline, zero line, diverging centre |
-| `--track` | `#cde2fb` | `#0d366b` | meter track; fill `--series-1` on it 3.34:1 / 3.28:1 |
-| `--up-wash` | `rgba(42,120,214,.13)` | `rgba(57,135,229,.18)` | depth (bids); `--muted` on it 6.10:1 / 6.33:1 |
-| `--down-wash` | `rgba(227,73,72,.12)` | `rgba(230,103,103,.16)` | depth (asks); `--muted` on it 6.17:1 / 6.46:1 |
+| `--grid` | `#ECEEF2` | `#262830` | gridlines, 1 px solid |
+| `--axis` | `#C3C6CF` | `#4E5059` | baseline, zero line, diverging centre |
+| `--track` | `#d5e5fd` | `#183059` | meter track; fill `--series-1` on it 3.72:1 / 3.95:1 |
+| `--up-wash` | `rgba(61,122,0,.12)` | `rgba(109,163,7,.18)` | depth (bids); `--muted` on it 6.83:1 / 5.37:1 |
+| `--down-wash` | `rgba(224,36,94,.10)` | `rgba(232,51,106,.16)` | depth (asks); `--muted` on it 6.90:1 / 6.06:1 |
 
 Text never wears a series colour: labels, values and legends use `--fg`, `--muted` and `--faint`. Status colours (`--ok`, `--bad`) are only for status, with an icon and text. Under `forced-colors: active`, marks and legend swatches take `forced-color-adjust: none`, so identity survives, and the table view stays.
 

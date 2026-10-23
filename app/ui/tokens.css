@@ -1,4 +1,5 @@
-/* The design tokens of spec section 8: light, dark, and one accent per network.
+/* The design tokens of spec section 8: light, dark, and one accent per network. The palette is GateHub's markets page: its dark
+   greys, its blue as XRPL's accent, its bid green and ask pink for up and down; light is the same hues on white.
 
    Light is the default. Dark applies in two cases that need the same values: the system is dark and the visitor has not
    chosen light (the @media block), or the visitor chose dark (data-theme="dark", set on <html> by the inline script of
@@ -6,40 +7,40 @@
    test/unit/tokens.test.ts keeps the copies equal.
 
    The tokens are declared on :root and again on every [data-net] element (the wrapper of a page, app/ui/components/Shell.tsx),
-   because `--link: var(--accent)` is resolved where it is declared: the wrapper has the network's accent, :root does not. */
+   because `--link`, made from `var(--accent)`, is resolved where it is declared: the wrapper has the network's accent, :root does not. */
 
 :root, [data-net] {
   color-scheme: light;
 
-  --bg: #F5F6F8;
+  --bg: #F3F4F7;
   --surface: #FFFFFF;
-  --sunken: #EEF0F3;
-  --border: #E1E4E9;
-  --border-strong: #CDD2D9;
-  --fg: #0F1217;
-  --muted: #4F5864;
-  --faint: #646D7A;
-  --ok: #17733F;
-  --ok-bg: #E3F3E9;
-  --bad: #B42318;
-  --bad-bg: #FCEBE9;
-  --link: var(--accent);
+  --sunken: #ECEEF2;
+  --border: #DEE0E6;
+  --border-strong: #C3C6CF;
+  --fg: #121317;
+  --muted: #4E5059;
+  --faint: #626674;
+  --ok: #3D6E00;
+  --ok-bg: #EAF5D6;
+  --bad: #C8174F;
+  --bad-bg: #FDE7EE;
+  --link: color-mix(in srgb, var(--accent) 82%, #000000);
 
   /* Charts: series colours in this order, then "Other"; up and down. */
-  --series-1: #2a78d6;
+  --series-1: #0a6cf1;
   --series-2: #eb6834;
   --series-3: #1baf7a;
   --series-4: #eda100;
   --series-5: #e87ba4;
-  --series-other: #8b94a1;
-  --up: #2a78d6;
-  --down: #e34948;
+  --series-other: #8c909c;
+  --up: #3d7a00;
+  --down: #e0245e;
   /* Gridlines, the baseline and the zero line, the meter's track, and the washes of the order book's depth (bids, asks). */
-  --grid: #EEF0F3;
-  --axis: #CDD2D9;
-  --track: #cde2fb;
-  --up-wash: rgba(42,120,214,.13);
-  --down-wash: rgba(227,73,72,.12);
+  --grid: #ECEEF2;
+  --axis: #C3C6CF;
+  --track: #d5e5fd;
+  --up-wash: rgba(61,122,0,.12);
+  --down-wash: rgba(224,36,94,.10);
 
   /* Which icon of the theme toggle shows: the moon (go dark) in light, the sun (go light) in dark. */
   --moon-display: inline;
@@ -50,33 +51,33 @@
   :root:not([data-theme="light"]), :root:not([data-theme="light"]) [data-net] {
     color-scheme: dark;
 
-    --bg: #0B0E12;
-    --surface: #12161C;
-    --sunken: #181D24;
-    --border: #232A33;
-    --border-strong: #323B46;
-    --fg: #E7EBF0;
-    --muted: #A3ACB9;
-    --faint: #8D97A5;
-    --ok: #5BD08F;
-    --ok-bg: #10281B;
-    --bad: #F28B80;
-    --bad-bg: #30161A;
+    --bg: #121317;
+    --surface: #202229;
+    --sunken: #292B34;
+    --border: #333642;
+    --border-strong: #4E5059;
+    --fg: #F2F3F5;
+    --muted: #A9ACB7;
+    --faint: #8E929F;
+    --ok: #8DB845;
+    --ok-bg: #24301A;
+    --bad: #FF6B94;
+    --bad-bg: #3A1C27;
     --link: color-mix(in srgb, var(--accent) 55%, #ffffff);
 
-    --series-1: #3987e5;
+    --series-1: #3d8bff;
     --series-2: #d95926;
     --series-3: #199e70;
     --series-4: #c98500;
     --series-5: #d55181;
-    --series-other: #6b7380;
-    --up: #3987e5;
-    --down: #e66767;
-    --grid: #1D232B;
-    --axis: #323B46;
-    --track: #0d366b;
-    --up-wash: rgba(57,135,229,.18);
-    --down-wash: rgba(230,103,103,.16);
+    --series-other: #6a6e7a;
+    --up: #6da307;
+    --down: #e8336a;
+    --grid: #262830;
+    --axis: #4E5059;
+    --track: #183059;
+    --up-wash: rgba(109,163,7,.18);
+    --down-wash: rgba(232,51,106,.16);
 
     --moon-display: none;
     --sun-display: inline;
@@ -86,33 +87,33 @@
 :root[data-theme="dark"], :root[data-theme="dark"] [data-net] {
   color-scheme: dark;
 
-  --bg: #0B0E12;
-  --surface: #12161C;
-  --sunken: #181D24;
-  --border: #232A33;
-  --border-strong: #323B46;
-  --fg: #E7EBF0;
-  --muted: #A3ACB9;
-  --faint: #8D97A5;
-  --ok: #5BD08F;
-  --ok-bg: #10281B;
-  --bad: #F28B80;
-  --bad-bg: #30161A;
+  --bg: #121317;
+  --surface: #202229;
+  --sunken: #292B34;
+  --border: #333642;
+  --border-strong: #4E5059;
+  --fg: #F2F3F5;
+  --muted: #A9ACB7;
+  --faint: #8E929F;
+  --ok: #8DB845;
+  --ok-bg: #24301A;
+  --bad: #FF6B94;
+  --bad-bg: #3A1C27;
   --link: color-mix(in srgb, var(--accent) 55%, #ffffff);
 
-  --series-1: #3987e5;
+  --series-1: #3d8bff;
   --series-2: #d95926;
   --series-3: #199e70;
   --series-4: #c98500;
   --series-5: #d55181;
-  --series-other: #6b7380;
-  --up: #3987e5;
-  --down: #e66767;
-  --grid: #1D232B;
-  --axis: #323B46;
-  --track: #0d366b;
-  --up-wash: rgba(57,135,229,.18);
-  --down-wash: rgba(230,103,103,.16);
+  --series-other: #6a6e7a;
+  --up: #6da307;
+  --down: #e8336a;
+  --grid: #262830;
+  --axis: #4E5059;
+  --track: #183059;
+  --up-wash: rgba(109,163,7,.18);
+  --down-wash: rgba(232,51,106,.16);
 
   --moon-display: none;
   --sun-display: inline;
@@ -120,7 +121,7 @@
 
 /* One accent per network. A page outside both (an unknown path) has XRPL's. */
 :root {
-  --accent-xrpl: #2F5BEA;
+  --accent-xrpl: #0A6CF1;
   --accent-xahau: #B45309;
   --accent: var(--accent-xrpl);
 

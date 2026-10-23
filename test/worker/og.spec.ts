@@ -680,7 +680,7 @@ describe("a transaction", () => {
   it("is drawn in the accent of its network: XRPL's blue bar, the white card", async () => {
     mock = mockUpstream("xrpl");
     const png = await decodePng((await image(`/og/xrpl/tx/${PAYMENT}.png`)).bytes);
-    expect(hex(png.pixel(600, 4))).toBe("#2F5BEA");
+    expect(hex(png.pixel(600, 4))).toBe("#0A6CF1");
     expect(hex(png.pixel(10, 300))).toBe("#FFFFFF");
     // Text was drawn: the card has dark pixels (the amount, in the colour of the text) in its middle.
     let dark = 0;
@@ -1195,7 +1195,7 @@ describe("an AMM pool", () => {
   it("is drawn in XRPL's accent, with text on it", async () => {
     mock = mockUpstream("xrpl");
     const png = await decodePng((await image(`/og/xrpl/amm/${AMM_POOL}.png`)).bytes);
-    expect(hex(png.pixel(600, 4))).toBe("#2F5BEA");
+    expect(hex(png.pixel(600, 4))).toBe("#0A6CF1");
     expect(hex(png.pixel(10, 300))).toBe("#FFFFFF");
     let dark = 0;
     for (let y = 200; y < 420; y += 2) for (let x = 60; x < 1140; x += 2) if (png.pixel(x, y)[0]! < 80) dark += 1;

@@ -612,8 +612,8 @@ function statusPage(status: 429 | 503, retryAfter: number, title: string, text: 
 <meta name="color-scheme" content="light dark">
 <title>${title}</title>
 <style>
-:root { --bg: #F5F6F8; --text: #0F1217; --muted: #4F5864; --link: #2F5BEA; }
-@media (prefers-color-scheme: dark) { :root { --bg: #0B0E12; --text: #E7EBF0; --muted: #A3ACB9; --link: #8DA5F3; } }
+:root { --bg: #F3F4F7; --text: #121317; --muted: #4E5059; --link: #0859C6; }
+@media (prefers-color-scheme: dark) { :root { --bg: #121317; --text: #F2F3F5; --muted: #A9ACB7; --link: #78AEF7; } }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
 main { max-width: 32rem; margin: 0 auto; padding: 20vh 20px 0; }
 h1 { font-size: 1.5rem; margin: 0 0 .5rem; }

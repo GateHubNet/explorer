@@ -37,32 +37,32 @@ const darkByAttribute = block(':root[data-theme="dark"], :root[data-theme="dark"
 const darkByMedia = block(':root:not([data-theme="light"]), :root:not([data-theme="light"]) [data-net]', darkMedia());
 
 const LIGHT = {
-  "--bg": "#f5f6f8",
+  "--bg": "#f3f4f7",
   "--surface": "#ffffff",
-  "--sunken": "#eef0f3",
-  "--border": "#e1e4e9",
-  "--border-strong": "#cdd2d9",
-  "--fg": "#0f1217",
-  "--muted": "#4f5864",
-  "--faint": "#646d7a",
-  "--ok": "#17733f",
-  "--ok-bg": "#e3f3e9",
-  "--bad": "#b42318",
-  "--bad-bg": "#fcebe9",
+  "--sunken": "#eceef2",
+  "--border": "#dee0e6",
+  "--border-strong": "#c3c6cf",
+  "--fg": "#121317",
+  "--muted": "#4e5059",
+  "--faint": "#626674",
+  "--ok": "#3d6e00",
+  "--ok-bg": "#eaf5d6",
+  "--bad": "#c8174f",
+  "--bad-bg": "#fde7ee",
 };
 const DARK = {
-  "--bg": "#0b0e12",
-  "--surface": "#12161c",
-  "--sunken": "#181d24",
-  "--border": "#232a33",
-  "--border-strong": "#323b46",
-  "--fg": "#e7ebf0",
-  "--muted": "#a3acb9",
-  "--faint": "#8d97a5",
-  "--ok": "#5bd08f",
-  "--ok-bg": "#10281b",
-  "--bad": "#f28b80",
-  "--bad-bg": "#30161a",
+  "--bg": "#121317",
+  "--surface": "#202229",
+  "--sunken": "#292b34",
+  "--border": "#333642",
+  "--border-strong": "#4e5059",
+  "--fg": "#f2f3f5",
+  "--muted": "#a9acb7",
+  "--faint": "#8e929f",
+  "--ok": "#8db845",
+  "--ok-bg": "#24301a",
+  "--bad": "#ff6b94",
+  "--bad-bg": "#3a1c27",
 };
 
 describe("tokens.css", () => {
@@ -85,7 +85,7 @@ describe("tokens.css", () => {
 
   it("gives each network its accent: XRPL's on pages that belong to neither, and each on its own wrapper", () => {
     const root = block(":root");
-    expect(root["--accent-xrpl"]).toBe("#2f5bea");
+    expect(root["--accent-xrpl"]).toBe("#0a6cf1");
     expect(root["--accent-xahau"]).toBe("#b45309");
     expect(root["--accent"]).toBe("var(--accent-xrpl)");
     expect(block('[data-net="xrpl"]')["--accent"]).toBe("var(--accent-xrpl)");
@@ -101,35 +101,35 @@ describe("tokens.css", () => {
     }
   });
 
-  it("makes links the accent in light and the accent mixed 55% with white in dark", () => {
-    expect(light["--link"]).toBe("var(--accent)");
+  it("makes links the accent mixed 82% with black in light and 55% with white in dark", () => {
+    expect(light["--link"]).toBe("color-mix(in srgb, var(--accent) 82%, #000000)");
     expect(darkByAttribute["--link"]).toBe("color-mix(in srgb, var(--accent) 55%, #ffffff)");
     expect(darkByMedia["--link"]).toBe("color-mix(in srgb, var(--accent) 55%, #ffffff)");
   });
 
   it("defines the chart colours of spec section 8 in their fixed order", () => {
-    expect([1, 2, 3, 4, 5].map((n) => light[`--series-${n}`])).toEqual(["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]);
-    expect([1, 2, 3, 4, 5].map((n) => darkByAttribute[`--series-${n}`])).toEqual(["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"]);
-    expect([light["--up"], light["--down"]]).toEqual(["#2a78d6", "#e34948"]);
-    expect([darkByAttribute["--up"], darkByAttribute["--down"]]).toEqual(["#3987e5", "#e66767"]);
+    expect([1, 2, 3, 4, 5].map((n) => light[`--series-${n}`])).toEqual(["#0a6cf1", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]);
+    expect([1, 2, 3, 4, 5].map((n) => darkByAttribute[`--series-${n}`])).toEqual(["#3d8bff", "#d95926", "#199e70", "#c98500", "#d55181"]);
+    expect([light["--up"], light["--down"]]).toEqual(["#3d7a00", "#e0245e"]);
+    expect([darkByAttribute["--up"], darkByAttribute["--down"]]).toEqual(["#6da307", "#e8336a"]);
     expect(light["--series-other"]).toMatch(/^#[0-9a-f]{6}$/);
     expect(darkByAttribute["--series-other"]).toMatch(/^#[0-9a-f]{6}$/);
   });
 
   // Spec section 2.10: the grid, the axis, the meter's track and the two washes of the order book's depth.
   const CHART_LIGHT = {
-    "--grid": "#eef0f3",
-    "--axis": "#cdd2d9",
-    "--track": "#cde2fb",
-    "--up-wash": "rgba(42,120,214,.13)",
-    "--down-wash": "rgba(227,73,72,.12)",
+    "--grid": "#eceef2",
+    "--axis": "#c3c6cf",
+    "--track": "#d5e5fd",
+    "--up-wash": "rgba(61,122,0,.12)",
+    "--down-wash": "rgba(224,36,94,.10)",
   };
   const CHART_DARK = {
-    "--grid": "#1d232b",
-    "--axis": "#323b46",
-    "--track": "#0d366b",
-    "--up-wash": "rgba(57,135,229,.18)",
-    "--down-wash": "rgba(230,103,103,.16)",
+    "--grid": "#262830",
+    "--axis": "#4e5059",
+    "--track": "#183059",
+    "--up-wash": "rgba(109,163,7,.18)",
+    "--down-wash": "rgba(232,51,106,.16)",
   };
 
   it("defines the grid, axis, track and wash tokens of spec section 2.10 in all three blocks", () => {
@@ -168,8 +168,9 @@ const over = (text: string, backdrop: Rgb): Rgb => {
   return color.map((v, i) => Math.round(v * alpha + backdrop[i]! * (1 - alpha))) as Rgb;
 };
 
-const ACCENTS = { xrpl: "#2f5bea", xahau: "#b45309" };
+const ACCENTS = { xrpl: "#0a6cf1", xahau: "#b45309" };
 const WHITE = rgb("#ffffff");
+const BLACK = rgb("#000000");
 const AA = 4.5;
 const componentsCss = readFileSync(new URL("../../app/ui/components.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -207,10 +208,9 @@ describe.each([
     expect(contrast(c(fg), c(bg))).toBeGreaterThanOrEqual(AA);
   });
 
-  // A hovered table row is --sunken mixed with --surface (components.css, ROW_HOVER_SHARE): the Xahau accent in light mode is
-  // 4.40:1 on plain --sunken, just under AA, so links never sit on --sunken itself.
+  // A hovered table row is --sunken mixed with --surface (components.css, ROW_HOVER_SHARE), so links never sit on --sunken itself.
   it.each(Object.entries(ACCENTS))("a link of the %s accent is at least 4.5:1 on bg, surface and a hovered row", (_net, accent) => {
-    const link = mode === "light" ? rgb(accent) : mix(rgb(accent), WHITE, 0.55);
+    const link = mode === "light" ? mix(rgb(accent), BLACK, 0.82) : mix(rgb(accent), WHITE, 0.55);
     const hoveredRow = mix(c("--sunken"), c("--surface"), ROW_HOVER_SHARE);
     for (const [name, background] of [["--bg", c("--bg")], ["--surface", c("--surface")], ["hovered row", hoveredRow]] as const) {
       expect(contrast(link, background), name).toBeGreaterThanOrEqual(AA);
@@ -236,8 +236,8 @@ describe.each([
 
   // The charts' tokens (spec section 2.10). Their figures are the spec's, to 2 decimals.
   const chart = mode === "light" ? light : darkByAttribute;
-  const TRACK = { light: 3.34, dark: 3.28 }[mode];
-  const WASH = { light: { "--up-wash": 6.1, "--down-wash": 6.17 }, dark: { "--up-wash": 6.33, "--down-wash": 6.46 } }[mode];
+  const TRACK = { light: 3.72, dark: 3.95 }[mode];
+  const WASH = { light: { "--up-wash": 6.83, "--down-wash": 6.9 }, dark: { "--up-wash": 5.37, "--down-wash": 6.06 } }[mode];
 
   it(`the meter's fill (--series-1) on its track is at least 3:1 (${TRACK}:1)`, () => {
     const ratio = contrast(rgb(chart["--series-1"]!), rgb(chart["--track"]!));
