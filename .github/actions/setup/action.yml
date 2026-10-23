@@ -8,7 +8,7 @@ runs:
   steps:
     - uses: pnpm/action-setup@v6
 
-    # As in the image (Dockerfile: node:24.22.1-bookworm-slim); package.json asks for Node >= 24.
+    # package.json asks for Node >= 24.
     - uses: actions/setup-node@v7
       with:
         node-version: 24.22.1

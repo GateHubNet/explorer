@@ -2264,57 +2264,23 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
   - a job summary with the changelog of what is not released yet.
 
   A newer push to a pull request cancels its older run.
-- **`release.yml`**, on every pushed version tag: `v1.4.0`, or a pre-release such as `v1.4.0-rc.1`. It runs:
+- **`release.yml`**, on every pushed version tag: `v1.4.0`, or a pre-release such as `v1.4.0-rc.1`. The explorer runs on Cloudflare
+  Workers, so a release is a deploy there and a GitHub release; no image is built. It runs:
   1. **Version:** the tag must be a semantic version, `vMAJOR.MINOR.PATCH` with an optional `-pre-release` and no `+build`. As in
-     SemVer, numbers have no leading zeros, in the pre-release too. Any other tag releases nothing, and nothing is published or deployed:
+     SemVer, numbers have no leading zeros, in the pre-release too. Any other tag releases nothing, and nothing is deployed:
      - a tag that is not version-shaped, such as `vtest` or `v1.4`, starts no run at all, because the trigger only takes `v<n>.<n>.<n>`
        and `v<n>.<n>.<n>-*`;
      - a tag that has the shape but is not a semantic version, such as `v1.2.3-rc.01`, starts a run that stops at this step.
   2. **Test:** the whole of `ci.yml`.
-  3. **Image:** the image below for `linux/amd64` and `linux/arm64`, pushed to GitHub Packages as `ghcr.io/gatehubnet/explorer`,
-     tagged with the version without its `v` (`1.4.0`).
-  4. **Latest:** `latest` points at the newest version tag, a pre-release included, whose image is published. Every release works this
-     out again when it reaches this step, one release at a time. So:
-     - a release that finishes after a newer one leaves `latest` on the newer one;
-     - a late patch for an older line, such as `v1.3.5` after `v1.4.0`, publishes `1.3.5` and leaves `latest` alone;
-     - a registry error is retried, and if it persists the step fails and leaves `latest` alone. Only the registry's "not found"
-       counts as not published.
-  5. **Deploy:** once the image is out, `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
+  3. **Deploy:** `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
      `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Until production has its hosts and routes,
      the guard refuses the deploy ("Hosts and routes" below), so the deploy stays off until they are set. It needs the secrets
      `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. A required reviewer, if wanted, goes on the `production` environment.
-  6. **Release:** the GitHub release of the tag. Its body is the changelog since the previous tag, made by [git-cliff](https://git-cliff.org)
+  4. **Release:** the GitHub release of the tag. Its body is the changelog since the previous tag, made by [git-cliff](https://git-cliff.org)
      from the Conventional Commits (`cliff.toml`) and attached as `CHANGELOG.md`. A tag with a `-` is a pre-release.
 
-  The release is created only when the tag is a version, the tests pass, the image is out and, while the deploy is on, the deploy
-  passed. It does not wait for step 4. To release, tag a
-  commit of `master` and push the tag: `git tag v1.4.0 && git push origin v1.4.0`. The image is pushed with the workflow's own
-  `GITHUB_TOKEN`. A new package on ghcr.io starts **private**: make it public in its Package settings if it should be pulled without a login.
-
-**The container image** (`Dockerfile`, `docker/entrypoint.sh`, `docker/write-env-file.sh`) is the built Worker run by workerd through `wrangler dev`, the way the
-end-to-end suite runs it, on port 8080. It is for self-hosting and local use; production is the Cloudflare deploy. Its Cache API and rate
-limiter are workerd's local ones, kept in `/app/state`.
-- **Build:** the Worker is built once on the build machine's platform, from the top level of `wrangler.jsonc` with `BUILD_ID` from the
-  build argument (the release passes the short commit; default `dev`). Only the runtime stage, Node 24 and the lockfile's wrangler,
-  is per platform.
-- **Configuration:** the container's environment sets the Worker's variables and secrets. Only these names reach the Worker:
-  - `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL`, `XAHAU_NODE_URL`;
-  - `DATA_API_KEY`, `SENTRY_DSN`;
-  - the switches `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`.
-
-  A name left unset keeps the build's value. The top level's data API hosts are placeholders, so the two data API URLs and
-  `DATA_API_KEY` must be set. Each value reaches the Worker unchanged (`$` included), written the way `formatEnvFile` writes the
-  end-to-end suite's env file. A value with a line break, a backslash, or all three quote characters cannot be carried over, so the
-  container stops at start and names it (`test/unit/docker-env-file.test.ts`):
-
-```sh
-docker run -p 8080:8080 \
-  -e XRPL_DATA_API_URL=https://xrpl.data.example.com -e XAHAU_DATA_API_URL=https://xahau.data.example.com \
-  -e DATA_API_KEY=... ghcr.io/gatehubnet/explorer:latest
-```
-
-- **Health:** the image's health check fetches `/robots.txt`, which the Worker answers without calling the data API.
-- **Logs:** `WRANGLER_LOG_LEVEL` (default `info`) sets wrangler's log level.
+  The release is created only when the tag is a version, the tests pass and, while the deploy is on, the deploy passed. To release,
+  tag a commit of `master` and push the tag: `git tag v1.4.0 && git push origin v1.4.0`.
 
 **`wrangler deploy --env <env>` and the Cloudflare Vite plugin.** The environment is chosen when the Worker is *built*, not when it is deployed:
 the plugin writes `build/server/wrangler.json` for the environment `CLOUDFLARE_ENV` names (its name, vars and rate-limit namespace flattened to the top level;
