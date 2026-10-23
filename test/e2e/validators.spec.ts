@@ -114,9 +114,11 @@ test.describe("with VALIDATORS on", () => {
       await page.getByRole("searchbox", { name: "Search validators by domain or key" }).fill(`  ${name}  `);
       await page.getByRole("button", { name: "Apply" }).click();
       await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === `?q=${encodeURIComponent(name)}`);
+      // Retrying assertions, not a loop over `rows.all()`: the URL changes before the filtered list is drawn, and the validator was picked
+      // from the unfiltered one, whose first row may be it. The old rows would be taken, then go away under the loop.
       const rows = rowsOf(validatorsTable(page));
       await expect(rows.first()).toContainText(name);
-      for (const row of await rows.all()) await expect(row).toContainText(name);
+      await expect(rows.filter({ hasNotText: name })).toHaveCount(0);
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
 
       expect(redirects).toEqual([]);
@@ -158,6 +160,9 @@ test.describe("with VALIDATORS on", () => {
       await votes.selectOption(amendment);
       await page.getByRole("button", { name: "Apply" }).click();
       await page.waitForURL((url) => url.searchParams.get("amendment") === amendment && [...url.searchParams.keys()].length === 1);
+      // The URL changes before the filtered list is drawn, and the form takes its values from the page it draws: a choice made before
+      // then would be put back to the URL's and lost. "Clear filters" is only on a filtered list.
+      await expect(page.getByRole("link", { name: "Clear filters" })).toBeVisible();
       await expect(votes).toHaveValue(amendment);
       expect(await rowsOf(validatorsTable(page)).count()).toBeLessThanOrEqual(before);
 
@@ -168,7 +173,10 @@ test.describe("with VALIDATORS on", () => {
       // In the canonical order: the publisher, then the amendment.
       await page.waitForURL((url) => url.search === `?publisher=${encodeURIComponent(publisher)}&amendment=${encodeURIComponent(amendment)}`);
       await expect(listedBy).toHaveValue(publisher);
-      for (const row of await rowsOf(validatorsTable(page)).all()) await expect(row).toContainText(publisher);
+      // Retrying (see the search test): the list may still be the one before Apply. A row of the publisher first, so that an empty table
+      // (which has no row without it either) does not pass.
+      await expect(rowsOf(validatorsTable(page)).first()).toContainText(publisher);
+      await expect(rowsOf(validatorsTable(page)).filter({ hasNotText: publisher })).toHaveCount(0);
 
       await page.getByRole("link", { name: "Clear filters" }).click();
       await page.waitForURL((url) => url.pathname === "/xrpl/validators" && url.search === "");
@@ -264,12 +272,17 @@ test.describe("with VALIDATORS on", () => {
 
       await pager.getByRole("link", { name: "Older" }).click();
       await page.waitForURL((url) => url.pathname === `/xrpl/validators/${key}` && url.searchParams.has("marker"));
+      // The URL changes before the older page is drawn, and the live page's first row already lacks its oldest ledger: wait for what
+      // only the older page has (it is kept out of the index), then compare, retrying.
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
       await expect(rows.first()).not.toContainText(oldestHere);
       const ledgerOf = (text: string) => Number(text.replace(/\D/g, ""));
-      expect(ledgerOf((await rows.first().locator("a").first().textContent())!)).toBeLessThan(ledgerOf(oldestHere));
+      // A ledger link in the first row, so that a missing one (no number, 0) cannot pass as "older".
+      const olderLedger = rows.first().locator("a").first();
+      await expect(olderLedger).toHaveText(/\d/);
+      await expect.poll(async () => ledgerOf((await olderLedger.textContent())!)).toBeLessThan(ledgerOf(oldestHere));
       await expect(page.getByText("Live · updates every ledger")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Pause live updates" })).toHaveCount(0);
-      await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
       await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
 
       await pager.getByRole("link", { name: "Newer" }).click();

@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { BEFORE_HEAD, fixtures, HEAD, unavailable, xrplHomeOneLedgerBehind, xrplNextDay } from "./fixture-control";
 import { count, LIVE } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { expect, freshHtml, hydrated, test } from "./support";
 
 // The network page follows the chain (README, "Live updates") and keeps what it shows through the beats that fail. These tests change what the
 // fixture server answers, and every page the Worker renders meanwhile would show it: they are a project of their own (playwright.config.ts,
@@ -40,16 +40,19 @@ const volumeCard = (page: Page) => page.locator('section[aria-labelledby="networ
 const statusOf = (page: Page) => page.locator('.hero__live[role="status"]');
 const chipsOf = (page: Page) => page.locator(".network__chips li");
 
-/** The newest ledger on the strip of the page the Worker would give now, as the HTML says it: the `data-key` of its first chip. */
+/** The newest ledger on the strip of the page the Worker would give now, as the HTML of a fresh copy says it: the `data-key` of its first chip. */
 async function newestOnStrip(page: Page, path: string): Promise<string | undefined> {
-  return /<li data-key="(\d+)"/.exec(await (await page.request.get(path)).text())?.[1];
+  const html = await freshHtml(page, path);
+  return html === undefined ? undefined : /<li data-key="(\d+)"/.exec(html)?.[1];
 }
 
 /** Opens the page with the chain one ledger behind (`xrplHomeOneLedgerBehind`), and returns what to look at. */
 async function openBehind(page: Page, path: string) {
   await fixtures.override(xrplHomeOneLedgerBehind());
-  // The Worker keeps what the data API said for a second or two, and a stored copy of the page is served for three: ask until the page says what
-  // the fixture server says now, so that the test starts from the ledger it means to. (A query string of its own would be a redirect.)
+  // The Worker keeps what the data API said for a second or two, and a stored copy of the page is served for three: ask until a fresh copy of the
+  // page says what the fixture server says now, so that the test starts from the ledger it means to. A stale one does not count (`freshHtml`): the
+  // test before may have left the newest ledger in what the Worker kept, and the render a stale copy starts would put it back on the page. (A
+  // query string of its own would be a redirect.)
   await expect.poll(() => newestOnStrip(page, path), { timeout: 15_000 }).toBe(String(BEFORE_HEAD));
   await page.goto(path);
   await hydrated(page);

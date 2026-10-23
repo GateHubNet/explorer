@@ -1,18 +1,22 @@
-# A release, on every pushed tag v* (v1.4.0, or a pre-release such as v1.4.0-rc.1):
-#   1. test     the whole CI workflow (verify, fixtures:check, the end-to-end suite);
-#   2. image    the explorer image (Dockerfile: the built Worker under workerd) for linux/amd64 and linux/arm64, pushed to
-#               GitHub Packages (ghcr.io) as the tag's version without its v (1.4.0) and as latest;
-#   3. deploy   once the image is out, `pnpm deploy:production` to Cloudflare, only while the repository variable CLOUDFLARE_DEPLOY is "true": the
+# A release, on every pushed version tag (v1.4.0, or a pre-release such as v1.4.0-rc.1). The explorer runs on Cloudflare
+# Workers, so a release is a deploy there and a GitHub release, not an image:
+#   1. version  the tag must be a semantic version (vMAJOR.MINOR.PATCH, an optional -pre-release); anything else stops here;
+#   2. test     the whole CI workflow (verify, fixtures:check, the end-to-end suite);
+#   3. deploy   `pnpm deploy:production` to Cloudflare, only while the repository variable CLOUDFLARE_DEPLOY is "true": the
 #               pre-deploy guard refuses production until its hosts and routes are set (README "Hosts and routes");
 #   4. release  the GitHub release of the tag: its body is the changelog since the previous tag (cliff.toml), which is also
 #               attached as CHANGELOG.md. A tag with a "-" is marked a pre-release.
-# A release exists only for a tag whose tests passed, whose image is out and, when the deploy is on, that is deployed.
+# A release exists only for a tag that is a version, whose tests passed and, when the deploy is on, that is deployed.
 
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    # Version-shaped tags only (filter patterns, not regular expressions: + is one or more, . is a dot); the version job checks
+    # the rest.
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
 
 permissions:
   contents: read
@@ -22,64 +26,31 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Image names on ghcr.io must be lower case.
-  IMAGE: ghcr.io/gatehubnet/explorer
+  # A semantic version as a tag: v, then MAJOR.MINOR.PATCH without leading zeros, then an optional pre-release of dot-separated
+  # identifiers, a numeric one without leading zeros (rc.1, not rc.01). No build metadata (+...): the release tags are plain versions.
+  SEMVER_TAG: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$'
 
 jobs:
-  test:
-    uses: ./.github/workflows/ci.yml
-
-  image:
-    name: Image
-    needs: test
+  version:
+    name: Version of the tag
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ $SEMVER_TAG ]]; then
+            echo "::error::$TAG is not a version tag (v1.4.0, or v1.4.0-rc.1): nothing is deployed or released."
+            exit 1
+          fi
 
-      # The Worker is built once on the runner's own platform; only the runtime stage is per platform (arm64 under emulation).
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE }}
-          # Every tag moves latest, a pre-release included.
-          flavor: latest=false
-          tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest
-
-      # BUILD_ID is the short commit, as a build from a checkout would have it (the image's build context has no .git).
-      - id: build-id
-        run: echo "value=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            BUILD_ID=${{ steps.build-id.outputs.value }}
-          cache-from: type=gha,scope=explorer
-          cache-to: type=gha,mode=max,scope=explorer
+  test:
+    needs: version
+    uses: ./.github/workflows/ci.yml
 
   deploy:
     name: Deploy to Cloudflare (production)
-    # After the image too: a deploy that went out before an image that then failed would be a version with no image and no release.
-    needs: [test, image]
+    needs: test
     if: ${{ vars.CLOUDFLARE_DEPLOY == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -99,9 +70,10 @@ jobs:
 
   release:
     name: GitHub release
-    needs: [image, deploy]
-    # A deploy that is off (skipped) does not hold the release; one that ran must have passed.
-    if: ${{ !cancelled() && needs.image.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') }}
+    # After the tests, and after the deploy when it is on: a deploy that is off (skipped) does not hold the release, one that ran
+    # must have passed.
+    needs: [test, deploy]
+    if: ${{ !cancelled() && needs.test.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

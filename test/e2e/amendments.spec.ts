@@ -59,13 +59,15 @@ test.describe("the list", () => {
     await expect(voting).toHaveAttribute("aria-current", "true");
     await expect(all).not.toHaveAttribute("aria-current", /./);
     await expect(rowsOf(amendmentsTable(page))).toHaveCount(count);
-    for (const row of await rowsOf(amendmentsTable(page)).all()) await expect(row).toContainText("Voting");
+    await expect(rowsOf(amendmentsTable(page)).filter({ hasNotText: "Voting" })).toHaveCount(0);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
 
     await chips.getByRole("link", { name: /^Activated \d/ }).click();
     await page.waitForURL((url) => url.search === "?status=enabled");
-    for (const row of await rowsOf(amendmentsTable(page)).all()) await expect(row).toContainText("Activated");
+    // Retrying, not a loop over `.all()`: the URL changes before the list is drawn, and the "Voting" rows would be taken, then go away.
+    await expect(rowsOf(amendmentsTable(page)).first()).toContainText("Activated");
+    await expect(rowsOf(amendmentsTable(page)).filter({ hasNotText: "Activated" })).toHaveCount(0);
 
     await all.click();
     await page.waitForURL((url) => url.pathname === "/xrpl/amendments" && url.search === "");

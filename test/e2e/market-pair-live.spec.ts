@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { featuresOff } from "../../scripts/e2e-env";
 import { fixtures, nodeNotSynced, RLUSD_API, RLUSD_ISSUER, xrplPairOneTradeBehind } from "./fixture-control";
 import { LIVE } from "./fixtures";
-import { expect, hydrated, seriousViolations, test } from "./support";
+import { expect, freshHtml, hydrated, seriousViolations, test } from "./support";
 
 // The market pair page follows the chain (README, "The markets pages"): every 4 s it asks the explorer's own Worker for its route's data, a new
 // trade enters its list and the figures tick in, and what it shows is kept through the beats that fail. These tests change what the fixture
@@ -53,9 +53,13 @@ const priceOf = (page: Page) => page.locator(".pair__figure");
 const statusOf = (page: Page) => page.locator('.hero__live[role="status"]');
 const bookCard = (page: Page) => page.locator("section", { has: page.getByRole("heading", { name: "Order book" }) });
 
-/** The key of the newest trade of the page the Worker would give now, as its HTML says it: the first `data-key` (the trades are the page's one live table). */
+/**
+ * The key of the newest trade of the page the Worker would give now, as the HTML of a fresh copy says it: the first `data-key` (the trades are the
+ * page's one live table). A stale copy does not count (`freshHtml`): the render it starts may put back what the test before left in the Worker.
+ */
 async function newestOnPage(page: Page): Promise<string | undefined> {
-  return /data-key="([^"]+)"/.exec(await (await page.request.get(PAIR)).text())?.[1];
+  const html = await freshHtml(page, PAIR);
+  return html === undefined ? undefined : /data-key="([^"]+)"/.exec(html)?.[1];
 }
 
 /** Opens the page with the market one trade behind (`xrplPairOneTradeBehind`). */
