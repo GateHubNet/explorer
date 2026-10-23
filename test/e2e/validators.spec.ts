@@ -160,6 +160,9 @@ test.describe("with VALIDATORS on", () => {
       await votes.selectOption(amendment);
       await page.getByRole("button", { name: "Apply" }).click();
       await page.waitForURL((url) => url.searchParams.get("amendment") === amendment && [...url.searchParams.keys()].length === 1);
+      // The URL changes before the filtered list is drawn, and the form takes its values from the page it draws: a choice made before
+      // then would be put back to the URL's and lost. "Clear filters" is only on a filtered list.
+      await expect(page.getByRole("link", { name: "Clear filters" })).toBeVisible();
       await expect(votes).toHaveValue(amendment);
       expect(await rowsOf(validatorsTable(page)).count()).toBeLessThanOrEqual(before);
 
