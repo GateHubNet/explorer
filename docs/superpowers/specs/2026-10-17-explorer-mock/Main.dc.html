@@ -191,7 +191,7 @@ class Component extends DCLogic {
   state = { net: 'xrpl', q: '' };
 
   renderVals() {
-    const dark = (this.props.theme ?? 'light') === 'dark';
+    const dark = (this.props.theme ?? 'dark') === 'dark';
     const accent = this.props.accent ?? '#0A6CF1';
     const xahauAccent = this.props.xahauAccent ?? '#B45309';
     const x = this.state.net === 'xrpl';

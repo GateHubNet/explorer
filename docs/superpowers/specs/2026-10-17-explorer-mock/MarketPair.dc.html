@@ -12,8 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
 <style>
 body{margin:0}
-.xp{--bg:#F3F4F7;--surface:#FFFFFF;--sunken:#ECEEF2;--border:#DEE0E6;--border-strong:#C3C6CF;--fg:#121317;--muted:#4E5059;--faint:#626674;--link:color-mix(in srgb,var(--accent) 82%,#000000);--grid:#ECEEF2;--axis:#C3C6CF;--up:#3D7A00;--down:#E0245E;--up-wash:rgba(61,122,0,.12);--down-wash:rgba(224,36,94,.10);--s1:#0A6CF1;--s-other:#B5B8C2;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
-.xp.dark{--bg:#121317;--surface:#202229;--sunken:#292B34;--border:#333642;--border-strong:#4E5059;--fg:#F2F3F5;--muted:#A9ACB7;--faint:#8E929F;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--grid:#262830;--axis:#4E5059;--up:#6DA307;--down:#E8336A;--up-wash:rgba(109,163,7,.18);--down-wash:rgba(232,51,106,.16);--s1:#3D8BFF;--s-other:#4A4D59}
+.xp{--bg:#F3F4F7;--surface:#FFFFFF;--sunken:#ECEEF2;--border:#DEE0E6;--border-strong:#C3C6CF;--fg:#121317;--muted:#4E5059;--faint:#626674;--link:color-mix(in srgb,var(--accent) 82%,#000000);--grid:#ECEEF2;--axis:#C3C6CF;--up:#3D7A00;--down:#E0245E;--up-wash:rgba(61,122,0,.12);--down-wash:rgba(224,36,94,.10);--s1:#0A6CF1;--s-other:#8C909C;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#121317;--surface:#202229;--sunken:#292B34;--border:#333642;--border-strong:#4E5059;--fg:#F2F3F5;--muted:#A9ACB7;--faint:#8E929F;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--grid:#262830;--axis:#4E5059;--up:#6DA307;--down:#E8336A;--up-wash:rgba(109,163,7,.18);--down-wash:rgba(232,51,106,.16);--s1:#3D8BFF;--s-other:#6A6E7A}
 .xp a{color:var(--link);text-decoration:none}
 .xp a:hover{text-decoration:underline}
 .xp button,.xp input{font:inherit;color:inherit}
@@ -244,7 +244,7 @@ class Component extends DCLogic {
   state = { net: 'xrpl', iv: '1h', source: 'include', inv: false, hov: -1 };
 
   renderVals() {
-    const dark = (this.props.theme ?? 'light') === 'dark';
+    const dark = (this.props.theme ?? 'dark') === 'dark';
     const accent = this.props.accent ?? '#0A6CF1';
     const xahauAccent = this.props.xahauAccent ?? '#B45309';
     const x = this.state.net === 'xrpl';

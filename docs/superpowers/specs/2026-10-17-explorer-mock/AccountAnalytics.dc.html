@@ -12,8 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
 <style>
 body{margin:0}
-.xp{--bg:#F3F4F7;--surface:#FFFFFF;--sunken:#ECEEF2;--border:#DEE0E6;--border-strong:#C3C6CF;--fg:#121317;--muted:#4E5059;--faint:#626674;--link:color-mix(in srgb,var(--accent) 82%,#000000);--ok:#3D6E00;--ok-bg:#EAF5D6;--bad:#C8174F;--bad-bg:#FDE7EE;--grid:#ECEEF2;--axis:#C3C6CF;--s1:#0A6CF1;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A9ACB7;--up:#3D7A00;--down:#E0245E;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
-.xp.dark{--bg:#121317;--surface:#202229;--sunken:#292B34;--border:#333642;--border-strong:#4E5059;--fg:#F2F3F5;--muted:#A9ACB7;--faint:#8E929F;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#8DB845;--ok-bg:#24301A;--bad:#FF6B94;--bad-bg:#3A1C27;--grid:#262830;--axis:#4E5059;--s1:#3D8BFF;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#5A5E6B;--up:#6DA307;--down:#E8336A}
+.xp{--bg:#F3F4F7;--surface:#FFFFFF;--sunken:#ECEEF2;--border:#DEE0E6;--border-strong:#C3C6CF;--fg:#121317;--muted:#4E5059;--faint:#626674;--link:color-mix(in srgb,var(--accent) 82%,#000000);--ok:#3D6E00;--ok-bg:#EAF5D6;--bad:#C8174F;--bad-bg:#FDE7EE;--grid:#ECEEF2;--axis:#C3C6CF;--s1:#0A6CF1;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#8C909C;--up:#3D7A00;--down:#E0245E;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#121317;--surface:#202229;--sunken:#292B34;--border:#333642;--border-strong:#4E5059;--fg:#F2F3F5;--muted:#A9ACB7;--faint:#8E929F;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#8DB845;--ok-bg:#24301A;--bad:#FF6B94;--bad-bg:#3A1C27;--grid:#262830;--axis:#4E5059;--s1:#3D8BFF;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#6A6E7A;--up:#6DA307;--down:#E8336A}
 .xp a{color:var(--link);text-decoration:none}
 .xp a:hover{text-decoration:underline}
 .xp button,.xp input,.xp select{font:inherit;color:inherit}
@@ -467,7 +467,7 @@ class Component extends DCLogic {
   state = { net: 'xrpl', period: '30d', vView: 'chart', aView: 'chart', bView: 'chart', mView: 'chart', vHov: -1, aHov: -1, bHov: -1, mHov: -1 };
 
   renderVals() {
-    const dark = (this.props.theme ?? 'light') === 'dark';
+    const dark = (this.props.theme ?? 'dark') === 'dark';
     const accent = this.props.accent ?? '#0A6CF1';
     const xahauAccent = this.props.xahauAccent ?? '#B45309';
     const x = this.state.net === 'xrpl';
