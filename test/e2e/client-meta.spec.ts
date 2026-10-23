@@ -104,6 +104,9 @@ test.describe("the tags of a page reached by a link in the page", () => {
     const txHref = (await page.locator('a[href^="/xahau/tx/"]').first().getAttribute("href"))!;
     await page.locator(`a[href="${txHref}"]`).first().click();
     await page.waitForURL(`**${txHref}`);
+    // The transaction route drawn, before leaving it: the title is no longer the ledger's. (Not a title with the hash: the fixtures do not
+    // hold every transaction a ledger lists, and one they do not hold is the not-found page.)
+    await expect(page).not.toHaveTitle(/^Ledger #/);
     await page.getByRole("group", { name: "Network" }).getByRole("link", { name: "XRPL" }).click();
     await page.waitForURL("**/xrpl");
 

@@ -277,7 +277,10 @@ test.describe("with VALIDATORS on", () => {
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
       await expect(rows.first()).not.toContainText(oldestHere);
       const ledgerOf = (text: string) => Number(text.replace(/\D/g, ""));
-      await expect.poll(async () => ledgerOf((await rows.first().locator("a").first().textContent()) ?? "")).toBeLessThan(ledgerOf(oldestHere));
+      // A ledger link in the first row, so that a missing one (no number, 0) cannot pass as "older".
+      const olderLedger = rows.first().locator("a").first();
+      await expect(olderLedger).toHaveText(/\d/);
+      await expect.poll(async () => ledgerOf((await olderLedger.textContent())!)).toBeLessThan(ledgerOf(oldestHere));
       await expect(page.getByText("Live · updates every ledger")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Pause live updates" })).toHaveCount(0);
       await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
