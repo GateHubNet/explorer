@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MPT: Harborline Treasury Fund</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.hseg{border:0;padding:0;min-width:2px;height:100%;cursor:default}
+.hseg.dim{opacity:.45}
+.hseg:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
+.hl{position:absolute;top:3px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;box-sizing:border-box;font-variant-numeric:tabular-nums}
+.hl b{color:var(--fg);font-weight:600}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:520px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--fg)}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;white-space:nowrap}
+.st.good{color:var(--ok)}
+.st.quiet{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.field{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:0 12px;min-height:44px;box-sizing:border-box}
+.sel{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
+.disc summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:500;color:var(--link)}
+.disc summary::-webkit-details-marker{display:none}
+.disc .chev{transition:transform .15s}
+.disc[open] .chev{transform:rotate(90deg)}
+.disc ul{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:4px}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mono{font-size:12.5px}
+.unv{font-size:11px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:0 5px;white-space:nowrap}
+.amt{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
+.tok{--c:var(--s1);width:32px;height:32px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;color:var(--fg);background:color-mix(in srgb,var(--c) 16%,var(--surface));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c) 55%,var(--surface))}
+.tok.lg{width:52px;height:52px;font-size:21px}
+.tok.none{--c:var(--s-other);color:var(--muted)}
+.tk{display:flex;align-items:center;gap:10px;min-width:0;color:var(--fg)!important}
+.tk:hover{text-decoration:none!important}
+.tk:hover .code{text-decoration:underline}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hex{border-bottom:1px dotted var(--faint);cursor:help}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:6px;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.kv{display:grid;grid-template-columns:150px minmax(0,1fr);column-gap:16px;padding:9px 0;border-top:1px solid var(--border);font-size:13px;align-items:baseline}
+.kv>span:first-child{color:var(--faint);font-size:12.5px}
+.meter{width:96px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden;flex:none}
+.meter>span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.tile{padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.tile>span:first-child{font-size:12px;color:var(--faint);font-weight:500}
+.tv{font-size:22px;font-weight:600;letter-spacing:-0.015em;font-variant-numeric:tabular-nums}
+.ts{font-size:12px;color:var(--muted)}
+.plot{position:relative;height:180px}
+.gl{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+.gl.base{border-top-color:var(--axis)}
+.yl{position:absolute;right:10px;transform:translateY(50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bars{position:absolute;inset:0;display:flex;align-items:flex-end}
+.col{flex:1 1 0;height:100%;display:flex;align-items:flex-end;justify-content:center;min-width:0}
+.bar{width:min(6px,70%);border-radius:2px 2px 0 0;background:var(--accent);min-height:1px}
+.col.dim .bar{opacity:.4}
+.hit{position:absolute;inset:0;border:0;background:transparent;padding:0;cursor:crosshair;width:100%;height:100%;border-radius:4px}
+.ic{flex:none;margin-top:1px}
+.set{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--border);font-size:13px}
+.set b{font-weight:600}
+.pill{font-size:11.5px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--border-strong);color:var(--fg);white-space:nowrap}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav cur" href="Tokens.dc.html" aria-current="page">Tokens</a>
+      <details class="menu">
+        <summary class="nav">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <sc-if value="{{isXahau}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; flex-direction: column; gap: 18px;">
+      <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="Main.dc.html">Xahau</a><span aria-hidden="true">/</span><a href="Tokens.dc.html">Tokens</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">MPT</span>
+      </nav>
+      <section class="card" style="padding: 40px 28px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 640px;">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 600;">MPT isn’t enabled on Xahau</h1>
+        <p style="margin: 0; color: var(--muted);">MPTs exist only on XRPL, so there is nothing at this issuance ID on Xahau.</p>
+        <p class="mono" style="margin: 0; font-size: 12px; color: var(--faint); overflow-wrap: anywhere;">{{issId}}</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <a class="btn" href="Tokens.dc.html">← Back to tokens</a>
+          <button type="button" class="btn" onClick="{{pickXrpl}}">Open it on XRPL</button>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isXrpl}}" hint-placeholder-val="{{true}}">
+    <div style="display: flex; flex-direction: column; gap: 18px;">
+
+      <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="Main.dc.html">XRPL</a><span aria-hidden="true">/</span><a href="Tokens.dc.html">Tokens</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">HTF</span>
+      </nav>
+
+      <section class="card" aria-labelledby="mpt-title" style="padding: 20px 22px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px;">
+          <span class="tok lg" aria-hidden="true" style="--c: var(--s3);">H</span>
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 420px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;">
+              <h1 id="mpt-title" style="margin: 0; font-size: 28px; letter-spacing: -0.02em; font-weight: 650;">Harborline Treasury Fund</h1>
+              <span class="tag mono" style="font-size: 12px;">HTF</span>
+              <span class="tag">MPT</span>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted);">Issued by <a class="acct" href="Account.dc.html" title="{{issuer.title}}"><span class="{{issuer.cls}}">{{issuer.label}}</span><sc-if value="{{issuer.verified}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if><sc-if value="{{issuer.curated}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if><sc-if value="{{issuer.unverified}}" hint-placeholder-val="{{false}}"><span class="unv">not verified</span></sc-if></a><span style="color: var(--faint);">· name and ticker from the issuance’s metadata</span></div>
+          </div>
+          <a class="btn" href="Account.dc.html">Issuer account</a>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; padding-top: 10px; border-top: 1px solid var(--border);">
+          <span style="color: var(--faint);">Issuance ID</span>
+          <span class="mono" style="font-size: 12.5px; overflow-wrap: anywhere;">{{issId}}</span>
+          <button type="button" class="copy" aria-label="Copy issuance ID"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button>
+          <span class="src" style="margin-left: auto;">/v2/mpt/{issuanceId}</span>
+        </div>
+      </section>
+
+      <section aria-label="Figures" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px;">
+        <div class="card tile"><span>Outstanding</span><span class="tv">{{outN}}</span><span class="ts">HTF held by holders, {{outPct}} of the max amount</span></div>
+        <div class="card tile"><span>Max amount</span><span class="tv">50,000,000.00</span><span class="ts">HTF, fixed when the issuance was created</span></div>
+        <div class="card tile"><span>Locked</span><span class="tv">1,240,000.00</span><span class="ts">HTF in 1 holder balance the issuer has locked</span></div>
+        <div class="card tile"><span>Holders</span><span class="tv">{{holders}}</span><span class="ts">{{holdersSub}}</span></div>
+        <div class="card tile"><span>Transfer fee</span><span class="tv">0.10%</span><span class="ts">charged when holders send HTF to each other</span></div>
+        <div class="card tile"><span>Asset scale</span><span class="tv">2</span><span class="ts">Amounts are integers scaled by 10<sup>−2</sup>: 1 HTF is 100 on the ledger.</span></div>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+        <section class="card" aria-labelledby="flags-title" style="flex: 1 1 420px; min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+            <h2 id="flags-title" style="margin: 0; font-size: 15px; font-weight: 600;">Flags</h2>
+            <span class="src">/v2/mpt/{issuanceId}</span>
+          </div>
+          <p style="margin: 0 0 4px; font-size: 13px; color: var(--muted);">Set when the issuance was created. They cannot change.</p>
+          <div>
+            <div class="set"><svg class="ic" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok);"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>
+              <span style="display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; gap: 8px; align-items: center;"><b>Can lock</b><span class="pill">Yes</span></span><span style="color: var(--muted);">The issuer can lock one holder’s balance, or all of HTF, so it cannot move.</span></span></div>
+            <div class="set"><svg class="ic" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok);"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>
+              <span style="display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; gap: 8px; align-items: center;"><b>Require auth</b><span class="pill">Yes</span></span><span style="color: var(--muted);">An account needs the issuer’s approval before it can hold HTF.</span></span></div>
+            <div class="set"><svg class="ic" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint);"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>
+              <span style="display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; gap: 8px; align-items: center;"><b>Can escrow</b><span class="pill">No</span></span><span style="color: var(--muted);">HTF cannot be held in escrows.</span></span></div>
+            <div class="set"><svg class="ic" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok);"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>
+              <span style="display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; gap: 8px; align-items: center;"><b>Can trade</b><span class="pill">Yes</span></span><span style="color: var(--muted);">HTF can be traded on the DEX.</span></span></div>
+            <div class="set"><svg class="ic" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok);"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>
+              <span style="display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; gap: 8px; align-items: center;"><b>Can transfer</b><span class="pill">Yes</span></span><span style="color: var(--muted);">Holders can send HTF to each other, not only back to the issuer.</span></span></div>
+            <div class="set"><svg class="ic" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok);"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg>
+              <span style="display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; gap: 8px; align-items: center;"><b>Can clawback</b><span class="pill">Yes</span></span><span style="color: var(--muted);">The issuer can take HTF back from a holder.</span></span></div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="meta-title" style="flex: 1 1 560px; min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+            <h2 id="meta-title" style="margin: 0; font-size: 15px; font-weight: 600;">Metadata</h2>
+            <span class="src">/v2/mpt/{issuanceId}</span>
+          </div>
+          <p style="margin: 0 0 4px; font-size: 13px; color: var(--muted);">What the issuer wrote into the issuance, decoded. Nothing here is checked against the issuer’s domain.</p>
+          <div>
+            <div class="kv"><span class="mono">ticker</span><span class="mono">HTF</span></div>
+            <div class="kv"><span class="mono">name</span><span>Harborline Treasury Fund</span></div>
+            <div class="kv"><span class="mono">desc</span><span>Shares in a fund that holds short-dated government bills. Each share tracks the net asset value of the fund.</span></div>
+            <div class="kv"><span class="mono">icon</span><a href="https://harborline.example/htf/icon.png" target="_blank" rel="noopener" style="overflow-wrap: anywhere;">harborline.example/htf/icon.png<span class="sr"> (opens a new tab)</span></a></div>
+            <div class="kv"><span class="mono">asset_class</span><span>rwa (real-world asset)</span></div>
+            <div class="kv"><span class="mono">asset_subclass</span><span>treasury</span></div>
+            <div class="kv"><span class="mono">issuer_name</span><span>Harborline Capital</span></div>
+            <div class="kv"><span class="mono">urls</span><span style="display: flex; flex-direction: column; gap: 2px;"><a href="https://harborline.example/htf" target="_blank" rel="noopener">Fund page · harborline.example/htf<span class="sr"> (opens a new tab)</span></a><a href="https://harborline.example/htf/prospectus.pdf" target="_blank" rel="noopener">Prospectus · harborline.example/htf/prospectus.pdf<span class="sr"> (opens a new tab)</span></a></span></div>
+          </div>
+          <details class="disc" style="border-top: 1px solid var(--border);">
+            <summary>Raw metadata, as hex ({{metaBytes}} bytes)<svg class="chev" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></summary>
+            <div class="mono" style="font-size: 11.5px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; background: var(--sunken); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; max-height: 160px; overflow: auto;">{{metaHex}}</div>
+          </details>
+        </section>
+      </div>
+
+      <div style="display: flex;">
+        <section class="card" aria-labelledby="hol-title" style="flex: 1 1 460px; min-width: 0; padding: 16px 18px 12px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <h2 id="hol-title" style="margin: 0; font-size: 15px; font-weight: 600;">Holders over time</h2>
+              <span class="src">/v2/mpt/{issuanceId}/holders?interval=day</span>
+            </div>
+            <div class="segs" role="group" aria-label="Holders over time: view as">
+              <button type="button" class="seg {{holChartCls}}" aria-pressed="{{holIsChart}}" onClick="{{holShowChart}}">Chart</button>
+              <button type="button" class="seg {{holTableCls}}" aria-pressed="{{holIsTable}}" onClick="{{holShowTable}}">Table</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap;"><span class="tv">{{holLast}}</span><span class="ts">{{holSpan}}</span></div>
+          <sc-if value="{{holIsChart}}" hint-placeholder-val="{{true}}">
+            <div style="display: flex;">
+              <div style="position: relative; width: 56px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{holAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+              <div style="flex: 1 1 auto; min-width: 0;">
+                <div class="plot">
+                  <sc-for list="{{holAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+                  <div class="bars" aria-hidden="true"><sc-for list="{{holCols}}" as="b" hint-placeholder-count="90"><span class="col {{b.cls}}"><span class="bar" style="height: {{b.h}};"></span></span></sc-for></div>
+                  <sc-if value="{{holTip.show}}" hint-placeholder-val="{{false}}">
+                    <div class="tip" style="left: {{holTip.left}}; transform: {{holTip.tf}};"><span style="color: var(--faint);">{{holTip.date}}</span><b>{{holTip.v}}</b><span style="color: var(--muted);">{{holTip.d}}</span></div>
+                  </sc-if>
+                  <button type="button" class="hit" aria-label="Holders of HTF at the end of each day, last 90 days. Use the left and right arrow keys to read each day." aria-describedby="hol-live" onMouseMove="{{holMove}}" onMouseLeave="{{holLeave}}" onFocus="{{holFocus}}" onBlur="{{holLeave}}" onKeyDown="{{holKey}}"></button>
+                </div>
+                <div style="position: relative; height: 24px;" aria-hidden="true"><sc-for list="{{holXl}}" as="x" hint-placeholder-count="6"><span class="xl" style="left: {{x.pos}};">{{x.label}}</span></sc-for></div>
+              </div>
+            </div>
+            <span id="hol-live" class="sr" aria-live="polite">{{holTip.sr}}</span>
+          </sc-if>
+          <sc-if value="{{holIsTable}}" hint-placeholder-val="{{false}}">
+            <div class="tbl" role="table" aria-label="Holders over time, by day" style="--cols: minmax(90px, 1fr) minmax(130px, 1.2fr) minmax(130px, 1.2fr);">
+              <div role="row" class="trow th" style="min-width: 0;"><span role="columnheader">Day (UTC)</span><span role="columnheader">Holders</span><span role="columnheader">Change on the day</span></div>
+              <sc-for list="{{holRows}}" as="r" hint-placeholder-count="8"><div role="row" class="trow" style="min-width: 0;"><span role="cell">{{r.date}}</span><span role="cell">{{r.v}}</span><span role="cell">{{r.d}}</span></div></sc-for>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="hold-title" style="overflow: hidden;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border);">
+          <h2 id="hold-title" style="margin: 0; font-size: 15px; font-weight: 600;">Top holders</h2>
+          <span class="src">/v2/mpt/{issuanceId}/holders</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <div role="table" aria-label="Top holders" style="min-width: 860px; --cols: 36px minmax(260px, 2fr) minmax(160px, 1fr) minmax(220px, 1.3fr) 110px;">
+            <div role="row" class="tr th"><span role="columnheader" class="r">#</span><span role="columnheader">Holder</span><span role="columnheader" class="r">Balance (HTF)</span><span role="columnheader">Share of outstanding</span><span role="columnheader">Balance state</span></div>
+            <div class="tb">
+              <sc-for list="{{holdersTop}}" as="h" hint-placeholder-count="10">
+                <div role="row" class="tr">
+                  <span role="cell" class="r mono num" style="color: var(--faint); font-size: 12px;">{{h.rank}}</span>
+                  <span role="cell" style="min-width: 0;"><a class="acct" href="Account.dc.html" title="{{h.acct.title}}"><span class="{{h.acct.cls}}">{{h.acct.label}}</span><sc-if value="{{h.acct.verified}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if><sc-if value="{{h.acct.curated}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if><sc-if value="{{h.acct.unverified}}" hint-placeholder-val="{{false}}"><span class="unv">not verified</span></sc-if></a></span>
+                  <span role="cell" class="r amt">{{h.bal}}</span>
+                  <span role="cell" style="display: flex; align-items: center; gap: 10px;"><span class="meter" aria-hidden="true"><span style="width: {{h.w}};"></span></span><span class="num" style="font-size: 12.5px; color: var(--muted);">{{h.share}}</span></span>
+                  <span role="cell">
+                    <sc-if value="{{h.locked}}" hint-placeholder-val="{{false}}"><span class="tag" title="Locked by the issuer: this balance cannot move"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Locked</span></sc-if>
+                    <sc-if value="{{h.free}}" hint-placeholder-val="{{true}}"><span style="color: var(--faint); font-size: 12.5px;">Can move</span></sc-if>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">
+          <span>{{topNote}}</span>
+          <button type="button" class="btn">All {{holders}} holders →</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="tr-title" style="overflow: hidden;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border);">
+          <h2 id="tr-title" style="margin: 0; font-size: 15px; font-weight: 600;">Recent transfers</h2>
+          <span class="src">/v2/mpt/{issuanceId}/transfers</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <div role="table" aria-label="Recent transfers" style="min-width: 980px; --cols: 128px 92px minmax(190px, 1.3fr) minmax(190px, 1.3fr) minmax(140px, 1fr) 140px;">
+            <div role="row" class="tr th"><span role="columnheader">Time (UTC)</span><span role="columnheader">Kind</span><span role="columnheader">From</span><span role="columnheader">To</span><span role="columnheader" class="r">Amount (HTF)</span><span role="columnheader">Transaction</span></div>
+            <div class="tb">
+              <sc-for list="{{transfers}}" as="t" hint-placeholder-count="8">
+                <div role="row" class="tr">
+                  <span role="cell" class="num" style="color: var(--muted);">{{t.time}}</span>
+                  <span role="cell"><span class="tag">{{t.kind}}</span></span>
+                  <span role="cell" style="min-width: 0;"><a class="acct" href="Account.dc.html" title="{{t.from.title}}"><span class="{{t.from.cls}}">{{t.from.label}}</span><sc-if value="{{t.from.verified}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if><sc-if value="{{t.from.curated}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if><sc-if value="{{t.from.unverified}}" hint-placeholder-val="{{false}}"><span class="unv">not verified</span></sc-if></a></span>
+                  <span role="cell" style="min-width: 0;"><a class="acct" href="Account.dc.html" title="{{t.to.title}}"><span class="{{t.to.cls}}">{{t.to.label}}</span><sc-if value="{{t.to.verified}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if><sc-if value="{{t.to.curated}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if><sc-if value="{{t.to.unverified}}" hint-placeholder-val="{{false}}"><span class="unv">not verified</span></sc-if></a></span>
+                  <span role="cell" class="r amt" style="color: {{t.amtColor}};">{{t.amount}}</span>
+                  <span role="cell"><a class="mono" href="Transaction.dc.html" style="font-size: 12.5px;" title="{{t.hash}}">{{t.hashShort}}</a></span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">
+          <span>Newest first. A transfer from Harborline Capital issues new HTF. A clawback takes HTF back. A lock stops a balance from moving; its amount is the balance locked.</span>
+          <button type="button" class="btn">Older →</button>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2750}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', holH: -1, holV: 'chart' };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const st = this.state;
+    const x = st.net === 'xrpl';
+    const fmt = (n) => n.toLocaleString('en-US');
+    const fix2 = (n) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const hashOf = (k) => { let h = 2166136261; for (let i = 0; i < k.length; i++) h = Math.imul(h ^ k.charCodeAt(i), 16777619); return h; };
+    const addrOf = (k) => { const R = seedRng(hashOf(k)); let a = 'r'; const len = 24 + Math.floor(R() * 11); for (let i = 0; i < len; i++) a += B58[Math.floor(R() * 58)]; return a; };
+    const hexId = (k, n) => { const R = seedRng(hashOf(k)); let h = ''; for (let i = 0; i < n; i++) h += '0123456789ABCDEF'[Math.floor(R() * 16)]; return h; };
+    // Named accounts take the address every artboard gives that name: its seed in the shared table, else a hash of the name,
+    // plus 1000 on Xahau. Unnamed accounts, and the sandbox's test accounts, keep their own.
+    const SEEDS = { 'Northpeak Treasury': 1101, 'Northpeak Payroll': 1102, 'Harborline Exchange · hot wallet': 1201, 'Harborline Ops': 1202, 'lowtide.example': 1301, 'Copperfield Payments': 1401, 'Hooksmith Labs': 1451, 'Kestrel Exchange · cold wallet': 1501 };
+    const nameSeed = (s) => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
+    const addrSeed = (s) => { const Q = seedRng(s); let a = 'r'; const n = 24 + Math.floor(Q() * 11); for (let i = 0; i < n; i++) a += B58[Math.floor(Q() * 58)]; return a; };
+    const NAMES = {
+      harborline: ['v', 'Harborline Capital'], 'harborline-custody': ['v', 'Harborline Capital, custody'], kestrel: ['c', 'Kestrel Exchange · cold wallet'],
+      stonebridge: ['v', 'Stonebridge Custody'], northpeak: ['v', 'Northpeak Treasury'], quietfjord: ['v', 'Quietfjord Bank'], coralreef: ['u', 'coralreef.example']
+    };
+    const acct = (key) => {
+      const nm0 = NAMES[key];
+      const address = nm0 ? addrSeed((SEEDS[nm0[1]] ?? nameSeed(nm0[1])) + (this.state.net === 'xahau' ? 1000 : 0)) : addrOf(key + '|xrpl|production');
+      const nm = NAMES[key] || ['', ''];
+      const k = nm[0];
+      const short = address.slice(0, 5) + '…' + address.slice(-4);
+      return {
+        address, short, label: k ? nm[1] : short, cls: k ? '' : 'mono',
+        verified: k === 'v', curated: k === 'c', unverified: k === 'u', plain: !k,
+        title: k === 'v' ? 'Verified name · ' + address : k === 'c' ? 'Named by GateHub · ' + address : k === 'u' ? 'Domain not verified · ' + address : address
+      };
+    };
+    const axl = (v) => v >= 1e9 ? +(v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? +(v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? +(v / 1e3).toFixed(1) + 'K' : String(v);
+    const axisOf = (max) => {
+      const rough = max / 4, mag = Math.pow(10, Math.floor(Math.log10(rough)));
+      const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= rough);
+      const top = Math.ceil(max / step) * step, ticks = [];
+      for (let v = 0; v <= top + step / 1e6; v += step) ticks.push({ pos: (v / top * 100).toFixed(2) + '%', label: axl(v), cls: v === 0 ? 'base' : '' });
+      return { top, ticks };
+    };
+    const DAY = 86400000, END = Date.UTC(2026, 9, 23);
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = (i, n) => { const d = new Date(END - (n - 1 - i) * DAY); return MON[d.getUTCMonth()] + ' ' + d.getUTCDate(); };
+    const tf = (left) => left < 22 ? 'translateX(8px)' : left > 78 ? 'translateX(calc(-100% - 8px))' : 'translateX(-50%)';
+    const walk = (seed, end, drift, vol) => { const R = seedRng(seed); const a = []; let v = end; for (let i = 89; i >= 0; i--) { a[i] = Math.round(v); v = v / (1 + drift + (R() - 0.5) * vol); } return a; };
+
+    const chart = (key, vals, show, unit) => {
+      const n = vals.length, ax = axisOf(Math.max.apply(null, vals));
+      const h = st[key + 'H'] ?? -1, view = st[key + 'V'] || 'chart';
+      const set = (i) => this.setState({ [key + 'H']: i });
+      const diff = (i) => vals[i] - vals[i - 1];
+      const dTxt = (i) => i === 0 ? 'first day shown' : (diff(i) >= 0 ? '+' : '−') + show(Math.abs(diff(i))) + unit + ' on the day';
+      const left = h >= 0 ? (h + 0.5) / n * 100 : 0;
+      const pct = (vals[n - 1] / vals[0] - 1) * 100;
+      const o = {};
+      o[key + 'Axis'] = ax.ticks;
+      o[key + 'Cols'] = vals.map((v, i) => ({ h: (v / ax.top * 100).toFixed(2) + '%', cls: h < 0 || h === i ? '' : 'dim' }));
+      o[key + 'Tip'] = h >= 0 ? { show: true, left: left.toFixed(2) + '%', tf: tf(left), date: day(h, n), v: show(vals[h]) + unit, d: dTxt(h), sr: day(h, n) + ': ' + show(vals[h]) + unit + ', ' + dTxt(h) } : { show: false, left: '0%', tf: '', date: '', v: '', d: '', sr: '' };
+      o[key + 'Xl'] = vals.map((v, i) => ({ i, pos: ((i + 0.5) / n * 100).toFixed(2) + '%', label: day(i, n) })).filter((p) => (n - 1 - p.i) % 15 === 7);
+      o[key + 'Rows'] = vals.map((v, i) => ({ date: day(i, n), v: show(v), d: i ? (diff(i) >= 0 ? '+' : '−') + show(Math.abs(diff(i))) : '—' })).reverse();
+      o[key + 'Last'] = show(vals[n - 1]) + unit;
+      o[key + 'Span'] = (pct >= 0 ? '+' : '−') + Math.abs(pct).toFixed(1) + '% over 90 days, since ' + day(0, n);
+      o[key + 'IsChart'] = view === 'chart'; o[key + 'IsTable'] = view === 'table';
+      o[key + 'ChartCls'] = view === 'chart' ? 'on' : ''; o[key + 'TableCls'] = view === 'table' ? 'on' : '';
+      o[key + 'ShowChart'] = () => this.setState({ [key + 'V']: 'chart' });
+      o[key + 'ShowTable'] = () => this.setState({ [key + 'V']: 'table', [key + 'H']: -1 });
+      o[key + 'Move'] = (e) => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.max(0, Math.min(n - 1, Math.floor((e.clientX - r.left) / r.width * n))); if (i !== h) set(i); };
+      o[key + 'Leave'] = () => set(-1);
+      o[key + 'Focus'] = () => set(n - 1);
+      o[key + 'Key'] = (e) => { const k = e.key, c = h < 0 ? n - 1 : h; if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End') { e.preventDefault(); set(k === 'Home' ? 0 : k === 'End' ? n - 1 : Math.max(0, Math.min(n - 1, c + (k === 'ArrowLeft' ? -1 : 1)))); } };
+      return o;
+    };
+
+    // The same issuance the Tokens list shows first on XRPL.
+    const issId = hexId('mpt|harborline|0|production', 48);
+    const OUT = 18204511.2, HOLDERS = 3412;
+    const hold = walk(511, HOLDERS, 0.0026, 0.006);
+    const holdGain = hold[89] - hold[0];
+
+    const meta = {
+      ticker: 'HTF', name: 'Harborline Treasury Fund',
+      desc: 'Shares in a fund that holds short-dated government bills. Each share tracks the net asset value of the fund.',
+      icon: 'https://harborline.example/htf/icon.png', asset_class: 'rwa', asset_subclass: 'treasury', issuer_name: 'Harborline Capital',
+      urls: [{ url: 'https://harborline.example/htf', type: 'website', title: 'Fund page' }, { url: 'https://harborline.example/htf/prospectus.pdf', type: 'docs', title: 'Prospectus' }]
+    };
+    const json = JSON.stringify(meta);
+    let metaHex = '';
+    for (let i = 0; i < json.length; i++) metaHex += json.charCodeAt(i).toString(16).toUpperCase().padStart(2, '0');
+
+    const topDefs = [['harborline-custody', 6120400], ['kestrel', 2410118.5], ['stonebridge', 1804220], ['p-locked', 1240000], ['northpeak', 980550.25], ['p-h1', 612004.1], ['quietfjord', 540000], ['coralreef', 402118.75], ['p-h2', 318800], ['p-h3', 210450.6]];
+    const holdersTop = topDefs.map((d, i) => ({ rank: String(i + 1), acct: acct(d[0]), bal: fix2(d[1]), share: (d[1] / OUT * 100).toFixed(2) + '%', w: (d[1] / topDefs[0][1] * 100).toFixed(1) + '%', locked: d[0] === 'p-locked', free: d[0] !== 'p-locked' }));
+    const topShare = topDefs.reduce((a, d) => a + d[1], 0) / OUT * 100;
+
+    const trDefs = [
+      ['Oct 24, 14:11:05', 'Transfer', 'kestrel', 'p-t1', 25000],
+      ['Oct 24, 12:40:19', 'Transfer', 'p-t2', 'stonebridge', 3120.5],
+      ['Oct 24, 11:02:44', 'Lock', 'harborline', 'p-locked', 1240000],
+      ['Oct 23, 22:18:03', 'Transfer', 'harborline-custody', 'northpeak', 150000],
+      ['Oct 23, 18:20:37', 'Clawback', 'p-t3', 'harborline', 5000],
+      ['Oct 23, 09:15:51', 'Transfer', 'harborline', 'p-t4', 40000],
+      ['Oct 22, 20:03:12', 'Transfer', 'quietfjord', 'kestrel', 12480],
+      ['Oct 22, 14:47:29', 'Transfer', 'p-t5', 'coralreef', 820.25]
+    ];
+    const transfers = trDefs.map((t, i) => {
+      const hash = hexId('tx|htf|' + i, 64);
+      return { time: t[0], kind: t[1], from: acct(t[2]), to: acct(t[3]), amount: fix2(t[4]), amtColor: t[1] === 'Lock' ? 'var(--muted)' : 'var(--fg)', hash, hashShort: hash.slice(0, 6) + '…' + hash.slice(-6) };
+    });
+
+    return Object.assign({
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl', holH: -1 }),
+      pickXahau: () => this.setState({ net: 'xahau', holH: -1 }),
+      issId, issuer: acct('harborline'),
+      outN: fix2(OUT), outPct: (OUT / 50e6 * 100).toFixed(1) + '%',
+      holders: fmt(HOLDERS), holdersSub: 'accounts holding HTF, ' + (holdGain >= 0 ? '+' : '−') + fmt(Math.abs(holdGain)) + ' in 90 days',
+      metaHex, metaBytes: String(json.length),
+      holdersTop, topNote: 'The top 10 hold ' + topShare.toFixed(2) + '% of the outstanding HTF.',
+      transfers
+    }, chart('hol', hold, fmt, ' holders'));
+  }
+}
+</script>
+</body>
+</html>

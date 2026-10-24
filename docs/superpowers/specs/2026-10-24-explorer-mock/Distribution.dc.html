@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Distribution</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.ptabs a.seg{color:var(--muted)!important;text-decoration:none!important;box-sizing:border-box;padding:6px 16px}
+.ptabs a.seg.on{color:var(--fg)!important}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:520px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.zero{color:var(--faint)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.btn:disabled{opacity:.5;cursor:default}
+.btn[aria-pressed="true"]{background:var(--sunken)}
+.sel{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mono{font-size:12.5px}
+.unv{font-size:11px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:0 5px;white-space:nowrap}
+.hrow{position:absolute;inset:0;width:100%;border:0;padding:0;background:transparent;display:flex;align-items:center;cursor:default}
+.hbar{display:block;height:20px;border-radius:0 3px 3px 0;background:var(--accent);min-width:2px}
+.hrow.dim .hbar{opacity:.45}
+.hrow:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav cur">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html" aria-current="page">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Network.dc.html">Network</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Supply &amp; distribution</span>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Supply &amp; distribution</h1>
+    <p style="margin: 0; color: var(--muted);">Who holds the {{cur}}: the rich list, balance brackets and the balance it takes to be in the top, from a daily snapshot of every account.</p>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;">
+    <nav aria-label="Supply and distribution" class="segs ptabs">
+      <a class="seg" href="Supply.dc.html">Supply</a>
+      <a class="seg on" href="Distribution.dc.html" aria-current="page">Distribution</a>
+    </nav>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);">
+        <label for="snap-day">Snapshot of</label>
+        <select id="snap-day" class="sel" value="{{day}}" onChange="{{onDay}}" style="min-height: 36px;"><option value="0">24 Oct 2026</option><option value="1">23 Oct 2026</option><option value="2">22 Oct 2026</option><option value="3">21 Oct 2026</option><option value="4">20 Oct 2026</option><option value="5">19 Oct 2026</option><option value="6">18 Oct 2026</option></select>
+        <span>ledger <a class="mono num" href="Ledger.dc.html">#{{snapLedger}}</a> · taken daily at 00:00 UTC</span>
+      </div>
+      <span class="src">/v2/network/distribution?date={{snapDate}}</span>
+    </div>
+  </div>
+
+  <section aria-label="Totals" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px;">
+    <sc-for list="{{tiles}}" as="t" hint-placeholder-count="3">
+      <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">{{t.label}}</span>
+        <span class="num" style="font-size: 24px; font-weight: 600; letter-spacing: -0.015em;">{{t.value}}</span>
+        <span style="font-size: 12px; color: var(--muted);">{{t.sub}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section class="card" aria-labelledby="rich-title" style="overflow: hidden;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 16px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="rich-title" style="margin: 0; font-size: 15px; font-weight: 600;">Rich list</h2>
+        <span style="font-size: 13px; color: var(--muted);">The 100 accounts that hold the most {{cur}}. Together they hold {{top100}} {{cur}}, {{top100Share}} of the circulating supply.</span>
+      </div>
+      <span class="src">/v2/network/distribution?date={{snapDate}}</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Rich list" style="min-width: 820px; --cols: 52px minmax(260px, 2fr) minmax(190px, 1fr) 150px 150px;">
+        <div role="row" class="tr th">
+          <span role="columnheader" class="r">Rank</span>
+          <span role="columnheader">Account</span>
+          <span role="columnheader" class="r">Balance, {{cur}}</span>
+          <span role="columnheader" class="r">Share of circulating</span>
+          <span role="columnheader" class="r">Change, 30 days</span>
+        </div>
+        <div class="tb">
+          <sc-for list="{{rich}}" as="w" hint-placeholder-count="25">
+            <div role="row" class="tr">
+              <span role="cell" class="r num" style="color: var(--faint);">{{w.rank}}</span>
+              <span role="cell" style="min-width: 0;">
+                <a class="acct" href="Account.dc.html" title="{{w.a.title}}">
+                  <sc-if value="{{w.a.plain}}" hint-placeholder-val="{{true}}"><span class="mono">{{w.a.short}}</span></sc-if>
+                  <sc-if value="{{w.a.verified}}" hint-placeholder-val="{{false}}"><span>{{w.a.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if>
+                  <sc-if value="{{w.a.curated}}" hint-placeholder-val="{{false}}"><span>{{w.a.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if>
+                  <sc-if value="{{w.a.unverified}}" hint-placeholder-val="{{false}}"><span>{{w.a.label}}</span><span class="unv">not verified</span></sc-if>
+                </a>
+              </span>
+              <span role="cell" class="r mono num">{{w.bal}}</span>
+              <span role="cell" class="r num">{{w.share}}</span>
+              <span role="cell" class="r mono num {{w.chgCls}}">{{w.chg}}<span class="sr">{{w.chgSr}}</span></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">
+      <span>{{richNote}}</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" class="btn" aria-pressed="{{showAll}}" onClick="{{toggleAll}}">Show all 100</button>
+        <button type="button" class="btn" disabled="{{prevOff}}" onClick="{{prevPage}}">← Previous</button>
+        <button type="button" class="btn" disabled="{{nextOff}}" onClick="{{nextPage}}">Next →</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="br-title" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="br-title" style="margin: 0; font-size: 15px; font-weight: 600;">Balance brackets</h2>
+        <span class="src">/v2/network/distribution?date={{snapDate}}</span>
+      </div>
+      <div class="segs" role="group" aria-label="Chart measure">
+        <button type="button" class="seg {{accCls}}" aria-pressed="{{isAcc}}" onClick="{{showAcc}}">Accounts</button>
+        <button type="button" class="seg {{heldCls}}" aria-pressed="{{isHeld}}" onClick="{{showHeld}}">{{cur}} held</button>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: flex-start;">
+      <div style="flex: 1 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12px; color: var(--faint);">{{chartTitle}}</span>
+        <div style="display: flex; flex-direction: column;" onMouseLeave="{{leaveBr}}">
+          <sc-for list="{{brBars}}" as="b" hint-placeholder-count="12">
+            <div style="display: grid; grid-template-columns: 78px minmax(0, 1fr) 92px; gap: 10px; align-items: center; height: 32px;">
+              <span class="mono" style="font-size: 12px; color: var(--muted); text-align: right;">{{b.label}}</span>
+              <div style="position: relative; height: 32px; border-left: 1px solid var(--axis);">
+                <button type="button" class="hrow {{b.cls}}" aria-label="{{b.aria}}" onMouseEnter="{{b.enter}}" onFocus="{{b.enter}}" onBlur="{{leaveBr}}"><span class="hbar" style="width: {{b.w}};"></span></button>
+                <sc-if value="{{b.tip}}" hint-placeholder-val="{{false}}">
+                  <div class="tip" style="left: {{b.w}}; top: 28px; transform: {{b.tf}};">
+                    <span style="color: var(--faint);">Balance {{b.label}} {{cur}}</span>
+                    <span><b>{{b.n}}</b> <span style="color: var(--muted);">accounts · {{b.nShare}}</span></span>
+                    <span><b>{{b.held}} {{cur}}</b> <span style="color: var(--muted);">held · {{b.hShare}}</span></span>
+                  </div>
+                </sc-if>
+              </div>
+              <span class="num" style="font-size: 12px; text-align: right; white-space: nowrap;">{{b.v}}</span>
+            </div>
+          </sc-for>
+          <div style="display: grid; grid-template-columns: 78px minmax(0, 1fr) 92px; gap: 10px;" aria-hidden="true">
+            <span></span>
+            <div style="position: relative; height: 22px; border-top: 1px solid var(--axis);">
+              <sc-for list="{{brTicks}}" as="t" hint-placeholder-count="5"><span class="xl" style="left: {{t.pos}}; transform: {{t.tf}};">{{t.label}}</span></sc-for>
+            </div>
+            <span></span>
+          </div>
+        </div>
+      </div>
+      <div style="flex: 1 1 520px; min-width: 0; overflow-x: auto;">
+        <div role="table" aria-label="Balance brackets" style="--cols: minmax(84px, 1fr) minmax(90px, 1fr) 90px minmax(130px, 1.3fr) 80px;">
+          <div role="row" class="trow th"><span role="columnheader">Balance, {{cur}}</span><span role="columnheader">Accounts</span><span role="columnheader">Share</span><span role="columnheader">{{cur}} held</span><span role="columnheader">Share</span></div>
+          <sc-for list="{{brRows}}" as="r" hint-placeholder-count="12">
+            <div role="row" class="trow"><span role="cell" class="mono">{{r.label}}</span><span role="cell">{{r.n}}</span><span role="cell" style="color: var(--muted);">{{r.nShare}}</span><span role="cell">{{r.held}}</span><span role="cell" style="color: var(--muted);">{{r.hShare}}</span></div>
+          </sc-for>
+          <div role="row" class="trow" style="font-weight: 600;"><span role="cell">All</span><span role="cell">{{nAll}}</span><span role="cell">100%</span><span role="cell">{{heldAll}}</span><span role="cell">100%</span></div>
+        </div>
+      </div>
+    </div>
+    <span style="font-size: 12px; color: var(--faint);">Each bracket includes its lower bound. {{cur}} held counts account balances only: {{cur}} in escrows and payment channels is in no balance, so the total is less than the circulating supply.</span>
+  </section>
+
+  <section class="card" aria-labelledby="pc-title" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+      <h2 id="pc-title" style="margin: 0; font-size: 15px; font-weight: 600;">To be in the top, you need at least</h2>
+      <span class="src">/v2/network/distribution?date={{snapDate}}</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 10px;">
+      <sc-for list="{{pcts}}" as="p" hint-placeholder-count="6">
+        <div style="background: var(--sunken); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 12px; color: var(--faint); font-weight: 500;">Top {{p.label}}</span>
+          <span class="num" style="font-size: 19px; font-weight: 600; letter-spacing: -0.01em;">{{p.v}} <span style="font-size: 13px; color: var(--muted); font-weight: 500;">{{cur}}</span></span>
+          <span class="num" style="font-size: 12px; color: var(--muted);">{{p.n}} accounts</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2700}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', day: '0', page: 0, all: false, measure: 'accounts', hovK: -1 };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const st = this.state;
+    const cur = x ? 'XRP' : 'XAH';
+    const fmt = (n) => n.toLocaleString('en-US');
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const compact = (n) => { const a = Math.abs(n); const t = (v, u) => (+v.toFixed(2)).toLocaleString('en-US') + ' ' + u; return a >= 1e9 ? t(n / 1e9, 'B') : a >= 1e6 ? t(n / 1e6, 'M') : a >= 1e3 ? t(n / 1e3, 'K') : (+n.toFixed(2)).toLocaleString('en-US'); };
+    const pct = (v) => v >= 1 ? v.toFixed(2) + '%' : v >= 0.01 ? v.toFixed(3) + '%' : (+v.toPrecision(2)) + '%';
+
+    // Account names
+    const addrOf = (seed) => { const Q = seedRng(seed); let a = 'r'; const n = 24 + Math.floor(Q() * 11); for (let i = 0; i < n; i++) a += B58[Math.floor(Q() * 58)]; return a; };
+    const hash = (s) => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
+    const SEEDS = { 'Northpeak Treasury': 1101, 'Harborline Exchange · hot wallet': 1201, 'lowtide.example': 1301, 'Copperfield Payments': 1401, 'Hooksmith Labs': 1451, 'Kestrel Exchange · cold wallet': 1501 };
+    const addrFor = (name) => addrOf((SEEDS[name] ?? hash(name)) + (x ? 0 : 1000));
+    const acct = (address, kind, text) => ({ address, short: address.slice(0, 5) + '…' + address.slice(-4), label: text || '', verified: kind === 'v', curated: kind === 'c', unverified: kind === 'u', plain: !kind, title: kind === 'v' ? 'Verified name · ' + address : kind === 'c' ? 'Named by GateHub · ' + address : kind === 'u' ? 'Domain not verified · ' + address : address });
+    const names = x
+      ? { 1: ['v', 'Meridian Labs'], 2: ['c', 'Kestrel Exchange · cold wallet'], 3: ['v', 'Northpeak Treasury'], 5: ['v', 'Bluecanyon Digital'], 6: ['c', 'Harborline Exchange · hot wallet'], 7: ['c', 'Kestrel Exchange · reserve wallet'], 9: ['v', 'Saltmarsh Bullion'], 10: ['v', 'Stonebridge Custody'], 12: ['c', 'Ironwood Exchange · cold wallet'], 14: ['u', 'amberline.example'], 15: ['v', 'Northpeak Treasury, hot wallet'], 17: ['v', 'Meridian Labs, operations'], 19: ['c', 'Glasshouse Exchange · cold wallet'], 21: ['c', 'Redkite Markets · hot wallet'], 24: ['c', 'Kestrel Exchange · hot wallet'], 28: ['c', 'Fernbank Exchange · cold wallet'], 31: ['v', 'Quietfjord Bank'], 37: ['c', 'Westerly Exchange · hot wallet'], 44: ['u', 'lowtide.example'], 52: ['v', 'Cobaltgate, exchange wallet'], 63: ['v', 'Tallpine Trust'], 71: ['v', 'Copperfield Payments'], 88: ['c', 'Brightwater Exchange · cold wallet'], 95: ['v', 'Harborline Capital'] }
+      : { 1: ['v', 'Hooksmith Labs'], 2: ['c', 'Saltgrass Exchange · cold wallet'], 4: ['v', 'Pinecrest Fund'], 5: ['c', 'Ravenhill Markets · hot wallet'], 7: ['u', 'emberfield.example'], 8: ['c', 'Saltgrass Exchange · hot wallet'], 10: ['c', 'Kestrel Exchange · cold wallet'], 12: ['v', 'Wolfbay Treasury'], 15: ['c', 'Juniper Exchange · cold wallet'], 23: ['c', 'Gullwing Markets · hot wallet'], 33: ['v', 'Lanternfish Foundation'], 48: ['v', 'Starling Labs'], 66: ['u', 'bramble.example'], 81: ['c', 'Ravenhill Markets · cold wallet'] };
+
+    // The snapshot: balance by rank, through each bracket edge
+    const d = Math.max(0, Math.min(6, parseInt(st.day, 10) || 0));
+    const dates = ['2026-10-24', '2026-10-23', '2026-10-22', '2026-10-21', '2026-10-20', '2026-10-19', '2026-10-18'];
+    const edges = [0, 20, 500, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6, 5e6, 1e7];
+    const blabels = ['0–20', '20–500', '500–1k', '1k–5k', '5k–10k', '10k–50k', '50k–100k', '100k–500k', '500k–1M', '1M–5M', '5M–10M', '10M+'];
+    const counts = (x ? [3912406, 1402118, 322804, 448215, 130662, 133918, 27409, 24718, 4108, 2982, 516, 424] : [105024, 61206, 9604, 6912, 1406, 1284, 380, 372, 128, 78, 13, 5]).slice();
+    counts[0] -= d * (x ? 1700 : 160);
+    counts[1] -= d * (x ? 700 : 60);
+    const N = counts.reduce((a, b) => a + b, 0);
+    const C = [];
+    let acc = 0;
+    for (let k = 11; k >= 0; k--) { acc += counts[k]; C[k] = acc; }
+    const pts = [[1, (x ? 3.0e9 : 36e6) * (1 - d * 0.0009)]];
+    if (x) pts.push([100, 114e6 * (1 - d * 0.0006)]);
+    for (let k = 11; k >= 1; k--) { pts.push([C[k], edges[k] * 1.0027193]); pts.push([C[k] + 1, edges[k] * 0.9973417]); }
+    pts.push([N, 0.8]);
+    const bal = (r) => {
+      for (let j = 1; j < pts.length; j++) {
+        const p = pts[j - 1], q = pts[j];
+        if (r <= q[0]) return p[1] * Math.pow(r / p[0], Math.log(q[1] / p[1]) / Math.log(q[0] / p[0]));
+      }
+      return 0.8;
+    };
+    const area = (ra, rb) => {
+      let tot = 0;
+      for (let j = 1; j < pts.length; j++) {
+        const p = pts[j - 1], q = pts[j];
+        const lo = Math.max(p[0], ra), hi = Math.min(q[0], rb);
+        if (hi <= lo) continue;
+        const s = Math.log(q[1] / p[1]) / Math.log(q[0] / p[0]);
+        tot += Math.abs(s + 1) < 1e-9 ? p[1] * p[0] * Math.log(hi / lo) : p[1] * p[0] / (s + 1) * (Math.pow(hi / p[0], s + 1) - Math.pow(lo / p[0], s + 1));
+      }
+      return tot;
+    };
+    const held = counts.map((c, k) => area(k === 11 ? 0.5 : C[k + 1] + 0.5, C[k] + 0.5));
+    const heldAll = held.reduce((a, b) => a + b, 0);
+    const circ = x ? 64772465269.314 : 594995554.799302;
+    let lo = 1, hi = N;
+    while (hi - lo > 1) { const m = Math.floor((lo + hi) / 2); if (bal(m) > 1) lo = m; else hi = m; }
+    const funded = lo;
+    const median = bal(N / 2);
+    const amt = (v) => v >= 1000 ? fmt(Math.round(v)) : v.toFixed(2);
+
+    const tiles = [
+      { label: 'Accounts', value: fmt(N), sub: 'in the ledger at this snapshot' },
+      { label: 'Funded accounts', value: fmt(funded), sub: 'holding more than the 1 ' + cur + ' base reserve · ' + pct(funded / N * 100) },
+      { label: 'Median balance', value: amt(median) + ' ' + cur, sub: 'half of all accounts hold less' }
+    ];
+
+    // Rich list
+    const R = seedRng((x ? 6100 : 6200) + d);
+    const bals = [];
+    for (let r = 1; r <= 100; r++) bals.push(bal(r) * (1 + 0.004 * (R() - 0.5)));
+    bals.sort((a, b) => b - a);
+    const RC = seedRng((x ? 6300 : 6400) + d);
+    const allRich = bals.map((b, i) => {
+      const r = i + 1;
+      const nm = names[r];
+      const a = nm ? acct(addrFor(nm[1]), nm[0], nm[1]) : acct(addrOf((x ? 880000 : 990000) + r), '', '');
+      const k = RC();
+      const ch = k < 0.16 ? 0 : b * (RC() - 0.42) * 0.09;
+      return {
+        rank: String(r), a, bal: fmt(Math.round(b)), share: pct(b / circ * 100),
+        chg: ch === 0 ? '0' : (ch > 0 ? '+' : '−') + compact(Math.abs(ch)), chgCls: ch === 0 ? 'zero' : '',
+        chgSr: ch === 0 ? ' ' + cur + ', no change in 30 days' : ' ' + cur + ' in 30 days'
+      };
+    });
+    const top100 = bals.reduce((a, b) => a + b, 0);
+    const page = st.all ? 0 : st.page;
+    const rich = st.all ? allRich : allRich.slice(page * 25, page * 25 + 25);
+    const richNote = st.all ? 'Showing all 100' : 'Showing ' + (page * 25 + 1) + '–' + (page * 25 + 25) + ' of 100 · page ' + (page + 1) + ' of 4';
+
+    // Brackets
+    const isAcc = st.measure === 'accounts';
+    const vals = isAcc ? counts : held;
+    const vmax = Math.max.apply(null, vals);
+    const rough = vmax / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= rough);
+    const top = Math.ceil(vmax / step) * step;
+    const brTicks = [];
+    for (let v = 0; v <= top + 1e-9; v += step) { const p = v / top * 100; brTicks.push({ pos: p.toFixed(2) + '%', label: compact(v), tf: p === 0 ? 'none' : p >= 99.9 ? 'translateX(-100%)' : 'translateX(-50%)' }); }
+    const hk = st.hovK;
+    const brRows = counts.map((c, k) => ({ label: blabels[k], n: fmt(c), nShare: pct(c / N * 100), held: fmt(Math.round(held[k])), hShare: pct(held[k] / heldAll * 100) }));
+    const brBars = brRows.map((r, k) => {
+      const w = vals[k] / top * 100;
+      return Object.assign({}, r, {
+        w: w.toFixed(2) + '%', tf: w > 55 ? 'translateX(calc(-100% - 8px))' : 'translateX(8px)',
+        v: isAcc ? r.n : compact(held[k]), held: compact(held[k]),
+        cls: hk < 0 || hk === k ? '' : 'dim', tip: hk === k,
+        aria: 'Balance ' + r.label + ' ' + cur + ': ' + r.n + ' accounts (' + r.nShare + '), ' + compact(held[k]) + ' ' + cur + ' held (' + r.hShare + ')',
+        enter: () => this.setState({ hovK: k })
+      });
+    });
+
+    // Percentile thresholds
+    const pcts = [[0.0001, '0.01%'], [0.001, '0.1%'], [0.01, '1%'], [0.05, '5%'], [0.1, '10%'], [0.5, '50%']].map((p) => { const k = Math.round(N * p[0]); return { label: p[1], v: amt(bal(k)), n: fmt(k) }; });
+
+    const ledger0 = x ? 107728848 : 17463870;
+    const reset = { page: 0, all: false, hovK: -1 };
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState(Object.assign({ net: 'xrpl' }, reset)),
+      pickXahau: () => this.setState(Object.assign({ net: 'xahau' }, reset)),
+      netName: x ? 'XRPL' : 'Xahau', cur,
+      day: String(d), onDay: (e) => this.setState({ day: e.target.value || '0', hovK: -1 }),
+      snapDate: dates[d], snapLedger: fmt(ledger0 - d * (x ? 22097 : 21763)),
+      tiles,
+      top100: compact(top100), top100Share: pct(top100 / circ * 100),
+      rich, richNote, showAll: !!st.all,
+      toggleAll: () => this.setState({ all: !st.all, page: 0 }),
+      prevOff: st.all || page === 0, nextOff: st.all || page === 3,
+      prevPage: () => this.setState({ page: Math.max(0, page - 1) }),
+      nextPage: () => this.setState({ page: Math.min(3, page + 1) }),
+      isAcc, isHeld: !isAcc, accCls: isAcc ? 'on' : '', heldCls: isAcc ? '' : 'on',
+      showAcc: () => this.setState({ measure: 'accounts', hovK: -1 }), showHeld: () => this.setState({ measure: 'held', hovK: -1 }),
+      chartTitle: isAcc ? 'Accounts in each bracket' : cur + ' held in each bracket',
+      brBars, brTicks, brRows, nAll: fmt(N), heldAll: fmt(Math.round(heldAll)),
+      leaveBr: () => this.setState({ hovK: -1 }),
+      pcts
+    };
+  }
+}
+</script>
+</body>
+</html>

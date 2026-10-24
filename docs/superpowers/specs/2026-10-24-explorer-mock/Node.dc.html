@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Node</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.hseg{border:0;padding:0;min-width:2px;height:100%;cursor:default}
+.hseg.dim{opacity:.45}
+.hseg:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
+.hl{position:absolute;top:3px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;box-sizing:border-box;font-variant-numeric:tabular-nums}
+.hl b{color:var(--fg);font-weight:600}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:520px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--fg)}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;white-space:nowrap}
+.st.good{color:var(--ok)}
+.st.quiet{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.field{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:0 12px;min-height:44px;box-sizing:border-box}
+.sel{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
+.disc summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:500;color:var(--link)}
+.disc summary::-webkit-details-marker{display:none}
+.disc .chev{transition:transform .15s}
+.disc[open] .chev{transform:rotate(90deg)}
+.disc ul{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:4px}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:5px;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.kv{display:flex;flex-direction:column;gap:3px;min-width:0}
+.kv>span:first-child{font-size:12px;color:var(--faint);font-weight:500}
+.kv .sub{font-size:12px;color:var(--muted)}
+.sd{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:currentColor}
+.plot{position:relative;height:180px}
+.gl{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+.gl.base{border-top-color:var(--axis)}
+.yl{position:absolute;right:10px;transform:translateY(50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hit{position:absolute;inset:0;border:0;background:transparent;padding:0;cursor:crosshair;width:100%;height:100%}
+.strip{display:grid;grid-template-columns:repeat(90,minmax(0,1fr));gap:2px;height:36px}
+.dc{border-radius:2px;background:var(--ok)}
+.dc.part{background:color-mix(in srgb,var(--ok) 38%,var(--surface))}
+.dc.down{background:repeating-linear-gradient(135deg,var(--bad) 0 3px,color-mix(in srgb,var(--bad) 40%,var(--surface)) 3px 5px)}
+.dc.none{background:transparent;box-shadow:inset 0 0 0 1px var(--border-strong)}
+.dc.on{outline:2px solid var(--fg);outline-offset:1px}
+.cols{position:absolute;inset:0;display:flex;align-items:flex-end;gap:2px}
+.cb{flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column-reverse}
+.cb i{display:block;flex:none}
+.cb .in{background:var(--s1)}
+.cb .out{background:var(--s2);border-radius:2px 2px 0 0}
+.cb.dim{opacity:.4}
+.fld{font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:var(--muted)}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav cur">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html" aria-current="page">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Network.dc.html">Network</a><span aria-hidden="true">/</span><a href="Nodes.dc.html">Nodes</a><span aria-hidden="true">/</span><span aria-current="page" class="mono" style="color: var(--muted);">{{nodeShort}}</span>
+  </nav>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+    <section class="card" aria-labelledby="node-h" style="flex: 999 1 640px; min-width: 0; padding: 20px 22px; display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 16px;">
+        <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+          <span style="font-size: 12px; color: var(--faint); font-weight: 500;">Node public key</span>
+          <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <h1 id="node-h" class="mono" style="margin: 0; font-size: 19px; font-weight: 500; letter-spacing: -0.01em; overflow-wrap: anywhere;">{{nodeKey}}</h1>
+            <button type="button" class="copy" aria-label="Copy public key"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button>
+          </div>
+        </div>
+        <span class="src">/v2/network/nodes/{publicKey}</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: var(--faint); font-weight: 500;">Operator</span>
+        <span class="acct" title="{{opTitle}}" style="gap: 6px;"><span style="font-size: 18px; font-weight: 600;">Northpeak</span><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified operator</span></span>
+        <span style="font-size: 13px; color: var(--muted);">{{verifyNote}}</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 16px 24px;">
+        <div class="kv"><span>Country</span><span>Finland</span><span class="sub">by IP geolocation</span></div>
+        <div class="kv"><span>Hosting provider</span><span>Hetzner</span></div>
+        <div class="kv"><span>Version</span><span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><span class="mono">{{ver}}</span><span class="st good"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M6.5 13.5 12 8l5.5 5.5M6 4h12"></path></svg>latest</span></span></div>
+        <div class="kv"><span>State</span><span class="st good" style="font-size: 14px;"><span class="sd" aria-hidden="true"></span>proposing</span><span class="sub">taking part in consensus</span></div>
+        <div class="kv"><span>Uptime</span><span class="num">{{uptime}}</span><span class="sub">{{upSince}}</span></div>
+        <div class="kv"><span>Connections now</span><span class="num">{{connsNow}}</span><span class="sub">inbound / outbound</span></div>
+        <div class="kv"><span>Last crawled</span><span class="num">{{crawled}}</span><span class="sub">{{crawlPort}}</span></div>
+      </div>
+    </section>
+
+    <aside class="card" aria-labelledby="val-h" style="flex: 1 1 300px; min-width: 0; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--sunken); border: 1px solid var(--border); color: var(--fg);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6z"></path><path d="m9 12 2 2 4-4"></path></svg></span>
+        <h2 id="val-h" style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.4;">This node is the validator <a class="mono" href="Validator.dc.html" title="{{valKey}}" style="font-weight: 500;">{{valShort}}</a></h2>
+        <span style="font-size: 13px; color: var(--muted);">northpeak.example · on the default UNL</span>
+        <span class="src">/v2/network/nodes/{publicKey}</span>
+      </div>
+      <a href="Validator.dc.html" style="font-size: 13px; font-weight: 500;">Open the validator →</a>
+    </aside>
+  </div>
+
+  <section class="card" aria-labelledby="av-title" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="av-title" style="margin: 0; font-size: 15px; font-weight: 600;">Availability, last 90 days</h2>
+        <span class="src">/v2/network/nodes/{publicKey}</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+        <span class="num" style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">{{avPct}}</span>
+        <span style="font-size: 12px; color: var(--muted);">of crawls answered, days we crawled</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 0;">
+      <div style="position: relative;" onMouseLeave="{{dLeave}}">
+        <div class="strip" aria-hidden="true">
+          <sc-for list="{{days}}" as="d" hint-placeholder-count="90"><span class="dc {{d.cls}}"></span></sc-for>
+        </div>
+        <button type="button" class="hit" aria-label="Availability by day, last 90 days. Use the arrow keys to read each day." onMouseMove="{{dMove}}" onFocus="{{dFocus}}" onBlur="{{dLeave}}" onKeyDown="{{dKey}}"></button>
+        <sc-if value="{{dTip.show}}" hint-placeholder-val="{{false}}">
+          <div class="tip" style="left: {{dTip.left}}; top: 44px; transform: {{dTip.tf}};">
+            <span style="color: var(--faint);">{{dTip.date}}</span>
+            <span><span class="sw dc {{dTip.cls}}"></span><b>{{dTip.word}}</b></span>
+            <span style="color: var(--muted);">{{dTip.detail}}</span>
+          </div>
+        </sc-if>
+      </div>
+      <div style="position: relative; height: 24px;" aria-hidden="true">
+        <sc-for list="{{xls}}" as="t" hint-placeholder-count="4"><span class="xl" style="left: {{t.pos}}; transform: {{t.tf}};">{{t.label}}</span></sc-for>
+      </div>
+    </div>
+    <span class="sr" aria-live="polite">{{dTip.sr}}</span>
+    <div class="legend" aria-label="Legend">
+      <sc-for list="{{avLegend}}" as="g" hint-placeholder-count="4"><span><span class="sw dc {{g.cls}}"></span><b style="color: var(--fg); font-weight: 600;">{{g.word}}</b>, {{g.what}} · {{g.n}}</span></sc-for>
+    </div>
+    <span style="font-size: 12px; color: var(--faint);">{{avNote}}</span>
+  </section>
+
+  <section class="card" aria-labelledby="cn-title" style="padding: 16px 18px 12px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="cn-title" style="margin: 0; font-size: 15px; font-weight: 600;">Connections, last 90 days</h2>
+        <span class="src">/v2/network/nodes/{publicKey}</span>
+      </div>
+      <div class="segs">
+        <button type="button" class="seg {{chartCls}}" aria-pressed="{{isChart}}" onClick="{{showChart}}">Chart</button>
+        <button type="button" class="seg {{tableCls}}" aria-pressed="{{isTable}}" onClick="{{showTable}}">Table</button>
+      </div>
+    </div>
+    <div class="legend" aria-label="Legend">
+      <span><span class="sw" style="background: var(--s1);"></span>Inbound: other nodes connected to this one</span>
+      <span><span class="sw" style="background: var(--s2);"></span>Outbound: nodes this one connected to</span>
+    </div>
+    <sc-if value="{{isChart}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex;">
+        <div style="position: relative; width: 40px; flex: none;" aria-hidden="true"><div class="plot"><sc-for list="{{cAxis}}" as="a" hint-placeholder-count="5"><span class="yl" style="bottom: {{a.pos}};">{{a.label}}</span></sc-for></div></div>
+        <div style="flex: 1 1 auto; min-width: 0;">
+          <div class="plot" onMouseLeave="{{cLeave}}">
+            <sc-for list="{{cAxis}}" as="a" hint-placeholder-count="5"><span class="gl {{a.cls}}" style="bottom: {{a.pos}};"></span></sc-for>
+            <div class="cols" aria-hidden="true">
+              <sc-for list="{{bars}}" as="b" hint-placeholder-count="90"><span class="cb {{b.cls}}"><i class="in" style="height: {{b.hIn}};"></i><i class="out" style="height: {{b.hOut}};"></i></span></sc-for>
+            </div>
+            <sc-if value="{{cTip.show}}" hint-placeholder-val="{{false}}">
+              <div class="tip" style="left: {{cTip.left}}; transform: {{cTip.tf}};">
+                <span style="color: var(--faint);">{{cTip.date}}</span>
+                <sc-if value="{{cTip.crawled}}" hint-placeholder-val="{{true}}">
+                  <span><span class="sw" style="background: var(--s2);"></span>Outbound <b>{{cTip.cout}}</b></span>
+                  <span><span class="sw" style="background: var(--s1);"></span>Inbound <b>{{cTip.cin}}</b></span>
+                  <span style="color: var(--muted);">{{cTip.sum}} in all, daily average</span>
+                </sc-if>
+                <sc-if value="{{cTip.missing}}" hint-placeholder-val="{{false}}"><span style="color: var(--muted);">Not crawled this day</span></sc-if>
+              </div>
+            </sc-if>
+            <button type="button" class="hit" aria-label="Connections by day, last 90 days. Use the arrow keys to read each day." onMouseMove="{{cMove}}" onFocus="{{cFocus}}" onBlur="{{cLeave}}" onKeyDown="{{cKey}}"></button>
+          </div>
+          <div style="position: relative; height: 24px;" aria-hidden="true">
+            <sc-for list="{{xls}}" as="t" hint-placeholder-count="4"><span class="xl" style="left: {{t.pos}}; transform: {{t.tf}};">{{t.label}}</span></sc-for>
+          </div>
+        </div>
+      </div>
+      <span class="sr" aria-live="polite">{{cTip.sr}}</span>
+    </sc-if>
+    <sc-if value="{{isTable}}" hint-placeholder-val="{{false}}">
+      <div class="tbl" role="table" aria-label="Connections by day" style="--cols: minmax(110px, 1.2fr) repeat(3, minmax(80px, 1fr)); max-height: 236px;">
+        <div role="row" class="trow th"><span role="columnheader">Day (UTC)</span><span role="columnheader">Inbound</span><span role="columnheader">Outbound</span><span role="columnheader">In all</span></div>
+        <sc-for list="{{cRows}}" as="r" hint-placeholder-count="8"><div role="row" class="trow"><span role="cell">{{r.date}}</span><span role="cell">{{r.cin}}</span><span role="cell">{{r.cout}}</span><span role="cell">{{r.sum}}</span></div></sc-for>
+      </div>
+    </sc-if>
+    <span style="font-size: 12px; color: var(--faint);">Daily average of the connections each crawl reports, stacked. Days we did not crawl are left empty; on a day the node was down it had none.</span>
+  </section>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: stretch;">
+    <section class="card" aria-labelledby="vh-title" style="flex: 1 1 460px; min-width: 0; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="vh-title" style="margin: 0; font-size: 15px; font-weight: 600;">Version history</h2>
+        <span class="src">/v2/network/nodes/{publicKey}</span>
+      </div>
+      <div style="overflow-x: auto; flex: 1 1 auto;">
+        <div role="table" aria-label="Version history" style="min-width: 440px; --cols: minmax(150px, 1.4fr) minmax(100px, 1fr) minmax(100px, 1fr) 56px;">
+          <div role="row" class="tr th"><span role="columnheader">Version</span><span role="columnheader">First seen</span><span role="columnheader">Last seen</span><span role="columnheader" class="r">Days</span></div>
+          <div class="tb">
+            <sc-for list="{{verRows}}" as="v" hint-placeholder-count="4">
+              <div role="row" class="tr">
+                <span role="cell" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><span class="mono">{{v.ver}}</span><sc-if value="{{v.latest}}" hint-placeholder-val="{{true}}"><span class="st good">running now</span></sc-if></span>
+                <span role="cell" class="num">{{v.first}}</span>
+                <span role="cell" class="num">{{v.last}}</span>
+                <span role="cell" class="r num">{{v.days}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">The version the node reports in each crawl. An upgrade restarts the node, so its uptime counts from the latest one.</div>
+    </section>
+
+    <section class="card" aria-labelledby="tm-title" style="flex: 1 1 460px; min-width: 0; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="padding: 14px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h2 id="tm-title" style="margin: 0; font-size: 15px; font-weight: 600;">{{tomlTitle}}</h2>
+          <span class="src">/v2/toml/northpeak.example</span>
+        </div>
+        <span class="mono" style="font-size: 12.5px; color: var(--muted);">[[SERVERS]]</span>
+      </div>
+      <div style="overflow-x: auto; flex: 1 1 auto;">
+        <div role="table" aria-label="The toml entry for this node" style="min-width: 420px; --cols: 96px minmax(200px, 1fr);">
+          <div role="row" class="tr th"><span role="columnheader">Field</span><span role="columnheader">Value</span></div>
+          <div class="tb">
+            <sc-for list="{{tomlRows}}" as="f" hint-placeholder-count="4">
+              <div role="row" class="tr">
+                <span role="cell" class="fld">{{f.k}}</span>
+                <span role="cell" style="display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; min-width: 0;"><span class="mono" style="font-size: 13px; overflow-wrap: anywhere;">{{f.v}}</span><sc-if value="{{f.match}}" hint-placeholder-val="{{false}}"><span class="st good"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>answers with this node’s key</span></sc-if></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--faint);">{{tomlNote}}</div>
+    </section>
+  </div>
+</main>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":1650}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', dh: -1, ch: -1, view: 'chart' };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const st = this.state;
+
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const prog = x ? 'rippled' : 'xahaud';
+    const toml = x ? 'xrp-ledger.toml' : 'xahau.toml';
+    // Northpeak's node, and the validator it is (the key Validator.dc.html shows for northpeak.example).
+    const NK = x ? 'n9hDaoa1CkyJvs6gHrWWjuqor3ZixYqiqEKuX6EgsmLJEN7GCr71' : 'n99pTDQLNVE2FXkSuNoKba8p7euurYqwGhxjAJjTu7cKWmsVyykj';
+    const VK = x ? 'n9jRPADMgNAasC7J3bP3H2fxac6V1whUrFGv1KroiZZ6Db6v92vS' : 'n9TiFPgbaz4rijDZomZ7QwDqbiQEwcmmYstnUzZRLygRPYHU5cMd';
+    const short = (k) => k.slice(0, 6) + '…' + k.slice(-4);
+
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const DAY = 864e5, END = Date.UTC(2026, 9, 24);
+    const dOf = (t) => { const d = new Date(t); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
+    const dShort = (t) => { const d = new Date(t); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()]; };
+    const tipTf = (left) => left < 18 ? 'translateX(-8px)' : left > 82 ? 'translateX(calc(-100% + 8px))' : 'translateX(-50%)';
+
+    // 90 days of crawls, one every 5 minutes. Days that were not fully up, by network.
+    const EV = x
+      ? { '12 Aug 2026': ['part', 279], '29 Aug 2026': ['down', 0], '3 Sep 2026': ['part', 262], '15 Sep 2026': ['none', 0], '16 Sep 2026': ['none', 0], '7 Oct 2026': ['part', 281] }
+      : { '9 Aug 2026': ['part', 270], '15 Sep 2026': ['none', 0], '16 Sep 2026': ['none', 0], '21 Sep 2026': ['down', 0], '2 Oct 2026': ['part', 283] };
+    const R = seedRng(x ? 6601 : 6602);
+    let walk = x ? 18 : 11;
+    const days = [];
+    for (let i = 0; i < 90; i++) {
+      const t = END - (89 - i) * DAY, date = dOf(t), e = EV[date];
+      const total = i === 89 ? 161 : 288;
+      const cls = e ? e[0] : 'up';
+      walk = Math.max(x ? 12 : 7, Math.min(x ? 27 : 17, walk + Math.round((R() - 0.5) * 5)));
+      const out = R() < 0.25 ? 11 : 10;
+      days.push({ t, date, cls, ans: e ? e[1] : total, total, cin: cls === 'none' ? null : cls === 'down' ? 0 : walk, cout: cls === 'none' ? null : cls === 'down' ? 0 : out });
+    }
+    const WORD = { up: 'Up', part: 'Partly up', down: 'Down', none: 'Not crawled' };
+    const WHAT = { up: 'answered every crawl', part: 'answered some crawls', down: 'answered none', none: 'our crawler did not run' };
+    const detail = (d, i) => d.cls === 'none' ? 'Our crawler did not run this day' : 'Answered ' + d.ans + ' of ' + d.total + ' crawls' + (i === 89 ? ' so far today' : '');
+    const crawled = days.filter((d) => d.cls !== 'none');
+    const ansAll = crawled.reduce((a, d) => a + d.ans, 0), totAll = crawled.reduce((a, d) => a + d.total, 0);
+    const count = (c) => days.filter((d) => d.cls === c).length;
+    const avLegend = ['up', 'part', 'down', 'none'].map((c) => ({ cls: c, word: WORD[c], what: WHAT[c], n: count(c) + (count(c) === 1 ? ' day' : ' days') }));
+    const notUp = days.filter((d) => d.cls !== 'up').map((d) => dShort(d.t) + ' ' + WORD[d.cls].toLowerCase() + (d.cls === 'part' ? ' (' + d.ans + ' of ' + d.total + ')' : ''));
+    const xls = [[0, 'none'], [30, 'translateX(-50%)'], [60, 'translateX(-50%)'], [89, 'translateX(-100%)']].map((p) => ({ pos: ((p[0] + (p[0] === 0 ? 0 : p[0] === 89 ? 1 : 0.5)) / 90 * 100).toFixed(2) + '%', tf: p[1], label: p[0] === 89 ? 'Today' : dShort(days[p[0]].t) }));
+
+    const dh = st.dh;
+    const dd = dh >= 0 ? days[dh] : null;
+    const dTip = dd ? { show: true, left: ((dh + 0.5) / 90 * 100).toFixed(2) + '%', tf: tipTf((dh + 0.5) / 90 * 100), date: dh === 89 ? dd.date + ' (today)' : dd.date, cls: dd.cls, word: WORD[dd.cls], detail: detail(dd, dh), sr: dd.date + ': ' + WORD[dd.cls] + '. ' + detail(dd, dh) + '.' }
+      : { show: false, left: '0%', tf: 'none', date: '', cls: '', word: '', detail: '', sr: '' };
+    const idxAt = (e) => { const r = e.currentTarget.getBoundingClientRect(); return Math.max(0, Math.min(89, Math.floor((e.clientX - r.left) / r.width * 90))); };
+    const step = (cur, e) => e.key === 'ArrowLeft' ? Math.max(0, (cur < 0 ? 89 : cur) - 1) : e.key === 'ArrowRight' ? Math.min(89, cur + 1) : e.key === 'Home' ? 0 : e.key === 'End' ? 89 : cur;
+
+    // Connections: daily averages, stacked.
+    const maxC = Math.max(...days.map((d) => (d.cin || 0) + (d.cout || 0)));
+    const top = Math.ceil(maxC / 10) * 10;
+    const cAxis = [];
+    for (let v = 0; v <= top; v += 10) cAxis.push({ pos: (v / top * 100).toFixed(2) + '%', label: String(v), cls: v === 0 ? 'base' : '' });
+    const ch = st.ch;
+    const bars = days.map((d, i) => ({ hIn: ((d.cin || 0) / top * 100).toFixed(2) + '%', hOut: ((d.cout || 0) / top * 100).toFixed(2) + '%', cls: ch >= 0 && ch !== i ? 'dim' : '' }));
+    const cd = ch >= 0 ? days[ch] : null;
+    const cTip = cd ? { show: true, left: ((ch + 0.5) / 90 * 100).toFixed(2) + '%', tf: tipTf((ch + 0.5) / 90 * 100), date: ch === 89 ? cd.date + ' (today)' : cd.date, crawled: cd.cls !== 'none', missing: cd.cls === 'none', cin: String(cd.cin), cout: String(cd.cout), sum: String((cd.cin || 0) + (cd.cout || 0)), sr: cd.date + ': ' + (cd.cls === 'none' ? 'not crawled' : cd.cin + ' inbound, ' + cd.cout + ' outbound') + '.' }
+      : { show: false, left: '0%', tf: 'none', date: '', crawled: false, missing: false, cin: '', cout: '', sum: '', sr: '' };
+    const cRows = days.slice().reverse().map((d) => ({ date: d.date, cin: d.cin === null ? '—' : String(d.cin), cout: d.cout === null ? '—' : String(d.cout), sum: d.cin === null ? 'not crawled' : String(d.cin + d.cout) }));
+    const isChart = st.view === 'chart';
+
+    // Versions this node has reported: [version, first seen, last seen or null for now] (UTC dates).
+    const VH = x
+      ? [['3.4.0', [2026, 9, 7], null], ['3.3.1', [2026, 7, 12], [2026, 9, 7]], ['3.2.0', [2026, 5, 2], [2026, 7, 12]], ['3.1.2', [2026, 2, 9], [2026, 5, 2]]]
+      : [['2026.9.30', [2026, 9, 2], null], ['2026.6.2', [2026, 5, 15], [2026, 9, 2]], ['2026.3.11', [2026, 2, 20], [2026, 5, 15]], ['2025.12.4', [2025, 11, 10], [2026, 2, 20]]];
+    const verRows = VH.map((v, k) => {
+      const a = Date.UTC(v[1][0], v[1][1], v[1][2]);
+      const b = v[2] ? Date.UTC(v[2][0], v[2][1], v[2][2]) : END;
+      return { ver: prog + ' ' + v[0], latest: k === 0, first: dOf(a), last: v[2] ? dOf(b) : 'now', days: String(Math.round((b - a) / DAY)) };
+    });
+
+    const host = x ? 'northpeak.example' : 'xahau.northpeak.example';
+    const tomlRows = [
+      { k: 'network', v: '"main"', match: false },
+      { k: 'json_rpc', v: '"https://rpc.' + host + '"', match: false },
+      { k: 'ws', v: '"wss://ws.' + host + '"', match: false },
+      { k: 'peer', v: '"hub1.' + host + ':' + (x ? 51235 : 21337) + '"', match: true }
+    ];
+    const reset = { dh: -1, ch: -1, view: 'chart' };
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState(Object.assign({ net: 'xrpl' }, reset)),
+      pickXahau: () => this.setState(Object.assign({ net: 'xahau' }, reset)),
+      netName: x ? 'XRPL' : 'Xahau',
+      nodeKey: NK, nodeShort: short(NK), valKey: VK, valShort: short(VK),
+      opTitle: 'Verified operator · northpeak.example lists this node in its ' + toml + ' [[SERVERS]]',
+      verifyNote: 'Verified: northpeak.example lists this node in its ' + toml + ' [[SERVERS]], and the host named there answers with this public key.',
+      ver: prog + ' ' + VH[0][0],
+      uptime: x ? '17 d 3 h' : '22 d 2 h', upSince: x ? 'up since 7 Oct 2026, 09:42 UTC' : 'up since 2 Oct 2026, 11:05 UTC',
+      connsNow: days[89].cin + ' in / ' + days[89].cout + ' out',
+      crawled: x ? '4 min ago' : '3 min ago', crawlPort: 'answered /crawl on port ' + (x ? 51235 : 21337),
+      avPct: (ansAll / totAll * 100).toFixed(2) + '%', days: days.map((d, i) => ({ cls: d.cls + (i === dh ? ' on' : '') })), xls, avLegend, dTip,
+      avNote: 'Not fully up: ' + notUp.join(', ') + '. A day counts as up when the node answered every crawl that day.',
+      dMove: (e) => this.setState({ dh: idxAt(e) }), dFocus: () => this.setState({ dh: st.dh >= 0 ? st.dh : 89 }), dLeave: () => this.setState({ dh: -1 }),
+      dKey: (e) => { const n = step(st.dh, e); if (n !== st.dh) { if (e.preventDefault) e.preventDefault(); this.setState({ dh: n }); } },
+      isChart, isTable: !isChart, chartCls: isChart ? 'on' : '', tableCls: isChart ? '' : 'on',
+      showChart: () => this.setState({ view: 'chart' }), showTable: () => this.setState({ view: 'table', ch: -1 }),
+      cAxis, bars, cTip, cRows,
+      cMove: (e) => this.setState({ ch: idxAt(e) }), cFocus: () => this.setState({ ch: st.ch >= 0 ? st.ch : 89 }), cLeave: () => this.setState({ ch: -1 }),
+      cKey: (e) => { const n = step(st.ch, e); if (n !== st.ch) { if (e.preventDefault) e.preventDefault(); this.setState({ ch: n }); } },
+      verRows,
+      tomlTitle: 'In northpeak.example’s ' + toml, tomlRows,
+      tomlNote: 'A [[SERVERS]] entry names a node by its hosts. We crawl the host in the peer field, and it answers with this node’s public key, so the entry is this node. Addresses are not shown.'
+    };
+  }
+}
+</script>
+</body>
+</html>

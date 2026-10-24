@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Account names</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--fg)}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;white-space:nowrap}
+.st.good{color:var(--ok)}
+.st.quiet{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.disc summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:500;color:var(--link)}
+.disc summary::-webkit-details-marker{display:none}
+.disc .chev{transition:transform .15s}
+.disc[open] .chev{transform:rotate(90deg)}
+.disc ul{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:4px}
+.amt{font-family:'Geist Mono',ui-monospace,monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.type{font-size:12px;font-weight:500;padding:2px 7px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);color:var(--fg);white-space:nowrap}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:5px;vertical-align:middle;min-width:30px;min-height:30px;position:relative}
+.copy::after{content:'';position:absolute;inset:-7px}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.idc{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;width:44px;height:44px;padding:4px;border-radius:11px;background:var(--sunken);box-sizing:border-box;flex:none}
+.idc span{border-radius:2px}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mono{font-size:12.5px}
+.unv{font-size:11px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:0 5px;white-space:nowrap}
+[role=cell] a{display:inline-flex;align-items:center;min-height:32px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--muted)}
+.lbl{font-size:12px;color:var(--faint);font-weight:500}
+.aname{margin:0;font-size:22px;font-weight:600;letter-spacing:-0.015em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.aname .unv{font-size:12px;font-weight:500;letter-spacing:0;padding:1px 7px}
+.hdr{padding:22px;display:flex;flex-wrap:wrap;gap:22px 32px;align-items:flex-start;justify-content:space-between;border-radius:14px}
+.bal{flex:1 1 240px;display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-radius:12px;background:var(--sunken);border:1px solid var(--border)}
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:13px}
+.chk svg{flex:none;margin-top:1px;color:var(--ok)}
+.facts{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:10px 24px}
+.facts dt{font-size:12px;color:var(--faint);font-weight:500}
+.facts dd{margin:2px 0 0;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+      <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+    </a>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>XRPL</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>Xahau</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav cur" href="Account.dc.html" aria-current="page">Accounts</a>
+      <a class="nav" href="Tokens.dc.html">Tokens</a>
+      <details class="menu">
+        <summary class="nav">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><a href="Account.dc.html">Accounts</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Account names</span>
+  </nav>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 520px;">
+      <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Account names</h1>
+      <p style="margin: 0; color: var(--muted); max-width: 760px; text-wrap: pretty;">Wherever it can, the explorer shows an account's name instead of its address. A name is either verified, by the account and its domain together, or curated, given by GateHub. A domain that does not confirm the account is shown as not verified.</p>
+    </div>
+    <span class="src">/v2/accounts/{a}/name</span>
+  </div>
+
+  <section aria-labelledby="cap-ver" style="display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px;">
+      <h2 id="cap-ver" class="cap">Verified name</h2>
+      <span class="src">/v2/accounts/{a}/name · /v2/toml/{domain}</span>
+    </div>
+    <div class="card hdr">
+      <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
+          <div class="idc" aria-hidden="true"><sc-for list="{{npkCells}}" as="c" hint-placeholder-count="25"><span style="background: {{c.bg}};"></span></sc-for></div>
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <span class="lbl">Account</span>
+            <h3 class="aname" title="{{npk.title}}"><span>{{npk.label}}</span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></h3>
+            <span class="mono" style="font-size: 13px; color: var(--muted); overflow-wrap: anywhere;">{{npk.address}}<button type="button" class="copy" aria-label="Copy address"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></span>
+          </div>
+        </div>
+        <p style="margin: 0; color: var(--muted);">Verified name · domain <a href="https://northpeak.example">northpeak.example</a></p>
+        <details class="disc" open="{{yes}}" style="border-top: 1px solid var(--border);">
+          <summary>How we know<svg class="chev" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></summary>
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <ul style="margin: 0; gap: 8px;">
+              <li class="chk"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg><span><span class="sr">Passed: </span>The account's Domain field is <b style="font-weight: 600;">northpeak.example</b>.</span></li>
+              <li class="chk"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 2.7 2.7L16 9.8"></path></svg><span><span class="sr">Passed: </span><a class="mono" href="{{tomlUrl}}" style="font-size: 12.5px;">northpeak.example/.well-known/{{tomlFile}}</a> lists this address under <span class="mono" style="font-size: 12.5px;">[[ACCOUNTS]]</span>, and its <span class="mono" style="font-size: 12.5px;">desc</span> gives the name.</span></li>
+            </ul>
+            <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 10px; background: var(--sunken);">
+              <span style="font-size: 13px; font-weight: 600;">What else that toml says</span>
+              <dl class="facts">
+                <div><dt>Principals</dt><dd>{{principals}}</dd></div>
+                <div><dt>Currencies</dt><dd><sc-for list="{{tomlCur}}" as="c" hint-placeholder-count="2"><a class="mono" href="Token.dc.html" style="font-size: 12.5px;">{{c.code}}</a></sc-for></dd></div>
+                <div><dt>Last modified</dt><dd><span class="num">{{tomlModified}}</span><span style="color: var(--faint);">from <span class="mono" style="font-size: 12px;">[METADATA]</span></span></dd></div>
+              </dl>
+            </div>
+          </div>
+        </details>
+      </div>
+      <div class="bal">
+        <span class="lbl">{{cur}} balance</span>
+        <span class="amt" style="font-size: 24px; letter-spacing: -0.015em;">{{npkBal}}</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="cap-cur" style="display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px;">
+      <h2 id="cap-cur" class="cap">Named by GateHub</h2>
+      <span class="src">/v2/accounts/{a}/name</span>
+    </div>
+    <div class="card hdr">
+      <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
+          <div class="idc" aria-hidden="true"><sc-for list="{{hbxCells}}" as="c" hint-placeholder-count="25"><span style="background: {{c.bg}};"></span></sc-for></div>
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <span class="lbl">Account</span>
+            <h3 class="aname" title="{{hbx.title}}"><span>{{hbx.label}}</span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></h3>
+            <span class="mono" style="font-size: 13px; color: var(--muted); overflow-wrap: anywhere;">{{hbx.address}}<button type="button" class="copy" aria-label="Copy address"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></span>
+          </div>
+        </div>
+        <p style="margin: 0; color: var(--muted);">Named by GateHub · no domain set</p>
+        <p style="margin: 0; font-size: 13px; color: var(--muted); text-wrap: pretty;">GateHub names accounts that have no verified name, such as an exchange's hot wallet. If this name is wrong, or an account you run should have one, <a href="#">ask GateHub to change it</a>.</p>
+      </div>
+      <div class="bal">
+        <span class="lbl">{{cur}} balance</span>
+        <span class="amt" style="font-size: 24px; letter-spacing: -0.015em;">{{hbxBal}}</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="cap-unv" style="display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px;">
+      <h2 id="cap-unv" class="cap">Domain not verified</h2>
+      <span class="src">/v2/accounts/{a}/name · /v2/toml/{domain}</span>
+    </div>
+    <div class="card hdr">
+      <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
+          <div class="idc" aria-hidden="true"><sc-for list="{{lowCells}}" as="c" hint-placeholder-count="25"><span style="background: {{c.bg}};"></span></sc-for></div>
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <span class="lbl">Account</span>
+            <h3 class="aname" title="{{low.title}}"><span>{{low.label}}</span><span class="unv">not verified</span></h3>
+            <span class="mono" style="font-size: 13px; color: var(--muted); overflow-wrap: anywhere;">{{low.address}}<button type="button" class="copy" aria-label="Copy address"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></span>
+          </div>
+        </div>
+        <p style="margin: 0; font-size: 13px; color: var(--muted); text-wrap: pretty;">This account names lowtide.example in its Domain field, but lowtide.example's {{tomlFile}} does not list the account. The explorer shows the domain, without vouching for it.</p>
+      </div>
+      <div class="bal">
+        <span class="lbl">{{cur}} balance</span>
+        <span class="amt" style="font-size: 24px; letter-spacing: -0.015em;">{{lowBal}}</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="cap-none" style="display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px;">
+      <h2 id="cap-none" class="cap">No name</h2>
+      <span class="src">/v2/accounts/{a}/name</span>
+    </div>
+    <div class="card" style="padding: 16px 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;">
+      <div style="flex: 999 1 520px; display: flex; align-items: center; gap: 14px; min-width: 0;">
+        <div class="idc" aria-hidden="true"><sc-for list="{{nnCells}}" as="c" hint-placeholder-count="25"><span style="background: {{c.bg}};"></span></sc-for></div>
+        <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+          <span class="lbl">Account</span>
+          <h3 class="mono" style="margin: 0; font-size: 19px; font-weight: 500; letter-spacing: -0.01em; overflow-wrap: anywhere;">{{nn.address}}<button type="button" class="copy" aria-label="Copy address"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h8"></path></svg></button></h3>
+        </div>
+      </div>
+      <p style="margin: 0; flex: 1 1 280px; font-size: 13px; color: var(--muted);">No verified or curated name, so the address is the title. In lists it is shortened to <span class="mono" style="font-size: 12.5px;">{{nn.short}}</span>.</p>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="tx-title" style="overflow: hidden;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+        <h2 id="tx-title" style="margin: 0; font-size: 15px; font-weight: 600;">Recent transactions</h2>
+        <span class="src">/v2/transactions · name: {text, kind, domain}</span>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: var(--muted);">Names replace shortened addresses everywhere in the explorer. Hover a name for the full address.</p>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="Recent transactions" style="min-width: 860px; --cols: 120px minmax(220px, 1.3fr) minmax(220px, 1.3fr) minmax(180px, 1fr) 96px;">
+        <div role="row" class="tr th"><span role="columnheader">Type</span><span role="columnheader">From</span><span role="columnheader">To</span><span role="columnheader" class="r">Amount</span><span role="columnheader" class="r">Time</span></div>
+        <div class="tb">
+          <sc-for list="{{txs}}" as="t" hint-placeholder-count="8">
+            <div role="row" class="tr">
+              <span role="cell"><span class="type">{{t.type}}</span></span>
+              <span role="cell" style="min-width: 0; display: flex;"><sc-if value="{{t.from.verified}}" hint-placeholder-val="{{true}}"><a class="acct" href="Account.dc.html" title="{{t.from.title}}"><span>{{t.from.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{t.from.curated}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{t.from.title}}"><span>{{t.from.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{t.from.unverified}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{t.from.title}}"><span>{{t.from.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{t.from.plain}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{t.from.title}}"><span class="mono">{{t.from.short}}</span></a></sc-if></span>
+              <span role="cell" style="min-width: 0; display: flex;"><sc-if value="{{t.to.verified}}" hint-placeholder-val="{{true}}"><a class="acct" href="Account.dc.html" title="{{t.to.title}}"><span>{{t.to.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></a></sc-if><sc-if value="{{t.to.curated}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{t.to.title}}"><span>{{t.to.label}}</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></a></sc-if><sc-if value="{{t.to.unverified}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{t.to.title}}"><span>{{t.to.label}}</span><span class="unv">not verified</span></a></sc-if><sc-if value="{{t.to.plain}}" hint-placeholder-val="{{false}}"><a class="acct" href="Account.dc.html" title="{{t.to.title}}"><span class="mono">{{t.to.short}}</span></a></sc-if></span>
+              <span role="cell" class="r amt">{{t.amt}}</span>
+              <span role="cell" class="r num"><a href="Transaction.dc.html" style="color: var(--muted);">{{t.time}}</a></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">Showing the 8 newest. A name's mark says which kind it is: verified, named by GateHub, or a domain that is not verified.</div>
+  </section>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"$preview":{"width":1440,"height":2050}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl' };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const x = this.state.net === 'xrpl';
+    const cur = x ? 'XRP' : 'XAH';
+
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    // One seed per account and network, shared with Delegation and Validator, so an account has the same address on every page.
+    const addrOf = (s) => { const R = seedRng(s); const n = 24 + Math.floor(R() * 11); let a = 'r'; for (let i = 0; i < n; i++) a += B58[Math.floor(R() * 58)]; return a; };
+    const pre = { verified: 'Verified name · ', curated: 'Named by GateHub · ', unverified: 'Domain not verified · ', plain: '' };
+    const acct = (kind, label, seed) => {
+      const address = addrOf(seed + (x ? 0 : 1000));
+      const short = address.slice(0, 5) + '…' + address.slice(-4);
+      return { address, short, label: label || short, verified: kind === 'verified', curated: kind === 'curated', unverified: kind === 'unverified', plain: kind === 'plain', title: pre[kind] + address };
+    };
+    const cellsOf = (addr) => {
+      let seed = 0;
+      for (let i = 0; i < addr.length; i++) seed = (seed * 31 + addr.charCodeAt(i)) >>> 0;
+      const cells = [];
+      for (let r = 0; r < 5; r++) {
+        const row = [];
+        for (let c = 0; c < 3; c++) { seed = (seed * 1103515245 + 12345) >>> 0; row.push((seed >>> 16) % 2 === 0); }
+        [row[0], row[1], row[2], row[1], row[0]].forEach((on) => cells.push({ bg: on ? 'var(--accent)' : 'transparent' }));
+      }
+      return cells;
+    };
+
+    const npk = acct('verified', 'Northpeak Treasury', 1101);
+    const hbx = acct('curated', 'Harborline Exchange · hot wallet', 1201);
+    const low = acct('unverified', 'lowtide.example', 1301);
+    const nn = acct('plain', '', 1601);
+    const cpf = x ? acct('verified', 'Copperfield Payments', 1401) : acct('verified', 'Hooksmith Labs', 1451);
+    const kes = acct('curated', 'Kestrel Exchange · cold wallet', 1501);
+    const p2 = acct('plain', '', 1602);
+    const p3 = acct('plain', '', 1603);
+
+    const ago = (s) => s < 60 ? s + ' s ago' : Math.round(s / 60) + ' min ago';
+    const T = [
+      ['Payment', npk, cpf, x ? '25,000.00 NPUSD' : '8,000.00 NPUSD', 12],
+      ['Payment', hbx, nn, x ? '4,180.5 XRP' : '1,206.25 XAH', 31],
+      ['TrustSet', p2, npk, 'limit 1,000,000 NPUSD', 47],
+      ['Payment', low, hbx, x ? '880 XRP' : '312 XAH', 64],
+      ['EscrowCreate', kes, p3, x ? '50,000 XRP' : '20,000 XAH', 95],
+      ['Payment', cpf, npk, x ? '12,400.00 NPUSD' : '3,150.00 NPUSD', 128],
+      ['CheckCreate', nn, low, '300.00 NPUSD', 171],
+      ['Payment', p3, kes, x ? '1,999.75 XRP' : '745.5 XAH', 240]
+    ];
+    const txs = T.map((r) => ({ type: r[0], from: Object.assign({}, r[1]), to: Object.assign({}, r[2]), amt: r[3], time: ago(r[4]) }));
+    const tomlFile = x ? 'xrp-ledger.toml' : 'xahau.toml';
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState({ net: 'xrpl' }),
+      pickXahau: () => this.setState({ net: 'xahau' }),
+      netName: x ? 'XRPL' : 'Xahau', cur, yes: true,
+      npk, hbx, low, nn,
+      npkCells: cellsOf(npk.address), hbxCells: cellsOf(hbx.address), lowCells: cellsOf(low.address), nnCells: cellsOf(nn.address),
+      npkBal: x ? '1,204,880.512' : '318,402.25', hbxBal: x ? '8,412,377.09' : '904,118.6', lowBal: x ? '2,140.88' : '611.2',
+      tomlFile, tomlUrl: 'https://northpeak.example/.well-known/' + tomlFile,
+      principals: x ? 'Mara Lindqvist, Tomas Okafor' : 'Mara Lindqvist, Ines Varga',
+      tomlCur: (x ? ['NPUSD', 'NPEUR'] : ['NPUSD']).map((c) => ({ code: c })),
+      tomlModified: x ? '2 Oct 2026' : '18 Aug 2026',
+      txs
+    };
+  }
+}
+</script>
+</body>
+</html>

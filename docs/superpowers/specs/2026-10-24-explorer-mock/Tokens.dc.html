@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tokens</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.xp{--bg:#F5F6F8;--surface:#FFFFFF;--sunken:#EEF0F3;--border:#E1E4E9;--border-strong:#CDD2D9;--fg:#0F1217;--muted:#4F5864;--faint:#646D7A;--link:var(--accent);--ok:#17733F;--ok-bg:#E3F3E9;--bad:#B42318;--bad-bg:#FCEBE9;--grid:#EEF0F3;--axis:#CDD2D9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s-other:#A7AEB8;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.xp.dark{--bg:#0B0E12;--surface:#12161C;--sunken:#181D24;--border:#232A33;--border-strong:#323B46;--fg:#E7EBF0;--muted:#A3ACB9;--faint:#8D97A5;--link:color-mix(in srgb,var(--accent) 55%,#ffffff);--ok:#5BD08F;--ok-bg:#10281B;--bad:#F28B80;--bad-bg:#30161A;--grid:#1D232B;--axis:#323B46;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s-other:#58616C}
+.xp a{color:var(--link);text-decoration:none}
+.xp a:hover{text-decoration:underline}
+.xp button,.xp input,.xp select{font:inherit;color:inherit}
+.xp :focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{border:0;background:transparent;padding:6px 12px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500;color:var(--muted);min-height:32px;white-space:nowrap;position:relative}
+.seg::after{content:'';position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.seg.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.segs{display:flex;padding:3px;background:var(--sunken);border:1px solid var(--border);border-radius:9px}
+.nav{padding:8px 10px;border-radius:7px;color:var(--muted)!important;font-weight:500;display:inline-flex;align-items:center}
+.nav:hover{background:var(--sunken);text-decoration:none!important;color:var(--fg)!important}
+.nav.cur{color:var(--fg)!important;background:var(--sunken)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.src{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--faint)}
+.xl{position:absolute;top:6px;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+.tip{position:absolute;z-index:3;top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px -14px rgba(0,0,0,.4);padding:10px 12px;font-size:12px;min-width:180px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.hseg{border:0;padding:0;min-width:2px;height:100%;cursor:default}
+.hseg.dim{opacity:.45}
+.hseg:focus-visible{outline:2px solid var(--link);outline-offset:-2px}
+.hl{position:absolute;top:3px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;box-sizing:border-box;font-variant-numeric:tabular-nums}
+.hl b{color:var(--fg);font-weight:600}
+.tbl{max-height:300px;overflow:auto;border-top:1px solid var(--border)}
+.trow{display:grid;grid-template-columns:var(--cols);column-gap:12px;padding:0 12px;min-height:34px;align-items:center;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums;min-width:520px}
+.trow span{text-align:right;white-space:nowrap}
+.trow span:first-child{text-align:left}
+.trow.th{position:sticky;top:0;background:var(--surface);font-weight:500;color:var(--faint);z-index:1}
+.tr{display:grid;grid-template-columns:var(--cols);align-items:center;column-gap:16px;padding:0 16px;min-height:46px;border-top:1px solid var(--border);font-size:13px}
+.th{min-height:36px;font-size:12px;font-weight:500;color:var(--faint);border-top:0}
+.tb .tr:hover{background:var(--sunken)}
+.r{text-align:right;justify-self:end}
+.tag{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--border);white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--fg)}
+.st{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;white-space:nowrap}
+.st.good{color:var(--ok)}
+.st.quiet{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 12px;min-height:36px;color:var(--fg)!important;font-weight:500;font-size:13px;cursor:pointer;position:relative}
+.btn::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.btn:hover{border-color:var(--border-strong);text-decoration:none!important}
+.field{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:0 12px;min-height:44px;box-sizing:border-box}
+.sel{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
+.disc summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:44px;font-weight:500;color:var(--link)}
+.disc summary::-webkit-details-marker{display:none}
+.disc .chev{transition:transform .15s}
+.disc[open] .chev{transform:rotate(90deg)}
+.disc ul{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:4px}
+.menu{position:relative;display:inline-flex}.menu>summary{list-style:none;cursor:pointer}.menu>summary::-webkit-details-marker{display:none}.menu-panel{position:absolute;z-index:20;top:calc(100% + 6px);left:0;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -16px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}.menu-panel a{display:flex;align-items:center;min-height:36px;padding:0 10px;border-radius:7px;color:var(--fg)!important;font-weight:500}.menu-panel a:hover{background:var(--sunken);text-decoration:none!important}.menu-panel a[aria-current="page"]{background:var(--sunken)}
+.acct{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+.acct>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mono{font-size:12.5px}
+.unv{font-size:11px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:5px;padding:0 5px;white-space:nowrap}
+.amt{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
+.tok{--c:var(--s1);width:32px;height:32px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;color:var(--fg);background:color-mix(in srgb,var(--c) 16%,var(--surface));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c) 55%,var(--surface))}
+.tok.lg{width:52px;height:52px;font-size:21px}
+.tok.none{--c:var(--s-other);color:var(--muted)}
+.tk{display:flex;align-items:center;gap:10px;min-width:0;color:var(--fg)!important}
+.tk:hover{text-decoration:none!important}
+.tk:hover .code{text-decoration:underline}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hex{border-bottom:1px dotted var(--faint);cursor:help}
+.copy{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:4px;border-radius:6px;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.copy:hover{color:var(--fg);background:var(--sunken)}
+.kv{display:grid;grid-template-columns:150px minmax(0,1fr);column-gap:16px;padding:9px 0;border-top:1px solid var(--border);font-size:13px;align-items:baseline}
+.kv>span:first-child{color:var(--faint);font-size:12.5px}
+.meter{width:96px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden;flex:none}
+.meter>span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.tile{padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.tile>span:first-child{font-size:12px;color:var(--faint);font-weight:500}
+.tv{font-size:22px;font-weight:600;letter-spacing:-0.015em;font-variant-numeric:tabular-nums}
+.ts{font-size:12px;color:var(--muted)}
+.plot{position:relative;height:180px}
+.gl{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+.gl.base{border-top-color:var(--axis)}
+.yl{position:absolute;right:10px;transform:translateY(50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bars{position:absolute;inset:0;display:flex;align-items:flex-end}
+.col{flex:1 1 0;height:100%;display:flex;align-items:flex-end;justify-content:center;min-width:0}
+.bar{width:min(6px,70%);border-radius:2px 2px 0 0;background:var(--accent);min-height:1px}
+.col.dim .bar{opacity:.4}
+.hit{position:absolute;inset:0;border:0;background:transparent;padding:0;cursor:crosshair;width:100%;height:100%;border-radius:4px}
+.ic{flex:none;margin-top:1px}
+.set{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--border);font-size:13px}
+.set b{font-weight:600}
+.pill{font-size:11.5px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--border-strong);color:var(--fg);white-space:nowrap}
+.tnet{font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:2px 8px;border-radius:999px;background:#FDF0D5;color:#7A4306;border:1px solid #EBC985;white-space:nowrap}
+.xp.dark .tnet{background:#33240A;color:#F5C866;border-color:#5C4316}
+</style>
+</helmet>
+<div class="xp {{themeClass}}" style="--accent: {{accentNow}};">
+
+<header style="background: var(--surface); border-bottom: 1px solid var(--border);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--fg);" aria-label="Explorer home">
+        <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" style="fill: var(--accent)"></rect><path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+        <span style="font-weight: 650; font-size: 17px; letter-spacing: -0.01em;">explorer</span>
+      </a>
+      <sc-if value="{{sandbox}}" hint-placeholder-val="{{false}}"><span class="tnet" title="Sandbox: explorer.sandbox.gatehub.net">Testnet</span></sc-if>
+    </div>
+    <div role="group" aria-label="Network" class="segs">
+      <button type="button" class="seg {{xrplCls}}" aria-pressed="{{isXrpl}}" onClick="{{pickXrpl}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xrplDot}};"></span>{{xrplName}}</button>
+      <button type="button" class="seg {{xahauCls}}" aria-pressed="{{isXahau}}" onClick="{{pickXahau}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{xahauDot}};"></span>{{xahauName}}</button>
+    </div>
+    <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 2px; align-items: center;">
+      <a class="nav" href="Ledger.dc.html">Ledgers</a>
+      <a class="nav" href="Transaction.dc.html">Transactions</a>
+      <a class="nav" href="Account.dc.html">Accounts</a>
+      <a class="nav cur" href="Tokens.dc.html" aria-current="page">Tokens</a>
+      <details class="menu">
+        <summary class="nav">Network<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><path d="m6 9 6 6 6-6"></path></svg></summary>
+        <div class="menu-panel">
+          <a href="Network.dc.html">Overview</a>
+          <a href="Validators.dc.html">Validators</a>
+          <a href="Nodes.dc.html">Nodes</a>
+          <a href="Amendments.dc.html">Amendments</a>
+          <a href="Supply.dc.html">Supply &amp; distribution</a>
+        </div>
+      </details>
+      <a class="nav" href="Markets.dc.html">Markets</a>
+      <a class="nav" href="Amm.dc.html">AMM</a>
+      <a class="nav" href="Nfts.dc.html">NFTs</a>
+    </nav>
+    <form role="search" style="flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; min-height: 40px;">
+      <label for="hdr-q" class="sr">Search</label>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input id="hdr-q" type="search" placeholder="Address, hash, ledger or CTID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+    </form>
+  </div>
+</header>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px;">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap;">
+    <a href="Main.dc.html">{{netName}}</a><span aria-hidden="true">/</span><span aria-current="page" style="color: var(--muted);">Tokens</span>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <h1 style="margin: 0; font-size: 30px; letter-spacing: -0.02em; font-weight: 650;">Tokens</h1>
+    <p style="margin: 0; color: var(--muted);">Tokens on {{netName}}, ranked by holders. <sc-if value="{{isIssued}}" hint-placeholder-val="{{true}}">Names come from each issuer’s toml.</sc-if><sc-if value="{{isMpt}}" hint-placeholder-val="{{false}}">Tickers and names come from each issuance’s metadata.</sc-if></p>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;">
+      <div class="segs" role="group" aria-label="Kind of token">
+        <button type="button" class="seg {{issuedCls}}" aria-pressed="{{isIssued}}" onClick="{{pickIssued}}">Issued tokens</button>
+        <button type="button" class="seg {{mptCls}}" aria-pressed="{{isMpt}}" onClick="{{pickMpt}}" disabled="{{mptOff}}" aria-describedby="mpt-note">MPT</button>
+      </div>
+      <sc-if value="{{mptOff}}" hint-placeholder-val="{{false}}">
+        <span id="mpt-note" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted);"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5.5M12 7.5h.01"></path></svg>MPT isn’t enabled on Xahau.</span>
+      </sc-if>
+    </div>
+    <span class="src">{{listSrc}}</span>
+  </div>
+
+  <section aria-label="Totals" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px;">
+    <sc-for list="{{tiles}}" as="t" hint-placeholder-count="3">
+      <div class="card tile">
+        <span>{{t.label}}</span>
+        <span class="tv">{{t.value}}</span>
+        <span class="ts">{{t.sub}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <sc-if value="{{isIssued}}" hint-placeholder-val="{{true}}">
+    <section class="card" aria-labelledby="iss-title" style="overflow: hidden;">
+      <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+          <h2 id="iss-title" style="margin: 0; font-size: 15px; font-weight: 600;">Issued tokens</h2>
+          <span class="src">{{issSrc}}</span>
+        </div>
+        <div role="group" aria-label="Filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;">
+          <div class="field" style="flex: 1 1 280px;">
+            <label for="iss-q" class="sr">Search issued tokens by code, name or issuer</label>
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+            <input id="iss-q" type="search" value="{{q}}" onChange="{{onQ}}" placeholder="Code, name or issuer" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+          </div>
+          <button type="button" class="btn" onClick="{{toggleAll}}">{{allLabel}}</button>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <div role="table" aria-label="Issued tokens" style="min-width: 1120px; --cols: 36px minmax(220px, 1.6fr) minmax(180px, 1.3fr) 92px 110px 112px 128px 104px;">
+          <div role="row" class="tr th">
+            <span role="columnheader" class="r">#</span>
+            <span role="columnheader">Token</span>
+            <span role="columnheader">Issuer</span>
+            <span role="columnheader" class="r">Holders</span>
+            <span role="columnheader" class="r">Supply</span>
+            <span role="columnheader" class="r">Price ({{cur}})</span>
+            <span role="columnheader" class="r">Volume 24 h ({{cur}})</span>
+            <span role="columnheader" style="line-height: 1.25;" title="The issuer’s toml has a [[CURRENCIES]] entry for this token">Listed in the issuer’s toml</span>
+          </div>
+          <div class="tb">
+            <sc-for list="{{issRows}}" as="t" hint-placeholder-count="12">
+              <div role="row" class="tr">
+                <span role="cell" class="r mono num" style="color: var(--faint); font-size: 12px;">{{t.rank}}</span>
+                <span role="cell" style="min-width: 0; padding: 7px 0;">
+                  <a class="tk" href="Token.dc.html">
+                    <span class="tok" aria-hidden="true" style="--c: {{t.color}};">{{t.initial}}</span>
+                    <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.3;">
+                      <span style="font-weight: 600;"><span class="code {{t.codeCls}}" title="{{t.codeTitle}}">{{t.code}}</span><sc-if value="{{t.isHex}}" hint-placeholder-val="{{false}}"><span class="sr">, currency code in hex {{t.hex}}</span></sc-if></span>
+                      <sc-if value="{{t.hasName}}" hint-placeholder-val="{{true}}"><span class="ell" style="font-size: 12.5px; color: var(--muted);">{{t.name}}</span></sc-if>
+                    </span>
+                  </a>
+                </span>
+                <span role="cell" style="min-width: 0;"><a class="acct" href="Account.dc.html" title="{{t.issuer.title}}"><span class="{{t.issuer.cls}}">{{t.issuer.label}}</span><sc-if value="{{t.issuer.verified}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if><sc-if value="{{t.issuer.curated}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if><sc-if value="{{t.issuer.unverified}}" hint-placeholder-val="{{false}}"><span class="unv">not verified</span></sc-if></a></span>
+                <span role="cell" class="r num">{{t.holders}}</span>
+                <span role="cell" class="r amt">{{t.supply}}</span>
+                <span role="cell" class="r amt">{{t.price}}</span>
+                <span role="cell" class="r amt">{{t.vol}}</span>
+                <span role="cell">
+                  <sc-if value="{{t.toml}}" hint-placeholder-val="{{true}}"><span class="st good" title="Listed in the issuer’s toml"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="m9 14.5 2 2 4-4"></path></svg>listed<span class="sr"> in the issuer’s toml</span></span></sc-if>
+                  <sc-if value="{{t.noToml}}" hint-placeholder-val="{{false}}"><span style="color: var(--faint);" title="Not listed in the issuer’s toml">—<span class="sr">not listed in the issuer’s toml</span></span></sc-if>
+                </span>
+              </div>
+            </sc-for>
+            <sc-if value="{{issEmpty}}" hint-placeholder-val="{{false}}">
+              <div style="padding: 28px 16px; color: var(--faint); border-top: 1px solid var(--border);">No issued tokens match “{{q}}”.</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">
+        <span style="display: flex; flex-direction: column; gap: 2px;"><span>{{issNote}}</span><span>Holders: accounts with a positive balance. Supply: the sum of their balances. Price: the last trade.</span></span>
+        <div style="display: flex; gap: 8px;"><button type="button" class="btn" disabled="{{yes}}" style="opacity: .55;">← Previous</button><button type="button" class="btn" disabled="{{issLast}}">Next →</button></div>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isMpt}}" hint-placeholder-val="{{false}}">
+    <section class="card" aria-labelledby="mpt-title" style="overflow: hidden;">
+      <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;">
+          <h2 id="mpt-title" style="margin: 0; font-size: 15px; font-weight: 600;">MPTs</h2>
+          <span class="src">/v2/tokens?kind=mpt</span>
+        </div>
+        <div role="group" aria-label="Filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;">
+          <div class="field" style="flex: 1 1 280px;">
+            <label for="mpt-q" class="sr">Search MPTs by ticker, name, issuer or issuance ID</label>
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--faint); flex: none;"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+            <input id="mpt-q" type="search" value="{{q}}" onChange="{{onQ}}" placeholder="Ticker, name, issuer or issuance ID" style="flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px;">
+          </div>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <div role="table" aria-label="MPTs" style="min-width: 1150px; --cols: 36px minmax(210px, 1.5fr) minmax(170px, 1.2fr) 80px 104px 104px minmax(230px, 1.5fr) 92px;">
+          <div role="row" class="tr th">
+            <span role="columnheader" class="r">#</span>
+            <span role="columnheader">Token</span>
+            <span role="columnheader">Issuer</span>
+            <span role="columnheader" class="r">Holders</span>
+            <span role="columnheader" class="r">Outstanding</span>
+            <span role="columnheader" class="r">Max amount</span>
+            <span role="columnheader">Flags</span>
+            <span role="columnheader" class="r">Transfers 24 h</span>
+          </div>
+          <div class="tb">
+            <sc-for list="{{mptRows}}" as="m" hint-placeholder-count="12">
+              <div role="row" class="tr">
+                <span role="cell" class="r mono num" style="color: var(--faint); font-size: 12px;">{{m.rank}}</span>
+                <span role="cell" style="min-width: 0; padding: 7px 0;">
+                  <a class="tk" href="Mpt.dc.html">
+                    <span class="tok {{m.tokCls}}" aria-hidden="true" style="--c: {{m.color}};">{{m.initial}}</span>
+                    <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.3;">
+                      <sc-if value="{{m.hasMeta}}" hint-placeholder-val="{{true}}">
+                        <span class="code" style="font-weight: 600;">{{m.ticker}}</span>
+                        <span class="ell" style="font-size: 12.5px; color: var(--muted);">{{m.name}}</span>
+                      </sc-if>
+                      <sc-if value="{{m.noMeta}}" hint-placeholder-val="{{false}}">
+                        <span class="code" style="color: var(--muted);">No metadata</span>
+                        <span class="mono ell" style="font-size: 11.5px; color: var(--faint);" title="Issuance ID {{m.id}}">{{m.idShort}}</span>
+                      </sc-if>
+                    </span>
+                  </a>
+                </span>
+                <span role="cell" style="min-width: 0;"><a class="acct" href="Account.dc.html" title="{{m.issuer.title}}"><span class="{{m.issuer.cls}}">{{m.issuer.label}}</span><sc-if value="{{m.issuer.verified}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok); flex: none;"><path d="M12 2.5l2.4 1.8 3 .1.9 2.8 2.4 1.9-.9 2.9.9 2.9-2.4 1.9-.9 2.8-3 .1L12 21.5l-2.4-1.8-3-.1-.9-2.8L3.3 15l.9-2.9-.9-2.9 2.4-1.9.9-2.8 3-.1z"></path><path d="m8.5 12 2.4 2.4 4.6-4.8"></path></svg><span class="sr">verified name</span></sc-if><sc-if value="{{m.issuer.curated}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted); flex: none;"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg><span class="sr">named by GateHub</span></sc-if><sc-if value="{{m.issuer.unverified}}" hint-placeholder-val="{{false}}"><span class="unv">not verified</span></sc-if></a></span>
+                <span role="cell" class="r num">{{m.holders}}</span>
+                <span role="cell" class="r amt">{{m.out}}</span>
+                <span role="cell" class="r amt" style="color: {{m.maxColor}};">{{m.max}}</span>
+                <span role="cell" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 0;">
+                  <sc-for list="{{m.flags}}" as="f" hint-placeholder-count="4"><span class="tag" title="{{f.title}}">{{f.label}}</span></sc-for>
+                  <sc-if value="{{m.noFlags}}" hint-placeholder-val="{{false}}"><span style="color: var(--faint);">none</span></sc-if>
+                </span>
+                <span role="cell" class="r num">{{m.tr}}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{mptEmpty}}" hint-placeholder-val="{{false}}">
+              <div style="padding: 28px 16px; color: var(--faint); border-top: 1px solid var(--border);">No MPTs match “{{q}}”.</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint);">
+        <span style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 600px;"><span>{{mptNote}}</span><span>Flags: Transfer, holders can send it to each other · Trade, it trades on the DEX · Lock, the issuer can lock balances · Clawback, the issuer can take it back · Escrow, it can be held in escrows · Auth, holders need the issuer’s approval.</span></span>
+        <div style="display: flex; gap: 8px;"><button type="button" class="btn" disabled="{{yes}}" style="opacity: .55;">← Previous</button><button type="button" class="btn" disabled="{{mptLast}}">Next →</button></div>
+      </div>
+    </section>
+  </sc-if>
+</main>
+
+<footer style="border-top: 1px solid var(--border); background: var(--surface);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--faint);">
+    <span>explorer · by GateHub</span>
+    <span>History from validated ledgers. Balances and account state read live from the network.</span>
+    <span style="display: flex; gap: 16px;"><a href="#">API</a><a href="#">Status</a><a href="#">Privacy</a></span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"accent":{"editor":"color","options":["#2F5BEA","#0F766E","#6D28D9","#111827"],"default":"#2F5BEA","section":"Network colors"},"xahauAccent":{"editor":"color","options":["#B45309","#C2410C","#A16207"],"default":"#B45309","section":"Network colors"},"kind":{"editor":"enum","options":["issued","mpt"],"default":"issued"},"environment":{"editor":"enum","options":["production","sandbox"],"default":"production"},"$preview":{"width":1440,"height":1380}}'>
+class Component extends DCLogic {
+  state = { net: 'xrpl', q: '', all: false };
+
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const accent = this.props.accent ?? '#2F5BEA';
+    const xahauAccent = this.props.xahauAccent ?? '#B45309';
+    const sandbox = (this.props.environment ?? 'production') === 'sandbox';
+    const env = sandbox ? 'sandbox' : 'production';
+    const st = this.state;
+    const x = st.net === 'xrpl';
+    const cur = x ? 'XRP' : 'XAH';
+    const kind = x ? (this.state.kind ?? this.props.kind ?? 'issued') : 'issued';
+    const netName = (x ? 'XRPL' : 'Xahau') + (sandbox ? ' Testnet' : '');
+    const fmt = (n) => n.toLocaleString('en-US');
+
+    const seedRng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const hashOf = (k) => { let h = 2166136261; for (let i = 0; i < k.length; i++) h = Math.imul(h ^ k.charCodeAt(i), 16777619); return h; };
+    const addrOf = (k) => { const R = seedRng(hashOf(k)); let a = 'r'; const len = 24 + Math.floor(R() * 11); for (let i = 0; i < len; i++) a += B58[Math.floor(R() * 58)]; return a; };
+    const hexId = (k, n) => { const R = seedRng(hashOf(k)); let h = ''; for (let i = 0; i < n; i++) h += '0123456789ABCDEF'[Math.floor(R() * 16)]; return h; };
+    // Named accounts take the address every artboard gives that name: its seed in the shared table, else a hash of the name,
+    // plus 1000 on Xahau. Unnamed accounts, and the sandbox's test accounts, keep their own.
+    const SEEDS = { 'Northpeak Treasury': 1101, 'Northpeak Payroll': 1102, 'Harborline Exchange · hot wallet': 1201, 'Harborline Ops': 1202, 'lowtide.example': 1301, 'Copperfield Payments': 1401, 'Hooksmith Labs': 1451, 'Kestrel Exchange · cold wallet': 1501 };
+    const nameSeed = (s) => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
+    const addrSeed = (s) => { const Q = seedRng(s); let a = 'r'; const n = 24 + Math.floor(Q() * 11); for (let i = 0; i < n; i++) a += B58[Math.floor(Q() * 58)]; return a; };
+    const NAMES = {
+      northpeak: ['v', 'Northpeak Treasury'], cobaltgate: ['v', 'Cobaltgate'], stonebridge: ['v', 'Stonebridge Custody'],
+      saltmarsh: ['v', 'Saltmarsh Bullion'], tidewater: ['u', 'tidewater.example'], kestrel: ['c', 'Kestrel Exchange · cold wallet'],
+      larchhill: ['v', 'Larchhill Carbon'], meridian: ['v', 'Meridian Labs'], quietfjord: ['v', 'Quietfjord Bank'],
+      tallpine: ['v', 'Tallpine Trust'], bluecanyon: ['v', 'Bluecanyon Digital'], hooksmith: ['v', 'Hooksmith Labs'],
+      coralreef: ['u', 'coralreef.example'], harborline: ['v', 'Harborline Capital'], qalab: ['u', 'qa-lab.example']
+    };
+    const acct = (key) => {
+      const nm0 = env === 'production' ? NAMES[key] : null;
+      const address = nm0 ? addrSeed((SEEDS[nm0[1]] ?? nameSeed(nm0[1])) + (st.net === 'xahau' ? 1000 : 0)) : addrOf(key + '|' + st.net + '|' + env);
+      const nm = NAMES[key] || ['', ''];
+      const k = nm[0];
+      const short = address.slice(0, 5) + '…' + address.slice(-4);
+      return {
+        address, short, label: k ? nm[1] : short, cls: k ? '' : 'mono',
+        verified: k === 'v', curated: k === 'c', unverified: k === 'u', plain: !k,
+        title: k === 'v' ? 'Verified name · ' + address : k === 'c' ? 'Named by GateHub · ' + address : k === 'u' ? 'Domain not verified · ' + address : address
+      };
+    };
+    const compact = (n) => { const a = Math.abs(n); if (a >= 1e9) return (n / 1e9).toFixed(2) + 'B'; if (a >= 1e6) return (n / 1e6).toFixed(2) + 'M'; if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K'; return n.toLocaleString('en-US', { maximumFractionDigits: 2 }); };
+    const px = (v) => !v ? '—' : v >= 1000 ? fmt(Math.round(v)) : v >= 10 ? v.toFixed(2) : v >= 1 ? v.toFixed(4) : String(+v.toPrecision(4));
+    const hexOf = (c) => { let h = ''; for (let i = 0; i < c.length; i++) h += c.charCodeAt(i).toString(16).toUpperCase().padStart(2, '0'); return h.padEnd(40, '0'); };
+    const COLORS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
+    const colorOf = (c) => COLORS[(hashOf(c) >>> 0) % 5];
+
+    // Issued tokens: [code, name from the issuer's toml, issuer, holders, supply, price in XRP or XAH, 24 h volume, listed in the toml]
+    const ISS = {
+      'xrpl|production': { n10: 1284, hidden: 48206, holders: 612480, vol: 58.4e6, rows: [
+        ['NPUSD', 'Northpeak Dollar', 'northpeak', 48920, 182402118.55, 0.4101, 9.82e6, true],
+        ['EUR', 'Cobaltgate Euro', 'cobaltgate', 41377, 64.18e6, 0.4862, 3.41e6, true],
+        ['BTC', 'Stonebridge Bitcoin', 'stonebridge', 36210, 1284.61, 62577, 5.10e6, true],
+        ['GLD', 'Saltmarsh Gold, one gram', 'saltmarsh', 22804, 912400.5, 45.91, 0.84e6, true],
+        ['TIDE', '', 'tidewater', 19442, 1e9, 0.000412, 0.21e6, false],
+        ['USD', '', 'kestrel', 15906, 22.71e6, 0.4098, 2.77e6, false],
+        ['CRBN', 'Larchhill Carbon Credit', 'larchhill', 12380, 3.2e6, 7.81, 0.12e6, true],
+        ['JPY', 'Meridian Yen', 'meridian', 9814, 2.10e9, 0.002735, 0.33e6, true],
+        ['GBP', 'Cobaltgate Pound', 'cobaltgate', 8512, 11.2e6, 0.5512, 0.41e6, true],
+        ['MOSS', '', 'mosswood', 7240, 500e6, 0.00081, 0.04e6, false],
+        ['ETH', 'Stonebridge Ether', 'stonebridge', 6903, 4120.8, 1623.4, 0.62e6, true],
+        ['CHF', 'Quietfjord Franc', 'quietfjord', 5288, 8.4e6, 0.5121, 0.09e6, true],
+        ['FROG', '', 'p-frog', 8, 1e6, 0, 0, false],
+        ['USD', 'Bluecanyon Dollar', 'bluecanyon', 6, 1200, 0.41, 0, true],
+        ['ABC', '', 'p-abc', 3, 50000, 0, 0, false],
+        ['GOLDEN', '', 'p-golden', 2, 1e7, 0, 0, false]
+      ] },
+      'xahau|production': { n10: 9, hidden: 640, holders: 11240, vol: 3.1e6, rows: [
+        ['NPUSD', 'Northpeak Dollar', 'northpeak', 6412, 8204410.12, 32.21, 0.41e6, true],
+        ['EUR', 'Cobaltgate Euro', 'cobaltgate', 3118, 2.1e6, 38.19, 0.12e6, true],
+        ['HOOK', 'Hooksmith Credit', 'hooksmith', 2904, 100e6, 0.84, 0.05e6, true],
+        ['BTC', 'Stonebridge Bitcoin', 'stonebridge', 1412, 18.4, 4916600, 0.38e6, true],
+        ['CORAL', '', 'coralreef', 880, 21e6, 0.0122, 0.02e6, false],
+        ['GLD', 'Saltmarsh Gold, one gram', 'saltmarsh', 412, 1840.2, 3612.4, 0.01e6, true],
+        ['USD', '', 'kestrel', 301, 0.42e6, 32.18, 0.03e6, false],
+        ['NODE', '', 'p-node', 96, 1e6, 0.051, 400, false],
+        ['XPT', '', 'p-xpt', 14, 2000, 0, 0, false],
+        ['TEST', '', 'p-test', 7, 1000, 0, 0, false],
+        ['DOG', '', 'p-dog', 4, 1e9, 0, 0, false],
+        ['ZZZ', '', 'p-zzz', 1, 10, 0, 0, false]
+      ] },
+      'xrpl|sandbox': { n10: 7, hidden: 5, holders: 684, vol: 182410, rows: [
+        ['USD', 'Northpeak Test Dollar', 'northpeak', 412, 1.2e6, 0.41, 18200, true],
+        ['TST', '', 'p-tst', 230, 1e9, 0.0001, 4100, false],
+        ['EUR', 'Cobaltgate Test Euro', 'cobaltgate', 96, 250000, 0.49, 2210, true],
+        ['FOO', '', 'p-foo', 41, 1e6, 0.02, 120, false],
+        ['NPUSD', 'Northpeak Dollar', 'northpeak', 18, 54000, 0.4101, 940, true],
+        ['DEMO', '', 'qalab', 12, 10000, 0, 0, false],
+        ['BAR', '', 'p-bar', 11, 5000, 1.5, 30, false],
+        ['QA', '', 'qalab', 7, 100, 0, 0, false],
+        ['XYZ', '', 'p-xyz', 4, 1e6, 0, 0, false],
+        ['LOAD1', '', 'p-load', 3, 1e8, 0, 0, false],
+        ['T1', '', 'p-t1', 2, 10, 0, 0, false],
+        ['TMP', '', 'p-tmp', 1, 1, 0, 0, false]
+      ] },
+      'xahau|sandbox': { n10: 4, hidden: 3, holders: 96, vol: 12040, rows: [
+        ['USD', 'Northpeak Test Dollar', 'northpeak', 58, 90000, 32.2, 8800, true],
+        ['TST', '', 'p-tst', 31, 1e9, 0.003, 2100, false],
+        ['HOOK', 'Hooksmith Test Credit', 'hooksmith', 17, 5000, 0.84, 1140, true],
+        ['FOO', '', 'p-foo', 11, 1e6, 0, 0, false],
+        ['BAR', '', 'p-bar', 5, 5000, 0, 0, false],
+        ['QA', '', 'qalab', 3, 100, 0, 0, false],
+        ['T1', '', 'p-t1', 1, 10, 0, 0, false]
+      ] }
+    };
+    const D = ISS[st.net + '|' + env];
+    const nTop = D.rows.filter((r) => r[3] >= 10).length;
+    const nLow = D.rows.length - nTop;
+    const issAll = D.rows.map((r, i) => {
+      const hex = r[0].length === 3 ? '' : hexOf(r[0]);
+      return {
+        rank: fmt(i < nTop ? i + 1 : D.n10 + 1 + Math.floor((i - nTop) * D.hidden / nLow)),
+        code: r[0], initial: r[0][0], color: colorOf(r[0] + r[2]),
+        isHex: !!hex, hex, codeCls: hex ? 'hex' : '', codeTitle: hex ? 'Currency code in hex: ' + hex : '',
+        name: r[1], hasName: !!r[1], issuer: acct(r[2]),
+        holdersN: r[3], holders: fmt(r[3]), supply: compact(r[4]), price: px(r[5]), vol: r[6] ? compact(r[6]) : '0',
+        toml: r[7], noToml: !r[7]
+      };
+    });
+    const q = (st.q || '').trim().toLowerCase();
+    const match = (s) => !q || s.toLowerCase().indexOf(q) >= 0;
+    const issPool = issAll.filter((r) => st.all || r.holdersN >= 10);
+    const issHits = issPool.filter((r) => match(r.code + ' ' + r.name + ' ' + r.issuer.label + ' ' + r.issuer.address + ' ' + r.hex));
+    const issRows = issHits.slice(0, 12);
+    const lowHits = !st.all && q ? issAll.filter((r) => r.holdersN < 10 && match(r.code + ' ' + r.name + ' ' + r.issuer.label + ' ' + r.issuer.address)).length : 0;
+    const issTotal = st.all ? D.n10 + D.hidden : D.n10;
+    const issNote = q
+      ? issHits.length + (issHits.length === 1 ? ' match' : ' matches') + (lowHits ? ' · ' + lowHits + ' more among tokens with fewer than 10 holders' : '')
+      : 'Showing 1–' + issRows.length + ' of ' + fmt(issTotal) + (st.all ? ' tokens' : ' tokens with 10 or more holders');
+
+    // MPTs: [ticker, name (both from decoded metadata), issuer, holders, outstanding, max amount (0: not set), flags, 24 h transfers]
+    const FLAG = { T: ['Transfer', 'Holders can send it to each other'], D: ['Trade', 'It can be traded on the DEX'], L: ['Lock', 'The issuer can lock balances'], C: ['Clawback', 'The issuer can take it back'], E: ['Escrow', 'It can be held in escrows'], A: ['Auth', 'Holders need the issuer’s approval'] };
+    const MPT = {
+      'xrpl|production': { n: 214, holders: 9862, tr: 2415, rows: [
+        ['HTF', 'Harborline Treasury Fund', 'harborline', 3412, 18204511.2, 50e6, 'TDLCA', 412],
+        ['NPB3', 'Northpeak 3-Month Bill', 'northpeak', 2960, 9410220, 25e6, 'TDLCA', 288],
+        ['KPTS', 'Kestrel Points', 'kestrel', 2118, 412880000, 0, 'TE', 1021],
+        ['TPRE', 'Tallpine Real Estate Note', 'tallpine', 864, 1.2e6, 1.2e6, 'LCA', 3],
+        ['', '', 'p-m1', 611, 1e9, 0, 'TD', 94],
+        ['CRBT', 'Larchhill Carbon Tonne', 'larchhill', 540, 82410, 1e6, 'TDE', 57],
+        ['GLDG', 'Saltmarsh Gold Gram', 'saltmarsh', 498, 150220.4, 0, 'TDLC', 41],
+        ['SBEQ', 'Stonebridge Equity Token', 'stonebridge', 322, 4100, 10000, 'TLCA', 6],
+        ['', '', 'tidewater', 211, 50e6, 50e6, 'TDE', 120],
+        ['QFB29', 'Quietfjord Bond 2029', 'quietfjord', 184, 2500, 2500, 'TLCA', 2],
+        ['MWT', 'Mosswood Ticket', 'p-m2', 129, 9410, 10000, 'T', 18],
+        ['', '', 'p-m3', 104, 77000, 0, 'TDCE', 9]
+      ] },
+      'xrpl|sandbox': { n: 6, holders: 61, tr: 38, rows: [
+        ['HTF', 'Harborline Treasury Fund (test)', 'harborline', 24, 120000, 50e6, 'TDLCA', 14],
+        ['TSTP', 'Test Points', 'p-tst', 17, 1e6, 0, 'TD', 9],
+        ['', '', 'qalab', 9, 5000, 5000, 'TLCEA', 6],
+        ['DEMO', 'Demo Fund Share', 'northpeak', 6, 2500, 10000, 'TLA', 3],
+        ['', '', 'p-m5', 3, 100, 0, 'T', 2],
+        ['QAE', 'QA Escrow Token', 'p-m6', 2, 10, 10, 'TE', 0]
+      ] }
+    };
+    const M = MPT['xrpl|' + env];
+    const mptAll = M.rows.map((r, i) => {
+      const id = hexId('mpt|' + r[2] + '|' + i + '|' + env, 48);
+      return {
+        rank: String(i + 1), hasMeta: !!r[0], noMeta: !r[0], ticker: r[0], name: r[1],
+        initial: r[0] ? r[0][0] : '?', tokCls: r[0] ? '' : 'none', color: r[0] ? colorOf(r[0] + r[2]) : 'var(--s-other)',
+        id, idShort: id.slice(0, 8) + '…' + id.slice(-6), issuer: acct(r[2]),
+        holders: fmt(r[3]), out: compact(r[4]), max: r[5] ? compact(r[5]) : 'not set', maxColor: r[5] ? 'var(--fg)' : 'var(--faint)',
+        flags: r[6].split('').map((c) => ({ label: FLAG[c][0], title: FLAG[c][1] })), noFlags: !r[6], tr: fmt(r[7])
+      };
+    });
+    const mptHits = mptAll.filter((m) => match(m.ticker + ' ' + m.name + ' ' + m.issuer.label + ' ' + m.issuer.address + ' ' + m.id));
+    const mptRows = mptHits.slice(0, 12);
+    const mptNote = q ? mptHits.length + (mptHits.length === 1 ? ' match' : ' matches') : 'Showing 1–' + mptRows.length + ' of ' + fmt(M.n) + ' issuances';
+
+    const tiles = kind === 'mpt' ? [
+      { label: 'MPT issuances', value: fmt(M.n), sub: 'on ' + netName + ', with any number of holders' },
+      { label: 'Holders', value: fmt(M.holders), sub: 'accounts holding at least one MPT' },
+      { label: 'Transfers, 24 h', value: fmt(M.tr), sub: 'MPT payments between accounts' }
+    ] : [
+      { label: 'Tokens with 10+ holders', value: fmt(D.n10), sub: fmt(D.hidden) + ' more have fewer than 10 holders' },
+      { label: 'Holders', value: fmt(D.holders), sub: 'accounts holding at least one of these tokens' },
+      { label: 'Volume, 24 h', value: compact(D.vol) + ' ' + cur, sub: x ? 'DEX and AMM trades across these tokens' : 'DEX trades across these tokens' }
+    ];
+
+    const reset = { q: '', all: false };
+    return {
+      themeClass: dark ? 'dark' : '',
+      accentNow: x ? accent : xahauAccent,
+      xrplDot: accent, xahauDot: xahauAccent,
+      isXrpl: x, isXahau: !x,
+      xrplCls: x ? 'on' : '', xahauCls: x ? '' : 'on',
+      pickXrpl: () => this.setState(Object.assign({ net: 'xrpl' }, reset)),
+      pickXahau: () => this.setState(Object.assign({ net: 'xahau' }, reset)),
+      sandbox, xrplName: sandbox ? 'XRPL Testnet' : 'XRPL', xahauName: sandbox ? 'Xahau Testnet' : 'Xahau',
+      netName, cur, yes: true,
+      isIssued: kind === 'issued', isMpt: kind === 'mpt',
+      issuedCls: kind === 'issued' ? 'on' : '', mptCls: kind === 'mpt' ? 'on' : '',
+      mptOff: !x,
+      pickIssued: () => this.setState(Object.assign({ kind: 'issued' }, reset)),
+      pickMpt: () => { if (x) this.setState(Object.assign({ kind: 'mpt' }, reset)); },
+      listSrc: kind === 'mpt' ? '/v2/tokens?kind=mpt' : st.all ? '/v2/tokens?kind=issued' : '/v2/tokens?kind=issued&min_holders=10',
+      issSrc: st.all ? '/v2/tokens?kind=issued' : '/v2/tokens?kind=issued&min_holders=10',
+      tiles,
+      q: st.q, onQ: (e) => this.setState({ q: e.target.value }),
+      toggleAll: () => this.setState({ all: !st.all }),
+      allLabel: st.all ? 'Hide tokens with fewer than 10 holders' : 'Show all (' + fmt(D.hidden) + ' hidden)',
+      issRows, issEmpty: issRows.length === 0, issNote, issLast: q ? true : issTotal <= 12,
+      mptRows, mptEmpty: mptRows.length === 0, mptNote, mptLast: q ? true : M.n <= 12
+    };
+  }
+}
+</script>
+</body>
+</html>
