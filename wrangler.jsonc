@@ -1,14 +1,14 @@
 /**
  * Worker configuration. Details: https://developers.cloudflare.com/workers/wrangler/configuration/
  *
- * The top level is local development and the tests. `staging` and `production` are selected at
- * build time (`CLOUDFLARE_ENV=staging react-router build`, see the `deploy:*` scripts), because
+ * The top level is local development and the tests. `sandbox` and `production` are selected at
+ * build time (`CLOUDFLARE_ENV=sandbox react-router build`, see the `deploy:*` scripts), because
  * the Cloudflare Vite plugin writes a flattened config for the selected environment.
  *
  * `vars` and `ratelimits` are not inherited, so each environment repeats them.
  * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS` and `AMM_PAGES` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
  * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` since the
- * validators pages were); `staging` and `production` are "off" until their data API serves what the switch needs. Set
+ * validators pages were); `sandbox` and `production` are "off" until their data API serves what the switch needs. Set
  * one by a commit and a deploy, never in the Cloudflare dashboard: the next deploy would undo it. The predeploy guard refuses a build
  * where one is missing, is anything but "on" or "off", or is misspelt, or where `AMM_PAGES` is "on" and `AMM_DATA` is not (the AMM pages need the AMM data).
  * `BUILD_ID` is not listed here: vite.config.ts adds the git commit to the vars of every build.
@@ -20,7 +20,7 @@
  * placeholder (or a non-https URL) be deployed: the `deploy:*` scripts run it between the build and
  * `wrangler deploy`.
  *
- * `staging` and `production` are not served from `*.workers.dev` (`workers_dev` and `preview_urls` are
+ * `sandbox` and `production` are not served from `*.workers.dev` (`workers_dev` and `preview_urls` are
  * false): the Cache API does nothing there, so every request would render and call the data API, and the
  * Worker would be a second, duplicate site. They have no routes yet, because the hosts are not named. When
  * they are, add to each environment, before its first deploy:
@@ -58,8 +58,8 @@
 		}
 	],
 	"env": {
-		"staging": {
-			"name": "x-explorer-staging",
+		"sandbox": {
+			"name": "x-explorer-sandbox",
 			"workers_dev": false,
 			"preview_urls": false,
 			"vars": {

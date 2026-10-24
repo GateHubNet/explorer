@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     if (env.E2E_SKIP_BUILD === "1") {
       const config = join(root, "build/server/wrangler.json");
       if (!existsSync(config)) throw new Error("E2E_SKIP_BUILD=1, but there is no build: run pnpm build");
-      // What `pnpm deploy:staging` leaves behind has that environment's name and vars flattened into it: not the Worker under test.
+      // What `pnpm deploy:sandbox` leaves behind has that environment's name and vars flattened into it: not the Worker under test.
       const target = (JSON.parse(readFileSync(config, "utf8")) as { targetEnvironment?: string }).targetEnvironment;
       if (target) throw new Error(`E2E_SKIP_BUILD=1, but build/ is a build for the environment "${target}": run pnpm build`);
     } else {

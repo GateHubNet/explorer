@@ -12,7 +12,7 @@ const git: Git = (...args) =>
  * - `BUILD_ID` in the environment wins (a CI run can name the build).
  * - Otherwise the short commit, with `-dirty` when the tree has uncommitted changes.
  * - Without a commit: `dev` for local work, but an error when a Cloudflare environment is selected
- *   (`CLOUDFLARE_ENV`, set by `deploy:staging` and `deploy:production`), where a constant would make
+ *   (`CLOUDFLARE_ENV`, set by `deploy:sandbox` and `deploy:production`), where a constant would make
  *   every deploy share cache keys.
  */
 export function resolveBuildId({

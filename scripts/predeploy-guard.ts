@@ -1,4 +1,4 @@
-// What `pnpm deploy:staging` and `pnpm deploy:production` check between `react-router build` and `wrangler deploy` (the command is
+// What `pnpm deploy:sandbox` and `pnpm deploy:production` check between `react-router build` and `wrangler deploy` (the command is
 // predeploy-check.ts; this file is what it and its tests share).
 //
 // The Cloudflare Vite plugin writes build/server/wrangler.json for the environment `CLOUDFLARE_ENV` names, flattened to the top level, and
@@ -23,7 +23,7 @@ import { dirname, join, resolve } from "node:path";
 import { FEATURE_VARS } from "../app/ui/features";
 
 /** The environments of wrangler.jsonc that are deployed. */
-export const ENVIRONMENTS = ["staging", "production"] as const;
+export const ENVIRONMENTS = ["sandbox", "production"] as const;
 
 /** The vars that name an upstream: each network's data API and node. */
 export const UPSTREAM_VARS = ["XRPL_DATA_API_URL", "XAHAU_DATA_API_URL", "XRPL_NODE_URL", "XAHAU_NODE_URL"] as const;

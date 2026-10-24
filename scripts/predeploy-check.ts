@@ -1,4 +1,4 @@
-// The command of the pre-deploy guard: `tsx scripts/predeploy-check.ts <staging|production> [project root]`. `pnpm deploy:staging` and
+// The command of the pre-deploy guard: `tsx scripts/predeploy-check.ts <sandbox|production> [project root]`. `pnpm deploy:sandbox` and
 // `pnpm deploy:production` run it between `react-router build` and `wrangler deploy`, and the second stops if this exits non-zero.
 // What it checks is in predeploy-guard.ts. This file does nothing but run it, every time it is run, however it was reached (a link, a relative
 // path, another working directory): a gate that cannot tell whether it is the command must fail, not pass, so it does not try to tell.

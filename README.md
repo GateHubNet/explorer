@@ -54,7 +54,7 @@ as well (the AMM pages are all AMM data: `AMM_PAGES` on over `AMM_DATA` off is t
 | `pnpm fixtures:sync` | Write the generated upstream fixtures of `test/fixtures/http/` from the recorded ledgers (see "Upstream fixtures"); names files that no longer belong, never deletes |
 | `pnpm fixtures:check` | Change nothing; fail when those files are not what the generator writes (`scripts/http-fixtures.test.ts` does the same inside `pnpm test`) |
 | `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page, or the account page's analytics view, loads more JavaScript (gzip) than its budget (150 KB for the lookup pages, 160 KB for the dashboards and the view), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
-| `pnpm deploy:staging`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `scripts/predeploy-check.ts <env>` (refuses a placeholder or non-https upstream URL, a build for another environment, a Worker reachable on workers.dev), then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
+| `pnpm deploy:sandbox`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `scripts/predeploy-check.ts <env>` (refuses a placeholder or non-https upstream URL, a build for another environment, a Worker reachable on workers.dev), then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
 | `pnpm verify` | `api:check`, `typecheck`, `test`, `build`, `check:bundle` |
 
 Run one project or one file with `pnpm test --project worker` or `pnpm test app/server`. Do not put `--` after
@@ -74,12 +74,12 @@ per request, over the data centre's Cache API, built with `BUILD_ID`).
 | `XRPL_NODE_URL`, `XAHAU_NODE_URL` | var | `wrangler.jsonc`, per environment (`https://s1.ripple.com:51234/`, `https://xahau.network/`) |
 | `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
 | `VISITOR_LIMITER` | `ratelimits` binding, 60 per 10 s | `wrangler.jsonc`, per environment (own namespace each) |
-| `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-staging` and `x-explorer-production` as a secret |
+| `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-sandbox` and `x-explorer-production` as a secret |
 | `SENTRY_DSN` | secret, optional | the same |
 | `BUILD_ID` | var | added to every build by `vite.config.ts` (`scripts/build-id.ts`): the short git commit, plus `-dirty` when the tree has uncommitted changes. `BUILD_ID=... pnpm build` overrides it. Without git it is `dev`, but a build for a Cloudflare environment (`CLOUDFLARE_ENV`, so every deploy) fails instead, because the edge cache key includes it (as the first part of the cache generation, see "Switches") |
 
 The Cloudflare Vite plugin flattens one Cloudflare environment into the build, chosen at build time with
-`CLOUDFLARE_ENV` (`pnpm deploy:staging` and `pnpm deploy:production` set it). `vars` and `ratelimits` are not
+`CLOUDFLARE_ENV` (`pnpm deploy:sandbox` and `pnpm deploy:production` set it). `vars` and `ratelimits` are not
 inherited, so each environment repeats them. The top level of `wrangler.jsonc` is local development and the tests.
 
 ### Switches
@@ -99,7 +99,7 @@ so the Worker, the browser, the scripts and the tests all import it. `featuresOf
 
 Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). The values:
 
-| Variable | Top level (local development and the tests) | `staging` | `production` |
+| Variable | Top level (local development and the tests) | `sandbox` | `production` |
 |---|---|---|---|
 | `VALIDATORS` | `"on"` | `"off"` | `"off"` |
 | `AMM_DATA` | `"on"` | `"off"` | `"off"` |
@@ -107,19 +107,19 @@ Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). T
 | `ACCOUNT_ANALYTICS` | `"on"` | `"off"` | `"off"` |
 | `AMM_PAGES` | `"on"` | `"off"` | `"off"` |
 
-The conditions for turning a switch on in `staging` or `production` (by a commit and a deploy):
+The conditions for turning a switch on in `sandbox` or `production` (by a commit and a deploy):
 
 - `AMM_DATA`: the environment's data API has merged `feat/amm-data`, has re-ingested and back-filled, and D2b is deployed (`syncer_markets_live_amm_share_known` is 1).
   (Locally the top level has it `"on"`: against a data API that has not merged it, set `AMM_DATA=off` in `.dev.vars`, see "Getting started".)
-- `VALIDATORS` (`validators`, E6): the validators and amendments pages. "on" at the top level, "off" in staging and production until D1 (the data API's validators and
+- `VALIDATORS` (`validators`, E6): the validators and amendments pages. "on" at the top level, "off" in the sandbox and production until D1 (the data API's validators and
   amendments routes) has served that environment on both networks for at least two hours, so that the votes and tallies are back-filled (D1's estimate). Rolling back is
   `"off"` and a deploy. See "Validators and amendments".
 - `MARKETS` (`markets`, E3; it gates the markets pages, the header's Markets link and every link into them): the environment's data API serves
   `/v2/network/markets`, with D2 §16.4's gauges at their marks (`syncer_pair_hourly_missing_hours` is 0, `syncer_markets_live_age_seconds{period="day"}` is under 120).
   Until then it is `"off"` there; the top level has it `"on"`.
-- `ACCOUNT_ANALYTICS` (`accountAnalytics`, E4): the account page's Analytics tab. "on" at the top level (development and the tests), "off" in staging and production until D2's
+- `ACCOUNT_ANALYTICS` (`accountAnalytics`, E4): the account page's Analytics tab. "on" at the top level (development and the tests), "off" in the sandbox and production until D2's
   gauges `syncer_rates_daily_missing_days` and `syncer_account_rollups_pending_accounts` are 0 there (E4 §8).
-- `AMM_PAGES` (`ammPages`, E5): the AMM pool pages. "on" at the top level (development and the tests), "off" in staging and production. It goes "on" in an environment
+- `AMM_PAGES` (`ammPages`, E5): the AMM pool pages. "on" at the top level (development and the tests), "off" in the sandbox and production. It goes "on" in an environment
   once `AMM_DATA` is "on" there, `feat/amm-data` is merged into the data API's `main` and deployed to it, and the data is re-ingested from ledger 86795265 and
   back-filled. The pre-deploy guard refuses a build that has `AMM_PAGES` "on" and `AMM_DATA` anything but "on". Rolling back is `"off"` and a deploy. Locally the same
   rule holds by hand: against a data API without `feat/amm-data`, set `AMM_DATA=off` and `AMM_PAGES=off` together in `.dev.vars` (see "Getting started").
@@ -157,7 +157,7 @@ names, read by `featuresOff(process.env)` in `scripts/e2e-env.ts`; "End-to-end t
 
 1. Append its name LAST to `FEATURE_VARS` and its key LAST to `FEATURE_NAME` in `app/ui/features.ts` (`Object.keys(FEATURE_NAME)` must equal `FEATURE_VARS`).
 2. Add the field to `Env` (`NAME: "on" | "off"`).
-3. Add an entry to every block of `wrangler.jsonc` (top level, `staging`, `production`).
+3. Add an entry to every block of `wrangler.jsonc` (top level, `sandbox`, `production`).
 4. Add it to `TOP_LEVEL_SWITCHES` in `vitest.config.ts` (its `satisfies` fails until you do). The `worker-off` project follows from `FEATURE_VARS`.
 5. Add its row to the tables above.
 6. Write its own tests: a guard case that refuses the misspelt name, its case in a `*-off.spec.ts`, and, in the end-to-end specs of the page it gates, the skip and the off-case (`featuresOff(process.env).has("NAME")`).
@@ -745,7 +745,7 @@ under them (the period links, "Values in XRP: tokens at each day's DEX rate, and
 and the transactions sent side by side, the balance history, the money in and out, where balance changes come from, and the counterparties and the DEX
 trading side by side. There is no Holdings margin.
 
-**The switch.** `ACCOUNT_ANALYTICS` ("Switches"): `"on"` at the top level (development and every test suite), `"off"` in `staging` and `production` until D2
+**The switch.** `ACCOUNT_ANALYTICS` ("Switches"): `"on"` at the top level (development and every test suite), `"off"` in `sandbox` and `production` until D2
 is live there. Every account page's data carries `analyticsTab`, read from it, so the stored HTML, the server's tab bar and the browser's agree. On, the tab is
 a `rel="nofollow"` link to the default view from every page of the account (a page behind a marker too: the view is live mode); off, it is the "soon" tab,
 and every `?tab=analytics…` URL is a 302 to `/{net}/account/{address}` (class `short`, without a call). The switch is in the cache generation, so the first
@@ -1207,9 +1207,9 @@ card, logged ("the data API serves no AMM pools", "… no AMM volume"), never a 
 boundary, `vote_slots` and `auth_accounts` defaulted to `[]`, the slot's `expiration` in unix seconds, the ledger it was read at. `actNotFound` (an account that is
 not a pool) and `actMalformed` (an address that holds no account: a deleted pool's) are `not_found`, because the Worker checked the address. Both were seen from
 `https://s1.ripple.com:51234/` on 2026-10-20 (the record above E3's readers in `node-rpc.ts`: `actNotFound` for `rBbW6i…W5jh`, `actMalformed` for the deleted
-`rGLnUK…mqdz`, a success for `rhWTXC…tcS3`); check them again against the configured node on staging (the checklist).
+`rGLnUK…mqdz`, a success for `rhWTXC…tcS3`); check them again against the configured node on the sandbox (the checklist).
 
-**The switch.** `AMM_PAGES` is `"on"` at the top level and `"off"` in staging and production; it goes on in an environment only once `AMM_DATA` is on there (the
+**The switch.** `AMM_PAGES` is `"on"` at the top level and `"off"` in the sandbox and production; it goes on in an environment only once `AMM_DATA` is on there (the
 pre-deploy guard refuses the other way round; "Switches", "The pipeline and deploying"). While it is off every AMM route and image is the 404 above with no
 call, the header's AMM is the "soon" label, and every pool link (a sentence's `pool` segment, the flow's pool step, an LP token on the account page, E3's pool
 card) goes to the pool's account page: `poolLink(net, pool, features)` (`app/domain/pool-link.ts`) is the one place that decides, from `net.features` in a
@@ -1261,7 +1261,7 @@ heard) and each of its five "First seen" keys to `/{net}/validators/{key}` (the 
 else links to them.
 
 **The switch.** `VALIDATORS` ("Switches") gates the four routes, the two kinds of image and every link into them. It is `"on"` at the top level (development and the
-tests) and `"off"` in `staging` and `production` until D1 has served that environment on both networks for at least two hours (the votes and tallies are back-filled
+tests) and `"off"` in `sandbox` and `production` until D1 has served that environment on both networks for at least two hours (the votes and tallies are back-filled
 by then). Turning it on is a deploy with `"on"` in that environment's `vars`; the cache generation changes, so nothing stored under `"off"` is served. **Rolling back is
 `"off"` and a deploy.** While it is off, the four pages and both images are the not-found page, a 404 of class `short`, before the key or the name is read and
 before any call (an image's query string is a 302 to the bare path first, as for every image; a page's query is not read), and the network page's "All validators" is the header's "soon" style and its five keys are text (`test/worker/validators-off.spec.ts`, and
@@ -1748,13 +1748,13 @@ otherwise; never 5173) and never reuses a server that is already running.
 |---|---|---|
 | `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one, the fixture server the one after (`E2E_FIXTURE_PORT`) |
 | `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on or take an answer away (`live-home.spec.ts`, `network-live.spec.ts`, `market-pair-live.spec.ts`, `account-analytics-live.spec.ts`, `validators-live.spec.ts`, `amm-live.spec.ts`, and the group of `a11y.spec.ts` with a card that failed) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
-| `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or staging. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
+| `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or the sandbox. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
 | `E2E_DATA_API_KEY` | `e2e-fixture-key` (the fixtures take any) | The `X-API-Key` of a real data API; required with `E2E_DATA_API_URL` |
-| `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed staging) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
-| `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:staging` leaves) is refused |
+| `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed sandbox) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
+| `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:sandbox` leaves) is refused |
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
-| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `AMM_PAGES`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against staging or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`; `amm.spec.ts` the "soon" header, the AMM pages' 404s and the swap's links to the pool's account page; `og.spec.ts` the pool image's 404; and `a11y.spec.ts` leaves the analytics views and the AMM pages out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
+| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `AMM_PAGES`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against the sandbox or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`; `amm.spec.ts` the "soon" header, the AMM pages' 404s and the swap's links to the pool's account page; `og.spec.ts` the pool image's 404; and `a11y.spec.ts` leaves the analytics views and the AMM pages out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
 | `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
@@ -2251,7 +2251,7 @@ pnpm install --frozen-lockfile     # the lockfile as it is; fails if package.jso
 pnpm verify                        # api:check, typecheck (wrangler types, react-router typegen, tsc -b), test (unit, components, loaders in workerd),
                                    # build, check:bundle
 E2E_SKIP_BUILD=1 pnpm test:e2e     # the end-to-end suite on the build verify has just made (needs a Chromium: pnpm exec playwright install chromium)
-pnpm deploy:staging                # CLOUDFLARE_ENV=staging react-router build && tsx scripts/predeploy-check.ts staging && wrangler deploy
+pnpm deploy:sandbox                # CLOUDFLARE_ENV=sandbox react-router build && tsx scripts/predeploy-check.ts sandbox && wrangler deploy
 # ...the rollout below...
 pnpm deploy:production             # CLOUDFLARE_ENV=production react-router build && tsx scripts/predeploy-check.ts production && wrangler deploy
 ```
@@ -2284,16 +2284,16 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
 
 **`wrangler deploy --env <env>` and the Cloudflare Vite plugin.** The environment is chosen when the Worker is *built*, not when it is deployed:
 the plugin writes `build/server/wrangler.json` for the environment `CLOUDFLARE_ENV` names (its name, vars and rate-limit namespace flattened to the top level;
-`staging` is the Worker `x-explorer-staging`, `production` is `x-explorer-production`) and a redirect in `.wrangler/deploy/config.json` that `wrangler deploy`
+`sandbox` is the Worker `x-explorer-sandbox`, `production` is `x-explorer-production`) and a redirect in `.wrangler/deploy/config.json` that `wrangler deploy`
 follows. So the deploy scripts build with `CLOUDFLARE_ENV` and run a plain `wrangler deploy`, which is what spec 13's `wrangler deploy --env <env>`
-comes to here. Checked with `wrangler deploy --dry-run`: after a `CLOUDFLARE_ENV=staging` build, `--env staging` is accepted and `--env production` is an
-error ("does not match the target environment"); after a build with no `CLOUDFLARE_ENV`, `--env staging` is accepted without a warning and **selects nothing**: the generated file is
+comes to here. Checked with `wrangler deploy --dry-run`: after a `CLOUDFLARE_ENV=sandbox` build, `--env sandbox` is accepted and `--env production` is an
+error ("does not match the target environment"); after a build with no `CLOUDFLARE_ENV`, `--env sandbox` is accepted without a warning and **selects nothing**: the generated file is
 named `x-explorer` and holds the vars of local development, and it has no environment for the flag to pick. So never build without `CLOUDFLARE_ENV` and deploy; use the scripts.
 A build for an environment also needs a commit to name it (`BUILD_ID`, see "Configuration"): the edge cache key includes it, with the switches ("Switches"). The deploy builds
 again for its environment: the code is the commit `verify` and the end-to-end suite looked at, the vars and the rate-limit namespace are the environment's.
 `wrangler deploy` needs `CLOUDFLARE_API_TOKEN` (and `CLOUDFLARE_ACCOUNT_ID`) in the pipeline's secrets.
 
-**The pre-deploy guard** (`scripts/predeploy-check.ts <staging|production>`, logic in `scripts/predeploy-guard.ts`, tests in
+**The pre-deploy guard** (`scripts/predeploy-check.ts <sandbox|production>`, logic in `scripts/predeploy-guard.ts`, tests in
 `scripts/predeploy-check.test.ts` over fake configs; nothing in them deploys) runs between the build and `wrangler deploy`, chained with `&&`, so
 its exit code stops the deploy. It reads the config the plugin wrote (`build/server/wrangler.json`) and exits 1, printing every reason, when:
 
@@ -2311,7 +2311,7 @@ It fails closed: a build that is missing, unreadable or not an object is a refus
 included). It **cannot check secrets**, which are not in the build: set `DATA_API_KEY` with `wrangler secret put` (below) before the environment takes
 traffic, or the data API refuses every call and every page is a 503.
 
-**Hosts and routes.** `staging` and `production` are not served from `*.workers.dev` (`"workers_dev": false` and `"preview_urls": false` in each): the
+**Hosts and routes.** `sandbox` and `production` are not served from `*.workers.dev` (`"workers_dev": false` and `"preview_urls": false` in each): the
 Cache API does nothing there, so every request would render and call the data API (only the per-address limiter would protect the key's quota), and
 the Worker would be a second copy of the site that names itself in its canonical links. The environments have **no routes yet**, because the hosts are
 not named. When they are, before the first deploy of an environment, put its real hosts in its `vars` and add to it
@@ -2326,8 +2326,8 @@ are placeholders, which is the intent.
 **Secrets**, once per Worker and again when one changes (they are not in the repository, `wrangler.jsonc` or the build; the guard cannot see them):
 
 ```sh
-pnpm exec wrangler secret put DATA_API_KEY --env staging      # the key listed in the data API's GH_RATE_LIMIT_KEYS
-pnpm exec wrangler secret put SENTRY_DSN --env staging        # optional: Sentry stays off without it
+pnpm exec wrangler secret put DATA_API_KEY --env sandbox      # the key listed in the data API's GH_RATE_LIMIT_KEYS
+pnpm exec wrangler secret put SENTRY_DSN --env sandbox        # optional: Sentry stays off without it
 pnpm exec wrangler secret put DATA_API_KEY --env production
 pnpm exec wrangler secret put SENTRY_DSN --env production     # optional
 ```
@@ -2342,22 +2342,22 @@ need far more, and a request over the limit is cut off. Both are normal traffic 
 **Rollout** (spec 13):
 
 1. `data-api-new` ships `GH_RATE_LIMIT_KEYS` and the explorer's key is issued.
-2. Deploy to staging on its custom domain (the Cache API does not work on `*.workers.dev`), and run the end-to-end suite against the real staging API and
-   node: either `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` (the same Worker under `wrangler dev`, pointed at the staging
-   stack) or `E2E_BASE_URL=https://staging.example.com E2E_WORKERS=1 pnpm test:e2e` (the deployed Worker itself). The suite catches drift in the
+2. Deploy to the sandbox on its custom domain (the Cache API does not work on `*.workers.dev`), and run the end-to-end suite against the real sandbox API and
+   node: either `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` (the same Worker under `wrangler dev`, pointed at the sandbox
+   stack) or `E2E_BASE_URL=https://sandbox.example.com E2E_WORKERS=1 pnpm test:e2e` (the deployed Worker itself). The suite catches drift in the
    response bodies the hand-written types in `app/server/api-types.ts` cannot see.
 3. Production.
 
-**Staging checklist.** Things that cannot be settled without a deployed Worker on a custom domain, carried from the reviews; go through them on
-staging before production:
+**Sandbox checklist.** Things that cannot be settled without a deployed Worker on a custom domain, carried from the reviews; go through them on
+the sandbox before production:
 
-- [ ] **Hosts and routes** are in place (see "Hosts and routes" above), with the real data API hosts in the `vars`; `pnpm deploy:staging` passes the guard.
-- [ ] **Secrets are set**: `wrangler secret put DATA_API_KEY --env staging` (and `SENTRY_DSN`, optional). The guard cannot see them. Without the key the
+- [ ] **Hosts and routes** are in place (see "Hosts and routes" above), with the real data API hosts in the `vars`; `pnpm deploy:sandbox` passes the guard.
+- [ ] **Secrets are set**: `wrangler secret put DATA_API_KEY --env sandbox` (and `SENTRY_DSN`, optional). The guard cannot see them. Without the key the
   data API refuses every call and every page is a 503.
 - [ ] **The Cache API accepts the key host of the subrequest cache.** `createSubrequestCache` keys its entries on `https://subrequest-cache.invalid/<build>/<hash>`
   (`subrequestKey` in `app/server/edge-cache.ts`), a host that is not the zone's own, and the page tests run on the runtime's local Cache API, which accepts it.
   If the deployed one does not, a `put` fails, the failure is logged (`subrequest cache write failed`) and **the subrequest cache silently does nothing**: every
-  page then calls the data API and the node for everything. Check with `wrangler tail --env staging --format json`: ask for two pages that share a call (a ledger,
+  page then calls the data API and the node for everything. Check with `wrangler tail --env sandbox --format json`: ask for two pages that share a call (a ledger,
   and the next one) and look for those lines, and in the data API's own log for the same ledger fetched twice within its TTL. If it fails, change the host of the key to
   the zone's (a path on the Worker's own host) and keep the rest.
 - [ ] **IPv6 visitors.** `VISITOR_LIMITER` is keyed by `CF-Connecting-IP`, and one IPv6 visitor holds a whole /64 (or larger) of addresses, so the limit of 60 renders per
@@ -2365,23 +2365,23 @@ staging before production:
   traffic before deciding.
 - [ ] **The edge cache can be filled through query strings.** Its key is the whole URL and the cache generation (the build ID and the switches), so every made-up query string (`?x=1`, `?x=2`, ...) on an
   existing page is a render, an upstream call and a stored copy of its own, kept as long as the page's class says (a year for an immutable ledger or transaction). Only an unknown `?tab=`, a `marker` where there are none, and an image's query are
-  tidied into redirects. The visitor limit (renders per address) is the only brake. Watch the cache hit ratio and the data API's load on staging; if it matters, drop unknown
+  tidied into redirects. The visitor limit (renders per address) is the only brake. Watch the cache hit ratio and the data API's load on the sandbox; if it matters, drop unknown
   parameters from the key, or redirect them away as the image route does.
-- [ ] **Run the end-to-end suite against staging**: `E2E_BASE_URL=https://<staging host> E2E_WORKERS=1 pnpm test:e2e`, with `E2E_FEATURES_OFF` naming the switches that are off there (see "End-to-end tests"; the suite catches drift in
+- [ ] **Run the end-to-end suite against the sandbox**: `E2E_BASE_URL=https://<sandbox host> E2E_WORKERS=1 pnpm test:e2e`, with `E2E_FEATURES_OFF` naming the switches that are off there (see "End-to-end tests"; the suite catches drift in
   the data API's response bodies that `app/server/api-types.ts` cannot see), and, once, `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` against
-  the staging stack.
+  the sandbox stack.
 
-- [ ] **The network page's views, against the staging stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`) and `?in=usd` on XRPL: the
-  window's words ("Totals and charts cover the 30 days from … to …, today so far") must be anchored to the staging stack's own `last_validated` and name the running day, and the volume
-  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; staging does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=ACCOUNT_ANALYTICS,AMM_DATA,MARKETS,VALIDATORS` while those switches are off there (a switch leaves the list once it is on: `ACCOUNT_ANALYTICS` with E4 §8 step 3, below).
-- [ ] **The failure hold, in `wrangler tail`.** With one card failing (the data API refusing one route, or its key revoked for it), `wrangler tail --env staging --format json` should show one
+- [ ] **The network page's views, against the sandbox stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`) and `?in=usd` on XRPL: the
+  window's words ("Totals and charts cover the 30 days from … to …, today so far") must be anchored to the sandbox stack's own `last_validated` and name the running day, and the volume
+  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; the sandbox does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=ACCOUNT_ANALYTICS,AMM_DATA,MARKETS,VALIDATORS` while those switches are off there (a switch leaves the list once it is on: `ACCOUNT_ANALYTICS` with E4 §8 step 3, below).
+- [ ] **The failure hold, in `wrangler tail`.** With one card failing (the data API refusing one route, or its key revoked for it), `wrangler tail --env sandbox --format json` should show one
   failing call per 5 s per Worker instance for the network page and for the home page, and not one per beat of every open tab (`holdFailure`, "The cache classes"); and the card comes back by itself within the hold and a beat
   when the route answers again.
-- [ ] **The failure hold under a slow upstream, not a failing one.** Make one route slow instead of refusing it (for example by delaying it in a proxy in front of the staging data API, past its
+- [ ] **The failure hold under a slow upstream, not a failing one.** Make one route slow instead of refusing it (for example by delaying it in a proxy in front of the sandbox data API, past its
   5 s limit, so that the call times out), open the network page in a few tabs, and watch `wrangler tail`: the calls to that route should be one for each hold cycle per Worker instance (about one every 10 s: the
   5 s the call takes, then the 5 s hold), and not one for every beat of every tab in the seconds the call is out (the probe, "The cache classes"). The card of that route says it could not be loaded after
   4.5 s and the rest of the page is there; the card comes back within a cycle of the route answering again.
-- [ ] **The validations of the newest ledger, against the staging stack.** The validators card counts the validations of the newest ledger the page shows, and asks for them as soon as that ledger is the
+- [ ] **The validations of the newest ledger, against the sandbox stack.** The validators card counts the validations of the newest ledger the page shows, and asks for them as soon as that ledger is the
   newest. Open `/xrpl/network` and `/xahau/network` right after a ledger closes and read the count: it should be about the size of the network's validator list (the fixtures say 35 and 25) when it is first
   asked for, and not a handful that grows over the next beats. If the data API has only some of a ledger's validations in the first seconds, the card shows a low count (kept 5 s, class `live`) until a later
   beat; write down for how long, and whether that needs a follow-up.
@@ -2389,7 +2389,7 @@ staging before production:
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
 - [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: every page is under its budget with the manifest counted (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19), and the manifest's
   size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
-- [ ] **The markets pages' node calls, against the deployed nodes.** With `wrangler tail --env staging --format json`, open a pair page on each network (`/xrpl/markets/XRP/RLUSD.rMxCKb…`,
+- [ ] **The markets pages' node calls, against the deployed nodes.** With `wrangler tail --env sandbox --format json`, open a pair page on each network (`/xrpl/markets/XRP/RLUSD.rMxCKb…`,
   `/xahau/markets/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH`): `book_offers` accepts `limit: 60` and answers with the funded fields (`taker_gets_funded`,
   `taker_pays_funded`) on a partly funded offer, xahaud takes `{ "currency": "XAH" }` for its native side, and `amm_info` by `asset` and `asset2` answers for an XRPL pair that has a pool
   (and `actNotFound` for one that has none: no pool card, and nothing logged).
@@ -2406,22 +2406,22 @@ staging before production:
 - [ ] **The bundle figures of the markets pages.** `pnpm check:bundle` on the commit being deployed: write the markets and market-pair figures down beside "The client bundle check",
   and check every page against its budget with the manifest (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19, which replaced R15's one bar; the spec's
   targets of 140,000 and 146,000 are not budgets).
-- [ ] **The validators and amendments pages, against the staging stack** ("Validators and amendments"), once `VALIDATORS` is `"on"` for staging (D1 has served staging on
+- [ ] **The validators and amendments pages, against the sandbox stack** ("Validators and amendments"), once `VALIDATORS` is `"on"` for the sandbox (D1 has served the sandbox on
   both networks for two hours): `/xrpl/validators` and `/xahau/validators` in their views, a validator of each network (its validations follow the chain; Older and Newer),
   `/xrpl/amendments` and `/xahau/amendments`, an amendment of each (one with a majority where there is one), and the images of a validator and of an amendment
   (`/og/xrpl/validator/{key}.png`, `/og/xrpl/amendment/{name}.png`, 1200 × 630, class `slow`). Every card has data or its own error, and `validators.spec.ts`,
-  `amendments.spec.ts` and the block of `a11y.spec.ts` pass against the staging stack (`E2E_DATA_API_URL=…`); before the switch is on, they pass with `VALIDATORS` in
+  `amendments.spec.ts` and the block of `a11y.spec.ts` pass against the sandbox stack (`E2E_DATA_API_URL=…`); before the switch is on, they pass with `VALIDATORS` in
   `E2E_FEATURES_OFF` (the off-case: the four pages are 404s, "All validators" is "soon").
-- [ ] **The validators pages' failure hold, in `wrangler tail`.** With one of their cards failing (S, A or a validator's VV refused), `wrangler tail --env staging --format json`
+- [ ] **The validators pages' failure hold, in `wrangler tail`.** With one of their cards failing (S, A or a validator's VV refused), `wrangler tail --env sandbox --format json`
   shows one failing call per 5 s per Worker instance for as long as the card fails, not one per beat of every open tab, and the card comes back by itself within the hold
   and a beat.
 - [ ] **One L request per 10 s per instance, whatever the filters.** Open the validators list in several views at once (`?scope=all`, `?q=…`, `?publisher=…`, `?amendment=…`)
   in a few tabs: `wrangler tail` and the data API's log show `/v2/network/validators?limit=1000&scope=all` at most once per 10 s per Worker instance.
-- [ ] **A page answered 503, not stored, against an API without D1.** A staging Worker with `VALIDATORS` `"on"` in front of a data API that has no D1 routes (before D1's
+- [ ] **A page answered 503, not stored, against an API without D1.** A sandbox Worker with `VALIDATORS` `"on"` in front of a data API that has no D1 routes (before D1's
   deploy, or a stack without it): the validators list, a validator, the amendments list, an amendment and both images answer 503 (a `Cannot GET` is an outage), a second
   request is not an `X-Cache: HIT`, and the pages come right with no deploy of the explorer once D1 answers.
-- [ ] **The size of a real majority amendment's page, against the staging stack.** Take an amendment with a majority (else the one with the most rounds) and measure its stored
-  document gzipped (`curl -s --compressed -o page.html https://<staging host>/xrpl/amendments/{name}`, then `gzip -9 -c page.html | wc -c`) and the rows of its yes votes table
+- [ ] **The size of a real majority amendment's page, against the sandbox stack.** Take an amendment with a majority (else the one with the most rounds) and measure its stored
+  document gzipped (`curl -s --compressed -o page.html https://<sandbox host>/xrpl/amendments/{name}`, then `gzip -9 -c page.html | wc -c`) and the rows of its yes votes table
   ("changes only", the chart's Table view). The fixtures hold the yes votes between a few changes, as votes behave, and `amendment-page.spec.ts` pins their document under
   150,000 bytes; rounds whose count moves at every flag ledger make a row each (the 30-day fixture with a change every round was about 161 KB gzipped), and the table would then
   need a cap. Write both figures down.
@@ -2429,31 +2429,31 @@ staging before production:
   budget, a dashboard's 160,000 bytes (ruling R19), with the manifest counted (148,717, 148,504, 139,185 and 147,135 at E6; 148,246, 148,324, 138,568 and 146,928 after its
   merge), and the network page (149,154 at E6, 149,700 after its merge), written down beside "The client bundle check".
 
-The account's analytics view (E4, "Account analytics") is checked on staging once D2 is live there and `ACCOUNT_ANALYTICS` is `"on"` in the `staging` block (a deploy:
+The account's analytics view (E4, "Account analytics") is checked on the sandbox once D2 is live there and `ACCOUNT_ANALYTICS` is `"on"` in the `sandbox` block (a deploy:
 E4 §8 step 3), and before it is turned on in production:
 
-- [ ] **The four periods of a heavy account, against the staging stack.** Open the Analytics tab of a heavy account (an exchange's hot wallet) and of an ordinary one, on XRPL and
-  Xahau, at `?tab=analytics`, `&period=90d`, `&period=1y` and `&period=all`. The period note must be anchored to the staging stack's own `last_validated` and name the running
+- [ ] **The four periods of a heavy account, against the sandbox stack.** Open the Analytics tab of a heavy account (an exchange's hot wallet) and of an ordinary one, on XRPL and
+  Xahau, at `?tab=analytics`, `&period=90d`, `&period=1y` and `&period=all`. The period note must be anchored to the sandbox stack's own `last_validated` and name the running
   bucket; every tile and card has its data, its empty state or its own error, and no card but the counterparties' (below) says "Still working …"; tile 1 and the native
-  panel of the balance history end at the header's balance. Write down how long each call takes (`wrangler tail --env staging --format json`) for the heavy account at
-  1 year and All. Run `account-analytics.spec.ts` against staging without `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF`: its structural test runs there.
+  panel of the balance history end at the header's balance. Write down how long each call takes (`wrangler tail --env sandbox --format json`) for the heavy account at
+  1 year and All. Run `account-analytics.spec.ts` against the sandbox without `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF`: its structural test runs there.
 - [ ] **The late-counterparties path.** On an account whose `analytics/counterparties` takes more than 4.5 s (D2 §13: 2 to 10 s for the heaviest, at 1 year and All; a cold
   60 s cache), the card says "Still working on the counterparties. Retry in a few seconds." and tile 4 "—" over "Still working on it", and the page is served with `no-store`.
   A Retry a few seconds later shows the card: the call went on under `waitUntil` (it ends within its 15 s) and its answer was kept 60 s, or the Retry joined the call still
   running. In `wrangler tail`, the Retry's render makes no counterparties call of its own: it finds the stored answer, or joins the running call on the same instance.
 - [ ] **In-flight sharing and the failure hold, in `wrangler tail`.** Open one heavy account's slow view in a few tabs at once, on a cold cache: `wrangler tail` shows one call of each
   analytics key per Worker instance for the renders that overlap, not one per render (`shareInFlight`). Then with one analytics route failing (refused for the key, or a proxy in
-  front of the staging data API answering 503 for it), one call of it per 5 s per instance however often the tabs Retry (`holdFailure`; a Retry within the hold is given the held
+  front of the sandbox data API answering 503 for it), one call of it per 5 s per instance however often the tabs Retry (`holdFailure`; a Retry within the hold is given the held
   failure), and the card back with the first Retry after the route answers again and the hold is over.
-- [ ] **`robots.txt`.** `https://<staging host>/robots.txt` (the Worker's route, on the custom domain) has `Disallow: /*/account/*tab=analytics` beside the search and CSV rules, and a
+- [ ] **`robots.txt`.** `https://<sandbox host>/robots.txt` (the Worker's route, on the custom domain) has `Disallow: /*/account/*tab=analytics` beside the search and CSV rules, and a
   robots.txt tester (Google Search Console's report) reads `…/account/r…?tab=analytics&period=1y` and the other order of the query as disallowed, and `…/account/r…` as allowed.
 - [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,035 at the end of E4; the spec's
   target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 160,000, a dashboard's budget (ruling R19; 149,933 at the end of E4), both written down
   beside "The client bundle check" (its E4 table), so that the growth of each later sub-project shows. A route adds about 21 bytes to the view through the manifest.
 
-The AMM pages (E5, "AMM pools") are checked on staging once the data API there has merged and deployed `feat/amm-data`, re-ingested from ledger 86795265 and back-filled
-`amm_daily`, `AMM_DATA` is `"on"` for staging and then `AMM_PAGES` (a deploy each: rollout steps 2 and 3 of the AMM spec), and before `AMM_PAGES` is turned on in production.
-Run the suite against staging with `AMM_PAGES` no longer in `E2E_FEATURES_OFF`; before it is on, it passes with `AMM_PAGES` listed (the off-case: the header's "soon", the 404s).
+The AMM pages (E5, "AMM pools") are checked on the sandbox once the data API there has merged and deployed `feat/amm-data`, re-ingested from ledger 86795265 and back-filled
+`amm_daily`, `AMM_DATA` is `"on"` for the sandbox and then `AMM_PAGES` (a deploy each: rollout steps 2 and 3 of the AMM spec), and before `AMM_PAGES` is turned on in production.
+Run the suite against the sandbox with `AMM_PAGES` no longer in `E2E_FEATURES_OFF`; before it is on, it passes with `AMM_PAGES` listed (the off-case: the header's "soon", the 404s).
 
 - [ ] **The pool state against the node.** For three pools, a native one (XRP/RLUSD, `/xrpl/amm/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3`), an issued-only one (USDC/RLUSD,
   `rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb`) and one whose auction slot has a holder: the state card's reserves, LP tokens, trading fee and "set by N votes", the slot's holder,

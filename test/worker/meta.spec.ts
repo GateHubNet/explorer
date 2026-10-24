@@ -170,11 +170,11 @@ describe("a transaction page", () => {
       const response = await exports.default.fetch(`${origin}/xrpl/tx/${PAYMENT}`, { headers: { "CF-Connecting-IP": "198.19.1.200" } });
       return head(await response.text());
     };
-    const staging = await fetchAt("https://staging.explorer.example");
-    expect(staging.canonical).toEqual([`https://staging.explorer.example/xrpl/tx/${PAYMENT}`]);
-    expect(staging.content("og:url")).toBe(`https://staging.explorer.example/xrpl/tx/${PAYMENT}`);
-    expect(staging.content("og:image")).toBe(`https://staging.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
-    expect(staging.content("twitter:image")).toBe(`https://staging.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
+    const sandbox = await fetchAt("https://sandbox.explorer.example");
+    expect(sandbox.canonical).toEqual([`https://sandbox.explorer.example/xrpl/tx/${PAYMENT}`]);
+    expect(sandbox.content("og:url")).toBe(`https://sandbox.explorer.example/xrpl/tx/${PAYMENT}`);
+    expect(sandbox.content("og:image")).toBe(`https://sandbox.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
+    expect(sandbox.content("twitter:image")).toBe(`https://sandbox.explorer.example/og/xrpl/tx/${PAYMENT}.png`);
 
     const local = await fetchAt("http://localhost:8788");
     expect(local.content("og:image")).toBe(`http://localhost:8788/og/xrpl/tx/${PAYMENT}.png`);

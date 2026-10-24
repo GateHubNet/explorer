@@ -11,7 +11,7 @@ import { headOf, listedValidator, needs, rowsOf, SKIP_OFF, VALIDATORS_OFF, valid
 // buttons, the slider of its 30 days, its older validations and a key written in hex. Every validator is read from the pages, so the suite runs against
 // a real stack too; nothing here changes what the fixture server answers (validators-live.spec.ts does).
 //
-// Where E2E_FEATURES_OFF lists VALIDATORS (a staging or production that has the switch off), the tests of the pages skip themselves and the off-case
+// Where E2E_FEATURES_OFF lists VALIDATORS (a sandbox or production that has the switch off), the tests of the pages skip themselves and the off-case
 // below runs instead.
 
 // The codec as Node loads it (its CommonJS build): Playwright's loader of the specs does not take it as an import.
