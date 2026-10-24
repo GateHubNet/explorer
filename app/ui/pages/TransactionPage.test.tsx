@@ -10,8 +10,8 @@ import { OBJECTS_SHOWN, TransactionPage } from "./TransactionPage";
 
 afterEach(cleanup);
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
+const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" } as const;
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const POOL = "rAtRwrVakWQaGpzxtqgJZDb3Tg7t32rXT";

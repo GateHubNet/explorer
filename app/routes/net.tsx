@@ -2,13 +2,16 @@ import { Outlet, useMatches } from "react-router";
 
 import { forwardCacheClass } from "../server/edge-cache";
 import { publicNetwork, requireNetwork, type NetworkLayoutData } from "../server/network-route";
+import { isNetworkId } from "../server/networks";
 import { PRODUCT_NAME } from "../ui/brand";
 import { NetworkCookie } from "../ui/components/NetworkCookie";
 import { Shell } from "../ui/components/Shell";
-import { DEFAULT_NETWORK, findNetwork } from "../ui/networks";
+import { networkKindOf } from "../ui/environment";
+import { DEFAULT_NETWORK_ID, findNetwork } from "../ui/networks";
 import { errorMeta, RouteErrorScreen } from "../ui/pages/RouteErrorScreen";
 import { onlyWhenParamsChange } from "../ui/revalidation";
 import { wantsHeroSearch } from "../ui/route-handle";
+import { useEnvironment } from "../ui/use-network";
 
 import type { Route } from "./+types/net";
 
@@ -29,7 +32,7 @@ export function loader({ request, params, context }: Route.LoaderArgs): NetworkL
 }
 
 export function meta({ error, loaderData, params }: Route.MetaArgs) {
-  if (error) return errorMeta(error, findNetwork(params.net) ? undefined : params.net);
+  if (error) return errorMeta(error, isNetworkId(params.net ?? "") ? undefined : params.net);
   return [{ title: `${loaderData?.network.name ?? ""} · ${PRODUCT_NAME}` }];
 }
 
@@ -47,18 +50,17 @@ export default function NetworkLayout({ loaderData }: Route.ComponentProps) {
 
 /**
  * Shown when the layout's loader threw (an unknown network) and when a page under it threw and has no boundary of its own,
- * for example the 404 of a ledger that does not exist. It replaces the layout, so it brings the page frame itself.
+ * for example the 404 of a ledger that does not exist. It replaces the layout, so it brings the page frame itself, and the layout's
+ * data is not there to name the network: the names are the environment's (`useEnvironment()`), the default network's for an unknown one.
  */
 export function ErrorBoundary({ error, params }: Route.ErrorBoundaryProps) {
-  const network = findNetwork(params.net);
+  const kind = networkKindOf(useEnvironment());
+  const network = findNetwork(params.net, kind);
+  const shown = network ?? findNetwork(DEFAULT_NETWORK_ID, kind);
   return (
-    <Shell net={network ?? DEFAULT_NETWORK}>
+    <Shell net={shown}>
       {network && <NetworkCookie net={network.id} />}
-      <RouteErrorScreen
-        error={error}
-        net={network ?? DEFAULT_NETWORK}
-        unknownNetwork={network ? undefined : params.net}
-      />
+      <RouteErrorScreen error={error} net={shown} unknownNetwork={network ? undefined : params.net} />
     </Shell>
   );
 }

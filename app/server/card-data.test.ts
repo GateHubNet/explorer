@@ -11,8 +11,8 @@ import { accountCard, amendmentCard, formatCardTime, ledgerCard, poolCard, trans
 // What the link-preview image says (spec 9, the LinkPreview board): the words and numbers of the card for a transaction, a ledger and an
 // account, from the same facts the page's tags are built from. The layout is app/og/card.test.ts; the PNG is test/worker/og.spec.ts.
 
-const XRPL = { id: "xrpl", name: "XRPL" } as const;
-const XAHAU = { id: "xahau", name: "Xahau" } as const;
+const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX" } as const;
+const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX" } as const;
 
 const SENDER = "rJF2XaTeEvbk3EsoyVnrdeXVcbkXFQvg";
 const RECEIVER = "rNYbL8Zz3Nzu5Fr9Q1Wwf1zQ5pQbwUKq5";

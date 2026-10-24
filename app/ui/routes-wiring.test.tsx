@@ -25,11 +25,13 @@ import type { AmmPart, NetworkLoaderData, SeriesView } from "../server/network-v
 import type { LivePairData, OlderPairData, PairPageData } from "../server/pair-view";
 import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../server/validator-view";
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
+import type { Environment } from "./environment";
 import type { BarListData, CandleData, TimeSeriesData } from "./charts/types";
 import * as home from "../routes/net._index";
 import * as amendment from "../routes/net.amendments.$name";
 import * as amendments from "../routes/net.amendments";
 import * as net from "../routes/net";
+import * as root from "../root";
 import * as pair from "../routes/net.markets.$base.$counter";
 import * as network from "../routes/net.network";
 import * as validators from "../routes/net.validators";
@@ -127,6 +129,47 @@ function mountHome(serverLoader: () => Promise<HomeLoaderData>, first = dataAt(1
 }
 
 const ledgerTile = () => screen.getByText("Latest validated ledger").closest(".stat")!.querySelector(".stat__value")!.textContent;
+
+// The root route (app/root.tsx): what is outside the `/:net` layout's data reads the environment from its loader data (`useEnvironment()`).
+describe("root.tsx", () => {
+  /** The description of the root's `meta`, given the loader data it is handed (none when the loader did not run or failed). */
+  const descriptionOf = (loaderData: unknown) =>
+    (root.meta({ loaderData, error: undefined } as never) as Array<{ name?: string; content?: string }>).find((tag) => tag.name === "description")?.content;
+
+  /** The root's error boundary drawn as React Router draws it: in the root route, whose data holds the environment (when the loader gave any). */
+  function mountError(environment: Environment | undefined) {
+    const Boundary = () => createElement(root.ErrorBoundary, { error: new Error("boom"), params: {}, loaderData: undefined } as never);
+    const router = createMemoryRouter([{ id: "root", path: "*", loader: () => ({ environment }), Component: Boundary }], {
+      initialEntries: ["/nowhere"],
+      hydrationData: { loaderData: { root: environment === undefined ? undefined : { environment } } },
+    });
+    return render(<RouterProvider router={router} />);
+  }
+
+  it("describes the environment's networks", () => {
+    expect(descriptionOf({ environment: "sandbox" })).toBe("Look up any ledger, transaction or account on XRPL Testnet and Xahau Testnet.");
+    expect(descriptionOf({ environment: "production" })).toBe("Look up any ledger, transaction or account on the XRP Ledger and Xahau.");
+    expect(descriptionOf({ environment: "development" })).toBe("Look up any ledger, transaction or account on the XRP Ledger and Xahau.");
+    expect(descriptionOf(undefined)).toBe("Look up any ledger, transaction or account on the XRP Ledger and Xahau.");
+  });
+
+  it("draws its error page with the environment's switch", () => {
+    mountError("sandbox");
+    const group = screen.getByRole("group", { name: "Network" });
+    expect(within(group).getAllByRole("link").map((a) => a.textContent)).toEqual(["XRPL Testnet", "Xahau Testnet"]);
+    expect(screen.getByRole("link", { name: "Go to the XRPL Testnet home" }).getAttribute("href")).toBe("/xrpl");
+  });
+
+  it("draws its error page with the mainnets' switch in production, in development, and without the environment", () => {
+    for (const environment of ["production", "development", undefined] as const) {
+      mountError(environment);
+      const group = screen.getByRole("group", { name: "Network" });
+      expect(within(group).getAllByRole("link").map((a) => a.textContent)).toEqual(["XRPL", "Xahau"]);
+      expect(screen.getByRole("link", { name: "Go to the XRPL home" }).getAttribute("href")).toBe("/xrpl");
+      cleanup();
+    }
+  });
+});
 
 describe("net.tsx", () => {
   const args = (over: Partial<ShouldRevalidateFunctionArgs>) =>
@@ -1063,7 +1106,7 @@ const FAILED = { state: "failed" } as const;
 function validatorsAt(index: number, over: Partial<ValidatorsData> = {}, build = "abc1234", params: ValidatorsParams = { scope: "unl" }): ValidatorsData {
   return {
     ...validatorsPage({
-      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
       params,
       summary: ok(summarySample({ quorum: { value: index - 72, unl_size: 35, negative_unl: 1, node: index - 72 } })),
       list: ok({ result: "success", count: 1, validators: [validatorRowSample()] }),
@@ -1319,7 +1362,7 @@ function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "
   const [first, ...rest] = page.validations;
   return {
     ...validatorPage({
-      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
       validator: validatorDetailSample(),
       recent: ok({ ...page, validations: [{ ...first!, ledger_index: index - 1 }, ...rest] }),
       summary: ok(summarySample()),
@@ -1335,7 +1378,7 @@ function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "
 /** A page of the validator's older validations, behind the sample's marker. */
 const validatorHistory = (): ValidatorHistoryData =>
   validatorHistoryPage({
-    network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+    network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
     validator: validatorDetailSample(),
     recent: validationsSample(),
     marker: "M1",
@@ -1494,7 +1537,7 @@ type AmendmentsData = AmendmentsPageData & { anchor: { lastValidated: number; cl
 function amendmentsAt(index: number, status?: AmendmentStatus, build = "abc1234"): AmendmentsData {
   return {
     ...amendmentsPage({
-      network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" },
+      network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
       amendments: amendmentsSample({ next_flag_ledger: { ledger_index: 107_748_000 + index, voting_ledger: 107_747_999 + index, expected: "2026-10-19T16:05:28Z" } }),
       ...(status !== undefined && { status }),
     }),
@@ -1715,7 +1758,7 @@ type AmendmentData = AmendmentPageData & { anchor: { lastValidated: number; clos
 function amendmentAt(index: number, summary: Loaded<ReturnType<typeof summarySample>> = ok(summarySample()), build = "abc1234"): AmendmentData {
   const detail = amendmentDetailSample();
   return {
-    ...amendmentPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendment: { ...detail, votes: { ...detail.votes!, yes: 31 + (index - 100) } }, summary }),
+    ...amendmentPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, amendment: { ...detail, votes: { ...detail.votes!, yes: 31 + (index - 100) } }, summary }),
     anchor: { lastValidated: index, closeTime: 1792256472 + index },
     build,
   };

@@ -10,7 +10,7 @@ import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
 import type { AmmListFacts, AmmPoolMeta } from "./amm-view";
 import type { AmendmentDetail } from "./api-types";
-import { imageUrl, metaContext, type MetaContext } from "./meta";
+import { imageUrl, metaContext, suffixOf, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
 import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
@@ -32,8 +32,14 @@ import { validatorsPage } from "./validators-view";
 // recorded transaction to the HTML. Each page's builder is in a module of its own (`meta-<page>.ts`, beside meta.ts, which has the
 // helpers): test/unit/meta-bundle.test.ts says why.
 
-const XRPL: MetaContext = { network: { id: "xrpl", name: "XRPL" }, origin: "https://explorer.test" };
-const XAHAU: MetaContext = { network: { id: "xahau", name: "Xahau" }, origin: "https://explorer.test" };
+const XRPL: MetaContext = {
+  network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX" },
+  origin: "https://explorer.test",
+};
+const XAHAU: MetaContext = {
+  network: { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX" },
+  origin: "https://explorer.test",
+};
 
 type Tag = Record<string, string>;
 const tags = (list: ReadonlyArray<unknown>) => list as Tag[];
@@ -555,11 +561,23 @@ describe("imageUrl", () => {
 });
 
 describe("metaContext", () => {
-  const layout = { id: "routes/net", loaderData: { network: { id: "xrpl", name: "XRPL" }, origin: "https://explorer.test" } };
+  // What the /:net layout's loader gives `meta`: its `PublicNetwork` (the words of the environment's kind) and the origin of the request.
+  const layoutOf = (network: unknown) => ({ id: "routes/net", loaderData: { network, origin: "https://explorer.test" } });
+  const layout = layoutOf(XRPL.network);
+  const TESTNET = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX" };
 
-  it("is the network of the URL and the origin the /:net layout read from the request", () => {
-    expect(metaContext("xrpl", [{ id: "root" }, layout, { id: "routes/net.tx.$id" }])).toEqual({ network: { id: "xrpl", name: "XRPL" }, origin: "https://explorer.test" });
-    expect(metaContext("xahau", [layout])?.network).toEqual({ id: "xahau", name: "Xahau" });
+  it("is the network the /:net layout read, and the origin it read from the request", () => {
+    expect(metaContext("xrpl", [{ id: "root" }, layout, { id: "routes/net.tx.$id" }])).toEqual({ network: XRPL.network, origin: "https://explorer.test" });
+    expect(metaContext("xahau", [layoutOf(XAHAU.network)])).toEqual({ network: XAHAU.network, origin: "https://explorer.test" });
+  });
+
+  it("takes the layout's network, with its testnet names", () => {
+    const ctx = metaContext("xrpl", [{ id: "root" }, layoutOf(TESTNET), { id: "routes/net.tx.$id" }]);
+    expect(ctx?.network.name).toBe("XRPL Testnet");
+    expect(suffixOf(ctx!.network)).toBe("XRPL Testnet · explorer");
+    const list = transactionMeta({ ...payment(), ledgerIndex: 102186243 }, ctx!);
+    expect(content(list, "description")).toMatch(/ · XRPL Testnet ledger 102,186,243$/);
+    expect(tags(list).find((tag) => "title" in tag)?.title).toBe("Payment 67F91E…7C31 · XRPL Testnet · explorer");
   });
 
   it("is nothing without a network, a layout, or an origin in it", () => {
@@ -569,6 +587,13 @@ describe("metaContext", () => {
     expect(metaContext("xrpl", [undefined])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { network: {} } }])).toBeUndefined();
     expect(metaContext("xrpl", [{ id: "routes/net", loaderData: { origin: 5 } }])).toBeUndefined();
+  });
+
+  it("is nothing when the layout is of another network than the URL's", () => {
+    expect(metaContext("xahau", [layout])).toBeUndefined();
+    expect(metaContext("xrpl", [layoutOf(XAHAU.network)])).toBeUndefined();
+    // A layout with no id in its network does not stand in for an absent segment either.
+    expect(metaContext(undefined, [{ id: "routes/net", loaderData: { network: {}, origin: "https://explorer.test" } }])).toBeUndefined();
   });
 });
 
@@ -621,7 +646,7 @@ describe("validatorsMeta", () => {
   });
 
   it("takes the whole page's data as well as its params, since a route hands it the loader's answer", () => {
-    const data = validatorsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, params: { scope: "unl" }, summary: { state: "failed" }, list: { state: "failed" }, amendments: { state: "failed" } });
+    const data = validatorsPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, params: { scope: "unl" }, summary: { state: "failed" }, list: { state: "failed" }, amendments: { state: "failed" } });
     expect(link(validatorsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/validators");
   });
 
@@ -631,7 +656,7 @@ describe("validatorsMeta", () => {
 });
 
 describe("validatorMeta", () => {
-  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const NET: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   const live = (validator = validatorDetailSample(), network = NET) =>
     validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 } });
@@ -669,7 +694,7 @@ describe("validatorMeta", () => {
     const off = validatorDetailSample({ unl: false, unl_lists: [], version: undefined, version_latest: undefined });
     expect(content(validatorMeta(live(off), XRPL), "description")).toBe(`northpeak.example is a validator of XRPL. Its domain is verified. ${TAIL}`);
     const one = validatorDetailSample({ unl_lists: ["vl.xahau.org"], version: "2026.10.13", version_build: 4119 });
-    expect(content(validatorMeta(live(one, { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" }), XAHAU), "description")).toBe(
+    expect(content(validatorMeta(live(one, { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" }), XAHAU), "description")).toBe(
       `northpeak.example is a validator of Xahau, on the default UNL (listed by vl.xahau.org), running xahaud 2026.10.13. Its domain is verified. ${TAIL}`,
     );
   });
@@ -734,9 +759,9 @@ describe("amendmentsMeta", () => {
   );
 
   it("takes the whole page's data as well as its status, since a route hands it the loader's answer", () => {
-    const data = amendmentsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendments: amendmentsSample() });
+    const data = amendmentsPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, amendments: amendmentsSample() });
     expect(link(amendmentsMeta(data, XRPL), "canonical")).toBe("https://explorer.test/xrpl/amendments");
-    const voting = amendmentsPage({ network: { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" }, amendments: amendmentsSample(), status: "voting" });
+    const voting = amendmentsPage({ network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" }, amendments: amendmentsSample(), status: "voting" });
     expect(content(amendmentsMeta(voting, XRPL), "robots")).toBe("noindex, follow");
   });
 
@@ -746,7 +771,7 @@ describe("amendmentsMeta", () => {
 });
 
 describe("amendmentMeta", () => {
-  const NET: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
+  const NET: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   /** The sample (XChainBridge, with a majority) as `over` makes it, without D1's description and the keys `absent` (D1 leaves a key out; it never sends `null`). */
   function amendment(over: Partial<AmendmentDetail> = {}, ...absent: (keyof AmendmentDetail)[]): AmendmentDetail {
@@ -823,7 +848,7 @@ describe("amendmentMeta", () => {
   });
 
   it("is Xahau's on Xahau, on the request's origin", () => {
-    const xahau: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+    const xahau: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
     const list = amendmentMeta(page(amendment({ name: "Remit" }), xahau), { ...XAHAU, origin: "https://explorer.example" });
     expect(title(list)).toBe("Amendment Remit · Xahau · explorer");
     expect(content(list, "description")).toMatch(/^Remit has had a majority of Xahau's default UNL since /);

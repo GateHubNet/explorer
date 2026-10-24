@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { SearchPageData } from "../../server/search-view";
 import { SearchPage } from "./SearchPage";
 
-const XRPL = { id: "xrpl", name: "XRPL" } as const;
-const XAHAU = { id: "xahau", name: "Xahau" } as const;
+const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX" } as const;
+const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX" } as const;
 const HASH = "4BC50C9B0D8515D3EAAE1E74B29A95804346C491EE1A95BF25E4AAB854A6A651";
 const CTID = "C10AC4A1000C5359";
 

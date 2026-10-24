@@ -14,9 +14,9 @@ import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { validatorsMeta } from "../server/meta-validators";
 import { requireNetwork } from "../server/network-route";
+import { isNetworkId } from "../server/networks";
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
-import { findNetwork } from "../ui/networks";
 import { ValidatorsPage } from "../ui/pages/ValidatorsPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
@@ -105,8 +105,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (validatorsHref(net.id, canonical) !== asked) return redirect(validatorsHref(net.id, canonical), { status: 302, headers: cacheClassHeaders("short") });
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
-  const { id, name, native, software } = net;
-  const page = validatorsPage({ network: { id, name, native, software }, params: canonical, summary: partOf(summary), list: partOf(list), amendments: partOf(amendments) });
+  const { id, kind, name, label, longName, dexName, native, software } = net;
+  const page = validatorsPage({ network: { id, kind, name, label, longName, dexName, native, software }, params: canonical, summary: partOf(summary), list: partOf(list), amendments: partOf(amendments) });
 
   const failures = (
     [
@@ -143,10 +143,10 @@ const onScreen = createLiveOnScreen<ValidatorsLoaderData>({
  * another: a navigation to a view that is not on screen has nothing to keep and gets the error screen as before.
  */
 export function clientLoader({ params, request, serverLoader }: Route.ClientLoaderArgs) {
-  const network = findNetwork(params.net);
+  const net = params.net ?? "";
   // A network that does not exist is the layout's 404: no page of it to keep, and no view to name.
-  if (!network) return serverLoader();
-  return onScreen.reload(scopeOf(network.id, parseValidatorsParams(queryOf(request.url))), serverLoader);
+  if (!isNetworkId(net)) return serverLoader();
+  return onScreen.reload(scopeOf(net, parseValidatorsParams(queryOf(request.url))), serverLoader);
 }
 
 export default function Validators({ loaderData }: Route.ComponentProps) {

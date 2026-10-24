@@ -19,11 +19,10 @@ import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { validatorMeta } from "../server/meta-validator";
 import { requireNetwork } from "../server/network-route";
-import { networkOf, type Network } from "../server/networks";
+import { isNetworkId, networkOf, type Network } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
 import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "../server/validator-view";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
-import { findNetwork } from "../ui/networks";
 import { ValidatorHistoryPage, ValidatorPage } from "../ui/pages/ValidatorPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
@@ -53,7 +52,7 @@ const NO_SUCH_PAGE = "that page of the validator's validations";
 const scopeOf = (net: string, key: string): string => `${net}/validators/${key}`;
 
 /** The network the page is given: what the browser may have, the facts the page draws, and not the data API's URL or the node's. */
-const publicOf = ({ id, name, native, software }: Network) => ({ id, name, native, software });
+const publicOf = ({ id, kind, name, label, longName, dexName, native, software }: Network) => ({ id, kind, name, label, longName, dexName, native, software });
 
 /**
  * `/{net}/validators/{key}` (validators spec 1.2, 1.4, 4.3 to 4.5): one validator, from the data API's D1 routes alone. The class is `live-home` (1 s + 2 s), the
@@ -216,11 +215,11 @@ const onScreen = createLiveOnScreen<ValidatorLoaderData>({
  * another. A page of older validations is history: it goes straight to the server's loader, with nothing kept and nothing compared (spec 2.3).
  */
 export function clientLoader({ params, request, serverLoader }: Route.ClientLoaderArgs) {
-  const network = findNetwork(params.net);
+  const net = params.net ?? "";
   // A network that does not exist is the layout's 404, and a marker is history: no live page of it to keep.
-  if (!network || new URL(request.url).searchParams.has("marker")) return serverLoader();
+  if (!isNetworkId(net) || new URL(request.url).searchParams.has("marker")) return serverLoader();
   // Without a marker the loader answers the live view (or throws: a redirect, a 404, a 503), never the history.
-  return onScreen.reload(scopeOf(network.id, params.key ?? ""), serverLoader as () => Promise<ValidatorLoaderData>);
+  return onScreen.reload(scopeOf(net, params.key ?? ""), serverLoader as () => Promise<ValidatorLoaderData>);
 }
 
 /** The live view: the polling and the controls, and the page keyed by its scope. */

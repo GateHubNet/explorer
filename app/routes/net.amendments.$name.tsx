@@ -18,10 +18,9 @@ import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { amendmentMeta } from "../server/meta-amendment";
 import { requireNetwork } from "../server/network-route";
-import { networkOf, type Network } from "../server/networks";
+import { isNetworkId, networkOf, type Network } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
-import { findNetwork } from "../ui/networks";
 import { AmendmentPage } from "../ui/pages/AmendmentPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
@@ -98,8 +97,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (canonical !== raw) return redirect(amendmentHref(net.id, canonical), { status: 302, headers: cacheClassHeaders("slow") });
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
-  const { id, name, native, software } = net;
-  const page = amendmentPage({ network: { id, name, native, software }, amendment: amendment.value, summary: partOf(summary) });
+  const { id, kind, name, label, longName, dexName, native, software } = net;
+  const page = amendmentPage({ network: { id, kind, name, label, longName, dexName, native, software }, amendment: amendment.value, summary: partOf(summary) });
   if (summary.status === "rejected") {
     logProblem("the amendment page's summary could not be loaded", summary.reason, request);
     markDegraded(context, "amendment: summary");
@@ -138,10 +137,10 @@ const onScreen = createLiveOnScreen<AmendmentLoaderData>({
  * shows when that fails. The scope is the network and the segment of the URL, so that a refresh of one amendment never stands in for another.
  */
 export function clientLoader({ params, serverLoader }: Route.ClientLoaderArgs) {
-  const network = findNetwork(params.net);
+  const net = params.net ?? "";
   // A network that does not exist is the layout's 404: no page of it to keep.
-  if (!network) return serverLoader();
-  return onScreen.reload(scopeOf(network.id, params.name ?? ""), serverLoader);
+  if (!isNetworkId(net)) return serverLoader();
+  return onScreen.reload(scopeOf(net, params.name ?? ""), serverLoader);
 }
 
 export default function Amendment({ loaderData }: Route.ComponentProps) {

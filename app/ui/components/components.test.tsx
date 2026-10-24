@@ -810,6 +810,22 @@ describe("NetworkSwitch", () => {
     expect(links[1]!.getAttribute("aria-current")).toBe("true");
     expect(links[0]!.getAttribute("aria-current")).toBeNull();
   });
+
+  // The switch has no network data of its own to read (the unknown network's error page and the not-found route have none): it names the networks of the
+  // root's environment (`useEnvironment()`), and the paths are the same in every environment.
+  it.each([
+    ["sandbox", { environment: "sandbox" as const }, ["XRPL Testnet", "Xahau Testnet"]],
+    ["production", { environment: "production" as const }, ["XRPL", "Xahau"]],
+    ["development", { environment: "development" as const }, ["XRPL", "Xahau"]],
+    ["no root", {}, ["XRPL", "Xahau"]],
+  ])("names the networks of the environment: %s", async (_case, options, names) => {
+    renderUnderNetwork(<NetworkSwitch net="xahau" />, NO_FEATURES, options);
+    const group = await screen.findByRole("group", { name: "Network" });
+    const links = within(group).getAllByRole("link");
+    expect(links.map((a) => a.textContent)).toEqual(names);
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/xrpl", "/xahau"]);
+    expect(links[1]!.getAttribute("aria-current")).toBe("true");
+  });
 });
 
 describe("SearchBox", () => {

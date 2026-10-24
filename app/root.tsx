@@ -4,12 +4,13 @@ import { forwardCacheClass } from "./server/edge-cache";
 import { getEnv } from "./server/env";
 import { PRODUCT_NAME } from "./ui/brand";
 import { Shell } from "./ui/components/Shell";
-import { environmentOf, type Environment } from "./ui/environment";
+import { environmentOf, networkKindOf, type Environment } from "./ui/environment";
 import { FONT_PRELOADS } from "./ui/fonts";
-import { DEFAULT_NETWORK } from "./ui/networks";
+import { DEFAULT_NETWORK_ID, findNetwork, networkChoices } from "./ui/networks";
 import { errorMeta, RouteErrorScreen } from "./ui/pages/RouteErrorScreen";
 import styles from "./ui/styles.css?url";
 import { THEME_SCRIPT } from "./ui/theme-script";
+import { useEnvironment } from "./ui/use-network";
 
 import type { Route } from "./+types/root";
 
@@ -33,13 +34,15 @@ export const shouldRevalidate = () => false;
 
 export const links: Route.LinksFunction = () => [...FONT_PRELOADS, { rel: "stylesheet", href: styles }];
 
-export const meta: Route.MetaFunction = ({ error }) =>
-  error
-    ? errorMeta(error)
-    : [
-        { title: PRODUCT_NAME },
-        { name: "description", content: "Look up any ledger, transaction or account on the XRP Ledger and Xahau." },
-      ];
+// The description names the networks of the environment (the root's own data: no `/:net` layout above it). Without the data (the loader failed) it is the mainnets'.
+export const meta: Route.MetaFunction = ({ error, loaderData }) => {
+  if (error) return errorMeta(error);
+  const [a, b] = networkChoices(networkKindOf(loaderData?.environment ?? "development"));
+  return [
+    { title: PRODUCT_NAME },
+    { name: "description", content: `Look up any ledger, transaction or account on ${a.longName} and ${b.longName}.` },
+  ];
+};
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -68,11 +71,12 @@ export default function App() {
   return <Outlet />;
 }
 
-// Errors outside `/:net` (it has a boundary of its own): the page frame of the default network around the error.
+// Errors outside `/:net` (it has a boundary of its own): the page frame of the default network, as the environment names it, around the error.
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const net = findNetwork(DEFAULT_NETWORK_ID, networkKindOf(useEnvironment()));
   return (
-    <Shell net={DEFAULT_NETWORK}>
-      <RouteErrorScreen error={error} net={DEFAULT_NETWORK} />
+    <Shell net={net}>
+      <RouteErrorScreen error={error} net={net} />
     </Shell>
   );
 }

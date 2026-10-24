@@ -15,8 +15,8 @@ import { AmendmentsPage } from "./AmendmentsPage";
 
 // ---- The world of the tests ------------------------------------------------------------------------------------------------------------------
 
-const XRPL: NetworkInfo = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" };
-const XAHAU: NetworkInfo = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" };
+const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
+const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
 
 /** 2026-10-19 16:00:00 UTC: five minutes before the flag ledger of the sample (16:05:28), and a little under twelve days before the majority's activation (Oct 31, 15:54). */
 const NOW = Date.UTC(2026, 9, 19, 16, 0, 0);

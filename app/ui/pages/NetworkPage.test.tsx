@@ -18,8 +18,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", software: "rippled" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", software: "xahaud" } as const;
+const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" } as const;
+const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" } as const;
 const HASH = "2F7C1D5A9B3E4F60A8D2C71B5E9F3A4D6C8B0E1F2A3B4C5D6E7F8A9B0C1D2E3F";
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 

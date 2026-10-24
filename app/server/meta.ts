@@ -17,7 +17,7 @@ import type { MetaDescriptor } from "react-router";
 
 import { CARD_HEIGHT, CARD_WIDTH } from "../og/types";
 import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork, type NetworkBrief } from "../ui/networks";
+import type { NetworkBrief } from "../ui/networks";
 import { NETWORK_ROUTE_ID } from "../ui/use-network";
 
 /** What every builder needs besides the page's data: the network, and the origin of the request (`https://host`, no slash at the end). */
@@ -28,16 +28,15 @@ export interface MetaContext {
 
 /**
  * The context of a page's tags from what `meta` is given: the `:net` segment, and the matches of the route, among which the `/:net` layout
- * carries the origin of the request (its loader reads it; `meta` has no request). `undefined` when either is missing: the page has no
- * network, or no layout above it, and says nothing.
+ * carries the network of the request, with the names of the environment's kind, and its origin (its loader reads them; `meta` has no request).
+ * `undefined` when either is missing: the page has no network, no layout above it, or a layout of another network than the segment's, and says nothing.
  */
 export function metaContext(
   net: string | undefined,
   matches: ReadonlyArray<{ id: string; loaderData?: unknown } | undefined>,
 ): MetaContext | undefined {
-  const network = findNetwork(net);
-  const layout = matches.find((match) => match?.id === NETWORK_ROUTE_ID)?.loaderData as { origin?: unknown } | undefined;
-  return network && typeof layout?.origin === "string" ? { network, origin: layout.origin } : undefined;
+  const layout = matches.find((match) => match?.id === NETWORK_ROUTE_ID)?.loaderData as { network?: NetworkBrief; origin?: unknown } | undefined;
+  return net !== undefined && layout?.network?.id === net && typeof layout.origin === "string" ? { network: layout.network, origin: layout.origin } : undefined;
 }
 
 /** The kinds of object that have a link-preview image (`/og/{net}/{kind}/{id}.png`). */

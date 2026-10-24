@@ -14,8 +14,8 @@ import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { amendmentsMeta } from "../server/meta-amendments";
 import { requireNetwork } from "../server/network-route";
+import { isNetworkId } from "../server/networks";
 import { createLiveOnScreen } from "../ui/live-page";
-import { findNetwork } from "../ui/networks";
 import { AmendmentsPage } from "../ui/pages/AmendmentsPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
@@ -78,8 +78,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (amendments.status === "rejected") return upstreamOutage(amendments.reason, "the amendments");
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
-  const { id, name, native, software } = net;
-  const page = amendmentsPage({ network: { id, name, native, software }, amendments: amendments.value, status });
+  const { id, kind, name, label, longName, dexName, native, software } = net;
+  const page = amendmentsPage({ network: { id, kind, name, label, longName, dexName, native, software }, amendments: amendments.value, status });
   return cached({ ...page, anchor, build: getEnv(context).BUILD_ID } satisfies AmendmentsLoaderData, "minute");
 }
 
@@ -101,10 +101,10 @@ const onScreen = createLiveOnScreen<AmendmentsLoaderData>({ order: (data) => dat
  * is not on screen has nothing to keep and gets the error screen as before.
  */
 export function clientLoader({ params, request, serverLoader }: Route.ClientLoaderArgs) {
-  const network = findNetwork(params.net);
+  const net = params.net ?? "";
   // A network that does not exist is the layout's 404: no page of it to keep, and no view to name.
-  if (!network) return serverLoader();
-  return onScreen.reload(scopeOf(network.id, parseAmendmentsParams(queryOf(request.url)).status), serverLoader);
+  if (!isNetworkId(net)) return serverLoader();
+  return onScreen.reload(scopeOf(net, parseAmendmentsParams(queryOf(request.url)).status), serverLoader);
 }
 
 export default function Amendments({ loaderData }: Route.ComponentProps) {

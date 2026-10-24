@@ -5,6 +5,7 @@ import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv } from "../server/env";
 import { upstreamFailure } from "../server/loader-errors";
+import { metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
 import { networkIdOfCtid, networkOf, type NetworkId } from "../server/networks";
 import { findHash, resolveCtid } from "../server/resolve";
@@ -19,7 +20,6 @@ import {
   type SearchPageData,
 } from "../server/search-view";
 import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork } from "../ui/networks";
 import { SearchPage } from "../ui/pages/SearchPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -117,9 +117,9 @@ function titleOf(data: SearchPageData): string {
 }
 
 /** Search pages are for visitors: out of the index, but their links are followed (spec 9). */
-export function meta({ loaderData, params }: Route.MetaArgs) {
+export function meta({ loaderData, params, matches }: Route.MetaArgs) {
   const robots = { name: "robots", content: "noindex, follow" };
-  const network = findNetwork(params.net);
+  const network = metaContext(params.net, matches)?.network;
   if (!loaderData || !network) return [robots];
   return [{ title: `${titleOf(loaderData)} · ${network.name} · ${PRODUCT_NAME}` }, robots];
 }

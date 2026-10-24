@@ -15,9 +15,9 @@ import { metaContext } from "../server/meta";
 import { networkMeta } from "../server/meta-network";
 import { anchoredWindow, networkPage, SERIES_LIMIT, seriesQuery, VALIDATIONS_LIMIT, type NetworkInput, type NetworkLoaderData } from "../server/network-view";
 import { requireNetwork } from "../server/network-route";
+import { isNetworkId } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
-import { findNetwork } from "../ui/networks";
 import { NetworkPage } from "../ui/pages/NetworkPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
@@ -168,10 +168,10 @@ const onScreen = createLiveOnScreen<NetworkLoaderData>({
  * view never stands in for another: a navigation to a view that is not on screen has nothing to keep and gets the error screen as before.
  */
 export function clientLoader({ params, request, serverLoader }: Route.ClientLoaderArgs) {
-  const network = findNetwork(params.net);
+  const net = params.net ?? "";
   // A network that does not exist is the layout's 404: no page of it to keep, and no view to name.
-  if (!network) return serverLoader();
-  return onScreen.reload(networkScope(network.id, parseNetworkParams(queryOf(request.url), network.id).params), serverLoader);
+  if (!isNetworkId(net)) return serverLoader();
+  return onScreen.reload(networkScope(net, parseNetworkParams(queryOf(request.url), net).params), serverLoader);
 }
 
 export default function Network({ loaderData }: Route.ComponentProps) {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
-import { shortHash } from "../../app/domain/format";
+import { shortAddress, shortHash } from "../../app/domain/format";
 import { recordedHashes } from "../support/ledger-hashes";
 import { anchors, hrefs, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
@@ -24,6 +24,60 @@ const PAYMENT = "AACAFCFEBB5C970049A576CBFE6EF544A47EE3ADBA99122FA43234D18D5FFD4
 const REMIT = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF";
 
 const search = (net: "xrpl" | "xahau", q: string) => `/${net}/search?q=${encodeURIComponent(q)}`;
+
+// The places that draw the names with no `/:net` data of their own: the network switch (the root's environment decides what it lists), the tags of
+// a page (the layout's network decides what they say) and the error pages.
+describe("the names where there is no layout data", () => {
+  /** The network switch of a page: where each of its links goes, and what it says. */
+  const switchOf = (html: string) =>
+    anchors(html)
+      .filter((a) => a.attrs.includes("netswitch__item"))
+      .map((a) => [/href="([^"]*)"/.exec(a.attrs)?.[1], a.text]);
+
+  /** The `<title>` of a page and the content of its `<meta name="description">`. */
+  const tagsOf = (html: string) => ({
+    title: /<title>([^<]*)<\/title>/.exec(html)?.[1],
+    description: /<meta\s[^>]*name="description"[^>]*content="([^"]*)"/.exec(html)?.[1] ?? /<meta\s[^>]*content="([^"]*)"[^>]*name="description"/.exec(html)?.[1],
+  });
+
+  it("/xrpl: the switch reads XRPL Testnet and Xahau Testnet", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl");
+    expect(switchOf(html)).toEqual([
+      ["/xrpl", "XRPL Testnet"],
+      ["/xahau", "Xahau Testnet"],
+    ]);
+  });
+
+  it("/xrpl/tx: the title ends XRPL Testnet · explorer and the description says XRPL Testnet ledger", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${PAYMENT}`);
+    const { title, description } = tagsOf(html);
+
+    expect(title).toBe(`Payment ${shortHash(PAYMENT)} · XRPL Testnet · explorer`);
+    expect(description).toMatch(/ · XRPL Testnet ledger 102,186,243$/);
+  });
+
+  it("/xrp: the unknown network's page names the testnets in its switch", async () => {
+    const { html } = await page("/xrp", 404);
+    expect(switchOf(html)).toEqual([
+      ["/xrpl", "XRPL Testnet"],
+      ["/xahau", "Xahau Testnet"],
+    ]);
+    // The page is the default network's (the first of the switch): its home link names it.
+    expect(anchors(html).map((a) => a.text)).toContain("Go to the XRPL Testnet home");
+  });
+
+  it("/xahau/nothing: the not-found page keeps Xahau Testnet and names the testnets in its switch", async () => {
+    const { html } = await page("/xahau/nothing", 404);
+    expect(textOf(html)).toContain("There is no page at /xahau/nothing.");
+    expect(switchOf(html)).toEqual([
+      ["/xrpl", "XRPL Testnet"],
+      ["/xahau", "Xahau Testnet"],
+    ]);
+    expect(anchors(html).map((a) => a.text)).toContain("Go to the Xahau Testnet home");
+  });
+});
 
 describe("a transaction in the sandbox", () => {
   it("/xrpl/tx: the breadcrumb says XRPL Testnet and the CTID ends 0001", async () => {
@@ -135,8 +189,7 @@ describe("the other network an offer names", () => {
     const address = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
     const { html } = await page(`/xahau/account/${address}`, 404);
     expect(textOf(html)).toContain("This address has never been activated on Xahau Testnet");
-    expect(hrefs(html)).toContain(`/xrpl/account/${address}`);
-    expect(textOf(html)).toContain("XRPL Testnet");
+    expect(offer(html, `Look for ${shortAddress(address)} on XRPL Testnet`)).toBe(`/xrpl/account/${address}`);
   });
 
   it("/xahau/amm: a pool, which Xahau Testnet has none of, can be opened on XRPL Testnet", async () => {
