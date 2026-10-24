@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_NETWORK_ID, findNetwork, NETWORK_NAMES, networkChoices } from "./networks";
+import { DEFAULT_NETWORK_ID, findNetwork, isNetworkId, NETWORK_NAMES, networkChoices } from "./networks";
 
 // The names of the networks, which the browser has without any layout data (sandbox spec 5, 6): by kind, in the order the switch shows them.
 
@@ -56,6 +56,26 @@ describe("findNetwork", () => {
     expect(findNetwork("xahau", "testnet")?.longName).toBe("Xahau Testnet");
     expect(findNetwork("xahau", "mainnet")?.longName).toBe("Xahau");
     expect([findNetwork("xrp", "mainnet"), findNetwork(undefined, "testnet"), findNetwork("XRPL", "mainnet")]).toEqual([undefined, undefined, undefined]);
+  });
+});
+
+describe("isNetworkId", () => {
+  it("accepts the two networks", () => {
+    expect(isNetworkId("xrpl")).toBe(true);
+    expect(isNetworkId("xahau")).toBe(true);
+  });
+
+  it.each(["", "XRPL", "Xahau", "doge", "xrpl ", "constructor", "toString", "__proto__", "hasOwnProperty"])("rejects %j", (segment) => {
+    expect(isNetworkId(segment)).toBe(false);
+  });
+
+  it("accepts exactly the ids of the table, in every kind, and the switch lists them", () => {
+    for (const kind of ["mainnet", "testnet"] as const) {
+      const ids = Object.keys(NETWORK_NAMES[kind]);
+      expect(ids.every(isNetworkId)).toBe(true);
+      expect(networkChoices(kind).map((n) => n.id)).toEqual(ids);
+    }
+    expect(Object.keys(NETWORK_NAMES.testnet)).toEqual(Object.keys(NETWORK_NAMES.mainnet));
   });
 });
 

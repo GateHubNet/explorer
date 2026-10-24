@@ -1,9 +1,8 @@
 import { cached, forwardCacheClass } from "../server/edge-cache";
-import { isNetworkId } from "../server/networks";
 import { PRODUCT_NAME } from "../ui/brand";
 import { Shell } from "../ui/components/Shell";
 import { networkKindOf } from "../ui/environment";
-import { DEFAULT_NETWORK_ID, findNetwork } from "../ui/networks";
+import { DEFAULT_NETWORK_ID, findNetwork, isNetworkId } from "../ui/networks";
 import { NotFoundPage } from "../ui/pages/NotFoundPage";
 import { useEnvironment } from "../ui/use-network";
 

@@ -6,7 +6,7 @@
 import type { Display } from "../domain/network-params";
 import { environmentOf, networkKindOf, type NetworkKind } from "../ui/environment";
 import { featuresOf, type Features } from "../ui/features";
-import { NETWORK_NAMES } from "../ui/networks";
+import { isNetworkId, NETWORK_NAMES } from "../ui/networks";
 import type { Env } from "./env";
 
 export type NetworkId = "xrpl" | "xahau";
@@ -105,10 +105,8 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
   },
 };
 
-/** Whether a first path segment names a network. Exact and case-sensitive: `/XRPL/...` is a 404. The paths are the same in every environment. */
-export function isNetworkId(s: string): s is NetworkId {
-  return Object.hasOwn(NETWORKS.mainnet, s);
-}
+// Whether a first path segment names a network is app/ui/networks.ts's `isNetworkId` (the browser asks it too): the Worker's routes import it from here.
+export { isNetworkId };
 
 /** The network of that kind whose CTID network id it is, or `undefined` for any other (the other kind's, a sidechain): never a guess. */
 export function networkIdOfCtid(networkId: number, kind: NetworkKind): NetworkId | undefined {

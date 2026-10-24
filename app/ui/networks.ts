@@ -28,8 +28,13 @@ export const NETWORK_NAMES: Record<NetworkKind, Record<NetworkId, { name: string
   },
 };
 
-/** In the order the switch shows them. */
-const NETWORK_IDS = ["xrpl", "xahau"] as const satisfies readonly NetworkId[];
+/** The ids of the networks, in the order the switch shows them: the keys of the names table, so the list is complete by construction (the paths are the same in every kind). */
+const NETWORK_IDS = Object.keys(NETWORK_NAMES.mainnet) as NetworkId[];
+
+/** Whether a first path segment names a network. Exact and case-sensitive: `/XRPL/...` is a 404. Here and not in app/server/networks.ts because the browser asks it too (the clientLoaders, `meta`). */
+export function isNetworkId(s: string): s is NetworkId {
+  return Object.hasOwn(NETWORK_NAMES.mainnet, s);
+}
 
 const CHOICES: Record<NetworkKind, readonly NetworkBrief[]> = {
   mainnet: NETWORK_IDS.map((id) => ({ id, kind: "mainnet", ...NETWORK_NAMES.mainnet[id] })),
@@ -44,7 +49,7 @@ export function networkChoices(kind: NetworkKind): readonly NetworkBrief[] {
 /** The network of a page that belongs to none (an unknown path, an unknown network): the first of the switch. */
 export const DEFAULT_NETWORK_ID: NetworkId = "xrpl";
 
-/** The network named by a `:net` segment, if it names one: exact and case-sensitive, as the paths are (`isNetworkId`). A `NetworkId` always names one. */
+/** The network named by a `:net` segment, if it names one: exactly as `isNetworkId` does. A `NetworkId` always names one. */
 export function findNetwork(segment: NetworkId, kind: NetworkKind): NetworkBrief;
 export function findNetwork(segment: string | undefined, kind: NetworkKind): NetworkBrief | undefined;
 export function findNetwork(segment: string | undefined, kind: NetworkKind): NetworkBrief | undefined {

@@ -2,12 +2,11 @@ import { Outlet, useMatches } from "react-router";
 
 import { forwardCacheClass } from "../server/edge-cache";
 import { publicNetwork, requireNetwork, type NetworkLayoutData } from "../server/network-route";
-import { isNetworkId } from "../server/networks";
 import { PRODUCT_NAME } from "../ui/brand";
 import { NetworkCookie } from "../ui/components/NetworkCookie";
 import { Shell } from "../ui/components/Shell";
 import { networkKindOf } from "../ui/environment";
-import { DEFAULT_NETWORK_ID, findNetwork } from "../ui/networks";
+import { DEFAULT_NETWORK_ID, findNetwork, isNetworkId } from "../ui/networks";
 import { errorMeta, RouteErrorScreen } from "../ui/pages/RouteErrorScreen";
 import { onlyWhenParamsChange } from "../ui/revalidation";
 import { wantsHeroSearch } from "../ui/route-handle";

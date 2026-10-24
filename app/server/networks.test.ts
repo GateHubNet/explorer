@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { allSwitches } from "../../test/support/switches";
+import { networkKindOf } from "../ui/environment";
 import { featuresOf } from "../ui/features";
+import { isNetworkId as uiIsNetworkId, networkChoices } from "../ui/networks";
 import type { Env } from "./env";
 import { publicNetwork } from "./network-route";
 import { isNetworkId, networkIdOfCtid, networkOf } from "./networks";
@@ -139,17 +141,16 @@ describe("networkOf", () => {
 });
 
 describe("isNetworkId", () => {
-  it("accepts the two networks", () => {
-    expect(isNetworkId("xrpl")).toBe(true);
-    expect(isNetworkId("xahau")).toBe(true);
+  // The function is app/ui/networks.ts's (the browser asks it too; app/ui/networks.test.ts tests it): the Worker's routes import it from here.
+  it("is the one of app/ui/networks.ts, and every id it accepts has a network in each environment's kind", () => {
+    expect(isNetworkId).toBe(uiIsNetworkId);
+    for (const environment of ["development", "sandbox", "production"] as const) {
+      for (const choice of networkChoices(networkKindOf(environment))) {
+        expect(isNetworkId(choice.id)).toBe(true);
+        expect(networkOf(choice.id, { ...env, ENVIRONMENT: environment }).id).toBe(choice.id);
+      }
+    }
   });
-
-  it.each(["", "XRPL", "Xahau", "doge", "xrpl ", "constructor", "toString", "__proto__", "hasOwnProperty"])(
-    "rejects %j",
-    (segment) => {
-      expect(isNetworkId(segment)).toBe(false);
-    },
-  );
 });
 
 describe("networkIdOfCtid", () => {
