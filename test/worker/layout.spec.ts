@@ -189,6 +189,16 @@ describe("/:net", () => {
   });
 });
 
+describe("the environment in the root's data", () => {
+  it("hands the browser the environment in the root's data", async () => {
+    const response = await get("/xrpl.data?_routes=root");
+    const body = await response.text();
+    expect(response.status, body.slice(0, 300)).toBe(200);
+    expect(body).toContain('"environment"');
+    expect(body).toContain('"development"');
+  });
+});
+
 describe("the document shell", () => {
   withRecordedUpstream();
 

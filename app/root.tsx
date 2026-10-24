@@ -1,8 +1,10 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
 import { forwardCacheClass } from "./server/edge-cache";
+import { getEnv } from "./server/env";
 import { PRODUCT_NAME } from "./ui/brand";
 import { Shell } from "./ui/components/Shell";
+import { environmentOf, type Environment } from "./ui/environment";
 import { FONT_PRELOADS } from "./ui/fonts";
 import { DEFAULT_NETWORK } from "./ui/networks";
 import { errorMeta, RouteErrorScreen } from "./ui/pages/RouteErrorScreen";
@@ -13,6 +15,21 @@ import type { Route } from "./+types/root";
 
 // The root route's error boundary can show a thrown 404, whose cache class must reach the document (see edge-cache.ts).
 export const headers = forwardCacheClass;
+
+/** The loader data of the root route: what components outside the `/:net` layout's data need (`useEnvironment()`, app/ui/use-network.ts). */
+export type RootLoaderData = { environment: Environment };
+
+/**
+ * The environment of this deployment, for the error pages, the not-found route and the network switch, which have no `/:net` data of their own.
+ * It names no cache class: the page's class stands, as for the `/:net` layout's loader.
+ */
+export function loader({ context }: Route.LoaderArgs): RootLoaderData {
+  return { environment: environmentOf(getEnv(context).ENVIRONMENT) };
+}
+
+// The environment does not change while a visitor is on the page: the root's data is fetched with the document and never again, so a navigation
+// (or the home page's refresh every few seconds) makes no request for it.
+export const shouldRevalidate = () => false;
 
 export const links: Route.LinksFunction = () => [...FONT_PRELOADS, { rel: "stylesheet", href: styles }];
 

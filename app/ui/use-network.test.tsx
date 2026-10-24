@@ -2,8 +2,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { renderUnderNetwork } from "../../test/support/under-network";
 import { NO_FEATURES } from "./features";
-import { NETWORK_ROUTE_ID, useFeatures } from "./use-network";
+import { NETWORK_ROUTE_ID, ROOT_ROUTE_ID, useEnvironment, useFeatures } from "./use-network";
 
 afterEach(cleanup);
 
@@ -46,5 +47,61 @@ describe("useFeatures", () => {
     );
     render(<RouterProvider router={router} />);
     expect(JSON.parse(screen.getByText(/validators/).textContent!)).toEqual(NO_FEATURES);
+  });
+});
+
+function EnvironmentProbe() {
+  return <p>{`environment:${useEnvironment()}`}</p>;
+}
+
+describe("useEnvironment", () => {
+  it("is the id the root has in the route tree", () => {
+    expect(ROOT_ROUTE_ID).toBe("root");
+  });
+
+  it("gives the root's environment", async () => {
+    const router = createMemoryRouter(
+      [{ id: ROOT_ROUTE_ID, path: "/", loader: () => ({ environment: "sandbox" }), element: <EnvironmentProbe /> }],
+      { initialEntries: ["/"] },
+    );
+    render(<RouterProvider router={router} />);
+    expect(await screen.findByText("environment:sandbox")).toBeTruthy();
+  });
+
+  it("takes a value the root should not hold for development", async () => {
+    const router = createMemoryRouter(
+      [{ id: ROOT_ROUTE_ID, path: "/", loader: () => ({ environment: "Sandbox" }), element: <EnvironmentProbe /> }],
+      { initialEntries: ["/"] },
+    );
+    render(<RouterProvider router={router} />);
+    expect(await screen.findByText("environment:development")).toBeTruthy();
+  });
+
+  it("gives development without root data, without a router, and never throws", () => {
+    const withoutRoot = createMemoryRouter([{ path: "*", element: <EnvironmentProbe />, ErrorBoundary: () => <p>threw</p> }]);
+    render(<RouterProvider router={withoutRoot} />);
+    expect(screen.queryByText("threw")).toBeNull();
+    expect(screen.getByText("environment:development")).toBeTruthy();
+    cleanup();
+
+    const emptyRoot = createMemoryRouter(
+      [{ id: ROOT_ROUTE_ID, path: "/", loader: () => ({}), hydrateFallbackElement: <p>loading</p>, element: <EnvironmentProbe /> }],
+      { initialEntries: ["/"], hydrationData: { loaderData: { [ROOT_ROUTE_ID]: {} } } },
+    );
+    render(<RouterProvider router={emptyRoot} />);
+    expect(screen.getByText("environment:development")).toBeTruthy();
+    cleanup();
+
+    render(<EnvironmentProbe />);
+    expect(screen.getByText("environment:development")).toBeTruthy();
+  });
+
+  it("is the environment the test helper's root route carries, and development where it has none", async () => {
+    renderUnderNetwork(<EnvironmentProbe />, NO_FEATURES, { environment: "production" });
+    expect(await screen.findByText("environment:production")).toBeTruthy();
+    cleanup();
+
+    renderUnderNetwork(<EnvironmentProbe />, NO_FEATURES);
+    expect(await screen.findByText("environment:development")).toBeTruthy();
   });
 });
