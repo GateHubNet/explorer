@@ -23,7 +23,11 @@ describe("networkOf", () => {
   it("describes the XRP Ledger", () => {
     expect(networkOf("xrpl", env)).toEqual({
       id: "xrpl",
+      kind: "mainnet",
       name: "XRPL",
+      label: "XRPL mainnet",
+      longName: "the XRP Ledger",
+      dexName: "the XRP Ledger DEX",
       native: "XRP",
       ctidNetworkId: 0,
       dataApiUrl: "https://xrpl.data.example.invalid",
@@ -31,6 +35,7 @@ describe("networkOf", () => {
       other: "xahau",
       hasAmm: true,
       software: "rippled",
+      displays: ["native", "usd"],
       features: { ...featuresOf(allSwitches("off")), ammData: true },
     });
   });
@@ -40,7 +45,11 @@ describe("networkOf", () => {
     expect(xahau.ctidNetworkId).toBe(21337);
     expect(xahau).toEqual({
       id: "xahau",
+      kind: "mainnet",
       name: "Xahau",
+      label: "Xahau mainnet",
+      longName: "Xahau",
+      dexName: "the Xahau DEX",
       native: "XAH",
       ctidNetworkId: 21337,
       dataApiUrl: "https://xahau.data.example.invalid/",
@@ -48,6 +57,7 @@ describe("networkOf", () => {
       other: "xrpl",
       hasAmm: false,
       software: "xahaud",
+      displays: ["native"],
       features: { ...featuresOf(allSwitches("off")), ammData: true },
     });
   });
@@ -85,6 +95,38 @@ describe("networkOf", () => {
     expect(networkOf(networkOf("xrpl", env).other, env).other).toBe("xrpl");
   });
 
+  // The facts and names of each cell of the sandbox spec's tables (§5), written out here and not read from the module under test.
+  const FACTS = {
+    mainnet: {
+      xrpl: { kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", ctidNetworkId: 0, hasAmm: true, software: "rippled", displays: ["native", "usd"] },
+      xahau: { kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", ctidNetworkId: 21337, hasAmm: false, software: "xahaud", displays: ["native"] },
+    },
+    testnet: {
+      xrpl: { kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", ctidNetworkId: 1, hasAmm: true, software: "rippled", displays: ["native"] },
+      xahau: { kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", ctidNetworkId: 21338, hasAmm: false, software: "xahaud", displays: ["native"] },
+    },
+  } as const;
+
+  // "Sandbox" is not the environment's value: anything but the exact "sandbox" or "production" is development, which shows the mainnets.
+  it.each([
+    ["development", "mainnet"],
+    ["production", "mainnet"],
+    ["sandbox", "testnet"],
+    ["Sandbox", "mainnet"],
+  ] as const)("networkOf in %s gives the %s facts and names", (environment, kind) => {
+    const inEnvironment = { ...env, ENVIRONMENT: environment as Env["ENVIRONMENT"] };
+    for (const id of ["xrpl", "xahau"] as const) {
+      const other = id === "xrpl" ? "xahau" : "xrpl";
+      expect(networkOf(id, inEnvironment), `${environment} ${id}`).toMatchObject({ id, other, ...FACTS[kind][id] });
+    }
+  });
+
+  it("takes the URLs from the env it is given, whatever its environment", () => {
+    const sandbox = { ...env, ENVIRONMENT: "sandbox" as const };
+    expect(networkOf("xrpl", sandbox).dataApiUrl).toBe("https://xrpl.data.example.invalid");
+    expect(networkOf("xahau", sandbox).nodeUrl).toBe("https://xahau.network/");
+  });
+
   it("takes the URLs from the env it is given", () => {
     const moved = networkOf("xrpl", {
       ...env,
@@ -111,19 +153,44 @@ describe("isNetworkId", () => {
 });
 
 describe("networkIdOfCtid", () => {
-  it("names the network a CTID's network id belongs to", () => {
-    expect(networkIdOfCtid(0)).toBe("xrpl");
-    expect(networkIdOfCtid(21337)).toBe("xahau");
+  it("knows the network of a CTID id by kind", () => {
+    expect([networkIdOfCtid(0, "mainnet"), networkIdOfCtid(21337, "mainnet"), networkIdOfCtid(1, "testnet"), networkIdOfCtid(21338, "testnet")]).toEqual([
+      "xrpl",
+      "xahau",
+      "xrpl",
+      "xahau",
+    ]);
+    // The other kind's ids are not covered: a mainnet CTID in the sandbox, a testnet one elsewhere.
+    expect([networkIdOfCtid(0, "testnet"), networkIdOfCtid(21338, "mainnet"), networkIdOfCtid(2, "testnet")]).toEqual([undefined, undefined, undefined]);
   });
 
-  it("agrees with the network ids of networkOf", () => {
-    for (const id of ["xrpl", "xahau"] as const) {
-      expect(networkIdOfCtid(networkOf(id, env).ctidNetworkId)).toBe(id);
+  it("gives every network of a kind a CTID id of its own", () => {
+    for (const environment of ["development", "sandbox"] as const) {
+      const [xrpl, xahau] = (["xrpl", "xahau"] as const).map((id) => networkOf(id, { ...env, ENVIRONMENT: environment }));
+      expect(xrpl.ctidNetworkId, environment).not.toBe(xahau.ctidNetworkId);
     }
   });
 
-  // Testnets and sidechains have their own ids (1, 2, 21338, ...): the explorer does not cover them, and must not guess.
-  it.each([1, 2, 21336, 21338, 65535, -1, 0.5, Number.NaN])("knows no network for %j", (networkId) => {
-    expect(networkIdOfCtid(networkId)).toBeUndefined();
+  it("agrees with the network ids of networkOf", () => {
+    for (const environment of ["development", "sandbox", "production"] as const) {
+      for (const id of ["xrpl", "xahau"] as const) {
+        const network = networkOf(id, { ...env, ENVIRONMENT: environment });
+        expect(networkIdOfCtid(network.ctidNetworkId, network.kind), `${environment} ${id}`).toBe(id);
+      }
+    }
+  });
+
+  // Sidechains and the other kind have their own ids (2, 21336, ...): the explorer does not cover them, and must not guess.
+  it.each([2, 21336, 65535, -1, 0.5, Number.NaN])("knows no network for %j", (networkId) => {
+    expect(networkIdOfCtid(networkId, "mainnet")).toBeUndefined();
+    expect(networkIdOfCtid(networkId, "testnet")).toBeUndefined();
+  });
+
+  it.each([1, 21338])("knows no mainnet for the testnet id %j", (networkId) => {
+    expect(networkIdOfCtid(networkId, "mainnet")).toBeUndefined();
+  });
+
+  it.each([0, 21337])("knows no testnet for the mainnet id %j", (networkId) => {
+    expect(networkIdOfCtid(networkId, "testnet")).toBeUndefined();
   });
 });

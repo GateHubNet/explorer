@@ -8,7 +8,19 @@ import { NETWORK_ROUTE_ID, ROOT_ROUTE_ID, useEnvironment, useFeatures } from "./
 
 afterEach(cleanup);
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", hasAmm: true } as const;
+const XRPL = {
+  id: "xrpl",
+  kind: "mainnet",
+  name: "XRPL",
+  label: "XRPL mainnet",
+  longName: "the XRP Ledger",
+  dexName: "the XRP Ledger DEX",
+  native: "XRP",
+  ctidNetworkId: 0,
+  other: "xahau",
+  hasAmm: true,
+  displays: ["native", "usd"],
+} as const;
 
 function Probe() {
   return <p>{JSON.stringify(useFeatures())}</p>;

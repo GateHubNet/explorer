@@ -45,8 +45,8 @@ import * as validator from "../routes/net.validators.$key";
 // `net.validators.$key.tsx`: live every ledger, and a page of older validations that never polls. The amendments list's, `net.amendments.tsx`, comes next: one part,
 // a beat of a minute, and no merge. The amendment page's, `net.amendments.$name.tsx`, is last: a beat of a minute, and S's part kept.
 
-const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau" } as const;
-const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl" } as const;
+const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", kind: "mainnet", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", displays: ["native", "usd"] } as const;
+const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl", kind: "mainnet", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", displays: ["native"] } as const;
 
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 

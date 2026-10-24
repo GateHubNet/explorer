@@ -15,7 +15,7 @@ import type { DataApi } from "../server/data-api";
 import { asOutage, byDeadline, CARD_DEADLINE_MS } from "../server/deadline";
 import { echoOf } from "../server/echo";
 import { cached, forwardCacheClass } from "../server/edge-cache";
-import { markDegraded } from "../server/env";
+import { getEnv, markDegraded } from "../server/env";
 import { notFound, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
@@ -23,10 +23,9 @@ import { metaContext } from "../server/meta";
 import { ammPoolMeta } from "../server/meta-amm-pool";
 import { requireNetwork } from "../server/network-route";
 import { anchoredWindow } from "../server/network-view";
-import type { Network } from "../server/networks";
+import { networkOf, type Network } from "../server/networks";
 import { redirectToCanonical } from "../server/pair-route";
 import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
-import { findNetwork } from "../ui/networks";
 import { AmmPoolPage } from "../ui/pages/AmmPoolPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 
@@ -95,10 +94,10 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   if (!isValidClassicAddress(pool)) notFound({ notFound: `AMM pool ${echoOf(pool)}` });
   // A network without AMM has no pool, so no call is made; the visitor is shown the way to the network that has them.
   if (!net.hasAmm) {
-    const other = findNetwork(net.other);
+    const other = networkOf(net.other, getEnv(context));
     notFound({
       notFound: `AMM pool ${shortAddress(pool)}`,
-      ...(other === undefined ? {} : { suggestion: { href: ammPoolPath(other.id, pool), label: `Open it on ${other.name}` } }),
+      suggestion: { href: ammPoolPath(other.id, pool), label: `Open it on ${other.name}` },
       note: `${net.name} has no AMM, so this pool exists only on the XRP Ledger.`,
     });
   }

@@ -4,15 +4,15 @@ import { shortHash } from "../domain/format";
 import { clientsFor } from "../server/clients";
 import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
+import { getEnv } from "../server/env";
 import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "../server/ledger-view";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { metaContext } from "../server/meta";
 import { ledgerMeta } from "../server/meta-ledger";
 import { requireNetwork } from "../server/network-route";
-import type { Network } from "../server/networks";
+import { networkOf, type Network } from "../server/networks";
 import { searchOnOther } from "../server/search-view";
 import { UpstreamError } from "../server/upstream";
-import { findNetwork } from "../ui/networks";
 import { LedgerPage } from "../ui/pages/LedgerPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -69,7 +69,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     try {
       source = sourceFromNode(await node.ledger(id, { expand: true }));
     } catch (err) {
-      return upstreamFailure(err, what, LEDGER_HASH.test(id) ? searchOnOther(id, nameOf(network.other)) : undefined);
+      return upstreamFailure(err, what, LEDGER_HASH.test(id) ? searchOnOther(id, nameOf(context, network.other)) : undefined);
     }
   } else {
     return upstreamOutage(found.reason, what);
@@ -83,9 +83,9 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   return cached(page, hasNext ? "immutable" : "live");
 }
 
-/** A network as the offer names it. */
-function nameOf(id: Network["other"]) {
-  return { id, name: findNetwork(id)?.name ?? id };
+/** A network as the offer names it: the environment's own (XRPL Testnet in the sandbox). */
+function nameOf(context: Route.LoaderArgs["context"], id: Network["other"]) {
+  return { id, name: networkOf(id, getEnv(context)).name };
 }
 
 /** A redirect to the one URL of an object. It never changes, and carries the class of the page it leads to. */

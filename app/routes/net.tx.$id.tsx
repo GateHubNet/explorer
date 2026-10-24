@@ -5,12 +5,13 @@ import { shortHash } from "../domain/format";
 import { clientsFor } from "../server/clients";
 import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
+import { getEnv } from "../server/env";
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { transactionMeta } from "../server/meta-transaction";
 import { requireNetwork } from "../server/network-route";
-import { networkIdOfCtid, type Network, type NetworkId } from "../server/networks";
+import { networkIdOfCtid, networkOf, type Network, type NetworkId } from "../server/networks";
 import { resolveCtid } from "../server/resolve";
 import { ctidNotFoundPage, otherNetworkPage, shownQuery, type NetworkName, type SearchPageData } from "../server/search-view";
 import {
@@ -25,7 +26,6 @@ import {
 } from "../server/transaction-view";
 import { UpstreamError } from "../server/upstream";
 import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork } from "../ui/networks";
 import { SearchPage } from "../ui/pages/SearchPage";
 import { TransactionPage } from "../ui/pages/TransactionPage";
 import { useNetwork } from "../ui/use-network";
@@ -45,9 +45,9 @@ function permanent(to: string) {
   return redirect(to, { status: 302, headers: cacheClassHeaders("immutable") });
 }
 
-/** A network as a page names it. */
-function nameOf(id: NetworkId): NetworkName {
-  return { id, name: findNetwork(id)?.name ?? id };
+/** A network as a page names it: the environment's own (XRPL Testnet in the sandbox). */
+function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkName {
+  return { id, name: networkOf(id, getEnv(context)).name };
 }
 
 /**
@@ -96,11 +96,11 @@ async function ctidAnswer(context: Route.LoaderArgs["context"], network: Network
   }
 
   if (resolved === null) {
-    const covered = networkIdOfCtid(ctidNetworkId) !== undefined;
+    const covered = networkIdOfCtid(ctidNetworkId, network.kind) !== undefined;
     return cached(ctidNotFoundPage(shownQuery(ctid), ctid, ctidNetworkId, covered), "short", { status: 404 });
   }
   if ("hash" in resolved) return permanent(`/${network.id}/tx/${resolved.hash}`);
-  return cached(otherNetworkPage(shownQuery(ctid), ctid, nameOf(resolved.otherNetwork)), "short");
+  return cached(otherNetworkPage(shownQuery(ctid), ctid, nameOf(context, resolved.otherNetwork)), "short");
 }
 
 async function transactionAnswer(context: Route.LoaderArgs["context"], network: Network, hash: string, request: Request) {
@@ -147,7 +147,7 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
     fromNode = await node.tx(hash);
   } catch (err) {
     if (err instanceof UpstreamError && err.kind === "not_found") {
-      return cached(transactionNotFoundPage(hash, nameOf(network.other)), "short", { status: 404 });
+      return cached(transactionNotFoundPage(hash, nameOf(context, network.other)), "short", { status: 404 });
     }
     return upstreamOutage(err, what);
   }

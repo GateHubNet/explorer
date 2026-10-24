@@ -18,7 +18,7 @@ import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { amendmentMeta } from "../server/meta-amendment";
 import { requireNetwork } from "../server/network-route";
-import type { Network } from "../server/networks";
+import { networkOf, type Network } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
 import { findNetwork } from "../ui/networks";
@@ -93,7 +93,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     logProblem("the amendment page has no anchor", error, request);
     return upstreamOutage(error, "the amendment");
   }
-  if (amendment.status === "rejected") return amendmentFailure(amendment.reason, net, ref, raw);
+  if (amendment.status === "rejected") return amendmentFailure(context, amendment.reason, net, ref, raw);
   const canonical = amendmentSegment(amendment.value);
   if (canonical !== raw) return redirect(amendmentHref(net.id, canonical), { status: 302, headers: cacheClassHeaders("slow") });
 
@@ -108,11 +108,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 }
 
 /** AD's failure (spec 1.3, 6.6): its own not-found is the page's, with the offer of the other network; anything else is the API failing. */
-function amendmentFailure(error: unknown, net: Network, ref: { id: string } | { name: string }, raw: string): never {
+function amendmentFailure(context: Route.LoaderArgs["context"], error: unknown, net: Network, ref: { id: string } | { name: string }, raw: string): never {
   if (error instanceof UpstreamError && error.kind === "not_found") {
-    const other = findNetwork(net.other);
+    const other = networkOf(net.other, getEnv(context));
     const what = "id" in ref ? shortHash(ref.id) : ref.name;
-    return upstreamFailure(error, `amendment ${what}`, { href: `/${net.other}/amendments/${raw}`, label: `Look for it on ${other?.name ?? net.other}` });
+    return upstreamFailure(error, `amendment ${what}`, { href: `/${net.other}/amendments/${raw}`, label: `Look for it on ${other.name}` });
   }
   return upstreamOutage(error, "the amendment");
 }

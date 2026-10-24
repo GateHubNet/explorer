@@ -24,9 +24,10 @@ function isMissing(err: unknown): boolean {
  * and the hash at the CTID's transaction index is the answer.
  *
  * - `{ hash }`: the transaction, in upper case.
- * - `{ otherNetwork }`: the CTID belongs to the other network (its network id is that network's); nobody is asked.
+ * - `{ otherNetwork }`: the CTID belongs to the other network (its network id is that network's, of the kind the environment shows); nobody is asked.
  * - `null`: there is no such transaction. That is a ledger the data API does not have, an index past the end of the ledger,
- *   text that is not a CTID, and a network id that is neither XRPL's nor Xahau's: never taken for one of the two.
+ *   text that is not a CTID, and a network id that is neither of the two networks of this environment's kind (a mainnet CTID in the sandbox, a
+ *   testnet one in production): never taken for one of the two.
  *
  * An upstream failure other than "not found" is thrown as it is (an `UpstreamError`): the caller decides what the visitor sees.
  * So is an answer that cannot be right: a list of hashes that is not a list, or a hash in it that is not 64 hex digits (it goes
@@ -40,7 +41,7 @@ export async function resolveCtid(
   const decoded = decodeCtid(ctid);
   if (!decoded) return null;
 
-  const owner = networkIdOfCtid(decoded.networkId);
+  const owner = networkIdOfCtid(decoded.networkId, net.kind);
   if (owner === undefined) return null;
   if (owner !== net.id) return { otherNetwork: owner };
 

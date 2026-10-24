@@ -41,7 +41,21 @@ const READER = "../app/server/node-rpc.ts";
 const { createNodeRpc } = (await import(/* @vite-ignore */ READER)) as { createNodeRpc(net: unknown, cache: unknown): Reader };
 
 /** What the client reads of a network (networks.ts): the node's URL and the native currency. */
-const xrpl = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, dataApiUrl: "https://xrpl.data.example.invalid", nodeUrl: "https://s1.ripple.com:51234/", other: "xahau", hasAmm: true };
+const xrpl = {
+  id: "xrpl",
+  kind: "mainnet",
+  name: "XRPL",
+  label: "XRPL mainnet",
+  longName: "the XRP Ledger",
+  dexName: "the XRP Ledger DEX",
+  native: "XRP",
+  ctidNetworkId: 0,
+  dataApiUrl: "https://xrpl.data.example.invalid",
+  nodeUrl: "https://s1.ripple.com:51234/",
+  other: "xahau",
+  hasAmm: true,
+  displays: ["native", "usd"],
+};
 const passThrough = { json: <T>(_key: string, _cls: string, load: () => Promise<T>) => load() };
 const reader = (): Reader => createNodeRpc(xrpl, passThrough);
 

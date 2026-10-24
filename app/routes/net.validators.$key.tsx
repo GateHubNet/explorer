@@ -19,7 +19,7 @@ import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { validatorMeta } from "../server/meta-validator";
 import { requireNetwork } from "../server/network-route";
-import type { Network } from "../server/networks";
+import { networkOf, type Network } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
 import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "../server/validator-view";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
@@ -106,10 +106,10 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 }
 
 /** D's failure (spec 1.2, 4.4): its own not-found is the page's, with the offer of the other network; anything else is the API failing. */
-function validatorFailure(error: unknown, net: Network, key: string): never {
+function validatorFailure(context: Route.LoaderArgs["context"], error: unknown, net: Network, key: string): never {
   if (error instanceof UpstreamError && error.kind === "not_found") {
-    const other = findNetwork(net.other);
-    return upstreamFailure(error, `validator ${shortHash(key)}`, { href: `/${net.other}/validators/${key}`, label: `Look for it on ${other?.name ?? net.other}` });
+    const other = networkOf(net.other, getEnv(context));
+    return upstreamFailure(error, `validator ${shortHash(key)}`, { href: `/${net.other}/validators/${key}`, label: `Look for it on ${other.name}` });
   }
   return upstreamOutage(error, "the validator");
 }
@@ -143,7 +143,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
     logProblem("the validator page has no anchor", error, request);
     return upstreamOutage(error, "the validator");
   }
-  if (validator.status === "rejected") return validatorFailure(validator.reason, net, key);
+  if (validator.status === "rejected") return validatorFailure(context, validator.reason, net, key);
   const master = toMaster(net, key, validator.value.validation_public_key, {});
   if (master !== null) return master;
 
@@ -177,7 +177,7 @@ async function historyPage(context: Route.LoaderArgs["context"], net: Network, k
     api.validatorValidations(key, { limit: VALIDATIONS_LIMIT, marker: page.marker }),
   ]);
 
-  if (validator.status === "rejected") return validatorFailure(validator.reason, net, key);
+  if (validator.status === "rejected") return validatorFailure(context, validator.reason, net, key);
   const master = toMaster(net, key, validator.value.validation_public_key, page);
   if (master !== null) return master;
 

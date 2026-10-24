@@ -59,8 +59,30 @@ describe("requireNetwork", () => {
 describe("publicNetwork", () => {
   it("is what may be sent to the browser: no data API URL, no node URL", () => {
     const shown = publicNetwork(networkOf("xrpl", env));
-    expect(shown).toEqual({ id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", hasAmm: true, software: "rippled", features: featuresOf(allSwitches("off")) });
+    expect(shown).toEqual({
+      id: "xrpl",
+      kind: "mainnet",
+      name: "XRPL",
+      label: "XRPL mainnet",
+      longName: "the XRP Ledger",
+      dexName: "the XRP Ledger DEX",
+      native: "XRP",
+      ctidNetworkId: 0,
+      other: "xahau",
+      hasAmm: true,
+      software: "rippled",
+      displays: ["native", "usd"],
+      features: featuresOf(allSwitches("off")),
+    });
     expect(JSON.stringify(shown)).not.toContain("invalid");
+  });
+
+  it("carries the names and facts of the sandbox's testnets to the browser as they are", () => {
+    const sandbox = { ...env, ENVIRONMENT: "sandbox" as const };
+    const requested = requireNetwork(createLoadContext(sandbox, ctx), { net: "xahau" });
+    expect(requested.kind).toBe("testnet");
+    expect(publicNetwork(requested)).toMatchObject({ id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", ctidNetworkId: 21338, displays: ["native"] });
+    expect(JSON.stringify(publicNetwork(networkOf("xrpl", sandbox)))).not.toContain("invalid");
   });
 });
 

@@ -32,10 +32,14 @@ const resolve = { alias: { "~": fileURLToPath(new URL("./app", import.meta.url))
 // The `worker-off` project's bindings: the same, with every switch of `FEATURE_VARS` "off".
 const offBindings = { ...testBindings, ...Object.fromEntries(FEATURE_VARS.map((name) => [name, "off"])) };
 
+// The `worker-sandbox` project's bindings: the top level's (its placeholder URLs and its switches, so that every page can be drawn over the
+// existing fixtures, which are mainnet data standing in for the testnets') with `ENVIRONMENT` "sandbox". No test reaches a deployed data API.
+const sandboxBindings = { ...testBindings, ENVIRONMENT: "sandbox" };
+
 export default defineConfig({
-  // The root config is the Worker projects' (`worker` and `worker-off`, below): they share its one Vite server, and so its one React Router
+  // The root config is the Worker projects' (`worker`, `worker-off` and `worker-sandbox`, below): they share its one Vite server, and so its one React Router
   // plugin. That plugin removes and rewrites `.react-router/types` each time a server starts, and two of them starting together raced on the
-  // directory (ENOTEMPTY, EINVAL: `pnpm test` sometimes failed to start). What tells the two projects apart is the `workerBindings` each is
+  // directory (ENOTEMPTY, EINVAL: `pnpm test` sometimes failed to start). What tells the projects apart is the `workerBindings` each is
   // `provide`d, which the Workers plugin reads for its Miniflare. `unit` and `components` have servers of their own and do not extend this.
   plugins: [
     cloudflareTest(({ inject }) => ({
@@ -86,8 +90,8 @@ export default defineConfig({
         test: {
           name: "worker",
           include: ["test/worker/**/*.spec.ts"],
-          // The files of the project below.
-          exclude: [...configDefaults.exclude, "test/worker/**/*-off.spec.ts"],
+          // The files of the projects below.
+          exclude: [...configDefaults.exclude, "test/worker/**/*-off.spec.ts", "test/worker/**/*-sandbox.spec.ts"],
           provide: { workerBindings: testBindings },
         },
       },
@@ -97,6 +101,15 @@ export default defineConfig({
           name: "worker-off",
           include: ["test/worker/**/*-off.spec.ts"],
           provide: { workerBindings: offBindings },
+        },
+      },
+      {
+        // The Worker as the sandbox runs it: `ENVIRONMENT` "sandbox", so that the facts and names are the testnets' (sandbox spec 5), in files named
+        // `*-sandbox.spec.ts`. A page gets a case here only where it says something per kind of network.
+        test: {
+          name: "worker-sandbox",
+          include: ["test/worker/**/*-sandbox.spec.ts"],
+          provide: { workerBindings: sandboxBindings },
         },
       },
     ],

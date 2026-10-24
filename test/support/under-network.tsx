@@ -13,7 +13,20 @@ import { NETWORK_ROUTE_ID, ROOT_ROUTE_ID } from "../../app/ui/use-network";
 // tokens). Without the layout `useFeatures()` gives `NO_FEATURES`, so a test of a switch that is on needs this.
 
 /** The layout's network when a test names none: XRPL, as `publicNetwork` gives it but for the switches, which are the test's. */
-const XRPL: Omit<PublicNetwork, "features"> = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", hasAmm: true, software: "rippled" };
+const XRPL: Omit<PublicNetwork, "features"> = {
+  id: "xrpl",
+  kind: "mainnet",
+  name: "XRPL",
+  label: "XRPL mainnet",
+  longName: "the XRP Ledger",
+  dexName: "the XRP Ledger DEX",
+  native: "XRP",
+  ctidNetworkId: 0,
+  other: "xahau",
+  hasAmm: true,
+  software: "rippled",
+  displays: ["native", "usd"],
+};
 
 export interface UnderNetworkOptions {
   /** The URL the router starts at: `/{network}` by default. */

@@ -34,19 +34,18 @@ import { clientsFor } from "../server/clients";
 import { CARD_DEADLINE_MS } from "../server/deadline";
 import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
-import { markDegraded } from "../server/env";
+import { getEnv, markDegraded } from "../server/env";
 import { upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { accountMeta } from "../server/meta-account";
 import { requireNetwork } from "../server/network-route";
-import type { Network } from "../server/networks";
+import { networkOf, type Network } from "../server/networks";
 import type { NodeRpc } from "../server/node-rpc";
 import { encodeQr, qrPath } from "../server/qr";
 import { UpstreamError } from "../server/upstream";
 import { PRODUCT_NAME } from "../ui/brand";
-import { findNetwork } from "../ui/networks";
 import { AccountPage, NeverActivatedPage } from "../ui/pages/AccountPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -262,12 +261,12 @@ async function historyOf(rows: Promise<Page<"transactions", TxObject>>): Promise
  * The answer for an address the page has no account of: the 404 of one that was never activated (class `short`), or the 503 of one that cannot
  * be told apart from it.
  */
-function notAnAccount(existence: "never-activated" | "outage", network: Network, address: string) {
+function notAnAccount(context: Route.LoaderArgs["context"], existence: "never-activated" | "outage", network: Network, address: string) {
   if (existence === "outage") {
     return upstreamOutage(new UpstreamError("server", "the account could not be told apart from one that does not exist"), `account ${shortAddress(address)}`);
   }
-  const other = findNetwork(network.other);
-  const page: NeverActivatedData = { kind: "never-activated", address, other: { id: network.other, name: other?.name ?? network.other } };
+  const other = networkOf(network.other, getEnv(context));
+  const page: NeverActivatedData = { kind: "never-activated", address, other: { id: other.id, name: other.name } };
   return cached(page, "short", { status: 404 });
 }
 
@@ -358,7 +357,7 @@ async function firstPage(
   const history = existenceOf(created, info) === "undetermined" ? await historyOf(api.accountTransactions(address, { limit: 1 })) : undefined;
 
   const existence = existenceOf(created, info, history);
-  if (existence === "never-activated" || existence === "outage") return notAnAccount(existence, network, address);
+  if (existence === "never-activated" || existence === "outage") return notAnAccount(context, existence, network, address);
 
   const { header, problems } = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, history });
   reportProblems(context, request, problems);
@@ -417,7 +416,7 @@ async function analyticsPage(
     const history = existenceOf(created, info) === "undetermined" ? await historyOf(probe()) : undefined;
 
     const existence = existenceOf(created, info, history);
-    if (existence === "never-activated" || existence === "outage") return notAnAccount(existence, network, address);
+    if (existence === "never-activated" || existence === "outage") return notAnAccount(context, existence, network, address);
 
     const { header, problems } = accountHeader({ native: network.native, created, info, state, lastLedgerTime, history }, { holdings: false });
     isView = true;

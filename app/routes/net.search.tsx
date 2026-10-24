@@ -3,9 +3,10 @@ import { redirect } from "react-router";
 import { classify } from "../domain/search";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
+import { getEnv } from "../server/env";
 import { upstreamFailure } from "../server/loader-errors";
 import { requireNetwork } from "../server/network-route";
-import { networkIdOfCtid, type NetworkId } from "../server/networks";
+import { networkIdOfCtid, networkOf, type NetworkId } from "../server/networks";
 import { findHash, resolveCtid } from "../server/resolve";
 import {
   choicePage,
@@ -32,9 +33,9 @@ function found(to: string) {
   return redirect(to, { status: 302, headers: cacheClassHeaders("short") });
 }
 
-/** A network as a page names it (`findNetwork` knows the two; the fallback is the id). */
-function nameOf(id: NetworkId): NetworkName {
-  return { id, name: findNetwork(id)?.name ?? id };
+/** A network as a page names it: the environment's own (XRPL Testnet in the sandbox). */
+function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkName {
+  return { id, name: networkOf(id, getEnv(context)).name };
 }
 
 /**
@@ -55,7 +56,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const typed = new URL(request.url).searchParams.get("q") ?? "";
   const query = shownQuery(typed);
   const input = classify(typed);
-  const other = nameOf(network.other);
+  const other = nameOf(context, network.other);
 
   switch (input.kind) {
     case "ledger-index":
@@ -89,11 +90,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
         return upstreamFailure(err, `transaction ${input.ctid}`);
       }
       if (resolved === null) {
-        const covered = networkIdOfCtid(input.networkId) !== undefined;
+        const covered = networkIdOfCtid(input.networkId, network.kind) !== undefined;
         return cached(ctidNotFoundPage(query, input.ctid, input.networkId, covered), "short", { status: 404 });
       }
       if ("hash" in resolved) return found(`/${network.id}/tx/${resolved.hash}`);
-      return cached(otherNetworkPage(query, input.ctid, nameOf(resolved.otherNetwork)), "short");
+      return cached(otherNetworkPage(query, input.ctid, nameOf(context, resolved.otherNetwork)), "short");
     }
 
     case "none":
