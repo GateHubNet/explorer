@@ -32,8 +32,8 @@ cp .dev.vars.example .dev.vars      # DATA_API_KEY and SENTRY_DSN; never commit 
 pnpm dev                            # http://localhost:5173
 ```
 
-The data API hosts in `wrangler.jsonc` are placeholders that never resolve (`*.example.invalid`) until the hosts
-are decided. To develop against a running data API, put its address in `.dev.vars` (`XRPL_DATA_API_URL=...`);
+The data API hosts at the top level of `wrangler.jsonc` are placeholders that never resolve (`*.example.invalid`), on purpose.
+To develop against a running data API, put its address in `.dev.vars` (`XRPL_DATA_API_URL=...`);
 values there replace the `vars` of `wrangler.jsonc` locally.
 
 A data API on `main` has no `amm_volume` route yet, and the top level of `wrangler.jsonc` has `AMM_DATA` `"on"` (see "Switches"). Against such an API every render of the
@@ -70,7 +70,7 @@ per request, over the data centre's Cache API, built with `BUILD_ID`).
 
 | Name | Kind | Where it is set |
 |---|---|---|
-| `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL` | var | `wrangler.jsonc`, per environment (placeholders for now) |
+| `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL` | var | `wrangler.jsonc`, per environment (the top level's are placeholders; "Hosts and routes" lists the others) |
 | `XRPL_NODE_URL`, `XAHAU_NODE_URL` | var | `wrangler.jsonc`, per environment (`https://s1.ripple.com:51234/`, `https://xahau.network/`) |
 | `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
 | `VISITOR_LIMITER` | `ratelimits` binding, 60 per 10 s | `wrangler.jsonc`, per environment (own namespace each) |
@@ -1459,7 +1459,7 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `scripts/e2e-env.test.ts` the switches of the end-to-end suite
   (URLs, the fixture server's port, the browser, the env file read back with wrangler's own loader, which console errors a test lets through, `E2E_FEATURES_OFF`); `test/unit/e2e-stack.test.ts`
   runs `test/e2e/stack.ts` over a stand-in root and a `wrangler` that fails; `test/unit/headers-file.test.ts` `public/_headers`;
-  `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, the switches, another environment, workers.dev, the redirect), the
+  `scripts/predeploy-check.test.ts` the pre-deploy guard over fake build configs (placeholders, non-https URLs, the switches, another environment, `ENVIRONMENT`, data APIs, nodes and route of the other one, workers.dev, the redirect), the
   command through a link, and that the deploy scripts run it between the build and `wrangler deploy` and the environments of `wrangler.jsonc` are not on workers.dev.
   **The commands run every time they are run**, however they were reached (`scripts/api-sync.ts`, `scripts/make-http-fixtures.ts`, `scripts/check-bundle.ts`,
   `scripts/predeploy-check.ts`, `test/e2e/stack.ts`): none decides whether it is "the script" by comparing the URL of its module with `process.argv[1]`, which differ
@@ -2273,9 +2273,10 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
      - a tag that has the shape but is not a semantic version, such as `v1.2.3-rc.01`, starts a run that stops at this step.
   2. **Test:** the whole of `ci.yml`.
   3. **Deploy:** `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
-     `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Until production has its hosts and routes,
-     the guard refuses the deploy ("Hosts and routes" below), so the deploy stays off until they are set. It needs the secrets
-     `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. A required reviewer, if wanted, goes on the `production` environment.
+     `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Production has its hosts and route
+     ("Hosts and routes" below), so the guard passes once the secrets are set, and the deploy stays behind `CLOUDFLARE_DEPLOY`. It needs the secrets
+     `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. A required reviewer, if wanted, goes on the `production` environment. The release workflow
+     deploys production only; the sandbox is deployed by hand (`pnpm deploy:sandbox`).
   4. **Release:** the GitHub release of the tag. Its body is the changelog since the previous tag, made by [git-cliff](https://git-cliff.org)
      from the Conventional Commits (`cliff.toml`) and attached as `CHANGELOG.md`. A tag with a `-` is a pre-release.
 
@@ -2283,7 +2284,7 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
   tag a commit of `master` and push the tag: `git tag v1.4.0 && git push origin v1.4.0`.
 
 **`wrangler deploy --env <env>` and the Cloudflare Vite plugin.** The environment is chosen when the Worker is *built*, not when it is deployed:
-the plugin writes `build/server/wrangler.json` for the environment `CLOUDFLARE_ENV` names (its name, vars and rate-limit namespace flattened to the top level;
+the plugin writes `build/server/wrangler.json` for the environment `CLOUDFLARE_ENV` names (its name, route, vars and rate-limit namespace flattened to the top level;
 `sandbox` is the Worker `x-explorer-sandbox`, `production` is `x-explorer-production`) and a redirect in `.wrangler/deploy/config.json` that `wrangler deploy`
 follows. So the deploy scripts build with `CLOUDFLARE_ENV` and run a plain `wrangler deploy`, which is what spec 13's `wrangler deploy --env <env>`
 comes to here. Checked with `wrangler deploy --dry-run`: after a `CLOUDFLARE_ENV=sandbox` build, `--env sandbox` is accepted and `--env production` is an
@@ -2298,30 +2299,67 @@ again for its environment: the code is the commit `verify` and the end-to-end su
 its exit code stops the deploy. It reads the config the plugin wrote (`build/server/wrangler.json`) and exits 1, printing every reason, when:
 
 - an upstream var (`XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL`, `XAHAU_NODE_URL`) is a placeholder (a host under `.invalid`, which is what
-  `wrangler.jsonc` holds until the hosts are decided: a Worker deployed with them answers every page with a 503), is not an `https` URL, or is missing;
+  the top level of `wrangler.jsonc` holds on purpose: a Worker deployed with them answers every page with a 503), is not an `https` URL, or is missing;
 - a switch (`VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES`; the list is `FEATURE_VARS` in `app/ui/features.ts`) is missing from the build's vars, or its value is not exactly `"on"` or `"off"`, or a var
   that is not a switch has the value `"on"` or `"off"` (a misspelt switch, such as `MARKET`: see "Switches");
 - `AMM_PAGES` is `"on"` while `AMM_DATA` is not (`AMM_PAGES is on but AMM_DATA is off: the AMM pages need the AMM data`): the pool pages are all AMM data;
 - the build is not for the environment asked for, or for none (a build without `CLOUDFLARE_ENV` is the top level, local development);
 - `workers_dev` or `preview_urls` is not `false` in the build, so that the Worker would be reachable on `*.workers.dev`;
+- the build is wired to the other environment, or to none, so that a testnet answer could be served from production, or a mainnet answer from the
+  sandbox. The expected values are one table, `DEPLOYED` in `scripts/predeploy-guard.ts` ("Hosts and routes" below), and the guard says it when
+  - `ENVIRONMENT` is missing, or is not the environment's name (`ENVIRONMENT is "production", but the build is for sandbox. …`);
+  - a data API URL that is an `https` URL and not a placeholder is not the environment's own: its origin must be the table's and its path empty or `/`
+    (`XRPL_DATA_API_URL is "https://xrpl.data.gatehub.net", but the sandbox data API of XRPL is https://xrpl.data.sandbox.gatehub.net. …`);
+  - a node URL names a public node the guard knows (`KNOWN_NODES`: `s1.ripple.com`, `s2.ripple.com`, `xrplcluster.com` and `xrpl.ws` for XRPL mainnet,
+    `xahau.network` for Xahau mainnet, `clio.altnet.rippletest.net`, `s.altnet.rippletest.net` and `testnet.xrpl-labs.com` for XRPL Testnet,
+    `xahau-test.net` for Xahau Testnet) that belongs to the other network than the variable's (`XAHAU_NODE_URL names clio.altnet.rippletest.net, a node of XRPL Testnet, not of Xahau. …`),
+    or to the other kind of network than the environment shows (`XRPL_NODE_URL names s1.ripple.com, a node of XRPL mainnet, but the sandbox shows XRPL Testnet. …`).
+    A node on a host the guard does not know, such as GateHub's own, passes. **The guard cannot tell a Clio from a rippled**: that the XRPL node of a
+    deployed environment is a Clio (the NFT pages fall back to Clio's `nft_info`, which a rippled answers `unknownCmd`) is for whoever sets it to check;
+  - the `routes` of the build are not exactly `[{ "pattern": "<the environment's host>", "custom_domain": true }]`: there is none, there is a route to another pattern
+    (each one is named), or the host's route is not a custom domain. Each of the three says `add "routes": [{ "pattern": "<host>", "custom_domain": true }] to env.<env> of wrangler.jsonc`.
+    The Vite plugin writes the routes into `build/server/wrangler.json` with the rest of the environment's block (checked with a `CLOUDFLARE_ENV=sandbox` build and
+    `wrangler deploy --dry-run`), so the guard reads them there;
 - `.wrangler/deploy/config.json`, the redirect `wrangler deploy` follows, is missing or does not lead to that very file (it would then deploy
   `wrangler.jsonc`'s top level instead).
+
+When nothing is refused it prints one line that says what it checked, and exits 0:
+
+```
+predeploy-check: build/server/wrangler.json is the Worker x-explorer-sandbox for sandbox (XRPL Testnet and Xahau Testnet) on explorer.sandbox.gatehub.net; its upstreams are the sandbox's, every switch is on or off, and it is not served from workers.dev
+predeploy-check: build/server/wrangler.json is the Worker x-explorer-production for production (XRPL and Xahau) on explorer.gatehub.net; its upstreams are production's, every switch is on or off, and it is not served from workers.dev
+```
 
 It fails closed: a build that is missing, unreadable or not an object is a refusal. It always runs when it is run, however it was reached (a link
 included). It **cannot check secrets**, which are not in the build: set `DATA_API_KEY` with `wrangler secret put` (below) before the environment takes
 traffic, or the data API refuses every call and every page is a 503.
 
-**Hosts and routes.** `sandbox` and `production` are not served from `*.workers.dev` (`"workers_dev": false` and `"preview_urls": false` in each): the
+**Hosts and routes.** The three blocks of `wrangler.jsonc`, each with its own `vars` (they are not inherited), are:
+
+| | top level (development) | `sandbox` | `production` |
+|---|---|---|---|
+| Worker (`name`) | `x-explorer` | `x-explorer-sandbox` | `x-explorer-production` |
+| route (a custom domain) | none | `explorer.sandbox.gatehub.net` | `explorer.gatehub.net` |
+| `ENVIRONMENT` | `"development"` | `"sandbox"` | `"production"` |
+| `XRPL_DATA_API_URL` | `https://xrpl.data.example.invalid` | `https://xrpl.data.sandbox.gatehub.net` | `https://xrpl.data.gatehub.net` |
+| `XAHAU_DATA_API_URL` | `https://xahau.data.example.invalid` | `https://xahau.data.sandbox.gatehub.net` | `https://xahau.data.gatehub.net` |
+| `XRPL_NODE_URL` | `https://s1.ripple.com:51234/` | `https://clio.altnet.rippletest.net:51234/` | `https://s1.ripple.com:51234/` |
+| `XAHAU_NODE_URL` | `https://xahau.network/` | `https://xahau-test.net/` | `https://xahau.network/` |
+| `VISITOR_LIMITER` namespace | `1000` | `1001` | `1002` |
+
+The top level keeps its placeholder data API hosts (`.invalid` never resolves) on purpose: local development and the tests never reach a deployed
+data API by accident. `sandbox` and `production` are not served from `*.workers.dev` (`"workers_dev": false` and `"preview_urls": false` in each): the
 Cache API does nothing there, so every request would render and call the data API (only the per-address limiter would protect the key's quota), and
-the Worker would be a second copy of the site that names itself in its canonical links. The environments have **no routes yet**, because the hosts are
-not named. When they are, before the first deploy of an environment, put its real hosts in its `vars` and add to it
+the Worker would be a second copy of the site that names itself in its canonical links. Each is served from its custom domain instead:
 
 ```jsonc
-"routes": [{ "pattern": "<host>", "custom_domain": true }]
+"routes": [{ "pattern": "explorer.sandbox.gatehub.net", "custom_domain": true }]
 ```
 
-(`custom_domain` makes Cloudflare create the DNS record and certificate for the host). Until then a deploy is refused by the guard, because the hosts
-are placeholders, which is the intent.
+(`custom_domain` makes Cloudflare create the DNS record and certificate for the host; `explorer.sandbox.gatehub.net` is two labels below the zone, outside
+Universal SSL's `*.gatehub.net`, and the custom domain issues the certificate for its own host.) The table is also what the guard compares a build with
+(`DEPLOYED` in `scripts/predeploy-guard.ts`), and `scripts/predeploy-check.test.ts` reads both blocks of `wrangler.jsonc` through it, so the file and the
+guard cannot drift apart. Changing a host is a change to both, in one commit.
 
 **Secrets**, once per Worker and again when one changes (they are not in the repository, `wrangler.jsonc` or the build; the guard cannot see them):
 
@@ -2331,9 +2369,6 @@ pnpm exec wrangler secret put SENTRY_DSN --env sandbox        # optional: Sentry
 pnpm exec wrangler secret put DATA_API_KEY --env production
 pnpm exec wrangler secret put SENTRY_DSN --env production     # optional
 ```
-
-The data API hosts in `wrangler.jsonc` are placeholders (`*.example.invalid`) until the hosts are decided; the deployed Workers need the real ones
-in the `vars` of each environment before the first deploy (the guard refuses a deploy with a placeholder).
 
 **The plan.** The Workers **Paid** plan is required. The Free plan allows 10 ms of CPU per request: drawing a link-preview image (Satori and
 resvg-wasm, `/og/...png`) and rendering a ledger with thousands of transactions (a page of 740 KB and more, parsed and described in the Worker)

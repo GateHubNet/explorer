@@ -12,6 +12,8 @@ import { createDegradedMark, createSubrequestCache, type DegradedMark } from "./
  * or "off" in every environment of wrangler.jsonc, and the predeploy guard refuses a build where one is anything else.
  */
 export interface Env {
+  /** Which environment this Worker is: "development" is the top level of wrangler.jsonc (local development and the tests), the others are the deployed blocks. */
+  ENVIRONMENT: "development" | "sandbox" | "production";
   XRPL_DATA_API_URL: string;
   XAHAU_DATA_API_URL: string;
   XRPL_NODE_URL: string;

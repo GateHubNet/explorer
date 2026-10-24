@@ -1,11 +1,20 @@
 /**
  * Worker configuration. Details: https://developers.cloudflare.com/workers/wrangler/configuration/
  *
- * The top level is local development and the tests. `sandbox` and `production` are selected at
- * build time (`CLOUDFLARE_ENV=sandbox react-router build`, see the `deploy:*` scripts), because
+ * Three blocks, three environments (README, "The pipeline and deploying"):
+ *  - the top level is local development and the tests: the Worker `x-explorer`, no route, `ENVIRONMENT` "development" (mainnet facts, because
+ *    every fixture is mainnet data), placeholder data API hosts (`.invalid` never resolves, so that local development and the tests never reach a
+ *    deployed data API by accident) and the public mainnet nodes;
+ *  - `sandbox` is the deployed test environment: the Worker `x-explorer-sandbox` on explorer.sandbox.gatehub.net, showing XRPL Testnet and Xahau
+ *    Testnet, from the sandbox data APIs and Ripple's testnet Clio and Xahau Testnet's node;
+ *  - `production` is the Worker `x-explorer-production` on explorer.gatehub.net, showing XRPL and Xahau mainnet, from the production data APIs
+ *    and the public mainnet nodes.
+ * `sandbox` and `production` are selected at build time (`CLOUDFLARE_ENV=sandbox react-router build`, see the `deploy:*` scripts), because
  * the Cloudflare Vite plugin writes a flattened config for the selected environment.
  *
- * `vars` and `ratelimits` are not inherited, so each environment repeats them.
+ * `vars` and `ratelimits` are not inherited, so each environment repeats them, `ENVIRONMENT` and the switches among them.
+ * `ENVIRONMENT` is "development", "sandbox" or "production": it decides whether the pages show mainnets or testnets. The XRPL node of a deployed
+ * environment must be a Clio (a rippled answers `nft_info` with `unknownCmd`).
  * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS` and `AMM_PAGES` are the switches (app/ui/features.ts, README "Switches"): "on" or "off", in every block. The top level is
  * what local development and the tests run, so a switch is "on" there from the moment the code it gates is built (`VALIDATORS` since the
  * validators pages were); `sandbox` and `production` are "off" until their data API serves what the switch needs. Set
@@ -15,19 +24,13 @@
  * Secrets (`DATA_API_KEY`, `SENTRY_DSN`) are never listed: `.dev.vars` locally,
  * `wrangler secret put --env <env>` when deployed.
  *
- * The data API hosts below are placeholders (`.invalid` never resolves) until the hosts are
- * decided; the nodes are the public defaults. `scripts/predeploy-check.ts` refuses to let a build with a
- * placeholder (or a non-https URL) be deployed: the `deploy:*` scripts run it between the build and
- * `wrangler deploy`.
+ * `scripts/predeploy-check.ts` refuses to let a build be deployed whose `ENVIRONMENT`, data API URLs, node URLs or route are not its
+ * environment's (a testnet answer must never be served from production, nor the reverse), or that has a placeholder or a non-https URL:
+ * the `deploy:*` scripts run it between the build and `wrangler deploy`.
  *
- * `sandbox` and `production` are not served from `*.workers.dev` (`workers_dev` and `preview_urls` are
+ * `sandbox` and `production` are served from their custom domains (`routes`), not from `*.workers.dev` (`workers_dev` and `preview_urls` are
  * false): the Cache API does nothing there, so every request would render and call the data API, and the
- * Worker would be a second, duplicate site. They have no routes yet, because the hosts are not named. When
- * they are, add to each environment, before its first deploy:
- *
- *     "routes": [{ "pattern": "<host>", "custom_domain": true }]
- *
- * (README: "The pipeline and deploying".)
+ * Worker would be a second, duplicate site.
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
@@ -40,6 +43,7 @@
 	},
 	"upload_source_maps": true,
 	"vars": {
+		"ENVIRONMENT": "development",
 		"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
 		"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
 		"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
@@ -62,11 +66,13 @@
 			"name": "x-explorer-sandbox",
 			"workers_dev": false,
 			"preview_urls": false,
+			"routes": [{ "pattern": "explorer.sandbox.gatehub.net", "custom_domain": true }],
 			"vars": {
-				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
-				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
-				"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
-				"XAHAU_NODE_URL": "https://xahau.network/",
+				"ENVIRONMENT": "sandbox",
+				"XRPL_DATA_API_URL": "https://xrpl.data.sandbox.gatehub.net",
+				"XAHAU_DATA_API_URL": "https://xahau.data.sandbox.gatehub.net",
+				"XRPL_NODE_URL": "https://clio.altnet.rippletest.net:51234/",
+				"XAHAU_NODE_URL": "https://xahau-test.net/",
 				"VALIDATORS": "off",
 				"AMM_DATA": "off",
 				"MARKETS": "off",
@@ -85,9 +91,11 @@
 			"name": "x-explorer-production",
 			"workers_dev": false,
 			"preview_urls": false,
+			"routes": [{ "pattern": "explorer.gatehub.net", "custom_domain": true }],
 			"vars": {
-				"XRPL_DATA_API_URL": "https://xrpl.data.example.invalid",
-				"XAHAU_DATA_API_URL": "https://xahau.data.example.invalid",
+				"ENVIRONMENT": "production",
+				"XRPL_DATA_API_URL": "https://xrpl.data.gatehub.net",
+				"XAHAU_DATA_API_URL": "https://xahau.data.gatehub.net",
 				"XRPL_NODE_URL": "https://s1.ripple.com:51234/",
 				"XAHAU_NODE_URL": "https://xahau.network/",
 				"VALIDATORS": "off",

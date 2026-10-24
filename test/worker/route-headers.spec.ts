@@ -153,6 +153,7 @@ function buildOf(leafLoader: (args: { params: Record<string, string | undefined>
 }
 
 const baseEnv: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",

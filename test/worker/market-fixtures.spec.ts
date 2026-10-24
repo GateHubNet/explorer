@@ -16,6 +16,7 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 // file named otherwise than the request the client makes is an absent answer here, and the client's checks run on every answer.
 
 const env: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",

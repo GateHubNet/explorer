@@ -21,6 +21,7 @@ import { allSwitches } from "../support/switches";
 const T0 = new Date("2026-10-17T12:00:00Z").getTime();
 
 const baseEnv: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",

@@ -27,6 +27,7 @@ import { UpstreamError } from "./upstream";
 // `waitUntil`, and which calls are made with what. The Worker's own runs of it are test/worker/account-analytics.spec.ts.
 
 const env: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",

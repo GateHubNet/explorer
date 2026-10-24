@@ -72,6 +72,7 @@ import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMo
 // test, and the data API hosts of the env are `.invalid` anyway.
 
 const env: Env = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid/",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",

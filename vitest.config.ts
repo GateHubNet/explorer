@@ -14,6 +14,7 @@ const TOP_LEVEL_SWITCHES = { VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", AC
 // Pinned for the worker projects, so that a developer's .dev.vars (a real key, a Sentry DSN, a local
 // data API) cannot change what the tests do or where they send requests.
 const testBindings = {
+  ENVIRONMENT: "development",
   XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
   XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
   XRPL_NODE_URL: "https://s1.ripple.com:51234/",
