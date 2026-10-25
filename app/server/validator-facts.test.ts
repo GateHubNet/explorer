@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, validatorRowSample } from "../../test/support/d1-samples";
 import { statusWord as domainStatusWord } from "../domain/amendments-params";
+import { listedByText as domainListedByText, LOCAL_PUBLISHER as DOMAIN_LOCAL_PUBLISHER, publisherLabel as domainPublisherLabel } from "../domain/publishers";
 import { joinAnd as domainJoinAnd } from "../domain/time-words";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import {
@@ -17,9 +18,12 @@ import {
   joinAnd,
   ledgerLink,
   ledgersText,
+  listedByText,
+  LOCAL_PUBLISHER,
   moreThan,
   nativeText,
   percentText,
+  publisherLabel,
   scoreText,
   scoreValue,
   shareText,
@@ -27,6 +31,7 @@ import {
   tomlFileOf,
   tomlLink,
   unixOf,
+  unlIntro,
   valueOf,
   verificationNote,
   versionText,
@@ -579,9 +584,60 @@ describe("amendmentStatusView", () => {
   });
 });
 
+// ---- The publishers of the UNL (sandbox 7.6) -------------------------------------------------------------------------------------------------
+
+describe("the fixed list", () => {
+  it("is the publisher local", () => expect(LOCAL_PUBLISHER).toBe("local"));
+
+  it("labels the fixed list", () => expect([publisherLabel("local"), publisherLabel("vl.ripple.com")]).toEqual(["Fixed list", "vl.ripple.com"]));
+
+  it("says who lists", () => {
+    expect([[], ["local"], ["vl.ripple.com", "unl.xrplf.org"], ["vl.altnet.rippletest.net", "local"]].map(listedByText)).toEqual([
+      "",
+      "on the fixed list",
+      "listed by vl.ripple.com and unl.xrplf.org",
+      "listed by vl.altnet.rippletest.net and on the fixed list",
+    ]);
+  });
+
+  it("puts the fixed list last, whatever the order of the ids, and keeps a comma list", () => {
+    expect(listedByText(["local", "vl.altnet.rippletest.net"])).toBe("listed by vl.altnet.rippletest.net and on the fixed list");
+    expect(listedByText(["a.example", "local", "b.example"])).toBe("listed by a.example, b.example and on the fixed list");
+  });
+
+  it("words the intro per kind", () => {
+    const rippled = { kind: "mainnet", name: "XRPL", software: "rippled" } as const;
+    const xahaud = { kind: "mainnet", name: "Xahau", software: "xahaud" } as const;
+    const xrplTestnet = { kind: "testnet", name: "XRPL Testnet", software: "rippled" } as const;
+    const xahauTestnet = { kind: "testnet", name: "Xahau Testnet", software: "xahaud" } as const;
+    expect(unlIntro(rippled, ["vl.ripple.com", "unl.xrplf.org"])).toBe("The default UNL is the list of validators rippled trusts out of the box, published by vl.ripple.com and unl.xrplf.org.");
+    expect(unlIntro(xahaud, ["vl.xahau.org"])).toBe("The default UNL is the list of validators xahaud trusts out of the box, published by vl.xahau.org.");
+    expect(unlIntro(xrplTestnet, ["vl.altnet.rippletest.net"])).toBe("The default UNL is the list of validators the nodes of XRPL Testnet trust, published by vl.altnet.rippletest.net.");
+    expect(unlIntro(xahauTestnet, ["local"])).toBe("The default UNL is the list of validators the nodes of Xahau Testnet trust, fixed in their configuration.");
+  });
+
+  it("words the intro for a fixed list beside published ones, and for none", () => {
+    const xrplTestnet = { kind: "testnet", name: "XRPL Testnet", software: "rippled" } as const;
+    expect(unlIntro(xrplTestnet, ["vl.altnet.rippletest.net", "local"])).toBe(
+      "The default UNL is the list of validators the nodes of XRPL Testnet trust, published by vl.altnet.rippletest.net and fixed in their configuration.",
+    );
+    expect(unlIntro(xrplTestnet, ["local", "a.example", "b.example"])).toBe(
+      "The default UNL is the list of validators the nodes of XRPL Testnet trust, published by a.example and b.example and fixed in their configuration.",
+    );
+    expect(unlIntro({ kind: "mainnet", name: "XRPL", software: "rippled" }, [])).toBe("The default UNL is the list of validators rippled trusts out of the box.");
+    expect(unlIntro(xrplTestnet, [])).toBe("The default UNL is the list of validators the nodes of XRPL Testnet trust.");
+  });
+});
+
 describe("the words the browser needs too", () => {
   it("are the ones of the domain files, re-exported (their tests are there)", () => {
     expect(joinAnd).toBe(domainJoinAnd);
     expect(statusWord).toBe(domainStatusWord);
+  });
+
+  it("include the publishers' words: the tags of a validator's page are made in the browser, which may not import this file", () => {
+    expect(LOCAL_PUBLISHER).toBe(DOMAIN_LOCAL_PUBLISHER);
+    expect(publisherLabel).toBe(domainPublisherLabel);
+    expect(listedByText).toBe(domainListedByText);
   });
 });

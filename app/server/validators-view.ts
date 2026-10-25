@@ -22,11 +22,14 @@ import {
   DASH,
   dropsText,
   feesNotCompared,
-  joinAnd,
+  listedByText,
+  LOCAL_PUBLISHER,
   nativeText,
+  publisherLabel,
   scoreText,
   shareText,
   unixOf,
+  unlIntro,
   valueOf,
   versionText,
   yesPercentText,
@@ -77,7 +80,7 @@ export interface ValidatorRowView {
   /** `null` when the row has no domain, or the data API sent no check of it. */
   domainStatus: DomainStatusKind | null;
   unl: boolean;
-  /** The publishers whose lists name the validator (the hidden words of the UNL tag). */
+  /** The publishers whose lists name the validator, by their labels (the hidden words of the UNL tag). */
   unlPublishers: string[];
   negativeUnl: boolean;
   /** `—` for a validator that reported none. */
@@ -102,7 +105,7 @@ export interface ValidatorsPageData {
         notices: string[];
         tiles: Tile[];
         versions: { chart: ShareData; table: VersionRow[]; notes: string[] };
-        /** S's ids for the "Listed by" select; `null` with fewer than two publishers, when there is nothing to choose. */
+        /** S's publishers for the "Listed by" select: the id is the value, `publisherLabel` the words; `null` with fewer than two publishers, when there is nothing to choose. */
         publishers: Option[] | null;
       }
     | { state: "failed" };
@@ -139,8 +142,12 @@ export function versionSlots(newestFirst: readonly string[]): Map<string, Versio
 /** What a tile says in place of a figure the summary has left out (D1 leaves a key out while nothing gives it). */
 const NOT_KNOWN = "not known yet";
 
-/** A notice for each publisher whose list is not current, and one more when none of them is (D1 §7). */
-function noticesOf(publishers: readonly UnlPublisher[]): string[] {
+/**
+ * A notice for each publisher whose list is not current, and one more when none of them is (D1 §7). The fixed list `local` has none: it is the node's own configuration,
+ * never expired or unavailable, so it is left out here whatever status it carries, and is not one of the lists that "none" counts.
+ */
+function noticesOf(all: readonly UnlPublisher[]): string[] {
+  const publishers = all.filter((publisher) => publisher.id !== LOCAL_PUBLISHER);
   const notices: string[] = [];
   for (const publisher of publishers) {
     if (publisher.status === "expired") {
@@ -230,7 +237,7 @@ function tilesOf(net: NetworkInfo, s: ValidatorsSummary, rows: ReadonlyMap<strin
     {
       label: "On the default UNL",
       value: `${count(unl_seen_24h)} / ${count(s.unl.trusted)}`,
-      sub: [`seen in 24 h, of those listed${publishers.length > 0 ? ` by ${joinAnd(publishers)}` : ""}`],
+      sub: [`seen in 24 h, of those ${listedByText(publishers) || "listed"}`],
     },
     { label: "Quorum", value: `${count(quorum.value)} of ${count(quorum.unl_size)}`, sub: [`validations a ledger needs${nodeQuorum}`] },
     { label: "Negative UNL", value: count(s.negative_unl.length), sub: negativeUnlSub(s.negative_unl, s.negative_unl_pending, validatorLink(net.id, rows)) },
@@ -286,7 +293,7 @@ function summaryOf(net: NetworkInfo, s: ValidatorsSummary, rows: ReadonlyMap<str
     notices: noticesOf(publishers),
     tiles: tilesOf(net, s, rows),
     versions: versionsOf(s),
-    publishers: publishers.length >= 2 ? publishers.map((publisher) => ({ value: publisher.id, label: publisher.id })) : null,
+    publishers: publishers.length >= 2 ? publishers.map((publisher) => ({ value: publisher.id, label: publisherLabel(publisher.id) })) : null,
   };
 }
 
@@ -336,7 +343,7 @@ function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null): 
     sub: domain !== undefined ? shortHash(key) : "no domain",
     domainStatus: domain !== undefined ? (row.domain_verification?.status ?? null) : null,
     unl: row.unl,
-    unlPublishers: row.unl_lists,
+    unlPublishers: row.unl_lists.map(publisherLabel),
     negativeUnl: row.negative_unl,
     version: { text: versionText(row, false) ?? DASH, latest: row.version_latest === true },
     agreement: { text: scoreText(row.agreement_24h.score), incomplete: row.agreement_24h.incomplete },
@@ -409,10 +416,7 @@ export function validatorsPage(input: {
 
   // The publishers are S's; without S the intro does not name them.
   const publishers = summary?.unl.publishers.map((publisher) => publisher.id) ?? [];
-  const publishedBy = publishers.length > 0 ? `, published by ${joinAnd(publishers)}` : "";
-  const intro = [
-    `The default UNL is the list of validators ${network.software} trusts out of the box${publishedBy}. All adds every other validator whose validations reached the data API in the last 24 hours.`,
-  ];
+  const intro = [`${unlIntro(network, publishers)} All adds every other validator whose validations reached the data API in the last 24 hours.`];
 
   return {
     network,

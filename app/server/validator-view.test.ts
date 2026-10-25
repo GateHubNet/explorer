@@ -15,13 +15,18 @@ import { shortHash } from "../domain/format";
 import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { Anchor } from "./anchor";
-import type { DomainVerification, ValidatorDetail, ValidatorsSummary, ValidatorValidation, ValidatorValidationsPage } from "./api-types";
+import type { DomainVerification, UnlPublisher, ValidatorDetail, ValidatorsSummary, ValidatorValidation, ValidatorValidationsPage } from "./api-types";
 import { agreementAxisStart, validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 
 // ---- The world of the tests ------------------------------------------------------------------------------------------------------------------
 
 const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
 const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
+
+const XAHAU_TESTNET: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+
+/** Xahau Testnet's fixed list as the data API serves it (D-env §5): the publisher `local`, with no site, no key and no expiration. */
+const FIXED_LIST: UnlPublisher = { id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 };
 
 const ok = <T>(value: T): Loaded<T> => ({ state: "ok", value });
 const FAILED: Loaded<never> = { state: "failed" };
@@ -253,6 +258,24 @@ describe("validatorPage: UNL membership", () => {
     const reversed = summarySample({ unl: { ...summary.unl, publishers: [...summary.unl.publishers].reverse() } });
     const { summary: part } = build({ summary: ok(reversed) });
     expect(part.state === "ok" && part.membership.map((m) => m.publisher)).toEqual(["vl.ripple.com", "unl.xrplf.org"]);
+  });
+
+  it("names local Fixed list in the membership line and the UNL tag", () => {
+    const onFixed = validatorDetailSample({ unl_lists: ["local"] });
+    const alone = summarySample({ unl: { trusted: 4, publishers: [FIXED_LIST] } });
+    const page = build({ network: XAHAU_TESTNET, validator: onFixed, summary: ok(alone) });
+    expect(page.summary).toMatchObject({ state: "ok", membership: [{ publisher: "Fixed list", listed: true }] });
+    expect(page.identity.unlPublishers).toEqual(["Fixed list"]);
+
+    // Beside a published list the line says which one names the validator; whether it is listed follows the id, not the words.
+    const both = summarySample({ unl: { trusted: 39, publishers: [summarySample().unl.publishers[1]!, FIXED_LIST] } });
+    expect(build({ network: XAHAU_TESTNET, validator: onFixed, summary: ok(both) }).summary).toMatchObject({
+      membership: [{ publisher: "vl.ripple.com", listed: false }, { publisher: "Fixed list", listed: true }],
+    });
+
+    // Without S the lists are D's, in the same words; the older validations carry the identity too.
+    expect(build({ network: XAHAU_TESTNET, validator: onFixed, summary: FAILED }).identity.unlPublishers).toEqual(["Fixed list"]);
+    expect(validatorHistoryPage({ network: XAHAU_TESTNET, validator: onFixed, recent: validationsSample(), marker: "m", back: [] }).identity.unlPublishers).toEqual(["Fixed list"]);
   });
 
   it("has unl_lists alone without S", () => {
@@ -680,6 +703,11 @@ describe("validatorHistoryPage", () => {
 describe("validatorPage: the meta", () => {
   it("carries what the title and description say", () => {
     expect(build().meta).toEqual({ name: "northpeak.example", publishers: ["unl.xrplf.org", "vl.ripple.com"], version: "3.4.1", domain: "verified" });
+  });
+
+  it("keeps the ids of the lists, which the description words (the labels are the view's, not the tags')", () => {
+    const meta = build({ network: XAHAU_TESTNET, validator: validatorDetailSample({ unl_lists: ["local"] }), summary: ok(summarySample({ unl: { trusted: 4, publishers: [FIXED_LIST] } })) }).meta;
+    expect(meta.publishers).toEqual(["local"]);
   });
 
   it("is the short key for a validator without a domain, and nothing for a domain not checked yet", () => {

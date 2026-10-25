@@ -28,6 +28,7 @@ describe("the files of the validators pages that run in the browser", () => {
     "domain/amendment-ref.ts",
     "domain/time-words.ts",
     "domain/percent.ts",
+    "domain/publishers.ts",
     "domain/query-of.ts",
     // A page's tags are made in the browser too (a client-side navigation): its builder imports ./meta, which SERVER_ONLY lets through, and nothing else of app/server.
     "server/meta-validator.ts",

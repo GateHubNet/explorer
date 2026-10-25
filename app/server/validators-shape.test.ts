@@ -181,6 +181,33 @@ describe("checkValidatorsSummary", () => {
     body.unl.publishers = [{ id: "vl.example", url: "https://vl.example", public_key: "ED" + "AB".repeat(32), status: "unavailable" }];
     expect(checkValidatorsSummary(body, "/x")).toBe(body);
   });
+
+  // D-env serves Xahau Testnet's fixed list as the publisher `local`: no site, no key, and no expiration (a fixed list never expires).
+  it("accepts the fixed list local, with an empty url and public_key and no expiration", () => {
+    const body = summarySample();
+    body.unl.publishers = [{ id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 }];
+    expect(checkValidatorsSummary(body, "/x")).toBe(body);
+  });
+
+  it("still refuses a publisher whose url is not text", () => {
+    const body = clone(summarySample()) as Body;
+    body.unl.publishers[0] = { id: "local", url: 5, public_key: "", status: "ok" };
+    refuses(checkValidatorsSummary, body);
+    expect(() => checkValidatorsSummary(body, "/x")).toThrow("unl.publishers[0].url is not text");
+  });
+
+  it("still refuses a publisher whose public_key is not text, or is missing, and one with an empty id", () => {
+    for (const change of [
+      (b: Body) => (b.unl.publishers[0].public_key = 5),
+      (b: Body) => delete b.unl.publishers[0].public_key,
+      (b: Body) => delete b.unl.publishers[0].url,
+      (b: Body) => (b.unl.publishers[0].id = ""),
+    ]) {
+      const body = clone(summarySample()) as Body;
+      change(body);
+      refuses(checkValidatorsSummary, body);
+    }
+  });
 });
 
 describe("checkValidatorsList", () => {

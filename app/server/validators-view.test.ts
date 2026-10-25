@@ -16,6 +16,12 @@ import { validatorsPage, versionSlots, type ValidatorsPageData } from "./validat
 const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
 const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
 
+const XRPL_TESTNET: NetworkInfo = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", software: "rippled" };
+const XAHAU_TESTNET: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+
+/** Xahau Testnet's fixed list as the data API serves it (D-env §5): the publisher `local`, with no site, no key and no expiration. */
+const FIXED_LIST: UnlPublisher = { id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 };
+
 const ok = <T>(value: T): Loaded<T> => ({ state: "ok", value });
 const FAILED: Loaded<never> = { state: "failed" };
 const MISSING: Loaded<never> = { state: "missing" };
@@ -219,6 +225,67 @@ describe("validatorsPage: intro, notices and options", () => {
     const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
     expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 35, publishers: [current] } }) })).publishers).toBeNull();
     expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 0, publishers: [] } }) })).publishers).toBeNull();
+  });
+
+  it("labels local Fixed list in the select and on a row", () => {
+    const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const summary = summaryWith({ unl: { trusted: 39, publishers: [current, FIXED_LIST] } });
+    const both = validatorRowSample({ unl_lists: ["local", "vl.ripple.com"] });
+    const data = build({ network: XAHAU_TESTNET, summary, list: ok(listOf([both])) });
+    // The value is the id (it is what `?publisher=` takes); only the words are the label.
+    expect(summaryOf(data).publishers).toEqual([
+      { value: "vl.ripple.com", label: "vl.ripple.com" },
+      { value: "local", label: "Fixed list" },
+    ]);
+    expect(listPart(data).rows.map((row) => row.unlPublishers)).toEqual([["Fixed list", "vl.ripple.com"]]);
+  });
+
+  it("still filters by the id local, not by its label", () => {
+    const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const summary = summaryWith({ unl: { trusted: 39, publishers: [current, FIXED_LIST] } });
+    const fixed = validatorRowSample({ unl_lists: ["local"] });
+    const published = validatorRowSample({ validation_public_key: KEY_SHORE, unl_lists: ["vl.ripple.com"] });
+    const list = ok(listOf([fixed, published]));
+    expect(keysOf(build({ network: XAHAU_TESTNET, summary, list, params: { scope: "unl", publisher: "local" } }))).toEqual([KEY_NORTH]);
+    expect(keysOf(build({ network: XAHAU_TESTNET, summary, list, params: { scope: "unl", publisher: "Fixed list" } }))).toEqual([]);
+  });
+
+  it("gives local no notice, with any status", () => {
+    const [expired, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const local = (over: Partial<UnlPublisher>): UnlPublisher => ({ ...FIXED_LIST, ...over });
+    for (const fixed of [local({}), local({ status: "expired", expiration: "2026-10-18T15:54:20Z" }), local({ status: "expired" }), local({ status: "unavailable", last_error: "timeout" })]) {
+      // Alone, and beside a current list: no notice, and not "No validator is trusted until one is." either.
+      expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 4, publishers: [fixed] } }) })).notices).toEqual([]);
+      expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 39, publishers: [current, fixed] } }) })).notices).toEqual([]);
+    }
+    // The other lists keep theirs: local is left out of the notices, and of the check that none of the lists is fetched.
+    expect(expired.id).toBe("unl.xrplf.org");
+    expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 39, publishers: [expired, FIXED_LIST] } }) })).notices).toEqual([
+      "unl.xrplf.org's list expired on Oct 18, 2026. The data API still uses it, as a node would rather use an old list than none.",
+    ]);
+  });
+
+  it("says 'of those on the fixed list' when local is the only list, and 'listed by … and on the fixed list' beside others", () => {
+    const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
+    const subOf = (publishers: UnlPublisher[]) => plain(tilesOf(build({ network: XAHAU_TESTNET, summary: summaryWith({ unl: { trusted: 4, publishers } }) }))[1]!.sub);
+    expect(subOf([FIXED_LIST])).toBe("seen in 24 h, of those on the fixed list");
+    expect(subOf([current, FIXED_LIST])).toBe("seen in 24 h, of those listed by vl.ripple.com and on the fixed list");
+  });
+
+  it("writes the testnet intro", () => {
+    const altnet: UnlPublisher = { ...summarySample().unl.publishers[1]!, id: "vl.altnet.rippletest.net", url: "https://vl.altnet.rippletest.net" };
+    const xrpl = build({ network: XRPL_TESTNET, summary: summaryWith({ unl: { trusted: 5, publishers: [altnet] } }) });
+    expect(plain(xrpl.intro)).toBe(
+      "The default UNL is the list of validators the nodes of XRPL Testnet trust, published by vl.altnet.rippletest.net. All adds every other validator whose validations reached the data API in the last 24 hours.",
+    );
+    const xahau = build({ network: XAHAU_TESTNET, summary: summaryWith({ unl: { trusted: 4, publishers: [FIXED_LIST] } }) });
+    expect(plain(xahau.intro)).toBe(
+      "The default UNL is the list of validators the nodes of Xahau Testnet trust, fixed in their configuration. All adds every other validator whose validations reached the data API in the last 24 hours.",
+    );
+    // Without S, a testnet's intro names no one either.
+    expect(plain(build({ network: XAHAU_TESTNET, summary: FAILED }).intro)).toBe(
+      "The default UNL is the list of validators the nodes of Xahau Testnet trust. All adds every other validator whose validations reached the data API in the last 24 hours.",
+    );
   });
 
   it("offers the amendments being decided, in A's order, with the name or the short ID and the share of yes", () => {

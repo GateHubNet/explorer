@@ -37,6 +37,7 @@ import {
   ledgerLink,
   ledgersText,
   nativeText,
+  publisherLabel,
   scoreText,
   scoreValue,
   unixOf,
@@ -58,7 +59,7 @@ export interface ValidatorIdentity {
   /** `null` for a validator with no domain, or whose domain the data API sent no check of. */
   domainStatus: DomainStatusKind | null;
   unl: boolean;
-  /** The publishers whose lists name the validator (D's `unl_lists`): the hidden words of the UNL tag, and the membership line when S did not load. */
+  /** The publishers whose lists name the validator (D's `unl_lists`), by their labels: the hidden words of the UNL tag, and the membership line when S did not load. */
   unlPublishers: string[];
   negativeUnl: boolean;
   /** What the domain's check found (4.2); `null` without a domain, and for a domain nothing is known of. */
@@ -145,7 +146,7 @@ export interface ValidatorLiveData {
   summary:
     | {
         state: "ok";
-        /** Every publisher of S, in S's order, with whether its list names the validator. */
+        /** Every publisher of S, in S's order, by its label, with whether its list names the validator. */
         membership: { publisher: string; listed: boolean }[];
         /** The ledger the validator went on the negative UNL in: "On the negative UNL since ledger #N". `null` when S does not have it there. */
         negativeSince: LedgerLink | null;
@@ -171,7 +172,7 @@ export interface ValidatorLiveData {
         newest: { at: number; ledger: LedgerLink } | null;
       }
     | { state: "failed" };
-  /** What the page's `<title>` and description say. */
+  /** What the page's `<title>` and description say. `publishers` are D's ids, not labels: the tags word them with `listedByText`, which knows the fixed list by its id. */
   meta: { name: string; publishers: string[]; version: string | null; domain: "verified" | "unverified" | null };
 }
 
@@ -198,7 +199,7 @@ function identityOf(network: NetworkInfo, validator: ValidatorDetail): Validator
     heading: domain !== undefined ? { text: domain, mono: false } : { text: shortHash(key), mono: true },
     domainStatus: domain !== undefined ? (validator.domain_verification?.status ?? null) : null,
     unl: validator.unl,
-    unlPublishers: [...validator.unl_lists],
+    unlPublishers: validator.unl_lists.map(publisherLabel),
     negativeUnl: validator.negative_unl,
     note: verificationNote(validator.domain_verification, domain, network.software),
     masterKey: key,
@@ -234,7 +235,7 @@ function summaryOf(network: NetworkInfo, validator: ValidatorDetail, s: Validato
   const against = (now: string, voted: string, text: string) => ({ now: text, against: compareFee(voted, now) });
   return {
     state: "ok",
-    membership: s.unl.publishers.map((publisher) => ({ publisher: publisher.id, listed: validator.unl_lists.includes(publisher.id) })),
+    membership: s.unl.publishers.map((publisher) => ({ publisher: publisherLabel(publisher.id), listed: validator.unl_lists.includes(publisher.id) })),
     negativeSince: negative === undefined ? null : ledgerLink(network.id, negative.first_ledger),
     now:
       fees === undefined || vote === undefined

@@ -732,6 +732,17 @@ describe("validatorMeta", () => {
     );
   });
 
+  it("words a validator on Xahau Testnet's fixed list as 'on the fixed list', and one on a testnet's published list as listed by it", () => {
+    const xahauTestnet: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+    const fixed = validatorDetailSample({ unl_lists: ["local"], version: "2026.10.13", version_build: 4119 });
+    expect(content(validatorMeta(live(fixed, xahauTestnet), XAHAU_TESTNET), "description")).toBe(
+      `northpeak.example is a validator of Xahau Testnet, on the default UNL (on the fixed list), running xahaud 2026.10.13. Its domain is verified. ${TAIL}`,
+    );
+    const xrplTestnet: NetworkInfo = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", software: "rippled" };
+    const published = validatorDetailSample({ unl_lists: ["vl.altnet.rippletest.net"] });
+    expect(content(validatorMeta(live(published, xrplTestnet), XRPL_TESTNET), "description")).toContain("on the default UNL (listed by vl.altnet.rippletest.net), running rippled 3.4.1.");
+  });
+
   it("is noindex, follow on a page of older validations, with no canonical URL and no Open Graph or card tags", () => {
     const history = validatorHistoryPage({ network: NET, validator: validatorDetailSample(), recent: validationsSample(), marker: "M1", back: [] });
     const list = validatorMeta(history, XRPL);

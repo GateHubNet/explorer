@@ -7,16 +7,20 @@ import BigNumber from "bignumber.js";
 import { isValidClassicAddress } from "ripple-address-codec";
 
 import { formatAmount, formatUtcDay, utcMoment } from "../domain/format";
-import { formatDateTime } from "../domain/time-words";
+import { LOCAL_PUBLISHER } from "../domain/publishers";
+import { formatDateTime, joinAnd } from "../domain/time-words";
 import type { MeterData } from "../ui/charts/types";
+import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
 
-// `joinAnd` and `statusWord` are words the status marks (browser files) need too, so they live in the domain files a browser file may import (`joinAnd` in time-words.ts, apart from format.ts, which
-// the shell chunk holds; `statusWord` in amendments-params.ts); they are the interface of this file as well.
+// `joinAnd`, `statusWord` and the words for the lists of a UNL (`LOCAL_PUBLISHER`, `publisherLabel`, `listedByText`) are words browser files need too (the status marks; the tags of a validator's page), so they live
+// in the domain files a browser file may import (`joinAnd` in time-words.ts, apart from format.ts, which the shell chunk holds; `statusWord` in amendments-params.ts; the publishers' words in publishers.ts);
+// they are the interface of this file as well.
 export { statusWord } from "../domain/amendments-params";
-export { joinAnd } from "../domain/time-words";
+export { listedByText, LOCAL_PUBLISHER, publisherLabel } from "../domain/publishers";
+export { joinAnd };
 
 /** What a figure that is not there reads as. */
 export const DASH = "—";
@@ -33,6 +37,22 @@ export type TextPart =
   | string
   | { text: string; href: string; external?: "plain" | "nofollow"; mono?: boolean }
   | { countdown: { at: number; fallback: string; past: string; approx?: boolean; lead?: string } };
+
+// ---- The lists of the default UNL (sandbox 7.6) --------------------------------------------------------------------------------------------------
+
+/**
+ * The intro's first sentence: whom the default UNL is the list of, and where it comes from. On a mainnet the software trusts the list out of the box; on a testnet the nodes of the
+ * network trust it. `publisherIds` are S's: the publishers are named (`, published by A and B`), and the fixed list `local` is not a publisher but the nodes' own configuration
+ * (`, fixed in their configuration`, or `, published by A and fixed in their configuration` beside others). No ids (S did not load, or lists none): no source.
+ */
+export function unlIntro(network: Pick<NetworkInfo, "kind" | "name" | "software">, publisherIds: readonly string[]): string {
+  const published = publisherIds.filter((id) => id !== LOCAL_PUBLISHER);
+  const fixed = published.length < publisherIds.length;
+  const publishedBy = published.length > 0 ? `, published by ${joinAnd(published)}` : "";
+  const source = !fixed ? publishedBy : published.length > 0 ? `${publishedBy} and fixed in their configuration` : ", fixed in their configuration";
+  const trusted = network.kind === "mainnet" ? `${network.software} trusts out of the box` : `the nodes of ${network.name} trust`;
+  return `The default UNL is the list of validators ${trusted}${source}.`;
+}
 
 // ---- Times -------------------------------------------------------------------------------------------------------------------------------------
 

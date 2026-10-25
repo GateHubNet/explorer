@@ -41,6 +41,8 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A name that is there: a domain, a version, a description. */
 const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
+/** Text that may be empty: the `url` and `public_key` of the publisher `local`, Xahau Testnet's fixed list, which has neither a site nor a key. */
+const isText = (value: unknown): value is string => typeof value === "string";
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 /** A count or an index: a whole number, not negative. */
 const isWhole = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -264,7 +266,8 @@ export function checkValidatorsSummary(body: unknown, path: string): ValidatorsS
   s.optional("unl", unl, ["threshold"], isWhole, "a whole number");
   for (const [index, publisher] of s.rows("unl", unl, "publishers").entries()) {
     const where = `unl.publishers[${index}]`;
-    s.fields(where, publisher, ["id", "url", "public_key"], isName, "text");
+    s.fields(where, publisher, ["id"], isName, "text");
+    s.fields(where, publisher, ["url", "public_key"], isText, "text");
     s.fields(where, publisher, ["status"], oneOf("ok", "expired", "unavailable"), "ok, expired or unavailable");
     s.optional(where, publisher, ["sequence", "version", "validators", "seen_24h"], isWhole, "a whole number");
     s.optional(where, publisher, ["expiration", "fetched", "last_error_at"], isTime, "a time");
