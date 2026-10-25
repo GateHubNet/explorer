@@ -1,6 +1,7 @@
 // What the routes under `/:net` share on the server: the network of the URL, the part of it that may go to the
 // browser, and the cookie the root redirect reads. Worker-only code, for loaders.
 
+import type { NetworkInfo } from "../ui/networks";
 import { echoOf } from "./echo";
 import { cached } from "./edge-cache";
 import { getEnv } from "./env";
@@ -21,6 +22,11 @@ export interface NetworkLayoutData {
 export function publicNetwork(net: Network): PublicNetwork {
   const { dataApiUrl: _dataApiUrl, nodeUrl: _nodeUrl, ...shown } = net;
   return shown;
+}
+
+/** What a page draws of its network, for the page builders of the validators and amendments: the id, the kind, the names, the native currency and the software. No URL, no switch. */
+export function networkInfoOf({ id, kind, name, label, longName, dexName, native, software }: Network): NetworkInfo {
+  return { id, kind, name, label, longName, dexName, native, software };
 }
 
 /**

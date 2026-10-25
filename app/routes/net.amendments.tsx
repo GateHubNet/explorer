@@ -13,7 +13,7 @@ import { upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { amendmentsMeta } from "../server/meta-amendments";
-import { requireNetwork } from "../server/network-route";
+import { networkInfoOf, requireNetwork } from "../server/network-route";
 import { createLiveOnScreen } from "../ui/live-page";
 import { isNetworkId } from "../ui/networks";
 import { AmendmentsPage } from "../ui/pages/AmendmentsPage";
@@ -78,8 +78,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (amendments.status === "rejected") return upstreamOutage(amendments.reason, "the amendments");
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
-  const { id, kind, name, label, longName, dexName, native, software } = net;
-  const page = amendmentsPage({ network: { id, kind, name, label, longName, dexName, native, software }, amendments: amendments.value, status });
+  const page = amendmentsPage({ network: networkInfoOf(net), amendments: amendments.value, status });
   return cached({ ...page, anchor, build: getEnv(context).BUILD_ID } satisfies AmendmentsLoaderData, "minute");
 }
 

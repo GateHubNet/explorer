@@ -5,7 +5,7 @@ import { allSwitches } from "../../test/support/switches";
 import { featuresOf } from "../ui/features";
 import { createLoadContext, type Env } from "./env";
 import { networkOf } from "./networks";
-import { publicNetwork, readNetworkCookie, requireNetwork } from "./network-route";
+import { networkInfoOf, publicNetwork, readNetworkCookie, requireNetwork } from "./network-route";
 
 const env: Env = {
   ENVIRONMENT: "development",
@@ -83,6 +83,37 @@ describe("publicNetwork", () => {
     expect(requested.kind).toBe("testnet");
     expect(publicNetwork(requested)).toMatchObject({ id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", ctidNetworkId: 21338, displays: ["native"] });
     expect(JSON.stringify(publicNetwork(networkOf("xrpl", sandbox)))).not.toContain("invalid");
+  });
+});
+
+describe("networkInfoOf", () => {
+  it("is what a page draws of its network: the id, the kind, the four names, the native currency and the software, and no URL", () => {
+    expect(networkInfoOf(networkOf("xrpl", env))).toStrictEqual({
+      id: "xrpl",
+      kind: "mainnet",
+      name: "XRPL",
+      label: "XRPL mainnet",
+      longName: "the XRP Ledger",
+      dexName: "the XRP Ledger DEX",
+      native: "XRP",
+      software: "rippled",
+    });
+  });
+
+  it("carries the testnet's names and Xahau's facts as they are, and leaves the URLs and the switches out", () => {
+    const sandbox = { ...env, ENVIRONMENT: "sandbox" as const };
+    const info = networkInfoOf(networkOf("xahau", sandbox));
+    expect(info).toStrictEqual({
+      id: "xahau",
+      kind: "testnet",
+      name: "Xahau Testnet",
+      label: "Xahau Testnet",
+      longName: "Xahau Testnet",
+      dexName: "the Xahau Testnet DEX",
+      native: "XAH",
+      software: "xahaud",
+    });
+    expect(JSON.stringify(info)).not.toContain("invalid");
   });
 });
 

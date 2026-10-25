@@ -18,7 +18,7 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { validatorMeta } from "../server/meta-validator";
-import { requireNetwork } from "../server/network-route";
+import { networkInfoOf, requireNetwork } from "../server/network-route";
 import { networkOf, type Network } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
 import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "../server/validator-view";
@@ -51,9 +51,6 @@ const NO_SUCH_PAGE = "that page of the validator's validations";
 
 /** The scope of a validator's live page (`OnScreen`): the network and the key of the URL. */
 const scopeOf = (net: string, key: string): string => `${net}/validators/${key}`;
-
-/** The network the page is given: what the browser may have, the facts the page draws, and not the data API's URL or the node's. */
-const publicOf = ({ id, kind, name, label, longName, dexName, native, software }: Network) => ({ id, kind, name, label, longName, dexName, native, software });
 
 /**
  * `/{net}/validators/{key}` (validators spec 1.2, 1.4, 4.3 to 4.5): one validator, from the data API's D1 routes alone. The class is `live-home` (1 s + 2 s), the
@@ -148,7 +145,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
   if (master !== null) return master;
 
   const page = validatorPage({
-    network: publicOf(net),
+    network: networkInfoOf(net),
     validator: validator.value,
     recent: partOf(recent),
     summary: partOf(summary),
@@ -189,7 +186,7 @@ async function historyPage(context: Route.LoaderArgs["context"], net: Network, k
   // The 7 days the data API keeps have passed the marker.
   if (recent.value.validations.length === 0) throw cached({ notFound: NO_SUCH_PAGE }, "short", { status: 404 });
 
-  const data = validatorHistoryPage({ network: publicOf(net), validator: validator.value, recent: recent.value, marker: page.marker, back: page.back });
+  const data = validatorHistoryPage({ network: networkInfoOf(net), validator: validator.value, recent: recent.value, marker: page.marker, back: page.back });
   // The class and its TTL are those of the call under it: old rows change only when a ledger they name is indexed.
   return cached(data, "slow", { ttl: VALIDATIONS_MARKER_TTL_SECONDS });
 }

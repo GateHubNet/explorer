@@ -13,7 +13,7 @@ import { upstreamOutage } from "../server/loader-errors";
 import { logProblem } from "../server/logging";
 import { metaContext } from "../server/meta";
 import { validatorsMeta } from "../server/meta-validators";
-import { requireNetwork } from "../server/network-route";
+import { networkInfoOf, requireNetwork } from "../server/network-route";
 import { validatorsPage, type ValidatorsPageData } from "../server/validators-view";
 import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
 import { isNetworkId } from "../ui/networks";
@@ -105,8 +105,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (validatorsHref(net.id, canonical) !== asked) return redirect(validatorsHref(net.id, canonical), { status: 302, headers: cacheClassHeaders("short") });
 
   // The network the page is given is what the browser may have: the facts the page draws, and not the data API's URL or the node's.
-  const { id, kind, name, label, longName, dexName, native, software } = net;
-  const page = validatorsPage({ network: { id, kind, name, label, longName, dexName, native, software }, params: canonical, summary: partOf(summary), list: partOf(list), amendments: partOf(amendments) });
+  const page = validatorsPage({ network: networkInfoOf(net), params: canonical, summary: partOf(summary), list: partOf(list), amendments: partOf(amendments) });
 
   const failures = (
     [
