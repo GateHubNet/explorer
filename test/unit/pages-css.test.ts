@@ -346,3 +346,22 @@ describe("the AMM pool page", () => {
     expect(prose["text-decoration"]).toBe("underline");
   });
 });
+
+describe("the Testnet badge", () => {
+  it("draws the testnet pill as the board's .tnet", () => {
+    expect(rule(componentsCss, ".pill--testnet")).toMatchObject({
+      "font-size": "11.5px",
+      "font-weight": "600",
+      "letter-spacing": ".02em",
+      padding: "2px 8px",
+      "border-radius": "999px",
+      background: "var(--testnet-bg)",
+      color: "var(--testnet-fg)",
+      border: "1px solid var(--testnet-border)",
+    });
+  });
+
+  it("groups the brand and the badge as the board does: a flex row, centred, 10px apart", () => {
+    expect(rule(componentsCss, ".hdr__brandgroup")).toMatchObject({ display: "flex", "align-items": "center", gap: "10px" });
+  });
+});

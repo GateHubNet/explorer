@@ -3,8 +3,11 @@ import type { ReactNode } from "react";
 import { cx } from "../cx";
 import { CheckIcon, CrossIcon } from "./icons";
 
-/** `info` is the accent wash (an amendment about to activate); `off` is the outlined pill (obsolete, unknown, no recent vote). Colour is only for `ok` and `bad`. */
-export type PillTone = "ok" | "bad" | "neutral" | "info" | "off";
+/**
+ * `info` is the accent wash (an amendment about to activate); `off` is the outlined pill (obsolete, unknown, no recent vote); `testnet` is the amber
+ * badge of the sandbox's header, which says "Testnet" in words. Colour is only for `ok` and `bad`, and the badge's amber.
+ */
+export type PillTone = "ok" | "bad" | "neutral" | "info" | "off" | "testnet";
 
 /**
  * A status: an icon and a word, never colour alone (spec 7.1). `ok` and `bad` come with a check and a cross; the other tones have no

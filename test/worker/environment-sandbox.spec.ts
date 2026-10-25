@@ -79,6 +79,28 @@ describe("the names where there is no layout data", () => {
   });
 });
 
+// The Testnet badge is in the server-rendered header of every page of the sandbox, the unknown network's error page included.
+describe("the Testnet badge", () => {
+  /** The header of a page, as the server rendered it. */
+  const headerOf = (html: string) => /<header[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+
+  it("/xrpl and /xrp show the badge in the server-rendered header", async () => {
+    mock = mockUpstream("xrpl");
+    const home = await page("/xrpl");
+    const unknown = await page("/xrp", 404);
+
+    for (const { html } of [home, unknown]) {
+      const header = headerOf(html);
+      expect(header).toContain("pill--testnet");
+      expect(header).toContain(">Testnet<");
+      // After the brand link, which it sits beside.
+      expect(header.indexOf('class="hdr__brand"')).toBeGreaterThan(-1);
+      expect(header.indexOf('class="hdr__brand"')).toBeLessThan(header.indexOf("pill--testnet"));
+      expect(header).not.toMatch(/<span[^>]*pill--testnet[^>]*title=/);
+    }
+  });
+});
+
 // The pages that name their network in their own words (a headline, a status line, a note, a link preview): from the layout's network, not a literal.
 describe("the pages that name their network", () => {
   it("/xrpl: Explore XRPL Testnet, and the status line says XRPL Testnet · ledger", async () => {

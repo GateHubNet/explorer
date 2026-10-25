@@ -4,12 +4,14 @@ import { Link, useLocation, useMatches } from "react-router";
 import { PRODUCT_NAME } from "../brand";
 import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { cx } from "../cx";
+import { networkKindOf } from "../environment";
 import type { Feature } from "../features";
 import type { NetworkBrief } from "../networks";
 import { navSectionOf, type NavSection } from "../route-handle";
-import { useFeatures } from "../use-network";
+import { useEnvironment, useFeatures } from "../use-network";
 import { CloseIcon, LogoMark, MenuIcon } from "./icons";
 import { NetworkSwitch } from "./NetworkSwitch";
+import { Pill } from "./Pill";
 import { SearchBox } from "./SearchBox";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -37,8 +39,10 @@ function pathOf(href: string): string {
 }
 
 /**
- * The header of every page of a network: logo, network switch, navigation, search box, theme toggle. On a phone the
- * navigation folds into a menu button. `search={false}` leaves the box out, for the home page, whose hero has its own.
+ * The header of every page of a network: logo, network switch, navigation, search box, theme toggle. In the sandbox a "Testnet" badge follows the
+ * logo, from the root's environment (`useEnvironment()`) so that the pages with no `/:net` data have it too; it has no tooltip, which is out of reach
+ * by keyboard and touch. On a phone the navigation folds into a menu button and the logo's name goes, the mark, the badge and the switch stay.
+ * `search={false}` leaves the box out, for the home page, whose hero has its own.
  */
 export function Header({ net, search = true }: { net: NetworkBrief; search?: boolean }) {
   const menuId = useId();
@@ -46,14 +50,22 @@ export function Header({ net, search = true }: { net: NetworkBrief; search?: boo
   const features = useFeatures();
   const { pathname } = useLocation();
   const section = navSectionOf(useMatches());
+  const testnet = networkKindOf(useEnvironment()) === "testnet";
 
   return (
     <header className="hdr">
       <div className="container hdr__inner">
-        <Link to={`/${net.id}`} className="hdr__brand" aria-label={`${PRODUCT_NAME} home`}>
-          <LogoMark />
-          <span className="hdr__name">{PRODUCT_NAME}</span>
-        </Link>
+        <div className="hdr__brandgroup">
+          <Link to={`/${net.id}`} className="hdr__brand" aria-label={`${PRODUCT_NAME} home`}>
+            <LogoMark />
+            <span className="hdr__name">{PRODUCT_NAME}</span>
+          </Link>
+          {testnet && (
+            <Pill tone="testnet" icon={null}>
+              Testnet
+            </Pill>
+          )}
+        </div>
         <NetworkSwitch net={net.id} />
         <nav id={menuId} className={cx("hdr__nav", menuOpen && "is-open")} aria-label="Main">
           <ul>

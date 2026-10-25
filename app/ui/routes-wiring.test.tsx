@@ -160,6 +160,21 @@ describe("root.tsx", () => {
     expect(screen.getByRole("link", { name: "Go to the XRPL Testnet home" }).getAttribute("href")).toBe("/xrpl");
   });
 
+  it("the root error page shows the badge in the sandbox", () => {
+    mountError("sandbox");
+    const header = screen.getByRole("banner");
+    expect(within(header).getByText("Testnet").className).toBe("pill pill--testnet");
+    // After the brand link, in its group, as on every page of the sandbox.
+    expect([...header.querySelector(".hdr__brandgroup")!.children].map((child) => child.className)).toEqual(["hdr__brand", "pill pill--testnet"]);
+    cleanup();
+
+    for (const environment of ["production", "development", undefined] as const) {
+      mountError(environment);
+      expect(document.querySelector(".pill--testnet"), String(environment)).toBeNull();
+      cleanup();
+    }
+  });
+
   it("draws its error page with the mainnets' switch in production, in development, and without the environment", () => {
     for (const environment of ["production", "development", undefined] as const) {
       mountError(environment);

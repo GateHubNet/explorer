@@ -39,6 +39,7 @@ import { PRODUCT_NAME } from "../brand";
 import { NoAmmPage } from "../pages/NoAmmPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
+import type { Environment } from "../environment";
 import { FEATURE_VARS, featuresOf, NO_FEATURES, type Features } from "../features";
 import { navSectionOf, type NetworkRouteHandle } from "../route-handle";
 import { NETWORK_ROUTE_ID, useNetwork } from "../use-network";
@@ -90,6 +91,11 @@ describe("Pill", () => {
 
     rerender(<Pill tone="neutral" icon={<svg data-testid="own" aria-hidden="true" />}>Pending</Pill>);
     expect(screen.getByTestId("own")).toBeTruthy();
+  });
+
+  it("Pill testnet has no icon of its own", () => {
+    const { container } = render(<Pill tone="testnet">Testnet</Pill>);
+    expect(container.innerHTML).toBe('<span class="pill pill--testnet">Testnet</span>');
   });
 
   it("ResultPill says Success for tesSUCCESS and shows the code of a failure", () => {
@@ -1379,6 +1385,35 @@ describe("Header and Shell", () => {
     renderInRouter(<Header net={XAHAU} />);
     const home = screen.getByRole("link", { name: new RegExp(`${PRODUCT_NAME} home`, "i") });
     expect(home.getAttribute("href")).toBe("/xahau");
+  });
+
+  describe("the Testnet badge", () => {
+    /** The header under the `/:net` layout, whose root holds `environment` (none: no root route, as in a test of a component on its own). */
+    async function renderBrandGroup(environment?: Environment) {
+      const sandbox = environment === "sandbox";
+      renderUnderNetwork(<Header net={sandbox ? XRPL_TESTNET : XRPL} />, NO_FEATURES, { environment, network: sandbox ? XRPL_TESTNET : undefined });
+      await screen.findByRole("navigation", { name: "Main" });
+      return document.querySelector(".hdr__brandgroup")!;
+    }
+
+    it("shows after the brand under a sandbox root, with no title: the group is the link, then the pill", async () => {
+      const group = await renderBrandGroup("sandbox");
+      expect([...group.children].map((child) => child.tagName)).toEqual(["A", "SPAN"]);
+      expect(group.children[0]!.classList.contains("hdr__brand")).toBe(true);
+      const badge = group.children[1]!;
+      expect(badge.className).toBe("pill pill--testnet");
+      expect(badge.textContent).toBe("Testnet");
+      expect(badge.querySelector("svg")).toBeNull();
+      expect(badge.hasAttribute("title")).toBe(false);
+      expect(group.hasAttribute("title")).toBe(false);
+    });
+
+    it.each([["production" as const], ["development" as const], [undefined]])("is not there under the root of %s: the group is the brand alone", async (environment) => {
+      const group = await renderBrandGroup(environment);
+      expect([...group.children].map((child) => child.className)).toEqual(["hdr__brand"]);
+      expect(document.querySelector(".pill--testnet")).toBeNull();
+      expect(document.body.textContent).not.toContain("Testnet");
+    });
   });
 
   it("opens and closes the menu on phones with a real button", () => {

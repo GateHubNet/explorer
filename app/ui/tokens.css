@@ -24,6 +24,10 @@
   --ok-bg: #EAF5D6;
   --bad: #C8174F;
   --bad-bg: #FDE7EE;
+  /* The Testnet badge of the sandbox's header (sandbox spec 7.2): its word on its wash is 7.1:1 in light, 9.5:1 in dark. */
+  --testnet-fg: #7A4306;
+  --testnet-bg: #FDF0D5;
+  --testnet-border: #EBC985;
   --link: color-mix(in srgb, var(--accent) 82%, #000000);
 
   /* Charts: series colours in this order, then "Other"; up and down. */
@@ -63,6 +67,9 @@
     --ok-bg: #24301A;
     --bad: #FF6B94;
     --bad-bg: #3A1C27;
+    --testnet-fg: #F5C866;
+    --testnet-bg: #33240A;
+    --testnet-border: #5C4316;
     --link: color-mix(in srgb, var(--accent) 55%, #ffffff);
 
     --series-1: #3d8bff;
@@ -99,6 +106,9 @@
   --ok-bg: #24301A;
   --bad: #FF6B94;
   --bad-bg: #3A1C27;
+  --testnet-fg: #F5C866;
+  --testnet-bg: #33240A;
+  --testnet-border: #5C4316;
   --link: color-mix(in srgb, var(--accent) 55%, #ffffff);
 
   --series-1: #3d8bff;

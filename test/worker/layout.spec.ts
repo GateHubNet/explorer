@@ -182,6 +182,14 @@ describe("/:net", () => {
     }
   });
 
+  it("shows no Testnet badge", async () => {
+    // Development shows the mainnets: no badge on a network's page, nor on the unknown network's error page.
+    for (const path of ["/xrpl", "/xahau"]) expect((await page(path)).html, path).not.toContain("pill--testnet");
+    const { html } = await page("/doge", 404);
+    expect(html).not.toContain("pill--testnet");
+    expect(html).not.toContain(">Testnet<");
+  });
+
   it("is the same document for every visitor: no per-visitor markup from the cookie or the theme", async () => {
     const plain = (await page("/xrpl")).html;
     const withCookies = (await page("/xrpl", 200, { Cookie: "net=xahau; theme=dark" })).html;

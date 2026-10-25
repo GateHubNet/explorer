@@ -45,6 +45,13 @@
   padding-block: 12px;
 }
 
+/* The logo and, in the sandbox, the Testnet badge after it, as one flex item of the header: the badge stays at every width (on a phone the logo's name goes). */
+.hdr__brandgroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .hdr__brand {
   display: flex;
   align-items: center;
@@ -582,6 +589,18 @@ a.nav-item:hover {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
+}
+
+/* The sandbox's badge after the logo (Header): the tokens are amber on a wash of it, 7.1:1 in light and 9.5:1 in dark, which test/unit/tokens.test.ts pins. */
+.pill--testnet {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--testnet-bg);
+  color: var(--testnet-fg);
+  border: 1px solid var(--testnet-border);
 }
 
 .pill.mono {

@@ -137,6 +137,16 @@ describe("tokens.css", () => {
     expect(darkByAttribute).toMatchObject(CHART_DARK);
     expect(darkByMedia).toMatchObject(CHART_DARK);
   });
+
+  // Sandbox spec 7.2: the Testnet badge's colours, from the board's `.tnet`.
+  const TESTNET_LIGHT = { "--testnet-fg": "#7a4306", "--testnet-bg": "#fdf0d5", "--testnet-border": "#ebc985" };
+  const TESTNET_DARK = { "--testnet-fg": "#f5c866", "--testnet-bg": "#33240a", "--testnet-border": "#5c4316" };
+
+  it("has the testnet badge's tokens in light and both dark blocks", () => {
+    expect(light).toMatchObject(TESTNET_LIGHT);
+    expect(darkByAttribute).toMatchObject(TESTNET_DARK);
+    expect(darkByMedia).toMatchObject(TESTNET_DARK);
+  });
 });
 
 // --- Contrast ---------------------------------------------------------------------------------------------------
@@ -302,5 +312,19 @@ describe.each(BLOCKS)("the status marks in %s", (_block, tokens) => {
     const text = color(tokenOf(ruleProperty(selector, "color")));
     expect(contrast(text, color("--surface"))).toBeGreaterThanOrEqual(AA);
     expect(contrast(text, hoveredRow())).toBeGreaterThanOrEqual(AA);
+  });
+});
+
+// Sandbox spec 7.2: the Testnet badge's word on its wash, 7.1:1 in light and 9.5:1 in dark (the figures to 1 decimal, floored: 7.06 and 9.54).
+// The pair is the one `.pill--testnet` draws, read from components.css.
+describe.each([
+  ["light", light, 7],
+  ["dark by choice", darkByAttribute, 9.5],
+  ["dark by system", darkByMedia, 9.5],
+] as const)("the testnet badge in %s", (_block, tokens, least) => {
+  it(`keeps the badge's text above ${least}:1 (the board's .tnet), on its own wash`, () => {
+    expect(tokenOf(ruleProperty(".pill--testnet", "color"))).toBe("--testnet-fg");
+    expect(tokenOf(ruleProperty(".pill--testnet", "background"))).toBe("--testnet-bg");
+    expect(contrast(rgb(tokens["--testnet-fg"]!), rgb(tokens["--testnet-bg"]!))).toBeGreaterThanOrEqual(least);
   });
 });
