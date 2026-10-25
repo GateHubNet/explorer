@@ -227,7 +227,7 @@ describe("validatorsPage: intro, notices and options", () => {
     expect(summaryOf(build({ summary: summaryWith({ unl: { trusted: 0, publishers: [] } }) })).publishers).toBeNull();
   });
 
-  it("labels local Fixed list in the select and on a row", () => {
+  it("labels local Fixed list in the select", () => {
     const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
     const summary = summaryWith({ unl: { trusted: 39, publishers: [current, FIXED_LIST] } });
     const both = validatorRowSample({ unl_lists: ["local", "vl.ripple.com"] });
@@ -237,7 +237,6 @@ describe("validatorsPage: intro, notices and options", () => {
       { value: "vl.ripple.com", label: "vl.ripple.com" },
       { value: "local", label: "Fixed list" },
     ]);
-    expect(listPart(data).rows.map((row) => row.unlPublishers)).toEqual([["Fixed list", "vl.ripple.com"]]);
   });
 
   it("words the UNL tag of a row on the fixed list as 'the fixed list', not as the label", () => {
@@ -698,18 +697,18 @@ describe("validatorsPage: the rows", () => {
       sub: shortHash(KEY_NORTH),
       domainStatus: "verified",
       unl: true,
-      unlPublishers: ["unl.xrplf.org", "vl.ripple.com"],
       listedBy: "Listed by unl.xrplf.org and vl.ripple.com",
       negativeUnl: false,
       version: { text: "3.4.1", latest: true },
     });
+    // The UNL tag reads `listedBy`; a list of the publishers' labels beside it would be sent for every row (up to a thousand) and read by no one.
+    expect(rowOf(data, KEY_NORTH)).not.toHaveProperty("unlPublishers");
     expect(rowOf(data, KEY_NAMELESS)).toMatchObject({
       name: { text: shortHash(KEY_NAMELESS), mono: true },
       href: `/xrpl/validators/${KEY_NAMELESS}`,
       sub: "no domain",
       domainStatus: null,
       unl: false,
-      unlPublishers: [],
       listedBy: "",
     });
   });

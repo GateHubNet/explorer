@@ -81,8 +81,6 @@ export interface ValidatorRowView {
   /** `null` when the row has no domain, or the data API sent no check of it. */
   domainStatus: DomainStatusKind | null;
   unl: boolean;
-  /** The publishers whose lists name the validator, by their labels (the hidden words of the UNL tag). */
-  unlPublishers: string[];
   /** The words of the UNL tag, a screen reader's and the mouse's: `Listed by A and B`, `Listed by the fixed list`; empty when no list names the validator. */
   listedBy: string;
   negativeUnl: boolean;
@@ -346,7 +344,6 @@ function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null): 
     sub: domain !== undefined ? shortHash(key) : "no domain",
     domainStatus: domain !== undefined ? (row.domain_verification?.status ?? null) : null,
     unl: row.unl,
-    unlPublishers: row.unl_lists.map(publisherLabel),
     listedBy: unlTagWords(row.unl_lists),
     negativeUnl: row.negative_unl,
     version: { text: versionText(row, false) ?? DASH, latest: row.version_latest === true },

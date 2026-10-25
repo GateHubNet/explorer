@@ -60,7 +60,7 @@ export interface ValidatorIdentity {
   /** `null` for a validator with no domain, or whose domain the data API sent no check of. */
   domainStatus: DomainStatusKind | null;
   unl: boolean;
-  /** The publishers whose lists name the validator (D's `unl_lists`), by their labels: the hidden words of the UNL tag, and the membership line when S did not load. */
+  /** The publishers whose lists name the validator (D's `unl_lists`), by their labels: the membership line when S did not load (the UNL tag reads `listedBy`). */
   unlPublishers: string[];
   /** The words of the UNL tag, a screen reader's and the mouse's: `Listed by A and B`, `Listed by the fixed list`; empty when no list names the validator. */
   listedBy: string;
