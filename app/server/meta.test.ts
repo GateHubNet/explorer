@@ -41,6 +41,16 @@ const XAHAU: MetaContext = {
   origin: "https://explorer.test",
 };
 
+/** The sandbox's networks: the testnets' names, as the layout's loader reads them in the sandbox. */
+const XRPL_TESTNET: MetaContext = {
+  network: { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX" },
+  origin: "https://explorer.test",
+};
+const XAHAU_TESTNET: MetaContext = {
+  network: { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX" },
+  origin: "https://explorer.test",
+};
+
 type Tag = Record<string, string>;
 const tags = (list: ReadonlyArray<unknown>) => list as Tag[];
 /** The content of the `<meta>` with this `name` or `property`. */
@@ -406,6 +416,17 @@ describe("marketsMeta", () => {
     expect(link(list, "canonical")).toBe("https://explorer.test/xahau/markets");
   });
 
+  it("names the network's DEX in the sandbox's words: the XRPL Testnet DEX, the Xahau Testnet DEX", () => {
+    const xrpl = marketsMeta(DEFAULT, XRPL_TESTNET);
+    expect(title(xrpl)).toBe("XRPL Testnet markets · explorer");
+    expect(content(xrpl, "description")).toBe(DESCRIPTION("the XRPL Testnet DEX"));
+    expect(content(xrpl, "og:description")).toBe(DESCRIPTION("the XRPL Testnet DEX"));
+    expect(link(xrpl, "canonical")).toBe("https://explorer.test/xrpl/markets");
+    const xahau = marketsMeta({ ...DEFAULT, indexable: false }, XAHAU_TESTNET);
+    expect(title(xahau)).toBe("Xahau Testnet markets · explorer");
+    expect(content(xahau, "description")).toBe(DESCRIPTION("the Xahau Testnet DEX"));
+  });
+
   it("names the view in the title of any other, in the view builder's words, and its period (periodWords) in the description", () => {
     const list = marketsMeta({ view: ["last 7 days", "USD", "AMM swaps"], periodWords: "last 7 days", indexable: false }, XRPL);
     expect(title(list)).toBe("XRPL markets · last 7 days · USD · AMM swaps · explorer");
@@ -543,6 +564,18 @@ describe("pairMeta", () => {
       "Price, candles, recent trades, order book and most active traders of EVR/XAH on the Xahau DEX. EVR issued by rEvern…HXr8.",
     );
     expect(link(xahau, "canonical")).toBe(`https://explorer.test/xahau/markets/EVR.${EVR}/XAH`);
+  });
+
+  it("names the network's DEX in the sandbox's words: the XRPL Testnet DEX, the Xahau Testnet DEX", () => {
+    const xrpl = pairMeta(LIVE, XRPL_TESTNET);
+    expect(title(xrpl)).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL Testnet market · explorer");
+    expect(content(xrpl, "description")).toBe(
+      "Price, candles, recent trades, order book and most active traders of XRP/RLUSD on the XRPL Testnet DEX. RLUSD issued by rMxCKb…m5De.",
+    );
+    const evr = { ...HEAD, title: "EVR/XAH", issued: ["EVR rEvern…HXr8"], issuedBy: "EVR issued by rEvern…HXr8", firstPage: "/xahau/markets/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH" };
+    expect(content(pairMeta({ head: evr, view: [], mode: "live", indexable: true }, XAHAU_TESTNET), "description")).toBe(
+      "Price, candles, recent trades, order book and most active traders of EVR/XAH on the Xahau Testnet DEX. EVR issued by rEvern…HXr8.",
+    );
   });
 
   it("puts no number of the data in the description: the page is stored for a second", () => {
@@ -867,6 +900,7 @@ describe("amendmentMeta", () => {
 
 describe("ammListMeta", () => {
   const DESCRIPTION = "Automated market maker pools on the XRP Ledger: the value, reserves, trading fee and swap volume of every pool.";
+  const TESTNET_DESCRIPTION = "Automated market maker pools on XRPL Testnet: the value, reserves, trading fee and swap volume of every pool.";
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   /** The facts of a view as the view builder writes them (`AmmListPageData.meta`): the first page, no filter. */
   const facts = (more: Partial<AmmListFacts> = {}): AmmListFacts => ({ deleted: false, more: false, error: false, ...more });
@@ -885,6 +919,17 @@ describe("ammListMeta", () => {
     expect(keys(list)).not.toContain("og:image");
     expect(keys(list)).not.toContain("twitter:image");
     expect(keys(list)).not.toContain("robots");
+  });
+
+  it("names the network of the sandbox in its description: XRPL Testnet, in every view", () => {
+    const list = ammListMeta(facts(), XRPL_TESTNET);
+    expect(title(list)).toBe("AMM pools · XRPL Testnet · explorer");
+    expect(content(list, "description")).toBe(TESTNET_DESCRIPTION);
+    expect(content(list, "og:description")).toBe(TESTNET_DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/amm");
+    for (const view of [facts({ assetLabel: "RLUSD" }), facts({ deleted: true }), facts({ more: true }), facts({ error: true })]) {
+      expect(content(ammListMeta(view, XRPL_TESTNET), "description")).toBe(TESTNET_DESCRIPTION);
+    }
   });
 
   it("is on the request's origin", () => {
@@ -920,6 +965,12 @@ describe("ammListMeta", () => {
     expect(content(list, "robots")).toBe("noindex, follow");
     expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
     expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("is Xahau Testnet's explanation on Xahau Testnet", () => {
+    const list = ammListMeta({ none: true }, XAHAU_TESTNET);
+    expect(title(list)).toBe("AMM pools · Xahau Testnet · explorer");
+    expect(content(list, "description")).toBe("Xahau Testnet has no AMM: the AMM amendment is not part of Xahau Testnet, so there are no pools to show.");
   });
 
   it("puts no number in the description: the page is stored for seconds", () => {

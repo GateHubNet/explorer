@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState, type ReactElement } from "react";
 import { renderToString } from "react-dom/server";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, Outlet, RouterProvider, type RouteObject } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AMM_HOLDER, AMM_ISSUER, AMM_MARKER, AMM_OTHER, AMM_POOL, ammPoolAccount, ammPoolSample, ammPoolsSample } from "../../../test/support/amm-samples";
@@ -14,7 +14,9 @@ import type { Asset } from "../../domain/asset";
 import { compactNumber, shortAddress } from "../../domain/format";
 import { ammListPage, noAmmPage, type AmmListInput, type AmmListPageData, type NoAmmPageData } from "../../server/amm-view";
 import type { AmmPool, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "../../server/api-types";
+import type { PublicNetwork } from "../../server/network-route";
 import { NO_FEATURES } from "../features";
+import { NETWORK_ROUTE_ID } from "../use-network";
 import { AmmListPage } from "./AmmListPage";
 import { NoAmmPage } from "./NoAmmPage";
 
@@ -32,6 +34,45 @@ const rlusd: Asset = { currency: RLUSD, issuer: RL };
 const xrp: Asset = { currency: "XRP" };
 
 const XRPL: AmmListInput["net"] = { id: "xrpl", native: "XRP", features: { ...NO_FEATURES, ammPages: true, markets: true } };
+
+// The `/:net` layout above both pages (`useNetwork()` reads its data): the mainnets' and the sandbox's XRPL, as the layout's loader gives them.
+const LAYOUT_XRPL: PublicNetwork = {
+  ...XRPL,
+  kind: "mainnet",
+  name: "XRPL",
+  label: "XRPL mainnet",
+  longName: "the XRP Ledger",
+  dexName: "the XRP Ledger DEX",
+  ctidNetworkId: 0,
+  other: "xahau",
+  hasAmm: true,
+  software: "rippled",
+  displays: ["native", "usd"],
+};
+const LAYOUT_XRPL_TESTNET: PublicNetwork = {
+  ...LAYOUT_XRPL,
+  kind: "testnet",
+  name: "XRPL Testnet",
+  label: "XRPL Testnet",
+  longName: "XRPL Testnet",
+  dexName: "the XRPL Testnet DEX",
+  ctidNetworkId: 1,
+  displays: ["native"],
+};
+const LAYOUT_XAHAU: PublicNetwork = {
+  ...LAYOUT_XRPL,
+  id: "xahau",
+  native: "XAH",
+  name: "Xahau",
+  label: "Xahau mainnet",
+  longName: "Xahau",
+  dexName: "the Xahau DEX",
+  ctidNetworkId: 21337,
+  other: "xrpl",
+  hasAmm: false,
+  software: "xahaud",
+  displays: ["native"],
+};
 
 const fulfilled = <T,>(value: T): PromiseFulfilledResult<T> => ({ status: "fulfilled", value });
 const rejected = (reason: unknown): PromiseRejectedResult => ({ status: "rejected", reason });
@@ -140,12 +181,21 @@ function inputOf(over: Partial<AmmListInput> = {}): AmmListInput {
 /** The page data, as the loader hands it to the page: the view builder's output of the input. */
 const build = (over: Partial<AmmListInput> = {}): AmmListPageData => ammListPage(inputOf(over)).page;
 
+/**
+ * The routes of a page under the `/:net` layout, as the app has them (`useNetwork()` reads the layout's data). The layout's data is given as hydration data
+ * (`layoutData`), so the page draws at once, as the document does in the browser, and on the server too.
+ */
+const underLayout = (children: RouteObject[], network: PublicNetwork): RouteObject[] => [
+  { id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network }), element: <Outlet />, children },
+];
+const layoutData = (network: PublicNetwork) => ({ [NETWORK_ROUTE_ID]: { network } });
+
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
-function mount(data: AmmListPageData, at = "/xrpl/amm") {
+function mount(data: AmmListPageData, at = "/xrpl/amm", network = LAYOUT_XRPL) {
   const loader = vi.fn(() => null);
-  const router = createMemoryRouter([{ id: "amm", path: "*", element: <AmmListPage data={data} />, loader }], {
+  const router = createMemoryRouter(underLayout([{ id: "amm", path: "*", element: <AmmListPage data={data} />, loader }], network), {
     initialEntries: [at],
-    hydrationData: { loaderData: { amm: null } },
+    hydrationData: { loaderData: { ...layoutData(network), amm: null } },
   });
   return { router, loader, ...render(<RouterProvider router={router} />) };
 }
@@ -153,7 +203,11 @@ function mount(data: AmmListPageData, at = "/xrpl/amm") {
 /** A file of app/ui, by its path from this one. (Given as a variable: Vite would turn `new URL("x.css", import.meta.url)` written out into an asset's URL.) */
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-const routed = (ui: ReactElement, at = "/xrpl/amm") => <RouterProvider router={createMemoryRouter([{ path: "*", element: ui }], { initialEntries: [at] })} />;
+const routed = (ui: ReactElement, at = "/xrpl/amm", network = LAYOUT_XRPL) => (
+  <RouterProvider
+    router={createMemoryRouter(underLayout([{ path: "*", element: ui }], network), { initialEntries: [at], hydrationData: { loaderData: layoutData(network) } })}
+  />
+);
 
 const poolsCard = () => screen.getByRole("region", { name: "Pools" });
 const rowsOf = () => within(within(poolsCard()).getByRole("table", { name: "Pools" })).getAllByRole("row").slice(1);
@@ -166,6 +220,12 @@ describe("AmmListPage: the heading and the filter", () => {
     mount(build());
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("AMM pools");
     expect(screen.getByText("Automated market maker pools on the XRP Ledger. Swaps against them also count as DEX trades.").tagName).toBe("P");
+  });
+
+  it("names the network of the layout in its intro: XRPL Testnet in the sandbox", () => {
+    mount(build(), "/xrpl/amm", LAYOUT_XRPL_TESTNET);
+    expect(screen.getByText("Automated market maker pools on XRPL Testnet. Swaps against them also count as DEX trades.").tagName).toBe("P");
+    expect(document.body.textContent).not.toContain("XRP Ledger");
   });
 
   it("is a GET form to the list, with a labelled field, the checkbox and the button, in a group named Filters", () => {
@@ -484,7 +544,7 @@ describe("NoAmmPage", () => {
   const markets = (on: boolean): NoAmmPageData => noAmmPage({ id: "xahau", features: { ...NO_FEATURES, ammPages: true, markets: on } });
 
   it("says that Xahau has no AMM, under the heading and its own intro", () => {
-    render(routed(<NoAmmPage data={markets(true)} />, "/xahau/amm"));
+    render(routed(<NoAmmPage data={markets(true)} />, "/xahau/amm", LAYOUT_XAHAU));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("AMM pools");
     expect(screen.getByText("Automated market maker pools.")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Xahau has no AMM" })).toBeTruthy();
@@ -495,13 +555,13 @@ describe("NoAmmPage", () => {
   });
 
   it("links Xahau's markets while that page is on, and the XRPL pools", () => {
-    render(routed(<NoAmmPage data={markets(true)} />, "/xahau/amm"));
+    render(routed(<NoAmmPage data={markets(true)} />, "/xahau/amm", LAYOUT_XAHAU));
     expect(screen.getByRole("link", { name: "See Xahau markets →" }).getAttribute("href")).toBe("/xahau/markets");
     expect(screen.getByRole("link", { name: "Switch to XRPL pools" }).getAttribute("href")).toBe("/xrpl/amm");
   });
 
   it("shows the markets in the header's soon style, not as a link, while that page is off", () => {
-    render(routed(<NoAmmPage data={markets(false)} />, "/xahau/amm"));
+    render(routed(<NoAmmPage data={markets(false)} />, "/xahau/amm", LAYOUT_XAHAU));
     expect(screen.queryByRole("link", { name: /See Xahau markets/ })).toBeNull();
     const soon = screen.getByText("See Xahau markets →").closest(".nav-item")!;
     expect(soon.className).toBe("nav-item is-soon");
@@ -511,14 +571,14 @@ describe("NoAmmPage", () => {
   });
 
   it("draws its icon hidden from assistive technology", () => {
-    const { container } = render(routed(<NoAmmPage data={markets(true)} />, "/xahau/amm"));
+    const { container } = render(routed(<NoAmmPage data={markets(true)} />, "/xahau/amm", LAYOUT_XAHAU));
     const icons = container.querySelectorAll("svg");
     expect(icons.length).toBeGreaterThan(0);
     for (const svg of icons) expect(svg.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("is the same on the server as in the browser", async () => {
-    const { errors } = await serverThenHydrated(routed(<NoAmmPage data={markets(false)} />, "/xahau/amm"));
+    const { errors } = await serverThenHydrated(routed(<NoAmmPage data={markets(false)} />, "/xahau/amm", LAYOUT_XAHAU));
     expect(errors).toEqual([]);
   });
 });

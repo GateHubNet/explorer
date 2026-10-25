@@ -10,7 +10,7 @@ import { metaContext } from "../server/meta";
 import { homeMeta } from "../server/meta-home";
 import { requireNetwork } from "../server/network-route";
 import { createLiveOnScreen } from "../ui/live-page";
-import { HOME_TITLES, HomePage } from "../ui/pages/HomePage";
+import { HomePage } from "../ui/pages/HomePage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
 import { useNetwork } from "../ui/use-network";
@@ -69,7 +69,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
   const ctx = metaContext(params.net, matches);
   if (!loaderData || !ctx) return [];
-  return homeMeta(HOME_TITLES[ctx.network.id], ctx);
+  return homeMeta(`Explore ${ctx.network.longName}`, ctx);
 }
 
 /**

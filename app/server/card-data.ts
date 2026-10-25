@@ -39,7 +39,7 @@ function clip(text: string, max: number): string {
   return characters.length > max ? `${characters.slice(0, max - 1).join("").trimEnd()}…` : text;
 }
 
-const labelOf = (network: NetworkBrief) => `${network.name} mainnet`;
+const labelOf = (network: NetworkBrief) => network.label;
 const amountText = (amount: FlowAmount) => `${formatAmount(amount.value)} ${formatCurrency(amount.currency)}`;
 
 /** What the card of a transaction reads: the page's own data, and what only the transaction itself says. */

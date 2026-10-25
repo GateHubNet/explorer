@@ -26,9 +26,6 @@ import { useLiveRows } from "../use-live-rows";
 import { useRefetching } from "../use-refetching";
 import { ammWording, volumeChart } from "./network-volume";
 
-/** The headline of each network's dashboard (also its title). */
-export const NETWORK_TITLES = { xrpl: "XRPL network", xahau: "Xahau network" } as const;
-
 /** What the payments by currency cover, in the card's title. */
 const PERIOD_WORDS = {
   "7d": "last 7 days",
@@ -167,9 +164,9 @@ function Tile({ label, figure }: { label: string; figure: Figure | null }) {
   );
 }
 
-function Totals({ data, onRetry }: { data: NetworkPageData; onRetry: () => void }) {
+function Totals({ data, networkName, onRetry }: { data: NetworkPageData; networkName: string; onRetry: () => void }) {
   const { metrics, payments, exchanges, currency } = data;
-  const wording = ammWording(data.amm);
+  const wording = ammWording(data.amm, networkName);
   const dex: Figure | null =
     exchanges.state === "ok"
       ? {
@@ -246,11 +243,11 @@ function FeesCard({ data, native, onRetry }: { data: NetworkPageData; native: st
   );
 }
 
-function VolumeCard({ data, onRetry }: { data: NetworkPageData; onRetry: () => void }) {
+function VolumeCard({ data, networkName, onRetry }: { data: NetworkPageData; networkName: string; onRetry: () => void }) {
   const { payments, exchanges, amm, currency } = data;
   const unit = data.window.unit;
   const title = `Volume per ${unit}, in ${currency}`;
-  const wording = ammWording(amm);
+  const wording = ammWording(amm, networkName);
   const chart = volumeChart(payments, exchanges, amm, currency);
   return (
     <ChartCard
@@ -391,18 +388,18 @@ export function NetworkPage({ network, data, live }: { network: NetworkInfo; dat
   return (
     <div className={cx("network", refetching && "is-refetching")}>
       <div className="network__head">
-        <h1 className="network__title">{NETWORK_TITLES[net]}</h1>
+        <h1 className="network__title">{`${network.name} network`}</h1>
         <LiveRow label="Live · updates every ledger" live={live} heldNote="Paused while you look at the ledgers" />
       </div>
 
       <Strip net={net} data={data} live={live} onRetry={onRetry} />
       <Filters net={net} native={network.native} data={data} />
-      <Totals data={data} onRetry={onRetry} />
+      <Totals data={data} networkName={network.name} onRetry={onRetry} />
       <TypesCard data={data} onRetry={onRetry} />
 
       <div className="network__pair">
         <FeesCard data={data} native={network.native} onRetry={onRetry} />
-        <VolumeCard data={data} onRetry={onRetry} />
+        <VolumeCard data={data} networkName={network.name} onRetry={onRetry} />
       </div>
       <div className="network__pair">
         <CurrenciesCard data={data} onRetry={onRetry} />

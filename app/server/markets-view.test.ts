@@ -20,10 +20,13 @@ const LIONS_HEX = "4C494F4E53000000000000000000000000000000";
 
 type Input = Parameters<typeof marketsPage>[0];
 const FEATURES = { ...NO_FEATURES, ammData: true, markets: true, accountAnalytics: true };
-const XRPL: Input["network"] = { id: "xrpl", name: "XRPL", native: "XRP", hasAmm: true, features: FEATURES };
+const XRPL: Input["network"] = { id: "xrpl", name: "XRPL", dexName: "the XRP Ledger DEX", native: "XRP", hasAmm: true, features: FEATURES };
 const XRPL_AMM_OFF: Input["network"] = { ...XRPL, features: { ...FEATURES, ammData: false } };
 /** The switch is "on" at the top level of every environment, Xahau's included: `hasAmm` is what rules there. */
-const XAHAU: Input["network"] = { id: "xahau", name: "Xahau", native: "XAH", hasAmm: false, features: FEATURES };
+const XAHAU: Input["network"] = { id: "xahau", name: "Xahau", dexName: "the Xahau DEX", native: "XAH", hasAmm: false, features: FEATURES };
+/** The sandbox's networks: the same facts, in the testnets' words. */
+const XRPL_TESTNET: Input["network"] = { ...XRPL, name: "XRPL Testnet", dexName: "the XRPL Testnet DEX" };
+const XAHAU_TESTNET: Input["network"] = { ...XAHAU, name: "Xahau Testnet", dexName: "the Xahau Testnet DEX" };
 
 const DEFAULT: MarketsParams = { period: "24h", quote: null, trades: null };
 const START = "2026-10-18T11:00:00Z";
@@ -572,6 +575,11 @@ describe("marketsPage: the AMM", () => {
     expect(data.tiles![3]).toEqual({ label: "AMM share of volume", value: "—", sub: "Xahau has no AMM" });
     expect(data.rows[0]!.amm).toBeNull();
   });
+
+  it("names the testnet in the tile that says why: Xahau Testnet has no AMM", () => {
+    const data = pageOf([eurUsd({ amm_share: "0.0000", amm_pool: false })], { network: XAHAU_TESTNET, totals: { amm_share: "0.0000" } });
+    expect(data.tiles![3]).toEqual({ label: "AMM share of volume", value: "—", sub: "Xahau Testnet has no AMM" });
+  });
 });
 
 describe("marketsPage: the Trades filter", () => {
@@ -658,6 +666,14 @@ describe("marketsPage: the intro, the note and the footnote", () => {
     expect(pageOf([]).intro).toBe("Trades on the XRP Ledger DEX: order-book crossings and swaps against AMM pools.");
     expect(pageOf([], { network: XRPL_AMM_OFF }).intro).toBe("Trades on the XRP Ledger DEX.");
     expect(pageOf([], { network: XAHAU }).intro).toBe("Trades on the Xahau DEX. Xahau has no AMM, so every trade is an order-book crossing.");
+  });
+
+  it("has the three intros in the testnets' words in the sandbox", () => {
+    expect(pageOf([], { network: XRPL_TESTNET }).intro).toBe("Trades on the XRPL Testnet DEX: order-book crossings and swaps against AMM pools.");
+    expect(pageOf([], { network: { ...XRPL_TESTNET, features: { ...FEATURES, ammData: false } } }).intro).toBe("Trades on the XRPL Testnet DEX.");
+    expect(pageOf([], { network: XAHAU_TESTNET }).intro).toBe(
+      "Trades on the Xahau Testnet DEX. Xahau Testnet has no AMM, so every trade is an order-book crossing.",
+    );
   });
 
   it("states the window of the figures, minutes cut", () => {

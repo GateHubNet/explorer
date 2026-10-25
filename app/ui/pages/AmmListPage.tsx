@@ -15,6 +15,7 @@ import { PairCoins } from "../components/PairCoins";
 import { SectionError } from "../components/SectionError";
 import { StatGrid, StatTile } from "../components/StatTile";
 import { DeletedIcon, OpenIcon } from "../components/status-icons";
+import { useNetwork } from "../use-network";
 import { useRetry } from "../use-retry";
 
 /** What a tile of totals that could not be loaded shows under its label. */
@@ -252,11 +253,12 @@ function Pools({ data, onRetry, retrying }: { data: AmmListPageData; onRetry: ()
  */
 export function AmmListPage({ data }: { data: AmmListPageData }) {
   const { retry, retrying } = useRetry();
+  const network = useNetwork();
   return (
     <div className="amm">
       <div className="amm__head">
         <h1 className="amm__title">AMM pools</h1>
-        <p className="amm__intro">Automated market maker pools on the XRP Ledger. Swaps against them also count as DEX trades.</p>
+        <p className="amm__intro">{`Automated market maker pools on ${network.longName}. Swaps against them also count as DEX trades.`}</p>
       </div>
       <Filter net={data.net} filter={data.filter} />
       <Totals totals={data.totals} onRetry={retry} retrying={retrying} />

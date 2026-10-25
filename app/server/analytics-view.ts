@@ -389,10 +389,10 @@ export function sentCard(frame: AnalyticsFrame, page: Page<"rows", AccountTxStat
 
 /**
  * The hint of the "DEX trades" row and the first sentence of the pairs' note (spec 3.10). XRPL says AMM only while `AMM_DATA` is on, because the
- * index may hold some swaps and not others until its data is complete; Xahau has no AMM, whatever the switch. No call is made for it.
+ * index may hold some swaps and not others until its data is complete; a network without AMM (Xahau) says so, whatever the switch. No call is made for it.
  */
-export function dexWording(network: Pick<Network, "hasAmm" | "features">): DexWording {
-  if (!network.hasAmm) return { hint: "order book", lead: "Order-book trades only; Xahau has no AMM." };
+export function dexWording(network: Pick<Network, "name" | "hasAmm" | "features">): DexWording {
+  if (!network.hasAmm) return { hint: "order book", lead: `Order-book trades only; ${network.name} has no AMM.` };
   return network.features.ammData
     ? { hint: "order book and AMM", lead: "Includes swaps against AMM pools." }
     : { hint: "on the DEX", lead: null };

@@ -13,6 +13,8 @@ import { accountCard, amendmentCard, formatCardTime, ledgerCard, poolCard, trans
 
 const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX" } as const;
 const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX" } as const;
+const XRPL_TESTNET = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX" } as const;
+const XAHAU_TESTNET = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX" } as const;
 
 const SENDER = "rJF2XaTeEvbk3EsoyVnrdeXVcbkXFQvg";
 const RECEIVER = "rNYbL8Zz3Nzu5Fr9Q1Wwf1zQ5pQbwUKq5";
@@ -462,5 +464,29 @@ describe("poolCard", () => {
       expect(card.footer, value).toEqual([{ text: "Created 22 Mar 2024" }]);
       expect(JSON.stringify(card), value).not.toMatch(/\d[eE][+-]?\d/);
     }
+  });
+});
+
+// ---- The pill: the network's label, whatever its kind ----------------------------------------------------------------------------------------
+
+describe("the pill of every card", () => {
+  it("reads the label of the card's network: 'XRPL mainnet' on the mainnet, 'XRPL Testnet' and 'Xahau Testnet' on the testnets", () => {
+    const labels = (network: typeof XRPL | typeof XRPL_TESTNET | typeof XAHAU | typeof XAHAU_TESTNET) => [
+      transactionCard(tx(), network).networkLabel,
+      ledgerCard(ledger(), network).networkLabel,
+      accountCard(account(), network).networkLabel,
+      validatorCard(validator(), { ...network, software: "rippled" }).networkLabel,
+      amendmentCard(enabledAmm(), { ...network, software: "rippled" }).networkLabel,
+      poolCard(poolFacts(), network).networkLabel,
+    ];
+    expect(labels(XRPL)).toEqual(Array(6).fill("XRPL mainnet"));
+    expect(labels(XAHAU)).toEqual(Array(6).fill("Xahau mainnet"));
+    expect(labels(XRPL_TESTNET)).toEqual(Array(6).fill("XRPL Testnet"));
+    expect(labels(XAHAU_TESTNET)).toEqual(Array(6).fill("Xahau Testnet"));
+  });
+
+  it("says the testnet's name where the footer names the network", () => {
+    expect(accountCard(account({ balance: null }), XAHAU_TESTNET).footer).toEqual([{ text: "Account on Xahau Testnet" }]);
+    expect(poolCard(poolFacts({ created: undefined }), XRPL_TESTNET).footer).toEqual([{ text: "AMM pool on XRPL Testnet" }]);
   });
 });

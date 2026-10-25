@@ -98,7 +98,7 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
     notFound({
       notFound: `AMM pool ${shortAddress(pool)}`,
       suggestion: { href: ammPoolPath(other.id, pool), label: `Open it on ${other.name}` },
-      note: `${net.name} has no AMM, so this pool exists only on the XRP Ledger.`,
+      note: `${net.name} has no AMM, so this pool exists only on ${other.longName}.`,
     });
   }
 

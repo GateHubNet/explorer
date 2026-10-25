@@ -1,7 +1,7 @@
 import { isRouteErrorResponse, useLocation, type MetaDescriptor } from "react-router";
 
 import { PRODUCT_NAME } from "../brand";
-import type { NetworkBrief } from "../networks";
+import { networkChoices, type NetworkBrief } from "../networks";
 import { NotFoundPage, type NotFoundSuggestion } from "./NotFoundPage";
 
 type Shown =
@@ -120,11 +120,12 @@ export function RouteErrorScreen({
 
   if (shown.kind === "not-found") {
     if (unknownNetwork !== undefined) {
+      const covered = networkChoices(net.kind).map((choice) => choice.name).join(" and ");
       return (
         <NotFoundPage
           net={net}
           title={shown.title}
-          message={`There is no network called “${unknownNetwork.slice(0, 80)}”. This explorer covers XRPL and Xahau.`}
+          message={`There is no network called “${unknownNetwork.slice(0, 80)}”. This explorer covers ${covered}.`}
         />
       );
     }

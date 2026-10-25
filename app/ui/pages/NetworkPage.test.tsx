@@ -9,7 +9,7 @@ import { networkHref, type NetworkParams } from "../../domain/network-params";
 import type { AmmPart, NetworkPageData, SeriesView } from "../../server/network-view";
 import type { BarListData, TimeSeriesData } from "../charts/types";
 import type { LiveControls } from "../use-live-controls";
-import { NETWORK_TITLES, NetworkPage } from "./NetworkPage";
+import { NetworkPage } from "./NetworkPage";
 
 afterEach(() => {
   cleanup();
@@ -20,6 +20,9 @@ afterEach(() => {
 
 const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" } as const;
 const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" } as const;
+const XRPL_TESTNET = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", software: "rippled" } as const;
+const XAHAU_TESTNET = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" } as const;
+type Net = typeof XRPL | typeof XAHAU | typeof XRPL_TESTNET | typeof XAHAU_TESTNET;
 const HASH = "2F7C1D5A9B3E4F60A8D2C71B5E9F3A4D6C8B0E1F2A3B4C5D6E7F8A9B0C1D2E3F";
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 
@@ -147,7 +150,7 @@ const controls = (over: Partial<LiveControls> = {}): LiveControls => ({
  * The page in a data router, drawn at once: its route's data is given (`hydrationData`), as the document gives it in the browser, so no first
  * load has to be waited for. The `loader` is what a Retry or a beat runs again.
  */
-function mount(data: NetworkPageData, props: { live?: LiveControls; network?: typeof XRPL | typeof XAHAU; loader?: () => null } = {}) {
+function mount(data: NetworkPageData, props: { live?: LiveControls; network?: Net; loader?: () => null } = {}) {
   const network = props.network ?? XRPL;
   const router = createMemoryRouter([{ path: "*", element: <NetworkPage network={network} data={data} live={props.live} />, loader: props.loader ?? (() => null) }], {
     initialEntries: [`/${network.id}/network`],
@@ -171,12 +174,19 @@ function tile(label: string) {
 describe("NetworkPage, the heading row", () => {
   it("has the network's title as the one h1, in front of the live row", () => {
     mount(page());
-    expect(NETWORK_TITLES).toEqual({ xrpl: "XRPL network", xahau: "Xahau network" });
     const headings = screen.getAllByRole("heading", { level: 1 });
     expect(headings.map((h) => h.textContent)).toEqual(["XRPL network"]);
     cleanup();
     mount(XAHAU_PAGE(), { network: XAHAU });
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Xahau network");
+  });
+
+  it("names the network of the sandbox in it: XRPL Testnet network, Xahau Testnet network", () => {
+    mount(page(), { network: XRPL_TESTNET });
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual(["XRPL Testnet network"]);
+    cleanup();
+    mount(XAHAU_PAGE(), { network: XAHAU_TESTNET });
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Xahau Testnet network");
   });
 
   it("is a live row: the dot and 'Live · updates every ledger', beside the heading", () => {
@@ -501,6 +511,14 @@ describe("NetworkPage, the AMM wordings", () => {
     expect(legend(volume)).toEqual(["Payments", "DEX trades, tracked markets"]);
     expect(volume.textContent).toContain("Xahau has no AMM; DEX trades are order-book trades of the markets the data API tracks.");
     expect(within(volume).queryByRole("alert")).toBeNull();
+  });
+
+  it("none (Xahau Testnet): the same words with the testnet's name", () => {
+    mount(XAHAU_PAGE(), { network: XAHAU_TESTNET });
+    expect(tile("DEX volume").sub).toBe("order book only, no AMM on Xahau Testnet; to Oct 16; Oct 17 not computed yet");
+    const volume = card(/^Volume per day, in XAH$/);
+    expect(volume.textContent).toContain("Xahau Testnet has no AMM; DEX trades are order-book trades of the markets the data API tracks.");
+    expect(volume.textContent).not.toMatch(/Xahau has no AMM/);
   });
 });
 
@@ -908,8 +926,10 @@ describe("NetworkPage, as the Worker prints it and the browser takes it over", (
   const routed = (ui: ReactElement) => <RouterProvider router={createMemoryRouter([{ path: "*", element: ui }], { initialEntries: ["/xrpl/network"] })} />;
 
   it("hydrates what the server printed with no mismatch, on both networks and in every AMM state", async () => {
-    const pages: [typeof XRPL | typeof XAHAU, NetworkPageData][] = [
+    const pages: [Net, NetworkPageData][] = [
       [XRPL, page()],
+      [XRPL_TESTNET, page()],
+      [XAHAU_TESTNET, XAHAU_PAGE()],
       [XRPL, page({ amm: failed() })],
       [XRPL, page({ amm: { state: "off" } })],
       [XAHAU, XAHAU_PAGE()],
@@ -918,7 +938,7 @@ describe("NetworkPage, as the Worker prints it and the browser takes it over", (
     for (const [network, data] of pages) {
       const { html, errors } = await serverThenHydrated(routed(<NetworkPage network={network} data={data} live={controls()} />));
       expect(errors).toEqual([]);
-      expect(html).toContain(NETWORK_TITLES[network.id]);
+      expect(html).toContain(`${network.name} network`);
       expect(html).not.toMatch(/is-entering|is-changed|is-refetching/);
     }
   });

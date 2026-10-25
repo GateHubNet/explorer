@@ -10,6 +10,7 @@ import { HomePage } from "./HomePage";
 
 const XRPL = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" } as const;
 const XAHAU = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" } as const;
+const XRPL_TESTNET = { id: "xrpl", kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", software: "rippled" } as const;
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 const HASH = "67F91E110D4E3E6C2E6DA3D42EDFB36D9860D024406F58A12CDDF09B65057C31";
 
@@ -92,6 +93,17 @@ describe("HomePage", () => {
     const example = screen.getByRole("link", { name: "Ledger 107,695,660" });
     expect(example.getAttribute("href")).toBe("/xrpl/ledger/107695660");
     expect(example.getAttribute("title")).toBe("107695660");
+  });
+
+  it("names the network in the hero's headline and in the status line: the page's own words, the mainnet's or the testnet's", () => {
+    const { container, unmount } = renderInRouter(<HomePage network={XRPL} data={data()} />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Explore the XRP Ledger");
+    expect(container.querySelector(".hero__status")!.textContent).toContain("XRPL mainnet · ledger #107,695,660");
+    unmount();
+    const testnet = renderInRouter(<HomePage network={XRPL_TESTNET} data={data()} />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Explore XRPL Testnet");
+    expect(testnet.container.querySelector(".hero__status")!.textContent).toContain("XRPL Testnet · ledger #107,695,660");
+    expect(testnet.container.querySelector(".hero__status")!.textContent).not.toContain("mainnet");
   });
 
   it("leaves the examples out when there are none", () => {

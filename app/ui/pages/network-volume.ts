@@ -30,17 +30,23 @@ const SOURCE_AMM = `${SOURCE} · amm_volume`;
 const INCLUDED = "DEX trades, tracked markets, AMM swaps included";
 const NOT_ONE_TOTAL = "DEX trades count the markets the data API tracks; AMM swaps count every pool, so the lines are not parts of one total.";
 
+/** The DEX line's name in the legend and the table, and in the end label, for each state of the AMM part. No network is named in them. */
+function dexLine(amm: AmmPart): Pick<AmmWording, "dexLabel" | "dexShort"> {
+  const includesSwaps = amm.state === "ok" || amm.state === "failed";
+  return { dexLabel: includesSwaps ? INCLUDED : "DEX trades, tracked markets", dexShort: "DEX trades" };
+}
+
 /**
  * The words of the volume card for each state of the AMM part (spec 1.3). `ok` and `failed` are the switch on, where the DEX line includes
  * the swaps of the tracked markets: `failed` keeps the `ok` labels and note (the spec gives it none of its own) and has no line, only the
- * problem. `off` is the switch off, where the explorer does not know whether the DEX line includes swaps and says neither. `none` is Xahau.
+ * problem. `off` is the switch off, where the explorer does not know whether the DEX line includes swaps and says neither. `none` is a network
+ * without AMM (Xahau) and names it, `networkName`: "Xahau", "Xahau Testnet".
  */
-export function ammWording(amm: AmmPart): AmmWording {
+export function ammWording(amm: AmmPart, networkName: string): AmmWording {
   switch (amm.state) {
     case "ok":
       return {
-        dexLabel: INCLUDED,
-        dexShort: "DEX trades",
+        ...dexLine(amm),
         dexSub: `AMM swaps ${compactNumber(amm.total)}, all pools`,
         note: NOT_ONE_TOTAL,
         source: SOURCE_AMM,
@@ -49,8 +55,7 @@ export function ammWording(amm: AmmPart): AmmWording {
       };
     case "failed":
       return {
-        dexLabel: INCLUDED,
-        dexShort: "DEX trades",
+        ...dexLine(amm),
         dexSub: "tracked markets, AMM swaps included",
         note: NOT_ONE_TOTAL,
         source: SOURCE_AMM,
@@ -59,8 +64,7 @@ export function ammWording(amm: AmmPart): AmmWording {
       };
     case "off":
       return {
-        dexLabel: "DEX trades, tracked markets",
-        dexShort: "DEX trades",
+        ...dexLine(amm),
         dexSub: "tracked markets",
         note: "DEX trades count the trades of the markets the data API tracks.",
         source: SOURCE,
@@ -69,10 +73,9 @@ export function ammWording(amm: AmmPart): AmmWording {
       };
     case "none":
       return {
-        dexLabel: "DEX trades, tracked markets",
-        dexShort: "DEX trades",
-        dexSub: "order book only, no AMM on Xahau",
-        note: "Xahau has no AMM; DEX trades are order-book trades of the markets the data API tracks.",
+        ...dexLine(amm),
+        dexSub: `order book only, no AMM on ${networkName}`,
+        note: `${networkName} has no AMM; DEX trades are order-book trades of the markets the data API tracks.`,
         source: SOURCE,
         ammLine: false,
         ammProblem: false,
@@ -99,13 +102,13 @@ export function volumeChart(
   currency: string,
 ): TimeSeriesData | null {
   if (payments.state !== "ok" || exchanges.state !== "ok") return null;
-  const wording = ammWording(amm);
+  const dex = dexLine(amm);
   const axis = payments.series;
   const buckets = axis.buckets;
 
   const series: Series[] = [
     { id: "payments", label: "Payments", short: "payments", slot: 1, values: alignedTo(buckets, payments.series) },
-    { id: "dex", label: wording.dexLabel, short: wording.dexShort, slot: 2, values: alignedTo(buckets, exchanges.series) },
+    { id: "dex", label: dex.dexLabel, short: dex.dexShort, slot: 2, values: alignedTo(buckets, exchanges.series) },
   ];
   const parts = [payments.series, exchanges.series];
   if (amm.state === "ok") {

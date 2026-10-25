@@ -9,6 +9,7 @@ import type { Segment } from "../../domain/describe";
 import { shortAddress, shortHash } from "../../domain/format";
 import { allSwitches } from "../../../test/support/switches";
 import { renderUnderNetwork } from "../../../test/support/under-network";
+import { noAmmPage } from "../../server/amm-view";
 import { THEME_STORAGE_KEY } from "../theme-script";
 import { AccountLink } from "./AccountLink";
 import { Amount } from "./Amount";
@@ -35,6 +36,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { TypeTag } from "./TypeTag";
 import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
 import { PRODUCT_NAME } from "../brand";
+import { NoAmmPage } from "../pages/NoAmmPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
 import { FEATURE_VARS, featuresOf, NO_FEATURES, type Features } from "../features";
@@ -45,6 +47,9 @@ import { DetailList } from "./DetailList";
 
 const XRPL = { id: "xrpl", name: "XRPL", native: "XRP", ctidNetworkId: 0, other: "xahau", kind: "mainnet", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", displays: ["native", "usd"] } as const;
 const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337, other: "xrpl", kind: "mainnet", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", displays: ["native"] } as const;
+/** The networks of the sandbox: the same facts but the CTID network ids and the displays, in the testnets' words. */
+const XRPL_TESTNET = { id: "xrpl", name: "XRPL Testnet", native: "XRP", ctidNetworkId: 1, other: "xahau", kind: "testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", displays: ["native"] } as const;
+const XAHAU_TESTNET = { id: "xahau", name: "Xahau Testnet", native: "XAH", ctidNetworkId: 21338, other: "xrpl", kind: "testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", displays: ["native"] } as const;
 
 const ADDRESS = "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x";
 const HASH = "67F91E110D4E3E6C2E6DA3D42EDFB36D9860D024406F58A12CDDF09B65057C31";
@@ -1605,6 +1610,14 @@ describe("RouteErrorScreen", () => {
     expect(screen.queryByText(/on XRPL/)).toBeNull();
   });
 
+  it("names the networks of the environment's kind as the ones the explorer covers", () => {
+    renderInRouter(<RouteErrorScreen error={response(404, { notFound: 'network "doge"' })} net={XRPL} unknownNetwork="doge" />);
+    expect(screen.getByText("There is no network called “doge”. This explorer covers XRPL and Xahau.")).toBeTruthy();
+    cleanup();
+    renderInRouter(<RouteErrorScreen error={response(404, { notFound: 'network "doge"' })} net={XRPL_TESTNET} unknownNetwork="doge" />);
+    expect(screen.getByText("There is no network called “doge”. This explorer covers XRPL Testnet and Xahau Testnet.")).toBeTruthy();
+  });
+
   it("shows a 503 as temporarily unavailable, with a way to try again", () => {
     renderInRouter(<RouteErrorScreen error={response(503, { unavailable: "ledger 99" })} net={XRPL} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Temporarily unavailable");
@@ -1661,5 +1674,33 @@ describe("RouteErrorScreen", () => {
     renderInRouter(<RouteErrorScreen error={new Error("secret internal detail")} net={XRPL} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Something went wrong");
     expect(document.body.textContent).not.toContain("secret internal detail");
+  });
+});
+
+describe("NoAmmPage, in the words of the network it is under", () => {
+  const FEATURES = { ...NO_FEATURES, ammPages: true, markets: true };
+  const data = (markets: boolean) => noAmmPage({ id: "xahau", features: { ...FEATURES, markets } });
+
+  it("says the testnet's name where the mainnet's page says Xahau, and offers the other testnet's pools", async () => {
+    renderUnderNetwork(<NoAmmPage data={data(true)} />, FEATURES, { path: "/xahau/amm", network: XAHAU_TESTNET });
+    expect(await screen.findByRole("heading", { level: 2, name: "Xahau Testnet has no AMM" })).toBeTruthy();
+    expect(screen.getByText("The AMM amendment is not part of Xahau Testnet, so there are no pools to show. Trades on Xahau Testnet are order-book crossings.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See Xahau Testnet markets →" }).getAttribute("href")).toBe("/xahau/markets");
+    expect(screen.getByRole("link", { name: "Switch to XRPL Testnet pools" }).getAttribute("href")).toBe("/xrpl/amm");
+    expect(document.body.textContent).not.toMatch(/Xahau(?! Testnet)/);
+  });
+
+  it("says it in the header's soon style while the markets are off", async () => {
+    renderUnderNetwork(<NoAmmPage data={data(false)} />, { ...FEATURES, markets: false }, { path: "/xahau/amm", network: XAHAU_TESTNET });
+    const soon = (await screen.findByText("See Xahau Testnet markets →")).closest(".nav-item")!;
+    expect(soon.className).toBe("nav-item is-soon");
+    expect(screen.getByRole("link", { name: "Switch to XRPL Testnet pools" })).toBeTruthy();
+  });
+
+  it("says the mainnet's words under the mainnet", async () => {
+    renderUnderNetwork(<NoAmmPage data={data(true)} />, FEATURES, { path: "/xahau/amm", network: XAHAU });
+    expect(await screen.findByRole("heading", { level: 2, name: "Xahau has no AMM" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See Xahau markets →" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Switch to XRPL pools" })).toBeTruthy();
   });
 });

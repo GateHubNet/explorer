@@ -80,7 +80,7 @@ export interface MarketsPageData {
 }
 
 export interface MarketsInput {
-  network: Pick<Network, "id" | "name" | "native" | "hasAmm" | "features">;
+  network: Pick<Network, "id" | "name" | "dexName" | "native" | "hasAmm" | "features">;
   params: MarketsParams;
   answer: MarketsResponse;
 }
@@ -318,7 +318,7 @@ function tilesOf(
     { label: "Pairs shown", value: groupedCount(rows.length), sub: `of ${groupedCount(answer.totals.pairs_traded)} with trades` },
   ];
   if (ammState === "off") return tiles;
-  if (ammState === "none") return [...tiles, { label: "AMM share of volume", value: DASH, sub: "Xahau has no AMM" }];
+  if (ammState === "none") return [...tiles, { label: "AMM share of volume", value: DASH, sub: `${network.name} has no AMM` }];
   const share = answer.totals.amm_share;
   const ammTile =
     share === undefined
@@ -327,11 +327,11 @@ function tilesOf(
   return [...tiles, ammTile];
 }
 
-function introOf(ammState: AmmState): string {
-  if (ammState === "none") return "Trades on the Xahau DEX. Xahau has no AMM, so every trade is an order-book crossing.";
+function introOf(ammState: AmmState, network: MarketsInput["network"]): string {
+  if (ammState === "none") return `Trades on ${network.dexName}. ${network.name} has no AMM, so every trade is an order-book crossing.`;
   return ammState === "on"
-    ? "Trades on the XRP Ledger DEX: order-book crossings and swaps against AMM pools."
-    : "Trades on the XRP Ledger DEX.";
+    ? `Trades on ${network.dexName}: order-book crossings and swaps against AMM pools.`
+    : `Trades on ${network.dexName}.`;
 }
 
 /** " The 1,000 pairs with the most volume of 2,140." when the API served fewer pairs than qualify (the footnote's sentence), else nothing. */
@@ -431,7 +431,7 @@ export function marketsPage(input: MarketsInput): MarketsPageData {
     : null;
 
   return {
-    intro: introOf(ammState),
+    intro: introOf(ammState, network),
     filters: {
       period: (Object.keys(PERIODS) as MarketsParams["period"][]).map((period) => ({
         label: PERIODS[period].label,

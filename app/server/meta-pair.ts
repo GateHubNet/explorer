@@ -5,7 +5,7 @@
 import type { MetaDescriptor } from "react-router";
 
 import { PRODUCT_NAME } from "../ui/brand";
-import { absolute, DEX_NAMES, sharing, type MetaContext } from "./meta";
+import { absolute, sharing, type MetaContext } from "./meta";
 import type { PairPageData } from "./pair-view";
 
 /**
@@ -25,7 +25,7 @@ export function pairMeta(
   const { network, origin } = ctx;
   const { head } = page;
   const title = [head.title, ...head.issued, `${network.name} market`, ...page.view, PRODUCT_NAME].join(" · ");
-  const description = `Price, candles, recent trades, order book and most active traders of ${head.title} on ${DEX_NAMES[network.id]}. ${head.issuedBy}.`;
+  const description = `Price, candles, recent trades, order book and most active traders of ${head.title} on ${network.dexName}. ${head.issuedBy}.`;
 
   if (page.mode !== "live" || !page.indexable) {
     return [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex, follow" }];

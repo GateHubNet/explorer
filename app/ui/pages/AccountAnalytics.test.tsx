@@ -53,9 +53,9 @@ const BOB = "rNYbL8WZKKNNni5rb2MzcxnAEgkQC5Kq5";
 const CAROL = "rYogZ7oXMbYEWXrCQXHDKwe8mLqLDoaWm";
 const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 
-const XRPL_AMM = dexWording({ hasAmm: true, features: featuresOf({ AMM_DATA: "on" }) });
-const XRPL_NO_AMM = dexWording({ hasAmm: true, features: featuresOf({}) });
-const XAHAU_DEX = dexWording({ hasAmm: false, features: featuresOf({ AMM_DATA: "on" }) });
+const XRPL_AMM = dexWording({ name: "XRPL", hasAmm: true, features: featuresOf({ AMM_DATA: "on" }) });
+const XRPL_NO_AMM = dexWording({ name: "XRPL", hasAmm: true, features: featuresOf({}) });
+const XAHAU_DEX = dexWording({ name: "Xahau", hasAmm: false, features: featuresOf({ AMM_DATA: "on" }) });
 
 const at = (day: string) => `${day}T00:00:00Z`;
 const page = <R,>(rows: R[]): Page<"rows", R> => ({ result: "success", count: rows.length, rows });

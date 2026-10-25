@@ -685,8 +685,8 @@ describe("the text of the builders", () => {
 // ---- The wording of the DEX -------------------------------------------------------------------------------------------------------------
 
 describe("dexWording", () => {
-  const xrpl = (ammData: "on" | "off") => ({ hasAmm: true, features: featuresOf({ AMM_DATA: ammData }) });
-  const xahau = (ammData: "on" | "off") => ({ hasAmm: false, features: featuresOf({ AMM_DATA: ammData }) });
+  const xrpl = (ammData: "on" | "off") => ({ name: "XRPL", hasAmm: true, features: featuresOf({ AMM_DATA: ammData }) });
+  const xahau = (ammData: "on" | "off") => ({ name: "Xahau", hasAmm: false, features: featuresOf({ AMM_DATA: ammData }) });
 
   it("says order book and AMM, and that swaps against pools are included, on XRPL with the AMM data on", () => {
     expect(dexWording(xrpl("on"))).toEqual({ hint: "order book and AMM", lead: "Includes swaps against AMM pools." });
@@ -700,6 +700,14 @@ describe("dexWording", () => {
     const wording = { hint: "order book", lead: "Order-book trades only; Xahau has no AMM." };
     expect(dexWording(xahau("on"))).toEqual(wording);
     expect(dexWording(xahau("off"))).toEqual(wording);
+  });
+
+  it("names the network that has none in its own words: Xahau Testnet on the sandbox's, and XRPL Testnet reads like XRPL", () => {
+    const wording = { hint: "order book", lead: "Order-book trades only; Xahau Testnet has no AMM." };
+    expect(dexWording({ ...xahau("on"), name: "Xahau Testnet" })).toEqual(wording);
+    expect(dexWording({ ...xahau("off"), name: "Xahau Testnet" })).toEqual(wording);
+    expect(dexWording({ ...xrpl("on"), name: "XRPL Testnet" })).toEqual({ hint: "order book and AMM", lead: "Includes swaps against AMM pools." });
+    expect(dexWording({ ...xrpl("off"), name: "XRPL Testnet" })).toEqual({ hint: "on the DEX", lead: null });
   });
 });
 
@@ -844,7 +852,7 @@ describe("changesCard: money in and out", () => {
 
   it("says what the money is, in the network's own currency", () => {
     expect(changesCard(frame, changesAnswer(oct16), "XRP", XRPL_DEX).money.notes).toEqual([MONEY_NOTE]);
-    const xahau = changesCard(frame, changesAnswer(oct16), "XAH", dexWording({ hasAmm: false, features: featuresOf({}) })).money;
+    const xahau = changesCard(frame, changesAnswer(oct16), "XAH", dexWording({ name: "Xahau", hasAmm: false, features: featuresOf({}) })).money;
     expect(xahau.notes).toEqual([MONEY_NOTE.replace("valued in XRP", "valued in XAH")]);
     expect(xahau.chart.format).toEqual({ kind: "value", unit: "XAH" });
   });
@@ -1336,7 +1344,7 @@ describe("pairsCard", () => {
 
   it("reads Xahau's native code", () => {
     const xah = pairOf({ base_currency: "USD", base_issuer: ADDRESS_B, counter_currency: "XAH", bought: "1", sold: "2", bought_counter: "30", sold_counter: "40", native_volume: "70" });
-    const [row] = pairsCard(frame, exchangesAnswer([xah]), { net: "xahau", native: "XAH", markets: true, dex: dexWording({ hasAmm: false, features: featuresOf({}) }) }).rows;
+    const [row] = pairsCard(frame, exchangesAnswer([xah]), { net: "xahau", native: "XAH", markets: true, dex: dexWording({ name: "Xahau", hasAmm: false, features: featuresOf({}) }) }).rows;
     expect(row).toMatchObject({ label: "XAH/USD", bought: "40 XAH", sold: "30 XAH" });
     expect(row!.href).toBe(marketHref("xahau", { currency: "XAH" }, { currency: "USD", issuer: ADDRESS_B }));
   });
@@ -1355,7 +1363,7 @@ describe("pairsCard", () => {
   });
 
   it("says on Xahau that the pairs are the order book's", () => {
-    const wording = dexWording({ hasAmm: false, features: featuresOf({ AMM_DATA: "on" }) });
+    const wording = dexWording({ name: "Xahau", hasAmm: false, features: featuresOf({ AMM_DATA: "on" }) });
     const xahau = pairsCard(frame, exchangesAnswer([usdXrp], 8, 6), { net: "xahau", native: "XAH", markets: true, dex: wording });
     expect(xahau.notes).toEqual([
       "Order-book trades only; Xahau has no AMM.",

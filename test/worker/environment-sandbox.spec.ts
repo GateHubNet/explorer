@@ -79,6 +79,42 @@ describe("the names where there is no layout data", () => {
   });
 });
 
+// The pages that name their network in their own words (a headline, a status line, a note, a link preview): from the layout's network, not a literal.
+describe("the pages that name their network", () => {
+  it("/xrpl: Explore XRPL Testnet, and the status line says XRPL Testnet · ledger", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl");
+    const text = textOf(html);
+
+    expect(/<h1[^>]*>([^<]*)<\/h1>/.exec(html)?.[1]).toBe("Explore XRPL Testnet");
+    expect(text).toContain("XRPL Testnet · ledger");
+    expect(/<title>([^<]*)<\/title>/.exec(html)?.[1]).toBe("Explore XRPL Testnet · explorer");
+    expect(text).not.toContain("mainnet");
+    expect(text).not.toContain("XRP Ledger");
+  });
+
+  it("/xahau/amm/{pool}: Xahau Testnet has no AMM, so this pool exists only on XRPL Testnet.", async () => {
+    mock = mockUpstream("xahau");
+    // The pool of amm-pool.spec.ts's Xahau case.
+    const { html } = await page("/xahau/amm/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3", 404);
+    const text = textOf(html);
+
+    expect(text).toContain("Xahau Testnet has no AMM, so this pool exists only on XRPL Testnet.");
+    expect(text).not.toContain("XRP Ledger");
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("/og/xrpl/tx/{hash}.png renders", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/og/xrpl/tx/${PAYMENT}.png`);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    expect(bytes.length).toBeGreaterThan(8_000);
+  });
+});
+
 describe("a transaction in the sandbox", () => {
   it("/xrpl/tx: the breadcrumb says XRPL Testnet and the CTID ends 0001", async () => {
     mock = mockUpstream("xrpl");
