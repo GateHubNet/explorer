@@ -40,6 +40,22 @@ A data API on `main` has no `amm_volume` route yet, and the top level of `wrangl
 network page has its AMM part failed: the volume card says "AMM swaps couldn’t be loaded.", and the page is degraded and never stored. For that API put `AMM_DATA=off` and `AMM_PAGES=off` in `.dev.vars`
 as well (the AMM pages are all AMM data: `AMM_PAGES` on over `AMM_DATA` off is the combination the pre-deploy guard refuses); the card then draws Payments and DEX trades only, with nothing failed.
 
+**Developing against the sandbox.** The top level of `wrangler.jsonc` is `ENVIRONMENT` `"development"`: the pages show the mainnets (XRPL and Xahau), because every fixture is mainnet data, and the data API
+hosts are the placeholders above. To see the testnets from the sandbox's own data, put the sandbox's four URLs, `ENVIRONMENT` and its key in `.dev.vars`:
+
+```sh
+ENVIRONMENT=sandbox
+XRPL_DATA_API_URL=https://xrpl.data.sandbox.gatehub.net
+XAHAU_DATA_API_URL=https://xahau.data.sandbox.gatehub.net
+XRPL_NODE_URL=https://clio.altnet.rippletest.net:51234/
+XAHAU_NODE_URL=https://xahau-test.net/
+DATA_API_KEY=...        # the key the sandbox data API lists in its GH_API_KEYS and GH_RATE_LIMIT_KEYS
+```
+
+`pnpm dev` then names XRPL Testnet and Xahau Testnet on every page, shows the "Testnet" badge, puts the testnets' network ids in CTIDs and answers every response with `X-Robots-Tag: noindex`,
+as the sandbox does ("The data API and the node"). The switches stay the top level's, all "on": against a sandbox data API that does not serve what a switch needs yet, set that switch `off` in
+`.dev.vars` as well ("Switches" has the conditions). The tests never read `.dev.vars`.
+
 ## Scripts
 
 | Script | |
@@ -47,14 +63,14 @@ as well (the AMM pages are all AMM data: `AMM_PAGES` on over `AMM_DATA` off is t
 | `pnpm dev` | Dev server, with the Worker running in workerd |
 | `pnpm build` | Production build into `build/` |
 | `pnpm typecheck` | `wrangler types` (runtime types into the git-ignored `worker-configuration.d.ts`), `react-router typegen`, `tsc -b` |
-| `pnpm test` | `vitest run`: the `unit` project (Node), the `components` project (happy-dom: the components of `app/ui`) and the `worker` project (Workers runtime) |
-| `pnpm test:e2e` | The end-to-end suite (Playwright, Chromium): builds, starts the fixture server and the built Worker under `wrangler dev`, runs `test/e2e/`, stops them and removes their state. See "End-to-end tests" |
+| `pnpm test` | `vitest run`: the `unit` project (Node), the `components` project (happy-dom: the components of `app/ui`) and the `worker` project (Workers runtime), with `worker-off` (every switch off) and `worker-sandbox` (the Worker as the sandbox runs it) beside it; see "Tests" |
+| `pnpm test:e2e` | The end-to-end suite (Playwright, Chromium): builds, starts the fixture server and the built Worker under `wrangler dev` (the top level: development, the mainnets' fixtures), runs `test/e2e/`, stops them and removes their state. See "End-to-end tests" |
 | `pnpm api:sync` | Copy the data API's OpenAPI document (`$DATA_API_REPO/docs/openapi.yaml`, default `../data-api-new`) to `api/openapi.yaml` and regenerate `app/server/openapi.d.ts`; name the source commit it prints in the commit message |
 | `pnpm api:check` | Regenerate the types from the committed `api/openapi.yaml` and fail if `app/server/openapi.d.ts` differs (needs no `data-api-new`) |
 | `pnpm fixtures:sync` | Write the generated upstream fixtures of `test/fixtures/http/` from the recorded ledgers (see "Upstream fixtures"); names files that no longer belong, never deletes |
 | `pnpm fixtures:check` | Change nothing; fail when those files are not what the generator writes (`scripts/http-fixtures.test.ts` does the same inside `pnpm test`) |
 | `pnpm check:bundle` | Look at the client build in `build/client`: fail when a page, or the account page's analytics view, loads more JavaScript (gzip) than its budget (150 KB for the lookup pages, 160 KB for the dashboards and the view), when the build holds code that belongs to the Worker alone, or when `_headers` is missing. See "The client bundle check" |
-| `pnpm deploy:sandbox`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `scripts/predeploy-check.ts <env>` (refuses a placeholder or non-https upstream URL, a build for another environment, a Worker reachable on workers.dev), then `wrangler deploy`: the environment is chosen by the build. See "The pipeline and deploying" |
+| `pnpm deploy:sandbox`, `pnpm deploy:production` | `CLOUDFLARE_ENV=<env> react-router build`, then `scripts/predeploy-check.ts <env>` (refuses a placeholder or non-https upstream URL, a build for another environment, a data API, a node or a route that is not the environment's, a Worker reachable on workers.dev), then `wrangler deploy`: the environment is chosen by the build. The sandbox is deployed by hand; the release workflow deploys production only. See "The pipeline and deploying" |
 | `pnpm verify` | `api:check`, `typecheck`, `test`, `build`, `check:bundle` |
 
 Run one project or one file with `pnpm test --project worker` or `pnpm test app/server`. Do not put `--` after
@@ -70,11 +86,12 @@ per request, over the data centre's Cache API, built with `BUILD_ID`).
 
 | Name | Kind | Where it is set |
 |---|---|---|
-| `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL` | var | `wrangler.jsonc`, per environment (the top level's are placeholders; "Hosts and routes" lists the others) |
-| `XRPL_NODE_URL`, `XAHAU_NODE_URL` | var | `wrangler.jsonc`, per environment (`https://s1.ripple.com:51234/`, `https://xahau.network/`) |
+| `ENVIRONMENT` | var, `"development"`, `"sandbox"` or `"production"` | `wrangler.jsonc`, every block (the top level is `"development"`). It decides which two networks the pages show: the sandbox the testnets, development and production the mainnets ("The data API and the node"). `.dev.vars` sets it locally ("Getting started"); the pre-deploy guard makes a deployed build hold its environment's exact value |
+| `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL` | var | `wrangler.jsonc`, per environment: the top level's are placeholders (`https://xrpl.data.example.invalid`, `https://xahau.data.example.invalid`), the sandbox's are `https://xrpl.data.sandbox.gatehub.net` and `https://xahau.data.sandbox.gatehub.net`, production's `https://xrpl.data.gatehub.net` and `https://xahau.data.gatehub.net` ("Hosts and routes" has the whole table) |
+| `XRPL_NODE_URL`, `XAHAU_NODE_URL` | var | `wrangler.jsonc`, per environment: the top level's and production's are the mainnets' nodes (`https://s1.ripple.com:51234/`, `https://xahau.network/`), the sandbox's the testnets' (`https://clio.altnet.rippletest.net:51234/`, `https://xahau-test.net/`). **The XRPL node of a deployed environment must be a Clio** ("The data API and the node") |
 | `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES` | var, `"on"` or `"off"` (the switches) | `wrangler.jsonc`, every block: see "Switches" below |
 | `VISITOR_LIMITER` | `ratelimits` binding, 60 per 10 s | `wrangler.jsonc`, per environment (own namespace each) |
-| `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-sandbox` and `x-explorer-production` as a secret |
+| `DATA_API_KEY` | secret | `.dev.vars` locally; on the deployed Workers `x-explorer-sandbox` and `x-explorer-production` as a secret, each the key its own environment's data API lists in its `GH_API_KEYS` and `GH_RATE_LIMIT_KEYS` |
 | `SENTRY_DSN` | secret, optional | the same |
 | `BUILD_ID` | var | added to every build by `vite.config.ts` (`scripts/build-id.ts`): the short git commit, plus `-dirty` when the tree has uncommitted changes. `BUILD_ID=... pnpm build` overrides it. Without git it is `dev`, but a build for a Cloudflare environment (`CLOUDFLARE_ENV`, so every deploy) fails instead, because the edge cache key includes it (as the first part of the cache generation, see "Switches") |
 
@@ -107,12 +124,13 @@ Every block of `wrangler.jsonc` lists every switch (`vars` are not inherited). T
 | `ACCOUNT_ANALYTICS` | `"on"` | `"off"` | `"off"` |
 | `AMM_PAGES` | `"on"` | `"off"` | `"off"` |
 
-The conditions for turning a switch on in `sandbox` or `production` (by a commit and a deploy):
+The conditions for turning a switch on in `sandbox` or `production` (by a commit and a deploy), each measured on **the environment's data API** (the sandbox's serves the testnets, production's the mainnets):
 
-- `AMM_DATA`: the environment's data API has merged `feat/amm-data`, has re-ingested and back-filled, and D2b is deployed (`syncer_markets_live_amm_share_known` is 1).
+- `AMM_DATA`: the environment's data API has the AMM data and D2b is deployed (`syncer_markets_live_amm_share_known` is 1). In production that means it has merged `feat/amm-data`, has re-ingested and
+  back-filled; the sandbox's data API is built from images that include it and has the AMM data from its first ledger.
   (Locally the top level has it `"on"`: against a data API that has not merged it, set `AMM_DATA=off` in `.dev.vars`, see "Getting started".)
 - `VALIDATORS` (`validators`, E6): the validators and amendments pages. "on" at the top level, "off" in the sandbox and production until D1 (the data API's validators and
-  amendments routes) has served that environment on both networks for at least two hours, so that the votes and tallies are back-filled (D1's estimate). Rolling back is
+  amendments routes) has served that environment on both networks (in the sandbox, both testnets) for at least two hours, so that the votes and tallies are back-filled (D1's estimate). Rolling back is
   `"off"` and a deploy. See "Validators and amendments".
 - `MARKETS` (`markets`, E3; it gates the markets pages, the header's Markets link and every link into them): the environment's data API serves
   `/v2/network/markets`, with D2 §16.4's gauges at their marks (`syncer_pair_hourly_missing_hours` is 0, `syncer_markets_live_age_seconds{period="day"}` is under 120).
@@ -120,9 +138,14 @@ The conditions for turning a switch on in `sandbox` or `production` (by a commit
 - `ACCOUNT_ANALYTICS` (`accountAnalytics`, E4): the account page's Analytics tab. "on" at the top level (development and the tests), "off" in the sandbox and production until D2's
   gauges `syncer_rates_daily_missing_days` and `syncer_account_rollups_pending_accounts` are 0 there (E4 §8).
 - `AMM_PAGES` (`ammPages`, E5): the AMM pool pages. "on" at the top level (development and the tests), "off" in the sandbox and production. It goes "on" in an environment
-  once `AMM_DATA` is "on" there, `feat/amm-data` is merged into the data API's `main` and deployed to it, and the data is re-ingested from ledger 86795265 and
-  back-filled. The pre-deploy guard refuses a build that has `AMM_PAGES` "on" and `AMM_DATA` anything but "on". Rolling back is `"off"` and a deploy. Locally the same
+  once `AMM_DATA` is "on" there. In production it also needs `feat/amm-data` merged into the data API's `main` and deployed to it, and the data re-ingested from ledger 86795265 and
+  back-filled (the sandbox's data API has the AMM data from its first ledger). The pre-deploy guard refuses a build that has `AMM_PAGES` "on" and `AMM_DATA` anything but "on". Rolling back is `"off"` and a deploy. Locally the same
   rule holds by hand: against a data API without `feat/amm-data`, set `AMM_DATA=off` and `AMM_PAGES=off` together in `.dev.vars` (see "Getting started").
+
+The switches that later sub-projects add start "off" in `sandbox` and `production` and "on" at the top level, each with its condition in a row of the table above. **In the sandbox, a condition that
+asks for complete coverage does not apply** (E10's `DELEGATION` and E12's `SUPPLY` have one): the sandbox's data API indexes from its first boot, so its coverage is never complete (the data API's
+testnet profiles, section 12) and the condition could never hold there. Such a switch goes "on" in the sandbox once the sandbox's data API serves the feature on both testnets, and the pages then show
+their coverage notes; in production the condition stays.
 
 **A switch is never set in the Cloudflare dashboard.** The Cloudflare Vite plugin writes the build's vars, so the next deploy would undo it.
 
@@ -137,8 +160,10 @@ How a switch reaches the code:
   header's "soon" style, not a link. A feature-level switch that is off: the parts it gates are left out, the calls that feed only them are not made, and the wording
   that depends on them takes its "off" form.
 
-**The cache generation.** `cacheGeneration(env)` (`app/server/env.ts`) is `BUILD_ID`, a colon, and every switch as `NAME=value`, sorted by name and joined by commas:
-`3f2a9c1:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off`. The edge cache keys every page, image and `.data` URL with it (`edgeCacheKey(url, cacheGeneration(env))`, the `__build` parameter of
+**The cache generation.** `cacheGeneration(env)` (`app/server/env.ts`) is `BUILD_ID`, a colon, the environment (`environmentOf(env.ENVIRONMENT)`: `development`, `sandbox` or `production`; an unexpected value keys as
+`development`, the kind of network it shows), a colon, and every switch as `NAME=value`, sorted by name and joined by commas:
+`3f2a9c1:sandbox:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,MARKETS=off,VALIDATORS=off`. The environment is in it because it changes what a page says, as a switch does: the deployed environments are
+already apart (the edge key holds the host), but a local Worker whose `.dev.vars` moves between environments never serves the other's pages. The edge cache keys every page, image and `.data` URL with it (`edgeCacheKey(url, cacheGeneration(env))`, the `__build` parameter of
 the key). A flip is a deploy of the same commit with another value, and it is a new key for everything, so a copy stored under the other value is never served. The
 subrequest cache keeps `BUILD_ID` alone, because it holds upstream data, which no switch changes. The live pages' `build` field keeps `BUILD_ID` too, because it says
 which code drew the page: a flip does not reload an open tab. Its route's data follows on the next beat (the `.data` key changed), and the layout's data (the header)
@@ -163,9 +188,9 @@ names, read by `featuresOff(process.env)` in `scripts/e2e-env.ts`; "End-to-end t
 6. Write its own tests: a guard case that refuses the misspelt name, its case in a `*-off.spec.ts`, and, in the end-to-end specs of the page it gates, the skip and the off-case (`featuresOff(process.env).has("NAME")`).
 
 The hand-built `Env`s of the tests, the passing configs of `scripts/predeploy-check.test.ts`, and the expectations of `features.test.ts`, `env.test.ts`, `networks.test.ts`,
-`edge-cache.spec.ts` and `features-off.spec.ts` are built on `allSwitches` and `FEATURE_VARS`, so they need no edit, except the cache generations that two of them spell out
-as text: `features-off.spec.ts` has the whole of it (`test-build:AMM_DATA=off,MARKETS=off,VALIDATORS=off`), which every new switch changes, and `env.test.ts` has
-`AMM_DATA=on,MARKETS=on,VALIDATORS=off` and its `MARKETS=off` form, which a switch whose name sorts between those changes. Add the new switch to those strings.
+`edge-cache.spec.ts` and `features-off.spec.ts` are built on `allSwitches` and `FEATURE_VARS`, so they need no edit, except the cache generations that three of them spell out
+as text, `test-build:development:ACCOUNT_ANALYTICS=off,…` (and the same with `sandbox` and `production`): `features-off.spec.ts` and `env.test.ts` have the whole of one, which every new switch changes,
+and `edge-cache.spec.ts` the start of one, up to `MARKETS=off`, which a switch whose name sorts before `MARKETS` changes. Add the new switch to those strings.
 
 ## The data API and the node
 
@@ -173,7 +198,8 @@ as text: `features-off.spec.ts` has the whole of it (`test-build:AMM_DATA=off,MA
 
 | File | |
 |---|---|
-| `networks.ts` | `xrpl` and `xahau`: name, native currency, CTID network id, and the data API and node URLs from `Env`. The only place that knows a network's URLs. |
+| `networks.ts` | The facts of the two networks by kind (`mainnet` or `testnet`, which `ENVIRONMENT` decides): native currency, CTID network id, AMM, node software and the currencies an amount can be shown in (`displays`); `networkOf(id, env)` adds the names (`NETWORK_NAMES` of `app/ui/networks.ts`), the switches and the data API and node URLs from `Env`, and `networkIdOfCtid(networkId, kind)` the network a CTID belongs to. The only place that knows a network's URLs. See "The environment and the networks" below. |
+| `environment.ts` | `withEnvironmentHeaders(response, env)`: in the sandbox, `X-Robots-Tag: noindex` on every response; `workers/app.ts` puts it around the edge cache. See "SEO and link previews". |
 | `data-api.ts`, `api-types.ts` | `createDataApi(net, env, cache)`: typed `/v2` calls with the `X-API-Key` header, a 5 s limit and no redirects. The answers' types are written by hand from the data API's `docs/api-reference.md`, because `api/openapi.yaml` has parameters but no response schemas. The endpoint paths are checked against the generated `openapi.d.ts`, so a path that leaves the API fails `pnpm typecheck`. `transaction(hash)` and `transactionBinary(hash)` (`binary=true`: `tx` and `meta` as hex, or as the stored JSON for a type the API's codec cannot serialize) are the same path with and without that flag. What the pages read of a transaction, of its binary form and of a ledger's list of hashes is checked **inside the load the subrequest cache runs** (`tx-shape.ts`): a 200 with the wrong content is an `UpstreamError` of kind `server` and is never stored, where an answer that came back whole would have been kept for a year. The network page's calls are `feeStats`, `stats(family, q)` (`type` or `metric`), `fees` with an `interval` (a second form of the call that lists ledgers: `{ interval: "day", start, end, limit }`, class `slow`, rows by day), `paymentVolume`, `exchangeVolume`, `ammVolume` and `ledgerValidations(hash, q)`, each with the options `{ ttl, holdFailure }`; the ones over a period are `slow` and the page keeps them `PERIOD_CALL_TTL_SECONDS`, the snapshot and the validations are `live`. A query is sent in the order its type lists its fields, and a volume's `exchangeCurrency` and `exchangeIssuer` are sent as `exchange_currency` and `exchange_issuer`. Each answer's shape is checked inside the cached load like a transaction's (`aggregate-shape.ts`). `get()` takes one options object after the class, `{ unwrap, finish, ttl, holdFailure }`. The markets pages' calls are `pairExchanges(base, counter, q)`, `pairCandles(base, counter, q)`, `pairReduce`, `activeAccounts` and `networkMarkets({ period, limit, amm? })`. A pair's assets are `apiAssetText` (`CUR+issuer`, the `+` sent as `%2B`), and `amm` (`exclude` or `only`, never `include`) is the last parameter of a query. Trades are `live`: a first page asked for with a `ttl` has an entry of its own (`[kept N s]`), a page after a marker is `MARKER_PAGE_CLASS` and ignores the `ttl`. Candles are `live` unless the page passes `cls` (`minute`, or `slow` with a `ttl`). `pairReduce` is `live` and gives back its one row: an answer with none or two is kind `server`. `activeAccounts` is `minute` and keeps the first `ACTIVE_ACCOUNTS_KEPT` (10) of the accounts before it is cached. `networkMarkets` is `minute` (60 s, no TTL constant of its own), and an answer to an `amm` filter that does not carry that `amm` (a data API that ignored the parameter) is kind `server`: the rows would be the unfiltered ones. The shape of `network/markets` is that of `docs/api-reference.md` at data-api-new `feat/explorer-data` `7d495ab` (`test/fixtures/PROVENANCE.md`). |
 | `node-rpc.ts` | `createNodeRpc(net, cache)`: JSON-RPC to rippled or xahaud (`tx`, `ledger`, `account_info`, `account_objects`, `server_state`, and the markets pages' `bookOffers(gets, pays)`, `ammInfo(pool)` and `ammInfoByPair(asset, asset2)`), 3 s limit. Times the node counts from 2000-01-01 are returned as unix seconds, and native amounts (drops) as whole units (`NodeAmount`). The last three take `{ ttl, holdFailure }`: a `ttl` is kept under a cache key of its own (`[kept N s]`), `holdFailure` is the cache's failure hold (`SubrequestOptions`). `bookOffers` asks for the newest validated ledger and `BOOK_OFFERS_LIMIT` (60) offers, trims each offer before it is cached, and accepts a result without `validated` (Clio's `book_offers` has none) but not a `validated: false`; both forms of `amm_info` need `validated: true` and check the pool is the one asked for, and `actNotFound` and `actMalformed` are `not_found` for them and nothing else is (`actMalformed` is `bad_request` for an account call, and `lgrNotFound` is `server` for a pool, so that a node with no ledger yet is never stored as "no pool"); a book is never `not_found`, holds only offers of the two assets asked for, none of nothing, at most 60; a pool has at most 8 vote slots and 4 authorised accounts and an `lp_token` issued by the pool. An issued amount's value is written as a plain decimal, whatever form the node used, and must be in the range rippled writes (zero, or 1e-81 to 9999999999999999e80). |
 | `upstream.ts` | `UpstreamError` (`not_found`, `bad_request`, `rate_limited`, `server`, `timeout`, `network`; `status`, `retryAfter`) and the deadline both clients use. |
@@ -192,6 +218,33 @@ as text: `features-off.spec.ts` has the whole of it (`test-build:AMM_DATA=off,MA
 | `qr.ts` | A QR code encoder (byte mode, error correction level M, versions 1 to 9) and `qrPath`, the picture as the `d` of an SVG path. Imported by the account route only, so it is never in the browser bundle (`test/unit/account-bundle.test.ts`). |
 | `marker.ts` | `isMarker`: what a marker of the data API's lists may look like (base64url, at most 512 characters), checked before one is sent or put in a link. |
 | `transaction-view.ts` | What the transaction page shows (`transactionPage`): worked out from a transaction of the data API (`txFromIndex`) or the node (`txFromNode`), the hashes of its ledger (`neighboursOf`) and the binary form (`binaryOf`). See "The transaction page". |
+
+**The environment and the networks.** `ENVIRONMENT` ("Configuration") decides which two networks the pages show: the sandbox shows the testnets, development and production the mainnets (the top level shows the mainnets because every
+fixture is mainnet data). The paths stay `/xrpl` and `/xahau` in every environment. `app/ui/environment.ts` has `environmentOf` (anything but `"sandbox"` or `"production"` is development) and `networkKindOf`; it imports
+nothing, so the Worker, the browser, the scripts and the tests all import it. The root route's loader returns the environment, `useEnvironment()` (`app/ui/use-network.ts`) reads it where there is no `/:net` data (the header's
+badge, the error pages, the network switch), and it is fetched with the document and never again. The facts of a network are one table by kind in `app/server/networks.ts`; the names are `NETWORK_NAMES` in `app/ui/networks.ts`,
+by kind as well, which the browser has too (`networkChoices(kind)`, `findNetwork(segment, kind)`, `isNetworkId`):
+
+| | Native currency | CTID network id | AMM | Node software | `displays` | `name` / `label` / `longName` / `dexName` |
+|---|---|---|---|---|---|---|
+| mainnet `xrpl` | `XRP` | 0 | yes | `rippled` | native, usd | `XRPL` / `XRPL mainnet` / `the XRP Ledger` / `the XRP Ledger DEX` |
+| mainnet `xahau` | `XAH` | 21337 | no | `xahaud` | native | `Xahau` / `Xahau mainnet` / `Xahau` / `the Xahau DEX` |
+| testnet `xrpl` | `XRP` | 1 | yes | `rippled` | native | `XRPL Testnet` / `XRPL Testnet` / `XRPL Testnet` / `the XRPL Testnet DEX` |
+| testnet `xahau` | `XAH` | 21338 | no | `xahaud` | native | `Xahau Testnet` / `Xahau Testnet` / `Xahau Testnet` / `the Xahau Testnet DEX` |
+
+- **No page text writes a network as a literal** (`"XRPL"`, `"Xahau"`, "the XRP Ledger", "mainnet"): it reads `name` (breadcrumbs, titles, the search box), `label` (where "mainnet" or "Testnet" belongs to the name: the home page's status
+  line and the link-preview pill), `longName` (in a sentence) or `dexName` of the page's network, or the names table by kind. Amounts keep their codes, `XRP` and `XAH`, on the testnets too.
+- **CTIDs** carry the environment's network ids: a transaction's CTID in the sandbox ends `0001` on XRPL Testnet and `535A` on Xahau Testnet. A CTID of any other network id (a mainnet one in the sandbox included) gets
+  "… is for network id N, which this explorer does not cover." (N its id), with no link to the other environment: no URL of one environment appears in the other's pages.
+- **No USD view on the testnets.** Only the mainnet XRPL has `usd` in `displays` (USD issued by GateHub). `?in=usd` on a testnet's network page is a 302 to the page without it, before any call.
+- **Xahau Testnet's validators** are the node's own fixed `[validators]` list, which the data API serves as the publisher `local` (no site, no key, no expiration); every place that shows a publisher says "Fixed list" (or "the fixed list") for it (`app/domain/publishers.ts`).
+- **The sandbox is not indexed.** Every response carries `X-Robots-Tag: noindex` ("SEO and link previews").
+
+**The XRPL node must be a Clio**, in the sandbox and in production. The NFT pages (E8) fall back to `nft_info` on the XRPL node, which only a Clio serves; a rippled answers it `unknownCmd` (`s.altnet.rippletest.net`,
+`testnet.xrpl-labs.com` and `xrplcluster.com` did on 2026-10-24). `s1.ripple.com` and `s2.ripple.com` are Clio servers (2.8.0 that day), and so is the sandbox's `clio.altnet.rippletest.net`: Clio 2.8.0, `network_id` 1, the whole
+testnet history; it answers `server_state`, `account_info`, `book_offers`, `amm_info` and `nft_info` (`objectNotFound` for an unknown id). It drops connections after a few quick requests; the failure hold ("The cache classes")
+covers those seconds, and GateHub replaces it with its own Clio when it has one. A GateHub node that replaces one of them must be a Clio too. The pre-deploy guard cannot tell a Clio from a rippled, so the sandbox checklist and the
+production checks ask `nft_info`. No Clio serves Xahau (`xahau.network` and `xahau-test.net` run xahaud; `xahau-test.net` answers `server_info` with network id 21338), so that fallback does not exist on either Xahau network.
 
 **A route the data API does not have is an outage, not a missing thing.** A 404 whose body's `message` starts with `Cannot GET ` is what the API's framework answers for a path it has no route for (an API deployed without the sub-project that adds the route). `throwUnlessOk` in `data-api.ts` makes it an `UpstreamError` of kind **`server`** (status 404), with the message `data API GET {path} answered 404: Cannot GET … (the data API has no such route)`. So it is never a stored 404 page; a page-level call answers 503 through `upstreamOutage`, a card-level call fails its card, and a call that asks for the failure hold ("The cache classes") has it held. **Every other 404 stays `not_found`**, each route's own message included (`ledger not found`, `Account not found`, `transaction not found`, `pool not found`, and so on): only a message that *starts* with `Cannot GET ` means a missing route, and no other code, page or client method maps a 404 to "the route is absent" or has a variant of its own. `test/worker/data-api.spec.ts` ("errors") pins both sides.
 
@@ -284,7 +337,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 
 React Router builds the headers of the document and those of the `.data` URL a client-side navigation fetches from the same
 route `headers` functions, so both carry the class. They are stored under their own URLs (the key is the URL, `.data` and
-`_routes` included, plus the cache generation: `BUILD_ID` and the switches, see "Switches"). Every route with such a loader needs the export, and so does the root route when its
+`_routes` included, plus the cache generation: `BUILD_ID`, the environment and the switches, see "Switches"). Every route with such a loader needs the export, and so does the root route when its
 error boundary shows a thrown 404. A route without it is not "uncached": React Router gives it its parent's headers, so the
 class its loader named is dropped and the page takes the parent's class (or none, when no parent names one). The deepest route
 that names a class decides. `test/unit/route-headers.test.ts` fails when a file under `app/routes` (or `app/root.tsx`) imports
@@ -604,7 +657,7 @@ fails if the page's files import them as values).
 | neither has it, or the node's answer is not validated | 404 with the search box and "Search on {other network}" (`/{other}/search?q={HASH}`) | `short` (30 s), `noindex` |
 | any other failure of the data API (5xx, 429, timeout, a 200 without a usable transaction), and a 400 (the hash is well formed, so the refusal is the API's fault) | 503, the node is not asked | not stored |
 | a hash in another case | 302 to the upper-case URL, nobody asked | `immutable` |
-| a CTID of this network | 302 to `/{net}/tx/{HASH}` (`resolveCtid`); a CTID that names nothing, or of a network id that is neither XRPL's nor Xahau's, is a 404 | `immutable` redirect, `short` 404 |
+| a CTID of this network | 302 to `/{net}/tx/{HASH}` (`resolveCtid`); a CTID that names nothing, or of a network id that is neither of the environment's two (XRPL's 0 and Xahau's 21337; in the sandbox XRPL Testnet's 1 and Xahau Testnet's 21338), is a 404 | `immutable` redirect, `short` 404 |
 | a CTID of the other network | 200: the page the search shows ("That CTID is on Xahau", with the link), nobody asked; `noindex, follow` | `short` |
 | anything else (also `0x` + hash) | 404, nobody asked | `short` |
 
@@ -882,7 +935,7 @@ transactions by type, the average fee, volume (payments, DEX and AMM), payments 
 | Parameter | Values | Default | |
 |---|---|---|---|
 | `period` | `7d`, `30d`, `90d`, `1y` | `30d` | days, except `1y`, which is 52 weeks from Monday |
-| `in` | `usd` | the native currency | XRPL only: USD issued by GateHub (`rhub8V…`), one of the API's tracked markets. Xahau has no USD market and no "Amounts in" |
+| `in` | `usd` | the native currency | XRPL mainnet only: USD issued by GateHub (`rhub8V…`), one of the API's tracked markets. Xahau has no USD market and no "Amounts in"; neither has a testnet, where `in=usd` is a 302 to the page without it |
 
 A query string that is not the canonical form of its view (`period`, then `in`; defaults, unknown values, repeats and other parameters dropped) is a 302 to it,
 class `short`, before any call: a made-up query string would otherwise be a stored page and a set of upstream calls. The default view has a canonical link and
@@ -1207,7 +1260,7 @@ card, logged ("the data API serves no AMM pools", "… no AMM volume"), never a 
 boundary, `vote_slots` and `auth_accounts` defaulted to `[]`, the slot's `expiration` in unix seconds, the ledger it was read at. `actNotFound` (an account that is
 not a pool) and `actMalformed` (an address that holds no account: a deleted pool's) are `not_found`, because the Worker checked the address. Both were seen from
 `https://s1.ripple.com:51234/` on 2026-10-20 (the record above E3's readers in `node-rpc.ts`: `actNotFound` for `rBbW6i…W5jh`, `actMalformed` for the deleted
-`rGLnUK…mqdz`, a success for `rhWTXC…tcS3`); check them again against the configured node on the sandbox (the checklist).
+`rGLnUK…mqdz`, a success for `rhWTXC…tcS3`); check them again against the configured node on the sandbox and on production (the `actNotFound` items of the sandbox checklist and the production checks).
 
 **The switch.** `AMM_PAGES` is `"on"` at the top level and `"off"` in the sandbox and production; it goes on in an environment only once `AMM_DATA` is on there (the
 pre-deploy guard refuses the other way round; "Switches", "The pipeline and deploying"). While it is off every AMM route and image is the 404 above with no
@@ -1342,7 +1395,7 @@ from `app/server/search-view.ts` and `app/ui/pages/SearchPage.tsx` draws it.
 | `107695660`, `107,695,660`, `107 695 660` (an index grouped by thousands is what the explorer shows, so it is what visitors copy) | 302 to `/{net}/ledger/{n}`, without asking anyone |
 | an address, an X-address | 302 to `/{net}/account/{address}`, with `?tag=` for an X-address that carries one |
 | 64 hex digits (with or without `0x`, in either case) | the data API is asked for `/v2/transactions/{h}` and `/v2/ledgers/{h}`, and when it has neither, the node for `tx` and `ledger` (spec 10: history before the backfill, the seconds before ingest). One found: 302 to `/{net}/tx/{HASH}` or `/{net}/ledger/{HASH}`. Both: a 200 page with both links (`SearchChoicePage`). Neither: a 404 that offers "Search on {other network}" (`/{other}/search?q={HASH}`) |
-| a CTID | `resolveCtid`: of this network, 302 to `/{net}/tx/{hash}`, or a 404 when the ledger or the index in it is not there; of the other network, a 200 page that offers `/{other}/tx/{ctid}`; a network id that is neither XRPL's (0) nor Xahau's (21337) is a 404 that says so, never taken for one of the two |
+| a CTID | `resolveCtid`: of this network, 302 to `/{net}/tx/{hash}`, or a 404 when the ledger or the index in it is not there; of the other network, a 200 page that offers `/{other}/tx/{ctid}`; a network id that is neither of the environment's two (XRPL's 0 and Xahau's 21337; in the sandbox XRPL Testnet's 1 and Xahau Testnet's 21338) is a 404 that says so, never taken for one of the two |
 | anything else, nothing | a 200 page with the help text (what can be searched for), the box holding what was typed |
 
 An upstream failure that leaves the question open is a 503 through `upstreamFailure` (the node is not asked in place of a data API
@@ -1378,11 +1431,17 @@ re-export of a `meta-<page>.ts`; it fails a builder module that another page imp
 
 - **Description of a transaction**: `Payment of 1,250.00 USD from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660` for a transaction that
   moved an amount from one account to another (what the destination got, from the flow of `describe`); for any other (it failed, an
-  offer, a swap, which is a payment to oneself) the sentence of the page without its full stop, then `· XRPL ledger N`. No ages, nothing of
+  offer, a swap, which is a payment to oneself) the sentence of the page without its full stop, then `· XRPL ledger N` (`· {name} ledger N`: in the sandbox `· XRPL Testnet ledger N`). No ages, nothing of
   the visitor.
 - **Origin.** Canonical, `og:url` and `og:image` are absolute on the origin of the request. `meta` has no request, so the `/:net` layout's
   loader returns `origin: new URL(request.url).origin` and each `meta` finds it with `metaContext(params.net, matches)`. No variable names the
   site: the edge cache's key holds the host, so each stored page names its own.
+- **The names.** Every tag reads its network's names: a page of one object ends its title with `XRPL · explorer` (`XRPL Testnet · explorer` in the sandbox), the home page's title is `Explore the XRP Ledger · explorer` (`Explore XRPL Testnet · explorer`),
+  and the link-preview card's pill is the network's `label`: `XRPL mainnet` and `Xahau mainnet` in production and development, `XRPL Testnet` and `Xahau Testnet` in the sandbox (`card-data.ts`; the home page's status line reads the same label).
+- **Robots in the sandbox.** The sandbox answers **every response** with `X-Robots-Tag: noindex`: pages, `.data` URLs, images, CSVs, `robots.txt`, redirects and errors. `withEnvironmentHeaders` (`app/server/environment.ts`) wraps the edge
+  cache in `workers/app.ts`, so a stored copy gets the header on its way out and nothing stored differs between the environments; it copies a response whose headers are immutable (one from the Cache API). Development and production
+  are untouched (the images and CSVs keep their own `noindex`). `robots.txt` is the same in every environment, on purpose: the crawlers that unfurl a link read it, and the people testing on the sandbox still get previews.
+  `curl -sI https://explorer.sandbox.gatehub.net/xrpl | grep -i x-robots-tag` checks it (the sandbox checklist).
 
 ### The image route
 
@@ -1465,8 +1524,12 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `scripts/predeploy-check.ts`, `test/e2e/stack.ts`): none decides whether it is "the script" by comparing the URL of its module with `process.argv[1]`, which differ
   through a link and once made a gate print nothing and pass (`pnpm api:check` among them). What a command shares with its tests is in a file of its own
   (`api-sync-core.ts`, `compare` in `http-fixtures.ts`, `bundle-budget.ts`, `predeploy-guard.ts`), and each is tested as a command through a link.
+  A unit test of the rename (in `test/unit/`, named after the sandbox's old name) keeps that word out of `app/`, `workers/`, `scripts/`, `test/` (but `test/fixtures/`), `.github/`, this README and the config files, and fails naming the file and the line;
+  it builds its pattern from two halves, so it does not find itself (`GLOSSARY.md`, `docs/` and the git history keep the word: it is one to avoid).
 - `components` project: `app/ui/**/*.test.{ts,tsx}` in happy-dom, with Testing Library. Components that link or submit are
   rendered inside a data router (`createMemoryRouter` + `RouterProvider`).
+  `app/ui/environment.test.ts` and `networks.test.ts` (the three environments, the names table, `findNetwork` per kind) run here, since `vitest.config.ts` puts `app/ui/**` in this project; `Header` shows the "Testnet" badge under a root
+  loader data of `"sandbox"` and not under `"production"`, `"development"` or none, and `NetworkSwitch` names the testnets there.
 - The live pages, the home page and the network page (see "Live updates"), are tested in the `components` project with fake timers and a real data router, and in `unit`:
   `use-live-refresh.test.tsx` (every 4 s while visible, none while hidden, once on becoming visible, no overlap with a running revalidation or a
   navigation, the backoff 4 to 60 s, paused and held, a rejection of the router's own, cleanup, nothing on the server), `components/LiveMotion.test.tsx`
@@ -1491,12 +1554,19 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
 - The end-to-end suite is not part of `pnpm test`: it needs a browser and a running Worker, and has its own command (`pnpm test:e2e`, see
   "End-to-end tests"). `test/e2e/*.spec.ts` are Playwright's, not Vitest's.
 - `worker` project: `test/worker/**/*.spec.ts`, in workerd on the real Worker (`workers/app.ts`, the React Router
-  plugin and `wrangler.jsonc`; the vars, secrets, `BUILD_ID` and switches are pinned in `vitest.config.ts`, so a developer's
+  plugin and `wrangler.jsonc`; the vars, `ENVIRONMENT`, secrets, `BUILD_ID` and switches are pinned in `vitest.config.ts`, so a developer's
   `.dev.vars` does not reach the tests; the `VISITOR_LIMITER` binding comes from `wrangler.jsonc`). Call
   the Worker with `exports.default.fetch(...)` and read bindings with `env`, both from `cloudflare:workers`. (`SELF`
   and `cloudflare:test`'s `env` still exist but are deprecated.)
   The `worker-off` project is the same Worker with every switch `"off"`, for the files `test/worker/*-off.spec.ts` (which `worker` leaves out; see "Switches").
-  The two share one Vite server, the root config's of `vitest.config.ts`, and so one Workers plugin and one React Router plugin, and each is `provide`d its own
+  The `worker-sandbox` project is the Worker as the sandbox runs it: the top level's bindings (its placeholder URLs, so that no test reaches a deployed data API, and its switches, all "on", so that every page can be drawn) with `ENVIRONMENT`
+  `"sandbox"`, for the files `test/worker/**/*-sandbox.spec.ts`, which `worker` and `worker-off` leave out. The existing fixtures, which are mainnet data, stand in for the testnets', so a case there asserts only what a page says per kind
+  of network, and a page gets one only where it does: `environment-sandbox.spec.ts` has the names where there is no layout data (the switch, a transaction's title and description, the unknown network's and the not-found pages), the "Testnet" badge
+  in the server-rendered header, the home page's heading and status line, the CTIDs (a transaction's ends `0001` on XRPL Testnet and `535A` on Xahau Testnet; a mainnet CTID in search or in a transaction's URL is "… is for network id 0, which this
+  explorer does not cover."; XRPL Testnet's in search redirects to its transaction, and Xahau Testnet's on `/xrpl` offers it on Xahau Testnet), the offers of the other network, `/xrpl/network?in=usd` as a 302 to `/xrpl/network`, and `X-Robots-Tag: noindex` on a page, its `.data`,
+  `robots.txt`, an image, a 404, a redirect and a copy served from the edge cache. `worker` has the reverse (development: no badge, no `X-Robots-Tag` on a page), and `edge-cache.spec.ts` pins that the same upstream call under the sandbox's and
+  production's data APIs has two subrequest keys, so a testnet answer is never read as production's.
+  The three share one Vite server, the root config's of `vitest.config.ts`, and so one Workers plugin and one React Router plugin, and each is `provide`d its own
   `workerBindings`, which the Workers plugin reads for its Miniflare (`unit` and `components` have servers of their own: `extends: false`). It is one server on
   purpose: the React Router plugin removes and rewrites `.react-router/types` each time a server starts, and two of them starting together raced on that
   directory (`ENOTEMPTY`, `EINVAL`, so that `pnpm test` sometimes failed to start). Another Worker project is another child with its own `provide`d bindings, never a
@@ -1748,23 +1818,27 @@ otherwise; never 5173) and never reuses a server that is already running.
 |---|---|---|
 | `E2E_PORT` | `8832` | The Worker's port; the inspector takes the next one, the fixture server the one after (`E2E_FIXTURE_PORT`) |
 | `E2E_FIXTURE_PORT` | `E2E_PORT` + 2 | The fixture server's port, which the tests that move the chain on or take an answer away (`live-home.spec.ts`, `network-live.spec.ts`, `market-pair-live.spec.ts`, `account-analytics-live.spec.ts`, `validators-live.spec.ts`, `amm-live.spec.ts`, and the group of `a11y.spec.ts` with a card that failed) ask to change its answers. Not with a real stack or a deployed Worker, which have no such server: those tests are skipped |
-| `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or the sandbox. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
+| `E2E_DATA_API_URL`, `E2E_NODE_URL` | unset: the fixture server | A real stack, e.g. `data-api-new`'s docker-compose or production's (`https://{net}.data.gatehub.net`). It must hold the recorded **mainnet** ledgers the specs read (below), so it is not the sandbox's: a testnet stack does not have them. **Both or neither.** `{net}` in either stands for the network's id: `https://{net}.data.example.com` is `https://xrpl.data.example.com` and `https://xahau.data.example.com`, and a URL without it is used for both networks. They become `XRPL_DATA_API_URL`, `XAHAU_DATA_API_URL`, `XRPL_NODE_URL` and `XAHAU_NODE_URL`. With the fixture server they are `<url>/xrpl`, `<url>/xahau`, `<url>/xrpl-node` and `<url>/xahau-node` |
 | `E2E_DATA_API_KEY` | `e2e-fixture-key` (the fixtures take any) | The `X-API-Key` of a real data API; required with `E2E_DATA_API_URL` |
-| `E2E_BASE_URL` | unset | Test a Worker that is already running (a deployed sandbox) and start nothing. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
+| `E2E_BASE_URL` | unset | Test a Worker that is already running (the deployed production Worker, `https://explorer.gatehub.net`) and start nothing. It is for production: the fixtures are mainnet data, so the suite is not run against the sandbox. The visitor limit then counts all the tests as one address (the edge sets `CF-Connecting-IP`): use `E2E_WORKERS=1` |
 | `E2E_SKIP_BUILD` | unset | `1`: use `build/` as it is (the pipeline has just made it with `pnpm verify`). A build for a Cloudflare environment (what `pnpm deploy:sandbox` leaves) is refused |
 | `E2E_WORKERS` | `4` | Parallel workers |
 | `E2E_VERBOSE` | unset | `1`: let the Worker's and wrangler's log lines through (one per request) |
-| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `AMM_PAGES`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against the sandbox or production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`; `amm.spec.ts` the "soon" header, the AMM pages' 404s and the swap's links to the pool's account page; `og.spec.ts` the pool image's 404; and `a11y.spec.ts` leaves the analytics views and the AMM pages out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
+| `E2E_FEATURES_OFF` | unset | A comma list of the switches the Worker under test has off (`ACCOUNT_ANALYTICS`, `AMM_DATA`, `AMM_PAGES`, `MARKETS`, `VALIDATORS`: the names of `FEATURE_VARS`; spaces and empty names are ignored), for a run against production before a switch is on there. The suite does not set a switch, the Worker's own `vars` do: this only tells the tests. A test that needs a switch on skips itself when it is listed, and runs its off-case where it has one (`network-page.spec.ts` checks the `off` wording of the AMM line; `account.spec.ts` and `account-analytics.spec.ts` the "soon" tab and the redirects of `ACCOUNT_ANALYTICS`; `amm.spec.ts` the "soon" header, the AMM pages' 404s and the swap's links to the pool's account page; `og.spec.ts` the pool image's 404; and `a11y.spec.ts` leaves the analytics views and the AMM pages out). A name that is not a switch is an error (`featuresOff` in `scripts/e2e-env.ts`), because a misspelt one would turn nothing off |
 | `E2E_CHROMIUM` | unset | The path of a Chromium to use |
 | `E2E_ALLOW_OLDER_CHROMIUM` | unset | `1`: in a pipeline (`CI` set), take an older Chromium when the wanted one is not installed. See "The browser" |
 
-**Against a real stack** the suite reads recorded mainnet ledgers and transactions (final, so the same there as in the fixtures), which the
+**Against a real stack** (production's) the suite reads recorded mainnet ledgers and transactions (final, so the same there as in the fixtures), which the
 stack must have. What the fixtures hold by hand is not an account's today (`test/e2e/fixtures.ts` `LIVE`): the tests that read the account
 files (their pages of four and two rows, a balance, an address nobody funded) are skipped when `E2E_DATA_API_URL` or `E2E_BASE_URL` is set, and so
 are the tests of the analytics view that read the synthetic files (its figures, its columns, its days); two tests of the view run everywhere and assert
 no figure (`account-analytics.spec.ts`): the tab opens the view with its filter row, and each tile and card shows its data, its empty state or its error.
 So does the test of the kit's two copies in one document (`analytics-kit-copy.spec.ts`), which reads no figure either. It has not been run against a
 real stack from this repository.
+
+**The suite is for production, not the sandbox.** Its fixtures are mainnet data, and so are the accounts, pools and pairs its specs name; the sandbox serves XRPL Testnet and Xahau Testnet, which do not have them, so a run against it
+fails for want of data and says nothing about the code. The sandbox is exercised by the `worker-sandbox` project over the same fixtures ("Tests") and by the sandbox checklist ("The pipeline and deploying"). `pnpm test:e2e` runs the top level, `ENVIRONMENT`
+`"development"`: mainnet names and facts, no badge, and its accessibility scans do not see the "Testnet" badge, whose contrast `test/unit/tokens.test.ts` pins (the three testnet tokens in light and in both dark blocks).
 
 **The browser.** `pnpm exec playwright install chromium` fetches the revision this Playwright wants, and it is what a pipeline needs. In this order
 (`chromiumToUse` in `scripts/e2e-env.ts`): `E2E_CHROMIUM`, if set; the headless shell of the wanted revision, if installed; the full Chromium of the wanted
@@ -2227,6 +2301,35 @@ routes, its links into them and its fixes. Both AMM pages are dashboards (ruling
 - The last commit of E5's pages changed no script, only a stylesheet rule (the underlined links of the pool page): the stylesheet's new hash, which the root chunk names,
   took 16 to 49 bytes off every figure (measured: the same build with the stylesheet before that rule gives 143,839 and 152,251 for the two AMM pages).
 
+**The figures of E7** (the sandbox: the names table, `useEnvironment`, the root loader's data, the header's "Testnet" badge and the `testnet` tone's CSS; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the
+manifest included; sandbox spec 13 expected under a kilobyte on every page). *Before* is `6ed915b`, the commit E7 started from, built and measured again for this table (10 to 48 bytes above E5's table, which was measured at the end of E5);
+*after* is `ebc908d`, the last commit of E7's code (the commit of this README after it changes no file of the build, and the client files do not hold the build id).
+
+| page | Before (files) | After (files) | Change | Budget | Under it by |
+|---|---:|---:|---:|---:|---:|
+| home | 134,840 (15) | 135,022 (14) | +182 | 150,000 | 14,978 |
+| ledger | 134,700 (19) | 134,920 (18) | +220 | 150,000 | 15,080 |
+| transaction | 137,001 (20) | 137,221 (19) | +220 | 150,000 | 12,779 |
+| account | 140,184 (24) | 140,388 (23) | +204 | 150,000 | 9,612 |
+| network | 150,736 (26) | 151,316 (26) | +580 | 160,000 | 8,684 |
+| markets | 133,954 (13) | 134,506 (13) | +552 | 150,000 | 15,494 |
+| market-pair | 149,594 (27) | 150,136 (27) | +542 | 160,000 | 9,864 |
+| validators | 149,078 (26) | 149,282 (25) | +204 | 160,000 | 10,718 |
+| validator | 149,195 (26) | 149,687 (26) | +492 | 160,000 | 10,313 |
+| amendments | 139,433 (19) | 139,627 (18) | +194 | 160,000 | 20,373 |
+| amendment | 147,761 (23) | 148,248 (23) | +487 | 160,000 | 11,752 |
+| amm | 143,839 (22) | 144,419 (22) | +580 | 160,000 | 15,581 |
+| amm-pool | 152,250 (35) | 152,791 (35) | +541 | 160,000 | 7,209 |
+| account analytics (gate 2) | 152,354 (25) | 152,559 (24) | +205 | 160,000 | 7,441 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 1,885 | 1,869 | −16 | | |
+| manifest, `gzip -9 -c build/client/assets/manifest-*.js \| wc -c` | 1,914 | 1,897 | −17 | | |
+
+- **The growth is the shell's.** The shell chunk grew 522 bytes (124,376 to 124,898): it holds what the header draws on every page, the names table (`NETWORK_NAMES`), `useEnvironment` and the `Pill` of the badge. `Pill` was a chunk of its own (321 bytes)
+  that the nine pages which draw a pill loaded; it is in the shell now, so those pages lost a file and grew 182 to 220 bytes, and the five that did not load it (network, markets, market pair, the two AMM pages) took the shell's growth without a chunk
+  to give back, 541 to 580 bytes. The validator and amendment pages also load a new chunk of 280 bytes, `publishers` (the fixed list's words, `app/domain/publishers.ts`), which is why they stand at +492 and +487. The root route's chunk grew 16 bytes and the
+  `/:net` layout's 30. The manifest shrank 16 bytes with the `Pill` chunk gone from the routes' imports. The `testnet` tone's CSS is in the stylesheet, which the check does not count (it counts JavaScript); the root chunk names it by its hash.
+- **The most is 580 bytes** (the network page and the AMM list), under the kilobyte of spec 13. Every page is under its budget; the tightest are the AMM pool page, 7,209 bytes under 160,000, the analytics view, 7,441, and the network page, 8,684.
+
 ## The parsing libraries in the Workers runtime
 
 `test/worker/runtime.spec.ts` runs `ripple-lib-transactionparser` 0.8.2, `ripple-address-codec` 5 and
@@ -2274,9 +2377,9 @@ pnpm deploy:production             # CLOUDFLARE_ENV=production react-router buil
   2. **Test:** the whole of `ci.yml`.
   3. **Deploy:** `pnpm deploy:production`, in the GitHub environment `production`, **only while the repository variable
      `CLOUDFLARE_DEPLOY` is `true`** (Settings → Secrets and variables → Actions → Variables). Production has its hosts and route
-     ("Hosts and routes" below), so the guard passes once the secrets are set, and the deploy stays behind `CLOUDFLARE_DEPLOY`. It needs the secrets
-     `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. A required reviewer, if wanted, goes on the `production` environment. The release workflow
-     deploys production only; the sandbox is deployed by hand (`pnpm deploy:sandbox`).
+     ("Hosts and routes" below), so the guard passes: it reads the build's hosts and route, and cannot see secrets. The deploy itself needs the secrets
+     `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and the variable `CLOUDFLARE_DEPLOY` set to `true` (`DATA_API_KEY` is a Worker secret, set once with `wrangler secret put`, not by the workflow: "Secrets").
+     A required reviewer, if wanted, goes on the `production` environment. The release workflow deploys production only; the sandbox is deployed by hand (`pnpm deploy:sandbox`).
   4. **Release:** the GitHub release of the tag. Its body is the changelog since the previous tag, made by [git-cliff](https://git-cliff.org)
      from the Conventional Commits (`cliff.toml`) and attached as `CHANGELOG.md`. A tag with a `-` is a pre-release.
 
@@ -2364,51 +2467,69 @@ guard cannot drift apart. Changing a host is a change to both, in one commit.
 **Secrets**, once per Worker and again when one changes (they are not in the repository, `wrangler.jsonc` or the build; the guard cannot see them):
 
 ```sh
-pnpm exec wrangler secret put DATA_API_KEY --env sandbox      # the key listed in the data API's GH_RATE_LIMIT_KEYS
+pnpm exec wrangler secret put DATA_API_KEY --env sandbox      # the sandbox explorer's key, in the sandbox data APIs' GH_API_KEYS and GH_RATE_LIMIT_KEYS
 pnpm exec wrangler secret put SENTRY_DSN --env sandbox        # optional: Sentry stays off without it
-pnpm exec wrangler secret put DATA_API_KEY --env production
+pnpm exec wrangler secret put DATA_API_KEY --env production   # production's key, in the production data APIs' lists
 pnpm exec wrangler secret put SENTRY_DSN --env production     # optional
 ```
+
+**The sandbox.** The deployed test environment: the Worker `x-explorer-sandbox` on `https://explorer.sandbox.gatehub.net`, showing XRPL Testnet and Xahau Testnet from the sandbox data APIs (`xrpl.data.sandbox.gatehub.net`,
+`xahau.data.sandbox.gatehub.net`) and the testnets' nodes. It is where what needs a deployed Worker on a custom domain is settled before production (the caches, the failure holds, a switch flip, the certificate, the headers: "The
+checklists"), and where the switches are tried on the testnets' data, one by one, by their conditions ("Switches"). It is not production with other URLs: every name on its pages is the testnet's, the header says "Testnet", CTIDs carry
+the testnets' network ids (1 and 21338) and nothing in it is indexed (`X-Robots-Tag: noindex` on every response). The end-to-end suite is not run against it, since its fixtures are mainnet data ("End-to-end tests"). It is deployed by hand,
+`pnpm deploy:sandbox`; the release workflow deploys production only.
+
+**A testnet reset.** A reset restarts the testnet's ledger indexes under other hashes: the data API's syncer halts and its operator drops and recreates the database. The sandbox's caches still hold the old chain, because a ledger page, a
+transaction and their subrequests are stored for up to a year (`immutable`). The runbook: once the data API serves the new chain, deploy the sandbox again with a new build id,
+
+```sh
+BUILD_ID=$(git rev-parse --short=12 HEAD)-reset<n> pnpm deploy:sandbox    # <n>: 1 for the first reset, 2 for the next
+```
+
+`resolveBuildId` takes `BUILD_ID` from the environment, and the build id is the first part of both the edge and the subrequest keys, so nothing of the old chain is read again; its entries expire by themselves.
 
 **The plan.** The Workers **Paid** plan is required. The Free plan allows 10 ms of CPU per request: drawing a link-preview image (Satori and
 resvg-wasm, `/og/...png`) and rendering a ledger with thousands of transactions (a page of 740 KB and more, parsed and described in the Worker)
 need far more, and a request over the limit is cut off. Both are normal traffic here (every unfurled link asks for an image).
 
-**Rollout** (spec 13):
+**Rollout** (the sandbox spec's section 15, after the foundation's spec 13; the owner does it):
 
-1. `data-api-new` ships `GH_RATE_LIMIT_KEYS` and the explorer's key is issued.
-2. Deploy to the sandbox on its custom domain (the Cache API does not work on `*.workers.dev`), and run the end-to-end suite against the real sandbox API and
-   node: either `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` (the same Worker under `wrangler dev`, pointed at the sandbox
-   stack) or `E2E_BASE_URL=https://sandbox.example.com E2E_WORKERS=1 pnpm test:e2e` (the deployed Worker itself). The suite catches drift in the
-   response bodies the hand-written types in `app/server/api-types.ts` cannot see.
-3. Production.
+1. The data APIs are deployed first: the sandbox's answer on `xrpl.data.sandbox.gatehub.net` and `xahau.data.sandbox.gatehub.net`, with the sandbox explorer's key in their `GH_API_KEYS` and `GH_RATE_LIMIT_KEYS`.
+2. The sandbox: `pnpm exec wrangler secret put DATA_API_KEY --env sandbox` (and `SENTRY_DSN`, optional), `pnpm deploy:sandbox` (the guard passes: the hosts and the route are set) and the sandbox checklist ("The checklists").
+3. The switches go on in the sandbox one by one, by their conditions ("Switches"): a commit and `pnpm deploy:sandbox` each.
+4. Production, once its data APIs answer on `xrpl.data.gatehub.net` and `xahau.data.gatehub.net`: `pnpm exec wrangler secret put DATA_API_KEY --env production`, `pnpm deploy:production` with every switch off, the production checks, and then each
+   switch by its condition. The release workflow deploys production only once the owner sets `CLOUDFLARE_DEPLOY` to `true`.
 
-**Sandbox checklist.** Things that cannot be settled without a deployed Worker on a custom domain, carried from the reviews; go through them on
-the sandbox before production:
+**The checklists.** Three lists, because the end-to-end suite's fixtures, and most of what used to be checked by hand, are mainnet data. The **sandbox checklist** is what the sandbox can show (the environment: hosts, caches, holds, switch flips), the
+**production checks** are what needs mainnet data, and the **build figures** are what any commit has. Each item keeps its text, for the environment it belongs to; the ones that belong to both are in both lists, with that environment's stack.
+
+**Sandbox checklist.** Things that cannot be settled without a deployed Worker on a custom domain, carried from the reviews; go through them on the sandbox (`https://explorer.sandbox.gatehub.net`: XRPL Testnet and Xahau Testnet) before
+production. The end-to-end suite is not run against the sandbox. Where an item needs a switch, it is for once the switch is on there.
 
 - [ ] **Hosts and routes** are in place (see "Hosts and routes" above), with the real data API hosts in the `vars`; `pnpm deploy:sandbox` passes the guard.
 - [ ] **Secrets are set**: `wrangler secret put DATA_API_KEY --env sandbox` (and `SENTRY_DSN`, optional). The guard cannot see them. Without the key the
   data API refuses every call and every page is a 503.
+- [ ] **The certificate of `explorer.sandbox.gatehub.net`.** The host is two labels below the zone, outside Universal SSL's `*.gatehub.net`; a Workers custom domain issues the certificate for its own host ("Hosts and routes"). Open
+  `https://explorer.sandbox.gatehub.net/xrpl` in a browser, and `curl -sI https://explorer.sandbox.gatehub.net/xrpl`, with no certificate warning and no `-k`.
+- [ ] **The badge, the names and a CTID of each testnet, on a page of each kind.** On `/xrpl` and on `/xahau`, and on a ledger, a transaction, an account, the network page and the error pages (an unknown network such as `/xrp`, and a missing page):
+  the "Testnet" badge after the logo, "XRPL Testnet" and "Xahau Testnet" in the network switch, in the breadcrumbs, the titles and the sentences, and never "XRPL", "Xahau", "the XRP Ledger" or "mainnet" for the network; amounts keep `XRP` and `XAH`.
+  A transaction's CTID ends `0001` on XRPL Testnet and `535A` on Xahau Testnet, a CTID of network id 0 in the search box answers "… is for network id 0, which this explorer does not cover." with no link to production, and
+  `/og/xrpl/tx/{hash}.png` has the pill "XRPL Testnet". Open the link of a page in a chat that unfurls links: the card says the same.
+- [ ] **The sandbox is not indexed.** `curl -sI https://explorer.sandbox.gatehub.net/xrpl | grep -i x-robots-tag` prints `x-robots-tag: noindex`, and so do a `.data` URL, an image, `/robots.txt`, a 404 and a redirect, and a page served
+  from the edge cache (`X-Cache: HIT`). Production's pages carry none.
+- [ ] **`nft_info` on the sandbox's XRPL node.** The XRPL node must be a Clio ("The data API and the node"): `curl -s https://clio.altnet.rippletest.net:51234/ -H 'Content-Type: application/json' -d '{"method":"nft_info","params":[{"nft_id":"00000000000000000000000000000000000000000000000000000000000000AB"}]}'`
+  answers `"error": "objectNotFound"` for an id nobody minted, not `unknownCmd`.
+- [ ] **Sentry's `environment`.** With `SENTRY_DSN` set, an event the sandbox sends (look at the next one, or filter Sentry's issues by `environment:sandbox`) carries `environment: sandbox`, so that it is told apart from production's.
 - [ ] **The Cache API accepts the key host of the subrequest cache.** `createSubrequestCache` keys its entries on `https://subrequest-cache.invalid/<build>/<hash>`
   (`subrequestKey` in `app/server/edge-cache.ts`), a host that is not the zone's own, and the page tests run on the runtime's local Cache API, which accepts it.
   If the deployed one does not, a `put` fails, the failure is logged (`subrequest cache write failed`) and **the subrequest cache silently does nothing**: every
   page then calls the data API and the node for everything. Check with `wrangler tail --env sandbox --format json`: ask for two pages that share a call (a ledger,
   and the next one) and look for those lines, and in the data API's own log for the same ledger fetched twice within its TTL. If it fails, change the host of the key to
   the zone's (a path on the Worker's own host) and keep the rest.
-- [ ] **IPv6 visitors.** `VISITOR_LIMITER` is keyed by `CF-Connecting-IP`, and one IPv6 visitor holds a whole /64 (or larger) of addresses, so the limit of 60 renders per
-  10 s is easy to step around by rotating addresses within it. Follow-up: key an IPv6 address by its /64 prefix. Look at the limiter's rejections in the logs (`429`) with real
-  traffic before deciding.
-- [ ] **The edge cache can be filled through query strings.** Its key is the whole URL and the cache generation (the build ID and the switches), so every made-up query string (`?x=1`, `?x=2`, ...) on an
-  existing page is a render, an upstream call and a stored copy of its own, kept as long as the page's class says (a year for an immutable ledger or transaction). Only an unknown `?tab=`, a `marker` where there are none, and an image's query are
-  tidied into redirects. The visitor limit (renders per address) is the only brake. Watch the cache hit ratio and the data API's load on the sandbox; if it matters, drop unknown
-  parameters from the key, or redirect them away as the image route does.
-- [ ] **Run the end-to-end suite against the sandbox**: `E2E_BASE_URL=https://<sandbox host> E2E_WORKERS=1 pnpm test:e2e`, with `E2E_FEATURES_OFF` naming the switches that are off there (see "End-to-end tests"; the suite catches drift in
-  the data API's response bodies that `app/server/api-types.ts` cannot see), and, once, `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` against
-  the sandbox stack.
-
-- [ ] **The network page's views, against the sandbox stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`) and `?in=usd` on XRPL: the
+- [ ] **The network page's views, against the sandbox stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`): the
   window's words ("Totals and charts cover the 30 days from … to …, today so far") must be anchored to the sandbox stack's own `last_validated` and name the running day, and the volume
-  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; the sandbox does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=ACCOUNT_ANALYTICS,AMM_DATA,MARKETS,VALIDATORS` while those switches are off there (a switch leaves the list once it is on: `ACCOUNT_ANALYTICS` with E4 §8 step 3, below).
+  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; the sandbox does not. This is the structure, on the testnets' own data: every card has data or its own error, there is no "Amounts in" and no USD view
+  (XRPL Testnet has none: `?in=usd` on `/xrpl/network` is a 302 to the page without it), and the validators card counts the testnets' own lists.
 - [ ] **The failure hold, in `wrangler tail`.** With one card failing (the data API refusing one route, or its key revoked for it), `wrangler tail --env sandbox --format json` should show one
   failing call per 5 s per Worker instance for the network page and for the home page, and not one per beat of every open tab (`holdFailure`, "The cache classes"); and the card comes back by itself within the hold and a beat
   when the route answers again.
@@ -2417,78 +2538,108 @@ the sandbox before production:
   5 s the call takes, then the 5 s hold), and not one for every beat of every tab in the seconds the call is out (the probe, "The cache classes"). The card of that route says it could not be loaded after
   4.5 s and the rest of the page is there; the card comes back within a cycle of the route answering again.
 - [ ] **The validations of the newest ledger, against the sandbox stack.** The validators card counts the validations of the newest ledger the page shows, and asks for them as soon as that ledger is the
-  newest. Open `/xrpl/network` and `/xahau/network` right after a ledger closes and read the count: it should be about the size of the network's validator list (the fixtures say 35 and 25) when it is first
+  newest. Open `/xrpl/network` and `/xahau/network` right after a ledger closes and read the count: it should be about the size of the testnet's validator list (the list the validators page shows) when it is first
   asked for, and not a handful that grows over the next beats. If the data API has only some of a ledger's validations in the first seconds, the card shows a low count (kept 5 s, class `live`) until a later
   beat; write down for how long, and whether that needs a follow-up.
 - [ ] **A switch flip is a miss at the edge.** Deploy the same commit with `AMM_DATA` `"on"` in the environment's `vars` (README, "Switches"): the first request for each view after the deploy is a miss (`X-Cache: MISS`: the cache
   generation is in the edge key), and the AMM series and legend entry appear on `/xrpl/network` within the edge's 3 s, with the DEX tile's wording in its `ok` form.
-- [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: every page is under its budget with the manifest counted (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19), and the manifest's
-  size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
-- [ ] **The markets pages' node calls, against the deployed nodes.** With `wrangler tail --env sandbox --format json`, open a pair page on each network (`/xrpl/markets/XRP/RLUSD.rMxCKb…`,
-  `/xahau/markets/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH`): `book_offers` accepts `limit: 60` and answers with the funded fields (`taker_gets_funded`,
-  `taker_pays_funded`) on a partly funded offer, xahaud takes `{ "currency": "XAH" }` for its native side, and `amm_info` by `asset` and `asset2` answers for an XRPL pair that has a pool
-  (and `actNotFound` for one that has none: no pool card, and nothing logged).
-- [ ] **The node's call rate with pair pages open.** With a pair page open in a few tabs, `wrangler tail` shows about two `book_offers` per 2 s per watched pair per Worker
+- [ ] **The node's call rate with pair pages open.** With a pair page open in a few tabs (a pair from `/xrpl/markets`, once `MARKETS` is on in the sandbox), `wrangler tail` shows about two `book_offers` per 2 s per watched pair per Worker
   instance (the two sides, kept 2 s), not two per beat of every tab; and with the node failing (a node URL that refuses, for a while), one failing call per side per 5 s per instance (the failure hold),
   the book saying "Live state unavailable" on a fresh load and an open page keeping the book it showed.
-- [ ] **The markets page's age.** On `/xrpl/markets` (the 24 hours) the period's window is at most about 3.5 minutes old in the worst case (the set's minute, 60 s kept,
+- [ ] **The markets page's age.** Once `MARKETS` is on in the sandbox, on `/xrpl/markets` (the 24 hours) the period's window is at most about 3.5 minutes old in the worst case (the set's minute, 60 s kept,
   60 s + 30 s at the edge), usually within about two, and on `?period=7d` and `30d` within about seven.
-- [ ] **The HTML weight of `/xrpl/markets?period=30d`**, the biggest set (up to 1,000 rows in the page's data, 100 in its table): write down the size of the document and of its
-  `.data` URL, gzipped and not, beside the ledger page's of a large ledger.
-- [ ] **The AMM parts after `AMM_DATA` is turned on** (rollout step 7 of the markets spec): the Trades filter on both pages, the Via column, the AMM share tile and column (or "—" for
-  a period whose answer has no `amm_share` yet), the pool card's share, and the intro's words about swaps, at once after the deploy; and the traders card of a pair with a pool does not
-  list the pool account (`rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3` for XRP/RLUSD) and says so.
-- [ ] **The bundle figures of the markets pages.** `pnpm check:bundle` on the commit being deployed: write the markets and market-pair figures down beside "The client bundle check",
-  and check every page against its budget with the manifest (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19, which replaced R15's one bar; the spec's
-  targets of 140,000 and 146,000 are not budgets).
 - [ ] **The validators and amendments pages, against the sandbox stack** ("Validators and amendments"), once `VALIDATORS` is `"on"` for the sandbox (D1 has served the sandbox on
-  both networks for two hours): `/xrpl/validators` and `/xahau/validators` in their views, a validator of each network (its validations follow the chain; Older and Newer),
+  both testnets for two hours): `/xrpl/validators` and `/xahau/validators` in their views (the counts of the testnets' own lists; Xahau Testnet's is the fixed list, which every place reads "Fixed list"), a validator of each network (its validations follow the chain; Older and Newer),
   `/xrpl/amendments` and `/xahau/amendments`, an amendment of each (one with a majority where there is one), and the images of a validator and of an amendment
-  (`/og/xrpl/validator/{key}.png`, `/og/xrpl/amendment/{name}.png`, 1200 × 630, class `slow`). Every card has data or its own error, and `validators.spec.ts`,
-  `amendments.spec.ts` and the block of `a11y.spec.ts` pass against the sandbox stack (`E2E_DATA_API_URL=…`); before the switch is on, they pass with `VALIDATORS` in
-  `E2E_FEATURES_OFF` (the off-case: the four pages are 404s, "All validators" is "soon").
+  (`/og/xrpl/validator/{key}.png`, `/og/xrpl/amendment/{name}.png`, 1200 × 630, class `slow`). Every card has data or its own error.
 - [ ] **The validators pages' failure hold, in `wrangler tail`.** With one of their cards failing (S, A or a validator's VV refused), `wrangler tail --env sandbox --format json`
   shows one failing call per 5 s per Worker instance for as long as the card fails, not one per beat of every open tab, and the card comes back by itself within the hold
   and a beat.
 - [ ] **One L request per 10 s per instance, whatever the filters.** Open the validators list in several views at once (`?scope=all`, `?q=…`, `?publisher=…`, `?amendment=…`)
   in a few tabs: `wrangler tail` and the data API's log show `/v2/network/validators?limit=1000&scope=all` at most once per 10 s per Worker instance.
-- [ ] **A page answered 503, not stored, against an API without D1.** A sandbox Worker with `VALIDATORS` `"on"` in front of a data API that has no D1 routes (before D1's
-  deploy, or a stack without it): the validators list, a validator, the amendments list, an amendment and both images answer 503 (a `Cannot GET` is an outage), a second
-  request is not an `X-Cache: HIT`, and the pages come right with no deploy of the explorer once D1 answers.
-- [ ] **The size of a real majority amendment's page, against the sandbox stack.** Take an amendment with a majority (else the one with the most rounds) and measure its stored
-  document gzipped (`curl -s --compressed -o page.html https://<sandbox host>/xrpl/amendments/{name}`, then `gzip -9 -c page.html | wc -c`) and the rows of its yes votes table
-  ("changes only", the chart's Table view). The fixtures hold the yes votes between a few changes, as votes behave, and `amendment-page.spec.ts` pins their document under
-  150,000 bytes; rounds whose count moves at every flag ledger make a row each (the 30-day fixture with a change every round was about 161 KB gzipped), and the table would then
-  need a cap. Write both figures down.
-- [ ] **The four bundle figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the validators, validator, amendments and amendment pages under their
-  budget, a dashboard's 160,000 bytes (ruling R19), with the manifest counted (148,717, 148,504, 139,185 and 147,135 at E6; 148,246, 148,324, 138,568 and 146,928 after its
-  merge), and the network page (149,154 at E6, 149,700 after its merge), written down beside "The client bundle check".
+- [ ] **A page answered 503, not stored, against an API without D1.** A local Worker (`pnpm dev`, `VALIDATORS` `"on"`) in front of a stack without D1 (the sandbox's data API has D1): the validators list, a validator, the amendments list, an amendment and both images
+  answer 503 (a `Cannot GET` is an outage), a second request is not an `X-Cache: HIT`, and the pages come right with no deploy of the explorer once D1 answers.
 
 The account's analytics view (E4, "Account analytics") is checked on the sandbox once D2 is live there and `ACCOUNT_ANALYTICS` is `"on"` in the `sandbox` block (a deploy:
-E4 §8 step 3), and before it is turned on in production:
+E4 §8 step 3):
 
-- [ ] **The four periods of a heavy account, against the sandbox stack.** Open the Analytics tab of a heavy account (an exchange's hot wallet) and of an ordinary one, on XRPL and
-  Xahau, at `?tab=analytics`, `&period=90d`, `&period=1y` and `&period=all`. The period note must be anchored to the sandbox stack's own `last_validated` and name the running
-  bucket; every tile and card has its data, its empty state or its own error, and no card but the counterparties' (below) says "Still working …"; tile 1 and the native
-  panel of the balance history end at the header's balance. Write down how long each call takes (`wrangler tail --env sandbox --format json`) for the heavy account at
-  1 year and All. Run `account-analytics.spec.ts` against the sandbox without `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF`: its structural test runs there.
-- [ ] **The late-counterparties path.** On an account whose `analytics/counterparties` takes more than 4.5 s (D2 §13: 2 to 10 s for the heaviest, at 1 year and All; a cold
-  60 s cache), the card says "Still working on the counterparties. Retry in a few seconds." and tile 4 "—" over "Still working on it", and the page is served with `no-store`.
-  A Retry a few seconds later shows the card: the call went on under `waitUntil` (it ends within its 15 s) and its answer was kept 60 s, or the Retry joined the call still
-  running. In `wrangler tail`, the Retry's render makes no counterparties call of its own: it finds the stored answer, or joins the running call on the same instance.
 - [ ] **In-flight sharing and the failure hold, in `wrangler tail`.** Open one heavy account's slow view in a few tabs at once, on a cold cache: `wrangler tail` shows one call of each
   analytics key per Worker instance for the renders that overlap, not one per render (`shareInFlight`). Then with one analytics route failing (refused for the key, or a proxy in
   front of the sandbox data API answering 503 for it), one call of it per 5 s per instance however often the tabs Retry (`holdFailure`; a Retry within the hold is given the held
   failure), and the card back with the first Retry after the route answers again and the hold is over.
-- [ ] **`robots.txt`.** `https://<sandbox host>/robots.txt` (the Worker's route, on the custom domain) has `Disallow: /*/account/*tab=analytics` beside the search and CSV rules, and a
-  robots.txt tester (Google Search Console's report) reads `…/account/r…?tab=analytics&period=1y` and the other order of the query as disallowed, and `…/account/r…` as allowed.
-- [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,035 at the end of E4; the spec's
-  target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 160,000, a dashboard's budget (ruling R19; 149,933 at the end of E4), both written down
-  beside "The client bundle check" (its E4 table), so that the growth of each later sub-project shows. A route adds about 21 bytes to the view through the manifest.
 
-The AMM pages (E5, "AMM pools") are checked on the sandbox once the data API there has merged and deployed `feat/amm-data`, re-ingested from ledger 86795265 and back-filled
-`amm_daily`, `AMM_DATA` is `"on"` for the sandbox and then `AMM_PAGES` (a deploy each: rollout steps 2 and 3 of the AMM spec), and before `AMM_PAGES` is turned on in production.
-Run the suite against the sandbox with `AMM_PAGES` no longer in `E2E_FEATURES_OFF`; before it is on, it passes with `AMM_PAGES` listed (the off-case: the header's "soon", the 404s).
+The AMM pages (E5, "AMM pools") are checked on the sandbox once its data API has the AMM data (it is built from images that include it), `AMM_DATA` is `"on"` for the sandbox and then `AMM_PAGES` (a deploy each: rollout steps 2 and 3 of the AMM spec):
+
+- [ ] **The list's pages.** Follow "More pools" from `/xrpl/amm` to the end, within a minute (the aggregator rebuilds `amm_pools` every minute): the pages concatenate to the
+  API's list (`/v2/amm/pools?limit=…` paged by its markers), in the same order, with no pool shown twice; and the same with "Include deleted pools".
+- [ ] **The switch is in the cache generation.** The deploy that turns `AMM_PAGES` on: the first request for each AMM view, for `/xrpl` (its header) and for a transaction
+  through a pool after it is `X-Cache: MISS`, and the header's AMM, the pool links and the pages are there at once.
+- [ ] **`actNotFound` and `actMalformed` from the sandbox's node.** On `https://clio.altnet.rippletest.net:51234/`, `amm_info` by `amm_account` for an ordinary account answers `actNotFound`, and for an address that holds no account
+  (a deleted pool's, where XRPL Testnet has one) `actMalformed`, as `https://s1.ripple.com:51234/` did on 2026-10-20 (`node-rpc.ts`): both are read as `not_found`. Another answer for them would make a pool
+  that is not there a 503, not the 404 that offers its account page.
+
+**Production checks.** What needs mainnet data: the end-to-end suite's fixtures, and most of these items, name mainnet accounts, pools and pairs, which the sandbox's testnets do not have. They run **before a switch goes on in
+production**, against the deployed production Worker (`E2E_BASE_URL=https://explorer.gatehub.net E2E_WORKERS=1 E2E_FEATURES_OFF=… pnpm test:e2e`) and, for what the switch gates, a local Worker on the production stack
+(`E2E_DATA_API_URL=https://{net}.data.gatehub.net E2E_NODE_URL=… E2E_DATA_API_KEY=… pnpm test:e2e`, the top level's switches on).
+
+- [ ] **Hosts and routes** are in place (see "Hosts and routes" above), with production's data API hosts in the `vars`; `pnpm deploy:production` passes the guard.
+- [ ] **Secrets are set**: `wrangler secret put DATA_API_KEY --env production` (and `SENTRY_DSN`, optional). The guard cannot see them. Without the key the
+  data API refuses every call and every page is a 503.
+- [ ] **`nft_info` on production's XRPL node.** The XRPL node must be a Clio ("The data API and the node"): `curl -s https://s1.ripple.com:51234/ -H 'Content-Type: application/json' -d '{"method":"nft_info","params":[{"nft_id":"00000000000000000000000000000000000000000000000000000000000000AB"}]}'`
+  answers `"error": "objectNotFound"` for an id nobody minted, not `unknownCmd`.
+- [ ] **Run the end-to-end suite against production**: `E2E_BASE_URL=https://explorer.gatehub.net E2E_WORKERS=1 pnpm test:e2e`, with `E2E_FEATURES_OFF` naming the switches that are off there (see "End-to-end tests"; the suite catches drift in
+  the data API's response bodies that `app/server/api-types.ts` cannot see), and, once, `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` against
+  the production stack.
+- [ ] **IPv6 visitors.** `VISITOR_LIMITER` is keyed by `CF-Connecting-IP`, and one IPv6 visitor holds a whole /64 (or larger) of addresses, so the limit of 60 renders per
+  10 s is easy to step around by rotating addresses within it. Follow-up: key an IPv6 address by its /64 prefix. Look at the limiter's rejections in the logs (`429`) with real
+  traffic before deciding.
+- [ ] **The edge cache can be filled through query strings.** Its key is the whole URL and the cache generation (the build ID, the environment and the switches), so every made-up query string (`?x=1`, `?x=2`, ...) on an
+  existing page is a render, an upstream call and a stored copy of its own, kept as long as the page's class says (a year for an immutable ledger or transaction). Only an unknown `?tab=`, a `marker` where there are none, and an image's query are
+  tidied into redirects. The visitor limit (renders per address) is the only brake. Watch the cache hit ratio and the data API's load on production; if it matters, drop unknown
+  parameters from the key, or redirect them away as the image route does.
+- [ ] **The network page's views, against the production stack.** Open `/xrpl/network` and `/xahau/network`, and each period (`?period=7d`, `90d`, `1y`) and `?in=usd` on XRPL: the
+  window's words ("Totals and charts cover the 30 days from … to …, today so far") must be anchored to production's own `last_validated` and name the running day, and the volume
+  card must say that day is not computed yet. The fixtures stand at Oct 17, 2026; production does not. Every card has data or its own error, and the e2e suite's `network-page.spec.ts` passes with `E2E_FEATURES_OFF=ACCOUNT_ANALYTICS,AMM_DATA,MARKETS,VALIDATORS` while those switches are off in production (a switch leaves the list once it is on: `ACCOUNT_ANALYTICS` with E4 §8 step 3, below).
+- [ ] **The validations of the newest ledger, against the production stack.** The validators card counts the validations of the newest ledger the page shows, and asks for them as soon as that ledger is the
+  newest. Open `/xrpl/network` and `/xahau/network` right after a ledger closes and read the count: it should be about the size of the network's validator list (the fixtures say 35 and 25) when it is first
+  asked for, and not a handful that grows over the next beats. If the data API has only some of a ledger's validations in the first seconds, the card shows a low count (kept 5 s, class `live`) until a later
+  beat; write down for how long, and whether that needs a follow-up.
+- [ ] **The markets pages' node calls, against the deployed nodes.** With `wrangler tail --env production --format json`, open a pair page on each network (`/xrpl/markets/XRP/RLUSD.rMxCKb…`,
+  `/xahau/markets/EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8/XAH`): `book_offers` accepts `limit: 60` and answers with the funded fields (`taker_gets_funded`,
+  `taker_pays_funded`) on a partly funded offer, xahaud takes `{ "currency": "XAH" }` for its native side, and `amm_info` by `asset` and `asset2` answers for an XRPL pair that has a pool
+  (and `actNotFound` for one that has none: no pool card, and nothing logged).
+- [ ] **The HTML weight of `/xrpl/markets?period=30d`**, the biggest set (up to 1,000 rows in the page's data, 100 in its table): write down the size of the document and of its
+  `.data` URL, gzipped and not, beside the ledger page's of a large ledger.
+- [ ] **The AMM parts after `AMM_DATA` is turned on** (rollout step 7 of the markets spec): the Trades filter on both pages, the Via column, the AMM share tile and column (or "—" for
+  a period whose answer has no `amm_share` yet), the pool card's share, and the intro's words about swaps, at once after the deploy; and the traders card of a pair with a pool does not
+  list the pool account (`rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3` for XRP/RLUSD) and says so.
+- [ ] **The validators and amendments pages, against the production stack** ("Validators and amendments"), once D1 has served production on both networks for two hours and before `VALIDATORS` is `"on"` there: `/xrpl/validators` and `/xahau/validators` in their views, a validator of each network (its validations follow the chain; Older and Newer),
+  `/xrpl/amendments` and `/xahau/amendments`, an amendment of each (one with a majority where there is one), and the images of a validator and of an amendment
+  (`/og/xrpl/validator/{key}.png`, `/og/xrpl/amendment/{name}.png`, 1200 × 630, class `slow`). Every card has data or its own error, and `validators.spec.ts`,
+  `amendments.spec.ts` and the block of `a11y.spec.ts` pass against the production stack (`E2E_DATA_API_URL=…`); before the switch is on, they pass with `VALIDATORS` in
+  `E2E_FEATURES_OFF` (the off-case: the four pages are 404s, "All validators" is "soon").
+- [ ] **The size of a real majority amendment's page, against the production stack.** Take an amendment with a majority (else the one with the most rounds) and measure its stored
+  document gzipped (`curl -s --compressed -o page.html https://explorer.gatehub.net/xrpl/amendments/{name}`, then `gzip -9 -c page.html | wc -c`) and the rows of its yes votes table
+  ("changes only", the chart's Table view). The fixtures hold the yes votes between a few changes, as votes behave, and `amendment-page.spec.ts` pins their document under
+  150,000 bytes; rounds whose count moves at every flag ledger make a row each (the 30-day fixture with a change every round was about 161 KB gzipped), and the table would then
+  need a cap. Write both figures down.
+
+The account's analytics view (E4, "Account analytics") is checked on production before `ACCOUNT_ANALYTICS` is turned on there:
+
+- [ ] **The four periods of a heavy account, against the production stack.** Open the Analytics tab of a heavy account (an exchange's hot wallet) and of an ordinary one, on XRPL and
+  Xahau, at `?tab=analytics`, `&period=90d`, `&period=1y` and `&period=all`. The period note must be anchored to the production stack's own `last_validated` and name the running
+  bucket; every tile and card has its data, its empty state or its own error, and no card but the counterparties' (below) says "Still working …"; tile 1 and the native
+  panel of the balance history end at the header's balance. Write down how long each call takes (`wrangler tail --env production --format json`) for the heavy account at
+  1 year and All. Run `account-analytics.spec.ts` against production without `ACCOUNT_ANALYTICS` in `E2E_FEATURES_OFF`: its structural test runs there.
+- [ ] **The late-counterparties path.** On an account whose `analytics/counterparties` takes more than 4.5 s (D2 §13: 2 to 10 s for the heaviest, at 1 year and All; a cold
+  60 s cache), the card says "Still working on the counterparties. Retry in a few seconds." and tile 4 "—" over "Still working on it", and the page is served with `no-store`.
+  A Retry a few seconds later shows the card: the call went on under `waitUntil` (it ends within its 15 s) and its answer was kept 60 s, or the Retry joined the call still
+  running. In `wrangler tail`, the Retry's render makes no counterparties call of its own: it finds the stored answer, or joins the running call on the same instance.
+- [ ] **`robots.txt`.** `https://explorer.gatehub.net/robots.txt` (the Worker's route, on the custom domain) has `Disallow: /*/account/*tab=analytics` beside the search and CSV rules, and a
+  robots.txt tester (Google Search Console's report) reads `…/account/r…?tab=analytics&period=1y` and the other order of the query as disallowed, and `…/account/r…` as allowed.
+
+The AMM pages (E5, "AMM pools") are checked on production once the data API there has merged and deployed `feat/amm-data`, re-ingested from ledger 86795265 and back-filled `amm_daily`, `AMM_DATA` is `"on"` for production and then `AMM_PAGES` (a deploy each: rollout steps 2 and 3 of the AMM spec), and before `AMM_PAGES` is turned on there.
+Run the suite against production with `AMM_PAGES` no longer in `E2E_FEATURES_OFF`; before it is on, it passes with `AMM_PAGES` listed (the off-case: the header's "soon", the 404s).
 
 - [ ] **The pool state against the node.** For three pools, a native one (XRP/RLUSD, `/xrpl/amm/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3`), an issued-only one (USDC/RLUSD,
   `rfWfhoLj3LiaBpoxus3h7pEF8jXDMtyGqb`) and one whose auction slot has a holder: the state card's reserves, LP tokens, trading fee and "set by N votes", the slot's holder,
@@ -2497,21 +2648,31 @@ Run the suite against the sandbox with `AMM_PAGES` no longer in `E2E_FEATURES_OF
 - [ ] **A 90-day chart against its rows.** On one pool, the value, price, fee and reserves of a few days against `/v2/amm/pools/{pool}/history?interval=day&…` (a day with no
   row keeps the day before), and the swap volume's columns and swaps against `/v2/exchanges/{base}/{counter}?amm=only&interval=1day&…` in the pool's stored order; the running
   day "so far". Write down whether days are missing that were not quiet (the cards' "A day without rows may not be computed yet." until D2b).
-- [ ] **The list's pages.** Follow "More pools" from `/xrpl/amm` to the end, within a minute (the aggregator rebuilds `amm_pools` every minute): the pages concatenate to the
-  API's list (`/v2/amm/pools?limit=…` paged by its markers), in the same order, with no pool shown twice; and the same with "Include deleted pools".
 - [ ] **A deleted pool's page.** One the index has `deleted` (SNK/XRP, `rGLnUKdptCVobJKEkrwxtdyGZ98Evdmqdz`): the banner with its last ledger, the charts and the activity, no
   state, slot or votes, class `slow`.
 - [ ] **The pair redirect.** `/xrpl/amm/XRP/RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De` and the other way round are a 302 to the pool's page, class `slow`; a pair with no pool is
   the 404 "We couldn’t find an AMM pool for … on XRPL".
 - [ ] **The pool's image.** `/og/xrpl/amm/rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3.png`: 1200 × 630, `image/png`, class `slow` (`max-age=300`), the pair, the pool account, the
   value and the trading fee, and its page's `og:image`.
-- [ ] **The switch is in the cache generation.** The deploy that turns `AMM_PAGES` on: the first request for each AMM view, for `/xrpl` (its header) and for a transaction
-  through a pool after it is `X-Cache: MISS`, and the header's AMM, the pool links and the pages are there at once.
-- [ ] **The bundle figures of both pages.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `amm` and `amm-pool` rows under a dashboard's 160,000 bytes with
-  the manifest (ruling R19; 143,810 and 152,202 at the end of E5), written down beside "The client bundle check".
-- [ ] **`actNotFound` and `actMalformed` from the configured node.** `amm_info` by `amm_account` for an ordinary account answers `actNotFound`, and for a deleted pool's address
+- [ ] **`actNotFound` and `actMalformed` from production's node.** `amm_info` by `amm_account` for an ordinary account answers `actNotFound`, and for a deleted pool's address
   (`rGLnUK…mqdz`) `actMalformed`, as `https://s1.ripple.com:51234/` did on 2026-10-20 (`node-rpc.ts`): both are read as `not_found`. Another answer for them would make a pool
   that is not there a 503, not the 404 that offers its account page.
+
+**Build figures.** Any environment: the figures of the commit being deployed. Each is `pnpm build && pnpm check:bundle`, written down beside "The client bundle check" so that the growth of each later sub-project shows.
+
+- [ ] **The bundle figure and the manifest.** `pnpm build && pnpm check:bundle` on the commit being deployed: every page is under its budget with the manifest counted (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19), and the manifest's
+  size (`gzip -9 -c build/client/assets/manifest-*.js | wc -c`, 1,052 bytes at E2) and the network page's figure (147,640 with it, 146,616 without) are written down beside "The client bundle check", so that the growth of each later sub-project shows.
+- [ ] **The bundle figures of the markets pages.** `pnpm check:bundle` on the commit being deployed: write the markets and market-pair figures down beside "The client bundle check",
+  and check every page against its budget with the manifest (150,000 bytes for the lookup pages, 160,000 for the dashboards: ruling R19, which replaced R15's one bar; the spec's
+  targets of 140,000 and 146,000 are not budgets).
+- [ ] **The four bundle figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the validators, validator, amendments and amendment pages under their
+  budget, a dashboard's 160,000 bytes (ruling R19), with the manifest counted (148,717, 148,504, 139,185 and 147,135 at E6; 148,246, 148,324, 138,568 and 146,928 after its
+  merge), and the network page (149,154 at E6, 149,700 after its merge), written down beside "The client bundle check".
+- [ ] **Gate 2's figures.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `account` row at or under 150,000 bytes (138,035 at the end of E4; the spec's
+  target is 138,500) and the `account analytics` row (the view's total, gate 2) at or under 160,000, a dashboard's budget (ruling R19; 149,933 at the end of E4), both written down
+  beside "The client bundle check" (its E4 table), so that the growth of each later sub-project shows. A route adds about 21 bytes to the view through the manifest.
+- [ ] **The bundle figures of both pages.** `pnpm build && pnpm check:bundle` on the commit being deployed: the `amm` and `amm-pool` rows under a dashboard's 160,000 bytes with
+  the manifest (ruling R19; 143,810 and 152,202 at the end of E5), written down beside "The client bundle check".
 
 **The API description.** `api/openapi.yaml` is a copy of `data-api-new/docs/openapi.yaml`. When the API changes, `pnpm api:sync` copies it from a local
 checkout (`$DATA_API_REPO`, default `../data-api-new`) and regenerates `app/server/openapi.d.ts`; name the source commit it prints in the commit message.

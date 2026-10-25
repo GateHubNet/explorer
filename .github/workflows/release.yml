@@ -3,9 +3,10 @@
 #   1. version  the tag must be a semantic version (vMAJOR.MINOR.PATCH, an optional -pre-release); anything else stops here;
 #   2. test     the whole CI workflow (verify, fixtures:check, the end-to-end suite);
 #   3. deploy   `pnpm deploy:production` to Cloudflare, only while the repository variable CLOUDFLARE_DEPLOY is "true": the
-#               pre-deploy guard passes, production's hosts and route being set (README "Hosts and routes"), once the secrets
-#               are set; the deploy stays behind CLOUDFLARE_DEPLOY, and only production is deployed from here (the sandbox is
-#               deployed by hand, `pnpm deploy:sandbox`);
+#               pre-deploy guard passes because production's hosts and route are set (README "Hosts and routes"; it cannot
+#               see secrets), and the deploy itself needs the secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID and
+#               CLOUDFLARE_DEPLOY being "true"; only production is deployed from here (the sandbox is deployed by hand,
+#               `pnpm deploy:sandbox`);
 #   4. release  the GitHub release of the tag: its body is the changelog since the previous tag (cliff.toml), which is also
 #               attached as CHANGELOG.md. A tag with a "-" is marked a pre-release.
 # A release exists only for a tag that is a version, whose tests passed and, when the deploy is on, that is deployed.
