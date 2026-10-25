@@ -1,4 +1,5 @@
-// What the environment adds to every response (sandbox spec 8). Worker-only code; workers/app.ts puts it around the edge cache, so that a stored
+// What the environment adds to every response the Worker serves (sandbox spec 8; the static files, `/assets/*` and `/favicon.ico`, are served by
+// Cloudflare's asset layer before the Worker runs, and get nothing). Worker-only code; workers/app.ts puts it around the edge cache, so that a stored
 // copy gets it on the way out and nothing stored differs between the environments.
 
 import { environmentOf } from "../ui/environment";
