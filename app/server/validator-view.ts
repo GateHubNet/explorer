@@ -41,6 +41,7 @@ import {
   scoreText,
   scoreValue,
   unixOf,
+  unlTagWords,
   valueOf,
   verificationNote,
   versionText,
@@ -61,6 +62,8 @@ export interface ValidatorIdentity {
   unl: boolean;
   /** The publishers whose lists name the validator (D's `unl_lists`), by their labels: the hidden words of the UNL tag, and the membership line when S did not load. */
   unlPublishers: string[];
+  /** The words of the UNL tag, a screen reader's and the mouse's: `Listed by A and B`, `Listed by the fixed list`; empty when no list names the validator. */
+  listedBy: string;
   negativeUnl: boolean;
   /** What the domain's check found (4.2); `null` without a domain, and for a domain nothing is known of. */
   note: TextPart[] | null;
@@ -200,6 +203,7 @@ function identityOf(network: NetworkInfo, validator: ValidatorDetail): Validator
     domainStatus: domain !== undefined ? (validator.domain_verification?.status ?? null) : null,
     unl: validator.unl,
     unlPublishers: validator.unl_lists.map(publisherLabel),
+    listedBy: unlTagWords(validator.unl_lists),
     negativeUnl: validator.negative_unl,
     note: verificationNote(validator.domain_verification, domain, network.software),
     masterKey: key,

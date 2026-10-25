@@ -240,6 +240,13 @@ describe("validatorsPage: intro, notices and options", () => {
     expect(listPart(data).rows.map((row) => row.unlPublishers)).toEqual([["Fixed list", "vl.ripple.com"]]);
   });
 
+  it("words the UNL tag of a row on the fixed list as 'the fixed list', not as the label", () => {
+    const fixed = validatorRowSample({ unl_lists: ["local"] });
+    const both = validatorRowSample({ validation_public_key: KEY_SHORE, unl_lists: ["local", "vl.altnet.rippletest.net"] });
+    const data = build({ network: XAHAU_TESTNET, list: ok(listOf([fixed, both])) });
+    expect(listPart(data).rows.map((row) => row.listedBy)).toEqual(["Listed by the fixed list", "Listed by vl.altnet.rippletest.net and the fixed list"]);
+  });
+
   it("still filters by the id local, not by its label", () => {
     const [, current] = summarySample().unl.publishers as [UnlPublisher, UnlPublisher];
     const summary = summaryWith({ unl: { trusted: 39, publishers: [current, FIXED_LIST] } });
@@ -692,6 +699,7 @@ describe("validatorsPage: the rows", () => {
       domainStatus: "verified",
       unl: true,
       unlPublishers: ["unl.xrplf.org", "vl.ripple.com"],
+      listedBy: "Listed by unl.xrplf.org and vl.ripple.com",
       negativeUnl: false,
       version: { text: "3.4.1", latest: true },
     });
@@ -702,6 +710,7 @@ describe("validatorsPage: the rows", () => {
       domainStatus: null,
       unl: false,
       unlPublishers: [],
+      listedBy: "",
     });
   });
 

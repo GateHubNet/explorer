@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, validatorRowSample } from "../../test/support/d1-samples";
 import { statusWord as domainStatusWord } from "../domain/amendments-params";
-import { listedByText as domainListedByText, LOCAL_PUBLISHER as DOMAIN_LOCAL_PUBLISHER, publisherLabel as domainPublisherLabel } from "../domain/publishers";
+import {
+  listedByText as domainListedByText,
+  LOCAL_PUBLISHER as DOMAIN_LOCAL_PUBLISHER,
+  onListsText as domainOnListsText,
+  publisherLabel as domainPublisherLabel,
+  unlTagWords as domainUnlTagWords,
+} from "../domain/publishers";
 import { joinAnd as domainJoinAnd } from "../domain/time-words";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import {
@@ -22,6 +28,7 @@ import {
   LOCAL_PUBLISHER,
   moreThan,
   nativeText,
+  onListsText,
   percentText,
   publisherLabel,
   scoreText,
@@ -32,6 +39,7 @@ import {
   tomlLink,
   unixOf,
   unlIntro,
+  unlTagWords,
   valueOf,
   verificationNote,
   versionText,
@@ -605,6 +613,29 @@ describe("the fixed list", () => {
     expect(listedByText(["a.example", "local", "b.example"])).toBe("listed by a.example, b.example and on the fixed list");
   });
 
+  it("says which lists a tally is on: mainnet as ever, the fixed list as 'the fixed list'", () => {
+    expect([[], ["vl.ripple.com"], ["unl.xrplf.org", "vl.ripple.com"], ["a.example", "b.example", "c.example"], ["local"], ["vl.altnet.rippletest.net", "local"], ["local", "a.example", "b.example"]].map(onListsText)).toEqual([
+      "",
+      "on vl.ripple.com",
+      "on unl.xrplf.org and vl.ripple.com",
+      "on a.example, b.example and c.example",
+      "on the fixed list",
+      "on vl.altnet.rippletest.net and the fixed list",
+      "on a.example, b.example and the fixed list",
+    ]);
+  });
+
+  it("words the UNL tag: mainnet as ever, the fixed list as 'the fixed list'", () => {
+    expect([[], ["vl.ripple.com"], ["unl.xrplf.org", "vl.ripple.com"], ["a.example", "b.example", "c.example"], ["local"], ["vl.altnet.rippletest.net", "local"]].map(unlTagWords)).toEqual([
+      "",
+      "Listed by vl.ripple.com",
+      "Listed by unl.xrplf.org and vl.ripple.com",
+      "Listed by a.example, b.example and c.example",
+      "Listed by the fixed list",
+      "Listed by vl.altnet.rippletest.net and the fixed list",
+    ]);
+  });
+
   it("words the intro per kind", () => {
     const rippled = { kind: "mainnet", name: "XRPL", software: "rippled" } as const;
     const xahaud = { kind: "mainnet", name: "Xahau", software: "xahaud" } as const;
@@ -639,5 +670,7 @@ describe("the words the browser needs too", () => {
     expect(LOCAL_PUBLISHER).toBe(DOMAIN_LOCAL_PUBLISHER);
     expect(publisherLabel).toBe(domainPublisherLabel);
     expect(listedByText).toBe(domainListedByText);
+    expect(onListsText).toBe(domainOnListsText);
+    expect(unlTagWords).toBe(domainUnlTagWords);
   });
 });

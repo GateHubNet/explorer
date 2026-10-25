@@ -1,12 +1,11 @@
 // The marks the validators and amendments pages draw their statuses with (spec 2.5), and the links of 2.8. Every status is an icon and a word,
 // never colour alone; colour is only for `ok` and `bad`. A browser file: it takes its types from app/server (`import type`, erased) and its
-// two words from the domain files a browser file may import, never from validator-facts.ts, which value-imports a package of the Worker's.
+// word from the domain files a browser file may import, never from validator-facts.ts, which value-imports a package of the Worker's.
 
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { statusWord } from "../../domain/amendments-params";
-import { joinAnd } from "../../domain/time-words";
 import type { AmendmentStatusView, DomainStatusKind, TextPart } from "../../server/validator-facts";
 import { Countdown } from "./Countdown";
 import { CrossIcon, InfoIcon } from "./icons";
@@ -103,11 +102,11 @@ export function DomainStatus({ status, page }: { status: DomainStatusKind; page?
 }
 
 /**
- * On a trusted list: the shield and "UNL". The publishers that list it follow in words a screen reader reads after the tag's own, and are the
- * `title` for the mouse (a title is not the accessible name).
+ * On a trusted list: the shield and "UNL". `listedBy`, the view's words for the lists that name the validator (`Listed by A and B`; empty when none does), follows in words a
+ * screen reader reads after the tag's own, and is the `title` for the mouse (a title is not the accessible name).
  */
-export function UnlTag({ publishers }: { publishers: readonly string[] }) {
-  const listed = publishers.length > 0 ? `Listed by ${joinAnd(publishers)}` : null;
+export function UnlTag({ listedBy }: { listedBy: string }) {
+  const listed = listedBy !== "" ? listedBy : null;
   return (
     <span className="tag tag--icon" title={listed ?? undefined}>
       <ShieldIcon />

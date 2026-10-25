@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 
 import { formatUtc, shortHash } from "../../domain/format";
-import { joinAnd } from "../../domain/time-words";
+import { onListsText } from "../../domain/publishers";
 import type { AmendmentPageData, HistoryItem, VoteRowView } from "../../server/amendment-view";
 import type { Anchor } from "../../server/anchor";
 import { ChartCard } from "../charts/ChartCard";
@@ -321,10 +321,11 @@ function VoteTable({ label, rows, holds, empty, maxHeight }: { label: string; ro
   );
 }
 
-/** "{yes} yes · {no} no · {none} without a recent vote, on vl.ripple.com and unl.xrplf.org": without S, no publishers. */
+/** "{yes} yes · {no} no · {none} without a recent vote, on vl.ripple.com and unl.xrplf.org" ("on the fixed list" for Xahau Testnet's): without S, no publishers. */
 function votesHead({ counts }: Votes, summary: Data["summary"]): string {
   const tally = [`${count(counts.yes)} yes`, `${count(counts.no)} no`, ...(counts.none > 0 ? [`${count(counts.none)} without a recent vote`] : [])].join(" · ");
-  return summary.state === "ok" && summary.publishers.length > 0 ? `${tally}, on ${joinAnd(summary.publishers)}` : tally;
+  const lists = summary.state === "ok" ? onListsText(summary.publishers) : "";
+  return lists === "" ? tally : `${tally}, ${lists}`;
 }
 
 /** "Showing 24 of the 107 other validators seen in the last 24 hours: those with a vote recorded.": without S, no "of the N … seen". */

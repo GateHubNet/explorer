@@ -15,11 +15,11 @@ import type { Loaded } from "./account-view";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
 
-// `joinAnd`, `statusWord` and the words for the lists of a UNL (`LOCAL_PUBLISHER`, `publisherLabel`, `listedByText`) are words browser files need too (the status marks; the tags of a validator's page), so they live
+// `joinAnd`, `statusWord` and the words for the lists of a UNL (`LOCAL_PUBLISHER`, `publisherLabel`, `listedByText`, `onListsText`, `unlTagWords`) are words browser files need too (the status marks; the tags of a validator's page; the amendment page), so they live
 // in the domain files a browser file may import (`joinAnd` in time-words.ts, apart from format.ts, which the shell chunk holds; `statusWord` in amendments-params.ts; the publishers' words in publishers.ts);
 // they are the interface of this file as well.
 export { statusWord } from "../domain/amendments-params";
-export { listedByText, LOCAL_PUBLISHER, publisherLabel } from "../domain/publishers";
+export { listedByText, LOCAL_PUBLISHER, onListsText, publisherLabel, unlTagWords } from "../domain/publishers";
 export { joinAnd };
 
 /** What a figure that is not there reads as. */

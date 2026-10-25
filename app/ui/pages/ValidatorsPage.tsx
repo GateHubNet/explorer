@@ -228,7 +228,7 @@ function ValidatorCell({ row }: { row: ValidatorRowView }) {
           {row.name.text}
         </Link>
         {row.domainStatus !== null && <DomainStatus status={row.domainStatus} />}
-        {row.unl && <UnlTag publishers={row.unlPublishers} />}
+        {row.unl && <UnlTag listedBy={row.listedBy} />}
         {row.negativeUnl && <NegativeUnlTag />}
       </span>
       <span className="validators__sub mono">{row.sub}</span>

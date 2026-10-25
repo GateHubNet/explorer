@@ -30,6 +30,7 @@ import {
   shareText,
   unixOf,
   unlIntro,
+  unlTagWords,
   valueOf,
   versionText,
   yesPercentText,
@@ -82,6 +83,8 @@ export interface ValidatorRowView {
   unl: boolean;
   /** The publishers whose lists name the validator, by their labels (the hidden words of the UNL tag). */
   unlPublishers: string[];
+  /** The words of the UNL tag, a screen reader's and the mouse's: `Listed by A and B`, `Listed by the fixed list`; empty when no list names the validator. */
+  listedBy: string;
   negativeUnl: boolean;
   /** `—` for a validator that reported none. */
   version: { text: string; latest: boolean };
@@ -344,6 +347,7 @@ function rowView(net: NetworkInfo, row: ValidatorRow, fees: NativeFees | null): 
     domainStatus: domain !== undefined ? (row.domain_verification?.status ?? null) : null,
     unl: row.unl,
     unlPublishers: row.unl_lists.map(publisherLabel),
+    listedBy: unlTagWords(row.unl_lists),
     negativeUnl: row.negative_unl,
     version: { text: versionText(row, false) ?? DASH, latest: row.version_latest === true },
     agreement: { text: scoreText(row.agreement_24h.score), incomplete: row.agreement_24h.incomplete },

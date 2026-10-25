@@ -8,7 +8,7 @@ import { AMM_ID, amendmentDetailSample, SAMPLE_KEYS, summarySample, UNKNOWN_ID, 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import type { Loaded } from "../../server/account-view";
 import { amendmentPage, type AmendmentPageData } from "../../server/amendment-view";
-import type { AmendmentDetail, AmendmentRoundPoint, ValidatorsSummary } from "../../server/api-types";
+import type { AmendmentDetail, AmendmentRoundPoint, UnlPublisher, ValidatorsSummary } from "../../server/api-types";
 import type { NetworkInfo } from "../networks";
 import type { LiveControls } from "../use-live-controls";
 import { AmendmentPage } from "./AmendmentPage";
@@ -17,6 +17,10 @@ import { AmendmentPage } from "./AmendmentPage";
 
 const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
 const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
+const XAHAU_TESTNET: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+
+/** Xahau Testnet's fixed list as the data API serves it (D-env §5): the publisher `local`, with no site, no key and no expiration. */
+const FIXED_LIST: UnlPublisher = { id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 };
 
 /** 2026-10-19 16:00:00 UTC: a little under twelve days before the sample's activation (Oct 31, 15:54), 401 s after its voters were last seen (15:53:19.750). */
 const NOW = Date.UTC(2026, 9, 19, 16, 0, 0);
@@ -476,6 +480,15 @@ describe("AmendmentPage, the votes of the UNL validators", () => {
   it("counts the votes in the head and names the publishers of S", () => {
     mount(build());
     expect(head()).toBe("3 yes · 1 no · 1 without a recent vote, on unl.xrplf.org and vl.ripple.com");
+  });
+
+  it.each([
+    ["the fixed list alone", [FIXED_LIST], "on the fixed list"],
+    ["a published list and the fixed list", [{ ...FIXED_LIST, id: "vl.altnet.rippletest.net", url: "https://vl.altnet.rippletest.net" }, FIXED_LIST], "on vl.altnet.rippletest.net and the fixed list"],
+  ])("words the fixed list of Xahau Testnet as 'the fixed list', not as its id: %s", (_what, publishers, tail) => {
+    const summary: Loaded<ValidatorsSummary> = { state: "ok", value: summarySample({ unl: { trusted: 4, publishers } }) };
+    mount(build(amendmentDetailSample(), summary, XAHAU_TESTNET));
+    expect(head()).toBe(`3 yes · 1 no · 1 without a recent vote, ${tail}`);
   });
 
   it("names no publisher without S", () => {

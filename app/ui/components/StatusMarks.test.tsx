@@ -113,12 +113,12 @@ describe("DomainStatus", () => {
 });
 
 describe("UnlTag", () => {
-  const PUBLISHERS = ["vl.ripple.com", "unl.xrplf.org"];
+  const LISTED_BY = "Listed by vl.ripple.com and unl.xrplf.org";
 
   it("names the UNL tag by its word and publishers, not by its title", () => {
     inRouter(
       <a href="/xrpl/validators/x">
-        <UnlTag publishers={PUBLISHERS} />
+        <UnlTag listedBy={LISTED_BY} />
       </a>,
     );
     // A link takes its name from what it holds: the tag's words, and the hidden ones after them. The `title` (for the mouse) is not part of it.
@@ -132,20 +132,21 @@ describe("UnlTag", () => {
   });
 
   it("draws the shield beside the word, as a tag", () => {
-    const { container } = render(<UnlTag publishers={["unl.xrplf.org"]} />);
+    const { container } = render(<UnlTag listedBy="Listed by unl.xrplf.org" />);
     const tag = container.querySelector(".tag")!;
     expect(drawnIn(tag)).toBe(drawing(<ShieldIcon />));
     expect(tag.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
     expect(tag.textContent).toBe("UNL Listed by unl.xrplf.org");
   });
 
-  it("names three publishers as a sentence does", () => {
-    const { container } = render(<UnlTag publishers={["a.example", "b.example", "c.example"]} />);
-    expect(container.textContent).toBe("UNL Listed by a.example, b.example and c.example");
+  it("says what the view says, word for word: the fixed list is 'the fixed list', never a label after 'by'", () => {
+    const { container } = render(<UnlTag listedBy="Listed by the fixed list" />);
+    expect(container.textContent).toBe("UNL Listed by the fixed list");
+    expect(container.querySelector(".tag")!.getAttribute("title")).toBe("Listed by the fixed list");
   });
 
   it("says only UNL when it has no publisher to name (no 'Listed by' with nothing after it)", () => {
-    const { container } = render(<UnlTag publishers={[]} />);
+    const { container } = render(<UnlTag listedBy="" />);
     expect(container.textContent).toBe("UNL");
     expect(container.querySelector(".tag")!.hasAttribute("title")).toBe(false);
   });

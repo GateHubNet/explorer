@@ -9,7 +9,7 @@ import { serverThenHydrated } from "../../../test/support/hydrate";
 import { shortHash } from "../../domain/format";
 import { validatorsHref, type ValidatorsParams } from "../../domain/validators-params";
 import type { Loaded } from "../../server/account-view";
-import type { ValidatorRow, ValidatorsList, ValidatorsSummary } from "../../server/api-types";
+import type { UnlPublisher, ValidatorRow, ValidatorsList, ValidatorsSummary } from "../../server/api-types";
 import { validatorsPage, type ValidatorsPageData } from "../../server/validators-view";
 import type { NetworkInfo } from "../networks";
 import type { LiveControls } from "../use-live-controls";
@@ -26,6 +26,10 @@ afterEach(() => {
 
 const XRPL: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
 const XAHAU: NetworkInfo = { id: "xahau", kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", software: "xahaud" };
+const XAHAU_TESTNET: NetworkInfo = { id: "xahau", kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", software: "xahaud" };
+
+/** Xahau Testnet's fixed list as the data API serves it (D-env §5): the publisher `local`, with no site, no key and no expiration. */
+const FIXED_LIST: UnlPublisher = { id: "local", url: "", public_key: "", status: "ok", sequence: 1, version: 1, fetched: "2026-10-19T15:51:26.114Z", validators: 4, seen_24h: 4 };
 
 const ok = <T,>(value: T): Loaded<T> => ({ state: "ok", value });
 const FAILED: Loaded<never> = { state: "failed" };
@@ -622,6 +626,19 @@ describe("ValidatorsPage, the table", () => {
       expect(link.getAttribute("href")).toBe(`/xrpl/validators/${KEY_NORTH}`);
       expect(text(cellsOf(row)[0]!)).toContain(shortHash(KEY_NORTH));
       expect(cellsOf(row)[0]!.querySelector(".validators__sub")!.classList.contains("mono")).toBe(true);
+    });
+
+    it("words the UNL tag of a row: mainnet as ever, and 'Listed by the fixed list' on Xahau Testnet", () => {
+      mount(build());
+      const tagOf = (name: string) => rowOf(name).querySelector(".tag")!;
+      expect(text(tagOf("northpeak.example"))).toBe("UNL Listed by unl.xrplf.org and vl.ripple.com");
+      expect(tagOf("northpeak.example").getAttribute("title")).toBe("Listed by unl.xrplf.org and vl.ripple.com");
+      cleanup();
+
+      const fixed = validatorRowSample({ unl_lists: ["local"] });
+      mount(build({ network: XAHAU_TESTNET, summary: ok(summary({ unl: { trusted: 4, publishers: [FIXED_LIST] } })), list: ok(listOf([fixed])) }));
+      expect(text(tagOf("northpeak.example"))).toBe("UNL Listed by the fixed list");
+      expect(tagOf("northpeak.example").getAttribute("title")).toBe("Listed by the fixed list");
     });
 
     it("says 'verified' with a check, 'not verified' with an alert and 'not checked yet' with a clock: an icon and a word each", () => {

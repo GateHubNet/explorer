@@ -170,8 +170,8 @@ describe("validatorPage: the identity", () => {
 
   it("carries the UNL and the negative UNL as D has them", () => {
     const { identity } = build({ validator: validatorDetailSample({ unl: false, unl_lists: [], negative_unl: true }) });
-    expect(identity).toMatchObject({ unl: false, unlPublishers: [], negativeUnl: true });
-    expect(build().identity).toMatchObject({ unl: true, unlPublishers: ["unl.xrplf.org", "vl.ripple.com"], negativeUnl: false });
+    expect(identity).toMatchObject({ unl: false, unlPublishers: [], listedBy: "", negativeUnl: true });
+    expect(build().identity).toMatchObject({ unl: true, unlPublishers: ["unl.xrplf.org", "vl.ripple.com"], listedBy: "Listed by unl.xrplf.org and vl.ripple.com", negativeUnl: false });
   });
 
   it("is the same in the history view", () => {
@@ -266,6 +266,8 @@ describe("validatorPage: UNL membership", () => {
     const page = build({ network: XAHAU_TESTNET, validator: onFixed, summary: ok(alone) });
     expect(page.summary).toMatchObject({ state: "ok", membership: [{ publisher: "Fixed list", listed: true }] });
     expect(page.identity.unlPublishers).toEqual(["Fixed list"]);
+    // The UNL tag does not say "Listed by Fixed list": the view words it.
+    expect(page.identity.listedBy).toBe("Listed by the fixed list");
 
     // Beside a published list the line says which one names the validator; whether it is listed follows the id, not the words.
     const both = summarySample({ unl: { trusted: 39, publishers: [summarySample().unl.publishers[1]!, FIXED_LIST] } });

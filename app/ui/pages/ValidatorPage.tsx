@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { amendmentsHref } from "../../domain/amendments-params";
 import { formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { LOCAL_PUBLISHER, publisherLabel } from "../../domain/publishers";
 import type { Anchor } from "../../server/anchor";
 import type { DailyRow, LedgerLink, ValidationRowView, ValidatorHistoryData, ValidatorIdentity, ValidatorLiveData } from "../../server/validator-view";
 import { ChartCard } from "../charts/ChartCard";
@@ -80,7 +81,7 @@ function Heading({ identity }: { identity: ValidatorIdentity }) {
       <div className="validator__marks">
         <h1 className={cx("validator__title", identity.heading.mono && "mono")}>{identity.heading.text}</h1>
         {identity.domainStatus !== null && <DomainStatus status={identity.domainStatus} page />}
-        {identity.unl && <UnlTag publishers={identity.unlPublishers} />}
+        {identity.unl && <UnlTag listedBy={identity.listedBy} />}
         {identity.negativeUnl && <NegativeUnlTag />}
       </div>
     </>
@@ -101,11 +102,14 @@ function Fact({ label, children, sub }: { label: string; children: ReactNode; su
   );
 }
 
-/** On a publisher's list: a check and "listed"; off it: a dash and "not listed" (spec 2.5). */
+/** What the view calls the fixed list: it is words, so it is not set in mono like a publisher's id. */
+const FIXED_LIST = publisherLabel(LOCAL_PUBLISHER);
+
+/** On a publisher's list: a check and "listed"; off it: a dash and "not listed" (spec 2.5). A publisher's id is in mono; the fixed list's name is not. */
 function Membership({ publisher, listed }: { publisher: string; listed: boolean }) {
   return (
     <span className="validator__member">
-      <span className="mono">{publisher}</span>
+      <span className={publisher === FIXED_LIST ? undefined : "mono"}>{publisher}</span>
       {listed ? (
         <span className="st st--ok">
           <CheckIcon />
