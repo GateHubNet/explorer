@@ -14,9 +14,14 @@ describe("the worker-off project", () => {
   });
 
   it("keys the edge cache with every switch off", () => {
-    expect(cacheGeneration(env)).toBe("test-build:" + [...FEATURE_VARS].sort().map((name) => `${name}=off`).join(","));
-    expect(cacheGeneration(env)).toMatch(/^test-build:[A-Z_]+=off(,[A-Z_]+=off)*$/);
+    expect(cacheGeneration(env)).toBe("test-build:development:" + [...FEATURE_VARS].sort().map((name) => `${name}=off`).join(","));
+    expect(cacheGeneration(env)).toMatch(/^test-build:development:[A-Z_]+=off(,[A-Z_]+=off)*$/);
     // The names, spelt out: ACCOUNT_ANALYTICS sorts first, AMM_PAGES between AMM_DATA and MARKETS, and MARKETS before VALIDATORS.
-    expect(cacheGeneration(env)).toBe("test-build:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,MARKETS=off,VALIDATORS=off");
+    expect(cacheGeneration(env)).toBe("test-build:development:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,MARKETS=off,VALIDATORS=off");
   });
+
+  it("names the environment in the generation", () =>
+    expect(cacheGeneration({ ...env, ENVIRONMENT: "sandbox" })).toBe(
+      "test-build:sandbox:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,MARKETS=off,VALIDATORS=off",
+    ));
 });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CACHE_CLASSES, type CacheClass } from "../../app/server/cache-class";
+import { createDataApi } from "../../app/server/data-api";
 import {
   createDegradedMark,
   createSubrequestCache,
@@ -12,7 +13,9 @@ import {
   type Render,
 } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, getSubrequestCache, type Env } from "../../app/server/env";
+import { networkOf } from "../../app/server/networks";
 import { UpstreamError, type UpstreamErrorKind } from "../../app/server/upstream";
+import { recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 
 // The page-level edge cache, called directly with a fake `render` and a fake execution context. The Cache API
@@ -245,7 +248,7 @@ describe("storing and serving a page", () => {
     expect((await withEdgeCache(get(`${base}?x=1`), h.env, h.ctx, other)).headers.get("X-Cache")).toBe("MISS");
   });
 
-  it("includes the cache generation in the key: another switch value, or another build, misses", async () => {
+  it("includes the cache generation in the key: another switch value, another environment or another build misses", async () => {
     const url = pageUrl();
     const on = harness({ AMM_DATA: "on" });
     const off = harness({ AMM_DATA: "off" });
@@ -270,14 +273,26 @@ describe("storing and serving a page", () => {
     const otherBuild = harness({ BUILD_ID: "build-b" });
     expect((await withEdgeCache(get(url), otherBuild.env, otherBuild.ctx, render)).headers.get("X-Cache")).toBe("MISS");
     await otherBuild.settle();
+
+    // The environment changes what a page says, like a switch does: a Worker that moves to another one never serves the first one's copy.
+    const sandbox = harness({ ENVIRONMENT: "sandbox" });
+    const otherEnvironment = await withEdgeCache(get(url), sandbox.env, sandbox.ctx, render);
+    expect(otherEnvironment.headers.get("X-Cache")).toBe("MISS");
+    expect(await otherEnvironment.text()).toBe("render 4");
+    await sandbox.settle();
+    expect((await withEdgeCache(get(url), again.env, again.ctx, render)).headers.get("X-Cache")).toBe("HIT");
   });
 
-  it("keys the page with the generation: the build ID and every switch, and nothing else of the key changes", () => {
+  it("keys the page with the generation: the build ID, the environment and every switch, and nothing else of the key changes", () => {
     const h = harness();
     const url = pageUrl();
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(`__build=${encodeURIComponent(cacheGeneration(h.env))}`);
+    // The environment is the part after the build ID, and another one is another key.
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("test-build:development:"));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, ENVIRONMENT: "sandbox" }))).toContain(encodeURIComponent("test-build:sandbox:"));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, ENVIRONMENT: "sandbox" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     // ACCOUNT_ANALYTICS is one of the switches the generation names (sorted first), and flipping it is another key.
-    expect(cacheGeneration(h.env)).toMatch(/^test-build:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=off,/);
+    expect(cacheGeneration(h.env)).toMatch(/^test-build:development:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=off,/);
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("ACCOUNT_ANALYTICS=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, ACCOUNT_ANALYTICS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     // AMM_PAGES is another: a stored page never meets the other value of the header's AMM item or of a pool link.
@@ -1587,6 +1602,28 @@ describe("createSubrequestCache", () => {
     const other = harness({ BUILD_ID: "build-b" });
     expect(await getSubrequestCache(createLoadContext(other.env, other.ctx)).json(k, "live", load)).toBe("again");
     expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  // Both Workers are on the gatehub.net zone and may share its Cache API. The key holds the upstream's URL, which the predeploy guard makes
+  // differ between the environments, so an answer of the sandbox's data API is never read as production's (sandbox spec 8).
+  it("keys the same call under the sandbox's and production's data APIs apart", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      Response.json({ result: "success", ledger_index: "107695660", ledger_hash: "A".repeat(64), parent_hash: "B".repeat(64), close_time: "2026-10-16T12:00:00Z" }),
+    );
+    /** The key of the data API call `lastValidated` under the data API at `XRPL_DATA_API_URL`. */
+    const keyUnder = async (ENVIRONMENT: Env["ENVIRONMENT"], XRPL_DATA_API_URL: string) => {
+      const env: Env = { ...baseEnv, ENVIRONMENT, XRPL_DATA_API_URL };
+      const cache = recordingCache();
+      await createDataApi(networkOf("xrpl", env), env, cache).lastValidated();
+      return cache.calls.map((call) => call.key);
+    };
+
+    const sandbox = await keyUnder("sandbox", "https://xrpl.data.sandbox.gatehub.net");
+    const production = await keyUnder("production", "https://xrpl.data.gatehub.net");
+
+    expect(sandbox).toEqual(["GET https://xrpl.data.sandbox.gatehub.net/v2/last_validated"]);
+    expect(production).toEqual(["GET https://xrpl.data.gatehub.net/v2/last_validated"]);
+    expect(sandbox).not.toEqual(production);
   });
 
   it("does not wait for the store", async () => {

@@ -69,24 +69,45 @@ describe("the degraded mark of the loader context", () => {
 });
 
 describe("cacheGeneration", () => {
-  it("is the build ID, a colon, and every switch as NAME=value, sorted by name", () => {
+  it("is the build ID, the environment and every switch as NAME=value, sorted by name, each part after a colon", () => {
     const generation = cacheGeneration(env);
-    expect(generation).toBe("test-build:" + [...FEATURE_VARS].sort().map((name) => `${name}=${env[name]}`).join(","));
-    expect(generation).toMatch(/^test-build:[A-Z_]+=(on|off)(,[A-Z_]+=(on|off))*$/);
+    expect(generation).toBe("test-build:development:" + [...FEATURE_VARS].sort().map((name) => `${name}=${env[name]}`).join(","));
+    expect(generation).toMatch(/^test-build:development:[A-Z_]+=(on|off)(,[A-Z_]+=(on|off))*$/);
     expect(generation).toContain("AMM_DATA=on");
     expect(generation).toContain("VALIDATORS=off");
+  });
+
+  it("names the environment in the generation", () => {
+    expect(cacheGeneration({ ...env, ENVIRONMENT: "sandbox" })).toBe(
+      "test-build:sandbox:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off",
+    );
+    expect(cacheGeneration({ ...env, ENVIRONMENT: "production" })).toBe(
+      "test-build:production:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off",
+    );
+  });
+
+  it("is another generation in each environment, whatever the build and the switches are", () => {
+    const generations = (["development", "sandbox", "production"] as const).map((ENVIRONMENT) => cacheGeneration({ ...env, ENVIRONMENT }));
+    expect(new Set(generations).size).toBe(3);
+  });
+
+  it("keys an environment that is none of the three as development, the kind it shows", () => {
+    expect(cacheGeneration({ ...env, ENVIRONMENT: "Sandbox" as never })).toBe(cacheGeneration(env));
+    expect(cacheGeneration({ ...env, ENVIRONMENT: undefined as never })).toBe(cacheGeneration(env));
   });
 
   it("names MARKETS=on after AMM_DATA and AMM_PAGES, and before VALIDATORS, in its sorted list", () => {
     expect(cacheGeneration(env)).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
   });
 
-  it("names ACCOUNT_ANALYTICS=on first after the colon, ahead of AMM_DATA", () => {
-    expect(cacheGeneration(env)).toBe("test-build:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
+  it("names ACCOUNT_ANALYTICS=on first after the environment, ahead of AMM_DATA", () => {
+    expect(cacheGeneration(env)).toBe("test-build:development:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
   });
 
   it("names AMM_PAGES between AMM_DATA and MARKETS, whichever value each has", () => {
-    expect(cacheGeneration({ ...env, AMM_PAGES: "on" })).toBe("test-build:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=on,MARKETS=on,VALIDATORS=off");
+    expect(cacheGeneration({ ...env, AMM_PAGES: "on" })).toBe(
+      "test-build:development:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=on,MARKETS=on,VALIDATORS=off",
+    );
     expect(cacheGeneration({ ...env, AMM_DATA: "off", AMM_PAGES: "on" })).toContain("AMM_DATA=off,AMM_PAGES=on,MARKETS=on");
   });
 
@@ -100,7 +121,7 @@ describe("cacheGeneration", () => {
     expect(markets).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=off,VALIDATORS=off");
     const analytics = cacheGeneration({ ...env, ACCOUNT_ANALYTICS: "off" });
     expect(analytics).not.toBe(cacheGeneration(env));
-    expect(analytics).toBe("test-build:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
+    expect(analytics).toBe("test-build:development:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
     const pages = cacheGeneration({ ...env, AMM_PAGES: "on" });
     expect(pages).not.toBe(cacheGeneration(env));
     expect(pages).toContain("AMM_PAGES=on");
@@ -108,7 +129,9 @@ describe("cacheGeneration", () => {
   });
 
   it("names each switch once", () => {
-    const entries = cacheGeneration(env).slice(cacheGeneration(env).indexOf(":") + 1).split(",");
+    const [build, environment, switches] = cacheGeneration(env).split(":");
+    expect([build, environment]).toEqual(["test-build", "development"]);
+    const entries = switches!.split(",");
     for (const name of FEATURE_VARS) expect(entries.filter((entry) => entry.startsWith(`${name}=`)), name).toHaveLength(1);
     expect(entries).toHaveLength(FEATURE_VARS.length);
   });

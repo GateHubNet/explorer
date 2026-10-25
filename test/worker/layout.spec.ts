@@ -190,6 +190,15 @@ describe("/:net", () => {
     expect(html).not.toContain(">Testnet<");
   });
 
+  it("has no X-Robots-Tag on a page", async () => {
+    // Development and production are indexable: only the sandbox says noindex (the `worker-sandbox` project pins it there).
+    for (const path of ["/xrpl", "/xahau", "/doge", "/robots.txt", "/"]) {
+      const response = await get(path);
+      await response.text();
+      expect(response.headers.has("X-Robots-Tag"), path).toBe(false);
+    }
+  });
+
   it("is the same document for every visitor: no per-visitor markup from the cookie or the theme", async () => {
     const plain = (await page("/xrpl")).html;
     const withCookies = (await page("/xrpl", 200, { Cookie: "net=xahau; theme=dark" })).html;

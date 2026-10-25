@@ -1,5 +1,6 @@
 import { createContext, RouterContextProvider } from "react-router";
 
+import { environmentOf } from "../ui/environment";
 import { FEATURE_VARS } from "../ui/features";
 import type { SubrequestCache } from "./cache-class";
 import { createDegradedMark, createSubrequestCache, type DegradedMark } from "./edge-cache";
@@ -32,14 +33,17 @@ export interface Env {
 const SORTED_SWITCHES = [...FEATURE_VARS].sort();
 
 /**
- * What the edge cache keys every page, image and `.data` URL with (`edgeCacheKey` in edge-cache.ts): `BUILD_ID`, a colon, and every
- * switch as `NAME=value`, sorted by name and joined by commas (`3f2a9c1:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off`). A deploy with another commit or
- * another switch value therefore never serves a copy stored under the old one. The subrequest cache keeps `BUILD_ID` alone: it holds
- * upstream data, which no switch changes. (edge-cache.ts and this file import each other; neither uses the other's exports until a
+ * What the edge cache keys every page, image and `.data` URL with (`edgeCacheKey` in edge-cache.ts): `BUILD_ID`, the environment, and every
+ * switch as `NAME=value`, sorted by name and joined by commas, the three parts after colons (`3f2a9c1:sandbox:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,MARKETS=off,VALIDATORS=off`).
+ * A deploy with another commit or another switch value therefore never serves a copy stored under the old one, and nor does a Worker that moves
+ * to another environment: the environment changes what a page says (the networks' names and facts), as a switch does. The environment is
+ * `environmentOf(ENVIRONMENT)`, so a value that is none of the three keys as "development", the environment it shows. The subrequest cache
+ * keeps `BUILD_ID` alone: it holds upstream data, which neither a switch nor the environment changes (its keys hold the upstream's URL, which
+ * differs between the environments). (edge-cache.ts and this file import each other; neither uses the other's exports until a
  * request is served, so the cycle is harmless. Keep it that way.)
  */
 export function cacheGeneration(env: Env): string {
-  return `${env.BUILD_ID}:${SORTED_SWITCHES.map((name) => `${name}=${env[name]}`).join(",")}`;
+  return `${env.BUILD_ID}:${environmentOf(env.ENVIRONMENT)}:${SORTED_SWITCHES.map((name) => `${name}=${env[name]}`).join(",")}`;
 }
 
 // `import { env } from "cloudflare:workers"` (the tests use it) is typed with the generated

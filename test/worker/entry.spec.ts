@@ -182,7 +182,7 @@ describe("Sentry", () => {
     expect(f.withSentry).not.toHaveBeenCalled();
   });
 
-  it("wraps the handler once, when a DSN is set, and reads the DSN and the build from the env", async () => {
+  it("wraps the handler once, when a DSN is set, and reads the DSN, the build and the environment from the env", async () => {
     const f = fixture();
     const withDsn = { ...env, SENTRY_DSN: dsn };
     expect(await (await f.handler.fetch!(request(), withDsn, ctx)).text()).toBe("monitored");
@@ -190,7 +190,9 @@ describe("Sentry", () => {
     expect(f.load).toHaveBeenCalledTimes(1);
     expect(f.withSentry).toHaveBeenCalledTimes(1);
     const options = (f.withSentry.mock.calls[0]![0] as (e: Env) => unknown)(withDsn);
-    expect(options).toMatchObject({ dsn, release: env.BUILD_ID });
+    expect(options).toMatchObject({ dsn, release: env.BUILD_ID, environment: env.ENVIRONMENT });
+    // The sandbox's events are told apart from production's.
+    expect((f.withSentry.mock.calls[0]![0] as (e: Env) => unknown)({ ...withDsn, ENVIRONMENT: "sandbox" })).toMatchObject({ environment: "sandbox" });
   });
 
   it("serves the page unmonitored when Sentry cannot be loaded, and tries again next time", async () => {

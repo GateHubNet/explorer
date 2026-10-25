@@ -11,7 +11,7 @@ import { fixtureValidatorKeys } from "../support/validators-cases";
 // page says their names and a CTID carries their network ids (1 and 21338). The data is the recorded mainnet data of test/fixtures/http/
 // standing in for the testnets' (the bindings are the top level's), so only what a page says per kind of network is asserted here.
 
-const { page, get, storedAs } = pageClient("198.51.100");
+const { page, get, stored, storedAs } = pageClient("198.51.100");
 
 let mock: UpstreamMock | undefined;
 afterEach(() => {
@@ -295,5 +295,50 @@ describe("the network page of a testnet", () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("/xrpl/network?period=7d");
     expect(mock.requests).toEqual([]);
+  });
+});
+
+// The sandbox says noindex on everything it serves, so that its pages stay out of search results (sandbox spec 8). `robots.txt` is the same as
+// everywhere, so that the crawlers of link previews still read it and unfurl. The header is added outside the edge cache, by workers/app.ts.
+describe("X-Robots-Tag: noindex", () => {
+  it.each([
+    "/xrpl",
+    "/xrpl/ledger/107720688.data?_routes=routes%2Fnet.ledger.%24id",
+    "/robots.txt",
+    `/og/xrpl/tx/${PAYMENT}.png`,
+    "/xrpl/nothing-here",
+    "/xrpl/network?in=usd",
+  ])("%s carries X-Robots-Tag: noindex", async (path) => {
+    mock = mockUpstream("xrpl");
+    const response = await get(path);
+    await response.arrayBuffer();
+
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+  });
+
+  it("robots.txt is the one of every environment: it forbids the same three kinds of URL and no crawler more", async () => {
+    const response = await get("/robots.txt");
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("User-agent: *");
+    expect(body.match(/^Disallow:.*$/gm)).toEqual(["Disallow: /*/search", "Disallow: /*/account/*/payments.csv", "Disallow: /*/account/*tab=analytics"]);
+  });
+
+  it("a page served from the edge cache carries it too", async () => {
+    mock = mockUpstream("xrpl");
+    const first = await get("/xrpl/ledger/107720688");
+    await first.text();
+    expect(first.status).toBe(200);
+    expect(first.headers.get("X-Robots-Tag")).toBe("noindex");
+    // What is stored is the page as in every environment: the header is added on the way out, to a stored copy as to a fresh one.
+    const copy = await stored("/xrpl/ledger/107720688");
+    expect(copy, "nothing stored").toBeDefined();
+    expect(copy!.headers.has("X-Robots-Tag")).toBe(false);
+
+    const second = await get("/xrpl/ledger/107720688");
+    await second.text();
+    expect(second.headers.get("X-Cache")).toBe("HIT");
+    expect(second.headers.get("X-Robots-Tag")).toBe("noindex");
   });
 });

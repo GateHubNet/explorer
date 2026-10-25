@@ -31,7 +31,7 @@ function pathOf(request: Request): string {
 }
 
 /** `response` with `name: value`; a copy, if the response's own headers are read-only (a `fetch` answer's are). */
-function withHeader(response: Response, name: string, value: string): Response {
+export function withHeader(response: Response, name: string, value: string): Response {
   try {
     response.headers.set(name, value);
     return response;
@@ -81,7 +81,8 @@ type SentryModule = Pick<typeof import("@sentry/cloudflare"), "withSentry">;
 /**
  * `handler`, reported to Sentry when the Worker has a `SENTRY_DSN`. Without one nothing of Sentry is loaded or run:
  * the module is imported on the first request that needs it, and each request decides again, so adding the secret
- * to a running Worker is enough. If Sentry cannot be loaded the request is served unmonitored.
+ * to a running Worker is enough. If Sentry cannot be loaded the request is served unmonitored. An event carries the build (`release`)
+ * and the environment (`environment`: "development", "sandbox" or "production"), so that the sandbox's are told apart.
  *
  * `load` is a seam for tests.
  */
@@ -99,7 +100,7 @@ export function withSentryWhenConfigured(
       try {
         // `withSentry` changes the handler it is given, so it gets a copy.
         monitored ??= load().then(({ withSentry }) =>
-          withSentry((e: Env) => ({ dsn: e.SENTRY_DSN, release: e.BUILD_ID }), { fetch: handler.fetch }),
+          withSentry((e: Env) => ({ dsn: e.SENTRY_DSN, release: e.BUILD_ID, environment: e.ENVIRONMENT }), { fetch: handler.fetch }),
         );
         wrapped = await monitored;
       } catch (error) {
