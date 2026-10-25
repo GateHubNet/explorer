@@ -11,7 +11,7 @@ import { fixtureValidatorKeys } from "../support/validators-cases";
 // page says their names and a CTID carries their network ids (1 and 21338). The data is the recorded mainnet data of test/fixtures/http/
 // standing in for the testnets' (the bindings are the top level's), so only what a page says per kind of network is asserted here.
 
-const { page, get } = pageClient("198.51.100");
+const { page, get, storedAs } = pageClient("198.51.100");
 
 let mock: UpstreamMock | undefined;
 afterEach(() => {
@@ -269,5 +269,31 @@ describe("the other network an offer names", () => {
     mock = mockUpstream("xahau");
     const { html } = await page("/xahau/amendments/XChainBridge", 404);
     expect(offer(html, "Look for it on XRPL Testnet")).toBe("/xrpl/amendments/XChainBridge");
+  });
+});
+
+// XRPL Testnet has no USD view (D6): the USD of the view is GateHub's mainnet issuer. `?in=usd` is a short redirect to the view without it, before
+// any call, as any query string that is not the canonical one is.
+describe("the network page of a testnet", () => {
+  it("/xrpl/network?in=usd is a short 302 to /xrpl/network, with no upstream call", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get("/xrpl/network?in=usd");
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/xrpl/network");
+    expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs("/xrpl/network?in=usd")).toEqual({ cls: "short", ttl: 30 });
+  });
+
+  it("/xrpl/network?period=7d&in=usd keeps the period and drops the currency", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get("/xrpl/network?in=usd&period=7d");
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/xrpl/network?period=7d");
+    expect(mock.requests).toEqual([]);
   });
 });

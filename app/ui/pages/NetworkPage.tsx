@@ -126,18 +126,20 @@ function OpenLedger({ part, onRetry }: { part: NetworkPageData["openLedger"]; on
 /** The period and the currency as segmented controls of links, and the period's note: the page's views are URLs (`networkHref`). */
 function Filters({ net, native, data }: { net: Net; native: string; data: NetworkPageData }) {
   const { view, displays } = data;
+  // The links are made from the network's displays, which the page's data carries (the NetworkInfo has none).
+  const views = { id: net, displays };
   return (
     <div role="group" aria-label="Filters" className="network__filters">
       <SegmentedLinks
         label="Period"
-        links={PERIODS.map(({ id, label }) => ({ label, href: networkHref(net, { ...view, period: id }), current: view.period === id }))}
+        links={PERIODS.map(({ id, label }) => ({ label, href: networkHref(views, { ...view, period: id }), current: view.period === id }))}
       />
       {displays.length > 1 && (
         <SegmentedLinks
           label="Amounts in"
           links={displays.map((display) => ({
             label: display === "usd" ? "USD" : native,
-            href: networkHref(net, { ...view, display }),
+            href: networkHref(views, { ...view, display }),
             current: view.display === display,
           }))}
         />

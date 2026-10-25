@@ -53,8 +53,10 @@ const LAST: LastValidated = {
 };
 
 // Every switch on for XRPL, every one off for Xahau: a switch added to `FEATURE_VARS` needs no edit here.
-const XRPL: NetworkInput["net"] = { id: "xrpl", native: "XRP", hasAmm: true, features: featuresOf(allSwitches("on")) };
-const XAHAU: NetworkInput["net"] = { id: "xahau", native: "XAH", hasAmm: false, features: NO_FEATURES };
+const XRPL: NetworkInput["net"] = { id: "xrpl", native: "XRP", hasAmm: true, displays: ["native", "usd"], features: featuresOf(allSwitches("on")) };
+const XAHAU: NetworkInput["net"] = { id: "xahau", native: "XAH", hasAmm: false, displays: ["native"], features: NO_FEATURES };
+// XRPL Testnet: the XRPL network's other facts, and the one view the mainnet's USD is not (D6).
+const XRPL_TESTNET: NetworkInput["net"] = { ...XRPL, displays: ["native"] };
 
 const fulfilled = <V>(value: V): PromiseFulfilledResult<V> => ({ status: "fulfilled", value });
 const rejected = (reason: unknown): PromiseRejectedResult => ({ status: "rejected", reason });
@@ -835,6 +837,12 @@ describe("networkPage", () => {
     expect(data.amm).toEqual({ state: "none" });
     expect(data.types.state === "ok" && data.types.chart.series.map((series) => series.id)).toContain("Invoke");
     expect(data.validators.state === "ok" && data.validators.href).toBeNull();
+  });
+
+  it("offers the displays of the network it is given: XRPL Testnet has the native one only", () => {
+    const { page: data } = networkPage(input({ net: XRPL_TESTNET }));
+    expect(data.displays).toEqual(["native"]);
+    expect(data.currency).toBe("XRP");
   });
 
   it("has AMM off as an answer", () => {

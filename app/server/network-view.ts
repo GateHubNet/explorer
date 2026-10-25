@@ -6,7 +6,7 @@ import BigNumber from "bignumber.js";
 
 import { tokenOf } from "../domain/fnv";
 import { compactNumber, formatAmount, formatCurrency, formatUtcDay, shortAddress } from "../domain/format";
-import { displaysOf, type Display, type NetworkParams } from "../domain/network-params";
+import type { Display, NetworkParams } from "../domain/network-params";
 import { sharePercent } from "../domain/percent";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { validatorHref } from "../domain/validators-params";
@@ -127,7 +127,7 @@ export interface NetworkLoaderData extends NetworkPageData {
 }
 
 export interface NetworkInput {
-  net: Pick<Network, "id" | "native" | "hasAmm" | "features">;
+  net: Pick<Network, "id" | "native" | "hasAmm" | "displays" | "features">;
   view: NetworkParams;
   /** #1 */
   last: LastValidated;
@@ -591,7 +591,7 @@ export function networkPage(input: NetworkInput): { page: NetworkPageData; failu
   const page: NetworkPageData = {
     anchor: ctx.anchor,
     view,
-    displays: displaysOf(net.id),
+    displays: net.displays,
     currency: ctx.currency,
     window: {
       unit: ctx.window.unit,

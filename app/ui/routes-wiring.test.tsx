@@ -722,14 +722,14 @@ describe("net.network.tsx", () => {
 
   it("draws the page of another view as a new page, keyed by its scope: a first render, which nothing on it animates", async () => {
     const answer = vi.fn<Answer>(async (url) => {
-      const { params } = parseNetworkParams(queryOf(url.href), "xrpl");
+      const { params } = parseNetworkParams(queryOf(url.href), XRPL);
       return networkAt(101, { view: params });
     });
     const { router, container } = mountNetwork(answer, networkAt(100, { view: { period: "30d", display: "native" } }));
     const before = container.querySelector(".network")!;
     expect(before).toBeTruthy();
 
-    await act(async () => void router.navigate(networkHref("xrpl", { period: "1y" })));
+    await act(async () => void router.navigate(networkHref(XRPL, { period: "1y" })));
     await pass(0);
     expect(answer).toHaveBeenCalledTimes(1);
     const after = container.querySelector(".network")!;

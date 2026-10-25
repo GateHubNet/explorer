@@ -353,7 +353,7 @@ describe("NetworkPage, the filters", () => {
     const links = within(period).getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual(["7 days", "30 days", "90 days", "1 year"]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual(
-      (["7d", "30d", "90d", "1y"] as const).map((period) => networkHref("xrpl", { period, display: "native" })),
+      (["7d", "30d", "90d", "1y"] as const).map((period) => networkHref({ id: "xrpl", displays: ["native", "usd"] }, { period, display: "native" })),
     );
     expect(links.map((link) => link.getAttribute("aria-current"))).toEqual(["true", null, null, null]);
     expect(filters().textContent).toContain("Totals and charts cover the 7 days from Oct 11 to Oct 17, 2026 (UTC), today so far");
@@ -385,6 +385,20 @@ describe("NetworkPage, the filters", () => {
     mount(page({ view: { period: "30d", display: "usd" }, currency: "USD" }));
     const links = within(screen.getByRole("group", { name: "Amounts in" })).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([null, "true"]);
+  });
+
+  it("has no USD link on a testnet: no 'Amounts in', and no link of the page names in=usd", () => {
+    mount(page({ displays: ["native"] }), { network: XRPL_TESTNET });
+    expect(screen.queryByRole("group", { name: "Amounts in" })).toBeNull();
+    expect(screen.queryByText("USD", { selector: "a" })).toBeNull();
+    const links = within(screen.getByRole("group", { name: "Period" })).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/xrpl/network?period=7d", "/xrpl/network", "/xrpl/network?period=90d", "/xrpl/network?period=1y"]);
+  });
+
+  it("makes its links from the network's displays, so a view that names USD on a testnet carries none into them", () => {
+    mount(page({ displays: ["native"], view: { period: "90d", display: "usd" }, currency: "USD" }), { network: XRPL_TESTNET });
+    const hrefs = Array.from(filters().querySelectorAll("a")).map((link) => link.getAttribute("href"));
+    expect(hrefs).toEqual(["/xrpl/network?period=7d", "/xrpl/network", "/xrpl/network?period=90d", "/xrpl/network?period=1y"]);
   });
 
   it("has no 'Amounts in' on Xahau, which has one currency", () => {
