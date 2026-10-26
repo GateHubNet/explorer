@@ -44,7 +44,7 @@
     "@types/node": "^24.19.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "happy-dom": "^21.0.3",
+    "happy-dom": "^21.0.4",
     "openapi-typescript": "^7.13.0",
     "ripple-binary-codec": "^2.11.0",
     "tsx": "^4.23.15",
