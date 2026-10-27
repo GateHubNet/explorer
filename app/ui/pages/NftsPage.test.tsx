@@ -600,7 +600,7 @@ describe("NftsPage: the coverage notes", () => {
 
   it("says URITokens on Xahau", () => {
     mount(build({ net: XAHAU, sales: fulfilled(nftSalesPageSample({ sales: SALES, coverage: coverageSample({ complete: false, from_ledger_index: 26533927 }) })) }), "/xahau/nfts", LAYOUT_XAHAU);
-    expect(screen.getAllByRole("note").map((note) => note.textContent)).toEqual(["Covers ledger #26,533,927 onwards: earlier URITokens sales are not in the index yet."]);
+    expect(screen.getAllByRole("note").map((note) => note.textContent)).toEqual(["Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet."]);
   });
 });
 

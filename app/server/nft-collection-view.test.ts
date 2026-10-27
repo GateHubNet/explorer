@@ -233,17 +233,56 @@ describe("the 30-day average and lowest sale", () => {
     expect(averageOf([day("2026-10-10", { sales_count: 1, volume_native: "0.4", avg_price_native: "0.4", min_price_native: "0.4" })]).average30.figure).toBe("0 XRP");
   });
 
-  it("never counts more rated sales than a day has sales", () => {
-    // a dust sale: 10 ÷ 0.000001 would be ten million sales
+  it("counts the whole number of sales that D3's rounded average allows: 20 over three sales at 6.666667 is 3, not 2", () => {
+    // 20 ÷ 6.666667 = 2.9999999…: a floor would say two sales; three sales make 6.666666…, which rounds to 6.666667
+    const stats = averageOf([day("2026-10-10", { sales_count: 3, volume_native: "20", avg_price_native: "6.666667", min_price_native: "6" })]);
+    expect(stats.average30).toEqual({ figure: "7 XRP", note: "3 sales" });
+  });
+
+  it("counts the sales of a day of dust prices exactly where the average allows one number", () => {
+    // 0.000009 over four sales is 0.00000225, which rounds to 0.000002; 0.000009 ÷ 0.000002 would be four and a half, and only four sales fit the average and the day
+    const dust = averageOf([day("2026-10-10", { sales_count: 4, volume_native: "0.000009", avg_price_native: "0.000002", min_price_native: "0.000001" })]);
+    expect(dust.average30).toEqual({ figure: "0 XRP", note: "4 sales" });
+    // with a sale of 1000 beside it the figure moves by the five sales, and nothing is guessed
+    const both = averageOf([
+      day("2026-10-10", { sales_count: 4, volume_native: "0.000009", avg_price_native: "0.000002", min_price_native: "0.000001" }),
+      day("2026-10-11", { sales_count: 1, volume_native: "1000", avg_price_native: "1000", min_price_native: "1000" }),
+    ]);
+    expect(both.average30).toEqual({ figure: "200 XRP", note: "5 sales" });
+  });
+
+  it("says about when a day's average allows several counts: ten sales of 0.000016 in all, beside one of 1000", () => {
+    // 0.000016 at an average of 0.000002 is seven to ten sales (the data API has the count and does not serve it): the rounding says eight, and the note says it is a guess
+    const stats = averageOf([
+      day("2026-10-10", { sales_count: 10, volume_native: "0.000016", avg_price_native: "0.000002", min_price_native: "0.000001" }),
+      day("2026-10-11", { sales_count: 1, volume_native: "1000", avg_price_native: "1000", min_price_native: "1000" }),
+    ]);
+    expect(stats.average30).toEqual({ figure: "111 XRP", note: "about 9 sales" });
+    expect(stats.lowest30.figure).toBe("0.000001 XRP");
+    // one day that is not sure makes the sum "about"; a day that is sure alone does not
+    expect(averageOf([day("2026-10-10", { sales_count: 10, volume_native: "0.000016", avg_price_native: "0.000002", min_price_native: "0.000001" })]).average30.note).toBe("about 8 sales");
+    expect(averageOf([day("2026-10-10", { sales_count: 1, volume_native: "1000", avg_price_native: "1000", min_price_native: "1000" })]).average30.note).toBe("1 sale");
+  });
+
+  it("never counts more rated sales than a day has sales, and says about when the day's own figures do not fit", () => {
+    // 10 over two sales is 5 each, not 0.000001: no count fits, so the rounding (ten million) is held to the day's two sales
     const stats = averageOf([day("2026-10-10", { sales_count: 2, volume_native: "10", avg_price_native: "0.000001", min_price_native: "0.000001" })]);
-    expect(stats.average30).toEqual({ figure: "5 XRP", note: "2 sales" });
+    expect(stats.average30).toEqual({ figure: "5 XRP", note: "about 2 sales" });
     expect(stats.lowest30.figure).toBe("0.000001 XRP");
   });
 
-  it("has nothing to divide by on a day whose average is 0, and still gives the lowest", () => {
-    const stats = averageOf([day("2026-10-10", { sales_count: 1, volume_native: "0", avg_price_native: "0", min_price_native: "0" })]);
-    expect(stats.average30.figure).toBe("—");
+  it("counts a day whose average is 0 with all its sales: a price of 0 is a price", () => {
+    // five sales that came to 0 (an average of 0 to six decimals), and one of 100
+    const stats = averageOf([
+      day("2026-10-10", { sales_count: 5, volume_native: "0", avg_price_native: "0", min_price_native: "0" }),
+      day("2026-10-11", { sales_count: 1, volume_native: "100", avg_price_native: "100", min_price_native: "100" }),
+    ]);
+    expect(stats.average30).toEqual({ figure: "17 XRP", note: "6 sales" });
     expect(stats.lowest30.figure).toBe("0 XRP");
+    // a day of one sale of 0 is an average of 0 too
+    const alone = averageOf([day("2026-10-10", { sales_count: 1, volume_native: "0", avg_price_native: "0", min_price_native: "0" })]);
+    expect(alone.average30).toEqual({ figure: "0 XRP", note: "1 sale" });
+    expect(alone.lowest30.figure).toBe("0 XRP");
   });
 
   it("says why there is no average: no sale, or sales with no rate", () => {
@@ -388,7 +427,7 @@ describe("the chart of the page", () => {
     const page = nftCollectionPage(pageInput({ stats: fulfilled(daysOf(days, coverageSample())) }));
     expect(page.notes.chart).toEqual({ before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFT sales are not in the index yet." });
     expect(nftCollectionPage(pageInput()).notes.chart).toBeNull();
-    expect(nftCollectionPage(pageInput({ net: XAHAU, key: URI_KEY, stats: fulfilled(daysOf(days, coverageSample())) })).notes.chart?.after).toBe(" onwards: earlier URITokens sales are not in the index yet.");
+    expect(nftCollectionPage(pageInput({ net: XAHAU, key: URI_KEY, stats: fulfilled(daysOf(days, coverageSample())) })).notes.chart?.after).toBe(" onwards: earlier URIToken sales are not in the index yet.");
   });
 });
 
@@ -422,7 +461,7 @@ describe("the tabs", () => {
     const page = nftCollectionPage(pageInput({ list: fulfilled(nftSalesPageSample({ coverage: coverageSample() })) }));
     expect(page.notes.tab).toEqual({ before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFT sales are not in the index yet." });
     const xahau = nftCollectionPage(pageInput({ net: XAHAU, key: URI_KEY, list: fulfilled(nftSalesPageSample({ coverage: coverageSample() })) }));
-    expect(xahau.notes.tab?.after).toBe(" onwards: earlier URITokens sales are not in the index yet.");
+    expect(xahau.notes.tab?.after).toBe(" onwards: earlier URIToken sales are not in the index yet.");
   });
 
   it("says that a collection with no sale has none, with the rows empty", () => {
@@ -764,6 +803,33 @@ describe("the failures", () => {
     expect(page.paging).toEqual({ newerHref: null, olderHref: null });
     expect(page.tabs).toHaveLength(3);
     expect(page.stats.supply.figure).toBe("1");
+  });
+
+  it("fails the tab's card, and does not throw, when the list is another tab's page", () => {
+    const sales = nftSalesPageSample({ coverage: WHOLE });
+    const nfts = nftsPageSample({ coverage: WHOLE });
+    const holders = nftHoldersPageSample({ coverage: WHOLE });
+    const wrong = (tab: "sales" | "nfts" | "holders", list: NftSalesPage | NftsPage | NftHoldersPage) => nftCollectionPage(pageInput({ query: { ...QUERY, tab }, list: fulfilled(list) }));
+    for (const [tab, list, what] of [
+      ["sales", nfts, "the sales"],
+      ["sales", holders, "the sales"],
+      ["nfts", sales, "the NFTs"],
+      ["nfts", holders, "the NFTs"],
+      ["holders", sales, "the holders"],
+      ["holders", nfts, "the holders"],
+    ] as const) {
+      const page = wrong(tab, list);
+      expect(page.failures, `${tab}`).toEqual({ tab: what });
+      expect(page.rows).toBeNull();
+      expect(page.empty).toBeNull();
+      expect(page.notes.tab).toBeNull();
+      expect(page.paging).toEqual({ newerHref: null, olderHref: null });
+      // the rest of the page stands
+      expect(page.stats.supply.figure).toBe("1");
+    }
+    const marker = collectionMarkerPage(markerInput({ list: fulfilled(nfts) }));
+    expect(marker.rows).toBeNull();
+    expect(marker.failures).toEqual({ tab: "the sales" });
   });
 
   it("tells both when both failed", () => {

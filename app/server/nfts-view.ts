@@ -38,7 +38,7 @@ import { coverageNote, type CoverageNoteText } from "./coverage";
 import { BN, decimalOf, divided } from "./exact";
 import { anchoredWindow, byDay, tokened } from "./network-view";
 import type { Network } from "./networks";
-import { counted, DASH, plain, salesCount, sharePercentTenth } from "./nft-format";
+import { counted, DASH, plain, queryPairsOf, salesCount, sharePercentTenth } from "./nft-format";
 import { unixOf } from "./validator-facts";
 
 const ZERO = new BN(0);
@@ -145,7 +145,7 @@ export interface NftsPageData {
 }
 
 export interface NftSalesPageData {
-  /** `NFT sales`, `URITokens sales`. */
+  /** `NFT sales`, `URIToken sales`. */
   heading: string;
   rows: NftSaleRow[];
   paging: Paging;
@@ -370,9 +370,7 @@ function viewOf(query: NftsQuery): Partial<NftsQuery> {
  * from that link, so that the defaults are `nftsHref`'s own and cannot drift from it.
  */
 function hiddenOf(net: NftsNet, query: NftsQuery): Array<[name: string, value: string]> {
-  const href = nftsHref(net.id, { period: query.period, sort: query.sort, order: query.order });
-  const at = href.indexOf("?");
-  return at < 0 ? [] : Array.from(new URLSearchParams(href.slice(at + 1)), ([name, value]): [string, string] => [name, value]);
+  return queryPairsOf(nftsHref(net.id, { period: query.period, sort: query.sort, order: query.order }));
 }
 
 /** The sort headers: the current sort's link flips the order, another sort starts largest first; the page the visitor was on is dropped. */
@@ -413,7 +411,7 @@ function introOf(net: NftsNet): string {
 export function nftsListPage(input: NftsListInput): NftsPageData {
   const { net, query } = input;
   const words = nftWords(net.id);
-  // What the sales' coverage notes say is missing: "NFT sales", "URITokens sales".
+  // What the sales' coverage notes say is missing: "NFT sales", "URIToken sales".
   const coverageWords = words.salesHeading;
   const failures: NftsPageData["failures"] = {};
 

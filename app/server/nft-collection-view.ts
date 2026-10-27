@@ -28,7 +28,7 @@ import { coverageNote, type CoverageNoteText } from "./coverage";
 import { BN, decimalOf, divided } from "./exact";
 import { anchoredWindow, byDay, tokened } from "./network-view";
 import type { Network } from "./networks";
-import { counted, DASH, plain, salesCount, sharePercentTenth } from "./nft-format";
+import { counted, DASH, plain, queryPairsOf, salesCount, sharePercentTenth } from "./nft-format";
 import { saleRows, type NftSaleRow } from "./nfts-view";
 
 /** What the builders read of the network: its id (the words and the links), its name (a breadcrumb, a 404), its native currency, and its name in a sentence (`longName`). */
@@ -217,39 +217,56 @@ export function collectionDaySeries(days: readonly NftCollectionDay[], window: P
 
 // ---- The 30-day figures -------------------------------------------------------------------------------------------------------------------------
 
+/** Half of the last place of an amount: the data API writes `avg_price_native` to 6 decimals, so the average of `n` sales is within this of `volume_native ÷ n`. */
+const HALF_PLACE = new BN("0.0000005");
+
 /**
- * How many of a day's sales had a price in the native currency: `volume_native ÷ avg_price_native`, rounded to a whole number. The data API's average is the volume over those sales
- * (its `sales_count` counts every sale, so it cannot be the divisor, spec rule 10), at most 6 decimals, which the division can make a little more or less than the whole number it is;
- * it is at least 1 and at most the day's sales. `null` for a day with no average, or an average of 0 (nothing to divide by).
+ * How many of a day's sales had a price in the native currency (a sale with no rate that day is in `sales_count` and in no price), and whether that is known.
+ *
+ * The data API holds the count (its `priced`) and does not serve it: it serves `avg_price_native`, which is `volume_native ÷ priced` rounded to 6 decimals. So `volume ÷ average`
+ * is not the count (twenty over three sales is an average of 6.666667, and 20 ÷ 6.666667 is 2.99999985): the count is the whole number `n` that makes `volume ÷ n` round to the
+ * average, which is any `n` from `volume ÷ (average + half a place)` up to `volume ÷ (average − half a place)` (a closed interval: it does not depend on which way the API rounds a
+ * half), and at least 1 and at most the day's `sales_count`. When the interval holds one such number, the count is exact (roughly whenever the average is more than the day's sales
+ * times 0.000001: the prices are not dust). When it holds several (a day of dust prices) or none (figures that do not fit together), the count is the rounding of `volume ÷ average`
+ * held to 1 and the day's sales, and `exact` is false: the page says "about". A day with an average of 0 has prices that are 0 to 6 decimals, and counts as all its sales (a price
+ * of 0 is a price: nothing is left to tell them by). `null` for a day with no average (no sale of it had a price) and for a day with no sale.
  */
-function ratedSalesOf(day: NftCollectionDay): BigNumber | null {
+function ratedSalesOf(day: NftCollectionDay): { count: BigNumber; exact: boolean } | null {
   const average = decimalOf(day.avg_price_native);
-  if (average === null || !average.gt(0)) return null;
-  const most = new BN(day.sales_count);
-  if (most.lt(1)) return null;
-  const rated = divided(new BN(day.volume_native), average, 0);
-  return rated.lt(1) ? new BN(1) : rated.gt(most) ? most : rated;
+  const sales = new BN(day.sales_count);
+  if (average === null || sales.lt(1)) return null;
+  if (average.isZero()) return { count: sales, exact: true };
+  const volume = new BN(day.volume_native);
+  const fewest = BN.maximum(volume.div(average.plus(HALF_PLACE)).integerValue(BN.ROUND_CEIL), 1);
+  const lessHalf = average.minus(HALF_PLACE);
+  // an average no more than half a place has no upper bound but the day's sales
+  const most = lessHalf.gt(0) ? BN.minimum(volume.div(lessHalf).integerValue(BN.ROUND_FLOOR), sales) : sales;
+  if (fewest.eq(most)) return { count: fewest, exact: true };
+  const rounded = divided(volume, average, 0);
+  return { count: rounded.lt(1) ? new BN(1) : rounded.gt(sales) ? sales : rounded, exact: false };
 }
 
 /**
  * Average sale and lowest sale of the 30 days of `window` from the days of the stats (spec 3.1): the average is the sum of the volume over the sum of the rated sales of the days that
- * have an average, in whole units, half up, with the number of those sales in its note; the lowest is the lowest `min_price_native`. A dash for what has no sale to be made of, with
- * its reason in the note.
+ * have an average, in whole units, half up, with the number of those sales in its note ("about" when a day's count is a rounding, see `ratedSalesOf`); the lowest is the lowest
+ * `min_price_native`. A dash for what has no sale to be made of, with its reason in the note.
  */
 function thirtyDays(net: CollectionNet, window: PeriodWindow, days: readonly NftCollectionDay[]): { average30: CollectionStat; lowest30: CollectionStat } {
   const rows = byDay(days, (row) => row.date);
   let volume = new BN(0);
   let rated = new BN(0);
+  let exact = true;
   let sales = 0;
   let lowest: BigNumber | null = null;
   for (const bucket of window.buckets) {
     const row = rows.get(bucket);
     if (row === undefined) continue;
     sales += row.sales_count;
-    const count = ratedSalesOf(row);
-    if (count !== null) {
+    const priced = ratedSalesOf(row);
+    if (priced !== null) {
       volume = volume.plus(row.volume_native);
-      rated = rated.plus(count);
+      rated = rated.plus(priced.count);
+      exact = exact && priced.exact;
     }
     const min = decimalOf(row.min_price_native);
     if (min !== null && (lowest === null || min.lt(lowest))) lowest = min;
@@ -258,7 +275,7 @@ function thirtyDays(net: CollectionNet, window: PeriodWindow, days: readonly Nft
   return {
     average30: {
       figure: average === null ? DASH : `${formatAmount(average.toFixed())} ${net.native}`,
-      note: average !== null ? salesCount(rated.toNumber()) : sales === 0 ? NO_SALE_NOTE : `${salesCount(sales)}, none with a daily ${net.native} rate`,
+      note: average !== null ? `${exact ? "" : "about "}${salesCount(rated.toNumber())}` : sales === 0 ? NO_SALE_NOTE : `${salesCount(sales)}, none with a daily ${net.native} rate`,
     },
     lowest30: { figure: lowest === null ? DASH : `${formatAmount(lowest.toFixed())} ${net.native}`, note: LOWEST_NOTE },
   };
@@ -294,16 +311,15 @@ function holderRow(holder: NftHolder, supply: number): HolderRow {
   return { key: holder.owner, owner: holder.owner, held: counted(holder.held), share: sharePercentTenth(plain(holder.held), plain(supply)) };
 }
 
-/** What the tab's page holds, by the tab: the loader's call for the tab gave it (`nftCollectionSales`, `nftCollectionNfts` or `nftCollectionHolders`). */
+/**
+ * The rows of the tab's page: the loader's call for the tab gave it (`nftCollectionSales`, `nftCollectionNfts` or `nftCollectionHolders`). A page that is another tab's (a loader that
+ * asked the wrong call) is no list of this tab: `null`, which the card tells as failed, and not a throw at a list that is not there.
+ */
 function tabRows(net: CollectionNet, tab: CollectionTab, list: CollectionList, supply: number): NftCollectionPageData["rows"] {
-  switch (tab) {
-    case "sales":
-      return saleRows(net, (list as NftSalesPage).sales);
-    case "nfts":
-      return (list as NftsPage).nfts.map((nft) => nftRow(net, nft));
-    case "holders":
-      return (list as NftHoldersPage).holders.map((holder) => holderRow(holder, supply));
-  }
+  if (tab === "sales" && "sales" in list) return saleRows(net, list.sales);
+  if (tab === "nfts" && "nfts" in list) return list.nfts.map((nft) => nftRow(net, nft));
+  if (tab === "holders" && "holders" in list) return list.holders.map((holder) => holderRow(holder, supply));
+  return null;
 }
 
 // ---- The links ----------------------------------------------------------------------------------------------------------------------------------
@@ -317,9 +333,7 @@ function tabView(query: CollectionQuery, ownerError: string | undefined): Partia
 
 /** The fields of the NFTs tab's form besides the owner and "Include burned": the view's `measure` and `tab`, as the canonical link writes them, read back from that link. */
 function hiddenOf(net: CollectionNet, key: CollectionKey, query: CollectionQuery): Array<[name: string, value: string]> {
-  const href = collectionHref(net.id, key, { measure: query.measure, tab: "nfts" });
-  const at = href.indexOf("?");
-  return at < 0 ? [] : Array.from(new URLSearchParams(href.slice(at + 1)), ([name, value]): [string, string] => [name, value]);
+  return queryPairsOf(collectionHref(net.id, key, { measure: query.measure, tab: "nfts" }));
 }
 
 // ---- The pages ----------------------------------------------------------------------------------------------------------------------------------
@@ -356,8 +370,9 @@ function tabOf(
   if (list === null) return { rows: null, note: null, next: undefined, empty: null };
   if (list.status === "rejected") return { rows: null, note: null, next: undefined, empty: null, failure: words.what };
   const rows = tabRows(net, query.tab, list.value, supply);
+  if (rows === null) return { rows: null, note: null, next: undefined, empty: null, failure: words.what };
   const filtered = query.tab === "nfts" && query.owner !== undefined;
-  const empty = rows !== null && rows.length === 0 ? (filtered ? `No ${nftWords(net.id).token} of this collection is held by ${query.owner}.` : words.empty) : null;
+  const empty = rows.length === 0 ? (filtered ? `No ${nftWords(net.id).token} of this collection is held by ${query.owner}.` : words.empty) : null;
   return { rows, note: coverageNote(list.value.coverage, words.coverage), next: list.value.marker, empty };
 }
 

@@ -521,7 +521,7 @@ describe("Xahau (the same page with URIToken words)", () => {
     expect(collectionRows(html)[1]![0]).toContain("every URIToken of this issuer");
     expect(text).toContain("A sale is a URITokenBuy of a token offered for sale. URITokens carry no transfer fee, so there is no royalty.");
     // Xahau's coverage is not complete: each list says where its history starts, in URIToken words, and none claims to fail.
-    expect(text).toContain("Covers ledger #26,533,927 onwards: earlier URITokens sales are not in the index yet.");
+    expect(text).toContain("Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet.");
     expect(text).toContain("Covers ledger #26,533,927 onwards: earlier collections are not in the index yet.");
     expect((html.match(/role="note"/g) ?? []).length).toBe(4);
     expect(alerts(html)).toBe(0);
@@ -614,16 +614,16 @@ describe("the older sales", () => {
     expect(mock.requests).toEqual([]);
   });
 
-  it("is Xahau's: URITokens sales, with the URIToken column", async () => {
+  it("is Xahau's: URIToken sales, with the URIToken column", async () => {
     cold();
     mock = mockUpstream("xahau");
     const { response, html, text } = await render("/xahau/nfts/sales");
     expect(response.status).toBe(200);
     expect(keysOf(mock.requests)).toEqual([PAGE_KEY]);
-    expect(html).toContain("<title>URITokens sales · Xahau · explorer</title>");
+    expect(html).toContain("<title>URIToken sales · Xahau · explorer</title>");
     expect(text).toContain("Xahau / URITokens / Sales");
     expect(tableRows(html, "Sales")[0]).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → buyer", "Sale", "Royalty"]);
-    expect(text).toContain("Covers ledger #26,533,927 onwards: earlier URITokens sales are not in the index yet.");
+    expect(text).toContain("Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet.");
   });
 });
 

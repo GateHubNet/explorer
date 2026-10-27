@@ -1088,7 +1088,7 @@ describe("nftSalesMeta", () => {
 
   it("is Xahau's on Xahau, and the sandbox's names", () => {
     const list = nftSalesMeta(sales({ id: "xahau", native: "XAH", longName: "Xahau" }), XAHAU);
-    expect(title(list)).toBe("URITokens sales · Xahau · explorer");
+    expect(title(list)).toBe("URIToken sales · Xahau · explorer");
     expect(content(list, "description")).toBe("The latest URIToken sales on Xahau, newest first.");
     expect(title(nftSalesMeta(sales(), XRPL_TESTNET))).toBe("NFT sales · XRPL Testnet · explorer");
     expect(content(nftSalesMeta(sales({ id: "xrpl", native: "XRP", longName: "XRPL Testnet" }), XRPL_TESTNET), "description")).toBe("The latest NFT sales on XRPL Testnet, newest first.");

@@ -244,7 +244,7 @@ export interface NftWords {
 
 const WORDS = {
   xrpl: { token: "NFT", tokens: "NFTs", kindTag: "NFToken", collectionTag: "NFToken collection", listHeading: "NFTs", salesHeading: "NFT sales" },
-  xahau: { token: "URIToken", tokens: "URITokens", kindTag: "URIToken", collectionTag: "URIToken collection", listHeading: "URITokens", salesHeading: "URITokens sales" },
+  xahau: { token: "URIToken", tokens: "URITokens", kindTag: "URIToken", collectionTag: "URIToken collection", listHeading: "URITokens", salesHeading: "URIToken sales" },
 } as const satisfies Record<NetworkId, NftWords>;
 
 /** The words of a network's NFT pages, by its id (a network's name is the layout's, `network.name`: the words here are the tokens'). */

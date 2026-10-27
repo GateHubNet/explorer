@@ -667,8 +667,8 @@ the incomplete per-NFT coverage the item rule gives over these recordings (which
 - **The days of the stats** (`"days"`): the recordings are dated after T, so none of a collection's events is in the 30 days to T; each of the three collections' sales, mints and burns is
   moved into the window, to a day drawn for it, so that the days add up to the collection's own totals (sales, volume, mints and burns). The featured collection's days are drawn so that the
   average and the lowest price of a day, which the collection page's 30-day figures and chart read, are put to work (E8 Task 9; a day with one sale has an average equal to its lowest price):
-  every day with an event is a row and every row has an event, three days have several (one with two rated sales of different prices, one with a rated sale and a sale in an issued
-  currency, which has no rate, so that `sales_count` is 2 and the average is over the one price, and one with two rated sales and a mint), and the days with no row (6, never the first or the last, which are
+  every day with an event is a row and every row has an event, three days have several (one with two rated sales, one with a rated sale and a sale in an issued
+  currency, which has no rate, so that `sales_count` is 2 and the average is over the one price, and one with two rated sales and a mint; the two rated sales of the first and of the third have different prices, so that the lowest price is less than the average), and the days with no row (6, never the first or the last, which are
   2026-09-18 and T) are the days that those three took from the events. The two other collections' few events are on days drawn the same way, a sale in an issued currency alone on its
   day: a row with `sales_count: 1`, `volume_native: "0"` and no price.
 - **The volume** (`"volume"`): a model of sales over the 31 days to the minute of T's close for the most traded collections of the list (XRPL 6, Xahau 5; 32 sales to the first, fewer to

@@ -497,7 +497,7 @@ describe("nftWords", () => {
       kindTag: "URIToken",
       collectionTag: "URIToken collection",
       listHeading: "URITokens",
-      salesHeading: "URITokens sales",
+      salesHeading: "URIToken sales",
     });
   });
 

@@ -143,17 +143,17 @@ describe("NftSalesPage", () => {
     expect(within(screen.getByRole("region", { name: "Sales" })).getByText("No sales in the index yet.")).toBeTruthy();
   });
 
-  it("is Xahau's: URITokens sales, the URIToken column, a royalty that is a dash, the URIToken's note", () => {
+  it("is Xahau's: URIToken sales, the URIToken column, a royalty that is a dash, the URIToken's note", () => {
     const uri = nftSaleSample({ nft_id: URI_TOKEN_ID, kind: "uritoken", issuer: URI_TOKEN_ISSUER, serial: undefined, taxon: undefined, currency: "XAH", amount: "520", converted_amount: "520", royalty_est: undefined });
     mount(nftSalesPage(XAHAU, { back: [] }, nftSalesPageSample({ sales: [uri], coverage: coverageSample({ complete: false, from_ledger_index: 26533927 }) })), "/xahau/nfts/sales", LAYOUT_XAHAU);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("URITokens sales");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("URIToken sales");
     expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getAllByRole("listitem").map((item) => item.textContent?.replace("/", ""))).toEqual(["Xahau", "URITokens", "Sales"]);
     const table = screen.getByRole("table", { name: "Sales" });
     expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → buyer", "Sale", "Royalty"]);
     const cells = within(within(table).getAllByRole("row")[1]!).getAllByRole("cell");
     expect(cells[6]!.textContent).toBe("—");
     expect(screen.getByText("A sale is a URITokenBuy of a token offered for sale. URITokens carry no transfer fee, so there is no royalty.")).toBeTruthy();
-    expect(screen.getByRole("note").textContent).toBe("Covers ledger #26,533,927 onwards: earlier URITokens sales are not in the index yet.");
+    expect(screen.getByRole("note").textContent).toBe("Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet.");
   });
 
   it("names the network of the sandbox in its breadcrumb", () => {

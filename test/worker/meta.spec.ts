@@ -619,7 +619,7 @@ describe("the NFT list", () => {
     }
     mock = mockUpstream("xahau");
     const tags = head((await page("/xahau/nfts/sales")).html);
-    expect(tags.titles).toEqual(["URITokens sales · Xahau · explorer"]);
+    expect(tags.titles).toEqual(["URIToken sales · Xahau · explorer"]);
     expect(tags.content("robots")).toBe("noindex, follow");
   });
 });

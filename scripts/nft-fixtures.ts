@@ -779,9 +779,10 @@ function daysOf(dayOf: ReadonlyMap<NftEvent, string>): NftCollectionDay[] {
 
 /**
  * The days of the featured collection's stats, which the average and the lowest price of a day need to be seen at work on (E8 Task 9): every row is a day with an event and every
- * day with an event is a row, and three days have several: one with two rated sales of different prices (its average is neither of them), one with a rated sale and an unrated one
- * (`sales_count` 2, and an average over the one that has a price), and one with two rated sales and a mint. The other events have a day each, and the days with no row (never the
- * first or the last, which are 2026-09-18 and T) are as many as the days that the crowded ones took from the events. The sales, mints and burns still add up to the collection's totals.
+ * day with an event is a row, and three days have several: one with two rated sales, one with a rated sale and an unrated one (`sales_count` 2, and an average over the one that has
+ * a price), and one with two rated sales and a mint. The two rated sales of the first and of the third have different prices, so that on both days the lowest price is less than
+ * the average, which neither price is (test/unit/nft-fixtures.test.ts relies on it). The other events have a day each, and the days with no row (never the first or the last, which
+ * are 2026-09-18 and T) are as many as the days that the crowded ones took from the events. The sales, mints and burns still add up to the collection's totals.
  */
 function crowdedDays(events: readonly NftEvent[], buckets: readonly string[], next: () => number): NftCollectionDay[] {
   const rated = events.filter((e) => e.event === "sale" && e.converted_amount !== undefined);
@@ -798,10 +799,12 @@ function crowdedDays(events: readonly NftEvent[], buckets: readonly string[], ne
     return e;
   };
   const crowd: NftEvent[][] = [];
+  const differing = (than: NftEvent) => (e: NftEvent) => e.converted_amount !== than.converted_amount;
   const first = take(rated);
-  crowd.push([first, take(rated, (e) => e.converted_amount !== first.converted_amount)]);
+  crowd.push([first, take(rated, differing(first))]);
   for (const e of unrated) crowd.push([take(rated), e]);
-  crowd.push([take(rated), take(rated), take(mints)]);
+  const third = take(rated);
+  crowd.push([third, take(rated, differing(third)), take(mints)]);
 
   const units = [...crowd, ...single.map((e) => [e])];
   const quiet = buckets.length - units.length;

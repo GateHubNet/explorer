@@ -55,7 +55,7 @@ const W = windowOf("2026-10-17", "30d");
 const QUERY: NftsQuery = { period: "day", sort: "volume", order: "desc", back: [] };
 const ISSUER_FILTER = "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy";
 
-const SALES_WORDS = { xrpl: "NFT sales", xahau: "URITokens sales" } as const;
+const SALES_WORDS = { xrpl: "NFT sales", xahau: "URIToken sales" } as const;
 const MARKERS = { M1: "WzEwNzg4NjE2Myw4MywxXQ", M2: "WzEwNzg4MTUzMCwxNjIsMV0", M3: "WzEwNzg3ODc3NSwxMDQsMV0" };
 
 /** A component of a live or daily row: the sale count and the amount in the native currency. */
@@ -858,7 +858,7 @@ describe("the older sales", () => {
 
   it("is headed in the network's words", () => {
     const data = nftSalesPage(XAHAU, { back: [] }, nftSalesPageSample());
-    expect(data.heading).toBe("URITokens sales");
+    expect(data.heading).toBe("URIToken sales");
     expect(data.note?.after).toBe(` onwards: earlier ${SALES_WORDS.xahau} are not in the index yet.`);
   });
 });
