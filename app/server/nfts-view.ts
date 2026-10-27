@@ -38,9 +38,9 @@ import { coverageNote, type CoverageNoteText } from "./coverage";
 import { BN, decimalOf, divided } from "./exact";
 import { anchoredWindow, byDay, tokened } from "./network-view";
 import type { Network } from "./networks";
+import { counted, DASH, plain, salesCount, sharePercentTenth } from "./nft-format";
 import { unixOf } from "./validator-facts";
 
-const DASH = "—";
 const ZERO = new BN(0);
 
 /** What the builders read of the network: its id (the words and the links), its native currency, and its name in a sentence (`longName`: "the XRP Ledger", "XRPL Testnet"). */
@@ -185,30 +185,11 @@ const COLLECTIONS_COVERAGE_WORDS = "collections";
 const AVERAGE_NOTE = "volume ÷ sales";
 const TOP_COUNT = 5;
 
-/** A JSON number as plain text: BigNumber writes the digits, `String(n)` would write an exponent from 1e21. */
-const plain = (n: number): string => new BN(n).toFixed();
-/** A count with its thousands grouped. */
-const counted = (n: number): string => formatAmount(plain(n));
-
-/** The words of a sale count: `412 sales`, `1 sale`. */
-const salesCount = (count: number): string => `${counted(count)} ${count === 1 ? "sale" : "sales"}`;
-
 /** What a collection of the data API is called in a path and a label: an issuer and, on XRPL, a taxon. */
 const keyOf = (source: { issuer: string; taxon?: number }): CollectionKey => (source.taxon === undefined ? { issuer: source.issuer } : { issuer: source.issuer, taxon: source.taxon });
 
 /** The key of a collection in a list: its path after `/nfts/`. */
 const pathKeyOf = (key: CollectionKey): string => (key.taxon === undefined ? key.issuer : `${key.issuer}/${plain(key.taxon)}`);
-
-/**
- * `part` as a percent of `whole` to one decimal, half up (`43.9%`, `100.0%`), and `<0.1%` for a share that is more than nothing and rounds to 0.0; a dash for a share of nothing.
- * Exact: BigNumber, never a float.
- */
-function sharePercentTenth(part: string, whole: string): string {
-  const [share, total] = [decimalOf(part), decimalOf(whole)];
-  if (share === null || total === null || share.isNegative() || !total.gt(0)) return DASH;
-  const tenths = divided(share.times(100), total, 1);
-  return tenths.isZero() && share.gt(0) ? "<0.1%" : `${tenths.toFixed(1)}%`;
-}
 
 // ---- A sale -------------------------------------------------------------------------------------------------------------------------------------
 
