@@ -40,6 +40,10 @@ A data API on `main` has no `amm_volume` route yet, and the top level of `wrangl
 network page has its AMM part failed: the volume card says "AMM swaps couldn’t be loaded.", and the page is degraded and never stored. For that API put `AMM_DATA=off` and `AMM_PAGES=off` in `.dev.vars`
 as well (the AMM pages are all AMM data: `AMM_PAGES` on over `AMM_DATA` off is the combination the pre-deploy guard refuses); the card then draws Payments and DEX trades only, with nothing failed.
 
+A data API without D3 (`feat/explorer-data-2`: the NFT routes) has no `nft_volume`, `nft_sales` or `nft_collections`, and the top level of `wrangler.jsonc` has `NFTS` `"on"`. Against such an API every
+card of the NFT list (`/xrpl/nfts`) is a "Couldn’t load …" that is logged and never stored, and the older sales and a page of more collections are a 503. For that API put `NFTS=off` in `.dev.vars` as well: the
+NFT pages are then not found, the header says "soon", and no call is made.
+
 **Developing against the sandbox.** The top level of `wrangler.jsonc` is `ENVIRONMENT` `"development"`: the pages show the mainnets (XRPL and Xahau), because every fixture is mainnet data, and the data API
 hosts are the placeholders above. To see the testnets from the sandbox's own data, put the sandbox's four URLs, `ENVIRONMENT` and its key in `.dev.vars`:
 
@@ -1965,7 +1969,7 @@ too close to the text's for axe's `link-in-text-block`. Their page with a card t
 was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
 - a page loads more JavaScript, gzipped, than its budget (`BUDGETS` in `scripts/bundle-budget.ts`, ruling R19): **150 KB** (150,000 bytes) for the lookup pages,
-  the home, ledger, transaction, account and markets routes, and **160 KB** (160,000 bytes) for the dashboards, the network, market pair, validators, validator, amendments and amendment
+  the home, ledger, transaction, account and markets routes and the two NFT pages, `nfts` and `nft-sales`, and **160 KB** (160,000 bytes) for the dashboards, the network, market pair, validators, validator, amendments and amendment
   routes and the two AMM pages, `amm` and `amm-pool` (`PAGES`, which names each page's budget); what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
@@ -2358,6 +2362,35 @@ manifest included; sandbox spec 13 expected under a kilobyte on every page). *Be
   to give back, 541 to 580 bytes. The validator and amendment pages also load a new chunk of 280 bytes, `publishers` (the fixed list's words, `app/domain/publishers.ts`), which is why they stand at +492 and +487. The root route's chunk grew 16 bytes and the
   `/:net` layout's 30. The manifest shrank 16 bytes with the `Pill` chunk gone from the routes' imports. The `testnet` tone's CSS is in the stylesheet, which the check does not count (it counts JavaScript); the root chunk names it by its hash.
 - **The most is 580 bytes** (the network page and the AMM list), under the kilobyte of spec 13. Every page is under its budget; the tightest are the AMM pool page, 7,209 bytes under 160,000, the analytics view, 7,441, and the network page, 8,684.
+
+**The figures of E8: the NFT list and the older sales** (the pages `nfts` and `nft-sales`; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included). *Before* is `7a4761d`, the commit
+the task started from, built and measured again for this table. Both NFT pages are lookup pages (`budget: "lookup"`, 150,000): neither measured over it, so ruling C18's fallback (the dashboard budget) was not needed. The later NFT pages (a
+collection, an NFT) add their rows.
+
+| page | Before (files) | After (files) | Change | Budget | Under it by |
+|---|---:|---:|---:|---:|---:|
+| home | 135,062 (14) | 135,186 (14) | +124 | 150,000 | 14,814 |
+| ledger | 134,956 (18) | 135,081 (18) | +125 | 150,000 | 14,919 |
+| transaction | 137,262 (19) | 137,386 (19) | +124 | 150,000 | 12,614 |
+| account | 140,431 (23) | 140,703 (24) | +272 | 150,000 | 9,297 |
+| network | 151,444 (26) | 151,563 (26) | +119 | 160,000 | 8,437 |
+| markets | 134,542 (13) | 134,664 (13) | +122 | 150,000 | 15,336 |
+| market-pair | 150,269 (27) | 150,395 (27) | +126 | 160,000 | 9,605 |
+| validators | 149,407 (25) | 149,532 (25) | +125 | 160,000 | 10,468 |
+| validator | 149,716 (26) | 149,842 (26) | +126 | 160,000 | 10,158 |
+| amendments | 139,755 (18) | 139,885 (18) | +130 | 160,000 | 20,115 |
+| amendment | 148,273 (23) | 148,399 (23) | +126 | 160,000 | 11,601 |
+| amm | 144,464 (22) | 144,603 (22) | +139 | 160,000 | 15,397 |
+| amm-pool | 152,845 (35) | 153,128 (36) | +283 | 160,000 | 6,872 |
+| nfts | | **148,235** (27) | | 150,000 | 1,765 |
+| nft-sales | | **133,717** (17) | | 150,000 | 16,283 |
+| account analytics (gate 2) | 152,604 (24) | 152,876 (25) | +272 | 160,000 | 7,124 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 1,876 | 2,006 | +130 | | |
+
+- **The manifest** grew 130 bytes for the two routes. That and the `import` lines the new routes add are the +119 to +139 of the pages that gained no file. The account page, the AMM pool page and the analytics view (which is the account page's
+  files and more) each gained a file, +272 to +283: the build's re-splitting of a shared chunk, as each new route has caused ("The shell and vendor chunks" above).
+- **The list** is the heaviest lookup page and stands 1,765 bytes under its budget: it loads the column chart and its cursor, the bar list, the segmented links, the form, the table and the pager. **The older sales** load the table and the pager alone.
+  The two share `NftSalesTable` (`app/ui/components/NftSalesTable.tsx`), the table of a sale, which the collection's Sales tab draws too.
 
 ## The parsing libraries in the Workers runtime
 

@@ -4,7 +4,7 @@
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
 //   - the JavaScript a page loads first, gzipped, is over the page's budget (`BUDGETS`, ruling R19): 150 KB on the home, ledger, transaction,
-//     account and markets pages, 160 KB on the network, market pair, validators,
+//     account, markets and NFT list and older sales pages, 160 KB on the network, market pair, validators,
 //     validator, amendments, amendment, AMM pools and AMM pool pages (the route manifest is in it: see below);
 //   - the analytics view of the account page loads more than 160 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
@@ -27,7 +27,8 @@ import { gzipSync } from "node:zlib";
 /**
  * The two budgets, in bytes of 1000 to the KB (ruling R19, the owner's: "Keep 150 KB for home, ledger, transaction and account; raise the limit to
  * 160 KB for the network, market pair, account analytics, validators, amendments and AMM pages"). `lookup`, 150 KB: the pages a visitor opens to
- * look one thing up, and the markets list, which the owner did not name and which keeps the default. `dashboard`, 160 KB: the pages that draw the
+ * look one thing up, and the markets list and the NFT list and older sales, which the owner did not name and which keep the default (C18: a page that measures over it takes the
+ * dashboard budget, with the reason in the README). `dashboard`, 160 KB: the pages that draw the
  * network's activity in charts, and the account's analytics view. The lookup pages stand between 133.6 and 139.1 KB, the dashboards between 138.6
  * and 149.7 KB (network the heaviest) and the view at 151.3 KB, the route manifest (about 1.6 KB) included.
  */
@@ -49,6 +50,8 @@ export const PAGES = [
   { name: "amendment", route: "routes/net.amendments.$name", budget: "dashboard" },
   { name: "amm", route: "routes/net.amm._index", budget: "dashboard" },
   { name: "amm-pool", route: "routes/net.amm.$pool", budget: "dashboard" },
+  { name: "nfts", route: "routes/net.nfts._index", budget: "lookup" },
+  { name: "nft-sales", route: "routes/net.nfts.sales", budget: "lookup" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 
 /**

@@ -382,16 +382,17 @@ describe("the page without JavaScript", () => {
     expect(network.some((a) => /aria-current="page"/.test(a.attrs) && /is-current/.test(a.attrs))).toBe(true);
   });
 
-  it("links Markets and AMM in the header, while MARKETS and AMM_PAGES are on (the top level)", async () => {
+  it("links Markets, AMM and NFTs in the header, while MARKETS, AMM_PAGES and NFTS are on (the top level)", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await render("/xrpl/network?period=7d");
     for (const [label, path] of [
       ["Markets", "/xrpl/markets"],
       ["AMM", "/xrpl/amm"],
+      ["NFTs", "/xrpl/nfts"],
     ] as const) {
       const links = anchors(html).filter((a) => a.attrs.includes(`href="${path}"`));
       expect(links.map((a) => a.text)).toEqual([label]);
-      // Network is the current section of this page, Markets and AMM are not.
+      // Network is the current section of this page, Markets, AMM and NFTs are not.
       expect(links[0]!.attrs).not.toMatch(/aria-current|is-current|is-soon/);
       expect(html).not.toContain(`<span class="nav-item is-soon" aria-disabled="true"><span>${label}</span>`);
     }

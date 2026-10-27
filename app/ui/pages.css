@@ -3798,3 +3798,295 @@ a.markets__pair:hover .markets__name {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   NFTs: /{net}/nfts and /{net}/nfts/sales (the board's layout: one column of rows, the tables scrolling sideways inside their cards on a phone). The classes of the chart
+   kit (charts.css) are never defined here, the source line's included; the glyph is the components' `.nft-glyph`, the mode of a sale their `.tag`. */
+
+.nfts {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.nfts__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nfts__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.nfts__intro {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+/* The period's links, with what the period sets beside them (under them when there is no room). */
+.nfts__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+
+.nfts__hint {
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+/* The tiles, then the totals' SectionError under them. */
+.nfts__totals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The sales volume beside the top collections: the volume takes the room, the list is at least 300 px; they fold into one column on a phone. A card and the coverage note under
+   it are one block, the card taking the height the block has (the pair is as high as the taller of the two). */
+.nfts__pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.nfts__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nfts__wide {
+  flex: 999 1 520px;
+}
+
+.nfts__side {
+  flex: 1 1 340px;
+}
+
+.nfts__grow {
+  flex: 1 1 auto;
+}
+
+.nfts__empty {
+  color: var(--muted);
+}
+
+/* A card that failed to load, and the notes under a table: the card's own padding. */
+.nfts__failed {
+  padding: 16px;
+}
+
+.nfts__foot {
+  align-items: flex-start;
+}
+
+.nfts__notes {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+/* The tables: rows of 58 px, the header row 40 px, 8 px above and below a row's content so that a row a long figure wraps in does not touch its borders. A figure longer than
+   its track wraps inside its cell (the cells inherit it from the scroll region) and never widens the table. */
+.nfts__table {
+  overflow-wrap: anywhere;
+}
+
+.nfts__table .table__row {
+  min-height: 58px;
+  padding-block: 8px;
+}
+
+.nfts__table .table__head {
+  min-height: 40px;
+}
+
+/* A link in a cell is at least 24 px high (WCAG 2.5.8), with its words on one line where they fit. */
+.nfts__table a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.nfts__time {
+  display: flex;
+  flex-direction: column;
+}
+
+.nfts__age {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.nfts__nft,
+.nfts__coll {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nfts__ids,
+.nfts__names {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.nfts__short,
+.nfts__under {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.nfts__collection {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.nfts__issuer {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.nfts__price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.nfts__converted {
+  font-size: 11.5px;
+}
+
+/* The two accounts and the arrow between them, on one line while they fit. The cell is the containing block of the visually hidden "to" (`.sr` is absolute): without it the
+   word is placed against the page, past the edge of a phone, and widens the page though the table scrolls inside its card. */
+.nfts__who {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 12.5px;
+}
+
+/* A sort header is a link in the colour of the header row, the current sort's in the text colour, with its arrow after it. */
+.nfts__table .table__head a.nfts__sort {
+  gap: 4px;
+  min-height: 32px;
+  color: inherit;
+  font-weight: inherit;
+}
+
+.nfts__table .table__head a.nfts__sort.is-current {
+  color: var(--fg);
+}
+
+/* The issuer form: the field and its button on one line, the message of an issuer that is no address on a line of its own under them. */
+.nfts__filter {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nfts__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.nfts__field {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 420px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--sunken);
+}
+
+/* An issuer that is no address: the field's border says it with the message, which is tied to the field (`aria-describedby`). */
+.nfts__field.is-invalid {
+  border-color: var(--bad);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.nfts__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.nfts__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.nfts__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.nfts__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.nfts__submit {
+  min-height: 44px;
+}
+
+.nfts__error {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.nfts__error svg {
+  flex: none;
+}
+
+/* The pagers of the NFT pages have 44 px buttons, as the form's button is (the kit's are 36 px on a desktop). */
+.nfts .pager .btn,
+.nfts__foot > .btn {
+  min-height: 44px;
+}
+
+/* Touch targets: 44 px (spec 8) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 720px) {
+  .nfts__table .table__head a.nfts__sort {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .nfts__title {
+    font-size: 24px;
+  }
+}

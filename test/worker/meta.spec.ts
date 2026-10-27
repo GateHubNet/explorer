@@ -2,6 +2,7 @@ import { exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
+import { collectionsMarker, salesMarker } from "../support/nft-cases";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 import { amendmentCase, validationsMarker, validatorCase } from "../support/validators-cases";
@@ -555,6 +556,71 @@ describe("the AMM pools list", () => {
     expect(tags.content("robots")).toBe("noindex, follow");
     expect(tags.canonical).toEqual([]);
     for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+});
+
+describe("the NFT list", () => {
+  const DESCRIPTION = (words: string, where: string) => `${words} on ${where}: the sales volume, the largest collections and the latest sales.`;
+
+  it("has the tags of the default view: a description with no numbers of the data, a canonical URL, and no image", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/nfts")).html);
+    expect(tags.titles).toEqual(["NFTs · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("NFTs", "the XRP Ledger"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nfts`]);
+    expect(tags.content("og:title")).toBe("NFTs · XRPL · explorer");
+    expect(tags.content("og:description")).toBe(DESCRIPTION("NFTs", "the XRP Ledger"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nfts`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau: URITokens", async () => {
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/nfts")).html);
+    expect(tags.titles).toEqual(["URITokens · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("URITokens", "Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/nfts`]);
+  });
+
+  it("is noindex, follow on another sort, with no canonical URL or sharing tags", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page("/xrpl/nfts?sort=supply")).html);
+    expect(tags.titles).toEqual(["NFTs · XRPL · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("NFTs", "the XRP Ledger"));
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is noindex, follow behind a marker, titled More NFT collections", async () => {
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nfts?marker=${await collectionsMarker("xrpl")}`)).html);
+    expect(tags.titles).toEqual(["More NFT collections · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is noindex, follow on the older sales, whichever page of them", async () => {
+    for (const path of ["/xrpl/nfts/sales", `/xrpl/nfts/sales?marker=${await salesMarker("xrpl")}`]) {
+      mock = mockUpstream("xrpl");
+      const tags = head((await page(path)).html);
+      expect(tags.titles, path).toEqual(["NFT sales · XRPL · explorer"]);
+      expect(tags.content("description"), path).toBe("The latest NFT sales on the XRP Ledger, newest first.");
+      expect(tags.content("robots"), path).toBe("noindex, follow");
+      expect(tags.canonical, path).toEqual([]);
+      for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+      mock.restore();
+    }
+    mock = mockUpstream("xahau");
+    const tags = head((await page("/xahau/nfts/sales")).html);
+    expect(tags.titles).toEqual(["URITokens sales · Xahau · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
   });
 });
 

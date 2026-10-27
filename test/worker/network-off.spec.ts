@@ -5,7 +5,7 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The network page with every switch "off" (the `worker-off` project, README "Switches"): the AMM line is left out and so is the call that
 // feeds it, the wording is the `off` one that claims neither that the DEX trades include AMM swaps nor that they do not, "All validators"
-// is the header's "soon" style, and so are the header's Markets and AMM. The `worker` project's cases are network-page.spec.ts.
+// is the header's "soon" style, and so are the header's Markets, AMM and NFTs. The `worker` project's cases are network-page.spec.ts.
 
 const { get } = pageClient("198.51.106");
 
@@ -56,10 +56,11 @@ describe("/xrpl/network with the switches off", () => {
     expect(html).not.toContain("validators?scope=all");
   });
 
-  it("shows Markets and AMM in the header as 'soon'", async () => {
+  it("shows Markets, AMM and NFTs in the header as 'soon'", async () => {
     const { html } = await render();
     expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>Markets</span><span class="soon">soon</span></span>');
     expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>AMM</span><span class="soon">soon</span></span>');
+    expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>NFTs</span><span class="soon">soon</span></span>');
     // Network is a page.
     expect(html).toMatch(/<a class="nav-item is-current" aria-current="page" href="\/xrpl\/network"/);
   });
