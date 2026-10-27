@@ -4,14 +4,17 @@ import { anchors, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The NFT pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `NFTS` on (NFT spec 1.4, 15). `NFTS` is
-// page-level: every route of the NFT pages is a 404 of class `short` made before any call (neither the path's other segments nor the query is read: no redirect, no "not a
-// collection"), and the header's NFTs item is the "soon" label. The `worker` project's cases, with the switch on, are nfts-list.spec.ts and the specs of the later NFT pages;
+// page-level: every route of the NFT pages, and the link-preview image of an NFT, is a 404 of class `short` made before any call (neither the path's other segments nor the query is
+// read: no redirect, no "not a collection", no "not an id"), and the header's NFTs item is the "soon" label. The `worker` project's cases, with the switch on, are nfts-list.spec.ts and the specs of the later NFT pages;
 // the later pages add their routes and their other places (the image, the account's tab, plain ids, search) to this file.
 
 const { get, page, storedAs } = pageClient("198.18.62");
 
 const SHORT = { cls: "short", ttl: 30 };
 const ISSUER = "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy";
+/** An NFT id, and a URIToken's. */
+const NFT_ID = "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C9D848920A0669E96F";
+const URI_ID = "9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9";
 
 let mock: UpstreamMock | undefined;
 afterEach(() => {
@@ -52,6 +55,17 @@ describe("the NFT list and the older sales with NFTS off", () => {
     [`/xrpl/nfts/${ISSUER}/1?tab=holders&x=1`, "NFT", "XRPL"],
     [`/xrpl/nfts/${ISSUER}/1?marker=%25`, "NFT", "XRPL"],
     [`/xrpl/nfts/${ISSUER}/1?tab=nfts&owner=nope&marker=AAAA`, "NFT", "XRPL"],
+    // An NFT: its page, the id in lower case (which the page would redirect), a query to tidy, a marker that is none, an id that is none, and a URIToken.
+    [`/xrpl/nft/${NFT_ID}`, "NFT", "XRPL"],
+    [`/xrpl/nft/${NFT_ID.toLowerCase()}`, "NFT", "XRPL"],
+    [`/xrpl/nft/${NFT_ID}?offers=1`, "NFT", "XRPL"],
+    [`/xrpl/nft/${NFT_ID}?x=1&offers=0`, "NFT", "XRPL"],
+    [`/xrpl/nft/${NFT_ID}?marker=%25`, "NFT", "XRPL"],
+    [`/xrpl/nft/${NFT_ID}?offers=1&marker=WzEwNzg3ODc3NSwxMzAsMF0`, "NFT", "XRPL"],
+    ["/xrpl/nft/nope", "NFT", "XRPL"],
+    [`/xahau/nft/${URI_ID}`, "URIToken", "Xahau"],
+    [`/xahau/nft/${URI_ID.toLowerCase()}?x=1`, "URIToken", "Xahau"],
+    ["/xahau/nft/nope", "URIToken", "Xahau"],
   ])("answers %s with the not-found page, a 404 of class short, and asks nothing upstream", async (path, word, name) => {
     mock = mockUpstream(path.startsWith("/xahau") ? "xahau" : "xrpl");
     const response = await get(path);
@@ -69,11 +83,43 @@ describe("the NFT list and the older sales with NFTS off", () => {
     ["the older sales", "/xrpl/nfts/sales.data?_routes=routes%2Fnet.nfts.sales"],
     ["a collection", `/xrpl/nfts/${ISSUER}/1.data?_routes=routes%2Fnet.nfts.%24issuer.%24taxon`],
     ["a Xahau collection", "/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb.data?_routes=routes%2Fnet.nfts.%24issuer.%24taxon"],
+    ["an NFT", `/xrpl/nft/${NFT_ID}.data?_routes=routes%2Fnet.nft.%24id`],
+    ["an NFT in lower case", `/xrpl/nft/${NFT_ID.toLowerCase()}.data?_routes=routes%2Fnet.nft.%24id`],
+    ["a URIToken", `/xahau/nft/${URI_ID}.data?_routes=routes%2Fnet.nft.%24id`],
   ])("answers the .data URL of %s (a client-side navigation) with a 404 too, and no call", async (_what, path) => {
     mock = mockUpstream("xrpl");
     const response = await get(path);
     await response.text();
     expect(response.status).toBe(404);
+    expect(mock.requests).toEqual([]);
+  });
+});
+
+describe("the link-preview image of an NFT with NFTS off", () => {
+  it.each([
+    ["an NFT", `/og/xrpl/nft/${NFT_ID}.png`, "xrpl"],
+    ["a URIToken", `/og/xahau/nft/${URI_ID}.png`, "xahau"],
+    // What the image would redirect or refuse is not read: the id in lower case (a 302 with the switch on), and an id that is none.
+    ["an NFT id in lower case", `/og/xrpl/nft/${NFT_ID.toLowerCase()}.png`, "xrpl"],
+    ["an id that is none", "/og/xrpl/nft/nope.png", "xrpl"],
+  ] as const)("answers %s with a 404 of class short that is no image, noindex, and asks nothing upstream", async (_what, path, net) => {
+    mock = mockUpstream(net);
+    const response = await get(path);
+    await response.arrayBuffer();
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).not.toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("answers a path with a query with the redirect to the bare path, as every image does: it is not an NFT page", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/og/xrpl/nft/${NFT_ID}.png?a=1`);
+    await response.arrayBuffer();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/og/xrpl/nft/${NFT_ID}.png`);
     expect(mock.requests).toEqual([]);
   });
 });

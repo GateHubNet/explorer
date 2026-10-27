@@ -7,22 +7,25 @@ import { dropsToNative } from "../domain/format";
 import { parseValidatorKey } from "../domain/validator-key";
 import { renderCard } from "../og/render";
 import type { CardData } from "../og/types";
-import { accountCard, amendmentCard, ledgerCard, poolCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
+import { accountCard, amendmentCard, ledgerCard, nftCard, nftCardFacts, poolCard, transactionCard, transactionFacts, validatorCard } from "../server/card-data";
 import { VALIDATORS_CALL_TTL_SECONDS, type CacheClass } from "../server/cache-class";
 import { activationOf } from "../server/account-view";
 import { ammPoolFacts, createdOf } from "../server/amm-view";
 import type { AmendmentDetail, AmmLiquidityEvent, ValidatorDetail } from "../server/api-types";
 import { clientsFor } from "../server/clients";
+import { outcome } from "../server/deadline";
 import { cacheClassHeaders } from "../server/edge-cache";
 import { getEnv } from "../server/env";
 import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "../server/ledger-view";
 import { logProblem } from "../server/logging";
 import { isNetworkId, networkOf, type Network } from "../server/networks";
+import { readNodeNft } from "../server/nft-read";
+import { needsNode, nftFacts, nftModeOf } from "../server/nft-view";
 import { txFromIndex, txFromNode, type TransactionSource } from "../server/transaction-view";
 import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 
-// `/og/{net}/{tx|ledger|account|validator|amendment|amm}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2): the link-preview image of a transaction, a
-// ledger, an account, a validator, an amendment or an AMM pool, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
+// `/og/{net}/{tx|ledger|account|validator|amendment|amm|nft}/{id}.png` (spec 2, 4, 9; validators spec 8; AMM spec 5.2; NFT spec 10): the link-preview image of a transaction, a
+// ledger, an account, a validator, an amendment, an AMM pool or an NFT, 1200 × 630, drawn on the first request and kept by the edge. A resource route at the top
 // level: no layout, no HTML.
 //
 // - A URL with a query string is a 302 to the bare path (class `immutable`), before anything else: no call, nothing drawn, and no
@@ -46,6 +49,12 @@ import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 //   card and makes it `short`, to be tried again soon. The index's own "pool not found" is the 404 (a pool younger than the aggregator's minute has no image for
 //   that minute); every other failure of #1, a 400 and a `Cannot GET` (an API without the AMM routes) included, is a 503. It is a 404 of class `short`, before any
 //   call, while `AMM_PAGES` is off, on a network without AMM, and for an id that is not a classic address.
+// - An NFT (NFT spec 10; a URIToken on Xahau) is drawn from the page's own reads, with the same modes (`nftModeOf`): #1 the index's NFT and, where the index lacks it or has it
+//   without an owner, #2 the node's; never its offers or its history. Its card is made of the facts the page's tags are (`nftFacts`). It is class `slow` (its card holds its owner and
+//   last sale, so it is kept for an hour, as an account's is); one the index lacks and the node has is class `short` for 60 s, like the page, so that the index's version takes over; one
+//   whose owner the node could not tell is drawn without it and is `short`, to be tried again soon. The index and the node both saying there is none is the 404 (a node that is not Clio
+//   says so with `unknownCmd`); every other failure of the index, a 400 and a `Cannot GET` (an API without D3) included, or of the node while the index has none, is a 503 and never a
+//   stored 404. It is a 404 of class `short`, before any call, while `NFTS` is off and for an id that is not 64 hex digits; an id in another case is a 302.
 // - A "not found" (the API's and the node's) is a 404 of class `short`. A failure of an upstream that leaves the question open, and a
 //   card the renderer cannot draw, is a 503 with `Retry-After` that is never stored; the Worker's entry answers it with a stored copy
 //   of the image if there is one, however old. A 400 of the data API for an id the route has checked is such a failure too (the API's
@@ -150,6 +159,8 @@ export async function loader({ params, request, context }: LoaderFunctionArgs) {
       return amendmentImage(context, network, id, request);
     case "amm":
       return ammImage(context, network, id, request);
+    case "nft":
+      return nftImage(context, network, id, request);
     default:
       return notFound();
   }
@@ -323,4 +334,36 @@ async function ammImage(context: LoaderFunctionArgs["context"], network: Network
 
   const card = poolCard(ammPoolFacts(network, pool, found.value, null, creation), network);
   return image(card, request, complete ? "slow" : "short");
+}
+
+// ---- An NFT --------------------------------------------------------------------------------------------------------------------------------
+
+async function nftImage(context: LoaderFunctionArgs["context"], network: Network, id: string, request: Request) {
+  // Off and an id that is not 64 hex digits are one 404, before any call.
+  if (!network.features.nfts || !HASH_64.test(id)) return notFound();
+  const nftId = id.toUpperCase();
+  if (id !== nftId) return permanent(`/og/${network.id}/nft/${nftId}.png`);
+
+  const { api, node } = clientsFor(context, network);
+  // #1, then #2 where the index says it is needed and never in place of an index that failed: the page's own reads, so the page and its image share the answers.
+  const index = await outcome(api.nft(nftId));
+  const fromNode = needsNode(index) ? await outcome(readNodeNft(node, network, nftId)) : null;
+  const mode = nftModeOf(index, fromNode);
+  if (mode === "none") return notFound();
+  if (mode === "unavailable") {
+    // Only a failed index is unavailable: its own reason, or the node's when the index said there is no such NFT and the node could not say. Never a stored 404, a 400 included.
+    if (index.status !== "rejected") throw new Error("an NFT that the index has is never unavailable");
+    const reason = isNotFound(index.reason) && fromNode?.status === "rejected" ? fromNode.reason : index.reason;
+    logProblem("an NFT's link-preview image could not read the NFT", reason, request);
+    return apiFailure(reason);
+  }
+
+  const entry = fromNode?.status === "fulfilled" ? fromNode.value : undefined;
+  const card = nftCard(nftCardFacts(nftFacts(network, nftId, mode, index.status === "fulfilled" ? index.value : undefined, entry)), network);
+  // From the network until the index has it, as the page is; the owner a node could not tell is on the card when it could be read, and a failure to read it is not a reason to have
+  // no card, only to ask again soon (a node that said it has no such NFT is an answer).
+  if (mode === "network" || mode === "network-burned") return image(card, request, "short", FROM_NODE_TTL);
+  const ownerFailed = mode === "indexed-owner-unknown" && fromNode?.status === "rejected" && !isNotFound(fromNode.reason);
+  if (ownerFailed) logProblem("an NFT's link-preview image left out its owner", fromNode.reason, request);
+  return image(card, request, ownerFailed ? "short" : "slow");
 }

@@ -4238,3 +4238,236 @@ a.markets__pair:hover .markets__name {
     font-size: 22px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   An NFT: /{net}/nft/{ID}. The page is a `.nfts` page (its column of rows, its tables, its pagers); these are the header card with the "No preview" box, the owner and sale facts, the
+   details' values (a URI as a code, the flags' marks), the id's bytes and the history's bar with its link. */
+
+/* The copy button's house target size (the board's is 30 px). */
+.nft-page .copy {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* The header card: the "No preview" box beside the name and the facts; above them on a phone. */
+.nft-page__card {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 22px;
+}
+
+.nft-page__preview {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 168px;
+  min-height: 168px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
+  text-align: center;
+}
+
+.nft-page__preview-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nft-page__preview-note {
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.nft-page__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nft-page__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.nft-page__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* The collection line and the id: the id in full wraps inside a phone, never past the card. */
+.nft-page__line,
+.nft-page__id {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.nft-page__id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+}
+
+/* The collection's link sits in a line of muted text: it is set apart by more than its colour (WCAG 1.4.1, axe link-in-text-block). */
+.nft-page__line a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The owner and the last sale, one under the other; a label and its value on a line while they fit. */
+.nft-page__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.nft-page__facts > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 2px 12px;
+  align-items: baseline;
+}
+
+.nft-page__facts dt {
+  color: var(--faint);
+}
+
+.nft-page__facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A link in a fact is at least 24 px high (WCAG 2.5.8). */
+.nft-page__facts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.nft-page__sale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+/* A faint line after a value: the URI's "Decoded from hex", where an owner was read from. */
+.nft-page__note {
+  display: block;
+  font-size: 12.5px;
+}
+
+/* The URI is text in a code; a long one wraps inside its card. */
+.nft-page__uri {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* The flags: a mark (a picture) and the flag's name, in a row that wraps. */
+.nft-page__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nft-page__flags li {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.nft-page__flags [aria-hidden="true"] {
+  color: var(--muted);
+}
+
+/* The bytes of the id a field is read from, before what they say. */
+.nft-page__hex {
+  margin-right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.nft-page__idnote {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* The Accounts cell is the containing block of the visually hidden "to" (`.sr` is absolute): without it the word is placed against the page, past the edge of a phone. */
+.nft-page__who {
+  position: relative;
+  font-size: 12.5px;
+}
+
+.nft-page__expires {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+
+/* The history's bar: the link that shows or hides the offer events, a 44 px target. */
+.nft-page__bar {
+  display: flex;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nft-page__toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.nft-page__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .nft-page__card {
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .nft-page__preview {
+    width: 100%;
+    min-height: 0;
+  }
+
+  .nft-page__title {
+    font-size: 22px;
+  }
+
+  .nft-page__facts > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

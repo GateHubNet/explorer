@@ -6,6 +6,7 @@ import type { NftPeriod as ApiPeriod, NftSort as ApiSort } from "../server/api-t
 import { redirectToCanonical } from "../server/pair-route";
 import * as nftLinkModule from "./nft-link";
 import {
+  ARROW,
   COLLECTION_TABS,
   NFT_MEASURES,
   NFT_PERIODS,
@@ -442,6 +443,12 @@ describe("parseTaxon", () => {
     expect(parseTaxon("00000000001")).toBeNull();
     expect(parseTaxon("04294967295")).toBeNull();
     expect(parseTaxon("12345678901")).toBeNull();
+  });
+});
+
+describe("ARROW", () => {
+  it("is the arrow of a seller → buyer with a space on each side: the Accounts cell's text segment that the page draws as an arrow and a hidden 'to'", () => {
+    expect(ARROW).toBe(" → ");
   });
 });
 

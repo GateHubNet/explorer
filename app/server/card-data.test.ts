@@ -5,8 +5,9 @@ import { shortHash } from "../domain/format";
 import { AMM_POOL, ammLiquiditySample, ammPoolSample } from "../../test/support/amm-samples";
 import { AMM_ID, amendmentDetailSample, SAMPLE_KEYS, UNKNOWN_ID, validatorDetailSample, XCB_ID } from "../../test/support/d1-samples";
 import { ammPoolFacts, type AmmPoolFacts } from "./amm-view";
+import { type NftFacts } from "./nft-view";
 import type { AmendmentDetail, ValidatorDetail } from "./api-types";
-import { accountCard, amendmentCard, formatCardTime, ledgerCard, poolCard, transactionCard, transactionFacts, validatorCard } from "./card-data";
+import { accountCard, amendmentCard, formatCardTime, ledgerCard, nftCard, nftCardFacts, poolCard, transactionCard, transactionFacts, validatorCard, type NftCardFacts } from "./card-data";
 
 // What the link-preview image says (spec 9, the LinkPreview board): the words and numbers of the card for a transaction, a ledger and an
 // account, from the same facts the page's tags are built from. The layout is app/og/card.test.ts; the PNG is test/worker/og.spec.ts.
@@ -467,6 +468,87 @@ describe("poolCard", () => {
   });
 });
 
+// ---- An NFT -----------------------------------------------------------------------------------------------------------------------------------
+
+describe("nftCard", () => {
+  const OWNER = "rHciXfRHv3jNfNAFsiHMrHpUmoLrPAJrHC";
+  const nftFacts = (over: Partial<NftCardFacts> = {}): NftCardFacts => ({
+    kind: "nftoken",
+    headline: "#4,127",
+    collection: "rLULtF…mB3R · taxon 1",
+    owner: OWNER,
+    note: "Last sale 1,250 XRP",
+    footer: "Minted 14 Mar 2024",
+    ...over,
+  });
+
+  it("is the board: the kind, the number, the owner, the last sale, the day of the mint, the collection", () => {
+    expect(nftCard(nftFacts(), XRPL)).toEqual({
+      network: "xrpl",
+      networkLabel: "XRPL mainnet",
+      kind: "NFT",
+      headline: { text: "#4,127", mono: true },
+      parties: [OWNER],
+      note: "Last sale 1,250 XRP",
+      footer: [{ text: "Minted 14 Mar 2024" }],
+      footerEnd: "rLULtF…mB3R · taxon 1",
+    });
+  });
+
+  it("is a URIToken on Xahau, headed by its short id", () => {
+    const card = nftCard(nftFacts({ kind: "uritoken", headline: "A1F04C77…3D10", collection: "rodinG…zKyb" }), XAHAU);
+    expect(card).toMatchObject({ network: "xahau", networkLabel: "Xahau mainnet", kind: "URIToken", headline: { text: "A1F04C77…3D10", mono: true }, footerEnd: "rodinG…zKyb" });
+  });
+
+  it("has no owner under the headline when there is none (a burned NFT), and names the network where the day of the mint is not known", () => {
+    const card = nftCard(nftFacts({ owner: undefined, note: "Burned", footer: undefined }), XRPL);
+    expect("parties" in card).toBe(false);
+    expect(card.note).toBe("Burned");
+    expect(card.footer).toEqual([{ text: "NFT on XRPL" }]);
+    expect(nftCard(nftFacts({ kind: "uritoken", footer: undefined }), XAHAU_TESTNET).footer).toEqual([{ text: "URIToken on Xahau Testnet" }]);
+  });
+});
+
+describe("nftCardFacts", () => {
+  const OWNER = "rHciXfRHv3jNfNAFsiHMrHpUmoLrPAJrHC";
+  const facts = (over: Partial<NftFacts> = {}): NftFacts => ({
+    kind: "nftoken",
+    name: "NFT #4,127",
+    headline: "#4,127",
+    burned: false,
+    collection: "rLULtF…mB3R · taxon 1",
+    owner: OWNER,
+    lastSale: "1,250 XRP",
+    minted: Date.UTC(2024, 2, 14, 9) / 1000,
+    ...over,
+  });
+
+  it("says Last sale and the price, and Minted and the day, in the card's own date form", () => {
+    expect(nftCardFacts(facts())).toEqual({ kind: "nftoken", headline: "#4,127", collection: "rLULtF…mB3R · taxon 1", owner: OWNER, note: "Last sale 1,250 XRP", footer: "Minted 14 Mar 2024" });
+  });
+
+  it("says Burned for a burned NFT, whatever it sold for, and has no owner to show", () => {
+    const burned = nftCardFacts(facts({ burned: true, owner: undefined }));
+    expect(burned.note).toBe("Burned");
+    expect("owner" in burned).toBe(false);
+  });
+
+  it("says how often an NFT without a price was sold, with a capital", () => {
+    expect(nftCardFacts(facts({ lastSale: undefined, sold: "never sold" })).note).toBe("Never sold");
+    expect(nftCardFacts(facts({ lastSale: undefined, sold: "sold 3 times" })).note).toBe("Sold 3 times");
+  });
+
+  it("says that an NFT shown from the network is not in the index yet, and has no mint to tell", () => {
+    const fromNetwork = nftCardFacts(facts({ lastSale: undefined, minted: undefined }));
+    expect(fromNetwork.note).toBe("Not in the index yet");
+    expect("footer" in fromNetwork).toBe(false);
+  });
+
+  it("is the same card from the page's facts as from the words", () => {
+    expect(nftCard(nftCardFacts(facts()), XRPL).note).toBe("Last sale 1,250 XRP");
+  });
+});
+
 // ---- The pill: the network's label, whatever its kind ----------------------------------------------------------------------------------------
 
 describe("the pill of every card", () => {
@@ -478,11 +560,12 @@ describe("the pill of every card", () => {
       validatorCard(validator(), { ...network, software: "rippled" }).networkLabel,
       amendmentCard(enabledAmm(), { ...network, software: "rippled" }).networkLabel,
       poolCard(poolFacts(), network).networkLabel,
+      nftCard({ kind: "nftoken", headline: "#1", collection: "r…", note: "Never sold" }, network).networkLabel,
     ];
-    expect(labels(XRPL)).toEqual(Array(6).fill("XRPL mainnet"));
-    expect(labels(XAHAU)).toEqual(Array(6).fill("Xahau mainnet"));
-    expect(labels(XRPL_TESTNET)).toEqual(Array(6).fill("XRPL Testnet"));
-    expect(labels(XAHAU_TESTNET)).toEqual(Array(6).fill("Xahau Testnet"));
+    expect(labels(XRPL)).toEqual(Array(7).fill("XRPL mainnet"));
+    expect(labels(XAHAU)).toEqual(Array(7).fill("Xahau mainnet"));
+    expect(labels(XRPL_TESTNET)).toEqual(Array(7).fill("XRPL Testnet"));
+    expect(labels(XAHAU_TESTNET)).toEqual(Array(7).fill("Xahau Testnet"));
   });
 
   it("says the testnet's name where the footer names the network", () => {

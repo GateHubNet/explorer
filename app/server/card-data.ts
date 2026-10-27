@@ -1,5 +1,5 @@
-// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8; AMM spec 5.2): a transaction, a ledger, an account, a
-// validator, an amendment or an AMM pool, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
+// The words and numbers of a link-preview image (spec 9, the LinkPreview board; validators spec 8; AMM spec 5.2; NFT spec 10): a transaction, a ledger, an account, a
+// validator, an amendment, an AMM pool or an NFT, from the same facts the page's tags are made of, so a link's text and its picture never disagree. Pure;
 // app/og/card.tsx draws what this returns.
 
 import { describe, headlineAmount, type FlowAmount } from "../domain/describe";
@@ -9,10 +9,11 @@ import { formatDate } from "../domain/time-words";
 import type { CardData } from "../og/types";
 import type { NetworkBrief } from "../ui/networks";
 import type { AmmPoolFacts } from "./amm-view";
-import type { AmendmentDetail, ValidatorDetail } from "./api-types";
+import type { AmendmentDetail, NftKind, ValidatorDetail } from "./api-types";
 import type { LedgerFacts } from "./meta-ledger";
 import { movement, type TxFacts } from "./meta-transaction";
 import type { Network } from "./networks";
+import type { NftFacts } from "./nft-view";
 import { plainText, type TransactionPageData, type TransactionSource } from "./transaction-view";
 import { amendmentStatusView, count, versionText } from "./validator-facts";
 
@@ -246,4 +247,55 @@ export function poolCard(facts: AmmPoolFacts, network: NetworkBrief): CardData {
   };
   if (note !== "") card.note = note;
   return card;
+}
+
+/**
+ * What the card of an NFT says, in words: its kind, its headline ("#4,127", or the short id of a token with no serial), its collection's label, its owner (an address; none for a
+ * burned NFT and for one whose owner is not known), the note ("Last sale 1,250 XRP", "Burned") and the footer ("Minted 14 Mar 2024"; none where the index does not tell it).
+ */
+export interface NftCardFacts {
+  kind: NftKind;
+  headline: string;
+  collection: string;
+  owner?: string;
+  note: string;
+  footer?: string;
+}
+
+/** A text with its first letter in capitals: "never sold", "sold 3 times". */
+const sentence = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+
+/**
+ * The words of an NFT's card from the facts its page's tags are made of (`NftFacts`: a link's text and its picture never disagree). A burned NFT says "Burned", whatever it sold for;
+ * one with a price says it ("Last sale 1,250 XRP"); one without says how often it was sold; one shown from the network, which says none of that, says it is not in the index yet.
+ * Every figure is the facts' own text: none is worked out here.
+ */
+export function nftCardFacts(facts: NftFacts): NftCardFacts {
+  const note = facts.burned ? "Burned" : facts.lastSale !== undefined ? `Last sale ${facts.lastSale}` : facts.sold !== undefined ? sentence(facts.sold) : "Not in the index yet";
+  return {
+    kind: facts.kind,
+    headline: facts.headline,
+    collection: facts.collection,
+    ...(facts.owner === undefined ? {} : { owner: facts.owner }),
+    note,
+    ...(facts.minted === undefined ? {} : { footer: `Minted ${formatCardDate(facts.minted)}` }),
+  };
+}
+
+/**
+ * The card of an NFT (NFT spec 10): the kind ("NFT", "URIToken"), the number in mono, the owner's whole account under it, the note, and the day of the mint (else the network) with the
+ * collection at the end of the footer, in mono.
+ */
+export function nftCard(facts: NftCardFacts, network: NetworkBrief): CardData {
+  const kind = facts.kind === "nftoken" ? "NFT" : "URIToken";
+  return {
+    network: network.id,
+    networkLabel: labelOf(network),
+    kind,
+    headline: { text: facts.headline, mono: true },
+    ...(facts.owner === undefined ? {} : { parties: [facts.owner] }),
+    note: facts.note,
+    footer: [{ text: facts.footer ?? `${kind} on ${network.name}` }],
+    footerEnd: facts.collection,
+  };
 }

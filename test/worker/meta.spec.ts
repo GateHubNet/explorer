@@ -2,7 +2,7 @@ import { exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
-import { collectionCase, collectionsMarker, salesMarker } from "../support/nft-cases";
+import { collectionCase, collectionsMarker, nftCase, salesMarker } from "../support/nft-cases";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 import { amendmentCase, validationsMarker, validatorCase } from "../support/validators-cases";
@@ -687,6 +687,87 @@ describe("a collection's page", () => {
       for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
       mock.restore();
     }
+  });
+});
+
+describe("an NFT's page", () => {
+  const OWNER = "rLCscV9iDJpvje4ZCKxGjYAMNtBA1Ltauk";
+  const MARKER = "WzEwNzg3ODc3NSwxMzAsMF0";
+
+  it("has the tags of an NFT of the index: its title, owner and last sale, a canonical URL, and the NFT's image on a large card", async () => {
+    const { id, issuer } = await nftCase("xrpl", "featured");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}`)).html);
+    const description = `Owned by ${shortAddress(OWNER)} · last sold for 150 XRP · XRPL`;
+    expect(tags.titles).toEqual([`NFT #107,604,335 of ${shortAddress(issuer)} · taxon 0 · XRPL · explorer`]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nft/${id}`]);
+    expect(tags.content("og:title")).toBe(`NFT #107,604,335 of ${shortAddress(issuer)} · taxon 0 · XRPL · explorer`);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nft/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/nft/${id}.png`);
+    expect(tags.content("og:image:width")).toBe("1200");
+    expect(tags.content("og:image:height")).toBe("630");
+    expect(tags.content("og:image:alt")).toBe(`NFT #107,604,335 of ${shortAddress(issuer)} · taxon 0 on XRPL`);
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("twitter:image")).toBe(`${ORIGIN}/og/xrpl/nft/${id}.png`);
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("keeps the NFT's own URL as the canonical one for the view with offer events", async () => {
+    const { id } = await nftCase("xrpl", "featured");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}?offers=1`)).html);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nft/${id}`]);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nft/${id}`);
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("says '(burned)' after the name of a burned NFT, and Burned in place of its owner", async () => {
+    const { id, issuer } = await nftCase("xrpl", "burned");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}`)).html);
+    expect(tags.titles).toEqual([`NFT #102,436,236 (burned) of ${shortAddress(issuer)} · taxon 0 · XRPL · explorer`]);
+    expect(tags.content("description")).toBe("Burned · never sold · XRPL");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nft/${id}`]);
+  });
+
+  it("is Xahau's on Xahau: URIToken and its short id, the price in XAH, and its image", async () => {
+    const { id, issuer } = await nftCase("xahau", "featured");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/nft/${id}`)).html);
+    expect(tags.titles).toEqual([`URIToken 96133366… of ${shortAddress(issuer)} · Xahau · explorer`]);
+    expect(tags.content("description")).toBe(`Owned by ${shortAddress("rBkEp8W1yhBGLrvHFKKyrmSvniMFVJbPPg")} · last sold for 4,200 XAH · Xahau`);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/nft/${id}`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/nft/${id}.png`);
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+  });
+
+  it("is noindex, with no canonical URL or sharing tags, for an NFT shown from the network", async () => {
+    for (const [net, which, title] of [
+      ["xrpl", "network", "NFT #98,894,589 of raNypR…RV92 · taxon 123,589,321 · XRPL · explorer"],
+      ["xahau", "network", "URIToken 06CF2C55… of rodinG…zKyb · Xahau · explorer"],
+    ] as const) {
+      const { id } = await nftCase(net, which);
+      mock = mockUpstream(net);
+      const tags = head((await page(`/${net}/nft/${id}`)).html);
+      expect(tags.titles, net).toEqual([title]);
+      expect(tags.content("robots"), net).toBe("noindex");
+      expect(tags.canonical, net).toEqual([]);
+      for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+      mock.restore();
+    }
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags, titled for the older history", async () => {
+    const { id } = await nftCase("xrpl", "featured");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nft/${id}?offers=1&marker=${MARKER}`)).html);
+    expect(tags.titles).toEqual(["Older history of NFT #107,604,335 · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
   });
 });
 

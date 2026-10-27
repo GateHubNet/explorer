@@ -12,13 +12,13 @@
 // the tests import this file: the pages get the data it returns, and its types.
 
 import type { Segment } from "../domain/describe";
-import { formatAmount } from "../domain/format";
+import { formatAmount, formatCurrency } from "../domain/format";
 import { decodeNftId, NFT_FLAG_LABELS, uriText } from "../domain/nft-id";
-import { collectionHref, collectionLabel, nftHref, nftsHref, nftWords, shortNftId, type CollectionKey, type NftQuery, type NftWords } from "../domain/nft-params";
+import { ARROW, collectionHref, collectionLabel, nftHref, nftsHref, nftWords, shortNftId, type CollectionKey, type NftQuery, type NftWords } from "../domain/nft-params";
 import { trailPaging, type Paging } from "../domain/paging";
 import { formatDate, formatDateTime } from "../domain/time-words";
 import { nftGlyph } from "../ui/components/NftGlyph";
-import type { Coverage, Nft, NftAnswer, NftEvent, NftEventKind, NftEventsPage, NftOffer, NftOffersPage, NodeNftInfo, NodeNftOffers, NodeUriToken } from "./api-types";
+import type { Coverage, Nft, NftAnswer, NftEvent, NftEventKind, NftEventsPage, NftKind, NftOffer, NftOffersPage, NodeNftInfo, NodeNftOffers, NodeUriToken } from "./api-types";
 import { CACHE_CLASSES, type CacheClass } from "./cache-class";
 import { coverageNote, type CoverageNoteText } from "./coverage";
 import { feePercent } from "./exact";
@@ -99,7 +99,7 @@ export const NFT_MODE_CLASS: Record<NftPageMode, { cls: CacheClass; ttl?: number
 
 /**
  * An event of the history. `time` is unix seconds (the page writes the UTC time). `event` is the tag's text ("mint", "sale", "transfer", "burn", "URI change", "offer create",
- * "offer cancel", "offer removed"). `accounts` is the Accounts cell as `Sentence` draws it; a text segment that is exactly `ARROW` is the "to" of a seller → buyer, which the page draws
+ * "offer cancel", "offer removed"). `accounts` is the Accounts cell as `Sentence` draws it; a text segment that is exactly `ARROW` (domain/nft-params.ts, which the page imports to draw it) is the "to" of a seller → buyer, which the page draws
  * as an arrow with a visually hidden "to". `amount` is the price of a sale and the amount of an offer, in its own currency, `null` for the rest and for a group of removals.
  */
 export interface NftHistoryRow {
@@ -132,9 +132,6 @@ export interface NftOfferRow {
 const text = (v: string): Segment => ({ t: "text", v });
 const account = (v: string): Segment => ({ t: "account", v });
 const amountOf = (value: string, currency: string, issuer?: string): NftAmount => ({ value, currency, ...(issuer === undefined ? {} : { issuer }) });
-
-/** What a seller → buyer is written with: the page draws a text segment that is exactly this as an arrow and, for a screen reader, "to". */
-export const ARROW = " → ";
 
 const EVENT_TAGS: Record<NftEventKind, string> = {
   mint: "mint",
@@ -353,6 +350,26 @@ export interface NftHeader {
   lastSale: NftLastSaleView | null;
 }
 
+/**
+ * What the tags of an NFT's page and the card of its link-preview image say of it (spec 10), each fact left out where the page does not have it: the page and the image make it with
+ * `nftFacts`, so that a link's text and its picture never disagree. `owner` is a classic address; `lastSale` the newest sale's price as text ("1,250 XRP"); `sold` what is said of the sales
+ * when there is no price to say ("never sold", "sold 3 times"); `minted` is unix seconds, from the index.
+ */
+export interface NftFacts {
+  kind: NftKind;
+  /** "NFT #4,127", "URIToken A1F04C77…": the page's heading. */
+  name: string;
+  /** The image's headline: "#4,127", else the short id. */
+  headline: string;
+  burned: boolean;
+  /** The collection's label: "rLULtF…mB3R · taxon 1". */
+  collection: string;
+  owner?: string;
+  lastSale?: string;
+  sold?: string;
+  minted?: number;
+}
+
 export interface NftPageData {
   mode: NftPageMode;
   breadcrumb: NftCrumb[];
@@ -388,6 +405,8 @@ export interface NftPageData {
   noindex: boolean;
   /** The NFT's name in a title: "NFT #4,127 (burned) of rLULtF…mB3R · taxon 1"; behind a marker "Older history of NFT #4,127". The tags add the network's name. */
   title: string;
+  /** What the tags and the image say of the NFT. */
+  facts: NftFacts;
   /** A page behind a marker: the breadcrumb, the header without owner and last sale, `back` and the history rows. */
   marker: boolean;
   /** "Back to the NFT", to the NFT's page in the view of offer events it is behind; `null` unless behind a marker. */
@@ -622,6 +641,32 @@ function lastSaleOf(net: NftNet, nft: Nft): NftLastSaleView {
   };
 }
 
+/**
+ * The facts of the tags and of the image (`NftFacts`) from #1 and #2: the index's NFT, the node's, or both (`indexed-network-owner`). `index` is the NFT of the index's modes and
+ * `node` the node's answer the owner or the whole NFT is read from. What neither has is left out: a page from the network has no sale and no mint, an NFT whose owner is not known no owner.
+ */
+export function nftFacts(net: NftNet, id: string, mode: NftPageMode, index: NftAnswer | undefined, node: NodeNftInfo | NodeUriToken | undefined): NftFacts {
+  const source = index?.nft ?? node;
+  if (source === undefined) throw new Error(`nftFacts: the ${mode} NFT needs the index's answer or the node's`);
+  const facts = factsOf(net, id, source);
+  const burned = mode === "burned" || mode === "network-burned";
+  const { name, crumb } = nameOf(net, id, facts);
+  const nft = index?.nft;
+  const sale = nft?.last_sale;
+  const { address } = ownerLine(mode, nft, node);
+  return {
+    kind: net.id === "xrpl" ? "nftoken" : "uritoken",
+    name,
+    headline: crumb,
+    burned,
+    collection: collectionLabel(keyOf(facts)),
+    ...(address === undefined ? {} : { owner: address }),
+    ...(sale === undefined ? {} : { lastSale: `${formatAmount(sale.amount)} ${formatCurrency(sale.currency)}` }),
+    ...(nft === undefined || sale !== undefined ? {} : { sold: nft.sale_count === 0 ? "never sold" : `sold ${timesOf(nft.sale_count)}` }),
+    ...(nft?.minted === undefined ? {} : { minted: unixOf(nft.minted.executed_time) }),
+  };
+}
+
 // ---- The two cards -----------------------------------------------------------------------------------------------------------------------------
 
 /** What the offers card has: its rows, whether there are more than it shows, its coverage note, or its failure. */
@@ -723,6 +768,7 @@ export function nftPage(input: NftPageInput): NftPageData {
     notice: fromNetwork ? NOTICE : null,
     noindex: fromNetwork,
     title: head.title,
+    facts: nftFacts(net, id, mode, index, node),
     marker: false,
     back: null,
   };
@@ -760,6 +806,7 @@ export function nftMarkerPage(input: NftMarkerInput): NftPageData {
     notice: null,
     noindex: true,
     title: `Older history of ${head.name}`,
+    facts: nftFacts(net, id, burned ? "burned" : "indexed", index, undefined),
     marker: true,
     back: { label: `Back to the ${words.token}`, href: nftHref(net.id, id, { offers: query.offers }) },
   };

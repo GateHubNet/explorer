@@ -9,7 +9,7 @@ import { staticClosure, valueImports } from "../support/value-imports";
 // of `app/server` (the marker alphabet, an import-free leaf, aside), of the describe and parse trees, of `domain/nft-id.ts`, of `domain/asset.ts` or of `ripple-*`. `nft-params.ts` and
 // `nft-link.ts` are among them, and so are the tags' builders, `meta-nfts.ts` and `meta-nft-sales.ts`: a page's `meta` is part of its route module. A type import is erased and costs nothing; a value import is
 // the bug. (The routes import the server for their loaders; React Router drops a loader and what only it uses from the browser's build, and `pnpm check:bundle` holds the result to
-// the budget, in `scripts/bundle-budget.ts`.) The list of pages grows with the NFT page of an NFT.
+// the budget, in `scripts/bundle-budget.ts`.) The NFT's page draws no chart (the kit's charts are none of its closure), and its URI is text: it imports no link or image of the Worker's.
 
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
@@ -19,13 +19,13 @@ const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/nft-i
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
 /** The files of the pages, the table they share, and the links and the params that the pages are made with. */
-const PAGE_FILES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/pages/NftCollectionPage.tsx", "ui/components/NftSalesTable.tsx", "domain/nft-params.ts", "domain/nft-link.ts"];
+const PAGE_FILES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/pages/NftCollectionPage.tsx", "ui/pages/NftPage.tsx", "ui/components/NftSalesTable.tsx", "domain/nft-params.ts", "domain/nft-link.ts"];
 
-/** The pages themselves, whose closure the charts are looked for in. */
+/** The pages that draw the shared sales table, whose closure the table, the pager and the coverage note are looked for in. */
 const PAGES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/pages/NftCollectionPage.tsx"];
 
 /** The tags' builders, which the browser runs as the routes' `meta`. They are files of app/server that import nothing of it but `./meta`. */
-const META_FILES = ["server/meta-nfts.ts", "server/meta-nft-sales.ts", "server/meta-nft-collection.ts"];
+const META_FILES = ["server/meta-nfts.ts", "server/meta-nft-sales.ts", "server/meta-nft-collection.ts", "server/meta-nft.ts"];
 
 /** What a file the browser loads may reach of the Worker's own files: the marker alphabet (`server/marker.ts`, an import-free leaf, which `parseTrail` reads markers with). */
 const LEAVES = ["server/marker.ts"];
@@ -75,6 +75,22 @@ describe("the files of the NFT pages that run in the browser", () => {
     expect(collection).toEqual(expect.arrayContaining(["ui/charts/ColumnChart.tsx", "ui/charts/ChartCard.tsx", "ui/charts/ChartTable.tsx"]));
     expect(collection).not.toContain("ui/charts/BarList.tsx");
     expect(staticClosure(appDir, "ui/pages/NftSalesPage.tsx").filter((path) => path.startsWith("ui/charts/"))).toEqual([]);
+  });
+
+  it("has the NFT's page draw no chart at all, and no server file, but the table, the pager and the coverage note of the lists it shares", () => {
+    const page = staticClosure(appDir, "ui/pages/NftPage.tsx");
+    expect(page.filter((path) => path.startsWith("ui/charts/"))).toEqual([]);
+    expect(page).toEqual(expect.arrayContaining(["ui/components/DataTable.tsx", "ui/components/Pager.tsx", "ui/components/CoverageNote.tsx", "ui/components/NftGlyph.tsx", "ui/components/Sentence.tsx"]));
+    // The page's own text is the builder's: it never decodes an id, and the URI is text it was given.
+    expect(page).not.toContain("domain/nft-id.ts");
+    expect(page).not.toContain("ui/components/LinkedText.tsx");
+    expect(page).not.toContain("ui/components/NftSalesTable.tsx");
+    expect(valueImports(read("ui/pages/NftPage.tsx")).filter((from) => /\/charts\//.test(from))).toEqual([]);
+  });
+
+  it("has the NFT's page draw the URI with no link component: it imports none that could make one of text", () => {
+    const imports = valueImports(read("ui/pages/NftPage.tsx"));
+    expect(imports.filter((from) => /LinkedText|linkify|Linkified/i.test(from))).toEqual([]);
   });
 
   it("sees the Worker's code where a file does load it: the view builder reaches the windows, the exact numbers and the server", () => {

@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
+import * as render from "../../app/og/render";
 import { shortAddress, shortHash } from "../../app/domain/format";
 import { recordedHashes } from "../support/ledger-hashes";
+import { nftCase } from "../support/nft-cases";
 import { anchors, hrefs, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 import { fixtureValidatorKeys } from "../support/validators-cases";
@@ -168,6 +170,65 @@ describe("a transaction in the sandbox", () => {
     const { html } = await page(`/xrpl/tx/${ctid}`, 404);
     expect(textOf(html)).toContain(`${ctid} is for network id 0, which this explorer does not cover.`);
     expect(mock.requests).toEqual([]);
+  });
+});
+
+// An NFT in the sandbox (NFT spec 10, sandbox spec 16): its page and its image say XRPL Testnet and Xahau Testnet, from the layout's network and the environment's, never a literal.
+describe("an NFT in the sandbox", () => {
+  const head = (html: string) => ({
+    title: /<title>([^<]*)<\/title>/.exec(html)?.[1],
+    description: /<meta\s[^>]*name="description"[^>]*content="([^"]*)"/.exec(html)?.[1],
+  });
+
+  it("/xrpl/nft: the title, the description and the breadcrumb say XRPL Testnet", async () => {
+    const { id } = await nftCase("xrpl", "featured");
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/nft/${id}`);
+    const tags = head(html);
+
+    expect(tags.title).toBe("NFT #107,604,335 of rLxc1b…rwMy · taxon 0 · XRPL Testnet · explorer");
+    expect(tags.description).toBe("Owned by rLCscV…tauk · last sold for 150 XRP · XRPL Testnet");
+    expect(textOf(html)).toContain("XRPL Testnet / NFTs / rLxc1b…rwMy · taxon 0 / #107,604,335");
+    expect(textOf(html)).not.toContain("XRP Ledger");
+  });
+
+  it("/xahau/nft: URIToken and Xahau Testnet", async () => {
+    const { id } = await nftCase("xahau", "featured");
+    mock = mockUpstream("xahau");
+    const { html } = await page(`/xahau/nft/${id}`);
+
+    expect(head(html).title).toBe("URIToken 96133366… of rodinG…zKyb · Xahau Testnet · explorer");
+    expect(textOf(html)).toContain("Xahau Testnet / URITokens / rodinG…zKyb / 96133366…AAE9");
+  });
+
+  it("/xrpl/nft: an NFT nobody has offers the same search on Xahau Testnet, and from the network says XRPL Testnet", async () => {
+    const { id } = await nftCase("xrpl", "missing");
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/nft/${id}`, 404);
+
+    expect(textOf(html)).toContain(`We couldn’t find NFT ${id.slice(0, 8)}…${id.slice(-4)} on XRPL Testnet.`);
+    expect(anchors(html).find((a) => a.text === "Search on Xahau Testnet")?.attrs).toContain(`href="/xahau/search?q=${id}"`);
+  });
+
+  it.each([
+    ["xrpl", "XRPL Testnet"],
+    ["xahau", "Xahau Testnet"],
+  ] as const)("/og/%s/nft/{id}.png: the pill of the card is %s", async (net, label) => {
+    const { id } = await nftCase(net, "featured");
+    mock = mockUpstream(net);
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      const response = await get(`/og/${net}/nft/${id}.png`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("image/png");
+      expect(bytes.length).toBeGreaterThan(8_000);
+      expect(drawing.mock.calls[0]![0]).toMatchObject({ network: net, networkLabel: label });
+      expect(drawing.mock.calls[0]![0].footer).toEqual([{ text: `${net === "xrpl" ? "NFT" : "URIToken"} on ${label}` }]);
+    } finally {
+      drawing.mockRestore();
+    }
   });
 });
 

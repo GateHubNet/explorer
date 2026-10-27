@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   coverageSample,
+  NFT_ID,
+  nftAnswerSample,
   nftCollectionAnswerSample,
+  nftEventsPageSample,
+  nftSample,
+  nodeNftInfoSample,
+  nodeUriTokenSample,
+  NODE_NFT_ID,
+  uriTokenSample,
+  URI_TOKEN_ID,
+  URI_TOKEN_OWNER,
   nftCollectionsPageSample,
   nftSalesPageSample,
   nftsPageSample,
@@ -15,7 +25,7 @@ import { AMM_ID, amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, UNKNOWN_I
 import type { AmendmentStatus } from "../domain/amendments-params";
 import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-params";
 import type { FlowStep } from "../domain/describe";
-import { shortHash } from "../domain/format";
+import { shortAddress, shortHash } from "../domain/format";
 import type { ValidatorsParams } from "../domain/validators-params";
 import type { NetworkInfo } from "../ui/networks";
 import { amendmentPage } from "./amendment-view";
@@ -28,6 +38,7 @@ import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
 import { ammListMeta } from "./meta-amm-list";
 import { ammPoolMeta } from "./meta-amm-pool";
+import { nftMeta } from "./meta-nft";
 import { nftCollectionMeta } from "./meta-nft-collection";
 import { nftSalesMeta } from "./meta-nft-sales";
 import { nftsMeta } from "./meta-nfts";
@@ -40,6 +51,7 @@ import { transactionDescription, transactionMeta } from "./meta-transaction";
 import { validatorMeta } from "./meta-validator";
 import { validatorsMeta } from "./meta-validators";
 import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCollectionPageData } from "./nft-collection-view";
+import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
 import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
 import { validatorHistoryPage, validatorPage } from "./validator-view";
 import { validatorsPage } from "./validators-view";
@@ -607,6 +619,7 @@ describe("imageUrl", () => {
     expect(imageUrl("https://explorer.test", "xrpl", "tx", HASH)).toBe(`https://explorer.test/og/xrpl/tx/${HASH}.png`);
     expect(imageUrl("https://explorer.test", "xahau", "ledger", "26540187")).toBe("https://explorer.test/og/xahau/ledger/26540187.png");
     expect(imageUrl("https://explorer.test", "xrpl", "validator", SAMPLE_KEYS[0])).toBe(`https://explorer.test/og/xrpl/validator/${SAMPLE_KEYS[0]}.png`);
+    expect(imageUrl("https://explorer.test", "xahau", "nft", URI_TOKEN_ID)).toBe(`https://explorer.test/og/xahau/nft/${URI_TOKEN_ID}.png`);
   });
 });
 
@@ -1214,6 +1227,129 @@ describe("nftCollectionMeta", () => {
   it("puts no figure in the description, the taxon in the label aside: the page is stored for a minute", () => {
     expect(content(nftCollectionMeta(view(), XRPL), "description")?.replace(LABEL, "")).not.toMatch(/\d/);
     expect(content(nftCollectionMeta(view({}, { net: URI_NET, key: URI_KEY }), XAHAU), "description")).not.toMatch(/\d/);
+  });
+});
+
+describe("nftMeta", () => {
+  const NET: NftNet = { id: "xrpl", name: "XRPL", native: "XRP", longName: "the XRP Ledger", other: "xahau" };
+  const URI_NET: NftNet = { id: "xahau", name: "Xahau", native: "XAH", longName: "Xahau", other: "xrpl" };
+  const NOW = Date.UTC(2026, 9, 25) / 1000;
+  const LABEL = "r4PP7g…CzT3 · taxon 10";
+  const URL = `https://explorer.test/xrpl/nft/${NFT_ID}`;
+  const IMAGE = `https://explorer.test/og/xrpl/nft/${NFT_ID}.png`;
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  const ALT = `NFT #95,234,705 of ${LABEL} on XRPL`;
+
+  /** The page data of an indexed NFT (sold once for 10 XRP, held by the sample owner), as the view builder writes it: the tags read what the page says. */
+  const view = (over: Partial<Parameters<typeof nftPage>[0]> = {}): NftPageData =>
+    nftPage({
+      net: NET,
+      id: NFT_ID,
+      query: { offers: false, back: [] },
+      mode: "indexed",
+      now: NOW,
+      index: nftAnswerSample(),
+      offers: { status: "fulfilled", value: { coverage: coverageSample(), count: 0, offers: [] } },
+      history: { status: "fulfilled", value: nftEventsPageSample() },
+      ...over,
+    });
+
+  it("has the tags of an NFT: the title, the description with its owner and last sale, a canonical URL on the origin, Open Graph, the link-preview image and a large card", () => {
+    const tagsOf = nftMeta(view(), XRPL);
+    expect(title(tagsOf)).toBe(`NFT #95,234,705 of ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL");
+    expect(link(tagsOf, "canonical")).toBe(URL);
+    expect(content(tagsOf, "og:title")).toBe(`NFT #95,234,705 of ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "og:description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL");
+    expect(content(tagsOf, "og:url")).toBe(URL);
+    expect(content(tagsOf, "og:type")).toBe("website");
+    expect(content(tagsOf, "og:image")).toBe(IMAGE);
+    expect(content(tagsOf, "og:image:width")).toBe("1200");
+    expect(content(tagsOf, "og:image:height")).toBe("630");
+    expect(content(tagsOf, "og:image:alt")).toBe(ALT);
+    expect(content(tagsOf, "twitter:card")).toBe("summary_large_image");
+    expect(content(tagsOf, "twitter:image")).toBe(IMAGE);
+    expect(content(tagsOf, "twitter:image:alt")).toBe(ALT);
+    expect(keys(tagsOf)).not.toContain("robots");
+  });
+
+  it("is on the request's origin", () => {
+    const tagsOf = nftMeta(view(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(tagsOf, "canonical")).toBe(`https://explorer.example/xrpl/nft/${NFT_ID}`);
+    expect(content(tagsOf, "og:image")).toBe(`https://explorer.example/og/xrpl/nft/${NFT_ID}.png`);
+  });
+
+  it("keeps the canonical URL of the NFT for the view with offer events, which is a view of the same NFT", () => {
+    const tagsOf = nftMeta(view({ query: { offers: true, back: [] } }), XRPL);
+    expect(link(tagsOf, "canonical")).toBe(URL);
+    expect(keys(tagsOf)).not.toContain("robots");
+  });
+
+  it("says '(burned)' after the name, and Burned in place of an owner", () => {
+    const burned = nftSample({ owner: undefined, owner_since: undefined, burned: true });
+    const tagsOf = nftMeta(view({ mode: "burned", index: nftAnswerSample({ nft: burned }) }), XRPL);
+    expect(title(tagsOf)).toBe(`NFT #95,234,705 (burned) of ${LABEL} · XRPL · explorer`);
+    expect(content(tagsOf, "description")).toBe("Burned · last sold for 10 XRP · XRPL");
+    expect(link(tagsOf, "canonical")).toBe(URL);
+  });
+
+  it("says that an NFT was never sold, or how often when no price is there, and leaves out an owner the index does not have", () => {
+    const never = nftSample({ sale_count: 0, last_sale: undefined });
+    expect(content(nftMeta(view({ index: nftAnswerSample({ nft: never }) }), XRPL), "description")).toBe("Owned by rnKd8C…FrTx · never sold · XRPL");
+    const unowned = nftSample({ owner: undefined, owner_since: undefined, sale_count: 3, last_sale: undefined });
+    expect(content(nftMeta(view({ mode: "indexed-owner-unknown", index: nftAnswerSample({ nft: unowned }) }), XRPL), "description")).toBe("sold 3 times · XRPL");
+    const read = nodeNftInfoSample();
+    expect(content(nftMeta(view({ mode: "indexed-network-owner", index: nftAnswerSample({ nft: unowned }), node: read }), XRPL), "description")).toBe(`Owned by ${shortAddress(read.owner)} · sold 3 times · XRPL`);
+  });
+
+  it("is Xahau's on Xahau: URIToken and its short id in the title, its token's price in XAH", () => {
+    const tagsOf = nftMeta(nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null }), XAHAU);
+    expect(title(tagsOf)).toBe("URIToken 96133366… of rodinG…zKyb · Xahau · explorer");
+    expect(content(tagsOf, "description")).toBe(`Owned by ${shortAddress(URI_TOKEN_OWNER)} · last sold for 4,200 XAH · Xahau`);
+    expect(link(tagsOf, "canonical")).toBe(`https://explorer.test/xahau/nft/${URI_TOKEN_ID}`);
+    expect(content(tagsOf, "og:image")).toBe(`https://explorer.test/og/xahau/nft/${URI_TOKEN_ID}.png`);
+  });
+
+  it("names the network of the sandbox, in the title and in the description", () => {
+    const tagsOf = nftMeta(view({ net: { ...NET, name: "XRPL Testnet", longName: "XRPL Testnet" } }), XRPL_TESTNET);
+    expect(title(tagsOf)).toBe(`NFT #95,234,705 of ${LABEL} · XRPL Testnet · explorer`);
+    expect(content(tagsOf, "description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL Testnet");
+    expect(content(tagsOf, "og:image:alt")).toBe(`NFT #95,234,705 of ${LABEL} on XRPL Testnet`);
+    const xahau = nftMeta(nftPage({ net: { ...URI_NET, name: "Xahau Testnet", longName: "Xahau Testnet" }, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null }), XAHAU_TESTNET);
+    expect(title(xahau)).toBe("URIToken 96133366… of rodinG…zKyb · Xahau Testnet · explorer");
+  });
+
+  it.each([
+    ["from the network", () => view({ mode: "network", index: undefined, node: nodeNftInfoSample(), id: NODE_NFT_ID, offers: null, history: null })],
+    ["a URIToken from the network", () => nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "network", now: NOW, node: nodeUriTokenSample(), offers: null, history: null })],
+  ])("is noindex, with no canonical URL and nothing to share, %s", (_name, make) => {
+    const tagsOf = nftMeta(make(), XRPL);
+    expect(content(tagsOf, "robots")).toBe("noindex");
+    expect(tags(tagsOf).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(tagsOf).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(tagsOf).sort()).toEqual(["description", "robots"]);
+    expect(title(tagsOf)).toMatch(/ · XRPL · explorer$/);
+  });
+
+  it("says Owned by the node's owner from the network", () => {
+    const node = nodeNftInfoSample();
+    const tagsOf = nftMeta(view({ mode: "network", index: undefined, node, id: NODE_NFT_ID, offers: null, history: null }), XRPL);
+    expect(content(tagsOf, "description")).toBe(`Owned by ${shortAddress(node.owner)} · XRPL`);
+    const burned = nftMeta(view({ mode: "network-burned", index: undefined, node: nodeNftInfoSample({ is_burned: true }), id: NODE_NFT_ID, offers: null, history: null }), XRPL);
+    expect(title(burned)).toContain("(burned)");
+    expect(content(burned, "description")).toBe("Burned · XRPL");
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags, and titled for the older history", () => {
+    const marked = nftMarkerPage({ net: NET, id: NFT_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample(), history: nftEventsPageSample() });
+    const tagsOf = nftMeta(marked, XRPL);
+    expect(title(tagsOf)).toBe("Older history of NFT #95,234,705 · XRPL · explorer");
+    expect(content(tagsOf, "description")).toBe(`Older history of NFT #95,234,705 of ${LABEL} on XRPL.`);
+    expect(content(tagsOf, "robots")).toBe("noindex, follow");
+    expect(tags(tagsOf).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(tagsOf).sort()).toEqual(["description", "robots"]);
+    const token = nftMeta(nftMarkerPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample({ nft: uriTokenSample() }), history: nftEventsPageSample() }), XAHAU);
+    expect(title(token)).toBe("Older history of URIToken 96133366… · Xahau · explorer");
   });
 });
 

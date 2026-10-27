@@ -18,6 +18,8 @@ export default [
     route("nfts", "routes/net.nfts._index.tsx"),
     route("nfts/sales", "routes/net.nfts.sales.tsx"),
     route("nfts/:issuer/:taxon?", "routes/net.nfts.$issuer.$taxon.tsx"),
+    // An NFT (a URIToken on Xahau) by its id.
+    route("nft/:id", "routes/net.nft.$id.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

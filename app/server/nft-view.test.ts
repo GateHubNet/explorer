@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Segment } from "../domain/describe";
 import { dropsToNative, formatAmount, shortAddress } from "../domain/format";
 import { decodeNftId } from "../domain/nft-id";
-import { nftHref, type NftQuery } from "../domain/nft-params";
+import { ARROW, nftHref, type NftQuery } from "../domain/nft-params";
 import {
   coverageSample,
   NFT_BROKER,
@@ -36,10 +36,10 @@ import type { Nft, NftAnswer, NftEvent, NftEventsPage, NftOffer, NodeNftInfo, No
 import { CACHE_CLASSES } from "./cache-class";
 import { TooLate } from "./deadline";
 import {
-  ARROW,
   historyRows,
   needsNode,
   nftMarkerPage,
+  nftFacts,
   nftModeOf,
   nftNotFound,
   nftPage,
@@ -971,6 +971,74 @@ describe.each([
     const { id: nftId } = await nftCase(id, "missing");
     expect(nftModeOf(rejected(NOT_FOUND), rejected(NOT_FOUND))).toBe("none");
     expect(nftNotFound(net, nftId).otherHref).toBe(`/${net.other}/search?q=${nftId}`);
+  });
+});
+
+// ---- The facts of the tags and of the link-preview image -------------------------------------------------------------------------------------------
+
+describe("nftFacts", () => {
+  const sold = (over: Partial<Nft> = {}): NftAnswer => nftAnswerSample({ nft: nftSample({ minted: { ledger_index: 1, tx_hash: HASH_A, executed_time: "2024-03-14T09:00:00Z", by: NFT_ISSUER, to: NFT_OWNER }, ...over }) });
+
+  it("an indexed NFT: its name and headline, its collection, its owner, its last sale as text and the day of its mint", () => {
+    expect(nftFacts(XRPL, NFT_ID, "indexed", sold(), undefined)).toEqual({
+      kind: "nftoken",
+      name: "NFT #95,234,705",
+      headline: "#95,234,705",
+      burned: false,
+      collection: LABEL,
+      owner: NFT_OWNER,
+      lastSale: "10 XRP",
+      minted: Date.UTC(2024, 2, 14, 9) / 1000,
+    });
+  });
+
+  it("is the page's own, so that the tags and the image say what the page says", () => {
+    const page = nftPage(input({ index: sold() }));
+    expect(page.facts).toEqual(nftFacts(XRPL, NFT_ID, "indexed", sold(), undefined));
+    expect(nftMarkerPage({ net: XRPL, id: NFT_ID, query: { offers: false, marker: MARKERS.M1, back: [] }, index: sold(), history: nftEventsPageSample() }).facts).toEqual(page.facts);
+    expect(nftPage(input({ mode: "burned", index: nftAnswerSample({ nft: burnedNft() }) })).facts.name).toBe("NFT #95,234,705");
+  });
+
+  it("a token's price in its own currency, grouped and named as an amount is", () => {
+    const token = nftSample({ last_sale: { amount: "1250.5", currency: "USD", amount_issuer: OTHER_ISSUER, converted_amount: "96", ledger_index: 1, tx_hash: HASH_A, executed_time: "2026-10-20T17:01:12Z" } });
+    expect(nftFacts(XRPL, NFT_ID, "indexed", nftAnswerSample({ nft: token }), undefined).lastSale).toBe("1,250.5 USD");
+  });
+
+  it("says how often an NFT without a last sale was sold, and says nothing of it with one", () => {
+    const none = nftFacts(XRPL, NFT_ID, "indexed", sold({ sale_count: 0, last_sale: undefined }), undefined);
+    expect(none.lastSale).toBeUndefined();
+    expect(none.sold).toBe("never sold");
+    expect(nftFacts(XRPL, NFT_ID, "indexed", sold({ sale_count: 1, last_sale: undefined }), undefined).sold).toBe("sold once");
+    expect(nftFacts(XRPL, NFT_ID, "indexed", sold({ sale_count: 3, last_sale: undefined }), undefined).sold).toBe("sold 3 times");
+    expect(nftFacts(XRPL, NFT_ID, "indexed", sold(), undefined).sold).toBeUndefined();
+  });
+
+  it("a burned NFT has no owner; one with no owner in the index has the node's, or none", () => {
+    const burned = nftFacts(XRPL, NFT_ID, "burned", nftAnswerSample({ nft: burnedNft() }), undefined);
+    expect(burned).toMatchObject({ burned: true, name: "NFT #95,234,705" });
+    expect(burned.owner).toBeUndefined();
+    const node = nodeNftInfoSample();
+    expect(nftFacts(XRPL, NFT_ID, "indexed-network-owner", nftAnswerSample({ nft: unowned() }), node).owner).toBe(node.owner);
+    expect(nftFacts(XRPL, NFT_ID, "indexed-owner-unknown", nftAnswerSample({ nft: unowned() }), undefined).owner).toBeUndefined();
+  });
+
+  it("an NFT without a mint in the index has no day of it", () => {
+    expect(nftFacts(XRPL, NFT_ID, "indexed", nftAnswerSample(), undefined).minted).toBeUndefined();
+  });
+
+  it("from the network: the node's owner and no sale or mint", () => {
+    const node = nodeNftInfoSample();
+    const facts = nftFacts(XRPL, NODE_NFT_ID, "network", undefined, node);
+    expect(facts).toEqual({ kind: "nftoken", name: "NFT #106,293,080", headline: "#106,293,080", burned: false, collection: `${shortAddress(node.issuer)} · taxon 500`, owner: node.owner });
+    expect(nftFacts(XRPL, NODE_NFT_ID, "network-burned", undefined, nodeNftInfoSample({ is_burned: true }))).toMatchObject({ burned: true });
+    expect(nftFacts(XRPL, NODE_NFT_ID, "network-burned", undefined, nodeNftInfoSample({ is_burned: true })).owner).toBeUndefined();
+  });
+
+  it("a URIToken: its short id for a headline, its issuer's collection, the kind", () => {
+    const facts = nftFacts(XAHAU, URI_TOKEN_ID, "indexed", nftAnswerSample({ nft: uriTokenSample() }), undefined);
+    expect(facts).toMatchObject({ kind: "uritoken", name: "URIToken 96133366…", headline: "96133366…AAE9", collection: shortAddress(URI_TOKEN_ISSUER), owner: URI_TOKEN_OWNER, lastSale: "4,200 XAH" });
+    const entry = nodeUriTokenSample();
+    expect(nftFacts(XAHAU, URI_TOKEN_ID, "network", undefined, entry)).toMatchObject({ kind: "uritoken", owner: entry.Owner, collection: shortAddress(entry.Issuer) });
   });
 });
 

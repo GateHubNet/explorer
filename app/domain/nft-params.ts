@@ -210,6 +210,12 @@ export function parseTaxon(raw: string): { taxon: number; plain: string } | null
 
 const ELLIPSIS = "…";
 
+/**
+ * What a seller → buyer is written with in the history's Accounts cell: a text segment that is exactly this is the arrow between two accounts. The view builder (`nft-view.ts`, in the
+ * Worker) writes it and the NFT page (in the browser) draws it, as an arrow that is a picture and, for a screen reader, the word "to".
+ */
+export const ARROW = " → ";
+
 /** An NFT id shortened to its first 8 and last 4 characters: `00081388…101F` (an id that is no longer than that is returned as it is). */
 export function shortNftId(id: string): string {
   // Thirteen characters or fewer: the shortened form would be no shorter.

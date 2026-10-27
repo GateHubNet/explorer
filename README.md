@@ -1970,7 +1970,7 @@ too close to the text's for axe's `link-in-text-block`. Their page with a card t
 was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
 - a page loads more JavaScript, gzipped, than its budget (`BUDGETS` in `scripts/bundle-budget.ts`, ruling R19): **150 KB** (150,000 bytes) for the lookup pages,
-  the home, ledger, transaction, account and markets routes and the three NFT pages, `nfts`, `nft-sales` and `nft-collection`, and **160 KB** (160,000 bytes) for the dashboards, the network, market pair, validators, validator, amendments and amendment
+  the home, ledger, transaction, account and markets routes and the four NFT pages, `nfts`, `nft-sales`, `nft-collection` and `nft`, and **160 KB** (160,000 bytes) for the dashboards, the network, market pair, validators, validator, amendments and amendment
   routes and the two AMM pages, `amm` and `amm-pool` (`PAGES`, which names each page's budget); what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
@@ -2422,6 +2422,36 @@ one column chart (the list draws that and the bar list) and shares the list's `N
 - **The list and the older sales** grew 289 and 273 bytes, 211 of them in the chunk of `NftSalesTable` (1,675 to 1,886 gzipped), which gained the prop that leaves out the collection's column (spec 3.1: the Sales tab of a collection has none); the rest is the manifest
   and the `import` lines.
 - **The collection** is 1,108 bytes under its budget, the tightest of the lookup pages, the list's 1,468 next. A later NFT page that grows the shared table or chart chunks should look at both.
+
+**The figures of E8: an NFT** (the page `nft`, route `routes/net.nft.$id`; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included). *Before* is `3fea149`, the commit the task
+started from, exported with `git archive`, built and measured on its own for this table. An NFT's page is a lookup page (`budget: "lookup"`, 150,000): it draws no chart (`test/unit/nft-bundle.test.ts` holds its closure to none of `app/ui/charts/`), only a header
+card, three lists of facts and two tables (`DataTable`, `Pager`, `CoverageNote`, `Sentence`), so ruling C18's fallback was not needed. Its URI is text, never a link.
+
+| page | Before (files) | After (files) | Change | Budget | Under it by |
+|---|---:|---:|---:|---:|---:|
+| home | 135,258 (14) | 135,317 (14) | +59 | 150,000 | 14,683 |
+| ledger | 135,153 (18) | 135,215 (18) | +62 | 150,000 | 14,785 |
+| transaction | 137,460 (19) | 137,519 (19) | +59 | 150,000 | 12,481 |
+| account | 140,771 (24) | 140,835 (24) | +64 | 150,000 | 9,165 |
+| network | 151,654 (26) | 151,703 (26) | +49 | 160,000 | 8,297 |
+| markets | 134,734 (13) | 134,797 (13) | +63 | 150,000 | 15,203 |
+| market-pair | 150,474 (27) | 150,528 (27) | +54 | 160,000 | 9,472 |
+| validators | 149,611 (25) | 149,666 (25) | +55 | 160,000 | 10,334 |
+| validator | 149,916 (26) | 149,978 (26) | +62 | 160,000 | 10,022 |
+| amendments | 139,954 (18) | 140,015 (18) | +61 | 160,000 | 19,985 |
+| amendment | 148,474 (23) | 148,533 (23) | +59 | 160,000 | 11,467 |
+| amm | 144,685 (22) | 144,740 (22) | +55 | 160,000 | 15,260 |
+| amm-pool | 153,215 (36) | 153,261 (36) | +46 | 160,000 | 6,739 |
+| nfts | 148,532 (27) | 148,866 (28) | +334 | 150,000 | 1,134 |
+| nft-sales | 133,997 (17) | 134,339 (18) | +342 | 150,000 | 15,661 |
+| nft-collection | 148,892 (29) | 149,227 (30) | +335 | 150,000 | 773 |
+| nft | | **136,746** (22) | | 150,000 | 13,254 |
+| account analytics (gate 2) | 152,945 (25) | 153,006 (25) | +61 | 160,000 | 6,994 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,076 | 2,137 | +61 | | |
+
+- **The manifest** grew 61 bytes for the route, which with the `import` lines of the new route is the +46 to +64 of the pages that gained no file. The list, the older sales and the collection each gained a file, +334 to +342: the build's re-splitting of a
+  chunk that the new page shares with them, as each new route has caused ("The shell and vendor chunks" above).
+- **The NFT page** is 13,254 bytes under its budget. **The collection** is the tightest lookup page, 773 bytes under, the list's 1,134 next: a later NFT page that grows the shared table, chart or `Sentence` chunks should look at both.
 
 ## The parsing libraries in the Workers runtime
 
