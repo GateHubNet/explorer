@@ -18,8 +18,23 @@ const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
 const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/nft-id$/, /\/asset$/, /ripple-/];
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
-/** The files of the pages, the table they share, and the links and the params that the pages are made with. */
-const PAGE_FILES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/pages/NftCollectionPage.tsx", "ui/pages/NftPage.tsx", "ui/components/NftSalesTable.tsx", "domain/nft-params.ts", "domain/nft-link.ts"];
+/**
+ * The files of the pages, the table they share, and the links and the params that the pages are made with. `Sentence` and `NftLink` are the NFT link of the pages that are no NFT page: `Sentence`
+ * draws the `nft` segment of a transaction's sentence and of an account's NFT objects (the transaction, ledger, account and NFT pages load it), and `NftLink` is the NFT of the account's NFTs tab,
+ * the page that draws both. Each is held to the marker alphabet as the only file of the Worker's that it loads.
+ */
+const PAGE_FILES = [
+  "ui/pages/NftsPage.tsx",
+  "ui/pages/NftSalesPage.tsx",
+  "ui/pages/NftCollectionPage.tsx",
+  "ui/pages/NftPage.tsx",
+  "ui/components/NftSalesTable.tsx",
+  "ui/components/Sentence.tsx",
+  "ui/components/NftLink.tsx",
+  "ui/pages/AccountPage.tsx",
+  "domain/nft-params.ts",
+  "domain/nft-link.ts",
+];
 
 /** The pages that draw the shared sales table, whose closure the table, the pager and the coverage note are looked for in. */
 const PAGES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/pages/NftCollectionPage.tsx"];

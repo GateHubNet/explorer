@@ -4,11 +4,14 @@ import { Await, Link } from "react-router";
 import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
 import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { collectionLink } from "../../domain/nft-link";
+import { nftWords, shortNftId } from "../../domain/nft-params";
 import { poolLink } from "../../domain/pool-link";
 import type {
   AccountAnalyticsPageData,
   AccountHeader,
   AccountListPageData,
+  AccountNftRow,
   AccountPageData,
   ChangeView,
   NeverActivatedData,
@@ -26,10 +29,13 @@ import { Amount } from "../components/Amount";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { Card } from "../components/Card";
 import { CopyButton } from "../components/CopyButton";
+import { CoverageNote } from "../components/CoverageNote";
 import { DataTable, type Column } from "../components/DataTable";
 import { Identicon } from "../components/Identicon";
 import { CheckIcon } from "../components/icons";
 import { LiveStateNotice } from "../components/LiveStateNotice";
+import { NftGlyph } from "../components/NftGlyph";
+import { NftLink } from "../components/NftLink";
 import { Notice } from "../components/Notice";
 import { Pager } from "../components/Pager";
 import { QrButton } from "../components/QrButton";
@@ -50,7 +56,8 @@ import { NotFoundPage } from "./NotFoundPage";
 /** Tokens listed before "Show N more". */
 const TOKENS_SHOWN = 10;
 
-const TAB_LABELS: Record<AccountTab, string> = {
+/** The labels of the tabs that are the same on both networks; the NFTs tab's is the network's word for them (`nftWords`). */
+const TAB_LABELS: Record<Exclude<AccountTab, "nfts">, string> = {
   transactions: "Transactions",
   payments: "Payments",
   trades: "Trades",
@@ -79,8 +86,8 @@ const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 
 
 /**
  * The account page: the address with its picture, copy button and QR code, when and by whom it was activated, its flags, the balance
- * with the reserve, the tokens and owned objects, and the tabs (transactions, payments with a CSV link, trades, offers, objects, and
- * analytics while `ACCOUNT_ANALYTICS` is on, the "soon" label otherwise). Takes what the loader made of the account (`AccountPageData`) and
+ * with the reserve, the tokens and owned objects, and the tabs (transactions, payments with a CSV link, trades, offers, objects, the NFTs while
+ * `NFTS` is on, the "soon" label otherwise, and analytics while `ACCOUNT_ANALYTICS` is on, the "soon" label otherwise). Takes what the loader made of the account (`AccountPageData`) and
  * never fetches.
  *
  * - On the first page the header is read live. The tab's list is a promise: it streams in after the header, and when it could not be
@@ -426,11 +433,18 @@ function OwnedCard({ header }: { header: AccountHeader }) {
 
 /**
  * The Activity card: the tabs, then the list of a list tab, or the analytics view's filter row. The Analytics tab is a link while the switch is
- * on (`data.analyticsTab`), to the view's default period from every page of the account, history pages included (the view is live mode).
+ * on (`data.analyticsTab`), to the view's default period from every page of the account, history pages included (the view is live mode). The
+ * NFTs tab, called as the network calls them (NFTs, URITokens), is a link while `NFTS` is on (the layout's switches, as the NFT links read them)
+ * and the "soon" label while it is off.
  */
 function Activity({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
   const net = network.id;
+  const features = useFeatures();
   const items: TabItem[] = ACCOUNT_TABS.map((id) => {
+    if (id === "nfts") {
+      const label = nftWords(net).tokens;
+      return features.nfts ? { id, label, href: accountHref(net, data.address, { tab: id }) } : { id, label, soon: true };
+    }
     if (id !== "analytics") return { id, label: TAB_LABELS[id], href: accountHref(net, data.address, { tab: id }) };
     return data.analyticsTab
       ? { id, label: TAB_LABELS[id], href: analyticsHref(net, data.address, DEFAULT_ANALYTICS_PERIOD), rel: "nofollow", onIntent: warmAnalytics }
@@ -477,19 +491,23 @@ function isPromise(value: unknown): value is Promise<unknown> {
 function ListSection({ network, data }: { network: NetworkInfo; data: AccountListPageData }) {
   const { list } = data;
   if (!isPromise(list)) return <TabPanel network={network} data={data} list={list} />;
+  const word = listWord(data.tab, network.id);
   return (
-    <Suspense fallback={<ListLoading tab={data.tab} />}>
-      <Await resolve={list} errorElement={<ListFailed what={data.tab} />}>
+    <Suspense fallback={<ListLoading word={word} />}>
+      <Await resolve={list} errorElement={<ListFailed what={word} />}>
         {(resolved: TabList) => <TabPanel network={network} data={data} list={resolved} />}
       </Await>
     </Suspense>
   );
 }
 
-function ListLoading({ tab }: { tab: ListTab }) {
+/** What a tab's list is called in "Loading …" and in the error of a promise that was refused: the tab's name, and the NFTs' in the network's words (`NFTs`, `URITokens`). */
+const listWord = (tab: ListTab, net: NetworkInfo["id"]): string => (tab === "nfts" ? nftWords(net).tokens : tab);
+
+function ListLoading({ word }: { word: string }) {
   return (
     <div className="activity__loading" role="status">
-      {`Loading ${tab}…`}
+      {`Loading ${word}…`}
     </div>
   );
 }
@@ -562,6 +580,15 @@ function TabPanel({ network, data, list }: { network: NetworkInfo; data: Account
           <ObjectsList net={net} rows={list.rows} />
         </Panel>
       );
+    case "nfts": {
+      const words = nftWords(net);
+      return (
+        <Panel note={`${words.tokens} this account holds now`} foot={plural(list.rows.length, words.token, words.tokens)} paging={list.paging}>
+          <NftsTable net={net} rows={list.rows} />
+          <CoverageNote net={net} note={list.coverage} />
+        </Panel>
+      );
+    }
   }
 }
 
@@ -689,6 +716,63 @@ function OffersTable({ rows }: { rows: OfferRow[] }) {
   return <DataTable label="Open offers" columns={columns} rows={rows} rowKey={(row) => String(row.sequence)} minWidth={696} empty="This account has no open offers." />;
 }
 
+/** What a cell that has nothing to tell is: the last sale of an NFT that has not been sold. */
+const DASH = "—";
+
+/** The collection of an NFT as a link to its page while `NFTS` is on (`collectionLink`), its label as text otherwise. */
+function CollectionCell({ net, collection }: { net: NetworkInfo["id"]; collection: AccountNftRow["collection"] }) {
+  const href = collectionLink(net, collection.key, useFeatures());
+  return href === null ? (
+    <span className="mono nfts__collection">{collection.label}</span>
+  ) : (
+    <Link to={href} className="mono nfts__collection">
+      {collection.label}
+    </Link>
+  );
+}
+
+// The columns of the NFTs tab: the NFT with its glyph and, under its serial, the short id (the short id alone on Xahau, whose URITokens have no serial), its collection, the price it
+// was last sold at (an account's list has no converted amount, so no "≈") and the day of its mint. `NFTS_WIDTH` is the tracks at their least, the gaps (3 × 16 px) and the padding of a
+// row (2 × 16 px), below which the table scrolls sideways inside its card.
+const NFTS_WIDTH = 170 + 170 + 150 + 120 + 3 * 16 + 2 * 16;
+
+/**
+ * The NFTs the account holds, in the order the API gave them. Not drawn while `NFTS` is off (the tab is a "soon" label and its URL a redirect), so the NFT and its collection are links
+ * (`NftLink`, `CollectionCell`: both are plain text where the switch is off).
+ */
+function NftsTable({ net, rows }: { net: NetworkInfo["id"]; rows: AccountNftRow[] }) {
+  const words = nftWords(net);
+  const columns: Column<AccountNftRow>[] = [
+    {
+      id: "nft",
+      header: words.token,
+      width: "170px",
+      cell: (row) => (
+        <span className="nfts__nft">
+          <NftGlyph chars={row.nft.glyph} />
+          <span className="nfts__ids">
+            <NftLink net={net} id={row.nft.id} serial={row.nft.serial} />
+            {row.nft.serial !== undefined && <span className="mono faint nfts__short">{shortNftId(row.nft.id)}</span>}
+          </span>
+        </span>
+      ),
+    },
+    { id: "collection", header: "Collection", width: "minmax(170px, 1.4fr)", cell: (row) => <CollectionCell net={net} collection={row.collection} /> },
+    {
+      id: "last",
+      header: "Last sale",
+      width: "150px",
+      align: "end",
+      cell: (row) =>
+        row.lastSale === null ? <span className="faint">{DASH}</span> : <Amount value={row.lastSale.value} currency={row.lastSale.currency} issuer={row.lastSale.issuer} className="mono num" />,
+    },
+    { id: "minted", header: "Minted", width: "120px", cell: (row) => <span className="num muted">{row.minted}</span> },
+  ];
+  return (
+    <DataTable label={words.tokens} columns={columns} rows={rows} rowKey={(row) => row.key} minWidth={NFTS_WIDTH} empty={`This account holds no ${words.tokens} in the index.`} className="nfts__table" />
+  );
+}
+
 function ObjectsList({ net, rows }: { net: NetworkInfo["id"]; rows: ObjectRow[] }) {
   if (rows.length === 0) return <div className="table__empty">This account owns no other objects.</div>;
   return (
@@ -704,6 +788,7 @@ function ObjectsList({ net, rows }: { net: NetworkInfo["id"]; rows: ObjectRow[] 
               </span>
             </div>
           ))}
+          {row.link && <Link to={row.link.href}>{row.link.label}</Link>}
           {row.tx && (
             <Link to={`/${net}/tx/${row.tx}`} className="object__tx">
               Last changed in {shortHash(row.tx)} →

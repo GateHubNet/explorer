@@ -303,6 +303,21 @@ describe("accountMeta", () => {
     }
   });
 
+  it("words the older rows of the NFTs tab as the network does: 'Older NFTs', and 'Older URITokens' on Xahau", () => {
+    const older = (ctx: MetaContext) => accountMeta(account({ header: { status: "history" }, tab: "nfts" }), ctx);
+    expect(content(older(XRPL), "description")).toBe(`Older NFTs of the account ${ADDRESS} on XRPL.`);
+    expect(content(older(XAHAU), "description")).toBe(`Older URITokens of the account ${ADDRESS} on Xahau.`);
+    // The testnets take their mainnet's words (and say their own name).
+    expect(content(older(XRPL_TESTNET), "description")).toBe(`Older NFTs of the account ${ADDRESS} on XRPL Testnet.`);
+    expect(content(older(XAHAU_TESTNET), "description")).toBe(`Older URITokens of the account ${ADDRESS} on Xahau Testnet.`);
+    expect(content(older(XRPL), "robots")).toBe("noindex, follow");
+    expect(link(older(XRPL), "canonical")).toBeUndefined();
+  });
+
+  it("names the NFTs tab in the canonical URL of its first page", () => {
+    expect(link(accountMeta(account({ tab: "nfts" }), XRPL), "canonical")).toBe(`https://explorer.test/xrpl/account/${ADDRESS}?tab=nfts`);
+  });
+
   describe("on the Analytics tab", () => {
     const view = (period: "30d" | "90d" | "1y" | "all") => account({ tab: "analytics", analytics: { period } });
     const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;

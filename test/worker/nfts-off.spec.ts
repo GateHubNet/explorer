@@ -1,17 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { encodeAccountID } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
 import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
-import { mockUpstream, type UpstreamMock } from "../support/upstream";
+import { mockUpstream, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The NFT pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `NFTS` on (NFT spec 1.4, 15). `NFTS` is
 // page-level: every route of the NFT pages, and the link-preview image of an NFT, is a 404 of class `short` made before any call (neither the path's other segments nor the query is
 // read: no redirect, no "not a collection", no "not an id"), and the header's NFTs item is the "soon" label. The `worker` project's cases, with the switch on, are nfts-list.spec.ts and the specs of the later NFT pages;
-// the later pages add their routes and their other places (the image, the account's tab, plain ids, search) to this file.
+// the later pages add their routes and their other places (the image, the account's tab, plain ids, search) to this file. The account's NFTs tab is one of them: the "soon" label, and
+// its URL a 302 to the account page (as the Analytics tab's with ACCOUNT_ANALYTICS off), before any call.
 
 const { get, page, storedAs } = pageClient("198.18.62");
 
 const SHORT = { cls: "short", ttl: 30 };
+/** The recorded active accounts of the two networks (test/fixtures/http, which hold NFTs when NFTS is on: `holderCase`). */
+const ACTIVE = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+const XAHAU_ACTIVE = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 const ISSUER = "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy";
 /** An NFT id, and a URIToken's. */
 const NFT_ID = "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C9D848920A0669E96F";
@@ -160,5 +165,99 @@ describe("the NFTs of a transaction with NFTS off", () => {
     expect(elementText(html, "sentence")).toBe(`${shortAddress("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV")} minted NFT 00081388…E758, taxon 500, transfer fee 5%.`);
     expect(html.split(`<span class="mono" title="${MINTED}">00081388…E758</span>`)).toHaveLength(3);
     expect(hrefs(html).some((href) => href.includes("/nft/"))).toBe(false);
+  });
+});
+
+describe("the account's NFTs with NFTS off", () => {
+  it.each([
+    ["xrpl", ACTIVE, "NFTs"],
+    ["xahau", XAHAU_ACTIVE, "URITokens"],
+  ] as const)("shows the %s account's NFTs tab as 'soon', a label and not a link, and links nothing to it", async (net, address, label) => {
+    mock = mockUpstream(net);
+    const { html } = await page(`/${net}/account/${address}`);
+    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
+    expect(nav).not.toBeNull();
+    // Every switch is off here: Analytics is the "soon" label of before too.
+    expect(anchors(nav![1]!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
+    expect(nav![1]).toContain(`<span class="tabs__item is-soon" aria-disabled="true"><span>${label}</span><span class="soon">soon</span></span>`);
+    expect(html).not.toContain("tab=nfts");
+    expect(mock.requests.some((request) => request.key.includes("/nfts"))).toBe(false);
+  });
+
+  it.each([
+    ["xrpl", "tab=nfts"],
+    ["xahau", "tab=nfts"],
+    // What the tab would redirect or refuse is not read: a marker (valid or not), a trail, a tag, another parameter.
+    ["xrpl", "tab=nfts&marker=WzEwNzg3ODc3NSwxMDQsMV0"],
+    ["xrpl", "tab=nfts&marker=%25"],
+    ["xrpl", "tab=nfts&marker=M2&back=M1"],
+    ["xrpl", "tag=7&tab=nfts"],
+  ] as const)("answers /%s/account/{address}?%s with a 302 to the account page, class short, without a call", async (net, query) => {
+    mock = mockUpstream(net);
+    const address = net === "xrpl" ? ACTIVE : XAHAU_ACTIVE;
+    const path = `/${net}/account/${address}?${query}`;
+    const response = await get(path);
+    await response.text();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/${net}/account/${address}`);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("tidies the .data URL of the tab (a client-side navigation) the same way: a redirect for React Router to follow, and no call", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/xrpl/account/${ACTIVE}.data?tab=nfts&_routes=routes%2Fnet.account.%24address`);
+    const body = await response.text();
+    expect(response.status).toBe(202);
+    expect(body).toContain("SingleFetchRedirect");
+    expect(body).toContain(`/xrpl/account/${ACTIVE}`);
+    expect(body).not.toContain("tab=nfts");
+    expect(mock.requests).toEqual([]);
+  });
+
+  /** The answers of a made-up account that exists and owns `objects`, which no other test of this file asked for (what a request makes is kept for a few seconds). */
+  const owning = (address: string, objects: object[], ledger: number): Overrides => ({
+    [`GET /v2/accounts/${address}`]: {
+      result: "success",
+      account_data: { account: address, parent: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ", initial_balance: "25", inception: "2025-07-15T18:30:43Z", ledger_index: 97500000, tx_hash: "9B".repeat(32) },
+    },
+    [`GET /v2/accounts/${address}/balances`]: { result: "success", ledger_index: ledger, limit: 200, balances: [{ currency: "XRP", value: "25" }] },
+    [`node account_info ${address}`]: {
+      account_data: { Account: address, Balance: "25000000", Flags: 0, LedgerEntryType: "AccountRoot", OwnerCount: objects.length, Sequence: 12 },
+      ledger_index: ledger,
+      validated: true,
+    },
+    [`node account_objects ${address}`]: { account: address, account_objects: objects, ledger_index: ledger, validated: true },
+  });
+
+  it("shows the NFTs of the Objects tab as text, and no 'See the account’s NFTs'", async () => {
+    const NFT = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+    const a = encodeAccountID(new Uint8Array(20).fill(91));
+    const objects = [
+      { LedgerEntryType: "NFTokenPage", index: "A".repeat(64), NFTokens: Array.from({ length: 32 }, () => ({})), PreviousTxnID: "AB".repeat(32) },
+      { LedgerEntryType: "NFTokenOffer", index: "F".repeat(64), NFTokenID: NFT, Flags: 1, Amount: "25000000", PreviousTxnID: "CD".repeat(32) },
+    ];
+    mock = mockUpstream("xrpl", owning(a, objects, 107721455));
+    const { html } = await page(`/xrpl/account/${a}?tab=objects`);
+
+    expect(textOf(html)).toContain("NFTokenPage NFTs 32");
+    expect(textOf(html)).toContain("NFTokenOffer NFT 00081388…E6D8 Side Sell Amount 25 XRP");
+    expect(html).toContain(`<span class="mono" title="${NFT}">00081388…E6D8</span>`);
+    expect(anchors(html).filter((x) => /href="\/(xrpl|xahau)\/nft\//.test(x.attrs))).toEqual([]);
+    expect(hrefs(html).some((href) => href.includes("/nft/") || href.includes("tab=nfts"))).toBe(false);
+    expect(textOf(html)).not.toContain("See the account’s NFTs");
+  });
+
+  it("shows a Xahau URIToken of the Objects tab as text, with its issuer still a link to the account", async () => {
+    const TOKEN = "9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9";
+    const a = encodeAccountID(new Uint8Array(20).fill(92));
+    const objects = [{ LedgerEntryType: "URIToken", index: TOKEN, Issuer: ISSUER, Owner: a, Amount: "1500000000", PreviousTxnID: "EF".repeat(32) }];
+    mock = mockUpstream("xahau", owning(a, objects, 26596843));
+    const { html } = await page(`/xahau/account/${a}?tab=objects`);
+
+    expect(html).toContain(`<span class="mono" title="${TOKEN}">96133366…AAE9</span>`);
+    expect(textOf(html)).toContain(`URIToken URIToken 96133366…AAE9 Issuer ${shortAddress(ISSUER)} Sell offer 1,500 XAH`);
+    expect(hrefs(html)).toContain(`/xahau/account/${ISSUER}`);
+    expect(hrefs(html).some((href) => href.includes("/nft/") || href.includes("tab=nfts"))).toBe(false);
   });
 });

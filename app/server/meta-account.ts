@@ -5,6 +5,7 @@ import type { MetaDescriptor } from "react-router";
 import { accountHref, type AccountTab } from "../domain/account-tabs";
 import { ANALYTICS_META, type AnalyticsPeriod } from "../domain/analytics-params";
 import { formatAmount, formatUtc, shortAddress } from "../domain/format";
+import { nftWords } from "../domain/nft-params";
 import type { Native } from "../domain/parse/types";
 import type { Activation, BalanceView } from "./account-view";
 import { absolute, imageUrl, sharing, suffixOf, type MetaContext } from "./meta";
@@ -46,7 +47,8 @@ export function accountMeta(account: AccountFacts, ctx: MetaContext): MetaDescri
     // No canonical URL: Google advises against `noindex` on a page that names another URL as its canonical, and the two disagree.
     return [
       { title },
-      { name: "description", content: `Older ${tab} of the account ${address} on ${network.name}.` },
+      // The NFTs tab says its network's word for them (`NFTs`, `URITokens`), as the tab's label does.
+      { name: "description", content: `Older ${tab === "nfts" ? nftWords(network.id).tokens : tab} of the account ${address} on ${network.name}.` },
       { name: "robots", content: "noindex, follow" },
     ];
   }

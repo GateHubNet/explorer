@@ -9,6 +9,7 @@ import {
   existenceOf,
   failedList,
   loaded,
+  nftsList,
   objectsList,
   offersList,
   PAGE_SIZE,
@@ -88,7 +89,7 @@ async function within<T>(list: Promise<T>, ms: number, onTimeout: () => T): Prom
   }
 }
 
-/** The data of the list of a tab that is read from the data API: transactions, payments, trades (paged) and the open offers. */
+/** The data of the list of a tab that is read from the data API: transactions, payments, trades, NFTs (paged) and the open offers. */
 function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList> {
   const query = { descending: true, limit: PAGE_SIZE, marker: ctx.marker };
   switch (tab) {
@@ -98,6 +99,9 @@ function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList
       return api.accountPayments(ctx.address, query).then((page) => paymentsList(page, ctx));
     case "trades":
       return api.accountExchanges(ctx.address, query).then((page) => tradesList(page, ctx));
+    case "nfts":
+      // What the account holds now, in the API's order (by collection and serial): no `descending`.
+      return api.accountNfts(ctx.address, { limit: PAGE_SIZE, marker: ctx.marker }).then((page) => nftsList(page, ctx));
     default:
       return api.orders(ctx.address).then(
         (orders) => offersList(orders),
@@ -130,6 +134,8 @@ const withoutRoutesParam = (search: string) =>
  *   call: with `ACCOUNT_ANALYTICS` off, to the account page (as an unknown tab, without the rest of the query); with it on, to the view's
  *   canonical URL (`tab=analytics`, then `period` when it is not the default). The canonical URL is the view (`analyticsPage`, spec 2): class
  *   `live`, the header without the holdings, and the frame and six cards streamed after it.
+ * - **The NFTs tab** (`?tab=nfts`, NFT spec 6.1) is a list of the data API (`accountNfts`) paged by marker as the transactions are. While `NFTS` is off the
+ *   tab is the "soon" label and its URL a 302 of class `short` to the account page before any call, as Analytics'; while it is on, the Objects tab's NFT pages lead to it.
  * - **The first page of a tab** (no marker) is class `live`. The header is read side by side from the data API (creation, balances) and
  *   the node (`account_info`, `account_objects`, `server_state` for the reserves) and awaited. The list of the tab is a promise that
  *   streams in after it, and that never rejects: when it cannot be loaded it is a `failed` list, which the page shows as "Couldn't
@@ -168,6 +174,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const tabParam = search.get("tab");
   if (search.has("tab") && !isAccountTab(tabParam)) return tidied(without("tab"));
   const tab: AccountTab = isAccountTab(tabParam) ? tabParam : "transactions";
+
+  // The NFTs tab is the "soon" label while `NFTS` is off, and its URL is as an unknown tab's, a 302 to the account page before any call.
+  if (tab === "nfts" && !network.features.nfts) return tidied(base);
 
   if (tab === "analytics") {
     if (!network.features.accountAnalytics) return tidied(base);
@@ -324,13 +333,13 @@ async function firstPage(
           readList(api, tab, ctx).catch((err: unknown) => {
             logProblem(`the ${tab} of an account could not be loaded`, err, request);
             markDegraded(context, `${tab} could not be loaded`);
-            return failedList(tab);
+            return failedList(tab, network.id);
           }),
           LIST_DEADLINE_MS,
           () => {
             logProblem(`the ${tab} of an account took too long`, new Error("deadline"), request);
             markDegraded(context, `${tab} took too long`);
-            return failedList(tab);
+            return failedList(tab, network.id);
           },
         );
 
@@ -362,11 +371,13 @@ async function firstPage(
   const { header, problems } = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, history });
   reportProblems(context, request, problems);
 
+  // An NFT page of the Objects tab leads to the account's NFTs while `NFTS` is on; with it off there is no such tab to lead to.
+  const nftsHref = network.features.nfts ? accountHref(network.id, address, { tab: "nfts" }) : undefined;
   let list: Promise<TabList> | TabList;
   if (settled !== null) {
     list = settled;
   } else if (objects.state === "ok") {
-    list = objectsList(objects.value, network.native);
+    list = objectsList(objects.value, network.native, nftsHref);
   } else if (objects.state === "missing") {
     list = objectsList(null, network.native);
   } else {

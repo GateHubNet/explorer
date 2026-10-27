@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { Segment } from "../domain/describe";
-import type { AccountData, AccountExchange, BalancesResponse, OrdersResponse, Payment, TxObject } from "./api-types";
+import { nftSample, nftsPageSample, uriTokenSample, NFT_MARKER, NFT_OWNER, OTHER_ISSUER, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../../test/support/nft-samples";
+import type { AccountData, AccountExchange, BalancesResponse, NftsPage, OrdersResponse, Payment, TxObject } from "./api-types";
 import {
   ACCOUNT_TABS,
   accountFlags,
@@ -14,10 +15,12 @@ import {
   isAccountTab,
   loaded,
   objectRows,
+  nftsList,
   objectsList,
   offerRows,
   offersList,
   ownedCounts,
+  PAGED_TABS,
   paymentRows,
   paymentsList,
   pagingOf,
@@ -55,10 +58,14 @@ const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: st
 const text = (segments: readonly Segment[]) => segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : s.t === "nft" ? `<NFT ${s.v}>` : `[${s.pair}]`)).join("");
 
 describe("the tabs and the URL", () => {
-  it("lists the six tabs of the page, the first being the default and the last the analytics", () => {
-    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects", "analytics"]);
+  it("lists the seven tabs of the page, the first being the default, the NFTs before the last, and the last the analytics", () => {
+    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects", "nfts", "analytics"]);
     for (const tab of ACCOUNT_TABS) expect(isAccountTab(tab)).toBe(true);
-    for (const other of ["Analytics", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
+    for (const other of ["Analytics", "NFTs", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
+  });
+
+  it("pages the lists that are read from the data API by marker, the NFTs' among them, and not the offers or the objects, which the node answers live", () => {
+    expect([...PAGED_TABS]).toEqual(["transactions", "payments", "trades", "nfts"]);
   });
 
   it.each([
@@ -91,6 +98,8 @@ describe("the tabs and the URL", () => {
     expect(accountHref("xrpl", XRPL, { tab: "trades", marker: "M1" })).toBe(`/xrpl/account/${XRPL}?tab=trades&marker=M1`);
     expect(accountHref("xrpl", XRPL, { marker: "M2", back: ["M1"] })).toBe(`/xrpl/account/${XRPL}?marker=M2&back=M1`);
     expect(accountHref("xrpl", XRPL, { marker: "M3", back: ["M2", "M1"] })).toBe(`/xrpl/account/${XRPL}?marker=M3&back=M2.M1`);
+    expect(accountHref("xrpl", XRPL, { tab: "nfts" })).toBe(`/xrpl/account/${XRPL}?tab=nfts`);
+    expect(accountHref("xahau", XAHAU, { tab: "nfts", marker: "M2", back: ["M1"] })).toBe(`/xahau/account/${XAHAU}?tab=nfts&marker=M2&back=M1`);
   });
 
   describe("paging: Newer and Older by marker", () => {
@@ -261,6 +270,14 @@ describe("ownedCounts", () => {
 
   it("counts the one trust line of the recorded XRPL account", () => {
     expect(ownedCounts(objectsOf("xrpl", XRPL).account_objects)).toEqual([{ type: "RippleState", label: "trust line", count: 1 }]);
+  });
+
+  it("says URIToken, the glossary's word, and not 'URI token' (decision 18), in the singular and the plural", () => {
+    expect(ownedCounts([object("URIToken")])).toEqual([{ type: "URIToken", label: "URIToken", count: 1 }]);
+    expect(ownedCounts([object("URIToken"), object("URIToken"), object("NFTokenOffer")])).toEqual([
+      { type: "NFTokenOffer", label: "NFT offer", count: 1 },
+      { type: "URIToken", label: "URITokens", count: 2 },
+    ]);
   });
 });
 
@@ -687,6 +704,140 @@ describe("objectRows", () => {
   });
 });
 
+describe("objectRows: the NFT objects", () => {
+  const NFT = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+  const RIPPLE = 946_684_800;
+  const page: LedgerObject = { LedgerEntryType: "NFTokenPage", index: "N1", NFTokens: Array.from({ length: 32 }, () => ({})), PreviousTxnID: "AB".repeat(32) };
+  const NFTS_HREF = `/xrpl/account/${XRPL}?tab=nfts`;
+  const only = (objects: LedgerObject[], native: "XRP" | "XAH" = "XRP", href?: string) => objectRows(objects, native, href).rows;
+
+  it("keeps 'NFTs: 32' of an NFT page and links to the account's NFTs when it is given the link", () => {
+    const [row] = only([page], "XRP", NFTS_HREF);
+    expect(row!.fields).toEqual([{ label: "NFTs", value: [{ t: "text", v: "32" }] }]);
+    expect(row!.link).toEqual({ label: "See the account’s NFTs", href: NFTS_HREF });
+  });
+
+  it("has no link without it: NFTS is off, or nothing was given", () => {
+    const [row] = only([page]);
+    expect(row!.fields).toEqual([{ label: "NFTs", value: [{ t: "text", v: "32" }] }]);
+    expect(row!.link).toBeUndefined();
+    expect("link" in row!).toBe(false);
+  });
+
+  it("links from an NFT page only: no other object has the link", () => {
+    const rows = only([page, { LedgerEntryType: "Ticket", index: "T1", TicketSequence: 5 }, { LedgerEntryType: "NFTokenOffer", index: "F1", NFTokenID: NFT, Flags: 1, Amount: "1" }], "XRP", NFTS_HREF);
+    expect(rows.map((row) => [row.type, row.link?.href])).toEqual([
+      ["NFTokenPage", NFTS_HREF],
+      ["Ticket", undefined],
+      ["NFTokenOffer", undefined],
+    ]);
+  });
+
+  describe("an NFT offer", () => {
+    const offer = (over: Record<string, unknown> = {}): LedgerObject => ({
+      LedgerEntryType: "NFTokenOffer",
+      index: "F1",
+      NFTokenID: NFT,
+      Owner: XRPL,
+      Flags: 1,
+      Amount: "25000000",
+      Destination: "rBroker",
+      Expiration: 1792000000 - RIPPLE,
+      PreviousTxnID: "CD".repeat(32),
+      ...over,
+    });
+    const fields = (row: LedgerObject) => only([row])[0]!.fields.map((f) => `${f.label}: ${text(f.value)}`);
+
+    it("names the NFT as an nft segment of its NFTokenID, the side, the amount, who it is only for and when it expires, in that order", () => {
+      const [row] = only([offer()]);
+      expect(row!.fields.map((f) => f.label)).toEqual(["NFT", "Side", "Amount", "Only for", "Expires"]);
+      expect(row!.fields[0]!.value).toEqual([{ t: "nft", v: NFT }]);
+      expect(fields(offer())).toEqual([`NFT: <NFT ${NFT}>`, "Side: Sell", "Amount: {25 XRP}", "Only for: <rBroker>", "Expires: 2026-10-14 17:46:40 UTC"]);
+      expect(row!.tx).toBe("CD".repeat(32));
+      expect(row!.key).toBe("F1");
+    });
+
+    it("is a sell offer when the lsfSellNFToken bit (1) of its flags is set, and a buy offer when it is not, whatever the other bits say", () => {
+      const side = (Flags: unknown) => only([offer({ Flags })])[0]!.fields[1]!.value;
+      expect(side(1)).toEqual([{ t: "text", v: "Sell" }]);
+      expect(side(0)).toEqual([{ t: "text", v: "Buy" }]);
+      expect(side(3)).toEqual([{ t: "text", v: "Sell" }]);
+      expect(side(2)).toEqual([{ t: "text", v: "Buy" }]);
+      // The bit is the whole of it: a flags that is no number is no side.
+      expect(only([offer({ Flags: undefined })])[0]!.fields.map((f) => f.label)).toEqual(["NFT", "Amount", "Only for", "Expires"]);
+    });
+
+    it("shows an issued amount with its issuer, and leaves out what the offer does not have", () => {
+      const issued = offer({ Amount: { currency: "USD", issuer: "rIssuer", value: "12.50" }, Destination: undefined, Expiration: undefined });
+      expect(fields(issued)).toEqual([`NFT: <NFT ${NFT}>`, "Side: Sell", "Amount: {12.50 USD}"]);
+      expect(only([issued])[0]!.fields[2]!.value).toEqual([{ t: "amount", value: "12.50", currency: "USD", issuer: "rIssuer" }]);
+    });
+
+    it("writes the id as the node did, in capitals, and leaves out an id that is none: it would be a link to nothing", () => {
+      expect(only([offer({ NFTokenID: NFT.toLowerCase() })])[0]!.fields[0]!.value).toEqual([{ t: "nft", v: NFT }]);
+      for (const NFTokenID of ["nope", NFT.slice(1), `${NFT}0`, 5, undefined]) {
+        expect(only([offer({ NFTokenID })])[0]!.fields.map((f) => f.label), String(NFTokenID)).not.toContain("NFT");
+      }
+    });
+
+    it("carries none of the node's raw fields", () => {
+      const json = JSON.stringify(only([offer()]));
+      for (const word of ["LedgerEntryType", "NFTokenID", "Destination", "Expiration", "PreviousTxnID", "Owner"]) expect(json).not.toContain(word);
+    });
+  });
+
+  describe("a URIToken", () => {
+    const TOKEN = "9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9";
+    const token = (over: Record<string, unknown> = {}): LedgerObject => ({
+      LedgerEntryType: "URIToken",
+      index: TOKEN,
+      Issuer: "rIssuer",
+      Owner: XAHAU,
+      URI: "68747470733A2F2F",
+      Digest: "AA".repeat(32),
+      Flags: 0,
+      PreviousTxnID: "EF".repeat(32),
+      ...over,
+    });
+    const fields = (row: LedgerObject) => only([row], "XAH")[0]!.fields.map((f) => `${f.label}: ${text(f.value)}`);
+
+    it("names the token as an nft segment of its index and its issuer, and has no sell offer to show when it has none", () => {
+      expect(fields(token())).toEqual([`URIToken: <NFT ${TOKEN}>`, "Issuer: <rIssuer>"]);
+      const [row] = only([token()], "XAH");
+      expect(row!.fields.map((f) => f.label)).toEqual(["URIToken", "Issuer"]);
+      expect(row!.fields[0]!.value).toEqual([{ t: "nft", v: TOKEN }]);
+      expect(row!.fields[1]!.value).toEqual([{ t: "account", v: "rIssuer" }]);
+      expect(row!.key).toBe(TOKEN);
+      expect(row!.tx).toBe("EF".repeat(32));
+    });
+
+    it("shows the sell offer: its amount, and 'only for' the account it is offered to", () => {
+      const offered = token({ Amount: "1500000000", Destination: "rBuyer" });
+      expect(fields(offered)).toEqual([`URIToken: <NFT ${TOKEN}>`, "Issuer: <rIssuer>", "Sell offer: {1500 XAH}, only for <rBuyer>"]);
+      expect(only([offered], "XAH")[0]!.fields[2]!.value).toEqual([
+        { t: "amount", value: "1500", currency: "XAH" },
+        { t: "text", v: ", only for " },
+        { t: "account", v: "rBuyer" },
+      ]);
+    });
+
+    it("shows a sell offer to anyone as its amount alone, and an issued amount with its issuer", () => {
+      expect(fields(token({ Amount: "1500000000" }))).toEqual([`URIToken: <NFT ${TOKEN}>`, "Issuer: <rIssuer>", "Sell offer: {1500 XAH}"]);
+      expect(only([token({ Amount: { currency: "EVR", issuer: "rEvr", value: "30" } })], "XAH")[0]!.fields[2]!.value).toEqual([{ t: "amount", value: "30", currency: "EVR", issuer: "rEvr" }]);
+    });
+
+    it("shows no sell offer for an amount it has no shape for, and never throws on a malformed token", () => {
+      expect(fields(token({ Amount: { mpt_issuance_id: "x", value: "1" }, Destination: "rBuyer" }))).toEqual([`URIToken: <NFT ${TOKEN}>`, "Issuer: <rIssuer>"]);
+      expect(only([{ LedgerEntryType: "URIToken" }], "XAH")[0]!.fields).toEqual([]);
+      expect(only([{ LedgerEntryType: "NFTokenOffer" }])[0]!.fields).toEqual([]);
+    });
+
+    it("has no link to the account's NFTs: only the NFT page has it", () => {
+      expect(only([token()], "XAH", `/xahau/account/${XAHAU}?tab=nfts`)[0]!.link).toBeUndefined();
+    });
+  });
+});
+
 describe("the lists of the tabs", () => {
   const ctx = (over = {}) => ({ net: "xrpl" as const, native: "XRP" as const, address: XRPL, back: [] as string[], ...over });
 
@@ -739,11 +890,102 @@ describe("the lists of the tabs", () => {
     expect(objectsList(null, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null });
   });
 
+  describe("the NFTs", () => {
+    const rows = (list: ReturnType<typeof nftsList>) => (list.state === "ok" && list.tab === "nfts" ? list.rows : []);
+    const first = (page: Partial<NftsPage> = {}, over = {}) => nftsList(nftsPageSample(page), ctx(over));
+
+    it("lists what the recorded account holds in the order the API gave, a row for each, with the glyph and the collection", () => {
+      const page: NftsPage = read(`xrpl/data-api/accounts/${XRPL}/nfts@limit=20.json`);
+      const list = nftsList(page, ctx());
+      expect(list).toMatchObject({ state: "ok", tab: "nfts", paging: { newerHref: null, olderHref: null }, coverage: null });
+      expect(rows(list).map((row) => row.nft.id)).toEqual(page.nfts.map((nft) => nft.nft_id));
+      for (const [at, row] of rows(list).entries()) {
+        const nft = page.nfts[at]!;
+        expect(row.key).toBe(nft.nft_id);
+        expect(row.nft).toEqual({ id: nft.nft_id, serial: nft.serial, glyph: String(nft.serial).padStart(2, "0").slice(-2) });
+        expect(row.collection).toEqual({ label: `${nft.issuer.slice(0, 6)}…${nft.issuer.slice(-4)} · taxon ${nft.taxon}`, key: { issuer: nft.issuer, taxon: nft.taxon } });
+      }
+    });
+
+    it("renders in the API's order and never sorts the page: serials and issuers out of order stay where they are", () => {
+      const nfts = [
+        nftSample({ nft_id: "B".repeat(64), serial: 9, issuer: OTHER_ISSUER, taxon: 2 }),
+        nftSample({ nft_id: "A".repeat(64), serial: 100, issuer: OTHER_ISSUER, taxon: 1 }),
+        nftSample({ nft_id: "C".repeat(64), serial: 3, issuer: URI_TOKEN_ISSUER, taxon: 0 }),
+      ];
+      expect(rows(first({ nfts, count: 3 })).map((row) => row.nft.serial)).toEqual([9, 100, 3]);
+    });
+
+    it("shows the last sale as the price in its own currency, with no conversion: an account's list has none, and the row has no field for one", () => {
+      const nfts = [
+        nftSample({ nft_id: "1".repeat(64), last_sale: { amount: "20", currency: "XRP", executed_time: "2026-10-25T04:47:41Z", ledger_index: 5, tx_hash: "AB".repeat(32) } }),
+        nftSample({ nft_id: "2".repeat(64), last_sale: { amount: "1.50", currency: "USD", amount_issuer: "rIssuer", converted_amount: "3", executed_time: "2026-10-25T04:47:41Z", ledger_index: 5, tx_hash: "AB".repeat(32) } }),
+        nftSample({ nft_id: "3".repeat(64), last_sale: undefined }),
+      ];
+      const [native, issued, none] = rows(first({ nfts, count: 3 }));
+      expect(native!.lastSale).toEqual({ value: "20", currency: "XRP" });
+      expect(issued!.lastSale).toEqual({ value: "1.50", currency: "USD", issuer: "rIssuer" });
+      expect(none!.lastSale).toBeNull();
+      expect(JSON.stringify(rows(first({ nfts, count: 3 })))).not.toMatch(/converted|≈/);
+    });
+
+    it("gives the day of the mint, and a dash when the mint is not in the index", () => {
+      const nfts = [nftSample({ nft_id: "1".repeat(64), minted: { by: NFT_OWNER, to: NFT_OWNER, ledger_index: 5, tx_hash: "AB".repeat(32), executed_time: "2026-10-25T02:00:52Z" } }), nftSample({ nft_id: "2".repeat(64), minted: undefined })];
+      expect(rows(first({ nfts, count: 2 })).map((row) => row.minted)).toEqual(["Oct 25, 2026", "—"]);
+    });
+
+    it("keys a Xahau URIToken's collection by its issuer alone, and its row has no serial", () => {
+      const [row] = rows(nftsList(nftsPageSample({ nfts: [uriTokenSample()] }), ctx({ net: "xahau", native: "XAH" })));
+      expect(row).toEqual({
+        key: URI_TOKEN_ID,
+        nft: { id: URI_TOKEN_ID, glyph: URI_TOKEN_ID.slice(0, 2) },
+        collection: { label: `${URI_TOKEN_ISSUER.slice(0, 6)}…${URI_TOKEN_ISSUER.slice(-4)}`, key: { issuer: URI_TOKEN_ISSUER } },
+        lastSale: { value: "4200", currency: "XAH" },
+        minted: "—",
+      });
+      expect("serial" in row!.nft).toBe(false);
+    });
+
+    it("pages by the API's marker: Older on the first page, with the tab in its URL, and Newer and Older after it", () => {
+      expect(first()).toMatchObject({ paging: { newerHref: null, olderHref: `/xrpl/account/${XRPL}?tab=nfts&marker=${NFT_MARKER}` } });
+      expect(first({ marker: undefined })).toMatchObject({ paging: { newerHref: null, olderHref: null } });
+      expect(first({ marker: "M3" }, { marker: "M2", back: ["M1"] })).toMatchObject({
+        paging: { newerHref: `/xrpl/account/${XRPL}?tab=nfts&marker=M1`, olderHref: `/xrpl/account/${XRPL}?tab=nfts&marker=M3&back=M2.M1` },
+      });
+      expect(first({ marker: undefined }, { marker: "M1" })).toMatchObject({ paging: { newerHref: `/xrpl/account/${XRPL}?tab=nfts`, olderHref: null } });
+    });
+
+    it("has no rows for an account that holds none, and says nothing of coverage when it is whole", () => {
+      // The deleted account's recorded list: an empty page of a whole coverage.
+      const list = nftsList(read("xrpl/data-api/accounts/r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC/nfts@limit=20.json"), ctx());
+      expect(list).toEqual({ state: "ok", tab: "nfts", rows: [], paging: { newerHref: null, olderHref: null }, coverage: null });
+    });
+
+    it("says what an incomplete coverage leaves out, in the network's words: NFTs, or URITokens", () => {
+      const note = (net: "xrpl" | "xahau") => nftsList(nftsPageSample({ nfts: [], count: 0, marker: undefined, coverage: { complete: false, from_ledger_index: 96100001 } }), ctx({ net, native: net === "xahau" ? "XAH" : "XRP" }));
+      expect(note("xrpl")).toMatchObject({ coverage: { before: "Covers ledger ", ledger: 96100001, after: " onwards: earlier NFTs are not in the index yet." } });
+      expect(note("xahau")).toMatchObject({ coverage: { before: "Covers ledger ", ledger: 96100001, after: " onwards: earlier URITokens are not in the index yet." } });
+      expect(first({ coverage: { complete: true } })).toMatchObject({ coverage: null });
+      expect(nftsList(read(`xahau/data-api/accounts/${XAHAU}/nfts@limit=20.json`), ctx({ net: "xahau", native: "XAH", address: XAHAU }))).toMatchObject({ coverage: { ledger: 26533927 } });
+    });
+
+    it("carries nothing of the API's raw fields: no flags, uri, owner or history", () => {
+      const json = JSON.stringify(first());
+      for (const word of ["flags", "transfer_fee", "owner_since", "sale_count", "executed_time", "nftoken"]) expect(json).not.toContain(word);
+    });
+  });
+
   it("names the section that failed after the tab it is for", () => {
     expect(failedList("transactions")).toEqual({ state: "failed", what: "transactions" });
     expect(failedList("payments")).toEqual({ state: "failed", what: "payments" });
     expect(failedList("trades")).toEqual({ state: "failed", what: "trades" });
     expect(failedList("offers")).toEqual({ state: "failed", what: "offers" });
+    expect(failedList("nfts")).toEqual({ state: "failed", what: "NFTs" });
+    expect(TAB_WHAT.nfts).toBe("NFTs");
+    // The words of a network are its own: Xahau's tokens are URITokens.
+    expect(failedList("nfts", "xrpl")).toEqual({ state: "failed", what: "NFTs" });
+    expect(failedList("nfts", "xahau")).toEqual({ state: "failed", what: "URITokens" });
+    expect(failedList("payments", "xahau")).toEqual({ state: "failed", what: "payments" });
     // The analytics view is no list; its whole-view error says "Couldn't load the analytics."
     expect(TAB_WHAT.analytics).toBe("the analytics");
   });

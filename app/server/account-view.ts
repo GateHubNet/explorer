@@ -11,12 +11,18 @@ import BigNumber from "bignumber.js";
 import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
+import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
+import { formatDate } from "../domain/time-words";
+import { nftGlyph } from "../ui/components/NftGlyph";
 import type { AnalyticsData } from "./analytics-view";
-import type { AccountData, AccountExchange, BalancesResponse, OrdersResponse, Page, Payment, TxObject } from "./api-types";
+import type { AccountData, AccountExchange, BalancesResponse, Nft, NftsPage, OrdersResponse, Page, Payment, TxObject } from "./api-types";
+import { coverageNote, type CoverageNoteText } from "./coverage";
 import type { NetworkId } from "./networks";
+// nft-format.ts reads `isNative` of this file and this file its dash, each only inside a function, so that neither is read before the other has loaded.
+import { DASH } from "./nft-format";
 import { RIPPLE_EPOCH_OFFSET, type AccountInfo, type AccountObjects, type LedgerObject, type ServerState } from "./node-rpc";
 import { UpstreamError } from "./upstream";
 
@@ -25,8 +31,8 @@ import { UpstreamError } from "./upstream";
 
 export { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
 
-/** The tabs whose list is paged by marker; the offers and the objects are read live and have one page. */
-export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades"];
+/** The tabs whose list is paged by marker (the data API's lists, the NFTs' too); the offers and the objects are read live from the node and have one page. */
+export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades", "nfts"];
 
 /** Rows of a page of a list. */
 export const PAGE_SIZE = 20;
@@ -205,7 +211,7 @@ const OWNED_LABELS: ReadonlyArray<readonly [type: string, one: string, many: str
   ["SignerList", "signer list", "signer lists"],
   ["DepositPreauth", "deposit preauthorization", "deposit preauthorizations"],
   ["NFTokenOffer", "NFT offer", "NFT offers"],
-  ["URIToken", "URI token", "URI tokens"],
+  ["URIToken", "URIToken", "URITokens"],
 ];
 
 /**
@@ -611,6 +617,8 @@ export interface ObjectRow {
   fields: ObjectField[];
   /** The transaction that last changed it. */
   tx: string | null;
+  /** Where the object leads besides its fields: an NFT page's to the account's NFTs (only while `NFTS` is on, which is when `objectRows` is given the link). */
+  link?: { label: string; href: string };
 }
 
 const text = (v: string): Segment => ({ t: "text", v });
@@ -635,8 +643,25 @@ function timeField(value: unknown): Segment | null {
 const countField = (value: unknown): Segment | null => (Array.isArray(value) ? text(String(value.length)) : null);
 const numberField = (value: unknown): Segment | null => (typeof value === "number" && Number.isFinite(value) ? text(String(value)) : null);
 
+/** An NFT's or a URIToken's id, as the node writes it: 64 hexadecimal digits, which the page's link leads to the NFT with. Anything else is not an id, and is no field. */
+function nftField(value: unknown): Segment | null {
+  return typeof value === "string" && /^[0-9A-Fa-f]{64}$/.test(value) ? { t: "nft", v: value.toUpperCase() } : null;
+}
+
+/** The side of an NFT offer: a sell offer has `lsfSellNFToken` (1) set, a buy offer has not. A `Flags` that is no number says nothing of it. */
+const LSF_SELL_NFTOKEN = 0x00000001;
+const sideField = (flags: unknown): Segment | null => (typeof flags === "number" && Number.isSafeInteger(flags) ? text((flags & LSF_SELL_NFTOKEN) === 0 ? "Buy" : "Sell") : null);
+
+/** A URIToken's sell offer, when it has one: its `Amount`, and "only for" its `Destination` when it names one. An amount that is none (an MPT) is no offer. */
+function sellOfferField(entry: LedgerObject, native: Native): Segment[] | null {
+  const amount = amountField(entry.Amount, native);
+  if (amount === null) return null;
+  const only = accountField(entry.Destination);
+  return only === null ? [amount] : [amount, text(", only for "), only];
+}
+
 /** The fields to show of each type of object, in order; a field the entry does not have, or in a shape unknown here, is left out. */
-const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => ReadonlyArray<readonly [string, Segment | null]>> = {
+const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => ReadonlyArray<readonly [string, Segment | Segment[] | null]>> = {
   Escrow: (e, native) => [
     ["Amount", amountField(e.Amount, native)],
     ["To", accountField(e.Destination)],
@@ -655,6 +680,18 @@ const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => Rea
     ["Expires", timeField(e.Expiration)],
   ],
   NFTokenPage: (e) => [["NFTs", countField(e.NFTokens)]],
+  NFTokenOffer: (e, native) => [
+    ["NFT", nftField(e.NFTokenID)],
+    ["Side", sideField(e.Flags)],
+    ["Amount", amountField(e.Amount, native)],
+    ["Only for", accountField(e.Destination)],
+    ["Expires", timeField(e.Expiration)],
+  ],
+  URIToken: (e, native) => [
+    ["URIToken", nftField(e.index)],
+    ["Issuer", accountField(e.Issuer)],
+    ["Sell offer", sellOfferField(e, native)],
+  ],
   Ticket: (e) => [["Ticket sequence", numberField(e.TicketSequence)]],
   SignerList: (e) => [
     ["Quorum", numberField(e.SignerQuorum)],
@@ -665,9 +702,10 @@ const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => Rea
 
 /**
  * The objects an account owns, as rows for the Objects tab. Trust lines and offers have a place of their own (Tokens, the Offers
- * tab), so they are counted and left out.
+ * tab), so they are counted and left out. `nftsHref`, which the loader gives only while `NFTS` is on, is the account's NFTs tab: an
+ * NFT page then says "See the account's NFTs" and leads there.
  */
-export function objectRows(objects: readonly LedgerObject[], native: Native): { rows: ObjectRow[]; trustLines: number; offers: number } {
+export function objectRows(objects: readonly LedgerObject[], native: Native, nftsHref?: string): { rows: ObjectRow[]; trustLines: number; offers: number } {
   let trustLines = 0;
   let offers = 0;
   const rows: ObjectRow[] = [];
@@ -685,11 +723,26 @@ export function objectRows(objects: readonly LedgerObject[], native: Native): { 
     rows.push({
       key: typeof entry.index === "string" ? entry.index : String(index),
       type: entry.LedgerEntryType,
-      fields: fields.flatMap(([label, value]) => (value === null ? [] : [{ label, value: [value] }])),
+      fields: fields.flatMap(([label, value]) => (value === null ? [] : [{ label, value: Array.isArray(value) ? value : [value] }])),
       tx: typeof last === "string" && /^[0-9A-Fa-f]{64}$/.test(last) ? last : null,
+      ...(entry.LedgerEntryType === "NFTokenPage" && nftsHref !== undefined ? { link: { label: "See the account’s NFTs", href: nftsHref } } : {}),
     });
   });
   return { rows, trustLines, offers };
+}
+
+/**
+ * An NFT the account holds, a row of the NFTs tab (spec 6.1). The page draws the glyph and the link from `nft` (`serial` is XRPL's: "#4,127", else the short id) and links the
+ * collection from `key` while `NFTS` is on (`collectionLink`). `lastSale` is the price in its own currency: an account's list has no converted amount, so the page draws no "≈".
+ * `minted` is the day of the mint, or a dash when the mint is not in the index.
+ */
+export interface AccountNftRow {
+  /** The NFT's id: the row's own key. */
+  key: string;
+  nft: { id: string; serial?: number; glyph: string };
+  collection: { label: string; key: CollectionKey };
+  lastSale: { value: string; currency: string; issuer?: string } | null;
+  minted: string;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -702,7 +755,8 @@ export type TabList =
   | { state: "ok"; tab: "payments"; rows: PaymentRow[]; paging: Paging; csvHref: string }
   | { state: "ok"; tab: "trades"; rows: TradeRow[]; paging: Paging }
   | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean }
-  | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null };
+  | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null }
+  | { state: "ok"; tab: "nfts"; rows: AccountNftRow[]; paging: Paging; coverage: CoverageNoteText | null };
 
 /** What each tab is called in "Couldn't load transactions"; the analytics view's whole-view error is "Couldn't load the analytics." */
 export const TAB_WHAT: Record<AccountTab, string> = {
@@ -711,6 +765,7 @@ export const TAB_WHAT: Record<AccountTab, string> = {
   trades: "trades",
   offers: "offers",
   objects: "objects",
+  nfts: "NFTs",
   analytics: "the analytics",
 };
 
@@ -767,14 +822,42 @@ export function offersList(orders: OrdersResponse): TabList {
   };
 }
 
-/** The Objects tab; `null` for an account that has none to read (it was deleted). */
-export function objectsList(objects: AccountObjects | null, native: Native): TabList {
+/** The Objects tab; `null` for an account that has none to read (it was deleted). `nftsHref` is `objectRows`'s. */
+export function objectsList(objects: AccountObjects | null, native: Native, nftsHref?: string): TabList {
   if (objects === null) return { state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null };
-  return { state: "ok", tab: "objects", ...objectRows(objects.account_objects, native), truncated: objects.marker !== undefined, ledgerIndex: objects.ledger_index };
+  return { state: "ok", tab: "objects", ...objectRows(objects.account_objects, native, nftsHref), truncated: objects.marker !== undefined, ledgerIndex: objects.ledger_index };
 }
 
-export function failedList(tab: ListTab): TabList {
-  return { state: "failed", what: TAB_WHAT[tab] };
+/** A row of the NFTs tab: the key of its collection is `{ issuer, taxon }` on XRPL and `{ issuer }` on Xahau, whose URITokens have none. */
+function accountNftRow(nft: Nft): AccountNftRow {
+  const key: CollectionKey = nft.taxon === undefined ? { issuer: nft.issuer } : { issuer: nft.issuer, taxon: nft.taxon };
+  const sale = nft.last_sale;
+  return {
+    key: nft.nft_id,
+    nft: { id: nft.nft_id, ...(nft.serial === undefined ? {} : { serial: nft.serial }), glyph: nftGlyph(nft.nft_id, nft.serial) },
+    collection: { label: collectionLabel(key), key },
+    lastSale: sale === undefined ? null : { value: sale.amount, currency: sale.currency, ...(sale.amount_issuer === undefined ? {} : { issuer: sale.amount_issuer }) },
+    minted: nft.minted === undefined ? DASH : formatDate(nft.minted.executed_time),
+  };
+}
+
+/**
+ * The NFTs tab (spec 6.1): what the account holds now, one row for each NFT, in the order the API gave them (D3 orders them by collection and serial, a Xahau account's by id: the
+ * page never sorts them), with the Newer and Older links of the other paged lists. The coverage note is the list's, in the network's words (`NFTs`, `URITokens`).
+ */
+export function nftsList(page: NftsPage, ctx: ListContext): TabList {
+  return {
+    state: "ok",
+    tab: "nfts",
+    rows: page.nfts.map(accountNftRow),
+    paging: pagingOf(ctx.net, ctx.address, { tab: "nfts", marker: ctx.marker, back: ctx.back, next: page.marker }),
+    coverage: coverageNote(page.coverage, nftWords(ctx.net).tokens),
+  };
+}
+
+/** The section that could not be loaded: `TAB_WHAT`'s words of the tab, and the network's own for the NFTs (`net`: "URITokens" on Xahau). */
+export function failedList(tab: ListTab, net?: NetworkId): TabList {
+  return { state: "failed", what: tab === "nfts" && net !== undefined ? nftWords(net).tokens : TAB_WHAT[tab] };
 }
 
 /**
