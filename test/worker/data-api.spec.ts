@@ -24,6 +24,16 @@ import type {
   LedgerValidations,
   MarketRow,
   MarketsResponse,
+  NftAnswer,
+  NftCollectionAnswer,
+  NftCollectionDays,
+  NftCollectionsPage,
+  NftEventsPage,
+  NftHoldersPage,
+  NftOffersPage,
+  NftSalesPage,
+  NftsPage,
+  NftVolume,
   Page,
   PairExchange,
   PaymentVolumeComponent,
@@ -64,6 +74,26 @@ import {
   ammSwapsSample,
 } from "../support/amm-samples";
 import { amendmentDetailSample, amendmentsSample, SAMPLE_KEYS, summarySample, validationsSample, validatorDetailSample, validatorRowSample } from "../support/d1-samples";
+import {
+  collectionSample,
+  nftAnswerSample,
+  nftCollectionAnswerSample,
+  nftCollectionDaysSample,
+  nftCollectionsPageSample,
+  nftEventsPageSample,
+  nftHoldersPageSample,
+  nftOffersPageSample,
+  nftSalesPageSample,
+  nftSample,
+  nftsPageSample,
+  nftVolumeRowSample,
+  nftVolumeSample,
+  NFT_ID,
+  NFT_ISSUER,
+  OTHER_ISSUER,
+  uriTokenSample,
+  URI_TOKEN_ISSUER,
+} from "../support/nft-samples";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
@@ -3254,6 +3284,493 @@ describe("D1's validators and amendments calls", () => {
     expectTypeOf<AmendmentsList["amendments"][number]["xls_url"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<NonNullable<AmendmentsList["amendments"][number]["majority"]>["ledger_index"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<NonNullable<AmendmentsList["amendments"][number]["majority"]>["tx_hash"]>().toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe("D3's NFT calls", () => {
+  const COLLECTION = { issuer: NFT_ISSUER, taxon: 10 };
+  const COLLECTION_PATH = `/v2/nft_collections/${NFT_ISSUER}/10`;
+  const EVENTS = ["mint", "burn", "modify", "sale", "transfer"] as const;
+
+  interface NftCall {
+    name: string;
+    call: (api: DataApi) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    cls: CacheClass;
+    /** The TTL the call keeps its answer for, when it asks for one (the key says `[kept N s]`). */
+    ttl?: number;
+    /** Whether the route is one of a collection: it answers `collection not found` for one the index has none of, and the others `nft not found` or nothing of the sort. */
+    of: "collection" | "nft" | "list";
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const TWELVE: NftCall[] = [
+    {
+      name: "nftVolume",
+      call: (api) => api.nftVolume({ live: "day" }),
+      url: "/v2/network/nft_volume?live=day",
+      cls: "minute",
+      of: "list",
+      good: () => nftVolumeSample(),
+      bad: () => ({ ...nftVolumeSample(), rows: {} }),
+      field: "rows",
+    },
+    {
+      name: "nftSales",
+      call: (api) => api.nftSales({ descending: true, limit: 10 }),
+      url: "/v2/nft_sales?descending=true&limit=10",
+      cls: "live",
+      of: "list",
+      good: () => nftSalesPageSample(),
+      bad: () => ({ ...nftSalesPageSample(), sales: {} }),
+      field: "sales",
+    },
+    {
+      name: "nftCollections",
+      call: (api) => api.nftCollections({ limit: 20, sort: "volume" }),
+      url: "/v2/nft_collections?limit=20&sort=volume",
+      cls: "minute",
+      of: "list",
+      good: () => nftCollectionsPageSample(),
+      // The page without its `total`: the list says how many collections match, whatever the page.
+      bad: () => ({ ...nftCollectionsPageSample(), total: undefined }),
+      field: "total",
+    },
+    {
+      name: "nftCollection",
+      call: (api) => api.nftCollection(COLLECTION),
+      url: COLLECTION_PATH,
+      cls: "minute",
+      of: "collection",
+      good: () => nftCollectionAnswerSample(),
+      bad: () => nftCollectionAnswerSample({ collection: collectionSample({ supply: "1" as never }) }),
+      field: "supply",
+    },
+    {
+      name: "nftCollectionStats",
+      call: (api) => api.nftCollectionStats(COLLECTION, { start: "2026-10-20", end: "2026-10-27" }),
+      url: `${COLLECTION_PATH}/stats?start=2026-10-20&end=2026-10-27`,
+      cls: "slow",
+      ttl: PERIOD_CALL_TTL_SECONDS,
+      of: "collection",
+      good: () => nftCollectionDaysSample(),
+      bad: () => ({ ...nftCollectionDaysSample(), days: {} }),
+      field: "days",
+    },
+    {
+      name: "nftCollectionSales",
+      call: (api) => api.nftCollectionSales(COLLECTION, { descending: true, limit: 20 }),
+      url: `${COLLECTION_PATH}/sales?descending=true&limit=20`,
+      cls: "live",
+      of: "collection",
+      good: () => nftSalesPageSample(),
+      bad: () => nftSalesPageSample({ sales: [{ ...nftSalesPageSample().sales[0]!, mode: "auction" as never }] }),
+      field: "mode",
+    },
+    {
+      name: "nftCollectionNfts",
+      call: (api) => api.nftCollectionNfts(COLLECTION, { limit: 20, marker: "M" }),
+      url: `${COLLECTION_PATH}/nfts?limit=20&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      of: "collection",
+      good: () => nftsPageSample(),
+      // An NFT of another collection than the one asked for.
+      bad: () => nftsPageSample({ nfts: [nftSample({ issuer: OTHER_ISSUER })] }),
+      field: "nfts[0].issuer",
+    },
+    {
+      name: "nftCollectionHolders",
+      call: (api) => api.nftCollectionHolders(COLLECTION, { limit: 20 }),
+      url: `${COLLECTION_PATH}/holders?limit=20`,
+      cls: "live",
+      of: "collection",
+      good: () => nftHoldersPageSample(),
+      bad: () => ({ ...nftHoldersPageSample(), holders: {} }),
+      field: "holders",
+    },
+    {
+      name: "nft",
+      call: (api) => api.nft(NFT_ID),
+      url: `/v2/nfts/${NFT_ID}`,
+      cls: "live",
+      of: "nft",
+      good: () => nftAnswerSample(),
+      bad: () => nftAnswerSample({ nft: nftSample({ burned: "false" as never }) }),
+      field: "burned",
+    },
+    {
+      name: "nftOffers",
+      call: (api) => api.nftOffers(NFT_ID, { limit: 50 }),
+      url: `/v2/nfts/${NFT_ID}/offers?limit=50`,
+      cls: "live",
+      of: "nft",
+      good: () => nftOffersPageSample(),
+      bad: () => ({ ...nftOffersPageSample(), offers: {} }),
+      field: "offers",
+    },
+    {
+      name: "nftHistory",
+      call: (api) => api.nftHistory(NFT_ID, { descending: true, limit: 20, event: EVENTS }),
+      url: `/v2/nfts/${NFT_ID}/history?event=mint%2Cburn%2Cmodify%2Csale%2Ctransfer&descending=true&limit=20`,
+      cls: "live",
+      of: "nft",
+      good: () => nftEventsPageSample(),
+      bad: () => ({ ...nftEventsPageSample(), events: {} }),
+      field: "events",
+    },
+    {
+      name: "accountNfts",
+      call: (api) => api.accountNfts(ACCOUNT, { limit: 20 }),
+      url: `/v2/accounts/${ACCOUNT}/nfts?limit=20`,
+      cls: "live",
+      of: "list",
+      good: () => nftsPageSample(),
+      bad: () => nftsPageSample({ nfts: [nftSample({ nft_id: NFT_ID.toLowerCase() })] }),
+      field: "nft_id",
+    },
+  ];
+
+  /** What D3 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const parts = pathname.split("/").filter(Boolean);
+    const last = parts.at(-1);
+    if (pathname === "/v2/network/nft_volume") return json(nftVolumeSample());
+    if (pathname === "/v2/nft_sales") return json(nftSalesPageSample());
+    if (pathname === "/v2/nft_collections") return json(nftCollectionsPageSample());
+    if (parts[1] === "accounts") return json(nftsPageSample());
+    if (parts[1] === "nfts") return json(last === "history" ? nftEventsPageSample() : last === "offers" ? nftOffersPageSample() : nftAnswerSample());
+    if (last === "nfts") return json(nftsPageSample());
+    if (last === "holders") return json(nftHoldersPageSample());
+    if (last === "sales") return json(nftSalesPageSample());
+    if (last === "stats") return json(nftCollectionDaysSample());
+    return json(nftCollectionAnswerSample());
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  it("asks D3's paths with their queries, classes and TTLs", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of TWELVE) await c.call(api);
+    // The daily form of the volume (the network page's, a window of days): slow, kept as long as the caller says, the query in the order of `VolumeQuery`.
+    await api.nftVolume({ interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 }, { ttl: PERIOD_CALL_TTL_SECONDS });
+    // A collection of Xahau is an issuer alone: `/{issuer}`, and the same routes below it.
+    await api.nftCollection({ issuer: URI_TOKEN_ISSUER });
+
+    // The keys are `GET <host><path and query as sent>`, and a call kept for a TTL of its own says so.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual([
+      [`GET ${BASE}/v2/network/nft_volume?live=day`, "minute", undefined],
+      [`GET ${BASE}/v2/nft_sales?descending=true&limit=10`, "live", undefined],
+      [`GET ${BASE}/v2/nft_collections?limit=20&sort=volume`, "minute", undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10`, "minute", undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/stats?start=2026-10-20&end=2026-10-27 [kept 300 s]`, "slow", 300],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/sales?descending=true&limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/nfts?limit=20&marker=M`, MARKER_PAGE_CLASS, undefined],
+      [`GET ${BASE}/v2/nft_collections/${NFT_ISSUER}/10/holders?limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/nfts/${NFT_ID}`, "live", undefined],
+      [`GET ${BASE}/v2/nfts/${NFT_ID}/offers?limit=50`, "live", undefined],
+      // `event` is one comma list (URLSearchParams writes the comma as %2C).
+      [`GET ${BASE}/v2/nfts/${NFT_ID}/history?event=mint%2Cburn%2Cmodify%2Csale%2Ctransfer&descending=true&limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/accounts/${ACCOUNT}/nfts?limit=20`, "live", undefined],
+      [`GET ${BASE}/v2/network/nft_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000 [kept 300 s]`, "slow", 300],
+      [`GET ${BASE}/v2/nft_collections/${URI_TOKEN_ISSUER}`, "minute", undefined],
+    ]);
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual([...TWELVE.map((c) => `${BASE}${c.url}`), `${BASE}/v2/network/nft_volume?interval=day&start=2026-09-18&end=2026-10-17&limit=1000`, `${BASE}/v2/nft_collections/${URI_TOKEN_ISSUER}`]);
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+  });
+
+  it("writes a collection as /{issuer}/{taxon} on XRPL (a taxon of 0 included) and /{issuer} on Xahau, for each of its five routes", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+    const forms = [
+      [{ issuer: NFT_ISSUER, taxon: 0 }, `/v2/nft_collections/${NFT_ISSUER}/0`],
+      [{ issuer: NFT_ISSUER, taxon: 4294967295 }, `/v2/nft_collections/${NFT_ISSUER}/4294967295`],
+      [{ issuer: URI_TOKEN_ISSUER }, `/v2/nft_collections/${URI_TOKEN_ISSUER}`],
+    ] as const;
+
+    for (const [key] of forms) {
+      await api.nftCollection(key);
+      await api.nftCollectionStats(key, { start: "2026-10-20", end: "2026-10-27" });
+      await api.nftCollectionSales(key, { limit: 20 });
+      // The sample's NFT is of the first collection only: for another the page is refused, after the request that is looked at.
+      await api.nftCollectionNfts(key, { limit: 20 }).catch(() => undefined);
+      await api.nftCollectionHolders(key, { limit: 20 });
+    }
+
+    expect(cache.calls.map((call) => call.key.slice(`GET ${BASE}`.length).replace(/ \[kept 300 s\]$/, ""))).toEqual(
+      forms.flatMap(([, path]) => [path, `${path}/stats?start=2026-10-20&end=2026-10-27`, `${path}/sales?limit=20`, `${path}/nfts?limit=20`, `${path}/holders?limit=20`]),
+    );
+  });
+
+  it.each(TWELVE.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error and is not stored", async (name, c) => {
+    const { api, storedBy } = storing(`d3-malformed-${name}`);
+    fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+    const error = await failureOf(c.call(api));
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message).toContain("answered something unexpected");
+    expect(error.message).toContain(c.field);
+    expect(error.message).toContain(`data API GET ${c.url}`);
+
+    // Nothing was stored: the next call makes a new upstream request; only the good answer is stored.
+    fetchSpy.mockResolvedValueOnce(json(c.bad()));
+    expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    fetchSpy.mockResolvedValueOnce(json(c.good()));
+    expect((await storedBy(() => c.call(api))).length).toBeGreaterThan(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("an answer whose coverage is none is a server error too, and the daily volume's rows need not be one", async () => {
+    const { api } = storing("d3-malformed-coverage");
+    fetchSpy.mockResolvedValueOnce(json({ ...nftAnswerSample(), coverage: { complete: "false" } }));
+    expect(await failureOf(api.nft(NFT_ID))).toMatchObject({ kind: "server", status: 200, message: expect.stringContaining("coverage.complete is not a boolean") });
+
+    const days = nftVolumeSample({ count: 2, rows: [nftVolumeRowSample(), nftVolumeRowSample({ components: [], count: 0, total: "0" })] });
+    fetchSpy.mockResolvedValueOnce(json(days));
+    expect(await api.nftVolume({ interval: "day", start: "2026-10-24", end: "2026-10-25", limit: 1000 })).toEqual(days);
+    // The rolling day is exactly one row.
+    fetchSpy.mockResolvedValueOnce(json(days));
+    expect(await failureOf(api.nftVolume({ live: "day" }))).toMatchObject({ kind: "server", message: expect.stringContaining("2 rows, not one") });
+  });
+
+  it("keeps nft not found and collection not found as not_found, and makes Cannot GET a server error", async () => {
+    const { api, storedBy } = storing("d3-failures");
+    const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+    for (const c of TWELVE) {
+      // The routes of an NFT and of a collection say what they could not find; D3's lists do not (they have none of that).
+      if (c.of !== "list") {
+        fetchSpy.mockResolvedValueOnce(notFound(c.of === "nft" ? "nft not found" : "collection not found"));
+        const missing = await failureOf(c.call(api));
+        expect([c.name, missing.kind, missing.status]).toEqual([c.name, "not_found", 404]);
+        expect(missing.message).toContain(c.of === "nft" ? "nft not found" : "collection not found");
+        expect(missing.message, c.name).not.toContain("no such route");
+      }
+
+      // An API without D3 answers the framework's words: an outage, which is never stored and never a 404 page.
+      const path = c.url.split("?")[0];
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+      const first = await failureOf(c.call(api));
+      expect([c.name, first.kind, first.status]).toEqual([c.name, "server", 404]);
+      expect(first.message).toBe(`data API GET ${c.url} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(await storedBy(() => c.call(api).catch(() => undefined)), c.name).toEqual([]);
+    }
+
+    // A 400 the route answers with is the visitor's: `bad_request`.
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "invalid taxon" }, { status: 400 }));
+    expect((await failureOf(api.nftCollection({ issuer: NFT_ISSUER, taxon: 1 }))).kind).toBe("bad_request");
+    // And a 500 of the route is a server failure with its status.
+    fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve nft" }, { status: 500 }));
+    expect(await failureOf(api.nft(NFT_ID))).toMatchObject({ kind: "server", status: 500 });
+  });
+
+  it("is the class a list has first, and MARKER_PAGE_CLASS behind a marker, whichever way the list runs", async () => {
+    const lists: Array<[name: string, call: (api: DataApi, marker?: string) => Promise<unknown>, first: CacheClass]> = [
+      ["nftSales", (a, marker) => a.nftSales({ limit: 10, marker }), "live"],
+      ["nftSales, newest first", (a, marker) => a.nftSales({ descending: true, limit: 10, marker }), "live"],
+      ["nftCollections", (a, marker) => a.nftCollections({ limit: 20, marker }), "minute"],
+      ["nftCollectionSales", (a, marker) => a.nftCollectionSales(COLLECTION, { limit: 20, marker }), "live"],
+      ["nftCollectionNfts", (a, marker) => a.nftCollectionNfts(COLLECTION, { limit: 20, marker }), "live"],
+      ["nftCollectionHolders", (a, marker) => a.nftCollectionHolders(COLLECTION, { limit: 20, marker }), "live"],
+      ["nftOffers", (a, marker) => a.nftOffers(NFT_ID, { limit: 50, marker }), "live"],
+      ["nftHistory", (a, marker) => a.nftHistory(NFT_ID, { limit: 20, marker }), "live"],
+      ["nftHistory, newest first", (a, marker) => a.nftHistory(NFT_ID, { descending: true, limit: 20, marker }), "live"],
+      ["accountNfts", (a, marker) => a.accountNfts(ACCOUNT, { limit: 20, marker }), "live"],
+    ];
+    for (const [name, call, first] of lists) {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await call(api);
+      await call(api, "WzEwNzg3ODc3NSwxMDQsMV0");
+      // An empty marker is none.
+      await call(api, "");
+
+      expect(cache.calls.map((c) => c.cls), name).toEqual([first, MARKER_PAGE_CLASS, first]);
+      expect(cache.calls[1]!.key, name).toContain("marker=WzEwNzg3ODc3NSwxMDQsMV0");
+      expect(cache.calls[2]!.key, name).not.toContain("marker");
+    }
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+  });
+
+  describe("the list of collections", () => {
+    it("sends descending=false as text when ascending, and nothing when not, because get() leaves a false out and D3 reads the ascending order only from the text", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftCollections({ limit: 20, sort: "supply", descending: false });
+      await api.nftCollections({ limit: 20, sort: "supply", descending: true });
+      await api.nftCollections({ limit: 20, sort: "supply" });
+
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}`.length))).toEqual([
+        "/v2/nft_collections?limit=20&sort=supply&descending=false",
+        "/v2/nft_collections?limit=20&sort=supply",
+        "/v2/nft_collections?limit=20&sort=supply",
+      ]);
+      expect(sentRequest(0).url).toBe(`${BASE}/v2/nft_collections?limit=20&sort=supply&descending=false`);
+    });
+
+    it("sends the issuer and the marker after, each only when it is asked for, and each sort as it is", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftCollections({ limit: 1000, sort: "holders", descending: false, issuer: NFT_ISSUER, marker: "M" });
+      await api.nftCollections({ limit: 200, issuer: "" });
+      await api.nftCollections({ limit: 200 });
+
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}`.length), c.cls])).toEqual([
+        [`/v2/nft_collections?limit=1000&sort=holders&descending=false&issuer=${NFT_ISSUER}&marker=M`, MARKER_PAGE_CLASS],
+        // An empty issuer, like an empty marker, is none.
+        ["/v2/nft_collections?limit=200", "minute"],
+        ["/v2/nft_collections?limit=200", "minute"],
+      ]);
+    });
+  });
+
+  describe("the collection's NFTs", () => {
+    it("sends the owner and whether to include the burned before the page, each only when asked for", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftCollectionNfts(COLLECTION, { owner: NFT_ISSUER, includeBurned: true, limit: 20 });
+      await api.nftCollectionNfts(COLLECTION, { owner: "", includeBurned: false, limit: 20 });
+
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}${COLLECTION_PATH}`.length))).toEqual([`/nfts?owner=${NFT_ISSUER}&include_burned=true&limit=20`, "/nfts?limit=20"]);
+    });
+
+    it("takes the NFTs of a collection of Xahau, which have no taxon", async () => {
+      const { api } = recording();
+      const page = nftsPageSample({ nfts: [uriTokenSample()] });
+      fetchSpy.mockResolvedValueOnce(json(page));
+
+      expect((await api.nftCollectionNfts({ issuer: URI_TOKEN_ISSUER }, { limit: 20 })).nfts).toHaveLength(1);
+      // The same page for the XRPL collection of that issuer is not its page.
+      fetchSpy.mockResolvedValueOnce(json(page));
+      expect(await failureOf(api.nftCollectionNfts({ issuer: URI_TOKEN_ISSUER, taxon: 1 }, { limit: 20 }))).toMatchObject({ kind: "server", message: expect.stringContaining("nfts[0].taxon") });
+    });
+  });
+
+  describe("the volume", () => {
+    it("keeps the rolling period a minute and has no key of its own for a TTL it is not asked for, the days a slow call kept for the TTL the caller names", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+      const window = { interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 } as const;
+
+      await api.nftVolume({ live: "7day" });
+      await api.nftVolume({ live: "30day" }, { holdFailure: true });
+      await api.nftVolume(window);
+      await api.nftVolume(window, { ttl: PERIOD_CALL_TTL_SECONDS, holdFailure: true });
+      await api.nftVolume({ ...window, exchangeCurrency: "USD", exchangeIssuer: OTHER_ISSUER });
+
+      expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/network/nft_volume?`.length), c.cls, c.ttlOverride, c.holdFailure])).toEqual([
+        ["live=7day", "minute", undefined, undefined],
+        ["live=30day", "minute", undefined, true],
+        ["interval=day&start=2026-09-18&end=2026-10-17&limit=1000", "slow", undefined, undefined],
+        ["interval=day&start=2026-09-18&end=2026-10-17&limit=1000 [kept 300 s]", "slow", 300, true],
+        [`interval=day&start=2026-09-18&end=2026-10-17&limit=1000&exchange_currency=USD&exchange_issuer=${OTHER_ISSUER}`, "slow", undefined, undefined],
+      ]);
+    });
+  });
+
+  describe("the history", () => {
+    it("sends the event filter as one comma list, in the order given, and no filter for none", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.nftHistory(NFT_ID, { limit: 20, event: ["sale"] });
+      await api.nftHistory(NFT_ID, { limit: 20, event: ["offer_create", "offer_cancel", "offer_removed"] });
+      await api.nftHistory(NFT_ID, { limit: 20, event: [] });
+      await api.nftHistory(NFT_ID, { descending: true, limit: 20 });
+
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}/v2/nfts/${NFT_ID}/history?`.length))).toEqual([
+        "event=sale&limit=20",
+        "event=offer_create%2Coffer_cancel%2Coffer_removed&limit=20",
+        "limit=20",
+        "descending=true&limit=20",
+      ]);
+    });
+  });
+
+  it("asks the host of the network it was created for, with the key", async () => {
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xahau, env, passThroughCache).nftCollection({ issuer: URI_TOKEN_ISSUER });
+
+    expect(sentRequest().url).toBe(`https://xahau.data.example.invalid/v2/nft_collections/${URI_TOKEN_ISSUER}`);
+    expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+  });
+
+  it("escapes what it puts in a path, so that an identifier cannot reach another endpoint", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    await api.nft("a/b?c#d").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/nfts/a%2Fb%3Fc%23d`);
+    await api.nftOffers("a/b", { limit: 50 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/nfts/a%2Fb/offers?limit=50`);
+    await api.accountNfts("a/b?c#d", { limit: 20 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/accounts/a%2Fb%3Fc%23d/nfts?limit=20`);
+    await api.nftCollectionHolders({ issuer: "a/b", taxon: 1 }, { limit: 20 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/nft_collections/a%2Fb/1/holders?limit=20`);
+  });
+
+  it.each(["..", ".", ""])("refuses %j as an id, an address or an issuer without sending anything", async (id) => {
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    expect((await failureOf(api.nft(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftOffers(id, { limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftHistory(id, { limit: 20 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.accountNfts(id, { limit: 20 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftCollection({ issuer: id }))).kind).toBe("bad_request");
+    expect((await failureOf(api.nftCollectionSales({ issuer: id, taxon: 1 }, { limit: 20 }))).kind).toBe("bad_request");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xrpl, env, cache).nftSales({ limit: 10 });
+    await createDataApi(xahau, env, cache).nftSales({ limit: 10 });
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(2);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.nftVolume({ live: "day" })).toEqualTypeOf<Promise<NftVolume>>();
+    expectTypeOf(api.nftVolume({ interval: "day", start: "2026-09-18", end: "2026-10-17", limit: 1000 })).toEqualTypeOf<Promise<NftVolume>>();
+    expectTypeOf(api.nftSales({ limit: 10 })).toEqualTypeOf<Promise<NftSalesPage>>();
+    expectTypeOf(api.nftCollections({ limit: 20, sort: "holders", descending: false, issuer: NFT_ISSUER, marker: "M" })).toEqualTypeOf<Promise<NftCollectionsPage>>();
+    expectTypeOf(api.nftCollection(COLLECTION)).toEqualTypeOf<Promise<NftCollectionAnswer>>();
+    expectTypeOf(api.nftCollectionStats(COLLECTION, { start: "2026-10-20", end: "2026-10-27" })).toEqualTypeOf<Promise<NftCollectionDays>>();
+    expectTypeOf(api.nftCollectionSales(COLLECTION, { limit: 20 })).toEqualTypeOf<Promise<NftSalesPage>>();
+    expectTypeOf(api.nftCollectionNfts(COLLECTION, { limit: 20, owner: ACCOUNT, includeBurned: true })).toEqualTypeOf<Promise<NftsPage>>();
+    expectTypeOf(api.nftCollectionHolders(COLLECTION, { limit: 20 })).toEqualTypeOf<Promise<NftHoldersPage>>();
+    expectTypeOf(api.nft(NFT_ID)).toEqualTypeOf<Promise<NftAnswer>>();
+    expectTypeOf(api.nftOffers(NFT_ID, { limit: 50 })).toEqualTypeOf<Promise<NftOffersPage>>();
+    expectTypeOf(api.nftHistory(NFT_ID, { limit: 20, event: ["sale", "transfer"] })).toEqualTypeOf<Promise<NftEventsPage>>();
+    expectTypeOf(api.accountNfts(ACCOUNT, { limit: 20 })).toEqualTypeOf<Promise<NftsPage>>();
+    // The keys the reference lets an answer go without.
+    expectTypeOf<NftsPage["marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<NftAnswer["nft"]["taxon"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<NftAnswer["coverage"]["from_ledger_index"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<NftAnswer["coverage"]["complete"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<NftCollectionAnswer["collection"]["taxon"]>().toEqualTypeOf<number | undefined>();
   });
 });
 

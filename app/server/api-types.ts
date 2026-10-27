@@ -1268,3 +1268,345 @@ export interface AmendmentDetail extends AmendmentsEnvelope, AmendmentRow {
   history: AmendmentHistoryEvent[];
   result: "success";
 }
+
+// ---- NFTs: GET /v2/nfts/{nft_id}[/history|/offers], GET /v2/accounts/{address}/nfts, GET /v2/nft_collections[/{issuer}[/{taxon}][/nfts|/holders|/sales|/stats]], GET /v2/nft_sales,
+// ---- GET /v2/network/nft_volume -------------------------------------------------------------------------------------------------------------------------------------
+
+// D3 (data-api-new `feat/explorer-data-2`, pinned at `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de`; the sections "NFTs" and "Coverage" of its docs/api-reference.md, and
+// `apps/api/src/nft/nft-objects.ts`). Keys are in the reference's order (its "Keys of …" lines); a key it marks `?` is left out of an answer when it has no value, `null` is
+// never served, and so those keys are optional here and every other key is there. The answers' own `result: "success"` (the key before `coverage`) is not a part of the types:
+// no reader looks at it. The facts the reference states, which the checks (nft-shape.ts) make true:
+//   - `kind` is `nftoken` (XRPL) or `uritoken` (Xahau). `taxon`, `serial` and `transfer_fee` are decoded from an XRPL id and are left out for a URIToken;
+//   - an NFT id (and an offer id) is 64 hexadecimal digits, upper-case in every answer; amounts are exact decimal strings in whole units, `converted_amount` and every
+//     `*_native` value the price in the native currency (at most 6 decimals); times are `YYYY-MM-DDTHH:mm:ssZ`, days `YYYY-MM-DDT00:00:00Z`;
+//   - `flags` is the number the ledger holds, `transfer_fee` the number in units of 1/100000 (`5000` is 5%), `uri` hex as on the ledger.
+
+/** The periods of the live `nft_volume` (`?live=`); the other volumes have more. */
+export type NftPeriod = "day" | "7day" | "30day";
+/** What `GET /v2/nft_collections` sorts by (`?sort=`). */
+export type NftSort = "volume" | "supply" | "holders";
+
+/**
+ * A collection as a path has it: `/{issuer}/{taxon}` on XRPL, `/{issuer}` on Xahau (where the issuer is the whole collection, so there is no `taxon`). Declared here and
+ * re-exported by `app/domain/nft-link.ts` (E8 Task 2), so that the data API client imports nothing of the domain.
+ */
+export type CollectionKey = { issuer: string; taxon?: number };
+
+/**
+ * How much of the ledger history an answer's index holds (D3 "Coverage"): `from_ledger_index` is where the feature's rows start (left out when no ledger is stored at all),
+ * and `complete` that nothing before it can be missing. `coverage` is the key after `result` on every NFT answer.
+ */
+export interface Coverage {
+  from_ledger_index?: number;
+  complete: boolean;
+}
+
+export type NftKind = "nftoken" | "uritoken";
+
+/** The events of an NFT's history. `transfer` is an owner change with no price (a zero-amount accept, a Xahau `Remit`). */
+export type NftEventKind = "mint" | "burn" | "modify" | "offer_create" | "offer_cancel" | "offer_removed" | "sale" | "transfer";
+
+/** The place of a fact in the ledger history: `owner_since` of an NFT, `first_mint` and `last_mint` of a collection. */
+export interface NftPoint {
+  ledger_index: number;
+  tx_hash: string;
+  executed_time: string;
+}
+
+/** The mint of an NFT: `by` the account that sent it (the issuer, or a minter the issuer authorised), `to` the first owner. */
+export interface NftMinted extends NftPoint {
+  by: string;
+  to: string;
+}
+
+/** The burn of an NFT, `by` the account that sent it. */
+export interface NftBurnedAt extends NftPoint {
+  by: string;
+}
+
+/** The newest sale of an NFT. `converted_amount` is left out of an NFT in a list (an account's or a collection's), and of a price in an asset that has no rate that day. */
+export interface NftLastSale {
+  amount: string;
+  currency: string;
+  amount_issuer?: string;
+  converted_amount?: string;
+  ledger_index: number;
+  tx_hash: string;
+  executed_time: string;
+}
+
+/**
+ * One NFT or URIToken. `owner` is the holder after the newest mint, sale or transfer: left out for a burned NFT and when no indexed event names one (an NFT whose history
+ * starts after its mint); `minted` is left out when the mint is not in the index; `uri` is the newest mint's or modify's, `digest` a URIToken's.
+ */
+export interface Nft {
+  nft_id: string;
+  kind: NftKind;
+  issuer: string;
+  taxon?: number;
+  serial?: number;
+  flags: number;
+  transfer_fee?: number;
+  owner?: string;
+  owner_since?: NftPoint;
+  uri?: string;
+  digest?: string;
+  minted?: NftMinted;
+  burned: boolean;
+  burned_at?: NftBurnedAt;
+  sale_count: number;
+  last_sale?: NftLastSale;
+}
+
+/**
+ * One event of an NFT (`/v2/nfts/{nft_id}/history`). `account` is who did it (for an offer event the offer's owner, else the sender), `from` and `to` the owners before and
+ * after, `offer_id` the offer (on Xahau the URIToken id), `expiration` an offer's, `removed_by` why an `offer_removed` happened (`sale`, `burn`, `transfer`, or `other`).
+ * `converted_amount` is on sales only; `royalty_est` is an estimate and is left out when no royalty applies.
+ */
+export interface NftEvent {
+  nft_id: string;
+  kind: NftKind;
+  issuer: string;
+  taxon?: number;
+  serial?: number;
+  ledger_index: number;
+  tx_index: number;
+  event_index: number;
+  tx_hash: string;
+  tx_type: string;
+  executed_time: string;
+  event: NftEventKind;
+  account?: string;
+  from?: string;
+  to?: string;
+  offer_id?: string;
+  is_sell_offer?: boolean;
+  amount?: string;
+  currency?: string;
+  amount_issuer?: string;
+  converted_amount?: string;
+  destination?: string;
+  expiration?: string;
+  broker?: string;
+  broker_fee?: string;
+  royalty_est?: string;
+  removed_by?: OpenWord<"sale" | "burn" | "transfer" | "other">;
+  uri?: string;
+}
+
+/** One sale (`/v2/nft_sales`, a collection's `/sales`): `mode` is `brokered` when a broker is set (XRPL), `direct` otherwise. */
+export interface NftSale {
+  nft_id: string;
+  kind: NftKind;
+  issuer: string;
+  taxon?: number;
+  serial?: number;
+  ledger_index: number;
+  tx_index: number;
+  event_index: number;
+  tx_hash: string;
+  executed_time: string;
+  seller: string;
+  buyer: string;
+  mode: "direct" | "brokered";
+  amount: string;
+  currency: string;
+  amount_issuer?: string;
+  converted_amount?: string;
+  broker?: string;
+  broker_fee?: string;
+  royalty_est?: string;
+}
+
+/** An offer on an NFT that is still open (`/v2/nfts/{nft_id}/offers`), as made by the `offer_create` event. `expiration` is a time. */
+export interface NftOffer {
+  offer_id: string;
+  is_sell_offer: boolean;
+  owner: string;
+  amount: string;
+  currency: string;
+  amount_issuer?: string;
+  destination?: string;
+  expiration?: string;
+  created_ledger: number;
+  created_tx_hash: string;
+  created_time: string;
+}
+
+/**
+ * A collection in its current state: an issuer and a taxon on XRPL, an issuer alone on Xahau. `supply` is the NFTs not burned, `holders` the accounts holding one,
+ * `minted` and `burned` the mints and burns in the index, `volume_native` the converted prices of its sales summed (exact text); `first_mint` and `last_mint` are left
+ * out for a collection whose mints all came before the coverage starts, `last_ledger` is the newest ledger that changed one of its NFTs.
+ */
+export interface NftCollection {
+  issuer: string;
+  taxon?: number;
+  kind: NftKind;
+  supply: number;
+  holders: number;
+  minted: number;
+  burned: number;
+  sales_count: number;
+  volume_native: string;
+  first_mint?: NftPoint;
+  last_mint?: NftPoint;
+  last_ledger: number;
+}
+
+/** One UTC day of a collection on which it had a sale, a mint or a burn (`/stats`). The two prices are left out on a day with no sale that has a converted price. */
+export interface NftCollectionDay {
+  date: string;
+  sales_count: number;
+  volume_native: string;
+  avg_price_native?: string;
+  min_price_native?: string;
+  mints: number;
+  burns: number;
+}
+
+/** An account that holds NFTs of a collection, and how many (`/holders`). */
+export interface NftHolder {
+  owner: string;
+  held: number;
+}
+
+/**
+ * What one collection's sales came to in a bucket of `nft_volume`: `amount` the volume in the native currency of the sales that have a price in it, `count` those sales;
+ * `rate` is `"1.0000000"` and `converted_amount` equals `amount` until `exchange_currency` shows them in another currency. `taxon` is the XRPL taxon.
+ */
+export interface NftVolumeComponent {
+  issuer: string;
+  taxon?: number;
+  count: number;
+  amount: string;
+  rate: string;
+  converted_amount: string;
+}
+
+/** A row of `GET /v2/network/nft_volume`: the row of the other volumes. Its `count` is every sale of the window (those with no rate included), `total` the components' sum. */
+export type NftVolumeRow = VolumeRow<NftVolumeComponent>;
+
+/** `GET /v2/nfts/{nft_id}`. The coverage is the NFT's own: `complete` when its mint is indexed. */
+export interface NftAnswer {
+  coverage: Coverage;
+  nft: Nft;
+}
+/** `GET /v2/nfts/{nft_id}/history`, oldest first unless `descending`. */
+export interface NftEventsPage {
+  coverage: Coverage;
+  count: number;
+  marker?: string;
+  events: NftEvent[];
+}
+/** `GET /v2/nfts/{nft_id}/offers`, newest first. */
+export interface NftOffersPage {
+  coverage: Coverage;
+  count: number;
+  marker?: string;
+  offers: NftOffer[];
+}
+/** `GET /v2/accounts/{address}/nfts` and a collection's `/nfts`. */
+export interface NftsPage {
+  coverage: Coverage;
+  count: number;
+  marker?: string;
+  nfts: Nft[];
+}
+/** `GET /v2/nft_sales` and a collection's `/sales`. */
+export interface NftSalesPage {
+  coverage: Coverage;
+  count: number;
+  marker?: string;
+  sales: NftSale[];
+}
+/** A collection's `/holders`, the most first. */
+export interface NftHoldersPage {
+  coverage: Coverage;
+  count: number;
+  marker?: string;
+  holders: NftHolder[];
+}
+/** `GET /v2/nft_collections`: `total` is how many collections the filter matches, whatever the page. */
+export interface NftCollectionsPage {
+  coverage: Coverage;
+  total: number;
+  count: number;
+  marker?: string;
+  collections: NftCollection[];
+}
+/** `GET /v2/nft_collections/{issuer}[/{taxon}]`. */
+export interface NftCollectionAnswer {
+  coverage: Coverage;
+  collection: NftCollection;
+}
+/** A collection's `/stats`: one row for each UTC day of the window with activity, and no `marker` (the window is at most 366 days). */
+export interface NftCollectionDays {
+  coverage: Coverage;
+  count: number;
+  days: NftCollectionDay[];
+}
+/** `GET /v2/network/nft_volume`: a row for each bucket asked for, or the one row of a rolling period (`live`). */
+export interface NftVolume {
+  coverage: Coverage;
+  count: number;
+  marker?: string;
+  rows: NftVolumeRow[];
+}
+
+// ---- What the node answers for an NFT --------------------------------------------------------------------------------------------------------------------------
+
+// The node's answers as `node-rpc.ts` returns them (read on 2026-10-24 from `https://s1.ripple.com:51234/`, a Clio server, and `https://xahau.network/`): times in unix seconds
+// and native amounts as whole units, the rest as the node writes it. They are here with the data API's, and `NodeAmount` with them, because this file is in the Node type-check
+// project (tsconfig.node.json) and `node-rpc.ts`, which needs the Workers' types, is not: `node-rpc.ts` re-exports them all, so that either file names them.
+
+/** An amount as the explorer reads it: native amounts converted from drops to whole units at this boundary. */
+export interface NodeAmount {
+  /** The native code (`XRP`, `XAH`) with no issuer, or the currency as the ledger holds it (3 characters, or 40 hex digits in upper case). */
+  currency: string;
+  issuer?: string;
+  /** A plain decimal: whole units, never in exponent form. */
+  value: string;
+}
+
+/** Clio's `nft_info` on the newest validated ledger. `uri` is hex and is left out when the NFT has none (a burned one has none). */
+export interface NodeNftInfo {
+  nft_id: string;
+  ledger_index: number;
+  owner: string;
+  is_burned: boolean;
+  flags: number;
+  transfer_fee: number;
+  issuer: string;
+  nft_taxon: number;
+  nft_serial: number;
+  uri?: string;
+}
+
+/** An offer of `nft_sell_offers` or `nft_buy_offers`. `expiration` is unix seconds. */
+export interface NodeNftOffer {
+  nft_offer_index: string;
+  flags: number;
+  owner: string;
+  amount: NodeAmount;
+  destination?: string;
+  expiration?: number;
+}
+
+/** The first offers (at most 50) of an NFT on one side; `more` when the node had a marker for more. */
+export interface NodeNftOffers {
+  offers: NodeNftOffer[];
+  more: boolean;
+}
+
+/** A Xahau `URIToken` ledger entry (`ledger_entry` by `index`). `Amount` and `Destination` are its sell offer's, when it has one. */
+export interface NodeUriToken {
+  index: string;
+  ledger_index: number;
+  Owner: string;
+  Issuer: string;
+  URI: string;
+  Digest?: string;
+  Flags: number;
+  Amount?: NodeAmount;
+  Destination?: string;
+}

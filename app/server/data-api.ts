@@ -49,6 +49,7 @@ import type {
   AnalyticsExchanges,
   BalancesResponse,
   Candle,
+  CollectionKey,
   ExchangeVolumeComponent,
   FeeBucketRow,
   FeeRow,
@@ -59,6 +60,19 @@ import type {
   LedgerValidations,
   LedgerWithHashes,
   MarketsResponse,
+  NftAnswer,
+  NftCollectionAnswer,
+  NftCollectionDays,
+  NftCollectionsPage,
+  NftEventKind,
+  NftEventsPage,
+  NftHoldersPage,
+  NftOffersPage,
+  NftPeriod,
+  NftSalesPage,
+  NftsPage,
+  NftSort,
+  NftVolume,
   OrdersResponse,
   Page,
   PairExchange,
@@ -86,6 +100,18 @@ import {
 import type { Env } from "./env";
 import { isMarker } from "./marker";
 import type { Network } from "./networks";
+import {
+  checkCollection,
+  checkCollectionDays,
+  checkCollectionsPage,
+  checkHoldersPage,
+  checkNft,
+  checkNftEventsPage,
+  checkNftOffersPage,
+  checkNftSalesPage,
+  checkNftsPage,
+  checkNftVolume,
+} from "./nft-shape";
 import type { paths } from "./openapi";
 import { PENDING_PATHS } from "./pending-paths";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
@@ -153,7 +179,36 @@ const PATHS = {
   ammPoolSwaps: "/v2/amm/pools/{pool}/swaps",
   ammPoolLiquidity: "/v2/amm/pools/{pool}/liquidity",
   ammPoolGovernance: "/v2/amm/pools/{pool}/governance",
+  // D3's NFT routes (data-api-new `feat/explorer-data-2`, pinned at `da5ce14`), which the NFT pages (E8) ask for only while `NFTS` is on. A collection is `/{issuer}/{taxon}` on
+  // XRPL and `/{issuer}` on Xahau, on each of its routes (`COLLECTION_ROUTES`). Not the account's `/nft_history`, which no page shows.
+  /** The NFT sales volume per collection, in the native currency; the live periods and the days. */
+  nftVolume: "/v2/network/nft_volume",
+  nftSales: "/v2/nft_sales",
+  nftCollections: "/v2/nft_collections",
+  nftCollectionOfIssuer: "/v2/nft_collections/{issuer}",
+  nftCollectionOfTaxon: "/v2/nft_collections/{issuer}/{taxon}",
+  nftCollectionNftsOfIssuer: "/v2/nft_collections/{issuer}/nfts",
+  nftCollectionNftsOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/nfts",
+  nftCollectionHoldersOfIssuer: "/v2/nft_collections/{issuer}/holders",
+  nftCollectionHoldersOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/holders",
+  nftCollectionSalesOfIssuer: "/v2/nft_collections/{issuer}/sales",
+  nftCollectionSalesOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/sales",
+  nftCollectionStatsOfIssuer: "/v2/nft_collections/{issuer}/stats",
+  nftCollectionStatsOfTaxon: "/v2/nft_collections/{issuer}/{taxon}/stats",
+  nft: "/v2/nfts/{nft_id}",
+  nftHistory: "/v2/nfts/{nft_id}/history",
+  nftOffers: "/v2/nfts/{nft_id}/offers",
+  accountNfts: "/v2/accounts/{address}/nfts",
 } as const satisfies Record<string, keyof paths>;
+
+/** The two forms of each route of a collection: of an issuer alone (Xahau) and of an issuer and a taxon (XRPL). */
+const COLLECTION_ROUTES = {
+  collection: { issuer: PATHS.nftCollectionOfIssuer, taxon: PATHS.nftCollectionOfTaxon },
+  nfts: { issuer: PATHS.nftCollectionNftsOfIssuer, taxon: PATHS.nftCollectionNftsOfTaxon },
+  holders: { issuer: PATHS.nftCollectionHoldersOfIssuer, taxon: PATHS.nftCollectionHoldersOfTaxon },
+  sales: { issuer: PATHS.nftCollectionSalesOfIssuer, taxon: PATHS.nftCollectionSalesOfTaxon },
+  stats: { issuer: PATHS.nftCollectionStatsOfIssuer, taxon: PATHS.nftCollectionStatsOfTaxon },
+} as const;
 
 /** A path of `PATHS` or of `PENDING_PATHS` (the routes `openapi.yaml` does not have yet, which the compiler cannot check). */
 type Template = (typeof PATHS)[keyof typeof PATHS] | (typeof PENDING_PATHS)[keyof typeof PENDING_PATHS];
@@ -406,6 +461,49 @@ export interface DataApi {
   ammLiquidity(pool: string, q: ListQuery & { event?: "create" }): Promise<Page<"liquidity", AmmLiquidityEvent>>;
   /** The votes on the pool's trading fee and the bids for its auction slot. Class `live`, `MARKER_PAGE_CLASS` behind a marker, newest first (`listClass`). */
   ammGovernance(pool: string, q: ListQuery): Promise<Page<"governance", AmmGovernanceRow>>;
+
+  // E8's NFT calls (data-api-new D3, `feat/explorer-data-2`, pinned at `da5ce14`). Only a data API that has D3 has the routes: without it each call fails with the missing-route
+  // outage (kind `server`, never stored), and the routes' own `nft not found` and `collection not found` stay `not_found`. The NFT pages ask only while `NFTS` is on. Every answer is
+  // checked inside the load (nft-shape.ts, and its `coverage` with it), and one that is not what the reference promises is kind `server` too. A list reached with a marker, of
+  // whichever order, is `MARKER_PAGE_CLASS` (`nftListClass`): D3's lists are by serial, id or time, and a page of them stays as it was while its index is not rewritten.
+  /**
+   * The volume of the NFT sales of the network, one component per collection, in the native currency (`checkNftVolume`).
+   *
+   * With `{ live: NftPeriod }` (sent as `live=day`, `7day` or `30day`, no `start`, `end` or `interval`), the one row of a rolling period ending now: class `minute`, and the
+   * answer is checked to have exactly one row.
+   *
+   * With a `VolumeQuery`, per day or week (the network page of the NFT pages asks for days): class `slow`; the page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
+   */
+  nftVolume(q: VolumeQuery | { live: NftPeriod }, opts?: FreshOptions): Promise<NftVolume>;
+  /** The sales of the network, oldest first unless `descending`. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftSales(q: ListQuery): Promise<NftSalesPage>;
+  /**
+   * The collections by `sort` (default `volume`), the biggest first unless `descending: false` (sent as the text `descending=false`: D3 reads the ascending order from that
+   * word alone, and the client leaves a boolean `false` out), `limit` of them after `marker`; with `issuer`, only that issuer's. `total` is how many match, whatever the page.
+   * Class `minute`, `MARKER_PAGE_CLASS` behind a marker.
+   */
+  nftCollections(q: { limit: number; sort?: NftSort; descending?: boolean; issuer?: string; marker?: string }): Promise<NftCollectionsPage>;
+  /** One collection. Class `minute`. `collection not found` is `not_found`: no such collection, the other network's form of the path, or one the aggregator has not counted yet. */
+  nftCollection(key: CollectionKey): Promise<NftCollectionAnswer>;
+  /** The days of a collection that start within `start` and `end` (`YYYY-MM-DD`; D3's window is at most 366 days) on which it had a sale, a mint or a burn. Class `slow`, kept `PERIOD_CALL_TTL_SECONDS`. */
+  nftCollectionStats(key: CollectionKey, q: { start: string; end: string }): Promise<NftCollectionDays>;
+  /** The sales of the collection's NFTs. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftCollectionSales(key: CollectionKey, q: ListQuery): Promise<NftSalesPage>;
+  /**
+   * The NFTs of the collection, by serial, the burned ones left out unless `includeBurned`; with `owner`, only that account's. Every NFT of the answer must be of the
+   * collection asked for (`checkNftsPage`). Class `live`, `MARKER_PAGE_CLASS` behind a marker.
+   */
+  nftCollectionNfts(key: CollectionKey, q: ListQuery & { owner?: string; includeBurned?: boolean }): Promise<NftsPage>;
+  /** The accounts that hold NFTs of the collection and how many, the most first. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftCollectionHolders(key: CollectionKey, q: ListQuery): Promise<NftHoldersPage>;
+  /** One NFT or URIToken by its id (any case; the answer's is upper-case), with its own coverage. Class `live`. `nft not found` is `not_found`. */
+  nft(id: string): Promise<NftAnswer>;
+  /** The open offers of an NFT, newest first. Class `live`, `MARKER_PAGE_CLASS` behind a marker. `nft not found` is `not_found`. */
+  nftOffers(id: string, q: { limit: number; marker?: string }): Promise<NftOffersPage>;
+  /** The events of an NFT, oldest first unless `descending`; with `event`, only those (sent as one comma list). Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  nftHistory(id: string, q: ListQuery & { event?: readonly NftEventKind[] }): Promise<NftEventsPage>;
+  /** The NFTs an account holds now, by collection and serial. D3 answers an address that holds none, or is none, with an empty page. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
+  accountNfts(address: string, q: ListQuery): Promise<NftsPage>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -580,6 +678,18 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
    * `immutable` while the index can still be backfilled (see there).
    */
   const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : "live");
+  /**
+   * The class of an NFT list: `MARKER_PAGE_CLASS` behind a marker, whichever way the list runs (`first` otherwise). D3's lists are keyed by a serial, an id, a time or a sort
+   * value, and the page after a marker is rows that do not move while the index is not rewritten, as for `listClass`; the NFT lists have no "oldest first grows at the end"
+   * exception: a page of NFTs, offers or sales behind a marker is `MARKER_PAGE_CLASS`.
+   */
+  const nftListClass = (q: { marker?: string }, first: CacheClass = "live"): CacheClass => (q.marker ? MARKER_PAGE_CLASS : first);
+
+  /** The path of one of a collection's routes, and its parameters: `/{issuer}/{taxon}` when the key has a taxon (a taxon of 0 included), else `/{issuer}`. */
+  const collectionAt = (route: keyof typeof COLLECTION_ROUTES, key: CollectionKey): { template: Template; params: Record<string, string> } =>
+    key.taxon === undefined
+      ? { template: COLLECTION_ROUTES[route].issuer, params: { issuer: key.issuer } }
+      : { template: COLLECTION_ROUTES[route].taxon, params: { issuer: key.issuer, taxon: String(key.taxon) } };
 
   /**
    * The API adds `transactions` to an expanded ledger only when the ledger has some, unless `transactions=true` is
@@ -804,5 +914,50 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       }),
     ammGovernance: (pool, q) =>
       get<Page<"governance", AmmGovernanceRow>>(PATHS.ammPoolGovernance, { pool }, listQuery(q), listClass(q), { finish: checkGovernancePage }),
+    // E8's NFT calls. A collection key picks the form of the path; a query is written in the order of the reference's table, the page (`descending`, `limit`, `marker`) last.
+    nftVolume: (q, opts) =>
+      "live" in q
+        ? get<NftVolume>(PATHS.nftVolume, {}, { live: q.live }, "minute", { ...fresh(opts), finish: (body, path) => checkNftVolume(body, path, "live") })
+        : get<NftVolume>(PATHS.nftVolume, {}, volumeQuery(q), "slow", { ...fresh(opts), finish: (body, path) => checkNftVolume(body, path, "daily") }),
+    nftSales: (q) => get<NftSalesPage>(PATHS.nftSales, {}, listQuery(q), nftListClass(q), { finish: checkNftSalesPage }),
+    // `get` leaves a `false` out, and D3 is ascending only for the text "false": ascending is that text, descending (D3's default) nothing.
+    nftCollections: (q) =>
+      get<NftCollectionsPage>(
+        PATHS.nftCollections,
+        {},
+        { limit: q.limit, sort: q.sort, descending: q.descending === false ? "false" : undefined, issuer: q.issuer || undefined, marker: q.marker || undefined },
+        nftListClass(q, "minute"),
+        { finish: checkCollectionsPage },
+      ),
+    nftCollection: (key) => {
+      const { template, params } = collectionAt("collection", key);
+      return get<NftCollectionAnswer>(template, params, {}, "minute", { finish: checkCollection });
+    },
+    nftCollectionStats: (key, q) => {
+      const { template, params } = collectionAt("stats", key);
+      return get<NftCollectionDays>(template, params, { start: q.start, end: q.end }, "slow", { ttl: PERIOD_CALL_TTL_SECONDS, finish: checkCollectionDays });
+    },
+    nftCollectionSales: (key, q) => {
+      const { template, params } = collectionAt("sales", key);
+      return get<NftSalesPage>(template, params, listQuery(q), nftListClass(q), { finish: checkNftSalesPage });
+    },
+    nftCollectionNfts: (key, q) => {
+      const { template, params } = collectionAt("nfts", key);
+      return get<NftsPage>(template, params, { owner: q.owner || undefined, include_burned: q.includeBurned, ...listQuery(q) }, nftListClass(q), {
+        finish: (body, path) => checkNftsPage(body, path, key),
+      });
+    },
+    nftCollectionHolders: (key, q) => {
+      const { template, params } = collectionAt("holders", key);
+      return get<NftHoldersPage>(template, params, listQuery(q), nftListClass(q), { finish: checkHoldersPage });
+    },
+    nft: (id) => get<NftAnswer>(PATHS.nft, { nft_id: id }, {}, "live", { finish: checkNft }),
+    nftOffers: (id, q) =>
+      get<NftOffersPage>(PATHS.nftOffers, { nft_id: id }, { limit: q.limit, marker: q.marker || undefined }, nftListClass(q), { finish: checkNftOffersPage }),
+    nftHistory: (id, q) =>
+      get<NftEventsPage>(PATHS.nftHistory, { nft_id: id }, { event: q.event?.length ? q.event.join(",") : undefined, ...listQuery(q) }, nftListClass(q), {
+        finish: checkNftEventsPage,
+      }),
+    accountNfts: (address, q) => get<NftsPage>(PATHS.accountNfts, { address }, listQuery(q), nftListClass(q), { finish: checkNftsPage }),
   };
 }

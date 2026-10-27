@@ -12,6 +12,9 @@
 // returns (`date` of a transaction, `close_time` and `parent_close_time` of a ledger, `close_time` of the
 // server state's ledgers) to unix seconds at this boundary, so that nothing outside it sees the Ripple epoch.
 // Requests are API version 1, the node's default: the shapes below are rippled's v1 shapes.
+//
+// The NFT readers (E8) ask for what the data API's index may lack: the XRPL's `nft_info`, `nft_sell_offers` and `nft_buy_offers` (Clio; rippled cannot look an NFT up by its
+// id) and Xahau's URIToken, read with `ledger_entry` by its id. Each checks that the answer is the NFT asked for and validated.
 
 import BigNumber from "bignumber.js";
 import { isValidClassicAddress } from "ripple-address-codec";
@@ -19,12 +22,16 @@ import { isValidClassicAddress } from "ripple-address-codec";
 import { sameAsset, type Asset } from "../domain/asset";
 import { dropsToNative } from "../domain/format";
 import type { TxJson, TxMeta } from "../domain/parse/types";
+import type { NodeAmount, NodeNftInfo, NodeNftOffer, NodeNftOffers, NodeUriToken } from "./api-types";
 import type { CacheClass, SubrequestCache } from "./cache-class";
+import { logProblem } from "./logging";
 import type { Network } from "./networks";
 import { clip, NODE_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
 
 export { UpstreamError } from "./upstream";
 export type { UpstreamErrorKind } from "./upstream";
+// The node's types that api-types.ts holds (see there): `NodeAmount`, which this file always had, and the NFT readers' answers.
+export type { NodeAmount, NodeNftInfo, NodeNftOffer, NodeNftOffers, NodeUriToken } from "./api-types";
 
 /** Seconds from the unix epoch to the Ripple epoch, 2000-01-01 00:00:00 UTC. */
 export const RIPPLE_EPOCH_OFFSET = 946_684_800;
@@ -146,15 +153,6 @@ export interface ServerState {
 /** The most offers one `book_offers` call asks for: 60 is the default of both rippled and Clio, inside the limits of both. */
 export const BOOK_OFFERS_LIMIT = 60;
 
-/** An amount as the explorer reads it: native amounts converted from drops to whole units at this boundary. */
-export interface NodeAmount {
-  /** The native code (`XRP`, `XAH`) with no issuer, or the currency as the ledger holds it (3 characters, or 40 hex digits in upper case). */
-  currency: string;
-  issuer?: string;
-  /** A plain decimal: whole units, never in exponent form. */
-  value: string;
-}
-
 /** An offer of a book, trimmed to what the explorer reads. Funded amounts are there only when the node gave them (a partly or wholly unfunded offer). */
 export interface BookOffer {
   account: string;
@@ -242,6 +240,25 @@ export interface NodeRpc {
   ammInfo(pool: string, opts?: NodeCallOptions): Promise<AmmInfo>;
   /** An AMM pool by its two assets, on the newest validated ledger; `amount` and `amount2` come in the order asked. `not_found` for a pair with no pool. Class `live`. */
   ammInfoByPair(asset: Asset, asset2: Asset, opts?: NodeCallOptions): Promise<AmmInfo>;
+  /**
+   * An NFT by its id (any case), as Clio's `nft_info` has it on the newest validated ledger: the owner (a burned NFT's is whatever the node says), whether it is burned, its flags,
+   * transfer fee, issuer, taxon, serial and URI. `not_found` for `objectNotFound` and `entryNotFound`, and for `unknownCmd` and `notImpl`, a node that is not Clio (rippled cannot look
+   * an NFT up by its id), which is said once per Worker instance in the log. An answer for another NFT, or one that does not say `validated: true`, is `server`. Class `live`.
+   */
+  nftInfo(id: string): Promise<NodeNftInfo>;
+  /**
+   * The first 50 offers to sell the NFT (`nft_sell_offers`), on the newest validated ledger, in the node's order: `more` when the node had a marker for more. An NFT with no offer
+   * (the node says `objectNotFound`, as it does for an id that is none) has an empty list, which is an answer and is kept. Class `live`.
+   */
+  nftSellOffers(id: string): Promise<NodeNftOffers>;
+  /** The first 50 offers to buy the NFT (`nft_buy_offers`), as `nftSellOffers` has them. Class `live`. */
+  nftBuyOffers(id: string): Promise<NodeNftOffers>;
+  /**
+   * The URIToken of Xahau with this id, read as a ledger entry (`ledger_entry` by `index`) on the newest validated ledger: its owner, issuer, URI, digest and flags, and its sell offer's
+   * `Amount` (whole units) and `Destination` when it has one. `not_found` for `entryNotFound` and for an entry that is no `URIToken` (any entry has an id). An answer for another
+   * entry, or one that does not say `validated: true`, is `server`. Class `live`.
+   */
+  uriToken(id: string): Promise<NodeUriToken>;
 }
 
 // ---- Reading the node's answers ------------------------------------------------------------------------------------
@@ -319,6 +336,35 @@ const AMM_NOT_FOUND: readonly string[] = ["actNotFound", "actMalformed"];
 
 /** `book_offers` has no "not found": an empty book is an answer, and a node that cannot read the ledger is an outage. */
 const BOOK_NOT_FOUND: readonly string[] = [];
+
+/** What a node says that has no such command (rippled has no `nft_info`; a node of an older build does not know a command a newer one has). */
+const NO_SUCH_COMMAND: readonly string[] = ["unknownCmd", "notImpl"];
+
+/**
+ * The codes `nft_info` answers with when there is no such NFT to show: `objectNotFound` (Clio's: "NFT not found"), `entryNotFound` (the code a node says of an entry it has none
+ * of), and a node that does not have the command, which the NFT page cannot ask (a node that is not Clio shows an NFT the index lacks as not found: decision 8 of the NFT pages).
+ * `lgrNotFound` and `noNetwork` (a node with no validated ledger yet) are outages, not "no such NFT", which a page would store.
+ */
+const NFT_INFO_NOT_FOUND: readonly string[] = ["objectNotFound", "entryNotFound", ...NO_SUCH_COMMAND];
+
+/** A `ledger_entry` by `index` for an entry that is not there. */
+const ENTRY_NOT_FOUND: readonly string[] = ["entryNotFound"];
+
+/** The offers of an NFT have no "not found": no offer is `objectNotFound`, which is an answer (`NFT_NO_OFFERS`), and every other failure is the node's. */
+const OFFERS_NOT_FOUND: readonly string[] = [];
+/** The code of an NFT with no offer on a side (and of an id that is no NFT: the node does not tell them apart, nor does the page need it). */
+const NFT_NO_OFFERS: readonly string[] = ["objectNotFound"];
+/** How many offers of a side one call asks for: the least both rippled and Clio take (their limits are 50 to 500). */
+const NFT_OFFERS_LIMIT = 50;
+
+/** Whether a node that did not know a command has been said so in the log: once per Worker instance, so that a node that is not Clio does not fill it. */
+let missingCommandSaid = false;
+
+function sayCommandIsMissing(method: string, error: UpstreamError): void {
+  if (missingCommandSaid) return;
+  missingCommandSaid = true;
+  logProblem(`the node has no ${method} command (it is not a Clio server): what the index lacks is shown as not found`, error);
+}
 
 /**
  * The `result` of a failed call as an UpstreamError. `notFound`: the codes this call reads as `not_found`; the list of a call replaces
@@ -662,6 +708,124 @@ function toAmmInfo(what: string, native: string, asked: AmmAsked, result: Json):
   };
 }
 
+// ---- NFTs -----------------------------------------------------------------------------------------------------------------------------------------------
+//
+// What the nodes answered when these readers were written (2026-10-24, read-only POSTs to https://s1.ripple.com:51234/, a Clio server, and to https://xahau.network/):
+//
+//   nft_info, an NFT:         `{ nft_id, ledger_index (a number), owner, is_burned, flags, transfer_fee, issuer, nft_taxon, nft_serial, validated: true, uri (hex), status }`, and
+//                             `warnings` beside `result`. An id that is no NFT: `objectNotFound`, error_code 92, "NFT not found".
+//   nft_sell_offers, buy:     for an id that has no offer on that side (or is no NFT): `objectNotFound`, error_code 92, "notFound". For an NFT with offers (read on 2026-10-27):
+//                             `{ nft_id, validated: true, offers: [{ nft_offer_index, flags, owner, amount (drops text, or an issued amount), destination?, expiration? (the Ripple
+//                             epoch) }], status }`, and a `marker` when there are more than `limit`. `validated` is read as Clio's `book_offers` has it: absent is taken (the
+//                             request asked for a validated ledger), anything but `true` is not.
+//   ledger_entry, `index` of a URIToken, on xahau.network: `{ index, ledger_hash, ledger_index, node: { Digest, Flags, Issuer, LedgerEntryType: "URIToken", Owner, OwnerNode,
+//                             PreviousTxnID, PreviousTxnLgrSeq, Remarks, URI, index }, validated: true }`. An `index` with no entry: `entryNotFound`, with no `error_code`.
+
+const HEX64_TEXT = /^[0-9A-Fa-f]{64}$/;
+const HEX_BYTES = /^(?:[0-9A-Fa-f]{2})+$/;
+const UINT32_MAX = 4_294_967_295;
+
+/** Throws unless `result.validated` is `true`: the explorer shows validated state only (`required`: and unless the node says it). */
+function requireValidatedAnswer(what: string, result: Json, required: boolean): void {
+  if (result.validated === true || (!required && result.validated === undefined)) return;
+  throw malformed(what, required ? "the answer does not say validated: true" : "the offers are not from a validated ledger");
+}
+
+/** The id the answer says it is of, which must be the one asked for (`asked`, in upper case): the node writes it in upper case, and any case is the same id. */
+function requireAnswerFor(what: string, key: string, said: unknown, asked: string): void {
+  if (typeof said !== "string") throw malformed(what, `no "${key}" text`);
+  if (said.toUpperCase() !== asked) throw malformed(what, `"${key}" is ${clip(said)}, not the NFT asked for`);
+}
+
+/** A hex string of whole bytes, as a URI is on the ledger. */
+function hexField(what: string, from: Json, key: string): string {
+  const value = from[key];
+  if (typeof value !== "string" || !HEX_BYTES.test(value)) throw malformed(what, `"${key}" is not hex`);
+  return value;
+}
+
+/** Clio's `nft_info`, for the NFT `asked` (in upper case). The owner of a burned NFT is whatever the node says: only a live one is linked to an account page. */
+function toNftInfo(what: string, asked: string, result: Json): NodeNftInfo {
+  requireValidatedAnswer(what, result, true);
+  requireAnswerFor(what, "nft_id", result.nft_id, asked);
+  const burned = result.is_burned;
+  if (typeof burned !== "boolean") throw malformed(what, '"is_burned" is neither true nor false');
+  const owner = burned ? textField(what, result, "owner") : accountField(what, result, "owner", "the NFT's");
+  if (owner === "") throw malformed(what, '"owner" is empty');
+  return {
+    nft_id: asked,
+    ledger_index: integerField(what, result, "ledger_index", 0),
+    owner,
+    is_burned: burned,
+    flags: integerField(what, result, "flags", 0, 0xffff),
+    // The most an NFT's transfer fee is: 50000 in units of 1/100000, which is 50%.
+    transfer_fee: integerField(what, result, "transfer_fee", 0, 50_000),
+    issuer: accountField(what, result, "issuer", "the NFT's"),
+    nft_taxon: integerField(what, result, "nft_taxon", 0, UINT32_MAX),
+    nft_serial: integerField(what, result, "nft_serial", 0, UINT32_MAX),
+    ...(result.uri !== undefined && { uri: hexField(what, result, "uri") }),
+  };
+}
+
+function toNftOffer(what: string, native: string, index: number, entry: unknown): NodeNftOffer {
+  if (!isObject(entry)) throw malformed(what, `offers[${index}] is not an object`);
+  const offerIndex = textField(what, entry, "nft_offer_index");
+  if (!HEX64_TEXT.test(offerIndex)) throw malformed(what, `offers[${index}] has an "nft_offer_index" that is not 64 hexadecimal digits`);
+  return {
+    nft_offer_index: offerIndex,
+    flags: integerField(what, entry, "flags", 0, UINT32_MAX),
+    owner: accountField(what, entry, "owner", `offers[${index}]'s`),
+    amount: readAmount(what, "amount", entry.amount, native),
+    ...(entry.destination !== undefined && { destination: accountField(what, entry, "destination", `offers[${index}]'s`) }),
+    // A time of the node, which counts from the Ripple epoch: unix seconds outside this boundary.
+    ...(entry.expiration !== undefined && { expiration: integerField(what, entry, "expiration", 0, UINT32_MAX) + RIPPLE_EPOCH_OFFSET }),
+  };
+}
+
+/**
+ * The offers of one side of an NFT. Not an NFT with no offer (`objectNotFound`, which the node says for that, is an empty list: nothing to read), and not more offers than were asked for.
+ * `validated` may be absent, but never anything else than `true`, as for `book_offers`.
+ */
+function toNftOffers(what: string, native: string, asked: string, result: Json): NodeNftOffers {
+  if (result.status === "error") return { offers: [], more: false };
+  requireValidatedAnswer(what, result, false);
+  requireAnswerFor(what, "nft_id", result.nft_id, asked);
+  const offers = result.offers;
+  if (!Array.isArray(offers)) throw malformed(what, 'no "offers" list');
+  if (offers.length > NFT_OFFERS_LIMIT) throw malformed(what, `${offers.length} offers where ${NFT_OFFERS_LIMIT} were asked for`);
+  if (result.marker !== undefined && typeof result.marker !== "string") throw malformed(what, '"marker" is not text');
+  return { offers: offers.map((entry: unknown, index) => toNftOffer(what, native, index, entry)), more: result.marker !== undefined };
+}
+
+/**
+ * A URIToken from `ledger_entry` by `index` (`asked`, in upper case). The entry at an id may be of any type (`index` is any entry's key): one that is not a `URIToken` is no
+ * such NFT, `not_found`, and is told before its fields are read (an account root has none of them).
+ */
+function toUriToken(what: string, native: string, asked: string, result: Json): NodeUriToken {
+  requireValidatedAnswer(what, result, true);
+  const node = objectField(what, result, "node");
+  if (result.index === undefined && node.index === undefined) throw malformed(what, 'no "index"');
+  for (const [where, said] of [["index", result.index], ["node.index", node.index]] as const) {
+    if (said !== undefined && (typeof said !== "string" || said.toUpperCase() !== asked)) throw malformed(what, `"${where}" is not the entry asked for`);
+  }
+  if (node.LedgerEntryType !== "URIToken") {
+    throw new UpstreamError("not_found", `${what}: the entry is a ${clip(String(node.LedgerEntryType))}, not a URIToken`, { status: 200 });
+  }
+  const digest = node.Digest;
+  if (digest !== undefined && (typeof digest !== "string" || !HEX64_TEXT.test(digest))) throw malformed(what, '"Digest" is not 64 hexadecimal digits');
+  return {
+    index: asked,
+    ledger_index: integerField(what, result, "ledger_index", 0),
+    Owner: accountField(what, node, "Owner", "the URIToken's"),
+    Issuer: accountField(what, node, "Issuer", "the URIToken's"),
+    URI: hexField(what, node, "URI"),
+    ...(digest !== undefined && { Digest: digest as string }),
+    Flags: integerField(what, node, "Flags", 0, UINT32_MAX),
+    ...(node.Amount !== undefined && { Amount: readAmount(what, "Amount", node.Amount, native) }),
+    ...(node.Destination !== undefined && { Destination: accountField(what, node, "Destination", "the URIToken's") }),
+  };
+}
+
 /** The node's selector for a ledger given as an index or a hash. */
 function ledgerSelector(id: string): { ledger_hash: string } | { ledger_index: number } {
   if (/^[0-9A-Fa-f]{64}$/.test(id)) return { ledger_hash: id };
@@ -672,8 +836,11 @@ function ledgerSelector(id: string): { ledger_hash: string } | { ledger_index: n
 // ---- The client ---------------------------------------------------------------------------------------------------
 
 export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
-  /** Posts one command and returns the node's `result` of a success; a failure throws. `notFound`: the codes this command reads as `not_found`. */
-  function post(method: string, body: string, notFound?: readonly string[]): Promise<Json> {
+  /**
+   * Posts one command and returns the node's `result` of a success; a failure throws. `notFound`: the codes this command reads as `not_found`. `asResult`: the codes whose
+   * failed `result` is returned as it is, for the reader to read as an answer (an NFT with no offer).
+   */
+  function post(method: string, body: string, notFound?: readonly string[], asResult: readonly string[] = []): Promise<Json> {
     const what = `node ${method}`;
     return withDeadline(NODE_TIMEOUT_MS, what, async (signal) => {
       const response = await fetch(net.nodeUrl, {
@@ -699,7 +866,12 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
       }
       const result = isObject(answer) ? answer.result : undefined;
       if (!isObject(result)) throw malformed(what, 'no "result"');
-      if (result.status === "error") throw errorOf(what, result, notFound);
+      if (result.status === "error") {
+        if (typeof result.error === "string" && asResult.includes(result.error)) return result;
+        const failure = errorOf(what, result, notFound);
+        if (failure.kind === "not_found" && typeof result.error === "string" && NO_SUCH_COMMAND.includes(result.error)) sayCommandIsMissing(method, failure);
+        throw failure;
+      }
       return result;
     });
   }
@@ -715,14 +887,14 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
     cls: CacheClass,
     read: (what: string, result: Json) => T,
     ttlOverride?: number,
-    options: NodeCallOptions & { notFound?: readonly string[] } = {},
+    options: NodeCallOptions & { notFound?: readonly string[]; asResult?: readonly string[] } = {},
   ): Promise<T> {
     const body = JSON.stringify({ method, params: [params] });
     const key = `POST ${net.nodeUrl} ${body}`;
     return cache.json(
       options.ttl === undefined ? key : `${key} [kept ${options.ttl} s]`,
       cls,
-      async () => read(`node ${method}`, await post(method, body, options.notFound)),
+      async () => read(`node ${method}`, await post(method, body, options.notFound, options.asResult)),
       options.ttl ?? ttlOverride,
       options.holdFailure ? { holdFailure: true } : undefined,
     );
@@ -735,6 +907,19 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
       throw new UpstreamError("bad_request", `${JSON.stringify(asset.currency)} is not an asset without an issuer on ${net.name}`);
     }
     return { currency: net.native };
+  }
+
+  /** One side of an NFT's offers: the first `NFT_OFFERS_LIMIT`, and an NFT with none as an empty list (the node's `objectNotFound`, read by `toNftOffers` as an answer, so that it is kept). */
+  function nftOffersOf(method: "nft_sell_offers" | "nft_buy_offers", id: string): Promise<NodeNftOffers> {
+    const asked = id.toUpperCase();
+    return call(
+      method,
+      { nft_id: asked, ledger_index: "validated", limit: NFT_OFFERS_LIMIT },
+      "live",
+      (what, result) => toNftOffers(what, net.native, asked, result),
+      undefined,
+      { notFound: OFFERS_NOT_FOUND, asResult: NFT_NO_OFFERS },
+    );
   }
 
   const readBook = (asked: BookAsked) => (what: string, result: Json) => toBook(what, net.native, asked, result);
@@ -794,5 +979,21 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
         undefined,
         { ...opts, notFound: AMM_NOT_FOUND },
       ),
+    // The NFT readers: an id is asked for in upper case (the node writes it so, and a key is shared by every case), and the answer must be for it. The commands take `ledger_index` like
+    // the others; Clio serves validated data only, so it is a statement here. All are `live`: what a node says of an NFT may change with the next ledger.
+    nftInfo: async (id) => {
+      const asked = id.toUpperCase();
+      return call("nft_info", { nft_id: asked, ledger_index: "validated" }, "live", (what, result) => toNftInfo(what, asked, result), undefined, {
+        notFound: NFT_INFO_NOT_FOUND,
+      });
+    },
+    nftSellOffers: async (id) => nftOffersOf("nft_sell_offers", id),
+    nftBuyOffers: async (id) => nftOffersOf("nft_buy_offers", id),
+    uriToken: async (id) => {
+      const asked = id.toUpperCase();
+      return call("ledger_entry", { index: asked, ledger_index: "validated" }, "live", (what, result) => toUriToken(what, net.native, asked, result), undefined, {
+        notFound: ENTRY_NOT_FOUND,
+      });
+    },
   };
 }

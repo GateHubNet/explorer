@@ -20,6 +20,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/network/validators/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the summary of the validators of the network
+         * @description The figures of the Validators board: the validators seen in the last 24 hours, the trusted UNL with its publishers and the quorum, the negative UNL, the fees, the next flag ledger, the software versions and how far the agreement and the votes are computed. There are no parameters.
+         */
+        get: operations["ValidatorsController_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/validators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the validators of the network
+         * @description The validators of the trusted UNL, or of the UNL and every validator seen in the last 24 hours, with their agreement, their domain and its verification, the lists they are on, their software version, and what they vote for: fees and amendments. Validators with a domain come first, by domain, then the others by key. `format=csv` gives the rows as a CSV file.
+         */
+        get: operations["ValidatorsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/validators/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a validator of the network
+         * @description One validator by its master key, its signing key or 66 hex digits: the row of the list, its vote on every amendment being decided, its manifest and its agreement of each of the last 30 days. JSON only.
+         */
+        get: operations["ValidatorsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/validators/{key}/validations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the validations of a validator
+         * @description The validations one validator made in the last 7 days, newest first: for each ledger and hash the sightings added up, whether the ledger is the one the indexer holds, and the first and last time the validation was seen. The rows recorded under the validator's signing keys are its own. `format=csv` gives the page as a CSV file.
+         */
+        get: operations["ValidatorsController_validatorValidations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/amendments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the amendments of the network
+         * @description Every amendment the network knows: enabled, with a majority, voting, obsolete or unknown, with the votes of the newest voting round and, for the enabled ones, when they were enabled. The answer states the rules, the newest round and the next flag ledger. `format=csv` gives the amendments as a CSV file.
+         */
+        get: operations["AmendmentsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/network/amendments/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an amendment of the network
+         * @description One amendment by its name or its ID, with the envelope of the list, how each validator votes on it, its rounds of the last 30 days and its history. JSON only.
+         */
+        get: operations["AmendmentsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/ledgers": {
         parameters: {
             query?: never;
@@ -157,6 +277,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/path_payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get path payments
+         * @description The path payments of the ledgers that closed between `start` and `end`, oldest first: the successful payments whose delivery used someone else’s liquidity (an order-book offer, an AMM pool, or an account other than the delivered currency’s issuer rippling between its trust lines), payments to oneself included. Each says what left the source, what reached the destination and what it crossed. `format=csv` gives them as a CSV file.
+         */
+        get: operations["PathPaymentsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/exchanges/{base}/{counter}": {
         parameters: {
             query?: never;
@@ -266,7 +406,7 @@ export interface paths {
         };
         /**
          * Get an account
-         * @description When and by whom an account was created. An address that was created more than once (deleted and funded again) answers with its latest creation.
+         * @description When and by whom an account was created. An address that was created more than once (deleted and funded again) answers with its latest creation. `account_name` is the name the operator gave the address, the same on every network, and `account_network_name` the name it gave the account on this network only. `account_labels` are the labels the operator put on the address (`scam`, `spam`, `advisory`), keyed by label, each with its `description` and, when given, its `source` and `url`; the same on every network. Each is left out when there is none. `flags=true` adds the account flags, named for the network: at the ledger `ledger_index`, `ledger_hash` or `date` names, from the account state history, else from the live node.
          */
         get: operations["AccountsController_lookup"];
         put?: never;
@@ -306,7 +446,7 @@ export interface paths {
         };
         /**
          * Get the transactions of an account
-         * @description Every transaction that affects the account (sent, received, or touching one of its offers or trust lines) in the ledgers that closed between `start` and `end`, oldest first. With `min_sequence` or `max_sequence` the list is instead the transactions the account sent, by their sequence number, and `start` and `end` are ignored. `type` and `result` are the names of the network (`Payment`, `tesSUCCESS`).
+         * @description Every transaction that affects the account (sent, received, or touching one of its offers or trust lines) in the ledgers that closed between `start` and `end`, oldest first. With `min_sequence` or `max_sequence` the list is instead the transactions the account sent, by their sequence number, and `start` and `end` are ignored. `type` and `result` are the names of the network (`Payment`, `tesSUCCESS`). `format=csv` serves the same list as a CSV of summary rows from the account's side.
          */
         get: operations["AccountTransactionsController_list"];
         put?: never;
@@ -426,7 +566,7 @@ export interface paths {
         };
         /**
          * Get the balances of an account
-         * @description The balances of the account on a ledger of the live node, the native one first (it has no `counterparty`), then the trust lines in the order of the node. The ledger is chosen by `ledger_index`, `ledger_hash` or `date` (the last ledger closed at or before it, answered with its `close_time`); without any of them it is the newest validated one. `currency` keeps the balances of one currency, `counterparty` the trust lines with one account. `limit=all` reads every trust line. `format=csv` gives the balances as a CSV file.
+         * @description The balances of the account at a ledger, the native one first (it has no `counterparty`), then the trust lines. A ledger named by `ledger_hash`, `date` (the last ledger closed at or before it) or a numeric `ledger_index` is read from the indexed state history, with the trust lines ordered by (counterparty, currency), and answered with its `close_time`; without any of them (or with `validated`, `closed`, `current`) the balances come from the live node, the newest validated ledger by default, with the trust lines in the node's order. `currency` keeps the balances of one currency, `counterparty` the trust lines with one account. `limit=all` reads every trust line. `format=csv` gives the balances as a CSV file.
          */
         get: operations["AccountBalancesController_list"];
         put?: never;
@@ -637,6 +777,386 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/accounts/{address}/trustlines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the trust lines of an account
+         * @description The trust lines of the account at a ledger, from the indexed state history, with each line from the account's side: its balance, its limit and the peer's, no-ripple, authorization and freeze on both sides, and its quality in and out. Lines with a zero balance are listed; lines deleted at or before the ledger are not. Ordered and paged by (counterparty, currency). The ledger is chosen by `ledger_hash`, `date` (the last ledger closed at or before it) or `ledger_index`; without any of them it is the newest indexed one. An issuer's lines are its holders. `format=csv` gives the lines as a CSV file.
+         */
+        get: operations["AccountTrustlinesController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/path_payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the path payments of an account
+         * @description The path payments the account sent or received in the ledgers that closed between `start` and `end`, oldest first, as `GET /v2/path_payments` serves them; a payment to oneself is listed once. `format=csv` gives them as a CSV file.
+         */
+        get: operations["AccountPathPaymentsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/nfts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the NFTs an account holds
+         * @description The NFTs and URITokens the account holds now, grouped by collection (issuer, then taxon) and then by serial (on Xahau by id): each as `GET /v2/nfts/{nft_id}` gives it, except that `last_sale` has no `converted_amount` in a list. An NFT the account sold or gave away, and a burned one, are not listed. `issuer` keeps the NFTs of that issuer, and with `taxon` those of one collection (a `taxon` without an `issuer` is a 400). `format=csv` gives the NFTs as a CSV file (without `coverage`).
+         */
+        get: operations["AccountNftsController_holdings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/nft_history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the NFT history of an account
+         * @description The events of NFTs and URITokens in which the account has a role, in the ledgers that closed between `start` and `end`, oldest first, or newest first with `descending=true`: each as `GET /v2/nfts/{nft_id}/history` gives it, with `account` the account that did it. An event is listed once, whatever number of roles the account has in it. A `modify` names no account, so it is in no account history. `event` keeps the events of those kinds, `role` those in which the account is any of the roles named (the issuer of a mint, burn or sale, the minter when it is not the issuer, the owner before or after, the broker, the owner of an offer, the destination of an offer). `format=csv` gives the events as a CSV file (without `coverage`).
+         */
+        get: operations["AccountNftsController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nfts/{nft_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an NFT or URIToken
+         * @description The NFT folded from its indexed events: its owner and since when, its mint and burn, its URI, its sales (`sale_count`, the newest as `last_sale` with `converted_amount`, its price in the native currency where the asset has a rate) and the fields of its id (`taxon`, `serial` and `transfer_fee` on XRPL only). `owner` is absent for a burned NFT and when no indexed event names one; `minted` is absent when its mint is not indexed (`coverage.complete` says whether the history of this NFT is whole).
+         */
+        get: operations["NftsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nfts/{nft_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the history of an NFT or URIToken
+         * @description The events of the NFT in the ledgers that closed between `start` and `end` (mint, burn, modify, offers created, cancelled and removed, sales, transfers), oldest first, or newest first with `descending=true`. A sale carries `converted_amount`, its price in the native currency where the asset has a rate. `event` is a comma list that keeps the events of those kinds. `format=csv` gives the events as a CSV file (without `coverage`).
+         */
+        get: operations["NftsController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nfts/{nft_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the open offers of an NFT or URIToken
+         * @description The offers made for the NFT that no later event has cancelled, removed or accepted, newest first, worked out from its offer events. An expired offer is listed until it is removed. A URIToken has at most one, the entry's. `type` keeps the offers that sell the NFT (`sell`) or those that bid for it (`buy`).
+         */
+        get: operations["NftsController_offers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/nfts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the NFTs of a collection
+         * @description The NFTs of the collection by serial (on Xahau, by id), as the aggregate keeps them: each with its owner and since when, its mint, its sales (`sale_count`, the newest as `last_sale`: a list has no `converted_amount` for it, the NFT has) and its URI. Burned NFTs are left out unless `include_burned=true`. With `owner` the NFTs that account holds. `format=csv` gives the NFTs as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_nfts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/{taxon}/nfts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the NFTs of a collection
+         * @description The NFTs of the collection by serial (on Xahau, by id), as the aggregate keeps them: each with its owner and since when, its mint, its sales (`sale_count`, the newest as `last_sale`: a list has no `converted_amount` for it, the NFT has) and its URI. Burned NFTs are left out unless `include_burned=true`. With `owner` the NFTs that account holds. `format=csv` gives the NFTs as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_nfts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/holders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the holders of a collection
+         * @description The accounts that hold NFTs of the collection and how many (`held`), the most first, then by address, as of the last run of the collections job. `format=csv` gives the holders as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_holdersOf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/{taxon}/holders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the holders of a collection
+         * @description The accounts that hold NFTs of the collection and how many (`held`), the most first, then by address, as of the last run of the collections job. `format=csv` gives the holders as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_holdersOf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the sales of a collection
+         * @description The sales of the collection's NFTs in the ledgers that closed between `start` and `end`, oldest first, or newest first with `descending=true`: the seller and buyer, whether it was `direct` or `brokered`, the price and `converted_amount`, the price in the native currency where the asset has a rate. `format=csv` gives the sales as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_sales"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/{taxon}/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the sales of a collection
+         * @description The sales of the collection's NFTs in the ledgers that closed between `start` and `end`, oldest first, or newest first with `descending=true`: the seller and buyer, whether it was `direct` or `brokered`, the price and `converted_amount`, the price in the native currency where the asset has a rate. `format=csv` gives the sales as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_sales"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the daily stats of a collection
+         * @description One row for each UTC day of the window on which the collection had a sale, a mint or a burn (a day without a row had no activity): `sales_count`, `volume_native`, `avg_price_native` and `min_price_native` (in the native currency, over the sales with a price in it: a sale of an asset with no rate that day counts in `sales_count` only, and a day of none has neither price), `mints` and `burns`. `start` is required and the window is at most 366 days. `format=csv` gives the days as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/{taxon}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the daily stats of a collection
+         * @description One row for each UTC day of the window on which the collection had a sale, a mint or a burn (a day without a row had no activity): `sales_count`, `volume_native`, `avg_price_native` and `min_price_native` (in the native currency, over the sales with a price in it: a sale of an asset with no rate that day counts in `sales_count` only, and a day of none has neither price), `mints` and `burns`. `start` is required and the window is at most 366 days. `format=csv` gives the days as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionListsController_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the NFT collections
+         * @description The collections in their current state, the biggest first by `sort` (`volume` of their sales in the native currency by default, `supply` or `holders`; the ties by issuer, then taxon). A collection is `{issuer, taxon?, kind, supply, holders, minted, burned, sales_count, volume_native, first_mint?, last_mint?, last_ledger}`, updated by the collections job some minutes after its NFTs change; `volume_native` is the sum of the prices of the sales that have one in the native currency, as of that run. `total` is how many collections the filter matches. The answer is kept 60 seconds. `format=csv` gives the collections as a CSV file (without `coverage`).
+         */
+        get: operations["NftCollectionsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an NFT collection
+         * @description The collection of an issuer and a taxon on XRPL (`/{issuer}/{taxon}`), of an issuer on Xahau (`/{issuer}`), as the list has it. 404 `collection not found` for none, for the other network's form, and for a collection whose NFTs the collections job has not counted yet (some minutes).
+         */
+        get: operations["NftCollectionsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_collections/{issuer}/{taxon}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an NFT collection
+         * @description The collection of an issuer and a taxon on XRPL (`/{issuer}/{taxon}`), of an issuer on Xahau (`/{issuer}`), as the list has it. 404 `collection not found` for none, for the other network's form, and for a collection whose NFTs the collections job has not counted yet (some minutes).
+         */
+        get: operations["NftCollectionsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/nft_sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the NFT sales of the network
+         * @description The sales of NFTs (XRPL) and URITokens (Xahau) in the ledgers that closed between `start` and `end`, oldest first, or newest first with `descending=true`: each with the seller and buyer, whether it was `direct` or `brokered` (with the `broker`, its `broker_fee` and the estimated `royalty_est`), the price, and `converted_amount`, the price in the native currency where the asset has a rate that day (a sale in an asset with no rate has none). `currency` keeps the sales priced in one currency: the native currency alone, or `CUR+issuer` (a space for the `+` is read as one). `format=csv` gives the sales as a CSV file (without `coverage`).
+         */
+        get: operations["NftSalesController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/active_accounts/{base}/{counter}": {
         parameters: {
             query?: never;
@@ -757,6 +1277,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/network/nft_volume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the volume of the NFT sales on the network
+         * @description The sales of NFTs (XRPL) and URITokens (Xahau), per collection, in the native currency: per collection its `issuer` and `taxon` (XRPL only), the number of its sales that have a price in the native currency (`count`), the volume of them (`amount`), the rate (1, as the amount is in the native currency) and `converted_amount`. A sale priced in an asset with no rate that day is not in a component; the `count` of the row is every sale of the window, those too. Components are listed by converted amount, the largest first; a window without sales is a row with no components. Without `start` and `end`, the live row of the rolling period `live` (day, 7day, 30day; default day). With them, a row per `interval` (day, week from Monday, month, UTC) for the days that were computed: a bucket is a row when it starts within `start` and `end`, whole. `exchange_currency` / `exchange_issuer` show the amounts in another currency, as for the exchange volume. `coverage` states whether the NFT history is whole.
+         */
+        get: operations["VolumeController_nftVolume"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/network/markets": {
         parameters: {
             query?: never;
@@ -849,126 +1389,6 @@ export interface paths {
          * @description The validation object itself, with `result: "success"`.
          */
         get: operations["ValidationsController_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/network/validators/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the summary of the validators of the network
-         * @description The figures of the Validators board: the validators seen in the last 24 hours, the trusted UNL with its publishers and the quorum, the negative UNL, the fees, the next flag ledger, the software versions and how far the agreement and the votes are computed. There are no parameters.
-         */
-        get: operations["ValidatorsController_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/network/validators": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the validators of the network
-         * @description The validators of the trusted UNL, or of the UNL and every validator seen in the last 24 hours, with their agreement, their domain and its verification, the lists they are on, their software version, and what they vote for: fees and amendments. Validators with a domain come first, by domain, then the others by key. `format=csv` gives the rows as a CSV file.
-         */
-        get: operations["ValidatorsController_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/network/validators/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a validator of the network
-         * @description One validator by its master key, its signing key or 66 hex digits: the row of the list, its vote on every amendment being decided, its manifest and its agreement of each of the last 30 days. JSON only.
-         */
-        get: operations["ValidatorsController_detail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/network/validators/{key}/validations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the validations of a validator
-         * @description The validations one validator made in the last 7 days, newest first: for each ledger and hash the sightings added up, whether the ledger is the one the indexer holds, and the first and last time the validation was seen. The rows recorded under the validator's signing keys are its own. `format=csv` gives the page as a CSV file.
-         */
-        get: operations["ValidatorsController_validatorValidations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/network/amendments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the amendments of the network
-         * @description Every amendment the network knows: enabled, with a majority, voting, obsolete or unknown, with the votes of the newest voting round and, for the enabled ones, when they were enabled. The answer states the rules, the newest round and the next flag ledger. `format=csv` gives the amendments as a CSV file.
-         */
-        get: operations["AmendmentsController_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/network/amendments/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get an amendment of the network
-         * @description One amendment by its name or its ID, with the envelope of the list, how each validator votes on it, its rounds of the last 30 days and its history. JSON only.
-         */
-        get: operations["AmendmentsController_detail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1177,6 +1597,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for an export of a list
+         * @description Queues an export of the list at `path` (any route with a CSV form, with its parameters) in `format` (`csv`, or `pdf`: a landscape A4 document with a header and the list's chosen columns). A list over time must name `start` and `end`. The exporter of the network makes the file in the background; `GET /v2/exports/{id}` reports it.
+         */
+        post: operations["ExportsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/exports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an export
+         * @description The state of an export (`queued`, `running`, `done`, `failed`) for the API key that asked for it; any other key gets 404. When it is done, `url` downloads the file for 15 minutes; each request makes a new one.
+         */
+        get: operations["ExportsController_find"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1304,6 +1764,146 @@ export interface operations {
                         };
                     };
                 };
+            };
+        };
+    };
+    ValidatorsController_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ValidatorsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description A part of the domain, the master key or the signing key (at most 100 characters). */
+                q?: unknown;
+                /** @description The name or the ID (64 hex digits) of an amendment: the validators that vote for it. */
+                amendment?: unknown;
+                /** @description The id of a publisher of the summary: its list in use. */
+                publisher?: unknown;
+                /** @description Default: unl. */
+                scope?: "unl" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ValidatorsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A master key (nH...), a signing key (n9...) or 66 hex digits (02, 03 or ED first). */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ValidatorsController_validatorValidations: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Default true; false lists the oldest first. */
+                descending?: boolean;
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description A master key (nH...), a signing key (n9...) or 66 hex digits (02, 03 or ED first). */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmendmentsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description A comma list of enabled, majority, voting, obsolete and unknown. Default: all. */
+                status?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AmendmentsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the amendment (as written, else in any case when only one has it) or its ID (64 hex digits). */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1513,6 +2113,36 @@ export interface operations {
             };
         };
     };
+    PathPaymentsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the beginning. */
+                start?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ExchangesController_pair: {
         parameters: {
             query?: {
@@ -1687,7 +2317,16 @@ export interface operations {
     };
     AccountsController_lookup: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description With `flags`: the last ledger closed at or before this time. Alias: `close_time`. */
+                date?: unknown;
+                /** @description With `flags`: the hash of the ledger. */
+                ledger_hash?: unknown;
+                /** @description With `flags`: a ledger number. Alias: `ledger`. */
+                ledger_index?: unknown;
+                /** @description Add the account flags. */
+                flags?: boolean;
+            };
             header?: never;
             path: {
                 /** @description The address of the account. */
@@ -1733,6 +2372,8 @@ export interface operations {
     AccountTransactionsController_list: {
         parameters: {
             query?: {
+                /** @description `csv`: one summary row per transaction, file `<address> - transactions.csv`. */
+                format?: unknown;
                 /** @description From the previous page. */
                 marker?: unknown;
                 /** @description Default 20, at most 1000. */
@@ -2331,6 +2972,588 @@ export interface operations {
             };
         };
     };
+    AccountTrustlinesController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description The `marker` of the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: unknown;
+                /** @description Only the lines with this account. */
+                counterparty?: unknown;
+                /** @description Only the lines in this currency. */
+                currency?: unknown;
+                /** @description The last ledger closed at or before this time. Alias: `close_time`. */
+                date?: unknown;
+                /** @description The hash of the ledger. */
+                ledger_hash?: unknown;
+                /** @description A ledger number. Alias: `ledger`. */
+                ledger_index?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountPathPaymentsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the beginning. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountNftsController_holdings: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Only the NFTs of this taxon of the issuer. Needs `issuer`. */
+                taxon?: unknown;
+                /** @description Only the NFTs of this issuer. */
+                issuer?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the holder. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountNftsController_history: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description A comma list of issuer, minter, from, to, broker, offer_owner, destination. Default: any role. */
+                role?: unknown;
+                /** @description A comma list of mint, burn, modify, offer_create, offer_cancel, offer_removed, sale, transfer. Default: all. `modify` is accepted and always gives nothing here: a modify names no account. */
+                event?: unknown;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account. */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the NFT or URIToken id, in any case. */
+                nft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftsController_history: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description A comma list of mint, burn, modify, offer_create, offer_cancel, offer_removed, sale, transfer. Default: all. */
+                event?: unknown;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the NFT or URIToken id, in any case. */
+                nft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftsController_offers: {
+        parameters: {
+            query?: {
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Only the sell or the buy offers. */
+                type?: "sell" | "buy";
+            };
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the NFT or URIToken id, in any case. */
+                nft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_nfts: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Also the NFTs that were burned. */
+                include_burned?: boolean;
+                /** @description Only the NFTs of the collection this account holds. */
+                owner?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_nfts: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Also the NFTs that were burned. */
+                include_burned?: boolean;
+                /** @description Only the NFTs of the collection this account holds. */
+                owner?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_holdersOf: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_holdersOf: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_sales: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_sales: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_stats: {
+        parameters: {
+            query: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: now. */
+                end?: unknown;
+                /** @description Start time. */
+                start: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionListsController_stats: {
+        parameters: {
+            query: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: now. */
+                end?: unknown;
+                /** @description Start time. */
+                start: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Default true; `false` for the smallest first. */
+                descending?: boolean;
+                /** @description Default: volume. */
+                sort?: "volume" | "supply" | "holders";
+                /** @description Only the collections of this issuer. */
+                issuer?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftCollectionsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The address of the issuer of the collection. */
+                issuer: string;
+                /** @description The taxon of the collection, on XRPL (`/{issuer}/{taxon}`); Xahau has none (`/{issuer}`). */
+                taxon: unknown;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    NftSalesController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description Only the sales priced in this currency: the native currency, or `CUR+issuer`. Default: all. */
+                currency?: unknown;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the first ledger. */
+                start?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ActiveAccountsController_activeAccounts: {
         parameters: {
             query?: {
@@ -2534,6 +3757,42 @@ export interface operations {
             };
         };
     };
+    VolumeController_nftVolume: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Required for every currency but the native one. */
+                exchange_issuer?: unknown;
+                /** @description Default: the native currency. */
+                exchange_currency?: unknown;
+                /** @description Default: day. */
+                interval?: "day" | "week" | "month";
+                /** @description End time of the historical rows. Default: now. */
+                end?: unknown;
+                /** @description Start time of the historical rows. Default: the epoch. */
+                start?: unknown;
+                /** @description Default: day. Ignored with start or end. */
+                live?: "day" | "7day" | "30day";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     MarketsController_list: {
         parameters: {
             query?: {
@@ -2651,146 +3910,6 @@ export interface operations {
                 ledger_hash: string;
                 /** @description The public key of the validator. */
                 pubkey: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ValidatorsController_summary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ValidatorsController_list: {
-        parameters: {
-            query?: {
-                /** @description Default: json. */
-                format?: "json" | "csv";
-                /** @description From the previous page. */
-                marker?: unknown;
-                /** @description Default 200, at most 1000. */
-                limit?: number;
-                /** @description A part of the domain, the master key or the signing key (at most 100 characters). */
-                q?: unknown;
-                /** @description The name or the ID (64 hex digits) of an amendment: the validators that vote for it. */
-                amendment?: unknown;
-                /** @description The id of a publisher of the summary: its list in use. */
-                publisher?: unknown;
-                /** @description Default: unl. */
-                scope?: "unl" | "all";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ValidatorsController_detail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description A master key (nH...), a signing key (n9...) or 66 hex digits (02, 03 or ED first). */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ValidatorsController_validatorValidations: {
-        parameters: {
-            query?: {
-                /** @description Default: json. */
-                format?: "json" | "csv";
-                /** @description Default true; false lists the oldest first. */
-                descending?: boolean;
-                /** @description From the previous page. */
-                marker?: unknown;
-                /** @description Default 200, at most 1000. */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                /** @description A master key (nH...), a signing key (n9...) or 66 hex digits (02, 03 or ED first). */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AmendmentsController_list: {
-        parameters: {
-            query?: {
-                /** @description Default: json. */
-                format?: "json" | "csv";
-                /** @description A comma list of enabled, majority, voting, obsolete and unknown. Default: all. */
-                status?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AmendmentsController_detail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The name of the amendment (as written, else in any case when only one has it) or its ID (64 hex digits). */
-                name: string;
             };
             cookie?: never;
         };
@@ -3125,6 +4244,52 @@ export interface operations {
                 base: string;
                 /** @description The other side of the pair, written like `base`. */
                 counter: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExportsController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @example /v2/accounts/r…/transactions?start=2024-01-01&end=2024-07-01 */
+                    path: string;
+                    /** @enum {string} */
+                    format: "csv" | "pdf";
+                };
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExportsController_find: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The id `POST /v2/exports` answered. */
+                id: string;
             };
             cookie?: never;
         };

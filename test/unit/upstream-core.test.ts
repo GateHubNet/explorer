@@ -26,6 +26,8 @@ const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
 const RLUSD = { currency: "524C555344000000000000000000000000000000", issuer: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" };
 const RLUSD_TEXT = "524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
 const BOOK = { taker_gets: { currency: "XRP" }, taker_pays: RLUSD, ledger_index: "validated", limit: 60 };
+const NFT = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
+const URI_TOKEN = "9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9";
 
 describe("keys and file names", () => {
   it("sorts the query, so that the order a client sends it in is not a difference", () => {
@@ -101,6 +103,35 @@ describe("keys and file names", () => {
     expect(nodeFile("xahau", "book_offers", { ...BOOK, taker_gets: { currency: "XAH" }, taker_pays: { currency: "EVR", issuer: "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8" } })).toBe("xahau/node/book_offers/XAH_EVR+rEvernodee8dJLaFsujS6q1EiXvZYmHXr8@limit=60.json");
     expect(nodeFile("xrpl", "amm_info", { amm_account: POOL, ledger_index: "validated" })).toBe(`xrpl/node/amm_info/${POOL}.json`);
     expect(nodeFile("xrpl", "amm_info", { asset: { currency: "XRP" }, asset2: RLUSD, ledger_index: "validated" })).toBe(`xrpl/node/amm_info/XRP_${RLUSD_TEXT}.json`);
+  });
+
+  // The three NFT commands are about one NFT, whose id is the subject; `ledger_entry` of D3's URIToken is about an entry, whose key is `index`.
+  it("makes the subject of an NFT command its nft_id, and of a ledger_entry its index, upper-casing the 64 digits", () => {
+    expect(nodeSubject("nft_info", { nft_id: NFT.toLowerCase(), ledger_index: "validated" })).toBe(NFT);
+    expect(nodeSubject("nft_sell_offers", { nft_id: NFT, ledger_index: "validated", limit: 50 })).toBe(NFT);
+    expect(nodeSubject("nft_buy_offers", { nft_id: NFT, ledger_index: "validated", limit: 50 })).toBe(NFT);
+    expect(nodeSubject("ledger_entry", { index: URI_TOKEN, ledger_index: "validated" })).toBe(URI_TOKEN);
+    expect(nodeSubject("nft_info", { ledger_index: "validated" })).toBeUndefined();
+    expect(nodeKeys("nft_info", { nft_id: NFT, ledger_index: "validated" })).toEqual([`node nft_info ledger_index=validated&nft_id=${NFT}`, `node nft_info ${NFT}`]);
+    expect(nodeKeys("ledger_entry", { index: URI_TOKEN, ledger_index: "validated" })[1]).toBe(`node ledger_entry ${URI_TOKEN}`);
+  });
+
+  it("names the file of an NFT command by the NFT, and of a ledger_entry by its index, with the default ledger left out and the offers' limit in the name", () => {
+    expect(nodeFile("xrpl", "nft_info", { nft_id: NFT, ledger_index: "validated" })).toBe(`xrpl/node/nft_info/${NFT}.json`);
+    expect(nodeFile("xrpl", "nft_sell_offers", { nft_id: NFT, ledger_index: "validated", limit: 50 })).toBe(`xrpl/node/nft_sell_offers/${NFT}@limit=50.json`);
+    expect(nodeFile("xrpl", "nft_buy_offers", { nft_id: NFT, ledger_index: "validated", limit: 50 })).toBe(`xrpl/node/nft_buy_offers/${NFT}@limit=50.json`);
+    expect(nodeFile("xahau", "ledger_entry", { index: URI_TOKEN, ledger_index: "validated" })).toBe(`xahau/node/ledger_entry/${URI_TOKEN}.json`);
+    // A request that is no hash is no file.
+    expect(nodeFile("xrpl", "nft_info", { nft_id: "../../package" })).toBeUndefined();
+    expect(nodeFile("xahau", "ledger_entry", { index: "..\\..\\package" })).toBeUndefined();
+  });
+
+  it("names the file of the data API's NFT routes below the network, after /v2", () => {
+    expect(dataApiFile("xrpl", `/v2/nfts/${NFT}/history`, "descending=true&limit=20&event=mint%2Csale")).toBe(`xrpl/data-api/nfts/${NFT}/history@descending=true&event=mint,sale&limit=20.json`);
+    expect(dataApiFile("xahau", "/v2/nft_collections/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb/stats", "start=2026-10-20&end=2026-10-27")).toBe(
+      "xahau/data-api/nft_collections/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb/stats@end=2026-10-27&start=2026-10-20.json",
+    );
+    expect(dataApiFile("xrpl", `/v2/accounts/${ACCOUNT}/nfts`, "limit=20")).toBe(`xrpl/data-api/accounts/${ACCOUNT}/nfts@limit=20.json`);
   });
 });
 
@@ -277,6 +308,74 @@ describe("createUpstream", () => {
     }
   });
 
+  // D3's detail routes answer `nft not found` and `collection not found` for what the index has none of, and everything below them with the same words; its lists are
+  // routes like any other (no such thing as a missing list), so they stay missing routes here, `Cannot GET`, like the AMM list.
+  it("answers an unknown NFT, and anything below it, with the route's own `nft not found`", async () => {
+    const upstream = make();
+    for (const path of [`/v2/nfts/${NFT}`, `/v2/nfts/${NFT.toLowerCase()}`, `/v2/nfts/${NFT}/history?descending=true&event=mint%2Csale&limit=20`, `/v2/nfts/${NFT}/offers?limit=50`]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: "nft not found" });
+    }
+    // A `null` override is the same "absent" answer.
+    const removed = await make({ [`GET /v2/nfts/${NFT}`]: null }).handle(get(`/xrpl/v2/nfts/${NFT}`));
+    expect(await jsonOf(removed)).toEqual({ result: "error", message: "nft not found" });
+    // The network's own list of NFTs is none: `/v2/nfts` is no route.
+    expect(await jsonOf(await upstream.handle(get("/xrpl/v2/nfts")))).toEqual({ result: "error", message: "Cannot GET /v2/nfts" });
+  });
+
+  it("answers an unknown collection, and the lists below it, with `collection not found`; the network's lists of collections and sales and the volume stay missing routes", async () => {
+    const upstream = make();
+    const issuer = "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb";
+    for (const path of [
+      `/v2/nft_collections/${issuer}`,
+      `/v2/nft_collections/${issuer}/1`,
+      `/v2/nft_collections/${issuer}/1/nfts?limit=20&marker=M`,
+      `/v2/nft_collections/${issuer}/holders?limit=20`,
+      `/v2/nft_collections/${issuer}/1/sales?descending=true&limit=20`,
+      `/v2/nft_collections/${issuer}/stats?end=2026-10-27&start=2026-10-20`,
+    ]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: "collection not found" });
+    }
+    for (const path of ["/v2/nft_collections?limit=20&sort=volume", "/v2/nft_collections", "/v2/nft_sales?descending=true&limit=10", "/v2/network/nft_volume?live=day"]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: `Cannot GET ${path.split("?")[0]}` });
+    }
+  });
+
+  // D3 answers 200 with an empty page for any address ("an address in a path under /v2/accounts is not checked: one that is none holds nothing"), with the coverage of the
+  // network's NFT index. The mock's is the first ledger of the recordings D3's own tests seed, as the reference's examples have it: not whole, nothing before it is indexed.
+  it("answers the NFTs of any account with D3's empty page and the coverage of the network, as an answer that has no fixture", async () => {
+    const upstream = make();
+    const xrpl = await upstream.handle(get(`/xrpl/v2/accounts/${ACCOUNT}/nfts?limit=20`));
+    expect(xrpl!.status).toBe(200);
+    const body = await jsonOf(xrpl);
+    expect(body).toEqual({ result: "success", coverage: { from_ledger_index: 107874617, complete: false }, count: 0, nfts: [] });
+    // The keys are in D3's order: no marker, as there is no next page.
+    expect(Object.keys(body)).toEqual(["result", "coverage", "count", "nfts"]);
+    expect(Object.keys(body.coverage)).toEqual(["from_ledger_index", "complete"]);
+
+    const xahau = await upstream.handle(get(`/xahau/v2/accounts/${ACCOUNT}/nfts?limit=20&issuer=rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb`));
+    expect(await jsonOf(xahau)).toEqual({ result: "success", coverage: { from_ledger_index: 26533927, complete: false }, count: 0, nfts: [] });
+    expect(upstream.requests.map((request) => [request.net, request.source, request.status])).toEqual([
+      ["xrpl", "absent", 200],
+      ["xahau", "absent", 200],
+    ]);
+    // The account's own routes are as they were: the account is not found, the NFT history is no route here (no page shows it).
+    expect((await upstream.handle(get(`/xrpl/v2/accounts/${ACCOUNT}`)))!.status).toBe(404);
+    expect(await jsonOf(await upstream.handle(get(`/xrpl/v2/accounts/${ACCOUNT}/nft_history`)))).toEqual({ result: "error", message: `Cannot GET /v2/accounts/${ACCOUNT}/nft_history` });
+  });
+
+  it("is given a file for an account's NFTs, which is what it answers", async () => {
+    const page = { result: "success", coverage: { complete: true }, count: 0, nfts: [] };
+    const filed = createUpstream({ files: { read: async (path) => (path === `xrpl/data-api/accounts/${ACCOUNT}/nfts@limit=20.json` ? JSON.stringify(page) : undefined) }, bases, primary: "xrpl" });
+    expect(await jsonOf(await filed.handle(get(`/xrpl/v2/accounts/${ACCOUNT}/nfts?limit=20`)))).toEqual(page);
+    expect(filed.requests[0]!.source).toBe("fixture");
+  });
+
   it("answers 401 without the key, 404 for a method the API does not have, and never caches an error", async () => {
     const upstream = make();
     const noKey = await upstream.handle(get("/xrpl/v2/last_validated", null));
@@ -310,6 +409,60 @@ describe("createUpstream", () => {
     expect((await jsonOf(await upstream.handle(rpc(url, "feature", {})))).result.error).toBe("unknownCmd");
     const garbage = await upstream.handle(new Request(url, { method: "POST", body: "not json" }));
     expect((await jsonOf(garbage)).result.error).toBe("invalidParams");
+  });
+
+  // What the nodes said on 2026-10-24: Clio (s1.ripple.com) answers an NFT it has none of with `objectNotFound`, 92, "NFT not found" (its offers commands: "notFound");
+  // xahaud (xahau.network) answers a ledger entry it has none of with `entryNotFound` and no `error_code`.
+  it("answers an NFT command about an NFT with objectNotFound and a ledger_entry about an entry with entryNotFound, at HTTP 200", async () => {
+    const upstream = make();
+    const url = "http://fixtures.test/xrpl-node";
+    for (const [method, params] of [
+      ["nft_info", { nft_id: NFT, ledger_index: "validated" }],
+      ["nft_sell_offers", { nft_id: NFT, ledger_index: "validated", limit: 50 }],
+      ["nft_buy_offers", { nft_id: NFT, ledger_index: "validated", limit: 50 }],
+    ] as const) {
+      const answer = await upstream.handle(rpc(url, method, params));
+      expect(answer!.status, method).toBe(200);
+      expect((await jsonOf(answer)).result, method).toEqual({
+        error: "objectNotFound",
+        error_code: 92,
+        error_message: "NFT not found",
+        request: { ...params, command: method },
+        status: "error",
+      });
+    }
+    const entry = await upstream.handle(rpc("http://fixtures.test/xahau-node", "ledger_entry", { index: URI_TOKEN, ledger_index: "validated" }));
+    expect(entry!.status).toBe(200);
+    const result = (await jsonOf(entry)).result;
+    expect(result).toEqual({ error: "entryNotFound", request: { index: URI_TOKEN, ledger_index: "validated", command: "ledger_entry" }, status: "error" });
+    expect(Object.keys(result)).not.toContain("error_code");
+    expect(upstream.requests.map((request) => request.source)).toEqual(["absent", "absent", "absent", "absent"]);
+  });
+
+  it("takes an override keyed by the NFT, and answers one that is `null` with the NFT's absent answer", async () => {
+    const upstream = make({ [`node nft_info ${NFT}`]: { nft_id: NFT, validated: true, status: "success" }, [`node ledger_entry ${URI_TOKEN}`]: null });
+    const url = "http://fixtures.test/xrpl-node";
+    expect((await jsonOf(await upstream.handle(rpc(url, "nft_info", { nft_id: NFT.toLowerCase(), ledger_index: "validated" })))).result.nft_id).toBe(NFT);
+    expect((await jsonOf(await upstream.handle(rpc(url, "ledger_entry", { index: URI_TOKEN, ledger_index: "validated" })))).result.error).toBe("entryNotFound");
+    expect(upstream.unusedOverrides()).toEqual([]);
+  });
+
+  it("answers an NFT command from its file, by NFT", async () => {
+    const files: FixtureFiles = {
+      read: async (path) =>
+        path === `xrpl/node/nft_info/${NFT}.json`
+          ? '{"result":{"nft_id":"00081388AF09","validated":true,"status":"success"}}'
+          : path === `xrpl/node/nft_sell_offers/${NFT}@limit=50.json`
+            ? '{"result":{"offers":[],"status":"success"}}'
+            : undefined,
+    };
+    const upstream = createUpstream({ files, bases, primary: "xrpl" });
+    const url = "http://fixtures.test/xrpl-node";
+    expect((await jsonOf(await upstream.handle(rpc(url, "nft_info", { nft_id: NFT, ledger_index: "validated" })))).result.validated).toBe(true);
+    expect((await jsonOf(await upstream.handle(rpc(url, "nft_sell_offers", { nft_id: NFT, ledger_index: "validated", limit: 50 })))).result.offers).toEqual([]);
+    // The limit is in the file's name: no file for another limit, which the node would answer for as well, so it is absent.
+    expect((await jsonOf(await upstream.handle(rpc(url, "nft_sell_offers", { nft_id: NFT, ledger_index: "validated", limit: 100 })))).result.error).toBe("objectNotFound");
+    expect(upstream.requests.map((request) => request.source)).toEqual(["fixture", "fixture", "absent"]);
   });
 
   it("answers a book_offers and an amm_info request from their files, by subject", async () => {
@@ -434,6 +587,11 @@ describe("createUpstream", () => {
     expect(nodeError("txnNotFound")).toMatchObject({ error: "txnNotFound", error_code: 29, status: "error" });
     expect(nodeError("somethingElse")).toMatchObject({ error: "somethingElse", error_code: 73 });
     expect(nodeError("actMalformed")).toMatchObject({ error: "actMalformed", error_code: 35, error_message: "Account malformed.", status: "error" });
+    expect(nodeError("objectNotFound")).toMatchObject({ error: "objectNotFound", error_code: 92, error_message: "NFT not found", status: "error" });
+    // xahaud's `entryNotFound` is the code and nothing else: no `error_code`, no `error_message`. The others keep their keys in the order they have always had.
+    expect(nodeError("entryNotFound", { index: "A" })).toEqual({ error: "entryNotFound", request: { index: "A" }, status: "error" });
+    expect(Object.keys(nodeError("entryNotFound"))).toEqual(["error", "request", "status"]);
+    expect(Object.keys(nodeError("txnNotFound"))).toEqual(["error", "error_code", "error_message", "request", "status"]);
     const limited = dataApiError(429, "slow down", { "Retry-After": "3" });
     expect(limited.headers.get("Retry-After")).toBe("3");
     return jsonOf(limited).then((body) => expect(body).toEqual({ result: "error", message: "slow down" }));

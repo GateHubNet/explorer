@@ -21,6 +21,7 @@
 //                                     (the currency as the ledger holds it)
 //   node amm_info rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3
 //                                     a pool by its account; by its pair the subject is `<asset>_<asset2>`, written as a book's
+//   node nft_info <NFT ID>            an NFT by its id (so are `nft_sell_offers` and `nft_buy_offers`); `node ledger_entry <ID>` a ledger entry (a URIToken) by its `index`
 
 export const NETWORK_NAMES = ["xrpl", "xahau"] as const;
 export type NetworkName = (typeof NETWORK_NAMES)[number];
@@ -112,6 +113,11 @@ const SUBJECT_PARAMS: Record<string, string[]> = {
   account_objects: ["account"],
   // The pool form: the subject is the pool account. The pair form has no such parameter, see `PAIR_PARAMS`.
   amm_info: ["amm_account"],
+  // The NFT commands (rippled's and Clio's) are about one NFT; a `ledger_entry` asked by `index` is about the entry, which for a URIToken is its id.
+  nft_info: ["nft_id"],
+  nft_sell_offers: ["nft_id"],
+  nft_buy_offers: ["nft_id"],
+  ledger_entry: ["index"],
 };
 
 /** The methods whose subject is two assets, and the parameters that hold them: a book's, and an `amm_info` asked by pair. */
@@ -236,7 +242,8 @@ export function dataApiError(status: number, message: string, headers: Record<st
   });
 }
 
-const NODE_ERRORS: Record<string, [code: number, message: string]> = {
+/** A node's error: its `error_code` and `error_message`, either of which a node may leave out (xahaud's `entryNotFound` has neither). */
+const NODE_ERRORS: Record<string, [code: number | undefined, message: string | undefined]> = {
   actNotFound: [19, "Account not found."],
   txnNotFound: [29, "Transaction not found."],
   lgrNotFound: [21, "ledgerNotFound"],
@@ -246,6 +253,10 @@ const NODE_ERRORS: Record<string, [code: number, message: string]> = {
   noNetwork: [17, "Not synced to the network."],
   slowDown: [10, "You are placing too much load on the server."],
   internal: [73, "Internal error."],
+  // What s1.ripple.com (Clio) answered an NFT it has none of on 2026-10-24 (its offers commands say "notFound" there; one text serves both).
+  objectNotFound: [92, "NFT not found"],
+  // What xahau.network answered `ledger_entry` for an entry it has none of on 2026-10-24: the code, the ledger it looked in and the request, no `error_code`.
+  entryNotFound: [undefined, undefined],
 };
 
 /**
@@ -254,15 +265,30 @@ const NODE_ERRORS: Record<string, [code: number, message: string]> = {
  */
 export function nodeError(code: string, request: Record<string, unknown> = {}): Record<string, unknown> {
   const [error_code, error_message] = NODE_ERRORS[code] ?? [73, "Internal error."];
-  return { error: code, error_code, error_message, request, status: "error" };
+  return {
+    error: code,
+    ...(error_code !== undefined && { error_code }),
+    ...(error_message !== undefined && { error_message }),
+    request,
+    status: "error",
+  };
 }
 
 function nodeAnswer(result: unknown): Response {
   return new Response(JSON.stringify({ result }), { status: 200, headers: JSON_HEADERS });
 }
 
-/** The "absent" answer of a data API path: what the real API says for a thing that does not exist. */
-function dataApiAbsent(segments: string[]): Response {
+/**
+ * D3's NFT coverage as the mock has it, by network: the first ledger of the recordings D3's own end-to-end suites seed, as the examples of its reference have it
+ * (`docs/api-reference.md` at da5ce14, "NFTs"). Not complete: nothing before that ledger is indexed.
+ */
+const NFT_COVERAGE: Record<NetworkName, { from_ledger_index: number; complete: boolean }> = {
+  xrpl: { from_ledger_index: 107874617, complete: false },
+  xahau: { from_ledger_index: 26533927, complete: false },
+};
+
+/** The "absent" answer of a data API path: what the real API says for a thing that does not exist. `net` is the network whose API is asked. */
+function dataApiAbsent(net: NetworkName, segments: string[]): Response {
   const [version, resource, id, sub] = segments;
   if (version === "v2" && resource === "ledgers" && id !== undefined && sub === undefined) {
     return dataApiError(404, "ledger not found");
@@ -273,7 +299,15 @@ function dataApiAbsent(segments: string[]): Response {
   if (version === "v2" && resource === "accounts" && id !== undefined) {
     if (sub === undefined) return dataApiError(404, "Account not found");
     if (sub === "balances" || sub === "orders") return dataApiError(404, "account not found");
+    // D3 does not check the address of the NFTs of an account ("one that is none holds nothing"): an empty page with the coverage of the network, never a 404.
+    if (sub === "nfts" && segments.length === 4) {
+      return new Response(JSON.stringify({ result: "success", coverage: NFT_COVERAGE[net], count: 0, nfts: [] }), { status: 200, headers: JSON_HEADERS });
+    }
   }
+  // D3's NFT and collection routes, and everything below them (an NFT's history and offers, a collection's NFTs, holders, sales and stats): the routes' own not-found messages.
+  // `/v2/nfts` has no list, and the lists of the network (`nft_collections`, `nft_sales`, `network/nft_volume`) never answer 404: they stay missing routes, `Cannot GET`.
+  if (version === "v2" && resource === "nfts" && id !== undefined) return dataApiError(404, "nft not found");
+  if (version === "v2" && resource === "nft_collections" && id !== undefined) return dataApiError(404, "collection not found");
   // D1's validator and its validations (`summary` is a route of its own), and one amendment: the routes' own not-found messages.
   if (version === "v2" && resource === "network") {
     const [, , , key, page, ...rest] = segments;
@@ -295,6 +329,11 @@ const NODE_ABSENT: Record<string, string> = {
   server_state: "noNetwork",
   // A pair or an account that is no pool. (`book_offers` has no code: a book nobody offers in is an empty one, see `createUpstream`.)
   amm_info: "actNotFound",
+  // An NFT the node has none of (Clio), and the entry of a URIToken it has none of (xahaud). The offers of an NFT with none are `objectNotFound` too.
+  nft_info: "objectNotFound",
+  nft_sell_offers: "objectNotFound",
+  nft_buy_offers: "objectNotFound",
+  ledger_entry: "entryNotFound",
 };
 
 function nodeAbsent(method: string, params: NodeParams): Response {
@@ -491,7 +530,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
           override.get(key),
           request,
           (body) => new Response(JSON.stringify(body), { status: 200, headers: JSON_HEADERS }),
-          () => dataApiAbsent(segments),
+          () => dataApiAbsent(net, segments),
         );
       }
 
@@ -505,7 +544,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
       const body = file === undefined ? undefined : await files.read(file);
       if (body === undefined) {
         seen.source = "absent";
-        return dataApiAbsent(segments);
+        return dataApiAbsent(net, segments);
       }
       return new Response(body, { status: 200, headers: JSON_HEADERS });
     };
