@@ -116,8 +116,11 @@ export interface NftsPageData {
   tiles: { volume: NftTile; sales: NftTile; traded: NftTile; average: NftTile };
   /** The 30 days and the words about the days not computed yet; `null` while the chart failed or behind a marker. */
   chart: { data: TimeSeriesData; pending: string | null } | null;
-  /** The five largest collections of the period; `"none"` when it had no sale; `null` while the card failed or behind a marker. */
-  top: BarListData | "none" | null;
+  /**
+   * The five largest collections of the period. `"none"`: the period had no sale. `"unrated"`: it had sales (the tile counts them) but none with a price in the native currency, so no
+   * collection has a volume to rank. `null` while the card failed or behind a marker.
+   */
+  top: BarListData | "none" | "unrated" | null;
   /** The recent sales, newest first; `null` while the card failed or behind a marker. */
   sales: NftSaleRow[] | null;
   /** The older sales' page, for the sales' marker; `null` without one. */
@@ -127,8 +130,12 @@ export interface NftsPageData {
   /** The three sort headers, in the order of `NFT_SORTS`. */
   sortLinks: NftSortLink[];
   paging: Paging;
-  /** What the "Collections of an issuer" field holds (the text as typed), and the message under it. */
-  issuerForm: { value: string; error?: string };
+  /**
+   * What the "Collections of an issuer" field holds (the text as typed), the message under it, and the other fields of the GET form: the canonical view's `period`, `sort` and `order`
+   * as [name, value] pairs, defaults dropped, in the canonical order (none for the default view), so that submitting the form keeps the view. The canonical order has the issuer between
+   * `period` and `sort`, so a form that puts these fields before the issuer is settled by the loader's 302.
+   */
+  issuerForm: { value: string; hidden: Array<[name: string, value: string]>; error?: string };
   /** The coverage note under each card whose coverage is incomplete (spec 8). */
   notes: { chart: CoverageNoteText | null; top: CoverageNoteText | null; sales: CoverageNoteText | null; collections: CoverageNoteText | null };
   /** The `what` of the `SectionError` of each card that failed: "the totals", "the sales volume", "the top collections", "the recent sales", "the collections". */
@@ -207,11 +214,12 @@ function sharePercentTenth(part: string, whole: string): string {
 
 /**
  * The price converted to the native currency, when it is shown under the price: a price in a token (the native currency has no issuer) that the data API converted at the day's rate.
- * A price that is native is its own conversion, and a token with no rate that day has none.
+ * A price that is native is its own conversion, a token with no rate that day has none, and a conversion of 0 (a price too small for the day's rate) says nothing: neither the
+ * "≈" nor the royalty is then in the native currency.
  */
 function convertedOf(net: NftsNet, sale: NftSale): string | null {
   const token = !isNative({ currency: sale.currency, issuer: sale.amount_issuer }, net.native);
-  return token && decimalOf(sale.converted_amount) !== null ? sale.converted_amount! : null;
+  return token && decimalOf(sale.converted_amount)?.gt(0) === true ? sale.converted_amount! : null;
 }
 
 /**
@@ -293,14 +301,18 @@ function tilesOf(net: NftsNet, row: NftVolumeRow | undefined, collectionsTotal: 
   return {
     volume: { figure: `${compactNumber(total)} ${net.native}`, note: notes.volume },
     sales: { figure: counted(row?.count ?? 0), note: notes.sales },
-    traded: { figure: counted(components.length), note: collectionsTotal === null ? "" : `of ${counted(collectionsTotal)} collections` },
+    traded: { figure: counted(components.length), note: collectionsTotal === null ? "" : `of ${counted(collectionsTotal)} ${collectionsTotal === 1 ? "collection" : "collections"}` },
     average: { figure: average === null ? DASH : `${formatAmount(average.toFixed())} ${net.native}`, note: notes.average },
   };
 }
 
-/** The five largest components of the live row as bars (spec 2.1): the share is the part of the row's total, to one decimal; `"none"` when the row lists no collection. */
-function topOf(net: NftsNet, row: NftVolumeRow | undefined): BarListData | "none" {
-  if (row === undefined || row.components.length === 0) return "none";
+/**
+ * The five largest components of the live row as bars (spec 2.1): the share is the part of the row's total, to one decimal. `"none"` when there was no sale (no row, or a `count` of 0);
+ * `"unrated"` when there were sales but the row lists no collection (the row's `count` has every sale of the window, the components only those with a price in the native currency).
+ */
+function topOf(net: NftsNet, row: NftVolumeRow | undefined): BarListData | "none" | "unrated" {
+  if (row === undefined || row.count === 0) return "none";
+  if (row.components.length === 0) return "unrated";
   // The API sorts the components largest first; the list is the five largest whatever it sent (a stable sort keeps the API's order among equals).
   const largest: NftVolumeComponent[] = [...row.components].sort((a, b) => new BN(b.converted_amount).comparedTo(a.converted_amount) ?? 0).slice(0, TOP_COUNT);
   return tokened({
@@ -370,6 +382,16 @@ function collectionRow(net: NftsNet, collection: NftCollection): CollectionRow {
 /** The list's own view in a link: the period, the issuer, the sort and the order, the part of the query that the table and the totals are of (not the page of the table). */
 function viewOf(query: NftsQuery): Partial<NftsQuery> {
   return { period: query.period, issuer: query.issuer, sort: query.sort, order: query.order };
+}
+
+/**
+ * The fields of the issuer form besides the issuer: the view's `period`, `sort` and `order` as the canonical link writes them (defaults dropped, in the canonical order), read back
+ * from that link, so that the defaults are `nftsHref`'s own and cannot drift from it.
+ */
+function hiddenOf(net: NftsNet, query: NftsQuery): Array<[name: string, value: string]> {
+  const href = nftsHref(net.id, { period: query.period, sort: query.sort, order: query.order });
+  const at = href.indexOf("?");
+  return at < 0 ? [] : Array.from(new URLSearchParams(href.slice(at + 1)), ([name, value]): [string, string] => [name, value]);
 }
 
 /** The sort headers: the current sort's link flips the order, another sort starts largest first; the page the visitor was on is dropped. */
@@ -449,11 +471,16 @@ export function nftsListPage(input: NftsListInput): NftsPageData {
   let chart: NftsPageData["chart"] = null;
   let chartNote: CoverageNoteText | null = null;
   if (input.last.status === "fulfilled" && input.daily !== null && input.daily.status === "fulfilled") {
+    let window: PeriodWindow | null = null;
     try {
-      chart = chartOf(net, anchoredWindow(anchorOrThrow(input.last.value), "30d"), input.daily.value);
-      chartNote = coverageNote(input.daily.value.coverage, coverageWords);
+      window = anchoredWindow(anchorOrThrow(input.last.value), "30d");
     } catch {
-      // The chart stays `null`: the card is told as failed below.
+      // Only the anchor can throw here: `last_validated` is the one answer that no shape check has been over, and its ledger index or close time may be no number. The loader works out
+      // the same window before it asks for the days and logs a bad anchor, so there is nothing to log twice; the card is told as failed below.
+    }
+    if (window !== null) {
+      chart = chartOf(net, window, input.daily.value);
+      chartNote = coverageNote(input.daily.value.coverage, coverageWords);
     }
   }
   if (chart === null) failures.chart = CHART_WHAT;
@@ -483,7 +510,7 @@ export function nftsListPage(input: NftsListInput): NftsPageData {
     collections,
     sortLinks: sortLinksOf(net, query),
     paging,
-    issuerForm: { value: query.issuer ?? "", ...(input.issuerError === undefined ? {} : { error: input.issuerError }) },
+    issuerForm: { value: query.issuer ?? "", hidden: hiddenOf(net, query), ...(input.issuerError === undefined ? {} : { error: input.issuerError }) },
     notes: { chart: chartNote, top: topNote, sales: salesNote, collections: collectionsNote },
     failures,
     marker: false,
@@ -509,7 +536,7 @@ export function nftsMarkerPage(net: NftsNet, query: NftsQuery, collections: NftC
     collections: card.rows,
     sortLinks: sortLinksOf(net, query),
     paging: card.paging,
-    issuerForm: { value: query.issuer ?? "" },
+    issuerForm: { value: query.issuer ?? "", hidden: hiddenOf(net, query) },
     notes: { chart: null, top: null, sales: null, collections: card.note },
     failures: {},
     marker: true,

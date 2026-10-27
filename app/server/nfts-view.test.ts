@@ -82,6 +82,8 @@ const dayRow = (day: string, total: string, count: number): NftVolumeRow => ({
 const liveOf = (row?: NftVolumeRow, coverage = coverageSample({ complete: true })): NftVolume => ({ coverage, count: row === undefined ? 0 : 1, rows: row === undefined ? [] : [row] });
 /** The 30 days up to Oct 16: every day of W but the running one, each with a row. */
 const fullDays = (): NftVolumeRow[] => W.buckets.slice(0, -1).map((day, index) => dayRow(day, `${100 + index}.25`, index + 1));
+/** An answer of the daily volume with these rows: its `count` is theirs. */
+const dailyOf = (rows: NftVolumeRow[], coverage = coverageSample({ complete: true })): NftVolume => ({ coverage, count: rows.length, rows });
 
 /** The list page as the loader reads it: every call answered, the sample answers, complete coverage. */
 function listInput(over: Partial<NftsListInput> = {}): NftsListInput {
@@ -91,7 +93,7 @@ function listInput(over: Partial<NftsListInput> = {}): NftsListInput {
     query: QUERY,
     last: fulfilled(LAST),
     live: fulfilled(nftVolumeSample({ coverage: whole })),
-    daily: fulfilled({ coverage: whole, count: 28, rows: fullDays() }),
+    daily: fulfilled(dailyOf(fullDays(), whole)),
     sales: fulfilled(nftSalesPageSample({ coverage: whole })),
     collections: fulfilled(nftCollectionsPageSample({ coverage: whole })),
     ...over,
@@ -152,6 +154,12 @@ describe("the tiles", () => {
     const failed = nftsListPage(listInput({ collections: rejected(new UpstreamError("server", "data API GET /v2/nft_collections answered 503", { status: 503 })) }));
     expect(failed.tiles.traded).toEqual({ figure: "3", note: "" });
     expect(failed.failures).toEqual({ collections: "the collections" });
+  });
+
+  it("says one collection in the singular", () => {
+    expect(nftsListPage(listInput({ collections: fulfilled(nftCollectionsPageSample({ total: 1 })) })).tiles.traded.note).toBe("of 1 collection");
+    expect(nftsListPage(listInput({ net: XAHAU, collections: fulfilled(nftCollectionsPageSample({ total: 1 })) })).tiles.traded.note).toBe("of 1 collection");
+    expect(nftsListPage(listInput({ collections: fulfilled(nftCollectionsPageSample({ total: 0 })) })).tiles.traded.note).toBe("of 0 collections");
   });
 
   it("leaves out the of-N note under an issuer filter or an issuer that is no address, where the total is not the network's", () => {
@@ -265,7 +273,7 @@ describe("the top collections", () => {
   it("lists the five largest collections with label, href, sublabel and tip", () => {
     const row = nftVolumeRowSample({ components: seven(), count: 513, total: "413000" });
     const { top } = nftsListPage(listInput({ live: fulfilled(nftVolumeSample({ rows: [row] })) }));
-    if (top === null || top === "none") throw new Error("a list");
+    if (top === null || typeof top === "string") throw new Error("a list");
     expect(top.items).toHaveLength(5);
     expect(top.format).toEqual({ kind: "amount", unit: "XRP" });
     expect(top.items.map((item) => item.value)).toEqual(["181300", "90000", "60000", "40000", "25000"]);
@@ -287,7 +295,7 @@ describe("the top collections", () => {
 
   it("holds its token over the items and the format", () => {
     const { top } = nftsListPage(listInput());
-    if (top === null || top === "none") throw new Error("a list");
+    if (top === null || typeof top === "string") throw new Error("a list");
     const { token, ...rest } = top;
     expect(token).toBe(tokenOf(rest));
   });
@@ -295,7 +303,7 @@ describe("the top collections", () => {
   it("says a sale in the singular, and a share of a thousandth of a percent as under a tenth", () => {
     // The reference's live row: 150 and 10 XRP of 160.000001, and one collection of a millionth of an XRP.
     const { top } = nftsListPage(listInput());
-    if (top === null || top === "none") throw new Error("a list");
+    if (top === null || typeof top === "string") throw new Error("a list");
     expect(top.items.map((item) => item.sublabel)).toEqual(["1 sale", "1 sale", "1 sale"]);
     expect(top.items.map((item) => item.share)).toEqual(["93.7%", "6.2%", "<0.1%"]);
   });
@@ -303,15 +311,23 @@ describe("the top collections", () => {
   it("links a Xahau collection by its issuer alone", () => {
     const row = nftVolumeRowSample({ components: [component(URI_TOKEN_ISSUER, undefined, 61, "8400")], count: 61, total: "8400" });
     const { top } = nftsListPage(listInput({ net: XAHAU, live: fulfilled(nftVolumeSample({ rows: [row] })) }));
-    if (top === null || top === "none") throw new Error("a list");
+    if (top === null || typeof top === "string") throw new Error("a list");
     expect(top.format).toEqual({ kind: "amount", unit: "XAH" });
     expect(top.items[0]).toMatchObject({ id: URI_TOKEN_ISSUER, label: "rodinG…zKyb", sublabel: "61 sales", share: "100.0%", href: `/xahau/nfts/${URI_TOKEN_ISSUER}` });
   });
 
   it("says there were no sales in the last 24 hours", () => {
+    // No row at all (D3 has written no set yet), and a row of a window with no sale.
     expect(nftsListPage(listInput({ live: fulfilled(liveOf()) })).top).toBe("none");
-    // A row with no component (every sale of the window unrated) has no collection to list either.
     expect(nftsListPage(listInput({ live: fulfilled(liveOf(nftVolumeRowSample({ components: [], count: 0, total: "0" }))) })).top).toBe("none");
+  });
+
+  it("says the sales had no price in XRP when every sale of the window is unrated, and not that there were none", () => {
+    // Three sales, none in a currency with a rate: no component to list, but the tile says 3 sales, so the card must not say there were none.
+    const page = nftsListPage(listInput({ live: fulfilled(liveOf(nftVolumeRowSample({ components: [], count: 3, total: "0" }))) }));
+    expect(page.top).toBe("unrated");
+    expect(page.tiles.sales.figure).toBe("3");
+    expect(page.failures).toEqual({});
   });
 });
 
@@ -365,6 +381,13 @@ describe("the sale rows", () => {
     // A royalty over a thousand is grouped; a 40-hex currency code is the text it decodes to.
     expect(royalty({ amount: "25000", royalty_est: "1250", converted_amount: "25000" })).toBe("1,250 XRP");
     expect(royalty({ amount: "25", currency: "524C555344000000000000000000000000000000", amount_issuer: OTHER_ISSUER, converted_amount: undefined, royalty_est: "1.25" })).toBe("1.25 RLUSD");
+  });
+
+  it("falls back to the price's currency for a token sale whose conversion is 0", () => {
+    // A price so small that the day's rate makes it 0 XRP: "≈ 0 XRP" would be a statement the API did not make, and a royalty of 0 XRP would hide the royalty.
+    const [zero] = saleRows(XRPL, [nftSaleSample({ amount: "0.000001", currency: "USD", amount_issuer: OTHER_ISSUER, converted_amount: "0", royalty_est: "0.00000005" })]);
+    expect(zero).not.toHaveProperty("converted");
+    expect(zero!.royalty).toBe("0.00000005 USD");
   });
 
   it("says — for a royalty that is not there (ruling C24), and never gives one on Xahau", () => {
@@ -515,6 +538,13 @@ describe("the collection rows", () => {
     ]);
   });
 
+  it("leaves the period out of Older: the pages behind a marker are of the first period", () => {
+    // A page behind a marker has no tiles or chart, so its link has no `period`, whatever period the first page was of.
+    const page = nftsListPage(listInput({ query: { ...QUERY, period: "7day", sort: "supply" }, collections: fulfilled(nftCollectionsPageSample({ marker: MARKERS.M3 })) }));
+    expect(page.periods.map((link) => link.current)).toEqual([false, true, false]);
+    expect(page.paging.olderHref).toBe(`/xrpl/nfts?sort=supply&marker=${MARKERS.M3}`);
+  });
+
   it("pages the table with More collections, and Newer and Older behind a marker", () => {
     const first = nftsListPage(listInput({ query: { ...QUERY, sort: "supply", order: "asc" }, collections: fulfilled(nftCollectionsPageSample({ marker: MARKERS.M3 })) }));
     expect(first.paging).toEqual({ newerHref: null, olderHref: `/xrpl/nfts?sort=supply&order=asc&marker=${MARKERS.M3}` });
@@ -614,15 +644,61 @@ describe("the coverage notes", () => {
 
 describe("the issuer form", () => {
   it("keeps the issuer form's text and error", () => {
-    expect(nftsListPage(listInput()).issuerForm).toEqual({ value: "" });
-    expect(nftsListPage(listInput({ query: { ...QUERY, issuer: ISSUER_FILTER } })).issuerForm).toEqual({ value: ISSUER_FILTER });
+    expect(nftsListPage(listInput()).issuerForm).toEqual({ value: "", hidden: [] });
+    expect(nftsListPage(listInput({ query: { ...QUERY, issuer: ISSUER_FILTER } })).issuerForm).toEqual({ value: ISSUER_FILTER, hidden: [] });
     const wrong = nftsListPage(listInput({ query: { ...QUERY, issuer: "rNotAnAddress" }, issuerError: "Write a classic address (r…).", collections: null }));
-    expect(wrong.issuerForm).toEqual({ value: "rNotAnAddress", error: "Write a classic address (r…)." });
+    expect(wrong.issuerForm).toEqual({ value: "rNotAnAddress", hidden: [], error: "Write a classic address (r…)." });
     // No list was asked for: no rows, no pager, and no failure to tell.
     expect(wrong.collections).toBeNull();
     expect(wrong.paging).toEqual({ newerHref: null, olderHref: null });
     expect(wrong.failures).toEqual({});
     expect(wrong.sortLinks).toHaveLength(3);
+  });
+});
+
+describe("the issuer form's hidden fields", () => {
+  const hidden = (query: Partial<NftsQuery>, net: NftsNet = XRPL) => nftsListPage(listInput({ net, query: { ...QUERY, ...query } })).issuerForm.hidden;
+
+  it("carries the view's period, sort and order, defaults dropped, in the canonical order", () => {
+    // Nothing of the default view is a field of the form: submitting it asks for `?issuer=…` alone.
+    expect(hidden({})).toEqual([]);
+    expect(hidden({ period: "7day" })).toEqual([["period", "7day"]]);
+    expect(hidden({ period: "30day", sort: "holders", order: "asc" })).toEqual([
+      ["period", "30day"],
+      ["sort", "holders"],
+      ["order", "asc"],
+    ]);
+    expect(hidden({ sort: "supply" })).toEqual([["sort", "supply"]]);
+    expect(hidden({ order: "asc" })).toEqual([["order", "asc"]]);
+    // The default sort with another order, and another sort with the default order.
+    expect(hidden({ sort: "volume", order: "asc" })).toEqual([["order", "asc"]]);
+    expect(hidden({ sort: "supply", order: "desc" })).toEqual([["sort", "supply"]]);
+  });
+
+  it("is the query of the canonical link to that view, less the issuer", () => {
+    for (const query of [{}, { period: "7day" }, { sort: "holders", order: "asc" }, { period: "30day", sort: "supply" }] as const) {
+      const fields = hidden(query)!;
+      const link = nftsHref("xrpl", { ...QUERY, ...query });
+      expect(link).toBe(fields.length === 0 ? "/xrpl/nfts" : `/xrpl/nfts?${fields.map(([name, value]) => `${name}=${value}`).join("&")}`);
+    }
+  });
+
+  it("is the same on the other network, where the path is the form's own", () => {
+    expect(hidden({ period: "7day", sort: "supply" }, XAHAU)).toEqual([
+      ["period", "7day"],
+      ["sort", "supply"],
+    ]);
+  });
+
+  it("keeps them while the issuer is no address, and on a page behind a marker", () => {
+    const wrong = nftsListPage(listInput({ query: { ...QUERY, issuer: "rBad", sort: "supply" }, issuerError: "Write a classic address (r…).", collections: null }));
+    expect(wrong.issuerForm.hidden).toEqual([["sort", "supply"]]);
+    // A marker page is of the first period: only the sort and the order are the view's.
+    const marker = nftsMarkerPage(XRPL, { ...QUERY, sort: "holders", order: "asc", marker: MARKERS.M2, back: [] }, nftCollectionsPageSample());
+    expect(marker.issuerForm.hidden).toEqual([
+      ["sort", "holders"],
+      ["order", "asc"],
+    ]);
   });
 });
 
@@ -722,7 +798,7 @@ describe("a page behind a marker", () => {
     expect(page.failures).toEqual({});
     expect(page.notes).toEqual({ chart: null, top: null, sales: null, collections: null });
     // The form and the sort headers are the table's.
-    expect(page.issuerForm).toEqual({ value: ISSUER_FILTER });
+    expect(page.issuerForm).toEqual({ value: ISSUER_FILTER, hidden: [["sort", "supply"], ["order", "asc"]] });
     expect(page.sortLinks.map((link) => link.href)).toEqual([
       `/xrpl/nfts?issuer=${ISSUER_FILTER}`,
       `/xrpl/nfts?issuer=${ISSUER_FILTER}&sort=supply`,
@@ -770,6 +846,16 @@ describe("the older sales", () => {
     expect(nftSalesPage(XRPL, { back: [] }, page).paging).toEqual({ newerHref: null, olderHref: null });
   });
 
+  it("has no row, no Older and a way back for a page with no sale", () => {
+    // The last page of the sales, as far as the API goes: nothing on it, and no marker.
+    const empty = nftSalesPageSample({ count: 0, sales: [], coverage: coverageSample({ complete: true }) });
+    delete empty.marker;
+    const data = nftSalesPage(XRPL, { marker: MARKERS.M2, back: [MARKERS.M1] }, empty);
+    expect(data.rows).toEqual([]);
+    expect(data.paging).toEqual({ newerHref: `/xrpl/nfts/sales?marker=${MARKERS.M1}`, olderHref: null });
+    expect(data.note).toBeNull();
+  });
+
   it("is headed in the network's words", () => {
     const data = nftSalesPage(XAHAU, { back: [] }, nftSalesPageSample());
     expect(data.heading).toBe("URITokens sales");
@@ -811,7 +897,7 @@ describe("over the recorded fixtures", () => {
     expect(page.chart!.data.series[0]!.values.filter((value) => value !== null)).toHaveLength(W.buckets.length - 1);
     expect(page.chart!.data.pending).toBe(1);
     // The lists are the files' rows, in their order.
-    if (page.top === null || page.top === "none") throw new Error("a list");
+    if (page.top === null || typeof page.top === "string") throw new Error("a list");
     expect(page.top.items.length).toBe(Math.min(5, row.components.length));
     expect(page.sales).toHaveLength(a.sales.sales.length);
     expect(page.sales!.map((sale) => sale.nft.id)).toEqual(a.sales.sales.map((sale) => sale.nft_id));
