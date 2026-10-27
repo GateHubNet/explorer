@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Segment } from "../../domain/describe";
 import { shortAddress, shortHash } from "../../domain/format";
 import { allSwitches } from "../../../test/support/switches";
-import { renderUnderNetwork } from "../../../test/support/under-network";
+import { NFTS_ON, renderUnderNetwork } from "../../../test/support/under-network";
 import { noAmmPage } from "../../server/amm-view";
 import type { CoverageNoteText } from "../../server/coverage";
 import { THEME_STORAGE_KEY } from "../theme-script";
@@ -929,6 +929,42 @@ describe("SearchBox", () => {
     fireEvent.change(input, { target: { value: "c66b4e4c00450000" } });
     const ctid = await screen.findByRole("link", { name: /CTID/i });
     expect(ctid.getAttribute("href")).toBe("/xrpl/search?q=C66B4E4C00450000");
+  });
+
+  it("keeps its words while NFTS is off: the placeholders of before and the hash's hint", async () => {
+    for (const [variant, placeholder] of [
+      ["header", "Address, hash, ledger or CTID"],
+      ["hero", "Address, transaction hash, ledger index or CTID"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} variant={variant} />, NO_FEATURES);
+      const input = await screen.findByRole("searchbox");
+      expect(input.getAttribute("placeholder"), variant).toBe(placeholder);
+      cleanup();
+    }
+    renderUnderNetwork(<SearchBox net={XRPL} />, NO_FEATURES);
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH } });
+    expect((await screen.findByRole("link", { name: /Transaction or ledger/ })).getAttribute("href")).toBe(`/xrpl/search?q=${HASH}`);
+  });
+
+  it("names the NFT in its placeholders and in the hint of a hash while NFTS is on, the token of the network", async () => {
+    for (const [variant, placeholder] of [
+      ["header", "Address, hash, ledger, CTID or NFT id"],
+      ["hero", "Address, transaction hash, ledger index, CTID or NFT id"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} variant={variant} />, NFTS_ON);
+      expect((await screen.findByRole("searchbox")).getAttribute("placeholder"), variant).toBe(placeholder);
+      cleanup();
+    }
+
+    renderUnderNetwork(<SearchBox net={XRPL} />, NFTS_ON);
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH.toLowerCase() } });
+    const hint = await screen.findByRole("link", { name: /Transaction, ledger or NFT/ });
+    expect(hint.getAttribute("href")).toBe(`/xrpl/search?q=${HASH}`);
+    cleanup();
+
+    renderUnderNetwork(<SearchBox net={XAHAU} />, NFTS_ON, { network: { id: "xahau", name: "Xahau" }, path: "/xahau" });
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH } });
+    expect(await screen.findByRole("link", { name: /Transaction, ledger or URIToken/ })).toBeTruthy();
   });
 
   it("says what it can search for when the input is none of those, and shows no hints for an empty box", async () => {

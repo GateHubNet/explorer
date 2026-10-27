@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
 
+import { nftPath } from "../domain/nft-link";
 import { classify } from "../domain/search";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
@@ -20,6 +21,7 @@ import {
   type SearchPageData,
 } from "../server/search-view";
 import { PRODUCT_NAME } from "../ui/brand";
+import { choiceTitle } from "../ui/pages/SearchChoicePage";
 import { SearchPage } from "../ui/pages/SearchPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -44,8 +46,10 @@ function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkNam
  *
  * - A ledger index (plain, or grouped as the explorer shows it), an address and an X-address (with `?tag=`): a redirect,
  *   without asking anyone.
- * - A hash: the data API is asked for the transaction and the ledger, and when it has neither, the node (spec 10). One found:
- *   a redirect to it. Both: a page with both links. Neither: a 404 that offers the same search on the other network.
+ * - A hash: the data API is asked for the transaction, the ledger and, while `NFTS` is on, the NFT, and when it has none of them, the node is (spec 10; the NFT
+ *   by XRPL's `nft_info`, Xahau's URIToken entry). One found: a redirect to it (`/{net}/nft/{HASH}` for an NFT, whose page shows what only the node has too). Two or
+ *   three: a page with a link to each. None: a 404 that offers the same search on the other network. While `NFTS` is off no NFT question is asked (the sequence is
+ *   `findHash`'s, which E10 and E14 extend).
  * - A CTID: of this network, the transaction at its place in the ledger (a redirect, or a 404 if there is none); of the
  *   other network, a page that offers it there; of neither, a 404.
  * - Anything else: the help text, as a 200.
@@ -69,15 +73,14 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       const { api, node } = clientsFor(context, network);
       let matches;
       try {
-        matches = await findHash(api, node, input.hash);
+        matches = await findHash(api, node, input.hash, { net: network.id, nfts: network.features.nfts });
       } catch (err) {
         return upstreamFailure(err, `transaction or ledger ${input.hash}`);
       }
-      if (matches.tx && matches.ledger) {
-        return cached(choicePage(input.hash, { tx: matches.tx, ledger: matches.ledger }), "short");
-      }
+      if ([matches.tx, matches.ledger, matches.nft].filter(Boolean).length > 1) return cached(choicePage(input.hash, matches), "short");
       if (matches.tx) return found(`/${network.id}/tx/${input.hash}`);
       if (matches.ledger) return found(`/${network.id}/ledger/${input.hash}`);
+      if (matches.nft) return found(nftPath(network.id, input.hash));
       return cached(hashNotFoundPage(query, input.hash, other), "short", { status: 404 });
     }
 
@@ -106,7 +109,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 function titleOf(data: SearchPageData): string {
   switch (data.kind) {
     case "choice":
-      return "Transaction or ledger";
+      return choiceTitle(data);
     case "help":
       return "Search";
     case "other-network":

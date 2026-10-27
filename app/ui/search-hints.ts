@@ -14,12 +14,17 @@ export interface Hint {
   href: string;
 }
 
-export function hintsFor(found: SearchKind, net: NetworkId): Hint[] {
+/**
+ * What the box says of an input. With `nfts` (the `NFTS` switch, which `SearchBox` reads with `useFeatures()`) a 64-digit hash can be an NFT too: "Transaction, ledger or NFT" ("… or
+ * URIToken" on Xahau). The token's word is `nftWords(net).token` (app/domain/nft-params.ts), written here because the box is on every page and that file is the NFT pages' (a test
+ * holds the two together).
+ */
+export function hintsFor(found: SearchKind, net: NetworkId, opts: { nfts?: boolean } = {}): Hint[] {
   switch (found.kind) {
     case "ledger-index":
       return [{ kind: "Ledger", detail: `#${formatAmount(String(found.index))}`, href: `/${net}/ledger/${found.index}` }];
     case "hash":
-      return [{ kind: "Transaction or ledger", detail: found.hash, href: `/${net}/search?q=${found.hash}` }];
+      return [{ kind: opts.nfts ? `Transaction, ledger or ${net === "xahau" ? "URIToken" : "NFT"}` : "Transaction or ledger", detail: found.hash, href: `/${net}/search?q=${found.hash}` }];
     case "ctid":
       return [{ kind: "Transaction", detail: `CTID ${found.ctid}`, href: `/${net}/search?q=${found.ctid}` }];
     case "account": {

@@ -1,8 +1,10 @@
-// What `/{net}/search` shows when it does not redirect (spec 6, 10): the choice between a transaction and a ledger of the
-// same hash, the help text, the offer to open a CTID on the other network, and the not-found pages. The page gets this and
+// What `/{net}/search` shows when it does not redirect (spec 6, 10; NFT spec 7): the choice between what one hash is (a transaction, a
+// ledger, an NFT), the help text, the offer to open a CTID on the other network, and the not-found pages. The page gets this and
 // draws it. No I/O.
 
-import { shortHash } from "../domain/format";
+import { formatAmount, shortHash } from "../domain/format";
+import { collectionLabel, nftWords } from "../domain/nft-params";
+import type { NftKind } from "./api-types";
 import type { NetworkId } from "./networks";
 import type { HashMatches } from "./resolve";
 
@@ -14,12 +16,14 @@ export interface NetworkName {
 
 export type SearchPageData =
   | {
-      /** A hash that is a transaction and a ledger: the page links to both. */
+      /** A hash that is two or three of a transaction, a ledger and an NFT (a URIToken on Xahau): the page links to each that it is, in that order. */
       kind: "choice";
       hash: string;
-      tx: { ledgerIndex: number; type: string };
+      tx?: { ledgerIndex: number; type: string };
       /** `closeTime` in unix seconds. */
-      ledger: { index: number; closeTime: number };
+      ledger?: { index: number; closeTime: number };
+      /** `token` is the network's word for it (`NFT`, `URIToken`) and `detail` what follows it in its row ("#4,127 of rLULtF…mB3R · taxon 1", "of rEvRt8…Lk2P"). */
+      nft?: { token: string; detail: string; burned: boolean };
     }
   | {
       /** Nothing the box was given looks like anything searchable: the help text. */
@@ -56,8 +60,20 @@ export function searchOnOther(hash: string, other: NetworkName): { href: string;
   return { href: `/${other.id}/search?q=${hash}`, label: `Search on ${other.name}` };
 }
 
-export function choicePage(hash: string, matches: Required<HashMatches>): SearchPageData {
-  return { kind: "choice", hash, tx: matches.tx, ledger: matches.ledger };
+/** The word of a token by its kind, as the NFT pages say it (`nftWords`): an NFT is XRPL's and a URIToken Xahau's, and an index answers only for its own network's. */
+const tokenWord = (kind: NftKind): string => nftWords(kind === "uritoken" ? "xahau" : "xrpl").token;
+
+/** The row of an NFT: "{token} #4,127 of {collection}" (an XRPL NFT has a serial; the collection is its issuer and taxon), or "{token} of {issuer}" (a URIToken). */
+function nftRow(nft: NonNullable<HashMatches["nft"]>): NonNullable<Extract<SearchPageData, { kind: "choice" }>["nft"]> {
+  const collection = collectionLabel({ issuer: nft.issuer, ...(nft.taxon !== undefined && { taxon: nft.taxon }) });
+  const serial = nft.serial === undefined ? "" : `#${formatAmount(String(nft.serial))} `;
+  return { token: tokenWord(nft.kind), detail: `${serial}of ${collection}`, burned: nft.burned };
+}
+
+/** The choice page of a hash that is two or more of a transaction, a ledger and an NFT: a row for each that it is. */
+export function choicePage(hash: string, matches: HashMatches): SearchPageData {
+  const { tx, ledger, nft } = matches;
+  return { kind: "choice", hash, ...(tx && { tx }), ...(ledger && { ledger }), ...(nft && { nft: nftRow(nft) }) };
 }
 
 export function helpPage(query: string): SearchPageData {

@@ -1,16 +1,19 @@
 import type { SearchPageData } from "../../server/search-view";
 import type { NetworkBrief } from "../networks";
+import { useFeatures } from "../use-network";
 import { NotFoundPage } from "./NotFoundPage";
 import { SearchChoicePage } from "./SearchChoicePage";
 
 /** What the search box takes, for a visitor who typed something it does not know (the wording of the box's own hint). */
 function SearchHelp() {
+  const { nfts } = useFeatures();
   return (
     <>
       <p>You can search for:</p>
       <ul className="notfound__help">
         <li>An account address, starting with r, or an X-address</li>
         <li>A transaction or ledger hash: 64 hexadecimal characters</li>
+        {nfts && <li>An NFT or URIToken id: 64 hexadecimal characters</li>}
         <li>A ledger index, such as 107695660</li>
         <li>A CTID: C followed by 15 hexadecimal characters</li>
       </ul>

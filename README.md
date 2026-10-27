@@ -408,7 +408,8 @@ the browser).
   change (`pnpm check:bundle`); `test/e2e/client-meta.spec.ts` checks that moving between the routes asks for no manifest.
 - **Search box.** `SearchBox` is a GET form to `/{net}/search` (`name="q"`). Hints appear as you type (`classify` from
   `app/domain/search.ts`, mapped by `app/ui/search-hints.ts`); that code and the address codec it pulls in are a separate
-  chunk, fetched on first focus. `/` focuses the box except while another field has focus.
+  chunk, fetched on first focus. The box reads the switches (`useFeatures()`): with `NFTS` on its placeholders name an NFT id and the hint of a 64-digit hash says
+  "Transaction, ledger or NFT" ("… or URIToken" on Xahau). `/` focuses the box except while another field has focus.
 - **Amounts.** Always render through `Amount` (`formatAmount` and `formatCurrency`: exponent notation is written out, a
   40-hex currency becomes text or "LP token"). `Sentence` renders the segments of `describe()`.
 - **Live updates** (the home page and the network page; see "Live updates" below): `use-live-refresh.ts` (`useLiveRefresh`, the 4 s revalidation), `live-page.ts` (`createLiveOnScreen`, the `OnScreen` of a live page, and `keepLoaded`, its merge), `use-live-controls.ts` (`useLiveControls`, the pause and the `LiveControls` a page is given), `use-hold.ts` (`useHolds`, `holdsFocus`: a part with links holds the page), `components/DataTable.tsx` with `live` (rows enter and slide: `use-live-rows.ts`, `motion.ts`), `components/LiveValue.tsx` (a figure that ticks in), `on-screen.ts` (what a page that is on screen hands back when a revalidation fails, and the `merge` of an answer it takes) and `revalidation.ts` (`onlyWhenParamsChange`, the `shouldRevalidate` of the `/:net` layout).
@@ -1406,13 +1407,13 @@ from `app/server/search-view.ts` and `app/ui/pages/SearchPage.tsx` draws it.
 |---|---|
 | `107695660`, `107,695,660`, `107 695 660` (an index grouped by thousands is what the explorer shows, so it is what visitors copy) | 302 to `/{net}/ledger/{n}`, without asking anyone |
 | an address, an X-address | 302 to `/{net}/account/{address}`, with `?tag=` for an X-address that carries one |
-| 64 hex digits (with or without `0x`, in either case) | the data API is asked for `/v2/transactions/{h}` and `/v2/ledgers/{h}`, and when it has neither, the node for `tx` and `ledger` (spec 10: history before the backfill, the seconds before ingest). One found: 302 to `/{net}/tx/{HASH}` or `/{net}/ledger/{HASH}`. Both: a 200 page with both links (`SearchChoicePage`). Neither: a 404 that offers "Search on {other network}" (`/{other}/search?q={HASH}`) |
+| 64 hex digits (with or without `0x`, in either case) | `findHash` (`app/server/resolve.ts`), the program's 64-hex sequence: the data API is asked side by side for `/v2/transactions/{h}`, `/v2/ledgers/{h}` and, while `NFTS` is on, `/v2/nfts/{h}`; only when it has none of them, the node is, for `tx`, `ledger` and, while `NFTS` is on, the NFT (XRPL's `nft_info`, Xahau's `ledger_entry` of a URIToken: the NFT page's reader, `readNodeNft`; a node that is not Clio is "not found"). One found: 302 to `/{net}/tx/{HASH}`, `/{net}/ledger/{HASH}` or `/{net}/nft/{HASH}` (an NFT only the node has is shown by its page from the network). Two or three: a 200 page with a link to each (`SearchChoicePage`; the NFT's row is "NFT #4,127 of {collection}", "URIToken of {issuer}", with a "burned" tag). None: a 404 that offers "Search on {other network}" (`/{other}/search?q={HASH}`). While `NFTS` is off no NFT question is asked. Later features add their questions to the same two steps (`HashQuestions`) |
 | a CTID | `resolveCtid`: of this network, 302 to `/{net}/tx/{hash}`, or a 404 when the ledger or the index in it is not there; of the other network, a 200 page that offers `/{other}/tx/{ctid}`; a network id that is neither of the environment's two (XRPL's 0 and Xahau's 21337; in the sandbox XRPL Testnet's 1 and Xahau Testnet's 21338) is a 404 that says so, never taken for one of the two |
 | anything else, nothing | a 200 page with the help text (what can be searched for), the box holding what was typed |
 
 An upstream failure that leaves the question open is a 503 through `upstreamFailure` (the node is not asked in place of a data API
-that failed), never a "not found" that would be stored. Something found wins over the failure of the other question (a hash is a
-transaction or a ledger, practically never both). The pages repeat what was typed cut to 200 characters. A client-side search (the
+that failed, whichever of its questions it was), never a "not found" that would be stored. Something found wins over the failure of
+another question (a hash that is a transaction and an NFT is the choice page; a transaction with a failed NFT question is the transaction). The pages repeat what was typed cut to 200 characters. A client-side search (the
 `.data` URL) redirects the same way, but React Router's answer for a redirect there (a 202) is not stored by the edge, so those
 cost a render each.
 

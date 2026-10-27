@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { encodeCtid } from "../../app/domain/ctid";
 import { shortHash } from "../../app/domain/format";
 import { recordedHashes } from "../support/ledger-hashes";
+import { nftCase } from "../support/nft-cases";
+import { nftAnswerSample, nftSample, uriTokenSample } from "../support/nft-samples";
 import { anchors, hrefs, pageClient, textOf } from "../support/pages";
-import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // `/{net}/search?q=...` (spec 6) on the real Worker against the recorded answers of the data API and the nodes
 // (test/fixtures/http/): the redirects, the choice page, the help text, the not-found pages and the CTIDs.
@@ -59,6 +61,28 @@ function bothAnswered(hash: string, ledgerIndex: number) {
     [`GET /v2/ledgers/${hash}`]: { result: "success", ledger: { ledger_index: ledgerIndex + 1, close_time: 1792253462 } },
   };
 }
+
+/** A hash of its own for a test that overrides what the NFT questions answer (what a Worker stores stays for the rest of the file): `6B01`, `6B02`, ... */
+let made = 0;
+const fresh = () => `6B${(++made).toString(16).toUpperCase().padStart(2, "0")}`.padEnd(64, "D");
+
+/** The index's NFT (or URIToken) of `hash`, as the data API answers `/v2/nfts/{hash}`. */
+const indexedNft = (hash: string, over: Parameters<typeof nftSample>[0] = {}): Overrides => ({
+  [`GET /v2/nfts/${hash}`]: nftAnswerSample({ nft: nftSample({ nft_id: hash, ...over }) }),
+});
+const indexedUriToken = (hash: string, over: Parameters<typeof uriTokenSample>[0] = {}): Overrides => ({
+  [`GET /v2/nfts/${hash}`]: nftAnswerSample({ nft: uriTokenSample({ nft_id: hash, ...over }) }),
+});
+/** The transaction the data API has for `hash` (the half of `bothAnswered`). */
+const asTransaction = (hash: string, ledgerIndex: number): Overrides => {
+  const both = bothAnswered(hash, ledgerIndex);
+  return { [`GET /v2/transactions/${hash}`]: both[`GET /v2/transactions/${hash}`] };
+};
+/** The ledger the data API has for `hash`. */
+const asLedger = (hash: string, ledgerIndex: number): Overrides => {
+  const both = bothAnswered(hash, ledgerIndex);
+  return { [`GET /v2/ledgers/${hash}`]: both[`GET /v2/ledgers/${hash}`] };
+};
 
 // First in the file: the subrequest cache keeps the answers that worked, so the failing ones are asked for first and for
 // hashes and ledgers that nothing else in the file asks for.
@@ -117,6 +141,83 @@ describe("when an upstream fails", () => {
   });
 });
 
+// The failure rules of Review Focus 3 with the NFT question (NFT spec 7): the index asks the transaction, the ledger and the NFT side by side.
+describe("when the NFT question fails", () => {
+  it("answers 503 when the index fails the NFT question and has nothing else, and does not send the visitor to the node's NFT in its place", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/nfts/${hash}`]: dataApiError(503, "unavailable"),
+      // The node has it: it must not be asked.
+      [`node nft_info ${hash}`]: {
+        nft_id: hash,
+        ledger_index: 107886163,
+        owner: "r4Xgqy68ykjLEJAkFQ7EaFs8VEdSiWkSeX",
+        is_burned: false,
+        flags: 8,
+        transfer_fee: 0,
+        issuer: "rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu",
+        nft_taxon: 500,
+        nft_serial: 7,
+        status: "success",
+        validated: true,
+      },
+    });
+    const response = await get(search(hash));
+    const html = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(html).toContain("Temporarily unavailable");
+    expect(statusesOf(mock, `GET /v2/nfts/${hash}`)).toEqual([503]);
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([`node nft_info ${hash}`]);
+  });
+
+  it("answers 503 for a data API without D3 ('Cannot GET'): an outage, never a 404 that is stored", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { [`GET /v2/nfts/${hash}`]: dataApiError(404, `Cannot GET /v2/nfts/${hash}`) });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(503);
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("still redirects to the transaction when only the NFT question failed", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asTransaction(hash, 107600300), [`GET /v2/nfts/${hash}`]: dataApiError(500, "boom") });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/tx/${hash}`);
+    expect(statusesOf(mock, `GET /v2/nfts/${hash}`)).toEqual([500]);
+  });
+
+  it("still redirects to the NFT when only the transaction question failed", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...indexedNft(hash), [`GET /v2/transactions/${hash}`]: dataApiError(500, "boom") });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/nft/${hash}`);
+    expect(statusesOf(mock, `GET /v2/transactions/${hash}`)).toEqual([500]);
+  });
+
+  it("answers 503 when the index has nothing and the node fails the NFT question: it cannot tell", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { [`node nft_info ${hash}`]: nodeError("internal") });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+});
+
 describe("a ledger index", () => {
   it("redirects to the ledger, without asking anyone", async () => {
     mock = mockUpstream("xrpl");
@@ -169,7 +270,8 @@ describe("a 64-digit hash", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe(`/xrpl/tx/${XRPL_TX}`);
-    expect(keys(mock).sort()).toEqual([`xrpl GET /v2/ledgers/${XRPL_TX}`, `xrpl GET /v2/transactions/${XRPL_TX}`]);
+    // The NFT question is asked with the others while NFTS is on; the node is not asked, as the index had an answer.
+    expect(keys(mock).sort()).toEqual([`xrpl GET /v2/ledgers/${XRPL_TX}`, `xrpl GET /v2/nfts/${XRPL_TX}`, `xrpl GET /v2/transactions/${XRPL_TX}`]);
     expect(await storedAs(search(XRPL_TX))).toEqual({ cls: "short", ttl: 30 });
   });
 
@@ -221,6 +323,123 @@ describe("a 64-digit hash", () => {
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
+  describe("that is an NFT (NFT spec 7)", () => {
+    it("redirects the id of an NFT of the index to the NFT's page, with the NFT question asked and the node not", async () => {
+      const { id } = await nftCase("xrpl", "featured");
+      mock = mockUpstream("xrpl");
+      const response = await get(search(id));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/nft/${id}`);
+      expect(keys(mock).sort()).toEqual([`xrpl GET /v2/ledgers/${id}`, `xrpl GET /v2/nfts/${id}`, `xrpl GET /v2/transactions/${id}`]);
+      expect(await storedAs(search(id))).toEqual({ cls: "short", ttl: 30 });
+    });
+
+    it("sends the id on in upper case, whatever was typed, with or without 0x", async () => {
+      const { id } = await nftCase("xrpl", "featured");
+      mock = mockUpstream("xrpl");
+      for (const q of [id.toLowerCase(), `0x${id}`]) {
+        const response = await get(search(q));
+        await response.text();
+        expect(response.headers.get("Location"), q).toBe(`/xrpl/nft/${id}`);
+      }
+    });
+
+    it("redirects an NFT that only the node knows to its page: the page shows it from the network", async () => {
+      const { id } = await nftCase("xrpl", "network");
+      mock = mockUpstream("xrpl");
+      const response = await get(search(id));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/nft/${id}`);
+      // The index said "nft not found" (and had neither a transaction nor a ledger), so the node was asked, for the same three.
+      expect(keys(mock).filter((key) => key.includes("node")).sort()).toEqual(
+        [`xrpl node ledger ledger_hash=${id}`, `xrpl node nft_info ledger_index=validated&nft_id=${id}`, `xrpl node tx transaction=${id}`].sort(),
+      );
+      expect(await storedAs(search(id))).toEqual({ cls: "short", ttl: 30 });
+    });
+
+    it("redirects an NFT that the node says is burned to its page as well", async () => {
+      const { id } = await nftCase("xrpl", "network-burned");
+      mock = mockUpstream("xrpl");
+      const response = await get(search(id));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/nft/${id}`);
+    });
+
+    it("redirects the id of a URIToken of Xahau to its page, from the index and from the node", async () => {
+      for (const which of ["featured", "network"] as const) {
+        const { id } = await nftCase("xahau", which);
+        mock = mockUpstream("xahau");
+        const response = await get(`/xahau/search?q=${id}`);
+        await response.text();
+
+        expect(response.status, which).toBe(302);
+        expect(response.headers.get("Location"), which).toBe(`/xahau/nft/${id}`);
+        mock.restore();
+      }
+    });
+
+    it("is a choice between the transaction and the NFT when the id is both, each row leading to its page", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { ...asTransaction(hash, 107600400), ...indexedNft(hash, { taxon: 1, serial: 4127 }) });
+      const { response, html } = await page(search(hash));
+      const text = textOf(html);
+
+      expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+      expect(text).toContain("Transaction or NFT?");
+      expect(text).toContain("both a transaction and an NFT on XRPL");
+      expect(hrefs(html)).toContain(`/xrpl/tx/${hash}`);
+      expect(hrefs(html)).toContain(`/xrpl/nft/${hash}`);
+      expect(hrefs(html)).not.toContain(`/xrpl/ledger/${hash}`);
+      expect(text).toContain("OfferCreate in ledger #107,600,400");
+      expect(text).toContain("NFT #4,127 of r4PP7g…CzT3 · taxon 1");
+      expect(text).not.toContain("burned");
+      expect(isNoindexFollow(html)).toBe(true);
+      expect(await storedAs(search(hash))).toEqual({ cls: "short", ttl: 30 });
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(mock.unusedOverrides()).toEqual([]);
+    });
+
+    it("is a choice among all three, and says 'burned' of a burned NFT", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", {
+        ...asTransaction(hash, 107600500),
+        ...asLedger(hash, 107600501),
+        ...indexedNft(hash, { burned: true, owner: undefined, owner_since: undefined, burned_at: { ledger_index: 107886000, tx_hash: "AB".repeat(32), executed_time: "2026-10-24T16:08:12Z", by: "r4PP7gwuVfxzLPWFiJXjLUtvzA7F97CzT3" } }),
+      });
+      const { html } = await page(search(hash));
+      const text = textOf(html);
+
+      expect(text).toContain("Transaction, ledger or NFT?");
+      expect(hrefs(html).filter((href) => href.includes(hash))).toEqual([`/xrpl/tx/${hash}`, `/xrpl/ledger/${hash}`, `/xrpl/nft/${hash}`]);
+      expect(text).toContain("NFT #95,234,705 of r4PP7g…CzT3 · taxon 10 burned");
+    });
+
+    it("is a choice on Xahau that calls the token a URIToken, of its issuer", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xahau", { ...asTransaction(hash, 26800000), ...indexedUriToken(hash) });
+      const { html } = await page(`/xahau/search?q=${hash}`);
+      const text = textOf(html);
+
+      expect(text).toContain("Transaction or URIToken?");
+      expect(text).toContain("URIToken of rodinG…zKyb");
+      expect(hrefs(html)).toContain(`/xahau/nft/${hash}`);
+    });
+
+    it("is a choice between the ledger and the NFT when the id is a ledger's hash and an NFT's", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { ...asLedger(hash, 107600600), ...indexedNft(hash) });
+      const { html } = await page(search(hash));
+      expect(textOf(html)).toContain("Ledger or NFT?");
+      expect(hrefs(html).filter((href) => href.includes(hash))).toEqual([`/xrpl/ledger/${hash}`, `/xrpl/nft/${hash}`]);
+    });
+  });
+
   describe("that nothing has", () => {
     const UNKNOWN = "3B".repeat(32);
 
@@ -240,18 +459,45 @@ describe("a 64-digit hash", () => {
       expect(await storedAs(search(UNKNOWN))).toEqual({ cls: "short", ttl: 30 });
     });
 
-    it("asked the data API for both and then the node for both", async () => {
+    it("asked the data API for the transaction, the ledger and the NFT, and then the node for the same three", async () => {
       const hash = "3C".repeat(32);
       mock = mockUpstream("xrpl");
       await page(search(hash), 404);
       expect(keys(mock).sort()).toEqual(
         [
           `xrpl GET /v2/ledgers/${hash}`,
+          `xrpl GET /v2/nfts/${hash}`,
           `xrpl GET /v2/transactions/${hash}`,
           `xrpl node ledger ledger_hash=${hash}`,
+          `xrpl node nft_info ledger_index=validated&nft_id=${hash}`,
           `xrpl node tx transaction=${hash}`,
         ].sort(),
       );
+    });
+
+    it("asks Xahau's node for the URIToken as a ledger entry, not XRPL's command", async () => {
+      const hash = "3E".repeat(32);
+      mock = mockUpstream("xahau");
+      await page(`/xahau/search?q=${hash}`, 404);
+      expect(keys(mock).sort()).toEqual(
+        [
+          `xahau GET /v2/ledgers/${hash}`,
+          `xahau GET /v2/nfts/${hash}`,
+          `xahau GET /v2/transactions/${hash}`,
+          `xahau node ledger ledger_hash=${hash}`,
+          `xahau node ledger_entry index=${hash}&ledger_index=validated`,
+          `xahau node tx transaction=${hash}`,
+        ].sort(),
+      );
+    });
+
+    it("is still a 404 when the node does not know the NFT command (a node that is not Clio): that is no failure", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { [`node nft_info ${hash}`]: nodeError("unknownCmd") });
+      const { html } = await page(search(hash), 404);
+
+      expect(textOf(html)).toContain(`We couldn’t find transaction or ledger ${shortHash(hash)} on XRPL.`);
+      expect(mock.unusedOverrides()).toEqual([]);
     });
 
     it("offers XRPL from Xahau, with the hash in upper case", async () => {

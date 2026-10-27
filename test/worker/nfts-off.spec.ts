@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { encodeAccountID } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
+import { nftCase } from "../support/nft-cases";
 import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type Overrides, type UpstreamMock } from "../support/upstream";
 
@@ -259,5 +260,63 @@ describe("the account's NFTs with NFTS off", () => {
     expect(textOf(html)).toContain(`URIToken URIToken 96133366…AAE9 Issuer ${shortAddress(ISSUER)} Sell offer 1,500 XAH`);
     expect(hrefs(html)).toContain(`/xahau/account/${ISSUER}`);
     expect(hrefs(html).some((href) => href.includes("/nft/") || href.includes("tab=nfts"))).toBe(false);
+  });
+});
+
+// Search asks no NFT question while the switch is off (NFT spec 7, Review Focus 1): an NFT's id is a hash like any other, a transaction or a ledger or nothing. The ids are NFTs of the
+// fixtures (the index has the `featured` ones, the node the `network` ones) that the calls would find if they were made, and the words of the box and of the help are what they were before the NFT pages.
+const FEATURED = await nftCase("xrpl", "featured");
+const NETWORK = await nftCase("xrpl", "network");
+const URI_FEATURED = await nftCase("xahau", "featured");
+const URI_NETWORK = await nftCase("xahau", "network");
+
+describe("the search with NFTS off", () => {
+  const keysOf = (m: UpstreamMock) => m.requests.map((request) => request.key);
+
+  it.each([
+    ["an NFT of the index", "xrpl", FEATURED.id],
+    ["an NFT only the node has", "xrpl", NETWORK.id],
+    ["a URIToken of the index", "xahau", URI_FEATURED.id],
+    ["a URIToken only the node has", "xahau", URI_NETWORK.id],
+  ] as const)("asks no NFT question for %s: the transaction and the ledger of the index and then of the node, and it is a 404 as for any hash", async (_what, net, id) => {
+    mock = mockUpstream(net);
+    const path = `/${net}/search?q=${id}`;
+    const response = await get(path);
+    const html = await response.text();
+
+    expect(response.status, html.slice(0, 400)).toBe(404);
+    expect(textOf(html)).toContain(`We couldn’t find transaction or ledger ${id.slice(0, 6)}…${id.slice(-4)} on ${net === "xrpl" ? "XRPL" : "Xahau"}.`);
+    expect(keysOf(mock).sort()).toEqual(
+      [`GET /v2/ledgers/${id}`, `GET /v2/transactions/${id}`, `node ledger ledger_hash=${id}`, `node tx transaction=${id}`].sort(),
+    );
+    // Neither the data API's NFT route nor the node's NFT commands (XRPL's nft_info, Xahau's ledger entry of a URIToken) were asked.
+    expect(mock.requests.some((request) => request.url.includes("/nfts") || /nft_info|ledger_entry/.test(request.key))).toBe(false);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("is a redirect to the transaction for a transaction hash, as before, with the two questions of before", async () => {
+    const TX = "8F2DCA944394B29981E24DDD6C46192C404D90F7F5FC4EAB6813B0AFD7751A2D";
+    mock = mockUpstream("xrpl");
+    const response = await get(`/xrpl/search?q=${TX}`);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/tx/${TX}`);
+    expect(keysOf(mock).sort()).toEqual([`GET /v2/ledgers/${TX}`, `GET /v2/transactions/${TX}`]);
+  });
+
+  it("keeps the words of the boxes and of the help: no NFT id is named", async () => {
+    mock = mockUpstream("xrpl");
+    const help = await page("/xrpl/search?q=hello");
+    // The header's box and the page's own: the placeholders of before E8.
+    expect(help.html).toContain('placeholder="Address, hash, ledger or CTID"');
+    expect(help.html).toContain('placeholder="Address, transaction hash, ledger index or CTID"');
+    expect(help.html).not.toMatch(/NFT id/);
+    expect(textOf(help.html)).toContain("A transaction or ledger hash: 64 hexadecimal characters");
+    expect(textOf(help.html)).not.toContain("NFT or URIToken id");
+
+    const home = await page("/xrpl");
+    expect(home.html).toContain('placeholder="Address, transaction hash, ledger index or CTID"');
+    expect(home.html).not.toMatch(/NFT id/);
   });
 });

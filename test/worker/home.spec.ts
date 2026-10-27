@@ -163,7 +163,8 @@ describe("the XRPL home", () => {
     expect(html).toContain("search--hero");
     expect(html).not.toContain("search--header");
     expect(html).toContain('action="/xrpl/search"');
-    expect(html).toContain("Address, transaction hash, ledger index or CTID");
+    // NFTS is on in this project (nfts-off.spec.ts has the words of before): the hero's box names the NFT id.
+    expect(html).toContain("Address, transaction hash, ledger index, CTID or NFT id");
   });
 
   it("puts the ids the header links to on the two cards", async () => {

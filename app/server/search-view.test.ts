@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { choicePage, ctidNotFoundPage, hashNotFoundPage, helpPage, otherNetworkPage, shownQuery } from "./search-view";
 
 const HASH = "4BC50C9B0D8515D3EAAE1E74B29A95804346C491EE1A95BF25E4AAB854A6A651";
+const ISSUER = "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy";
 const XAHAU = { id: "xahau", name: "Xahau" } as const;
 const XRPL = { id: "xrpl", name: "XRPL" } as const;
 
@@ -25,6 +26,52 @@ describe("the pages", () => {
       hash: HASH,
       tx: { ledgerIndex: 5, type: "Payment" },
       ledger: { index: 6, closeTime: 7 },
+    });
+  });
+
+  it("builds the choice of a transaction, a ledger and an NFT, the NFT's row in the words of the network's tokens", () => {
+    const tx = { ledgerIndex: 5, type: "Payment" };
+    const ledger = { index: 6, closeTime: 7 };
+    expect(choicePage(HASH, { tx, ledger, nft: { kind: "nftoken", issuer: ISSUER, taxon: 1, serial: 4127, burned: false } })).toEqual({
+      kind: "choice",
+      hash: HASH,
+      tx,
+      ledger,
+      nft: { token: "NFT", detail: "#4,127 of rLxc1b…rwMy · taxon 1", burned: false },
+    });
+  });
+
+  it("builds the choice of two of them, whichever two: the rows that were not found are not there", () => {
+    const tx = { ledgerIndex: 5, type: "Payment" };
+    const ledger = { index: 6, closeTime: 7 };
+    const nft = { kind: "nftoken", issuer: ISSUER, taxon: 0, serial: 1, burned: false } as const;
+
+    const withTx = choicePage(HASH, { tx, nft });
+    expect(withTx).toEqual({ kind: "choice", hash: HASH, tx, nft: { token: "NFT", detail: "#1 of rLxc1b…rwMy · taxon 0", burned: false } });
+    expect(withTx).not.toHaveProperty("ledger");
+
+    const withLedger = choicePage(HASH, { ledger, nft });
+    expect(withLedger).toEqual({ kind: "choice", hash: HASH, ledger, nft: { token: "NFT", detail: "#1 of rLxc1b…rwMy · taxon 0", burned: false } });
+    expect(withLedger).not.toHaveProperty("tx");
+
+    // Without an NFT it is what it was: the transaction and the ledger, and no `nft` key.
+    expect(choicePage(HASH, { tx, ledger })).not.toHaveProperty("nft");
+  });
+
+  it("says 'burned' of a burned NFT, and names a URIToken by its issuer alone: it has no serial and no taxon", () => {
+    const tx = { ledgerIndex: 5, type: "URITokenMint" };
+    expect(choicePage(HASH, { tx, nft: { kind: "nftoken", issuer: ISSUER, taxon: 4294967295, serial: 1234567, burned: true } })).toMatchObject({
+      nft: { token: "NFT", detail: "#1,234,567 of rLxc1b…rwMy · taxon 4,294,967,295", burned: true },
+    });
+    expect(choicePage(HASH, { tx, nft: { kind: "uritoken", issuer: ISSUER, burned: false } })).toMatchObject({
+      nft: { token: "URIToken", detail: "of rLxc1b…rwMy", burned: false },
+    });
+    expect(choicePage(HASH, { tx, nft: { kind: "uritoken", issuer: ISSUER, burned: true } })).toMatchObject({ nft: { token: "URIToken", burned: true } });
+  });
+
+  it("names an NFT without a serial or a taxon by its issuer alone", () => {
+    expect(choicePage(HASH, { tx: { ledgerIndex: 5, type: "Payment" }, nft: { kind: "nftoken", issuer: ISSUER, burned: false } })).toMatchObject({
+      nft: { token: "NFT", detail: "of rLxc1b…rwMy" },
     });
   });
 

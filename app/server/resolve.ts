@@ -1,12 +1,14 @@
-// What a search input names, found out by asking the data API and, for a hash it has not indexed, the node (spec 3, 6, 10):
-// the transaction behind a CTID, and what a 64-digit hash is. Both answer "nothing" for a thing that does not exist and
+// What a search input names, found out by asking the data API and, for a hash it has not indexed, the node (spec 3, 6, 10;
+// NFT spec 7): the transaction behind a CTID, and what a 64-digit hash is. Both answer "nothing" for a thing that does not exist and
 // let an upstream failure through, because the two are different pages: "not found" is a 404 that may be stored for 30 s,
 // a failure is a 503 that is never stored. Worker-only code, for loaders; the callers map failures with `upstreamFailure`.
 
 import { decodeCtid } from "../domain/ctid";
+import type { NftAnswer, NftKind } from "./api-types";
 import type { DataApi } from "./data-api";
 import { networkIdOfCtid, type Network, type NetworkId } from "./networks";
 import type { NodeRpc } from "./node-rpc";
+import { readNodeNft, type NodeNft } from "./nft-read";
 import { UpstreamError } from "./upstream";
 
 const HEX_64 = /^[0-9A-Fa-f]{64}$/;
@@ -62,11 +64,46 @@ export async function resolveCtid(
   return { hash: hash.toUpperCase() };
 }
 
-/** What a hash is, as far as the choice page needs to say. Either part, both or neither is there. */
+/**
+ * What a hash is, as far as the choice page needs to say. Any of the parts, several or none is there. `nft` is an NFT of XRPL or a URIToken of Xahau whose id this is: its issuer
+ * (and, for an NFT, its taxon and serial, which a URIToken does not have) and whether it is burned, which is all the choice page says of it.
+ */
 export interface HashMatches {
   tx?: { ledgerIndex: number; type: string };
   /** `closeTime` in unix seconds. */
   ledger?: { index: number; closeTime: number };
+  nft?: { kind: NftKind; issuer: string; taxon?: number; serial?: number; burned: boolean };
+}
+
+/**
+ * What a search asks of a 64-digit hash besides the transaction and the ledger, which it always asks: `net` says which command asks the node for an NFT (XRPL's `nft_info`,
+ * Xahau's `ledger_entry` of a URIToken), and `nfts` whether it asks for one at all (the `NFTS` switch: while it is off no NFT question is asked of the index or the node).
+ * Later features add their questions here (E10: `ledgerObjects`).
+ */
+export interface HashQuestions {
+  net: NetworkId;
+  nfts: boolean;
+}
+
+type NftMatch = NonNullable<HashMatches["nft"]>;
+
+/** The NFT of the index's answer (`/v2/nfts/{id}`, whose shape the client has checked: the kind, the issuer, the whole numbers and `burned`). */
+function nftOfIndex({ nft }: NftAnswer): NftMatch {
+  return { kind: nft.kind, issuer: nft.issuer, ...(nft.taxon !== undefined && { taxon: nft.taxon }), ...(nft.serial !== undefined && { serial: nft.serial }), burned: nft.burned };
+}
+
+/** The NFT of the node's answer (XRPL's `nft_info`, Xahau's URIToken entry: a burned URIToken is no entry, so one that the node has is not burned). */
+function nftOfNode(entry: NodeNft): NftMatch {
+  return "nft_id" in entry
+    ? { kind: "nftoken", issuer: entry.issuer, taxon: entry.nft_taxon, serial: entry.nft_serial, burned: entry.is_burned }
+    : { kind: "uritoken", issuer: entry.Issuer, burned: false };
+}
+
+/** The questions of one side (the index's or the node's): `nft` is there only while the switch is on. */
+interface Questions {
+  transaction: () => Promise<{ ledger_index: unknown; tx?: unknown }>;
+  ledger: () => Promise<{ ledger_index: unknown; close_time: unknown }>;
+  nft?: () => Promise<NftMatch>;
 }
 
 interface Asked {
@@ -76,15 +113,12 @@ interface Asked {
 }
 
 /**
- * Asks for the transaction and the ledger of a hash side by side, and waits for both, so that nothing runs on after the answer.
- * What the answers hold is checked here, because a 200 is not proof of a transaction: one without its `tx` (or a ledger without
- * its index) is the upstream failing, and is counted as a failure, not read through (a TypeError would be a 500).
+ * Asks the questions of one side side by side, and waits for all of them, so that nothing runs on after the answer. What the answers of the transaction and the ledger hold is
+ * checked here, because a 200 is not proof of a transaction: one without its `tx` (or a ledger without its index) is the upstream failing, and is counted as a failure, not read
+ * through (a TypeError would be a 500). The NFT question is made of an answer that is already checked (the clients check the NFT's shape), so its failures are the clients'.
  */
-async function ask(
-  transaction: () => Promise<{ ledger_index: unknown; tx?: unknown }>,
-  ledger: () => Promise<{ ledger_index: unknown; close_time: unknown }>,
-): Promise<Asked> {
-  const [tx, lgr] = await Promise.allSettled([transaction(), ledger()]);
+async function ask({ transaction, ledger, nft }: Questions): Promise<Asked> {
+  const [tx, lgr, token] = await Promise.allSettled([transaction(), ledger(), nft?.()]);
   const matches: HashMatches = {};
   const failures: unknown[] = [];
 
@@ -110,24 +144,33 @@ async function ask(
   } else if (!isMissing(lgr.reason)) {
     failures.push(lgr.reason);
   }
+
+  if (token.status === "fulfilled") {
+    if (token.value !== undefined) matches.nft = token.value;
+  } else if (!isMissing(token.reason)) {
+    failures.push(token.reason);
+  }
   return { matches, failures };
 }
 
 /**
- * What a 64-hex hash names (spec 6): a transaction, a ledger, both (the choice page) or neither (`{}`).
+ * What a 64-hex hash names (spec 6; NFT spec 7): a transaction, a ledger, an NFT (a URIToken on Xahau), several (the choice page) or none (`{}`).
  *
- * The data API is asked for both. When it has neither, the node is (spec 10: history before the backfill, the seconds before
- * ingest), so that a search finds what the page itself could show. A failure of the one asked is thrown, but only when it
- * leaves the question open: something found is an answer however the other call went, and the node is not asked in place of
- * a data API that failed.
+ * The sequence, whose parts later features extend: (1) the data API is asked side by side for the transaction, the ledger and, while `nfts`, the NFT (`api.nft`); (2) only when it
+ * has none of them, the node is (spec 10: history before the backfill, the seconds before ingest), side by side for `tx`, `ledger` and, while `nfts`, the NFT (`nftInfo` on XRPL, `uriToken`
+ * on Xahau, by `readNodeNft`, which the NFT page reads the node with: a node that is not Clio is "not found", not a failure). A failure of the side asked is thrown, but only when it
+ * leaves the question open: something found is an answer however another question of its side went, and the node is not asked in place of a data API with a question that failed.
+ *
+ * The NFT page's own rule (`settleNft`: the index first and the node after it where `needsNode` says so) is not what this asks: a search needs to know that there is an NFT, so an
+ * NFT of the index with no owner is found as it is, and the node's NFT is asked only when the index had none of the three (the NFT page asks the node whenever the index lacks the NFT).
  */
-export async function findHash(api: DataApi, node: NodeRpc, hash: string): Promise<HashMatches> {
+export async function findHash(api: DataApi, node: NodeRpc, hash: string, { net, nfts }: HashQuestions): Promise<HashMatches> {
   for (const asked of [
-    () => ask(() => api.transaction(hash), () => api.ledger(hash)),
-    () => ask(() => node.tx(hash), () => node.ledger(hash)),
+    () => ask({ transaction: () => api.transaction(hash), ledger: () => api.ledger(hash), ...(nfts && { nft: () => api.nft(hash).then(nftOfIndex) }) }),
+    () => ask({ transaction: () => node.tx(hash), ledger: () => node.ledger(hash), ...(nfts && { nft: () => readNodeNft(node, { id: net }, hash).then(nftOfNode) }) }),
   ]) {
     const { matches, failures } = await asked();
-    if (matches.tx || matches.ledger) return matches;
+    if (matches.tx || matches.ledger || matches.nft) return matches;
     if (failures.length > 0) throw failures[0];
   }
   return {};

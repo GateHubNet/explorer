@@ -1,5 +1,9 @@
+import { featuresOff } from "../../scripts/e2e-env";
 import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_REMIT, XRPL_ACCOUNT, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
 import { expect, hydrated, test } from "./support";
+
+/** What the box says a 64-digit hash can be: with `NFTS` on (the Worker's own var) it can be an NFT too (E8); `E2E_FEATURES_OFF` tells the suite when it is off. */
+const HASH_HINT = featuresOff(process.env).has("NFTS") ? "Transaction or ledger" : "Transaction, ledger or NFT";
 
 test.describe("search", () => {
   test("a pasted transaction hash, with the noise a paste brings, leads to the transaction", async ({ page }) => {
@@ -10,7 +14,7 @@ test.describe("search", () => {
     // Lower case, a 0x prefix, spaces around it: the box says what it is before anything is sent.
     await box.fill(`  0x${XRPL_PAYMENT.toLowerCase()}  `);
     const hints = page.getByRole("list", { name: "Matches" });
-    await expect(hints).toContainText("Transaction or ledger");
+    await expect(hints).toContainText(HASH_HINT);
     await expect(hints).toContainText(XRPL_PAYMENT);
 
     await box.press("Enter");
