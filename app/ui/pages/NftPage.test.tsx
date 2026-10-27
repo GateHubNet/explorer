@@ -29,7 +29,7 @@ import { serverThenHydrated } from "../../../test/support/hydrate";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountPage, routedPage } from "../../../test/support/under-network";
 import { ARROW, type NftQuery } from "../../domain/nft-params";
 import type { NftEvent, NftOffer, NodeNftOffers, NodeUriToken } from "../../server/api-types";
-import { nftMarkerPage, nftPage, type NftNet, type NftPageData, type NftPageInput } from "../../server/nft-view";
+import { nftMarkerPage, nftPage, type NftHistoryRow, type NftNet, type NftPageData, type NftPageInput } from "../../server/nft-view";
 import { UpstreamError } from "../../server/upstream";
 import { NftPage } from "./NftPage";
 
@@ -311,6 +311,42 @@ describe("NftPage: the details", () => {
   });
 });
 
+describe("NftPage: the layout of the cards", () => {
+  it("has the details and the id's card side by side in one row that folds, in the board's order, and the offers and the history under them", () => {
+    mount(build());
+    const details = card("Details");
+    const id = card("The id, decoded");
+    expect(details.parentElement).toBe(id.parentElement);
+    expect(details.parentElement!.className).toBe("nft-page__pair");
+    expect([...details.parentElement!.children]).toEqual([details, id]);
+    expect(details.className).toContain("nft-page__details");
+    expect(id.className).toContain("nft-page__idcard");
+    // The two lists of offers and events follow the pair, not inside it.
+    expect(details.parentElement!.nextElementSibling).toBe(card("Open offers"));
+    expect(card("Open offers").nextElementSibling).toBe(card("History"));
+  });
+
+  it("has the pair on a URIToken's page too, with the id's card titled for Xahau", () => {
+    mount(uriBuild(), URI_PATH, LAYOUT_XAHAU);
+    expect(card("Details").parentElement).toBe(card("The id").parentElement);
+    expect(card("Details").parentElement!.className).toBe("nft-page__pair");
+  });
+
+  it("has no pair behind a marker, which has neither card", () => {
+    const { container } = mount(markerBuild(), `${PATH}?marker=${MARKERS.M2}`);
+    expect(container.querySelector(".nft-page__pair")).toBeNull();
+  });
+
+  it("sets the amounts of the offers and of the history at the end of their columns, with their headers", () => {
+    mount(build());
+    for (const [table, column] of [["Open offers", 1], ["History", 3]] as const) {
+      const header = within(screen.getByRole("table", { name: table })).getAllByRole("columnheader")[column]!;
+      expect(header.className, table).toContain("is-end");
+      for (const row of rowsOf(table)) expect(cellsOf(row)[column]!.className, `${table} ${row.textContent}`).toContain("is-end");
+    }
+  });
+});
+
 describe("NftPage: the URI", () => {
   const hexOf = (value: string): string => Array.from(new TextEncoder().encode(value), (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
   const withUri = (uri: string) => build({ index: nftAnswerSample({ nft: nftSample({ uri: hexOf(uri) }), coverage: WHOLE }) });
@@ -481,13 +517,30 @@ describe("NftPage: the history", () => {
     expect([...accounts.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${SELLER}`, `/xrpl/account/${BUYER}`, `/xrpl/account/${NFT_BROKER}`]);
   });
 
-  it("draws the arrow of a transfer the same way, and a text that merely contains an arrow as the text it is", () => {
+  it("draws the arrow of a transfer the same way", () => {
     const transfer = nftEventSample({ event: "transfer", tx_type: "NFTokenAcceptOffer", from: SELLER, to: BUYER, amount: undefined, currency: undefined, converted_amount: undefined, broker: undefined, broker_fee: undefined, royalty_est: undefined });
     mount(build({ history: fulfilled(nftEventsPageSample({ events: [transfer], coverage: WHOLE })) }));
     const accounts = cellsOf(rowsOf("History")[0]!)[2]!;
     expect(accounts.querySelectorAll("[aria-hidden='true']")).toHaveLength(1);
     expect(accounts.querySelector(".sr")!.textContent).toBe("to");
     expect(accounts.textContent).toContain("an accepted offer of 0");
+  });
+
+  it("draws a text segment that merely contains an arrow as the text it is: no picture and no hidden 'to', only a segment that is exactly the arrow is one", () => {
+    const row = (accounts: NftHistoryRow["accounts"]): NftHistoryRow => ({ key: `${HASH_A}:1`, time: NOW, txHash: HASH_A, event: "sale", accounts, amount: null });
+    const data = build();
+    mount({ ...data, history: [row([{ t: "text", v: `a${ARROW}b` }]), row([{ t: "text", v: "a →" }, { t: "text", v: "→ b" }]), row([{ t: "text", v: "a" }, { t: "text", v: ARROW }, { t: "text", v: "b" }])] });
+    const [contained, split, exact] = rowsOf("History").map((each) => cellsOf(each)[2]!);
+    // The text of an event that contains an arrow is as it was written.
+    expect(contained!.textContent).toBe("a → b");
+    expect(contained!.querySelector("[aria-hidden]")).toBeNull();
+    expect(contained!.querySelector(".sr")).toBeNull();
+    expect(split!.textContent).toBe("a →→ b");
+    expect(split!.querySelector("[aria-hidden]")).toBeNull();
+    expect(split!.querySelector(".sr")).toBeNull();
+    // The segment that is exactly the arrow is the picture and the hidden word.
+    expect(exact!.querySelector("[aria-hidden='true']")!.textContent).toBe("→");
+    expect(exact!.querySelector(".sr")!.textContent).toBe("to");
   });
 
   it("is a toggle link whose words say what it does and which has no aria-current, to the first page of the other view", () => {

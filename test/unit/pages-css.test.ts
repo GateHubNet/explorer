@@ -98,6 +98,14 @@ describe("the network dashboard", () => {
   });
 });
 
+describe("an NFT's page", () => {
+  it("puts the details beside the id's card while there is room for 520 and 420 px, and one under the other when there is not, each able to shrink (the board's)", () => {
+    expect(rule(pagesCss, ".nft-page__pair")).toMatchObject({ display: "flex", "flex-wrap": "wrap", gap: "18px" });
+    expect(rule(pagesCss, ".nft-page__details")).toMatchObject({ flex: "1 1 520px", "min-width": "0" });
+    expect(rule(pagesCss, ".nft-page__idcard")).toMatchObject({ flex: "1 1 420px", "min-width": "0" });
+  });
+});
+
 describe("the segmented links of a filter row", () => {
   it("has its label visible, in --faint, before the network switch's pill, which wraps under it on a screen too narrow for both", () => {
     expect(rule(componentsCss, ".seglinks__label").color).toBe("var(--faint)");

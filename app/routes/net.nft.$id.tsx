@@ -13,8 +13,8 @@ import { metaContext } from "../server/meta";
 import { nftMeta } from "../server/meta-nft";
 import { networkOf, type Network } from "../server/networks";
 import { requireNetwork } from "../server/network-route";
-import { readNodeNft, readNodeOffers } from "../server/nft-read";
-import { needsNode, nftMarkerPage, nftModeOf, nftNotFound, nftPage, NFT_MODE_CLASS, type NftPageInput } from "../server/nft-view";
+import { readNodeOffers, settleNft } from "../server/nft-read";
+import { nftMarkerPage, nftNotFound, nftPage, NFT_MODE_CLASS, type NftPageInput } from "../server/nft-view";
 import { redirectToHref } from "../server/pair-route";
 import { isNotFound, UpstreamError } from "../server/upstream";
 import { NftPage } from "../ui/pages/NftPage";
@@ -40,11 +40,6 @@ const PLAIN_EVENTS = ["mint", "burn", "modify", "sale", "transfer"] as const;
 
 /** The words of what failed, for the log: a call that missed its deadline "took too long", any other "could not be loaded". `part` is empty for the NFT itself. */
 const failedWords = (part: string, reason: unknown) => `the NFT${part === "" ? "" : `'s ${part}`} ${reason instanceof TooLate ? "took too long" : "could not be loaded"}`;
-
-/** The phrase of the 404 of an NFT neither the index nor the node has: `nftNotFound`'s sentence is "We couldn't find {this} on {network}", which the not-found page writes round it. */
-function missing(sentence: string, net: Network): string {
-  return sentence.slice("We couldn't find ".length, sentence.length - ` on ${net.name}`.length);
-}
 
 /**
  * `/{net}/nft/{ID}` (NFT spec 4): one NFT (a URIToken on Xahau) of the network, by its id of 64 hex digits. Its class is by mode (spec 9): `live`, `slow` for a burned NFT, `short` kept
@@ -116,27 +111,16 @@ async function firstPage(context: Route.LoaderArgs["context"], request: Request,
   const words = nftWords(net.id);
 
   // #1, #3 and #4 start together. Each is settled, so that none is left running or unhandled behind the answer, whatever the page turns out to be.
-  const indexCall = outcome(byDeadline(api.nft(id), deadline));
   const offersCall = outcome(byDeadline(api.nftOffers(id, { limit: OFFERS_LIMIT }), deadline));
   const historyCall = outcome(byDeadline(api.nftHistory(id, historyQuery(query)), deadline));
-
-  const index = await indexCall;
-  // #2: the node is asked only where the index says it is needed, and never in place of an index that failed.
-  const fromNode = needsNode(index) ? await outcome(byDeadline(readNodeNft(node, net, id), deadline)) : null;
-  const mode = nftModeOf(index, fromNode);
+  // #1 and, where it says it is needed, #2, and the mode they make (the image's decision too): never the node in place of an index that failed.
+  const { index, fromNode, mode, outageReason } = await settleNft(api, node, net, id, deadline);
   const [indexOffers, indexHistory] = await Promise.all([offersCall, historyCall]);
 
-  if (mode === "none") {
-    const { text, otherHref } = nftNotFound(net, id);
-    const other = networkOf(net.other, getEnv(context));
-    notFound({ notFound: missing(text, net), suggestion: { href: otherHref, label: `Search on ${other.name}` } });
-  }
+  if (mode === "none") notFound(nftNotFound(net, id, { id: net.other, name: networkOf(net.other, getEnv(context)).name }));
   if (mode === "unavailable") {
-    // Only a failed index is unavailable (nftModeOf). The reason is its own, or the node's when the index said there is no such NFT and the node could not say.
-    if (index.status !== "rejected") throw new Error("an NFT that the index has is never unavailable");
-    const reason = isNotFound(index.reason) && fromNode?.status === "rejected" ? fromNode.reason : index.reason;
-    logProblem(failedWords("", reason), reason, request);
-    return upstreamOutage(asOutage(reason), `the ${words.token}`);
+    logProblem(failedWords("", outageReason), outageReason, request);
+    return upstreamOutage(asOutage(outageReason), `the ${words.token}`);
   }
 
   const fromNetwork = mode === "network" || mode === "network-burned";

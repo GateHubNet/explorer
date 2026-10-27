@@ -161,7 +161,13 @@ const rowsOf = (net: NetworkId, rows: readonly NftDetailRow[]) => rows.map((row)
 function offerColumns(net: NetworkId): Column<NftOfferRow>[] {
   return [
     { id: "side", header: "Side", width: "70px", cell: (row) => <span className="tag">{row.side}</span> },
-    { id: "amount", header: "Amount", width: "minmax(130px, 1fr)", cell: (row) => <Amount value={row.amount.value} currency={row.amount.currency} issuer={row.amount.issuer} className="mono num" /> },
+    {
+      id: "amount",
+      header: "Amount",
+      width: "minmax(130px, 1fr)",
+      align: "end",
+      cell: (row) => <Amount value={row.amount.value} currency={row.amount.currency} issuer={row.amount.issuer} className="mono num" />,
+    },
     { id: "by", header: "By", width: "140px", cell: (row) => <AccountLink net={net} address={row.by} /> },
     {
       id: "only",
@@ -350,13 +356,16 @@ export function NftPage({ data }: { data: NftPageData }) {
         )
       ) : (
         <>
-          <Card title="Details" action={<Source>{source(`/v2/nfts/${id}`)}</Source>}>
-            <DetailList rows={rowsOf(net, data.details)} />
-          </Card>
-          <Card title={data.idTitle}>
-            <DetailList rows={rowsOf(net, data.idCard)} />
-            <p className="nft-page__idnote">{data.idNote}</p>
-          </Card>
+          {/* The board puts the details beside the id's card where there is room, and one under the other where there is not. */}
+          <div className="nft-page__pair">
+            <Card title="Details" action={<Source>{source(`/v2/nfts/${id}`)}</Source>} className="nft-page__details">
+              <DetailList rows={rowsOf(net, data.details)} />
+            </Card>
+            <Card title={data.idTitle} className="nft-page__idcard">
+              <DetailList rows={rowsOf(net, data.idCard)} />
+              <p className="nft-page__idnote">{data.idNote}</p>
+            </Card>
+          </div>
           {hasOffers && <Offers net={net} data={data} source={source(`/v2/nfts/${id}/offers`)} {...shared} />}
         </>
       )}

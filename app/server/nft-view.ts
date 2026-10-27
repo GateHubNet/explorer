@@ -24,6 +24,7 @@ import { coverageNote, type CoverageNoteText } from "./coverage";
 import { feePercent } from "./exact";
 import type { Network } from "./networks";
 import { convertedOf, counted, DASH, plain } from "./nft-format";
+import { searchOnOther, type NetworkName } from "./search-view";
 import { isNotFound } from "./upstream";
 import { unixOf } from "./validator-facts";
 
@@ -813,9 +814,10 @@ export function nftMarkerPage(input: NftMarkerInput): NftPageData {
 }
 
 /**
- * The words of the 404 of an NFT neither the index nor the node has, and where the other network's search is: "We couldn't find NFT 00081388…101F on XRPL" ("URIToken" on Xahau),
- * "/xahau/search?q={ID}". The network's name is the layout's, so the sandbox says "XRPL Testnet".
+ * What the 404 of an NFT neither the index nor the node has says (`NotFoundData`): the phrase the not-found page writes its sentence round ("We couldn't find NFT 00081388…101F on XRPL";
+ * "URIToken" on Xahau; the network's name is the layout's, so the sandbox says "XRPL Testnet"), and the offer of the same search on the other network (`searchOnOther`: "Search on Xahau",
+ * `/xahau/search?q={ID}`). `other` is the other network as the environment names it.
  */
-export function nftNotFound(net: Pick<NftNet, "id" | "name" | "other">, id: string): { text: string; otherHref: string } {
-  return { text: `We couldn't find ${nftWords(net.id).token} ${shortNftId(id)} on ${net.name}`, otherHref: `/${net.other}/search?q=${id}` };
+export function nftNotFound(net: Pick<NftNet, "id">, id: string, other: NetworkName): { notFound: string; suggestion: { href: string; label: string } } {
+  return { notFound: `${nftWords(net.id).token} ${shortNftId(id)}`, suggestion: searchOnOther(id, other) };
 }

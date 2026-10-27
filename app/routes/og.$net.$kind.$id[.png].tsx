@@ -13,14 +13,13 @@ import { activationOf } from "../server/account-view";
 import { ammPoolFacts, createdOf } from "../server/amm-view";
 import type { AmendmentDetail, AmmLiquidityEvent, ValidatorDetail } from "../server/api-types";
 import { clientsFor } from "../server/clients";
-import { outcome } from "../server/deadline";
 import { cacheClassHeaders } from "../server/edge-cache";
 import { getEnv } from "../server/env";
 import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "../server/ledger-view";
 import { logProblem } from "../server/logging";
 import { isNetworkId, networkOf, type Network } from "../server/networks";
-import { readNodeNft } from "../server/nft-read";
-import { needsNode, nftFacts, nftModeOf } from "../server/nft-view";
+import { settleNft } from "../server/nft-read";
+import { nftFacts } from "../server/nft-view";
 import { txFromIndex, txFromNode, type TransactionSource } from "../server/transaction-view";
 import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 
@@ -345,17 +344,13 @@ async function nftImage(context: LoaderFunctionArgs["context"], network: Network
   if (id !== nftId) return permanent(`/og/${network.id}/nft/${nftId}.png`);
 
   const { api, node } = clientsFor(context, network);
-  // #1, then #2 where the index says it is needed and never in place of an index that failed: the page's own reads, so the page and its image share the answers.
-  const index = await outcome(api.nft(nftId));
-  const fromNode = needsNode(index) ? await outcome(readNodeNft(node, network, nftId)) : null;
-  const mode = nftModeOf(index, fromNode);
+  // #1 and, where it says it is needed, #2, and the mode they make: the page's own decision (`settleNft`), so the page and its image share the answers. No deadline: an image has no card to give up.
+  const { index, fromNode, mode, outageReason } = await settleNft(api, node, network, nftId);
   if (mode === "none") return notFound();
   if (mode === "unavailable") {
-    // Only a failed index is unavailable: its own reason, or the node's when the index said there is no such NFT and the node could not say. Never a stored 404, a 400 included.
-    if (index.status !== "rejected") throw new Error("an NFT that the index has is never unavailable");
-    const reason = isNotFound(index.reason) && fromNode?.status === "rejected" ? fromNode.reason : index.reason;
-    logProblem("an NFT's link-preview image could not read the NFT", reason, request);
-    return apiFailure(reason);
+    // Never a stored 404, a 400 included.
+    logProblem("an NFT's link-preview image could not read the NFT", outageReason, request);
+    return apiFailure(outageReason);
   }
 
   const entry = fromNode?.status === "fulfilled" ? fromNode.value : undefined;

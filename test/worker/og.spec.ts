@@ -1558,6 +1558,30 @@ describe("an NFT", () => {
     expect(drawing.mock.calls[0]![0]).toMatchObject({ parties: ["rHhvUexKKSJZG9vuZKX2kNendG2TXoavG9"], note: "Never sold" });
   });
 
+  it.each([
+    [300, "does not have the NFT (objectNotFound)", () => nodeError("objectNotFound")],
+    [301, "is not Clio (unknownCmd is not found too)", () => nodeError("unknownCmd")],
+  ])("is drawn without an owner, class slow and not degraded, for an NFT the index has without one when the node %s: an answer, not a failure", async (n, _what, answer) => {
+    const id = nftOf(n);
+    const path = `/og/xrpl/nft/${id}.png`;
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mock = mockUpstream("xrpl", { [nftCall(id)]: nftAnswer(id, UNOWNED_NFT), [nftInfoCall(id)]: answer() });
+      const drawn = await image(path);
+
+      expectPng(drawn);
+      // The node was asked after the index, and its "not found" is an answer: the card is kept as long as any other (a failure of the node would make it `short`).
+      expect(keys(mock)).toEqual([`xrpl ${nftCall(id)}`, `xrpl node nft_info ledger_index=validated&nft_id=${id}`].sort());
+      expect(await storedAs(path)).toEqual(SLOW);
+      const card = drawing.mock.calls[0]![0];
+      expect("parties" in card).toBe(false);
+      expect(card.note).toBe("Never sold");
+      expect(errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("left out its owner"))).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   it("is drawn from the node for an NFT only it has, class short kept 60 s: the index takes over after that; the note says it is not in the index yet", async () => {
     const path = `/og/xrpl/nft/${NFT_NETWORK.id}.png`;
     mock = mockUpstream("xrpl");

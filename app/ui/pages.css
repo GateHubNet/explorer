@@ -4376,6 +4376,25 @@ a.markets__pair:hover .markets__name {
   font-size: 12.5px;
 }
 
+/* The details and the id's card (the board's): side by side while there is room for 520 and 420 px, one under the other when there is not, each able to shrink so that a phone
+   has no sideways scroll. */
+.nft-page__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  min-width: 0;
+}
+
+.nft-page__details {
+  flex: 1 1 520px;
+  min-width: 0;
+}
+
+.nft-page__idcard {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
 /* The URI is text in a code; a long one wraps inside its card. */
 .nft-page__uri {
   font-size: 13px;

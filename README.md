@@ -2429,29 +2429,29 @@ card, three lists of facts and two tables (`DataTable`, `Pager`, `CoverageNote`,
 
 | page | Before (files) | After (files) | Change | Budget | Under it by |
 |---|---:|---:|---:|---:|---:|
-| home | 135,258 (14) | 135,317 (14) | +59 | 150,000 | 14,683 |
-| ledger | 135,153 (18) | 135,215 (18) | +62 | 150,000 | 14,785 |
-| transaction | 137,460 (19) | 137,519 (19) | +59 | 150,000 | 12,481 |
-| account | 140,771 (24) | 140,835 (24) | +64 | 150,000 | 9,165 |
-| network | 151,654 (26) | 151,703 (26) | +49 | 160,000 | 8,297 |
-| markets | 134,734 (13) | 134,797 (13) | +63 | 150,000 | 15,203 |
-| market-pair | 150,474 (27) | 150,528 (27) | +54 | 160,000 | 9,472 |
-| validators | 149,611 (25) | 149,666 (25) | +55 | 160,000 | 10,334 |
-| validator | 149,916 (26) | 149,978 (26) | +62 | 160,000 | 10,022 |
-| amendments | 139,954 (18) | 140,015 (18) | +61 | 160,000 | 19,985 |
-| amendment | 148,474 (23) | 148,533 (23) | +59 | 160,000 | 11,467 |
-| amm | 144,685 (22) | 144,740 (22) | +55 | 160,000 | 15,260 |
-| amm-pool | 153,215 (36) | 153,261 (36) | +46 | 160,000 | 6,739 |
-| nfts | 148,532 (27) | 148,866 (28) | +334 | 150,000 | 1,134 |
-| nft-sales | 133,997 (17) | 134,339 (18) | +342 | 150,000 | 15,661 |
-| nft-collection | 148,892 (29) | 149,227 (30) | +335 | 150,000 | 773 |
-| nft | | **136,746** (22) | | 150,000 | 13,254 |
-| account analytics (gate 2) | 152,945 (25) | 153,006 (25) | +61 | 160,000 | 6,994 |
-| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,076 | 2,137 | +61 | | |
+| home | 135,258 (14) | 135,325 (14) | +67 | 150,000 | 14,675 |
+| ledger | 135,153 (18) | 135,217 (18) | +64 | 150,000 | 14,783 |
+| transaction | 137,460 (19) | 137,524 (19) | +64 | 150,000 | 12,476 |
+| account | 140,771 (24) | 140,841 (24) | +70 | 150,000 | 9,159 |
+| network | 151,654 (26) | 151,722 (26) | +68 | 160,000 | 8,278 |
+| markets | 134,734 (13) | 134,799 (13) | +65 | 150,000 | 15,201 |
+| market-pair | 150,474 (27) | 150,544 (27) | +70 | 160,000 | 9,456 |
+| validators | 149,611 (25) | 149,670 (25) | +59 | 160,000 | 10,330 |
+| validator | 149,916 (26) | 149,979 (26) | +63 | 160,000 | 10,021 |
+| amendments | 139,954 (18) | 140,020 (18) | +66 | 160,000 | 19,980 |
+| amendment | 148,474 (23) | 148,536 (23) | +62 | 160,000 | 11,464 |
+| amm | 144,685 (22) | 144,750 (22) | +65 | 160,000 | 15,250 |
+| amm-pool | 153,215 (36) | 153,283 (36) | +68 | 160,000 | 6,717 |
+| nfts | 148,532 (27) | 148,882 (28) | +350 | 150,000 | 1,118 |
+| nft-sales | 133,997 (17) | 134,347 (18) | +350 | 150,000 | 15,653 |
+| nft-collection | 148,892 (29) | 149,244 (30) | +352 | 150,000 | 756 |
+| nft | | **136,773** (22) | | 150,000 | 13,227 |
+| account analytics (gate 2) | 152,945 (25) | 153,012 (25) | +67 | 160,000 | 6,988 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,076 | 2,135 | +59 | | |
 
-- **The manifest** grew 61 bytes for the route, which with the `import` lines of the new route is the +46 to +64 of the pages that gained no file. The list, the older sales and the collection each gained a file, +334 to +342: the build's re-splitting of a
+- **The manifest** grew 59 bytes for the route, which with the `import` lines of the new route is the +59 to +70 of the pages that gained no file. The list, the older sales and the collection each gained a file, +350 to +352: the build's re-splitting of a
   chunk that the new page shares with them, as each new route has caused ("The shell and vendor chunks" above).
-- **The NFT page** is 13,254 bytes under its budget. **The collection** is the tightest lookup page, 773 bytes under, the list's 1,134 next: a later NFT page that grows the shared table, chart or `Sentence` chunks should look at both.
+- **The NFT page** is 13,227 bytes under its budget. **The collection** is the tightest lookup page, 756 bytes under, the list's 1,118 next: a later NFT page that grows the shared table, chart or `Sentence` chunks should look at both.
 
 ## The parsing libraries in the Workers runtime
 

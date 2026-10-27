@@ -51,6 +51,7 @@ import {
   type NftPageInput,
   type NftPageMode,
 } from "./nft-view";
+import { searchOnOther } from "./search-view";
 import { UpstreamError } from "./upstream";
 
 // ---- The world of the tests -----------------------------------------------------------------------------------------------------------------------
@@ -848,11 +849,22 @@ describe("offerRows", () => {
 // ---- nftNotFound -----------------------------------------------------------------------------------------------------------------------------------
 
 describe("nftNotFound", () => {
-  it("offers the other network's search", () => {
-    expect(nftNotFound(XRPL, NFT_ID)).toEqual({ text: "We couldn't find NFT 00081388…2A91 on XRPL", otherHref: `/xahau/search?q=${NFT_ID}` });
-    expect(nftNotFound(XAHAU, URI_TOKEN_ID)).toEqual({ text: "We couldn't find URIToken 96133366…AAE9 on Xahau", otherHref: `/xrpl/search?q=${URI_TOKEN_ID}` });
-    // the network's name is the layout's
-    expect(nftNotFound(XRPL_TESTNET, NFT_ID).text).toBe("We couldn't find NFT 00081388…2A91 on XRPL Testnet");
+  const XAHAU_NAMED = { id: "xahau", name: "Xahau" } as const;
+  const XRPL_NAMED = { id: "xrpl", name: "XRPL" } as const;
+
+  it("is the phrase the not-found page writes its sentence round, and the other network's search", () => {
+    expect(nftNotFound(XRPL, NFT_ID, XAHAU_NAMED)).toEqual({ notFound: "NFT 00081388…2A91", suggestion: { href: `/xahau/search?q=${NFT_ID}`, label: "Search on Xahau" } });
+    expect(nftNotFound(XAHAU, URI_TOKEN_ID, XRPL_NAMED)).toEqual({ notFound: "URIToken 96133366…AAE9", suggestion: { href: `/xrpl/search?q=${URI_TOKEN_ID}`, label: "Search on XRPL" } });
+  });
+
+  it("names the other network as the environment does, so the sandbox says Testnet", () => {
+    expect(nftNotFound(XRPL_TESTNET, NFT_ID, { id: "xahau", name: "Xahau Testnet" }).suggestion).toEqual({ href: `/xahau/search?q=${NFT_ID}`, label: "Search on Xahau Testnet" });
+    expect(nftNotFound(XAHAU_TESTNET, URI_TOKEN_ID, { id: "xrpl", name: "XRPL Testnet" }).suggestion.label).toBe("Search on XRPL Testnet");
+  });
+
+  it("is the one search the other pages offer (searchOnOther), and has no sentence of its own to cut", () => {
+    expect(nftNotFound(XRPL, NFT_ID, XAHAU_NAMED).suggestion).toEqual(searchOnOther(NFT_ID, XAHAU_NAMED));
+    expect(Object.keys(nftNotFound(XRPL, NFT_ID, XAHAU_NAMED)).sort()).toEqual(["notFound", "suggestion"]);
   });
 });
 
@@ -970,7 +982,7 @@ describe.each([
   it("an id neither has: a 404 that offers the other network", async () => {
     const { id: nftId } = await nftCase(id, "missing");
     expect(nftModeOf(rejected(NOT_FOUND), rejected(NOT_FOUND))).toBe("none");
-    expect(nftNotFound(net, nftId).otherHref).toBe(`/${net.other}/search?q=${nftId}`);
+    expect(nftNotFound(net, nftId, { id: net.other, name: net.other }).suggestion.href).toBe(`/${net.other}/search?q=${nftId}`);
   });
 });
 
