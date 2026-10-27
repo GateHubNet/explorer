@@ -10,18 +10,22 @@ import { shortAddress, shortHash } from "../../domain/format";
 import { allSwitches } from "../../../test/support/switches";
 import { renderUnderNetwork } from "../../../test/support/under-network";
 import { noAmmPage } from "../../server/amm-view";
+import type { CoverageNoteText } from "../../server/coverage";
 import { THEME_STORAGE_KEY } from "../theme-script";
 import { AccountLink } from "./AccountLink";
 import { Amount } from "./Amount";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { Card } from "./Card";
 import { CopyButton } from "./CopyButton";
+import { CoverageNote } from "./CoverageNote";
 import { DataTable } from "./DataTable";
 import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { HashLink, LedgerLink } from "./HashLink";
 import { LinkedText } from "./LinkedText";
 import { NetworkSwitch } from "./NetworkSwitch";
+import { NftGlyph, collectionGlyph, nftGlyph } from "./NftGlyph";
+import { NftLink } from "./NftLink";
 import { Notice } from "./Notice";
 import { Pager } from "./Pager";
 import { PairCoins } from "./PairCoins";
@@ -1819,5 +1823,113 @@ describe("NoAmmPage, in the words of the network it is under", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Xahau has no AMM" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "See Xahau markets →" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Switch to XRPL pools" })).toBeTruthy();
+  });
+});
+
+describe("CoverageNote", () => {
+  const NOTE: CoverageNoteText = { before: "Covers ledger ", ledger: 96100001, after: " onwards: earlier NFT sales are not in the index yet." };
+
+  it("draws one faint line with the info icon, the ledger as a link to its page", () => {
+    renderInRouter(<CoverageNote net="xrpl" note={NOTE} />);
+    const note = screen.getByRole("note");
+    expect(note.className).toBe("coverage-note");
+    expect(note.textContent).toBe("Covers ledger #96,100,001 onwards: earlier NFT sales are not in the index yet.");
+    const link = within(note).getByRole("link", { name: "#96,100,001" });
+    expect(link.getAttribute("href")).toBe("/xrpl/ledger/96100001");
+    // The icon is decoration: the words are the note.
+    expect(note.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("links the ledger on the network it is under", () => {
+    renderInRouter(<CoverageNote net="xahau" note={NOTE} />);
+    expect(screen.getByRole("link", { name: "#96,100,001" }).getAttribute("href")).toBe("/xahau/ledger/96100001");
+  });
+
+  it("draws the line of an index with no history yet without a link", () => {
+    renderInRouter(<CoverageNote net="xrpl" note={{ before: "The index does not hold this history yet.", ledger: null, after: "" }} />);
+    expect(screen.getByRole("note").textContent).toBe("The index does not hold this history yet.");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("draws nothing for a complete coverage (null)", () => {
+    const { container } = renderInRouter(<CoverageNote net="xrpl" note={null} />);
+    expect(container.innerHTML).toBe("");
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+});
+
+describe("NftLink", () => {
+  const ID = "000813886E50B2960CF48DCB644E85B412C660B4E1B01A87C283F9E6066AB54B";
+  const on = { ...NO_FEATURES, nfts: true };
+
+  it("is a link to the NFT's page while NFTS is on: '#4,127' for a serial, the full id on hover", async () => {
+    renderUnderNetwork(<NftLink net="xrpl" id={ID} serial={4127} />, on);
+    const link = await screen.findByRole("link", { name: "#4,127" });
+    expect(link.getAttribute("href")).toBe(`/xrpl/nft/${ID}`);
+    expect(link.getAttribute("title")).toBe(ID);
+  });
+
+  it("is the short id in mono without a serial, on the network of the link", async () => {
+    renderUnderNetwork(<NftLink net="xahau" id={ID} />, on, { network: XAHAU });
+    const link = await screen.findByRole("link", { name: "00081388…B54B" });
+    expect(link.getAttribute("href")).toBe(`/xahau/nft/${ID}`);
+    expect(link.classList.contains("mono")).toBe(true);
+    expect(link.getAttribute("title")).toBe(ID);
+  });
+
+  it("writes a serial's digits in groups, as every number of a page", async () => {
+    renderUnderNetwork(<NftLink net="xrpl" id={ID} serial={1234567} />, on);
+    expect(await screen.findByRole("link", { name: "#1,234,567" })).toBeTruthy();
+  });
+
+  it("is plain text, with the same words and the full id in title, while NFTS is off", async () => {
+    const { container } = renderUnderNetwork(<NftLink net="xrpl" id={ID} />, { ...NO_FEATURES, nfts: false });
+    const text = await screen.findByText("00081388…B54B");
+    expect(container.querySelector("a")).toBeNull();
+    expect(text.getAttribute("title")).toBe(ID);
+    expect(text.classList.contains("mono")).toBe(true);
+    cleanup();
+    const { container: withSerial } = renderUnderNetwork(<NftLink net="xrpl" id={ID} serial={4127} />, { ...NO_FEATURES, nfts: false });
+    expect((await screen.findByText("#4,127")).getAttribute("title")).toBe(ID);
+    expect(withSerial.querySelector("a")).toBeNull();
+  });
+
+  it("is plain text outside the layout (NO_FEATURES)", () => {
+    const { container } = render(<NftLink net="xrpl" id={ID} />);
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toBe("00081388…B54B");
+  });
+});
+
+describe("NftGlyph", () => {
+  it("shows its characters, hidden from assistive technology, and large on request", () => {
+    const { container } = render(
+      <>
+        <NftGlyph chars="LU" />
+        <NftGlyph chars="27" large />
+      </>,
+    );
+    const [small, large] = Array.from(container.querySelectorAll(".nft-glyph"));
+    expect(small!.textContent).toBe("LU");
+    expect(small!.getAttribute("aria-hidden")).toBe("true");
+    expect(small!.classList.contains("nft-glyph--large")).toBe(false);
+    expect(large!.textContent).toBe("27");
+    expect(large!.getAttribute("aria-hidden")).toBe("true");
+    expect(large!.classList.contains("nft-glyph--large")).toBe(true);
+  });
+
+  it("gives a collection the issuer's characters 2 and 3", () => {
+    expect(collectionGlyph("rLULtFbMBnAbSVrGgQr5FeYD8Y5oRuLmB3R")).toBe("LU");
+    expect(collectionGlyph("rEvRt8Lk2PHhCBiLqhHhFnLzuMkL8UQbyH")).toBe("Ev");
+    expect(collectionGlyph("")).toBe("");
+  });
+
+  it("gives an NFT its serial's last two digits, zero-padded, else its id's first two characters", () => {
+    const ID = "A1F0813886E50B2960CF48DCB644E85B412C660B4E1B01A87C283F9E6066AB54";
+    expect(nftGlyph(ID, 4127)).toBe("27");
+    expect(nftGlyph(ID, 5)).toBe("05");
+    expect(nftGlyph(ID, 0)).toBe("00");
+    expect(nftGlyph(ID, 1234567)).toBe("67");
+    expect(nftGlyph(ID)).toBe("A1");
   });
 });

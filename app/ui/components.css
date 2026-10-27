@@ -1189,6 +1189,52 @@ a.tabs__item:hover {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
+   Coverage notes and NFT glyphs */
+
+/* What the index does not hold of a list's history: one faint line with the info icon, directly under the list or figure. The icon sits on the first line when the note wraps. */
+.coverage-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.coverage-note svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.coverage-note > span {
+  min-width: 0;
+}
+
+/* The two characters in front of a collection or an NFT (the board's glyph); capitals, whatever case the characters have in an address. Decoration: aria-hidden. */
+.nft-glyph {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.nft-glyph--large {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  font-size: 18px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
    Raw data (pages use these; the components come with their pages) */
 
 .code {

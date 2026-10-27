@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkCoverage } from "./coverage";
+import { checkCoverage, coverageNote } from "./coverage";
 import { UpstreamError } from "./upstream";
 
 // The coverage of an answer of the data API (data-api-new D3, docs/api-reference.md "Coverage"): the key after `result`.
@@ -57,5 +57,47 @@ describe("checkCoverage", () => {
     );
     expect(() => checkCoverage({ coverage: { complete: 1 } })).toThrow("the answer: coverage.complete is not a boolean");
     expect(() => checkCoverage({ coverage: { from_ledger_index: 0, complete: true } })).toThrow("the answer: coverage.from_ledger_index is not a positive whole number");
+  });
+});
+
+// What a list says of the history the index does not hold (spec 8): the line is made of three parts, so that the page can draw the ledger as a link.
+
+describe("coverageNote", () => {
+  it("is null when the coverage is complete, whatever else it holds", () => {
+    expect(coverageNote({ from_ledger_index: 75443457, complete: true }, "NFT sales")).toBeNull();
+    expect(coverageNote({ complete: true }, "NFT sales")).toBeNull();
+    expect(coverageNote({ from_ledger_index: 1, complete: true }, "events of this NFT", "This NFT's history")).toBeNull();
+  });
+
+  it("says where the history starts, in three parts around the ledger", () => {
+    expect(coverageNote({ from_ledger_index: 96100001, complete: false }, "NFT sales")).toEqual({
+      before: "Covers ledger ",
+      ledger: 96100001,
+      after: " onwards: earlier NFT sales are not in the index yet.",
+    });
+    expect(coverageNote({ from_ledger_index: 96100001, complete: false }, "collections")).toEqual({
+      before: "Covers ledger ",
+      ledger: 96100001,
+      after: " onwards: earlier collections are not in the index yet.",
+    });
+  });
+
+  it("starts with the subject when it is given, as on an NFT's page", () => {
+    expect(coverageNote({ from_ledger_index: 96100001, complete: false }, "events of this NFT", "This NFT's history")).toEqual({
+      before: "This NFT's history in the index starts at ledger ",
+      ledger: 96100001,
+      after: ": earlier events of this NFT are not in the index yet.",
+    });
+  });
+
+  it("gives a ledger that the index does not hold yet (the newest stored one plus 1) as any other", () => {
+    // D3: `from_ledger_index` is one above the newest ledger an older parser wrote, which can be the ledger after the newest stored one.
+    expect(coverageNote({ from_ledger_index: 107874618, complete: false }, "NFT activity")?.ledger).toBe(107874618);
+  });
+
+  it("says the index holds no history yet when no ledger is stored (no from_ledger_index), with or without a subject", () => {
+    const none = { before: "The index does not hold this history yet.", ledger: null, after: "" };
+    expect(coverageNote({ complete: false }, "NFT sales")).toEqual(none);
+    expect(coverageNote({ complete: false }, "events of this NFT", "This NFT's history")).toEqual(none);
   });
 });
