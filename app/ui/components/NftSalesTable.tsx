@@ -27,13 +27,14 @@ export function salesNote(net: NetworkId): string {
 }
 
 // The board's columns: the time 120 px so that the UTC date and the age hold on their lines, the NFT with its glyph and its short id under it, the collection, the price with its
-// conversion under it, the two accounts, the mode, and the royalty. `MIN_WIDTH` is the tracks at their least, the gaps (6 × 16 px) and the padding of a row (2 × 16 px), below
-// which the table scrolls sideways inside its card.
-const MIN_WIDTH = 120 + 170 + 170 + 150 + 220 + 100 + 120 + 6 * 16 + 2 * 16;
+// conversion under it, the two accounts, the mode, and the royalty. `MIN_WIDTH` is the tracks at their least, the gaps (16 px between two columns) and the padding of a row
+// (2 × 16 px), below which the table scrolls sideways inside its card; without the collection's column it is that column's track and its gap less.
+const COLLECTION_WIDTH = 170;
+const MIN_WIDTH = 120 + 170 + COLLECTION_WIDTH + 150 + 220 + 100 + 120 + 6 * 16 + 2 * 16;
 
-function columns(net: NetworkId): Column<NftSaleRow>[] {
+function columns(net: NetworkId, withCollection: boolean): Column<NftSaleRow>[] {
   const words = nftWords(net);
-  return [
+  const all: Column<NftSaleRow>[] = [
     {
       id: "time",
       header: "Time",
@@ -113,14 +114,27 @@ function columns(net: NetworkId): Column<NftSaleRow>[] {
       cell: (row) => <span className="mono num muted">{row.royalty ?? DASH}</span>,
     },
   ];
+  return withCollection ? all : all.filter((column) => column.id !== "collection");
 }
 
 /**
  * A table of sales as the NFT list's recent sales and the older sales show them (spec 2.1; a collection's Sales tab draws the same rows): the time, the NFT, the collection, the
  * price, seller → buyer, the mode and the royalty. The rows are the view builder's (`saleRows`): every field is text ready to show, and every href is made. `label` names the
  * table for screen readers, as its card's title does. The network is the layout's.
+ *
+ * `collection={false}` leaves the collection's column out, for a page that is that collection's own (spec 3.1: its Sales tab has no such column).
  */
-export function NftSalesTable({ label, rows, empty = "No sales in the index yet." }: { label: string; rows: readonly NftSaleRow[]; empty?: string }) {
+export function NftSalesTable({ label, rows, empty = "No sales in the index yet.", collection = true }: { label: string; rows: readonly NftSaleRow[]; empty?: string; collection?: boolean }) {
   const net = useNetwork().id;
-  return <DataTable label={label} columns={columns(net)} rows={rows} rowKey={(row) => row.key} minWidth={MIN_WIDTH} empty={empty} className="nfts__table" />;
+  return (
+    <DataTable
+      label={label}
+      columns={columns(net, collection)}
+      rows={rows}
+      rowKey={(row) => row.key}
+      minWidth={collection ? MIN_WIDTH : MIN_WIDTH - COLLECTION_WIDTH - 16}
+      empty={empty}
+      className="nfts__table"
+    />
+  );
 }

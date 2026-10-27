@@ -2,7 +2,7 @@ import { exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
-import { collectionsMarker, salesMarker } from "../support/nft-cases";
+import { collectionCase, collectionsMarker, salesMarker } from "../support/nft-cases";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 import { amendmentCase, validationsMarker, validatorCase } from "../support/validators-cases";
@@ -621,6 +621,72 @@ describe("the NFT list", () => {
     const tags = head((await page("/xahau/nfts/sales")).html);
     expect(tags.titles).toEqual(["URIToken sales · Xahau · explorer"]);
     expect(tags.content("robots")).toBe("noindex, follow");
+  });
+});
+
+describe("a collection's page", () => {
+  const OWNER = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+  const DESCRIPTION = (words: string, label: string, where: string) => `${words} collection ${label} on ${where}: its sales, ${words === "NFT" ? "NFTs" : "URITokens"} and holders.`;
+
+  it("has the tags of the first page: the collection's title, a description with no numbers of the data, a canonical URL, and no image", async () => {
+    const { issuer, taxon } = await collectionCase("xrpl", "featured");
+    const label = `${shortAddress(issuer)} · taxon ${taxon}`;
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/nfts/${issuer}/${taxon}`)).html);
+    expect(tags.titles).toEqual([`Collection ${label} · XRPL · explorer`]);
+    expect(tags.content("description")).toBe(DESCRIPTION("NFT", label, "the XRP Ledger"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}`]);
+    expect(tags.content("og:title")).toBe(`Collection ${label} · XRPL · explorer`);
+    expect(tags.content("og:description")).toBe(DESCRIPTION("NFT", label, "the XRP Ledger"));
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("og:image")).toBeUndefined();
+    expect(tags.content("twitter:image")).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("keeps the tab in the canonical URL unless it is the first", async () => {
+    const { issuer, taxon } = await collectionCase("xrpl", "featured");
+    for (const tab of ["nfts", "holders"]) {
+      mock = mockUpstream("xrpl");
+      const tags = head((await page(`/xrpl/nfts/${issuer}/${taxon}?tab=${tab}`)).html);
+      expect(tags.canonical, tab).toEqual([`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}?tab=${tab}`]);
+      expect(tags.content("og:url"), tab).toBe(`${ORIGIN}/xrpl/nfts/${issuer}/${taxon}?tab=${tab}`);
+      expect(tags.content("robots"), tab).toBeUndefined();
+      mock.restore();
+    }
+  });
+
+  it("is Xahau's on Xahau: URITokens of the issuer, with no taxon", async () => {
+    const { issuer } = await collectionCase("xahau", "featured");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/nfts/${issuer}`)).html);
+    expect(tags.titles).toEqual([`URITokens of ${shortAddress(issuer)} · Xahau · explorer`]);
+    expect(tags.content("description")).toBe(DESCRIPTION("URIToken", shortAddress(issuer), "Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/nfts/${issuer}`]);
+  });
+
+  it("is noindex, follow on another measure, a filter and a marker, with no canonical URL or sharing tags", async () => {
+    const { issuer, taxon } = await collectionCase("xrpl", "featured");
+    const label = `${shortAddress(issuer)} · taxon ${taxon}`;
+    const marker = await salesMarker("xrpl");
+    for (const [path, title] of [
+      [`/xrpl/nfts/${issuer}/${taxon}?measure=avg`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?tab=nfts&owner=${OWNER}`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?tab=nfts&burned=1`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?tab=nfts&owner=nope`, `Collection ${label} · XRPL · explorer`],
+      [`/xrpl/nfts/${issuer}/${taxon}?marker=${marker}`, `Older sales of ${label} · XRPL · explorer`],
+    ]) {
+      mock = mockUpstream("xrpl");
+      const tags = head((await page(path)).html);
+      expect(tags.titles, path).toEqual([title]);
+      expect(tags.content("robots"), path).toBe("noindex, follow");
+      expect(tags.canonical, path).toEqual([]);
+      for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+      mock.restore();
+    }
   });
 });
 

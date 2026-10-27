@@ -16,7 +16,7 @@ import { nftsMeta } from "../server/meta-nfts";
 import { anchoredWindow, seriesQuery } from "../server/network-view";
 import { requireNetwork } from "../server/network-route";
 import { nftsListPage, nftsMarkerPage } from "../server/nfts-view";
-import { redirectToCanonical } from "../server/pair-route";
+import { redirectToHref } from "../server/pair-route";
 import { UpstreamError } from "../server/upstream";
 import { NftsPage } from "../ui/pages/NftsPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
@@ -44,7 +44,7 @@ const ISSUER_ERROR = "Write a classic address (r…).";
  * - **Validation first** (spec 1.2, 1.3). `NFTS` off is the not-found page, a 404 of class `short`, for every view. Then a `marker` that is none is a 404 of class `short`, before
  *   the redirect, which would otherwise lead to a URL that holds it; so is a marker with an issuer that is no classic address (a page behind a marker is the collections table
  *   of a list that was asked for, and there is no such list to show a form error in front of). A path or a query that is not the canonical one is a 302 to the one URL
- *   (`redirectToCanonical`: class `immutable` for the path alone, `short` with the query). The path is React Router's `url` (the `.data` of the route's own request taken off)
+ *   (`redirectToHref`: class `immutable` for the path alone, `short` with the query). The path is React Router's `url` (the `.data` of the route's own request taken off)
  *   and the query the request's own text (`queryOf`: `_routes` dropped, nothing decoded), so the `.data` request of a canonical view answers its data. No call is made before
  *   these. An issuer on a first page that is no classic address is the form's error under the field, a 200 of class `short` with no call for the collections.
  * - **Five calls, side by side, all awaited** (spec 2.2): #1 `last_validated` (kept 2 s, the home page's key), #2 the live volume of the period, #3 the 30 days up to #1's day
@@ -71,12 +71,7 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   const issuerIsAddress = query.issuer === undefined || isValidClassicAddress(query.issuer);
   // A marker is checked before the redirect, which would otherwise lead to a URL that holds it.
   if (query.marker !== undefined && (!isMarker(query.marker) || !issuerIsAddress)) throw cached({ notFound: moreNotFound }, "short", { status: 404 });
-  const canonical = nftsHref(net.id, query);
-  const at = canonical.indexOf("?");
-  const tidied = redirectToCanonical(
-    { path: url.pathname, search: search === "" ? "" : `?${search}` },
-    { path: at < 0 ? canonical : canonical.slice(0, at), search: at < 0 ? "" : canonical.slice(at) },
-  );
+  const tidied = redirectToHref({ path: url.pathname, search }, nftsHref(net.id, query));
   if (tidied) return tidied;
 
   const { api } = clientsFor(context, net);

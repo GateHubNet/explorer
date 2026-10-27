@@ -14,9 +14,10 @@ export default [
     route("amm/:pool", "routes/net.amm.$pool.tsx"),
     // The pool of a pair: a redirect to `amm/:pool`, or a 404.
     route("amm/:base/:counter", "routes/net.amm.$base.$counter.tsx"),
-    // The NFT list and its older sales. `nfts/sales` is a static segment, ranked above the collection's `nfts/:issuer/:taxon?` that a later task adds.
+    // The NFT list, its older sales and a collection. `nfts/sales` is a static segment, ranked above the collection's `nfts/:issuer/:taxon?`.
     route("nfts", "routes/net.nfts._index.tsx"),
     route("nfts/sales", "routes/net.nfts.sales.tsx"),
+    route("nfts/:issuer/:taxon?", "routes/net.nfts.$issuer.$taxon.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

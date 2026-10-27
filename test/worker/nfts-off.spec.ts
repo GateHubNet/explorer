@@ -11,6 +11,7 @@ import { mockUpstream, type UpstreamMock } from "../support/upstream";
 const { get, page, storedAs } = pageClient("198.18.62");
 
 const SHORT = { cls: "short", ttl: 30 };
+const ISSUER = "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy";
 
 let mock: UpstreamMock | undefined;
 afterEach(() => {
@@ -37,6 +38,20 @@ describe("the NFT list and the older sales with NFTS off", () => {
     ["/xrpl/nfts/sales?marker=WzEwNzg4NjE2Myw4MywxXQ", "NFT", "XRPL"],
     ["/xrpl/nfts/sales?x=1", "NFT", "XRPL"],
     ["/xrpl/nfts/sales?marker=%25", "NFT", "XRPL"],
+    // A collection: a path that the page would redirect (the other network's form of the key, a taxon with leading zeros, a path in another case), one it would refuse (an issuer
+    // that is no address, a taxon that is none), and a view with a marker, a query to tidy and an owner that is no address.
+    [`/xrpl/nfts/${ISSUER}/1`, "NFT", "XRPL"],
+    ["/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb", "URIToken", "Xahau"],
+    [`/xrpl/nfts/${ISSUER}`, "NFT", "XRPL"],
+    [`/xrpl/nfts/${ISSUER}/01`, "NFT", "XRPL"],
+    [`/xahau/nfts/${ISSUER}/1`, "URIToken", "Xahau"],
+    [`/xrpl/NFTs/${ISSUER}/1`, "NFT", "XRPL"],
+    ["/xrpl/nfts/rBad/1", "NFT", "XRPL"],
+    [`/xrpl/nfts/${ISSUER}/4294967296`, "NFT", "XRPL"],
+    [`/xrpl/nfts/${ISSUER}/x`, "NFT", "XRPL"],
+    [`/xrpl/nfts/${ISSUER}/1?tab=holders&x=1`, "NFT", "XRPL"],
+    [`/xrpl/nfts/${ISSUER}/1?marker=%25`, "NFT", "XRPL"],
+    [`/xrpl/nfts/${ISSUER}/1?tab=nfts&owner=nope&marker=AAAA`, "NFT", "XRPL"],
   ])("answers %s with the not-found page, a 404 of class short, and asks nothing upstream", async (path, word, name) => {
     mock = mockUpstream(path.startsWith("/xahau") ? "xahau" : "xrpl");
     const response = await get(path);
@@ -52,6 +67,8 @@ describe("the NFT list and the older sales with NFTS off", () => {
   it.each([
     ["the list", "/xrpl/nfts.data?_routes=routes%2Fnet.nfts._index"],
     ["the older sales", "/xrpl/nfts/sales.data?_routes=routes%2Fnet.nfts.sales"],
+    ["a collection", `/xrpl/nfts/${ISSUER}/1.data?_routes=routes%2Fnet.nfts.%24issuer.%24taxon`],
+    ["a Xahau collection", "/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb.data?_routes=routes%2Fnet.nfts.%24issuer.%24taxon"],
   ])("answers the .data URL of %s (a client-side navigation) with a 404 too, and no call", async (_what, path) => {
     mock = mockUpstream("xrpl");
     const response = await get(path);

@@ -9,7 +9,7 @@ import { metaContext } from "../server/meta";
 import { nftSalesMeta } from "../server/meta-nft-sales";
 import { requireNetwork } from "../server/network-route";
 import { nftSalesPage } from "../server/nfts-view";
-import { redirectToCanonical } from "../server/pair-route";
+import { redirectToHref } from "../server/pair-route";
 import { UpstreamError } from "../server/upstream";
 import { NftSalesPage } from "../ui/pages/NftSalesPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
@@ -46,12 +46,7 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   const query = parseNftSalesParams(new URLSearchParams(search));
   // A marker is checked before the redirect, which would otherwise lead to a URL that holds it.
   if (query.marker !== undefined && !isMarker(query.marker)) throw cached({ notFound: moreNotFound }, "short", { status: 404 });
-  const canonical = nftSalesHref(net.id, query);
-  const at = canonical.indexOf("?");
-  const tidied = redirectToCanonical(
-    { path: url.pathname, search: search === "" ? "" : `?${search}` },
-    { path: at < 0 ? canonical : canonical.slice(0, at), search: at < 0 ? "" : canonical.slice(at) },
-  );
+  const tidied = redirectToHref({ path: url.pathname, search }, nftSalesHref(net.id, query));
   if (tidied) return tidied;
 
   const { api } = clientsFor(context, net);

@@ -2,10 +2,10 @@ import { env } from "cloudflare:workers";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { loader as listLoader } from "../../app/routes/net.nfts._index";
-import { edgeCacheKey } from "../../app/server/edge-cache";
-import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
-import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
+import { createLoadContext, type Env } from "../../app/server/env";
+import { elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { collectionsMarker, salesMarker } from "../support/nft-cases";
+import { alerts, expectDegraded, isNoindex, isStored, keysOf, linksTo, tiles, unavailable } from "../support/nft-pages";
 import { cold, storedEntries, keptFor } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 
@@ -42,48 +42,12 @@ afterAll(() => {
   vi.useRealTimers();
 });
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const unavailable = () => dataApiError(503, "unavailable");
-const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
-
-/** Whether the edge cache holds a copy of `path` now (for after the answer has been read; waits a moment for a store that is not wanted). */
-async function isStored(path: string) {
-  await sleep(120);
-  return (await caches.default.match(edgeCacheKey(`https://explorer.test${path}`, cacheGeneration(env)))) !== undefined;
-}
-
 /** The page at `path`: its status, headers and HTML. */
 async function render(path: string) {
   const response = await get(path);
   const html = await response.text();
   return { response, html, text: textOf(html) };
 }
-
-/** A degraded page: 200, never kept by the browser or the edge. */
-async function expectDegraded(path: string, response: Response) {
-  expect(response.status).toBe(200);
-  expect(response.headers.get("Cache-Control")).toBe("no-store");
-  expect(await isStored(path)).toBe(false);
-}
-
-/** Whether the head says `noindex, follow`, and has no canonical URL. */
-function isNoindex(html: string): boolean {
-  return /<meta name="robots" content="noindex, follow"\/?>/.test(html) && !/<link rel="canonical"/.test(html);
-}
-
-/** The four tiles of the totals: each one's label and figure. */
-function tiles(html: string) {
-  return [...html.matchAll(/<div class="stat stat--figure">([\s\S]*?)<\/div>/g)].map((match) => ({
-    label: elementText(match[1]!, "stat__label"),
-    value: elementText(match[1]!, "stat__value"),
-  }));
-}
-
-/** The `href` of each anchor with this text. */
-const linksTo = (html: string, text: string) => anchors(html).filter((a) => a.text === text).map((a) => /href="([^"]*)"/.exec(a.attrs)?.[1]?.replace(/&amp;/g, "&"));
-
-/** The number of `role="alert"` elements: one for each card that failed. */
-const alerts = (html: string) => (html.match(/role="alert"/g) ?? []).length;
 
 const collectionRows = (html: string) => tableRows(html, "Collections");
 const saleRows = (html: string) => tableRows(html, "Recent sales");

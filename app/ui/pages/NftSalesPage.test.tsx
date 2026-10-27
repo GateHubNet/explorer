@@ -1,15 +1,12 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { createMemoryRouter, Outlet, RouterProvider, type RouteObject } from "react-router";
+import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { coverageSample, nftSaleSample, nftSalesPageSample, NFT_ISSUER, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../../../test/support/nft-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
+import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountPage, routedPage } from "../../../test/support/under-network";
 import { shortAddress } from "../../domain/format";
 import type { NftSale } from "../../server/api-types";
-import type { PublicNetwork } from "../../server/network-route";
 import { nftSalesPage, type NftSalesPageData, type NftsNet } from "../../server/nfts-view";
-import { NO_FEATURES } from "../features";
-import { NETWORK_ROUTE_ID } from "../use-network";
 import { NftSalesPage } from "./NftSalesPage";
 
 afterEach(() => {
@@ -20,37 +17,6 @@ afterEach(() => {
 const XRPL: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" };
 const XAHAU: NftsNet = { id: "xahau", native: "XAH", longName: "Xahau" };
 
-const LAYOUT_XRPL: PublicNetwork = {
-  id: "xrpl",
-  kind: "mainnet",
-  name: "XRPL",
-  label: "XRPL mainnet",
-  longName: "the XRP Ledger",
-  dexName: "the XRP Ledger DEX",
-  native: "XRP",
-  ctidNetworkId: 0,
-  other: "xahau",
-  hasAmm: true,
-  software: "rippled",
-  displays: ["native", "usd"],
-  features: { ...NO_FEATURES, nfts: true },
-};
-const LAYOUT_XAHAU: PublicNetwork = {
-  ...LAYOUT_XRPL,
-  id: "xahau",
-  name: "Xahau",
-  label: "Xahau mainnet",
-  longName: "Xahau",
-  dexName: "the Xahau DEX",
-  native: "XAH",
-  ctidNetworkId: 21337,
-  other: "xrpl",
-  hasAmm: false,
-  software: "xahaud",
-  displays: ["native"],
-};
-const LAYOUT_XRPL_TESTNET: PublicNetwork = { ...LAYOUT_XRPL, kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", ctidNetworkId: 1, displays: ["native"] };
-
 const SALES: NftSale[] = [
   nftSaleSample({ amount: "1250", converted_amount: "1250", royalty_est: "62.5" }),
   nftSaleSample({ event_index: 2, tx_hash: "D".repeat(64), serial: 7, amount: "310", converted_amount: "310", royalty_est: "15.5", mode: "brokered" }),
@@ -59,22 +25,9 @@ const SALES: NftSale[] = [
 const build = (net: NftsNet = XRPL, query: { marker?: string; back: readonly string[] } = { back: [] }, over = {}): NftSalesPageData =>
   nftSalesPage(net, query, nftSalesPageSample({ sales: SALES, coverage: coverageSample({ complete: true }), ...over }));
 
-const underLayout = (children: RouteObject[], network: PublicNetwork): RouteObject[] => [
-  { id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network }), element: <Outlet />, children },
-];
-const layoutData = (network: PublicNetwork) => ({ [NETWORK_ROUTE_ID]: { network } });
+const mount = (data: NftSalesPageData, at = "/xrpl/nfts/sales", network = LAYOUT_XRPL) => mountPage(<NftSalesPage data={data} />, "sales", { at, network });
 
-function mount(data: NftSalesPageData, at = "/xrpl/nfts/sales", network = LAYOUT_XRPL) {
-  const router = createMemoryRouter(underLayout([{ id: "sales", path: "*", element: <NftSalesPage data={data} />, loader: () => null }], network), {
-    initialEntries: [at],
-    hydrationData: { loaderData: { ...layoutData(network), sales: null } },
-  });
-  return { router, ...render(<RouterProvider router={router} />) };
-}
-
-const routed = (data: NftSalesPageData, at = "/xrpl/nfts/sales", network = LAYOUT_XRPL) => (
-  <RouterProvider router={createMemoryRouter(underLayout([{ path: "*", element: <NftSalesPage data={data} /> }], network), { initialEntries: [at], hydrationData: { loaderData: layoutData(network) } })} />
-);
+const routed = (data: NftSalesPageData, at = "/xrpl/nfts/sales", network = LAYOUT_XRPL) => routedPage(<NftSalesPage data={data} />, { at, network });
 
 const texts = (nodes: Iterable<Element>) => [...nodes].map((node) => node.textContent);
 

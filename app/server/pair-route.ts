@@ -69,3 +69,13 @@ export function redirectToCanonical(
     headers: cacheClassHeaders(asked === wanted ? "immutable" : "short"),
   });
 }
+
+/**
+ * `redirectToCanonical` for a page whose params module writes its canonical URL as one `href` (`/xrpl/nfts?period=7day`, the `…Href` of the NFT pages): the 302 to `href`
+ * when the request is not it, else null. `request` is as `redirectToCanonical`'s (the raw path and the query, with or without its `?`); the href is split at its first `?`, its
+ * path and its query being the canonical ones.
+ */
+export function redirectToHref(request: { path: string; search: string }, href: string): Response | null {
+  const at = href.indexOf("?");
+  return redirectToCanonical(request, { path: at < 0 ? href : href.slice(0, at), search: at < 0 ? "" : href.slice(at) });
+}

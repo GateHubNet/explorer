@@ -1,6 +1,5 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { createMemoryRouter, Outlet, RouterProvider, type RouteObject } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,14 +17,12 @@ import {
   uriTokenCollectionSample,
 } from "../../../test/support/nft-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
+import { LAYOUT_XAHAU, LAYOUT_XRPL, mountPage, routedPage } from "../../../test/support/under-network";
 import { shortAddress } from "../../domain/format";
 import { addDays, windowOf } from "../../domain/window";
 import type { LastValidated, NftVolume, NftVolumeComponent, NftVolumeRow } from "../../server/api-types";
-import type { PublicNetwork } from "../../server/network-route";
 import { nftsListPage, nftsMarkerPage, type NftsListInput, type NftsNet, type NftsPageData } from "../../server/nfts-view";
 import { UpstreamError } from "../../server/upstream";
-import { NO_FEATURES } from "../features";
-import { NETWORK_ROUTE_ID } from "../use-network";
 import { NftsPage } from "./NftsPage";
 
 afterEach(() => {
@@ -37,37 +34,6 @@ afterEach(() => {
 
 const XRPL: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" };
 const XAHAU: NftsNet = { id: "xahau", native: "XAH", longName: "Xahau" };
-
-// The `/:net` layout above the page (`useNetwork()` and `useFeatures()` read its data), as the layout's loader gives it.
-const LAYOUT_XRPL: PublicNetwork = {
-  id: "xrpl",
-  kind: "mainnet",
-  name: "XRPL",
-  label: "XRPL mainnet",
-  longName: "the XRP Ledger",
-  dexName: "the XRP Ledger DEX",
-  native: "XRP",
-  ctidNetworkId: 0,
-  other: "xahau",
-  hasAmm: true,
-  software: "rippled",
-  displays: ["native", "usd"],
-  features: { ...NO_FEATURES, nfts: true },
-};
-const LAYOUT_XAHAU: PublicNetwork = {
-  ...LAYOUT_XRPL,
-  id: "xahau",
-  name: "Xahau",
-  label: "Xahau mainnet",
-  longName: "Xahau",
-  dexName: "the Xahau DEX",
-  native: "XAH",
-  ctidNetworkId: 21337,
-  other: "xrpl",
-  hasAmm: false,
-  software: "xahaud",
-  displays: ["native"],
-};
 
 const fulfilled = <T,>(value: T): PromiseFulfilledResult<T> => ({ status: "fulfilled", value });
 const rejected = (reason: unknown): PromiseRejectedResult => ({ status: "rejected", reason });
@@ -159,25 +125,10 @@ function listInput(over: Partial<NftsListInput> = {}): NftsListInput {
 
 const build = (over: Partial<NftsListInput> = {}): NftsPageData => nftsListPage(listInput(over));
 
-/** The routes of a page under the `/:net` layout, the layout's data given as hydration data so that the page draws at once, as the document does. */
-const underLayout = (children: RouteObject[], network: PublicNetwork): RouteObject[] => [
-  { id: NETWORK_ROUTE_ID, path: "/:net", loader: () => ({ network }), element: <Outlet />, children },
-];
-const layoutData = (network: PublicNetwork) => ({ [NETWORK_ROUTE_ID]: { network } });
-
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
-function mount(data: NftsPageData, at = "/xrpl/nfts", network = LAYOUT_XRPL) {
-  const loader = vi.fn(() => null);
-  const router = createMemoryRouter(underLayout([{ id: "nfts", path: "*", element: <NftsPage data={data} />, loader }], network), {
-    initialEntries: [at],
-    hydrationData: { loaderData: { ...layoutData(network), nfts: null } },
-  });
-  return { router, loader, ...render(<RouterProvider router={router} />) };
-}
+const mount = (data: NftsPageData, at = "/xrpl/nfts", network = LAYOUT_XRPL) => mountPage(<NftsPage data={data} />, "nfts", { at, network });
 
-const routed = (data: NftsPageData, at = "/xrpl/nfts", network = LAYOUT_XRPL) => (
-  <RouterProvider router={createMemoryRouter(underLayout([{ path: "*", element: <NftsPage data={data} /> }], network), { initialEntries: [at], hydrationData: { loaderData: layoutData(network) } })} />
-);
+const routed = (data: NftsPageData, at = "/xrpl/nfts", network = LAYOUT_XRPL) => routedPage(<NftsPage data={data} />, { at, network });
 
 const rowsOf = (name: string) => within(screen.getByRole("table", { name })).getAllByRole("row").slice(1);
 const cellsOf = (row: HTMLElement) => within(row).getAllByRole("cell");

@@ -9,7 +9,7 @@ import { staticClosure, valueImports } from "../support/value-imports";
 // of `app/server` (the marker alphabet, an import-free leaf, aside), of the describe and parse trees, of `domain/nft-id.ts`, of `domain/asset.ts` or of `ripple-*`. `nft-params.ts` and
 // `nft-link.ts` are among them, and so are the tags' builders, `meta-nfts.ts` and `meta-nft-sales.ts`: a page's `meta` is part of its route module. A type import is erased and costs nothing; a value import is
 // the bug. (The routes import the server for their loaders; React Router drops a loader and what only it uses from the browser's build, and `pnpm check:bundle` holds the result to
-// the budget, in `scripts/bundle-budget.ts`.) The list of pages grows with the NFT pages of a collection and of an NFT.
+// the budget, in `scripts/bundle-budget.ts`.) The list of pages grows with the NFT page of an NFT.
 
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
@@ -19,13 +19,13 @@ const SERVER_ONLY = [/\/server\//, /\/describe(\/|$)/, /\/parse(\/|$)/, /\/nft-i
 const serverOnly = (from: string) => SERVER_ONLY.some((pattern) => pattern.test(from));
 
 /** The files of the pages, the table they share, and the links and the params that the pages are made with. */
-const PAGE_FILES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/components/NftSalesTable.tsx", "domain/nft-params.ts", "domain/nft-link.ts"];
+const PAGE_FILES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/pages/NftCollectionPage.tsx", "ui/components/NftSalesTable.tsx", "domain/nft-params.ts", "domain/nft-link.ts"];
 
 /** The pages themselves, whose closure the charts are looked for in. */
-const PAGES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx"];
+const PAGES = ["ui/pages/NftsPage.tsx", "ui/pages/NftSalesPage.tsx", "ui/pages/NftCollectionPage.tsx"];
 
 /** The tags' builders, which the browser runs as the routes' `meta`. They are files of app/server that import nothing of it but `./meta`. */
-const META_FILES = ["server/meta-nfts.ts", "server/meta-nft-sales.ts"];
+const META_FILES = ["server/meta-nfts.ts", "server/meta-nft-sales.ts", "server/meta-nft-collection.ts"];
 
 /** What a file the browser loads may reach of the Worker's own files: the marker alphabet (`server/marker.ts`, an import-free leaf, which `parseTrail` reads markers with). */
 const LEAVES = ["server/marker.ts"];
@@ -69,8 +69,11 @@ describe("the files of the NFT pages that run in the browser", () => {
     expect(closure).toEqual(expect.arrayContaining(["ui/components/DataTable.tsx", "ui/components/Pager.tsx", "ui/components/NftSalesTable.tsx", "ui/components/CoverageNote.tsx"]));
   });
 
-  it("has the list draw the column chart and the bar list, and the older sales no chart at all", () => {
+  it("has the list draw the column chart and the bar list, the collection the column chart alone, and the older sales no chart at all", () => {
     expect(staticClosure(appDir, "ui/pages/NftsPage.tsx")).toEqual(expect.arrayContaining(["ui/charts/ColumnChart.tsx", "ui/charts/BarList.tsx", "ui/charts/ChartCard.tsx"]));
+    const collection = staticClosure(appDir, "ui/pages/NftCollectionPage.tsx");
+    expect(collection).toEqual(expect.arrayContaining(["ui/charts/ColumnChart.tsx", "ui/charts/ChartCard.tsx", "ui/charts/ChartTable.tsx"]));
+    expect(collection).not.toContain("ui/charts/BarList.tsx");
     expect(staticClosure(appDir, "ui/pages/NftSalesPage.tsx").filter((path) => path.startsWith("ui/charts/"))).toEqual([]);
   });
 

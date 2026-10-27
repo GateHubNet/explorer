@@ -4090,3 +4090,151 @@ a.markets__pair:hover .markets__name {
     font-size: 24px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   An NFT collection: /{net}/nfts/{issuer}[/{taxon}]. The page is a `.nfts` page (its column of rows, its tables, its form, its 44 px pagers); these are the header card, the owner
+   form's label and checkbox, the flags and the tabs' head. */
+
+/* The copy button's house target size (the board's is 30 px). */
+.nft-coll .copy {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* The header card: the large glyph beside the name and the facts. */
+.nft-coll__card {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 20px 22px;
+}
+
+.nft-coll__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nft-coll__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.nft-coll__title {
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* The issuer in full, the taxon and the mints: they wrap, inside an address on a phone, never past the card. */
+.nft-coll__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.nft-coll__fact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+  min-width: 0;
+}
+
+/* A link in a fact is at least 24 px high (WCAG 2.5.8). */
+.nft-coll__fact a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* The six stats: three to a row (two on a phone), so that the last row is not left with one tile; a figure longer than its tile wraps in it. */
+.nft-coll__stats .stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nft-coll__stats .stat__value {
+  overflow-wrap: anywhere;
+}
+
+/* The tabs, then the tab's source line at the end of the row (under them when there is no room); a page behind a marker has the source line alone. */
+.nft-coll__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nft-coll__tabs:not(:has(.tabs)) {
+  padding-block: 12px;
+}
+
+.nft-coll__tabs .tabs {
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* The owner form: its label is seen, and the checkbox's label is its target, 44 px high. */
+.nft-coll__label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.nft-coll__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.nft-coll__check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.nft-coll__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.nft-coll__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+@media (max-width: 720px) {
+  .nft-coll__stats .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .nft-coll__card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .nft-coll__title {
+    font-size: 22px;
+  }
+}
