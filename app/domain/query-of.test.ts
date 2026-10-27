@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { queryOf, queryValue } from "./query-of";
+import { queryOf, queryValue, trailPairs, withQuery } from "./query-of";
 
 describe("queryOf", () => {
   it("takes the raw query of a URL, without the question mark", () => {
@@ -44,5 +44,48 @@ describe("queryValue", () => {
       const value = queryValue(`a${String.fromCharCode(code)}b`);
       expect(new URL(`https://h/p?v=${value}`).search).toBe(`?v=${value}`);
     }
+  });
+});
+
+describe("trailPairs", () => {
+  it("is nothing without a marker: the first page has no trail, and a trail without a marker is none", () => {
+    expect(trailPairs(undefined, undefined)).toEqual([]);
+    expect(trailPairs(undefined, [])).toEqual([]);
+    expect(trailPairs(undefined, ["M1"])).toEqual([]);
+  });
+
+  it("is the marker alone behind a marker with no trail", () => {
+    expect(trailPairs("M1", undefined)).toEqual(["marker=M1"]);
+    expect(trailPairs("M1", [])).toEqual(["marker=M1"]);
+  });
+
+  it("is the marker, then the trail with its markers joined by a dot", () => {
+    expect(trailPairs("M3", ["M2"])).toEqual(["marker=M3", "back=M2"]);
+    expect(trailPairs("M3", ["M2", "M1"])).toEqual(["marker=M3", "back=M2.M1"]);
+  });
+
+  it("writes each marker with queryValue, so that nothing of it ends or splits a value", () => {
+    expect(trailPairs("a b&c=d", ["A+B=", "C/D", "x'y"])).toEqual(["marker=a%20b%26c%3Dd", "back=A%2BB%3D.C%2FD.x%27y"]);
+    expect(trailPairs("AB-cd_EF", ["A_b-C"])).toEqual(["marker=AB-cd_EF", "back=A_b-C"]);
+    expect(trailPairs("", [])).toEqual(["marker="]);
+  });
+
+  it("does not change the trail it is given", () => {
+    const back = ["M2", "M1"];
+    trailPairs("M3", back);
+    expect(back).toEqual(["M2", "M1"]);
+  });
+});
+
+describe("withQuery", () => {
+  it("is the path alone when the query is empty, and the path, a ? and the query otherwise", () => {
+    expect(withQuery("/xrpl/amm", "")).toBe("/xrpl/amm");
+    expect(withQuery("/xrpl/amm", "deleted=1")).toBe("/xrpl/amm?deleted=1");
+    expect(withQuery("/xrpl/nfts/sales", "marker=M3&back=M2.M1")).toBe("/xrpl/nfts/sales?marker=M3&back=M2.M1");
+  });
+
+  it("joins what trailPairs gives, as the params modules do", () => {
+    expect(withQuery("/xrpl/nfts", trailPairs("M3", ["M2", "M1"]).join("&"))).toBe("/xrpl/nfts?marker=M3&back=M2.M1");
+    expect(withQuery("/xrpl/nfts", trailPairs(undefined, ["M1"]).join("&"))).toBe("/xrpl/nfts");
   });
 });

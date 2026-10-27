@@ -5,6 +5,10 @@
 // periods, displays and hrefs: the build puts a module that several routes import in a chunk those routes share, and the network page's
 // params would then be loaded by every page that reads a query. network-params.ts re-exports `queryOf`, so the network, markets and other
 // routes keep importing it from there.
+//
+// It also holds the two pieces every params module writes its hrefs with, `trailPairs` and `withQuery`: the paged pages' trail (`marker`, `back`) and the
+// path-and-query join. They are written once here and not in each params module (the AMM pages', the NFT pages'), and this file imports nothing, so it adds
+// no file to any page.
 
 /**
  * The raw query of a URL, without the `?`, and without the pairs React Router adds to a data request (`_routes=…`). Left as it came
@@ -28,4 +32,20 @@ export function queryOf(url: string): string {
  */
 export function queryValue(text: string): string {
   return encodeURIComponent(text).replace(/'/g, "%27");
+}
+
+/**
+ * The pairs of a page trail, as a canonical query writes them: `marker`, then `back` (only behind a marker, and only a trail that is not empty), its markers
+ * joined by `.`. Every marker is written with `queryValue`. No marker is the first page, which has no trail: nothing.
+ */
+export function trailPairs(marker: string | undefined, back: readonly string[] | undefined): string[] {
+  if (marker === undefined) return [];
+  const pairs = [`marker=${queryValue(marker)}`];
+  if (back !== undefined && back.length > 0) pairs.push(`back=${back.map(queryValue).join(".")}`);
+  return pairs;
+}
+
+/** The path and the query (which has no `?`, and may be empty) as one URL. */
+export function withQuery(path: string, query: string): string {
+  return query === "" ? path : `${path}?${query}`;
 }

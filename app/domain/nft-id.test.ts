@@ -198,11 +198,35 @@ describe("uriText", () => {
     expect(uriText("C29F")).toEqual({ text: "C29F", decoded: false });
   });
 
+  it("gives the hex, not decoded, for text that is not printable: a format character, a line or paragraph separator", () => {
+    // U+202E is a right-to-left override: it would show what follows it reversed. U+200B is a zero-width space, U+2028 and U+2029 are line and paragraph separators.
+    expect(uriText("E280AE")).toEqual({ text: "E280AE", decoded: false });
+    expect(uriText("E2808B")).toEqual({ text: "E2808B", decoded: false });
+    expect(uriText("E280A8")).toEqual({ text: "E280A8", decoded: false });
+    expect(uriText("E280A9")).toEqual({ text: "E280A9", decoded: false });
+    expect(uriText("E2808E")).toEqual({ text: "E2808E", decoded: false });
+    expect(uriText("C2AD")).toEqual({ text: "C2AD", decoded: false });
+    expect(uriText("E2808D")).toEqual({ text: "E2808D", decoded: false });
+    const hexOfSpoof = bytesOf("ipfs://a") + "E280AE" + bytesOf("gpj.exe");
+    expect(uriText(hexOfSpoof)).toEqual({ text: hexOfSpoof, decoded: false });
+  });
+
+  it("keeps a leading byte order mark in the bytes it decodes, and so gives the hex: the text would not match the ledger's bytes", () => {
+    // EF BB BF is U+FEFF, which a decoder strips from the start of its input by default: "ipfs://x" would then stand for bytes it does not equal.
+    expect(uriText("EFBBBF697066733A2F2F78")).toEqual({ text: "EFBBBF697066733A2F2F78", decoded: false });
+    expect(uriText("EFBBBF")).toEqual({ text: "EFBBBF", decoded: false });
+    expect(uriText("41EFBBBF42")).toEqual({ text: "41EFBBBF42", decoded: false });
+    expect(uriText("efbbbf697066733a2f2f78")).toEqual({ text: "efbbbf697066733a2f2f78", decoded: false });
+  });
+
   it("decodes the characters next to the controls: a space, U+00A0 and U+00A1", () => {
     expect(uriText("20")).toEqual({ text: " ", decoded: true });
     expect(uriText("C2A0")).toEqual({ text: " ", decoded: true });
     expect(uriText("C2A1")).toEqual({ text: "¡", decoded: true });
     expect(uriText("7E")).toEqual({ text: "~", decoded: true });
+    // a combining mark and a variation selector are marks (Mn), not format characters
+    expect(uriText("65CC81")).toEqual({ text: "e\u0301", decoded: true });
+    expect(uriText("E29D8CEFB88F")).toEqual({ text: "\u274c\ufe0f", decoded: true });
   });
 
   it("decodes a URI of the longest length, 256 bytes", () => {

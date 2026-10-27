@@ -71,17 +71,24 @@ export const NFT_FLAG_LABELS: Record<NetworkId, readonly NftFlagLabel[]> = {
   xahau: [{ mask: 0x1, label: "Burnable by issuer", tag: "burnable" }],
 };
 
-/** Decodes bytes as UTF-8 and refuses what is not (a `TypeError`), instead of putting U+FFFD where a byte is wrong. */
-const UTF8 = new TextDecoder("utf-8", { fatal: true });
-/** A control character: C0 (U+0000 to U+001F), DEL and C1 (U+0080 to U+009F). */
-const CONTROL = /\p{Cc}/u;
+/**
+ * Decodes bytes as UTF-8 and refuses what is not (a `TypeError`), instead of putting U+FFFD where a byte is wrong. `ignoreBOM` keeps a leading byte order mark (EF BB BF) in the
+ * text it gives instead of stripping it, so that the text always stands for all the bytes it was made of.
+ */
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+/**
+ * What makes a text something other than printable text: a control character (Cc: C0, DEL and C1), a format character (Cf: the bidi overrides such as U+202E, the zero-width
+ * characters such as U+200B, the byte order mark U+FEFF, the soft hyphen), and the line and paragraph separators (Zl U+2028, Zp U+2029). Each is invisible or changes how the text
+ * around it is drawn.
+ */
+const NOT_PRINTABLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const HEX_BYTES = /^(?:[0-9a-fA-F]{2})*$/;
 
 /**
- * A URI as the ledger holds it (hex) in the words the pages show: the hex decoded as UTF-8 with a fatal decoder, `decoded: true` only when it decodes and holds no control
- * character (C0, DEL or C1); otherwise the hex as given and `decoded: false`. An empty URI is `{ text: "", decoded: false }`, and so is a text that is no hex (an odd number of
- * digits, a character that is no digit) as it is given. The text is text: it is no link whatever it says (`javascript:alert(1);`, `ipfs://…`), and the pages do not make one or fetch
- * it.
+ * A URI as the ledger holds it (hex) in the words the pages show: the hex decoded as UTF-8 with a fatal decoder that keeps a leading byte order mark, `decoded: true` only when it
+ * decodes and is printable text (spec 4.2): no control character (Cc), no format character (Cf: a bidi override, a zero-width space, the byte order mark) and no line or paragraph
+ * separator (Zl, Zp); otherwise the hex as given and `decoded: false`. An empty URI is `{ text: "", decoded: false }`, and so is a text that is no hex (an odd number of digits, a
+ * character that is no digit) as it is given. The text is text: it is no link whatever it says (`javascript:alert(1);`, `ipfs://…`), and the pages do not make one or fetch it.
  */
 export function uriText(hex: string): { text: string; decoded: boolean } {
   if (hex === "" || !HEX_BYTES.test(hex)) return { text: hex, decoded: false };
@@ -92,5 +99,5 @@ export function uriText(hex: string): { text: string; decoded: boolean } {
   } catch {
     return { text: hex, decoded: false };
   }
-  return CONTROL.test(text) ? { text: hex, decoded: false } : { text, decoded: true };
+  return NOT_PRINTABLE.test(text) ? { text: hex, decoded: false } : { text, decoded: true };
 }

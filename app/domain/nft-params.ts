@@ -13,7 +13,7 @@ import type { CollectionKey, NftPeriod, NftSort } from "../server/api-types";
 import { shortAddress, formatAmount } from "./format";
 import { collectionPath, nftPath } from "./nft-link";
 import { parseTrail } from "./paging";
-import { queryValue } from "./query-of";
+import { queryValue, trailPairs, withQuery } from "./query-of";
 
 // A page's path and the decision where an NFT link goes live in nft-link.ts, which the pages with an NFT or a collection link that are no NFT page load alone. `CollectionKey`,
 // `NftPeriod` and `NftSort` are declared in api-types.ts, so that the data API client imports nothing of the domain, and re-exported here for the pages.
@@ -148,19 +148,6 @@ export function parseCollectionParams(search: URLSearchParams): CollectionQuery 
 /** The view of an NFT's page a query names: `offers` is true only for `1`. */
 export function parseNftParams(search: URLSearchParams): NftQuery {
   return { offers: search.get("offers") === "1", ...trailOf(search) };
-}
-
-/** The pairs of a page trail: `marker`, then `back` (only behind a marker, and only a trail that is not empty), its markers joined by `.`. */
-function trailPairs(marker: string | undefined, back: readonly string[] | undefined): string[] {
-  if (marker === undefined) return [];
-  const pairs = [`marker=${queryValue(marker)}`];
-  if (back !== undefined && back.length > 0) pairs.push(`back=${back.map(queryValue).join(".")}`);
-  return pairs;
-}
-
-/** The path and the query (which has no `?`, and may be empty) as one URL. */
-function withQuery(path: string, query: string): string {
-  return query === "" ? path : `${path}?${query}`;
 }
 
 /**
