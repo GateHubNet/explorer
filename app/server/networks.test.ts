@@ -91,6 +91,11 @@ describe("networkOf", () => {
     expect(networkOf("xrpl", { ...env, AMM_PAGES: "on" }).features.ammPages).toBe(true);
     expect(networkOf("xahau", { ...env, AMM_PAGES: "on" }).features.ammPages).toBe(true);
     expect(networkOf("xrpl", { ...env, AMM_DATA: "on", MARKETS: "on", VALIDATORS: "on", ACCOUNT_ANALYTICS: "on" }).features.ammPages).toBe(false);
+    // NFTS likewise: off in this env, on for both networks when the env says so, and no other switch turns it on.
+    expect(networkOf("xrpl", env).features.nfts).toBe(false);
+    expect(networkOf("xrpl", { ...env, NFTS: "on" }).features.nfts).toBe(true);
+    expect(networkOf("xahau", { ...env, NFTS: "on" }).features.nfts).toBe(true);
+    expect(networkOf("xrpl", { ...env, AMM_DATA: "on", MARKETS: "on", VALIDATORS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on" }).features.nfts).toBe(false);
   });
 
   it("points each network at the other", () => {

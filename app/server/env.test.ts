@@ -79,10 +79,10 @@ describe("cacheGeneration", () => {
 
   it("names the environment in the generation", () => {
     expect(cacheGeneration({ ...env, ENVIRONMENT: "sandbox" })).toBe(
-      "test-build:sandbox:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off",
+      "test-build:sandbox:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,NFTS=off,VALIDATORS=off",
     );
     expect(cacheGeneration({ ...env, ENVIRONMENT: "production" })).toBe(
-      "test-build:production:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off",
+      "test-build:production:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,NFTS=off,VALIDATORS=off",
     );
   });
 
@@ -96,17 +96,23 @@ describe("cacheGeneration", () => {
     expect(cacheGeneration({ ...env, ENVIRONMENT: undefined as never })).toBe(cacheGeneration(env));
   });
 
-  it("names MARKETS=on after AMM_DATA and AMM_PAGES, and before VALIDATORS, in its sorted list", () => {
-    expect(cacheGeneration(env)).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
+  it("names MARKETS=on after AMM_DATA and AMM_PAGES, and before NFTS and VALIDATORS, in its sorted list", () => {
+    expect(cacheGeneration(env)).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=on,NFTS=off,VALIDATORS=off");
+  });
+
+  it("names NFTS between MARKETS and VALIDATORS, whichever value each has", () => {
+    expect(cacheGeneration({ ...env, NFTS: "on" })).toBe("test-build:development:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,NFTS=on,VALIDATORS=off");
+    expect(cacheGeneration({ ...env, MARKETS: "off", NFTS: "on", VALIDATORS: "on" })).toContain("MARKETS=off,NFTS=on,VALIDATORS=on");
+    expect(cacheGeneration({ ...env, NFTS: "on" })).not.toBe(cacheGeneration(env));
   });
 
   it("names ACCOUNT_ANALYTICS=on first after the environment, ahead of AMM_DATA", () => {
-    expect(cacheGeneration(env)).toBe("test-build:development:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
+    expect(cacheGeneration(env)).toBe("test-build:development:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,NFTS=off,VALIDATORS=off");
   });
 
   it("names AMM_PAGES between AMM_DATA and MARKETS, whichever value each has", () => {
     expect(cacheGeneration({ ...env, AMM_PAGES: "on" })).toBe(
-      "test-build:development:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=on,MARKETS=on,VALIDATORS=off",
+      "test-build:development:ACCOUNT_ANALYTICS=on,AMM_DATA=on,AMM_PAGES=on,MARKETS=on,NFTS=off,VALIDATORS=off",
     );
     expect(cacheGeneration({ ...env, AMM_DATA: "off", AMM_PAGES: "on" })).toContain("AMM_DATA=off,AMM_PAGES=on,MARKETS=on");
   });
@@ -118,10 +124,10 @@ describe("cacheGeneration", () => {
     expect(cacheGeneration({ ...env, VALIDATORS: "on" })).not.toBe(cacheGeneration(env));
     const markets = cacheGeneration({ ...env, MARKETS: "off" });
     expect(markets).not.toBe(cacheGeneration(env));
-    expect(markets).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=off,VALIDATORS=off");
+    expect(markets).toContain("AMM_DATA=on,AMM_PAGES=off,MARKETS=off,NFTS=off,VALIDATORS=off");
     const analytics = cacheGeneration({ ...env, ACCOUNT_ANALYTICS: "off" });
     expect(analytics).not.toBe(cacheGeneration(env));
-    expect(analytics).toBe("test-build:development:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,VALIDATORS=off");
+    expect(analytics).toBe("test-build:development:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=on,NFTS=off,VALIDATORS=off");
     const pages = cacheGeneration({ ...env, AMM_PAGES: "on" });
     expect(pages).not.toBe(cacheGeneration(env));
     expect(pages).toContain("AMM_PAGES=on");

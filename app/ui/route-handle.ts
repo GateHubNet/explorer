@@ -12,7 +12,7 @@
 import type { UIMatch } from "react-router";
 
 /** The sections of the header. Each sub-project that adds a header item with a page of its own widens it. */
-export type NavSection = "network" | "markets" | "amm";
+export type NavSection = "network" | "markets" | "amm" | "nfts";
 
 export interface NetworkRouteHandle {
   heroSearch?: boolean;

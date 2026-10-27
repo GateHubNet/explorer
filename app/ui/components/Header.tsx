@@ -23,14 +23,15 @@ import { ThemeToggle } from "./ThemeToggle";
 type NavItem = { label: string; to?: (net: NetworkBrief) => string; section?: NavSection; feature?: Feature };
 
 // Ledgers and Transactions lead to the home page's two lists, Network to the network page, Markets to the markets page while `MARKETS` is on, and AMM to
-// the AMM pools while `AMM_PAGES` is on (on both networks: Xahau's page says it has none). Markets and AMM are a label with a "soon" tag while their
-// switch is off.
+// the AMM pools while `AMM_PAGES` is on (on both networks: Xahau's page says it has none), and NFTs to the NFTs page while `NFTS` is on (on both networks).
+// Markets, AMM and NFTs are a label with a "soon" tag while their switch is off.
 const NAV: readonly NavItem[] = [
   { label: "Ledgers", to: (net) => `/${net.id}#${LATEST_LEDGERS_ID}` },
   { label: "Transactions", to: (net) => `/${net.id}#${LATEST_TRANSACTIONS_ID}` },
   { label: "Network", to: (net) => `/${net.id}/network`, section: "network" },
   { label: "Markets", to: (net) => `/${net.id}/markets`, section: "markets", feature: "markets" },
   { label: "AMM", to: (net) => `/${net.id}/amm`, section: "amm", feature: "ammPages" },
+  { label: "NFTs", to: (net) => `/${net.id}/nfts`, section: "nfts", feature: "nfts" },
 ];
 
 /** An href without its query and its fragment. */

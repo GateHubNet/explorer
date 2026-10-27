@@ -1350,6 +1350,88 @@ describe("Header and Shell", () => {
       });
     });
 
+    describe("NFTs, while NFTS is off and on", () => {
+      const NFT_ID = "000B013A95F14B0044F78A264E41713C64B5F89242540EE208C3098E00000D65";
+      const NFTS_ON = { ...NO_FEATURES, nfts: true };
+
+      /** The label of each item of the navigation, in order: a link's text, or a "soon" item's own label without its tag. */
+      function labelsOf(nav: ReturnType<typeof within>) {
+        return nav.getAllByRole("listitem").map((item: HTMLElement) => (item.querySelector(".nav-item.is-soon > span:first-child") ?? item.querySelector("a.nav-item"))!.textContent);
+      }
+
+      it("is the last item, after AMM, whether it is a link or the label", async () => {
+        expect(labelsOf(await renderHeaderWithFeatures(NFTS_ON))).toEqual(["Ledgers", "Transactions", "Network", "Markets", "AMM", "NFTs"]);
+        cleanup();
+        expect(labelsOf(await renderHeaderWithFeatures(featuresOf(allSwitches("on"))))).toEqual(["Ledgers", "Transactions", "Network", "Markets", "AMM", "NFTs"]);
+        cleanup();
+        expect(labelsOf(await renderHeaderWithFeatures(NO_FEATURES))).toEqual(["Ledgers", "Transactions", "Network", "Markets", "AMM", "NFTs"]);
+      });
+
+      it("is a label with a soon tag, not a link, without the layout's data (NO_FEATURES), even on an NFT page", () => {
+        const nav = renderHeaderAt("/xrpl/nfts", { navSection: "nfts" });
+        expectSoon(nav, "NFTs");
+        expect(nav.getByText("NFTs").closest(".nav-item.is-soon")).not.toBeNull();
+      });
+
+      it("is a label with a soon tag while NFTS is off, whatever the other switches are", async () => {
+        expectSoon(await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), nfts: false }), "NFTs");
+        cleanup();
+        // An NFT page names its section, but the item it would mark is a label: nothing is current.
+        const nav = await renderHeaderWithFeatures({ ...featuresOf(allSwitches("on")), nfts: false }, "/xrpl/nfts", { navSection: "nfts" });
+        expectSoon(nav, "NFTs");
+        expect(nav.queryAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toEqual([]);
+      });
+
+      it("links the NFTs page of the network while only NFTS is on, on either network", async () => {
+        const nav = await renderHeaderWithFeatures(NFTS_ON);
+        const link = nav.getByRole("link", { name: "NFTs" });
+        expect(link.getAttribute("href")).toBe("/xrpl/nfts");
+        expect(link.classList.contains("nav-item")).toBe(true);
+        expect(link.classList.contains("is-soon")).toBe(false);
+        expect(link.hasAttribute("aria-disabled")).toBe(false);
+        expect(link.hasAttribute("aria-current")).toBe(false);
+        expect(link.classList.contains("is-current")).toBe(false);
+        // The switches of the other items stay as they are: they are the labels.
+        expectSoon(nav, "Markets");
+        expectSoon(nav, "AMM");
+        cleanup();
+
+        renderUnderNetwork(<Header net={XAHAU} />, NFTS_ON, { network: XAHAU });
+        const xahau = within(await screen.findByRole("navigation", { name: "Main" }));
+        expect(xahau.getByRole("link", { name: "NFTs" }).getAttribute("href")).toBe("/xahau/nfts");
+      });
+
+      it('is the current page on the list, under any query: .is-current and aria-current="page"', async () => {
+        for (const path of ["/xrpl/nfts", "/xrpl/nfts?sort=supply", "/xrpl/nfts?marker=abc"]) {
+          const nav = await renderHeaderWithFeatures(NFTS_ON, path, { navSection: "nfts" });
+          const link = nav.getByRole("link", { name: "NFTs" });
+          expect(link.getAttribute("aria-current"), path).toBe("page");
+          expect(link.classList.contains("is-current"), path).toBe(true);
+          // The section is NFTs alone.
+          expect(nav.getByRole("link", { name: "Network" }).hasAttribute("aria-current")).toBe(false);
+          cleanup();
+        }
+      });
+
+      it('names the section on an NFT page with aria-current="true"', async () => {
+        const nav = await renderHeaderWithFeatures(NFTS_ON, `/xrpl/nft/${NFT_ID}`, { navSection: "nfts" });
+        const link = nav.getByRole("link", { name: "NFTs" });
+        expect(link.getAttribute("href")).toBe("/xrpl/nfts");
+        expect(link.getAttribute("aria-current")).toBe("true");
+        expect(link.classList.contains("is-current")).toBe(true);
+      });
+
+      it("is a plain link on a page that names no section, and on the AMM page", async () => {
+        const elsewhere = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/nfts");
+        expect(elsewhere.getByRole("link", { name: "NFTs" }).hasAttribute("aria-current")).toBe(false);
+        cleanup();
+        const amm = await renderHeaderWithFeatures(featuresOf(allSwitches("on")), "/xrpl/amm", { navSection: "amm" });
+        const nfts = amm.getByRole("link", { name: "NFTs" });
+        expect(nfts.hasAttribute("aria-current")).toBe(false);
+        expect(nfts.classList.contains("is-current")).toBe(false);
+      });
+    });
+
     it("links Network with every switch off, since it has none", async () => {
       const nav = await renderHeaderWithLayout(false);
       expect(nav.getByRole("link", { name: "Network" }).getAttribute("href")).toBe("/xrpl/network");

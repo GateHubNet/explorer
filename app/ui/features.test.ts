@@ -131,6 +131,36 @@ describe("the AMM_PAGES switch", () => {
   });
 });
 
+// NFTS (E8): the NFT pages, the header's NFTs link and every link into them (`nftLink`, `collectionLink`).
+describe("the NFTS switch", () => {
+  // Its place is the sixth, after E2's two, E3's MARKETS, E4's ACCOUNT_ANALYTICS and E5's AMM_PAGES. Checked as a prefix of both lists, not as their last entry,
+  // so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the sixth switch, after the five before it, and its feature is nfts", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS"];
+    expect(FEATURE_VARS.slice(0, 6)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("NFTS")).toBe(5);
+    expect(Object.keys(FEATURE_NAME).slice(0, 6)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("NFTS")).toBe(5);
+    expect(FEATURE_NAME.NFTS).toBe("nfts");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ NFTS: "on" }).nfts).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ NFTS: value }).nfts, String(value)).toBe(false);
+    expect(featuresOf({}).nfts).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.nfts).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ NFTS: "on" })).toEqual({ ...NO_FEATURES, nfts: true });
+    expect(featuresOf({ ...allSwitches("on"), NFTS: "off" }).nfts).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on" }).nfts).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

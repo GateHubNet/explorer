@@ -9,7 +9,7 @@ import { createDegradedMark, createSubrequestCache, type DegradedMark } from "./
  * What the Worker is configured with: `vars` and `ratelimits` of wrangler.jsonc, the two secrets
  * (`.dev.vars` locally) and `BUILD_ID`, which vite.config.ts adds to the vars of every build.
  *
- * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS` and `AMM_PAGES` are the switches (app/ui/features.ts lists them, README "Switches" says what each gates): each is "on"
+ * `VALIDATORS`, `AMM_DATA`, `MARKETS`, `ACCOUNT_ANALYTICS`, `AMM_PAGES` and `NFTS` are the switches (app/ui/features.ts lists them, README "Switches" says what each gates): each is "on"
  * or "off" in every environment of wrangler.jsonc, and the predeploy guard refuses a build where one is anything else.
  */
 export interface Env {
@@ -27,6 +27,7 @@ export interface Env {
   MARKETS: "on" | "off";
   ACCOUNT_ANALYTICS: "on" | "off";
   AMM_PAGES: "on" | "off";
+  NFTS: "on" | "off";
   VISITOR_LIMITER: RateLimit;
 }
 
@@ -34,7 +35,7 @@ const SORTED_SWITCHES = [...FEATURE_VARS].sort();
 
 /**
  * What the edge cache keys every page, image and `.data` URL with (`edgeCacheKey` in edge-cache.ts): `BUILD_ID`, the environment, and every
- * switch as `NAME=value`, sorted by name and joined by commas, the three parts after colons (`3f2a9c1:sandbox:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,MARKETS=off,VALIDATORS=off`).
+ * switch as `NAME=value`, sorted by name and joined by commas, the three parts after colons (`3f2a9c1:sandbox:ACCOUNT_ANALYTICS=off,AMM_DATA=off,AMM_PAGES=off,MARKETS=off,NFTS=off,VALIDATORS=off`).
  * A deploy with another commit or another switch value therefore never serves a copy stored under the old one, and nor does a Worker that moves
  * to another environment: the environment changes what a page says (the networks' names and facts), as a switch does. The environment is
  * `environmentOf(ENVIRONMENT)`, so a value that is none of the three keys as "development", the environment it shows. The subrequest cache
