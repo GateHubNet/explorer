@@ -10,6 +10,7 @@ import {
   isAmmGenerated,
   isAnalyticsGenerated,
   isMarketGenerated,
+  isNftGenerated,
   isSynthetic,
   isValidatorsGenerated,
   LEDGERS,
@@ -109,7 +110,11 @@ describe("every fixture file", () => {
   it("stays within the budget that keeps the set reviewable", () => {
     const bytes = (names: string[]) => names.reduce((sum, file) => sum + readFileSync(new URL(file, HTTP)).length, 0);
     expect(
-      bytes(files.filter((file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file) && !isValidatorsGenerated(file) && !isAmmGenerated(file))),
+      bytes(
+        files.filter(
+          (file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file) && !isValidatorsGenerated(file) && !isAmmGenerated(file) && !isNftGenerated(file),
+        ),
+      ),
     ).toBeLessThan(3.5 * 1024 * 1024);
     // The synthetic aggregates of the network page (about 2.3 MiB, a row to a line: four periods, two display currencies, three volumes) are
     // generated and reviewed as the generator, so they have a budget of their own; a later generator that adds files raises it with its data.
@@ -131,6 +136,11 @@ describe("every fixture file", () => {
     // (P2), which a later file raises with its data, never above 1.0 MiB.
     expect(bytes(files.filter(isAmmGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isAmmGenerated))).toBeLessThan(0.7 * 1024 * 1024);
+    // The NFT pages' files (scripts/nft-fixtures.ts, a row to a line: 1,207 files of 587,655 bytes, about 0.56 MiB, of which the XRPL NFTs' histories and offers are most: 278 XRPL and
+    // 20 Xahau NFTs have a detail, a history with and without the offer events, and their open offers; the three accounts' NFT lists and the nodes' answers are 8 KB) are reviewed as
+    // their generator too (C6), with a budget of their own, which a later file raises with its data, never above 1.0 MiB.
+    expect(bytes(files.filter(isNftGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isNftGenerated))).toBeLessThan(0.7 * 1024 * 1024);
   });
 });
 

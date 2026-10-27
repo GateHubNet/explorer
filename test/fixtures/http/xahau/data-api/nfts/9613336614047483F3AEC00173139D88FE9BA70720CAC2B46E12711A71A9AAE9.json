@@ -1,0 +1,30 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "nft": {
+    "burned": false,
+    "digest": "772B38763E8E603AEE9BBB2026B8E9B97537ECC8867E46D042630C0B326B8736",
+    "flags": 0,
+    "issuer": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+    "kind": "uritoken",
+    "last_sale": {
+      "amount": "4200",
+      "converted_amount": "4200",
+      "currency": "XAH",
+      "executed_time": "2026-10-24T15:36:02Z",
+      "ledger_index": 26763778,
+      "tx_hash": "01772F1C2E379A2213EDDFF939ABB3FE59C2B309244EC442EA1515761605C20C"
+    },
+    "nft_id": "9613336614047483F3AEC00173139D88FE9BA70720CAC2B46E12711A71A9AAE9",
+    "owner": "rBkEp8W1yhBGLrvHFKKyrmSvniMFVJbPPg",
+    "owner_since": {
+      "executed_time": "2026-10-24T15:36:02Z",
+      "ledger_index": 26763778,
+      "tx_hash": "01772F1C2E379A2213EDDFF939ABB3FE59C2B309244EC442EA1515761605C20C"
+    },
+    "sale_count": 1
+  },
+  "result": "success"
+}

@@ -1,0 +1,22 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "nft": {
+    "burned": false,
+    "digest": "41544176331C26CE3F6BCCED2AD05EF61FCCC89D35A150DAB6E16648DFE882A3",
+    "flags": 0,
+    "issuer": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+    "kind": "uritoken",
+    "nft_id": "D615854CB2571F4F2EB1F0B23944996187519BCC5CA4CB700C692917A76200A9",
+    "owner": "rAucmWmE8yiueemhmrGh5MyD2mNjXfpQp",
+    "owner_since": {
+      "executed_time": "2026-10-24T23:36:21Z",
+      "ledger_index": 26771798,
+      "tx_hash": "B8BCA413A8324F2DB7BF29BEA1995A6E7BF3C50D3468DBD4F29C4C12305EDE01"
+    },
+    "sale_count": 0
+  },
+  "result": "success"
+}

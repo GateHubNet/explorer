@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"rabtmgeRgKZPViZ7EukekShZMdMWjnKZEa","event":"burn","event_index":0,"executed_time":"2026-10-24T15:28:02Z","from":"rNHwpudeJfKbNmTpmXavWrNAoaWmFDeCsn","issuer":"rabtmgeRgKZPViZ7EukekShZMdMWjnKZEa","kind":"uritoken","ledger_index":26763629,"nft_id":"1C30EFF033DA2429D554BEE1B3F06E4D0B1443F3E8ECDB864076762AD97D9C58","tx_hash":"D24C749E4C64A1517AE1B1728100FB0FA60CD40887C444CDC4EC7996CA26D44D","tx_index":6,"tx_type":"URITokenBurn"}
+  ],
+  "result": "success"
+}

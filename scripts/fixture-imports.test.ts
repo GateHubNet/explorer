@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 // derived-trades.ts first, on purpose: it imports http-fixtures.ts, whose `generate()` joins the generators that import derived-trades.ts in turn
-// (amm-info-fixtures.ts, market-fixtures.ts, and amm-fixtures.ts by way of amm-derive.ts). Loaded in this order, a module of that cycle that read
+// (amm-info-fixtures.ts, market-fixtures.ts, and amm-fixtures.ts by way of amm-derive.ts). nft-fixtures.ts and nft-derive.ts do not import derived-trades.ts, but they import
+// http-fixtures.ts as the others do, and read nothing of it while they load either. Loaded in this order, a module of that cycle that read
 // derived-trades.ts while it was being made got nothing (Vitest) or a ReferenceError (Node): their lists are made at load time of nothing but their own
 // constants, and this file keeps it so.
 import { derivedExchanges, NATIVE } from "./derived-trades";
@@ -9,6 +10,7 @@ import { AMM_INFO_POOLS, ammInfoFixtures } from "./amm-info-fixtures";
 import { ammFixtures, FEATURED_POOLS } from "./amm-fixtures";
 import { compare, generate, readLedgers } from "./http-fixtures";
 import { marketFixtures } from "./market-fixtures";
+import { NFT_ACCOUNTS, NFT_CASE_TXS, NFT_SETS, nftFixtures } from "./nft-fixtures";
 
 describe("the fixture generators, loaded from derived-trades.ts", () => {
   it("have their constants whole: the XRP/RLUSD pool is the native currency and RLUSD", () => {
@@ -23,10 +25,18 @@ describe("the fixture generators, loaded from derived-trades.ts", () => {
     expect(Object.values(FEATURED_POOLS).every((pool) => typeof pool === "string")).toBe(true);
   });
 
+  // E8's NFT generator: its constants are whole too (none was read from another module of the cycle).
+  it("have the NFT generator's constants whole: the recorded sets, the three accounts of each network and the cases the featured and unowned NFTs are made from", () => {
+    expect(NFT_SETS).toEqual({ xrpl: "xrpl-nft", xahau: "xahau-nft" });
+    for (const accounts of Object.values(NFT_ACCOUNTS)) expect(Object.values(accounts).every((account) => /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(account))).toBe(true);
+    expect(NFT_CASE_TXS.xrpl).toEqual({ featured: "brokered_sale_royalty", unowned: "sell_offer_create" });
+    expect(NFT_CASE_TXS.xahau).toEqual({ featured: "uritoken_buy_above_ask", unowned: "uritoken_sell_offer_create" });
+  });
+
   it("generate the files `pnpm fixtures:sync` wrote, which loads them from http-fixtures.ts", () => {
     expect(derivedExchanges(readLedgers("xrpl")).length).toBeGreaterThan(0);
     const generated = generate();
-    for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures()]) expect(generated.get(path), path).toBe(text);
+    for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures(), ...nftFixtures()]) expect(generated.get(path), path).toBe(text);
     expect(compare(generated)).toEqual({ missing: [], changed: [], stale: [] });
   });
 });

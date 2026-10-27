@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC","amount":"150","broker":"rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC","broker_fee":"2.3835","converted_amount":"150","currency":"XRP","event":"sale","event_index":2,"executed_time":"2026-10-24T21:30:41Z","from":"rfivr3BK17R28wnVwpQQhSDvo2A2fmnEje","is_sell_offer":true,"issuer":"rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy","kind":"nftoken","ledger_index":107879497,"nft_id":"00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C9D848920A0669E96F","offer_id":"05BC61CFB58ABA8969C852FBF907CC687A442AD3ED64FB30EA41149ECD0F6780","royalty_est":"4.428495","serial":107604335,"taxon":0,"to":"rLCscV9iDJpvje4ZCKxGjYAMNtBA1Ltauk","tx_hash":"0FD0FDC75F37C1B1CCA1DE4517785B35422E3C81D6543ADA094B04A5DBC7E56C","tx_index":49,"tx_type":"NFTokenAcceptOffer"}
+  ],
+  "result": "success"
+}

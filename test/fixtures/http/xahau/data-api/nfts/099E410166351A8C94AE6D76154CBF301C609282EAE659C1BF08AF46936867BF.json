@@ -1,0 +1,30 @@
+{
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 26533927
+  },
+  "nft": {
+    "burned": false,
+    "digest": "DEFF6B5B0509266F4730849715FD58A84FA258C08A93E5C3D6E060710FD1BE44",
+    "flags": 0,
+    "issuer": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+    "kind": "uritoken",
+    "minted": {
+      "by": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+      "executed_time": "2026-10-21T13:29:11Z",
+      "ledger_index": 26689211,
+      "to": "r9gvUQxtV98nRAM26aknj4h6RXKyXCLMVS",
+      "tx_hash": "3D9B20E130D7498E98FB3499BD4C2AC4CCDB3D11FFBFEA8F9B7FB844DDF33426"
+    },
+    "nft_id": "099E410166351A8C94AE6D76154CBF301C609282EAE659C1BF08AF46936867BF",
+    "owner": "r9gvUQxtV98nRAM26aknj4h6RXKyXCLMVS",
+    "owner_since": {
+      "executed_time": "2026-10-21T13:29:11Z",
+      "ledger_index": 26689211,
+      "tx_hash": "3D9B20E130D7498E98FB3499BD4C2AC4CCDB3D11FFBFEA8F9B7FB844DDF33426"
+    },
+    "sale_count": 0,
+    "uri": "6F64696E73657965733A726176656E3A76323A3030346530313061"
+  },
+  "result": "success"
+}

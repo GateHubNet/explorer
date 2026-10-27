@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "offers": [
+    {"amount":"0.0011","amount_issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","created_ledger":26763618,"created_time":"2026-10-24T15:27:22Z","created_tx_hash":"4C4201626C7BB40DDA32C47EE94D52CBA933BC7145A48208567159BCC29725B2","currency":"EVR","is_sell_offer":true,"offer_id":"EB820E22AC2C706D6CB12B47ADBCDE886857E9A4E9F016648C1435FCBF15C1C0","owner":"rn1qrvsXLzA3D5Mrjrifv4Cxts6JxbY8xE"}
+  ],
+  "result": "success"
+}

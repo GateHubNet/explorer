@@ -1,0 +1,32 @@
+{
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 107874617
+  },
+  "nft": {
+    "burned": false,
+    "flags": 25,
+    "issuer": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+    "kind": "nftoken",
+    "minted": {
+      "by": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "executed_time": "2026-10-24T20:42:50Z",
+      "ledger_index": 107878781,
+      "to": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "tx_hash": "DFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6DC5F145"
+    },
+    "nft_id": "001900007438324FE86D08A8B9D4FB58FBABF72EAAD24B4412C5D5A00000000C",
+    "owner": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+    "owner_since": {
+      "executed_time": "2026-10-24T20:42:50Z",
+      "ledger_index": 107878781,
+      "tx_hash": "DFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6DC5F145"
+    },
+    "sale_count": 0,
+    "serial": 12,
+    "taxon": 7,
+    "transfer_fee": 0,
+    "uri": "68747470733A2F2F6E66742E6578616D706C652F72426257366964412F31322E6A736F6E3F763D32"
+  },
+  "result": "success"
+}

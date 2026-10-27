@@ -1,0 +1,14 @@
+{
+  "count": 4,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 26533927
+  },
+  "events": [
+    {"account":"rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto","amount":"1500","converted_amount":"1500","currency":"XAH","event":"sale","event_index":1,"executed_time":"2026-10-25T02:32:01Z","from":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","is_sell_offer":true,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26774724,"nft_id":"81077E1E37A5F15706A72E0EED45C75C33214FF123D9CA4714193ADC80327EEC","offer_id":"81077E1E37A5F15706A72E0EED45C75C33214FF123D9CA4714193ADC80327EEC","to":"rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto","tx_hash":"2B69EFC05F9677B927001BE64D46D58F77214316B2FC305BBDB3F07530BD50A7","tx_index":0,"tx_type":"URITokenBuy"},
+    {"account":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","amount":"1500","currency":"XAH","event":"offer_removed","event_index":0,"executed_time":"2026-10-25T02:32:01Z","is_sell_offer":true,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26774724,"nft_id":"81077E1E37A5F15706A72E0EED45C75C33214FF123D9CA4714193ADC80327EEC","offer_id":"81077E1E37A5F15706A72E0EED45C75C33214FF123D9CA4714193ADC80327EEC","removed_by":"sale","tx_hash":"2B69EFC05F9677B927001BE64D46D58F77214316B2FC305BBDB3F07530BD50A7","tx_index":0,"tx_type":"URITokenBuy"},
+    {"account":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","amount":"1500","currency":"XAH","event":"offer_create","event_index":0,"executed_time":"2026-10-24T23:36:21Z","is_sell_offer":true,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26771798,"nft_id":"81077E1E37A5F15706A72E0EED45C75C33214FF123D9CA4714193ADC80327EEC","offer_id":"81077E1E37A5F15706A72E0EED45C75C33214FF123D9CA4714193ADC80327EEC","tx_hash":"B9B3F49FFE73772BBC9380D0AA6B12E3A9DA6D3F2D101F71B8C592B5EF50E012","tx_index":1,"tx_type":"URITokenCreateSellOffer"},
+    {"account":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","event":"mint","event_index":0,"executed_time":"2026-10-24T20:35:00Z","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26768773,"nft_id":"81077E1E37A5F15706A72E0EED45C75C33214FF123D9CA4714193ADC80327EEC","to":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","tx_hash":"25E2977D8CE783CB03B27C493CF393FD2540FAA1ADD145C4DA33255DD4C43D17","tx_index":0,"tx_type":"URITokenMint","uri":"6F64696E73657965733A726176656E3A76323A3030346266323662"}
+  ],
+  "result": "success"
+}

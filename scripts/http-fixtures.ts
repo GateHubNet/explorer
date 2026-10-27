@@ -23,6 +23,10 @@
 // amm-derive.ts; PROVENANCE.md, "AMM answers"). These modules, and derived-trades.ts, import this one in turn, so nothing of theirs is used here before
 // `generate` is called, and none of them uses another's exports while it loads (scripts/fixture-imports.test.ts).
 //
+// The NFT pages' answers are nft-fixtures.ts's, derived by nft-derive.ts from the NFT ledgers D3 recorded (`ledgers/xrpl-nft/`, `ledgers/xahau-nft/`, read through `readLedgerSet`:
+// they are newer than the day the rest is dated to, so they are not among `SETS`, and their transactions are not served), around synthetic padding and holdings, and the nodes'
+// NFT answers; `generate` joins them too (PROVENANCE.md, "NFT answers"). Like the rest, those modules read nothing of this one while they load.
+//
 // `?binary=true` answers (`transactions/<HASH>@binary=true.json`) hold `tx` and `meta` as the hex of their serialization,
 // made here with ripple-binary-codec (a devDependency: the Worker never serializes). XRPL uses the codec's own definitions,
 // Xahau the ones recorded from a Xahau node (test/fixtures/definitions/xahau/server_definitions.json, see PROVENANCE.md).
@@ -39,6 +43,7 @@ import { ammInfoFixtures } from "./amm-info-fixtures";
 import { ANALYTICS_ROW_LISTS, analyticsFixtures } from "./analytics-fixtures";
 import { marketFixtures } from "./market-fixtures";
 import { networkFixtures } from "./network-fixtures";
+import { nftFixtures } from "./nft-fixtures";
 import { VALIDATORS_ROW_LISTS, validatorsFixtures } from "./validators-fixtures";
 
 export const LEDGERS = new URL("../test/fixtures/ledgers/", import.meta.url);
@@ -107,16 +112,24 @@ export interface RawLedger {
   };
 }
 
+const byLedgerIndex = (a: RawLedger, b: RawLedger): number => Number(a.ledger.ledger_index) - Number(b.ledger.ledger_index);
+
+/**
+ * The ledgers of one recorded set (a directory of test/fixtures/ledgers/), oldest first. The sets of `SETS` make up a network, and `readLedgers` reads them; a set that is not in
+ * `SETS` is read through this: the NFT sets (`xrpl-nft`, `xahau-nft`, scripts/nft-derive.ts) were recorded after T, the day the network's other answers are dated to, and are not
+ * served as ledgers or transactions (PROVENANCE.md, "NFT answers").
+ */
+export function readLedgerSet(set: string): RawLedger[] {
+  const dir = new URL(`${set}/`, LEDGERS);
+  return readdirSync(dir)
+    .filter((name) => name.endsWith(".json.gz"))
+    .map((file) => JSON.parse(gunzipSync(readFileSync(new URL(file, dir))).toString("utf8")) as RawLedger)
+    .sort(byLedgerIndex);
+}
+
 /** The ledgers of a network, from its recorded sets, oldest first. */
 export function readLedgers(net: NetworkName): RawLedger[] {
-  const ledgers: RawLedger[] = [];
-  for (const set of SETS[net]) {
-    const dir = new URL(`${set}/`, LEDGERS);
-    for (const file of readdirSync(dir).filter((name) => name.endsWith(".json.gz"))) {
-      ledgers.push(JSON.parse(gunzipSync(readFileSync(new URL(file, dir))).toString("utf8")) as RawLedger);
-    }
-  }
-  return ledgers.sort((a, b) => Number(a.ledger.ledger_index) - Number(b.ledger.ledger_index));
+  return SETS[net].flatMap(readLedgerSet).sort(byLedgerIndex);
 }
 
 /** The hashes the recordings' manifests name: one transaction per type found and per AMM case. */
@@ -350,11 +363,11 @@ export function fixtureText(value: unknown, rowLists: readonly string[] = []): s
 /**
  * Paths (below test/fixtures/http/) of files that hold account data and are written by hand, and of the order books that are recorded from the
  * public nodes (`node/book_offers/`, scripts/record-node-fixtures.ts); the generator leaves them all. An account's analytics answers (`stats/` and
- * `analytics/` below its directory) are not: analytics-fixtures.ts writes them (`isAnalyticsGenerated`).
+ * `analytics/` below its directory) are not: analytics-fixtures.ts writes them (`isAnalyticsGenerated`), nor are its NFTs (`nfts@…`, `isNftGenerated`).
  */
 export function isHandWritten(path: string): boolean {
   return (
-    (/^(xrpl|xahau)\/data-api\/accounts\//.test(path) && !isAnalyticsGenerated(path)) ||
+    (/^(xrpl|xahau)\/data-api\/accounts\//.test(path) && !isAnalyticsGenerated(path) && !isNftGenerated(path)) ||
     /^(xrpl|xahau)\/node\/(account_info|account_objects)\//.test(path) ||
     /^(xrpl|xahau)\/node\/server_state\.json$/.test(path) ||
     /^(xrpl|xahau)\/node\/book_offers\//.test(path)
@@ -403,6 +416,21 @@ export function isAmmGenerated(path: string): boolean {
  */
 export function isAnalyticsGenerated(path: string): boolean {
   return /^(xrpl|xahau)\/data-api\/accounts\/[^/]+\/(stats|analytics)\//.test(path);
+}
+
+/**
+ * Paths (below test/fixtures/http/) of the NFT pages' files that nft-fixtures.ts writes (E8): an NFT's answers (`data-api/nfts/<ID>.json`, `…/<ID>/history@…`, `…/<ID>/offers@…`),
+ * the NFTs an account holds (`data-api/accounts/<A>/nfts@…`, which `isHandWritten` leaves to the generator as it does an account's analytics answers) and the nodes' NFT answers
+ * (`node/nft_info/`, `node/nft_sell_offers/`, `node/nft_buy_offers/` and `node/ledger_entry/`, the Xahau URIToken entries; the is_burned answer among them is generated too).
+ * Reviewed in the generator, they have a size budget of their own (test/unit/http-fixtures.test.ts, left out of the budget of the recorded files), and
+ * test/unit/nft-fixtures.test.ts keeps this in step with the generator.
+ */
+export function isNftGenerated(path: string): boolean {
+  return (
+    /^(xrpl|xahau)\/data-api\/nfts\//.test(path) ||
+    /^(xrpl|xahau)\/data-api\/accounts\/[^/]+\/nfts@/.test(path) ||
+    /^(xrpl|xahau)\/node\/(nft_info|nft_sell_offers|nft_buy_offers|ledger_entry)\//.test(path)
+  );
 }
 
 /**
@@ -585,9 +613,9 @@ export function generate(): Map<string, string> {
     }
   }
 
-  // The markets pages' answers, the pools' amm_info answers and the AMM pages' answers, each in the layout its generator chose (fixtureText, with the rows of the
-  // markets and AMM lists one to a line). None may take the place of another generated file.
-  for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures()]) {
+  // The markets pages' answers, the pools' amm_info answers, the AMM pages' answers and the NFT pages' answers, each in the layout its generator chose (fixtureText, with the rows
+  // of the markets, AMM and NFT lists one to a line). None may take the place of another generated file.
+  for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures(), ...nftFixtures()]) {
     if (files.has(path)) throw new Error(`${path} is generated twice`);
     files.set(path, text);
   }

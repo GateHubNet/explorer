@@ -3,8 +3,6 @@
 
 import { encodeAccountID } from "ripple-address-codec";
 
-import type { NetworkId } from "../server/networks";
-
 /** An NFT id is 32 bytes: 64 hex digits, in either case. */
 const HEX_256 = /^[0-9a-fA-F]{64}$/;
 
@@ -59,9 +57,10 @@ export interface NftFlagLabel {
 
 /**
  * The flags each network's NFTs carry, in the order the details list them: an XRPL id holds `lsfBurnable`, `lsfOnlyXRP`, `lsfTransferable` and `lsfMutable` (`lsfTrustLine`, 0x4, is
- * not shown), a Xahau URIToken the burnable flag alone.
+ * not shown), a Xahau URIToken the burnable flag alone. Keyed by the two values of `NetworkId`, written out: the fixture scripts use this file, and their type-check project
+ * (tsconfig.node.json) does not have app/server/networks.ts.
  */
-export const NFT_FLAG_LABELS: Record<NetworkId, readonly NftFlagLabel[]> = {
+export const NFT_FLAG_LABELS: Record<"xrpl" | "xahau", readonly NftFlagLabel[]> = {
   xrpl: [
     { mask: 0x1, label: "Burnable by issuer", tag: "burnable" },
     { mask: 0x2, label: "Only XRP", tag: "only XRP" },

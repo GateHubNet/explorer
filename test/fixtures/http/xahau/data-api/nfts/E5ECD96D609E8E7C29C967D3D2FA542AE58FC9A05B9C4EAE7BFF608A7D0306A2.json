@@ -1,0 +1,29 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "nft": {
+    "burned": false,
+    "flags": 1,
+    "issuer": "r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj",
+    "kind": "uritoken",
+    "minted": {
+      "by": "r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj",
+      "executed_time": "2026-10-24T15:28:02Z",
+      "ledger_index": 26763629,
+      "to": "r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj",
+      "tx_hash": "4B53D75736A4FB2A1197357E2278F8BC5E4CA85C3E61522EBFEB42FA86F54F3B"
+    },
+    "nft_id": "E5ECD96D609E8E7C29C967D3D2FA542AE58FC9A05B9C4EAE7BFF608A7D0306A2",
+    "owner": "r4k1jdyThSDbPwbNrpiuqNCoRJ61y9N4Wj",
+    "owner_since": {
+      "executed_time": "2026-10-24T15:28:02Z",
+      "ledger_index": 26763629,
+      "tx_hash": "4B53D75736A4FB2A1197357E2278F8BC5E4CA85C3E61522EBFEB42FA86F54F3B"
+    },
+    "sale_count": 0,
+    "uri": "5A585A79624756686332564D56465941415141414341466E667279793932373566564D5653646979665650446A58366B786F41414C564359787741414141414141414141414141414141414141414141"
+  },
+  "result": "success"
+}

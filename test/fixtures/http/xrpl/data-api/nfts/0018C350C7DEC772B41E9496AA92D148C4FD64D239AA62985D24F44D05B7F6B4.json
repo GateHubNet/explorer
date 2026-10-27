@@ -1,0 +1,24 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "nft": {
+    "burned": false,
+    "flags": 24,
+    "issuer": "rKDFM3xaC3B7ijWkX4iHcMTcLFgxW2dK74",
+    "kind": "nftoken",
+    "nft_id": "0018C350C7DEC772B41E9496AA92D148C4FD64D239AA62985D24F44D05B7F6B4",
+    "owner": "r4Xgqy68ykjLEJAkFQ7EaFs8VEdSiWkSeX",
+    "owner_since": {
+      "executed_time": "2026-10-25T04:47:41Z",
+      "ledger_index": 107886163,
+      "tx_hash": "4559733030C4B8B8534FC620B46BCEBCDF318A94DAF1A3390C5B3CB3BB9F532A"
+    },
+    "sale_count": 0,
+    "serial": 95942324,
+    "taxon": 2,
+    "transfer_fee": 50000
+  },
+  "result": "success"
+}

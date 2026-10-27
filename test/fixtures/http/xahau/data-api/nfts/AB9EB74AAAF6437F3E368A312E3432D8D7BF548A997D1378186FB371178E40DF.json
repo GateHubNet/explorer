@@ -1,0 +1,21 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "nft": {
+    "burned": true,
+    "burned_at": {
+      "by": "rKXEKqg6V3rtiZZiJ97zHkm9Due5xrtRhW",
+      "executed_time": "2026-10-24T15:27:22Z",
+      "ledger_index": 26763618,
+      "tx_hash": "82BF1D1E762335802A0552A13414904B3350FA2CD1404D10A64763BF6B183BBA"
+    },
+    "flags": 1,
+    "issuer": "rKXEKqg6V3rtiZZiJ97zHkm9Due5xrtRhW",
+    "kind": "uritoken",
+    "nft_id": "AB9EB74AAAF6437F3E368A312E3432D8D7BF548A997D1378186FB371178E40DF",
+    "sale_count": 0
+  },
+  "result": "success"
+}

@@ -1,0 +1,32 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "nft": {
+    "burned": false,
+    "flags": 8,
+    "issuer": "rDeizxSRo6JHjKnih9ivpPkyD2EgXQvhSB",
+    "kind": "nftoken",
+    "last_sale": {
+      "amount": "0.000001",
+      "converted_amount": "0.000001",
+      "currency": "XRP",
+      "executed_time": "2026-10-24T20:42:30Z",
+      "ledger_index": 107878775,
+      "tx_hash": "695AC77970D720F644D8ED7EBB4C97DCC4093DC7EBFFE7A3984C87AC9D9E6DF9"
+    },
+    "nft_id": "000803E88ACAA32313BB87F729EF7DA56BD13C57BE46E3C8B0730F290481ED98",
+    "owner": "r47kUrvGHkHgxLi1KedaHzdUvbR9GTreEe",
+    "owner_since": {
+      "executed_time": "2026-10-24T20:42:30Z",
+      "ledger_index": 107878775,
+      "tx_hash": "695AC77970D720F644D8ED7EBB4C97DCC4093DC7EBFFE7A3984C87AC9D9E6DF9"
+    },
+    "sale_count": 1,
+    "serial": 75623832,
+    "taxon": 26,
+    "transfer_fee": 1000
+  },
+  "result": "success"
+}

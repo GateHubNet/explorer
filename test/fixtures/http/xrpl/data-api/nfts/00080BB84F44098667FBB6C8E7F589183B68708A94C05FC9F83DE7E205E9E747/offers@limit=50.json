@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "offers": [
+    {"amount":"700.001","created_ledger":107874617,"created_time":"2026-10-24T16:08:12Z","created_tx_hash":"6B8ECDBB9E927DB6A7AB00C6425D36C4E2E7215F7505281788812DF2C5EDC0F2","currency":"XRP","destination":"rpx9JThQ2y37FaGeeJP7PXDUVEXY3PHZSC","is_sell_offer":false,"offer_id":"B662693586E151FC07DE6ADC51F7BEDF79359CCAFF6639D8E9BB8E0DFA0117E8","owner":"rGENsWZnk2cv5aqWjzFEWxRpBnRKj4jvqL"}
+  ],
+  "result": "success"
+}

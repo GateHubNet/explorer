@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 107874617
+  },
+  "events": [
+    {"account":"r4Xgqy68ykjLEJAkFQ7EaFs8VEdSiWkSeX","event":"transfer","event_index":1,"executed_time":"2026-10-25T04:47:41Z","from":"riMCiWg8QBej6Y3osDVt3u8FJWo2ephuN","is_sell_offer":true,"issuer":"rKDFM3xaC3B7ijWkX4iHcMTcLFgxW2dK74","kind":"nftoken","ledger_index":107886163,"nft_id":"0018C350C7DEC772B41E9496AA92D148C4FD64D239AA62985D24F44D05B7F6B4","offer_id":"54BADD751BFBEA1B178D0E766506F9AA712AD1D453EDB165B1E8D78C4356FFE2","serial":95942324,"taxon":2,"to":"r4Xgqy68ykjLEJAkFQ7EaFs8VEdSiWkSeX","tx_hash":"4559733030C4B8B8534FC620B46BCEBCDF318A94DAF1A3390C5B3CB3BB9F532A","tx_index":17,"tx_type":"NFTokenAcceptOffer"}
+  ],
+  "result": "success"
+}

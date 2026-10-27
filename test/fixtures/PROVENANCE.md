@@ -19,7 +19,13 @@ last touched the source directory, which is the one that put these exact files t
 | `ledgers/xrpl/` (9 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/recorded/` | `75bea47e536ce4b0c4ce70d3bc70a40cb6f407d2` | `wss://s2.ripple.com` | 2026-10-15T11:53:06Z | 107671609 |
 | `ledgers/xrpl-amm/` (16 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/amm/` | `5418babdcebe24bc3545fd7cd1d1052342420d6b` | `wss://s2.ripple.com` | 2026-10-17T12:50:24Z | 107717584 |
 | `ledgers/xahau/` (6 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/recorded/` | `75bea47e536ce4b0c4ce70d3bc70a40cb6f407d2` | `wss://xahau.network` | 2026-10-15T12:28:12Z | 26541064 |
+| `ledgers/xrpl-nft/` (11 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/nft/` at D3's `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de` (`PIN`, see below) | `f4789b565ed866939cee34d4a728cc2eff928751` | `wss://s2.ripple.com` | 2026-10-26T16:05:15Z | 107918450 |
+| `ledgers/xahau-nft/` (9 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/uritoken/` at `PIN` | `ed8edd3fed57ac5b8b9cd120ae88e51a59f5a81b` | `wss://xahau.network` | 2026-10-26T15:30:01Z | 26811706 |
 | `runtime/amm-deposit.meta.json` | the metadata of AMMDeposit `83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B`, taken from `xrpl/recorded/107671558.json.gz` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` |
+
+The two `-nft` sets were copied later and from another checkout: D3's worktree, branch `feat/explorer-data-2`, commit `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de` (`PIN`), read with
+`git show` (`git -C <D3 worktree> show da5ce14:packages/shared/test/fixtures/<xrpl/nft|xahau/uritoken>/<file>`), byte for byte, the `.json.gz` ledgers and `manifest.json` only: not
+`server_definitions.json`, `server_info.json` or `FINDINGS.md`. They are newer than every other set (mainnet 2026-10-24 and 25, where the rest end on 2026-10-17): see "NFT answers".
 
 What each set holds (details in `data-api-new/packages/shared/test/fixtures/README.md`):
 
@@ -31,6 +37,12 @@ What each set holds (details in `data-api-new/packages/shared/test/fixtures/READ
   type and a note that says which pool moved and how; `txs` maps each hash to `{ledger, type, result}`.
 - `ledgers/xahau/`: one ledger per Xahau transaction type the recording looked for (ClaimReward, GenesisMint,
   Invoke, Remit, URITokenBuy, URITokenMint). `Import` and `SetHook` were not found in the window.
+- `ledgers/xrpl-nft/`: 11 ledgers, 107874617 to 107886233 (about 12 hours of 2026-10-24 and 25), each holding one named case of D3's NFT parser (a mint, with an offer, on behalf of
+  an issuer, with a page split; a burn, one that removes offers; a modify; a sell and a buy offer; a cancel; four sales: by a sell offer, by a buy offer, brokered with a royalty,
+  in an issued currency; a transfer with no price). The manifest's `cases` maps a case name to its ledger, hash, transaction type and a note; `txs` maps each hash to
+  `{ledger, type, result}`. The ledgers hold 121 `NFTokenCreateOffer`s, 12 mints, 5 accepts, 8 cancels, a burn pair and a modify.
+- `ledgers/xahau-nft/`: 9 ledgers, 26533927 to 26774724 (2026-10-21 to 25), the cases of D3's URIToken parser (a mint, a sell offer made and cancelled, a `URITokenBuy`, a burn that
+  removes an offer, a `Remit` that moves a token, a `Remit` that mints one, a burn and a re-mint of one id). `uritoken_mint_with_offer` was not found.
 
 To add a transaction that is not here (the plan's later tasks may need one), record it in `data-api-new` with
 `record-fixtures --txs <hash>`, copy the new ledger file and the merged manifest the same way, and add its row above.
@@ -84,7 +96,8 @@ So are the accounts' answers for the Analytics tab (`data-api/accounts/<address>
 aggregates").
 The validators and amendments pages' files are synthetic too ("Synthetic validators and amendments"). The AMM pages' files (`data-api/amm/`) and the featured pools'
 `amm_info` answers are derived from the recorded pools ("AMM answers"), but for the pool page's day rows, the pairs' AMM-only candles and the live AMM volume, which are
-synthetic (the same section, "The synthetic part").
+synthetic (the same section, "The synthetic part"). The NFT pages' files (`data-api/nfts/`, `data-api/accounts/<address>/nfts@…`, `node/nft_info/`, `node/nft_sell_offers/`,
+`node/nft_buy_offers/`, `node/ledger_entry/`) are derived from the two `-nft` sets, around some synthetic and hand-made parts ("NFT answers").
 
 The account page asks the node for `account_objects` with `limit: 400` (the largest page), and a fixture is found by all the
 parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
@@ -538,3 +551,110 @@ and each week against its days, the reserves' walk against the candles and the r
 computed range of every page of days, and the key orders.
 `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes. `isAmmGenerated` (`scripts/http-fixtures.ts`) names the files, which have a size budget
 of their own in `test/unit/http-fixtures.test.ts` (231 files, 709,489 bytes, about 0.68 MiB, of which the 39 synthetic files are 516,361 bytes).
+
+## NFT answers: `http/<net>/data-api/nfts/`, `…/accounts/<address>/nfts@…` and the nodes' `nft_info`, `nft_sell_offers`, `nft_buy_offers` and `ledger_entry`
+
+The data API's answers (D3: `GET /v2/nfts/{id}`, its `/history` and `/offers`, `GET /v2/accounts/{address}/nfts`) and the nodes' answers for the NFTs the index lacks (E8, the NFT pages).
+Not recorded: worked out from the NFT ledgers D3 recorded (`ledgers/xrpl-nft/`, `ledgers/xahau-nft/`, above), as D3's index would hold them, around some synthetic and hand-made parts
+below. Generated by `generate()` (`pnpm fixtures:sync`), from `scripts/nft-derive.ts` (the port) and `scripts/nft-fixtures.ts` (the files), which `scripts/http-fixtures.ts` joins
+as it joins the AMM pages' generator. The ledgers are read through `readLedgerSet` and are not among `SETS`: they are newer than T (2026-10-17, the UTC day of the newest ledger of
+the other sets, which `last_validated`, the lists of ledgers and transactions and every synthetic aggregate follow), so they are not served as ledgers or as transactions, and
+`last_validated` stays where it was. **The events keep their recorded times**, 2026-10-24 and 25 on XRPL and 2026-10-21 to 25 on Xahau, after T; so a link from an NFT's page to the
+ledger or the transaction of one of its events is a 404 in the fixtures.
+
+### The port
+
+`PIN` is `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de`, D3's `feat/explorer-data-2` (data-api-new), read with `git show <PIN>:<path>`, never checked out or imported:
+
+| Path at `PIN` | Last changed in | For |
+|---|---|---|
+| `packages/shared/src/parsers/nft.parser.ts` | `f4789b5` | the events of a transaction (§2), as D3's controller rulings amended them (below) |
+| `packages/shared/src/aggregate/nft-state.ts` | `4a5740c` | `foldNftEvents`: the owner, the burn, the URI, the sales and the creation of an NFT from its events |
+| `apps/api/src/nft/nft-objects.ts` | `6532806` | the objects (`toNftObject`, `toNftEventObject`, `toNftOfferObject`), their key orders and which keys are left out |
+| `apps/api/src/nft/nfts.service.ts` | `d0c1ab0` | the open offers: the newest event of each `offer_id` among the offer events, kept when it is an `offer_create`, newest first; the per-NFT coverage from the first event |
+| `apps/api/src/common/feature-coverage.service.ts` | `86391c4` | `itemCoverage`: the feature's coverage, complete also when the item's creation is indexed |
+| `packages/shared/src/query/nft-prices.ts` | `6532806` | the converted price of a sale: a price in the native currency is itself |
+| `packages/shared/src/parsers/nft.parser.spec.ts`, `packages/shared/test/synthetic-tec-expired-accept.ts` | `f4789b5` | the expected events of every recorded case (`test/unit/nft-fixtures.test.ts` writes them down again), and `synthetic-tec-expired-accept` |
+| `docs/api-reference.md` ("NFTs", "Coverage") | `da5ce14` | the key orders, the coverage rules, the examples the tests compare with |
+
+The amendments the port has: a failed (`tec`) transaction gives only its deleted `NFTokenOffer` nodes, each an `offer_removed` by `other` (rippled deletes the expired offers a failed
+accept met; the recorded Xahau `URITokenMint` that failed, `tecINSUFFICIENT_RESERVE`, touches no URIToken and gives no event); the before ids of a modified or deleted `NFTokenPage` are
+its `PreviousFields.NFTokens` when it has them, else its `FinalFields.NFTokens` (the neighbour of a split changes only a link); `removed_by` is named by the removing transaction
+(`sale`, `burn`, `transfer`, else `other`); an MPT amount skips its event and counts it; an `Amount` added to a URIToken, which is not in `PreviousFields`, is an `offer_create` only in a
+`URITokenCreateSellOffer`, and a `URITokenMint` whose entry leaves out a native zero offers it at the transaction's `Amount`. What is not ported, because no fixture reads it: the
+roles an event gives an account (the account history, `GET /v2/accounts/{address}/nft_history`, which no page shows), and the owners an NFT ever had.
+
+Where the port differs from the data API: **a sale in an issued currency has no `converted_amount`** (the data API converts it at the issued asset's rate of the day, `native_rates_daily`,
+which the recordings do not give: the XRPlay and EVR sales are the "no rate that day" state), and a sale in the native currency is its own price.
+
+What the recordings give: XRPL 275 NFTs and 295 events (131 offers created, 137 cancelled, 12 mints, 7 removals, 4 sales, a transfer, 2 burns and a modify), Xahau 18 URITokens and 26
+events; with the synthetic parts below, 278 NFTs and 326 events on XRPL, 20 and 51 on Xahau. 12 of the recorded XRPL NFTs and 4 of the Xahau ones start with their mint (15 and 6
+with the holdings below): the others' histories start in the middle.
+
+### The files
+
+| Files below `http/<net>/` | What |
+|---|---|
+| `data-api/nfts/<ID>.json` | `{ result, coverage, nft }` for each NFT |
+| `data-api/nfts/<ID>/history@descending=true&limit=20.json`, `…&event=mint,burn,modify,sale,transfer&limit=20.json` (each also `…&marker=<M>.json` when it has a second page) | the whole history, and the history without the offer events (what the NFT page asks for unless it shows them), newest first, 20 to a page; a marker is the base64url JSON `[ledger_index, tx_index, event_index]` of the last row |
+| `data-api/nfts/<ID>/offers@limit=50.json` | the open offers (an empty list for an NFT with none) |
+| `data-api/accounts/<A>/nfts@limit=20.json` | the NFTs an account holds, ordered by collection (issuer, taxon) and serial, a last sale without `converted_amount` (D3's list rule); for the three hand-written accounts of each network, empty for the deleted and the never-funded ones |
+| XRPL `node/nft_info/<ID>.json`, `node/nft_sell_offers/<ID>@limit=50.json`, `node/nft_buy_offers/<ID>@limit=50.json`; Xahau `node/ledger_entry/<ID>.json` | the nodes' answers below |
+
+1,207 files, 587,655 bytes (about 0.56 MiB): XRPL 1,121 files of 518,680 bytes (1,113 of 278 NFTs: a detail, two histories and the offers each, and the featured NFT's second page; 3 account
+lists; 5 node answers), Xahau 86 of 68,975 (81 of 20 NFTs, 3 lists, 2 node answers). They
+are `isNftGenerated` in `scripts/http-fixtures.ts`, which `isHandWritten` leaves to the generator (an account's directory is hand-written, but for its analytics answers and these), and they
+have a size budget of their own in `test/unit/http-fixtures.test.ts` (at most 1.0 MiB, outside the recorded files'). A row of a list is a line (`fixtureText`'s `rowLists`: `events`, `offers`,
+`nfts`).
+
+**Coverage.** A per-NFT file (the detail, the history with and without the offer events, the offers) has D3's item coverage over the recorded world: `from_ledger_index` is the first
+recorded ledger of the set (XRPL 107874617, Xahau 26533927; D3 never sends `{ complete: true }` alone) and `complete` is whether the NFT's first indexed event is its mint
+(`itemCoverage`); an account's list has the feature's: the same ledger and `complete: false`, which is also what the upstream mock answers an address it has no file for
+(`NFT_COVERAGE` in `test/support/upstream-core.ts`: unchanged, the sets start where D3's examples do; `test/unit/nft-fixtures.test.ts` compares the two pages). D3 would not
+send a complete coverage beside these incomplete files for the same recordings, so the synthetic aggregates that come later (collections, sales, volume) are invented answers with a
+coverage of their own, not D3's rule over these.
+
+### The synthetic parts (seeded with `mulberry32(seedOf(<net>, "nfts", <what>))`, `scripts/synthetic.ts`)
+
+- **The featured NFT** (`brokered_sale_royalty`'s on XRPL, `00190BB8…E96F`; `uritoken_buy_above_ask`'s on Xahau, `96133366…AAE9`) has older offer events (`"padding"`) before its first recorded
+  one, so that its history has two pages (no recorded NFT has more than three events: Ruling 6) and its `marker` file exists. Each takes the place of a transaction of one of the
+  recorded ledgers before the sale (a random ledger and transaction index in it, its time the ledger's close time, its hash drawn). XRPL, 24 events: ten offers made and cancelled
+  (four sell offers of the seller relisting it, six bids), two bids that stay open (the first expired an hour after it was made, which is before the recordings end; the second lasts a
+  year), and last the creation of the two offers the recorded sale removed, with their recorded owners, amounts and destinations: the history then has 27 events (20 and 7) and the offers
+  file the two open bids; the filtered history is the sale alone. Xahau, 20 events: the owner listing the token, relisting it and cancelling the offer, ending with the offer at 4,200 XAH
+  that the recorded sale removed (a URIToken has one sell offer, all of its events name the token as the offer, so none is open after the sale): 22 events, 20 and 2.
+- **The active account's holdings** (C12; `"holdings"`): the account of `holderCase` (`rBbW6id…` on XRPL, `rHktfGU…` on Xahau) has no NFT in the recordings, so its list and the NFT pages of
+  what it holds are seeded, each NFT with a history of its own in the recorded ledgers. XRPL, three: two of the featured NFT's collection (one minted by its issuer, listed for 20 XRP and
+  bought by the account, the issuer being the seller so no royalty; one minted to the account), and one the account issued itself (taxon 7) and changed the URI of. Xahau, two: a token
+  of the featured token's issuer, minted, listed at 1,500 XAH and bought by the account, and one the account issued itself. Their ids are computed (XRPL `encodeNftId`; a URIToken's
+  is the SHA-512Half of `0x0055`, the issuer and the URI, which every recorded token's is), their URIs are `https://nft.example/…` (and `odinseyes:raven:v2:00…` for the issuer who
+  uses it), their digests drawn.
+- **The hand-made node answers** (`"node"`), in Clio's and xahaud's shapes with `validated: true`: XRPL `nft_info` of the NFT without an owner (`sell_offer_create`'s, `00081388…B54B`:
+  the node's owner is the owner of its sell offer, the only account that could have made one, and its `ledger_index` is before the index began; its URI is made up); `nft_info`
+  of a token of the recorded `NFTokenPage` nodes that no event of the index names (the first by id with a URI, `00010000…02FD`: its owner is its page's, its `ledger_index` the
+  recorded ledger of the page, its URI the page's) with one `nft_sell_offers` and one `nft_buy_offers` offer (made up: 60 XRP asked of one account; 47.7 USD bid until 5 days after
+  the recordings end); and `nft_info` of a burned NFT the index has never seen (`is_burned: true`, a made-up serial of the collection `rGxWAW…` with taxon 500, no URI). Xahau
+  `ledger_entry` of the unowned URIToken (`uritoken_sell_offer_create`'s, `35B8D528…E93D`: owner of its offer, the offer in drops, the digest of its events, a made-up URI) and of a token
+  the index lacks (the featured token's issuer's, owned by an account of the recordings, no offer). Anything else the node answers `objectNotFound` (XRPL) or `entryNotFound` (Xahau),
+  as `test/support/upstream-core.ts` does. Xahau has no burned counterpart: a burned URIToken is no ledger entry, so `network-burned` is XRPL's alone.
+
+### The cases of the pages
+
+`test/support/nft-cases.ts` (`nftCase`, `holderCase`) finds an NFT of each case in the committed files by the predicates of `test/support/nft-case-rules.ts`, never from a table of ids; the
+unit test checks that they resolve to the NFTs of D3's cases:
+
+| Case | Rule | XRPL | Xahau |
+|---|---|---|---|
+| `featured` | the NFT with a second page of history | `brokered_sale_royalty`'s | `uritoken_buy_above_ask`'s |
+| `burned` | burned by the account that held it, the shortest history first | `burn`'s | `uritoken_burn_with_offer`'s (Xahau has no `burn` case: its other burned tokens were burned by their issuers) |
+| `unowned` | indexed with no owner, not burned, and the node has it | `sell_offer_create`'s | `uritoken_sell_offer_create`'s |
+| `network` | the node has it, the index does not | the recorded page's token | the made-up token |
+| `network-burned` | the node says it is burned, the index has never seen it | the made-up burned NFT | none |
+| `missing` | no file anywhere: the featured NFT's collection's next serial (XRPL), its id with another last digits (Xahau) | | |
+
+**What keeps them true.** `test/unit/nft-fixtures.test.ts` checks the port against D3's expected events of every recorded case (15 XRPL and 8 Xahau cases, and the non-case
+transactions D3's spec names), D3's rules over every transaction of the recordings (the counts of its FINDINGS), the controller rulings one by one (`synthetic-tec-expired-accept` as a
+`deriveNfts` case, a failed transaction, an `AccountDelete`'s removals, a deleted page that merged forward, a link-only page, MPT amounts, the URIToken offer gate and a free mint's
+offer, the royalty's rounding), the fold, the open offers, the coverage, the featured NFT's pages and padding, the holdings, the reference's key orders on the objects before
+serialization, the client's shape checks on every answer, the cases, and that `isNftGenerated` names the files and nothing else. `test/worker/nft-fixtures.spec.ts` reads them in the
+Workers runtime with the data API client and the node client, the requests being theirs. `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.

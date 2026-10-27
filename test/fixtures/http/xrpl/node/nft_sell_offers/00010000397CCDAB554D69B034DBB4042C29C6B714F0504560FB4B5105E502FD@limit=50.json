@@ -1,0 +1,10 @@
+{
+  "result": {
+    "nft_id": "00010000397CCDAB554D69B034DBB4042C29C6B714F0504560FB4B5105E502FD",
+    "offers": [
+      {"amount":"60000000","destination":"rMypxDVEYvyaLfAK3mXJxuNGucQE5LbEUC","flags":1,"nft_offer_index":"80C89943155001109F35EFA8E982B4F3DED9095B00075454F2BF1CBEABFF9E92","owner":"r4Xgqy68ykjLEJAkFQ7EaFs8VEdSiWkSeX"}
+    ],
+    "status": "success",
+    "validated": true
+  }
+}

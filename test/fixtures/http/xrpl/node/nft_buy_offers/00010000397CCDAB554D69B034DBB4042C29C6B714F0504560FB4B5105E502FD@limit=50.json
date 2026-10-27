@@ -1,0 +1,10 @@
+{
+  "result": {
+    "nft_id": "00010000397CCDAB554D69B034DBB4042C29C6B714F0504560FB4B5105E502FD",
+    "offers": [
+      {"amount":{"currency":"USD","issuer":"rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq","value":"47.7"},"expiration":846651131,"flags":0,"nft_offer_index":"141B8DA9B4495F91B3182815B78B1A3EE5D1C5CA56F85D4895B97B7398A4C0A8","owner":"rJiqtpemL4AHFKqEeKtY1LE6hhXt4MiZiv"}
+    ],
+    "status": "success",
+    "validated": true
+  }
+}

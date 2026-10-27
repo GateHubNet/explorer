@@ -1,0 +1,15 @@
+{
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "nft": {
+    "burned": false,
+    "flags": 1,
+    "issuer": "rn1qrvsXLzA3D5Mrjrifv4Cxts6JxbY8xE",
+    "kind": "uritoken",
+    "nft_id": "EB820E22AC2C706D6CB12B47ADBCDE886857E9A4E9F016648C1435FCBF15C1C0",
+    "sale_count": 0
+  },
+  "result": "success"
+}
