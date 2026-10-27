@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../domain/ctid";
 import { dropsToNative, shortAddress, shortHash } from "../domain/format";
+import { shortNftId } from "../domain/nft-params";
 import type { TxJson, TxMeta } from "../domain/parse/types";
 import type { TxBinary, TxObject, TxStoredJson } from "./api-types";
 import type { NodeTx } from "./node-rpc";
@@ -29,6 +30,8 @@ const PAYMENT = "AACAFCFEBB5C970049A576CBFE6EF544A47EE3ADBA99122FA43234D18D5FFD4
 const SWAP = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
 const KILLED = "D05D52934A382E975B131A3E729CDA7CA3C59E94CE9F3DC3DC91A6ADFC5C140F";
 const REMIT = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF";
+// A recorded NFTokenMint: the page of its minter gained the NFT 00081388…E758.
+const MINT = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
 
 const XRPL = { native: "XRP", ctidNetworkId: 0 } as const;
 const XAHAU = { native: "XAH", ctidNetworkId: 21337 } as const;
@@ -151,6 +154,34 @@ describe("plainText", () => {
         { t: "text", v: " AMM pool." },
       ]),
     ).toBe(`${shortAddress("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh")} paid 1,250.5 RLUSD through the XRP/RLUSD AMM pool.`);
+  });
+});
+
+describe("plainText with an NFT", () => {
+  const ID = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
+
+  it("writes an NFT as its short id (shortNftId), never as 'undefined'", () => {
+    expect(
+      plainText([
+        { t: "account", v: "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV" },
+        { t: "text", v: " minted NFT " },
+        { t: "nft", v: ID },
+        { t: "text", v: ", taxon 500." },
+      ]),
+    ).toBe(`${shortAddress("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV")} minted NFT ${shortNftId(ID)}, taxon 500.`);
+    expect(shortNftId(ID)).toBe("00081388…E758");
+  });
+
+  it("writes it the same with a serial: the text of the summary and the link-preview card has no '#serial'", () => {
+    expect(plainText([{ t: "nft", v: ID, serial: 4127 }])).toBe("00081388…E758");
+  });
+
+  it("is the summary of a recorded NFTokenMint's page, which the title and the link-preview card carry", () => {
+    const data = page(MINT);
+    expect(data.summary).toBe(`${shortAddress("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV")} minted NFT 00081388…E758, taxon 500, transfer fee 5%.`);
+    expect(data.summary).not.toMatch(/undefined/);
+    expect(data.sentence.some((segment) => segment.t === "nft" && segment.v === ID)).toBe(true);
+    expect(data.details.find((detail) => detail.label === "NFT")).toStrictEqual({ label: "NFT", value: [{ t: "nft", v: ID }] });
   });
 });
 

@@ -1,7 +1,7 @@
 import BigNumber from "bignumber.js";
 import { describe, expect, it } from "vitest";
 import { allTxs, loadManifest, loadTx, type FixtureSet } from "../../../test/support/ledgers";
-import { accountsCreated, ammHops, balanceChanges, objectsTouched } from "./index";
+import { acceptedNftId, accountsCreated, ammHops, balanceChanges, createdUriTokenIds, mintedNftIds, objectsTouched } from "./index";
 import type { AmmHop, Native, TxMeta } from "./types";
 
 const SETS: FixtureSet[] = ["xrpl", "xrpl-amm", "xahau"];
@@ -467,6 +467,156 @@ describe("the parsers", () => {
         expect(Array.isArray(ammHops(meta, native))).toBe(true);
         expect(Array.isArray(objectsTouched(meta))).toBe(true);
         expect(Array.isArray(accountsCreated(meta))).toBe(true);
+      }
+    }
+  });
+});
+
+// The NFT ids a transaction's metadata tells (app/domain/parse/nft-ids.ts), against the ids D3's own cases expect
+// (test/unit/nft-fixtures.test.ts, written down from the recorded transactions, not from these helpers).
+describe("the NFT ids of a transaction", () => {
+  const caseOf = (set: "xrpl-nft" | "xahau-nft", name: string) => loadTx(set, loadManifest(set).cases[name].hash);
+
+  /** The NFT each recorded case is about: D3's expected events name it. */
+  const ID = {
+    mint: "0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A",
+    mintWithOffer: "00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255FBE9F0F960655EBFA",
+    mintOnBehalf: "001861A86D2DF313DD3688E9B156F47B99A8C80F4692DF244CEB911005FC3176",
+    splitMint: "00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255F79ED9C910655EBF7",
+    soldBySellOffer: "00081388EA968E3C54EE59C8FFBAF0944A3B8AD4797AB032EF22952605AD2A91",
+    soldByBuyOffer: "000803E88ACAA32313BB87F729EF7DA56BD13C57BE46E3C8B0730F290481ED98",
+    brokered: "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C9D848920A0669E96F",
+    soldForIssued: "00081388048ECA9BA1C412A6BFFEEA29E21873E92DE6B3F3EA90AAA805041E13",
+    transferred: "0018C350C7DEC772B41E9496AA92D148C4FD64D239AA62985D24F44D05B7F6B4",
+    uriMinted: "E87FD7E7FDACFA2CE1DC37AD805A7295F84459D4911EAC79160F0D9E34BB6520",
+    uriRemitMinted: "099E410166351A8C94AE6D76154CBF301C609282EAE659C1BF08AF46936867BF",
+    uriReminted: "E5ECD96D609E8E7C29C967D3D2FA542AE58FC9A05B9C4EAE7BFF608A7D0306A2",
+  };
+
+  describe("mintedNftIds", () => {
+    it.each([
+      ["mint", ID.mint],
+      ["mint_with_offer", ID.mintWithOffer],
+      ["mint_on_behalf", ID.mintOnBehalf],
+      // The page that gains the id is split: the new page holds half of the old one's tokens, which are not minted.
+      ["page_split_with_mint", ID.splitMint],
+    ])("gives exactly the NFT that %s minted", (name, id) => {
+      expect(mintedNftIds(caseOf("xrpl-nft", name).meta)).toEqual([id]);
+    });
+
+    it.each(["burn", "burn_removes_offers", "modify", "sell_offer_create", "buy_offer_create", "offer_cancel", "sale_by_sell_offer", "sale_by_buy_offer", "brokered_sale_royalty", "sale_issued_currency", "transfer_zero_amount"])(
+      "gives none for %s: no id is new over the union of the pages",
+      (name) => {
+        expect(mintedNftIds(caseOf("xrpl-nft", name).meta)).toEqual([]);
+      },
+    );
+
+    it("gives none for a Payment, or on Xahau", () => {
+      expect(mintedNftIds(loadTx("xrpl-amm", ACCOUNT_CREATING_PAYMENT).meta)).toEqual([]);
+      expect(mintedNftIds(caseOf("xahau-nft", "uritoken_mint").meta)).toEqual([]);
+    });
+
+    // The ids of the pages are compared as a whole (D3 §2.1): a page that only changed its links (no `NFTokens` among its
+    // `PreviousFields`) held what it holds, and a page's previous array is `PreviousFields.NFTokens` when it has one.
+    const ID_A = "00081388AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA00000001";
+    const ID_B = "00081388AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA00000002";
+    const ID_C = "00081388AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA00000003";
+    const token = (id: string) => ({ NFToken: { NFTokenID: id } });
+    const page = (change: "CreatedNode" | "ModifiedNode" | "DeletedNode", fields: Record<string, unknown>, previous?: Record<string, unknown>): TxMeta["AffectedNodes"][number] =>
+      ({
+        [change]: {
+          LedgerEntryType: "NFTokenPage",
+          LedgerIndex: "AB".repeat(32),
+          ...(change === "CreatedNode" ? { NewFields: fields } : { FinalFields: fields }),
+          ...(previous ? { PreviousFields: previous } : {}),
+        },
+      }) as TxMeta["AffectedNodes"][number];
+    const meta = (...AffectedNodes: TxMeta["AffectedNodes"]): TxMeta => ({ TransactionIndex: 0, TransactionResult: "tesSUCCESS", AffectedNodes });
+
+    it("does not read a page that only changed its links, or one that merged, as a mint", () => {
+      // A neighbour of a split: only its link changed, so its tokens are what it held.
+      expect(mintedNftIds(meta(page("ModifiedNode", { NFTokens: [token(ID_A)], NextPageMin: "CD".repeat(32) })))).toEqual([]);
+      // Two pages merged into one: the survivor gained B (PreviousFields lists A only), the other, deleted, held B (its FinalFields).
+      expect(
+        mintedNftIds(meta(page("ModifiedNode", { NFTokens: [token(ID_A), token(ID_B)] }, { NFTokens: [token(ID_A)] }), page("DeletedNode", { NFTokens: [token(ID_B)] }))),
+      ).toEqual([]);
+    });
+
+    it("gives the id that no page held before: a created page, a modified page's gain", () => {
+      expect(mintedNftIds(meta(page("CreatedNode", { NFTokens: [token(ID_A)] })))).toEqual([ID_A]);
+      expect(mintedNftIds(meta(page("ModifiedNode", { NFTokens: [token(ID_A), token(ID_B)] }, { NFTokens: [token(ID_A)] })))).toEqual([ID_B]);
+      // A split: the old page lost C to the created one, and the mint B landed on the created one.
+      expect(
+        mintedNftIds(
+          meta(
+            page("ModifiedNode", { NFTokens: [token(ID_A)] }, { NFTokens: [token(ID_A), token(ID_C)] }),
+            page("CreatedNode", { NFTokens: [token(ID_B), token(ID_C)] }),
+          ),
+        ),
+      ).toEqual([ID_B]);
+    });
+
+    it("reads an id in lower case as upper case, and ignores a page entry without an id", () => {
+      expect(mintedNftIds(meta(page("CreatedNode", { NFTokens: [token(ID_A.toLowerCase()), { NFToken: {} }, {}] })))).toEqual([ID_A.toUpperCase()]);
+    });
+  });
+
+  describe("acceptedNftId", () => {
+    it.each([
+      ["sale_by_sell_offer", ID.soldBySellOffer],
+      ["sale_by_buy_offer", ID.soldByBuyOffer],
+      ["brokered_sale_royalty", ID.brokered],
+      ["sale_issued_currency", ID.soldForIssued],
+      // A zero amount is no sale but a transfer: the NFT is still the offer's.
+      ["transfer_zero_amount", ID.transferred],
+    ])("gives the NFT of the offer %s accepted", (name, id) => {
+      expect(acceptedNftId(caseOf("xrpl-nft", name).meta)).toBe(id);
+    });
+
+    it("gives the NFT of the expired offer a failed accept deleted (tecEXPIRED), as the offer's FinalFields name it", () => {
+      const { meta: sale } = caseOf("xrpl-nft", "sale_by_sell_offer");
+      expect(acceptedNftId({ ...sale, TransactionResult: "tecEXPIRED" })).toBe(ID.soldBySellOffer);
+    });
+
+    it("gives nothing for a transaction that deleted no offer, or deleted offers of more than one NFT", () => {
+      expect(acceptedNftId(caseOf("xrpl-nft", "mint").meta)).toBeUndefined();
+      expect(acceptedNftId(loadTx("xrpl-amm", ACCOUNT_CREATING_PAYMENT).meta)).toBeUndefined();
+      // An offer that was only created or modified is not one that an accept consumed.
+      expect(acceptedNftId(caseOf("xrpl-nft", "sell_offer_create").meta)).toBeUndefined();
+      const offer = (id: string): TxMeta["AffectedNodes"][number] =>
+        ({ DeletedNode: { LedgerEntryType: "NFTokenOffer", LedgerIndex: "CD".repeat(32), FinalFields: { NFTokenID: id } } }) as TxMeta["AffectedNodes"][number];
+      const base = { TransactionIndex: 0, TransactionResult: "tesSUCCESS" };
+      expect(acceptedNftId({ ...base, AffectedNodes: [offer(ID.brokered), offer(ID.brokered)] })).toBe(ID.brokered);
+      expect(acceptedNftId({ ...base, AffectedNodes: [offer(ID.brokered), offer(ID.transferred)] })).toBeUndefined();
+    });
+  });
+
+  describe("createdUriTokenIds", () => {
+    it.each([
+      ["uritoken_mint", ID.uriMinted],
+      // A Remit's MintURIToken creates the token for the destination.
+      ["remit_mint", ID.uriRemitMinted],
+      ["uritoken_remint", ID.uriReminted],
+    ])("gives the index of the URIToken %s created", (name, id) => {
+      expect(createdUriTokenIds(caseOf("xahau-nft", name).meta)).toEqual([id]);
+    });
+
+    it.each(["uritoken_sell_offer_create", "uritoken_sell_offer_cancel", "uritoken_buy_above_ask", "remit_transfer"])("gives none for %s, which creates no token", (name) => {
+      expect(createdUriTokenIds(caseOf("xahau-nft", name).meta)).toEqual([]);
+    });
+
+    it("gives none for a Payment, or on XRPL", () => {
+      expect(createdUriTokenIds(loadTx("xrpl-amm", ACCOUNT_CREATING_PAYMENT).meta)).toEqual([]);
+      expect(createdUriTokenIds(caseOf("xrpl-nft", "mint").meta)).toEqual([]);
+    });
+  });
+
+  it("never write to their input (the fixtures are deep-frozen) and always return what their types say", () => {
+    for (const set of ["xrpl-nft", "xahau-nft"] as const) {
+      for (const { meta } of allTxs(set)) {
+        expect(Array.isArray(mintedNftIds(meta))).toBe(true);
+        expect(Array.isArray(createdUriTokenIds(meta))).toBe(true);
+        expect(["string", "undefined"]).toContain(typeof acceptedNftId(meta));
       }
     }
   });

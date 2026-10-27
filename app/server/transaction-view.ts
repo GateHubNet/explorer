@@ -7,6 +7,7 @@ import { encodeCtid } from "../domain/ctid";
 import { describe, type Detail, type FlowStep, type Segment } from "../domain/describe";
 import { decodeHex } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
+import { shortNftId } from "../domain/nft-params";
 import { balanceChanges, objectsTouched } from "../domain/parse";
 import { isPoolAccountRoot, nodesOf } from "../domain/parse/objects";
 import type { BalanceChange, Native, TouchedObject, TxJson, TxMeta } from "../domain/parse/types";
@@ -206,6 +207,8 @@ export function plainText(segments: readonly Segment[]): string {
           return `${formatAmount(segment.value)} ${formatCurrency(segment.currency)}`;
         case "pool":
           return segment.pair;
+        case "nft":
+          return shortNftId(segment.v);
       }
     })
     .join("");

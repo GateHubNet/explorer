@@ -52,7 +52,7 @@ const stateOf = (net: "xrpl" | "xahau"): ServerState => read(`${net}/node/server
 const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: string, key: K, marker?: string) =>
   read(`${net}/data-api/accounts/${address}/${kind}@descending=true&limit=20${marker ? `&marker=${marker}` : ""}.json`)[key];
 
-const text = (segments: readonly Segment[]) => segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : `[${s.pair}]`)).join("");
+const text = (segments: readonly Segment[]) => segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : s.t === "nft" ? `<NFT ${s.v}>` : `[${s.pair}]`)).join("");
 
 describe("the tabs and the URL", () => {
   it("lists the six tabs of the page, the first being the default and the last the analytics", () => {

@@ -26,6 +26,9 @@ export const poolPair = (hop: AmmHop): string => pairName(hop.in, hop.out);
 
 export const pool = (hop: AmmHop): Segment => ({ t: "pool", v: hop.pool, pair: poolPair(hop) });
 
+/** A link to an NFT, or on Xahau a URIToken, by its id. No serial: describe does not decode the id. */
+export const nftSegment = (v: string): Segment => ({ t: "nft", v });
+
 /** Strings, segments and lists of them, in the order they read. */
 export type Part = string | Segment | readonly Part[];
 
@@ -110,6 +113,12 @@ export function flagNames(flags: unknown, table: FlagTable): string[] {
 export function fieldDetail(tx: TxJson, field: string, label: string): Detail[] {
   const value = tx[field];
   return typeof value === "number" || typeof value === "string" ? [detail(label, String(value))] : [];
+}
+
+/** A detail for a field that holds an NFT's or URIToken's id, as a link to it, left out when the transaction does not have it. */
+export function nftFieldDetail(tx: TxJson, field: string, label: string): Detail[] {
+  const id = tx[field];
+  return typeof id === "string" && id !== "" ? [detail(label, nftSegment(id))] : [];
 }
 
 /** What nearly every type has at the end of its details: the source tag, the ticket it used, its flags. */

@@ -17,6 +17,7 @@ function textOf(segments: Segment[]): string {
         case "text":
         case "account":
         case "pool":
+        case "nft":
           return s.v;
         case "amount":
           return `${s.value} ${s.currency}`;
@@ -32,6 +33,7 @@ function readOf(segments: Segment[]): string {
       switch (s.t) {
         case "text":
         case "account":
+        case "nft":
           return s.v;
         case "pool":
           return s.pair;
@@ -73,6 +75,9 @@ function synth(type: string, fields: Record<string, unknown> = {}): TxJson {
 
 const account = (v: string): Segment => ({ t: "account", v });
 const text = (v: string): Segment => ({ t: "text", v });
+const nft = (v: string): Segment => ({ t: "nft", v });
+/** The hash of a case of the NFT ledgers D3 recorded (`xrpl-nft`, `xahau-nft`), by its manifest name. */
+const nftCase = (set: "xrpl-nft" | "xahau-nft", name: string): string => loadManifest(set).cases[name].hash;
 
 describe("describe: Payment", () => {
   const NATIVE = "38D85B89F3CB0E036084946F1E38677BE418B2E13255209CB31AD3B5B6F8F6F2";
@@ -890,13 +895,41 @@ describe("describe: checks", () => {
 
 describe("describe: NFTs", () => {
   const MINT = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
+  /** The NFT of MINT: the id that the page of its minter gained (a mint of the xrpl set, whose metadata tells it). */
+  const MINTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
   const NFT = "00081388EF7C422EF52CEB969960BEF4144D7BC3F862C467C1B9D5C2059EB12B";
 
   describe("NFTokenMint", () => {
     it("says an NFT was minted, with its taxon and its transfer fee", () => {
       const d = run("xrpl", MINT);
-      expect(textOf(d.sentence)).toBe("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV minted an NFT, taxon 500, transfer fee 5%.");
+      expect(textOf(d.sentence)).toBe(`rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV minted NFT ${MINTED}, taxon 500, transfer fee 5%.`);
       expect(d.title).toBe("NFT mint");
+    });
+
+    it("names the NFT it minted as an nft segment, in the sentence and in the first of the details", () => {
+      const d = run("xrpl", MINT);
+      expect(d.sentence).toStrictEqual([
+        account("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV"),
+        text(" minted NFT "),
+        nft(MINTED),
+        text(", taxon 500, transfer fee 5%."),
+      ]);
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(MINTED)] });
+      // The minted NFT of a mint with no taxon of its own to say: the sentence is "minted NFT {nft}." and nothing else.
+      const bare = run("xrpl-nft", nftCase("xrpl-nft", "mint"));
+      expect(bare.sentence.slice(1, 3)).toStrictEqual([text(" minted NFT "), nft("0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A")]);
+      expect(bare.details[0]).toStrictEqual({ label: "NFT", value: [nft("0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A")] });
+    });
+
+    it("names the NFT of a mint that also made a sell offer, and of one that split a page", () => {
+      expect(run("xrpl-nft", nftCase("xrpl-nft", "mint_with_offer")).details[0]).toStrictEqual({
+        label: "NFT",
+        value: [nft("00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255FBE9F0F960655EBFA")],
+      });
+      expect(run("xrpl-nft", nftCase("xrpl-nft", "page_split_with_mint")).details[0]).toStrictEqual({
+        label: "NFT",
+        value: [nft("00181F40AF09C1D4B4D1E8031467F3508DFFADABEA73255F79ED9C910655EBF7")],
+      });
     });
 
     it("leaves the transfer fee out when there is none", () => {
@@ -915,6 +948,7 @@ describe("describe: NFTs", () => {
 
     it("lists the fields of the NFT and the sell offer it was minted with", () => {
       expect(rows(run("xrpl", MINT))).toStrictEqual([
+        ["NFT", MINTED],
         ["Taxon", "500"],
         ["Transfer fee", "5%"],
         ["URI", "ipfs://bafybeicij5fr4u7foyub57nzgdsmfdkvkym3oly3ctm2slc5cfqy37qooy/96.json"],
@@ -933,10 +967,17 @@ describe("describe: NFTs", () => {
       expect(rows(say(tx)).at(-1)).toStrictEqual(["Flags", "tfBurnable, tfOnlyXRP, tfTrustLine, tfTransferable, tfMutable"]);
     });
 
-    it("says a mint that failed was tried", () => {
-      expect(textOf(failedRun("xrpl", MINT).sentence)).toBe(
-        `rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV tried to mint an NFT, taxon 500, transfer fee 5%.${KILLED}`,
-      );
+    it("says a mint that failed was tried, and names no NFT: none was minted", () => {
+      const d = failedRun("xrpl", MINT);
+      expect(textOf(d.sentence)).toBe(`rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV tried to mint an NFT, taxon 500, transfer fee 5%.${KILLED}`);
+      expect(d.sentence.some((segment) => segment.t === "nft")).toBe(false);
+      expect(d.details.map((row) => row.label)).not.toContain("NFT");
+    });
+
+    it("says an NFT when the metadata has no NFT to name (the node's answer is not the index's: a hand-written transaction)", () => {
+      const d = say(synth("NFTokenMint", { NFTokenTaxon: 3 }));
+      expect(textOf(d.sentence)).toBe(`${A} minted an NFT, taxon 3.`);
+      expect(d.details.map((row) => row.label)).toStrictEqual(["Taxon"]);
     });
   });
 
@@ -946,6 +987,7 @@ describe("describe: NFTs", () => {
       expect(textOf(d.sentence)).toBe("ravC5cZreMZuKEWSrpra5nkWnfzPmrabec burned an NFT.");
       expect(d.title).toBe("NFT burn");
       expect(rows(d)).toStrictEqual([["NFT", "0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F9429941790061B08F5"]]);
+      expect(d.details[0]!.value).toStrictEqual([nft("0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F9429941790061B08F5")]);
     });
 
     it("says whose NFT an issuer burned", () => {
@@ -959,6 +1001,10 @@ describe("describe: NFTs", () => {
 
     it("says a failed burn was tried", () => {
       expect(textOf(say(synth("NFTokenBurn"), FAILED).sentence)).toBe(`${A} tried to burn an NFT.${NO_PERMISSION}`);
+    });
+
+    it("lists no NFT when the transaction has no NFTokenID", () => {
+      expect(rows(say(synth("NFTokenBurn")))).toStrictEqual([]);
     });
   });
 
@@ -986,6 +1032,7 @@ describe("describe: NFTs", () => {
 
     it("lists the NFT, the amount, the owner, the destination and the expiry", () => {
       const d = run("xrpl", "04DB2D79CE01AEE1233D4841FFAD2D433C1182178387700A225FD2EBCFE565C6");
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(NFT)] });
       expect(rows(d)).toStrictEqual([
         ["NFT", NFT],
         ["Amount", "14.4 XRP"],
@@ -1028,15 +1075,41 @@ describe("describe: NFTs", () => {
   });
 
   describe("NFTokenAcceptOffer", () => {
+    /** The NFT of the sell offer that 423839F3… accepted: the NFTokenID of the NFTokenOffer its metadata deletes. */
+    const ACCEPTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+
     it("says an accepted sell offer", () => {
       const d = run("xrpl", "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052");
       expect(textOf(d.sentence)).toBe("rfxioGqxazNZt3sbeVSZtziEQBHHJAXXjE accepted a sell offer for an NFT.");
       expect(d.title).toBe("NFT sale");
       expect(rows(d)).toStrictEqual([
+        ["NFT", ACCEPTED],
         ["Sell offer", "597C21F489133DB130FA7390B1E705310FD86A70D5EE52B2BF17C0D9ADDE942E"],
         ["Source tag", "101102979"],
         ["Flags", "tfInnerBatchTxn"],
       ]);
+      expect(d.details[0]!.value).toStrictEqual([nft(ACCEPTED)]);
+    });
+
+    it.each([
+      ["sale_by_sell_offer", "00081388EA968E3C54EE59C8FFBAF0944A3B8AD4797AB032EF22952605AD2A91"],
+      ["sale_by_buy_offer", "000803E88ACAA32313BB87F729EF7DA56BD13C57BE46E3C8B0730F290481ED98"],
+      ["brokered_sale_royalty", "00190BB8DAEF366CB05EE8DCC919EF9A1AA24DD22B3D62C9D848920A0669E96F"],
+      ["sale_issued_currency", "00081388048ECA9BA1C412A6BFFEEA29E21873E92DE6B3F3EA90AAA805041E13"],
+      ["transfer_zero_amount", "0018C350C7DEC772B41E9496AA92D148C4FD64D239AA62985D24F44D05B7F6B4"],
+    ])("names the NFT that the accepted offer was for, in %s", (name, id) => {
+      const d = run("xrpl-nft", nftCase("xrpl-nft", name));
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(id)] });
+    });
+
+    it("names the NFT of the expired offer that a failed acceptance deleted (tecEXPIRED)", () => {
+      const d = failedRun("xrpl", "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052", "tecEXPIRED");
+      expect(d.details[0]).toStrictEqual({ label: "NFT", value: [nft(ACCEPTED)] });
+    });
+
+    it("lists no NFT when the metadata has no offer it deleted", () => {
+      const tx = synth("NFTokenAcceptOffer", { NFTokenBuyOffer: "CD".repeat(32) });
+      expect(rows(say(tx))).toStrictEqual([["Buy offer", "CD".repeat(32)]]);
     });
 
     it("says an accepted buy offer", () => {
@@ -1499,8 +1572,15 @@ describe("describe: Xahau types", () => {
       const d = run("xahau", "0EE5BE5020FE2A4D26618868DCFCC5E11191C99104614C14558E68FECC425BCA");
       expect(textOf(d.sentence)).toBe("r3qv4CerAysTRhpDN5C3ZDDuNc57HUoxCo minted a URIToken.");
       expect(d.title).toBe("URIToken mint");
-      expect(d.details.map((row) => row.label)).toStrictEqual(["URI", "Flags"]);
+      expect(d.details.map((row) => row.label)).toStrictEqual(["URIToken", "URI", "Flags"]);
       expect(rows(d).at(-1)).toStrictEqual(["Flags", "tfBurnable"]);
+    });
+
+    it("names the URIToken it minted: the index of the entry its metadata creates", () => {
+      const d = run("xahau-nft", nftCase("xahau-nft", "uritoken_mint"));
+      expect(d.details[0]).toStrictEqual({ label: "URIToken", value: [nft("E87FD7E7FDACFA2CE1DC37AD805A7295F84459D4911EAC79160F0D9E34BB6520")] });
+      expect(textOf(d.sentence)).toMatch(/ minted a URIToken\.$/);
+      expect(failedRun("xahau-nft", nftCase("xahau-nft", "uritoken_mint")).details.map((row) => row.label)).not.toContain("URIToken");
     });
 
     it("lists the digest, the destination and the price of a URIToken minted for sale", () => {
@@ -1516,7 +1596,8 @@ describe("describe: Xahau types", () => {
     it("says a URIToken was burned", () => {
       const d = run("xahau", "0BF65D795D3834F11D6BB6D199ABDE3E4CF2855CE47282DF6C9AB4AE927CB09C");
       expect(textOf(d.sentence)).toBe("r4rPJ2bexLhT7tyN8dR14yyymLpikLhLj6 burned a URIToken.");
-      expect(rows(d)).toStrictEqual([["URIToken ID", "885E39BB29B9B650221736CA52D7C99C9516E705A2C55F1DF44A612CA9078A60"]]);
+      expect(rows(d)).toStrictEqual([["URIToken", "885E39BB29B9B650221736CA52D7C99C9516E705A2C55F1DF44A612CA9078A60"]]);
+      expect(d.details[0]!.value).toStrictEqual([nft("885E39BB29B9B650221736CA52D7C99C9516E705A2C55F1DF44A612CA9078A60")]);
     });
 
     it("says a URIToken was bought for the amount", () => {
@@ -1524,26 +1605,29 @@ describe("describe: Xahau types", () => {
       expect(textOf(d.sentence)).toBe("rkZPXKbG6ieWS4EZkYMjeqpNb1ipEdKq3 bought a URIToken for 0.017 EVR.");
       expect(d.title).toBe("URIToken purchase");
       expect(rows(d)).toStrictEqual([
-        ["URIToken ID", "4747D7A9464AB3C6970EBFA7F2062FA9ED2DE4D90BCEFE6AB8723A244C9D210E"],
+        ["URIToken", "4747D7A9464AB3C6970EBFA7F2062FA9ED2DE4D90BCEFE6AB8723A244C9D210E"],
         ["Amount", "0.017 EVR"],
         ["Hook parameters", "1 parameter"],
       ]);
+      expect(d.details[0]!.value).toStrictEqual([nft("4747D7A9464AB3C6970EBFA7F2062FA9ED2DE4D90BCEFE6AB8723A244C9D210E")]);
     });
 
     it("says a URIToken was offered for sale for the amount", () => {
       const d = run("xahau", "DFC5EC12CECC042D57F3D6C7643B962EFD842F33A476AB9986A1A24DF8065701");
       expect(textOf(d.sentence)).toBe("r3qv4CerAysTRhpDN5C3ZDDuNc57HUoxCo offered a URIToken for sale for 0.00001 EVR.");
       expect(d.title).toBe("URIToken sell offer");
+      expect(d.details[0]).toStrictEqual({ label: "URIToken", value: [nft(TOKEN)] });
     });
 
     it("says to whom a URIToken was offered when the offer names a buyer", () => {
       const tx = synth("URITokenCreateSellOffer", { URITokenID: TOKEN, Amount: { ...EVR, value: "3" }, Destination: B });
       expect(textOf(xah(tx).sentence)).toBe(`${A} offered a URIToken for sale to ${B} for 3 EVR.`);
       expect(rows(xah(tx))).toStrictEqual([
-        ["URIToken ID", TOKEN],
+        ["URIToken", TOKEN],
         ["Amount", "3 EVR"],
         ["Destination", B],
       ]);
+      expect(xah(tx).details[0]).toStrictEqual({ label: "URIToken", value: [nft(TOKEN)] });
     });
 
     // Neither URITokenCancelSellOffer nor Import was found in the ledgers recorded for these tests (see
@@ -1552,7 +1636,8 @@ describe("describe: Xahau types", () => {
       const d = xah(synth("URITokenCancelSellOffer", { URITokenID: TOKEN }));
       expect(textOf(d.sentence)).toBe(`${A} cancelled the sale of a URIToken.`);
       expect(d.title).toBe("URIToken sell offer cancellation");
-      expect(rows(d)).toStrictEqual([["URIToken ID", TOKEN]]);
+      expect(rows(d)).toStrictEqual([["URIToken", TOKEN]]);
+      expect(d.details[0]!.value).toStrictEqual([nft(TOKEN)]);
       expect(textOf(xah(synth("URITokenCancelSellOffer", { URITokenID: TOKEN }), FAILED).sentence)).toBe(
         `${A} tried to cancel the sale of a URIToken.${NO_PERMISSION}`,
       );
@@ -1625,6 +1710,26 @@ describe("describe: Xahau types", () => {
         ["URIToken 1", TOKEN],
         ["Inform", K],
       ]);
+      expect(xah(tx).details.find((row) => row.label === "URIToken 1")!.value).toStrictEqual([nft(TOKEN)]);
+    });
+
+    it("lists each URIToken it sends along as an nft segment, numbered", () => {
+      const other = "CD".repeat(32);
+      const tx = synth("Remit", { Destination: B, URITokenIDs: [TOKEN, other] });
+      expect(xah(tx).details.filter((row) => row.label.startsWith("URIToken"))).toStrictEqual([
+        { label: "URIToken 1", value: [nft(TOKEN)] },
+        { label: "URIToken 2", value: [nft(other)] },
+      ]);
+    });
+
+    it("names the URIToken its MintURIToken created, next to the URI it was minted with", () => {
+      const d = run("xahau-nft", nftCase("xahau-nft", "remit_mint"));
+      expect(d.details.map((row) => row.label)).toStrictEqual(["Destination", "Destination tag", "Minted URI", "Minted URIToken"]);
+      expect(d.details.find((row) => row.label === "Minted URIToken")).toStrictEqual({
+        label: "Minted URIToken",
+        value: [nft("099E410166351A8C94AE6D76154CBF301C609282EAE659C1BF08AF46936867BF")],
+      });
+      expect(failedRun("xahau-nft", nftCase("xahau-nft", "remit_mint")).details.map((row) => row.label)).not.toContain("Minted URIToken");
     });
 
     it("says a failed remit was tried", () => {
@@ -1850,14 +1955,14 @@ describe("mergeHandlers", () => {
   });
 });
 
-describe.each<FixtureSet>(["xrpl", "xrpl-amm", "xahau", "xrpl-extra", "xahau-extra"])("describe: every recorded transaction of %s", (set) => {
+describe.each<FixtureSet>(["xrpl", "xrpl-amm", "xahau", "xrpl-extra", "xahau-extra", "xrpl-nft", "xahau-nft"])("describe: every recorded transaction of %s", (set) => {
   const BAD = /undefined|NaN|\[object/;
   const covered = new Set<string>(V1_TYPES);
 
   it("never throws, and its sentence and details never say undefined", () => {
     const txs = allTxs(set);
-    // The extra sets are a few ledgers each, and Xahau ledgers are small.
-    expect(txs.length).toBeGreaterThan(set.endsWith("-extra") ? 0 : 100);
+    // The extra and NFT sets are a few ledgers each, and Xahau ledgers are small.
+    expect(txs.length).toBeGreaterThan(set.endsWith("-extra") || set.endsWith("-nft") ? 0 : 100);
     for (const { tx, meta } of txs) {
       const d = describeTx(tx, meta, { native: nativeOf(set) });
       const everything = [textOf(d.sentence), ...d.details.flatMap((detail) => [detail.label, textOf(detail.value)])];

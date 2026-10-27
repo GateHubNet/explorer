@@ -3,17 +3,20 @@
 import type { AmmHop, BalanceChange, Native, TxJson, TxMeta } from "../parse/types";
 
 /**
- * A piece of a sentence, in a form the page can render: plain text, a link to an account, an amount, or a link to an
- * AMM pool. Text segments are final, ready-to-show text. The other three are structured, and the page formats them
- * (`formatAmount` and `formatCurrency` for an amount, `shortAddress` for an account): an amount carries its value in
- * whole units as an unformatted decimal string (native drops already converted) and its currency code as it is in the
- * JSON (`XRP` or `XAH` for the native currency); a pool's `v` is its account and `pair` its name.
+ * A piece of a sentence, in a form the page can render: plain text, a link to an account, an amount, a link to an AMM
+ * pool, or a link to an NFT. Text segments are final, ready-to-show text. The other four are structured, and the page
+ * formats them (`formatAmount` and `formatCurrency` for an amount, `shortAddress` for an account, `NftLink` for an NFT): an
+ * amount carries its value in whole units as an unformatted decimal string (native drops already converted) and its currency
+ * code as it is in the JSON (`XRP` or `XAH` for the native currency); a pool's `v` is its account and `pair` its name; an
+ * NFT's `v` is its id (a URIToken's index on Xahau), shown as `#serial` when the segment has one; describe leaves the serial
+ * out, and the page shows the id shortened.
  */
 export type Segment =
   | { t: "text"; v: string }
   | { t: "account"; v: string }
   | { t: "amount"; value: string; currency: string; issuer?: string }
-  | { t: "pool"; v: string; pair: string };
+  | { t: "pool"; v: string; pair: string }
+  | { t: "nft"; v: string; serial?: number };
 
 /** An amount without the segment tag, as a flow step carries it. */
 export type FlowAmount = { value: string; currency: string; issuer?: string };

@@ -282,6 +282,46 @@ describe("Sentence", () => {
       expect(screen.getByRole("link", { name: "XRP/RLUSD" }).getAttribute("href")).toBe(`/xrpl/account/${POOL}`);
     });
   });
+
+  describe("an nft segment is an NftLink (a link while NFTS is on)", () => {
+    const ID = "000813886E50B2960CF48DCB644E85B412C660B4E1B01A87C283F9E6066AB54B";
+    const minted: Segment[] = [{ t: "text", v: "minted NFT " }, { t: "nft", v: ID }, { t: "text", v: ", taxon 0." }];
+    const on = { ...NO_FEATURES, nfts: true };
+
+    it("is the short id in mono, linking to the NFT's page on the network of the sentence, with the full id as its title", async () => {
+      const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={minted} />, on);
+      const link = await screen.findByRole("link", { name: "00081388…B54B" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/nft/${ID}`);
+      expect(link.getAttribute("title")).toBe(ID);
+      expect(link.classList.contains("mono")).toBe(true);
+      expect(container.textContent).toBe("minted NFT 00081388…B54B, taxon 0.");
+      cleanup();
+      renderUnderNetwork(<Sentence net="xahau" segments={minted} compact />, on, { network: XAHAU });
+      expect((await screen.findByRole("link", { name: "00081388…B54B" })).getAttribute("href")).toBe(`/xahau/nft/${ID}`);
+    });
+
+    it("is the same short id as text in mono, with the full id as its title and no link, while NFTS is off", async () => {
+      const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={minted} />, { ...NO_FEATURES, nfts: false });
+      const shown = await screen.findByText("00081388…B54B");
+      expect(container.querySelector("a")).toBeNull();
+      expect(shown.getAttribute("title")).toBe(ID);
+      expect(shown.classList.contains("mono")).toBe(true);
+      expect(container.textContent).toBe("minted NFT 00081388…B54B, taxon 0.");
+    });
+
+    it("is text outside the layout's data (NO_FEATURES), as NftLink is", () => {
+      const { container } = renderInRouter(<Sentence net="xrpl" segments={minted} />);
+      expect(container.querySelector("a")).toBeNull();
+      expect(container.textContent).toBe("minted NFT 00081388…B54B, taxon 0.");
+    });
+
+    it("shows '#serial' when the segment has one", async () => {
+      renderUnderNetwork(<Sentence net="xrpl" segments={[{ t: "nft", v: ID, serial: 4127 }]} />, on);
+      const link = await screen.findByRole("link", { name: "#4,127" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/nft/${ID}`);
+      expect(link.getAttribute("title")).toBe(ID);
+    });
+  });
 });
 
 describe("CopyButton", () => {

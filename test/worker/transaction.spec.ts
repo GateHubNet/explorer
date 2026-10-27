@@ -607,6 +607,60 @@ describe("a Xahau transaction", () => {
   });
 });
 
+// An NFT or URIToken in a transaction's sentence and details is a link to the NFT's page (NFTS is "on" in these tests; the same
+// pages with it off are in nfts-off.spec.ts), the short id in mono with the whole id as its title.
+describe("the NFTs of a transaction", () => {
+  // Recorded: an NFTokenAcceptOffer that accepted a sell offer (the NFT is the one of the offer its metadata deletes), an NFTokenMint
+  // (the NFT is the id its minter's page gained), and, on Xahau, a URITokenBuy.
+  const ACCEPT = "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052";
+  const ACCEPTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+  const MINT = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
+  const MINTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
+  const BUY = "FDE327991B2702E7BF849A36487CEA0DE9BB307F5110F1621C9B8EEE6696AC5F";
+  const BOUGHT = "F84062E34601C92FB68BBBD4FCD7698E0623DED13ECBD1BA913FF6400D5CEE02";
+
+  /** The anchors that lead to an NFT's page. */
+  const nftLinks = (html: string) => anchors(html).filter((a) => /href="\/(xrpl|xahau)\/nft\//.test(a.attrs));
+
+  it("links the NFT an accepted offer was for, in the details, to its page: the short id in mono, the whole id as the title", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${ACCEPT}`);
+
+    const links = nftLinks(html);
+    expect(links).toHaveLength(1);
+    expect(links[0]!.text).toBe("00081388…E6D8");
+    expect(links[0]!.attrs).toContain(`href="/xrpl/nft/${ACCEPTED}"`);
+    expect(links[0]!.attrs).toContain(`title="${ACCEPTED}"`);
+    expect(links[0]!.attrs).toMatch(/class="mono"/);
+    expect(textOf(html)).toContain("NFT 00081388…E6D8");
+    expect(hrefs(html)).toContain(`/xrpl/nft/${ACCEPTED}`);
+  });
+
+  it("links the NFT a mint made, in the sentence and in the details, and the sentence reads 'minted NFT …'", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${MINT}`);
+
+    expect(elementText(html, "sentence")).toBe(`${shortAddress("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV")} minted NFT 00081388…E758, taxon 500, transfer fee 5%.`);
+    const links = nftLinks(html);
+    expect(links.map((a) => a.text)).toEqual(["00081388…E758", "00081388…E758"]);
+    expect(links.every((a) => a.attrs.includes(`href="/xrpl/nft/${MINTED}"`))).toBe(true);
+    // The description of the page, which a link preview carries, says the NFT too (as its short id, never 'undefined').
+    expect(html).toMatch(/<meta name="description" content="[^"]*minted NFT 00081388…E758, taxon 500, transfer fee 5% · XRPL ledger 107,671,538"/);
+  });
+
+  it("links the URIToken a Xahau purchase was of, to its page on Xahau", async () => {
+    mock = mockUpstream("xahau");
+    const { html } = await page(`/xahau/tx/${BUY}`);
+
+    const links = nftLinks(html);
+    expect(links).toHaveLength(1);
+    expect(links[0]!.attrs).toContain(`href="/xahau/nft/${BOUGHT}"`);
+    expect(links[0]!.attrs).toContain(`title="${BOUGHT}"`);
+    expect(links[0]!.text).toBe("F84062E3…EE02");
+    expect(textOf(html)).toContain("URIToken F84062E3…EE02");
+  });
+});
+
 describe("a hash that is not in its canonical form", () => {
   it("redirects a lower-case hash to the upper-case URL, as an immutable redirect, without asking anyone", async () => {
     mock = mockUpstream("xrpl");

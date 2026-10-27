@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { anchors, pageClient, textOf } from "../support/pages";
+import { shortAddress } from "../../app/domain/format";
+import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The NFT pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `NFTS` on (NFT spec 1.4, 15). `NFTS` is
@@ -132,5 +133,32 @@ describe("the header with NFTS off", () => {
     expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>NFTs</span><span class="soon">soon</span></span>');
     expect(html).not.toMatch(/href="\/(xrpl|xahau)\/nfts"/);
     expect(anchors(html).map((a) => a.text)).not.toContain("NFTs");
+  });
+});
+
+describe("the NFTs of a transaction with NFTS off", () => {
+  // The recorded NFTokenAcceptOffer and NFTokenMint of transaction.spec.ts, where the same ids are links.
+  const ACCEPT = "423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052";
+  const ACCEPTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
+  const MINT = "7D16D6C749CAB260C906BEC2D9CF9B37F7D1D36F26421873CF838C9BCDF056AD";
+  const MINTED = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255FA9ECC9070655E758";
+
+  it("shows the NFT of an accepted offer as its short id in mono with the whole id as the title, and no link to an NFT page", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${ACCEPT}`);
+
+    expect(anchors(html).filter((a) => /href="\/(xrpl|xahau)\/nft\//.test(a.attrs))).toEqual([]);
+    expect(hrefs(html).some((href) => href.includes("/nft/"))).toBe(false);
+    expect(html).toContain(`<span class="mono" title="${ACCEPTED}">00081388…E6D8</span>`);
+    expect(textOf(html)).toContain("NFT 00081388…E6D8");
+  });
+
+  it("reads 'minted NFT …' with the id as text, in the sentence and in the details", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${MINT}`);
+
+    expect(elementText(html, "sentence")).toBe(`${shortAddress("rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV")} minted NFT 00081388…E758, taxon 500, transfer fee 5%.`);
+    expect(html.split(`<span class="mono" title="${MINTED}">00081388…E758</span>`)).toHaveLength(3);
+    expect(hrefs(html).some((href) => href.includes("/nft/"))).toBe(false);
   });
 });

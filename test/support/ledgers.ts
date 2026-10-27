@@ -7,9 +7,10 @@ import type { TxJson, TxMeta } from "../../app/domain/parse/types";
 
 /**
  * `xrpl-extra` and `xahau-extra` hold the transaction types the other sets lack, recorded for the explorer's own
- * tests (see test/fixtures/PROVENANCE.md).
+ * tests (see test/fixtures/PROVENANCE.md); `xrpl-nft` and `xahau-nft` are the NFT ledgers D3 recorded, one transaction per
+ * case of their manifests.
  */
-export type FixtureSet = "xrpl" | "xrpl-amm" | "xahau" | "xrpl-extra" | "xahau-extra";
+export type FixtureSet = "xrpl" | "xrpl-amm" | "xahau" | "xrpl-extra" | "xahau-extra" | "xrpl-nft" | "xahau-nft";
 
 export type FixtureTx = {
   tx: TxJson;

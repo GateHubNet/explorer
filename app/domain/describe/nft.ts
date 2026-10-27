@@ -1,5 +1,6 @@
 // The XRPL NFT types: NFTokenMint, NFTokenBurn, NFTokenCreateOffer, NFTokenCancelOffer and NFTokenAcceptOffer.
 
+import { acceptedNftId, mintedNftIds } from "../parse";
 import {
   account,
   amountSegment,
@@ -8,6 +9,8 @@ import {
   detail,
   feePercent,
   fieldDetail,
+  nftFieldDetail,
+  nftSegment,
   plural,
   rippleTime,
   seq,
@@ -26,12 +29,17 @@ const NFT_MINT_FLAGS: FlagTable = [
   [0x00000010, "tfMutable"],
 ];
 
-function describeMint({ tx, native, verb }: Input): Summary {
+function describeMint({ tx, meta, native, ok, verb }: Input): Summary {
   const taxon = wholeNumber(tx.NFTokenTaxon);
   // A fee of 0 is no fee: it is left out of the sentence and the details.
   const fee = wholeNumber(tx.TransferFee) ? feePercent(tx.TransferFee) : undefined;
+  // The NFT is the one id the pages of the metadata gained. A mint that failed made none, and when the metadata names no one id
+  // the sentence says "an NFT", as it does of a transaction it has no metadata for.
+  const minted = ok ? mintedNftIds(meta) : [];
+  const id = minted.length === 1 ? minted[0] : undefined;
 
   const details: Detail[] = [
+    ...(id === undefined ? [] : [detail("NFT", nftSegment(id))]),
     ...(taxon === undefined ? [] : [detail("Taxon", String(taxon))]),
     ...(fee === undefined ? [] : [detail("Transfer fee", fee)]),
     ...(typeof tx.URI === "string" ? [detail("URI", decodeHex(tx.URI) ?? tx.URI)] : []),
@@ -45,7 +53,7 @@ function describeMint({ tx, native, verb }: Input): Summary {
   return {
     title: "NFT mint",
     predicate: seq(
-      `${verb("minted", "mint")} an NFT`,
+      id === undefined ? `${verb("minted", "mint")} an NFT` : [`${verb("minted", "mint")} NFT `, nftSegment(id)],
       taxon === undefined ? "" : `, taxon ${taxon}`,
       fee === undefined ? "" : `, transfer fee ${fee}`,
     ),
@@ -61,7 +69,7 @@ function describeBurn({ tx, verb }: Input): Summary {
     // The issuer can burn a burnable NFT that someone else holds.
     predicate: seq(`${verb("burned", "burn")} an NFT`, tx.Owner === undefined ? "" : [" owned by ", account(tx.Owner)]),
     details: [
-      ...fieldDetail(tx, "NFTokenID", "NFT"),
+      ...nftFieldDetail(tx, "NFTokenID", "NFT"),
       ...(tx.Owner !== undefined ? [detail("Owner", account(tx.Owner))] : []),
       ...closingDetails(tx, []),
     ],
@@ -94,7 +102,7 @@ function describeCreateOffer({ tx, native, verb }: Input): Summary {
       );
 
   const details: Detail[] = [
-    ...fieldDetail(tx, "NFTokenID", "NFT"),
+    ...nftFieldDetail(tx, "NFTokenID", "NFT"),
     detail("Amount", price),
     ...(tx.Owner !== undefined ? [detail("Owner", account(tx.Owner))] : []),
     ...(tx.Destination !== undefined ? [detail("Destination", account(tx.Destination))] : []),
@@ -119,9 +127,11 @@ function describeCancelOffer({ tx, verb }: Input): Summary {
 
 // --- NFTokenAcceptOffer --------------------------------------------------------------------------------------------
 
-function describeAcceptOffer({ tx, native, verb }: Input): Summary {
+function describeAcceptOffer({ tx, meta, native, verb }: Input): Summary {
   const sell = typeof tx.NFTokenSellOffer === "string";
   const buy = typeof tx.NFTokenBuyOffer === "string";
+  // The offer the transaction deleted: the accepted one, or the expired one a failed acceptance (tecEXPIRED) deleted.
+  const nft = acceptedNftId(meta);
 
   let predicate: string;
   if (sell && buy) predicate = `${verb("brokered", "broker")} the sale of an NFT`;
@@ -133,6 +143,7 @@ function describeAcceptOffer({ tx, native, verb }: Input): Summary {
     title: "NFT sale",
     predicate: seq(predicate),
     details: [
+      ...(nft === undefined ? [] : [detail("NFT", nftSegment(nft))]),
       ...fieldDetail(tx, "NFTokenSellOffer", "Sell offer"),
       ...fieldDetail(tx, "NFTokenBuyOffer", "Buy offer"),
       ...(tx.NFTokenBrokerFee !== undefined ? [detail("Broker fee", amountSegment(tx.NFTokenBrokerFee, native))] : []),

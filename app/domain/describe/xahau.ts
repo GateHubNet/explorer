@@ -2,6 +2,7 @@
 // URITokenCreateSellOffer, URITokenCancelSellOffer, Remit and Import.
 
 import { shortHash } from "../format";
+import { createdUriTokenIds } from "../parse";
 import {
   account,
   amountOf,
@@ -13,6 +14,8 @@ import {
   fieldDetail,
   flagNames,
   listOf,
+  nftFieldDetail,
+  nftSegment,
   parseAmount,
   plural,
   seq,
@@ -117,11 +120,20 @@ function describeInvoke({ tx, verb }: Input): Summary {
 
 const URI_TOKEN_MINT_FLAGS: FlagTable = [[0x00000001, "tfBurnable"]];
 
-function describeURITokenMint({ tx, native, verb }: Input): Summary {
+/** The URIToken a transaction created (a mint that failed made none), when it created one. */
+function createdUriToken({ meta, ok }: Input): string | undefined {
+  const created = ok ? createdUriTokenIds(meta) : [];
+  return created.length === 1 ? created[0] : undefined;
+}
+
+function describeURITokenMint(input: Input): Summary {
+  const { tx, native, verb } = input;
+  const id = createdUriToken(input);
   return {
     title: "URIToken mint",
     predicate: seq(`${verb("minted", "mint")} a URIToken`),
     details: [
+      ...(id === undefined ? [] : [detail("URIToken", nftSegment(id))]),
       ...(typeof tx.URI === "string" ? [detail("URI", decodeHex(tx.URI) ?? tx.URI)] : []),
       ...fieldDetail(tx, "Digest", "Digest"),
       ...(tx.Destination !== undefined ? [detail("Destination", account(tx.Destination))] : []),
@@ -135,7 +147,7 @@ function describeURITokenBurn({ tx, verb }: Input): Summary {
   return {
     title: "URIToken burn",
     predicate: seq(`${verb("burned", "burn")} a URIToken`),
-    details: [...fieldDetail(tx, "URITokenID", "URIToken ID"), ...closingDetails(tx, [])],
+    details: [...nftFieldDetail(tx, "URITokenID", "URIToken"), ...closingDetails(tx, [])],
   };
 }
 
@@ -147,7 +159,7 @@ function describeURITokenBuy({ tx, native, verb }: Input): Summary {
       tx.Amount === undefined ? "" : [" for ", amountSegment(tx.Amount, native)],
     ),
     details: [
-      ...fieldDetail(tx, "URITokenID", "URIToken ID"),
+      ...nftFieldDetail(tx, "URITokenID", "URIToken"),
       ...(tx.Amount !== undefined ? [detail("Amount", amountSegment(tx.Amount, native))] : []),
       ...hookParameters(tx),
       ...closingDetails(tx, []),
@@ -164,7 +176,7 @@ function describeURITokenCreateSellOffer({ tx, native, verb }: Input): Summary {
       tx.Amount === undefined ? "" : [" for ", amountSegment(tx.Amount, native)],
     ),
     details: [
-      ...fieldDetail(tx, "URITokenID", "URIToken ID"),
+      ...nftFieldDetail(tx, "URITokenID", "URIToken"),
       ...(tx.Amount !== undefined ? [detail("Amount", amountSegment(tx.Amount, native))] : []),
       ...(tx.Destination !== undefined ? [detail("Destination", account(tx.Destination))] : []),
       ...closingDetails(tx, []),
@@ -176,13 +188,14 @@ function describeURITokenCancelSellOffer({ tx, verb }: Input): Summary {
   return {
     title: "URIToken sell offer cancellation",
     predicate: seq(`${verb("cancelled", "cancel")} the sale of a URIToken`),
-    details: [...fieldDetail(tx, "URITokenID", "URIToken ID"), ...closingDetails(tx, [])],
+    details: [...nftFieldDetail(tx, "URITokenID", "URIToken"), ...closingDetails(tx, [])],
   };
 }
 
 // --- Remit ---------------------------------------------------------------------------------------------------------
 
-function describeRemit({ tx, native, verb }: Input): Summary {
+function describeRemit(input: Input): Summary {
+  const { tx, native, verb } = input;
   // `Amounts` is a list of `{ AmountEntry: { Amount } }`.
   const amounts = (Array.isArray(tx.Amounts) ? tx.Amounts : []).flatMap((entry) => {
     const amount = parseAmount((entry as { AmountEntry?: { Amount?: unknown } })?.AmountEntry?.Amount, native);
@@ -199,12 +212,15 @@ function describeRemit({ tx, native, verb }: Input): Summary {
   ];
 
   const mint = tx.MintURIToken as { URI?: unknown } | undefined;
+  // The URIToken the Remit's MintURIToken created.
+  const minted = mints ? createdUriToken(input) : undefined;
   const details: Detail[] = [
     detail("Destination", account(tx.Destination)),
     ...fieldDetail(tx, "DestinationTag", "Destination tag"),
     ...amounts.map((amount, i) => detail(`Amount ${i + 1}`, amountOf(amount))),
-    ...tokens.map((id, i) => detail(`URIToken ${i + 1}`, id)),
+    ...tokens.map((id, i) => detail(`URIToken ${i + 1}`, nftSegment(id))),
     ...(typeof mint?.URI === "string" ? [detail("Minted URI", decodeHex(mint.URI) ?? mint.URI)] : []),
+    ...(minted === undefined ? [] : [detail("Minted URIToken", nftSegment(minted))]),
     ...(tx.Inform !== undefined ? [detail("Inform", account(tx.Inform))] : []),
     ...closingDetails(tx, []),
   ];
