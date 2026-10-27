@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "days": [
+    {"avg_price_native":"10","burns":0,"date":"2026-09-23T00:00:00Z","min_price_native":"10","mints":0,"sales_count":1,"volume_native":"10"}
+  ],
+  "result": "success"
+}

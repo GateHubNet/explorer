@@ -96,7 +96,7 @@ const FEE_SCALE = 5;
 const OWNERSHIP_RANK: Readonly<Partial<Record<NftEventKind, number>>> = { mint: 0, sale: 1, transfer: 2, burn: 3, modify: 4 };
 
 /** An amount as the event columns hold it. */
-interface Priced {
+export interface Priced {
   amount: string;
   currency: string;
   amount_issuer: string;
@@ -282,7 +282,7 @@ function removalOf(type: unknown): OfferRemovedBy | "cancel" {
  * The issuer's cut of a sale (rippled `acceptOffer`): the transfer fee of the price less the broker's cut, rounded down to whole drops for the native currency and to 16
  * significant digits for an issued one. `''` when the NFT has no fee, or the issuer is the seller or the buyer.
  */
-function royaltyOf(sale: ParsedNftEvent, price: Priced, brokerFee: BigNumber): string {
+export function royaltyOf(sale: ParsedNftEvent, price: Priced, brokerFee: BigNumber): string {
   if (sale.transfer_fee === 0 || sale.issuer === sale.from_account || sale.issuer === sale.to_account) return "";
   const cut = new BigNumber(price.amount).minus(brokerFee).multipliedBy(sale.transfer_fee).shiftedBy(-FEE_SCALE);
   const rounded = price.amount_issuer === "" ? cut.decimalPlaces(6, BigNumber.ROUND_DOWN) : cut.precision(16, BigNumber.ROUND_DOWN);

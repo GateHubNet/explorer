@@ -1,0 +1,18 @@
+{
+  "collection": {
+    "burned": 0,
+    "holders": 1,
+    "issuer": "rNk6oeGA4BKsCraCEMg2g5YkbegcXFtPGV",
+    "kind": "uritoken",
+    "last_ledger": 26763618,
+    "minted": 0,
+    "sales_count": 1,
+    "supply": 1,
+    "volume_native": "0"
+  },
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success"
+}

@@ -10,17 +10,17 @@
     "kind": "nftoken",
     "minted": {
       "by": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
-      "executed_time": "2026-10-24T20:42:50Z",
-      "ledger_index": 107878781,
+      "executed_time": "2026-10-25T02:00:52Z",
+      "ledger_index": 107883610,
       "to": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
-      "tx_hash": "DFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6DC5F145"
+      "tx_hash": "00359DDFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6D"
     },
     "nft_id": "001900007438324FE86D08A8B9D4FB58FBABF72EAAD24B4412C5D5A00000000C",
     "owner": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
     "owner_since": {
-      "executed_time": "2026-10-24T20:42:50Z",
-      "ledger_index": 107878781,
-      "tx_hash": "DFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6DC5F145"
+      "executed_time": "2026-10-25T02:00:52Z",
+      "ledger_index": 107883610,
+      "tx_hash": "00359DDFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6D"
     },
     "sale_count": 0,
     "serial": 12,

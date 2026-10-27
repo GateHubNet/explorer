@@ -1,8 +1,8 @@
 {
   "count": 0,
   "coverage": {
-    "complete": false,
-    "from_ledger_index": 107874617
+    "complete": true,
+    "from_ledger_index": 32570
   },
   "nfts": [],
   "result": "success"

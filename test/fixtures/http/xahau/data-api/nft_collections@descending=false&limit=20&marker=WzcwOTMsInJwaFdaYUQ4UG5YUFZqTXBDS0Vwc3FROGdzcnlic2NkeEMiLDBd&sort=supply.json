@@ -1,0 +1,13 @@
+{
+  "collections": [
+    {"burned":2033,"holders":1,"issuer":"r9dvZhF5b3gRTYVuZEMvhA5M636FCDrbRF","kind":"uritoken","last_ledger":26765431,"minted":0,"sales_count":32215,"supply":21584,"volume_native":"1222691.63"},
+    {"burned":70,"holders":1,"issuer":"rH6hVaJVA5Gwa8DA4wEAYhEqp7Mer4bC8g","kind":"uritoken","last_ledger":26763618,"minted":0,"sales_count":0,"supply":25000,"volume_native":"0"}
+  ],
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success",
+  "total": 22
+}

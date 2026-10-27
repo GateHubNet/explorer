@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
+import BigNumber from "bignumber.js";
 import { decodeAccountID, isValidClassicAddress } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
@@ -8,9 +9,10 @@ import { HTTP, isHandWritten, isNftGenerated, isoTime, LEDGERS, readLedgerSet, u
 import { deriveNfts, parseNftTransaction, type DerivedNft } from "../../scripts/nft-derive";
 import { featureCoverage, itemCoverage, listNft, nftAnswers, nftFixtures, nftWorld, NFT_ACCOUNTS, NFT_CASE_TXS, NFT_SETS, OWN_EVENTS, uriTokenId } from "../../scripts/nft-fixtures";
 import { decodeNftId } from "../../app/domain/nft-id";
+import { windowOf } from "../../app/domain/window";
 import type { Nft, NftEvent, NftEventKind } from "../../app/server/api-types";
-import { checkNft, checkNftEventsPage, checkNftOffersPage, checkNftsPage } from "../../app/server/nft-shape";
-import { encodeNftId, NFT_CASES, resolveHolder, resolveNftCase, type NftCase, type NftSources, type NodeNft } from "../support/nft-case-rules";
+import { checkCollection, checkCollectionDays, checkCollectionsPage, checkHoldersPage, checkNft, checkNftEventsPage, checkNftOffersPage, checkNftSalesPage, checkNftsPage, checkNftVolume } from "../../app/server/nft-shape";
+import { encodeNftId, NFT_CASES, resolveCollectionCase, resolveHolder, resolveNftCase, type NftCase, type NftSources, type NodeNft } from "../support/nft-case-rules";
 import { createUpstream, dataApiFile, nodeFile, type NetworkName } from "../support/upstream-core";
 
 // What the NFT fixtures promise the tests that use them: the data API's answers (D3, data-api-new `feat/explorer-data-2` at PIN da5ce14) that scripts/nft-fixtures.ts writes
@@ -882,15 +884,89 @@ const EVENTS_BODY_KEYS = ["result", "coverage", "count", "marker", "events"];
 const OFFERS_BODY_KEYS = ["result", "coverage", "count", "marker", "offers"];
 const NFTS_BODY_KEYS = ["result", "coverage", "count", "marker", "nfts"];
 
+/** A file of the collections, the sales or the NFT volume: what scripts/nft-fixtures.ts calls its aggregates. */
+const isAggregate = (path: string): boolean => /\/data-api\/(nft_collections[@/]|nft_sales@|network\/nft_volume@)/.test(path);
 const ordered = (object: object, order: readonly string[]): string[] => order.filter((key) => key in object);
-const kindOf = (path: string): "detail" | "history" | "offers" | "account" | "node" => {
+const kindOf = (path: string): "detail" | "history" | "offers" | "account" | "aggregate" | "node" => {
   if (/\/data-api\/nfts\/[0-9A-F]{64}\.json$/.test(path)) return "detail";
   if (/\/data-api\/nfts\/[0-9A-F]{64}\/history@/.test(path)) return "history";
   if (/\/data-api\/nfts\/[0-9A-F]{64}\/offers@/.test(path)) return "offers";
   if (/\/data-api\/accounts\/[^/]+\/nfts@/.test(path)) return "account";
+  if (isAggregate(path)) return "aggregate";
   return "node";
 };
 const answersOf = (kind: ReturnType<typeof kindOf>) => answers.filter(({ path }) => kindOf(path) === kind);
+
+// The keys of the collections' and the volume's objects, in the reference's order (`Keys of a collection`, `of a collection day`, `of a holder`, `of an NFT sale`, `of an NFT volume
+// component` and the answers' lines; the row is the row of the other volumes: components, count, exchange, total, exchange_rate, start_time, end_time).
+const COLLECTION_KEYS = ["issuer", "taxon", "kind", "supply", "holders", "minted", "burned", "sales_count", "volume_native", "first_mint", "last_mint", "last_ledger"];
+const DAY_KEYS = ["date", "sales_count", "volume_native", "avg_price_native", "min_price_native", "mints", "burns"];
+const HOLDER_KEYS = ["owner", "held"];
+const SALE_KEYS = [
+  "nft_id", "kind", "issuer", "taxon", "serial", "ledger_index", "tx_index", "event_index", "tx_hash", "executed_time", "seller", "buyer", "mode", "amount", "currency", "amount_issuer",
+  "converted_amount", "broker", "broker_fee", "royalty_est",
+];
+const VOLUME_ROW_KEYS = ["components", "count", "exchange", "total", "exchange_rate", "start_time", "end_time"];
+const VOLUME_COMPONENT_KEYS = ["issuer", "taxon", "count", "amount", "rate", "converted_amount"];
+const COLLECTIONS_BODY_KEYS = ["result", "coverage", "total", "count", "marker", "collections"];
+const COLLECTION_BODY_KEYS = ["result", "coverage", "collection"];
+const HOLDERS_BODY_KEYS = ["result", "coverage", "count", "marker", "holders"];
+const SALES_BODY_KEYS = ["result", "coverage", "count", "marker", "sales"];
+const STATS_BODY_KEYS = ["result", "coverage", "count", "days"];
+const VOLUME_BODY_KEYS = ["result", "coverage", "count", "marker", "rows"];
+
+/** The client's check (nft-shape.ts) of an aggregate file, by the route it answers: `path` is below test/fixtures/http/. */
+function checkAggregateFile(path: string, body: unknown): void {
+  const [net] = path.split("/") as [NetworkName];
+  const rest = path.slice(`${net}/data-api/`.length);
+  if (rest.startsWith("nft_collections@")) checkCollectionsPage(body, path);
+  else if (rest.startsWith("nft_sales@")) checkNftSalesPage(body, path);
+  else if (rest.startsWith("network/nft_volume@")) checkNftVolume(body, path, rest.includes("live=") ? "live" : "daily");
+  else if (/\/stats@/.test(rest)) checkCollectionDays(body, path);
+  else if (/\/sales@/.test(rest)) checkNftSalesPage(body, path);
+  else if (/\/holders@/.test(rest)) checkHoldersPage(body, path);
+  else if (/\/nfts@/.test(rest)) checkNftsPage(body, path, { issuer: rest.split("/")[1]!, ...(net === "xrpl" && { taxon: Number(rest.split("/")[2]) }) });
+  else checkCollection(body, path);
+}
+
+/** The keys of an aggregate answer and of the objects in it, before serialization, in the reference's order (a key an object has no value for is left out). */
+function expectAggregateKeys(path: string, answer: Json): void {
+  const keys = (object: object, order: readonly string[], what: string): void => expect(Object.keys(object), `${path} ${what}`).toEqual(order.filter((key) => key in object));
+  const rest = path.slice(path.indexOf("/data-api/") + "/data-api/".length);
+  if (rest.startsWith("nft_collections@")) {
+    keys(answer, COLLECTIONS_BODY_KEYS, "answer");
+    for (const collection of answer.collections as Json[]) {
+      keys(collection, COLLECTION_KEYS, "collection");
+      for (const point of ["first_mint", "last_mint"]) if (collection[point]) keys(collection[point], POINT_KEYS, point);
+    }
+  } else if (rest.startsWith("nft_sales@") || /\/sales@/.test(rest)) {
+    keys(answer, SALES_BODY_KEYS, "answer");
+    for (const sale of answer.sales as Json[]) keys(sale, SALE_KEYS, "sale");
+  } else if (rest.startsWith("network/nft_volume@")) {
+    keys(answer, VOLUME_BODY_KEYS, "answer");
+    for (const row of answer.rows as Json[]) {
+      keys(row, VOLUME_ROW_KEYS, "row");
+      for (const component of row.components as Json[]) keys(component, VOLUME_COMPONENT_KEYS, "component");
+    }
+  } else if (/\/stats@/.test(rest)) {
+    keys(answer, STATS_BODY_KEYS, "answer");
+    for (const day of answer.days as Json[]) keys(day, DAY_KEYS, "day");
+  } else if (/\/holders@/.test(rest)) {
+    keys(answer, HOLDERS_BODY_KEYS, "answer");
+    for (const holder of answer.holders as Json[]) keys(holder, HOLDER_KEYS, "holder");
+  } else if (/\/nfts@/.test(rest)) {
+    keys(answer, NFTS_BODY_KEYS, "answer");
+    for (const nft of answer.nfts as Json[]) {
+      keys(nft, NFT_KEYS, "nft");
+      if (nft.last_sale) keys(nft.last_sale, LIST_LAST_SALE_KEYS, "last_sale");
+    }
+  } else {
+    keys(answer, COLLECTION_BODY_KEYS, "answer");
+    keys(answer.collection, COLLECTION_KEYS, "collection");
+    for (const point of ["first_mint", "last_mint"]) if (answer.collection[point]) keys(answer.collection[point], POINT_KEYS, point);
+  }
+}
+
 
 describe("the files", () => {
   it("are named by the requests the pages make, one answer each", () => {
@@ -924,6 +1000,7 @@ describe("the files", () => {
       else if (kind === "history") checkNftEventsPage(body, path);
       else if (kind === "offers") checkNftOffersPage(body, path);
       else if (kind === "account") checkNftsPage(body, path);
+      else if (kind === "aggregate") checkAggregateFile(path, body);
       else continue;
       checked++;
     }
@@ -956,6 +1033,8 @@ describe("the files", () => {
       } else if (kind === "history") {
         expect(Object.keys(answer), path).toEqual(EVENTS_BODY_KEYS.filter((key) => key in answer));
         for (const event of answer.events) expect(Object.keys(event), path).toEqual(ordered(event, EVENT_KEYS));
+      } else if (kind === "aggregate") {
+        expectAggregateKeys(path, answer);
       } else {
         expect(Object.keys(answer), path).toEqual(OFFERS_BODY_KEYS.filter((key) => key in answer));
         for (const offer of answer.offers) expect(Object.keys(offer), path).toEqual(ordered(offer, OFFER_KEYS));
@@ -1140,7 +1219,6 @@ describe.each(NETS)("%s: the derived NFTs", (net) => {
     expect(completes).toContain(true);
     expect(completes).toContain(false);
     for (const each of world.nfts) expect(itemCoverage(from, each).from_ledger_index).toBe(from);
-    expect(featureCoverage(from)).toEqual({ from_ledger_index: from, complete: false });
   });
 });
 
@@ -1192,7 +1270,8 @@ describe.each(NETS)("%s: the featured NFT", (net) => {
       expect(e.ledger_index).toBeLessThan(firstRecorded.ledger_index);
       const raw = set.get(e.ledger_index)!;
       expect(raw, `${e.ledger_index} is a recorded ledger`).toBeDefined();
-      expect(e.tx_index).toBeLessThan(raw.ledger.transactions.length);
+      // a place no recorded transaction has: past the ledger's own
+      expect(e.tx_index).toBeGreaterThanOrEqual(raw.ledger.transactions.length);
       expect(e.executed_time).toBe(isoTime(unixOf(raw.ledger.close_time)));
       expect(e.tx_hash).toMatch(/^[0-9A-F]{64}$/);
       places.add(`${e.ledger_index}:${e.tx_index}`);
@@ -1253,6 +1332,54 @@ describe.each(NETS)("%s: the featured NFT", (net) => {
       expect([e.account, e.is_sell_offer, e.offer_id]).toEqual([SELLER, true, world.featured]);
     }
     expect(padding.at(-1)).toMatchObject({ event: "offer_create", amount: "4200" });
+  });
+});
+
+// ---- The places of the events --------------------------------------------------------------------------------------------------
+
+describe.each(NETS)("%s: the places of the events", (net) => {
+  const world = worlds[net];
+  const real = new Map(ledgers[net].map((raw) => [Number(raw.ledger.ledger_index), raw]));
+  const recorded = new Set(derived[net].flatMap((each) => each.events.map((e) => `${e.nft_id}:${e.ledger_index}:${e.tx_index}:${e.event_index}`)));
+  const every = world.nfts.flatMap((each) => each.events);
+  const isRecorded = (e: NftEvent): boolean => recorded.has(`${e.nft_id}:${e.ledger_index}:${e.tx_index}:${e.event_index}`);
+
+  it("are a unique (ledger_index, tx_index, event_index) across every NFT of the world, so that a sales list can join on it", () => {
+    const keys = every.map((e) => `${e.ledger_index}:${e.tx_index}:${e.event_index}`);
+    expect(new Set(keys).size).toBe(every.length);
+  });
+
+  it("have one transaction hash and type for a (ledger_index, tx_index), whichever NFT the event is of", () => {
+    const by = new Map<string, { hash: string; type: string }>();
+    for (const e of every) {
+      const key = `${e.ledger_index}:${e.tx_index}`;
+      const seen = by.get(key);
+      if (seen === undefined) by.set(key, { hash: e.tx_hash, type: e.tx_type });
+      else expect(seen, key).toEqual({ hash: e.tx_hash, type: e.tx_type });
+    }
+    // and one (ledger_index, tx_index) is one hash: no two places share a hash
+    const hashes = new Map<string, string>();
+    for (const [key, { hash }] of by) {
+      expect(hashes.get(hash) ?? key, hash).toBe(key);
+      hashes.set(hash, key);
+    }
+  });
+
+  it("are a recorded transaction's for a recorded event and past the ledger's own transactions for a synthetic one", () => {
+    let synthetic = 0;
+    for (const e of every) {
+      const raw = real.get(e.ledger_index);
+      expect(raw, `${e.ledger_index} is a recorded ledger`).toBeDefined();
+      if (isRecorded(e)) {
+        expect(raw!.ledger.transactions.find((tx) => tx.metaData.TransactionIndex === e.tx_index)?.hash).toBe(e.tx_hash);
+      } else {
+        synthetic++;
+        expect(e.tx_index, `${e.event} of ${e.nft_id}`).toBeGreaterThanOrEqual(raw!.ledger.transactions.length);
+        expect(e.executed_time).toBe(isoTime(unixOf(raw!.ledger.close_time)));
+      }
+    }
+    expect(synthetic).toBeGreaterThan(50);
+    expect(every.length - synthetic).toBe(derived[net].reduce((sum, each) => sum + each.events.length, 0));
   });
 });
 
@@ -1515,6 +1642,364 @@ describe("the node's files", () => {
       const method = net === "xrpl" ? "nft_info" : "ledger_entry";
       expect(files.has(nodeFile(net, method, net === "xrpl" ? { nft_id: missing.id, ledger_index: "validated" } : { index: missing.id, ledger_index: "validated" })!)).toBe(false);
       expect(files.has(dataApiFile(net, `/v2/nfts/${missing.id}`, "")!)).toBe(false);
+    }
+  });
+});
+
+// ---- The synthetic aggregates ----------------------------------------------------------------------------------------------------
+
+/** D3's feature coverage as the fixtures give it (C5): XRPL's is complete from the network's first ledger, Xahau's starts where the recordings do. */
+const FEATURE_COVERAGE: Record<NetworkName, { from_ledger_index: number; complete: boolean }> = { xrpl: { from_ledger_index: 32570, complete: true }, xahau: { from_ledger_index: 26533927, complete: false } };
+/** T: the UTC day of the newest ledger of the network's other sets (the recorded `last_validated`), and the window of 30 days it gives (`windowOf`). */
+const todayOf = (net: NetworkName): string => (JSON.parse(readFileSync(new URL(`${net}/data-api/last_validated.json`, HTTP), "utf8")) as { close_time: string }).close_time.slice(0, 10);
+const collectionPathOf = (nft: { issuer: string; taxon?: number } | Json): string => (nft.taxon === undefined ? nft.issuer : `${nft.issuer}/${nft.taxon}`);
+
+/** The pages of a list from its first query, each behind the marker of the one before: every page, and the rows of them all. */
+function walkPages(net: NetworkName, path: string, query: string, list: string): { rows: Json[]; pages: Json[] } {
+  const pages: Json[] = [];
+  for (let marker: string | undefined; ; ) {
+    const page = parsed(dataApiFile(net, path, `${query}${marker === undefined ? "" : `&marker=${marker}`}`)!);
+    expect(page.count).toBe(page[list].length);
+    pages.push(page);
+    marker = page.marker;
+    if (marker === undefined) return { rows: pages.flatMap((each) => each[list] as Json[]), pages };
+  }
+}
+
+/** The marker the data API writes for a list's page: the base64url JSON of the key values of its last row. */
+const markerOf = (...key: Array<string | number>): string => Buffer.from(JSON.stringify(key)).toString("base64url");
+
+describe.each(NETS)("%s: the synthetic aggregates", (net) => {
+  const world = worlds[net];
+  const featuredNft = world.nfts.find((each) => each.id === world.featured)!.nft;
+  const key = collectionPathOf(featuredNft);
+  const T = todayOf(net);
+  const window = windowOf(T, "30d");
+  const collectionNfts = world.nfts.filter((each) => collectionPathOf(each.nft) === key);
+
+  const walk = (path: string, query: string, list: string) => walkPages(net, path, query, list);
+
+  it("the featured collection's sales include the derived sale, and its supply and holders match its NFT files", () => {
+    const { collection } = parsed(dataApiFile(net, `/v2/nft_collections/${key}`, "")!);
+    expect(collection).toMatchObject({ issuer: featuredNft.issuer, kind: featuredNft.kind });
+    expect(collection.supply).toBe(collectionNfts.filter((each) => !each.nft.burned).length);
+    expect(collection.holders).toBe(new Set(collectionNfts.filter((each) => !each.nft.burned && each.nft.owner !== undefined).map((each) => each.nft.owner)).size);
+    const sale = derived[net].find((each) => each.id === world.featured)!.events.find((e) => e.event === "sale")!;
+    const { rows, pages } = walk(`/v2/nft_collections/${key}/sales`, "descending=true&limit=20", "sales");
+    expect(pages.length).toBeGreaterThanOrEqual(2);
+    expect(rows.map((each) => each.tx_hash)).toContain(sale.tx_hash);
+    expect(rows).toHaveLength(collection.sales_count);
+  });
+
+  it("the list pages concatenate to every collection once, in each sort's order, ties by issuer and taxon", () => {
+    for (const sort of ["volume", "supply", "holders"] as const) {
+      for (const ascending of [false, true]) {
+        const { rows, pages } = walk("/v2/nft_collections", `limit=20&sort=${sort}${ascending ? "&descending=false" : ""}`, "collections");
+        const label = `${sort} ${ascending ? "ascending" : "descending"}`;
+        expect(pages.length, label).toBeGreaterThanOrEqual(net === "xrpl" ? 3 : 2);
+        for (const page of pages) expect(page.total, label).toBe(rows.length);
+        const keys = rows.map((row) => `${row.issuer}/${row.taxon ?? ""}`);
+        expect(new Set(keys).size, label).toBe(rows.length);
+        const value = (row: Json): number => Number(sort === "volume" ? row.volume_native : row[sort]);
+        for (let at = 1; at < rows.length; at++) {
+          const [a, b] = [rows[at - 1]!, rows[at]!];
+          const order = ascending ? value(a) - value(b) : value(b) - value(a);
+          const tie = a.issuer < b.issuer ? -1 : a.issuer > b.issuer ? 1 : (a.taxon ?? 0) - (b.taxon ?? 0);
+          expect(order < 0 || (order === 0 && tie < 0), `${label} at ${at}`).toBe(true);
+        }
+        expect(keys, label).toContain(`${featuredNft.issuer}/${featuredNft.taxon ?? ""}`);
+      }
+    }
+  });
+
+  it("the live day row's total is the sum of its components' converted amounts, and count is at least their counts", () => {
+    for (const period of ["day", "7day", "30day"]) {
+      const { rows } = parsed(dataApiFile(net, "/v2/network/nft_volume", `live=${period}`)!);
+      expect(rows).toHaveLength(1);
+      const [row] = rows as Json[];
+      const total = (row!.components as Json[]).reduce((sum, component) => sum.plus(component.converted_amount), new BigNumber(0));
+      expect(row!.total, period).toBe(total.toFixed());
+      expect(row!.count, period).toBeGreaterThanOrEqual((row!.components as Json[]).reduce((sum, component) => sum + component.count, 0));
+    }
+  });
+
+  it("the stats days hold two quiet days and one unrated sale", () => {
+    const { days } = parsed(dataApiFile(net, `/v2/nft_collections/${key}/stats`, `end=${T}&start=${window.start}`)!);
+    expect(window.buckets).toHaveLength(30);
+    expect(window.buckets.filter((bucket) => !(days as Json[]).some((day) => day.date === `${bucket}T00:00:00Z`))).toHaveLength(2);
+    const unrated = (days as Json[]).filter((day) => day.sales_count > 0 && day.volume_native === "0");
+    expect(unrated).toHaveLength(1);
+    expect(unrated[0]).toMatchObject({ sales_count: 1 });
+    expect(unrated[0]).not.toHaveProperty("avg_price_native");
+    expect(unrated[0]).not.toHaveProperty("min_price_native");
+  });
+
+  it("every synthetic file passes its shape check", () => {
+    let checked = 0;
+    for (const [path, text] of files) {
+      if (!path.startsWith(`${net}/`) || !isAggregate(path)) continue;
+      checkAggregateFile(path, JSON.parse(text));
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(30);
+  });
+});
+
+describe.each(NETS)("%s: the aggregates agree with the NFT files and with each other", (net) => {
+  const world = worlds[net];
+  const T = todayOf(net);
+  const window = windowOf(T, "30d");
+  /** What the files give of every NFT of the world: its detail and its whole history, oldest first. */
+  const fromFiles = world.nfts.map((each) => ({
+    nft: parsed(dataApiFile(net, `/v2/nfts/${each.id}`, "")!).nft as Json,
+    events: walkPages(net, `/v2/nfts/${each.id}/history`, "descending=true&limit=20", "events").rows.reverse(),
+  }));
+  const groups = new Map<string, typeof fromFiles>();
+  for (const each of fromFiles) groups.set(collectionPathOf(each.nft), [...(groups.get(collectionPathOf(each.nft)) ?? []), each]);
+  const listed = walkPages(net, "/v2/nft_collections", "limit=20&sort=volume", "collections").rows;
+  const point = (e: Json) => ({ ledger_index: e.ledger_index, tx_hash: e.tx_hash, executed_time: e.executed_time });
+  const sum = (values: Iterable<string>): string => [...values].reduce((total, value) => total.plus(value), new BigNumber(0)).toFixed();
+
+  it("lists each collection of the NFT files as D3's aggregator counts it from their events, and every other collection in a shape that holds together", () => {
+    expect(listed.length).toBeGreaterThan(groups.size);
+    const byKey = new Map(listed.map((row) => [collectionPathOf(row), row]));
+    for (const [key, nfts] of groups) {
+      const events = nfts.flatMap((each) => each.events);
+      const mints = events.filter((e) => e.event === "mint").sort((a, b) => a.ledger_index - b.ledger_index || a.tx_index - b.tx_index || a.event_index - b.event_index);
+      const sales = events.filter((e) => e.event === "sale");
+      const held = nfts.filter((each) => !each.nft.burned);
+      expect(byKey.get(key), key).toEqual({
+        issuer: nfts[0]!.nft.issuer,
+        ...(nfts[0]!.nft.taxon !== undefined && { taxon: nfts[0]!.nft.taxon }),
+        kind: nfts[0]!.nft.kind,
+        supply: held.length,
+        holders: new Set(held.flatMap((each) => (each.nft.owner === undefined ? [] : [each.nft.owner]))).size,
+        minted: mints.length,
+        burned: events.filter((e) => e.event === "burn").length,
+        sales_count: sales.length,
+        volume_native: sum(sales.flatMap((e) => (e.converted_amount === undefined ? [] : [e.converted_amount]))),
+        ...(mints.length > 0 && { first_mint: point(mints[0]!), last_mint: point(mints.at(-1)!) }),
+        last_ledger: Math.max(...events.map((e) => e.ledger_index)),
+      });
+    }
+    for (const row of listed) {
+      if (groups.has(collectionPathOf(row))) continue;
+      expect(row.holders, collectionPathOf(row)).toBeLessThanOrEqual(row.supply);
+      expect(row.kind).toBe(net === "xrpl" ? "nftoken" : "uritoken");
+      expect(row.taxon === undefined).toBe(net === "xahau");
+      expect("first_mint" in row).toBe("last_mint" in row);
+      if (row.first_mint !== undefined) {
+        expect(row.first_mint.ledger_index).toBeLessThanOrEqual(row.last_mint.ledger_index);
+        expect(row.last_ledger).toBeGreaterThanOrEqual(row.last_mint.ledger_index);
+        expect(row.minted).toBeGreaterThanOrEqual(row.supply);
+      }
+      if (row.sales_count === 0) expect(row.volume_native, collectionPathOf(row)).toBe("0");
+    }
+  });
+
+  it("has ties to break: collections of one supply, one number of holders and a volume of 0", () => {
+    for (const [value, sort] of [["supply", "supply"], ["holders", "holders"], ["volume_native", "volume"]] as const) {
+      const counts = new Map<string, number>();
+      for (const row of listed) counts.set(String(row[value]), (counts.get(String(row[value])) ?? 0) + 1);
+      expect(Math.max(...counts.values()), sort).toBeGreaterThan(2);
+    }
+    expect(listed.some((row) => row.volume_native === "0")).toBe(true);
+    expect(listed.some((row) => row.volume_native !== "0")).toBe(true);
+  });
+
+  it("marks each page of the list with the sort value, the issuer and the taxon of its last row", () => {
+    for (const sort of ["volume", "supply", "holders"]) {
+      for (const query of [`limit=20&sort=${sort}`, `descending=false&limit=20&sort=${sort}`]) {
+        const { pages } = walkPages(net, "/v2/nft_collections", query, "collections");
+        pages.slice(0, -1).forEach((page, at) => {
+          const last = page.collections.at(-1) as Json;
+          const value = sort === "volume" ? Number(last.volume_native) : last[sort];
+          expect(page.marker, `${query} page ${at}`).toBe(markerOf(value, last.issuer, last.taxon ?? 0));
+          expect(page.collections, query).toHaveLength(20);
+        });
+        expect(pages.at(-1)).not.toHaveProperty("marker");
+      }
+    }
+  });
+
+  it("filters the list by issuer: the featured NFT's issuer has the collections it has (two on XRPL, one on Xahau), another account none", () => {
+    const featured = world.nfts.find((each) => each.id === world.featured)!.nft;
+    const own = listed.filter((row) => row.issuer === featured.issuer);
+    expect(own).toHaveLength(net === "xrpl" ? 2 : 1);
+    for (const sort of ["volume", "supply", "holders"]) {
+      for (const ascending of [false, true]) {
+        const query = `issuer=${featured.issuer}&limit=20&sort=${sort}${ascending ? "&descending=false" : ""}`;
+        const page = parsed(dataApiFile(net, "/v2/nft_collections", query)!);
+        expect(page).toMatchObject({ total: own.length, count: own.length });
+        expect(page.collections.map(collectionPathOf).sort()).toEqual(own.map(collectionPathOf).sort());
+        expect(page).not.toHaveProperty("marker");
+        const none = parsed(dataApiFile(net, "/v2/nft_collections", `issuer=${NFT_ACCOUNTS[net].unfunded}&limit=20&sort=${sort}${ascending ? "&descending=false" : ""}`)!);
+        expect(none).toMatchObject({ total: 0, count: 0, collections: [] });
+      }
+    }
+  });
+
+  it("gives the three cases a page of their own: the collection, its stats, sales, NFTs (and with an owner) and holders, and no other collection one", () => {
+    const pages = [...files.keys()].filter((path) => path.startsWith(`${net}/data-api/nft_collections/`) && !/@/.test(path.split("/").at(-1)!));
+    expect(pages).toHaveLength(3);
+    const sources = sourcesOf(net);
+    const featured = resolveNftCase(net, "featured", sources);
+    const details = new Map(pages.map((path) => [collectionPathOf(parsed(path).collection), parsed(path).collection as Json]));
+    const found = Object.fromEntries((["featured", "quiet", "other"] as const).map((which) => [which, resolveCollectionCase(which, featured, details as never)]));
+    expect(found.featured).toEqual({ issuer: featured!.issuer, ...(featured!.taxon !== undefined && { taxon: featured!.taxon }) });
+    expect(new Set(Object.values(found).map((each) => collectionPathOf(each!))).size).toBe(3);
+    expect(details.get(collectionPathOf(found.quiet!))!.sales_count).toBe(0);
+    expect(details.get(collectionPathOf(found.other!))!.sales_count).toBeGreaterThan(0);
+    for (const place of Object.values(found)) {
+      const base = `/v2/nft_collections/${collectionPathOf(place!)}`;
+      for (const [path, query] of [
+        [base, ""],
+        [`${base}/stats`, `end=${T}&start=${window.start}`],
+        [`${base}/sales`, "descending=true&limit=20"],
+        [`${base}/nfts`, "limit=20"],
+        [`${base}/nfts`, `limit=20&owner=${NFT_ACCOUNTS[net].active}`],
+        [`${base}/holders`, "limit=20"],
+      ] as const) expect(files.has(dataApiFile(net, path, query)!), `${path}?${query}`).toBe(true);
+    }
+    // a case is found from the data alone: with no featured NFT there is no featured collection, with none unsold or none sold there is no quiet or other one
+    expect(resolveCollectionCase("featured", undefined, details as never)).toBeUndefined();
+    const sold = new Map([...details].map(([path, collection]) => [path, { ...collection, sales_count: 3 }]));
+    expect(resolveCollectionCase("quiet", featured, sold as never)).toBeUndefined();
+    expect(resolveCollectionCase("other", featured, new Map([...details].map(([path, collection]) => [path, { ...collection, sales_count: 0 }])) as never)).toBeUndefined();
+    // the burned toggle is the featured collection's (it has a burned NFT); a collection's list has the NFTs of its own collection only, and the burned ones when asked
+    const base = `/v2/nft_collections/${collectionPathOf(found.featured!)}`;
+    const plain = walkPages(net, `${base}/nfts`, "limit=20", "nfts").rows;
+    const withBurned = walkPages(net, `${base}/nfts`, "include_burned=true&limit=20", "nfts").rows;
+    expect(plain.some((nft) => nft.burned)).toBe(false);
+    expect(withBurned.filter((nft) => nft.burned)).toHaveLength(1);
+    expect(withBurned.filter((nft) => !nft.burned)).toEqual(plain);
+  });
+
+  it("lists a collection's NFTs, owned NFTs and holders as its NFT files say, and its days add up to its totals", () => {
+    const featured = world.nfts.find((each) => each.id === world.featured)!.nft;
+    const key = collectionPathOf(featured);
+    const base = `/v2/nft_collections/${key}`;
+    const nfts = groups.get(key)!;
+    const bySerial = (a: Json, b: Json): number => (a.serial ?? 0) - (b.serial ?? 0) || (a.nft_id < b.nft_id ? -1 : 1);
+    const inList = (nft: Json): Json => (nft.last_sale === undefined ? nft : { ...nft, last_sale: Object.fromEntries(Object.entries(nft.last_sale).filter(([name]) => name !== "converted_amount")) });
+    expect(walkPages(net, `${base}/nfts`, "limit=20", "nfts").rows).toEqual(nfts.map((each) => each.nft).filter((nft) => !nft.burned).sort(bySerial).map(inList));
+    const active = NFT_ACCOUNTS[net].active;
+    expect(walkPages(net, `${base}/nfts`, `limit=20&owner=${active}`, "nfts").rows).toEqual(nfts.map((each) => each.nft).filter((nft) => !nft.burned && nft.owner === active).sort(bySerial).map(inList));
+    expect(walkPages(net, `${base}/nfts`, `limit=20&owner=${active}`, "nfts").rows.length).toBeGreaterThan(0);
+
+    const holders = walkPages(net, `${base}/holders`, "limit=20", "holders").rows;
+    const counted = new Map<string, number>();
+    for (const { nft } of nfts) if (!nft.burned && nft.owner !== undefined) counted.set(nft.owner, (counted.get(nft.owner) ?? 0) + 1);
+    expect(holders).toEqual([...counted].map(([owner, held]) => ({ owner, held })).sort((a, b) => b.held - a.held || (a.owner < b.owner ? -1 : 1)));
+
+    for (const [path, group] of groups) {
+      if (!files.has(dataApiFile(net, `/v2/nft_collections/${path}/stats`, `end=${T}&start=${window.start}`)!)) continue;
+      const collection = parsed(dataApiFile(net, `/v2/nft_collections/${path}`, "")!).collection;
+      const { days } = parsed(dataApiFile(net, `/v2/nft_collections/${path}/stats`, `end=${T}&start=${window.start}`)!);
+      expect(days.map((day: Json) => day.date), path).toEqual([...days.map((day: Json) => day.date)].sort());
+      for (const day of days as Json[]) {
+        expect(window.buckets, path).toContain(day.date.slice(0, 10));
+        expect(day.sales_count + day.mints + day.burns, `${path} ${day.date}: a row is a day with a sale, a mint or a burn`).toBeGreaterThan(0);
+        if (day.avg_price_native !== undefined) expect(new BigNumber(day.min_price_native).isLessThanOrEqualTo(day.avg_price_native)).toBe(true);
+      }
+      expect(days.reduce((total: number, day: Json) => total + day.sales_count, 0), path).toBe(collection.sales_count);
+      expect(sum(days.map((day: Json) => day.volume_native)), path).toBe(collection.volume_native);
+      expect(days.reduce((total: number, day: Json) => total + day.mints, 0), path).toBe(collection.minted);
+      expect(days.reduce((total: number, day: Json) => total + day.burns, 0), path).toBe(collection.burned);
+      expect(group.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("lists the sales of the network and of the featured collection newest first, each sale once, from the sale events of the NFT files", () => {
+    const everySale = fromFiles.flatMap((each) => each.events.filter((e) => e.event === "sale")).sort((a, b) => b.ledger_index - a.ledger_index || b.tx_index - a.tx_index || b.event_index - a.event_index);
+    const toSale = (e: Json): Json => ({
+      nft_id: e.nft_id, kind: e.kind, issuer: e.issuer, taxon: e.taxon, serial: e.serial, ledger_index: e.ledger_index, tx_index: e.tx_index, event_index: e.event_index, tx_hash: e.tx_hash,
+      executed_time: e.executed_time, seller: e.from, buyer: e.to, mode: e.broker === undefined ? "direct" : "brokered", amount: e.amount, currency: e.currency, amount_issuer: e.amount_issuer,
+      converted_amount: e.converted_amount, broker: e.broker, broker_fee: e.broker_fee, royalty_est: e.royalty_est,
+    });
+    const defined = (object: Json): Json => Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined));
+    const network = walkPages(net, "/v2/nft_sales", "descending=true&limit=20", "sales");
+    expect(network.rows).toEqual(everySale.map((e) => defined(toSale(e))));
+    expect(network.pages.length).toBe(2);
+    expect(new Set(network.rows.map((sale) => `${sale.ledger_index}:${sale.tx_index}:${sale.event_index}`)).size).toBe(network.rows.length);
+    // the first page of ten (the list page's), and the pages of twenty behind its marker (the older sales' page behind the list's "Older sales")
+    const ten = parsed(dataApiFile(net, "/v2/nft_sales", "descending=true&limit=10")!);
+    expect(ten.sales).toEqual(network.rows.slice(0, 10));
+    expect(ten.marker).toBe(markerOf(ten.sales[9].ledger_index, ten.sales[9].tx_index, ten.sales[9].event_index));
+    const behindTen = walkPages(net, "/v2/nft_sales", `descending=true&limit=20&marker=${ten.marker}`, "sales");
+    expect(behindTen.rows).toEqual(network.rows.slice(10));
+    const [first] = network.pages;
+    expect(first.marker).toBe(markerOf(first.sales[19].ledger_index, first.sales[19].tx_index, first.sales[19].event_index));
+    // the featured collection's sales: its own, and the first page the network's too, so that one marker serves both
+    const featured = world.nfts.find((each) => each.id === world.featured)!.nft;
+    const own = walkPages(net, `/v2/nft_collections/${collectionPathOf(featured)}/sales`, "descending=true&limit=20", "sales");
+    expect(own.rows).toEqual(network.rows.filter((sale) => sale.issuer === featured.issuer && sale.taxon === featured.taxon));
+    expect(own.pages[0]).toEqual(first);
+    expect(own.pages[0].marker).toBe(first.marker);
+    expect(own.pages).toHaveLength(2);
+    // a sale that has no converted price is in the lists (the XRPlay and EVR sales), and a brokered one, the derived one, is too
+    expect(network.rows.some((sale) => sale.converted_amount === undefined)).toBe(true);
+    if (net === "xrpl") expect(network.rows.some((sale) => sale.mode === "brokered")).toBe(true);
+    // the traded NFTs' sales are the newest of the network, each of the first twenty rows the featured collection's
+    expect(first.sales.every((sale: Json) => sale.issuer === featured.issuer && sale.taxon === featured.taxon)).toBe(true);
+  });
+
+  it("is a volume whose rolling rows nest, whose days are the window's computed ones, and whose collections are the list's", () => {
+    const live = Object.fromEntries(["day", "7day", "30day"].map((period) => [period, parsed(dataApiFile(net, "/v2/network/nft_volume", `live=${period}`)!).rows[0] as Json]));
+    const head = Date.parse(JSON.parse(readFileSync(new URL(`${net}/data-api/last_validated.json`, HTTP), "utf8")).close_time) / 1000;
+    const end = Math.floor(head / 60) * 60;
+    for (const [period, days] of [["day", 1], ["7day", 7], ["30day", 30]] as const) {
+      expect(live[period]).toMatchObject({ exchange: { currency: net === "xrpl" ? "XRP" : "XAH" }, exchange_rate: "1.0000000", start_time: isoTime(end - days * 86_400), end_time: isoTime(end) });
+    }
+    const amountOf = (row: Json, component: Json): string => (row.components as Json[]).find((each) => collectionPathOf(each) === collectionPathOf(component))?.amount ?? "0";
+    for (const [narrow, wide] of [["day", "7day"], ["7day", "30day"]]) {
+      expect(live[wide]!.count).toBeGreaterThanOrEqual(live[narrow]!.count);
+      expect(new BigNumber(live[wide]!.total).isGreaterThanOrEqualTo(live[narrow]!.total)).toBe(true);
+      for (const component of live[narrow]!.components as Json[]) expect(new BigNumber(amountOf(live[wide]!, component)).isGreaterThanOrEqualTo(component.amount)).toBe(true);
+    }
+    const daily = parsed(dataApiFile(net, "/v2/network/nft_volume", `end=${T}&interval=day&limit=1000&start=${window.start}`)!);
+    // the running day is not computed yet (the newest ledger closes after 01:00 UTC), so its row is not there: the window's other 29 are
+    expect(daily.rows.map((row: Json) => row.start_time.slice(0, 10))).toEqual(window.buckets.slice(0, -1));
+    expect(daily.count).toBe(daily.rows.length);
+    const known = new Set(listed.map(collectionPathOf));
+    for (const row of [...daily.rows, ...Object.values(live)] as Json[]) {
+      const where = `${row.start_time} to ${row.end_time}`;
+      const converted = (row.components as Json[]).map((component) => component.converted_amount as string);
+      expect(row.total, where).toBe(sum(converted));
+      expect(converted.map(Number), where).toEqual([...converted.map(Number)].sort((a, b) => b - a));
+      for (const component of row.components as Json[]) {
+        expect(known.has(collectionPathOf(component)), `${where}: ${collectionPathOf(component)} is a collection of the list`).toBe(true);
+        expect(component).toMatchObject({ rate: "1.0000000" });
+        expect(component.amount).toBe(component.converted_amount);
+      }
+      expect(row.count, where).toBeGreaterThanOrEqual((row.components as Json[]).reduce((total, component) => total + component.count, 0));
+    }
+    // a sale in an issued currency is in the count of its row and in no component: some row has more sales than its components count
+    expect(([...daily.rows, ...Object.values(live)] as Json[]).some((row) => row.count > row.components.reduce((total: number, component: Json) => total + component.count, 0))).toBe(true);
+    // the collections' own totals are at least what the window shows of them: the volume is a view, not a part, of the lists
+    for (const row of daily.rows as Json[]) expect(Date.parse(row.end_time) - Date.parse(row.start_time)).toBe(86_400_000);
+  });
+});
+
+describe("the feature's coverage", () => {
+  it("Xahau's coverage is incomplete and XRPL's complete, on every aggregate, every account's NFT list and the mock's empty page", async () => {
+    for (const net of NETS) {
+      const mine = [...files].filter(([path]) => path.startsWith(`${net}/`) && (isAggregate(path) || kindOf(path) === "account"));
+      expect(mine.length).toBeGreaterThan(30);
+      for (const [path, text] of mine) expect(JSON.parse(text).coverage, path).toEqual(FEATURE_COVERAGE[net]);
+      expect(featureCoverage(net)).toEqual(FEATURE_COVERAGE[net]);
+      const upstream = createUpstream({
+        files: { read: async () => undefined },
+        bases: { xrpl: { dataApi: "https://xrpl.data.example.invalid", node: "https://s1.ripple.com:51234/" }, xahau: { dataApi: "https://xahau.data.example.invalid", node: "https://xahau.network/" } },
+        primary: net,
+      });
+      const response = await upstream.handle(new Request(`https://${net}.data.example.invalid/v2/accounts/${NFT_ACCOUNTS[net].unfunded}/nfts?limit=20`, { headers: { "X-API-Key": "k" } }));
+      expect(((await response!.json()) as Json).coverage).toEqual(FEATURE_COVERAGE[net]);
+    }
+    // Xahau's starts where the recordings do, and a per-NFT file keeps D3's item rule over the recorded world: the first recorded ledger, whatever the network's feature says
+    expect(FEATURE_COVERAGE.xahau.from_ledger_index).toBe(worlds.xahau.from);
+    for (const net of NETS) {
+      for (const each of worlds[net].nfts) expect(parsed(dataApiFile(net, `/v2/nfts/${each.id}`, "")!).coverage, each.id).toEqual({ from_ledger_index: worlds[net].from, complete: each.events[0]!.event === "mint" });
     }
   });
 });

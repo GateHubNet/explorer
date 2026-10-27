@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "result": "success",
+  "rows": [
+    {"components":[{"amount":"8250.2","converted_amount":"8250.2","count":18,"issuer":"rnCztdAqS2zU41PQnjGbp7QWYsPRB5HJnG","rate":"1.0000000","taxon":6690},{"amount":"1198.04","converted_amount":"1198.04","count":13,"issuer":"rJG5dzwRP3QMwM45DuUHFeVT3X3o5xWwom","rate":"1.0000000","taxon":4349},{"amount":"1174.68","converted_amount":"1174.68","count":26,"issuer":"rhDCFgtwdeTniJ6TAz9RD4yYdNHJhAe9nD","rate":"1.0000000","taxon":2275},{"amount":"302.85","converted_amount":"302.85","count":12,"issuer":"rwKBSSAfhkvXTRgBfRJWQYQSdcckMnSaNE","rate":"1.0000000","taxon":479},{"amount":"99.78","converted_amount":"99.78","count":16,"issuer":"rQuE6kEyTuS2cM6Yg19zTUE1wZ6RLXo1J","rate":"1.0000000","taxon":4574},{"amount":"9.79","converted_amount":"9.79","count":9,"issuer":"r3dsiyhcYX5QKdpuEncQQyz3Tis6peYgwM","rate":"1.0000000","taxon":7462}],"count":103,"end_time":"2026-10-17T17:01:00Z","exchange":{"currency":"XRP"},"exchange_rate":"1.0000000","start_time":"2026-09-17T17:01:00Z","total":"11035.34"}
+  ]
+}

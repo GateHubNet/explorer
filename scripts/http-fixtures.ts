@@ -420,15 +420,19 @@ export function isAnalyticsGenerated(path: string): boolean {
 
 /**
  * Paths (below test/fixtures/http/) of the NFT pages' files that nft-fixtures.ts writes (E8): an NFT's answers (`data-api/nfts/<ID>.json`, `…/<ID>/history@…`, `…/<ID>/offers@…`),
- * the NFTs an account holds (`data-api/accounts/<A>/nfts@…`, which `isHandWritten` leaves to the generator as it does an account's analytics answers) and the nodes' NFT answers
- * (`node/nft_info/`, `node/nft_sell_offers/`, `node/nft_buy_offers/` and `node/ledger_entry/`, the Xahau URIToken entries; the is_burned answer among them is generated too).
- * Reviewed in the generator, they have a size budget of their own (test/unit/http-fixtures.test.ts, left out of the budget of the recorded files), and
- * test/unit/nft-fixtures.test.ts keeps this in step with the generator.
+ * the NFTs an account holds (`data-api/accounts/<A>/nfts@…`, which `isHandWritten` leaves to the generator as it does an account's analytics answers), the collections (the
+ * list `data-api/nft_collections@…`, a collection `data-api/nft_collections/<issuer>[/<taxon>].json` and its `stats@`, `sales@`, `nfts@` and `holders@` below it), the sales
+ * (`data-api/nft_sales@…`), the NFT volume (`data-api/network/nft_volume@…`) and the nodes' NFT answers (`node/nft_info/`, `node/nft_sell_offers/`, `node/nft_buy_offers/` and
+ * `node/ledger_entry/`, the Xahau URIToken entries; the is_burned answer among them is generated too). Reviewed in the generator, they have a size budget of their own
+ * (test/unit/http-fixtures.test.ts, left out of the budget of the recorded files), and test/unit/nft-fixtures.test.ts keeps this in step with the generator. (`isSynthetic` does
+ * not match the NFT volume: its names are `payment`, `exchange` and `amm`.)
  */
 export function isNftGenerated(path: string): boolean {
   return (
     /^(xrpl|xahau)\/data-api\/nfts\//.test(path) ||
     /^(xrpl|xahau)\/data-api\/accounts\/[^/]+\/nfts@/.test(path) ||
+    /^(xrpl|xahau)\/data-api\/(nft_collections[@/]|nft_sales@)/.test(path) ||
+    /^(xrpl|xahau)\/data-api\/network\/nft_volume@/.test(path) ||
     /^(xrpl|xahau)\/node\/(nft_info|nft_sell_offers|nft_buy_offers|ledger_entry)\//.test(path)
   );
 }

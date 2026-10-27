@@ -1,0 +1,13 @@
+{
+  "collections": [
+    {"burned":17,"first_mint":{"executed_time":"2026-10-21T13:29:11Z","ledger_index":26689211,"tx_hash":"D88F03F99394B47124B964C87B04209593EC31D9FCA494255204D4CFB94D6700"},"holders":418,"issuer":"rEe4SQBPUguAFyoASCSAH8oyN5JAgQkX5N","kind":"uritoken","last_ledger":26765431,"last_mint":{"executed_time":"2026-10-24T17:15:21Z","ledger_index":26765431,"tx_hash":"46AE47A22ACB56A397864D5C84789F72E4411E3AB6582D8DF5C7F144B99D3EA6"},"minted":1017,"sales_count":1915,"supply":1000,"volume_native":"210456.16"},
+    {"burned":64,"holders":430,"issuer":"rQDGihnWMtiKHZXPjsfVd1Twjc7DW8Gfhi","kind":"uritoken","last_ledger":26689211,"minted":0,"sales_count":0,"supply":757,"volume_native":"0"}
+  ],
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success",
+  "total": 22
+}

@@ -1,0 +1,38 @@
+{
+  "count": 28,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "days": [
+    {"avg_price_native":"203.23","burns":0,"date":"2026-09-18T00:00:00Z","min_price_native":"203.23","mints":0,"sales_count":1,"volume_native":"203.23"},
+    {"avg_price_native":"153.08","burns":0,"date":"2026-09-19T00:00:00Z","min_price_native":"153.08","mints":0,"sales_count":1,"volume_native":"153.08"},
+    {"burns":0,"date":"2026-09-20T00:00:00Z","mints":1,"sales_count":0,"volume_native":"0"},
+    {"burns":0,"date":"2026-09-21T00:00:00Z","mints":1,"sales_count":0,"volume_native":"0"},
+    {"burns":0,"date":"2026-09-22T00:00:00Z","mints":1,"sales_count":0,"volume_native":"0"},
+    {"burns":1,"date":"2026-09-23T00:00:00Z","mints":0,"sales_count":0,"volume_native":"0"},
+    {"avg_price_native":"122.18","burns":0,"date":"2026-09-24T00:00:00Z","min_price_native":"122.18","mints":0,"sales_count":1,"volume_native":"122.18"},
+    {"burns":0,"date":"2026-09-25T00:00:00Z","mints":1,"sales_count":0,"volume_native":"0"},
+    {"avg_price_native":"182.75","burns":0,"date":"2026-09-26T00:00:00Z","min_price_native":"182.75","mints":0,"sales_count":1,"volume_native":"182.75"},
+    {"avg_price_native":"360.35","burns":0,"date":"2026-09-28T00:00:00Z","min_price_native":"360.35","mints":0,"sales_count":1,"volume_native":"360.35"},
+    {"avg_price_native":"262.46","burns":0,"date":"2026-09-29T00:00:00Z","min_price_native":"262.46","mints":0,"sales_count":1,"volume_native":"262.46"},
+    {"avg_price_native":"355.34","burns":0,"date":"2026-09-30T00:00:00Z","min_price_native":"355.34","mints":0,"sales_count":1,"volume_native":"355.34"},
+    {"burns":0,"date":"2026-10-01T00:00:00Z","mints":1,"sales_count":0,"volume_native":"0"},
+    {"avg_price_native":"308.87","burns":0,"date":"2026-10-02T00:00:00Z","min_price_native":"308.87","mints":0,"sales_count":1,"volume_native":"308.87"},
+    {"avg_price_native":"149.53","burns":0,"date":"2026-10-03T00:00:00Z","min_price_native":"149.53","mints":0,"sales_count":1,"volume_native":"149.53"},
+    {"avg_price_native":"166.13","burns":0,"date":"2026-10-04T00:00:00Z","min_price_native":"166.13","mints":0,"sales_count":1,"volume_native":"166.13"},
+    {"avg_price_native":"66.53","burns":0,"date":"2026-10-05T00:00:00Z","min_price_native":"66.53","mints":0,"sales_count":1,"volume_native":"66.53"},
+    {"burns":0,"date":"2026-10-06T00:00:00Z","mints":1,"sales_count":0,"volume_native":"0"},
+    {"avg_price_native":"150","burns":0,"date":"2026-10-07T00:00:00Z","min_price_native":"150","mints":0,"sales_count":1,"volume_native":"150"},
+    {"avg_price_native":"20","burns":0,"date":"2026-10-09T00:00:00Z","min_price_native":"20","mints":0,"sales_count":1,"volume_native":"20"},
+    {"avg_price_native":"149.16","burns":0,"date":"2026-10-10T00:00:00Z","min_price_native":"149.16","mints":0,"sales_count":1,"volume_native":"149.16"},
+    {"burns":0,"date":"2026-10-11T00:00:00Z","mints":0,"sales_count":1,"volume_native":"0"},
+    {"avg_price_native":"128.79","burns":0,"date":"2026-10-12T00:00:00Z","min_price_native":"128.79","mints":0,"sales_count":1,"volume_native":"128.79"},
+    {"avg_price_native":"242.81","burns":0,"date":"2026-10-13T00:00:00Z","min_price_native":"242.81","mints":0,"sales_count":1,"volume_native":"242.81"},
+    {"avg_price_native":"108.81","burns":0,"date":"2026-10-14T00:00:00Z","min_price_native":"108.81","mints":0,"sales_count":1,"volume_native":"108.81"},
+    {"avg_price_native":"236.46","burns":0,"date":"2026-10-15T00:00:00Z","min_price_native":"236.46","mints":0,"sales_count":1,"volume_native":"236.46"},
+    {"avg_price_native":"280.18","burns":0,"date":"2026-10-16T00:00:00Z","min_price_native":"280.18","mints":0,"sales_count":1,"volume_native":"280.18"},
+    {"avg_price_native":"48.56","burns":0,"date":"2026-10-17T00:00:00Z","min_price_native":"48.56","mints":0,"sales_count":1,"volume_native":"48.56"}
+  ],
+  "result": "success"
+}

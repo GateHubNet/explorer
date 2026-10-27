@@ -1,0 +1,16 @@
+{
+  "count": 6,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "holders": [
+    {"held":2,"owner":"rHWcG6XvVGWG3BSjRE99Nz7JB1epsK5XP5"},
+    {"held":1,"owner":"r9gvUQxtV98nRAM26aknj4h6RXKyXCLMVS"},
+    {"held":1,"owner":"rAucmWmE8yiueemhmrGh5MyD2mNjXfpQp"},
+    {"held":1,"owner":"rBkEp8W1yhBGLrvHFKKyrmSvniMFVJbPPg"},
+    {"held":1,"owner":"rHAyiAD5CQRa2MspXLk7JApMWEnqjY1HUa"},
+    {"held":1,"owner":"rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto"}
+  ],
+  "result": "success"
+}

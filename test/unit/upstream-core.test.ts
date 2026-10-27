@@ -347,13 +347,14 @@ describe("createUpstream", () => {
   });
 
   // D3 answers 200 with an empty page for any address ("an address in a path under /v2/accounts is not checked: one that is none holds nothing"), with the coverage of the
-  // network's NFT index. The mock's is the first ledger of the recordings D3's own tests seed, as the reference's examples have it: not whole, nothing before it is indexed.
+  // network's NFT index, the feature's: the fixtures' (scripts/nft-fixtures.ts, `FEATURE_COVERAGE`; test/unit/nft-fixtures.test.ts compares the pages). XRPL's feature is as old
+  // as the network, complete from its first ledger, 32,570; Xahau's starts at the first ledger of the recordings D3's own tests seed, as the reference's example has it: not whole.
   it("answers the NFTs of any account with D3's empty page and the coverage of the network, as an answer that has no fixture", async () => {
     const upstream = make();
     const xrpl = await upstream.handle(get(`/xrpl/v2/accounts/${ACCOUNT}/nfts?limit=20`));
     expect(xrpl!.status).toBe(200);
     const body = await jsonOf(xrpl);
-    expect(body).toEqual({ result: "success", coverage: { from_ledger_index: 107874617, complete: false }, count: 0, nfts: [] });
+    expect(body).toEqual({ result: "success", coverage: { from_ledger_index: 32570, complete: true }, count: 0, nfts: [] });
     // The keys are in D3's order: no marker, as there is no next page.
     expect(Object.keys(body)).toEqual(["result", "coverage", "count", "nfts"]);
     expect(Object.keys(body.coverage)).toEqual(["from_ledger_index", "complete"]);

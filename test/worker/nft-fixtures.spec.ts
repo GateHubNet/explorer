@@ -4,13 +4,14 @@ import { createDataApi } from "../../app/server/data-api";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
 import { createNodeRpc } from "../../app/server/node-rpc";
-import { holderCase, nftCase, NFT_CASES } from "../support/nft-cases";
+import { windowOf } from "../../app/domain/window";
+import { collectionCase, collectionsMarker, COLLECTION_CASES, holderCase, nftCase, NFT_CASES, salesMarker } from "../support/nft-cases";
 import { passThroughCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The generated NFT fixtures (scripts/nft-fixtures.ts), read in the Workers runtime by the clients that read them: the data API client's NFT, history, offers and account calls,
-// and the node client's NFT readers, on the files the committed fixtures hold; and the cases of test/support/nft-cases.ts, found in those files by the rules of
+// the node client's NFT readers, and the collections, sales and volume calls, on the files the committed fixtures hold; and the cases of test/support/nft-cases.ts, found in those files by the rules of
 // nft-case-rules.ts. The requests are the clients' own, through `mockUpstream`, so a file named otherwise than the request the client makes is an absent answer here, and the
 // client's checks run on every answer. (test/unit/nft-fixtures.test.ts checks the files against D3's rules in Node.)
 
@@ -128,5 +129,102 @@ describe.each(["xrpl", "xahau"] as const)("%s: the NFT fixtures, read in the Wor
     // and an NFT of the node's alone is not in the index
     const network_ = await nftCase(net, "network");
     await expect(createDataApi(network, env, passThroughCache).nft(network_.id)).rejects.toMatchObject({ kind: "not_found" });
+  });
+});
+
+describe.each(["xrpl", "xahau"] as const)("%s: the NFT aggregates, read in the Workers runtime", (net) => {
+  const network = networkOf(net, env);
+  const coverage = net === "xrpl" ? { from_ledger_index: 32570, complete: true } : { from_ledger_index: 26533927, complete: false };
+  const placeOf = (place: { issuer: string; taxon?: number }) => (place.taxon === undefined ? { issuer: place.issuer } : { issuer: place.issuer, taxon: place.taxon });
+
+  it("holds a collection of every case, and the marker of the list's second page and of the sales'", async () => {
+    const found = new Set<string>();
+    for (const which of COLLECTION_CASES) {
+      const place = await collectionCase(net, which);
+      expect(place.issuer, which).toMatch(/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/);
+      expect(place.taxon === undefined, which).toBe(net === "xahau");
+      found.add(`${place.issuer}/${place.taxon ?? ""}`);
+    }
+    expect(found.size).toBe(3);
+    expect(await collectionCase(net, "featured")).toEqual(placeOf(await nftCase(net, "featured")));
+    expect(await collectionsMarker(net)).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(await salesMarker(net)).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("serves the collections in each sort and order, the marker page, and the filters by issuer, with the feature's coverage", async () => {
+    mock = mockUpstream(net);
+    const api = createDataApi(network, env, passThroughCache);
+    const first = await api.nftCollections({ limit: 20, sort: "volume" });
+    expect(first.coverage).toEqual(coverage);
+    expect(first.collections).toHaveLength(20);
+    expect(first.total).toBeGreaterThan(20);
+    expect(first.marker).toBe(await collectionsMarker(net));
+    const second = await api.nftCollections({ limit: 20, sort: "volume", marker: first.marker });
+    expect(second.collections.length).toBeGreaterThan(0);
+    for (const sort of ["supply", "holders"] as const) {
+      const desc = await api.nftCollections({ limit: 20, sort });
+      // ascending is the text "false" (the client sends nothing for descending): its own files
+      const asc = await api.nftCollections({ limit: 20, sort, descending: false });
+      expect(asc.total).toBe(desc.total);
+      expect(Number(asc.collections[0]![sort])).toBeLessThanOrEqual(Number(desc.collections[0]![sort]));
+    }
+    expect(mock.requests.some((request) => request.key === "GET /v2/nft_collections?descending=false&limit=20&sort=supply")).toBe(true);
+    const featured = await collectionCase(net, "featured");
+    expect((await api.nftCollections({ limit: 20, sort: "volume", issuer: featured.issuer })).total).toBe(net === "xrpl" ? 2 : 1);
+    expect(await api.nftCollections({ limit: 20, sort: "volume", issuer: "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC" })).toMatchObject({ total: 0, count: 0, collections: [] });
+    allFromFiles();
+  });
+
+  it("serves each case's collection, stats, sales, NFTs (burned, and held by the active account) and holders, and the featured sales' second page", async () => {
+    mock = mockUpstream(net);
+    const api = createDataApi(network, env, passThroughCache);
+    const last = await api.lastValidated();
+    const window = windowOf(last.close_time.slice(0, 10), "30d");
+    const holder = await holderCase(net);
+    for (const which of COLLECTION_CASES) {
+      const key = await collectionCase(net, which);
+      const { collection, coverage: seen } = await api.nftCollection(key);
+      expect(seen).toEqual(coverage);
+      expect(collection).toMatchObject(key);
+      const { days } = await api.nftCollectionStats(key, { start: window.start, end: window.end });
+      expect(days.reduce((total, day) => total + day.sales_count, 0), which).toBe(collection.sales_count);
+      const sales = await api.nftCollectionSales(key, { descending: true, limit: 20 });
+      expect(sales.sales.length, which).toBe(Math.min(collection.sales_count, 20));
+      const nfts = await api.nftCollectionNfts(key, { limit: 20 });
+      expect(nfts.nfts.length, which).toBe(collection.supply);
+      const mine = await api.nftCollectionNfts(key, { limit: 20, owner: holder });
+      expect(mine.nfts.every((nft) => nft.owner === holder)).toBe(true);
+      expect((await api.nftCollectionHolders(key, { limit: 20 })).holders.length, which).toBeGreaterThanOrEqual(collection.supply > 0 ? 1 : 0);
+    }
+    const featured = await collectionCase(net, "featured");
+    expect((await api.nftCollectionNfts(featured, { limit: 20, includeBurned: true })).nfts.filter((nft) => nft.burned)).toHaveLength(1);
+    expect((await api.nftCollectionNfts(featured, { limit: 20, owner: holder })).nfts.length).toBeGreaterThan(0);
+    const page = await api.nftCollectionSales(featured, { descending: true, limit: 20, marker: await salesMarker(net) });
+    expect(page.sales.length).toBeGreaterThan(0);
+    expect(page.marker).toBeUndefined();
+    allFromFiles();
+  });
+
+  it("serves the sales of the network (ten, twenty, the page behind the marker of each) and the volume (the three rolling periods, the days), with the feature's coverage", async () => {
+    mock = mockUpstream(net);
+    const api = createDataApi(network, env, passThroughCache);
+    const ten = await api.nftSales({ descending: true, limit: 10 });
+    expect(ten).toMatchObject({ count: 10, coverage });
+    const twenty = await api.nftSales({ descending: true, limit: 20 });
+    expect(twenty.sales.slice(0, 10)).toEqual(ten.sales);
+    expect(twenty.marker).toBe(await salesMarker(net));
+    const behind = await api.nftSales({ descending: true, limit: 20, marker: twenty.marker });
+    expect(behind.sales.length).toBeGreaterThan(0);
+    expect((await api.nftSales({ descending: true, limit: 20, marker: ten.marker })).sales).toEqual([...twenty.sales.slice(10), ...behind.sales]);
+    for (const period of ["day", "7day", "30day"] as const) {
+      const { rows, coverage: seen } = await api.nftVolume({ live: period });
+      expect(seen).toEqual(coverage);
+      expect(rows).toHaveLength(1);
+    }
+    const last = await api.lastValidated();
+    const window = windowOf(last.close_time.slice(0, 10), "30d");
+    const daily = await api.nftVolume({ interval: "day", start: window.start, end: window.end, limit: 1000 });
+    expect(daily.rows).toHaveLength(window.buckets.length - 1);
+    allFromFiles();
   });
 });

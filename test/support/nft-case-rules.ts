@@ -8,10 +8,16 @@
 //   network          an NFT the index lacks and the node has (Clio's `nft_info`, a Xahau `ledger_entry`)
 //   network-burned   an NFT the index lacks and the node says is burned (XRPL only: a burned URIToken is no ledger entry)
 //   missing          an id of the shape of the collection's ids that neither the index nor the node has
+//
+// and of the collections the pages draw (`resolveCollectionCase`):
+//
+//   featured         the collection of the featured NFT
+//   quiet            a collection no NFT of which was ever sold (so none in the last 30 days)
+//   other            a third: one that has been sold
 
 import { decodeAccountID } from "ripple-address-codec";
 
-import type { NftAnswer, NftEventsPage, NftsPage } from "../../app/server/api-types";
+import type { NftAnswer, NftCollection, NftEventsPage, NftsPage } from "../../app/server/api-types";
 import type { NetworkName } from "./upstream-core";
 
 export const NFT_CASES = ["featured", "burned", "unowned", "network", "network-burned", "missing"] as const;
@@ -127,4 +133,41 @@ export function resolveNftCase(net: NetworkName, which: NftCase, sources: NftSou
 /** An account that holds NFTs in the index: the first of the accounts' lists (by address) that has one. */
 export function resolveHolder(sources: NftSources): string | undefined {
   return [...sources.holdings.keys()].sort().find((account) => sources.holdings.get(account)!.nfts.length > 0);
+}
+
+export const COLLECTION_CASES = ["featured", "quiet", "other"] as const;
+export type CollectionCase = (typeof COLLECTION_CASES)[number];
+
+/** A collection a case names, as a path has it: its issuer, and on XRPL its taxon (on Xahau the issuer alone). */
+export interface CollectionCaseResult {
+  issuer: string;
+  taxon?: number;
+}
+
+const collectionKeyOf = (place: { issuer: string; taxon?: number }): string => (place.taxon === undefined ? place.issuer : `${place.issuer}/${place.taxon}`);
+
+/**
+ * The collection of `which`, from the collections that have a page of their own in the fixtures (`data-api/nft_collections/<issuer>[/<taxon>].json`, by their key) and the
+ * featured NFT (`resolveNftCase`, which `undefined` has none): `featured` is the featured NFT's collection; of the others, `quiet` is one that has no sale at all (so none in 30
+ * days) and `other` one that has (the most sold, then the lowest key). `undefined` when the files hold none, or the featured NFT's collection has no page of its own.
+ */
+export function resolveCollectionCase(which: CollectionCase, featured: NftCaseResult | undefined, collections: ReadonlyMap<string, NftCollection>): CollectionCaseResult | undefined {
+  const place = (collection: NftCollection): CollectionCaseResult => ({ issuer: collection.issuer, ...(collection.taxon !== undefined && { taxon: collection.taxon }) });
+  const featuredKey = featured === undefined ? undefined : collectionKeyOf(featured);
+  const byKey = ([a]: [string, NftCollection], [b]: [string, NftCollection]): number => (a < b ? -1 : a > b ? 1 : 0);
+  const rest = [...collections].filter(([key]) => key !== featuredKey);
+  switch (which) {
+    case "featured": {
+      const own = featuredKey === undefined ? undefined : collections.get(featuredKey);
+      return own === undefined ? undefined : place(own);
+    }
+    case "quiet": {
+      const [found] = rest.filter(([, collection]) => collection.sales_count === 0).sort(byKey);
+      return found === undefined ? undefined : place(found[1]);
+    }
+    case "other": {
+      const [found] = rest.filter(([, collection]) => collection.sales_count > 0).sort((a, b) => b[1].sales_count - a[1].sales_count || byKey(a, b));
+      return found === undefined ? undefined : place(found[1]);
+    }
+  }
 }

@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "days": [
+    {"burns":0,"date":"2026-09-19T00:00:00Z","mints":1,"sales_count":0,"volume_native":"0"},
+    {"burns":1,"date":"2026-10-10T00:00:00Z","mints":0,"sales_count":0,"volume_native":"0"}
+  ],
+  "result": "success"
+}

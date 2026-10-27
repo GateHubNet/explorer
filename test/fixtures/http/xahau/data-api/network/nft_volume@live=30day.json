@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success",
+  "rows": [
+    {"components":[{"amount":"51303.36","converted_amount":"51303.36","count":16,"issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","rate":"1.0000000"},{"amount":"2623.51","converted_amount":"2623.51","count":22,"issuer":"rEe4SQBPUguAFyoASCSAH8oyN5JAgQkX5N","rate":"1.0000000"},{"amount":"1197.96","converted_amount":"1197.96","count":32,"issuer":"r9dvZhF5b3gRTYVuZEMvhA5M636FCDrbRF","rate":"1.0000000"},{"amount":"149.51","converted_amount":"149.51","count":13,"issuer":"rDwqsi7Nn1268riZJVo8hU3dPmwsFBHgyy","rate":"1.0000000"},{"amount":"125.9","converted_amount":"125.9","count":9,"issuer":"rfxdNeYp2FikrQCK9kLPqKPu7JkVEhJJmz","rate":"1.0000000"}],"count":96,"end_time":"2026-10-17T17:47:00Z","exchange":{"currency":"XAH"},"exchange_rate":"1.0000000","start_time":"2026-09-17T17:47:00Z","total":"55400.24"}
+  ]
+}

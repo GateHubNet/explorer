@@ -279,11 +279,12 @@ function nodeAnswer(result: unknown): Response {
 }
 
 /**
- * D3's NFT coverage as the mock has it, by network: the first ledger of the recordings D3's own end-to-end suites seed, as the examples of its reference have it
- * (`docs/api-reference.md` at da5ce14, "NFTs"). Not complete: nothing before that ledger is indexed.
+ * D3's feature coverage for NFTs as the mock has it, by network: the fixtures' (scripts/nft-fixtures.ts, `FEATURE_COVERAGE`; a test compares the two), the one coverage of every
+ * answer of a network that is not about one NFT. XRPL's feature is as old as the network, so its index is complete from the network's first ledger (32,570, D3's "Coverage");
+ * Xahau's starts at the first ledger the recordings D3's own end-to-end suites seed have (`docs/api-reference.md` at da5ce14, "NFTs"), and nothing before it is indexed.
  */
 const NFT_COVERAGE: Record<NetworkName, { from_ledger_index: number; complete: boolean }> = {
-  xrpl: { from_ledger_index: 107874617, complete: false },
+  xrpl: { from_ledger_index: 32570, complete: true },
   xahau: { from_ledger_index: 26533927, complete: false },
 };
 

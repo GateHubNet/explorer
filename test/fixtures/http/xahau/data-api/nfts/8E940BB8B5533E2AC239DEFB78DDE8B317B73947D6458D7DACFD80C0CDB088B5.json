@@ -10,17 +10,17 @@
     "kind": "uritoken",
     "minted": {
       "by": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
-      "executed_time": "2026-10-24T23:36:21Z",
-      "ledger_index": 26771798,
+      "executed_time": "2026-10-15T03:35:11Z",
+      "ledger_index": 26533927,
       "to": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
-      "tx_hash": "91172F30DEDEEEC5958FE819769F18F3185B1565D6CFBA1991585598ABFA5A24"
+      "tx_hash": "12D491172F30DEDEEEC5958FE819769F18F3185B1565D6CFBA1991585598ABFA"
     },
     "nft_id": "8E940BB8B5533E2AC239DEFB78DDE8B317B73947D6458D7DACFD80C0CDB088B5",
     "owner": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
     "owner_since": {
-      "executed_time": "2026-10-24T23:36:21Z",
-      "ledger_index": 26771798,
-      "tx_hash": "91172F30DEDEEEC5958FE819769F18F3185B1565D6CFBA1991585598ABFA5A24"
+      "executed_time": "2026-10-15T03:35:11Z",
+      "ledger_index": 26533927,
+      "tx_hash": "12D491172F30DEDEEEC5958FE819769F18F3185B1565D6CFBA1991585598ABFA"
     },
     "sale_count": 0,
     "uri": "68747470733A2F2F6E66742E6578616D706C652F72486B74664755622F312E6A736F6E"

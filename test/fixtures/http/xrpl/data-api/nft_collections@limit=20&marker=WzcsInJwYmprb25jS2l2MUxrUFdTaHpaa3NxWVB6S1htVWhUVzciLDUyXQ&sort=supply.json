@@ -1,0 +1,32 @@
+{
+  "collections": [
+    {"burned":0,"holders":0,"issuer":"r4qHM7vWeLTtWPVoEzDjT6AskpQjSmui7B","kind":"nftoken","last_ledger":107881530,"minted":0,"sales_count":0,"supply":4,"taxon":1,"volume_native":"0"},
+    {"burned":0,"holders":2,"issuer":"rGT3VZhRPv6k5XTfvHgTTq8i6BeCHta75Q","kind":"nftoken","last_ledger":107878781,"minted":0,"sales_count":1,"supply":3,"taxon":7575,"volume_native":"0"},
+    {"burned":0,"holders":0,"issuer":"rst9Sq8mVxK8b7BbgFs4VmnVtfm7N2qN4j","kind":"nftoken","last_ledger":107886163,"minted":0,"sales_count":0,"supply":3,"taxon":1,"volume_native":"0"},
+    {"burned":0,"holders":0,"issuer":"rBhJrnrN8Q6FQyDwg6ZrtoBa2QCicCEzug","kind":"nftoken","last_ledger":107886233,"minted":0,"sales_count":0,"supply":2,"taxon":0,"volume_native":"0"},
+    {"burned":1,"first_mint":{"executed_time":"2026-10-24T20:42:50Z","ledger_index":107878781,"tx_hash":"32EA8E9E6663D9EF2FBC1FB575295A56BF5F60CE863082572DEC38E8447C824D"},"holders":1,"issuer":"ravC5cZreMZuKEWSrpra5nkWnfzPmrabec","kind":"nftoken","last_ledger":107883610,"last_mint":{"executed_time":"2026-10-24T20:42:50Z","ledger_index":107878781,"tx_hash":"32EA8E9E6663D9EF2FBC1FB575295A56BF5F60CE863082572DEC38E8447C824D"},"minted":1,"sales_count":0,"supply":2,"taxon":0,"volume_native":"0"},
+    {"burned":0,"holders":1,"issuer":"r4PP7gwuVfxzLPWFiJXjLUtvzA7F97CzT3","kind":"nftoken","last_ledger":107874617,"minted":0,"sales_count":1,"supply":1,"taxon":10,"volume_native":"10"},
+    {"burned":0,"holders":0,"issuer":"r4qHM7vWeLTtWPVoEzDjT6AskpQjSmui7B","kind":"nftoken","last_ledger":107878781,"minted":0,"sales_count":0,"supply":1,"taxon":0,"volume_native":"0"},
+    {"burned":0,"holders":0,"issuer":"rB7UyKs9SwS4pX87tqtMjq4XRiEhkBfmuH","kind":"nftoken","last_ledger":107886001,"minted":0,"sales_count":0,"supply":1,"taxon":14,"volume_native":"0"},
+    {"burned":0,"first_mint":{"executed_time":"2026-10-25T02:00:52Z","ledger_index":107883610,"tx_hash":"00359DDFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6D"},"holders":1,"issuer":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","kind":"nftoken","last_ledger":107886001,"last_mint":{"executed_time":"2026-10-25T02:00:52Z","ledger_index":107883610,"tx_hash":"00359DDFD94F182124073E4CB6D60CA0B3E7023ED2B8F661580FCE035A17FC6D"},"minted":1,"sales_count":0,"supply":1,"taxon":7,"volume_native":"0"},
+    {"burned":0,"holders":1,"issuer":"rDeizxSRo6JHjKnih9ivpPkyD2EgXQvhSB","kind":"nftoken","last_ledger":107878775,"minted":0,"sales_count":1,"supply":1,"taxon":26,"volume_native":"0.000001"},
+    {"burned":0,"first_mint":{"executed_time":"2026-10-25T04:37:10Z","ledger_index":107886001,"tx_hash":"72B08CBED10C1EB2550D7BE173494E38774E9A2F564863ED7D9338A70BA8E400"},"holders":1,"issuer":"rEEzHQHPZg6YAjHdNvzTnCzCb5URiiaT7Q","kind":"nftoken","last_ledger":107886163,"last_mint":{"executed_time":"2026-10-25T04:37:10Z","ledger_index":107886001,"tx_hash":"72B08CBED10C1EB2550D7BE173494E38774E9A2F564863ED7D9338A70BA8E400"},"minted":1,"sales_count":3,"supply":1,"taxon":9428,"volume_native":"873.01"},
+    {"burned":0,"holders":0,"issuer":"rEfekxLoQD3h6JocT3VYBDuDKdAqWR7SyU","kind":"nftoken","last_ledger":107878781,"minted":0,"sales_count":0,"supply":1,"taxon":0,"volume_native":"0"},
+    {"burned":0,"holders":0,"issuer":"rGibZidpQ2hDc3K3Yrph3XecALxJut7N3V","kind":"nftoken","last_ledger":107883082,"minted":0,"sales_count":0,"supply":1,"taxon":0,"volume_native":"0"},
+    {"burned":0,"holders":0,"issuer":"rGnivxmi1yAu15Kou1nqt91ZxtXhkWB2iM","kind":"nftoken","last_ledger":107879497,"minted":0,"sales_count":0,"supply":1,"taxon":0,"volume_native":"0"},
+    {"burned":0,"holders":1,"issuer":"rKDFM3xaC3B7ijWkX4iHcMTcLFgxW2dK74","kind":"nftoken","last_ledger":107886163,"minted":0,"sales_count":0,"supply":1,"taxon":2,"volume_native":"0"},
+    {"burned":0,"first_mint":{"executed_time":"2026-10-24T20:42:30Z","ledger_index":107878775,"tx_hash":"92CDD353279B6215FA65C0FB76F37B3A619916A4108D21E487A50CE53BBABD4C"},"holders":1,"issuer":"rKKs1M6idbD53z9nigvYgeqJue9VbnHV1b","kind":"nftoken","last_ledger":107883610,"last_mint":{"executed_time":"2026-10-24T20:42:30Z","ledger_index":107878775,"tx_hash":"92CDD353279B6215FA65C0FB76F37B3A619916A4108D21E487A50CE53BBABD4C"},"minted":1,"sales_count":2,"supply":1,"taxon":8628,"volume_native":"6.44"},
+    {"burned":0,"holders":1,"issuer":"rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy","kind":"nftoken","last_ledger":107879890,"minted":0,"sales_count":2,"supply":1,"taxon":9394,"volume_native":"1.32"},
+    {"burned":0,"holders":0,"issuer":"rPK77tBNduykbofMU91uffeRSUvtEkadbx","kind":"nftoken","last_ledger":107886163,"minted":0,"sales_count":0,"supply":1,"taxon":1,"volume_native":"0"},
+    {"burned":0,"holders":1,"issuer":"rRamaNFTdhr1q7gjsDK1Q4baffxHUQfQ9","kind":"nftoken","last_ledger":107881530,"minted":0,"sales_count":1,"supply":1,"taxon":6,"volume_native":"0"},
+    {"burned":0,"holders":0,"issuer":"rUv6Bmw6GRQHgJaiVcXnnNFCeTMKUE6FCa","kind":"nftoken","last_ledger":107886233,"minted":0,"sales_count":0,"supply":1,"taxon":1,"volume_native":"0"}
+  ],
+  "count": 20,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "marker": "WzEsInJVdjZCbXc2R1JRSGdKYWlWY1hubk5GQ2VUTUtVRTZGQ2EiLDFd",
+  "result": "success",
+  "total": 46
+}

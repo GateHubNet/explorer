@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success",
+  "sales": [
+    {"amount":"1096.4","buyer":"rsJjiungPhwVJZyRmdyatjHfRXkgEt7WRw","converted_amount":"1096.4","currency":"XAH","event_index":1,"executed_time":"2026-10-24T15:27:22Z","issuer":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","kind":"uritoken","ledger_index":26763618,"mode":"direct","nft_id":"5E5EE5EB15A685F86E548905BB362374EFBA407F55EFCD64CB4E4284673CDB3A","seller":"rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb","tx_hash":"091789F4F7D011772A98DAADCCAA2CEE190D42DB69B199E9EEBA43483B544763","tx_index":19},
+    {"amount":"0.0011","amount_issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","buyer":"r9fT9gsDG4Zyodz9E2U6RG4Z3e4RD7tBa","currency":"EVR","event_index":1,"executed_time":"2026-10-24T15:27:22Z","issuer":"rNk6oeGA4BKsCraCEMg2g5YkbegcXFtPGV","kind":"uritoken","ledger_index":26763618,"mode":"direct","nft_id":"494E26BE7766A7DB12912C51055C0106DA39401BF2E60E86611FD00E48CDE99F","seller":"rNk6oeGA4BKsCraCEMg2g5YkbegcXFtPGV","tx_hash":"30B0FE015F9CE2BACE93D95385CD8EA70AD68EB4B6380655C6352FBF1B5897D6","tx_index":2}
+  ]
+}

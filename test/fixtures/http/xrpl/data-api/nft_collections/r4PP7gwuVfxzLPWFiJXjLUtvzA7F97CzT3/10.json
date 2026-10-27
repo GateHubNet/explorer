@@ -1,0 +1,19 @@
+{
+  "collection": {
+    "burned": 0,
+    "holders": 1,
+    "issuer": "r4PP7gwuVfxzLPWFiJXjLUtvzA7F97CzT3",
+    "kind": "nftoken",
+    "last_ledger": 107874617,
+    "minted": 0,
+    "sales_count": 1,
+    "supply": 1,
+    "taxon": 10,
+    "volume_native": "10"
+  },
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 32570
+  },
+  "result": "success"
+}

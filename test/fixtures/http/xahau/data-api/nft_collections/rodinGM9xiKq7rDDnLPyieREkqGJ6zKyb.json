@@ -1,0 +1,28 @@
+{
+  "collection": {
+    "burned": 1,
+    "first_mint": {
+      "executed_time": "2026-10-21T13:29:11Z",
+      "ledger_index": 26689211,
+      "tx_hash": "3D9B20E130D7498E98FB3499BD4C2AC4CCDB3D11FFBFEA8F9B7FB844DDF33426"
+    },
+    "holders": 6,
+    "issuer": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+    "kind": "uritoken",
+    "last_ledger": 26774724,
+    "last_mint": {
+      "executed_time": "2026-10-24T17:15:21Z",
+      "ledger_index": 26765431,
+      "tx_hash": "0A725E2977D8CE783CB03B27C493CF393FD2540FAA1ADD145C4DA33255DD4C43"
+    },
+    "minted": 6,
+    "sales_count": 21,
+    "supply": 9,
+    "volume_native": "70060.59"
+  },
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 26533927
+  },
+  "result": "success"
+}
