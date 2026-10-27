@@ -492,6 +492,7 @@ describe("checkNftVolume", () => {
       ["a count that is text", "count", (r) => (r.count = "4")],
       ["a negative count", "count", (r) => (r.count = -4)],
       ["a total that is a number", "total", (r) => (r.total = 160.000001)],
+      ["a total in exponent form", "total", (r) => (r.total = "1.6e+2")],
       ["no total", "total", (r) => delete r.total],
       ["an exchange_rate that is a number", "exchange_rate", (r) => (r.exchange_rate = 1)],
       ["a start_time that is no time", "start_time", (r) => (r.start_time = "2026-10-24")],
@@ -510,6 +511,8 @@ describe("checkNftVolume", () => {
       ["no count", "count", (c) => delete c.count],
       ["an amount that is a number", "amount", (c) => (c.amount = 150)],
       ["an amount in exponent form", "amount", (c) => (c.amount = "1.5e+2")],
+      // D3 builds the converted amounts and the total with `toFixed()`: exact decimals, whatever the display currency. Only the rates can be in exponent form.
+      ["a converted_amount in exponent form", "converted_amount", (c) => (c.converted_amount = "1.5e+2")],
       ["a rate that is a number", "rate", (c) => (c.rate = 1)],
       ["a converted_amount that is a number", "converted_amount", (c) => (c.converted_amount = 150)],
       ["no converted_amount", "converted_amount", (c) => delete c.converted_amount],
@@ -519,11 +522,14 @@ describe("checkNftVolume", () => {
   describe("the live row of a rolling period", () => {
     pins(live, nftVolumeSample(), rowDefects);
 
-    it.each([
-      ["two rows", [nftVolumeRowSample(), nftVolumeRowSample()]],
-      ["no row", []],
-    ])("refuses an answer with %s: a rolling period is one row", (_what, rows) => {
-      refuses(live, nftVolumeSample({ count: rows.length, rows }), "rows");
+    // D3's `VolumeService.live()` answers `[]` until the syncer has written the set of the period (a network that has just started, a period just added): not a failure.
+    it("takes no row: the period's set is not written yet, and the answer is an empty one", () => {
+      const none = nftVolumeSample({ count: 0, rows: [] });
+      expect(live(none)).toBe(none);
+    });
+
+    it("refuses more than one row: a rolling period is the one period ending now", () => {
+      refuses(live, nftVolumeSample({ count: 2, rows: [nftVolumeRowSample(), nftVolumeRowSample()] }), "2 rows");
     });
   });
 
@@ -538,11 +544,11 @@ describe("checkNftVolume", () => {
     });
   });
 
-  it("takes the amounts of a row shown in another currency, which follow the other volumes' text (an exponent below 1e-6, a rate to 8 digits), and a component with no taxon (Xahau)", () => {
+  it("takes the rates of a row shown in another currency, which are written as the other volumes' are (precision 8, an exponent below 1e-6 and from 1e8), and a component with no taxon (Xahau)", () => {
     const row = nftVolumeRowSample({
-      components: [{ issuer: URI_TOKEN_ISSUER, count: 2, amount: "4200", rate: "1.2345679e+8", converted_amount: "5.185e+11" }],
+      components: [{ issuer: URI_TOKEN_ISSUER, count: 2, amount: "4200", rate: "1.2345679e+8", converted_amount: "518500000000" }],
       exchange: { currency: "USD", issuer: OTHER_ISSUER },
-      total: "5.185e+11",
+      total: "518500000000",
       exchange_rate: "1.0000000e-7",
     });
     const body = nftVolumeSample({ rows: [row] });

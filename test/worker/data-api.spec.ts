@@ -3540,9 +3540,12 @@ describe("D3's NFT calls", () => {
     const days = nftVolumeSample({ count: 2, rows: [nftVolumeRowSample(), nftVolumeRowSample({ components: [], count: 0, total: "0" })] });
     fetchSpy.mockResolvedValueOnce(json(days));
     expect(await api.nftVolume({ interval: "day", start: "2026-10-24", end: "2026-10-25", limit: 1000 })).toEqual(days);
-    // The rolling day is exactly one row.
+    // The rolling day is at most one row: D3 answers `[]` until the syncer has written its set, which is an answer; two rows is not.
     fetchSpy.mockResolvedValueOnce(json(days));
-    expect(await failureOf(api.nftVolume({ live: "day" }))).toMatchObject({ kind: "server", message: expect.stringContaining("2 rows, not one") });
+    expect(await failureOf(api.nftVolume({ live: "day" }))).toMatchObject({ kind: "server", message: expect.stringContaining("2 rows") });
+    const none = nftVolumeSample({ count: 0, rows: [] });
+    fetchSpy.mockResolvedValueOnce(json(none));
+    expect(await api.nftVolume({ live: "day" })).toEqual(none);
   });
 
   it("keeps nft not found and collection not found as not_found, and makes Cannot GET a server error", async () => {

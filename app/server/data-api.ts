@@ -465,12 +465,12 @@ export interface DataApi {
   // E8's NFT calls (data-api-new D3, `feat/explorer-data-2`, pinned at `da5ce14`). Only a data API that has D3 has the routes: without it each call fails with the missing-route
   // outage (kind `server`, never stored), and the routes' own `nft not found` and `collection not found` stay `not_found`. The NFT pages ask only while `NFTS` is on. Every answer is
   // checked inside the load (nft-shape.ts, and its `coverage` with it), and one that is not what the reference promises is kind `server` too. A list reached with a marker, of
-  // whichever order, is `MARKER_PAGE_CLASS` (`nftListClass`): D3's lists are by serial, id or time, and a page of them stays as it was while its index is not rewritten.
+  // whichever order, is `MARKER_PAGE_CLASS` (`nftListClass`).
   /**
    * The volume of the NFT sales of the network, one component per collection, in the native currency (`checkNftVolume`).
    *
-   * With `{ live: NftPeriod }` (sent as `live=day`, `7day` or `30day`, no `start`, `end` or `interval`), the one row of a rolling period ending now: class `minute`, and the
-   * answer is checked to have exactly one row.
+   * With `{ live: NftPeriod }` (sent as `live=day`, `7day` or `30day`, no `start`, `end` or `interval`), the one row of a rolling period ending now, or none while D3's syncer has
+   * not written the period's set (`rows: []`, an answer): class `minute`, and the answer is checked to have no more than one row.
    *
    * With a `VolumeQuery`, per day or week (the network page of the NFT pages asks for days): class `slow`; the page asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }`.
    */
@@ -679,9 +679,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
    */
   const listClass = (q: ListQuery): CacheClass => (q.marker && q.descending ? MARKER_PAGE_CLASS : "live");
   /**
-   * The class of an NFT list: `MARKER_PAGE_CLASS` behind a marker, whichever way the list runs (`first` otherwise). D3's lists are keyed by a serial, an id, a time or a sort
-   * value, and the page after a marker is rows that do not move while the index is not rewritten, as for `listClass`; the NFT lists have no "oldest first grows at the end"
-   * exception: a page of NFTs, offers or sales behind a marker is `MARKER_PAGE_CLASS`.
+   * The class of an NFT list: `MARKER_PAGE_CLASS` behind a marker, whichever way the list runs (`first` otherwise), unlike `listClass`, which has it for a newest-first list only.
+   * A page behind a marker is not stable: the collections are re-sorted every few minutes, and the last page of an oldest-first list grows. It is `MARKER_PAGE_CLASS` all the
+   * same because it is rarely asked for again, and what a visitor sees of it a little late (an hour at most) costs nothing: it is cheap to serve stale.
    */
   const nftListClass = (q: { marker?: string }, first: CacheClass = "live"): CacheClass => (q.marker ? MARKER_PAGE_CLASS : first);
 

@@ -11,8 +11,8 @@
 //   - an NFT id, an offer id and a transaction hash are 64 hexadecimal digits in upper case: they go into paths and links, and the pages compare them as text;
 //   - an account (an issuer, an owner, `by`, `to`, `from`, a seller, a buyer, a broker, a destination, a holder) is a classic address, because it goes into a link;
 //   - amounts are exact decimal strings (`isDecimalText`), `converted_amount` and the `*_native` values included: D3 writes them with at most 6 decimals and no exponent.
-//     The volume's `total`, `converted_amount` and rates are the exception (`isNumberText`): shown in another currency they follow the other volumes' text, whose
-//     BigNumber form has an exponent below 1e-6 and from 1e21, and a rate has one from 1e8; with no `exchange_currency` (the explorer asks for none) they are decimals too;
+//     The volume's `rate` and `exchange_rate` are the exception (`isNumberText`): D3 writes them with `precision8` as the other volumes do, which has an exponent below
+//     1e-6 and from 1e8. Its `amount`, `converted_amount` and `total` are exact decimals (`toFixed()`), in whatever currency the row is shown;
 //   - times are `YYYY-MM-DDTHH:mm:ssZ`; a `taxon` and a `serial` are whole numbers up to 4294967295 (an XRPL id's 32 bits); `uri` is hex, `digest` 64 hex digits;
 //   - the words of D3 that the pages build on keep their sets: `kind`, an event's `event`, a sale's `mode`. `removed_by` and `tx_type` are any text that is not empty.
 
@@ -283,18 +283,19 @@ export function checkCollectionDays(body: unknown, path: string): NftCollectionD
 
 /**
  * `GET /v2/network/nft_volume`: a row for each bucket, under `rows`, each with its components, one for each collection that sold (`NftVolumeRow`). `live` is the rolling
- * period (`?live=`), which is exactly one row, the period ending now: an answer with no row, or with more than one, is not that. `daily` is a window of days, any number of
- * rows.
+ * period (`?live=`), which is the one row of the period ending now, or none: D3 answers `[]` until its syncer has written the period's set (a network that has just started),
+ * which is an answer and not a failure; more than one row is not that. `daily` is a window of days, any number of rows.
  */
 export function checkNftVolume(body: unknown, path: string, mode: "live" | "daily"): NftVolume {
   const what = `data API GET ${path}`;
   answerOf(what, body);
   const rows = listOf(what, body, "rows");
-  if (mode === "live" && rows.length !== 1) throw malformed(what, `${rows.length} rows, not one`);
+  if (mode === "live" && rows.length > 1) throw malformed(what, `${rows.length} rows, where a rolling period has one`);
   for (const [index, row] of rows.entries()) {
     const where = `rows[${index}]`;
     fields(what, where, row, ["count"], isWhole, WHOLE);
-    fields(what, where, row, ["total", "exchange_rate"], isNumberText, NUMBER);
+    fields(what, where, row, ["total"], isDecimalText, DECIMAL);
+    fields(what, where, row, ["exchange_rate"], isNumberText, NUMBER);
     fields(what, where, row, ["start_time", "end_time"], isIsoTime, TIME);
     const exchange = row.exchange;
     if (!isObject(exchange) || !isName(exchange.currency) || (exchange.issuer !== undefined && !isName(exchange.issuer))) {
@@ -308,9 +309,9 @@ export function checkNftVolume(body: unknown, path: string, mode: "live" | "dail
       fields(what, here, entry, ["issuer"], isAccount, ACCOUNT);
       optionalFields(what, here, entry, ["taxon"], isUint32, UINT32);
       fields(what, here, entry, ["count"], isWhole, WHOLE);
-      // The volume of the collection's sales in the native currency is exact; the rate and the converted amount are the display currency's, as the other volumes write them.
-      fields(what, here, entry, ["amount"], isDecimalText, DECIMAL);
-      fields(what, here, entry, ["rate", "converted_amount"], isNumberText, NUMBER);
+      // The amounts are exact decimals; only the rate is written as the other volumes' are (`precision8`).
+      fields(what, here, entry, ["amount", "converted_amount"], isDecimalText, DECIMAL);
+      fields(what, here, entry, ["rate"], isNumberText, NUMBER);
     }
   }
   return body as NftVolume;

@@ -763,7 +763,8 @@ function toNftInfo(what: string, asked: string, result: Json): NodeNftInfo {
     issuer: accountField(what, result, "issuer", "the NFT's"),
     nft_taxon: integerField(what, result, "nft_taxon", 0, UINT32_MAX),
     nft_serial: integerField(what, result, "nft_serial", 0, UINT32_MAX),
-    ...(result.uri !== undefined && { uri: hexField(what, result, "uri") }),
+    // Clio writes `"uri": ""` for an NFT minted without a URI: that is no URI, as a key left out is, and not a failure of the node.
+    ...(result.uri !== undefined && result.uri !== "" && { uri: hexField(what, result, "uri") }),
   };
 }
 
@@ -787,6 +788,7 @@ function toNftOffer(what: string, native: string, index: number, entry: unknown)
  * `validated` may be absent, but never anything else than `true`, as for `book_offers`.
  */
 function toNftOffers(what: string, native: string, asked: string, result: Json): NodeNftOffers {
+  // Only `NFT_NO_OFFERS` is passed through as a failed result (`asResult`): the node's way of saying that the NFT has no offer on this side.
   if (result.status === "error") return { offers: [], more: false };
   requireValidatedAnswer(what, result, false);
   requireAnswerFor(what, "nft_id", result.nft_id, asked);

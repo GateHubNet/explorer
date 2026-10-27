@@ -1596,6 +1596,17 @@ describe("the NFT commands", () => {
       expect((await info()).nft_id).toBe(NFT);
     });
 
+    // Clio writes `"uri": ""` for an NFT minted without a URI (the NFT's page shows "no URI", as for a missing key): it is not a failure of the node.
+    it("takes an empty uri as no URI, and the NFT is the same one as with the key left out", async () => {
+      fetchSpy.mockResolvedValueOnce(success(infoResult({ uri: "" })));
+
+      const bare = await info();
+
+      expect("uri" in bare).toBe(false);
+      expect(bare).toEqual(withoutKey(nodeNftInfoSample(), "uri"));
+      expect(Object.keys(bare)).toEqual(["nft_id", "ledger_index", "owner", "is_burned", "flags", "transfer_fee", "issuer", "nft_taxon", "nft_serial"]);
+    });
+
     it("takes an NFT with no URI, and a burned one, which has none and whatever the node says its owner is", async () => {
       fetchSpy.mockResolvedValueOnce(success(withoutKey(infoResult(), "uri")));
       const bare = await info();
