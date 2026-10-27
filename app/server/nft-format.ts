@@ -3,6 +3,8 @@
 // BigNumber, so no float and no exponent reaches a label.
 
 import { formatAmount } from "../domain/format";
+import { isNative } from "./account-view";
+import type { NftSale } from "./api-types";
 import { BN, decimalOf, divided } from "./exact";
 
 /** What stands in a cell or a figure that has no value. */
@@ -35,4 +37,14 @@ export function sharePercentTenth(part: string, whole: string): string {
 export function queryPairsOf(href: string): Array<[name: string, value: string]> {
   const at = href.indexOf("?");
   return at < 0 ? [] : Array.from(new URLSearchParams(href.slice(at + 1)), ([name, value]): [string, string] => [name, value]);
+}
+
+/**
+ * The price converted to the native currency, when it is shown under the price: a price in a token (the native currency has no issuer) that the data API converted at the day's rate.
+ * A price that is native is its own conversion, a token with no rate that day has none, and a conversion of 0 (a price too small for the day's rate) says nothing: neither the
+ * "≈" nor the royalty is then in the native currency. A sale, and an NFT's last sale (which the NFT's page shows the same way), have the three fields it reads.
+ */
+export function convertedOf(native: string, sale: Pick<NftSale, "currency" | "amount_issuer" | "converted_amount">): string | null {
+  const token = !isNative({ currency: sale.currency, issuer: sale.amount_issuer }, native);
+  return token && decimalOf(sale.converted_amount)?.gt(0) === true ? sale.converted_amount! : null;
 }

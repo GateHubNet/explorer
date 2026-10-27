@@ -31,14 +31,13 @@ import { pendingCount, pendingNote, type PeriodWindow } from "../domain/window";
 import type { BarListData, TimeSeriesData } from "../ui/charts/types";
 import { collectionGlyph, nftGlyph } from "../ui/components/NftGlyph";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
-import { isNative } from "./account-view";
 import { anchorOrThrow } from "./anchor";
 import type { LastValidated, NftCollection, NftCollectionsPage, NftSale, NftSalesPage, NftVolume, NftVolumeComponent, NftVolumeRow } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
 import { BN, decimalOf, divided } from "./exact";
 import { anchoredWindow, byDay, tokened } from "./network-view";
 import type { Network } from "./networks";
-import { counted, DASH, plain, queryPairsOf, salesCount, sharePercentTenth } from "./nft-format";
+import { convertedOf, counted, DASH, plain, queryPairsOf, salesCount, sharePercentTenth } from "./nft-format";
 import { unixOf } from "./validator-facts";
 
 const ZERO = new BN(0);
@@ -194,16 +193,6 @@ const pathKeyOf = (key: CollectionKey): string => (key.taxon === undefined ? key
 // ---- A sale -------------------------------------------------------------------------------------------------------------------------------------
 
 /**
- * The price converted to the native currency, when it is shown under the price: a price in a token (the native currency has no issuer) that the data API converted at the day's rate.
- * A price that is native is its own conversion, a token with no rate that day has none, and a conversion of 0 (a price too small for the day's rate) says nothing: neither the
- * "≈" nor the royalty is then in the native currency.
- */
-function convertedOf(net: NftsNet, sale: NftSale): string | null {
-  const token = !isNative({ currency: sale.currency, issuer: sale.amount_issuer }, net.native);
-  return token && decimalOf(sale.converted_amount)?.gt(0) === true ? sale.converted_amount! : null;
-}
-
-/**
  * The royalty of a sale (`royalty_est` is in the price's currency, and left out when no royalty applies): in the native currency when the price is shown converted
  * (`royalty_est × converted_amount ÷ amount`, to 6 decimals, half up: the native currency's own precision), else in the price's currency. URITokens carry no transfer fee, so Xahau
  * has none.
@@ -212,7 +201,7 @@ function royaltyOf(net: NftsNet, sale: NftSale): string | null {
   if (net.id === "xahau") return null;
   const estimate = decimalOf(sale.royalty_est);
   if (estimate === null) return null;
-  const converted = convertedOf(net, sale);
+  const converted = convertedOf(net.native, sale);
   const paid = decimalOf(sale.amount);
   if (converted !== null && paid !== null && paid.gt(0)) {
     return `${formatAmount(divided(estimate.times(converted), paid, 6).toFixed())} ${net.native}`;
@@ -224,7 +213,7 @@ function royaltyOf(net: NftsNet, sale: NftSale): string | null {
 export function saleRows(net: NftsNet, sales: readonly NftSale[]): NftSaleRow[] {
   return sales.map((sale) => {
     const key = keyOf(sale);
-    const converted = convertedOf(net, sale);
+    const converted = convertedOf(net.native, sale);
     return {
       key: `${sale.tx_hash}:${plain(sale.event_index)}`,
       time: unixOf(sale.executed_time),
