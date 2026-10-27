@@ -1209,6 +1209,12 @@ a.tabs__item:hover {
   min-width: 0;
 }
 
+/* The ledger link sits inside a sentence, so it is told from the words around it by more than its colour (axe: link-in-text-block). */
+.coverage-note a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* The two characters in front of a collection or an NFT (the board's glyph); capitals, whatever case the characters have in an address. Decoration: aria-hidden. */
 .nft-glyph {
   display: flex;
