@@ -31,7 +31,8 @@
 //                                                         featured NFT's, which has two collections on XRPL, and an account that issued none); a marker is `[value, issuer, taxon]`
 //   nft_collections/<issuer>[/<taxon>].json               the three collections that have a page of their own (the featured NFT's, one not sold, the most sold of the others), and
 //     .../stats@end=<T>&start=<W₀>, .../sales@descending=true&limit=20[&marker=<M>], .../nfts@limit=20 (with `include_burned=true` for the featured one, with `owner=<A>` for all),
-//     .../holders@limit=20                                its lists, one `stats` row for each day of the 30 days to T with a sale, a mint or a burn
+//     .../holders@limit=20                                its lists, one `stats` row for each day of the 30 days to T with a sale, a mint or a burn (the featured collection's has days with
+//                                                         several events: `crowdedDays`)
 //   nft_sales@descending=true&limit=10 | limit=20[&marker=<M>]    the sales of the network, newest first: the list page's ten, the older sales' twenty from the start and from the ten's marker
 //   network/nft_volume@live=day|7day|30day, @end=<T>&interval=day&limit=1000&start=<W₀>    the rolling periods to T's close, and the days the route has computed (not the running one)
 //
@@ -740,13 +741,12 @@ function dayRow(date: string, events: readonly NftEvent[]): NftCollectionDay {
 
 /**
  * The days of a collection's stats: its sales, mints and burns moved into the window (the recordings are dated after T, so none of them is in it), each to a day drawn from
- * `next`, so that the days add up to the collection's own totals. `quietDays` days (drawn, never the first or the last) have no event and so no row; a sale with no converted price
- * (an issued currency without a rate) is alone on its day, which has a row with a sale, a volume of 0 and no price. With `quietDays`, every other day has an event: a collection with
- * too few for that is refused.
+ * `next`, so that the days add up to the collection's own totals. A sale with no converted price (an issued currency without a rate) is alone on its day, which has a row with a
+ * sale, a volume of 0 and no price. A day is a row only when it has an event; `crowded` is the featured collection's (see `crowdedDays`).
  */
-function collectionDays(events: readonly NftEvent[], buckets: readonly string[], quietDays: number, next: () => number): NftCollectionDay[] {
+function collectionDays(events: readonly NftEvent[], buckets: readonly string[], crowded: boolean, next: () => number): NftCollectionDay[] {
+  if (crowded) return crowdedDays(events, buckets, next);
   const open = [...buckets];
-  for (let at = 0; at < quietDays; at++) open.splice(1 + Math.floor(next() * (open.length - 2)), 1);
   const dayOf = new Map<NftEvent, string>();
   const unrated = events.filter((e) => e.event === "sale" && e.converted_amount === undefined);
   const alone = new Set<string>();
@@ -763,26 +763,69 @@ function collectionDays(events: readonly NftEvent[], buckets: readonly string[],
     const other = Math.floor(next() * (at + 1));
     [others[at], others[other]] = [others[other]!, others[at]!];
   }
-  if (quietDays > 0 && others.length < shared.length) throw new Error(`${others.length} events cannot leave ${quietDays} quiet days and an event on every other day of ${open.length}`);
-  others.forEach((e, at) => {
+  others.forEach((e) => {
     const among = e.event === "sale" ? shared : open;
-    dayOf.set(e, quietDays > 0 && at < shared.length ? shared[at]! : among[Math.floor(next() * among.length)]!);
+    dayOf.set(e, among[Math.floor(next() * among.length)]!);
   });
+  return daysOf(dayOf);
+}
+
+/** The rows of the days that `dayOf` puts events on, oldest day first. */
+function daysOf(dayOf: ReadonlyMap<NftEvent, string>): NftCollectionDay[] {
   const byDay = new Map<string, NftEvent[]>();
   for (const [e, day] of dayOf) byDay.set(day, [...(byDay.get(day) ?? []), e]);
   return [...byDay].sort(([a], [b]) => byText(a, b)).map(([day, of]) => dayRow(day, of));
 }
 
 /**
- * The files of one collection's page: itself, its stats over the 30 days to T (with `quietDays` days without an event), its sales, its NFTs (with the burned ones when `withBurned`,
+ * The days of the featured collection's stats, which the average and the lowest price of a day need to be seen at work on (E8 Task 9): every row is a day with an event and every
+ * day with an event is a row, and three days have several: one with two rated sales of different prices (its average is neither of them), one with a rated sale and an unrated one
+ * (`sales_count` 2, and an average over the one that has a price), and one with two rated sales and a mint. The other events have a day each, and the days with no row (never the
+ * first or the last, which are 2026-09-18 and T) are as many as the days that the crowded ones took from the events. The sales, mints and burns still add up to the collection's totals.
+ */
+function crowdedDays(events: readonly NftEvent[], buckets: readonly string[], next: () => number): NftCollectionDay[] {
+  const rated = events.filter((e) => e.event === "sale" && e.converted_amount !== undefined);
+  const unrated = events.filter((e) => e.event === "sale" && e.converted_amount === undefined);
+  const mints = events.filter((e) => e.event === "mint");
+  const single = events.filter((e) => e.event !== "sale" || e.converted_amount !== undefined);
+  /** One of `among` drawn from `next`, taken out of it and out of `single`. */
+  const take = (among: NftEvent[], wanted: (e: NftEvent) => boolean = () => true): NftEvent => {
+    const fit = among.filter(wanted);
+    const e = fit[Math.floor(next() * fit.length)];
+    if (e === undefined) throw new Error("the featured collection has too few events for its crowded days");
+    among.splice(among.indexOf(e), 1);
+    single.splice(single.indexOf(e), 1);
+    return e;
+  };
+  const crowd: NftEvent[][] = [];
+  const first = take(rated);
+  crowd.push([first, take(rated, (e) => e.converted_amount !== first.converted_amount)]);
+  for (const e of unrated) crowd.push([take(rated), e]);
+  crowd.push([take(rated), take(rated), take(mints)]);
+
+  const units = [...crowd, ...single.map((e) => [e])];
+  const quiet = buckets.length - units.length;
+  if (quiet < 0 || quiet > buckets.length - 2) throw new Error(`${units.length} days with events cannot be among ${buckets.length} days with the first and the last among them`);
+  const open = [...buckets];
+  for (let at = 0; at < quiet; at++) open.splice(1 + Math.floor(next() * (open.length - 2)), 1);
+  // a shuffle of the days with events, so that the crowded ones are not the oldest
+  for (let at = units.length - 1; at > 0; at--) {
+    const other = Math.floor(next() * (at + 1));
+    [units[at], units[other]] = [units[other]!, units[at]!];
+  }
+  return daysOf(new Map(units.flatMap((unit, at) => unit.map((e): [NftEvent, string] => [e, open[at]!]))));
+}
+
+/**
+ * The files of one collection's page: itself, its stats over the 30 days to T (with `crowded` days, those of the featured collection: `crowdedDays`), its sales, its NFTs (with the burned ones when `withBurned`,
  * and the ones the active account holds) and its holders.
  */
-function collectionFiles(world: NftWorld, collection: NftCollection, nfts: readonly DerivedNft[], clock: { today: string }, quietDays: number, withBurned: boolean, put: ApiPut): void {
+function collectionFiles(world: NftWorld, collection: NftCollection, nfts: readonly DerivedNft[], clock: { today: string }, crowded: boolean, withBurned: boolean, put: ApiPut): void {
   const coverage = featureCoverage(world.net);
   const path = `/v2/nft_collections/${collectionKey(collection)}`;
   const window = windowOf(clock.today, "30d");
   const events = nfts.flatMap((each) => each.events).filter((e) => e.event === "sale" || e.event === "mint" || e.event === "burn");
-  const days = collectionDays(events, window.buckets, quietDays, mulberry32(seedOf(world.net, "nfts", "days", collectionKey(collection))));
+  const days = collectionDays(events, window.buckets, crowded, mulberry32(seedOf(world.net, "nfts", "days", collectionKey(collection))));
   put(path, "", { result: "success", coverage, collection });
   put(`${path}/stats`, `end=${window.end}&start=${window.start}`, { result: "success", coverage, count: days.length, days });
   const page = (list: string, query: string[], pages: ReadonlyArray<{ marker?: string; next?: string; rows: unknown[] }>): void => {
@@ -936,7 +979,7 @@ function aggregateFiles(world: NftWorld, put: ApiPut): void {
   // The pages of the three cases.
   for (const key of Object.values(cases)) {
     const nfts = groups.get(key)!;
-    collectionFiles(world, derivedCollection(nfts), nfts, clock, key === cases.featured ? 2 : 0, key === cases.featured, put);
+    collectionFiles(world, derivedCollection(nfts), nfts, clock, key === cases.featured, key === cases.featured, put);
   }
 
   // The sales of the network: the first page of ten (the list page's), and pages of twenty from the start and from the marker of that first page (the older sales' page).

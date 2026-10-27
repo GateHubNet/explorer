@@ -665,9 +665,12 @@ the incomplete per-NFT coverage the item rule gives over these recordings (which
   featured NFT's issuer, so that the filter by issuer finds two. A collection that is made up has no page of its own, and no NFT of it is in the files: its link is the 404 `collection
   not found`. The list has 46 and 22 collections where the plan said about 60 and 12: the world's own are 26 and 15, and the budget (1.0 MiB) is the other bound.
 - **The days of the stats** (`"days"`): the recordings are dated after T, so none of a collection's events is in the 30 days to T; each of the three collections' sales, mints and burns is
-  moved into the window, to a day drawn for it, so that the days add up to the collection's own totals (sales, volume, mints and burns). The featured collection's two quiet days are drawn
-  (never the first or the last, which are 2026-09-18 and T), every other day has an event, and a sale in an issued currency, with no rate, is alone on its day: a row with `sales_count: 1`,
-  `volume_native: "0"` and no price. The two other collections have their few events on days drawn the same way.
+  moved into the window, to a day drawn for it, so that the days add up to the collection's own totals (sales, volume, mints and burns). The featured collection's days are drawn so that the
+  average and the lowest price of a day, which the collection page's 30-day figures and chart read, are put to work (E8 Task 9; a day with one sale has an average equal to its lowest price):
+  every day with an event is a row and every row has an event, three days have several (one with two rated sales of different prices, one with a rated sale and a sale in an issued
+  currency, which has no rate, so that `sales_count` is 2 and the average is over the one price, and one with two rated sales and a mint), and the days with no row (6, never the first or the last, which are
+  2026-09-18 and T) are the days that those three took from the events. The two other collections' few events are on days drawn the same way, a sale in an issued currency alone on its
+  day: a row with `sales_count: 1`, `volume_native: "0"` and no price.
 - **The volume** (`"volume"`): a model of sales over the 31 days to the minute of T's close for the most traded collections of the list (XRPL 6, Xahau 5; 32 sales to the first, fewer to
   the others), at times and prices around each collection's own average price, one in sixteen priced in an issued currency, which has no rate. Every row is a view of it: the live
   periods count the sales since their start (so the 7-day row has the day's, the 30-day row the 7-day's), and each day of the window up to the last the route has computed (the newest

@@ -136,7 +136,7 @@ describe("every fixture file", () => {
     // (P2), which a later file raises with its data, never above 1.0 MiB.
     expect(bytes(files.filter(isAmmGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isAmmGenerated))).toBeLessThan(0.7 * 1024 * 1024);
-    // The NFT pages' files (scripts/nft-fixtures.ts, a row to a line: 1,349 files of 1,008,932 bytes, about 0.96 MiB: the per-NFT files of 282 XRPL and 24 Xahau NFTs, a detail, a history with
+    // The NFT pages' files (scripts/nft-fixtures.ts, a row to a line: 1,349 files of 1,007,946 bytes, about 0.96 MiB: the per-NFT files of 282 XRPL and 24 Xahau NFTs, a detail, a history with
     // and without the offer events and the open offers each, are most of it (0.66 MiB); the collections' lists in every sort and both ways, three collections' pages, the sales and the
     // volume are 0.29 MiB; the accounts' NFT lists and the nodes' answers are 8 KB) are reviewed as their generator too (C6), with a budget of their own, which a later file raises with
     // its data, never above 1.0 MiB.

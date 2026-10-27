@@ -1723,15 +1723,51 @@ describe.each(NETS)("%s: the synthetic aggregates", (net) => {
     }
   });
 
-  it("the stats days hold two quiet days and one unrated sale", () => {
-    const { days } = parsed(dataApiFile(net, `/v2/nft_collections/${key}/stats`, `end=${T}&start=${window.start}`)!);
+  it("the stats days hold six quiet days, and days with several events that put the average and the lowest price to work", () => {
+    const { days } = parsed(dataApiFile(net, `/v2/nft_collections/${key}/stats`, `end=${T}&start=${window.start}`)!) as { days: Json[] };
     expect(window.buckets).toHaveLength(30);
-    expect(window.buckets.filter((bucket) => !(days as Json[]).some((day) => day.date === `${bucket}T00:00:00Z`))).toHaveLength(2);
-    const unrated = (days as Json[]).filter((day) => day.sales_count > 0 && day.volume_native === "0");
-    expect(unrated).toHaveLength(1);
-    expect(unrated[0]).toMatchObject({ sales_count: 1 });
-    expect(unrated[0]).not.toHaveProperty("avg_price_native");
-    expect(unrated[0]).not.toHaveProperty("min_price_native");
+    const has = (bucket: string): boolean => days.some((day) => day.date === `${bucket}T00:00:00Z`);
+    expect(window.buckets.filter((bucket) => !has(bucket))).toHaveLength(6);
+    // the first and the last day of the window have a row, so the chart has bars at both ends
+    expect([has(window.buckets[0]!), has(window.buckets.at(-1)!)]).toEqual([true, true]);
+
+    // what the days must be made of, from the sales list alone: every sale of the collection, with and without a price in the native currency
+    const sales = walk(`/v2/nft_collections/${key}/sales`, "descending=true&limit=20", "sales").rows;
+    const prices = sales.filter((sale) => sale.converted_amount !== undefined).map((sale) => sale.converted_amount as string);
+    expect(sales.length - prices.length).toBe(1);
+
+    // an independent computation, in integers: millionths of the native currency (a price has at most six decimals), the average half up
+    const micro = (text: string): bigint => {
+      const [whole = "0", fraction = ""] = text.split(".");
+      return BigInt(whole + fraction.padEnd(6, "0"));
+    };
+    const text = (millionths: bigint): string => `${millionths / 1_000_000n}.${String(millionths % 1_000_000n).padStart(6, "0")}`.replace(/\.?0+$/, "");
+    const pairs = prices.flatMap((a, at) => prices.slice(at + 1).map((b) => [a, b] as const));
+
+    // a day with two sales that both have a price: its volume is their sum, its lowest the smaller one and its average half their sum
+    const doubled = days.filter((day) => day.sales_count === 2 && day.avg_price_native !== day.volume_native);
+    expect(doubled).toHaveLength(2);
+    for (const day of doubled) {
+      const found = pairs.filter(([a, b]) => micro(a) + micro(b) === micro(day.volume_native));
+      expect(found.length, day.date).toBeGreaterThanOrEqual(1);
+      const [a, b] = found[0]!;
+      expect(day.min_price_native, day.date).toBe(text(micro(a) < micro(b) ? micro(a) : micro(b)));
+      expect(day.avg_price_native, day.date).toBe(text((micro(a) + micro(b) + 1n) / 2n));
+      expect(day.min_price_native, day.date).not.toBe(day.avg_price_native);
+    }
+    // one of them has two sales of different prices and nothing else; the other has a mint too
+    expect(doubled.map((day) => day.mints).sort()).toEqual([0, 1]);
+    expect(doubled.every((day) => day.burns === 0)).toBe(true);
+
+    // a day with a rated sale and an unrated one: two sales, the volume and the average and the lowest price are the one price's
+    const mixed = days.filter((day) => day.sales_count === 2 && day.avg_price_native === day.volume_native);
+    expect(mixed).toHaveLength(1);
+    expect(prices).toContain(mixed[0]!.volume_native);
+    expect(mixed[0]).toMatchObject({ avg_price_native: mixed[0]!.volume_native, min_price_native: mixed[0]!.volume_native, mints: 0, burns: 0 });
+
+    // every other day with a sale has one, and no row is a day with nothing in it
+    for (const day of days.filter((each) => !doubled.includes(each) && !mixed.includes(each))) expect(day.sales_count, day.date).toBeLessThanOrEqual(1);
+    expect(days.filter((day) => day.sales_count === 0 && day.mints === 0 && day.burns === 0)).toHaveLength(0);
   });
 
   it("every synthetic file passes its shape check", () => {
