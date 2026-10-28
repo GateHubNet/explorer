@@ -86,9 +86,14 @@ function columns(net: NetworkId, withCollection: boolean): Column<NftSaleRow>[] 
     },
     {
       id: "who",
-      header: "Seller → buyer",
+      // The arrow is a picture; the "to" is what a screen reader hears between the two words, and between the two accounts of a cell.
+      header: (
+        <>
+          Seller <span aria-hidden="true">→</span>
+          <span className="sr">to</span> buyer
+        </>
+      ),
       width: "minmax(220px, 1.4fr)",
-      // The arrow is a picture; the "to" is what a screen reader hears between the two accounts.
       cell: (row) => (
         <span className="nfts__who">
           <AccountLink net={net} address={row.seller} />

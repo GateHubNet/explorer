@@ -423,6 +423,21 @@ describe("the chart of the page", () => {
     expect(page.measures[2]!.href).toBe(`/xrpl/nfts/${NFT_ISSUER}/10?measure=avg&tab=nfts`);
   });
 
+  it("says the coverage of the collection's own answer, which the six stats are of, in sales words; nothing when it is whole", () => {
+    const page = nftCollectionPage(pageInput({ collection: answerOf(collectionSample(), coverageSample()) }));
+    expect(page.notes.stats).toEqual({ before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFT sales are not in the index yet." });
+    // Its own: not the days', not the list's.
+    expect(page.notes.chart).toBeNull();
+    expect(page.notes.tab).toBeNull();
+    expect(nftCollectionPage(pageInput()).notes.stats).toBeNull();
+    expect(nftCollectionPage(pageInput({ stats: fulfilled(daysOf(days, coverageSample())) })).notes.stats).toBeNull();
+    expect(nftCollectionPage(pageInput({ net: XAHAU, key: URI_KEY, collection: answerOf(uriTokenCollectionSample(), coverageSample()) })).notes.stats?.after).toBe(
+      " onwards: earlier URIToken sales are not in the index yet.",
+    );
+    // The daily figures failing take the chart's note, not the stats'.
+    expect(nftCollectionPage(pageInput({ collection: answerOf(collectionSample(), coverageSample()), stats: rejected(new UpstreamError("server", "unexpected")) })).notes.stats).not.toBeNull();
+  });
+
   it("says the coverage of the days, in sales words", () => {
     const page = nftCollectionPage(pageInput({ stats: fulfilled(daysOf(days, coverageSample())) }));
     expect(page.notes.chart).toEqual({ before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFT sales are not in the index yet." });
@@ -717,7 +732,7 @@ describe("a page behind a marker", () => {
       newerHref: `/xrpl/nfts/${NFT_ISSUER}/10?marker=${MARKERS.M1}`,
       olderHref: `/xrpl/nfts/${NFT_ISSUER}/10?marker=${NFT_MARKER}&back=${MARKERS.M2}.${MARKERS.M1}`,
     });
-    expect(page.notes).toEqual({ chart: null, tab: { before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFT sales are not in the index yet." } });
+    expect(page.notes).toEqual({ stats: null, chart: null, tab: { before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFT sales are not in the index yet." } });
     // no stats, chart, measures, tabs or form: the page is the list
     expect(page.chart).toBeNull();
     expect(page.measures).toEqual([]);

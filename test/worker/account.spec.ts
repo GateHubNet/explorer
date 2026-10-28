@@ -1064,7 +1064,7 @@ describe("the NFTs tab", () => {
     // An account's list has no converted amount: nothing is "≈", and the whole list is complete (no coverage note).
     expect(textOf(html)).not.toContain("≈");
     expect(html).not.toContain('role="note"');
-    expect(textOf(html)).toContain("3 NFTs");
+    expect(textOf(html)).toContain("Showing 3 NFTs");
   });
 
   it("asks the data API for the account, its balances, the NFTs and the ledger of its last transaction, and the node for the account and its objects: nothing else, once, and not the transactions", async () => {
@@ -1115,7 +1115,7 @@ describe("the NFTs tab", () => {
     ]);
     expect(hrefs(html)).toEqual(expect.arrayContaining([`/xahau/nft/8E940BB8B5533E2AC239DEFB78DDE8B317B73947D6458D7DACFD80C0CDB088B5`, `/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb`, "/xahau/ledger/26533927"]));
     expect(elementText(html, "coverage-note")).toBe("Covers ledger #26,533,927 onwards: earlier URITokens are not in the index yet.");
-    expect(textOf(html)).toContain("2 URITokens");
+    expect(textOf(html)).toContain("Showing 2 URITokens");
     expect(await storedAs(`/xahau/account/${XAHAU_ACTIVE}?tab=nfts`)).toEqual(LIVE);
   });
 

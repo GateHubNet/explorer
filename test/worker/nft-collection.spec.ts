@@ -265,7 +265,7 @@ describe("the collection that has not answered (spec 3.2)", () => {
     expect(took).toBeGreaterThanOrEqual(4_400);
     expect(took).toBeLessThan(5_000);
     expect(await isStored(path)).toBe(false);
-    expect(errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the NFT collection's collection took too long"))).toHaveLength(1);
+    expect(errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the NFT collection took too long"))).toHaveLength(1);
   }, 15_000);
 });
 
@@ -304,7 +304,7 @@ describe("the collection (call #1)", () => {
     expect(page.response.headers.get("Retry-After")).not.toBeNull();
     expect(statusesOf(mock, COLLECTION)).toEqual([503]);
     expect(await isStored(path)).toBe(false);
-    expect(errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the NFT collection's collection could not be loaded"))).toHaveLength(1);
+    expect(errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("the NFT collection could not be loaded"))).toHaveLength(1);
     mock.restore();
 
     // An API without D3 ("Cannot GET") is an outage too, never a stored 404.
@@ -482,7 +482,7 @@ describe("the first page", () => {
     expect(ownLinks(html, "Holders")).toEqual([`${PATH}?tab=holders`]);
     const sales = rowsOf(html, "Sales");
     expect(sales).toHaveLength(21);
-    expect(sales[0]).toEqual(["Time", "NFT", "Price", "Seller → buyer", "Sale", "Royalty, est."]);
+    expect(sales[0]).toEqual(["Time", "NFT", "Price", "Seller → to buyer", "Sale", "Royalty, est."]);
     const marker = await salesMarker("xrpl");
     expect(linksTo(html, "Older")).toEqual([`${PATH}?marker=${marker}`]);
     expect(linksTo(html, "Newer")).toEqual([]);
@@ -513,11 +513,11 @@ describe("the first page", () => {
     expect(text).not.toContain("Taxon");
     expect(tiles(html).map((tile) => tile.value)).toEqual(["9", "6", "21", "70.1K XAH", "3,503 XAH", "1,017.12 XAH"]);
     expect(text).toContain("Sales volume per day, in XAH, last 30 days");
-    expect(rowsOf(html, "Sales")[0]).toEqual(["Time", "URIToken", "Price", "Seller → buyer", "Sale", "Royalty"]);
+    expect(rowsOf(html, "Sales")[0]).toEqual(["Time", "URIToken", "Price", "Seller → to buyer", "Sale", "Royalty"]);
     expect(ownLinks(html, "URITokens", URI_PATH)).toEqual([`${URI_PATH}?tab=nfts`]);
     expect(text).toContain("A collection is every URIToken of one issuer. Names and images live in each URIToken’s metadata, which the explorer does not fetch, so tokens are shown by id.");
-    // Xahau's coverage is not complete: the chart and the list say where their history starts, in URIToken words.
-    expect(text.match(/Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet\./g)).toHaveLength(2);
+    // Xahau's coverage is not complete: the stats (the collection's own answer), the chart and the list say where their history starts, in URIToken words.
+    expect(text.match(/Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet\./g)).toHaveLength(3);
     expect(alerts(html)).toBe(0);
   });
 
@@ -638,7 +638,9 @@ describe("the NFTs and the Holders tabs", () => {
     // The other calls are made: the stats and the chart are drawn, and there is no NFTs table.
     expect([...keysOf(mock.requests)].sort()).toEqual([COLLECTION, LAST_VALIDATED, STATS].sort());
     expect(rowsOf(html, "NFTs")).toEqual([]);
-    expect(alerts(html)).toBe(0);
+    // The message is the one alert (a screen reader reads it when Show brings it): no card failed.
+    expect(alerts(html)).toBe(1);
+    expect(html).toMatch(/<p id="[^"]+" role="alert" class="nfts__error">/);
     expect(await storedAs(path)).toEqual(SHORT);
     expect(isNoindex(html)).toBe(true);
     expect(titleOf(html)).toBe(`Collection rLxc1b…rwMy · taxon ${T} · XRPL · explorer`);

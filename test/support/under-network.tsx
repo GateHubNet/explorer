@@ -1,6 +1,6 @@
 import { render, type RenderResult } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
+import { createMemoryRouter, Outlet, RouterProvider, useLoaderData } from "react-router";
 import { vi, type Mock } from "vitest";
 
 import type { PublicNetwork } from "../../app/server/network-route";
@@ -126,6 +126,33 @@ export interface PageOptions {
 export function mountPage(ui: ReactElement, id: string, { at, network = LAYOUT_XRPL, features = NFTS_ON }: PageOptions): ReturnType<typeof renderUnderNetwork> & { loader: Mock<() => null> } {
   const loader = vi.fn(() => null);
   return { loader, ...renderUnderNetwork(ui, features, { path: at, network, hydrated: true, page: { id, loader } }) };
+}
+
+/**
+ * A page test's mount for what a client-side navigation does to a page: the page's route has a loader that makes the page's data from each URL the router goes to (`load`: a Show,
+ * a link, Back), and the page is drawn from that data in the same tree, as the app draws it, so that a test sees what the navigation keeps (the focus, a field) and what it
+ * changes. The data of `at` is the router's hydration data, so the page is there at once.
+ */
+export function mountLoadedPage<T>(
+  draw: (data: T) => ReactElement,
+  load: (url: URL) => T,
+  { at, network = LAYOUT_XRPL, features = NFTS_ON }: PageOptions,
+): RenderResult & { router: ReturnType<typeof createMemoryRouter> } {
+  const shown: PublicNetwork = { ...network, features };
+  const Page = () => draw(useLoaderData() as T);
+  const router = createMemoryRouter(
+    [
+      {
+        id: NETWORK_ROUTE_ID,
+        path: "/:net",
+        loader: () => ({ network: shown }),
+        element: <Outlet />,
+        children: [{ id: "page", path: "*", loader: ({ request }: { request: Request }) => load(new URL(request.url)), element: <Page /> }],
+      },
+    ],
+    { initialEntries: [at], hydrationData: { loaderData: { [NETWORK_ROUTE_ID]: { network: shown }, page: load(new URL(at, "http://localhost")) } } },
+  );
+  return { router, ...render(<RouterProvider router={router} />) };
 }
 
 /** A page test's server render: the element of `mountPage`'s router (without a loader), for `renderToString` and `serverThenHydrated`. */

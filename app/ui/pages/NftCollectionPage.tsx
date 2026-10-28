@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { Form, Link } from "react-router";
 
 import { formatAmount } from "../../domain/format";
@@ -131,15 +131,17 @@ function HeaderCard({ net, title, header }: { net: NetworkId; title: string; hea
   );
 }
 
-/** The six figures with a note each, a dash for one that has no data (the two 30-day ones, while the daily figures failed). */
-function Stats({ stats }: { stats: NftCollectionPageData["stats"] }) {
+/** The six figures with a note each, a dash for one that has no data (the two 30-day ones, while the daily figures failed), and the coverage of the collection's own answer under them. */
+function Stats({ data, net }: { data: NftCollectionPageData; net: NetworkId }) {
+  const { stats } = data;
   return (
-    <div className="nft-coll__stats">
+    <div className="nfts__stack nft-coll__stats">
       <StatGrid label="Figures">
         {STATS.map(([key, label]) => (
           <StatTile key={key} figure label={label} value={stats[key].figure ?? DASH} sub={stats[key].note === "" ? undefined : stats[key].note} />
         ))}
       </StatGrid>
+      <CoverageNote net={net} note={data.notes.stats} />
     </div>
   );
 }
@@ -180,16 +182,29 @@ function Chart({ data, net, native, onRetry, retrying }: Retry & { data: NftColl
 
 /**
  * The GET form of the NFTs tab (spec 3.1): it works without JavaScript, and is a client-side navigation with it. The view's own fields (the builder's `hidden`: `measure` unless it is the
- * default's, then `tab`) are hidden inputs written before the owner and the burned fields, the order of the canonical query, so that Show lands on the canonical URL and needs no
- * redirect. The message of an owner that is no address is tied to the field.
+ * default's, then `tab`) are hidden inputs written before the owner and the burned fields, the order of the canonical query, so that an owner submitted as an address lands on the
+ * canonical URL (an empty field sends `owner=`, which the loader's 302 takes out). The message of an owner that is no address is tied to the field and is an alert, a new one for each
+ * owner, so that a screen reader reads it when Show brings it.
+ *
+ * The form stays across a navigation, and so do the focus and what was typed: Show on an owner that is no address leaves the visitor where they were. When the view changes (a link,
+ * Back), the field and "Include burned" take what the page shows, unless the visitor is in them.
  */
 function OwnerForm({ net, header, form }: { net: NetworkId; header: Header; form: NonNullable<NftCollectionPageData["form"]> }) {
   const fieldId = useId();
   const errorId = useId();
+  const owner = useRef<HTMLInputElement>(null);
+  const burned = useRef<HTMLInputElement>(null);
+  const view = `${form.owner}\u0000${form.burned}\u0000${JSON.stringify(form.hidden)}`;
+  const shown = useRef(view);
+  useEffect(() => {
+    if (shown.current !== view) {
+      if (owner.current !== null && owner.current !== document.activeElement) owner.current.value = form.owner;
+      if (burned.current !== null && burned.current !== document.activeElement) burned.current.checked = form.burned;
+    }
+    shown.current = view;
+  }, [view, form.owner, form.burned]);
   return (
-    // A new filter is a new form: its fields start from what the page shows, not from what was typed before the navigation.
     <Form
-      key={`${form.owner}\u0000${form.burned}\u0000${JSON.stringify(form.hidden)}`}
       method="get"
       action={collectionPath(net, { issuer: header.issuer, ...(header.taxon === undefined ? {} : { taxon: header.taxon }) })}
       className="nfts__form"
@@ -203,6 +218,7 @@ function OwnerForm({ net, header, form }: { net: NetworkId; header: Header; form
       <div className={cx("nfts__field", form.error !== undefined && "is-invalid")}>
         <SearchIcon size={15} className="nfts__icon" />
         <input
+          ref={owner}
           id={fieldId}
           type="search"
           name="owner"
@@ -218,14 +234,14 @@ function OwnerForm({ net, header, form }: { net: NetworkId; header: Header; form
       </div>
       <label className="nft-coll__check">
         {/* `burned=1`, the canonical form's; a checkbox's default value, "on", would be dropped. */}
-        <input type="checkbox" name="burned" value="1" defaultChecked={form.burned} />
+        <input ref={burned} type="checkbox" name="burned" value="1" defaultChecked={form.burned} />
         Include burned
       </label>
       <button type="submit" className="btn nfts__submit">
         Show
       </button>
       {form.error !== undefined && (
-        <p id={errorId} className="nfts__error">
+        <p key={form.owner} id={errorId} role="alert" className="nfts__error">
           <AlertIcon size={14} />
           {form.error}
         </p>
@@ -382,7 +398,7 @@ export function NftCollectionPage({ data }: { data: NftCollectionPageData }) {
         )
       ) : (
         <>
-          <Stats stats={data.stats} />
+          <Stats data={data} net={network.id} />
           <SegmentedLinks label="Measure" links={data.measures} />
           <Chart data={data} net={network.id} native={network.native} {...shared} />
         </>

@@ -925,7 +925,7 @@ describe("the NFTs", () => {
     expect(rows[1]!.textContent).not.toContain("#");
     expect(within(rows[1]!).getByRole("link", { name: shortAddress(ISSUER) }).getAttribute("href")).toBe(`/xahau/nfts/${ISSUER}`);
     expect(rows[1]!.textContent).toContain("1,500 XAH");
-    expect(screen.getByText("1 URIToken")).toBeTruthy();
+    expect(screen.getByText("Showing 1 URIToken")).toBeTruthy();
   });
 
   it("keep the API's order and count what the page lists", async () => {
@@ -933,7 +933,18 @@ describe("the NFTs", () => {
     mount(xrpl(nftsTab(rows)));
     const table = await screen.findByRole("table", { name: "NFTs" });
     expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("link")[0]!.textContent)).toEqual(["#9", "#100", "#3"]);
-    expect(screen.getByText("3 NFTs")).toBeTruthy();
+    expect(screen.getByText("Showing 3 NFTs")).toBeTruthy();
+  });
+
+  it("say in the footer how many the page shows, not a total the index does not give, in the network's words", async () => {
+    mount(xrpl(nftsTab([nftRow(), nftRow({ key: "B".repeat(64), nft: { id: "B".repeat(64), serial: 9, glyph: "09" } })])));
+    const table = await screen.findByRole("table", { name: "NFTs" });
+    const foot = screen.getByText("Showing 2 NFTs");
+    expect(table.compareDocumentPosition(foot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    mount(xahau(nftsTab([uriRow(), uriRow({ key: "C".repeat(64), nft: { id: "C".repeat(64), glyph: "CC" } })])), "xahau");
+    expect(await screen.findByText("Showing 2 URITokens")).toBeTruthy();
+    expect(screen.queryByText(/^Showing \d+ NFTs?$/)).toBeNull();
   });
 
   it("have a pager: Older is a link to the next page of the tab, Newer is disabled on the first page", async () => {
@@ -941,7 +952,7 @@ describe("the NFTs", () => {
     const pager = await screen.findByRole("navigation", { name: "Pagination" });
     expect(within(pager).getByRole("link", { name: "Older" }).getAttribute("href")).toBe(`/xrpl/account/${ADDRESS}?tab=nfts&marker=M1`);
     expect(within(pager).queryByRole("link", { name: "Newer" })).toBeNull();
-    expect(screen.getByText("1 NFT")).toBeTruthy();
+    expect(screen.getByText("Showing 1 NFT")).toBeTruthy();
   });
 
   it("say so when the account holds none, in the network's words, and say nothing of a coverage that is whole", async () => {
@@ -961,7 +972,7 @@ describe("the NFTs", () => {
     // Under the list, before its footer.
     const table = screen.getByRole("table", { name: "NFTs" });
     expect(table.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(note.compareDocumentPosition(screen.getByText("1 NFT")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(screen.getByText("Showing 1 NFT")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("show the note of the empty list too: a list that is empty because the index starts late says so", async () => {

@@ -205,11 +205,19 @@ test.describe("the list", () => {
     await field.fill("nope");
     await page.getByRole("button", { name: "Show" }).click();
     await page.waitForURL("**/xrpl/nfts?period=7day&issuer=nope");
-    const error = page.getByText("Write a classic address (r…).");
+    // The message is an alert, which a screen reader reads; the form stays, and the focus with it.
+    const error = page.getByRole("alert").filter({ hasText: "Write a classic address (r…)." });
     await expect(error).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show" })).toBeFocused();
     await expect(field).toHaveAttribute("aria-invalid", "true");
     await expect(field).toHaveAttribute("aria-describedby", (await error.getAttribute("id"))!);
     await expect(tableOf(page, "Collections")).toHaveCount(0);
+    // Enter in the field: the field keeps the focus.
+    await field.fill("rNope");
+    await field.press("Enter");
+    await page.waitForURL("**/xrpl/nfts?period=7day&issuer=rNope");
+    await expect(error).toBeVisible();
+    await expect(field).toBeFocused();
     expect(await sameDocument(page)).toBe(true);
   });
 
@@ -381,8 +389,16 @@ test.describe("a collection", () => {
     await field.fill("nope");
     await page.getByRole("button", { name: "Show" }).click();
     await page.waitForURL(`**${XRPL_FEATURED_PATH}?tab=nfts&owner=nope`);
-    await expect(page.getByText("Write a classic address (r…).")).toBeVisible();
+    // The message is an alert, which a screen reader reads; the form stays, and the focus with it.
+    await expect(page.getByRole("alert").filter({ hasText: "Write a classic address (r…)." })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show" })).toBeFocused();
     await expect(field).toHaveAttribute("aria-invalid", "true");
+    // Enter in the field: the field keeps the focus.
+    await field.fill("rNope");
+    await field.press("Enter");
+    await page.waitForURL(`**${XRPL_FEATURED_PATH}?tab=nfts&owner=rNope`);
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue("rNope");
     expect(await sameDocument(page)).toBe(true);
   });
 
@@ -650,7 +666,7 @@ test.describe("the account's NFTs", () => {
     await page.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}?tab=nfts`);
     await expect(tabs.getByRole("link", { name: "NFTs" })).toHaveAttribute("aria-current", "page");
     await expect(rowsOf(page, "NFTs")).toHaveCount(3);
-    await expect(page.getByText("3 NFTs")).toBeVisible();
+    await expect(page.getByText("Showing 3 NFTs", { exact: true })).toBeVisible();
     await expect(page.locator('a[href^="/xrpl/nft/"]')).toHaveCount(3);
     await expect(page.locator('a[href^="/xrpl/nfts/"]').first()).toBeVisible();
 

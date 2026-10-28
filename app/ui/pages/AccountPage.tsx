@@ -583,7 +583,8 @@ function TabPanel({ network, data, list }: { network: NetworkInfo; data: Account
     case "nfts": {
       const words = nftWords(net);
       return (
-        <Panel note={`${words.tokens} this account holds now`} foot={plural(list.rows.length, words.token, words.tokens)} paging={list.paging}>
+        // What this page of the list shows: the index gives no count of an account's NFTs (spec 11), so the footer says "Showing 20 NFTs", as Objects says "Showing the first 400 objects".
+        <Panel note={`${words.tokens} this account holds now`} foot={`Showing ${plural(list.rows.length, words.token, words.tokens)}`} paging={list.paging}>
           <NftsTable net={net} rows={list.rows} />
           <CoverageNote net={net} note={list.coverage} />
         </Panel>

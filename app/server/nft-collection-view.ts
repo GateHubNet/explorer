@@ -102,8 +102,8 @@ export interface NftCollectionPageData {
    */
   form: { owner: string; burned: boolean; hidden: Array<[name: string, value: string]>; error?: string } | null;
   paging: Paging;
-  /** The coverage note under the chart, and under the tab's list (spec 8). */
-  notes: { chart: CoverageNoteText | null; tab: CoverageNoteText | null };
+  /** The coverage note under the six stats (the collection's own answer, #1), under the chart, and under the tab's list (spec 8); none under the stats behind a marker, which has none. */
+  notes: { stats: CoverageNoteText | null; chart: CoverageNoteText | null; tab: CoverageNoteText | null };
   /** The `what` of the `SectionError` of each card that failed: "the daily figures", and the tab's "the sales", "the NFTs" ("the URITokens"), "the holders". */
   failures: { daily?: string; tab?: string };
   /** What the tab says when its list has no row (`null` when it has rows, or no list): the owner filter's "No NFT of this collection is held by {owner}." among them. */
@@ -439,7 +439,7 @@ export function nftCollectionPage(input: NftCollectionPageInput): NftCollectionP
     rows: tab.rows,
     form,
     paging: trailPaging({ marker: query.marker, back: query.back, next: tab.next }, (to) => collectionHref(net.id, key, { ...view, ...to })),
-    notes: { chart: chartNote, tab: tab.note },
+    notes: { stats: coverageNote(input.collection.coverage, words.salesHeading), chart: chartNote, tab: tab.note },
     failures,
     empty: tab.empty,
     title: head.header.heading,
@@ -473,7 +473,7 @@ export function collectionMarkerPage(input: CollectionMarkerInput): NftCollectio
     rows: tab.rows,
     form: null,
     paging: trailPaging({ marker: query.marker, back: query.back, next: tab.next }, (to) => collectionHref(net.id, key, { ...view, ...to })),
-    notes: { chart: null, tab: tab.note },
+    notes: { stats: null, chart: null, tab: tab.note },
     failures: tab.failure === undefined ? {} : { tab: tab.failure },
     empty: tab.empty,
     title: `Older ${tabWords(net, query.tab).older} of ${head.label}`,

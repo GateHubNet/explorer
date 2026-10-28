@@ -61,8 +61,8 @@ function listOf(api: DataApi, key: CollectionKey, query: CollectionQuery): Promi
 /** How many rows the page of a tab's list holds. */
 const rowsIn = (list: CollectionList): number => ("sales" in list ? list.sales.length : "nfts" in list ? list.nfts.length : list.holders.length);
 
-/** The words of what failed, for the log: a call that missed its deadline "took too long", any other "could not be loaded". */
-const failedWords = (part: string, reason: unknown) => `the NFT collection's ${part} ${reason instanceof TooLate ? "took too long" : "could not be loaded"}`;
+/** The words of what failed, for the log: the collection itself (`part` empty) or a part of its page; a call that missed its deadline "took too long", any other "could not be loaded". */
+const failedWords = (part: string, reason: unknown) => `the NFT collection${part === "" ? "" : `'s ${part}`} ${reason instanceof TooLate ? "took too long" : "could not be loaded"}`;
 
 /**
  * `/{net}/nfts/{issuer}[/{taxon}]` (NFT spec 3): one collection of the network, an issuer and, on XRPL, a taxon; on Xahau everything one issuer minted. Its class is `minute`.
@@ -117,7 +117,7 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
 function collectionFailure(net: Network, key: CollectionKey, reason: unknown, request: Request): never {
   const outage = asOutage(reason);
   if (isNotFound(outage)) notFound({ notFound: missing(net, key) });
-  logProblem(failedWords("collection", reason), reason, request);
+  logProblem(failedWords("", reason), reason, request);
   return upstreamOutage(outage, `the ${nftWords(net.id).token} collection`);
 }
 

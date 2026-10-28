@@ -686,6 +686,19 @@ const NFT_MAIN: PageUnderTest[] = [
 
 const NFT_MORE: PageUnderTest[] = [
   { name: "NFT list with an issuer that is no address", path: "/xrpl/nfts?issuer=nope", ready: async (page) => void (await expect(page.getByText("Write a classic address (r…).")).toBeVisible()) },
+  {
+    // Show on an issuer that is no address, in the page: the message is an alert and the field keeps the focus.
+    name: "NFT list, an issuer that is no address shown with Enter",
+    path: "/xrpl/nfts",
+    ready: nftListReady,
+    act: async (page) => {
+      const field = page.getByRole("searchbox", { name: "Collections of an issuer" });
+      await field.fill("nope");
+      await field.press("Enter");
+      await expect(page.getByRole("alert").filter({ hasText: "Write a classic address (r…)." })).toBeVisible();
+      await expect(field).toBeFocused();
+    },
+  },
   { name: "NFT list for 30 days", path: "/xrpl/nfts?period=30day", ready: nftListReady },
   { name: "NFT list sorted by holders, smallest first", path: "/xrpl/nfts?sort=holders&order=asc", ready: nftListReady },
   {
@@ -718,6 +731,18 @@ const NFT_MORE: PageUnderTest[] = [
     name: "NFT collection, an owner that is no address",
     path: `${FEATURED_COLLECTION}?tab=nfts&owner=nope`,
     ready: async (page) => void (await expect(page.getByText("Write a classic address (r…).")).toBeVisible()),
+  },
+  {
+    // Show on an owner that is no address, in the page: the message is an alert and the button keeps the focus.
+    name: "NFT collection, an owner that is no address shown with the button",
+    path: `${FEATURED_COLLECTION}?tab=nfts`,
+    ready: nftCollectionReady("NFTs"),
+    act: async (page) => {
+      await page.getByRole("searchbox", { name: "Held by an account" }).fill("nope");
+      await page.getByRole("button", { name: "Show" }).click();
+      await expect(page.getByRole("alert").filter({ hasText: "Write a classic address (r…)." })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Show" })).toBeFocused();
+    },
   },
   {
     name: "NFT collection, older sales",

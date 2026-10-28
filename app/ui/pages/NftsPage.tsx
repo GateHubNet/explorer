@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { Form, Link } from "react-router";
 
 import { nftsHref } from "../../domain/nft-params";
@@ -264,16 +264,26 @@ function columns(native: string, links: readonly NftSortLink[]): Column<Collecti
 
 /**
  * The GET form of the issuer (spec 2.1): it works without JavaScript, and is a client-side navigation with it. The view's own `period`, `sort` and `order` are hidden fields, so that
- * Show keeps them; the canonical query has the issuer after the period and before the sort and the order, and the fields are written in that order, so that the submitted URL is
- * the canonical one and needs no redirect. The message of an issuer that is no address is tied to the field.
+ * Show keeps them; the canonical query has the issuer after the period and before the sort and the order, and the fields are written in that order, so that an issuer submitted as
+ * an address lands on the canonical URL (an empty field sends `issuer=`, which the loader's 302 takes out). The message of an issuer that is no address is tied to the field and
+ * is an alert, a new one for each issuer, so that a screen reader reads it when Show brings it.
+ *
+ * The form stays across a navigation, and so do the focus and what was typed: Show on an issuer that is no address leaves the visitor where they were. When the view changes (a
+ * link, Back), the field takes what the page shows, unless the visitor is in it.
  */
 function IssuerForm({ net, form }: { net: NetworkId; form: NftsPageData["issuerForm"] }) {
   const fieldId = useId();
   const errorId = useId();
+  const field = useRef<HTMLInputElement>(null);
+  const view = `${form.value}\u0000${JSON.stringify(form.hidden)}`;
+  const shown = useRef(view);
+  useEffect(() => {
+    if (shown.current !== view && field.current !== null && field.current !== document.activeElement) field.current.value = form.value;
+    shown.current = view;
+  }, [view, form.value]);
   const hidden = ([name, value]: [string, string]) => <input key={name} type="hidden" name={name} value={value} />;
   return (
-    // A new filter is a new form: its field starts from what the page shows, not from what was typed before the navigation.
-    <Form key={`${form.value}\u0000${JSON.stringify(form.hidden)}`} method="get" action={nftsHref(net)} className="nfts__form">
+    <Form method="get" action={nftsHref(net)} className="nfts__form">
       {form.hidden.filter(([name]) => name === "period").map(hidden)}
       <label htmlFor={fieldId} className="sr">
         Collections of an issuer
@@ -281,6 +291,7 @@ function IssuerForm({ net, form }: { net: NetworkId; form: NftsPageData["issuerF
       <div className={cx("nfts__field", form.error !== undefined && "is-invalid")}>
         <SearchIcon size={15} className="nfts__icon" />
         <input
+          ref={field}
           id={fieldId}
           type="search"
           name="issuer"
@@ -299,7 +310,7 @@ function IssuerForm({ net, form }: { net: NetworkId; form: NftsPageData["issuerF
         Show
       </button>
       {form.error !== undefined && (
-        <p id={errorId} className="nfts__error">
+        <p key={form.value} id={errorId} role="alert" className="nfts__error">
           <AlertIcon size={14} />
           {form.error}
         </p>

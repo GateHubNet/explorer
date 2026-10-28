@@ -43,7 +43,7 @@ describe("NftSalesPage", () => {
     expect(crumbs.getByText("Sales").getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("NFT sales");
     const table = screen.getByRole("table", { name: "Sales" });
-    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "NFT", "Collection", "Price", "Seller → buyer", "Sale", "Royalty, est."]);
+    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "NFT", "Collection", "Price", "Seller →to buyer", "Sale", "Royalty, est."]);
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(screen.getByRole("region", { name: "Sales" })).getByText("/v2/nft_sales?descending=true")).toBeTruthy();
   });
@@ -102,7 +102,7 @@ describe("NftSalesPage", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("URIToken sales");
     expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getAllByRole("listitem").map((item) => item.textContent?.replace("/", ""))).toEqual(["Xahau", "URITokens", "Sales"]);
     const table = screen.getByRole("table", { name: "Sales" });
-    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → buyer", "Sale", "Royalty"]);
+    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "URIToken", "Collection", "Price", "Seller →to buyer", "Sale", "Royalty"]);
     const cells = within(within(table).getAllByRole("row")[1]!).getAllByRole("cell");
     expect(cells[6]!.textContent).toBe("—");
     expect(screen.getByText("A sale is a URITokenBuy of a token offered for sale. URITokens carry no transfer fee, so there is no royalty.")).toBeTruthy();

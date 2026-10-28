@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -21,8 +21,8 @@ import {
   uriTokenSample,
 } from "../../../test/support/nft-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountPage, routedPage } from "../../../test/support/under-network";
-import type { CollectionKey, CollectionQuery } from "../../domain/nft-params";
+import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountLoadedPage, mountPage, routedPage } from "../../../test/support/under-network";
+import { parseCollectionParams, type CollectionKey, type CollectionQuery } from "../../domain/nft-params";
 import type { LastValidated, NftCollectionDay, NftCollectionDays } from "../../server/api-types";
 import { collectionMarkerPage, nftCollectionPage, type CollectionList, type CollectionNet, type NftCollectionPageData, type NftCollectionPageInput } from "../../server/nft-collection-view";
 import { UpstreamError } from "../../server/upstream";
@@ -225,6 +225,27 @@ describe("NftCollectionPage: the six stats", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("says where the collection's own history starts under the six stats, when the index does not hold it all, and nothing when it does", () => {
+    mount(build({ collection: nftCollectionAnswerSample({ collection: COLLECTION, coverage: coverageSample({ complete: false, from_ledger_index: 32570 }) }) }));
+    const figures = screen.getByRole("region", { name: "Figures" });
+    const notes = screen.getAllByRole("note");
+    expect(notes.map((note) => note.textContent)).toEqual(["Covers ledger #32,570 onwards: earlier NFT sales are not in the index yet."]);
+    // Under the stats, before the measures and the chart.
+    expect(figures.parentElement!.contains(notes[0]!)).toBe(true);
+    expect(figures.compareDocumentPosition(notes[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notes[0]!.compareDocumentPosition(screen.getByRole("group", { name: "Measure" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(notes[0]!).getByRole("link", { name: "#32,570" }).getAttribute("href")).toBe("/xrpl/ledger/32570");
+    cleanup();
+    mount(build());
+    expect(screen.queryAllByRole("note")).toHaveLength(0);
+    cleanup();
+    // Xahau's words: the stats, the chart and the list each say theirs.
+    mount(uriBuild(), URI_PATH, LAYOUT_XAHAU);
+    const xahau = screen.getAllByRole("note");
+    expect(xahau.map((note) => note.textContent)).toEqual(Array(2).fill("Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet."));
+    expect(screen.getByRole("region", { name: "Figures" }).parentElement!.contains(xahau[0]!)).toBe(true);
+  });
+
   it("says 'about' when the day's count of rated sales is a rounding", () => {
     const dust = [
       dayOf("2026-10-14", { sales_count: 10, volume_native: "0.000016", avg_price_native: "0.000002", min_price_native: "0.000001" }),
@@ -382,7 +403,7 @@ describe("NftCollectionPage: the tabs", () => {
 describe("NftCollectionPage: the Sales tab", () => {
   it("is the sales table without the collection's own column, the rows as the list draws them", () => {
     mount(build());
-    expect(headersOf("Sales")).toEqual(["Time", "NFT", "Price", "Seller → buyer", "Sale", "Royalty, est."]);
+    expect(headersOf("Sales")).toEqual(["Time", "NFT", "Price", "Seller →to buyer", "Sale", "Royalty, est."]);
     const [first, second] = rowsOf("Sales");
     const cells = cellsOf(first!);
     expect(within(cells[0]!).getByRole("link").getAttribute("href")).toBe(`/xrpl/tx/${SALES[0]!.tx_hash}`);
@@ -404,7 +425,7 @@ describe("NftCollectionPage: the Sales tab", () => {
   it("is Xahau's: the URIToken column and a royalty that is a dash", () => {
     const uri = nftSaleSample({ nft_id: URI_TOKEN_ID, kind: "uritoken", issuer: URI_TOKEN_ISSUER, serial: undefined, taxon: undefined, currency: "XAH", amount: "520", converted_amount: "520", royalty_est: undefined });
     mount(uriBuild({ list: fulfilled(nftSalesPageSample({ sales: [uri], coverage: WHOLE })) }), URI_PATH, LAYOUT_XAHAU);
-    expect(headersOf("Sales")).toEqual(["Time", "URIToken", "Price", "Seller → buyer", "Sale", "Royalty"]);
+    expect(headersOf("Sales")).toEqual(["Time", "URIToken", "Price", "Seller →to buyer", "Sale", "Royalty"]);
     expect(cellsOf(rowsOf("Sales")[0]!)[5]!.textContent).toBe("—");
   });
 });
@@ -490,7 +511,8 @@ describe("NftCollectionPage: the NFTs tab", () => {
     const message = screen.getByText("Write a classic address (r…).");
     expect(field.getAttribute("aria-describedby")).toBe(message.id);
     expect(screen.queryByRole("table", { name: "NFTs" })).toBeNull();
-    expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    // The message is the one alert: nothing claims to have failed, no list was asked for.
+    expect(screen.getAllByRole("alert")).toEqual([message]);
     // the tabs and the board's note stay
     expect(within(screen.getByRole("navigation", { name: "Collection lists" })).getAllByRole("link")).toHaveLength(3);
     expect(screen.getByText(/A collection is every NFT of one issuer/)).toBeTruthy();
@@ -511,6 +533,87 @@ describe("NftCollectionPage: the NFTs tab", () => {
     expect(container.querySelector("form")).toBeNull();
     cleanup();
     expect(mount(holdersTab()).container.querySelector("form")).toBeNull();
+  });
+});
+
+describe("NftCollectionPage: the owner form across client-side navigations", () => {
+  const MESSAGE = "Write a classic address (r…).";
+  /** What the collection's loader makes of a URL, as far as the form goes: an owner that is no address is the form's message, and no list is asked for. */
+  const load = (url: URL): NftCollectionPageData => {
+    const query = parseCollectionParams(url.searchParams);
+    const bad = query.owner !== undefined && query.owner !== NFT_OWNER && query.owner !== OTHER_OWNER;
+    return query.tab === "nfts" ? nftsTab(query, bad ? { ownerError: MESSAGE, list: null } : {}) : build({ query });
+  };
+  const mountLoaded = (at: string) => mountLoadedPage((data: NftCollectionPageData) => <NftCollectionPage data={data} />, load, { at });
+  const ownerField = () => screen.getByRole("searchbox", { name: "Held by an account" }) as HTMLInputElement;
+  const burnedBox = () => screen.getByRole("checkbox", { name: "Include burned" }) as HTMLInputElement;
+  const at = (router: ReturnType<typeof mountLoaded>["router"]) => router.state.location.pathname + router.state.location.search;
+
+  it("keeps the focus in the field after Show with an owner that is no address, and says why in an alert tied to the field", async () => {
+    const { router } = mountLoaded(`${PATH}?tab=nfts`);
+    const field = ownerField();
+    field.focus();
+    fireEvent.change(field, { target: { value: "nope" } });
+    // Enter in the field: the form's submit.
+    await act(async () => void fireEvent.submit(field.form!));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts&owner=nope`));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe(MESSAGE);
+    // The same field, still focused, with what was typed: the form was not drawn anew.
+    expect(ownerField()).toBe(field);
+    expect(document.activeElement).toBe(field);
+    expect([field.value, field.getAttribute("aria-invalid"), field.getAttribute("aria-describedby")]).toEqual(["nope", "true", alert.id]);
+  });
+
+  it("keeps the focus on Show when it was pressed, with 'Include burned' as it was checked, and tells a second owner that is no address in a new alert", async () => {
+    const { router } = mountLoaded(`${PATH}?tab=nfts`);
+    const show = screen.getByRole("button", { name: "Show" });
+    fireEvent.click(burnedBox());
+    fireEvent.change(ownerField(), { target: { value: "nope" } });
+    show.focus();
+    await act(async () => void fireEvent.click(show));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts&owner=nope&burned=1`));
+    const first = await screen.findByRole("alert");
+    expect(first.textContent).toBe(MESSAGE);
+    expect(screen.getByRole("button", { name: "Show" })).toBe(show);
+    expect(document.activeElement).toBe(show);
+    expect(burnedBox().checked).toBe(true);
+
+    fireEvent.change(ownerField(), { target: { value: "rNope" } });
+    await act(async () => void fireEvent.click(show));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts&owner=rNope&burned=1`));
+    // The same words, in an alert of its own, which a screen reader reads again.
+    const second = screen.getByRole("alert");
+    expect([second.textContent, second === first, ownerField().getAttribute("aria-describedby") === second.id]).toEqual([MESSAGE, false, true]);
+    expect(document.activeElement).toBe(show);
+  });
+
+  it("puts the page's owner and 'Include burned' back when a link changes them, but not into the field the visitor is in", async () => {
+    const { router } = mountLoaded(`${PATH}?tab=nfts&owner=nope&burned=1`);
+    const field = ownerField();
+    expect([field.value, burnedBox().checked]).toEqual(["nope", true]);
+
+    // A measure's link leaves out an owner that is no address and keeps "Include burned": the field is emptied, the message goes.
+    await act(async () => void fireEvent.click(within(screen.getByRole("group", { name: "Measure" })).getByRole("link", { name: "Sales" })));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?measure=sales&tab=nfts&burned=1`));
+    expect(ownerField()).toBe(field);
+    expect([field.value, burnedBox().checked]).toEqual(["", true]);
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // The tab's own link is its first page without the filters: "Include burned" is unchecked.
+    await act(async () => void fireEvent.click(within(screen.getByRole("navigation", { name: "Collection lists" })).getByRole("link", { name: "NFTs" })));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?measure=sales&tab=nfts`));
+    expect(burnedBox().checked).toBe(false);
+
+    // Back to an owner's NFTs (Back, a link): the owner is in the field.
+    await act(async () => void (await router.navigate(`${PATH}?tab=nfts&owner=${NFT_OWNER}`)));
+    expect(field.value).toBe(NFT_OWNER);
+
+    // While the visitor types in it, a new view leaves the field alone.
+    field.focus();
+    fireEvent.change(field, { target: { value: "rTyp" } });
+    await act(async () => void (await router.navigate(`${PATH}?measure=low&tab=nfts&owner=${NFT_OWNER}`)));
+    expect([field.value, document.activeElement === field]).toEqual(["rTyp", true]);
   });
 });
 
@@ -575,7 +678,7 @@ describe("NftCollectionPage: a page behind a marker", () => {
     expect(screen.queryByRole("group", { name: "Measure" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Collection lists" })).toBeNull();
     expect(document.querySelector(".chart")).toBeNull();
-    expect(headersOf("Sales")).toEqual(["Time", "NFT", "Price", "Seller → buyer", "Sale", "Royalty, est."]);
+    expect(headersOf("Sales")).toEqual(["Time", "NFT", "Price", "Seller →to buyer", "Sale", "Royalty, est."]);
     expect(rowsOf("Sales")).toHaveLength(2);
     const pager = screen.getByRole("navigation", { name: "Pagination" });
     expect(within(pager).getByRole("link", { name: "Newer" }).getAttribute("href")).toBe(`${PATH}?marker=${MARKERS.M1}`);

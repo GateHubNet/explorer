@@ -299,7 +299,9 @@ describe("the issuer form (spec 1.2, 1.3)", () => {
     // The other calls are made: the tiles, the chart and the sales are drawn, and there is no Collections table.
     expect([...keysOf(mock.requests)].sort()).toEqual([LAST_VALIDATED, LIVE, DAILY, SALES].sort());
     expect(collectionRows(html)).toEqual([]);
-    expect(alerts(html)).toBe(0);
+    // The message is the one alert (a screen reader reads it when Show brings it): no card failed.
+    expect(alerts(html)).toBe(1);
+    expect(html).toMatch(/<p id="[^"]+" role="alert" class="nfts__error">/);
     expect(await storedAs(path)).toEqual(SHORT);
     expect(isNoindex(html)).toBe(true);
     expect(html).toContain("<title>NFTs · XRPL · explorer</title>");
@@ -376,7 +378,7 @@ describe("the first page", () => {
     expect(text).toContain("Top collections, 24 h");
     expect((html.match(/class="barlist__item"/g) ?? []).length).toBe(3);
     expect(saleRows(html)).toHaveLength(11);
-    expect(saleRows(html)[0]).toEqual(["Time", "NFT", "Collection", "Price", "Seller → buyer", "Sale", "Royalty, est."]);
+    expect(saleRows(html)[0]).toEqual(["Time", "NFT", "Collection", "Price", "Seller → to buyer", "Sale", "Royalty, est."]);
     expect(collectionRows(html)).toHaveLength(21);
     expect(collectionRows(html)[0]!.map((cell) => cell.replace(/[↑↓]/, "").trim())).toEqual(["Collection", "Supply", "Holders", "Minted / burned", "Sales", "Volume (XRP)", "Last mint"]);
     // The links: older sales, more collections, the sorts; indexable, no failure, complete coverage says nothing.
@@ -483,7 +485,7 @@ describe("Xahau (the same page with URIToken words)", () => {
     expect(tiles(html)[0]!.value).toMatch(/ XAH$/);
     expect(text).toContain("URITokenBuy");
     expect(text).toContain("Sales volume per day, in XAH, last 30 days");
-    expect(saleRows(html)[0]).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → buyer", "Sale", "Royalty"]);
+    expect(saleRows(html)[0]).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → to buyer", "Sale", "Royalty"]);
     expect(saleRows(html).slice(1).every((row) => row[6] === "—")).toBe(true);
     expect(collectionRows(html)[0]!.map((cell) => cell.replace(/[↑↓]/, "").trim())[5]).toBe("Volume (XAH)");
     expect(collectionRows(html)[1]![0]).toContain("every URIToken of this issuer");
@@ -590,7 +592,7 @@ describe("the older sales", () => {
     expect(keysOf(mock.requests)).toEqual([PAGE_KEY]);
     expect(html).toContain("<title>URIToken sales · Xahau · explorer</title>");
     expect(text).toContain("Xahau / URITokens / Sales");
-    expect(tableRows(html, "Sales")[0]).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → buyer", "Sale", "Royalty"]);
+    expect(tableRows(html, "Sales")[0]).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → to buyer", "Sale", "Royalty"]);
     expect(text).toContain("Covers ledger #26,533,927 onwards: earlier URIToken sales are not in the index yet.");
   });
 });

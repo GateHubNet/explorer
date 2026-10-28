@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -17,8 +17,9 @@ import {
   uriTokenCollectionSample,
 } from "../../../test/support/nft-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { LAYOUT_XAHAU, LAYOUT_XRPL, mountPage, routedPage } from "../../../test/support/under-network";
+import { LAYOUT_XAHAU, LAYOUT_XRPL, mountLoadedPage, mountPage, routedPage } from "../../../test/support/under-network";
 import { shortAddress } from "../../domain/format";
+import { parseNftsParams } from "../../domain/nft-params";
 import { addDays, windowOf } from "../../domain/window";
 import type { LastValidated, NftVolume, NftVolumeComponent, NftVolumeRow } from "../../server/api-types";
 import { nftsListPage, nftsMarkerPage, type NftsListInput, type NftsNet, type NftsPageData } from "../../server/nfts-view";
@@ -307,7 +308,7 @@ describe("NftsPage: the recent sales", () => {
     const card = screen.getByRole("region", { name: "Recent sales" });
     expect(within(card).getByText("/v2/nft_sales?descending=true")).toBeTruthy();
     const table = within(card).getByRole("table", { name: "Recent sales" });
-    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "NFT", "Collection", "Price", "Seller → buyer", "Sale", "Royalty, est."]);
+    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "NFT", "Collection", "Price", "Seller →to buyer", "Sale", "Royalty, est."]);
     expect(rowsOf("Recent sales")).toHaveLength(2);
   });
 
@@ -341,13 +342,17 @@ describe("NftsPage: the recent sales", () => {
     expect(who.querySelector(".sr")!.textContent).toBe("to");
     expect(who.querySelector('[aria-hidden="true"]')!.textContent).toBe("→");
     expect(who.textContent).toBe(`${shortAddress(SALES[0]!.seller)}→to${shortAddress(SALES[0]!.buyer)}`);
+    // The header reads the same way: "Seller to buyer", the arrow a picture.
+    const header = within(screen.getByRole("table", { name: "Recent sales" })).getAllByRole("columnheader")[4]!;
+    expect(header.querySelector(".sr")!.textContent).toBe("to");
+    expect(header.querySelector('[aria-hidden="true"]')!.textContent).toBe("→");
   });
 
   it("is Xahau's: the URIToken column with the short id alone, a royalty that is always a dash, and the header's own word", () => {
     const uri = nftSaleSample({ nft_id: URI_TOKEN_ID, kind: "uritoken", issuer: URI_TOKEN_ISSUER, serial: undefined, taxon: undefined, currency: "XAH", amount: "520", converted_amount: "520", royalty_est: undefined });
     mount(build({ net: XAHAU, sales: fulfilled(nftSalesPageSample({ sales: [uri], coverage: COMPLETE })) }), "/xahau/nfts", LAYOUT_XAHAU);
     const table = screen.getByRole("table", { name: "Recent sales" });
-    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "URIToken", "Collection", "Price", "Seller → buyer", "Sale", "Royalty"]);
+    expect(texts(within(table).getAllByRole("columnheader"))).toEqual(["Time", "URIToken", "Collection", "Price", "Seller →to buyer", "Sale", "Royalty"]);
     const cells = cellsOf(rowsOf("Recent sales")[0]!);
     expect(within(cells[1]!).getByRole("link").textContent).toBe("96133366…AAE9");
     expect(within(cells[1]!).getByRole("link").getAttribute("href")).toBe(`/xahau/nft/${URI_TOKEN_ID}`);
@@ -512,6 +517,80 @@ describe("NftsPage: the issuer form", () => {
     expect([form.getAttribute("method"), form.getAttribute("action")]).toEqual(["get", "/xrpl/nfts"]);
     expect([...form.querySelectorAll("input")].map((input) => `${input.getAttribute("name")}=${input.getAttribute("value")}`)).toEqual(["period=30day", `issuer=${NFT_ISSUER}`, "order=asc"]);
     expect(form.querySelector('button[type="submit"]')!.textContent).toBe("Show");
+  });
+});
+
+describe("NftsPage: the issuer form across client-side navigations", () => {
+  const MESSAGE = "Write a classic address (r…).";
+  /** What the list's loader makes of a URL, as far as the form goes: an issuer that is no address is the form's message, and no list is asked for. */
+  const load = (url: URL): NftsPageData => {
+    const query = parseNftsParams(url.searchParams);
+    const bad = query.issuer !== undefined && query.issuer !== NFT_ISSUER && query.issuer !== OTHER_ISSUER;
+    return build({ query, ...(bad ? { issuerError: MESSAGE, collections: null } : {}) });
+  };
+  const mountLoaded = (at: string) => mountLoadedPage((data: NftsPageData) => <NftsPage data={data} />, load, { at });
+  const issuerField = () => screen.getByLabelText("Collections of an issuer") as HTMLInputElement;
+  const at = (router: ReturnType<typeof mountLoaded>["router"]) => router.state.location.pathname + router.state.location.search;
+
+  it("keeps the focus in the field after Show with an issuer that is no address, and says why in an alert tied to the field", async () => {
+    const { router } = mountLoaded("/xrpl/nfts?period=7day");
+    const field = issuerField();
+    field.focus();
+    fireEvent.change(field, { target: { value: "nope" } });
+    // Enter in the field: the form's submit.
+    await act(async () => void fireEvent.submit(field.form!));
+    await waitFor(() => expect(at(router)).toBe("/xrpl/nfts?period=7day&issuer=nope"));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe(MESSAGE);
+    // The same field, still focused, with what was typed: the form was not drawn anew.
+    expect(issuerField()).toBe(field);
+    expect(document.activeElement).toBe(field);
+    expect([field.value, field.getAttribute("aria-invalid"), field.getAttribute("aria-describedby")]).toEqual(["nope", "true", alert.id]);
+  });
+
+  it("keeps the focus on Show when it was pressed, and tells a second address that is no address in a new alert", async () => {
+    const { router } = mountLoaded("/xrpl/nfts");
+    const show = screen.getByRole("button", { name: "Show" });
+    fireEvent.change(issuerField(), { target: { value: "nope" } });
+    show.focus();
+    await act(async () => void fireEvent.click(show));
+    await waitFor(() => expect(at(router)).toBe("/xrpl/nfts?issuer=nope"));
+    const first = await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: "Show" })).toBe(show);
+    expect(document.activeElement).toBe(show);
+
+    fireEvent.change(issuerField(), { target: { value: "rNope" } });
+    await act(async () => void fireEvent.click(show));
+    await waitFor(() => expect(at(router)).toBe("/xrpl/nfts?issuer=rNope"));
+    // The same words, in an alert of its own, which a screen reader reads again.
+    const second = screen.getByRole("alert");
+    expect(second.textContent).toBe(MESSAGE);
+    expect(second).not.toBe(first);
+    expect(issuerField().getAttribute("aria-describedby")).toBe(second.id);
+    expect(document.activeElement).toBe(show);
+  });
+
+  it("puts the page's issuer back in the field when a link changes the view, but not into the field the visitor is in", async () => {
+    const { router } = mountLoaded(`/xrpl/nfts?issuer=${NFT_ISSUER}`);
+    const field = issuerField();
+    expect(field.value).toBe(NFT_ISSUER);
+
+    // Typed and not shown, then a sort header: the field says what the list is of.
+    fireEvent.change(field, { target: { value: "rTyped" } });
+    await act(async () => void fireEvent.click(within(screen.getByRole("columnheader", { name: /^Supply/ })).getByRole("link")));
+    await waitFor(() => expect(at(router)).toBe(`/xrpl/nfts?issuer=${NFT_ISSUER}&sort=supply`));
+    expect(issuerField()).toBe(field);
+    expect(field.value).toBe(NFT_ISSUER);
+
+    // A link to the list of every collection (the header's NFTs, Back): the field is emptied.
+    await act(async () => void (await router.navigate("/xrpl/nfts")));
+    expect(field.value).toBe("");
+
+    // While the visitor types in it, a new view leaves the field alone.
+    field.focus();
+    fireEvent.change(field, { target: { value: "rTyp" } });
+    await act(async () => void (await router.navigate("/xrpl/nfts?period=30day")));
+    expect([field.value, document.activeElement === field]).toEqual(["rTyp", true]);
   });
 });
 
