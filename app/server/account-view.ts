@@ -21,7 +21,6 @@ import type { AnalyticsData } from "./analytics-view";
 import type { AccountData, AccountExchange, BalancesResponse, Nft, NftsPage, OrdersResponse, Page, Payment, TxObject } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
 import type { NetworkId } from "./networks";
-// nft-format.ts reads `isNative` of this file and this file its dash, each only inside a function, so that neither is read before the other has loaded.
 import { DASH } from "./nft-format";
 import { RIPPLE_EPOCH_OFFSET, type AccountInfo, type AccountObjects, type LedgerObject, type ServerState } from "./node-rpc";
 import { UpstreamError } from "./upstream";

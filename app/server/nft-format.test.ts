@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { counted, DASH, plain, queryPairsOf, salesCount, sharePercentTenth } from "./nft-format";
+import { staticClosure } from "../../test/support/value-imports";
+import { convertedOf, counted, DASH, plain, queryPairsOf, salesCount, sharePercentTenth } from "./nft-format";
 
 describe("queryPairsOf", () => {
   it("reads the query of a link back as [name, value] pairs, in the link's order", () => {
@@ -43,5 +44,27 @@ describe("the words and numbers of the NFT builders", () => {
     expect(sharePercentTenth("1", "10000")).toBe("<0.1%");
     expect(sharePercentTenth("0", "10000")).toBe("0.0%");
     expect(sharePercentTenth("1", "0")).toBe(DASH);
+  });
+});
+
+describe("convertedOf", () => {
+  const sale = (currency: string, amount_issuer: string | undefined, converted_amount: string | undefined) => ({ currency, ...(amount_issuer === undefined ? {} : { amount_issuer }), ...(converted_amount === undefined ? {} : { converted_amount }) });
+
+  it("is the native conversion of a price in a token, and nothing for a native price, a token with no rate that day or a conversion of 0", () => {
+    expect(convertedOf("XRP", sale("SOLO", "rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz", "96"))).toBe("96");
+    expect(convertedOf("XRP", sale("XRP", undefined, "1250"))).toBeNull();
+    expect(convertedOf("XAH", sale("XAH", undefined, "1250"))).toBeNull();
+    expect(convertedOf("XRP", sale("SOLO", "rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz", undefined))).toBeNull();
+    expect(convertedOf("XRP", sale("SOLO", "rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz", "0"))).toBeNull();
+    // A token is one with an issuer, whatever its code: only the native currency has none.
+    expect(convertedOf("XRP", sale("XRP", "rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz", "3"))).toBe("3");
+    // Another network's native code with no issuer is no token of this one.
+    expect(convertedOf("XAH", sale("XRP", undefined, "5"))).toBe("5");
+  });
+
+  it("is written in this file: the NFT builders load neither the account's builder nor what it loads (no cycle with account-view.ts)", () => {
+    const closure = staticClosure(new URL("../", import.meta.url), "server/nft-format.ts");
+    expect(closure).not.toContain("server/account-view.ts");
+    expect(closure.filter((path) => /^domain\/(describe|parse)\//.test(path))).toEqual([]);
   });
 });

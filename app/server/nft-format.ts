@@ -3,7 +3,6 @@
 // BigNumber, so no float and no exponent reaches a label.
 
 import { formatAmount } from "../domain/format";
-import { isNative } from "./account-view";
 import type { NftSale } from "./api-types";
 import { BN, decimalOf, divided } from "./exact";
 
@@ -45,6 +44,7 @@ export function queryPairsOf(href: string): Array<[name: string, value: string]>
  * "≈" nor the royalty is then in the native currency. A sale, and an NFT's last sale (which the NFT's page shows the same way), have the three fields it reads.
  */
 export function convertedOf(native: string, sale: Pick<NftSale, "currency" | "amount_issuer" | "converted_amount">): string | null {
-  const token = !isNative({ currency: sale.currency, issuer: sale.amount_issuer }, native);
+  // A native price is the native currency's code with no issuer, as account-view.ts's `isNative` says: written out, so that this file loads no builder (account-view.ts reads its dash).
+  const token = !(sale.amount_issuer === undefined && sale.currency === native);
   return token && decimalOf(sale.converted_amount)?.gt(0) === true ? sale.converted_amount! : null;
 }
