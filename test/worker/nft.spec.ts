@@ -25,6 +25,10 @@ import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type
 
 const { get, stored, storedAs } = pageClient("198.18.63");
 
+// A test here may ask several times whether the edge cache holds a copy it must not hold (`isStored` waits up to 2 s for each: a store runs behind the answer, in the request's `waitUntil`,
+// which the client (`exports.default.fetch`) gives no way to await, so "not stored" means it only after that wait), which is more than Vitest's 5 s for a test that does it twice.
+vi.setConfig({ testTimeout: 30_000 });
+
 let mock: UpstreamMock | undefined;
 
 beforeAll(() => {
