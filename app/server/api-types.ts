@@ -1545,7 +1545,10 @@ export interface NftCollectionDays {
   count: number;
   days: NftCollectionDay[];
 }
-/** `GET /v2/network/nft_volume`: a row for each bucket asked for, or the one row of a rolling period (`live`). */
+/**
+ * `GET /v2/network/nft_volume`: the rows of the buckets asked for, or for a rolling period (`live`) one row or none (D3 writes none until its syncer has the period's set). An
+ * answer may hold no row (`checkNftVolume`).
+ */
 export interface NftVolume {
   coverage: Coverage;
   count: number;

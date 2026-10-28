@@ -811,7 +811,7 @@ is off. Lists are newest first, 20 a page, with Newer and Older.
 
 **The NFTs tab and the Objects rows (E8).** While `NFTS` is on the account page has a seventh tab, "NFTs" ("URITokens" on Xahau), `?tab=nfts`: the NFTs the account holds now, from `accountNfts` (D3's `/v2/accounts/{address}/nfts`), a page at a time, paged by
 marker as the transactions are (class `live` for the first page, `MARKER_PAGE_CLASS` behind a marker, `noindex, follow` behind one). Each row is the NFT (a link to its page: "#4,127" with the short id under it on XRPL, the short id alone on Xahau), its
-collection (a link), its last sale, and the day it was minted, under the caption "NFTs this account holds now" and the footer "{n} NFTs"; a list that cannot be loaded is "Couldn’t load NFTs" with a Retry, like the other tabs. While `NFTS` is off the tab is the "soon" label
+collection (a link), its last sale, and the day it was minted, under the caption "NFTs this account holds now" and the footer "Showing {n} NFTs" ("Showing {n} URITokens"): what the page shows, not a total, which the index does not give (as Objects' "Showing the first 400 objects"); a list that cannot be loaded is "Couldn’t load NFTs" with a Retry, like the other tabs. While `NFTS` is off the tab is the "soon" label
 and `?tab=nfts` a 302 of class `short` to the account page before any call, as Analytics' is. The Objects tab shows an NFT page (`NFTokenPage`) with its count of NFTs and, while `NFTS` is on, the link "See the account’s NFTs" to the tab, and an NFT offer
 or a URIToken with the NFT's id as a link (plain monospace text with the whole id in its `title` while off). The tab's streamed list needs JavaScript, like every list of the account page's tabs.
 
@@ -1459,8 +1459,10 @@ defaults, unknown values, repeats and unknown parameters, drops `back` without a
 | an NFT | `offers`: `1` adds the offer events to the history; `marker`, `back`: the history's page trail | the history without the offer events |
 
 The selectors (the period, the sort headers, the measure, the tabs, Newer and Older, "More collections", "Older sales", "Show offer events") are links, so they work without JavaScript; with it a click is a client-side navigation that keeps the window where it
-is (`preventScrollReset`). The list's issuer form and a collection's owner form (the field "Held by an account", the checkbox "Include burned") are GET forms whose hidden fields keep the view, written in the canonical order, so the URL a submit lands on needs no redirect;
-an address that is none is the message "Write a classic address (r…)." under the field (`aria-invalid`, `aria-describedby`), a 200 of class `short` with no call for the list it filters.
+is (`preventScrollReset`). The list's issuer form and a collection's owner form (the field "Held by an account", the checkbox "Include burned") are GET forms whose hidden fields keep the view, written in the canonical order, so a submitted address lands on the canonical URL (an empty field sends `issuer=` or
+`owner=`, which the loader's 302 takes out); an address that is none is the message "Write a classic address (r…)." under the field (`aria-invalid`, `aria-describedby`), a 200 of class `short` with no call for the list it filters. The message is an
+alert (`role="alert"`, a new one for each value, so a screen reader reads it when Show brings it), and the form is not drawn anew by the navigation: the focus stays on the field or on Show, with what was typed. A link or Back that changes the view
+puts the page's value back in a field (and in "Include burned") that the visitor is not in.
 
 **Validation, before any call.**
 
@@ -1498,7 +1500,7 @@ where `needsNode` says so. The older sales and any page behind a marker make the
 The NFT's URI is text, never a link and never fetched (`javascript:alert(1)` and `ipfs://…` are text like any other): decoded as UTF-8 where it is printable text, else hex (`uriText` in `nft-id.ts`: a control, format or line-separator character,
 a byte order mark, or bytes that are no UTF-8 make it hex, and the empty URI is none; the pages note "Decoded from hex. Not fetched."). "Expired" offers are judged against the loader's `now` (unix seconds), not the ledger's close time, since D3's NFT answer carries none; the page is `live`.
 
-**Coverage.** Each list and figure has its own note under it (`coverageNote`, drawn by `CoverageNote`): "Covers ledger #N onwards: earlier NFT sales are not in the index yet." with the ledger a link, and "The index does not hold this history yet." without
+**Coverage.** Each list and figure has its own note under it (`coverageNote`, drawn by `CoverageNote`; a collection's six stats have the note of the collection's own answer, #1, its chart the 30 days', its tab the list's): "Covers ledger #N onwards: earlier NFT sales are not in the index yet." with the ledger a link, and "The index does not hold this history yet." without
 `from_ledger_index`; none when `complete`. A `coverage` that is not the shape (a string `complete`, a negative ledger) makes the answer a server error, never a page. The collection's 30-day figures divide the
 converted volume by the days' converted sales, and the day whose only sale no daily rate converts says "1 sale, none with a daily XRP rate" (D3's stats days carry no count of converted sales, so the count is derived and said "about" when it cannot be exact).
 
@@ -2115,7 +2117,8 @@ The NFT pages have their own specs (E8, README "NFTs"). `test/e2e/nfts.spec.ts` 
 "More collections" and the way back), a collection (the measure, the three tabs, the owner filter and its error, "Include burned", the older sales, Xahau's collection whose only sale no rate converts, a key that is none), an NFT in each of its modes (indexed, the offer events
 as a link, the history's Older, burned, owner read from the network, only on the network, burned only on the network, nobody's, a URIToken), search by an NFT id (indexed, only on the network, a URIToken, a hash nothing has), the account's NFTs tab and the
 transaction page's NFT link; `test/e2e/nfts-live.spec.ts` (the `live` project, which changes what the fixture server answers) the list with three failed cards and its Retry, the choice page of a hash that is a transaction and an NFT, and the Objects tab's
-"See the account’s NFTs" link. `test/e2e/a11y.spec.ts` has a block for the NFT pages ("the NFT pages": the list, the older sales, the featured XRPL collection and an NFT in the whole matrix of settings, and thirty-three more views in the two system themes at both widths: an issuer error, more
+"See the account’s NFTs" link. `test/e2e/a11y.spec.ts` has a block for the NFT pages ("the NFT pages": the list, the older sales, the featured XRPL collection and an NFT in the whole matrix of settings, and thirty-five more views in the two system themes at both widths: an issuer error, as a URL and
+submitted with Enter (the field keeps the focus and the message is an alert), an owner error submitted with Show (the button keeps the focus), more
 collections, Xahau's list, every table view, the volume slider focused, each collection tab and Xahau's collection with the unrated day, an NFT in each mode, the account's tab, the hints of a hash, the search's help and 404), each at 375 px also checked not to scroll
 sideways, plus `landmark-unique` and the names rule on the four main ones; the hint of a hash is checked at 375 and 320 px on both networks, in the header and in the hero. `og.spec.ts` draws an NFT's and a URIToken's image and the card of a burned NFT and of one only the
 network has; `client-meta.spec.ts` follows the list to a collection and its NFT and from a search to an NFT only the network has, and asks for no manifest between the new routes. Where `E2E_FEATURES_OFF` lists `NFTS` the specs skip their pages and check the off-case instead
@@ -2642,6 +2645,25 @@ budget, with its reason here) was not needed; the collection is the tightest, 41
 - **The shared search box** is in every page: +69 to +127 bytes (the pages differ by their chunking), the one list of nouns, its three words and the switches it reads. A later feature that adds a noun to it (E10's ledger objects) costs about as much again on every page, and the collection (414 bytes under) and the list
   (764) cannot take more than a few such steps: the next one that grows them takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
 - **The page that is tightest** is the NFT collection's: it draws the stats, the chart, the tabs with the tab's table and the owner form, and the shared sales table.
+
+**The figures of E8: the final review's fixes** (`pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included). *Before* is `c1b856c`, the commit the fixes started from, exported with `git archive`, built and
+measured on its own for this table (the figures of "the end" above); *after* is the end of E8. The fixes the browser loads: the two GET forms stay across a navigation (no `key` that draws them anew; a `useEffect` puts the page's value back in a field the
+visitor is not in) and say their message as an alert; the collection's stats have their coverage note; the sales table's "Seller → buyer" header reads "Seller to buyer"; the account's NFTs tab says "Showing {n} NFTs". The pages that load none of these are
+unchanged. All four NFT pages are lookup pages and none passed 150,000, so ruling C18's fallback (the dashboard budget, as the AMM pool page has, with its reason here) was not needed.
+
+| page | Before (files) | After (files) | Change | Budget | Under it by |
+|---|---:|---:|---:|---:|---:|
+| home, ledger, transaction, network, markets, market-pair, validators, validator, amendments, amendment, amm, amm-pool, nft | as above | the same | 0 | | |
+| account | 143,392 (28) | 143,398 (28) | +6 | 150,000 | 6,602 |
+| nfts | 149,236 (29) | **149,353** (29) | +117 | 150,000 | 647 |
+| nft-sales | 134,695 (19) | **134,721** (19) | +26 | 150,000 | 15,279 |
+| nft-collection | 149,586 (31) | **149,726** (31) | +140 | 150,000 | 274 |
+| account analytics (gate 2) | 155,563 (29) | 155,569 (29) | +6 | 160,000 | 4,431 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,158 | 2,158 | 0 | | |
+
+- **The forms** are most of it (gzip -9 of each chunk alone): the list's route chunk grew about 95 bytes (the field's ref, the effect and the alert's key) and the collection's about 120 (the form's two fields and the stats' note); `NftSalesTable`'s chunk,
+  which the list, the older sales and the collection load, about 24 (the header's arrow and its "to"); the account route's chunk 6 ("Showing ").
+- **The collection** is the tightest lookup page, 274 bytes under, the list 647: the next step that grows either (E10's nouns in the search box, a shared table or chart chunk) takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
 
 ## The parsing libraries in the Workers runtime
 

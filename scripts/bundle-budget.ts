@@ -28,9 +28,9 @@ import { gzipSync } from "node:zlib";
  * The two budgets, in bytes of 1000 to the KB (ruling R19, the owner's: "Keep 150 KB for home, ledger, transaction and account; raise the limit to
  * 160 KB for the network, market pair, account analytics, validators, amendments and AMM pages"). `lookup`, 150 KB: the pages a visitor opens to
  * look one thing up, and the markets list and the NFT list, older sales, collection and NFT, which the owner did not name and which keep the default (C18: a page that measures over it takes the
- * dashboard budget, with the reason in the README; the collection, with its chart and its tables, measured 148.9 KB and kept it). `dashboard`, 160 KB: the pages that draw the
- * network's activity in charts, and the account's analytics view. The lookup pages stand between 133.6 and 139.1 KB, the dashboards between 138.6
- * and 149.7 KB (network the heaviest) and the view at 151.3 KB, the route manifest (about 1.6 KB) included.
+ * dashboard budget, with the reason in the README). `dashboard`, 160 KB: the pages that draw the network's activity in charts, and the account's analytics view. At the end of E8 the
+ * lookup pages stand between 134.7 and 149.7 KB (the NFT collection the heaviest, then the NFT list at 149.4: the two closest to their budget), the dashboards between 140.2 and
+ * 153.5 KB (the AMM pool the heaviest) and the view at 155.6 KB, the route manifest (about 2.2 KB) included (README, "The client bundle check").
  */
 export const BUDGETS = { lookup: 150_000, dashboard: 160_000 } as const;
 export type BudgetName = keyof typeof BUDGETS;
