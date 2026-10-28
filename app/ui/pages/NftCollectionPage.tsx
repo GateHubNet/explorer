@@ -187,7 +187,7 @@ function Chart({ data, net, native, onRetry, retrying }: Retry & { data: NftColl
  * owner, so that a screen reader reads it when Show brings it.
  *
  * The form stays across a navigation, and so do the focus and what was typed: Show on an owner that is no address leaves the visitor where they were. When the view changes (a link,
- * Back), the field and "Include burned" take what the page shows, unless the visitor is in them.
+ * Back, Forward), the field and "Include burned" take what the page shows, unless the visitor is in one and has changed it from what the page last showed there.
  */
 function OwnerForm({ net, header, form }: { net: NetworkId; header: Header; form: NonNullable<NftCollectionPageData["form"]> }) {
   const fieldId = useId();
@@ -195,13 +195,17 @@ function OwnerForm({ net, header, form }: { net: NetworkId; header: Header; form
   const owner = useRef<HTMLInputElement>(null);
   const burned = useRef<HTMLInputElement>(null);
   const view = `${form.owner}\u0000${form.burned}\u0000${JSON.stringify(form.hidden)}`;
-  const shown = useRef(view);
+  // The view the page last showed, and what it showed in the field and the box.
+  const shown = useRef({ view, owner: form.owner, burned: form.burned });
   useEffect(() => {
-    if (shown.current !== view) {
-      if (owner.current !== null && owner.current !== document.activeElement) owner.current.value = form.owner;
-      if (burned.current !== null && burned.current !== document.activeElement) burned.current.checked = form.burned;
+    const last = shown.current;
+    const field = owner.current;
+    const box = burned.current;
+    if (last.view !== view) {
+      if (field !== null && !(field === document.activeElement && field.value !== last.owner)) field.value = form.owner;
+      if (box !== null && !(box === document.activeElement && box.checked !== last.burned)) box.checked = form.burned;
     }
-    shown.current = view;
+    shown.current = { view, owner: form.owner, burned: form.burned };
   }, [view, form.owner, form.burned]);
   return (
     <Form

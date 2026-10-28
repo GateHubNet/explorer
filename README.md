@@ -1461,8 +1461,8 @@ defaults, unknown values, repeats and unknown parameters, drops `back` without a
 The selectors (the period, the sort headers, the measure, the tabs, Newer and Older, "More collections", "Older sales", "Show offer events") are links, so they work without JavaScript; with it a click is a client-side navigation that keeps the window where it
 is (`preventScrollReset`). The list's issuer form and a collection's owner form (the field "Held by an account", the checkbox "Include burned") are GET forms whose hidden fields keep the view, written in the canonical order, so a submitted address lands on the canonical URL (an empty field sends `issuer=` or
 `owner=`, which the loader's 302 takes out); an address that is none is the message "Write a classic address (r…)." under the field (`aria-invalid`, `aria-describedby`), a 200 of class `short` with no call for the list it filters. The message is an
-alert (`role="alert"`, a new one for each value, so a screen reader reads it when Show brings it), and the form is not drawn anew by the navigation: the focus stays on the field or on Show, with what was typed. A link or Back that changes the view
-puts the page's value back in a field (and in "Include burned") that the visitor is not in.
+alert (`role="alert"`, a new one for each value, so a screen reader reads it when Show brings it), and the form is not drawn anew by the navigation: the focus stays on the field or on Show, with what was typed. A link, Back or Forward that changes the view
+puts the page's value back in a field (and in "Include burned"), unless the visitor is in it and has changed it from what the page last showed there (what they typed and have not shown stays).
 
 **Validation, before any call.**
 
@@ -2647,23 +2647,23 @@ budget, with its reason here) was not needed; the collection is the tightest, 41
 - **The page that is tightest** is the NFT collection's: it draws the stats, the chart, the tabs with the tab's table and the owner form, and the shared sales table.
 
 **The figures of E8: the final review's fixes** (`pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included). *Before* is `c1b856c`, the commit the fixes started from, exported with `git archive`, built and
-measured on its own for this table (the figures of "the end" above); *after* is the end of E8. The fixes the browser loads: the two GET forms stay across a navigation (no `key` that draws them anew; a `useEffect` puts the page's value back in a field the
-visitor is not in) and say their message as an alert; the collection's stats have their coverage note; the sales table's "Seller → buyer" header reads "Seller to buyer"; the account's NFTs tab says "Showing {n} NFTs". The pages that load none of these are
+measured on its own for this table (the figures of "the end" above); *after* is the end of E8. The fixes the browser loads: the two GET forms stay across a navigation (no `key` that draws them anew; a `useEffect` puts the page's value back in a field, unless
+the visitor is in it and has changed it from what the page last showed) and say their message as an alert; the collection's stats have their coverage note; the sales table's "Seller → buyer" header reads "Seller to buyer"; the account's NFTs tab says "Showing {n} NFTs". The pages that load none of these are
 unchanged. All four NFT pages are lookup pages and none passed 150,000, so ruling C18's fallback (the dashboard budget, as the AMM pool page has, with its reason here) was not needed.
 
 | page | Before (files) | After (files) | Change | Budget | Under it by |
 |---|---:|---:|---:|---:|---:|
 | home, ledger, transaction, network, markets, market-pair, validators, validator, amendments, amendment, amm, amm-pool, nft | as above | the same | 0 | | |
 | account | 143,392 (28) | 143,398 (28) | +6 | 150,000 | 6,602 |
-| nfts | 149,236 (29) | **149,353** (29) | +117 | 150,000 | 647 |
+| nfts | 149,236 (29) | **149,375** (29) | +139 | 150,000 | 625 |
 | nft-sales | 134,695 (19) | **134,721** (19) | +26 | 150,000 | 15,279 |
-| nft-collection | 149,586 (31) | **149,726** (31) | +140 | 150,000 | 274 |
+| nft-collection | 149,586 (31) | **149,769** (31) | +183 | 150,000 | 231 |
 | account analytics (gate 2) | 155,563 (29) | 155,569 (29) | +6 | 160,000 | 4,431 |
 | manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,158 | 2,158 | 0 | | |
 
-- **The forms** are most of it (gzip -9 of each chunk alone): the list's route chunk grew about 95 bytes (the field's ref, the effect and the alert's key) and the collection's about 120 (the form's two fields and the stats' note); `NftSalesTable`'s chunk,
+- **The forms** are most of it (gzip -9 of each chunk alone): the list's route chunk grew about 117 bytes (the field's ref, the effect that remembers what the page last showed in it, and the alert's key) and the collection's about 166 (the form's two fields and the stats' note); `NftSalesTable`'s chunk,
   which the list, the older sales and the collection load, about 24 (the header's arrow and its "to"); the account route's chunk 6 ("Showing ").
-- **The collection** is the tightest lookup page, 274 bytes under, the list 647: the next step that grows either (E10's nouns in the search box, a shared table or chart chunk) takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
+- **The collection** is the tightest lookup page, 231 bytes under, the list 625: the next step that grows either (E10's nouns in the search box, a shared table or chart chunk) takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
 
 ## The parsing libraries in the Workers runtime
 

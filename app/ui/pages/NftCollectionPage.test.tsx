@@ -588,6 +588,44 @@ describe("NftCollectionPage: the owner form across client-side navigations", () 
     expect(document.activeElement).toBe(show);
   });
 
+  it("puts the previous page's owner back on Back after Enter, though the field kept the focus", async () => {
+    const { router } = mountLoaded(`${PATH}?tab=nfts`);
+    const field = ownerField();
+    field.focus();
+    fireEvent.change(field, { target: { value: NFT_OWNER } });
+    await act(async () => void fireEvent.submit(field.form!));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts&owner=${NFT_OWNER}`));
+    expect(document.activeElement).toBe(field);
+
+    await act(async () => void (await router.navigate(-1)));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts`));
+    expect([field.value, document.activeElement === field]).toEqual(["", true]);
+
+    // Typed and not shown, in the field the visitor is in, then a measure's link: the text stays.
+    fireEvent.change(field, { target: { value: "rTyp" } });
+    await act(async () => void fireEvent.click(within(screen.getByRole("group", { name: "Measure" })).getByRole("link", { name: "Sales" })));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?measure=sales&tab=nfts`));
+    expect([field.value, document.activeElement === field]).toEqual(["rTyp", true]);
+  });
+
+  it("puts the previous page's 'Include burned' back on Back after Enter on it, though the box kept the focus", async () => {
+    const { router } = mountLoaded(`${PATH}?tab=nfts`);
+    const box = burnedBox();
+    box.focus();
+    fireEvent.click(box);
+    await act(async () => void fireEvent.submit(box.form!));
+    // The empty owner field is sent too: the loader's 302 takes it out.
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts&owner=&burned=1`));
+    expect([box.checked, document.activeElement === box]).toEqual([true, true]);
+
+    await act(async () => void (await router.navigate(-1)));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts`));
+    expect([box.checked, document.activeElement === box]).toEqual([false, true]);
+    await act(async () => void (await router.navigate(1)));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts&owner=&burned=1`));
+    expect(box.checked).toBe(true);
+  });
+
   it("puts the page's owner and 'Include burned' back when a link changes them, but not into the field the visitor is in", async () => {
     const { router } = mountLoaded(`${PATH}?tab=nfts&owner=nope&burned=1`);
     const field = ownerField();

@@ -269,17 +269,19 @@ function columns(native: string, links: readonly NftSortLink[]): Column<Collecti
  * is an alert, a new one for each issuer, so that a screen reader reads it when Show brings it.
  *
  * The form stays across a navigation, and so do the focus and what was typed: Show on an issuer that is no address leaves the visitor where they were. When the view changes (a
- * link, Back), the field takes what the page shows, unless the visitor is in it.
+ * link, Back, Forward), the field takes what the page shows, unless the visitor is in it and has typed something other than what the page last showed there.
  */
 function IssuerForm({ net, form }: { net: NetworkId; form: NftsPageData["issuerForm"] }) {
   const fieldId = useId();
   const errorId = useId();
   const field = useRef<HTMLInputElement>(null);
   const view = `${form.value}\u0000${JSON.stringify(form.hidden)}`;
-  const shown = useRef(view);
+  // The view the page last showed, and the issuer it showed in the field.
+  const shown = useRef({ view, value: form.value });
   useEffect(() => {
-    if (shown.current !== view && field.current !== null && field.current !== document.activeElement) field.current.value = form.value;
-    shown.current = view;
+    const input = field.current;
+    if (shown.current.view !== view && input !== null && !(input === document.activeElement && input.value !== shown.current.value)) input.value = form.value;
+    shown.current = { view, value: form.value };
   }, [view, form.value]);
   const hidden = ([name, value]: [string, string]) => <input key={name} type="hidden" name={name} value={value} />;
   return (

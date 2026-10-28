@@ -570,6 +570,29 @@ describe("NftsPage: the issuer form across client-side navigations", () => {
     expect(document.activeElement).toBe(show);
   });
 
+  it("puts the previous page's issuer back on Back after Enter, though the field kept the focus, and the next one on Forward", async () => {
+    const { router } = mountLoaded("/xrpl/nfts");
+    const field = issuerField();
+    field.focus();
+    fireEvent.change(field, { target: { value: NFT_ISSUER } });
+    await act(async () => void fireEvent.submit(field.form!));
+    await waitFor(() => expect(at(router)).toBe(`/xrpl/nfts?issuer=${NFT_ISSUER}`));
+    expect(document.activeElement).toBe(field);
+
+    await act(async () => void (await router.navigate(-1)));
+    await waitFor(() => expect(at(router)).toBe("/xrpl/nfts"));
+    expect([field.value, document.activeElement === field]).toEqual(["", true]);
+    await act(async () => void (await router.navigate(1)));
+    await waitFor(() => expect(at(router)).toBe(`/xrpl/nfts?issuer=${NFT_ISSUER}`));
+    expect([field.value, document.activeElement === field]).toEqual([NFT_ISSUER, true]);
+
+    // Typed and not shown, in the field the visitor is in, then a sort header: the text stays.
+    fireEvent.change(field, { target: { value: "rTyp" } });
+    await act(async () => void fireEvent.click(within(screen.getByRole("columnheader", { name: /^Supply/ })).getByRole("link")));
+    await waitFor(() => expect(at(router)).toBe(`/xrpl/nfts?issuer=${NFT_ISSUER}&sort=supply`));
+    expect([field.value, document.activeElement === field]).toEqual(["rTyp", true]);
+  });
+
   it("puts the page's issuer back in the field when a link changes the view, but not into the field the visitor is in", async () => {
     const { router } = mountLoaded(`/xrpl/nfts?issuer=${NFT_ISSUER}`);
     const field = issuerField();
