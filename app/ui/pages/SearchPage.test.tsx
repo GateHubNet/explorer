@@ -134,6 +134,14 @@ describe("the help text", () => {
     expect(screen.getByText("Enter an address, a transaction or ledger hash, a ledger index or a CTID.")).toBeTruthy();
     expect(screen.getByRole("list")).toBeTruthy();
   });
+
+  it("names what a hash can be as the search asks it with NFTS on: a transaction, a ledger or an NFT (a URIToken on Xahau)", () => {
+    renderUnderNetwork(<SearchPage network={XRPL} data={{ kind: "help", query: "" }} />, NFTS_ON, { path: "/xrpl/search", hydrated: true });
+    expect(screen.getByText("Enter an address, a transaction, ledger or NFT hash, a ledger index or a CTID.")).toBeTruthy();
+    cleanup();
+    renderUnderNetwork(<SearchPage network={XAHAU} data={{ kind: "help", query: "" }} />, NFTS_ON, { network: { id: "xahau", name: "Xahau" }, path: "/xahau/search", hydrated: true });
+    expect(screen.getByText("Enter an address, a transaction, ledger or URIToken hash, a ledger index or a CTID.")).toBeTruthy();
+  });
 });
 
 describe("a CTID of the other network", () => {

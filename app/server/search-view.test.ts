@@ -89,15 +89,20 @@ describe("the pages", () => {
   });
 
   it("offers the same hash on the other network when a hash is not found, in upper case whatever was typed", () => {
-    expect(hashNotFoundPage(HASH.toLowerCase(), HASH, XAHAU)).toEqual({
+    expect(hashNotFoundPage(HASH.toLowerCase(), HASH, XAHAU, { net: "xrpl", nfts: false })).toEqual({
       kind: "not-found",
       query: HASH.toLowerCase(),
       what: "transaction or ledger 4BC50C…A651",
       suggestion: { href: `/xahau/search?q=${HASH}`, label: "Search on Xahau" },
     });
-    expect(hashNotFoundPage(HASH, HASH, XRPL)).toMatchObject({
+    expect(hashNotFoundPage(HASH, HASH, XRPL, { net: "xahau", nfts: false })).toMatchObject({
       suggestion: { href: `/xrpl/search?q=${HASH}`, label: "Search on XRPL" },
     });
+  });
+
+  it("says what was looked for as the search asked it: with NFTS on an NFT too, a URIToken on Xahau", () => {
+    expect(hashNotFoundPage(HASH, HASH, XAHAU, { net: "xrpl", nfts: true })).toMatchObject({ what: "transaction, ledger or NFT 4BC50C…A651" });
+    expect(hashNotFoundPage(HASH, HASH, XRPL, { net: "xahau", nfts: true })).toMatchObject({ what: "transaction, ledger or URIToken 4BC50C…A651" });
   });
 
   it("does not offer the other network for a CTID, which says which network it is from", () => {

@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
 
+import { hashWhat } from "../domain/hash-nouns";
 import { nftPath } from "../domain/nft-link";
 import { classify } from "../domain/search";
 import { clientsFor } from "../server/clients";
@@ -71,17 +72,18 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
     case "hash": {
       const { api, node } = clientsFor(context, network);
+      const asked = { net: network.id, nfts: network.features.nfts };
       let matches;
       try {
-        matches = await findHash(api, node, input.hash, { net: network.id, nfts: network.features.nfts });
+        matches = await findHash(api, node, input.hash, asked);
       } catch (err) {
-        return upstreamFailure(err, `transaction or ledger ${input.hash}`);
+        return upstreamFailure(err, `${hashWhat(asked.net, asked)} ${input.hash}`);
       }
       if ([matches.tx, matches.ledger, matches.nft].filter(Boolean).length > 1) return cached(choicePage(input.hash, matches), "short");
       if (matches.tx) return found(`/${network.id}/tx/${input.hash}`);
       if (matches.ledger) return found(`/${network.id}/ledger/${input.hash}`);
       if (matches.nft) return found(nftPath(network.id, input.hash));
-      return cached(hashNotFoundPage(query, input.hash, other), "short", { status: 404 });
+      return cached(hashNotFoundPage(query, input.hash, other, asked), "short", { status: 404 });
     }
 
     case "ctid": {

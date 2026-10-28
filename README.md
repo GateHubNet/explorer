@@ -42,8 +42,9 @@ as well (the AMM pages are all AMM data: `AMM_PAGES` on over `AMM_DATA` off is t
 
 A data API without D3 (`feat/explorer-data-2`: the NFT routes) has no `nft_volume`, `nft_sales` or `nft_collections`, and the top level of `wrangler.jsonc` has `NFTS` `"on"`. Against such an API every
 card of the NFT list (`/xrpl/nfts`) is a "Couldn’t load …" that is logged and never stored, and the older sales and a page of more collections are a 503; a collection's page (`/xrpl/nfts/{issuer}/{taxon}`) is a 503 (its collection is the page itself), and
-only its chart and 30-day stats and its tab's list are cards that fail once it has the collection. For that API put `NFTS=off` in `.dev.vars` as well: the
-NFT pages are then not found, the header says "soon", and no call is made.
+only its chart and 30-day stats and its tab's list are cards that fail once it has the collection. A search for a 64-digit id that nothing else knows is a 503 too (the index cannot answer the NFT question, and
+a failed index never sends the visitor to the node's answer in its place), while a transaction or a ledger the same search finds is still a redirect. For that API put `NFTS=off` in `.dev.vars` as well: the
+NFT pages are then not found, the header says "soon", no call is made, and a search for an unknown 64-digit id is a 404 as before.
 
 **Developing against the sandbox.** The top level of `wrangler.jsonc` is `ENVIRONMENT` `"development"`: the pages show the mainnets (XRPL and Xahau), because every fixture is mainnet data, and the data API
 hosts are the placeholders above. To see the testnets from the sandbox's own data, put the sandbox's four URLs, `ENVIRONMENT` and its key in `.dev.vars`:
@@ -152,7 +153,9 @@ The conditions for turning a switch on in `sandbox` or `production` (by a commit
   "on" in an environment once D3 (the data API's NFT index) serves both networks there (its migration is applied, its parser and its aggregator run) and the gauges `syncer_nft_state_lag_ledgers` and
   `syncer_nft_dirty_ledgers` are near 0 and `syncer_nft_collections_pending` is near 0 (the collections' first fill takes days on mainnet): it does not wait for the history to be complete. In the sandbox the
   same, its coverage being never complete (the sandbox's data API indexes from its first boot, E7 decision 15). No other switch is a condition, and the pre-deploy guard has no rule for `NFTS` beyond its
-  value. Rolling back is `"off"` and a deploy.
+  value. Every list and figure of the NFT pages says, under it, how much of the history the index holds ("Covers ledger #N onwards: earlier NFT sales are not in the index yet.", and without
+  `from_ledger_index`, "The index does not hold this history yet."): the notes show until D3's re-ingest of the history completes, and nothing changes when it does (`coverage.complete` makes the note go).
+  Rolling back is `"off"` and a deploy. The steps are in the checklists ("The NFT pages", under "The checklists").
 
 The switches that later sub-projects add start "off" in `sandbox` and `production` and "on" at the top level, each with its condition in a row of the table above. **In the sandbox, a condition that
 asks for complete coverage does not apply** (E10's `DELEGATION` and E12's `SUPPLY` have one): the sandbox's data API indexes from its first boot, so its coverage is never complete (the data API's
@@ -258,6 +261,15 @@ testnet history; it answers `server_state`, `account_info`, `book_offers`, `amm_
 covers those seconds, and GateHub replaces it with its own Clio when it has one. A GateHub node that replaces one of them must be a Clio too. The pre-deploy guard cannot tell a Clio from a rippled, so the sandbox checklist and the
 production checks ask `nft_info`. No Clio serves Xahau (`xahau.network` and `xahau-test.net` run xahaud; `xahau-test.net` answers `server_info` with network id 21338), so that fallback does not exist on either Xahau network.
 
+**The NFT calls (E8).** The data API client (`app/server/data-api.ts`, types in `api-types.ts`, written from D3's `docs/api-reference.md` at `PIN` `da5ce14`) has twelve methods for D3's routes: `nftVolume` (the live period or the day rows),
+`nftSales`, `nftCollections`, `nftCollection`, `nftCollectionStats`, `nftCollectionSales`, `nftCollectionNfts`, `nftCollectionHolders`, `nft`, `nftOffers`, `nftHistory` and `accountNfts`, each with its checks in
+`app/server/nft-shape.ts` (run inside the load the subrequest cache runs, so a wrong answer is a failure and is never stored) and with every answer's `coverage` checked by `app/server/coverage.ts`
+(`checkCoverage`: an object with a boolean `complete` and, when there, a positive whole `from_ledger_index`; anything else is an `UpstreamError` of kind `server`, so a page never says its history is whole when it cannot tell).
+The node client has four readers: `nftInfo` (Clio's `nft_info`), `nftSellOffers` and `nftBuyOffers` (XRPL) and `uriToken` (Xahau: `ledger_entry` of the URIToken's index); `app/server/nft-read.ts` shares them between the NFT page, its
+image and the search (`readNodeNft`, `readNodeOffers`, `settleNft`). A node that answers `unknownCmd` or `notImpl` for `nft_info` is read as "no such NFT" (logged once per Worker instance), so an NFT the index lacks is a 404 only when the
+node also says so; a node failure (5xx, 429, malformed) or a failed index is a 503 that is not stored. The requests are classed `live` (the sales, the tab lists, the NFT, its offers and history, an account's NFTs, the node's readers),
+`minute` (the live volume, the collections list, a collection) and `slow` kept `PERIOD_CALL_TTL_SECONDS` (the daily volume and a collection's stats); `last_validated` is kept `HOME_CALL_TTL_SECONDS`. `PENDING_PATHS` stays empty: D3's paths are in `PATHS`.
+
 **A route the data API does not have is an outage, not a missing thing.** A 404 whose body's `message` starts with `Cannot GET ` is what the API's framework answers for a path it has no route for (an API deployed without the sub-project that adds the route). `throwUnlessOk` in `data-api.ts` makes it an `UpstreamError` of kind **`server`** (status 404), with the message `data API GET {path} answered 404: Cannot GET … (the data API has no such route)`. So it is never a stored 404 page; a page-level call answers 503 through `upstreamOutage`, a card-level call fails its card, and a call that asks for the failure hold ("The cache classes") has it held. **Every other 404 stays `not_found`**, each route's own message included (`ledger not found`, `Account not found`, `transaction not found`, `pool not found`, and so on): only a message that *starts* with `Cannot GET ` means a missing route, and no other code, page or client method maps a 404 to "the route is absent" or has a variant of its own. `test/worker/data-api.spec.ts` ("errors") pins both sides.
 
 ## The Worker entry
@@ -314,6 +326,10 @@ log line, the edge cache with the visitor limit, React Router.
 
 - **The network page's calls over a period are kept `PERIOD_CALL_TTL_SECONDS` = 300 s.** `stats`, `fees` by day and the three volumes are class `slow` (an hour), and the network loader asks for `{ ttl: PERIOD_CALL_TTL_SECONDS }` on them: their keys change once a day, when the index day does, but the running bucket moves on within the day, and the API's aggregator can still finalise the newest closed day in the first hour or two after midnight UTC, so 5 minutes bound how late either shows. As with the home page's TTL they have cache entries of their own (the key says `[kept 300 s]`), and `test/worker/data-api.spec.ts` pins each call's class, the override and the stored `max-age=300`. `feeStats` (kept 2 s) and `ledgerValidations` (`live`, 5 s) keep the short times.
 
+- **The NFT pages use `minute` and `slow` as the table says, and `short` for what is not stored long.** The list and the older sales (first page) and a collection are `minute`, because the aggregator's sets move at its minute; an NFT is `live`,
+  a burned one `slow` (it cannot change), one only the node has `short` kept 60 s (`CACHE_CLASSES.minute.edgeTtl`, after which the index has it); a page behind a marker is `MARKER_PAGE_CLASS`; redirects, 404s and a form's error are `short`, the
+  lower-case id's and the taxon's 302s `immutable`; the image is `slow` (`short` kept 60 s for an NFT from the network). The daily volume and a collection's stats are kept `PERIOD_CALL_TTL_SECONDS` (300 s), like the network page's. A page with a
+  card that failed is served and not stored (`markDegraded`). None of them asks for the failure hold: no NFT page polls.
 - **The failure hold: a polled call's failure is remembered for 5 s.** A degraded answer is never stored and never shared by single flight, so while one upstream fails every beat of every open tab of a polling page is a render that calls it (a thousand tabs: about 250 calls a second, enough to spend the explorer key's rate limit and fail every page). `SubrequestCache.json` takes `{ holdFailure: true }` as its fifth argument (`SubrequestOptions` in `cache-class.ts`), and the data API client passes it from the `holdFailure` option of `lastValidated`, `transactions`, `fees`, `feeStats`, `stats`, `paymentVolume`, `exchangeVolume`, `ammVolume`, `ledgerValidations` and `ledger` (`FreshOptions`; the node client has no such option yet). Rules:
   - **What is held**: an `UpstreamError` of kind `server`, `timeout`, `network` or `rate_limited`, thrown by `load` of a call that asked. It is remembered for `FAILURE_HOLD_SECONDS` = 5 s, or, for a `rate_limited` answer that has a `Retry-After`, for that long, at most `FAILURE_HOLD_MAX_SECONDS` = 30 s and at least the 5 s every other kind gets (a `Retry-After` of 0 or 1 is held 5 s). Within that time a call for the same key that also asks throws **the same error object** without calling the upstream. `not_found`, `bad_request` and anything that is not an `UpstreamError` are never held: they are an answer, or a bug.
   - **The order** is: the Cache API; then, for a call that asks, a failure that is held; then `load`. A stored answer is therefore the answer even while a hold lasts (a call that did not ask loaded it), and a call with a TTL of zero (not kept) is held too.
@@ -396,6 +412,9 @@ the browser).
   `headers = forwardCacheClass` (see above; `test/unit/route-headers.test.ts` enforces it). A page with its own big search box
   (the home page) exports `handle = { heroSearch: true }` so the header leaves its box out. The header's Ledgers and
   Transactions links go to the ids `latest-ledgers` and `latest-transactions` (`app/ui/anchors.ts`) on the home page.
+- **The NFT routes** (E8, "NFTs") are four children of `routes/net.tsx`: `routes/net.nfts._index.tsx` (`/{net}/nfts`), `net.nfts.sales.tsx`, `net.nfts.$issuer.$taxon.tsx` (`/{net}/nfts/{issuer}[/{taxon}]`, the taxon optional) and
+  `net.nft.$id.tsx`. Each exports `handle = { navSection: "nfts" } satisfies NetworkRouteHandle` (`app/ui/route-handle.ts`), so the header's NFTs item is `aria-current="page"` on the list and the older sales and `"true"` on a collection or an NFT.
+  The header item is a link while `NFTS` is on and the "soon" label while it is off.
 - **Errors.** `net.tsx` and `root.tsx` export an `ErrorBoundary` that shows `RouteErrorScreen` inside the page frame: a 404
   thrown by `cached`/`upstreamFailure`/`requireNetwork` becomes `NotFoundPage` ("We couldn't find {what} on {network}",
   with the search box and a way home), a 503 a try-again page, a 429 "Too many requests" with "Try again in a moment" (or in N seconds,
@@ -701,6 +720,10 @@ fails if the page's files import them as values).
   are tags beside the account.
 - **No age** is in the stored page (`RelativeTime` fills it in in the browser), and nothing is streamed.
 
+**NFTs in a transaction (E8).** An NFT id in a sentence, in the details or in the objects is a link to the NFT's page while `NFTS` is on (`NftLink`, from `nftLink`), and plain monospace text with the whole id in its `title` while off: an accepted offer's NFT
+(`acceptedNftId`, the sale's NFT even when the offer expired), the NFTs a mint made (`mintedNftIds`: what appeared in the NFT pages of the metadata, "minted NFT {id}" only for exactly one), a URIToken's id (`createdUriTokenIds`, "Minted URIToken …" for Xahau's
+Remit). The `nft` segments of a sentence carry no serial: a serial means little without its collection, so the short id is shown. The pages the transaction's NFT leads to are the NFT page's, which is its own 404 when no index and no node has it.
+
 ## The account page
 
 `/{net}/account/{address}` (`routes/net.account.$address.tsx`, a child of the `/:net` layout): the loader asks the clients,
@@ -785,6 +808,12 @@ is off. Lists are newest first, 20 a page, with Newer and Older.
 - **No ages** are in the stored page (`RelativeTime`), as on the other pages.
 - **The mock's counts** on the tabs and its type filter are not here: the API has no totals (spec non-goals), and a filter over 20 rows
   would hide a page that has its own markers.
+
+**The NFTs tab and the Objects rows (E8).** While `NFTS` is on the account page has a seventh tab, "NFTs" ("URITokens" on Xahau), `?tab=nfts`: the NFTs the account holds now, from `accountNfts` (D3's `/v2/accounts/{address}/nfts`), a page at a time, paged by
+marker as the transactions are (class `live` for the first page, `MARKER_PAGE_CLASS` behind a marker, `noindex, follow` behind one). Each row is the NFT (a link to its page: "#4,127" with the short id under it on XRPL, the short id alone on Xahau), its
+collection (a link), its last sale, and the day it was minted, under the caption "NFTs this account holds now" and the footer "{n} NFTs"; a list that cannot be loaded is "Couldn’t load NFTs" with a Retry, like the other tabs. While `NFTS` is off the tab is the "soon" label
+and `?tab=nfts` a 302 of class `short` to the account page before any call, as Analytics' is. The Objects tab shows an NFT page (`NFTokenPage`) with its count of NFTs and, while `NFTS` is on, the link "See the account’s NFTs" to the tab, and an NFT offer
+or a URIToken with the NFT's id as a link (plain monospace text with the whole id in its `title` while off). The tab's streamed list needs JavaScript, like every list of the account page's tabs.
 
 ### The payments CSV
 
@@ -1396,6 +1425,105 @@ unit-tested); the pages `app/ui/pages/ValidatorsPage.tsx`, `ValidatorPage.tsx`, 
 `og.spec.ts` and `meta.spec.ts`, and in the browser `validators.spec.ts`, `amendments.spec.ts`, `validators-live.spec.ts` and `a11y.spec.ts` ("End-to-end tests"). The
 answers they read are generated ("Upstream fixtures", "The validators and amendments pages' files").
 
+## NFTs
+
+Four routes of E8 (`docs/superpowers/specs/2026-10-24-nft-pages-design.md`, "spec §n"), behind the switch `NFTS` ("Switches"), and one kind of link-preview image: the NFTs of the network (XRPL's NFTokens, Xahau's URITokens), their
+sales, a collection of them and one NFT. They are made from D3's routes (the data API's NFT index, pinned at data-api `da5ce14`: its `docs/api-reference.md`, sections "NFTs" and "Coverage") and, for an NFT the index lacks or has
+without an owner, the node. The words follow the network (`nftWords(net)` in `app/domain/nft-params.ts`: NFT / URIToken, NFTs / URITokens, "NFT sales" / "URIToken sales"), the network's name is the layout's (`network.name`,
+`network.longName`: "XRPL Testnet" in the sandbox), and the glossary's words are used (NFT, NFT owner, collection holder, sale, transfer, royalty; never "collectible" or "creator fee").
+
+| Path | Route | Edge class | Indexable |
+|---|---|---|---|
+| `/{net}/nfts` | `routes/net.nfts._index.tsx` | `minute`, the first page; `MARKER_PAGE_CLASS` behind a marker; `short` with an issuer that is no address | the default view only |
+| `/{net}/nfts/sales` | `routes/net.nfts.sales.tsx` | `minute`, the first page; `MARKER_PAGE_CLASS` behind a marker | no (`noindex, follow`) |
+| `/{net}/nfts/{issuer}[/{taxon}]` | `routes/net.nfts.$issuer.$taxon.tsx` | `minute`; `MARKER_PAGE_CLASS` behind a marker; `short` with an owner that is no address; the other network's form of the key a 302, `short` | the default measure, any tab (the canonical URL keeps `?tab=` unless it is the first) |
+| `/{net}/nft/{ID}` | `routes/net.nft.$id.tsx` | by the NFT's mode (below): `live`, a burned NFT `slow`, one shown from the network `short` kept 60 s; `MARKER_PAGE_CLASS` behind a marker; the id in lower case a 302, `immutable` | an NFT of the index, the first page of its history; not one shown from the network (`noindex`) |
+| `/og/{net}/nft/{ID}.png` | the image route ("The image route") | `slow` (1 h); from the network `short` kept 60 s; a card without its owner `short` | no |
+
+**Files.** The routes above; `app/domain/nft-params.ts` (the parsers and the links, pure: `parseNftsParams`, `parseNftSalesParams`, `parseCollectionParams`, `parseNftParams`, `nftsHref`, `nftSalesHref`, `collectionHref`, `nftHref`,
+`nftWords`, `collectionLabel`, `NFT_PERIODS`, `NFT_SORTS`, `NFT_MEASURES`), `app/domain/nft-link.ts` (`nftLink`, `collectionLink`: `null` while `NFTS` is off, so every NFT id and collection a page shows is plain text then; `nftPath`, `collectionPath`),
+`app/domain/nft-id.ts` (the id's decoded fields, the URI as text or hex: Worker-only, never imported by a page) and `app/domain/hash-nouns.ts` ("Search"); the view builders `app/server/nfts-view.ts` (`nftsListPage`, `nftsMarkerPage`, `nftSalesPage`),
+`nft-collection-view.ts` (`nftCollectionPage`, `collectionMarkerPage`), `nft-view.ts` (`nftModeOf`, `needsNode`, `NFT_MODE_CLASS`, `nftPage`, `nftMarkerPage`, `nftNotFound`) and `nft-format.ts` (pure, unit-tested, BigNumber throughout); the shape
+checks `nft-shape.ts` and `coverage.ts`; the readers `nft-read.ts`; the tags `meta-nfts.ts`, `meta-nft-sales.ts`, `meta-nft-collection.ts` and `meta-nft.ts`; the pages `app/ui/pages/NftsPage.tsx`, `NftSalesPage.tsx`, `NftCollectionPage.tsx` and
+`NftPage.tsx`, which draw data and never fetch, and import nothing at run time from `app/server`, `app/domain/describe`, `app/domain/parse`, `nft-id.ts` or `ripple-*` (`test/unit/nft-bundle.test.ts`); and the pieces they share, `NftSalesTable`,
+`NftGlyph`, `NftLink` and `CoverageNote` in `app/ui/components/`. Every number is a string from the API's or the node's text, or made with BigNumber; no float reaches a label.
+
+**One URL per view.** Each loader reads its own parameters, and a query that is not exactly the canonical form of its view is a 302 to it, class `short` (`immutable` when only the path differs), before any call. The canonical form drops
+defaults, unknown values, repeats and unknown parameters, drops `back` without a `marker`, and orders the rest:
+
+| Page | Parameters, in order | Default |
+|---|---|---|
+| the list | `period`: `day`, `7day`, `30day` (the selector's "24 h", "7 days", "30 days"); `issuer`: a classic address; `sort`: `volume`, `supply`, `holders`; `order`: `asc` (`desc` is the default); `marker`, `back`: the page trail | `day`, none, `volume`, `desc` |
+| the older sales | `marker`, `back` | none |
+| a collection | `measure`: `volume`, `sales`, `avg`, `low`; `tab`: `sales`, `nfts`, `holders`; `owner`: a classic address (the NFTs tab); `burned`: `1` includes the burned NFTs (the NFTs tab); `marker`, `back`: the tab's page trail | `volume`, `sales` |
+| an NFT | `offers`: `1` adds the offer events to the history; `marker`, `back`: the history's page trail | the history without the offer events |
+
+The selectors (the period, the sort headers, the measure, the tabs, Newer and Older, "More collections", "Older sales", "Show offer events") are links, so they work without JavaScript; with it a click is a client-side navigation that keeps the window where it
+is (`preventScrollReset`). The list's issuer form and a collection's owner form (the field "Held by an account", the checkbox "Include burned") are GET forms whose hidden fields keep the view, written in the canonical order, so the URL a submit lands on needs no redirect;
+an address that is none is the message "Write a classic address (r…)." under the field (`aria-invalid`, `aria-describedby`), a 200 of class `short` with no call for the list it filters.
+
+**Validation, before any call.**
+
+| Request | Answer |
+|---|---|
+| any NFT route or `/og/{net}/nft/…` while `NFTS` is off | 404 "We couldn’t find the NFT pages on XRPL" ("the URIToken pages on Xahau"), class `short`, no call (`test/worker/nfts-off.spec.ts`) |
+| an id that is not 64 hex digits; an issuer that is no classic address with a good checksum; a taxon that is no decimal UInt32; a `marker` that is none | 404, class `short`, no call; the page repeats what was asked, cut short |
+| a `marker` with an issuer (list) or an owner (collection) that is no address | 404, class `short`, no call: a page behind a marker is the list of a view that was asked for, and there is no form to show the error in |
+| the id in lower or mixed case, a taxon with leading zeros, a path in another case, a query that is not canonical | 302 to the one URL, no call |
+| XRPL's `/{issuer}` with no taxon | 302 to `/xrpl/nfts?issuer={issuer}`; Xahau's `/{issuer}/{taxon}` 302 to `/xahau/nfts/{issuer}` (a collection is an issuer and a taxon on XRPL, everything an issuer minted on Xahau) |
+| a marker the API refuses (400), or a page with nothing behind its marker | 404, class `short` |
+| a collection or an NFT nothing has | 404 "We couldn’t find NFT 00190BB8…E96F on XRPL", with "Search on Xahau" (the same search on the other network) |
+| a data API without D3 ("Cannot GET") | a failed card, or a 503 where the page is the thing itself (the older sales, a collection, the NFT): never a stored 404 |
+
+**Loading.** No page polls, none has a `clientLoader`, none asks for the failure hold. The card-level calls start side by side, each raced with `byDeadline(work, start + CARD_DEADLINE_MS)` (a late part rejects with `TooLate`, "took too long") and all
+awaited with `Promise.allSettled`; each failed card is told in its place ("Couldn’t load the recent sales." with a Retry that asks the route for its data again), logged under its name and `markDegraded` (the page is served and not stored). The calls:
+the list makes #1 `last_validated` (kept `HOME_CALL_TTL_SECONDS`), #2 the live volume of the period, #3 the 30 days to #1's day (kept 300 s; it waits for #1, and without a number in #1 the chart fails), #4 the ten newest sales and #5 the first twenty
+collections; a collection #1 the collection (the page itself), #2 `last_validated`, #3 its stats of the 30 days and #4 the tab's list; an NFT #1 the NFT, #3 its first 50 open offers and #4 its history (twenty events), and after #1 #2, the node's NFT,
+where `needsNode` says so. The older sales and any page behind a marker make their one list call (and the collection's, the NFT's own) and await it whole.
+
+**An NFT's page and its modes** (`nftModeOf`, Review Focus 2). The mode is decided by the index's answer for the NFT (#1) and the node's (#2):
+
+| The index | The node | Mode | What the page says |
+|---|---|---|---|
+| has it, with an owner | not asked | `indexed` | owner, last sale, details, the id decoded, open offers, history; class `live` |
+| has it, burned | not asked | `burned` | "burned", by whom and when, no owner; class `slow` |
+| has it, with no owner, not burned | has it | `indexed-network-owner` | "read from the network at ledger #N" for the owner; `live` |
+| has it, with no owner, not burned | failed, or says none, or says burned | `indexed-owner-unknown` | "Not in the index yet" for the owner; `live`, degraded when the node failed |
+| says `nft not found` | has it | `network` | a notice "Not in the index yet, shown from the network. Its history appears once the index has it."; its offers from the node, no history; `noindex`; `short` kept 60 s |
+| says `nft not found` | has it, burned (XRPL's `is_burned`) | `network-burned` | the same, burned |
+| says `nft not found` | says none (`objectNotFound`, `entryNotFound`, `unknownCmd`, `notImpl`) | none | 404 |
+| failed | not asked | unavailable | 503, never stored: a failed index never asks the node in its place |
+| says `nft not found` | failed (5xx, 429, malformed, too late) | unavailable | 503, never stored |
+
+The NFT's URI is text, never a link and never fetched (`javascript:alert(1)` and `ipfs://…` are text like any other): decoded as UTF-8 where it is printable text, else hex (`uriText` in `nft-id.ts`: a control, format or line-separator character,
+a byte order mark, or bytes that are no UTF-8 make it hex, and the empty URI is none; the pages note "Decoded from hex. Not fetched."). "Expired" offers are judged against the loader's `now` (unix seconds), not the ledger's close time, since D3's NFT answer carries none; the page is `live`.
+
+**Coverage.** Each list and figure has its own note under it (`coverageNote`, drawn by `CoverageNote`): "Covers ledger #N onwards: earlier NFT sales are not in the index yet." with the ledger a link, and "The index does not hold this history yet." without
+`from_ledger_index`; none when `complete`. A `coverage` that is not the shape (a string `complete`, a negative ledger) makes the answer a server error, never a page. The collection's 30-day figures divide the
+converted volume by the days' converted sales, and the day whose only sale no daily rate converts says "1 sale, none with a daily XRP rate" (D3's stats days carry no count of converted sales, so the count is derived and said "about" when it cannot be exact).
+
+**The image** (`/og/{net}/nft/{ID}.png`, `ImageKind` `nft`, 1200 × 630): the kind ("NFT", "URIToken"), the NFT's number in mono, the owner's whole account, a note ("Last sale 150 XRP", "Sold once", "Burned", "Not in the index yet"), the day of the mint
+(else "NFT on XRPL") and the collection at the end of the footer, with the pill of the network (`XRPL mainnet`, `XRPL Testnet`). It reads the page's own decision (`settleNft`: the index, then the node), so the card and the page agree; a card whose owner the node
+could not tell is `short`, and is not `markDegraded` (an image is not a page).
+
+**The tags** (`meta-nfts.ts` and the others). The list's title is "NFTs · XRPL · explorer" ("URITokens · Xahau · explorer"), indexable in its default view only, with the canonical URL and no image (the plain `summary` card); behind a marker "More NFT collections · …",
+`noindex, follow`, no canonical, no `og:*`. The older sales are `noindex, follow`. A collection's title is "Collection rLxc1b…rwMy · taxon 0 · XRPL · explorer" ("URITokens of rodinG…zKyb · Xahau · explorer"), its canonical URL keeping `?tab=` unless it is the
+first; an NFT's "NFT #107,604,335 of rLxc1b…rwMy · taxon 0 · XRPL · explorer" ("URIToken 96133366… of rodinG…zKyb · Xahau · explorer"), "(burned)" after the name of a burned one, with `og:image` the NFT's image; an NFT shown from the network is
+`noindex` with no canonical and no image, and a page of older history `noindex, follow`.
+
+**Fixtures.** The recordings are the two NFT sets D3 recorded (XRPL NFTokens, Xahau URITokens), worked out by a port of D3's rules (`scripts/nft-derive.ts`, `scripts/nft-fixtures.ts`) into the data API's answers and the nodes', with seeded synthetic parts
+around them (ruling 6: the featured NFT's history is padded with older offer events, marked in `PROVENANCE.md`, so that it has two pages); "Upstream fixtures" has the files. The cases the pages draw (the featured NFT, a burned one, one whose owner only
+the node has, one only the node has, a missing id; a collection of each case) are found by the rules of `test/support/nft-case-rules.ts` for the Worker's specs; the end-to-end suite names them in `test/support/nft-names.ts`, which
+`test/worker/nft-fixtures.spec.ts` holds to the rules.
+
+**The bundle.** Each NFT page is a lookup page (150,000 B gzip with the manifest; "The client bundle check"). The pages import no `app/server`, `ripple-*` or Worker-only domain file; the collection's page is the tightest.
+
+**Tests.** `app/domain/nft-params.test.ts`, `nft-link.test.ts`, `nft-id.test.ts`, `hash-nouns.test.ts`; the view builders' tests beside them in `app/server/` (`nfts-view`, `nft-collection-view`, `nft-view`, `nft-format`, `nft-shape`, `coverage`, `nft-read`); the pages' in
+`app/ui/pages/` (`NftsPage`, `NftSalesPage`, `NftCollectionPage`, `NftPage`); the loaders on the real Worker in `test/worker/nfts-list.spec.ts`, `nft-collection.spec.ts`, `nft.spec.ts`, `search.spec.ts`, `og.spec.ts`; the data API and node clients in `data-api.spec.ts`,
+`node-rpc.spec.ts` and `nft-fixtures.spec.ts`; the off-case in `nfts-off.spec.ts` (every NFT route, `.data` request and image a 404 of class `short` without a call; every NFT id plain monospace text with the whole id in its `title`; collections plain text; the
+header's item and the account's tab "soon"; `?tab=nfts` a 302 without a call; search asks no NFT question and keeps its words) and the sandbox's in `nfts-sandbox.spec.ts`; and, in a browser, `test/e2e/nfts.spec.ts`, `nfts-live.spec.ts`, `a11y.spec.ts`,
+`og.spec.ts`, `client-meta.spec.ts` and `search.spec.ts` ("End-to-end tests").
+
 ## Search
 
 `/{net}/search?q=...` (`routes/net.search.tsx`) is what the search box submits, so it works before JavaScript loads. Its loader says what
@@ -1416,6 +1544,16 @@ that failed, whichever of its questions it was), never a "not found" that would 
 another question (a hash that is a transaction and an NFT is the choice page; a transaction with a failed NFT question is the transaction). The pages repeat what was typed cut to 200 characters. A client-side search (the
 `.data` URL) redirects the same way, but React Router's answer for a redirect there (a 202) is not stored by the edge, so those
 cost a render each.
+
+**The nouns.** What a 64-digit input can be is one list, `hashNouns(net, { nfts })` in `app/domain/hash-nouns.ts` (`["transaction", "ledger"]`, with `NFTS` on `[…, "NFT"]` and on Xahau `[…, "URIToken"]`; `joinNouns` and `hashWhat` write it as a
+sentence: "transaction, ledger or NFT"), which every place that says it reads: the 404's "We couldn’t find transaction, ledger or NFT 4BC50C…A651 on XRPL.", the data of the 503, the prompt of an empty box ("Enter an address, a transaction, ledger or NFT hash,
+a ledger index or a CTID."), the box's hint of a hash ("Transaction, ledger or NFT") and its "Nothing on XRPL looks like that. Enter an address (r…), a 64-character transaction, ledger or NFT hash, …". While `NFTS` is off the list is the two nouns of before and
+every text is what it was (`nfts-off.spec.ts` pins them). **E10 and E14 extend it** in two places: E10 adds its ledger objects to `HashNounOptions` (the same name `HashQuestions` gives its switch) and to the list after the NFT, and to `findHash`'s two steps its
+question; E14's MPT id is 48 hexadecimal digits, a shape of its own that `classify` tells apart, with its own words and its own question, and no noun of this list. The shared box costs about 80 bytes on every page for each such extension
+("The client bundle check").
+
+The hint rows of the box wrap when the tag is long ("Transaction, ledger or URIToken" on Xahau): `.search__hints .hit` (components.css) lets the hash drop to its own line, so that at 375 px, and at 320, no row is wider than the screen and the hash keeps
+at least 8rem (`test/e2e/a11y.spec.ts`: "a hint of a hash fits a … px phone").
 
 `NotFoundPage` is the frame of the help, the 404s and the other-network offer: its `title`, `message`, `children` (the help list),
 `query` and `suggestion` carry what differs.
@@ -1440,6 +1578,7 @@ re-export of a `meta-<page>.ts`; it fails a builder module that another page imp
 | Ledger | the same; the canonical URL and the image name the ledger by its index, whichever of index and hash the page was reached by |
 | Account (first page of a list) | the same; the canonical URL keeps `?tab=` unless it is the first tab, and drops `tag`, `marker` and `back`; the image is the account's whatever the tab |
 | Account with a `marker` | `noindex, follow`, **no canonical** (Google advises against `noindex` with a canonical to another URL), no `og:*` |
+| NFT list, a collection, an NFT (E8) | title, description, canonical, `og:*`; the list has no image (`twitter:card=summary`), a collection none, an NFT its image (`/og/{net}/nft/{ID}.png`, `summary_large_image`); behind a marker `noindex, follow` with no canonical and no `og:*`; the older sales and every non-default view of the list `noindex, follow`; an NFT shown from the network `noindex` ("NFTs") |
 | Search, 404s, never activated, CTID offer | unchanged: `noindex, follow` (search) or `noindex`, no canonical, no `og:*` |
 
 - **Description of a transaction**: `Payment of 1,250.00 USD from rJF2Xa…FQvg to rNYbL8…UKq5 · XRPL ledger 107,695,660` for a transaction that
@@ -1458,9 +1597,9 @@ re-export of a `meta-<page>.ts`; it fails a builder module that another page imp
 
 ### The image route
 
-`/og/{net}/{tx|ledger|account|validator|amendment|amm}/{id}.png` (`routes/og.$net.$kind.$id[.png].tsx`): 1200 × 630, `image/png`, `X-Robots-Tag: noindex`. The six kinds
-are a transaction, a ledger, an account, a validator (`{id}` its master key), an amendment (`{id}` its name as D1 writes it, or the upper-case ID of one with no name) and
-an AMM pool (`{id}` the pool's account; `ImageKind` `amm`, "AMM pool").
+`/og/{net}/{tx|ledger|account|validator|amendment|amm|nft}/{id}.png` (`routes/og.$net.$kind.$id[.png].tsx`): 1200 × 630, `image/png`, `X-Robots-Tag: noindex`. The seven kinds
+are a transaction, a ledger, an account, a validator (`{id}` its master key), an amendment (`{id}` its name as D1 writes it, or the upper-case ID of one with no name), an AMM pool (`{id}` the pool's account; `ImageKind` `amm`, "AMM pool") and an NFT
+(`{id}` its 64 hex digits, upper case; `ImageKind` `nft`: "NFT" or "URIToken", class `slow`, `short` kept 60 s for one only the node has, a 404 of class `short` with no call while `NFTS` is off or when neither the index nor the node has it; "NFTs").
 
 | Case | Answer |
 |---|---|
@@ -1611,6 +1750,10 @@ and result, the big line, the accounts, the footer) and `app/og/render.ts` draws
   `83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B` of ledger 107671558, from
   `data-api-new/packages/shared/test/fixtures/xrpl/recorded/107671558.json.gz`.
 
+- The NFT pages (E8): the unit and component tests named under "NFTs", `test/worker/nfts-off.spec.ts` (the `worker-off` project: the sweep of every NFT route, `.data` request and image, the header on every kind of page, plain ids, the account's tab and the search's
+  words and 503), `test/worker/nfts-sandbox.spec.ts` (the `worker-sandbox` project: the list's intro and title, the sales, a collection, an NFT's 404 and the image's pill name XRPL Testnet and Xahau Testnet, with the NFT page's own in
+  `environment-sandbox.spec.ts`), and `test/worker/nft-fixtures.spec.ts`, which also holds the end-to-end suite's ids (`test/support/nft-names.ts`) to the rules that find them. Tests that assert an offer's expiry pin `now`.
+
 `@cloudflare/vitest-plugin` is the renamed `@cloudflare/vitest-pool-workers` (that package is deprecated and its
 last release, 0.23.0, only accepts Vitest 4). The API and configuration are the same.
 
@@ -1752,7 +1895,8 @@ Xahau's from 26,533,927 and not (the upstream mock's empty page too), where a fi
 `burned`, `unowned`, `network`, `network-burned`, `missing`) and an account that holds some, and (`collectionCase`) a collection of each of `featured`, `quiet` and `other`, with `collectionsMarker` and
 `salesMarker`, the markers of the second page of the collections list and of the sales, in the committed files by the rules of `test/support/nft-case-rules.ts`, never a fixed id.
 `test/fixtures/PROVENANCE.md` ("NFT answers") names the commit and the figures; `test/unit/nft-fixtures.test.ts` checks the port against D3's expected events and the files against the
-reference, and `test/worker/nft-fixtures.spec.ts` reads them with the clients. They are about 0.96 MiB (`isNftGenerated`, 1,349 files) and have a size budget of their own (1.0 MiB).
+reference, and `test/worker/nft-fixtures.spec.ts` reads them with the clients. They are about 0.96 MiB (`isNftGenerated`, 1,349 files) and have a size budget of their own (1.0 MiB). `test/support/nft-names.ts` names the ids the end-to-end suite uses (the Playwright process cannot read the files the way Vite does), and
+`test/worker/nft-fixtures.spec.ts` ("the e2e suite's constants") fails when a regeneration moves one of them.
 
 **The validators and amendments pages' files.** `scripts/validators-fixtures.ts` (`validatorsFixtures(net, last, ledgerValidations)`, called by `generate()` for each network after
 `networkFixtures`, with the ledger validations that call made, in memory) makes D1's six answers up by the rules of the data API's reference at the commit `test/fixtures/PROVENANCE.md`
@@ -1963,6 +2107,17 @@ slider focused with its tooltip, the other validators' votes open), each validat
 sideways (the tables and the 30-day charts scroll inside their cards), and `landmark-unique` runs on the four, the filter form's search landmark beside the header's. Links
 inside a sentence there are underlined (the toml link of a validator's note, "Clear filters" after "No validators match these filters."): in dark mode the link colour is
 too close to the text's for axe's `link-in-text-block`. Their page with a card that failed is in `validators-live.spec.ts`.
+
+The NFT pages have their own specs (E8, README "NFTs"). `test/e2e/nfts.spec.ts` runs on both networks, with and without JavaScript: the header's link, the list (a period, the sort both ways with `aria-sort`, the issuer form and its error, the older sales,
+"More collections" and the way back), a collection (the measure, the three tabs, the owner filter and its error, "Include burned", the older sales, Xahau's collection whose only sale no rate converts, a key that is none), an NFT in each of its modes (indexed, the offer events
+as a link, the history's Older, burned, owner read from the network, only on the network, burned only on the network, nobody's, a URIToken), search by an NFT id (indexed, only on the network, a URIToken, a hash nothing has), the account's NFTs tab and the
+transaction page's NFT link; `test/e2e/nfts-live.spec.ts` (the `live` project, which changes what the fixture server answers) the list with three failed cards and its Retry, the choice page of a hash that is a transaction and an NFT, and the Objects tab's
+"See the account’s NFTs" link. `test/e2e/a11y.spec.ts` has a block for the NFT pages ("the NFT pages": the list, the older sales, the featured XRPL collection and an NFT in the whole matrix of settings, and thirty-three more views in the two system themes at both widths: an issuer error, more
+collections, Xahau's list, every table view, the volume slider focused, each collection tab and Xahau's collection with the unrated day, an NFT in each mode, the account's tab, the hints of a hash, the search's help and 404), each at 375 px also checked not to scroll
+sideways, plus `landmark-unique` and the names rule on the four main ones; the hint of a hash is checked at 375 and 320 px on both networks, in the header and in the hero. `og.spec.ts` draws an NFT's and a URIToken's image and the card of a burned NFT and of one only the
+network has; `client-meta.spec.ts` follows the list to a collection and its NFT and from a search to an NFT only the network has, and asks for no manifest between the new routes. Where `E2E_FEATURES_OFF` lists `NFTS` the specs skip their pages and check the off-case instead
+(the header's "soon", every route a 404, the NFT's id as text); against a real stack, which has none of the generated NFTs, the specs that name them skip too. The chart's table view at 375 px scrolled the page sideways until `.table-scroll` became the containing block of the
+visually hidden words of its cells (components.css): the sweep found it on the NFT pages, and the network and AMM pages had it too.
 
 ## The client bundle check
 
@@ -2454,6 +2609,37 @@ card, three lists of facts and two tables (`DataTable`, `Pager`, `CoverageNote`,
   chunk that the new page shares with them, as each new route has caused ("The shell and vendor chunks" above).
 - **The NFT page** is 13,227 bytes under its budget. **The collection** is the tightest lookup page, 756 bytes under, the list's 1,118 next: a later NFT page that grows the shared table, chart or `Sentence` chunks should look at both.
 
+**The figures of E8: the end** (Task 16: the sandbox, the off switch, the end-to-end specs and the noun list of the search; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included). *Before* is `57b60d0`,
+the commit the task started from, exported with `git archive`, built and measured on its own for this table. The task changed three things the browser loads: the search box's words (`app/domain/hash-nouns.ts`, one list for the hint, "Nothing … looks like that" and the
+prompt, read by the box that every page has), the search page's own words, and two rules of components.css (the hint row's wrap and `.table-scroll`'s containing block). All four NFT pages are lookup pages and none passed 150,000, so ruling C18's fallback (the dashboard
+budget, with its reason here) was not needed; the collection is the tightest, 444 bytes under, then the list, 797.
+
+| page | Before (files) | After (files) | Change | Budget | Under it by |
+|---|---:|---:|---:|---:|---:|
+| home | 135,419 (14) | 135,505 (14) | +86 | 150,000 | 14,495 |
+| ledger | 136,537 (20) | 136,607 (20) | +70 | 150,000 | 13,393 |
+| transaction | 139,118 (21) | 139,194 (21) | +76 | 150,000 | 10,806 |
+| account | 143,276 (28) | 143,355 (28) | +79 | 150,000 | 6,645 |
+| network | 151,795 (26) | 151,870 (26) | +75 | 160,000 | 8,130 |
+| markets | 134,897 (13) | 134,983 (13) | +86 | 150,000 | 15,017 |
+| market-pair | 150,616 (27) | 150,691 (27) | +75 | 160,000 | 9,309 |
+| validators | 149,749 (25) | 149,831 (25) | +82 | 160,000 | 10,169 |
+| validator | 150,056 (26) | 150,143 (26) | +87 | 160,000 | 9,857 |
+| amendments | 140,109 (18) | 140,198 (18) | +89 | 160,000 | 19,802 |
+| amendment | 148,618 (23) | 148,699 (23) | +81 | 160,000 | 11,301 |
+| amm | 144,836 (22) | 144,905 (22) | +69 | 160,000 | 15,095 |
+| amm-pool | 153,347 (36) | 153,421 (36) | +74 | 160,000 | 6,579 |
+| nfts | 149,124 (29) | **149,203** (29) | +79 | 150,000 | 797 |
+| nft-sales | 134,612 (19) | **134,680** (19) | +68 | 150,000 | 15,320 |
+| nft-collection | 149,479 (31) | **149,556** (31) | +77 | 150,000 | 444 |
+| nft | 137,166 (23) | **137,242** (23) | +76 | 150,000 | 12,758 |
+| account analytics (gate 2) | 155,449 (29) | 155,524 (29) | +75 | 160,000 | 4,476 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,167 | 2,159 | -8 | | |
+
+- **The shared search box** is in every page: +68 to +89 bytes, the one list of nouns and its three words. A later feature that adds a noun to it (E10's ledger objects) costs about as much again on every page, and the collection (444 bytes under) and the list
+  (797) cannot take more than a few such steps: the next one that grows them takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
+- **The page that is tightest** is the NFT collection's: it draws the stats, the chart, the tabs with the tab's table and the owner form, and the shared sales table.
+
 ## The parsing libraries in the Workers runtime
 
 `test/worker/runtime.spec.ts` runs `ripple-lib-transactionparser` 0.8.2, `ripple-address-codec` 5 and
@@ -2704,6 +2890,16 @@ The AMM pages (E5, "AMM pools") are checked on the sandbox once its data API has
   (a deleted pool's, where XRPL Testnet has one) `actMalformed`, as `https://s1.ripple.com:51234/` did on 2026-10-20 (`node-rpc.ts`): both are read as `not_found`. Another answer for them would make a pool
   that is not there a 503, not the 404 that offers its account page.
 
+The NFT pages (E8, "NFTs") are checked on the sandbox once D3 is deployed there on both testnets (its migration 011, the syncer of parser version 5 and the API), its gauges `syncer_nft_state_lag_ledgers`, `syncer_nft_dirty_ledgers` and `syncer_nft_collections_pending` are near 0
+and the routes answer, and `NFTS` is `"on"` for the sandbox (a commit turning it on in the `sandbox` block of `wrangler.jsonc`, then `pnpm deploy:sandbox`; the coverage notes show until D3's re-ingest completes, and nothing changes when it does). Rolling back is `"off"` and a deploy:
+
+- [ ] **The pages and their words.** `/xrpl/nfts` and `/xahau/nfts`, an NFT and a collection of each, the older sales and the account's NFTs tab: every network name reads XRPL Testnet or Xahau Testnet (never "the XRP Ledger" or "mainnet"), XRPL says NFT and Xahau
+  URIToken, and every list and figure has its coverage note (the sandbox's coverage is never complete). `/og/xrpl/nft/{ID}.png` has the pill "XRPL Testnet".
+- [ ] **The switch is in the cache generation.** The deploy that turns `NFTS` on: the first request for each NFT view, for `/xrpl` (its header) and for a transaction with an NFT after it is `X-Cache: MISS`, and the header's NFTs item, the NFT links and the pages are there at once.
+- [ ] **An NFT the index lacks.** An NFT minted just now (before the syncer has it) is shown "from the network" with the notice, `noindex`, and the page is the index's within about a minute after the syncer has it; an id nobody minted is a 404 that offers Xahau Testnet. A search for the id of
+  either leads to it.
+- [ ] **The older sales and "More collections"** follow their markers to the end, within a minute, with no row twice.
+
 **Production checks.** What needs mainnet data: the end-to-end suite's fixtures, and most of these items, name mainnet accounts, pools and pairs, which the sandbox's testnets do not have. They run **before a switch goes on in
 production**, against the deployed production Worker (`E2E_BASE_URL=https://explorer.gatehub.net E2E_WORKERS=1 E2E_FEATURES_OFF=… pnpm test:e2e`) and, for what the switch gates, a local Worker on the production stack
 (`E2E_DATA_API_URL=https://{net}.data.gatehub.net E2E_NODE_URL=… E2E_DATA_API_KEY=… pnpm test:e2e`, the top level's switches on).
@@ -2713,6 +2909,10 @@ production**, against the deployed production Worker (`E2E_BASE_URL=https://expl
   data API refuses every call and every page is a 503.
 - [ ] **`nft_info` on production's XRPL node.** The XRPL node must be a Clio ("The data API and the node"): `curl -s https://s1.ripple.com:51234/ -H 'Content-Type: application/json' -d '{"method":"nft_info","params":[{"nft_id":"00000000000000000000000000000000000000000000000000000000000000AB"}]}'`
   answers `"error": "objectNotFound"` for an id nobody minted, not `unknownCmd`.
+- [ ] **The NFT pages, before `NFTS` goes on.** D3 is deployed on both networks (migration 011, the syncer of parser version 5, the API) and `syncer_nft_state_lag_ledgers`, `syncer_nft_dirty_ledgers` and `syncer_nft_collections_pending` are near 0 (the collections' first fill takes days on
+  mainnet), and the routes answer. Then a commit turns `NFTS` `"on"` in the `production` block of `wrangler.jsonc` and `pnpm deploy:production` goes out; the coverage notes show until D3's re-ingest completes, and nothing changes when it does. With a local Worker on the production stack
+  (`E2E_DATA_API_URL=… E2E_NODE_URL=…`, the top level's switches on) the list, a collection and an NFT of each network are drawn from the real data, and with `E2E_BASE_URL` and `E2E_FEATURES_OFF` naming the switches still off, the suite's off-case for `NFTS` passes
+  before the flip and its pages after it (the specs that name the generated NFTs skip against a real stack). Rolling back is `"off"` and a deploy.
 - [ ] **Run the end-to-end suite against production**: `E2E_BASE_URL=https://explorer.gatehub.net E2E_WORKERS=1 pnpm test:e2e`, with `E2E_FEATURES_OFF` naming the switches that are off there (see "End-to-end tests"; the suite catches drift in
   the data API's response bodies that `app/server/api-types.ts` cannot see), and, once, `E2E_DATA_API_URL=... E2E_NODE_URL=... E2E_DATA_API_KEY=... pnpm test:e2e` against
   the production stack.

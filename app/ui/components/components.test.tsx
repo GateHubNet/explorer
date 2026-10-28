@@ -978,6 +978,23 @@ describe("SearchBox", () => {
     await waitFor(() => expect(screen.queryByText(/looks like that/)).toBeNull());
   });
 
+  it("names a 64-character hash by what the search can find, as its hint does: with NFTS on an NFT too (a URIToken on Xahau), off the words of before", async () => {
+    const said = async (ui: ReactElement, features: Features, options?: Parameters<typeof renderUnderNetwork>[2]) => {
+      renderUnderNetwork(ui, features, options);
+      fireEvent.change(await screen.findByRole("searchbox"), { target: { value: "hello" } });
+      const text = (await screen.findByText(/looks like that/)).textContent;
+      cleanup();
+      return text;
+    };
+    const tail = " Enter an address (r…), a 64-character HASH hash, a ledger index, or a CTID (C followed by 15 hex digits).";
+
+    expect(await said(<SearchBox net={XRPL} />, NO_FEATURES)).toBe(`Nothing on XRPL looks like that.${tail.replace("HASH", "transaction or ledger")}`);
+    expect(await said(<SearchBox net={XRPL} />, NFTS_ON)).toBe(`Nothing on XRPL looks like that.${tail.replace("HASH", "transaction, ledger or NFT")}`);
+    expect(await said(<SearchBox net={XAHAU} />, NFTS_ON, { network: { id: "xahau", name: "Xahau" }, path: "/xahau" })).toBe(
+      `Nothing on Xahau looks like that.${tail.replace("HASH", "transaction, ledger or URIToken")}`,
+    );
+  });
+
   it("closes the hints when focus leaves the box or Escape is pressed, and opens them again on return", async () => {
     renderInRouter(
       <>

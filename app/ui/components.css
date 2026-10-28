@@ -380,6 +380,16 @@ a.nav-item:hover {
   color: var(--faint);
 }
 
+/* The row of a hint wraps when its tag is long ("Transaction, ledger or URIToken", E8): the detail has at least 8rem, or it goes to the next line, so that a phone
+   never gets a row wider than itself nor a hash cut to nothing. The page of a choice (.choice, pages.css) writes its own lines. */
+.search__hints .hit {
+  flex-wrap: wrap;
+}
+
+.search__hints .hit__detail {
+  flex-basis: 8rem;
+}
+
 .search__empty {
   padding: 14px 16px;
   background: var(--surface);
@@ -775,7 +785,10 @@ a.btn {
 /* ---------------------------------------------------------------------------------------------------------------
    Tables */
 
+/* The region is the containing block of what is positioned inside it: the visually hidden words of a cell ("no data", `.sr`) are absolute, and without this they sit where the
+   table puts them, beyond the card, which no overflow clips, and the page scrolls sideways (the chart's table view on a phone, E8's sweep). */
 .table-scroll {
+  position: relative;
   overflow-x: auto;
 }
 

@@ -1,10 +1,14 @@
+import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
 import { shortHash } from "../../app/domain/format";
+import { loader } from "../../app/routes/net.search";
+import { createLoadContext, type Env } from "../../app/server/env";
 import { recordedHashes } from "../support/ledger-hashes";
 import { nftCase } from "../support/nft-cases";
 import { nftAnswerSample, nftSample, uriTokenSample } from "../support/nft-samples";
+import { isStored } from "../support/nft-pages";
 import { anchors, hrefs, pageClient, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
@@ -100,6 +104,8 @@ describe("when an upstream fails", () => {
     expect(statusesOf(mock, `GET /v2/transactions/${hash}`)).toEqual([503]);
     expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
     expect(mock.unusedOverrides()).toEqual([]);
+    // An outage is not kept: the next visitor asks again.
+    expect(await isStored(search(hash))).toBe(false);
   });
 
   it("answers 503 when the data API has nothing and the node fails: it cannot tell", async () => {
@@ -111,6 +117,7 @@ describe("when an upstream fails", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(mock.unusedOverrides()).toEqual([]);
+    expect(await isStored(search(hash))).toBe(false);
   });
 
   it("answers 503 when the data API cannot read the ledger of a CTID", async () => {
@@ -171,6 +178,7 @@ describe("when the NFT question fails", () => {
     expect(statusesOf(mock, `GET /v2/nfts/${hash}`)).toEqual([503]);
     expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
     expect(mock.unusedOverrides()).toEqual([`node nft_info ${hash}`]);
+    expect(await isStored(search(hash))).toBe(false);
   });
 
   it("answers 503 for a data API without D3 ('Cannot GET'): an outage, never a 404 that is stored", async () => {
@@ -182,6 +190,31 @@ describe("when the NFT question fails", () => {
     expect(response.status).toBe(503);
     expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
     expect(mock.unusedOverrides()).toEqual([]);
+    // Neither the 503 nor a "not found" is kept: an API that gets D3 tomorrow is asked again.
+    expect(await isStored(search(hash))).toBe(false);
+  });
+
+  it("names what it asked for in what its 503 throws, as the 404 does: transaction, ledger or NFT (URIToken on Xahau)", async () => {
+    // The Worker's busy page replaces a 503's body, so the phrase is read where the loader throws it (the log's and the error boundary's).
+    const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+    for (const [net, word] of [
+      ["xrpl", "NFT"],
+      ["xahau", "URIToken"],
+    ] as const) {
+      const hash = fresh();
+      mock = mockUpstream(net, { [`GET /v2/nfts/${hash}`]: dataApiError(503, "unavailable") });
+      const thrown = await loader({
+        request: new Request(`https://explorer.test/${net}/search?q=${hash}`),
+        params: { net },
+        context: createLoadContext(env as unknown as Env, ctx),
+      } as never).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+      expect(thrown, net).toMatchObject({ data: { unavailable: `transaction, ledger or ${word} ${hash}` }, init: { status: 503 } });
+      mock.restore();
+    }
   });
 
   it("still redirects to the transaction when only the NFT question failed", async () => {
@@ -215,6 +248,7 @@ describe("when the NFT question fails", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(mock.unusedOverrides()).toEqual([]);
+    expect(await isStored(search(hash))).toBe(false);
   });
 });
 
@@ -448,7 +482,7 @@ describe("a 64-digit hash", () => {
       const { response, html } = await page(search(UNKNOWN), 404);
       const text = textOf(html);
 
-      expect(text).toContain(`We couldn’t find transaction or ledger ${shortHash(UNKNOWN)} on XRPL.`);
+      expect(text).toContain(`We couldn’t find transaction, ledger or NFT ${shortHash(UNKNOWN)} on XRPL.`);
       const link = anchors(html).find((a) => a.text === "Search on Xahau");
       expect(link?.attrs).toContain(`href="/xahau/search?q=${UNKNOWN}"`);
       // The box keeps what was typed, and the way home is there.
@@ -496,7 +530,7 @@ describe("a 64-digit hash", () => {
       mock = mockUpstream("xrpl", { [`node nft_info ${hash}`]: nodeError("unknownCmd") });
       const { html } = await page(search(hash), 404);
 
-      expect(textOf(html)).toContain(`We couldn’t find transaction or ledger ${shortHash(hash)} on XRPL.`);
+      expect(textOf(html)).toContain(`We couldn’t find transaction, ledger or NFT ${shortHash(hash)} on XRPL.`);
       expect(mock.unusedOverrides()).toEqual([]);
     });
 
@@ -506,6 +540,8 @@ describe("a 64-digit hash", () => {
       const { html } = await page(`/xahau/search?q=${hash.toLowerCase()}`, 404);
       const link = anchors(html).find((a) => a.text === "Search on XRPL");
       expect(link?.attrs).toContain(`href="/xrpl/search?q=${hash}"`);
+      // What was looked for is what the search asked: Xahau's token is a URIToken.
+      expect(textOf(html)).toContain(`We couldn’t find transaction, ledger or URIToken ${shortHash(hash)} on Xahau.`);
     });
 
     it("leads to the transaction when the other network has it", async () => {
@@ -671,6 +707,16 @@ describe("anything else", () => {
       expect(textOf(html), path).toContain("A CTID: C followed by 15 hexadecimal characters");
       expect(isNoindexFollow(html), path).toBe(true);
     }
+  });
+
+  it("says what a hash can be as the search asks it with NFTS on, on each network, in the prompt of an empty box and in the box's own words", async () => {
+    mock = mockUpstream("xrpl");
+    const xrpl = await page(search(""));
+    expect(textOf(xrpl.html)).toContain("Enter an address, a transaction, ledger or NFT hash, a ledger index or a CTID.");
+    mock.restore();
+    mock = mockUpstream("xahau");
+    const xahau = await page("/xahau/search?q=");
+    expect(textOf(xahau.html)).toContain("Enter an address, a transaction, ledger or URIToken hash, a ledger index or a CTID.");
   });
 
   it("shows a long or hostile input as text, cut short", async () => {

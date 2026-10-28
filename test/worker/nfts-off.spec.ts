@@ -1,10 +1,14 @@
+import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 import { encodeAccountID } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
+import { loader as searchLoader } from "../../app/routes/net.search";
+import { createLoadContext, type Env } from "../../app/server/env";
 import { nftCase } from "../support/nft-cases";
+import { isStored } from "../support/nft-pages";
 import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
-import { mockUpstream, type Overrides, type UpstreamMock } from "../support/upstream";
+import { dataApiError, mockUpstream, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The NFT pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `NFTS` on (NFT spec 1.4, 15). `NFTS` is
 // page-level: every route of the NFT pages, and the link-preview image of an NFT, is a 404 of class `short` made before any call (neither the path's other segments nor the query is
@@ -102,6 +106,66 @@ describe("the NFT list and the older sales with NFTS off", () => {
   });
 });
 
+// Review Focus 1 in one table: every route of the NFT pages, in every form a visitor, a crawler or the client-side router can ask for it (the pages, their `.data` requests, a trailing
+// slash, the redirects' sources, the collection's forms on both networks) and the link-preview image of an NFT, is a 404 of class `short` that asks nothing upstream. The cases above
+// say what each page then shows; this one lists what must not be reachable at all.
+describe("every NFT route with NFTS off", () => {
+  const PAGE_FORMS = [
+    "/xrpl/nfts",
+    "/xrpl/nfts/",
+    "/xrpl/nfts/sales",
+    "/xrpl/nfts/sales/",
+    "/xahau/nfts",
+    "/xahau/nfts/sales",
+    "/xahau/nfts/sales?marker=WzI2NzYzNjI5LDE1LDFd",
+    `/xrpl/nfts/${ISSUER}`,
+    `/xrpl/nfts/${ISSUER}/0`,
+    `/xrpl/nfts/${ISSUER}/0/`,
+    `/xrpl/nfts/${ISSUER}/00`,
+    `/xrpl/nfts/${ISSUER}/0?tab=nfts&owner=${ACTIVE}&burned=1`,
+    `/xrpl/nfts/${ISSUER}/0?measure=sales&tab=holders`,
+    `/xrpl/nfts/${ISSUER}/0?marker=WzEwNzg4MTUzMCwxNjIsMV0`,
+    "/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+    "/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb?tab=holders",
+    `/xrpl/nft/${NFT_ID}`,
+    `/xrpl/nft/${NFT_ID}/`,
+    `/xrpl/nft/${NFT_ID.toLowerCase()}`,
+    `/xrpl/nft/${NFT_ID}?offers=1&marker=WzEwNzg3ODc3NSwxMzAsMF0`,
+    `/xahau/nft/${URI_ID}`,
+    `/xahau/nft/${URI_ID}?offers=1`,
+  ];
+  const DATA_FORMS = [
+    "/xrpl/nfts.data?_routes=routes%2Fnet.nfts._index",
+    "/xahau/nfts.data?period=7day&_routes=routes%2Fnet.nfts._index",
+    "/xrpl/nfts/sales.data?marker=WzEwNzg4NjE2Myw4MywxXQ&_routes=routes%2Fnet.nfts.sales",
+    `/xrpl/nfts/${ISSUER}/0.data?tab=nfts&_routes=routes%2Fnet.nfts.%24issuer.%24taxon`,
+    `/xahau/nfts/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb.data?_routes=routes%2Fnet.nfts.%24issuer.%24taxon`,
+    `/xrpl/nft/${NFT_ID}.data?offers=1&_routes=routes%2Fnet.nft.%24id`,
+    `/xahau/nft/${URI_ID}.data?_routes=routes%2Fnet.nft.%24id`,
+  ];
+  const IMAGE_FORMS = [`/og/xrpl/nft/${NFT_ID}.png`, `/og/xahau/nft/${URI_ID}.png`, `/og/xrpl/nft/${NFT_ID.toLowerCase()}.png`, "/og/xrpl/nft/nope.png", "/og/xahau/nft/nope.png"];
+
+  it("is a 404 of class short, without a call: the pages, their data requests and the image", async () => {
+    const offenders: string[] = [];
+    for (const path of [...PAGE_FORMS, ...DATA_FORMS, ...IMAGE_FORMS]) {
+      mock = mockUpstream(path.startsWith("/xahau") || path.startsWith("/og/xahau") ? "xahau" : "xrpl");
+      const response = await get(path);
+      await response.arrayBuffer();
+      const asked = mock.requests.map((request) => request.key);
+      mock.restore();
+      mock = undefined;
+      if (response.status !== 404) offenders.push(`${path} answered ${response.status}`);
+      if (asked.length > 0) offenders.push(`${path} asked ${asked.join(", ")}`);
+      // The `.data` requests are answered whole by the Worker and are not stored under their own key (the page's is); the pages and the image are stored for the short class.
+      if (!path.includes(".data")) {
+        const stored = await storedAs(path).catch(() => undefined);
+        if (stored?.cls !== "short") offenders.push(`${path} was stored as ${JSON.stringify(stored)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("the link-preview image of an NFT with NFTS off", () => {
   it.each([
     ["an NFT", `/og/xrpl/nft/${NFT_ID}.png`, "xrpl"],
@@ -132,13 +196,35 @@ describe("the link-preview image of an NFT with NFTS off", () => {
 });
 
 describe("the header with NFTS off", () => {
+  const SOON = '<span class="nav-item is-soon" aria-disabled="true"><span>NFTs</span><span class="soon">soon</span></span>';
+
   it.each(["/xrpl", "/xahau"])("shows NFTs on %s as 'soon', a label and not a link", async (path) => {
     mock = mockUpstream(path === "/xrpl" ? "xrpl" : "xahau");
     const { html } = await page(path);
 
-    expect(html).toContain('<span class="nav-item is-soon" aria-disabled="true"><span>NFTs</span><span class="soon">soon</span></span>');
+    expect(html).toContain(SOON);
     expect(html).not.toMatch(/href="\/(xrpl|xahau)\/nfts"/);
     expect(anchors(html).map((a) => a.text)).not.toContain("NFTs");
+  });
+
+  // Every kind of page the layout draws (the error pages and the not-found pages of the NFT routes too) has the same header.
+  it.each([
+    ["a ledger", "xrpl", "/xrpl/ledger/107720688", 200],
+    ["a transaction", "xrpl", "/xrpl/tx/423839F3B288D53874DAECE9AE3ACCE2A23E20E2C16E5DA594F425907D9E2052", 200],
+    ["an account", "xrpl", `/xrpl/account/${ACTIVE}`, 200],
+    ["an account on Xahau", "xahau", `/xahau/account/${XAHAU_ACTIVE}`, 200],
+    ["the network page", "xrpl", "/xrpl/network", 200],
+    ["the search help", "xrpl", "/xrpl/search?q=hello", 200],
+    ["a page that is not there", "xrpl", "/xrpl/nothing-here", 404],
+    ["the NFT list, not found", "xrpl", "/xrpl/nfts", 404],
+    ["an NFT, not found", "xahau", `/xahau/nft/${URI_ID}`, 404],
+    ["the markets, not found", "xrpl", "/xrpl/markets", 404],
+  ] as const)("shows NFTs on %s as 'soon' too", async (_what, net, path, status) => {
+    mock = mockUpstream(net);
+    const { html } = await page(path, status);
+
+    expect(html).toContain(SOON);
+    expect(html).not.toMatch(/href="\/(xrpl|xahau)\/nfts(\/|"|\?)/);
   });
 });
 
@@ -318,5 +404,39 @@ describe("the search with NFTS off", () => {
     const home = await page("/xrpl");
     expect(home.html).toContain('placeholder="Address, transaction hash, ledger index or CTID"');
     expect(home.html).not.toMatch(/NFT id/);
+  });
+
+  it("keeps the words of the prompt of an empty box and of the 404, on both networks: a transaction or a ledger, never an NFT", async () => {
+    mock = mockUpstream("xrpl");
+    const prompt = await page("/xrpl/search?q=");
+    expect(textOf(prompt.html)).toContain("Enter an address, a transaction or ledger hash, a ledger index or a CTID.");
+    mock.restore();
+    mock = mockUpstream("xahau");
+    const xahau = await page("/xahau/search?q=");
+    expect(textOf(xahau.html)).toContain("Enter an address, a transaction or ledger hash, a ledger index or a CTID.");
+    expect(textOf(xahau.html)).not.toMatch(/URIToken hash|NFT hash/);
+  });
+
+  it("keeps the words of the 503 too, and stores nothing: 'transaction or ledger {hash}', when the index fails", async () => {
+    const hash = "5F".repeat(32);
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${hash}`]: dataApiError(503, "unavailable") });
+    const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+    const thrown = await searchLoader({
+      request: new Request(`https://explorer.test/xrpl/search?q=${hash}`),
+      params: { net: "xrpl" },
+      context: createLoadContext(env as unknown as Env, ctx),
+    } as never).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(thrown).toMatchObject({ data: { unavailable: `transaction or ledger ${hash}` }, init: { status: 503 } });
+    // No NFT question was asked, and the outage is not kept.
+    expect(mock.requests.some((request) => request.url.includes("/nfts") || /nft_info|ledger_entry/.test(request.key))).toBe(false);
+
+    const response = await get(`/xrpl/search?q=${hash}`);
+    await response.text();
+    expect(response.status).toBe(503);
+    expect(await isStored(`/xrpl/search?q=${hash}`)).toBe(false);
   });
 });

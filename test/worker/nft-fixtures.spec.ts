@@ -6,6 +6,7 @@ import { networkOf } from "../../app/server/networks";
 import { createNodeRpc } from "../../app/server/node-rpc";
 import { windowOf } from "../../app/domain/window";
 import { collectionCase, collectionsMarker, COLLECTION_CASES, holderCase, nftCase, NFT_CASES, salesMarker } from "../support/nft-cases";
+import { XAHAU_COLLECTION, XAHAU_NFT, XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
 import { passThroughCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
@@ -226,5 +227,41 @@ describe.each(["xrpl", "xahau"] as const)("%s: the NFT aggregates, read in the W
     const daily = await api.nftVolume({ interval: "day", start: window.start, end: window.end, limit: 1000 });
     expect(daily.rows).toHaveLength(window.buckets.length - 1);
     allFromFiles();
+  });
+});
+
+// The ids the end-to-end suite names (test/support/nft-names.ts) are the cases the rules find in the files: a regeneration that moves a case fails here, with the new id, and not in a
+// browser test a long way from the cause.
+describe("the e2e suite's constants", () => {
+  it("name the NFTs of every case, on both networks", async () => {
+    for (const [net, named] of [
+      ["xrpl", XRPL_NFT],
+      ["xahau", XAHAU_NFT],
+    ] as const) {
+      const wanted: Record<string, string | undefined> = {
+        featured: named.featured,
+        burned: named.burned,
+        unowned: named.unowned,
+        network: named.network,
+        "network-burned": "networkBurned" in named ? named.networkBurned : undefined,
+        missing: named.missing,
+      };
+      for (const which of NFT_CASES) {
+        const found = wanted[which] === undefined ? undefined : (await nftCase(net, which)).id;
+        expect([net, which, found]).toEqual([net, which, wanted[which]]);
+      }
+    }
+  });
+
+  it("name the collection of every case, on both networks", async () => {
+    for (const [net, named] of [
+      ["xrpl", XRPL_COLLECTION],
+      ["xahau", XAHAU_COLLECTION],
+    ] as const) {
+      for (const which of COLLECTION_CASES) {
+        const { issuer, taxon } = await collectionCase(net, which);
+        expect([net, which, issuer, taxon]).toEqual([net, which, named[which].issuer, "taxon" in named[which] ? (named[which] as { taxon: number }).taxon : undefined]);
+      }
+    }
   });
 });

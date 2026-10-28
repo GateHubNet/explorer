@@ -279,7 +279,7 @@ describe("the other network an offer names", () => {
   it("search: a hash nothing has offers the same search on Xahau Testnet", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(search("xrpl", UNKNOWN), 404);
-    expect(textOf(html)).toContain(`We couldn’t find transaction or ledger ${shortHash(UNKNOWN)} on XRPL Testnet.`);
+    expect(textOf(html)).toContain(`We couldn’t find transaction, ledger or NFT ${shortHash(UNKNOWN)} on XRPL Testnet.`);
     expect(offer(html, "Search on Xahau Testnet")).toBe(`/xahau/search?q=${UNKNOWN}`);
   });
 

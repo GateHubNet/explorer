@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
+import { XAHAU_COLLECTION, XAHAU_NFT, XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
 import { fixtures, RLUSD_ISSUER, unavailable } from "./fixture-control";
 import {
   LIVE,
@@ -631,6 +632,244 @@ test.describe("the validators and amendments pages", () => {
         await resolved.ready(page);
         const results = await new AxeBuilder({ page }).withRules(["landmark-unique"]).analyze();
         expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(" | ")}`)).toEqual([]);
+      });
+    }
+  });
+});
+
+// ---- The NFT pages -------------------------------------------------------------------------------------------------------------------------
+// Their spec's "Accessibility" (README "NFTs"): the list (with an issuer error, a page of more collections), the older sales, the featured XRPL collection and Xahau's with the
+// day whose only sale no rate converts, an NFT in each of its modes, the account's NFTs tab and a hash's hints, on both networks, at both widths in the two system themes, and
+// the four main ones in the four settings. At 375 px no page scrolls sideways (the tables and the 30-day charts scroll inside their cards). The pages with a card that failed,
+// the choice between a transaction and an NFT and the Objects tab's link to the NFTs need the fixture server to change an answer, which only the `live` project may do: they are in
+// nfts-live.spec.ts. Where E2E_FEATURES_OFF lists NFTS the pages are not found and the block skips itself; against a real stack, which has none of the generated NFTs, too.
+
+const NFTS_ON = !FEATURES_OFF.has("NFTS");
+const FEATURED_COLLECTION = `/xrpl/nfts/${XRPL_COLLECTION.featured.issuer}/${XRPL_COLLECTION.featured.taxon}`;
+const XAHAU_OTHER_COLLECTION = `/xahau/nfts/${XAHAU_COLLECTION.other.issuer}`;
+
+const nftListReady = async (page: Page) => {
+  await visible("Collections")(page);
+  await expect(page.getByRole("table", { name: "Recent sales", exact: true })).toBeVisible();
+  await slidersReady(page);
+};
+const nftCollectionReady =
+  (table = "Sales") =>
+  async (page: Page) => {
+    await visible(table)(page);
+    await slidersReady(page);
+  };
+const nftReady = async (page: Page) => void (await expect(page.getByRole("table", { name: "History", exact: true })).toBeVisible());
+const fromTheNetwork = async (page: Page) => void (await expect(page.getByText("Not in the index yet, shown from the network.")).toBeVisible());
+const NFT_NOT_FOUND = async (page: Page) => void (await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible());
+
+/** The hints of a hash typed into a box: the row that says what the hash can be, kept open (a click on the theme toggle would close it, so this is for the system themes). */
+const hashHints = (box: (page: Page) => ReturnType<Page["getByRole"]>) => async (page: Page) => {
+  await box(page).fill(XAHAU_NFT.missing);
+  await expect(page.getByRole("list", { name: "Matches" }).getByRole("link")).toBeVisible();
+};
+
+const NFT_MAIN: PageUnderTest[] = [
+  { name: "NFT list", path: "/xrpl/nfts", ready: nftListReady },
+  {
+    name: "older NFT sales",
+    path: "/xrpl/nfts",
+    ready: nftListReady,
+    act: async (page) => {
+      await page.getByRole("link", { name: "Older sales" }).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/nfts/sales" && url.searchParams.has("marker"));
+      await expect(page.getByRole("heading", { level: 1, name: "NFT sales" })).toBeVisible();
+      await visible("Sales")(page);
+    },
+  },
+  { name: "featured NFT collection", path: FEATURED_COLLECTION, ready: nftCollectionReady() },
+  { name: "featured NFT", path: `/xrpl/nft/${XRPL_NFT.featured}`, ready: nftReady },
+];
+
+const NFT_MORE: PageUnderTest[] = [
+  { name: "NFT list with an issuer that is no address", path: "/xrpl/nfts?issuer=nope", ready: async (page) => void (await expect(page.getByText("Write a classic address (r…).")).toBeVisible()) },
+  { name: "NFT list for 30 days", path: "/xrpl/nfts?period=30day", ready: nftListReady },
+  { name: "NFT list sorted by holders, smallest first", path: "/xrpl/nfts?sort=holders&order=asc", ready: nftListReady },
+  {
+    name: "NFT list, more collections",
+    path: "/xrpl/nfts",
+    ready: nftListReady,
+    act: async (page) => {
+      await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "More collections" }).click();
+      await page.waitForURL((url) => url.pathname === "/xrpl/nfts" && url.searchParams.has("marker"));
+      await expect(page.getByRole("heading", { level: 1, name: "More NFT collections" })).toBeVisible();
+      await visible("Collections")(page);
+    },
+  },
+  { name: "Xahau URIToken list", path: "/xahau/nfts", ready: nftListReady },
+  { name: "NFT list, every table view", path: "/xrpl/nfts", ready: nftListReady, act: checkEveryTable },
+  {
+    name: "NFT list, the volume slider focused",
+    path: "/xrpl/nfts",
+    ready: nftListReady,
+    act: async (page) => {
+      await page.locator('section[aria-labelledby="nft-volume-title"]').getByRole("slider").focus();
+      await expect(page.locator('section[aria-labelledby="nft-volume-title"] .plot__tip')).toBeVisible();
+    },
+  },
+  { name: "NFT collection, Sales measure", path: `${FEATURED_COLLECTION}?measure=sales`, ready: nftCollectionReady() },
+  { name: "NFT collection, NFTs", path: `${FEATURED_COLLECTION}?tab=nfts`, ready: nftCollectionReady("NFTs") },
+  { name: "NFT collection, NFTs held by one account, burned included", path: `${FEATURED_COLLECTION}?tab=nfts&burned=1`, ready: nftCollectionReady("NFTs") },
+  { name: "NFT collection, Holders", path: `${FEATURED_COLLECTION}?tab=holders`, ready: nftCollectionReady("Holders") },
+  {
+    name: "NFT collection, an owner that is no address",
+    path: `${FEATURED_COLLECTION}?tab=nfts&owner=nope`,
+    ready: async (page) => void (await expect(page.getByText("Write a classic address (r…).")).toBeVisible()),
+  },
+  {
+    name: "NFT collection, older sales",
+    path: FEATURED_COLLECTION,
+    ready: nftCollectionReady(),
+    act: async (page) => {
+      await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+      await page.waitForURL((url) => url.pathname === FEATURED_COLLECTION && url.searchParams.has("marker"));
+      await expect(page.getByRole("link", { name: "Back to the collection" })).toBeVisible();
+    },
+  },
+  { name: "NFT collection, every table view", path: FEATURED_COLLECTION, ready: nftCollectionReady(), act: checkEveryTable },
+  { name: "Xahau URIToken collection whose only sale no rate converts", path: XAHAU_OTHER_COLLECTION, ready: nftCollectionReady() },
+  { name: "Xahau URIToken collection", path: `/xahau/nfts/${XAHAU_COLLECTION.featured.issuer}?tab=nfts`, ready: nftCollectionReady("URITokens") },
+  { name: "NFT collection that does not exist", path: `/xrpl/nfts/${XRPL_COLLECTION.quiet.issuer}/4294967295`, ready: NFT_NOT_FOUND },
+  {
+    name: "NFT with its offer events",
+    path: `/xrpl/nft/${XRPL_NFT.featured}?offers=1`,
+    ready: nftReady,
+  },
+  {
+    name: "NFT, older history",
+    path: `/xrpl/nft/${XRPL_NFT.featured}?offers=1`,
+    ready: nftReady,
+    act: async (page) => {
+      await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+      await page.waitForURL((url) => url.searchParams.has("marker"));
+      await expect(page.getByRole("link", { name: "Back to the NFT" })).toBeVisible();
+    },
+  },
+  { name: "burned NFT", path: `/xrpl/nft/${XRPL_NFT.burned}`, ready: nftReady },
+  { name: "NFT whose owner the network says", path: `/xrpl/nft/${XRPL_NFT.unowned}`, ready: nftReady },
+  { name: "NFT only the network has", path: `/xrpl/nft/${XRPL_NFT.network}`, ready: fromTheNetwork },
+  { name: "burned NFT only the network has", path: `/xrpl/nft/${XRPL_NFT.networkBurned}`, ready: fromTheNetwork },
+  { name: "NFT nobody has", path: `/xrpl/nft/${XRPL_NFT.missing}`, ready: NFT_NOT_FOUND },
+  { name: "Xahau URIToken", path: `/xahau/nft/${XAHAU_NFT.featured}`, ready: nftReady },
+  { name: "Xahau URIToken only the network has", path: `/xahau/nft/${XAHAU_NFT.network}`, ready: fromTheNetwork },
+  { name: "Xahau URIToken nobody has", path: `/xahau/nft/${XAHAU_NFT.missing}`, ready: NFT_NOT_FOUND },
+  {
+    name: "account's NFTs",
+    path: `/xrpl/account/${XRPL_ACCOUNT}?tab=nfts`,
+    ready: async (page) => void (await expect(page.getByRole("table", { name: "NFTs", exact: true })).toBeVisible()),
+  },
+  {
+    name: "Xahau account's URITokens",
+    path: `/xahau/account/${XAHAU_ACCOUNT}?tab=nfts`,
+    ready: async (page) => void (await expect(page.getByRole("table", { name: "URITokens", exact: true })).toBeVisible()),
+  },
+  {
+    // The header's box on a page, with the hash of an NFT typed into it: the row of the hint says what a hash can be, over the page.
+    name: "hash hint in the header, XRPL",
+    path: "/xrpl/nfts",
+    ready: nftListReady,
+    act: hashHints((page) => page.getByRole("banner").getByRole("searchbox", { name: "Search XRPL" })),
+  },
+  {
+    name: "hash hint in the hero, Xahau",
+    path: "/xahau",
+    ready: visible("Latest ledgers"),
+    act: hashHints((page) => page.getByRole("main").getByRole("searchbox", { name: "Search Xahau" })),
+  },
+  {
+    name: "search help with NFTs on",
+    path: "/xahau/search?q=",
+    ready: async (page) => void (await expect(page.getByText("Enter an address, a transaction, ledger or URIToken hash, a ledger index or a CTID.")).toBeVisible()),
+  },
+  {
+    name: "search for a hash nothing has",
+    path: `/xrpl/search?q=${XRPL_NFT.missing}`,
+    ready: async (page) => void (await expect(page.getByRole("main")).toContainText("transaction, ledger or NFT")),
+  },
+];
+
+test.describe("the NFT pages", () => {
+  test.skip(!NFTS_ON, "NFTS is off in the Worker under test: its pages are not found (nfts.spec.ts checks that)");
+  test.skip(LIVE, "the pages are drawn from the generated NFT fixtures, which a real stack does not hold");
+
+  for (const viewport of VIEWPORTS) {
+    test.describe(`axe at ${viewport.name}`, () => {
+      for (const setting of SETTINGS) {
+        test.describe(`${setting.name}`, () => {
+          test.use({ viewport: viewport.size, colorScheme: setting.system });
+          for (const under of [...NFT_MAIN, ...(setting.toggle === undefined ? NFT_MORE : [])]) {
+            test(`${under.name} has no serious or critical violation${viewport.size.width === 375 ? ", and does not scroll sideways" : ""}`, async ({ page }) => {
+              await open(page, under, setting);
+              expect(await seriousViolations(page)).toEqual([]);
+              if (viewport.size.width === 375) expect(await sideways(page)).toBeLessThanOrEqual(0);
+            });
+          }
+        });
+      }
+    });
+  }
+
+  // The rows of a hint wrap rather than overflow (components.css, `.search__hints .hit`): the hash of the longest tag ("Transaction, ledger or URIToken") has room at the narrowest
+  // phone, and the hint sits inside the viewport.
+  for (const width of [375, 320]) {
+    test(`a hint of a hash fits a ${width} px phone on both networks, in the header and in the hero`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 812 });
+      for (const [path, banner, network] of [
+        ["/xrpl/nfts", true, "XRPL"],
+        ["/xrpl", false, "XRPL"],
+        ["/xahau/nfts", true, "Xahau"],
+        ["/xahau", false, "Xahau"],
+      ] as const) {
+        await page.goto(path);
+        await hydrated(page);
+        await page.getByRole(banner ? "banner" : "main").getByRole("searchbox", { name: `Search ${network}` }).fill(XAHAU_NFT.missing);
+        await expect(page.getByRole("list", { name: "Matches" }).getByRole("link")).toBeVisible();
+        const fit = await page.evaluate(() => {
+          const row = document.querySelector(".search__hints .hit") as HTMLElement;
+          const box = row.getBoundingClientRect();
+          return {
+            page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            row: row.scrollWidth - row.clientWidth,
+            outside: [...row.children].filter((child) => child.getBoundingClientRect().right > box.right + 0.5).length,
+            detail: (row.querySelector(".hit__detail") as HTMLElement).clientWidth,
+            right: box.right,
+          };
+        });
+        expect(fit.page, `${network} ${path}: the page scrolls sideways`).toBeLessThanOrEqual(0);
+        expect(fit.row, `${network} ${path}: the hint's row is wider than itself`).toBeLessThanOrEqual(0);
+        expect(fit.outside, `${network} ${path}: a part of the hint is outside it`).toBe(0);
+        expect(fit.right, `${network} ${path}: the hint is outside the viewport`).toBeLessThanOrEqual(width);
+        expect(fit.detail, `${network} ${path}: the hash is cut to ${fit.detail}px`).toBeGreaterThanOrEqual(128);
+      }
+    });
+  }
+
+  test.describe("landmarks", () => {
+    for (const under of NFT_MAIN) {
+      test(`${under.name} has no two landmarks of one role and name`, async ({ page }) => {
+        await page.goto(under.path);
+        await hydrated(page);
+        await under.ready(page);
+        const results = await new AxeBuilder({ page }).withRules(["landmark-unique"]).analyze();
+        expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(" | ")}`)).toEqual([]);
+      });
+    }
+  });
+
+  test.describe("names", () => {
+    for (const under of NFT_MAIN) {
+      test(`${under.name}: nothing is given a name it cannot have`, async ({ page }) => {
+        await page.goto(under.path);
+        await hydrated(page);
+        await under.ready(page);
+        const results = await new AxeBuilder({ page }).withRules(["aria-prohibited-attr", "aria-allowed-attr", "aria-allowed-role"]).analyze();
+        const found = [...results.violations, ...results.incomplete].map((rule) => `${rule.id}: ${rule.nodes.map((node) => node.target.join(" ")).join(" | ")}`);
+        expect(found).toEqual([]);
       });
     }
   });

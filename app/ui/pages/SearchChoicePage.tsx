@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 
 import { formatAmount, formatUtc } from "../../domain/format";
+import { joinNouns } from "../../domain/hash-nouns";
 import type { SearchPageData } from "../../server/search-view";
 import { ArrowRightIcon } from "../components/icons";
 import { TypeTag } from "../components/TypeTag";
@@ -15,9 +16,7 @@ function nounsOf({ tx, ledger, nft }: Choice): string[] {
 
 /** "Transaction or ledger", "Transaction, ledger or NFT": what the choice is between, as the title of the page and (with a question mark) its heading. */
 export function choiceTitle(data: Choice): string {
-  const nouns = nounsOf(data);
-  const last = nouns.pop()!;
-  const list = nouns.length === 0 ? last : `${nouns.join(", ")} or ${last}`;
+  const list = joinNouns(nounsOf(data));
   return `${list.charAt(0).toUpperCase()}${list.slice(1)}`;
 }
 

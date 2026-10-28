@@ -1,3 +1,4 @@
+import { hashWhat } from "../../domain/hash-nouns";
 import type { SearchPageData } from "../../server/search-view";
 import type { NetworkBrief } from "../networks";
 import { useFeatures } from "../use-network";
@@ -23,6 +24,7 @@ function SearchHelp() {
 
 /** The pages of `/{net}/search` that are not a redirect (see `SearchPageData`). */
 export function SearchPage({ network, data }: { network: NetworkBrief; data: SearchPageData }) {
+  const { nfts } = useFeatures();
   switch (data.kind) {
     case "choice":
       return <SearchChoicePage net={network} data={data} />;
@@ -35,7 +37,7 @@ export function SearchPage({ network, data }: { network: NetworkBrief; data: Sea
           message={
             data.query
               ? `Nothing on ${network.name} looks like “${data.query}”.`
-              : "Enter an address, a transaction or ledger hash, a ledger index or a CTID."
+              : `Enter an address, a ${hashWhat(network.id, { nfts })} hash, a ledger index or a CTID.`
           }
           query={data.query}
         >

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Form, Link } from "react-router";
 
+import { hashWhat } from "../../domain/hash-nouns";
 import type { classify as Classify, SearchKind } from "../../domain/search";
 import { cx } from "../cx";
 import type { NetworkBrief } from "../networks";
@@ -162,7 +163,7 @@ export function SearchBox({
         )}
         {found?.kind === "none" && (
           <p className="search__empty">
-            Nothing on {net.name} looks like that. Enter an address (r&hellip;), a 64-character transaction or ledger hash, a
+            Nothing on {net.name} looks like that. Enter an address (r&hellip;), a 64-character {hashWhat(net.id, { nfts })} hash, a
             ledger index, or a CTID (C followed by 15 hex digits).
           </p>
         )}
