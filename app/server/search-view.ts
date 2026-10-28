@@ -3,11 +3,11 @@
 // draws it. No I/O.
 
 import { formatAmount, shortHash } from "../domain/format";
-import { hashWhat, type HashNounOptions } from "../domain/hash-nouns";
+import { hashWhat } from "../domain/hash-nouns";
 import { collectionLabel, nftWords } from "../domain/nft-params";
 import type { NftKind } from "./api-types";
 import type { NetworkId } from "./networks";
-import type { HashMatches } from "./resolve";
+import type { HashMatches, HashQuestions } from "./resolve";
 
 /** A network as a page names it. */
 export interface NetworkName {
@@ -89,7 +89,7 @@ export function otherNetworkPage(query: string, ctid: string, other: NetworkName
  * A hash neither the data API nor the node has on this network: the same search on the other network is offered. `what` names what was asked as the search asked it
  * (`hashWhat`: "transaction or ledger", with `NFTS` on "transaction, ledger or NFT"), so the page never says less than was looked for.
  */
-export function hashNotFoundPage(query: string, hash: string, other: NetworkName, asked: HashNounOptions & { net: NetworkId }): SearchPageData {
+export function hashNotFoundPage(query: string, hash: string, other: NetworkName, asked: HashQuestions): SearchPageData {
   return {
     kind: "not-found",
     query,

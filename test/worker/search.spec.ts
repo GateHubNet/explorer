@@ -129,6 +129,7 @@ describe("when an upstream fails", () => {
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(statusesOf(mock, "GET /v2/ledgers/107600101?transactions=true")).toEqual([500]);
     expect(mock.unusedOverrides()).toEqual([]);
+    expect(await isStored(search(encodeCtid(107600101, 4, 0)))).toBe(false);
   });
 
   it("still redirects to what was found when the other question failed", async () => {

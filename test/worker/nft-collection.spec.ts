@@ -23,6 +23,10 @@ import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../su
 
 const { get, stored, storedAs } = pageClient("198.18.61");
 
+// A test here may ask several times whether the edge cache holds a copy it must not hold (`isStored` waits up to 2 s for each: a store runs behind the answer, so "not stored" means it
+// only after that wait), which is more than Vitest's 5 s for a test that does it three times.
+vi.setConfig({ testTimeout: 30_000 });
+
 let mock: UpstreamMock | undefined;
 
 beforeAll(() => {

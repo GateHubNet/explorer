@@ -314,12 +314,12 @@ log line, the edge cache with the visitor limit, React Router.
 |---|---|---|---|---|
 | `immutable` | 1 year | 0 | `max-age=60` (an image: `max-age=31536000, immutable`) | validated ledgers and transactions, their images |
 | `live-home` | **1 s** | **2 s** | `max-age=0, must-revalidate` | the home page, the network page, the market pair page, a validator's page (not its pages of older validations, `slow` for 300 s), and their `.data` URLs (the route's own request of an open page) |
-| `live` | 5 s | 30 s | `max-age=0, must-revalidate` | the newest ledger, an account's live state and first pages; balances and orders |
-| `minute` | 60 s | 30 s | `max-age=0, must-revalidate` | what the data API changes every minute: the markets table (`networkMarkets`), a pair's active accounts and its long-interval candles; and the markets page and its `.data` URL |
-| `slow` | 1 h | 0 | `max-age=300` | an account's creation, account images, a list page reached with a marker (`MARKER_PAGE_CLASS`), the network page's calls over a period (kept 300 s, below) |
-| `short` | 30 s | 0 | `max-age=0` | search pages, a 404 for a well-formed id |
+| `live` | 5 s | 30 s | `max-age=0, must-revalidate` | the newest ledger, an account's live state and first pages; balances and orders; an NFT's page (an indexed one), and its offers, history and an account's NFTs, a collection's tab lists and the NFT list's newest sales (E8) |
+| `minute` | 60 s | 30 s | `max-age=0, must-revalidate` | what the data API changes every minute: the markets table (`networkMarkets`), a pair's active accounts and its long-interval candles; the NFT live volume (`nftVolume` with `live`), the collections list (`nftCollections`) and a collection (`nftCollection`); and the markets page, the NFT list, the older sales and a collection's page, and their `.data` URLs |
+| `slow` | 1 h | 0 | `max-age=300` | an account's creation, account images, a list page reached with a marker (`MARKER_PAGE_CLASS`), the network page's calls over a period (kept 300 s, below); a burned NFT's page, an NFT's image, and the NFT daily volume and a collection's stats (kept 300 s) |
+| `short` | 30 s | 0 | `max-age=0` | search pages, a 404 for a well-formed id; an NFT only the node has, kept 60 s (`CACHE_CLASSES.minute.edgeTtl`) |
 
-- **`minute` is the one "kept 60 s" of the program.** The data API rewrites the markets table's `day` set every minute and its `7day` and `30day` sets every five minutes, and says `Cache-Control: private, max-age=60`: `live` (5 s) would render a page twelve times for every change of a set, `slow` (an hour) would hide twelve. A subrequest of this class is kept 60 s, its edge TTL, as every class's subrequests are, and nothing keeps a call 60 s by a TTL constant of its own: a call that should be kept so names the class. Today that is `networkMarkets` and `activeAccounts`, and the long-interval candles of the pair page (`pairCandles` with `cls: "minute"`). `test/worker/data-api.spec.ts` pins the stored `max-age=60`.
+- **`minute` is the one "kept 60 s" of the program.** The data API rewrites the markets table's `day` set every minute and its `7day` and `30day` sets every five minutes, and says `Cache-Control: private, max-age=60`: `live` (5 s) would render a page twelve times for every change of a set, `slow` (an hour) would hide twelve. A subrequest of this class is kept 60 s, its edge TTL, as every class's subrequests are, and nothing keeps a call 60 s by a TTL constant of its own: a call that should be kept so names the class. Today that is `networkMarkets` and `activeAccounts`, the long-interval candles of the pair page (`pairCandles` with `cls: "minute"`), and the NFT pages' sets, which the aggregator rebuilds at its minute as well: the live `nftVolume`, the `nftCollections` list and `nftCollection`. `test/worker/data-api.spec.ts` pins the stored `max-age=60`.
 
 - **`live-home` is 1 s + 2 s, not the 3 s + 30 s of spec 4, at the owner's request.** A ledger closes every 3-4 s and an open home page follows the chain (see "Live updates"), so a reload must never show a copy much older than one ledger: a copy up to 1 s old is served as it is, one 1-3 s old is served at once while one render refreshes it, and an older one is not served (the visitor waits for a render). A render that fails is still replaced by the stored copy, of any age (`max(edge TTL + 30 s, 24 h)`, see above). The browser's `Cache-Control` is unchanged.
 - **The home page's three calls are kept `HOME_CALL_TTL_SECONDS` = 2 s, not by a class of their own.** `lastValidated`, `fees` and the first page of `transactions` (no marker, either direction) keep the class `live` (5 s) for every other caller, and the home loader asks for `{ ttl: HOME_CALL_TTL_SECONDS }` on them: a little longer than the page's 1 s at the edge, so that a refresh at the edge finds them warm, and shorter than a ledger. An answer asked for with a `ttl` has **a cache entry of its own** (its key says `[kept 2 s]`): an answer kept 5 s for the ledger page or the image route must not be what the home page reads, which could then be 5 s old before the page adds its own. The ledger page and the og route keep `lastValidated` at 5 s; account lists, balances, orders, node calls and a list reached with a marker (it ignores `ttl`, and keeps `MARKER_PAGE_CLASS` or `live`) keep what they had. `test/worker/data-api.spec.ts` pins each call's class, the override and the stored `max-age`, and `test/worker/home-live.spec.ts` that the home page's render stored its three calls for 2 s. **The page's worst-case age** is the edge's 1 s fresh and 2 s stale plus the 2 s its calls were kept: about 5 s, a ledger and a little. (The home loader also passes `holdFailure: true` on these three and on the ledger it reads, the next bullet.)
@@ -413,7 +413,7 @@ the browser).
   (the home page) exports `handle = { heroSearch: true }` so the header leaves its box out. The header's Ledgers and
   Transactions links go to the ids `latest-ledgers` and `latest-transactions` (`app/ui/anchors.ts`) on the home page.
 - **The NFT routes** (E8, "NFTs") are four children of `routes/net.tsx`: `routes/net.nfts._index.tsx` (`/{net}/nfts`), `net.nfts.sales.tsx`, `net.nfts.$issuer.$taxon.tsx` (`/{net}/nfts/{issuer}[/{taxon}]`, the taxon optional) and
-  `net.nft.$id.tsx`. Each exports `handle = { navSection: "nfts" } satisfies NetworkRouteHandle` (`app/ui/route-handle.ts`), so the header's NFTs item is `aria-current="page"` on the list and the older sales and `"true"` on a collection or an NFT.
+  `net.nft.$id.tsx`. Each exports `handle = { navSection: "nfts" } satisfies NetworkRouteHandle` (`app/ui/route-handle.ts`), so the header's NFTs item is `aria-current="page"` on the list (whatever its query) and `"true"` on any other page of the section: the older sales, a collection and an NFT (`nfts-list.spec.ts`, "the header's NFTs item").
   The header item is a link while `NFTS` is on and the "soon" label while it is off.
 - **Errors.** `net.tsx` and `root.tsx` export an `ErrorBoundary` that shows `RouteErrorScreen` inside the page frame: a 404
   thrown by `cached`/`upstreamFailure`/`requireNetwork` becomes `NotFoundPage` ("We couldn't find {what} on {network}",
@@ -1548,8 +1548,11 @@ cost a render each.
 **The nouns.** What a 64-digit input can be is one list, `hashNouns(net, { nfts })` in `app/domain/hash-nouns.ts` (`["transaction", "ledger"]`, with `NFTS` on `[…, "NFT"]` and on Xahau `[…, "URIToken"]`; `joinNouns` and `hashWhat` write it as a
 sentence: "transaction, ledger or NFT"), which every place that says it reads: the 404's "We couldn’t find transaction, ledger or NFT 4BC50C…A651 on XRPL.", the data of the 503, the prompt of an empty box ("Enter an address, a transaction, ledger or NFT hash,
 a ledger index or a CTID."), the box's hint of a hash ("Transaction, ledger or NFT") and its "Nothing on XRPL looks like that. Enter an address (r…), a 64-character transaction, ledger or NFT hash, …". While `NFTS` is off the list is the two nouns of before and
-every text is what it was (`nfts-off.spec.ts` pins them). **E10 and E14 extend it** in two places: E10 adds its ledger objects to `HashNounOptions` (the same name `HashQuestions` gives its switch) and to the list after the NFT, and to `findHash`'s two steps its
-question; E14's MPT id is 48 hexadecimal digits, a shape of its own that `classify` tells apart, with its own words and its own question, and no noun of this list. The shared box costs about 80 bytes on every page for each such extension
+every text is what it was (`nfts-off.spec.ts` pins them). **E10 and E14 extend it** by one switch, one noun and one question: the switch goes into `HashNounOptions` (and `NO_HASH_NOUNS`), named as the `Features` are, so that the box, the pages and the loader pass the layout's `Features` as they are and
+`HashQuestions` (`findHash`'s second step, `app/server/resolve.ts`) extends it with the network; the noun into `hashNouns`, after the NFT; the question into `findHash`'s two steps (the data API side by side, then the node). Every place that says the list
+follows (the 404, the 503, the empty prompt, the hint and "Nothing … looks like that"). Four places carry a noun of their own, which the extension must touch by hand: the box's placeholders (`placeholderOf` in `SearchBox.tsx`: "… CTID or NFT id"), the bullets of
+`SearchHelp` (`SearchPage.tsx`: "An NFT or URIToken id: 64 hexadecimal characters"), and the choice page's `nounsOf` (its row of each match) and `whatItIs` with its article ("a transaction", "an NFT": an MPT or a ledger object needs its own `a` or `an`;
+`SearchChoicePage.tsx`). E14's MPT id is 48 hexadecimal digits, a shape of its own that `classify` tells apart, with its own words and its own question, and no noun of this list. The shared box costs about 80 bytes on every page for each such extension
 ("The client bundle check").
 
 The hint rows of the box wrap when the tag is long ("Transaction, ledger or URIToken" on Xahau): `.search__hints .hit` (components.css) lets the hash drop to its own line, so that at 375 px, and at 320, no row is wider than the screen and the hash keeps
@@ -2610,34 +2613,34 @@ card, three lists of facts and two tables (`DataTable`, `Pager`, `CoverageNote`,
 - **The NFT page** is 13,227 bytes under its budget. **The collection** is the tightest lookup page, 756 bytes under, the list's 1,118 next: a later NFT page that grows the shared table, chart or `Sentence` chunks should look at both.
 
 **The figures of E8: the end** (Task 16: the sandbox, the off switch, the end-to-end specs and the noun list of the search; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included). *Before* is `57b60d0`,
-the commit the task started from, exported with `git archive`, built and measured on its own for this table. The task changed three things the browser loads: the search box's words (`app/domain/hash-nouns.ts`, one list for the hint, "Nothing … looks like that" and the
+the commit the task started from, exported with `git archive`, built and measured on its own for this table. The task (and its fix round) changed three things the browser loads: the search box's words (`app/domain/hash-nouns.ts`, one list for the hint, "Nothing … looks like that" and the
 prompt, read by the box that every page has), the search page's own words, and two rules of components.css (the hint row's wrap and `.table-scroll`'s containing block). All four NFT pages are lookup pages and none passed 150,000, so ruling C18's fallback (the dashboard
-budget, with its reason here) was not needed; the collection is the tightest, 444 bytes under, then the list, 797.
+budget, with its reason here) was not needed; the collection is the tightest, 414 bytes under, then the list, 764.
 
 | page | Before (files) | After (files) | Change | Budget | Under it by |
 |---|---:|---:|---:|---:|---:|
-| home | 135,419 (14) | 135,505 (14) | +86 | 150,000 | 14,495 |
-| ledger | 136,537 (20) | 136,607 (20) | +70 | 150,000 | 13,393 |
-| transaction | 139,118 (21) | 139,194 (21) | +76 | 150,000 | 10,806 |
-| account | 143,276 (28) | 143,355 (28) | +79 | 150,000 | 6,645 |
-| network | 151,795 (26) | 151,870 (26) | +75 | 160,000 | 8,130 |
-| markets | 134,897 (13) | 134,983 (13) | +86 | 150,000 | 15,017 |
-| market-pair | 150,616 (27) | 150,691 (27) | +75 | 160,000 | 9,309 |
-| validators | 149,749 (25) | 149,831 (25) | +82 | 160,000 | 10,169 |
-| validator | 150,056 (26) | 150,143 (26) | +87 | 160,000 | 9,857 |
-| amendments | 140,109 (18) | 140,198 (18) | +89 | 160,000 | 19,802 |
-| amendment | 148,618 (23) | 148,699 (23) | +81 | 160,000 | 11,301 |
-| amm | 144,836 (22) | 144,905 (22) | +69 | 160,000 | 15,095 |
-| amm-pool | 153,347 (36) | 153,421 (36) | +74 | 160,000 | 6,579 |
-| nfts | 149,124 (29) | **149,203** (29) | +79 | 150,000 | 797 |
-| nft-sales | 134,612 (19) | **134,680** (19) | +68 | 150,000 | 15,320 |
-| nft-collection | 149,479 (31) | **149,556** (31) | +77 | 150,000 | 444 |
-| nft | 137,166 (23) | **137,242** (23) | +76 | 150,000 | 12,758 |
-| account analytics (gate 2) | 155,449 (29) | 155,524 (29) | +75 | 160,000 | 4,476 |
-| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,167 | 2,159 | -8 | | |
+| home | 135,419 (14) | 135,516 (14) | +97 | 150,000 | 14,484 |
+| ledger | 136,537 (20) | 136,626 (20) | +89 | 150,000 | 13,374 |
+| transaction | 139,118 (21) | 139,187 (21) | +69 | 150,000 | 10,813 |
+| account | 143,276 (28) | 143,392 (28) | +116 | 150,000 | 6,608 |
+| network | 151,795 (26) | 151,905 (26) | +110 | 160,000 | 8,095 |
+| markets | 134,897 (13) | 134,986 (13) | +89 | 150,000 | 15,014 |
+| market-pair | 150,616 (27) | 150,719 (27) | +103 | 160,000 | 9,281 |
+| validators | 149,749 (25) | 149,856 (25) | +107 | 160,000 | 10,144 |
+| validator | 150,056 (26) | 150,168 (26) | +112 | 160,000 | 9,832 |
+| amendments | 140,109 (18) | 140,210 (18) | +101 | 160,000 | 19,790 |
+| amendment | 148,618 (23) | 148,726 (23) | +108 | 160,000 | 11,274 |
+| amm | 144,836 (22) | 144,929 (22) | +93 | 160,000 | 15,071 |
+| amm-pool | 153,347 (36) | 153,474 (36) | +127 | 160,000 | 6,526 |
+| nfts | 149,124 (29) | **149,236** (29) | +112 | 150,000 | 764 |
+| nft-sales | 134,612 (19) | **134,695** (19) | +83 | 150,000 | 15,305 |
+| nft-collection | 149,479 (31) | **149,586** (31) | +107 | 150,000 | 414 |
+| nft | 137,166 (23) | **137,270** (23) | +104 | 150,000 | 12,730 |
+| account analytics (gate 2) | 155,449 (29) | 155,563 (29) | +114 | 160,000 | 4,437 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,167 | 2,158 | -9 | | |
 
-- **The shared search box** is in every page: +68 to +89 bytes, the one list of nouns and its three words. A later feature that adds a noun to it (E10's ledger objects) costs about as much again on every page, and the collection (444 bytes under) and the list
-  (797) cannot take more than a few such steps: the next one that grows them takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
+- **The shared search box** is in every page: +69 to +127 bytes (the pages differ by their chunking), the one list of nouns, its three words and the switches it reads. A later feature that adds a noun to it (E10's ledger objects) costs about as much again on every page, and the collection (414 bytes under) and the list
+  (764) cannot take more than a few such steps: the next one that grows them takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
 - **The page that is tightest** is the NFT collection's: it draws the stats, the chart, the tabs with the tab's table and the owner form, and the shared sales table.
 
 ## The parsing libraries in the Workers runtime

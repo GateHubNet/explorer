@@ -3,7 +3,7 @@
 // server can say (a hash may be a transaction or a ledger; a CTID may be on the other network).
 
 import { formatAmount } from "../domain/format";
-import { hashWhat } from "../domain/hash-nouns";
+import { capitalized, hashWhat, NO_HASH_NOUNS, type HashNounOptions } from "../domain/hash-nouns";
 import type { SearchKind } from "../domain/search";
 import type { NetworkId } from "../server/networks";
 
@@ -15,19 +15,17 @@ export interface Hint {
   href: string;
 }
 
-const capitalized = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
-
 /**
- * What the box says of an input. With `nfts` (the `NFTS` switch, which `SearchBox` reads with `useFeatures()`) a 64-digit hash can be an NFT too: "Transaction, ledger or NFT" ("… or
+ * What the box says of an input. With `features.nfts` (the `NFTS` switch: `SearchBox` passes what `useFeatures()` gives) a 64-digit hash can be an NFT too: "Transaction, ledger or NFT" ("… or
  * URIToken" on Xahau). The nouns are `hashWhat` (app/domain/hash-nouns.ts, the list every word of the search uses), whose token's word is `nftWords(net).token`
  * (app/domain/nft-params.ts), written there because the box is on every page and that file is the NFT pages' (a test holds the two together).
  */
-export function hintsFor(found: SearchKind, net: NetworkId, opts: { nfts?: boolean } = {}): Hint[] {
+export function hintsFor(found: SearchKind, net: NetworkId, features: HashNounOptions = NO_HASH_NOUNS): Hint[] {
   switch (found.kind) {
     case "ledger-index":
       return [{ kind: "Ledger", detail: `#${formatAmount(String(found.index))}`, href: `/${net}/ledger/${found.index}` }];
     case "hash":
-      return [{ kind: capitalized(hashWhat(net, { nfts: opts.nfts === true })), detail: found.hash, href: `/${net}/search?q=${found.hash}` }];
+      return [{ kind: capitalized(hashWhat(net, features)), detail: found.hash, href: `/${net}/search?q=${found.hash}` }];
     case "ctid":
       return [{ kind: "Transaction", detail: `CTID ${found.ctid}`, href: `/${net}/search?q=${found.ctid}` }];
     case "account": {

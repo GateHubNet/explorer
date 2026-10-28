@@ -53,7 +53,7 @@ export function SearchBox({
   landmark?: boolean;
   initialQuery?: string;
 }) {
-  const { nfts } = useFeatures();
+  const features = useFeatures();
   const inputId = useId();
   const hintsId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +81,7 @@ export function SearchBox({
 
   const trimmed = query.trim();
   const found: SearchKind | undefined = open && classify && trimmed ? classify(trimmed) : undefined;
-  const hints = found ? hintsFor(found, net.id, { nfts }) : [];
+  const hints = found ? hintsFor(found, net.id, features) : [];
 
   return (
     <Form
@@ -120,7 +120,7 @@ export function SearchBox({
             if (event.key === "Escape") setOpen(false);
           }}
           className={cx("search__input", variant === "hero" && "mono")}
-          placeholder={placeholderOf(variant, nfts)}
+          placeholder={placeholderOf(variant, features.nfts)}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
@@ -163,7 +163,7 @@ export function SearchBox({
         )}
         {found?.kind === "none" && (
           <p className="search__empty">
-            Nothing on {net.name} looks like that. Enter an address (r&hellip;), a 64-character {hashWhat(net.id, { nfts })} hash, a
+            Nothing on {net.name} looks like that. Enter an address (r&hellip;), a 64-character {hashWhat(net.id, features)} hash, a
             ledger index, or a CTID (C followed by 15 hex digits).
           </p>
         )}

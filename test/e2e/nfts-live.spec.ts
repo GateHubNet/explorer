@@ -43,10 +43,22 @@ const FAILING = {
   [`GET /v2/nft_collections?issuer=${ISSUER}&limit=20&sort=volume`]: unavailable(),
 };
 
+/** What each of the three cards says when it failed. */
+const FAILED = ["Couldn’t load the sales volume.", "Couldn’t load the recent sales.", "Couldn’t load the collections."];
+
 /** The list with its three cards failed: each says so in its place with a Retry, and the totals, the top collections and the issuer form stand. */
 async function openFailing(page: Page): Promise<void> {
   await fixtures.override(FAILING);
-  await expect.poll(async () => (await (await page.request.get(LIST)).text()).replaceAll("<!-- -->", ""), { timeout: 15_000 }).toContain("Couldn’t load the recent sales.");
+  // Until the Worker's kept calls (the newest ledger 2 s, the sales 5 s) have run out, the page shows what it kept of the call that worked: it is asked for until every card says so.
+  await expect
+    .poll(
+      async () => {
+        const html = (await (await page.request.get(LIST)).text()).replaceAll("<!-- -->", "");
+        return FAILED.every((words) => html.includes(words));
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
   await page.goto(LIST);
   await hydrated(page);
   await expect(page.getByRole("alert")).toHaveCount(3);

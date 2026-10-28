@@ -3,8 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { loader as listLoader } from "../../app/routes/net.nfts._index";
 import { createLoadContext, type Env } from "../../app/server/env";
-import { elementText, pageClient, tableRows, textOf } from "../support/pages";
-import { collectionsMarker, salesMarker } from "../support/nft-cases";
+import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
+import { collectionCase, collectionsMarker, nftCase, salesMarker } from "../support/nft-cases";
 import { alerts, expectDegraded, isNoindex, isStored, keysOf, linksTo, tiles, unavailable } from "../support/nft-pages";
 import { cold, storedEntries, keptFor } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
@@ -21,6 +21,10 @@ import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../su
 // edge cache's freshness reads `Date`), so that no test reads what an earlier one left. The afterEach below fails a test whose override no request used.
 
 const { get, stored, storedAs } = pageClient("198.18.60");
+
+// A test here may ask several times whether the edge cache holds a copy it must not hold (`isStored` waits up to 2 s for each: a store runs behind the answer, so "not stored" means it
+// only after that wait), which is more than Vitest's 5 s for a test that does it three times.
+vi.setConfig({ testTimeout: 30_000 });
 
 let mock: UpstreamMock | undefined;
 
@@ -654,5 +658,38 @@ describe("the query of the URL (spec 1.2)", () => {
     expect(own.status).toBe(302);
     expect(own.headers.get("Location")).toBe("/xrpl/nfts");
     expect(own.headers.get("X-Cache-Class")).toBe("short");
+  });
+});
+
+// The header's NFTs item is the current section on every NFT page (`navSection: "nfts"`): `aria-current="page"` on the item's own page, the list, whatever its query, and `"true"` on any other
+// page of the section (the older sales, a collection, an NFT), as the Header's comment says and the README's routes bullet.
+describe("the header's NFTs item", () => {
+  /** The `aria-current` of the header's NFTs item on `path` (`undefined` when it is not marked current), and that the item is marked current at all. */
+  async function currentOf(net: "xrpl" | "xahau", path: string) {
+    cold();
+    mock = mockUpstream(net);
+    const { response, html } = await render(path);
+    expect(response.status, path).toBe(200);
+    const item = anchors(html).find((a) => a.attrs.includes("nav-item") && a.attrs.includes(`href="/${net}/nfts"`));
+    expect(item, `the header's NFTs item on ${path}`).toBeDefined();
+    return { current: /aria-current="([^"]*)"/.exec(item!.attrs)?.[1], marked: item!.attrs.includes("is-current") };
+  }
+
+  it("is current as 'page' on the list, whatever its query, and as 'true' on the older sales, first page or behind a marker", async () => {
+    expect(await currentOf("xrpl", "/xrpl/nfts?period=30day&sort=holders")).toEqual({ current: "page", marked: true });
+    mock!.restore();
+    expect(await currentOf("xrpl", "/xrpl/nfts/sales")).toEqual({ current: "true", marked: true });
+    mock!.restore();
+    expect(await currentOf("xrpl", `/xrpl/nfts/sales?marker=${await salesMarker("xrpl")}`)).toEqual({ current: "true", marked: true });
+    mock!.restore();
+    expect(await currentOf("xahau", "/xahau/nfts/sales")).toEqual({ current: "true", marked: true });
+  });
+
+  it("is current as 'true' on a collection and on an NFT", async () => {
+    const collection = await collectionCase("xrpl", "featured");
+    const nft = await nftCase("xrpl", "featured");
+    expect(await currentOf("xrpl", `/xrpl/nfts/${collection.issuer}/${collection.taxon}`)).toEqual({ current: "true", marked: true });
+    mock!.restore();
+    expect(await currentOf("xrpl", `/xrpl/nft/${nft.id}`)).toEqual({ current: "true", marked: true });
   });
 });

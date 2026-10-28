@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { nftWords } from "../domain/nft-params";
 import { classify } from "../domain/search";
+import { NO_FEATURES } from "./features";
 import { hintsFor } from "./search-hints";
 
 const ADDRESS = "rGz1sPmwvkaRyZido3CQB3ziVd9dwQ4Y6x";
@@ -39,9 +40,9 @@ describe("hintsFor", () => {
     ]);
   });
 
-  it("keeps its words without NFTs, whether the option says so or is not given", () => {
+  it("keeps its words without NFTs, whether the switches say so or are not given", () => {
     for (const net of ["xrpl", "xahau"] as const) {
-      for (const opts of [undefined, {}, { nfts: false }]) {
+      for (const opts of [undefined, { nfts: false }, NO_FEATURES]) {
         expect(hintsFor(classify(HASH), net, opts)[0], `${net} ${JSON.stringify(opts)}`).toMatchObject({ kind: "Transaction or ledger" });
       }
     }
@@ -51,6 +52,11 @@ describe("hintsFor", () => {
     for (const net of ["xrpl", "xahau"] as const) {
       expect(hintsFor(classify(HASH), net, { nfts: true })[0]!.kind).toBe(`Transaction, ledger or ${nftWords(net).token}`);
     }
+  });
+
+  it("takes the layout's Features as they are, as the box passes them: the switches of the words are the Features' own", () => {
+    expect(hintsFor(classify(HASH), "xrpl", { ...NO_FEATURES, nfts: true })[0]!.kind).toBe("Transaction, ledger or NFT");
+    expect(hintsFor(classify(HASH), "xahau", NO_FEATURES)[0]!.kind).toBe("Transaction or ledger");
   });
 
   it("changes nothing else with NFTs: a ledger, an account and a CTID are as they were", () => {

@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
 import { XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
-import { count, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
+import { count, LIVE, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
 import { expect, hydrated, test } from "./support";
 
 // The tags of a page are made by its `meta` export, which the browser runs too when a visitor follows a link inside the page: no new
@@ -118,6 +118,7 @@ test.describe("the tags of a page reached by a link in the page", () => {
   // The NFT routes are in the first page's route table too: moving from the list to a collection, its NFT and the older sales (and back to the home page) asks for no manifest.
   test("ask for no route manifest while moving between the NFT routes", async ({ page }) => {
     test.skip(featuresOff(process.env).has("NFTS"), "NFTS is off in the Worker under test: the NFT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated NFT fixtures (test/support/nft-names.ts), which a real stack does not hold");
     const manifests: string[] = [];
     page.on("request", (request) => {
       if (new URL(request.url()).pathname === "/__manifest") manifests.push(request.url());
@@ -272,6 +273,7 @@ test.describe("the tags of a page reached by a link in the page", () => {
 
   test("follow the NFT list to a collection and its NFT, with each page's own tags, and `noindex` behind a marker, and get them back", async ({ page, baseURL }) => {
     test.skip(featuresOff(process.env).has("NFTS"), "NFTS is off in the Worker under test: the NFT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated NFT fixtures (test/support/nft-names.ts), which a real stack does not hold");
     const origin = new URL(baseURL!).origin;
     const { issuer, taxon } = XRPL_COLLECTION.featured;
     const collection = `/xrpl/nfts/${issuer}/${taxon}`;
@@ -321,6 +323,7 @@ test.describe("the tags of a page reached by a link in the page", () => {
 
   test("search for an NFT only the network has: its page is kept out of the index with no canonical link, and the list's tags come back, in one document", async ({ page, baseURL }) => {
     test.skip(featuresOff(process.env).has("NFTS"), "NFTS is off in the Worker under test: the NFT pages are not found");
+    test.skip(LIVE, "the pages are drawn from the generated NFT fixtures (test/support/nft-names.ts), which a real stack does not hold");
     const origin = new URL(baseURL!).origin;
     await page.goto("/xrpl/nfts");
     await hydrated(page);

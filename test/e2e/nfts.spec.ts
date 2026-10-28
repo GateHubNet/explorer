@@ -239,6 +239,8 @@ test.describe("the list", () => {
     await expect(heading(page)).toHaveText("NFT sales");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+    // The header's item is the section's current one, "true" and not "page" on a page that is not the list.
+    await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "NFTs", exact: true })).toHaveAttribute("aria-current", "true");
     const rows = await rowsOf(page, "Sales").count();
     expect(rows).toBeGreaterThan(0);
 

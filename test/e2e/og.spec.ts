@@ -1,6 +1,6 @@
 import { featuresOff } from "../../scripts/e2e-env";
 import { XAHAU_NFT, XRPL_NFT } from "../support/nft-names";
-import { count, NO_SUCH_TRANSACTION, XAHAU_LEDGER, XRP_RLUSD_POOL, XRPL_ACCOUNT, XRPL_PAYMENT } from "./fixtures";
+import { count, LIVE, NO_SUCH_TRANSACTION, XAHAU_LEDGER, XRP_RLUSD_POOL, XRPL_ACCOUNT, XRPL_PAYMENT } from "./fixtures";
 import { expect, test } from "./support";
 
 // The link-preview images (spec 9): drawn by the Worker (Satori and resvg-wasm), 1200 x 630.
@@ -8,7 +8,10 @@ import { expect, test } from "./support";
 /** The AMM pool's image is there while AMM_PAGES is on; off, it is a 404 (below). */
 const AMM_OFF = featuresOff(process.env).has("AMM_PAGES");
 const POOL_IMAGE = `/og/xrpl/amm/${XRP_RLUSD_POOL}.png`;
-/** An NFT's image (kind `nft`) is there while NFTS is on; off, it is a 404 (below). */
+/**
+ * An NFT's image (kind `nft`) is there while NFTS is on; off, it is a 404 (below). The ids are the generated fixtures' (test/support/nft-names.ts), which a real stack does not hold:
+ * against one, the images of those NFTs are not looked for.
+ */
 const NFTS_OFF = featuresOff(process.env).has("NFTS");
 const NFT_IMAGE = `/og/xrpl/nft/${XRPL_NFT.featured}.png`;
 
@@ -19,7 +22,7 @@ const IMAGES = [
   // An AMM pool (kind `amm`): class `slow`, as an account's, since its value changes.
   ...(AMM_OFF ? [] : [{ kind: "pool", path: POOL_IMAGE, page: `/xrpl/amm/${XRP_RLUSD_POOL}`, cache: /max-age=300/ }]),
   // An NFT (kind `nft`): class `slow`, as an account's, since its owner changes; a URIToken's the same on Xahau. The page's og:image is the image.
-  ...(NFTS_OFF
+  ...(NFTS_OFF || LIVE
     ? []
     : [
         { kind: "NFT", path: NFT_IMAGE, page: `/xrpl/nft/${XRPL_NFT.featured}`, cache: /max-age=300/ },
@@ -65,7 +68,7 @@ test.describe("the Open Graph image", () => {
     // An AMM pool by something that is not an address, a pool on Xahau (which has no AMM) and, with AMM_PAGES off, every pool's.
     const pools = ["/og/xrpl/amm/nothing.png", `/og/xahau/amm/${XRP_RLUSD_POOL}.png`, ...(AMM_OFF ? [POOL_IMAGE] : [])];
     // An NFT by something that is no id, an id nobody has (neither the index nor the node), a URIToken's id on XRPL, and with NFTS off every NFT's.
-    const nfts = ["/og/xrpl/nft/nothing.png", `/og/xrpl/nft/${XRPL_NFT.missing}.png`, `/og/xrpl/nft/${XAHAU_NFT.featured}.png`, ...(NFTS_OFF ? [NFT_IMAGE] : [])];
+    const nfts = ["/og/xrpl/nft/nothing.png", ...(LIVE ? [] : [`/og/xrpl/nft/${XRPL_NFT.missing}.png`, `/og/xrpl/nft/${XAHAU_NFT.featured}.png`]), ...(NFTS_OFF ? [NFT_IMAGE] : [])];
     for (const path of [`/og/xrpl/tx/${NO_SUCH_TRANSACTION}.png`, "/og/xrpl/tx/nothing.png", "/og/nonet/tx/x.png", ...pools, ...nfts]) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(404);
@@ -75,6 +78,7 @@ test.describe("the Open Graph image", () => {
 
   test("of an NFT only the network has is drawn too, kept for a minute at most, and the card of a burned NFT is drawn", async ({ request }) => {
     test.skip(NFTS_OFF, "NFTS is off in the Worker under test: no NFT image is drawn (checked above)");
+    test.skip(LIVE, "the NFTs are the generated fixtures' (test/support/nft-names.ts), which a real stack does not hold");
     for (const [id, cache] of [
       [XRPL_NFT.network, /max-age=0/],
       [XRPL_NFT.burned, /max-age=300/],

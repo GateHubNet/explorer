@@ -672,12 +672,10 @@ const hashHints = (box: (page: Page) => ReturnType<Page["getByRole"]>) => async 
 const NFT_MAIN: PageUnderTest[] = [
   { name: "NFT list", path: "/xrpl/nfts", ready: nftListReady },
   {
+    // The sales behind the marker of the list's "Older sales" link (nfts.spec.ts follows the link): the URL itself, so that the landmarks and names checks below, which do not run `act`, see this page.
     name: "older NFT sales",
-    path: "/xrpl/nfts",
-    ready: nftListReady,
-    act: async (page) => {
-      await page.getByRole("link", { name: "Older sales" }).click();
-      await page.waitForURL((url) => url.pathname === "/xrpl/nfts/sales" && url.searchParams.has("marker"));
+    path: "/xrpl/nfts/sales?marker=WzEwNzg4NjE2Myw4MywxXQ",
+    ready: async (page) => {
       await expect(page.getByRole("heading", { level: 1, name: "NFT sales" })).toBeVisible();
       await visible("Sales")(page);
     },

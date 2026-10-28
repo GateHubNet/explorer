@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { hashNouns, hashWhat, joinNouns } from "./hash-nouns";
+import { NO_FEATURES } from "../ui/features";
+import { capitalized, hashNouns, hashWhat, joinNouns, NO_HASH_NOUNS } from "./hash-nouns";
 import { nftWords } from "./nft-params";
 
 describe("the nouns of a 64-hexadecimal search", () => {
@@ -27,5 +28,18 @@ describe("the nouns of a 64-hexadecimal search", () => {
     expect(joinNouns(["transaction"])).toBe("transaction");
     expect(joinNouns(["transaction", "ledger"])).toBe("transaction or ledger");
     expect(joinNouns(["transaction", "ledger", "NFT", "ledger object"])).toBe("transaction, ledger, NFT or ledger object");
+  });
+
+  it("is read from the layout's Features as they are (a Features is a HashNounOptions), and has every switch off by default", () => {
+    expect(hashWhat("xrpl", { ...NO_FEATURES, nfts: true })).toBe("transaction, ledger or NFT");
+    expect(hashWhat("xrpl", NO_FEATURES)).toBe("transaction or ledger");
+    expect(NO_HASH_NOUNS).toEqual({ nfts: false });
+    expect(Object.keys(NO_HASH_NOUNS).every((name) => name in NO_FEATURES)).toBe(true);
+  });
+
+  it("writes the first letter in capitals for a title or a label, and nothing else", () => {
+    expect(capitalized("transaction, ledger or NFT")).toBe("Transaction, ledger or NFT");
+    expect(capitalized("URIToken")).toBe("URIToken");
+    expect(capitalized("")).toBe("");
   });
 });

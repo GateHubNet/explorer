@@ -4,6 +4,7 @@
 // a failure is a 503 that is never stored. Worker-only code, for loaders; the callers map failures with `upstreamFailure`.
 
 import { decodeCtid } from "../domain/ctid";
+import type { HashNounOptions } from "../domain/hash-nouns";
 import type { NftAnswer, NftKind } from "./api-types";
 import type { DataApi } from "./data-api";
 import { networkIdOfCtid, type Network, type NetworkId } from "./networks";
@@ -77,12 +78,11 @@ export interface HashMatches {
 
 /**
  * What a search asks of a 64-digit hash besides the transaction and the ledger, which it always asks: `net` says which command asks the node for an NFT (XRPL's `nft_info`,
- * Xahau's `ledger_entry` of a URIToken), and `nfts` whether it asks for one at all (the `NFTS` switch: while it is off no NFT question is asked of the index or the node).
- * Later features add their questions here (E10: `ledgerObjects`).
+ * Xahau's `ledger_entry` of a URIToken), and the switches (`HashNounOptions`, app/domain/hash-nouns.ts, which the words of the search read too) whether it asks for one at all: `nfts`, the
+ * `NFTS` switch, while it is off no NFT question is asked of the index or the node. A feature that adds a question adds its switch to `HashNounOptions`, not here (E10: `ledgerObjects`).
  */
-export interface HashQuestions {
+export interface HashQuestions extends HashNounOptions {
   net: NetworkId;
-  nfts: boolean;
 }
 
 type NftMatch = NonNullable<HashMatches["nft"]>;

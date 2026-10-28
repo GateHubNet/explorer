@@ -10,7 +10,7 @@ import { upstreamFailure } from "../server/loader-errors";
 import { metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
 import { networkIdOfCtid, networkOf, type NetworkId } from "../server/networks";
-import { findHash, resolveCtid } from "../server/resolve";
+import { findHash, resolveCtid, type HashQuestions } from "../server/resolve";
 import {
   choicePage,
   ctidNotFoundPage,
@@ -72,7 +72,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
     case "hash": {
       const { api, node } = clientsFor(context, network);
-      const asked = { net: network.id, nfts: network.features.nfts };
+      const asked: HashQuestions = { net: network.id, ...network.features };
       let matches;
       try {
         matches = await findHash(api, node, input.hash, asked);
