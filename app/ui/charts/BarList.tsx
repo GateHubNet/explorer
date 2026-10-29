@@ -1,6 +1,7 @@
 import { memo, useRef, type CSSProperties } from "react";
 
 import { formatAmount } from "../../domain/format";
+import { LabelMark, NameMark } from "../components/NameMark";
 import { RouteLink } from "../components/RouteLink";
 import { cx } from "../cx";
 import { cellOf } from "./cells";
@@ -8,6 +9,8 @@ import { percent } from "./geometry";
 import { valueText } from "./labels";
 import { usePlotRing } from "./Plot";
 import type { BarListData } from "./types";
+
+type BarItem = BarListData["items"][number];
 
 export interface BarListProps {
   data: BarListData;
@@ -26,9 +29,46 @@ export interface BarListProps {
 const LABEL_MIN = 7;
 /** A sublabel is set in 11 px under a label of 13 px: its characters are this much of one of the label's. */
 const SUB_SCALE = 11 / 13;
+/**
+ * The room the marks of a named item take after its label, in characters of the label's font (7.8 px at 13 px): a space and a 14 px icon, 3; a space
+ * and the "not verified" tag (11 px text, 82 px with its padding and border), 12. Without it a mark would wrap under a label that fills its column.
+ */
+const MARK_ICON_CHARS = 3;
+const MARK_TAG_CHARS = 12;
+
+/** The characters the marks of `mark` take after the label: none for an item without one. */
+function markChars(mark: BarItem["mark"]): number {
+  if (!mark) return 0;
+  const name = mark.kind === undefined ? 0 : mark.kind === "domain" ? MARK_TAG_CHARS : MARK_ICON_CHARS;
+  return name + (mark.labels.length > 0 ? MARK_ICON_CHARS : 0);
+}
 
 /** "312 trades", "1 trade": the count grouped, with its noun. */
 const tradesText = (count: string): string => `${formatAmount(count)} ${count === "1" ? "trade" : "trades"}`;
+
+/**
+ * The marks of a named account after its label (E9, spec 4.3): how its name is known, then its labels, each after a space so that the words read on
+ * ("Northpeak Treasury verified name labelled scam by GateHub"). Nothing for an item without `mark`, or with a `mark` of nothing.
+ */
+function Marks({ mark }: { mark: BarItem["mark"] }) {
+  if (!mark) return null;
+  return (
+    <>
+      {mark.kind !== undefined && (
+        <>
+          {" "}
+          <NameMark kind={mark.kind} />
+        </>
+      )}
+      {mark.labels.length > 0 && (
+        <>
+          {" "}
+          <LabelMark labels={mark.labels} />
+        </>
+      )}
+    </>
+  );
+}
 
 /**
  * Labelled horizontal bars (spec 2.3 and 2.11), an ordered list with a row for each item, in the order given: its label, with the sublabel (a
@@ -65,7 +105,7 @@ export const BarList = memo(
       return { strong: valueText(item.value, format, "compact"), rest: after === null ? "" : ` · ${after}` };
     });
 
-    const labelChars = Math.max(LABEL_MIN, ...items.map((item) => Math.max(item.label.length, Math.ceil((item.sublabel?.length ?? 0) * SUB_SCALE))));
+    const labelChars = Math.max(LABEL_MIN, ...items.map((item) => Math.max(item.label.length + markChars(item.mark), Math.ceil((item.sublabel?.length ?? 0) * SUB_SCALE))));
     // The whole tip; one more column for the bold figure.
     const tipChars = Math.max(0, ...tips.map((text) => (text.strong?.length ?? 0) + text.rest.length)) + 1;
     const style = { "--label": `min(${labelChars}ch, 45%)`, "--tip": `calc(${tipChars}ch + 10px)` } as CSSProperties;
@@ -79,9 +119,13 @@ export const BarList = memo(
                 {item.href ? (
                   <RouteLink to={item.href} className="barlist__link">
                     {item.label}
+                    <Marks mark={item.mark} />
                   </RouteLink>
                 ) : (
-                  item.label
+                  <>
+                    {item.label}
+                    <Marks mark={item.mark} />
+                  </>
                 )}
               </span>
               {item.sublabel && <span className="barlist__sub">{item.sublabel}</span>}

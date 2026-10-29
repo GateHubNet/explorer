@@ -227,7 +227,13 @@ describe("the browser bundle", () => {
 
   it("imports no value from the server, and loads only pure files of the domain", () => {
     const source = readFileSync(new URL("domain/names.ts", appDir), "utf8");
-    expect(valueImports(source).sort()).toEqual(["./format", "./time-words"]);
+    expect(valueImports(source).sort()).toEqual(["./format", "./join-and"]);
     expect(staticClosure(appDir, "domain/names.ts").filter((file) => file.startsWith("server/"))).toEqual([]);
+  });
+
+  // Every page that draws an account loads names.ts. time-words.ts (dates, the countdown's words) is for the pages that draw those: through names.ts it was a file
+  // of its own on all the others (353 bytes gzipped, found by the bundle check when AccountLink began to read names).
+  it("does not load time-words.ts, which the pages that draw an account have no use for", () => {
+    expect(staticClosure(appDir, "domain/names.ts")).not.toContain("domain/time-words.ts");
   });
 });

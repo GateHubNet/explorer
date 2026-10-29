@@ -133,11 +133,12 @@ const ROUTES: FakeRoute[] = [
   { id: "routes/net.amm._index", parentId: "routes/net", module: "amm.js", imports: ["shared.js", "table.js", "charts.js"] },
   // The AMM pool page draws five charts, its tables and the slot's meter.
   { id: "routes/net.amm.$pool", parentId: "routes/net", module: "amm-pool.js", imports: ["shared.js", "table.js", "charts.js"] },
-  // The NFT list and the older sales are lookup pages, like the markets page: no heavier than home's (the 150,000 B pin test above sizes the home page to the limit and
-  // needs it to be the heaviest lookup page of the build; the list's charts are in what the real build measures, README "The client bundle check").
+  // The NFT list took the dashboard budget with E9 (its account links read names: README "The client bundle check"); the older sales are a lookup page, like the markets page.
+  // All three no heavier than home's here (the 150,000 B pin test above sizes the home page to the limit and needs it to be the heaviest lookup page of the build; the list's
+  // charts are in what the real build measures).
   { id: "routes/net.nfts._index", parentId: "routes/net", module: "nfts.js", imports: ["shared.js", "table.js"] },
   { id: "routes/net.nfts.sales", parentId: "routes/net", module: "nft-sales.js", imports: ["shared.js", "table.js"] },
-  // A collection's page draws a chart and its tables, and is a lookup page too (it measured under 150,000 B): the same.
+  // A collection's page draws a chart and its tables, and took the dashboard budget with E9, as the list did: the same.
   { id: "routes/net.nfts.$issuer.$taxon", parentId: "routes/net", module: "nft-collection.js", imports: ["shared.js", "table.js"] },
   // An NFT's page draws no chart, only a header, lists and two tables: a lookup page too, the same.
   { id: "routes/net.nft.$id", parentId: "routes/net", module: "nft.js", imports: ["shared.js", "table.js"] },
@@ -192,9 +193,9 @@ describe("the pages", () => {
       { name: "amendment", route: "routes/net.amendments.$name", budget: "dashboard" },
       { name: "amm", route: "routes/net.amm._index", budget: "dashboard" },
       { name: "amm-pool", route: "routes/net.amm.$pool", budget: "dashboard" },
-      { name: "nfts", route: "routes/net.nfts._index", budget: "lookup" },
+      { name: "nfts", route: "routes/net.nfts._index", budget: "dashboard" },
       { name: "nft-sales", route: "routes/net.nfts.sales", budget: "lookup" },
-      { name: "nft-collection", route: "routes/net.nfts.$issuer.$taxon", budget: "lookup" },
+      { name: "nft-collection", route: "routes/net.nfts.$issuer.$taxon", budget: "dashboard" },
       { name: "nft", route: "routes/net.nft.$id", budget: "lookup" },
     ]);
   });

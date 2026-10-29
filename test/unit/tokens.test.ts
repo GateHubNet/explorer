@@ -192,6 +192,13 @@ function componentsRule(selector: string): string {
   return match[1]!;
 }
 
+/** The token a rule of components.css paints its text and icon with (`color: var(--ok)`). */
+function colourTokenOf(selector: string): keyof typeof LIGHT {
+  const token = /(?:^|[;\s])color\s*:\s*var\((--[\w-]+)\)/.exec(componentsRule(selector))?.[1];
+  if (!token || !(token in LIGHT)) throw new Error(`${selector} in components.css sets no colour from the tokens`);
+  return token as keyof typeof LIGHT;
+}
+
 /** The share of --sunken in the background of a hovered table row, as written in components.css. */
 const ROW_HOVER_SHARE = Number(/\.table__row:not\(\.table__head\):hover\s*\{[^}]*--sunken\)\s+(\d+)%/.exec(readFileSync(new URL("../../app/ui/components.css", import.meta.url), "utf8"))?.[1]) / 100;
 
@@ -242,6 +249,28 @@ describe.each([
     expect(opacity).toBeGreaterThan(0);
     const shown = mix(c(fg), c(bg), opacity); // the text colour blended into the pill's background
     expect(contrast(shown, c(bg))).toBeGreaterThanOrEqual(AA);
+  });
+
+  // The marks beside an account's name (E9, spec 4.2). The text colours of --ok, --muted and --bad on --surface are asserted above; what is new is
+  // the grounds a mark sits on in a row or a chip: the page (--bg), a chip (--sunken), a hovered row. An icon is a graphic, which needs 3:1
+  // (WCAG 1.4.11), and the colour is read from the rule that paints it, so that a changed rule is what fails.
+  const GROUNDS = (): Array<[string, Rgb]> => [["--bg", c("--bg")], ["--sunken", c("--sunken")], ["a hovered row", mix(c("--sunken"), c("--surface"), ROW_HOVER_SHARE)]];
+
+  it.each([
+    [".namemark--verified", "--ok"],
+    [".namemark--account", "--muted"],
+    [".labelmark", "--bad"],
+  ] as const)("the icon of %s is painted with %s, and is at least 3:1 on the page, a chip and a hovered row", (selector, token) => {
+    for (const [name, ground] of GROUNDS()) expect(contrast(c(colourTokenOf(selector)), ground), name).toBeGreaterThanOrEqual(3);
+    expect(colourTokenOf(selector)).toBe(token);
+  });
+
+  // The tag 'not verified' (.unv) is 11 px text with no ground of its own (the board's): it sits on the page, a card, a chip or a hovered row.
+  it(".unv, the 'not verified' tag, has text at least 4.5:1 on every ground it sits on, and no ground of its own that this would miss", () => {
+    expect(componentsRule(".unv")).not.toMatch(/background/);
+    for (const [name, ground] of [...GROUNDS(), ["--surface", c("--surface")] as [string, Rgb]]) {
+      expect(contrast(c(colourTokenOf(".unv")), ground), name).toBeGreaterThanOrEqual(AA);
+    }
   });
 
   // The charts' tokens (spec section 2.10). Their figures are the spec's, to 2 decimals.

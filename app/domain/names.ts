@@ -1,10 +1,11 @@
 // What an account's entry in the data API's names batch becomes for the pages (E9, spec 3.3): the name to draw, its kind, the account network name, the domain, and the labels,
 // with the one place that words the hover title and the plain text of an issuer. Pure and safe for the browser, because every page that shows an account draws it (and a
 // client-side navigation renders it there): it imports the data API's types, which the compiler erases, and two pure files of the domain, nothing of app/server.
+// `joinAnd` comes from join-and.ts and not time-words.ts: from there it would bring the dates and the countdown's words to every page that draws an account.
 
 import type { AccountNameEntry } from "../server/api-types";
 import { shortAddress } from "./format";
-import { joinAnd } from "./time-words";
+import { joinAnd } from "./join-and";
 
 /** How a name is known: the toml of the account's domain lists the address (`verified`), GateHub gave the account the name (`account`), or only the account's domain says it (`domain`). */
 export type NameKind = "verified" | "account" | "domain";

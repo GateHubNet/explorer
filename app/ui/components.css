@@ -706,6 +706,67 @@ a.nav-item:hover {
   color: var(--ok);
 }
 
+/* An account with a name (AccountLink, E9; the board AccountNames.dc.html): the name, then the mark that says how it is known, and the labels' mark. The name
+   is cut with an ellipsis when it does not fit, never in the data, and the marks stay: they do not shrink. The link's own focus ring and its target are the
+   link's, as for an address; the marks add none. Before .ent, so that a chip keeps its own gap. */
+.acct {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acct__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The whole address after the name (AccountLink `full`): mono, the board's 12.5 px, and it wraps where it must, as a bare address does. */
+.acct__address {
+  min-width: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+/* The marks: a shape each, drawn in `currentColor` so that forced colours keep them, and a word (visually hidden, or the tag's own). In an inline-flex
+   link `vertical-align` is ignored; beside a mono address, or a label in a list, it sets the icon on the text. */
+.namemark {
+  display: inline-flex;
+  flex: none;
+  vertical-align: -2px;
+}
+
+.namemark--verified {
+  color: var(--ok);
+}
+
+.namemark--account {
+  color: var(--muted);
+}
+
+.labelmark {
+  display: inline-flex;
+  flex: none;
+  vertical-align: -2px;
+  color: var(--bad);
+}
+
+/* "not verified": a name that only the account's domain says. The board's tag: dashed, no ground of its own (tokens.test.ts holds its text to 4.5:1 on
+   every ground it can sit on). */
+.unv {
+  flex: none;
+  padding: 0 5px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 5px;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 /* An account, in a sentence: a chip. */
 .ent {
   display: inline-flex;
@@ -722,6 +783,11 @@ a.nav-item:hover {
 
 a.ent {
   color: var(--fg);
+}
+
+/* A chip with a name is the name's words, not an address: not mono (the whole address in it, `.acct__address`, has its own .mono). */
+.ent.acct {
+  font-family: inherit;
 }
 
 a.ent:hover {

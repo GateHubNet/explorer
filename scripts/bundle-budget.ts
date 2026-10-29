@@ -4,8 +4,8 @@
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
 //   - the JavaScript a page loads first, gzipped, is over the page's budget (`BUDGETS`, ruling R19): 150 KB on the home, ledger, transaction,
-//     account, markets and NFT list, older sales, collection and NFT pages, 160 KB on the network, market pair, validators,
-//     validator, amendments, amendment, AMM pools and AMM pool pages (the route manifest is in it: see below);
+//     account, markets, NFT older sales and NFT pages, 160 KB on the network, market pair, validators, validator, amendments, amendment,
+//     AMM pools, AMM pool, NFT list and NFT collection pages (the route manifest is in it: see below);
 //   - the analytics view of the account page loads more than 160 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
 //     to file (each file once); or that `import()` or a file it reaches is not in the build;
@@ -27,10 +27,11 @@ import { gzipSync } from "node:zlib";
 /**
  * The two budgets, in bytes of 1000 to the KB (ruling R19, the owner's: "Keep 150 KB for home, ledger, transaction and account; raise the limit to
  * 160 KB for the network, market pair, account analytics, validators, amendments and AMM pages"). `lookup`, 150 KB: the pages a visitor opens to
- * look one thing up, and the markets list and the NFT list, older sales, collection and NFT, which the owner did not name and which keep the default (C18: a page that measures over it takes the
- * dashboard budget, with the reason in the README). `dashboard`, 160 KB: the pages that draw the network's activity in charts, and the account's analytics view. At the end of E8 the
- * lookup pages stand between 134.7 and 149.8 KB (the NFT collection the heaviest, then the NFT list at 149.4: the two closest to their budget), the dashboards between 140.2 and
- * 153.5 KB (the AMM pool the heaviest) and the view at 155.6 KB, the route manifest (about 2.2 KB) included (README, "The client bundle check").
+ * look one thing up, and the markets list and the NFT older sales and NFT pages, which the owner did not name and which keep the default (C18: a page that measures over it takes the
+ * dashboard budget, with the reason in the README). `dashboard`, 160 KB: the pages that draw the network's activity in charts, and the account's analytics view, and, since E9, the NFT list
+ * and the NFT collection: like the AMM pool page they draw charts and account links, and E9's names in the shared `AccountLink` pushed both over 150 KB (they stood at 149.4 and 149.8 KB at the
+ * end of E8, the two closest to their budget). The other lookup pages stood between 134.7 and 143.4 KB then, the dashboards between 140.2 and 153.5 KB (the AMM pool the heaviest) and the view
+ * at 155.6 KB, the route manifest (about 2.2 KB) included (README, "The client bundle check").
  */
 export const BUDGETS = { lookup: 150_000, dashboard: 160_000 } as const;
 export type BudgetName = keyof typeof BUDGETS;
@@ -50,9 +51,9 @@ export const PAGES = [
   { name: "amendment", route: "routes/net.amendments.$name", budget: "dashboard" },
   { name: "amm", route: "routes/net.amm._index", budget: "dashboard" },
   { name: "amm-pool", route: "routes/net.amm.$pool", budget: "dashboard" },
-  { name: "nfts", route: "routes/net.nfts._index", budget: "lookup" },
+  { name: "nfts", route: "routes/net.nfts._index", budget: "dashboard" },
   { name: "nft-sales", route: "routes/net.nfts.sales", budget: "lookup" },
-  { name: "nft-collection", route: "routes/net.nfts.$issuer.$taxon", budget: "lookup" },
+  { name: "nft-collection", route: "routes/net.nfts.$issuer.$taxon", budget: "dashboard" },
   { name: "nft", route: "routes/net.nft.$id", budget: "lookup" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 

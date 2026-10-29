@@ -1,6 +1,8 @@
 // The data shapes of the chart kit (spec section 2.3). Type-only: view builders import these types and hand the kit exact decimal
 // strings; the kit parses them with `Number()` for geometry and nothing else. Every text a chart shows is made from the strings.
 
+import type { NameKind } from "../../domain/names";
+
 export type Slot = 1 | 2 | 3 | 4 | 5 | "other" | "up" | "down" | "neutral";
 export type ValueKind = "count" | "amount" | "drops" | "percent" | "seconds" | "price" | "value";   // "value": an estimate in the native currency
 export interface ValueFormat { kind: ValueKind; unit?: string }             // unit: "XRP", "USD", "drops"
@@ -55,6 +57,12 @@ export interface BarListData {
     count?: string;                                                  // the table's column; the tip's "312 trades" when `tip="count"`
     /** The path the label is a link to (`/xrpl/account/r…`), the view builder's. The bar is not a target. */
     href?: string;
+    /**
+     * The marks of a named account (E9): how its name is known (`kind`) and the labels GateHub gave it, drawn after the label, inside its link. The view
+     * builder writes the `label` (the name), `sublabel` (the short address) and this; an item without it is drawn as before. It is part of what the
+     * list draws, so the `token` covers it.
+     */
+    mark?: { kind?: NameKind; labels: string[] };
   }[];
   format: ValueFormat;
   token: string;

@@ -1524,7 +1524,7 @@ around them (ruling 6: the featured NFT's history is padded with older offer eve
 the node has, one only the node has, a missing id; a collection of each case) are found by the rules of `test/support/nft-case-rules.ts` for the Worker's specs; the end-to-end suite names them in `test/support/nft-names.ts`, which
 `test/worker/nft-fixtures.spec.ts` holds to the rules.
 
-**The bundle.** Each NFT page is a lookup page (150,000 B gzip with the manifest; "The client bundle check"). The pages import no `app/server`, `ripple-*` or Worker-only domain file; the collection's page is the tightest.
+**The bundle.** Each NFT page was a lookup page (150,000 B gzip with the manifest; "The client bundle check"); since E9 the list and the collection are dashboards (160,000 B: "Why the NFT list and collection are dashboards" there), `nft-sales` and `nft` stay lookup pages. The pages import no `app/server`, `ripple-*` or Worker-only domain file; the collection's page is the tightest.
 
 **Tests.** `app/domain/nft-params.test.ts`, `nft-link.test.ts`, `nft-id.test.ts`, `hash-nouns.test.ts`; the view builders' tests beside them in `app/server/` (`nfts-view`, `nft-collection-view`, `nft-view`, `nft-format`, `nft-shape`, `coverage`, `nft-read`); the pages' in
 `app/ui/pages/` (`NftsPage`, `NftSalesPage`, `NftCollectionPage`, `NftPage`); the loaders on the real Worker in `test/worker/nfts-list.spec.ts`, `nft-collection.spec.ts`, `nft.spec.ts`, `search.spec.ts`, `og.spec.ts`; the data API and node clients in `data-api.spec.ts`,
@@ -2153,8 +2153,8 @@ visually hidden words of its cells (components.css): the sweep found it on the N
 was reached (a link to it included): a gate that cannot tell whether it is being run must fail, not pass. It fails when:
 
 - a page loads more JavaScript, gzipped, than its budget (`BUDGETS` in `scripts/bundle-budget.ts`, ruling R19): **150 KB** (150,000 bytes) for the lookup pages,
-  the home, ledger, transaction, account and markets routes and the four NFT pages, `nfts`, `nft-sales`, `nft-collection` and `nft`, and **160 KB** (160,000 bytes) for the dashboards, the network, market pair, validators, validator, amendments and amendment
-  routes and the two AMM pages, `amm` and `amm-pool` (`PAGES`, which names each page's budget); what it loads
+  the home, ledger, transaction, account and markets routes and two of the NFT pages, `nft-sales` and `nft`, and **160 KB** (160,000 bytes) for the dashboards, the network, market pair, validators, validator, amendments and amendment
+  routes, the two AMM pages, `amm` and `amm-pool`, and, since E9, the NFT list and the NFT collection, `nfts` and `nft-collection` (`PAGES`, which names each page's budget; "Why the NFT list and collection are dashboards" below); what it loads
   first is read from the build's client manifest (`assets/manifest-*.js`, `window.__reactRouterManifest`): the entry, the root route, the `/:net`
   layout and the page's route, with every chunk those import statically (the manifest's `imports` hold the whole closure), **and the manifest itself**, which every page loads
   and which lists every route of the app, so it grows with each. Chunks fetched with `import()` (the search box's classifier) are not in it. Each file counts once, at its
@@ -2415,7 +2415,7 @@ analytics view's copy of the kit passes its own checks as before: its chunk impo
 market pair, account analytics, validators, amendments and AMM pages"). `BUDGETS` in `scripts/bundle-budget.ts` has the two, and each page of `PAGES` names
 its own: `lookup`, 150,000 bytes, for the home, ledger, transaction and account pages and the markets list (which the owner did not name: it keeps the
 default); `dashboard`, 160,000 bytes, for the network, market pair, validators, validator, amendments and amendment pages, the AMM list and pool pages (E5) and the
-analytics view (`ANALYTICS_VIEW`). What is counted, and how, is as
+analytics view (`ANALYTICS_VIEW`), and, since E9, the NFT list and collection pages ("Why the NFT list and collection are dashboards" below). What is counted, and how, is as
 above; the measures of R17 and R18 (one shell file with the pages' modules, the analytics view's copy of the kit) stay. At `7c77254`, the commit that made the two: home 133,693, ledger
 132,979, transaction 135,227, account 137,788 and markets 132,758 against 150,000; network 146,744, market pair 146,445 and account analytics 149,680 against
 160,000.
@@ -2685,6 +2685,17 @@ unchanged. All four NFT pages are lookup pages and none passed 150,000, so rulin
 - **The forms** are most of it (gzip -9 of each chunk alone): the list's route chunk grew about 117 bytes (the field's ref, the effect that remembers what the page last showed in it, and the alert's key) and the collection's about 166 (the form's two fields and the stats' note); `NftSalesTable`'s chunk,
   which the list, the older sales and the collection load, about 24 (the header's arrow and its "to"); the account route's chunk 6 ("Showing ").
 - **The collection** is the tightest lookup page, 231 bytes under, the list 625: the next step that grows either (E10's nouns in the search box, a shared table or chart chunk) takes the dashboard budget, with its reason in this section, or moves a shared chunk out of them.
+
+**Why the NFT list and collection are dashboards** (E9, display names). The two were the lookup pages closest to 150,000 at the end of E8: `nfts` at 149,375 and `nft-collection` at 149,769 (the figures
+above), and the notes above said the next step that grew either would take the dashboard budget, with its reason here. E9's names are that step: every page that draws an account loads `AccountLink`, which now reads
+the page's names and draws their marks (`NameMark.tsx`, the context of `names.tsx`: +1.1 to +1.5 KB gzipped on each of those pages, the marks' chunk, `join-and.ts` and a larger `AccountLink`), and both NFT pages draw account links.
+Like the AMM pool page, which took the dashboard budget for the same kind of reason, these two draw charts and account links together, and E9's names in the shared `AccountLink` pushed them over 150,000 B
+(150,844 and 151,070 bytes with the marks). `nfts` and `nft-collection` are `budget: "dashboard"` in `PAGES`; `nft-sales` and `nft` stay lookup pages.
+
+**`joinAnd` is apart from `time-words.ts`** (E9). `names.ts` words the labels with `joinAnd`, which was in `time-words.ts` with the dates and the countdown's words. Imported from there, that file stopped being part of
+`Countdown`'s chunk and became a chunk of its own, loaded by every page that draws an account (353 bytes gzipped; it was not in the shell chunk, which every page loads, and is not now). `joinAnd` is in
+`app/domain/join-and.ts` now, which `names.ts` imports (118 bytes gzipped as a file of its own); `time-words.ts` exports it too, for the files that import it with the dates, and a test of `names.ts` holds
+`time-words.ts` out of its closure. The validators and amendments pages, which load `time-words.ts` through `Countdown`, grow by 20 bytes over E8's figures (the manifest's 68, less what the `Countdown` chunk lost) and not by 214.
 
 ## The parsing libraries in the Workers runtime
 
