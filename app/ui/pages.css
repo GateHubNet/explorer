@@ -475,22 +475,23 @@ a.example:hover {
   color: var(--faint);
 }
 
-/* An account in the balance changes, with what it was in the transaction. */
-.acct {
+/* An account in the balance changes, with what it was in the transaction. Not `.acct`: that is the named AccountLink's (components.css), which this sheet, imported after it, would
+   override at equal specificity. */
+.change-acct {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.acct > a {
+.change-acct > a {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.acct .type {
+.change-acct .type {
   flex: none;
   font-size: 11px;
 }

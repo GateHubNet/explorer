@@ -9,6 +9,7 @@ import xrplNfts from "../fixtures/http/xrpl/data-api/nft_collections/rLxc1bt5def
 import xahauSales from "../fixtures/http/xahau/data-api/nft_collections/rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb/sales@descending=true&limit=20.json";
 import { ammPoolAccount } from "../support/amm-samples";
 import {
+  dataUrlOf,
   expectAccountsDrawn,
   failingNames,
   inCalls,
@@ -62,9 +63,6 @@ const NFTS_CALL = `GET /v2/nft_collections/${KEY}/nfts?limit=20`;
 const parties = (sales: unknown[]) => collectAddresses((sales as NftSale[]).flatMap((sale) => [sale.seller, sale.buyer]));
 const ownersOf = (nfts: Array<{ owner?: string; burned: boolean }>) => collectAddresses(nfts.flatMap((nft) => (nft.burned ? [] : [nft.owner])));
 
-/** The `.data` URL of a view, as the browser asks for it. */
-const dataUrl = (path: string) => `${path}${path.includes("?") ? "&" : "?"}_routes=${encodeURIComponent(ROUTE)}`;
-
 describe("the Sales tab's names call", () => {
   it("is one, after the page's calls, for the header's issuer and the sellers and buyers of the rows sorted, and the page draws each by what the fixtures say", async () => {
     const mock = upstream("xrpl");
@@ -111,7 +109,7 @@ describe("the Sales tab's names call", () => {
 
   it("carries the names the call gave in the page's data, for the browser", async () => {
     const mock = upstream("xrpl");
-    const body = await (await get(dataUrl(`${PATH}.data?measure=sales`))).text();
+    const body = await (await get(dataUrlOf(`${PATH}.data?measure=sales`, ROUTE))).text();
     const part = namesPartOf(body, ROUTE);
 
     expect(part.state).toBe("ok");
@@ -210,7 +208,7 @@ describe("when the names call fails", () => {
   it("marks the data of that page failed, with no names", async () => {
     watchNamesLog();
     upstream("xrpl", failingNames());
-    const body = await (await get(dataUrl(`${PATH}.data?measure=avg`))).text();
+    const body = await (await get(dataUrlOf(`${PATH}.data?measure=avg`, ROUTE))).text();
     expect(namesPartOf(body, ROUTE)).toEqual({ state: "failed", map: {} });
   });
 });

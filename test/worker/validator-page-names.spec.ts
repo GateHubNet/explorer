@@ -5,6 +5,7 @@ import type { DomainVerification } from "../../app/server/api-types";
 import { ammPoolAccount } from "../support/amm-samples";
 import {
   answerNamesAfterTheirEnd,
+  dataUrlOf,
   expectAccountsDrawn,
   expectLinkedAccountsNamed,
   failingNames,
@@ -89,12 +90,12 @@ describe("the names call of the live page", () => {
     const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
     const path = `/xrpl/validators/${ACCOUNTS.key}.data`;
     await forgetStored(path);
-    const body = await (await get(`${path}?_routes=${encodeURIComponent(ROUTE)}`)).text();
+    const body = await (await get(dataUrlOf(path, ROUTE))).text();
     const part = namesPartOf(body, ROUTE);
 
     expect(part.state).toBe("ok");
     expect(Object.keys(part.map).sort()).toEqual(sorted(namesCalls(mock).flat()));
-    expect(await storedAs(`${path}?_routes=${encodeURIComponent(ROUTE)}`)).toEqual({ cls: "live-home", ttl: 1 });
+    expect(await storedAs(dataUrlOf(path, ROUTE))).toEqual({ cls: "live-home", ttl: 1 });
   });
 
   it("draws each account it lists by the name the data API gives it", async () => {
@@ -132,7 +133,7 @@ describe("the names call of the live page", () => {
     expect(namesCalls(mock)).toEqual([]);
     expect(linkedAccounts(html, "xrpl")).toEqual([]);
     expect(withoutNames(mock.requests)).toHaveLength(5);
-    const body = await (await get(`${path}.data?_routes=${encodeURIComponent(ROUTE)}`)).text();
+    const body = await (await get(dataUrlOf(`${path}.data`, ROUTE))).text();
     expect(namesPartOf(body, ROUTE)).toEqual({ state: "ok", map: {} });
   });
 });
@@ -161,7 +162,7 @@ describe("when the names call fails", () => {
     // The beat of the open page: the route's own `.data` request, for the same accounts and so the same key of the names call.
     watchNamesLog();
     const failing = upstream("xrpl", failingNames());
-    const beat = `/xrpl/validators/${ACCOUNTS.key}.data?_routes=${encodeURIComponent(ROUTE)}`;
+    const beat = dataUrlOf(`/xrpl/validators/${ACCOUNTS.key}.data`, ROUTE);
     await forgetStored(beat);
     const first = await get(beat);
     expect(namesPartOf(await first.text(), ROUTE)).toEqual({ state: "failed", map: {} });

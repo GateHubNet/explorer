@@ -9,6 +9,7 @@ import xrplMoreSales from "../fixtures/http/xrpl/data-api/nft_sales@descending=t
 import xrplSales from "../fixtures/http/xrpl/data-api/nft_sales@descending=true&limit=10.json";
 import { ammPoolAccount } from "../support/amm-samples";
 import {
+  dataUrlOf,
   expectAccountsDrawn,
   failingNames,
   inCalls,
@@ -48,9 +49,6 @@ const OLDER = "GET /v2/nft_sales?descending=true&limit=20";
 /** The sellers and buyers of the sales of an answer, once each, in the order the table draws them. */
 const partiesOf = (answer: { sales: unknown[] }) => collectAddresses((answer.sales as unknown as NftSale[]).flatMap((sale) => [sale.seller, sale.buyer]));
 
-/** The `.data` URL of a route's view, as the browser asks for it. */
-const dataUrl = (path: string, routeId: string) => `${path}${path.includes("?") ? "&" : "?"}_routes=${encodeURIComponent(routeId)}`;
-
 describe("the NFT list's names call", () => {
   it("is one, after the calls of the page, for the sellers and buyers of the recent sales sorted, and the table draws each by what the fixtures say", async () => {
     const mock = upstream("xrpl");
@@ -85,7 +83,7 @@ describe("the NFT list's names call", () => {
 
   it("carries the names the call gave in the page's data, for the browser: the accounts the fixtures give something to show", async () => {
     const mock = upstream("xrpl");
-    const body = await (await get(dataUrl("/xrpl/nfts.data?period=7day", LIST))).text();
+    const body = await (await get(dataUrlOf("/xrpl/nfts.data?period=7day", LIST))).text();
     const part = namesPartOf(body, LIST);
 
     expect(part.state).toBe("ok");
@@ -143,7 +141,7 @@ describe("when the names call fails", () => {
   it("marks the data of that page failed, with no names", async () => {
     watchNamesLog();
     upstream("xrpl", failingNames());
-    const body = await (await get(dataUrl("/xrpl/nfts.data?period=30day", LIST))).text();
+    const body = await (await get(dataUrlOf("/xrpl/nfts.data?period=30day", LIST))).text();
     expect(namesPartOf(body, LIST)).toEqual({ state: "failed", map: {} });
   });
 });
@@ -158,7 +156,7 @@ describe("a page of the list behind a marker", () => {
     expect(namesCalls(mock)).toEqual([]);
     expect(linkedAccounts(html, "xrpl")).toEqual([]);
     expect(await storedAs(path)).toEqual({ cls: "slow", ttl: 3600 });
-    const body = await (await get(dataUrl(`/xrpl/nfts.data?marker=${marker}`, LIST))).text();
+    const body = await (await get(dataUrlOf(`/xrpl/nfts.data?marker=${marker}`, LIST))).text();
     expect(namesPartOf(body, LIST)).toEqual({ state: "ok", map: {} });
   });
 });
@@ -235,7 +233,7 @@ describe("the older sales page", () => {
     await expectDegraded(path, behind);
     expect(logged()).toBe(2);
 
-    const body = await (await get(dataUrl("/xrpl/nfts/sales.data", SALES))).text();
+    const body = await (await get(dataUrlOf("/xrpl/nfts/sales.data", SALES))).text();
     expect(namesPartOf(body, SALES)).toEqual({ state: "failed", map: {} });
   });
 });

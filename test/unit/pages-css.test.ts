@@ -375,3 +375,27 @@ describe("the Testnet badge", () => {
     expect(rule(componentsCss, ".hdr__brandgroup")).toMatchObject({ display: "flex", "align-items": "center", gap: "10px" });
   });
 });
+
+describe("the classes of an account link (display names spec 4.4)", () => {
+  // `.acct` was once the balance changes' account too, defined in pages.css, which `styles.css` imports after components.css: at equal specificity the later rule won on every named
+  // `AccountLink`, which became a block-level flex box with an 8 px gap, and a name in a sentence broke the line. The classes of `AccountLink` and its marks are components.css's alone.
+  const chartsCss = read("charts.css");
+  const CLASSES = [".acct", ".acct__name", ".acct__address", ".namemark", ".namemark--verified", ".namemark--account", ".labelmark"];
+  /** Whether a stylesheet's rules mention `name` as a class: not a longer class that starts with it (`.acct__name` is not `.acct`). */
+  const mentions = (css: string, name: string) => new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(css);
+
+  it.each(CLASSES)("%s is defined in components.css and in no other stylesheet", (name) => {
+    expect(mentions(componentsCss, name), `components.css has ${name}`).toBe(true);
+    for (const [file, css] of [["pages.css", pagesCss], ["charts.css", chartsCss], ["base.css", baseCss]] as const) expect(mentions(css, name), `${file} has ${name}`).toBe(false);
+  });
+
+  it("is a link of its own as the name's box: inline-flex with a 4 px gap, as components.css says, whatever page it is on", () => {
+    expect(rule(componentsCss, ".acct")).toMatchObject({ display: "inline-flex", gap: "4px" });
+  });
+
+  it("leaves the balance changes' account to a class of its own: a flex row 8 px apart that cuts its link, and keeps the role small", () => {
+    expect(rule(pagesCss, ".change-acct")).toMatchObject({ display: "flex", "align-items": "center", gap: "8px", "min-width": "0" });
+    expect(rule(pagesCss, ".change-acct > a")).toMatchObject({ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" });
+    expect(rule(pagesCss, ".change-acct .type")).toMatchObject({ flex: "none", "font-size": "11px" });
+  });
+});

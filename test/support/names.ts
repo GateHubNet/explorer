@@ -90,6 +90,12 @@ export function namesStatuses(mock: { requests: readonly SeenRequest[] }): numbe
 /** The words the marks add to a name in a link's text (`NameMark`): a verified name's seal, GateHub's tag, the visible "not verified". */
 export const MARK_WORDS = { verified: "verified name", account: "named by GateHub", domain: "not verified" } as const satisfies Record<NameKind, string>;
 
+/**
+ * The URL a route's data is asked for with, as the browser asks for it: `path` (which ends in `.data`, and may have a query) with `_routes` naming the route by its id
+ * (`routes/net.amm._index`), which is no part of the view.
+ */
+export const dataUrlOf = (path: string, routeId: string): string => `${path}${path.includes("?") ? "&" : "?"}_routes=${encodeURIComponent(routeId)}`;
+
 /** The names part of a route's data in the body of its `.data` response, by the route's id (`routes/net.amm._index`). */
 export function namesPartOf(body: string, routeId: string): { state: string; map: Record<string, unknown> } {
   const routes = decodeLoaderData(body) as Record<string, { data: { names: { state: string; map: Record<string, unknown> } } }>;

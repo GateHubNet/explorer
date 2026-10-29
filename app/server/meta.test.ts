@@ -1427,7 +1427,7 @@ describe("nftMeta", () => {
   it("keeps the owner's short address (display names spec 7): the tags of a page that names its accounts are those of one that does not, the title and the description in out-of-context shares", () => {
     const names: NamesPart = { state: "ok", map: { [NFT_OWNER]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } } };
     const list = nftMeta({ ...view(), names }, XRPL);
-    expect(content(list, "description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL");
+    expect(content(list, "description")).toBe(`Owned by ${shortAddress(NFT_OWNER)} · last sold for 10 XRP · XRPL`);
     expect(list).toEqual(nftMeta(view(), XRPL));
     expect(JSON.stringify(list)).not.toContain("Northpeak Treasury");
   });

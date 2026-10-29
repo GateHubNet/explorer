@@ -5,6 +5,7 @@ import type { Nft, NftEvent, NftOffer } from "../../app/server/api-types";
 import { ammPoolAccount } from "../support/amm-samples";
 import {
   answerNamesAfterTheirEnd,
+  dataUrlOf,
   expectAccountsDrawn,
   expectLinkedAccountsNamed,
   failingNames,
@@ -67,9 +68,6 @@ function indexAnswers(id: string, { nft = {}, offers = [], events = [] }: { nft?
   };
 }
 
-/** The `.data` URL of a view, as the browser asks for it. */
-const dataUrl = (path: string) => `${path}${path.includes("?") ? "&" : "?"}_routes=${encodeURIComponent(ROUTE)}`;
-
 describe("the names call of an NFT of the index", () => {
   it("is one, after the page's three calls, for the accounts the page draws sorted, and the page draws each by what the fixtures say", async () => {
     const mock = upstream("xrpl");
@@ -89,7 +87,7 @@ describe("the names call of an NFT of the index", () => {
 
   it("carries the names the call gave in the page's data, for the browser", async () => {
     const mock = upstream("xrpl");
-    const body = await (await get(dataUrl(`/xrpl/nft/${FEATURED.id}.data`))).text();
+    const body = await (await get(dataUrlOf(`/xrpl/nft/${FEATURED.id}.data`, ROUTE))).text();
     const part = namesPartOf(body, ROUTE);
 
     expect(part.state).toBe("ok");
@@ -216,7 +214,7 @@ describe("when the names call fails", () => {
   it("marks the data of that page failed, with no names", async () => {
     watchNamesLog();
     upstream("xrpl", failingNames());
-    const body = await (await get(dataUrl(`/xrpl/nft/${FEATURED.id}.data?offers=1`))).text();
+    const body = await (await get(dataUrlOf(`/xrpl/nft/${FEATURED.id}.data?offers=1`, ROUTE))).text();
     expect(namesPartOf(body, ROUTE)).toEqual({ state: "failed", map: {} });
   });
 });

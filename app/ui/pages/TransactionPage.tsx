@@ -145,7 +145,7 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
       header: "Account",
       width: "minmax(200px, 1.6fr)",
       cell: (change) => (
-        <span className="acct">
+        <span className="change-acct">
           <AccountLink net={net} address={change.account} />
           {change.role && <span className="type">{ROLE_LABEL[change.role]}</span>}
         </span>
