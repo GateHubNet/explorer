@@ -1556,6 +1556,72 @@ export interface NftVolume {
   rows: NftVolumeRow[];
 }
 
+// ---- Account names and tomls: GET /v2/account_names, GET /v2/toml/{domain} -----------------------------------------------------------------------------------------
+//
+// Written from D4's reference (data-api-new `feat/explorer-data-2` at 3feb11a, docs/api-reference.md, "Account names and tomls"); api/openapi.yaml has the two paths and no
+// response schemas. A key without a value is left out, never `null`. `names-shape.ts` checks what the pages read of them.
+
+/**
+ * The kinds of display name D4 serves: a `verified` name (the toml of the account's domain lists the address), a name the operator gave the `account`, or the account's
+ * `domain`, which nothing vouches for.
+ */
+export type DisplayNameKind = "verified" | "account" | "domain";
+
+/** A label the operator put on an address (`scam`, `spam` or `advisory`); `description` may be empty. */
+export interface LabelData {
+  description: string;
+  source?: string;
+  url?: string;
+}
+
+/**
+ * One address of `GET /v2/account_names`. `domain` is the account domain whatever its state (and may come with no `display_name`: that is how D4 answers when it could not read its
+ * toml store). `account_name` and `account_network_name` are the operator's names for the address, `labels` its labels in the order `scam`, `spam`, `advisory`.
+ */
+export interface AccountNameEntry {
+  address: string;
+  /** `kind` is a DisplayNameKind, or a kind of a newer API, which this build reads as no name. */
+  display_name?: { text: string; kind: string };
+  domain?: string;
+  account_name?: string;
+  account_network_name?: string;
+  labels?: Record<string, LabelData>;
+}
+
+/** `GET /v2/account_names?addresses=a,b,…`: one entry for each address asked, in the order asked (an address asked twice is answered at each place). */
+export interface AccountNamesResponse {
+  result: "success";
+  count: number;
+  account_names: AccountNameEntry[];
+}
+
+/**
+ * What the toml of a domain says, as D4's `tomls` worker last stored it. `status` `failed` has a `reason` (`http_status` has the `status_code` too); `fetched` is when the
+ * content was read and is there while the content is in effect, also on a failed read within the grace of a transient failure. Empty lists are left out. `accounts` may
+ * repeat an address, once for each counting network.
+ */
+export interface TomlData {
+  domain: string;
+  toml_url: string;
+  status: "ok" | "failed";
+  reason?: string;
+  status_code?: number;
+  checked: string;
+  fetched?: string;
+  modified?: string;
+  expires?: string;
+  accounts?: { address: string; desc?: string }[];
+  currencies?: { code: string; issuer?: string; display_decimals?: number; symbol?: string; name?: string; desc?: string }[];
+  principals?: string[];
+  validators?: { public_key: string; owner_country?: string; server_country?: string; unl?: string }[];
+}
+
+/** `GET /v2/toml/{domain}`. */
+export interface TomlAnswer {
+  result: "success";
+  toml: TomlData;
+}
+
 // ---- What the node answers for an NFT --------------------------------------------------------------------------------------------------------------------------
 
 // The node's answers as `node-rpc.ts` returns them (read on 2026-10-24 from `https://s1.ripple.com:51234/`, a Clio server, and `https://xahau.network/`): times in unix seconds

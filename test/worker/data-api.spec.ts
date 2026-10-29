@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type MockInstance } from "vitest";
 
 import type {
+  AccountNamesResponse,
   AccountTxStatsRow,
   AccountValueRow,
   ActiveAccounts,
@@ -39,6 +40,7 @@ import type {
   PaymentVolumeComponent,
   ReducedRow,
   StatsRow,
+  TomlAnswer,
   TxObject,
   ValidatorDetail,
   ValidatorsList,
@@ -3774,6 +3776,293 @@ describe("D3's NFT calls", () => {
     expectTypeOf<NftAnswer["coverage"]["from_ledger_index"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<NftAnswer["coverage"]["complete"]>().toEqualTypeOf<boolean>();
     expectTypeOf<NftCollectionAnswer["collection"]["taxon"]>().toEqualTypeOf<number | undefined>();
+  });
+});
+
+// E9's two calls (display-names spec 2.1): the names of up to 100 addresses and what a domain's toml says, D4's `/v2/account_names` and `/v2/toml/{domain}`
+// (data-api-new `feat/explorer-data-2` at 3feb11a, docs/api-reference.md, "Account names and tomls"). Each answer is checked inside the load the cache runs
+// (names-shape.ts), so that one that is not what the reference promises is a failure of kind `server` and is never stored. Both are class `minute`: D4 reloads
+// the names every 60 s and answers `max-age=60`, and changes a toml's row hourly.
+describe("E9's names and toml calls", () => {
+  const NAMED = "rrrrrrrrrrrrrrrrrrrpnkLzyT5b";
+  const OTHER = "rrrrrrrrrrrrrrrrrrrpnkW55rwD";
+  const DOMAIN = "northpeak.example";
+
+  /** An answer for the addresses asked: an entry for each, in the order asked, that nothing names. */
+  const namesFor = (addresses: readonly string[]): AccountNamesResponse => ({
+    result: "success",
+    count: addresses.length,
+    account_names: addresses.map((address) => ({ address })),
+  });
+  const tomlFor = (domain: string): TomlAnswer => ({
+    result: "success",
+    toml: {
+      domain,
+      toml_url: `https://${domain}/.well-known/xrp-ledger.toml`,
+      status: "ok",
+      checked: "2026-10-24T07:12:09.410Z",
+      fetched: "2026-10-24T07:12:09.410Z",
+      accounts: [{ address: NAMED, desc: "Northpeak Treasury" }],
+      principals: ["Mara Lindqvist"],
+    },
+  });
+
+  /** What D4 answers for the path asked: the names of the addresses in the query, or the toml of the domain in the path. */
+  const answer = async (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.pathname.endsWith("/account_names")) return json(namesFor((url.searchParams.get("addresses") ?? "").split(",")));
+    return json(tomlFor(decodeURIComponent(url.pathname.split("/").at(-1)!)));
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it("keeps 'toml not found' as not_found, and makes Cannot GET (a data API without D4) a server error, which is never stored", async () => {
+      const { api, storedBy } = storing("e9-toml-failures");
+
+      fetchSpy.mockResolvedValueOnce(notFound("toml not found"));
+      const missing = await failureOf(api.toml("gone.example"));
+      expect([missing.kind, missing.status]).toEqual(["not_found", 404]);
+      expect(missing.message).toBe("data API GET /v2/toml/gone.example answered 404: toml not found");
+      expect(isNotFound(missing)).toBe(true);
+
+      fetchSpy.mockImplementation(async () => notFound("Cannot GET /v2/toml/x.example"));
+      const noRoute = await failureOf(api.toml("x.example"));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe("data API GET /v2/toml/x.example answered 404: Cannot GET /v2/toml/x.example (the data API has no such route)");
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(isNotFound(noRoute)).toBe(false);
+
+      // Neither was stored: the next call asks again.
+      fetchSpy.mockClear();
+      fetchSpy.mockImplementation(async () => notFound("toml not found"));
+      expect(await storedBy(() => api.toml("gone.example").catch(() => undefined))).toEqual([]);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      await failureOf(api.toml("gone.example"));
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("makes Cannot GET of the names route a server error, D4's 400s the visitor's (bad_request) and its 500s a server failure, and stores none of them", async () => {
+      const { api, storedBy } = storing("e9-names-failures");
+
+      fetchSpy.mockImplementation(async () => notFound("Cannot GET /v2/account_names"));
+      const noRoute = await failureOf(api.accountNames([NAMED]));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe(`data API GET /v2/account_names?addresses=${NAMED} answered 404: Cannot GET /v2/account_names (the data API has no such route)`);
+      expect(await storedBy(() => api.accountNames([NAMED]).catch(() => undefined))).toEqual([]);
+
+      for (const message of ["addresses is required", "too many addresses - at most 100", "invalid ripple address"]) {
+        fetchSpy.mockResolvedValueOnce(json({ result: "error", message }, { status: 400 }));
+        const refused = await failureOf(api.accountNames([NAMED, OTHER]));
+        expect([message, refused.kind, refused.status]).toEqual([message, "bad_request", 400]);
+        expect(refused.message).toContain(message);
+      }
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve account names" }, { status: 500 }));
+      expect(await failureOf(api.accountNames([NAMED]))).toMatchObject({ kind: "server", status: 500 });
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve toml" }, { status: 500 }));
+      expect(await failureOf(api.toml(DOMAIN))).toMatchObject({ kind: "server", status: 500 });
+
+      // A 429 is the API limiting us.
+      fetchSpy.mockResolvedValueOnce(json({ error: "rate limit exceeded" }, { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "7" } }));
+      expect(await failureOf(api.accountNames([NAMED]))).toMatchObject({ kind: "rate_limited", retryAfter: 7 });
+    });
+
+    type Pair = [name: string, call: (api: DataApi) => Promise<unknown>, good: unknown, bad: unknown, what: string];
+    const MALFORMED: Pair[] = [
+      [
+        "accountNames, a count that is not the addresses asked",
+        (a) => a.accountNames([NAMED, OTHER]),
+        namesFor([NAMED, OTHER]),
+        { ...namesFor([NAMED, OTHER]), count: 3 },
+        "count",
+      ],
+      [
+        "accountNames, an entry for another address",
+        (a) => a.accountNames([NAMED, OTHER]),
+        namesFor([NAMED, OTHER]),
+        { ...namesFor([NAMED, OTHER]), account_names: [{ address: OTHER }, { address: NAMED }] },
+        "account_names[0].address",
+      ],
+      [
+        "accountNames, a label without a description",
+        (a) => a.accountNames([NAMED]),
+        namesFor([NAMED]),
+        { ...namesFor([NAMED]), account_names: [{ address: NAMED, labels: { scam: {} } }] },
+        "account_names[0].labels.scam.description",
+      ],
+      ["toml, the toml of another domain", (a) => a.toml(DOMAIN), tomlFor(DOMAIN), tomlFor("lowtide.example"), "toml.domain"],
+      [
+        "toml, a status that is neither ok nor failed",
+        (a) => a.toml(DOMAIN),
+        tomlFor(DOMAIN),
+        { ...tomlFor(DOMAIN), toml: { ...tomlFor(DOMAIN).toml, status: "pending" } },
+        "toml.status",
+      ],
+    ];
+
+    it.each(MALFORMED)("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, call, good, bad, what) => {
+      const { api, storedBy } = storing(`e9-malformed-${what.replace(/\W+/g, "-")}`);
+      fetchSpy.mockResolvedValueOnce(json(bad));
+
+      const error = await failureOf(call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain("answered something unexpected");
+      expect(error.message).toContain(what);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(bad));
+      expect(await storedBy(() => call(api).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(good));
+      expect((await storedBy(() => call(api))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(await call(api)).toEqual(good);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("accountNames", () => {
+    it("asks /v2/account_names with the addresses as given in one comma list, class minute", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      const names = await api.accountNames([NAMED, OTHER]);
+
+      expect(names).toEqual(namesFor([NAMED, OTHER]));
+      expect(sentRequest().url).toBe(`${BASE}/v2/account_names?addresses=${NAMED}%2C${OTHER}`);
+      expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+      expect(cache.calls).toHaveLength(1);
+      expect(cache.calls[0]!.cls).toBe("minute");
+      expect(cache.calls[0]!.ttlOverride).toBeUndefined();
+      expect(cache.calls[0]!.key).toBe(`GET ${BASE}/v2/account_names?addresses=${NAMED}%2C${OTHER}`);
+    });
+
+    it("sends the addresses in the order it was given them (loadNames sorts), one or a repeated one included", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.accountNames([OTHER, NAMED]);
+      await api.accountNames([NAMED]);
+      await api.accountNames([NAMED, NAMED]);
+
+      expect(cache.calls.map((call) => call.key.slice(`GET ${BASE}/v2/account_names?addresses=`.length))).toEqual([`${OTHER}%2C${NAMED}`, NAMED, `${NAMED}%2C${NAMED}`]);
+    });
+
+    it("passes holdFailure to the cache when asked, and keeps it out of the key: the same call, with it and without, is the same entry", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.accountNames([NAMED], { holdFailure: true });
+      await api.accountNames([NAMED]);
+      await api.accountNames([NAMED], { holdFailure: false });
+
+      expect(cache.calls.map((call) => "holdFailure" in call)).toEqual([true, false, false]);
+      expect(cache.calls[0]!.holdFailure).toBe(true);
+      expect(new Set(cache.calls.map((call) => call.key)).size).toBe(1);
+    });
+
+    it("keeps an answer a TTL of the caller's own, with an entry of its own", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.accountNames([NAMED], { ttl: 30 });
+      await api.accountNames([NAMED]);
+
+      expect(cache.calls[0]!.ttlOverride).toBe(30);
+      expect(cache.calls[0]!.key).toBe(`GET ${BASE}/v2/account_names?addresses=${NAMED} [kept 30 s]`);
+      expect(cache.calls[1]!.key).toBe(`GET ${BASE}/v2/account_names?addresses=${NAMED}`);
+    });
+
+    it("asks the host of the network it was created for", async () => {
+      fetchSpy.mockImplementation(answer);
+
+      await createDataApi(xahau, env, passThroughCache).accountNames([NAMED]);
+
+      expect(sentRequest().url).toBe(`https://xahau.data.example.invalid/v2/account_names?addresses=${NAMED}`);
+    });
+  });
+
+  describe("toml", () => {
+    it("asks /v2/toml/{domain}, class minute", async () => {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      const answered = await api.toml(DOMAIN);
+
+      expect(answered).toEqual(tomlFor(DOMAIN));
+      expect(sentRequest().url).toBe(`${BASE}/v2/toml/${DOMAIN}`);
+      expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+      expect(cache.calls).toHaveLength(1);
+      expect(cache.calls[0]!.cls).toBe("minute");
+      expect(cache.calls[0]!.ttlOverride).toBeUndefined();
+      expect(cache.calls[0]!.key).toBe(`GET ${BASE}/v2/toml/${DOMAIN}`);
+      expect("holdFailure" in cache.calls[0]!).toBe(false);
+    });
+
+    it("takes the answer of a check that failed", async () => {
+      const { api } = recording();
+      const failed: TomlAnswer = {
+        result: "success",
+        toml: {
+          domain: "gone.example",
+          toml_url: "https://gone.example/.well-known/xrp-ledger.toml",
+          status: "failed",
+          reason: "http_status",
+          status_code: 404,
+          checked: "2026-10-20T11:00:00.250Z",
+        },
+      };
+      fetchSpy.mockResolvedValueOnce(json(failed));
+
+      expect(await api.toml("gone.example")).toEqual(failed);
+    });
+
+    it("escapes the domain it puts in a path, so that it cannot reach another endpoint", async () => {
+      const { api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await api.toml("a/b?c#d");
+      expect(sentRequest().url).toBe(`${BASE}/v2/toml/a%2Fb%3Fc%23d`);
+    });
+
+    it.each(["..", ".", ""])("refuses %j as a domain without sending anything", async (domain) => {
+      const { api } = recording();
+
+      expect((await failureOf(api.toml(domain))).kind).toBe("bad_request");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(answer);
+
+    await createDataApi(xrpl, env, cache).accountNames([NAMED]);
+    await createDataApi(xahau, env, cache).accountNames([NAMED]);
+    await createDataApi(xrpl, env, cache).toml(DOMAIN);
+    await createDataApi(xahau, env, cache).toml(DOMAIN);
+
+    expect(new Set(cache.calls.map((call) => call.key)).size).toBe(4);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.accountNames([NAMED, OTHER])).toEqualTypeOf<Promise<AccountNamesResponse>>();
+    expectTypeOf(api.accountNames([NAMED], { holdFailure: true, ttl: 5 })).toEqualTypeOf<Promise<AccountNamesResponse>>();
+    expectTypeOf(api.toml(DOMAIN)).toEqualTypeOf<Promise<TomlAnswer>>();
+    // The keys the reference lets an answer go without.
+    expectTypeOf<AccountNamesResponse["account_names"][number]["display_name"]>().toEqualTypeOf<{ text: string; kind: string } | undefined>();
+    expectTypeOf<TomlAnswer["toml"]["fetched"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<TomlAnswer["toml"]["accounts"]>().toEqualTypeOf<{ address: string; desc?: string }[] | undefined>();
   });
 });
 

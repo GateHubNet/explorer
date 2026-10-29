@@ -31,6 +31,7 @@ import {
 import type {
   AccountData,
   AccountExchange,
+  AccountNamesResponse,
   AccountTxStatsRow,
   AccountValueRow,
   ActiveAccounts,
@@ -80,6 +81,7 @@ import type {
   PaymentVolumeComponent,
   ReducedRow,
   StatsRow,
+  TomlAnswer,
   TxBinary,
   TxObject,
   TxStoredJson,
@@ -99,6 +101,7 @@ import {
 } from "./cache-class";
 import type { Env } from "./env";
 import { isMarker } from "./marker";
+import { checkAccountNames, checkToml } from "./names-shape";
 import type { Network } from "./networks";
 import {
   checkCollection,
@@ -199,6 +202,12 @@ const PATHS = {
   nftHistory: "/v2/nfts/{nft_id}/history",
   nftOffers: "/v2/nfts/{nft_id}/offers",
   accountNfts: "/v2/accounts/{address}/nfts",
+  // D4's two routes (data-api-new `feat/explorer-data-2`, pinned at `3feb11a`), which the display names (E9) ask for only while `NAMES` is on. A data API deployed without D4
+  // answers `Cannot GET`, an outage.
+  /** The display names of 1 to 100 addresses, `?addresses=a,b,…`. */
+  accountNames: "/v2/account_names",
+  /** What the toml of a domain says, as D4's `tomls` worker last stored it; the domain is a well-formed lower-case one. */
+  toml: "/v2/toml/{domain}",
 } as const satisfies Record<string, keyof paths>;
 
 /** The two forms of each route of a collection: of an issuer alone (Xahau) and of an issuer and a taxon (XRPL). */
@@ -504,6 +513,19 @@ export interface DataApi {
   nftHistory(id: string, q: ListQuery & { event?: readonly NftEventKind[] }): Promise<NftEventsPage>;
   /** The NFTs an account holds now, by collection and serial. D3 answers an address that holds none, or is none, with an empty page. Class `live`, `MARKER_PAGE_CLASS` behind a marker. */
   accountNfts(address: string, q: ListQuery): Promise<NftsPage>;
+  /**
+   * The display names of 1 to 100 classic addresses, one entry for each, in the order given (`loadNames` sorts them and keeps a call to 100). Sent as given,
+   * `?addresses=a,b,…`. Class `minute`: D4 reloads the names every 60 s and answers `max-age=60`. Checked inside the load by `checkAccountNames` (the count and the list as
+   * long as the addresses, each entry the address asked at its place, the shape of a name and of the labels), so that an answer that is not right is a failure of kind
+   * `server`, never stored. A polled page asks for `holdFailure`.
+   */
+  accountNames(addresses: readonly string[], opts?: FreshOptions): Promise<AccountNamesResponse>;
+  /**
+   * What the toml of a domain says (a well-formed lower-case domain: E9 asks for no other). Class `minute`: D4 changes a toml's row hourly and answers `max-age=60`.
+   * `toml not found` (the domain was never checked) is `not_found`; `Cannot GET` (a data API without D4) is `server`. Checked inside the load by `checkToml` (the domain, the
+   * status, the lists' shapes).
+   */
+  toml(domain: string): Promise<TomlAnswer>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -959,5 +981,12 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         finish: checkNftEventsPage,
       }),
     accountNfts: (address, q) => get<NftsPage>(PATHS.accountNfts, { address }, listQuery(q), nftListClass(q), { finish: checkNftsPage }),
+    // E9's names and toml calls. The addresses go as given, in one comma list (`URLSearchParams` writes the commas as `%2C`).
+    accountNames: (addresses, opts) =>
+      get<AccountNamesResponse>(PATHS.accountNames, {}, { addresses: addresses.join(",") }, "minute", {
+        ...fresh(opts),
+        finish: (body) => checkAccountNames(body, addresses),
+      }),
+    toml: (domain) => get<TomlAnswer>(PATHS.toml, { domain }, {}, "minute", { finish: (body) => checkToml(body, domain) }),
   };
 }
