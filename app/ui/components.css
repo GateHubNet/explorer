@@ -48,28 +48,40 @@
 .hdr__brand {
   display: flex;
   align-items: center;
-  gap: 10px;
   min-height: 44px;
-  color: var(--fg);
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
 }
 
 .hdr__brand:hover {
   text-decoration: none;
 }
 
+/* The logo (app/ui/logo/, 130 × 48) at 40 px: its mark is centred in its height, and its words are as tall as the name it replaced.
+   The HTML has both colours; the theme's tokens show one. */
+.hdr__logo {
+  width: auto;
+  height: 40px;
+}
+
+.hdr__logo--dark {
+  display: var(--logo-dark-display);
+}
+
+.hdr__logo--white {
+  display: var(--logo-white-display);
+}
+
 @media (max-width: 720px) {
-  /* The name goes (below), and the mark alone is still a 44 px target. */
+  /* The words go, and the mark alone is still a 44 px target: the logo is cut to its left 29 px, the mark. */
   .hdr__brand {
     min-width: 44px;
     justify-content: center;
   }
-}
 
-.logo__bg {
-  fill: var(--accent);
+  .hdr__logo {
+    width: 29px;
+    object-fit: cover;
+    object-position: left center;
+  }
 }
 
 .hdr__nav ul {
@@ -1240,10 +1252,6 @@ a.tabs__item:hover {
 @media (max-width: 720px) {
   .hdr__inner {
     gap: 8px 12px;
-  }
-
-  .hdr__name {
-    display: none;
   }
 
   .hdr__tools {
