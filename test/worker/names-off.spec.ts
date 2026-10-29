@@ -1,80 +1,24 @@
 import { env } from "cloudflare:workers";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
-import { linkTextOf } from "../../app/domain/names";
 import * as render from "../../app/og/render";
 import { cacheGeneration } from "../../app/server/env";
 import { FEATURE_VARS } from "../../app/ui/features";
-import { isNamesRequest, isTomlRequest, linkedAccounts, linksTo, namedAmong, namesPartOf, viewOf } from "../support/names";
-import { elementText, pageClient, textOf } from "../support/pages";
-import { cold } from "../support/subrequest-miss";
+import { dataUrlOf, expectDrawn, expectNoNames, namesOffSpec, namesPartOf } from "../support/names";
+import { elementText, textOf } from "../support/pages";
 import { allSwitches } from "../support/switches";
-import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The pages that no other switch gates, with `NAMES` off (display names spec 2.2 and 6.1; global constraints), as the `worker-off` project has them (vitest.config.ts: every switch off): the
 // home, the ledger, the transaction, the account's first five tabs and its link-preview image make no `account_names` request and no toml request, whatever they hold that a name could be made
 // of (the account's node gives its Domain, which is the toml the page asks for with the switch on); draw no name and no mark (no `acct__name`); give an account the title and the heading it had
 // before names; and a page of class `immutable` (a ledger that is closed, a transaction) is kept the year it had and not the hour it is kept while names are shown (`NAMED_PAGE_TTL_SECONDS`,
 // whose pages ledger.spec.ts and transaction.spec.ts say are stored an hour with the switch on). The pages another switch gates are the next file's (pages-names-off.spec.ts): with every switch
-// off they would be 404s or redirects before any call, and "no names request" of a 404 says nothing.
-//
-// Every lookup of a subrequest entry misses (`cold`), so that a call the page would make reaches the mock whatever an earlier render of the file kept: a names request that is missing is the
-// switch's doing, not the cache's. The pages are asked for through the project's Worker (`exports.default.fetch`, as `pageClient` does); a test file that imports the Worker's entry
-// (workers/app.ts) or runs React Router's handler in its own context took the runtime of the project down when the machine was busy, so none does.
+// off they would be 404s or redirects before any call, and "no names request" of a 404 says nothing. What the two files check of each page, and their setup (`cold` lookups, one upstream mock a
+// test, the pages asked for through the project's Worker and never through its entry), are test/support/names.ts's: `namesOffSpec`, `expectDrawn`, `expectNoNames`.
 
-vi.setConfig({ testTimeout: 20_000 });
-
-const { get, storedAs } = pageClient("198.18.80");
+const { get, serve, storedAs, upstream } = namesOffSpec("198.18.80");
 const YEAR = { cls: "immutable", ttl: 31_536_000 };
-
-let mock: UpstreamMock | undefined;
-beforeEach(() => {
-  cold();
-});
-afterEach(() => {
-  const unused = mock?.unusedOverrides();
-  mock?.restore();
-  mock = undefined;
-  vi.restoreAllMocks();
-  expect(unused ?? []).toEqual([]);
-});
-
-/** The names and toml requests a mock saw: none, with the switch off, whatever the page. */
-const nameCalls = (seen: UpstreamMock) => seen.requests.filter((request) => isNamesRequest(request) || isTomlRequest(request)).map((request) => request.url);
-
-/** The page as the Worker answers it: read to its end (a page streams). */
-async function serve(path: string) {
-  const response = await get(path);
-  const html = await response.text();
-  return { response, html };
-}
-
-/**
- * Says that the page in `html` draws no name: no `acct__name`, no mark (`namemark`), and every link to an account the fixtures name, which the page has, is not what `linkTextOf` makes of its
- * name and has not the title that says how the name is known. Returns the accounts it linked that the fixtures name, so that a test can say the page had some: with the switch on those links
- * would be names.
- */
-async function expectNoNames(html: string, net: "xrpl" | "xahau"): Promise<string[]> {
-  expect(html).not.toContain("acct__name");
-  expect(html).not.toContain("namemark");
-  const named = await namedAmong(net, linkedAccounts(html, net));
-  for (const address of named) {
-    const view = (await viewOf(net, address))!;
-    for (const link of linksTo(html, net, address)) {
-      expect(link.text, `the link to ${address}`).not.toContain(linkTextOf(view));
-      expect(link.attrs, `the link to ${address}`).not.toContain("Verified by");
-    }
-  }
-  return named;
-}
-
-/** What a page has to say for itself: it was drawn, from the mock, and the calls of names and toml were not made. */
-function expectDrawn(response: Response, seen: UpstreamMock) {
-  expect(response.status).toBe(200);
-  expect(seen.requests.length, "the page was drawn from the upstream").toBeGreaterThan(0);
-  expect(nameCalls(seen)).toEqual([]);
-}
 
 describe("the project", () => {
   it("has every switch off, NAMES among them", () => {
@@ -97,7 +41,7 @@ describe("the home, ledger, transaction and account pages", () => {
     ["the XRPL home page", "xrpl", "/xrpl"],
     ["the Xahau home page", "xahau", "/xahau"],
   ] as const)("draws %s by addresses, and asks for no name", async (_, net, path) => {
-    mock = mockUpstream(net);
+    const mock = upstream(net);
     const { response, html } = await serve(path);
 
     expectDrawn(response, mock);
@@ -105,8 +49,8 @@ describe("the home, ledger, transaction and account pages", () => {
   });
 
   it("gives the home page's beat the names part off, with no names", async () => {
-    mock = mockUpstream("xrpl");
-    const { response, html } = await serve("/xrpl.data?beat=off&_routes=routes%2Fnet._index");
+    const mock = upstream("xrpl");
+    const { response, html } = await serve(dataUrlOf("/xrpl.data?beat=off", "routes/net._index"));
 
     expectDrawn(response, mock);
     expect(namesPartOf(html, "routes/net._index")).toEqual({ state: "off", map: {} });
@@ -118,7 +62,7 @@ describe("the home, ledger, transaction and account pages", () => {
     ["an XRPL payment", "xrpl", `/xrpl/tx/${PAYMENT}`],
     ["a Xahau Remit", "xahau", `/xahau/tx/${REMIT}`],
   ] as const)("draws %s by addresses, asks for no name, and keeps it a year", async (_, net, path) => {
-    mock = mockUpstream(net);
+    const mock = upstream(net);
     const { response, html } = await serve(path);
 
     expectDrawn(response, mock);
@@ -133,7 +77,7 @@ describe("the home, ledger, transaction and account pages", () => {
     ["offers", "?tab=offers"],
     ["objects", "?tab=objects"],
   ])("draws the account's %s tab by addresses, with the address as its title and its heading, and asks for no name and no toml", async (_, query) => {
-    mock = mockUpstream("xrpl");
+    const mock = upstream("xrpl");
     const { response, html } = await serve(`/xrpl/account/${ACTIVE}${query}`);
 
     expectDrawn(response, mock);
@@ -153,7 +97,7 @@ describe("the home, ledger, transaction and account pages", () => {
     ["an active Xahau account", "xahau", XAHAU_ACTIVE, "Tidewater"],
     ["a deleted Xahau account", "xahau", XAHAU_DELETED, "scam"],
   ] as const)("draws %s with no name, no label's banner and no call", async (_, net, address, word) => {
-    mock = mockUpstream(net);
+    const mock = upstream(net);
     const { response, html } = await serve(`/${net}/account/${address}`);
 
     expectDrawn(response, mock);
@@ -167,8 +111,10 @@ describe("the home, ledger, transaction and account pages", () => {
     // The card is drawn from what the route asks of the upstreams (the drawing itself, Satori and resvg, is og.spec.ts's, in the `worker` project: a drawing in this project's runtime, with the
     // others running beside it, takes the Worker's memory down): `renderCard` is given the card and answers a few bytes.
     const drawing = vi.spyOn(render, "renderCard").mockResolvedValue(new Uint8Array([137, 80, 78, 71]).buffer);
-    mock = mockUpstream("xrpl");
-    const { response } = await serve(`/og/xrpl/account/${ACTIVE}.png`);
+    const mock = upstream("xrpl");
+    const response = await get(`/og/xrpl/account/${ACTIVE}.png`);
+    // An image is read as bytes: `text()` of a PNG makes the runtime warn.
+    await response.arrayBuffer();
 
     expectDrawn(response, mock);
     expect(response.headers.get("Content-Type")).toBe("image/png");

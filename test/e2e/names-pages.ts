@@ -1,6 +1,7 @@
 // What the specs of display names share (names.spec.ts, names-live.spec.ts and a11y.spec.ts's block of them): what a link to an account must read and carry, worked out from the names
-// fixtures and never from a name written by hand. The Worker specs have their own (test/support/names.ts reads the fixtures through the app's own view code, which Vite bundles and Playwright
-// cannot load); the words here are the spec's, written out, so that a page that drew them wrongly is not excused by the code that drew them.
+// fixtures and never from a name written by hand. The Worker specs have their own (test/support/names.ts reads the fixtures through the app's own view code, `nameViewOf` and `linkTextOf`);
+// the words here are the spec's, written out, so that a page that drew them wrongly is not excused by the code that drew them. (test/support/names.ts could not be imported here in any case:
+// it uses `import.meta.glob`, which only Vite knows.)
 
 import type { Locator } from "@playwright/test";
 

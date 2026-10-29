@@ -9,7 +9,7 @@ import { labelWords, linkTextOf, nameTitleOf, nameViewOf, plainNameOf, shownIssu
 import type { AccountNameEntry } from "../../app/server/api-types";
 import { NAMES_BATCH_LIMIT } from "../../app/server/names-load";
 import { decodeLoaderData } from "./loader-data";
-import { anchors, hrefs, textOf } from "./pages";
+import { anchors, hrefs, pageClient, textOf } from "./pages";
 import { cold } from "./subrequest-miss";
 import { dataApiError, mockUpstream, type UpstreamMock } from "./upstream";
 import type { NetworkName, SeenRequest } from "./upstream-core";
@@ -343,4 +343,80 @@ export async function expectTextWithAccounts(
     else pattern += `${part.full ? whole : escaped(shortAddress(part.account))}${view && view.labels.length > 0 ? ` labelled ${escaped(labelWords(view.labels))} by GateHub` : ""}`;
   }
   expect(text).toMatch(new RegExp(`${pattern}$`));
+}
+
+// ---- The switch off ---------------------------------------------------------------------------------------------------------------------------
+
+/** The names and toml requests a mock saw, by URL: none while `NAMES` is off, whatever the page. */
+export const nameCallsOf = (seen: Pick<UpstreamMock, "requests">): string[] =>
+  seen.requests.filter((request) => isNamesRequest(request) || isTomlRequest(request)).map((request) => request.url);
+
+/** What a page of the switch-off specs has to say for itself: it was drawn (200, from the mock), and no call for a name or a toml was made. */
+export function expectDrawn(response: Response, seen: UpstreamMock): void {
+  expect(response.status).toBe(200);
+  expect(seen.requests.length, "the page was drawn from the upstream").toBeGreaterThan(0);
+  expect(nameCallsOf(seen)).toEqual([]);
+}
+
+/**
+ * Says that the page in `html` draws no name: no `acct__name`, no mark (`namemark`), no link of the named kind (`class="acct`), and no link to an account the fixtures have something to show for
+ * (a name, an account network name or a label) that reads what `linkTextOf` makes of its name or carries the title that says how its name is known and what it is labelled (`nameTitleOf`: Verified
+ * by, Named by GateHub, Domain not verified, Labelled). Returns the accounts it linked that the fixtures name, so that a test can say the page had some: with the switch on those links would be names.
+ */
+export async function expectNoNames(html: string, net: NetworkName): Promise<string[]> {
+  expect(html).not.toContain("acct__name");
+  expect(html).not.toContain("namemark");
+  expect(anchors(html).filter((link) => /\bclass="acct[ "]/.test(link.attrs))).toEqual([]);
+  expect(anchors(html).filter((link) => /\btitle="(Verified by|Named by GateHub|Domain not verified)/.test(link.attrs))).toEqual([]);
+  const linked = linkedAccounts(html, net);
+  for (const address of await viewedAmong(net, linked)) {
+    const view = (await viewOf(net, address))!;
+    const title = nameTitleOf(view, address);
+    for (const link of linksTo(html, net, address)) {
+      if (view.name) expect(link.text, `the link to ${address}`).not.toContain(linkTextOf(view));
+      // A title that is the address alone is every unnamed account's: only one that says more is a name's.
+      if (title !== address) expect(link.attrs, `the link to ${address}`).not.toContain(`title="${title}"`);
+    }
+  }
+  return namedAmong(net, linked);
+}
+
+/**
+ * The setup the switch-off specs share (names-off.spec.ts, pages-names-off.spec.ts), called once at the top of the file: a test may take 20 s, every lookup of a subrequest entry misses (`cold`:
+ * a call the page would make reaches the mock whatever an earlier render of the file kept, so that a names request that is missing is the switch's doing and not the cache's), and the mock a test
+ * made with `upstream` is put away after it, which says if an override was not used. The pages are asked for through the project's Worker (`exports.default.fetch`, as `pageClient` does): a spec
+ * file that imports the Worker's entry (workers/app.ts) or runs React Router's handler in its own context took the runtime of its project down when the machine was busy. `addressPrefix` is the
+ * file's range of visitor addresses (`pageClient`).
+ */
+export function namesOffSpec(addressPrefix: string) {
+  vi.setConfig({ testTimeout: 20_000 });
+  const { get, storedAs } = pageClient(addressPrefix);
+  let current: UpstreamMock | undefined;
+
+  beforeEach(() => {
+    cold();
+  });
+  afterEach(() => {
+    const unused = current?.unusedOverrides();
+    current?.restore();
+    current = undefined;
+    vi.restoreAllMocks();
+    expect(unused ?? []).toEqual([]);
+  });
+
+  return {
+    get,
+    storedAs,
+    /** The upstream mock of a test, which `serve` and the checks above read. */
+    upstream(net: Parameters<typeof mockUpstream>[0], overrides?: Parameters<typeof mockUpstream>[1]): UpstreamMock {
+      current = mockUpstream(net, overrides);
+      return current;
+    },
+    /** The page as the Worker answers it: read to its end (a page streams). */
+    async serve(path: string) {
+      const response = await get(path);
+      const html = await response.text();
+      return { response, html };
+    },
+  };
 }

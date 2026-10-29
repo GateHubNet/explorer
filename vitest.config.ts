@@ -40,7 +40,7 @@ const namesOffBindings = { ...testBindings, NAMES: "off" };
 const sandboxBindings = { ...testBindings, ENVIRONMENT: "sandbox" };
 
 export default defineConfig({
-  // The root config is the Worker projects' (`worker`, `worker-off` and `worker-sandbox`, below): they share its one Vite server, and so its one React Router
+  // The root config is the Worker projects' (`worker`, `worker-off`, `worker-names-off` and `worker-sandbox`, below): they share its one Vite server, and so its one React Router
   // plugin. That plugin removes and rewrites `.react-router/types` each time a server starts, and two of them starting together raced on the
   // directory (ENOTEMPTY, EINVAL: `pnpm test` sometimes failed to start). What tells the projects apart is the `workerBindings` each is
   // `provide`d, which the Workers plugin reads for its Miniflare. `unit` and `components` have servers of their own and do not extend this.
