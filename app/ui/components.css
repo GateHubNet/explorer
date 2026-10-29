@@ -724,6 +724,15 @@ a.nav-item:hover {
   white-space: nowrap;
 }
 
+/* A name is not mono, so its face no longer tells the link from the words around it, and --link against the text is under 3:1 (WCAG 1.4.1; axe cannot say it of an
+   inline-flex link). The name of every named link is underlined, wherever it stands: a rule for the sentences alone would miss the next one a page adds. A chip has its box,
+   and the account page's h1 is no link. The underline, 2 px under the baseline, stays inside the box `overflow: hidden` clips to: a line leaves about 5 px under the
+   baseline at 12 to 14 px. */
+a.acct:not(.ent) > .acct__name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* The whole address after the name (AccountLink `full`): mono, the board's 12.5 px, and it wraps where it must, as a bare address does. */
 .acct__address {
   min-width: 0;

@@ -393,6 +393,13 @@ describe("the classes of an account link (display names spec 4.4)", () => {
     expect(rule(componentsCss, ".acct")).toMatchObject({ display: "inline-flex", gap: "4px" });
   });
 
+  // A name is not mono, so the face no longer tells a link from the words around it, and `--link` against the text is under 3:1 (2.06:1 to 2.88:1 on `--fg`, 1.0 to 1.4 on
+  // `--muted` and `--faint`). axe cannot say it: it does not count an inline-flex link as one in a block of text. So the name of every named link is underlined, in a sentence,
+  // a cell or a list alike (a rule scoped to the sentences would miss the next one a page adds); a chip (`.ent`) has its box to tell it, and the h1 is no link.
+  it("underlines a named link's name wherever it stands, so that more than its colour tells it from the words around it (WCAG 1.4.1); not a chip's", () => {
+    expect(rule(componentsCss, "a.acct:not(.ent) > .acct__name")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "2px" });
+  });
+
   it("leaves the balance changes' account to a class of its own: a flex row 8 px apart that cuts its link, and keeps the role small", () => {
     expect(rule(pagesCss, ".change-acct")).toMatchObject({ display: "flex", "align-items": "center", gap: "8px", "min-width": "0" });
     expect(rule(pagesCss, ".change-acct > a")).toMatchObject({ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" });

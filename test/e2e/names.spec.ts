@@ -108,6 +108,24 @@ for (const { net, account, seen, tomlFile } of Object.values(NETS)) {
   });
 }
 
+// A name is not mono, so the face no longer tells a link from the words around it, and `--link` against muted text is near 1:1 (WCAG 1.4.1); axe does not count an inline-flex
+// link as one in a block of text, so it cannot say it. A named link's name is underlined; the h1's name is no link, and is not.
+test.describe("xahau: a named account in the activation line", () => {
+  test("is underlined in its sentence, so that more than its colour tells it from the words around it, and the h1's name is not", async ({ page }) => {
+    await page.goto(`/xahau/account/${XAHAU_ACCOUNT}`);
+    await hydrated(page);
+
+    const parent = headOf(page).locator(".account-id__meta a.acct");
+    await expect(parent).toHaveCount(1);
+    const address = (await parent.getAttribute("href"))!.slice("/xahau/account/".length);
+    const drawn = drawnBy("xahau", address);
+    expect(drawn.named, "the fixtures name the account that activated it").toBe(true);
+    await expect(parent).toHaveText(drawn.text);
+    await expect(parent.locator(".acct__name")).toHaveCSS("text-decoration-line", "underline");
+    await expect(headOf(page).locator("h1")).toHaveCSS("text-decoration-line", "none");
+  });
+});
+
 test.describe("xrpl: the deleted account GateHub named, with an advisory label", () => {
   test("says its name as GateHub's, with the label's banner, its source and details, and the help for a name that is wrong", async ({ page }) => {
     const entry = fixtureEntryOf("xrpl", XRPL_DELETED)!;
