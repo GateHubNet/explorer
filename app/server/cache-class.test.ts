@@ -5,6 +5,7 @@ import {
   FAILURE_HOLD_KEYS,
   FAILURE_HOLD_MAX_SECONDS,
   FAILURE_HOLD_SECONDS,
+  NAMED_PAGE_TTL_SECONDS,
   PERIOD_CALL_TTL_SECONDS,
   VALIDATIONS_CALL_TTL_SECONDS,
   VALIDATIONS_MARKER_TTL_SECONDS,
@@ -57,6 +58,13 @@ describe("PERIOD_CALL_TTL_SECONDS", () => {
   it("is 300 s (spec 1.4): the network page's calls over a period are kept that long, in a class that would keep them an hour", () => {
     expect(PERIOD_CALL_TTL_SECONDS).toBe(300);
     expect(PERIOD_CALL_TTL_SECONDS).toBeLessThan(CACHE_CLASSES.slow.edgeTtl);
+  });
+});
+
+describe("NAMED_PAGE_TTL_SECONDS", () => {
+  it("is 3600 s (display names spec 2.2): an immutable page that shows names is kept an hour, not a year, so that a new label shows within about an hour", () => {
+    expect(NAMED_PAGE_TTL_SECONDS).toBe(3600);
+    expect(NAMED_PAGE_TTL_SECONDS).toBeLessThan(CACHE_CLASSES.immutable.edgeTtl);
   });
 });
 
