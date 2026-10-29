@@ -3,10 +3,11 @@ import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
+import { decodeLoaderData } from "../support/loader-data";
 import { XRPL_NFT } from "../support/nft-names";
 import { fixtures, unavailable } from "./fixture-control";
 import { LIVE, NEVER_FUNDED } from "./fixtures";
-import { expect, hydrated, seriousViolations, test } from "./support";
+import { expect, freshHtml, hydrated, seriousViolations, test } from "./support";
 
 // What of the NFT pages needs the fixture server to change an answer (README "NFTs", "End-to-end tests"): the list with cards that failed, the choice page of a hash that is both a
 // transaction and an NFT, and the Objects tab's link to the account's NFTs (no recorded account owns an NFT page). These tests change what the fixture server answers, and every page
@@ -88,17 +89,50 @@ for (const viewport of VIEWPORTS) {
 }
 
 test.describe("when the calls answer again", () => {
-  test("Retry brings the cards back, in the same document", async ({ page }) => {
+  // The chart card is the one card of two calls in a chain (the newest ledger, then its 30 days), raced against the loader's deadline; in a live run the 30 days are never kept
+  // yet, so under load the chain alone could be late and the card fail again on Retry. So the list is asked for, fresh, until no card says it failed (which also keeps the
+  // answers the Retry reads), and only then is Retry pressed. If the cards do not come back, the test says why: what the Retry's answer said of the chart, and the line the
+  // stack's Worker wrote for that request (find it by its id in the stack's output, with E2E_VERBOSE=1).
+  test("Retry brings the cards back, in the same document", async ({ page }, testInfo) => {
     await openFailing(page);
     await page.evaluate(() => Object.assign(window, { sameDocument: true }));
     const asked: string[] = [];
     page.on("request", (request) => asked.push(request.url()));
 
     await fixtures.reset();
-    await page.getByRole("alert").filter({ hasText: "the recent sales" }).getByRole("button", { name: "Retry" }).click();
+    await expect
+      .poll(
+        async () => {
+          const html = (await freshHtml(page, LIST))?.replaceAll("<!-- -->", "");
+          return html !== undefined && FAILED.every((words) => !html.includes(words));
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+    const [answer] = await Promise.all([
+      page.waitForResponse(/nfts\.data/),
+      page.getByRole("alert").filter({ hasText: "the recent sales" }).getByRole("button", { name: "Retry" }).click(),
+    ]);
 
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(page.getByRole("table", { name: "Recent sales", exact: true })).toBeVisible();
+    try {
+      await expect(page.getByRole("alert")).toHaveCount(0);
+      await expect(page.getByRole("table", { name: "Recent sales", exact: true })).toBeVisible();
+    } catch (error) {
+      const body = await answer.text().catch(() => "");
+      let chart: unknown = "(the answer could not be decoded)";
+      try {
+        const routes = decodeLoaderData(body) as Record<string, { data?: { failures?: { chart?: string } } }>;
+        chart = routes["routes/net.nfts._index"]?.data?.failures?.chart ?? null;
+      } catch {
+        // An answer that is not route data: the body is attached as it is.
+      }
+      const headers = answer.headers();
+      const line = { id: headers["x-request-id"], method: answer.request().method(), path: new URL(answer.url()).pathname, status: answer.status(), cache: headers["x-cache"] ?? "NONE" };
+      await testInfo.attach("failures.chart of the Retry's answer", { body: JSON.stringify(chart), contentType: "application/json" });
+      await testInfo.attach("the stack's log line of the Retry's request", { body: JSON.stringify(line), contentType: "application/json" });
+      if (chart === "(the answer could not be decoded)") await testInfo.attach("the Retry's answer", { body, contentType: "text/plain" });
+      throw error;
+    }
     expect(await page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument)).toBe(true);
     // Retry asked the explorer's own Worker for the route's data, and nobody else.
     const origin = new URL(page.url()).origin;

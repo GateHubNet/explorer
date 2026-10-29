@@ -8,6 +8,7 @@
     "test/e2e/fixture-control.ts",
     "test/e2e/validators-pages.ts",
     "test/e2e/names-pages.ts",
+    "test/support/loader-data.ts",
     "test/support/nft-names.ts",
     "scripts/e2e-env.ts",
     "app/ui/features.ts"
