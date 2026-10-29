@@ -220,6 +220,32 @@ describe("when an upstream fails", () => {
     }
   });
 
+  // A never-funded address draws no card, so it makes no names call: its 404 is the one it always was, stored as short, whatever a names call would do (a failed one marks the
+  // request degraded, which would make the 404 no-store; a slow one would hold it up to 1.5 s). An address of its own, which neither the index nor the node has.
+  it("answers a never-funded address with today's 404, stored as short, and makes no names call, so that a failing names call cannot change it", async () => {
+    const logged = watchNamesLog();
+    const address = account(0x34);
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/accounts/${address}`]: null,
+      [`GET /v2/accounts/${address}/balances`]: null,
+      [`node account_info ${address}`]: nodeError("actNotFound"),
+      ...failingNames(),
+    });
+    const path = `/og/xrpl/account/${address}.png`;
+    const { response, bytes } = await image(path);
+
+    expect(response.status).toBe(404);
+    expect(new TextDecoder().decode(bytes)).toBe("There is no such image.\n");
+    expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+    expect(await storedAs(path)).toEqual(SHORT);
+    expect(namesCalls(mock)).toEqual([]);
+    expect(logged()).toBe(0);
+    // The failing names call was never made.
+    expect(mock.unusedOverrides()).toEqual(["GET /v2/account_names"]);
+    mock.restore();
+    mock = undefined;
+  });
+
   it("marks the answer degraded once for a failed names call, and leaves its class slow: the edge cache is what keeps it from storing it", async () => {
     watchNamesLog();
     const { mark, marks } = recordingMark();

@@ -38,9 +38,10 @@ import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
 // - Class: a transaction and a ledger the index has are `immutable`; an account is `slow` (its card holds its balance, so it is kept for
 //   an hour, as the spec has it). The newest ledger is `short`: its page is live, because its "newest" status is about to change (the
 //   next ledger closes within seconds), and an image kept for a year would keep the old status. An account whose balances could not be
-//   read is drawn without them and is `short`, to be tried again soon. Its card says its name and its labels (display names spec 7): one names call of its address, asked beside the
-//   account's own (class `minute`, as the pages'). A names call that fails or is late draws today's card, as a page whose names call failed shows addresses: `loadNames` marks the answer
-//   degraded, so it is served and not stored, and the class stays `slow`.
+//   read is drawn without them and is `short`, to be tried again soon. Its card says its name and its labels (display names spec 7): one names call of its address (class `minute`,
+//   as the pages'), made only on the way to a card, once the index or the node has the account: a 404 or a 503 makes none, so a names call cannot change it. A names call that
+//   fails or is late draws today's card, as a page whose names call failed shows addresses: `loadNames` marks the answer degraded, so it is served and not stored, and the class
+//   stays `slow`.
 // - A validator and an amendment (validators spec 8) are drawn from the data API's D1 routes alone (the node knows neither), in class `slow`: the
 //   UNL, the version and the domain's check change rarely, and so does an amendment's standing. They are 404s of class `short` while `VALIDATORS`
 //   is off, before any call. A key in hex is a 302 (`immutable`) to the base58 key; a signing key, and an amendment that is not named as D1 names
@@ -239,10 +240,10 @@ async function accountImage(context: LoaderFunctionArgs["context"], network: Net
   if (!isValidClassicAddress(address)) return notFound();
 
   const { api, node } = clientsFor(context, network);
-  // The names call never rejects. It is waited for whatever the account's own calls say, so that nothing runs on behind an answer and no degraded mark comes after one.
-  const asked = loadNames(api, [address], { context, request, features: network.features });
+  // The account's name is asked for only on the way to a card, once the account is known to be there: a 404 or a 503 draws none, so a names call that fails or is late
+  // cannot mark it degraded or hold it up. The call never rejects; it is awaited before the card is drawn, so nothing runs on behind the answer.
+  const nameOf = async () => (await loadNames(api, [address], { context, request, features: network.features })).part.map[address];
   const [created, balances] = await Promise.allSettled([api.account(address), api.balances(address)]);
-  const { part: names } = await asked;
 
   if (created.status === "fulfilled") {
     // The index knows the account. Its balance is on the card when it could be read; an account without one (it was deleted) has none to
@@ -256,19 +257,20 @@ async function accountImage(context: LoaderFunctionArgs["context"], network: Net
       complete = false;
     }
     const activated = activationOf(created.value).time;
-    const card = accountCard({ address, native: network.native, activatedAt: Number.isFinite(activated) ? activated : null, balance, name: names.map[address] }, network);
+    const card = accountCard({ address, native: network.native, activatedAt: Number.isFinite(activated) ? activated : null, balance, name: await nameOf() }, network);
     return complete ? image(card, request, "slow") : image(card, request, "short");
   }
 
   // The index has no record of it (the account may be older than its first ledger, or newer than its last): the node is asked.
   if (!isNotFound(created.reason)) return apiFailure(created.reason);
+  let info;
   try {
-    const info = await node.accountInfo(address);
-    const card = accountCard({ address, native: network.native, activatedAt: null, balance: dropsToNative(info.account_data.Balance), name: names.map[address] }, network);
-    return image(card, request, "short", FROM_NODE_TTL);
+    info = await node.accountInfo(address);
   } catch (err) {
     return failure(err);
   }
+  const card = accountCard({ address, native: network.native, activatedAt: null, balance: dropsToNative(info.account_data.Balance), name: await nameOf() }, network);
+  return image(card, request, "short", FROM_NODE_TTL);
 }
 
 // ---- A validator ---------------------------------------------------------------------------------------------------------------------
