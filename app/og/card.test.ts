@@ -89,9 +89,12 @@ describe("the card", () => {
     expect(ACCENTS).toEqual({ xrpl: "#0A6CF1", xahau: "#B45309" });
     for (const [network, accent] of Object.entries(ACCENTS)) {
       const root = card({ ...PAYMENT, network: network as "xrpl" | "xahau" });
-      const painted = nodes(root).filter((node) => JSON.stringify(node.props).includes(accent));
-      // Top bar and the dot of the pill.
-      expect(painted.length, network).toBeGreaterThanOrEqual(2);
+      // Each element's own background, not its descendants': the top bar and the dot of the pill, and nothing else.
+      const painted = nodes(root).filter((node) => (node.props.style as { background?: string } | undefined)?.background === accent);
+      expect(
+        painted.map((node) => node.props.style),
+        network,
+      ).toEqual([expect.objectContaining({ height: 10 }), expect.objectContaining({ width: 14, height: 14 })]);
     }
     expect(JSON.stringify(card(PAYMENT))).not.toContain(ACCENTS.xahau);
   });
