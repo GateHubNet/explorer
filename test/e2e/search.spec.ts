@@ -1,5 +1,5 @@
 import { featuresOff } from "../../scripts/e2e-env";
-import { LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_REMIT, XRPL_ACCOUNT, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
+import { fixtureNameOf, LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_REMIT, XRPL_ACCOUNT, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
 import { expect, hydrated, test } from "./support";
 
 /** What the box says a 64-digit hash can be: with `NFTS` on (the Worker's own var) it can be an NFT too (E8); `E2E_FEATURES_OFF` tells the suite when it is off. */
@@ -22,7 +22,14 @@ test.describe("search", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Payment");
     await expect(page).toHaveTitle("Payment AACAFC…FD40 · XRPL · explorer");
     await expect(page.getByRole("region", { name: "Details" })).toContainText(XRPL_PAYMENT);
-    await expect(page.getByRole("region", { name: "Summary" })).toContainText("rBbW6i…W5jh sent 2.306481 XRP to rDFDjd…fy48");
+    // The summary names its accounts (display names): the sender is a verified name in the fixtures. A real stack has names of its own.
+    const summary = page.getByRole("region", { name: "Summary" });
+    await expect(summary).toContainText(" sent 2.306481 XRP to ");
+    if (!LIVE) {
+      const name = fixtureNameOf("xrpl", XRPL_ACCOUNT);
+      expect(name, "the fixtures name the sender").toBeDefined();
+      await expect(summary).toContainText(name!);
+    }
   });
 
   test("a hint leads straight to an account, and `/` puts the cursor in the header's box", async ({ page }) => {

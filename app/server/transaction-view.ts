@@ -7,6 +7,7 @@ import { encodeCtid } from "../domain/ctid";
 import { describe, type Detail, type FlowStep, type Segment } from "../domain/describe";
 import { decodeHex } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
+import type { NamesPart } from "../domain/names";
 import { shortNftId } from "../domain/nft-params";
 import { balanceChanges, objectsTouched } from "../domain/parse";
 import { isPoolAccountRoot, nodesOf } from "../domain/parse/objects";
@@ -160,6 +161,11 @@ export interface TransactionPageData {
   /** `null` when they are not shown (a transaction from the node: they appear once it is indexed). */
   neighbours: { previous: Neighbour | null; next: Neighbour | null } | null;
   raw: { tx: string; meta: string; binary: BinaryRaw };
+  /**
+   * The names of the addresses the page draws (display names spec 3.4): those of `sentence`, `flow`, `account`, `details`, `changes` and `objects`, never of the raw data. The loader
+   * adds it after `transactionPage`. `failed` when the names call did not work, `off` when the switch is. The title, the description, the card and `summary` keep short addresses (spec 7).
+   */
+  names: NamesPart;
 }
 
 /** Memos shown, and the characters of one, before the rest is left to the raw tabs. */
@@ -236,10 +242,11 @@ function withRoles(changes: BalanceChange[], tx: TxJson, meta: TxMeta): ChangeRo
   });
 }
 
+/** The page's data but for its names, which the loader asks for once it has the page (`TransactionPageData.names`). */
 export function transactionPage(
   source: TransactionSource,
   opts: { network: { native: Native; ctidNetworkId: number }; neighbours: Neighbours | null; binary: BinaryRaw },
-): TransactionPageData {
+): Omit<TransactionPageData, "names"> {
   const { tx, meta } = source;
   const description = describe(tx, meta, { native: opts.network.native });
   const position = meta.TransactionIndex;

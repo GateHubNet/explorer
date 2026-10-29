@@ -4,6 +4,7 @@
 
 import { describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative } from "../domain/format";
+import type { NamesPart } from "../domain/names";
 import { accountsCreated } from "../domain/parse";
 import type { Native, TxJson, TxMeta } from "../domain/parse/types";
 import type { LedgerExpanded } from "./api-types";
@@ -132,6 +133,8 @@ export interface LedgerPageData {
   rows: LedgerRow[];
   /** The header as JSON text. */
   raw: string;
+  /** The names of the addresses of `rows` and `accountsCreated` (display names spec 3.4), which the loader adds after `ledgerPage`. `failed` when the names call did not work, `off` when the switch is. */
+  names: NamesPart;
 }
 
 const DROPS = /^\d+$/;
@@ -143,7 +146,8 @@ function ranked<K extends string>(counts: Map<string, number>, key: K): Array<{ 
     .map(([name, count]) => ({ [key]: name, count }) as { [P in K]: string } & { count: number });
 }
 
-export function ledgerPage(source: LedgerSource, opts: { native: Native; hasNext: boolean }): LedgerPageData {
+/** The page's data but for its names, which the loader asks for once it has the rows (`LedgerPageData.names`). */
+export function ledgerPage(source: LedgerSource, opts: { native: Native; hasNext: boolean }): Omit<LedgerPageData, "names"> {
   const transactions = [...source.transactions].sort((a, b) => a.meta.TransactionIndex - b.meta.TransactionIndex);
 
   const types = new Map<string, number>();

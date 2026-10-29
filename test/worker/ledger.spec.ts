@@ -1,6 +1,14 @@
+import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { shortAddress, shortHash } from "../../app/domain/format";
+import { nameTitleOf, nameViewOf } from "../../app/domain/names";
+import type { AccountNameEntry, LedgerExpanded } from "../../app/server/api-types";
+import { NAMED_PAGE_TTL_SECONDS } from "../../app/server/cache-class";
+import { ledgerPage, sourceFromIndex } from "../../app/server/ledger-view";
+import { NAMES_MAX_ADDRESSES } from "../../app/server/names-load";
+import { collectAddresses } from "../../app/server/names-collect";
+import { expectAccountText, expectNamedLinks, inCalls, linksTo, namedAmong, namesCalls, sorted } from "../support/names";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 
@@ -18,6 +26,11 @@ afterEach(() => {
   mock?.restore();
   mock = undefined;
 });
+
+/** A closed ledger's page while the names are on: kept an hour, not a year (display names decision 2). */
+const NAMED = { cls: "immutable", ttl: NAMED_PAGE_TTL_SECONDS };
+/** What an `immutable` redirect is stored as: it shows no name. */
+const YEAR = { cls: "immutable", ttl: 31_536_000 };
 
 const XRPL_LEDGER = {
   index: 107720688,
@@ -50,6 +63,22 @@ async function syntheticLedger(index: number, count: number) {
   };
 }
 
+/** The page data the loader makes of a data API ledger answer (`body` as `syntheticLedger` and the fixtures have it), for the addresses it collects. */
+function pageOf(body: { ledger: unknown }, hasNext = true) {
+  return ledgerPage(sourceFromIndex(body.ledger as LedgerExpanded), { native: "XRP", hasNext });
+}
+
+/** `n` valid addresses, each once, in no order that sorts them. */
+function sendersOf(n: number): string[] {
+  return Array.from({ length: n }, (_, i) => {
+    const bytes = new Uint8Array(20);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(0, Math.imul(i + 1, 2654435761) >>> 0);
+    view.setUint32(16, i + 1);
+    return encodeAccountID(bytes);
+  });
+}
+
 // First in the file: the subrequest cache keeps the answers that worked (the newest ledger for 5 s), so a failing
 // /v2/last_validated has to be asked for before any other test has had its answer.
 describe("when an upstream fails", () => {
@@ -66,6 +95,32 @@ describe("when an upstream fails", () => {
     expect(html).toContain("Temporarily unavailable");
     // The Worker was given the 500 itself, not a failure to connect.
     expect(statusesOf(mock, "GET /v2/last_validated")).toEqual([500]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  // A names call that fails never fails the page: it shows the addresses and is served, not stored, so that the next visitor asks again. The ledger is one no other test asks for.
+  it("a failed names call: the addresses, and the page is not stored", async () => {
+    const { body } = await syntheticLedger(107700030, 3);
+    mock = mockUpstream("xrpl", {
+      "GET /v2/ledgers/107700030?expand=true&transactions=true": body,
+      "GET /v2/account_names": dataApiError(503, "unavailable"),
+    });
+    const first = await get("/xrpl/ledger/107700030");
+    const html = await first.text();
+
+    expect(first.status).toBe(200);
+    expect(first.headers.get("X-Cache")).toBe("MISS");
+    const data = pageOf(body);
+    expect(tableRows(html, "Transactions").slice(1).map((row) => row[3])).toEqual(data.rows.map((row) => shortAddress(row.account)));
+    expect(namesCalls(mock)).toEqual(inCalls(collectAddresses(data.rows, data.accountsCreated)));
+    expect(await stored("/xrpl/ledger/107700030")).toBeUndefined();
+
+    // Not stored, so the second request is a render too, and asks the names again (a page that is not polled does not hold the failure).
+    const second = await get("/xrpl/ledger/107700030");
+    await second.text();
+    expect(second.status).toBe(200);
+    expect(second.headers.get("X-Cache")).toBe("MISS");
+    expect(namesCalls(mock)).toHaveLength(2 * inCalls(collectAddresses(data.rows, data.accountsCreated)).length);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
@@ -115,6 +170,30 @@ describe("when an upstream fails", () => {
 });
 
 describe("a ledger by index", () => {
+  // The first success for this ledger: the Worker keeps the answer of a names call a minute, and this is the test that sees the call.
+  it("makes one names call for the accounts of the rows and the accounts created, sorted, and draws the names of the accounts it has them for", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page("/xrpl/ledger/107720688");
+
+    const [load] = Object.values(rawFixtures);
+    const data = pageOf(JSON.parse(await load!()) as { ledger: unknown });
+    // `collectAddresses` of the rows and the accounts created, which the loader passes (not the raw header): in calls of 100, sorted.
+    const addresses = collectAddresses(data.rows, data.accountsCreated);
+    expect(namesCalls(mock)).toEqual(inCalls(addresses));
+    expect(namesCalls(mock).flat().sort()).toEqual(sorted(addresses));
+
+    // The table's accounts and the accounts created are drawn by what the fixtures say of them: at least one is named.
+    const shown = [...new Set([...data.rows.map((row) => row.account), ...data.accountsCreated])];
+    const named = await namedAmong("xrpl", shown);
+    expect(named.length).toBeGreaterThan(0);
+    for (const address of named) await expectNamedLinks(html, "xrpl", address, shortAddress(address));
+    for (const row of tableRows(html, "Transactions").slice(1)) {
+      const account = data.rows.find((candidate) => String(candidate.index) === row[0])!.account;
+      await expectAccountText(row[3]!, "xrpl", account, shortAddress(account));
+    }
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
   it("shows the header, the counts, the accounts created and the transactions", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page("/xrpl/ledger/107720688");
@@ -194,19 +273,21 @@ describe("a ledger by index", () => {
     expect(next?.text).toBe("107,720,689");
   });
 
-  it("is immutable: stored for a year, and the browser keeps it a minute", async () => {
+  it("is immutable: stored for an hour while it shows names (not a year), and the browser keeps it a minute", async () => {
     mock = mockUpstream("xrpl");
     const { response } = await page("/xrpl/ledger/107720688");
     expect(response.headers.get("Cache-Control")).toBe("max-age=60");
     expect(response.headers.has("X-Cache-Class")).toBe(false);
-    expect(await storedAs("/xrpl/ledger/107720688")).toEqual({ cls: "immutable", ttl: 31_536_000 });
+    expect(await storedAs("/xrpl/ledger/107720688")).toEqual(NAMED);
   });
 
-  it("asks the data API for the ledger and for the newest ledger, and nothing else", async () => {
+  it("asks the data API for the ledger, for the newest ledger and for the names, and nothing else", async () => {
     // The head of Xahau: no other test has asked for it, so nothing is in the cache.
     mock = mockUpstream("xahau");
     await page("/xahau/ledger/26596843");
-    expect(mock.requests.map((r) => `${r.net} ${r.key}`).sort()).toEqual([
+    const names = mock.requests.filter((r) => r.url.includes("/v2/account_names"));
+    expect(names.length).toBeGreaterThan(0);
+    expect(mock.requests.filter((r) => !names.includes(r)).map((r) => `${r.net} ${r.key}`).sort()).toEqual([
       "xahau GET /v2/last_validated",
       "xahau GET /v2/ledgers/26596843?expand=true&transactions=true",
     ]);
@@ -240,7 +321,7 @@ describe("HEAD", () => {
     expect((await first.arrayBuffer()).byteLength).toBe(0);
     const asked = mock.requests.map((r) => r.key);
     expect(asked.filter((key) => key === "GET /v2/ledgers/107700020?expand=true&transactions=true")).toHaveLength(1);
-    expect(await storedAs("/xrpl/ledger/107700020")).toEqual({ cls: "immutable", ttl: 31_536_000 });
+    expect(await storedAs("/xrpl/ledger/107700020")).toEqual(NAMED);
 
     const full = await page("/xrpl/ledger/107700020");
     expect(full.response.headers.get("X-Cache")).toBe("HIT");
@@ -265,7 +346,7 @@ describe("HEAD", () => {
 });
 
 describe("a ledger by hash", () => {
-  it("renders the same page, with previous and next by index, and is immutable", async () => {
+  it("renders the same page, with previous and next by index, and is immutable (an hour, with names)", async () => {
     mock = mockUpstream("xrpl");
     const path = `/xrpl/ledger/${XRPL_LEDGER.hash}`;
     const { html } = await page(path);
@@ -274,7 +355,7 @@ describe("a ledger by hash", () => {
     expect(text).toContain(`Ledger hash ${XRPL_LEDGER.hash}`);
     expect(hrefs(html)).toContain("/xrpl/ledger/107720687");
     expect(hrefs(html)).toContain("/xrpl/ledger/107720689");
-    expect(await storedAs(path)).toEqual({ cls: "immutable", ttl: 31_536_000 });
+    expect(await storedAs(path)).toEqual(NAMED);
   });
 
   it("redirects a lower-case hash to the upper-case URL, as an immutable redirect, without asking the API", async () => {
@@ -286,7 +367,7 @@ describe("a ledger by hash", () => {
     expect(response.headers.get("Cache-Control")).toBe("max-age=60");
     expect(response.headers.has("X-Cache-Class")).toBe(false);
     expect(mock.requests).toEqual([]);
-    expect(await storedAs(path)).toEqual({ cls: "immutable", ttl: 31_536_000 });
+    expect(await storedAs(path)).toEqual(YEAR);
   });
 
   it("redirects a mixed-case hash too", async () => {
@@ -360,7 +441,7 @@ describe("a Xahau ledger", () => {
     expect(hrefs(html)).toContain("/xahau/ledger/26540188");
     expect(hrefs(html)).toContain("/xahau/tx/4994AD06C32ED4EE31BF87F9FE9BC8EC7F7BDF1AA3B440272558EAE07B6A9383");
     expect(text).toContain("Payment 14");
-    expect(await storedAs("/xahau/ledger/26540187")).toEqual({ cls: "immutable", ttl: 31_536_000 });
+    expect(await storedAs("/xahau/ledger/26540187")).toEqual(NAMED);
   });
 });
 
@@ -392,6 +473,36 @@ describe("a ledger with a great many transactions", () => {
   });
 });
 
+describe("a ledger of 450 accounts", () => {
+  // Past `NAMES_MAX_ADDRESSES` (400) the first ones collected are named, in calls of 100, and the page still shows the others as they are.
+  it("a ledger of 450 accounts: four calls of 100, sorted", async () => {
+    const { body } = await syntheticLedger(107700040, 450);
+    const senders = sendersOf(450);
+    const ledger = body.ledger as unknown as { transactions: Array<{ tx: Record<string, unknown> }> };
+    ledger.transactions.forEach((entry, i) => {
+      entry.tx = { ...entry.tx, Account: senders[i] };
+    });
+    mock = mockUpstream("xrpl", { "GET /v2/ledgers/107700040?expand=true&transactions=true": body });
+    const { response, html } = await page("/xrpl/ledger/107700040");
+
+    // The first 400 addresses `collectAddresses` meets, sorted, in four calls of 100 (the calls are made side by side, so they arrive in no order).
+    const data = pageOf(body);
+    const first = collectAddresses(data.rows, data.accountsCreated);
+    expect(first.length).toBeGreaterThan(NAMES_MAX_ADDRESSES);
+    const calls = namesCalls(mock).sort((a, b) => (a[0]! < b[0]! ? -1 : 1));
+    expect(calls.map((call) => call.length)).toEqual([100, 100, 100, 100]);
+    expect(calls).toEqual(inCalls(first.slice(0, NAMES_MAX_ADDRESSES)));
+    for (const call of calls) expect(call).toEqual(sorted(call));
+    // The addresses past the limit are not asked for, and the page is whole.
+    const skipped = first.slice(NAMES_MAX_ADDRESSES);
+    expect(namesCalls(mock).flat()).not.toContain(skipped[0]);
+    expect(tableRows(html, "Transactions")).toHaveLength(101);
+    expect(response.headers.get("X-Cache")).toBe("MISS");
+    expect(await storedAs("/xrpl/ledger/107700040")).toEqual(NAMED);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+});
+
 describe("a ledger without transactions", () => {
   it("says so, and still has its header", async () => {
     const { body } = await syntheticLedger(107700003, 0);
@@ -409,9 +520,26 @@ describe("a ledger without transactions", () => {
 });
 
 describe("a ledger the index does not have yet", () => {
+  // The page from the node is named too. The names are the test's own: each account asked for is named after its end, so that the test does not depend on which of
+  // the ledger's accounts the fixtures name.
+  const fixtureNameOf = (address: string): AccountNameEntry => ({
+    address,
+    display_name: { text: `Fixture ${address.slice(-4)}`, kind: "account" },
+    account_name: `Fixture ${address.slice(-4)}`,
+  });
+
   it("is shown from the node, with a note, and kept for 60 s", async () => {
     // The data API has no such ledger (the override), the node has validated it (its fixture).
-    mock = mockUpstream("xahau", { "GET /v2/ledgers/26540188?expand=true&transactions=true": null });
+    mock = mockUpstream("xahau", {
+      "GET /v2/ledgers/26540188?expand=true&transactions=true": null,
+      "GET /v2/account_names": (request: Request) => {
+        const asked = (new URL(request.url).searchParams.get("addresses") ?? "").split(",");
+        return new Response(JSON.stringify({ result: "success", count: asked.length, account_names: asked.map(fixtureNameOf) }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
     const { response, html } = await page("/xahau/ledger/26540188");
     const text = textOf(html);
 
@@ -430,6 +558,19 @@ describe("a ledger the index does not have yet", () => {
     expect(mock.requests.some((r) => r.kind === "node" && r.key.startsWith("node ledger"))).toBe(true);
     expect(response.headers.get("Cache-Control")).toBe("max-age=0");
     expect(await storedAs("/xahau/ledger/26540188")).toEqual({ cls: "short", ttl: 60 });
+
+    // Its accounts are named: the page asked for the ones it links, and draws each by its name and the title of how it is known.
+    const asked = namesCalls(mock).flat();
+    const linked = [...new Set(hrefs(html).flatMap((href) => /^\/xahau\/account\/(r\w+)$/.exec(href)?.[1] ?? []))];
+    expect(linked.length).toBeGreaterThan(0);
+    for (const address of linked) {
+      expect(asked, `${address} is asked for`).toContain(address);
+      const view = nameViewOf(fixtureNameOf(address))!;
+      for (const link of linksTo(html, "xahau", address)) {
+        expect(link.text).toContain(`Fixture ${address.slice(-4)}`);
+        expect(link.attrs).toContain(`title="${nameTitleOf(view, address)}"`);
+      }
+    }
     expect(mock.unusedOverrides()).toEqual([]);
   });
 

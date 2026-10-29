@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { NO_NAMES } from "../../domain/names";
 import type { HomePageData } from "../../server/home-view";
 import type { LiveControls } from "../use-live-controls";
 import { HomePage } from "./HomePage";
@@ -39,6 +40,7 @@ const data = (extra: Partial<HomePageData> = {}): HomePageData => ({
     { type: "TrustSet", hash: "CB".repeat(32), account: ALICE, amount: null, ok: false, code: "tecNO_LINE", date: 1792256468 },
   ],
   examples: [{ kind: "Ledger", label: "107,695,660", title: "107695660", href: "/xrpl/ledger/107695660" }],
+  names: NO_NAMES,
   ...extra,
 });
 

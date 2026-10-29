@@ -129,3 +129,31 @@ export function tableRows(html: string, label: string): string[][] {
       .map((chunk) => textOf(chunk.slice(chunk.indexOf(">") + 1).replace(/<span\s[^>]*$/, ""))),
   );
 }
+
+/**
+ * The data of a client-side navigation (`<path>.data`) as the plain value it was made of: the body is a flat list in which an object's keys are `_<index>` and every value is the
+ * index of its element (turbo-stream). A negative index stands for a value that is not in the list (`null`, `undefined`). The result is `{ [route id]: { data } }`.
+ */
+export function decodeLoaderData(body: string): unknown {
+  const flat = JSON.parse(body) as unknown[];
+  const made = new Map<number, unknown>();
+  const at = (index: number): unknown => {
+    if (index < 0) return null;
+    if (made.has(index)) return made.get(index);
+    const item = flat[index];
+    if (Array.isArray(item)) {
+      const items: unknown[] = [];
+      made.set(index, items);
+      for (const element of item) items.push(at(element as number));
+      return items;
+    }
+    if (typeof item === "object" && item !== null) {
+      const object: Record<string, unknown> = {};
+      made.set(index, object);
+      for (const [key, value] of Object.entries(item)) object[String(flat[Number(key.slice(1))])] = at(value as number);
+      return object;
+    }
+    return item;
+  };
+  return at(0);
+}

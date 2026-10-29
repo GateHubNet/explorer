@@ -1,6 +1,7 @@
 import { redirect } from "react-router";
 
 import { shortHash } from "../domain/format";
+import { NAMED_PAGE_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
 import { echoOf } from "../server/echo";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
@@ -9,10 +10,12 @@ import { ledgerPage, sourceFromIndex, sourceFromNode, type LedgerSource } from "
 import { upstreamFailure, upstreamOutage } from "../server/loader-errors";
 import { metaContext } from "../server/meta";
 import { ledgerMeta } from "../server/meta-ledger";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { networkOf, type Network } from "../server/networks";
 import { searchOnOther } from "../server/search-view";
 import { UpstreamError } from "../server/upstream";
+import { NamesProvider } from "../ui/names";
 import { LedgerPage } from "../ui/pages/LedgerPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -40,8 +43,11 @@ const FROM_NODE_TTL = 60;
  *   is an index or a hash this loader has checked, so a refusal is the API's fault and not a missing ledger.
  * - Everything is loaded here, never streamed: an `immutable` page is stored for a year, and a section that failed to
  *   stream would be stored with it.
+ * - The accounts of the rows and the accounts created are named in one call after the ledger is read (display names spec 5): the page of a ledger that
+ *   is closed is then kept an hour and not a year (`NAMED_PAGE_TTL_SECONDS`, with `NAMES` on), so that a new name or label shows within about an hour.
+ *   A names call that fails never fails the page: it shows the addresses and is served, not stored. The page from the node is named too.
  */
-export async function loader({ params, context }: Route.LoaderArgs) {
+export async function loader({ request, params, context }: Route.LoaderArgs) {
   const network = requireNetwork(context, params);
   const id = params.id ?? "";
 
@@ -77,10 +83,12 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 
   const last = Number(newest.value.ledger_index);
   const hasNext = Number.isSafeInteger(last) && source.index < last;
-  const page = ledgerPage(source, { native: network.native, hasNext });
+  const view = ledgerPage(source, { native: network.native, hasNext });
+  const { part: names } = await loadNames(api, collectAddresses(view.rows, view.accountsCreated), { context, request, features: network.features });
+  const page = { ...view, names };
 
   if (source.origin === "node") return cached(page, "short", { ttl: FROM_NODE_TTL });
-  return cached(page, hasNext ? "immutable" : "live");
+  return hasNext ? cached(page, "immutable", network.features.names ? { ttl: NAMED_PAGE_TTL_SECONDS } : {}) : cached(page, "live");
 }
 
 /** A network as the offer names it: the environment's own (XRPL Testnet in the sandbox). */
@@ -100,5 +108,9 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 export default function Ledger({ loaderData }: Route.ComponentProps) {
-  return <LedgerPage network={useNetwork()} data={loaderData} />;
+  return (
+    <NamesProvider names={loaderData.names.map}>
+      <LedgerPage network={useNetwork()} data={loaderData} />
+    </NamesProvider>
+  );
 }

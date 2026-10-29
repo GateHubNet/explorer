@@ -42,7 +42,7 @@ const neighbours = (count: number, position: number) => ({
   next: position < count - 1 ? { position: position + 1, hash: "22".repeat(32) } : null,
 });
 
-function page(hash: string, net: "xrpl" | "xahau" = "xrpl", count = 70): TransactionPageData {
+function page(hash: string, net: "xrpl" | "xahau" = "xrpl", count = 70): Omit<TransactionPageData, "names"> {
   const object = fixtureTx(net, hash);
   const source = txFromIndex(object);
   return transactionPage(source, {

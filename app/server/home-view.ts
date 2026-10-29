@@ -4,6 +4,7 @@
 import { encodeCtid } from "../domain/ctid";
 import { headlineAmount, type FlowAmount } from "../domain/describe";
 import { dropsToNative, formatAmount, shortAddress, shortHash } from "../domain/format";
+import type { NamesPart } from "../domain/names";
 import { resultText } from "../domain/results";
 import type { FeeRow, LastValidated, Ledger, TxObject } from "./api-types";
 import type { Network } from "./networks";
@@ -55,6 +56,11 @@ export interface HomePageData {
   ledgers: HomeLedgerRow[];
   transactions: HomeTxRow[];
   examples: HomeExample[];
+  /**
+   * The names of the addresses of `transactions` (display names spec 3.4), which the loader adds after `homePage`: the accounts of the rows and the issuers of their amounts, not the
+   * examples (a search hint keeps the short address). `failed` when the names call did not work, `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 /**
@@ -84,15 +90,16 @@ export function latestLedgerIndex(last: LastValidated, fees: readonly FeeRow[]):
 }
 
 /**
- * The page's data. Everything about the latest ledger (its index, hash, close time, supply, and the fees row that counts it) is that of
- * `ledger`, whose index `latestLedgerIndex` chose, so the tiles and the hero always say the same ledger.
+ * The page's data but for its names, which the loader asks for once it has the rows (`HomePageData.names`). Everything about the latest ledger (its index,
+ * hash, close time, supply, and the fees row that counts it) is that of `ledger`, whose index `latestLedgerIndex` chose, so the tiles and the hero always
+ * say the same ledger.
  */
 export function homePage(input: {
   network: Pick<Network, "id" | "ctidNetworkId" | "native">;
   ledger: Ledger;
   fees: readonly FeeRow[];
   transactions: readonly TxObject[];
-}): HomePageData {
+}): Omit<HomePageData, "names"> {
   const { network, ledger, fees, transactions } = input;
   const index = Number(ledger.ledger_index);
 

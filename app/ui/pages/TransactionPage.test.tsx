@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider, StaticRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { formatUtc, shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import type { TransactionPageData } from "../../server/transaction-view";
 import { OBJECTS_SHOWN, TransactionPage } from "./TransactionPage";
 
@@ -75,6 +76,7 @@ function transaction(extra: Partial<TransactionPageData> = {}): TransactionPageD
       meta: '{\n  "TransactionResult": "tesSUCCESS"\n}',
       binary: { state: "ready", tx: "12000022000000002402BFB59E", meta: "201C0000000C6012" },
     },
+    names: NO_NAMES,
     ...extra,
   };
 }

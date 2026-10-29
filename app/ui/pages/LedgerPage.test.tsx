@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { NO_NAMES } from "../../domain/names";
 import type { LedgerPageData, LedgerRow } from "../../server/ledger-view";
 import { FIRST_ROWS, LedgerPage } from "./LedgerPage";
 
@@ -66,6 +67,7 @@ function ledger(types: string[], failed: number[] = [], extra: Partial<LedgerPag
     fees: rows.length ? { total: "0.0001", min: "0.00001", max: "0.00001" } : null,
     rows,
     raw: '{\n  "ledger_index": 107720688\n}',
+    names: NO_NAMES,
     ...extra,
   };
 }

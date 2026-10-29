@@ -4,6 +4,8 @@ import { createMemoryRouter, Outlet, RouterProvider, useLoaderData, useParams, t
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { amendmentsHref, type AmendmentStatus } from "../domain/amendments-params";
+import { shortAddress } from "../domain/format";
+import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "../domain/network-params";
 import { validatorsHref, type ValidatorsParams } from "../domain/validators-params";
 import {
@@ -52,9 +54,10 @@ const XAHAU = { id: "xahau", name: "Xahau", native: "XAH", ctidNetworkId: 21337,
 
 const ALICE = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
 
-/** The home page's data at ledger `index`, made by build `build`. */
-const dataAt = (index: number, build = "abc1234"): HomeLoaderData => ({
+/** The home page's data at ledger `index`, made by build `build`, with the names part `names` (nothing named by default). */
+const dataAt = (index: number, build = "abc1234", names: NamesPart = NO_NAMES): HomeLoaderData => ({
   build,
+  names,
   latest: { index, hash: "AB".repeat(32), closeTime: 1792256472 + index, supply: "99985312446.118204" },
   txCount: 84,
   average: { transactions: 78, ledgers: 2 },
@@ -280,6 +283,52 @@ describe("net._index.tsx", () => {
     await pass(4000);
     expect(serverLoader).toHaveBeenCalledTimes(1);
     expect(ledgerTile()).toBe("#100");
+  });
+
+  describe("its names (display names spec 3.4)", () => {
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const NORTHPEAK_CUSTODY: NameView = { name: { text: "Northpeak Custody", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const named = (view: NameView): NamesPart => ({ state: "ok", map: { [ALICE]: view } });
+    /** What the account link of the first transaction says. */
+    const accountLink = () =>
+      within(screen.getByRole("table", { name: "Latest transactions" }))
+        .getAllByRole("link")
+        .find((link) => link.getAttribute("href") === `/xrpl/account/${ALICE}`)!;
+
+    it("draws the accounts of the table by the names of its data", () => {
+      mountHome(vi.fn(async () => dataAt(101)), dataAt(100, "abc1234", named(NORTHPEAK)));
+      expect(accountLink().textContent).toContain("Northpeak Treasury");
+      expect(accountLink().textContent).not.toContain(shortAddress(ALICE));
+    });
+
+    it("draws the short address for an account that has no name, and when the switch is off", () => {
+      mountHome(vi.fn(async () => dataAt(101)), dataAt(100, "abc1234", NAMES_OFF));
+      expect(accountLink().textContent).toBe(shortAddress(ALICE));
+    });
+
+    it("keeps the names on screen through a beat whose names call failed, and takes the names of the next beat that has them", async () => {
+      const answers = [dataAt(101, "abc1234", { state: "failed", map: {} }), dataAt(102, "abc1234", named(NORTHPEAK_CUSTODY))];
+      const serverLoader = vi.fn(async () => answers.shift()!);
+      mountHome(serverLoader, dataAt(100, "abc1234", named(NORTHPEAK)));
+      expect(accountLink().textContent).toContain("Northpeak Treasury");
+
+      await pass(4000);
+      // The beat's ledger is on screen, and so is the name the failed beat could not give again.
+      expect(ledgerTile()).toBe("#101");
+      expect(accountLink().textContent).toContain("Northpeak Treasury");
+      expect(accountLink().textContent).not.toContain(shortAddress(ALICE));
+
+      await pass(4000);
+      expect(ledgerTile()).toBe("#102");
+      expect(accountLink().textContent).toContain("Northpeak Custody");
+    });
+
+    it("keeps the names of rows that left the page for the rows that stay: the clientLoader merges the maps", async () => {
+      mountHome(vi.fn(async () => dataAt(101)), dataAt(100, "abc1234", named(NORTHPEAK)));
+      const beat = dataAt(101, "abc1234", { state: "ok", map: {} });
+      const merged = await home.clientLoader({ params: { net: "xrpl" }, serverLoader: async () => beat } as never);
+      expect(merged).toMatchObject({ names: { state: "ok", map: { [ALICE]: NORTHPEAK } } });
+    });
   });
 
   it("reloads the document, once, when the answer is of another build, and keeps the page until it does", async () => {

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 // The recorded mainnet objects the suite looks at (test/fixtures/http/, the fixture server's files). They are old and final, so
 // they are the same on a real stack that has the history, which is how the suite runs against one (E2E_DATA_API_URL).
 
@@ -58,3 +60,15 @@ export const SWAP_THROUGH_POOL = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC
 export const LIVE = Boolean(process.env.E2E_DATA_API_URL || process.env.E2E_BASE_URL);
 
 export const count = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * The name the network's names fixtures (`account_names.json`, synthetic: test/fixtures/PROVENANCE.md) give an account, the text a page draws it by (display names): `undefined`
+ * for an account they give none. A real stack has names of its own, so a test that reads this does not check it against one (`LIVE`).
+ */
+export function fixtureNameOf(net: "xrpl" | "xahau", address: string): string | undefined {
+  const table = JSON.parse(readFileSync(new URL(`../fixtures/http/${net}/data-api/account_names.json`, import.meta.url), "utf8")) as Record<
+    string,
+    { display_name?: { text: string } } | undefined
+  >;
+  return table[address]?.display_name?.text;
+}
