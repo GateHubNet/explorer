@@ -768,8 +768,9 @@ a.nav-item:hover {
 }
 
 /* The account page's header when the account has a name (E9, spec 6.1 to 6.4; the board AccountNames.dc.html). The name is the page's one h1, in the board's 22 px; its marks follow it,
-   drawn larger than in a link, and wrap with it. The address is the line under it, in mono. What is said of the name is a muted line: its links are told from the words around them by
-   more than their colour (WCAG 1.4.1, axe's link-in-text-block). */
+   drawn larger than in a link, and wrap with it. The address is the line under it, in mono. What is said of the name is a muted line: its links, the toml's in the checks of "How we
+   know" and a banner's are told from the words around them by more than their colour (WCAG 1.4.1: --link against the text is under 3:1, and axe's link-in-text-block cannot say it of an
+   ExternalLink, whose hidden words make its check incomplete). */
 .account-head__name {
   min-width: 0;
   font-size: 22px;
@@ -815,6 +816,7 @@ a.nav-item:hover {
 }
 
 .account-head__kind a,
+.disc__checks a,
 .notice--warning a {
   text-decoration: underline;
   text-underline-offset: 3px;

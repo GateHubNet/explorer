@@ -513,15 +513,49 @@ describe("the name header: a name GateHub gave", () => {
     const name = headerOf(HARBORLINE, { entry, liveDomain: "lowtide.example", toml: LOWTIDE_TOML });
     renderInRouter(<AccountPage network={XRPL} data={namedPage(HARBORLINE, name, "lowtide.example")} />);
     await screen.findByRole("heading", { level: 1 });
+    const sentence =
+      "This account names lowtide.example in its Domain field, but lowtide.example's xrp-ledger.toml does not list the account. The explorer shows the domain, without vouching for it.";
     expect(kindLine().textContent).toBe("Named by GateHub · domain lowtide.example not verified");
     expect(kindLine().querySelector(".mono")!.textContent).toBe("lowtide.example");
     const mark = kindLine().querySelector(".st")!;
     expect(mark.textContent).toBe("not verified");
-    expect(mark.getAttribute("title")).toBe(
-      "This account names lowtide.example in its Domain field, but lowtide.example's xrp-ledger.toml does not list the account. The explorer shows the domain, without vouching for it.",
-    );
+    // The mouse has it as the mark's title; everyone else has it as a line of text, as for a name that is only the domain, between the kind and the help.
+    expect(mark.getAttribute("title")).toBe(sentence);
+    const lines = [...document.querySelectorAll(".account-head__kind")].map((line) => line.textContent);
+    expect(lines).toEqual(["Named by GateHub · domain lowtide.example not verified", sentence, expect.stringMatching(/^GateHub names accounts that have no verified name/)]);
     // Nobody vouches for it: no link to it.
     expect(kindLine().querySelector("a")).toBeNull();
+  });
+
+  it("does not say the sentence again for a domain that is only not checked yet: its words are the mark's", async () => {
+    const entry: AccountNameEntry = { ...NAME_ENTRIES[HARBORLINE]!, domain: "lowtide.example" };
+    // The index has the domain, the node shows another one: nothing is known of that one yet.
+    const name = headerOf(HARBORLINE, { entry, liveDomain: "other.example", toml: null });
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(HARBORLINE, name, "other.example")} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(kindLine().textContent).toBe("Named by GateHub · domain other.example not checked yet");
+    expect([...document.querySelectorAll(".account-head__kind")]).toHaveLength(2);
+  });
+});
+
+// A link in a sentence is told from the words around it by more than its colour (WCAG 1.4.1): the stylesheet underlines the links of the header's lines, checks and banners. Axe cannot
+// say it of these (the hidden "(opens in a new tab)" of an `ExternalLink` makes its check incomplete), so each link the header draws is held to the selectors that underline. That
+// components.css has a rule that underlines each of them is test/unit/account-css.test.ts's (this environment reads no stylesheet).
+describe("the links of the name header", () => {
+  const underlined = [".account-head__kind a", ".disc__checks a", ".notice--warning a"];
+  /** The links the name header and the banners draw: not the activation line's or the tabs'. */
+  const headerLinks = () => [...document.querySelectorAll<HTMLAnchorElement>(".account-id__top a, .account-head__kind a, details.disc a, .notice--warning a")];
+
+  it.each([
+    ["a verified name: its domain, and the toml in the checks", () => namedPage(NORTHPEAK, headerOf(NORTHPEAK, { liveDomain: "northpeak.example", toml: NORTHPEAK_TOML }), "northpeak.example"), ["https://northpeak.example", "https://northpeak.example/.well-known/xrp-ledger.toml"]],
+    ["a name GateHub gave, with its label's banner and the address to ask", () => namedPage(HARBORLINE, headerOf(HARBORLINE), null, DELETED), ["https://gatehub.example/names", "https://status.example/harborline"]],
+  ] as const)("holds every link of %s to a rule that underlines", async (_state, page, hrefs) => {
+    brand.nameRequestUrl = "https://gatehub.example/names";
+    renderInRouter(<AccountPage network={XRPL} data={page()} />);
+    await screen.findByRole("heading", { level: 1 });
+    const links = headerLinks();
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(expect.arrayContaining([...hrefs]));
+    for (const link of links) expect(underlined.some((selector) => link.matches(selector)), `${link.getAttribute("href")} is underlined`).toBe(true);
   });
 });
 

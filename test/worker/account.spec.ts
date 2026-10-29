@@ -1583,19 +1583,23 @@ describe("the query of the URL", () => {
   );
 });
 
+/** The elements a drawing is made of: the numbers of their geometry are no text. */
+const DRAWING = new Set(["svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon"]);
+/** The attributes of those that are geometry. */
+const GEOMETRY = new Set(["d", "r", "rx", "ry", "cx", "cy", "x", "y", "x1", "x2", "y1", "y2", "points"]);
+
 /**
  * What a page tells, apart from its scripts: its visible text and the values of the attributes of its tags, outside `<script>` and `<style>`
  * elements (a canonical link, a `content`, an `href`, a `value`). The names of the build's own files (`/assets/...`, hashed with random text) are
  * not told by anybody, nor is the geometry of a drawing (the `d` of a path, the `r` of a circle).
  */
-const GEOMETRY = new Set(["d", "r", "rx", "ry", "cx", "cy", "x", "y", "x1", "x2", "y1", "y2", "points"]);
-
 function toldBy(html: string): string[] {
   const markup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "<script></script>").replace(/<style\b[\s\S]*?<\/style>/gi, "<style></style>");
-  // The geometry of a drawing is numbers: nobody is told by an icon's path or circle (the seal of a verified name has "21.5" in it, the tag of a name GateHub gave a radius of 1.5).
-  const values = [...markup.matchAll(/<[a-zA-Z][^>]*>/g)].flatMap((tag) =>
+  // The geometry of a drawing is numbers: nobody is told by an icon's path or circle (the seal of a verified name has "21.5" in it, the tag of a name GateHub gave a radius of 1.5). Only
+  // an element of a drawing: on any other, `x` or `d` is an attribute like the rest.
+  const values = [...markup.matchAll(/<([a-zA-Z][\w:-]*)[^>]*>/g)].flatMap((tag) =>
     [...tag[0].matchAll(/\s([\w:.-]+)="([^"]*)"/g)]
-      .filter((attribute) => !GEOMETRY.has(attribute[1]!))
+      .filter((attribute) => !(DRAWING.has(tag[1]!.toLowerCase()) && GEOMETRY.has(attribute[1]!)))
       .map((attribute) => attribute[2]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")),
   );
   return [textOf(html), ...values.filter((value) => !value.startsWith("/assets/"))];
@@ -1624,6 +1628,11 @@ describe("what a page tells (toldBy, for the ?tag tests above)", () => {
     const html = sample.replace("<p>", '<p><svg><path d="M12 21.5l-2.4-1.8"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>');
     expect(html).toContain("1.5");
     expect(toldBy(html).filter((told) => told.includes("1.5"))).toEqual([]);
+  });
+
+  it("finds digits in the attributes of an element that is no drawing, even those a drawing's geometry is made of", () => {
+    const html = sample.replace("<p>", '<p data-a="1" x="007" y="007" d="007" r="007">');
+    expect(toldBy(html).filter((told) => told.includes("007"))).toEqual(["007", "007", "007", "007"]);
   });
 
   it.each([

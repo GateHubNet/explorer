@@ -21,6 +21,9 @@ describe("the files of the validators pages that run in the browser", () => {
     "ui/pages/AmendmentsPage.tsx",
     "ui/pages/AmendmentPage.tsx",
     "ui/components/StatusMarks.tsx",
+    // StatusMarks.tsx exports these from files of their own (the account page imports them without the rest): DomainStatus.tsx type-imports validator-facts.ts, which stays a type.
+    "ui/components/DomainStatus.tsx",
+    "ui/components/ExternalLink.tsx",
     "ui/components/status-icons.tsx",
     "ui/components/Countdown.tsx",
     "domain/validators-params.ts",

@@ -126,6 +126,8 @@ function NameLines({ name }: { name: NameHeader }) {
       return (
         <>
           <p className="account-head__kind">Named by GateHub · {domainLine ? <DomainText line={domainLine} /> : "no domain set"}</p>
+          {/* What the toml said of the domain, as text and not only the mark's title (6.3): for the check that found something, not for "not checked yet", whose words are the mark's. */}
+          {domainLine?.state === "not-verified" && domainLine.note && <p className="account-head__kind">{domainLine.note}</p>}
           <p className="account-head__kind account-head__help">
             GateHub names accounts that have no verified name, such as an exchange&apos;s hot wallet. If this name is wrong, or an account you run should have one,{" "}
             {NAME_REQUEST_URL === null ? (

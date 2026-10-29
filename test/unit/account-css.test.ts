@@ -133,8 +133,13 @@ describe("the name header (display names spec 6.1 to 6.4)", () => {
     expect(rule(componentsCss, ".disc[open] .disc__chevron").transform).toBe("rotate(90deg)");
   });
 
-  it("underlines the links in its muted lines and in a warning banner, so that more than their colour tells them from the words around them (WCAG 1.4.1)", () => {
-    expect(componentsCss).toMatch(/\.account-head__kind a,\s*\.notice--warning a\s*\{[^}]*text-decoration:\s*underline/);
+  // `--link` against the text colour is under 3:1 (2.88:1 on XRPL, 2.73:1 on Xahau, 2.06:1 in dark), so a link in a sentence is told from it by more than its colour (WCAG 1.4.1;
+  // axe cannot say it here: the hidden "(opens in a new tab)" of an `ExternalLink` makes its check incomplete). AccountPage.test.tsx holds every link the header draws to these.
+  it("underlines the links in its muted lines, in the checks of 'How we know' and in a warning banner, so that more than their colour tells them from the words around them (WCAG 1.4.1)", () => {
+    const underlined = [...componentsCss.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(([, , body]) => /text-decoration:\s*underline/.test(body!))
+      .flatMap(([, selectors]) => selectors!.split(",").map((selector) => selector.trim()));
+    expect(underlined).toEqual(expect.arrayContaining([".account-head__kind a", ".disc__checks a", ".notice--warning a"]));
   });
 
   it.each([
