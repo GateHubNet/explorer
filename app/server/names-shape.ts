@@ -10,16 +10,14 @@
 //     later, not refused: the API may add one); `labels` is an object of labels, each with a `description` that is text (it may be empty) and a `source` and a `url` that
 //     are text when there; `domain`, `account_name` and `account_network_name` are text when there. An entry may have a `domain` and no `display_name`: D4 answers so
 //     when it could not read its toml store;
-//   - the toml: it is the toml of the domain asked, its `status` is `ok` or `failed`, `toml_url` and `checked` are text, each list that is there is a list of objects
+//   - the toml: it is the toml of the domain asked, its `status` is `ok` or `failed`, `toml_url` and `checked` are text, so are `reason`, `fetched`, `modified` and `expires`
+//     when there, and `status_code` is a whole number when there; each list that is there is a list of objects
 //     with the text that names its rows (`address`, `code`, `public_key`), and the `principals` are text. `accounts` may repeat an address (once for each counting network).
 // A key the API leaves out when it has no value is checked when it is there, and `null` is never served. Extra keys are not refused.
 
-import { fields, isName, optionalFields, rowsOf } from "./aggregate-shape";
+import { fields, isName, isText, isWhole, optionalFields, rowsOf } from "./aggregate-shape";
 import type { AccountNamesResponse, TomlAnswer } from "./api-types";
 import { isObject, malformed } from "./tx-shape";
-
-/** Text, which may be empty: a label's description is. */
-const isText = (value: unknown): value is string => typeof value === "string";
 
 /**
  * `GET /v2/account_names?addresses=…`: one entry for each address asked, in the order asked. `body` is what the API sent, whatever it is; it is typed as the answer
@@ -75,6 +73,9 @@ export function checkToml(body: TomlAnswer, domain: string): TomlAnswer {
   if (toml.domain !== domain) throw malformed(what, "toml.domain is not the domain asked");
   if (toml.status !== "ok" && toml.status !== "failed") throw malformed(what, 'toml.status is neither "ok" nor "failed"');
   fields(what, "toml", toml, ["toml_url", "checked"], isText, "text");
+  // The keys of a failed check and of the content it read: the page words the `reason`, draws `fetched` (and `modified`), and `expires` is kept as the API gives it.
+  optionalFields(what, "toml", toml, ["reason", "fetched", "modified", "expires"], isText, "text");
+  optionalFields(what, "toml", toml, ["status_code"], isWhole, "a whole number");
 
   for (const [list, key] of TOML_LISTS) {
     if (toml[list] === undefined) continue;

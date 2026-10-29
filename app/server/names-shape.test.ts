@@ -240,6 +240,20 @@ describe("checkToml", () => {
     expect(checkToml(body, "northpeak.example")).toBe(body);
   });
 
+  it("takes the keys of a failed check: its reason, its status code and a last good read", () => {
+    const body: Body = failedWithContentExample();
+    body.toml.expires = "2027-01-01T00:00:00Z";
+    expect(checkToml(body, "blip.example")).toBe(body);
+  });
+
+  it("names the field of a reason, a status code or a time that is wrong", () => {
+    for (const [key, value] of [["reason", 7], ["status_code", "503"], ["fetched", 7], ["modified", 7], ["expires", 7]] as const) {
+      const body: Body = clone(failedWithContentExample());
+      body.toml[key] = value;
+      refuses((checked) => checkToml(checked, "blip.example"), body, `toml.${key}`);
+    }
+  });
+
   it("takes the keys a newer API may add", () => {
     const body: Body = tomlExample();
     body.toml.expires = "2027-01-01T00:00:00Z";
@@ -258,6 +272,13 @@ describe("checkToml", () => {
     ["no checked time", (b) => delete b.toml.checked],
     ["a checked time that is a number", (b) => (b.toml.checked = 1792000000)],
     ["no toml_url", (b) => delete b.toml.toml_url],
+    ["a reason that is not text", (b) => (b.toml.reason = 7)],
+    ["a status code that is text", (b) => (b.toml.status_code = "503")],
+    ["a status code that is not whole", (b) => (b.toml.status_code = 503.5)],
+    ["a status code that is negative", (b) => (b.toml.status_code = -1)],
+    ["a fetched time that is a number", (b) => (b.toml.fetched = 7)],
+    ["a modified time that is a number", (b) => (b.toml.modified = 7)],
+    ["an expires time that is a number", (b) => (b.toml.expires = 7)],
     ["no toml", (b) => delete b.toml],
     ["a toml that is a list", (b) => (b.toml = [])],
     ["a toml that is text", (b) => (b.toml = "northpeak.example")],

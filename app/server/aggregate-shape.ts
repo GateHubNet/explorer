@@ -62,7 +62,8 @@ export function isIsoTime(value: unknown): value is string {
 const isCount = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 /** A count of rows or an index: a whole number, not negative. */
 export const isWhole = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-const isText = (value: unknown): value is string => typeof value === "string";
+/** Text, which may be empty. */
+export const isText = (value: unknown): value is string => typeof value === "string";
 /** A name that is there: a currency, an account, a hash. */
 export const isName = (value: unknown): value is string => typeof value === "string" && value !== "";
 const isShare = (value: unknown): value is string => isDecimalText(value) && SHARE.test(value);

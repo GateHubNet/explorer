@@ -14,13 +14,14 @@ import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { AmendmentRow, DomainVerification } from "./api-types";
 import type { Network } from "./networks";
+import { tomlFileOf, UNVERIFIED, unverifiedSentence } from "./toml-words";
 
 // `joinAnd`, `statusWord` and the words for the lists of a UNL (`LOCAL_PUBLISHER`, `publisherLabel`, `listedByText`, `onListsText`, `unlTagWords`) are words browser files need too (the status marks; the tags of a validator's page; the amendment page), so they live
-// in the domain files a browser file may import (`joinAnd` in time-words.ts, apart from format.ts, which the shell chunk holds; `statusWord` in amendments-params.ts; the publishers' words in publishers.ts);
-// they are the interface of this file as well.
+// in the domain files a browser file may import (`joinAnd` in join-and.ts, which time-words.ts re-exports, apart from format.ts, which the shell chunk holds; `statusWord` in amendments-params.ts; the publishers' words in publishers.ts);
+// they are the interface of this file as well. `tomlFileOf` is toml-words.ts's now (the account page's header says the same sentences), and is re-exported here.
 export { statusWord } from "../domain/amendments-params";
 export { listedByText, LOCAL_PUBLISHER, onListsText, publisherLabel, unlTagWords } from "../domain/publishers";
-export { joinAnd };
+export { joinAnd, tomlFileOf };
 
 /** What a figure that is not there reads as. */
 export const DASH = "—";
@@ -195,11 +196,6 @@ export function ledgerLink(net: string, index: number): { text: string; href: st
   return { text: `#${count(index)}`, href: `/${net}/ledger/${index}` };
 }
 
-/** The file a validator's domain publishes on the network whose software this is. */
-export function tomlFileOf(software: Network["software"]): "xrp-ledger.toml" | "xahau.toml" {
-  return software === "xahaud" ? "xahau.toml" : "xrp-ledger.toml";
-}
-
 /** What a host name is made of. A domain with anything else (a path, an `@`, a port) would make the address below another host's. */
 const HOST_NAME = /^[A-Za-z0-9.-]+$/;
 
@@ -247,39 +243,6 @@ export function accountLinks(net: string, accounts: readonly string[] | undefine
 // ---- The verification note (4.2) ---------------------------------------------------------------------------------------------------------------
 
 export type DomainStatusKind = DomainVerification["status"];
-
-const UNVERIFIED = "The domain could not be verified.";
-
-/** The sentence of an `unverified` domain: its `reason`, which D1 sets for that status only. A reason this file does not know (a newer D1), or one that lacks what its sentence needs, reads `UNVERIFIED`. */
-function unverifiedSentence(dv: DomainVerification, domain: string, file: string): string {
-  switch (dv.reason) {
-    case "not_listed":
-      return `The ${file} at ${domain} does not list this master key.`;
-    case "toml_invalid":
-      return `The ${file} at ${domain} could not be read as TOML.`;
-    case "too_large":
-      return `The ${file} at ${domain} is larger than 256 KiB.`;
-    case "http_status":
-      return dv.status_code === undefined ? UNVERIFIED : `${domain} answered HTTP ${dv.status_code} for its ${file}.`;
-    case "dns_error":
-      return `${domain} could not be reached (the DNS lookup failed). The data API tries again within the hour.`;
-    case "connect_error":
-      return `${domain} could not be reached (the connection failed). The data API tries again within the hour.`;
-    case "tls_error":
-      return `${domain} could not be reached (TLS failed). The data API tries again within the hour.`;
-    case "timeout":
-      return `${domain} could not be reached (it timed out). The data API tries again within the hour.`;
-    case "redirect_rejected":
-    case "blocked_address":
-      return `${domain} sent the request where the data API does not follow.`;
-    case "domain_invalid":
-      return "The manifest's domain is not a valid domain name.";
-    case "manifest_unverified":
-      return "The manifest that names this domain could not be verified.";
-    default:
-      return UNVERIFIED;
-  }
-}
 
 /**
  * The note under a validator's name that says what its domain's check found (4.2), as parts: the file name of a verified domain is a link (`external: "nofollow"`) when
