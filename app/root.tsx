@@ -14,7 +14,13 @@ import type { Route } from "./+types/root";
 // The root route's error boundary can show a thrown 404, whose cache class must reach the document (see edge-cache.ts).
 export const headers = forwardCacheClass;
 
-export const links: Route.LinksFunction = () => [...FONT_PRELOADS, { rel: "stylesheet", href: styles }];
+// The favicon is the logo's mark (public/): the SVG for the browsers that take one (white when the browser is dark), the .ico, dark, for the rest.
+export const links: Route.LinksFunction = () => [
+  ...FONT_PRELOADS,
+  { rel: "stylesheet", href: styles },
+  { rel: "icon", href: "/favicon.ico", sizes: "32x32" },
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+];
 
 export const meta: Route.MetaFunction = ({ error }) =>
   error
