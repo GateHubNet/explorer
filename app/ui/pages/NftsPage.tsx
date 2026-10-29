@@ -280,7 +280,8 @@ function IssuerForm({ net, form }: { net: NetworkId; form: NftsPageData["issuerF
   const shown = useRef({ view, value: form.value });
   useEffect(() => {
     const input = field.current;
-    if (shown.current.view !== view && input !== null && !(input === document.activeElement && input.value !== shown.current.value)) input.value = form.value;
+    // Compared trimmed: the loader trims what was sent, so " rX " that Enter sent is the rX the page then showed, not text the visitor typed since.
+    if (shown.current.view !== view && input !== null && !(input === document.activeElement && input.value.trim() !== shown.current.value)) input.value = form.value;
     shown.current = { view, value: form.value };
   }, [view, form.value]);
   const hidden = ([name, value]: [string, string]) => <input key={name} type="hidden" name={name} value={value} />;

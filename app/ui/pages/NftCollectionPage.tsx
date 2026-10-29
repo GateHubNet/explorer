@@ -202,7 +202,8 @@ function OwnerForm({ net, header, form }: { net: NetworkId; header: Header; form
     const field = owner.current;
     const box = burned.current;
     if (last.view !== view) {
-      if (field !== null && !(field === document.activeElement && field.value !== last.owner)) field.value = form.owner;
+      // Compared trimmed: the loader trims what was sent, so " rX " that Enter sent is the rX the page then showed, not text the visitor typed since.
+      if (field !== null && !(field === document.activeElement && field.value.trim() !== last.owner)) field.value = form.owner;
       if (box !== null && !(box === document.activeElement && box.checked !== last.burned)) box.checked = form.burned;
     }
     shown.current = { view, owner: form.owner, burned: form.burned };

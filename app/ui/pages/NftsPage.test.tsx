@@ -594,6 +594,22 @@ describe("NftsPage: the issuer form across client-side navigations", () => {
     expect([field.value, document.activeElement === field]).toEqual(["rTyp", true]);
   });
 
+  // The loader trims what was sent (" rX " lists rX's collections), so the field the visitor kept is compared trimmed with what the page showed: Back puts the previous page's
+  // issuer in it, though what was pasted had spaces round it.
+  it("puts the previous page's issuer back on Back after Enter on an issuer pasted with spaces round it, though the field kept the focus", async () => {
+    const { router } = mountLoaded("/xrpl/nfts");
+    const field = issuerField();
+    field.focus();
+    fireEvent.change(field, { target: { value: ` ${NFT_ISSUER} ` } });
+    await act(async () => void fireEvent.submit(field.form!));
+    await waitFor(() => expect(at(router)).toBe(`/xrpl/nfts?issuer=+${NFT_ISSUER}+`));
+    expect([field.value, document.activeElement === field]).toEqual([` ${NFT_ISSUER} `, true]);
+
+    await act(async () => void (await router.navigate(-1)));
+    await waitFor(() => expect(at(router)).toBe("/xrpl/nfts"));
+    expect([field.value, document.activeElement === field]).toEqual(["", true]);
+  });
+
   it("puts the page's issuer back in the field when a link changes the view, but not into the field the visitor is in", async () => {
     const { router } = mountLoaded(`/xrpl/nfts?issuer=${NFT_ISSUER}`);
     const field = issuerField();

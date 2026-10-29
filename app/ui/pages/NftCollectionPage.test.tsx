@@ -613,6 +613,22 @@ describe("NftCollectionPage: the owner form across client-side navigations", () 
     expect([field.value, document.activeElement === field]).toEqual(["rTyp", true]);
   });
 
+  // The loader trims what was sent (" rX " lists what rX owns), so the field the visitor kept is compared trimmed with what the page showed: Back puts the previous page's owner
+  // in it, though what was pasted had spaces round it.
+  it("puts the previous page's owner back on Back after Enter on an owner pasted with spaces round it, though the field kept the focus", async () => {
+    const { router } = mountLoaded(`${PATH}?tab=nfts`);
+    const field = ownerField();
+    field.focus();
+    fireEvent.change(field, { target: { value: ` ${NFT_OWNER} ` } });
+    await act(async () => void fireEvent.submit(field.form!));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts&owner=+${NFT_OWNER}+`));
+    expect([field.value, document.activeElement === field]).toEqual([` ${NFT_OWNER} `, true]);
+
+    await act(async () => void (await router.navigate(-1)));
+    await waitFor(() => expect(at(router)).toBe(`${PATH}?tab=nfts`));
+    expect([field.value, document.activeElement === field]).toEqual(["", true]);
+  });
+
   it("puts the previous page's 'Include burned' back on Back after Enter on it, though the box kept the focus", async () => {
     const { router } = mountLoaded(`${PATH}?tab=nfts`);
     const box = burnedBox();
