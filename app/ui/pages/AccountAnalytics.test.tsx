@@ -764,6 +764,8 @@ describe("the DEX pairs", () => {
     const mark = issuers.querySelector(".labelmark")!;
     expect(mark.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
     expect(mark.querySelector(".sr")!.textContent).toBe("labelled scam by GateHub");
+    // One unit with its issuer, which the wrapped line does not break.
+    expect([mark.parentElement!.className, mark.parentElement!.textContent]).toEqual(["issued-marked", "rhub8V…F3wq labelled scam by GateHub"]);
   });
 
   it("say what the index holds of the DEX in the data's words: AMM on, AMM off, and Xahau", async () => {

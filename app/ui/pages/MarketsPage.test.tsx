@@ -303,7 +303,7 @@ describe("MarketsPage, the pairs card", () => {
     const issuers = pairLink.querySelector(".markets__issuers")!;
     expect(issuers.classList.contains("mono")).toBe(false);
     expect(issuers.textContent).toBe("EUR rvYAfW…s59B labelled scam by GateHub · USD Northpeak Treasury");
-    const spans = [...issuers.children].filter((child) => !child.classList.contains("labelmark"));
+    const spans = [...issuers.querySelectorAll("span:not(.issued-marked)")].filter((span) => span.closest(".labelmark") === null);
     expect(spans.map((span) => [span.textContent, span.classList.contains("mono")])).toEqual([
       ["EUR", true],
       ["rvYAfW…s59B", true],
@@ -314,6 +314,9 @@ describe("MarketsPage, the pairs card", () => {
     const mark = issuers.querySelector(".labelmark")!;
     expect(issuers.querySelectorAll(".labelmark")).toHaveLength(1);
     expect(mark.previousElementSibling!.textContent).toBe("rvYAfW…s59B");
+    // The issuer and its mark are one unit that does not break, so that the wrapped line never leaves the mark alone on the next.
+    expect(mark.parentElement!.className).toBe("issued-marked");
+    expect(mark.parentElement!.textContent).toBe("rvYAfW…s59B labelled scam by GateHub");
     expect(mark.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
     expect(mark.querySelector(".sr")!.textContent).toBe("labelled scam by GateHub");
     expect(within(table()).getAllByRole("link")).toHaveLength(1);

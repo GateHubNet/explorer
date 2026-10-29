@@ -125,7 +125,8 @@ describe("the names call of the page", () => {
     expect(cells.length).toBeGreaterThan(0);
     for (const cell of cells) if (/r\w{5}…\w{4}/.test(cell)) expect(cell).toMatch(/r\w{5}…\w{4} labelled scam by GateHub/);
     expect(cells.filter((cell) => cell.includes("labelled scam by GateHub")).length).toBeGreaterThan(0);
-    expect(html).toMatch(/<span class="mono">r\w{5}…\w{4}<\/span> <span class="labelmark">/);
+    // The issuer and its mark are one unit, which the issuers' wrapped line does not break.
+    expect(html).toMatch(/<span class="issued-marked"><span class="mono">r\w{5}…\w{4}<\/span> <span class="labelmark">/);
   });
 
   // The page draws no account by its name (no `NamesProvider`): its rows carry the issuers' words and marks, and the names map stays in the Worker.

@@ -480,7 +480,8 @@ function CounterpartiesTable({ native, net, retry, source, part }: ViewProps & {
 
 /**
  * A pair: its name, a link to its page when the data gives one, over the issuers of its issued sides: each its code and its issuer. The code and an address are mono, as they
- * always were; a display name is not (`.acct__name` and `.acct__address` of a link, `AccountLink`); a labelled issuer has the label's mark (display names decision 12). Drawn
+ * always were; a display name is not (`.acct__name` and `.acct__address` of a link, `AccountLink`); a labelled issuer has the label's mark (display names decision 12), the two
+ * one unit that does not break (`.issued-marked`), in a line that wraps and is never cut (pages.css). Drawn
  * here and not with the lists' `IssuerTexts`: a module the view shared with those pages would be a file of its own that the view loads beyond the account page's.
  */
 function Pair({ row }: { row: PairRow }) {
@@ -492,12 +493,13 @@ function Pair({ row }: { row: PairRow }) {
           {row.issued.map((side, at) => (
             <Fragment key={at}>
               {at > 0 && " · "}
-              <span className="mono">{side.code}</span> <span className={side.name ? undefined : "mono"}>{side.issuer}</span>
-              {side.labels.length > 0 && (
-                <>
-                  {" "}
-                  <LabelMark labels={side.labels} />
-                </>
+              <span className="mono">{side.code}</span>{" "}
+              {side.labels.length > 0 ? (
+                <span className="issued-marked">
+                  <span className={side.name ? undefined : "mono"}>{side.issuer}</span> <LabelMark labels={side.labels} />
+                </span>
+              ) : (
+                <span className={side.name ? undefined : "mono"}>{side.issuer}</span>
               )}
             </Fragment>
           ))}

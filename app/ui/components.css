@@ -733,6 +733,16 @@ a.acct:not(.ent) > .acct__name {
   text-underline-offset: 2px;
 }
 
+/* `a:hover` underlines the whole link, with its own offset: under a name that already has its line that is two lines, a pixel apart. A hovered named link draws
+   none of its own, and its name's line grows instead: hover still shows, and it is not the focus ring. */
+a.acct:not(.ent):hover {
+  text-decoration: none;
+}
+
+a.acct:not(.ent):hover > .acct__name {
+  text-decoration-thickness: 2px;
+}
+
 /* The whole address after the name (AccountLink `full`): mono, the board's 12.5 px, and it wraps where it must, as a bare address does. */
 .acct__address {
   min-width: 0;
@@ -761,6 +771,12 @@ a.acct:not(.ent) > .acct__name {
   flex: none;
   vertical-align: -2px;
   color: var(--bad);
+}
+
+/* A labelled issuer and its mark in a list's issuers (IssuerTexts, the Analytics DEX pairs): one unit, so that the issuers' line, which wraps, never leaves the mark alone at
+   the start of the next. (A no-break space does not hold an inline-flex box to the word before it in Chrome.) The issuer is a short address, so the unit is short. */
+.issued-marked {
+  white-space: nowrap;
 }
 
 /* "not verified": a name that only the account's domain says. The board's tag: dashed, no ground of its own (tokens.test.ts holds its text to 4.5:1 on

@@ -400,9 +400,33 @@ describe("the classes of an account link (display names spec 4.4)", () => {
     expect(rule(componentsCss, "a.acct:not(.ent) > .acct__name")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "2px" });
   });
 
+  // `a:hover` underlines the whole link, and that line (its own offset) would lie under the name's own, 1 px apart: two lines. A hovered named link takes none, and its name's
+  // line grows instead, so that hover still shows, and stays apart from focus (the ring).
+  it("draws one line under a hovered name: the link's hover underline is off, and the name's own grows to 2 px", () => {
+    expect(rule(baseCss, "a:hover")["text-decoration"]).toBe("underline");
+    expect(rule(componentsCss, "a.acct:not(.ent):hover")["text-decoration"]).toBe("none");
+    expect(rule(componentsCss, "a.acct:not(.ent):hover > .acct__name")["text-decoration-thickness"]).toBe("2px");
+  });
+
   it("leaves the balance changes' account to a class of its own: a flex row 8 px apart that cuts its link, and keeps the role small", () => {
     expect(rule(pagesCss, ".change-acct")).toMatchObject({ display: "flex", "align-items": "center", gap: "8px", "min-width": "0" });
     expect(rule(pagesCss, ".change-acct > a")).toMatchObject({ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" });
     expect(rule(pagesCss, ".change-acct .type")).toMatchObject({ flex: "none", "font-size": "11px" });
+  });
+});
+
+describe("the issuers under a pair (display names decision 12)", () => {
+  // A labelled issuer's mark follows its issuer, and the counter's comes last: an ellipsis would cut it first, and a scam warning would be lost to sight. The issuers wrap
+  // instead, as the AMM list's do (`.amm__detail`), and a labelled issuer and its mark are one unit that does not break (IssuerTexts, the Analytics view's Pair).
+  it.each([".markets__issuers", ".analytics__issuers", ".amm__detail"])("lets %s wrap and never cuts it, so that a label mark stays in sight", (selector) => {
+    const issuers = rule(pagesCss, selector);
+    expect(issuers["white-space"]).toBe("normal");
+    expect(issuers["overflow-wrap"]).toBe("anywhere");
+    expect(issuers.overflow).toBeUndefined();
+    expect(issuers["text-overflow"]).toBeUndefined();
+  });
+
+  it("holds a labelled issuer and its mark together, so that the wrapped line never leaves the mark alone at the start of the next", () => {
+    expect(rule(componentsCss, ".issued-marked")["white-space"]).toBe("nowrap");
   });
 });

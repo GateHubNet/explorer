@@ -654,7 +654,7 @@ describe("AmmListPage: the names of the accounts it draws", () => {
     const detail = cellsOf(rowsOf()[2]!)[0]!.querySelector(".amm__detail")!;
     expect(detail.classList.contains("mono")).toBe(false);
     expect(detail.textContent).toBe(`${shortAddress(ammPoolAccount(7))} · RLUSD Northpeak Treasury · USD ${shortAddress(AMM_ISSUER)} labelled scam by GateHub`);
-    const words = [...detail.querySelectorAll("span:not(.labelmark):not(.sr)")].filter((span) => span.closest(".labelmark") === null);
+    const words = [...detail.querySelectorAll("span:not(.labelmark):not(.sr):not(.issued-marked)")].filter((span) => span.closest(".labelmark") === null);
     expect(words.map((span) => [span.textContent, span.classList.contains("mono")])).toEqual([
       [shortAddress(ammPoolAccount(7)), true],
       ["RLUSD", true],
@@ -664,6 +664,8 @@ describe("AmmListPage: the names of the accounts it draws", () => {
     ]);
     const mark = detail.querySelector(".labelmark")!;
     expect(detail.querySelectorAll(".labelmark")).toHaveLength(1);
+    // One unit with its issuer, which the wrapped line does not break.
+    expect(mark.parentElement!.className).toBe("issued-marked");
     expect(mark.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
     expect(mark.querySelector(".sr")!.textContent).toBe("labelled scam by GateHub");
   });
