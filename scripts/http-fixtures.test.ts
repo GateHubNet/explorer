@@ -31,22 +31,28 @@ import {
 import { ammInfoFixtures } from "./amm-info-fixtures";
 import { marketFixtures } from "./market-fixtures";
 
+// A generation of every fixture takes about 0.7 s on a developer's machine and 2.5 s or more on a CI runner, and nearly every test
+// below only reads what it gives: they share one (a test that changes the map changes a copy), so that no test's time is several
+// generations. "are deterministic" makes a second one of its own.
+let shared: Map<string, string> | undefined;
+const generatedFiles = () => (shared ??= generate());
+
 describe("the generated upstream fixtures", () => {
   // The committed files are what the generator writes from the recordings (`pnpm fixtures:sync` rewrites them).
   it("are up to date: regenerating changes, adds and removes nothing", () => {
-    const differences = compare(generate());
+    const differences = compare(generatedFiles());
     expect(differences).toEqual({ missing: [], changed: [], stale: [] });
   });
 
   it("are deterministic: two runs give the same text", () => {
-    const first = generate();
+    const first = generatedFiles();
     const second = generate();
     expect([...second.keys()]).toEqual([...first.keys()]);
     for (const [path, text] of first) expect(second.get(path)).toBe(text);
   });
 
   it("are compared file by file: a changed one, one that is not on disk, and one that no longer belongs are told apart", () => {
-    const generated = generate();
+    const generated = new Map(generatedFiles());
     const [changed, dropped] = [...generated.keys()];
     generated.set(changed!, "changed\n");
     generated.delete(dropped!);
@@ -55,13 +61,13 @@ describe("the generated upstream fixtures", () => {
   });
 
   it("never include a file that is written by hand", () => {
-    expect([...generate().keys()].filter(isHandWritten)).toEqual([]);
+    expect([...generatedFiles().keys()].filter(isHandWritten)).toEqual([]);
   });
 
   // The markets pages' answers (market-fixtures.ts: a pair's trades, candles, 24-hour rows and active accounts, and the markets table) and the pools'
   // `amm_info` answers (amm-info-fixtures.ts) are generated with the rest, so `pnpm fixtures:sync` writes them and `fixtures:check` fails when they part ways.
   it("hold the market fixtures and the amm_info files, as their generators write them, none of them written by hand", () => {
-    const generated = generate();
+    const generated = generatedFiles();
     const market = marketFixtures();
     const pools = ammInfoFixtures();
     expect(market.size).toBeGreaterThan(50);
@@ -88,8 +94,8 @@ describe("the generated upstream fixtures", () => {
     expect(isHandWritten("xrpl/node/amm_info/rAAAA.json")).toBe(false);
     expect(isHandWritten("xrpl/data-api/book_offers/x.json")).toBe(false);
 
-    expect([...generate().keys()].filter((path) => path.includes("/node/book_offers/"))).toEqual([]);
-    expect(compare(generate()).stale.filter((path) => path.includes("/node/book_offers/"))).toEqual([]);
+    expect([...generatedFiles().keys()].filter((path) => path.includes("/node/book_offers/"))).toEqual([]);
+    expect(compare(generatedFiles()).stale.filter((path) => path.includes("/node/book_offers/"))).toEqual([]);
   });
 });
 
@@ -120,7 +126,7 @@ describe("fixtureText", () => {
   });
 
   it("leaves the layout of every generated file that is not synthetic as it is: a list called rows is not one line a row unless it is told to be", () => {
-    const fees = generate().get("xrpl/data-api/network/fees@descending=true&limit=8.json")!;
+    const fees = generatedFiles().get("xrpl/data-api/network/fees@descending=true&limit=8.json")!;
     expect(fees.split("\n").length).toBeGreaterThan(8 * 3);
   });
 });
@@ -232,7 +238,7 @@ describe("shapes", () => {
 // The data API's `?binary=true` answer: `tx` and `meta` as the upper-case hex of the serialization (api-reference.md, "Transactions").
 // ripple-binary-codec is a devDependency used here and nowhere else: the Worker never serializes anything.
 describe("the ?binary=true fixtures", () => {
-  const files = generate();
+  const files = generatedFiles();
   const plain = [...files.keys()].filter((path) => /\/data-api\/transactions\/[0-9A-F]{64}\.json$/.test(path));
   const binaryOf = (path: string) => path.replace(/\.json$/, "@binary=true.json");
   const body = (path: string) => JSON.parse(files.get(path)!) as { result: string; transaction: Record<string, any> };

@@ -79,6 +79,7 @@ function tableRows() {
 const pressed = () => screen.getAllByRole("button").filter((button) => button.getAttribute("aria-pressed") === "true");
 
 describe("LedgerPage: show all", () => {
+  // 1,500 rows drawn and taken away again in happy-dom: about 1 s on a developer's machine, and close to 5 s on a CI runner.
   it("shows the first 100 rows and a 'Show all' button that shows the rest without asking for anything", () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
@@ -95,7 +96,7 @@ describe("LedgerPage: show all", () => {
     expect(fetch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Show first 100" }));
     expect(tableRows()).toHaveLength(100);
-  });
+  }, 15_000);
 
   it("has no button for a ledger of 100 transactions or fewer", () => {
     renderInRouter(<LedgerPage network={XRPL} data={ledger(Array.from({ length: 100 }, () => "Payment"))} />);
