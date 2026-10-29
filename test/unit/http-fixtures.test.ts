@@ -21,6 +21,7 @@ import {
   type RawLedger,
   type RawTx,
 } from "../../scripts/http-fixtures";
+import { isNamesGenerated } from "../../scripts/names-fixtures";
 import { canonicalQuery, dataApiFile } from "../support/upstream-core";
 
 // What the fixtures of test/fixtures/http/ promise the tests that use them. The generated files are checked against
@@ -112,7 +113,14 @@ describe("every fixture file", () => {
     expect(
       bytes(
         files.filter(
-          (file) => !isSynthetic(file) && !isMarketGenerated(file) && !isAnalyticsGenerated(file) && !isValidatorsGenerated(file) && !isAmmGenerated(file) && !isNftGenerated(file),
+          (file) =>
+            !isSynthetic(file) &&
+            !isMarketGenerated(file) &&
+            !isAnalyticsGenerated(file) &&
+            !isValidatorsGenerated(file) &&
+            !isAmmGenerated(file) &&
+            !isNftGenerated(file) &&
+            !isNamesGenerated(file),
         ),
       ),
     ).toBeLessThan(3.5 * 1024 * 1024);
@@ -142,6 +150,14 @@ describe("every fixture file", () => {
     // its data, never above 1.0 MiB.
     expect(bytes(files.filter(isNftGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isNftGenerated))).toBeLessThan(1.0 * 1024 * 1024);
+    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 190 entries of 35,758 bytes and
+    // 118 tomls of 43,329, 79,087 bytes, about 77 KiB; Xahau 38 entries of 7,058 bytes and 24 tomls of 8,905, 15,963 bytes, about 16 KiB) are reviewed as their generator
+    // too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later file raises with its data, never above.
+    for (const net of NETS) {
+      const names = files.filter((file) => isNamesGenerated(file) && file.startsWith(`${net}/`));
+      expect(bytes(names), net).toBeGreaterThan(0);
+      expect(bytes(names), net).toBeLessThan(128 * 1024);
+    }
   });
 });
 

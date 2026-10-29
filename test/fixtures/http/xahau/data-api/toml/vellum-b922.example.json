@@ -1,0 +1,10 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "vellum-b922.example",
+    "toml_url": "https://vellum-b922.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z"
+  }
+}

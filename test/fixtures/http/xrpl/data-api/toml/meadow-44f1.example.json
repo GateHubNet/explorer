@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "meadow-44f1.example",
+    "toml_url": "https://meadow-44f1.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rfum9QyCumjhTJhoWwJzRsQwRAm9YP55ie",
+        "desc": "Meadow Exchange"
+      }
+    ]
+  }
+}

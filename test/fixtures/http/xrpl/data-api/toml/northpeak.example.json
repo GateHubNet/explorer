@@ -1,0 +1,33 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "northpeak.example",
+    "toml_url": "https://northpeak.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "modified": "2026-10-02T00:00:00Z",
+    "accounts": [
+      {
+        "address": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+        "desc": "Northpeak Treasury"
+      }
+    ],
+    "currencies": [
+      {
+        "code": "NPUSD",
+        "issuer": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+        "display_decimals": 2,
+        "name": "Northpeak Dollar"
+      },
+      {
+        "code": "NPEUR",
+        "issuer": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh"
+      }
+    ],
+    "principals": [
+      "Mara Lindqvist",
+      "Tomas Okafor"
+    ]
+  }
+}

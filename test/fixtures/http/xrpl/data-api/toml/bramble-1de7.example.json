@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "bramble-1de7.example",
+    "toml_url": "https://bramble-1de7.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+        "desc": "Bramble Ventures"
+      }
+    ]
+  }
+}

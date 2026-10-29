@@ -1,0 +1,33 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "tidewater.example",
+    "toml_url": "https://tidewater.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "modified": "2026-10-02T00:00:00Z",
+    "accounts": [
+      {
+        "address": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+        "desc": "Tidewater Reserve"
+      }
+    ],
+    "currencies": [
+      {
+        "code": "TWUSD",
+        "issuer": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto",
+        "display_decimals": 2,
+        "name": "Tidewater Dollar"
+      },
+      {
+        "code": "TWEUR",
+        "issuer": "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto"
+      }
+    ],
+    "principals": [
+      "Mara Lindqvist",
+      "Tomas Okafor"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "yarrow-8ae0.example",
+    "toml_url": "https://yarrow-8ae0.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rszqURDNQz3sZsBJSCowtXtR6fWRhytwaw",
+        "desc": "Yarrow Treasury"
+      }
+    ]
+  }
+}

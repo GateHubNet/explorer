@@ -1,3 +1,4 @@
+import { classicAddressToXAddress, encodeAccountID } from "ripple-address-codec";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -596,5 +597,124 @@ describe("createUpstream", () => {
     const limited = dataApiError(429, "slow down", { "Retry-After": "3" });
     expect(limited.headers.get("Retry-After")).toBe("3");
     return jsonOf(limited).then((body) => expect(body).toEqual({ result: "error", message: "slow down" }));
+  });
+});
+
+// D4's names batch (data-api-new `feat/explorer-data-2` at 3feb11a, docs/api-reference.md, "Account names and tomls"; `parseAddresses` of
+// apps/api/src/names/account-names.controller.ts): the mock composes it from the network's `account_names.json`, after the overrides and before any file.
+describe("GET /v2/account_names, composed as D4 answers it", () => {
+  const NP = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+  const HARBOR = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
+  const UNNAMED = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
+  const TW = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
+  const NP_ENTRY = { address: NP, display_name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example" };
+  const HARBOR_ENTRY = { address: HARBOR, display_name: { text: "Harborline Exchange", kind: "account" }, account_name: "Harborline Exchange" };
+  const TW_ENTRY = { address: TW, display_name: { text: "Tidewater Reserve", kind: "verified" }, domain: "tidewater.example" };
+  const TOML = { result: "success", toml: { domain: "northpeak.example", toml_url: "https://northpeak.example/.well-known/xrp-ledger.toml", status: "ok", checked: "2026-10-17T06:00:00.000Z" } };
+  const store = new Map<string, string>([
+    ["xrpl/data-api/account_names.json", `{\n  ${JSON.stringify(NP)}: ${JSON.stringify(NP_ENTRY)},\n  ${JSON.stringify(HARBOR)}: ${JSON.stringify(HARBOR_ENTRY)}\n}\n`],
+    ["xahau/data-api/account_names.json", `{\n  ${JSON.stringify(TW)}: ${JSON.stringify(TW_ENTRY)}\n}\n`],
+    ["xrpl/data-api/toml/northpeak.example.json", JSON.stringify(TOML)],
+  ]);
+  const bases: UpstreamBases = {
+    xrpl: { dataApi: "http://fixtures.test/xrpl", node: "http://fixtures.test/xrpl-node" },
+    xahau: { dataApi: "http://fixtures.test/xahau", node: "http://fixtures.test/xahau-node" },
+  };
+  const make = (overrides = {}) => createUpstream({ files: { read: async (path) => store.get(path) }, bases, primary: "xrpl", overrides });
+  const names = (upstream: ReturnType<typeof make>, query: string, net = "xrpl") =>
+    upstream.handle(new Request(`http://fixtures.test/${net}/v2/account_names${query}`, { headers: { "X-API-Key": "k" } }));
+  /** The `n`-th valid classic address of a series (the AccountID is the number), as D4's own spec makes them. */
+  const nth = (n: number): string => {
+    const id = new Uint8Array(20);
+    new DataView(id.buffer).setUint32(16, n);
+    return encodeAccountID(id);
+  };
+
+  it("answers each address asked in the order asked, a repeated one at each place and an unnamed one as its address alone, with the count", async () => {
+    const upstream = make();
+    const answer = await names(upstream, `?addresses=${HARBOR},${UNNAMED},${NP},${HARBOR}`);
+    expect(answer!.status).toBe(200);
+    const body = await jsonOf(answer);
+    expect(body).toEqual({ result: "success", count: 4, account_names: [HARBOR_ENTRY, { address: UNNAMED }, NP_ENTRY, HARBOR_ENTRY] });
+    expect(Object.keys(body)).toEqual(["result", "count", "account_names"]);
+    expect(Object.keys(body.account_names[0])).toEqual(["address", "display_name", "account_name"]);
+    expect(upstream.requests.map((request) => [request.key, request.source, request.status])).toEqual([[`GET /v2/account_names?addresses=${HARBOR},${UNNAMED},${NP},${HARBOR}`, "fixture", 200]]);
+    // the commas as a client's URLSearchParams sends them, and the first of a repeated parameter
+    expect(await jsonOf(await names(upstream, `?addresses=${NP}%2C${UNNAMED}&addresses=${HARBOR}`))).toEqual({ result: "success", count: 2, account_names: [NP_ENTRY, { address: UNNAMED }] });
+  });
+
+  it("answers from the names of the network asked, and an address as its address alone where the network has no names file", async () => {
+    const upstream = make();
+    expect(await jsonOf(await names(upstream, `?addresses=${TW},${NP}`, "xahau"))).toEqual({ result: "success", count: 2, account_names: [TW_ENTRY, { address: NP }] });
+    const bare = createUpstream({ files: { read: async () => undefined }, bases, primary: "xrpl" });
+    expect(await jsonOf(await names(bare, `?addresses=${NP}`))).toEqual({ result: "success", count: 1, account_names: [{ address: NP }] });
+  });
+
+  it("answers D4's three 400s, in D4's order: missing or empty, more than 100 elements, an element that is no classic address", async () => {
+    const upstream = make();
+    const hundred = Array.from({ length: 100 }, (_, i) => nth(i + 1));
+    expect(await jsonOf(await names(upstream, `?addresses=${hundred.join(",")}`))).toMatchObject({ result: "success", count: 100 });
+    const cases: Array<[query: string, message: string]> = [
+      ["", "addresses is required"],
+      ["?addresses=", "addresses is required"],
+      [`?other=${NP}`, "addresses is required"],
+      [`?addresses=&addresses=${NP}`, "addresses is required"],
+      [`?addresses=${[...hundred, nth(101)].join(",")}`, "too many addresses - at most 100"],
+      [`?addresses=${Array(101).fill("x").join(",")}`, "too many addresses - at most 100"],
+      [`?addresses=${",".repeat(100)}`, "too many addresses - at most 100"],
+      [`?addresses=${",".repeat(99)}`, "invalid ripple address"],
+      [`?addresses=${NP},,${HARBOR}`, "invalid ripple address"],
+      [`?addresses=${NP},`, "invalid ripple address"],
+      [`?addresses=${classicAddressToXAddress(NP, false, false)}`, "invalid ripple address"],
+      [`?addresses=${NP.slice(0, -1)}${NP.endsWith("h") ? "g" : "h"}`, "invalid ripple address"],
+      [`?addresses=${NP.toLowerCase()}`, "invalid ripple address"],
+      [`?addresses=${NP},%20${HARBOR}`, "invalid ripple address"],
+      ["?addresses=not-an-address", "invalid ripple address"],
+    ];
+    for (const [query, message] of cases) {
+      const answer = await names(upstream, query);
+      expect(answer!.status, query).toBe(400);
+      expect(answer!.headers.get("Cache-Control"), query).toBe("no-store");
+      expect(await jsonOf(answer), query).toEqual({ result: "error", message });
+    }
+  });
+
+  it("is replaced for every names call by an override keyed `GET /v2/account_names` without a query, and an override of the exact key wins over it", async () => {
+    const failing = make({ "GET /v2/account_names": dataApiError(503, "unavailable") });
+    for (const query of [`?addresses=${NP}`, `?addresses=${HARBOR},${NP}`, "?addresses=nope", ""]) {
+      const answer = await names(failing, query);
+      expect(answer!.status, query).toBe(503);
+      expect(await jsonOf(answer), query).toEqual({ result: "error", message: "unavailable" });
+    }
+    expect(failing.requests.every((request) => request.source === "override")).toBe(true);
+    expect(failing.unusedOverrides()).toEqual([]);
+    // only the network it is keyed for
+    expect((await names(failing, `?addresses=${TW}`, "xahau"))!.status).toBe(200);
+
+    const exact = { result: "success", count: 1, account_names: [{ address: NP, display_name: { text: "Override", kind: "account" }, account_name: "Override" }] };
+    const both = make({ "GET /v2/account_names": dataApiError(503, "unavailable"), [`GET /v2/account_names?addresses=${NP}`]: exact });
+    expect(await jsonOf(await names(both, `?addresses=${NP}`))).toEqual(exact);
+    expect((await names(both, `?addresses=${HARBOR}`))!.status).toBe(503);
+    expect(both.unusedOverrides()).toEqual([]);
+
+    // an exact key alone leaves every other names call to the composition
+    const one = make({ [`GET /v2/account_names?addresses=${NP}`]: exact });
+    expect(await jsonOf(await names(one, `?addresses=${HARBOR}`))).toEqual({ result: "success", count: 1, account_names: [HARBOR_ENTRY] });
+  });
+
+  it("answers a toml from its file, and a domain with none `toml not found`", async () => {
+    const upstream = make();
+    const get = (path: string) => upstream.handle(new Request(`http://fixtures.test/xrpl${path}`, { headers: { "X-API-Key": "k" } }));
+    expect(await jsonOf(await get("/v2/toml/northpeak.example"))).toEqual(TOML);
+    const missing = await get("/v2/toml/nope.example");
+    expect(missing!.status).toBe(404);
+    expect(await jsonOf(missing)).toEqual({ result: "error", message: "toml not found" });
+    // a `null` override is the same "absent" answer; the route has nothing below a domain, and `/v2/toml` alone is no route
+    expect(await jsonOf(await make({ "GET /v2/toml/northpeak.example": null }).handle(new Request("http://fixtures.test/xrpl/v2/toml/northpeak.example", { headers: { "X-API-Key": "k" } })))).toEqual({
+      result: "error",
+      message: "toml not found",
+    });
+    expect(await jsonOf(await get("/v2/toml"))).toEqual({ result: "error", message: "Cannot GET /v2/toml" });
+    expect(await jsonOf(await get("/v2/toml/northpeak.example/accounts"))).toEqual({ result: "error", message: "Cannot GET /v2/toml/northpeak.example/accounts" });
   });
 });

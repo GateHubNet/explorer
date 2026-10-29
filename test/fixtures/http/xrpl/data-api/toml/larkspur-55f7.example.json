@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "larkspur-55f7.example",
+    "toml_url": "https://larkspur-55f7.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rEfekxLoQD3h6JocT3VYBDuDKdAqWR7SyU",
+        "desc": "Larkspur Ventures"
+      }
+    ]
+  }
+}

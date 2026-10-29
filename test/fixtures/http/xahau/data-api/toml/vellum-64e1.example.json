@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "vellum-64e1.example",
+    "toml_url": "https://vellum-64e1.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rPF7CJhKpHenzmgE1eTY9pUQKb5MhGjNpD",
+        "desc": "Vellum Exchange"
+      }
+    ]
+  }
+}

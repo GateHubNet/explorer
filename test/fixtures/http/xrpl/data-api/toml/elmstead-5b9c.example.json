@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "elmstead-5b9c.example",
+    "toml_url": "https://elmstead-5b9c.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rKqqb5QZXVAL3VqXJL6obfRGeHou1DtyBV",
+        "desc": "Elmstead Holdings"
+      }
+    ]
+  }
+}

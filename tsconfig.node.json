@@ -20,6 +20,8 @@
     "app/server/api-types.ts",
     "app/server/coverage.ts",
     "app/server/marker.ts",
+    "app/server/names-collect.ts",
+    "app/server/names-shape.ts",
     "app/server/nft-shape.ts",
     "app/server/pending-paths.ts",
     "app/server/tx-shape.ts",

@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "vellum-1ca3.example",
+    "toml_url": "https://vellum-1ca3.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rfnMuYiECGMAHUkZdDw5K1c7gVdoiqkmJC",
+        "desc": "Vellum Labs"
+      }
+    ]
+  }
+}

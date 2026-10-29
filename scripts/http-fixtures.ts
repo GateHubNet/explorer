@@ -27,6 +27,9 @@
 // they are newer than the day the rest is dated to, so they are not among `SETS`, and their transactions are not served), around synthetic padding and holdings, and the nodes'
 // NFT answers; `generate` joins them too (PROVENANCE.md, "NFT answers"). Like the rest, those modules read nothing of this one while they load.
 //
+// The display names' files (`data-api/account_names.json` and `data-api/toml/<domain>.json`) are names-fixtures.ts's: synthetic, over the addresses of every other file of
+// the network, generated or written by hand, so `generate` joins them last (PROVENANCE.md, "Synthetic names and tomls"). That module reads nothing of this one either.
+//
 // `?binary=true` answers (`transactions/<HASH>@binary=true.json`) hold `tx` and `meta` as the hex of their serialization,
 // made here with ripple-binary-codec (a devDependency: the Worker never serializes). XRPL uses the codec's own definitions,
 // Xahau the ones recorded from a Xahau node (test/fixtures/definitions/xahau/server_definitions.json, see PROVENANCE.md).
@@ -42,6 +45,7 @@ import { ammFixtures } from "./amm-fixtures";
 import { ammInfoFixtures } from "./amm-info-fixtures";
 import { ANALYTICS_ROW_LISTS, analyticsFixtures } from "./analytics-fixtures";
 import { marketFixtures } from "./market-fixtures";
+import { namesFixtures } from "./names-fixtures";
 import { networkFixtures } from "./network-fixtures";
 import { nftFixtures } from "./nft-fixtures";
 import { VALIDATORS_ROW_LISTS, validatorsFixtures } from "./validators-fixtures";
@@ -622,6 +626,23 @@ export function generate(): Map<string, string> {
   for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures(), ...nftFixtures()]) {
     if (files.has(path)) throw new Error(`${path} is generated twice`);
     files.set(path, text);
+  }
+
+  // The display names' files, last: each network's names are made over all of its other files, the generated ones above and the ones written by hand or recorded,
+  // read from the disk (names-fixtures.ts writes them as D4 orders its keys, an entry to a line).
+  let handWritten: string[] = [];
+  try {
+    handWritten = filesBelow(HTTP).filter(isHandWritten);
+  } catch {
+    // No fixtures directory yet.
+  }
+  for (const net of Object.keys(SETS) as NetworkName[]) {
+    const ofNetwork = new Map([...files].filter(([path]) => path.startsWith(`${net}/`)));
+    for (const path of handWritten) if (path.startsWith(`${net}/`)) ofNetwork.set(path, readFileSync(new URL(path, HTTP), "utf8"));
+    for (const [path, text] of namesFixtures(net, ofNetwork)) {
+      if (files.has(path)) throw new Error(`${path} is generated twice`);
+      files.set(path, text);
+    }
   }
   return files;
 }

@@ -1,0 +1,15 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "willow-6ad5.example",
+    "toml_url": "https://willow-6ad5.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "r9fT9gsDG4Zyodz9E2U6RG4Z3e4RD7tBa"
+      }
+    ]
+  }
+}

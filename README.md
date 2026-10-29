@@ -1822,11 +1822,13 @@ some made-up parts around them and the nodes' NFT answers made up.
 | `data-api/network/validators/summary.json`, `data-api/network/validators@limit=1000&scope=all.json` | D1's validators summary and list: 35 trusted and 25 other validators on XRPL, 31 and 10 on Xahau, the validators of the ledger validations above first (every key the network page shows has a page), then seeded ones; domains `*.example`; every case the validators pages draw (verified with and without accounts, each `unverified` reason, `pending`, no domain; on two lists, one, none; never seen; negative UNL; no vote record, higher and lower fee votes; old, candidate, missing and unrecognised versions, Xahau builds) | generator (synthetic) |
 | `data-api/network/validators/<KEY>.json`, `.../<KEY>/validations@limit=20.json` | each validator's answer and its 20 newest validations (none for the member never seen); one signing key's file holds its master's answer, and one validator has a second page of validations (`...@limit=20&marker=<M>.json`: a gap, a fork and a partial validation) | generator (synthetic) |
 | `data-api/network/amendments.json`, `data-api/network/amendments/<NAME>.json` and `<ID>.json` | D1's amendments and each one's answer by name and, a byte copy, by ID (real names, IDs SHA-512Half of them): XRPL `MPTokensV1` (majority, 30 days of rounds, got/lost/got), three voting, an unknown ID, `DID` and `AMM` enabled by the ledger, `fix1201` by the metadata, one obsolete; Xahau `Remit` (majority without its transaction, G5), `URIToken`, `Import`, `Hooks`, `XahauGenesis` (retired) | generator (synthetic) |
+| `data-api/account_names.json` | the display names, which the upstream mock composes D4's `GET /v2/account_names` from (each address asked, in the order asked, its entry or `{ "address": … }`, and D4's three 400s): an entry to a line, sorted by address, D4's keys in order, for the fixed cases (decision 11 as ruling Δ1 amends it: each network's active account verified, `northpeak.example` "Northpeak Treasury" and `tidewater.example` "Tidewater Reserve", the domains its `account_info` `Domain` names; the deleted XRPL account and Xahau's parent named by GateHub; a domain not verified, `lowtide.example` and Xahau's `saltmarsh.example` on `rJ5mvu…`; the labels `scam`, `spam` alone and `advisory` with its source and link) and the seeded ones (the addresses of the other files, XRPL 400 and Xahau 86: about one in five verified, one in eight named by GateHub, one in ten domain not verified, the rest nothing and not written; a deleted account gets no domain). Names fictional, domains `*.example` | generator (synthetic) |
+| `data-api/toml/<domain>.json` | D4's `GET /v2/toml/{domain}` of those domains (XRPL 118, Xahau 24): an `ok` toml for each verified domain, listing its account with its `desc` (one without: its name is its domain; the fixed ones with principals, two currencies and `modified`), an `ok` toml that lists nobody for `lowtide.example` and every second seeded unverified domain, a `failed` one (`http_status` 404) for `saltmarsh.example`; a domain with no file is `toml not found` | generator (synthetic) |
 
 The "By" column says how a file came to be. **generator (derived)**: worked out from the recordings by `scripts/http-fixtures.ts` (and, for the markets pages' XRPL pairs and
 the pools, by `scripts/derived-trades.ts`, `scripts/market-fixtures.ts` (with the rules of `scripts/market-aggregates.ts`) and `scripts/amm-info-fixtures.ts`, and for the AMM
 pages by `scripts/amm-derive.ts` and `scripts/amm-fixtures.ts`, which it calls, and for the NFT pages by `scripts/nft-derive.ts` and `scripts/nft-fixtures.ts`). **generator (synthetic)**: made up by the
-seeded generators `scripts/network-fixtures.ts`, `scripts/market-fixtures.ts`, `scripts/analytics-fixtures.ts`, `scripts/validators-fixtures.ts` and the synthetic parts of
+seeded generators `scripts/network-fixtures.ts`, `scripts/market-fixtures.ts`, `scripts/analytics-fixtures.ts`, `scripts/validators-fixtures.ts`, `scripts/names-fixtures.ts` and the synthetic parts of
 `scripts/amm-fixtures.ts` and `scripts/nft-fixtures.ts`. **by hand**: written by hand and left alone by `pnpm fixtures:sync`. **recorder**: an answer recorded from a public node by
 `scripts/record-node-fixtures.ts` (`pnpm exec tsx scripts/record-node-fixtures.ts`, which needs network access and only reads), never edited by hand, and left alone by
 `pnpm fixtures:sync` too (`isHandWritten`). The recorded ledgers under `test/fixtures/ledgers/` are of the same kind, but they are not files of this table.
@@ -1840,8 +1842,8 @@ code or `CUR+issuer` with the currency as the ledger holds it) and the other par
 answer (`{ "result": ... }`). Keys are sorted and a transaction is one line, so a change shows as a one-line diff; in the synthetic files a row is one line too (a stats
 row, a day's fees, a volume row with its components, a validation: `fixtureText`'s `rowLists`, `SYNTHETIC_ROW_LISTS`), `test/unit/network-fixtures.test.ts` counts the lines. Anything
 without a file is answered as the real server answers a thing that does not exist: the API's `404 { "result": "error",
-"message": ... }` (`ledger not found`, `transaction not found`, `Account not found`, `account not found`, and D1's `Validator not found` for a validator or
-its validations and `amendment not found`) and the
+"message": ... }` (`ledger not found`, `transaction not found`, `Account not found`, `account not found`, D1's `Validator not found` for a validator or
+its validations and `amendment not found`, and D4's `toml not found` for a domain without a toml) and the
 node's `txnNotFound`, `lgrNotFound`, `actNotFound` at HTTP 200 (`actNotFound` for an `amm_info` too; a `book_offers` has no such code, and gets an
 empty validated book at the newest ledger recorded in the network's `data-api/last_validated.json`). A path that has no file and no such not-found answer is the API's `Cannot GET ...`
 404 (`dataApiAbsent` in `upstream-core.ts`: the catch-all, and what a `null` override means), which the client makes an **outage** (kind `server`, "The data API and the
@@ -1916,6 +1918,18 @@ order, and every amendment answer carries the list's envelope (G3). `test/unit/v
 checks. The worker specs find a validator or an amendment of each case with `test/support/validators-cases.ts` (`validatorCase`, `amendmentCase`, `fixtureValidatorKeys`,
 `validationsMarker`), by the rules of `test/support/validators-case-rules.ts` over the files (the ones the fixtures test checks the generator with), never a fixed key. They are about 2.7 MiB (`isValidatorsGenerated`, 239 files) and have a size budget of their own.
 
+**The display names' files.** `scripts/names-fixtures.ts` (`namesFixtures(net, files)`, called by `generate()` last, for each network, over every other file of the network, the generated
+ones and the ones written by hand) writes what D4 (data-api-new `feat/explorer-data-2` at 3feb11a, "Account names and tomls") would answer: `account_names.json`, the entries by
+address, from which the upstream mock composes `GET /v2/account_names` (an override keyed `GET /v2/account_names` without a query replaces every names call of its network, one of
+the exact key wins over it), and a `toml/<domain>.json` for each domain whose toml is stored. The fixed cases are `FIXED_NAMES`; the seeded addresses are collected (`collectAddresses`)
+from the files of `NAMES_SOURCES` in turn (the hand-written accounts, the newest and the served transactions, the pairs' active accounts, the AMM pages, the validators list, the
+NFT pages), up to `NAMES_SEEDED_MAX` (500), and `fnv1a32("<net>:<address>")` picks each one's state, name and domain (`{word}-{hex4}.example`, one per address). Each entry is
+worked out by D4's display-name rule from what D4 would know (the domain, the toml's listing, the operator's names and labels), D4's keys in order, an entry to a line; the
+tomls keep D4's key order too, leave empty lists out, and have fixed times. An account the fixtures mark deleted (a `DeletedNode` `AccountRoot`, a pool marked `deleted`, a
+hand-written account the node does not have) has no domain, as in D4. `test/unit/names-fixtures.test.ts` checks the files against the rule, the key orders, the client's
+checks, the fixed cases and the seeded shares; `test/fixtures/PROVENANCE.md` ("Synthetic names and tomls") names the commit. They are about 77 KiB on XRPL and 16 KiB on
+Xahau (`isNamesGenerated`) and have a size budget of their own (128 KiB a network).
+
 **The accounts.** The addresses and their transactions are real; what is not in the recordings is not invented beyond what a
 page needs.
 
@@ -1930,7 +1944,8 @@ rows are worked out from the same transactions' metadata. An active account's `a
 listed transaction left (balance, sequence, flags, `PreviousTxnID`) on the newest ledger. The creation of each account
 (`parent`, `initial_balance`, `inception`, `ledger_index`, `tx_hash`) is invented, because it happened before the recordings
 begin; its `tx_hash` is a made-up hash that nothing serves. What the recordings do not contain, no account has: an open offer,
-an escrow, an LP token, a domain, an `account_objects` page with a `marker`. Tests that need those override the answer. The
+an escrow, an LP token, an `account_objects` page with a `marker`. The active accounts' `Domain` is the one made-up field (E9): `northpeak.example` on XRPL and
+`tidewater.example` on Xahau, the domains whose tomls verify their names (`data-api/toml/`). Tests that need those override the answer. The
 Xahau active account's `OwnerCount` is 2 and `account_objects` lists the one object (the EVR line) the recordings show.
 `test/unit/http-fixtures.test.ts` checks the hand-written files against the recordings and against each other. The account page asks the
 node for `account_objects` with `limit: 400`, and a fixture is found by all the parameters of a request but its subject, so each

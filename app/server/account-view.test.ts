@@ -332,7 +332,8 @@ describe("accountHeader", () => {
       sequence: 98986800,
       flags: [],
       regularKey: false,
-      domain: null,
+      // the fixture's `Domain` (E9: the domain its toml verifies, scripts/names-fixtures.ts)
+      domain: "northpeak.example",
       lastActive: { ledgerIndex: 107720688, hash: "C7FE6468BA25CE904C41722C0892316954133B000339C644073A88CACD8A9143", time: 1792253462 },
     });
     expect(header.balance).toEqual({

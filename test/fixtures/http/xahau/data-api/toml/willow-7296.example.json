@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "willow-7296.example",
+    "toml_url": "https://willow-7296.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb",
+        "desc": "Willow Custody"
+      }
+    ]
+  }
+}

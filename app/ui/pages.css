@@ -716,6 +716,13 @@ a.example:hover {
   font-weight: 400;
 }
 
+/* The date's link sits in a sentence of muted text, which an account's domain lengthens: it is told from the words around it by more than its colour
+   (WCAG 1.4.1, axe link-in-text-block). */
+.account-id__meta > a.num {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .identicon {
   flex: none;
   width: 44px;

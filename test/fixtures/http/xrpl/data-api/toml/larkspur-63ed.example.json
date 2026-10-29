@@ -1,0 +1,10 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "larkspur-63ed.example",
+    "toml_url": "https://larkspur-63ed.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z"
+  }
+}

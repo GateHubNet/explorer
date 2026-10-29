@@ -114,3 +114,11 @@ describe("targets and boxes", () => {
     expect(component).toContain('fill="#000000"');
   });
 });
+
+describe("the activation line", () => {
+  // The line under the address reads "Activated on <date> by <parent> with 25 XRP · domain northpeak.example": once an account's domain lengthens it, axe reads it as a
+  // sentence of muted text, and the date's link is told from the words around it by its colour alone (link-in-text-block).
+  it("underlines the date's link, so that more than its colour tells it from the words around it", () => {
+    expect(rule(pagesCss, ".account-id__meta > a.num")["text-decoration"]).toBe("underline");
+  });
+});

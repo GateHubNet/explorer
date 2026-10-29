@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "vellum-b2c4.example",
+    "toml_url": "https://vellum-b2c4.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rxxhQHHJcRGS7chsiiqqLFvQdfvC2365G",
+        "desc": "Vellum Holdings"
+      }
+    ]
+  }
+}

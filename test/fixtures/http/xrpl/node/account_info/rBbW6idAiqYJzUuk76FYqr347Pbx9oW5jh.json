@@ -3,6 +3,7 @@
     "account_data": {
       "Account": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
       "Balance": "10001625",
+      "Domain": "6E6F7274687065616B2E6578616D706C65",
       "Flags": 0,
       "LedgerEntryType": "AccountRoot",
       "OwnerCount": 1,

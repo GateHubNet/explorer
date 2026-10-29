@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "willow-dfe7.example",
+    "toml_url": "https://willow-dfe7.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rJEVu71zEZJ74TumKtcgfBQdcEwiQPzqid",
+        "desc": "Willow Ventures"
+      }
+    ]
+  }
+}

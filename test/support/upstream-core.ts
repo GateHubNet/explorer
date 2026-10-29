@@ -1,7 +1,8 @@
 // The answering half of the upstream mock, free of any runtime: a request in, a Response out, the fixtures behind
 // an interface. `upstream.ts` (the `fetch` stub of the Worker tests) and `fixture-server.ts` (the Node HTTP server
 // of the end-to-end suite) both sit on it, and `scripts/make-http-fixtures.ts` uses its file naming, so a fixture
-// is found by the same rule it was written by. Types and standard Web APIs only (Request, Response, URL).
+// is found by the same rule it was written by. Types and standard Web APIs only (Request, Response, URL), and the address
+// codec, which checks the addresses of a names call as the data API does (both runtimes load it: the Worker uses it too).
 //
 // Fixtures live in test/fixtures/http/<net>/ (README.md, "Upstream fixtures"):
 //
@@ -22,6 +23,11 @@
 //   node amm_info rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3
 //                                     a pool by its account; by its pair the subject is `<asset>_<asset2>`, written as a book's
 //   node nft_info <NFT ID>            an NFT by its id (so are `nft_sell_offers` and `nft_buy_offers`); `node ledger_entry <ID>` a ledger entry (a URIToken) by its `index`
+//   GET /v2/account_names             without a query: every names call of the network (`GET /v2/account_names?addresses=…` is one call, and wins over it)
+//
+// `GET /v2/account_names` has no file per call: the mock composes D4's answer from the network's `data-api/account_names.json` (`composeAccountNames`).
+
+import { isValidClassicAddress } from "ripple-address-codec";
 
 export const NETWORK_NAMES = ["xrpl", "xahau"] as const;
 export type NetworkName = (typeof NETWORK_NAMES)[number];
@@ -319,7 +325,36 @@ function dataApiAbsent(net: NetworkName, segments: string[]): Response {
   // A pool that does not exist (feat/amm-data): the pool route, its pair form and everything below it answer `pool not found`. The list (`/v2/amm/pools`) has no such thing,
   // and neither has `/v2/network/amm_volume`: they stay missing routes, `Cannot GET`. A test of an API without feat/amm-data names that body (`dataApiError(404, "Cannot GET …")`).
   if (version === "v2" && resource === "amm" && id === "pools" && sub !== undefined) return dataApiError(404, "pool not found");
+  // D4's toml of a domain the store has no row for (never checked). Nothing is below a domain, and `/v2/toml` alone is no route.
+  if (version === "v2" && resource === "toml" && id !== undefined && sub === undefined) return dataApiError(404, "toml not found");
   return dataApiError(404, `Cannot GET /${segments.join("/")}`);
+}
+
+// ---- The names batch -------------------------------------------------------------------------------------------------
+
+/** The most addresses one names call asks for (D4's `MAX_ADDRESSES`). */
+const NAMES_MAX_ADDRESSES = 100;
+
+/** The override key that stands for every names call of a network, whatever addresses it asks for. */
+const ACCOUNT_NAMES_KEY = "GET /v2/account_names";
+
+/** A network's names, by address: its `data-api/account_names.json` (scripts/names-fixtures.ts writes it), or none. */
+type NamesTable = Record<string, unknown>;
+
+/**
+ * `GET /v2/account_names?addresses=…` as D4 answers it (data-api-new `feat/explorer-data-2` at 3feb11a, `parseAddresses` and the controller of
+ * apps/api/src/names/account-names.controller.ts): the first `addresses` parameter, split on `,` with nothing trimmed; 400 `addresses is required` when it
+ * is missing or empty, `too many addresses - at most 100` for 101 elements or more (valid or not), `invalid ripple address` for any element that is no
+ * classic address; else one entry for each address in the order asked (a repeated one at each place), the network's entry or the address alone.
+ */
+function composeAccountNames(search: URLSearchParams, names: NamesTable): Response {
+  const raw = search.get("addresses");
+  if (raw === null || raw === "") return dataApiError(400, "addresses is required");
+  const addresses = raw.split(",");
+  if (addresses.length > NAMES_MAX_ADDRESSES) return dataApiError(400, `too many addresses - at most ${NAMES_MAX_ADDRESSES}`);
+  if (!addresses.every((address) => isValidClassicAddress(address))) return dataApiError(400, "invalid ripple address");
+  const account_names = addresses.map((address) => (Object.hasOwn(names, address) ? names[address] : { address }));
+  return new Response(JSON.stringify({ result: "success", count: account_names.length, account_names }), { status: 200, headers: JSON_HEADERS });
 }
 
 const NODE_ABSENT: Record<string, string> = {
@@ -442,6 +477,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
   const keyed = parseOverrides(primary, overrides);
   const used = new Set<string>();
   const hashes = new Map<NetworkName, Promise<Record<string, number>>>();
+  const nameTables = new Map<NetworkName, Promise<NamesTable>>();
 
   const targets = NETWORK_NAMES.map((net) => ({
     net,
@@ -457,6 +493,16 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
       hashes.set(net, table);
     }
     return table.then((entries) => entries[hash.toUpperCase()]);
+  }
+
+  /** The names of a network, from its `data-api/account_names.json`: none when it has no such file. */
+  function namesTableOf(net: NetworkName): Promise<NamesTable> {
+    let table = nameTables.get(net);
+    if (!table) {
+      table = files.read(`${net}/data-api/account_names.json`).then((json) => (json === undefined ? {} : (JSON.parse(json) as NamesTable)));
+      nameTables.set(net, table);
+    }
+    return table;
   }
 
   /** The index of the newest ledger the network's fixtures record: that of its `data-api/last_validated.json`. */
@@ -533,6 +579,21 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
           (body) => new Response(JSON.stringify(body), { status: 200, headers: JSON_HEADERS }),
           () => dataApiAbsent(net, segments),
         );
+      }
+
+      // The names batch: an override of every names call of the network, else D4's answer composed from the network's names.
+      if (segments.length === 2 && segments[0] === "v2" && segments[1] === "account_names") {
+        if (override.has(ACCOUNT_NAMES_KEY)) {
+          used.add(`${net} ${ACCOUNT_NAMES_KEY}`);
+          seen.source = "override";
+          return overridden(
+            override.get(ACCOUNT_NAMES_KEY),
+            request,
+            (body) => new Response(JSON.stringify(body), { status: 200, headers: JSON_HEADERS }),
+            () => dataApiAbsent(net, segments),
+          );
+        }
+        return composeAccountNames(url.searchParams, await namesTableOf(net));
       }
 
       // A ledger asked for by its hash is the file of its index.

@@ -719,3 +719,51 @@ concatenate to every collection once in the sort's order with ties by issuer and
 NFT files' events count, that the three collections' lists and days are their NFT files', that the sales lists are every sale of the NFT files newest first (and the featured collection's first
 page is the network's), that the volume's rolling rows nest and its rows are sums of their components, that every file of a network has the network's coverage, and the places of the events.
 `test/worker/nft-fixtures.spec.ts` reads them in the Workers runtime with the data API client and the node client, the requests being theirs (the ascending lists by the text `descending=false`). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
+
+## Synthetic names and tomls: `http/<net>/data-api/account_names.json` and `http/<net>/data-api/toml/`
+
+Nothing in these files is recorded or copied. The display names (E9) read D4's two routes, which the data API builds from the operator's names and labels (ADR-0014), the
+accounts' `Domain` and the tomls its `tomls` worker reads: no recording can give them, so `scripts/names-fixtures.ts` makes them up and `pnpm fixtures:sync` writes them
+(`generate()` in `scripts/http-fixtures.ts` calls `namesFixtures(net, files)` for each network last, with every other file of the network, generated or written by hand). The
+names are invented; the shapes, the key orders and the rule that picks a display name follow the data API:
+
+| | Repository, ref | Commit | For |
+|---|---|---|---|
+| `docs/api-reference.md`, "Account names and tomls" | `data-api-new`, `feat/explorer-data-2` | `3feb11a` | the two answers: keys and their order, the 400 messages, `toml_url` on each network, what a definite failure carries, empty lists left out |
+| `apps/api/src/names/display-name.ts`, `account-names-object.ts`, `toml-object.ts`, `account-names.controller.ts` | `data-api-new`, `feat/explorer-data-2` | `3feb11a` | `displayNameOf` (verified > account > domain; a `desc` of 1 to 64 code points, else the domain), the entry's and the toml's key orders, `parseAddresses` (which the upstream mock follows) |
+
+Read with `git -C ../data-api-new show <commit>:<path>`, never checked out. The client's types (`app/server/api-types.ts`) and checks (`app/server/names-shape.ts`) follow the
+same commit, and every entry and toml passes them.
+
+**What is written.** `account_names.json` is `{ "<address>": <entry> }`, an entry to a line, sorted by address, only the addresses with something to show; the upstream mock
+answers `GET /v2/account_names` with the entry of each address asked, or the address alone. `toml/<domain>.json` is the answer of `GET /v2/toml/{domain}`; a domain without a file
+is `toml not found`. Every toml was checked (and an `ok` one read) at `2026-10-17T06:00:00.000Z`, the morning of T.
+
+| Network | Address | Who it is | Name |
+|---|---|---|---|
+| XRPL | `rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh` | the active account | verified: `northpeak.example` (its `account_info` `Domain`, `6E6F…6C65`), whose `ok` toml lists it as "Northpeak Treasury", with the principals Mara Lindqvist and Tomas Okafor, `NPUSD` (2 decimals, "Northpeak Dollar") and `NPEUR` of this issuer, `modified` 2026-10-02 |
+| XRPL | `r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC` | the deleted account | named by GateHub "Harborline Exchange", network name "hot wallet", label `advisory` ("Test label: withdrawals paused", source "GateHub", `https://status.example/harborline`) |
+| XRPL | `rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ` | the active account's parent | label `spam` ("Test label") only |
+| XRPL | `rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns` | the deleted account's parent | domain not verified, `lowtide.example`, whose `ok` toml lists nobody; label `scam` ("Test label") |
+| Xahau | `rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto` | the active account | verified: `tidewater.example` (`Domain` `7469…6C65`), "Tidewater Reserve", the toml as Northpeak's with `TWUSD` ("Tidewater Dollar") and `TWEUR` |
+| Xahau | `rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD` | the deleted account | label `scam` ("Test label") only: a deleted account has no domain in D4 (ruling Δ1) |
+| Xahau | `rEvernodee8dJLaFsujS6q1EiXvZYmHXr8` | the accounts' parent | named by GateHub "Hookfield Labs", no network name |
+| Xahau | `rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5` | an active account (it paid the active account in the newest recorded ledger) | domain not verified, `saltmarsh.example`, whose toml failed on a 404 (ruling Δ1 moved it from the deleted account) |
+
+**Generator and seeds.** The seeded addresses are the classic addresses of the files of `NAMES_SOURCES`, in its order (the hand-written accounts and balances, the eight newest
+transactions, the served transactions, the accounts' first pages, the pairs' active accounts, the AMM pages, the validators list, the NFT sales, collections and NFTs), the fixed
+ones left out, up to 500: XRPL 400, Xahau 86. `fnv1a32("<net>:<address>") % 40` picks the state (0–7 verified, 8–12 named by GateHub, with a network name when bit 8 is set,
+13–16 domain not verified, the rest nothing), and the hash the name (a word of 24 and one of 8) and the domain (the word and the hash's upper 16 bits in hex, `alder-1f2e.example`;
+the generator fails on a domain two addresses would share). A verified domain's `ok` toml lists its account with its `desc` (the first by sort without one: its name is its
+domain); every second unverified one by sort has an `ok` toml that lists nobody, the others none. An account the fixtures mark deleted (a transaction's `DeletedNode` of its
+`AccountRoot`, an AMM pool the data API marks `deleted`, a hand-written account the node does not have: on XRPL `r3Cgerz…` and the SNK/XRP pool's `rGLnUK…`, on Xahau `rMoPk1…`)
+gets no domain, so a seeded one is named by GateHub or not at all. XRPL: 91 verified, 45 named by GateHub (27 with a network name), 50 domain not verified, 214 nothing; Xahau: 17,
+7 (5), 10, 52.
+
+**Invented, and not checked against anything real:** every name, network name, label, domain, principal, currency and time, and the `Domain` of the two active accounts (the
+recordings show none). No operator is implied: the names are fictional and the domains `*.example` (RFC 2606).
+
+**What keeps them true.** `test/unit/names-fixtures.test.ts` runs the client's checks on every entry and toml, works D4's display-name rule out again for every entry, checks the
+key orders on the objects before serialization, the fixed cases, the tomls of the verified domains, the seeded addresses and their shares, the deleted accounts, and the line
+count of `account_names.json`; `test/unit/upstream-core.test.ts` checks the mock's composition of the names batch and its three 400s. `scripts/http-fixtures.test.ts` fails when a
+file is not what the generator writes. `isNamesGenerated` names the files, and they have a budget of their own in `test/unit/http-fixtures.test.ts` (128 KiB a network).

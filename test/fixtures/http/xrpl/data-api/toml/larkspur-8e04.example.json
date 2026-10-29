@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "larkspur-8e04.example",
+    "toml_url": "https://larkspur-8e04.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rwxH6YD51ygruAtDWixsgH5UUu6hmUi3AC",
+        "desc": "Larkspur Holdings"
+      }
+    ]
+  }
+}
