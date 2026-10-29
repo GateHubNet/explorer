@@ -37,6 +37,9 @@ const XRPL_ROWS = homePage({
   transactions: xrplTransactions.transactions as unknown as TxObject[],
 }).transactions;
 
+/** What the loader passes to `collectAddresses`: the accounts of the rows (display names spec 1), not the issuers of their amounts, which are only in a title attribute. */
+const accountsOf = (rows: readonly { account: string }[]) => collectAddresses(rows.map((row) => row.account));
+
 /** The rows of the Xahau home's transactions table, the same way. */
 const XAHAU_ROWS = homePage({
   network: { id: "xahau", ctidNetworkId: 21337, native: "XAH" },
@@ -92,7 +95,7 @@ describe("when the names call fails", () => {
       .map((row) => row[2]);
     expect(accounts).toEqual(XRPL_ROWS.map((row) => shortAddress(row.account)));
     expect(await stored("/xrpl?case=names-failed-1")).toBeUndefined();
-    expect(namesCalls(mock)).toEqual([sorted(collectAddresses(XRPL_ROWS))]);
+    expect(namesCalls(mock)).toEqual([sorted(accountsOf(XRPL_ROWS))]);
     expect(namesStatuses(mock)).toEqual([503]);
 
     // Another URL, so another page of the edge cache, a second later: the held failure answers, the data API is not asked.
@@ -133,8 +136,8 @@ describe("the XRPL home", () => {
     mock = mockUpstream("xrpl");
     const { html } = await page("/xrpl?case=names");
 
-    // `collectAddresses` of the rows the loader passes: the accounts, and the issuers of the amounts; not the examples.
-    expect(namesCalls(mock)).toEqual([sorted(collectAddresses(XRPL_ROWS))]);
+    // `collectAddresses` of the accounts of the rows the loader passes: not the issuers of the amounts, not the examples.
+    expect(namesCalls(mock)).toEqual([sorted(accountsOf(XRPL_ROWS))]);
     expect(mock.requests.find((request) => request.url.includes("/v2/account_names"))?.status).toBe(200);
 
     // Every account of the table that the fixtures name is drawn by its name and the title of how it is known; there is a verified one among them.
@@ -284,7 +287,11 @@ describe("the Xahau home", () => {
   it("makes one names call, and draws the verified account and the one whose domain is not verified by their names", async () => {
     mock = mockUpstream("xahau");
     const { html } = await page("/xahau?case=names");
-    expect(namesCalls(mock)).toEqual([sorted(collectAddresses(XAHAU_ROWS))]);
+    expect(namesCalls(mock)).toEqual([sorted(accountsOf(XAHAU_ROWS))]);
+    // An issuer of an amount is only in a title attribute, never drawn as a name: it is not asked. Some row of these has an issuer that is no row's account, so the check can tell.
+    const issuers = XAHAU_ROWS.flatMap((row) => row.amount?.issuer ?? []).filter((issuer) => !accountsOf(XAHAU_ROWS).includes(issuer));
+    expect(issuers.length).toBeGreaterThan(0);
+    for (const issuer of issuers) expect(namesCalls(mock).flat(), `${issuer} is not asked`).not.toContain(issuer);
 
     const shown = XAHAU_ROWS.map((row) => row.account);
     const verified = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";

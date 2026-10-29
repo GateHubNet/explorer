@@ -133,7 +133,7 @@ export interface LedgerPageData {
   rows: LedgerRow[];
   /** The header as JSON text. */
   raw: string;
-  /** The names of the addresses of `rows` and `accountsCreated` (display names spec 3.4), which the loader adds after `ledgerPage`. `failed` when the names call did not work, `off` when the switch is. */
+  /** The names of the addresses of `rows` and of the accounts created that the page lists (display names spec 3.4), which the loader adds after `ledgerPage`. `failed` when the names call did not work, `off` when the switch is. */
   names: NamesPart;
 }
 

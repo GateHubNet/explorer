@@ -8,7 +8,7 @@ import { shortAddress } from "../../app/domain/format";
 import { linkTextOf, nameTitleOf, nameViewOf, type NameView } from "../../app/domain/names";
 import type { AccountNameEntry } from "../../app/server/api-types";
 import { NAMES_BATCH_LIMIT } from "../../app/server/names-load";
-import { anchors } from "./pages";
+import { anchors, hrefs } from "./pages";
 import type { NetworkName, SeenRequest } from "./upstream-core";
 
 const tables = import.meta.glob("../fixtures/http/*/data-api/account_names.json", { query: "?raw", import: "default" }) as Record<string, () => Promise<string>>;
@@ -147,4 +147,73 @@ export async function expectAccountsDrawn(html: string, net: NetworkName): Promi
     }
   }
   return { named, plain };
+}
+
+// ---- Names the test makes up --------------------------------------------------------------------------------------------------------------------
+
+/**
+ * The entry a test gives `address` when it does not rely on what the fixtures name: a name made of the address's last four characters, so that every account of a page has one
+ * and the page's links can be checked for it (`expectLinkedAccountsNamed`).
+ */
+export const nameAfterItsEnd = (address: string): AccountNameEntry => ({
+  address,
+  display_name: { text: `Fixture ${address.slice(-4)}`, kind: "account" },
+  account_name: `Fixture ${address.slice(-4)}`,
+});
+
+/** An override for `GET /v2/account_names` that answers every address asked with `nameAfterItsEnd`. */
+export function answerNamesAfterTheirEnd(): (request: Request) => Response {
+  return (request) => {
+    const asked = (new URL(request.url).searchParams.get("addresses") ?? "").split(",");
+    return new Response(JSON.stringify({ result: "success", count: asked.length, account_names: asked.map(nameAfterItsEnd) }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+}
+
+/**
+ * Says that the page in `html` asked the names of every account it links to (there is at least one) and draws each by the name `nameAfterItsEnd` gave it, with the title
+ * `nameTitleOf` gives, in every link to it. For a page whose names call was answered by `answerNamesAfterTheirEnd`.
+ */
+export function expectLinkedAccountsNamed(mock: { requests: readonly SeenRequest[] }, html: string, net: NetworkName): void {
+  const asked = namesCalls(mock).flat();
+  const linked = [...new Set(hrefs(html).flatMap((href) => new RegExp(`^/${net}/account/(r\\w+)$`).exec(href)?.[1] ?? []))];
+  expect(linked.length).toBeGreaterThan(0);
+  for (const address of linked) {
+    expect(asked, `${address} is asked for`).toContain(address);
+    const view = nameViewOf(nameAfterItsEnd(address))!;
+    for (const link of linksTo(html, net, address)) {
+      expect(link.text).toContain(linkTextOf(view));
+      expect(link.attrs).toContain(`title="${nameTitleOf(view, address)}"`);
+    }
+  }
+}
+
+// ---- Text with accounts in it -----------------------------------------------------------------------------------------------------------------
+
+const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Says that `text` is made of `parts`: a string is written literally, `{ account }` is a link to that account as the fixtures have it drawn. An account the fixtures give nothing to
+ * show is exactly its short address (its whole address with `full`), so what follows it in `text` is pinned; one they name is its name `linkTextOf` gives, then the words of its
+ * marks (and, with `full`, its whole address). The text is matched whole.
+ */
+export async function expectTextWithAccounts(
+  text: string,
+  net: NetworkName,
+  parts: ReadonlyArray<string | { account: string; full?: boolean }>,
+): Promise<void> {
+  let pattern = "^";
+  for (const part of parts) {
+    if (typeof part === "string") {
+      pattern += escaped(part);
+      continue;
+    }
+    const view = await viewOf(net, part.account);
+    const whole = escaped(part.account);
+    if (view?.name) pattern += `${escaped(linkTextOf(view))}(?: .*?)?${part.full ? ` ${whole}` : ""}`;
+    else pattern += part.full ? whole : escaped(shortAddress(part.account));
+  }
+  expect(text).toMatch(new RegExp(`${pattern}$`));
 }

@@ -49,8 +49,8 @@ function valueOf<T>(result: PromiseSettledResult<T>): T {
  * The page polls (an open tab asks again every 4 s), so all four calls ask for the failure hold: a failure of the data API is remembered for
  * 5 s (a 429: its `Retry-After`) and thrown again without a call, instead of being asked again by every beat of every tab (spec 1.7).
  *
- * The accounts of the rows are named in one more call, once the rows are known (display names spec 5): `collectAddresses` of the rows (their accounts, and the issuers of their
- * amounts; not the examples, which keep the short address), `holdFailure` like the rest. A names call that fails or is late never fails the page: the rows are their short
+ * The accounts of the rows are named in one more call, once the rows are known (display names spec 1 and 5): `collectAddresses` of the rows' accounts (not the issuers of their
+ * amounts, which are only in a title attribute, and not the examples, which keep the short address), `holdFailure` like the rest. A names call that fails or is late never fails the page: the rows are their short
  * addresses, the request is marked degraded (served, not stored) and the part is `failed`, which the open page's merge answers by keeping the names it shows (`mergeHomeBeat`).
  * The data carries the Worker's `BUILD_ID`, for an open page to tell a deploy (`live-page.ts`).
  */
@@ -70,7 +70,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     .ledger(String(latestLedgerIndex(last, fees.rows)), { holdFailure: true })
     .catch((err: unknown) => upstreamOutage(err, WHAT));
   const page = homePage({ network, ledger, fees: fees.rows, transactions: transactions.transactions });
-  const { part: names } = await loadNames(api, collectAddresses(page.transactions), { context, request, features: network.features, holdFailure: true });
+  const { part: names } = await loadNames(api, collectAddresses(page.transactions.map((row) => row.account)), { context, request, features: network.features, holdFailure: true });
   return cached({ ...page, names, build: getEnv(context).BUILD_ID } satisfies HomeLoaderData, "live-home");
 }
 

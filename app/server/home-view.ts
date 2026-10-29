@@ -57,8 +57,8 @@ export interface HomePageData {
   transactions: HomeTxRow[];
   examples: HomeExample[];
   /**
-   * The names of the addresses of `transactions` (display names spec 3.4), which the loader adds after `homePage`: the accounts of the rows and the issuers of their amounts, not the
-   * examples (a search hint keeps the short address). `failed` when the names call did not work, `off` when the switch is.
+   * The names of the accounts of `transactions` (display names spec 3.4), which the loader adds after `homePage`: the rows' accounts only, not the issuers of their amounts (only in
+   * a title attribute) nor the examples (a search hint keeps the short address). `failed` when the names call did not work, `off` when the switch is.
    */
   names: NamesPart;
 }

@@ -9,6 +9,7 @@
     "test/support/upstream-core.ts",
     "test/support/book-fixtures.ts",
     "test/support/ledger-edits.ts",
+    "test/support/loader-data.ts",
     "test/support/fixture-server.ts",
     "test/support/nft-case-rules.ts",
     "test/support/switches.ts",

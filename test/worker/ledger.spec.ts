@@ -2,13 +2,13 @@ import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { shortAddress, shortHash } from "../../app/domain/format";
-import { nameTitleOf, nameViewOf } from "../../app/domain/names";
-import type { AccountNameEntry, LedgerExpanded } from "../../app/server/api-types";
+import type { LedgerExpanded } from "../../app/server/api-types";
 import { NAMED_PAGE_TTL_SECONDS } from "../../app/server/cache-class";
 import { ledgerPage, sourceFromIndex } from "../../app/server/ledger-view";
+import { MAX_ACCOUNTS_LISTED } from "../../app/ui/pages/LedgerPage";
 import { NAMES_MAX_ADDRESSES } from "../../app/server/names-load";
 import { collectAddresses } from "../../app/server/names-collect";
-import { expectAccountText, expectNamedLinks, inCalls, linksTo, namedAmong, namesCalls, sorted } from "../support/names";
+import { answerNamesAfterTheirEnd, expectAccountText, expectLinkedAccountsNamed, expectNamedLinks, inCalls, namedAmong, namesCalls, sorted } from "../support/names";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 
@@ -68,6 +68,9 @@ function pageOf(body: { ledger: unknown }, hasNext = true) {
   return ledgerPage(sourceFromIndex(body.ledger as LedgerExpanded), { native: "XRP", hasNext });
 }
 
+/** `collectAddresses` of the parts the loader passes: the rows, and the accounts created that the page lists (the first `MAX_ACCOUNTS_LISTED`; the rest it counts). */
+const askedOf = (data: ReturnType<typeof pageOf>) => collectAddresses(data.rows, data.accountsCreated.slice(0, MAX_ACCOUNTS_LISTED));
+
 /** `n` valid addresses, each once, in no order that sorts them. */
 function sendersOf(n: number): string[] {
   return Array.from({ length: n }, (_, i) => {
@@ -112,7 +115,7 @@ describe("when an upstream fails", () => {
     expect(first.headers.get("X-Cache")).toBe("MISS");
     const data = pageOf(body);
     expect(tableRows(html, "Transactions").slice(1).map((row) => row[3])).toEqual(data.rows.map((row) => shortAddress(row.account)));
-    expect(namesCalls(mock)).toEqual(inCalls(collectAddresses(data.rows, data.accountsCreated)));
+    expect(namesCalls(mock)).toEqual(inCalls(askedOf(data)));
     expect(await stored("/xrpl/ledger/107700030")).toBeUndefined();
 
     // Not stored, so the second request is a render too, and asks the names again (a page that is not polled does not hold the failure).
@@ -120,7 +123,7 @@ describe("when an upstream fails", () => {
     await second.text();
     expect(second.status).toBe(200);
     expect(second.headers.get("X-Cache")).toBe("MISS");
-    expect(namesCalls(mock)).toHaveLength(2 * inCalls(collectAddresses(data.rows, data.accountsCreated)).length);
+    expect(namesCalls(mock)).toHaveLength(2 * inCalls(askedOf(data)).length);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 
@@ -178,7 +181,7 @@ describe("a ledger by index", () => {
     const [load] = Object.values(rawFixtures);
     const data = pageOf(JSON.parse(await load!()) as { ledger: unknown });
     // `collectAddresses` of the rows and the accounts created, which the loader passes (not the raw header): in calls of 100, sorted.
-    const addresses = collectAddresses(data.rows, data.accountsCreated);
+    const addresses = askedOf(data);
     expect(namesCalls(mock)).toEqual(inCalls(addresses));
     expect(namesCalls(mock).flat().sort()).toEqual(sorted(addresses));
 
@@ -487,7 +490,7 @@ describe("a ledger of 450 accounts", () => {
 
     // The first 400 addresses `collectAddresses` meets, sorted, in four calls of 100 (the calls are made side by side, so they arrive in no order).
     const data = pageOf(body);
-    const first = collectAddresses(data.rows, data.accountsCreated);
+    const first = askedOf(data);
     expect(first.length).toBeGreaterThan(NAMES_MAX_ADDRESSES);
     const calls = namesCalls(mock).sort((a, b) => (a[0]! < b[0]! ? -1 : 1));
     expect(calls.map((call) => call.length)).toEqual([100, 100, 100, 100]);
@@ -499,6 +502,42 @@ describe("a ledger of 450 accounts", () => {
     expect(tableRows(html, "Transactions")).toHaveLength(101);
     expect(response.headers.get("X-Cache")).toBe("MISS");
     expect(await storedAs("/xrpl/ledger/107700040")).toEqual(NAMED);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+});
+
+describe("a ledger that created more accounts than it lists", () => {
+  // The page lists the first `MAX_ACCOUNTS_LISTED` accounts created and counts the rest ("and 2 more"): only the listed ones are on the screen, so only they are named.
+  it("asks the names of the accounts created that the page lists, not of the ones it only counts", async () => {
+    const { body } = await syntheticLedger(107700050, 3);
+    const created = sendersOf(MAX_ACCOUNTS_LISTED + 2);
+    const nodes = created.map((account, i) => ({
+      CreatedNode: { LedgerEntryType: "AccountRoot", LedgerIndex: (i + 1).toString(16).toUpperCase().padStart(64, "0"), NewFields: { Account: account, Balance: "20000000", Sequence: 1 } },
+    }));
+    const ledger = body.ledger as unknown as { transactions: Array<{ meta: { AffectedNodes: unknown[] } }> };
+    ledger.transactions[0]!.meta.AffectedNodes.push(...nodes);
+    mock = mockUpstream("xrpl", { "GET /v2/ledgers/107700050?expand=true&transactions=true": body });
+    const { html } = await page("/xrpl/ledger/107700050");
+
+    // (The copies of recorded transactions the synthetic ledger is made of create an account too, which is first: the page lists five of all of them and counts the rest.)
+    const data = pageOf(body);
+    const listed = data.accountsCreated.slice(0, MAX_ACCOUNTS_LISTED);
+    const counted = data.accountsCreated.slice(MAX_ACCOUNTS_LISTED);
+    expect(data.accountsCreated).toEqual(expect.arrayContaining(created));
+    expect(counted.length).toBeGreaterThanOrEqual(2);
+    expect(textOf(html)).toContain(`and ${counted.length} more`);
+    // None of the counted is in a row (the check can tell the listed from the counted), and the page links the listed.
+    const inRows = collectAddresses(data.rows);
+    for (const account of counted) {
+      expect(inRows).not.toContain(account);
+      expect(hrefs(html)).not.toContain(`/xrpl/account/${account}`);
+    }
+    for (const account of listed) expect(hrefs(html)).toContain(`/xrpl/account/${account}`);
+
+    const asked = namesCalls(mock).flat();
+    expect(namesCalls(mock)).toEqual(inCalls(askedOf(data)));
+    for (const account of listed) expect(asked).toContain(account);
+    for (const account of counted) expect(asked).not.toContain(account);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 });
@@ -520,25 +559,13 @@ describe("a ledger without transactions", () => {
 });
 
 describe("a ledger the index does not have yet", () => {
-  // The page from the node is named too. The names are the test's own: each account asked for is named after its end, so that the test does not depend on which of
-  // the ledger's accounts the fixtures name.
-  const fixtureNameOf = (address: string): AccountNameEntry => ({
-    address,
-    display_name: { text: `Fixture ${address.slice(-4)}`, kind: "account" },
-    account_name: `Fixture ${address.slice(-4)}`,
-  });
-
   it("is shown from the node, with a note, and kept for 60 s", async () => {
     // The data API has no such ledger (the override), the node has validated it (its fixture).
+    // The page from the node is named too. The names are the test's own (each account asked for is named after its end), so that the test does not depend on which of the
+    // ledger's accounts the fixtures name.
     mock = mockUpstream("xahau", {
       "GET /v2/ledgers/26540188?expand=true&transactions=true": null,
-      "GET /v2/account_names": (request: Request) => {
-        const asked = (new URL(request.url).searchParams.get("addresses") ?? "").split(",");
-        return new Response(JSON.stringify({ result: "success", count: asked.length, account_names: asked.map(fixtureNameOf) }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      },
+      "GET /v2/account_names": answerNamesAfterTheirEnd(),
     });
     const { response, html } = await page("/xahau/ledger/26540188");
     const text = textOf(html);
@@ -560,17 +587,7 @@ describe("a ledger the index does not have yet", () => {
     expect(await storedAs("/xahau/ledger/26540188")).toEqual({ cls: "short", ttl: 60 });
 
     // Its accounts are named: the page asked for the ones it links, and draws each by its name and the title of how it is known.
-    const asked = namesCalls(mock).flat();
-    const linked = [...new Set(hrefs(html).flatMap((href) => /^\/xahau\/account\/(r\w+)$/.exec(href)?.[1] ?? []))];
-    expect(linked.length).toBeGreaterThan(0);
-    for (const address of linked) {
-      expect(asked, `${address} is asked for`).toContain(address);
-      const view = nameViewOf(fixtureNameOf(address))!;
-      for (const link of linksTo(html, "xahau", address)) {
-        expect(link.text).toContain(`Fixture ${address.slice(-4)}`);
-        expect(link.attrs).toContain(`title="${nameTitleOf(view, address)}"`);
-      }
-    }
+    expectLinkedAccountsNamed(mock, html, "xahau");
     expect(mock.unusedOverrides()).toEqual([]);
   });
 

@@ -25,8 +25,8 @@ import type { NetworkInfo } from "../networks";
 export { FIRST_ROWS };
 /** Types that get a filter button of their own; the rest share "Other". */
 const MAX_TYPE_FILTERS = 7;
-/** Accounts listed under "Accounts created"; the rest are counted. */
-const MAX_ACCOUNTS_LISTED = 5;
+/** Accounts listed under "Accounts created"; the rest are counted. The loader names only these (display names spec 5: only the accounts on the screen). */
+export const MAX_ACCOUNTS_LISTED = 5;
 
 type Filter = { kind: "all" } | { kind: "type"; type: string } | { kind: "other" };
 type FilterChip = { key: string; label: string; n: number; filter: Filter };
