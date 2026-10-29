@@ -179,6 +179,25 @@ test.describe("the theme", () => {
       expect((await themeWatch(page)).setAt).toBeNull();
       expect(await dataTheme(page)).toBeNull();
     });
+
+    // The HTML has both logos (Header.tsx): what is seen is the stylesheet's choice alone.
+    for (const [system, chosen, shown] of [
+      ["light", undefined, "dark"],
+      ["dark", undefined, "white"],
+      ["light", "dark", "white"],
+      ["dark", "light", "dark"],
+    ] as const) {
+      test(`the header shows the ${shown} logo, alone and drawn, when the system is ${system} and ${chosen ? `${chosen} is stored` : "nothing is"}`, async ({ contextFor, baseURL }) => {
+        const context = await contextFor({ colorScheme: system, ...(chosen && { storageState: stored(baseURL!, chosen) }) });
+        await withoutScripts(context);
+        const page = await context.newPage();
+        await page.goto("/xrpl");
+        const logo = page.locator(".hdr__logo:visible");
+        await expect(logo).toHaveCount(1);
+        await expect(logo).toHaveAttribute("src", new RegExp(`gatehub-explorer-${shown}.*\\.svg$`));
+        await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+      });
+    }
   });
 
   test("is followed from the system until the visitor chooses", async ({ page }) => {

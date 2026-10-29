@@ -34,7 +34,7 @@ import { Tabs } from "./Tabs";
 import { ThemeToggle } from "./ThemeToggle";
 import { TypeTag } from "./TypeTag";
 import { LATEST_LEDGERS_ID, LATEST_TRANSACTIONS_ID } from "../anchors";
-import { PRODUCT_NAME } from "../brand";
+import { LOGO_TEXT, PRODUCT_NAME } from "../brand";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { errorMeta, RouteErrorScreen } from "../pages/RouteErrorScreen";
 import { FEATURE_VARS, featuresOf, NO_FEATURES, type Features } from "../features";
@@ -1354,10 +1354,23 @@ describe("Header and Shell", () => {
     expect(screen.queryByRole("search")).toBeNull();
   });
 
-  it("links the logo to the network's home, under the product's name", () => {
+  it("links the logo to the network's home, under what the logo reads", () => {
     renderInRouter(<Header net={XAHAU} />);
-    const home = screen.getByRole("link", { name: new RegExp(`${PRODUCT_NAME} home`, "i") });
+    const home = screen.getByRole("link", { name: `${LOGO_TEXT} home` });
     expect(home.getAttribute("href")).toBe("/xahau");
+  });
+
+  it("has the logo in both colours, for the CSS to show the theme's: the dark one and the white one", () => {
+    const { container } = renderInRouter(<Header net={XRPL} />);
+    const logos = [...container.querySelectorAll<HTMLImageElement>(".hdr__brand img")];
+    expect(logos.map((logo) => logo.className)).toEqual(["hdr__logo hdr__logo--dark", "hdr__logo hdr__logo--white"]);
+    expect(logos[0]!.getAttribute("src")).toMatch(/gatehub-explorer-dark.*\.svg$/);
+    expect(logos[1]!.getAttribute("src")).toMatch(/gatehub-explorer-white.*\.svg$/);
+    for (const logo of logos) {
+      expect(logo.alt).toBe(LOGO_TEXT);
+      // The artwork's own proportions, so the CSS can size it by its height.
+      expect([logo.getAttribute("width"), logo.getAttribute("height")]).toEqual(["130", "48"]);
+    }
   });
 
   it("opens and closes the menu on phones with a real button", () => {

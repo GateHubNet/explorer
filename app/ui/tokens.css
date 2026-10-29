@@ -45,6 +45,9 @@
   /* Which icon of the theme toggle shows: the moon (go dark) in light, the sun (go light) in dark. */
   --moon-display: inline;
   --sun-display: none;
+  /* Which logo of the header shows: the dark one in light, the white one in dark. */
+  --logo-dark-display: block;
+  --logo-white-display: none;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,6 +84,8 @@
 
     --moon-display: none;
     --sun-display: inline;
+    --logo-dark-display: none;
+    --logo-white-display: block;
   }
 }
 
@@ -117,6 +122,8 @@
 
   --moon-display: none;
   --sun-display: inline;
+  --logo-dark-display: none;
+  --logo-white-display: block;
 }
 
 /* One accent per network. A page outside both (an unknown path) has XRPL's. */
