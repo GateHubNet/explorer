@@ -8,7 +8,7 @@ import type { TxObject } from "../../app/server/api-types";
 import { NAMED_PAGE_TTL_SECONDS } from "../../app/server/cache-class";
 import { collectAddresses } from "../../app/server/names-collect";
 import { transactionPage, txFromIndex } from "../../app/server/transaction-view";
-import { answerNamesAfterTheirEnd, expectAccountsDrawn, expectLinkedAccountsNamed, expectTextWithAccounts, inCalls, linksTo, namesCalls, viewOf } from "../support/names";
+import { answerNamesAfterTheirEnd, expectAccountsDrawn, expectLinkedAccountsNamed, expectTextWithAccounts, inCalls, linkedAccounts, linksTo, namesCalls, viewOf } from "../support/names";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { recordedHashes } from "../support/ledger-hashes";
 import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
@@ -58,11 +58,14 @@ const keys = (m: UpstreamMock) => m.requests.map((request) => `${request.net} ${
 /** The upstream keys of the requests a mock has seen, but for the names calls. */
 const keysButNames = (m: UpstreamMock) => keys(m).filter((key) => !key.includes("/v2/account_names"));
 
-/** The page data the loader makes of a recorded transaction, for the parts whose addresses it passes to `collectAddresses` (and the raw ones it never does). */
-async function shownAndRaw(net: Net, hash: string) {
+/**
+ * The page data the loader makes of a recorded transaction, and the addresses of its raw data (which the page never names). What the page asks the names of is compared with the
+ * accounts it links (`linkedAccounts`), not with a list of the parts the loader passes.
+ */
+async function pageAndRaw(net: Net, hash: string) {
   const source = txFromIndex((await recorded(net, hash)) as unknown as TxObject);
   const data = transactionPage(source, { network: { native: net === "xrpl" ? "XRP" : "XAH", ctidNetworkId: net === "xrpl" ? 0 : 21337 }, neighbours: null, binary: { state: "failed" } });
-  return { data, shown: collectAddresses(data.sentence, data.flow, data.account, data.details, data.changes, data.objects), raw: collectAddresses(source.tx, source.meta) };
+  return { data, raw: collectAddresses(source.tx, source.meta) };
 }
 
 // XRPL: a plain XRP Payment (ledger 102186243, place 63), a Payment through an AMM pool (107694747, place 0, the first of its
@@ -97,7 +100,7 @@ describe("when an upstream fails", () => {
 
     expect(first.status).toBe(200);
     expect(first.headers.get("X-Cache")).toBe("MISS");
-    const { shown } = await shownAndRaw("xrpl", hash);
+    const shown = linkedAccounts(html, "xrpl");
     expect(namesCalls(mock)).toEqual(inCalls(shown));
     // Every account is its address, short or whole as the page draws it, and none has a name or a mark.
     expect(shown.length).toBeGreaterThan(0);
@@ -409,9 +412,8 @@ describe("a Payment", () => {
     const view = (await viewOf("xrpl", sender))!;
     expect(view.name?.kind, "the fixtures verify the sender").toBe("verified");
 
-    // One names call, for the addresses of the parts the page draws.
-    const { shown } = await shownAndRaw("xrpl", PAYMENT);
-    expect(namesCalls(mock)).toEqual(inCalls(shown));
+    // One names call, for the accounts the page links.
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
 
     // The sentence, the flow and the balance changes: the name, not the short address.
     expect(elementText(html, "sentence")).toContain(linkTextOf(view));
@@ -584,11 +586,12 @@ describe("a Payment", () => {
 // The page names the accounts it draws, and only those: the metadata of a transaction holds many more (an AMM deposit touches the pool's holders), which no one
 // sees and no call asks for. An AMM deposit no other test asks for.
 describe("the addresses a transaction page asks the names of", () => {
-  it("are those of the parts it shows (the sentence, the flow, the account, the details, the changes and the objects), never those only in the raw data", async () => {
+  it("are those of the accounts it links (the sentence, the flow, the account, the details, the changes and the objects), never those only in the raw data", async () => {
     const hash = "94E38B2BCCA96997BCEC32925AEB289D35EC9FD67977995102D91A7E3DD71FEF";
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/tx/${hash}`);
-    const { shown, raw } = await shownAndRaw("xrpl", hash);
+    const { raw } = await pageAndRaw("xrpl", hash);
+    const shown = linkedAccounts(html, "xrpl");
     const unseen = raw.filter((address) => !shown.includes(address));
 
     // The transaction's metadata does hold addresses that the page does not draw, so the check can tell.
@@ -600,6 +603,23 @@ describe("the addresses a transaction page asks the names of", () => {
       expect(linksTo(html, "xrpl", address), `${address} is not linked`).toEqual([]);
     }
     await expectAccountsDrawn(html, "xrpl");
+  });
+
+  // An amount's issuer is written in the amount's title (`Amount`), not as a link: a sentence and a detail that hold one ask nothing for it. The OfferCreate that failed with tecKILLED
+  // (its only balance change is the sender's fee, so no "with {issuer}" links the issuer either).
+  it("never asks the names of an amount's issuer that the page writes only in a title", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${KILLED}`);
+    const { data } = await pageAndRaw("xrpl", KILLED);
+    const segments = [...data.sentence, ...data.details.flatMap((detail) => detail.value)];
+    const issuers = [...new Set(segments.flatMap((segment) => (segment.t === "amount" && segment.issuer !== undefined ? [segment.issuer] : [])))];
+    const shown = linkedAccounts(html, "xrpl");
+    // The sentence does write an issued amount, and the page links its issuer nowhere, so that the check can tell.
+    expect(issuers.length).toBeGreaterThan(0);
+    for (const issuer of issuers) expect(shown, `${issuer} is not linked`).not.toContain(issuer);
+
+    expect(namesCalls(mock)).toEqual(inCalls(shown));
+    for (const issuer of issuers) expect(namesCalls(mock).flat(), `${issuer} is not asked for`).not.toContain(issuer);
   });
 
   // A memo is text the sender wrote: an address in it is on the page as text, and it is neither a link nor a name to ask for. An OfferCreate no other test asks for, given a memo.
@@ -614,7 +634,7 @@ describe("the addresses a transaction page asks the names of", () => {
       [`GET /v2/transactions/${hash}`]: { result: "success", transaction: { ...recordedTx, tx: { ...recordedTx.tx, Memos: [{ Memo: { MemoData: memoData } }] } } },
     });
     const { html } = await page(`/xrpl/tx/${hash}`);
-    const { shown } = await shownAndRaw("xrpl", hash);
+    const shown = linkedAccounts(html, "xrpl");
 
     expect(textOf(html)).toContain(`Memo ${inMemo}`);
     expect(shown).not.toContain(inMemo);

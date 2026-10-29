@@ -15,6 +15,12 @@ export function account(v: unknown): Segment {
 }
 
 /**
+ * The accounts some segments draw as account links (`Sentence`'s `AccountLink`), in order: what a loader names of a sentence, a row or a detail (display names spec 1 and 5).
+ * Not an amount's issuer, which `Amount` writes in a title, nor a pool's account, which is a link to the pool.
+ */
+export const accountsIn = (segments: readonly Segment[]): string[] => segments.flatMap((segment) => (segment.t === "account" ? [segment.v] : []));
+
+/**
  * A pool's name, from the currencies of its two assets: `<code>/<code>`, each as `formatCurrency` shows it, so an LP
  * token or a code that is not text reads well. The one place a pool pair is named.
  */

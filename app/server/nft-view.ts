@@ -11,7 +11,7 @@
 // It value-imports `nft-id.ts` (the id's fields and the URI's words; Worker-only) and the glyph characters of `app/ui/components/NftGlyph.tsx`, so only the Worker, the scripts and
 // the tests import this file: the pages get the data it returns, and its types.
 
-import type { Segment } from "../domain/describe";
+import { accountsIn, type Segment } from "../domain/describe";
 import { formatAmount, formatCurrency } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import { decodeNftId, NFT_FLAG_LABELS, uriText } from "../domain/nft-id";
@@ -818,9 +818,6 @@ export function nftMarkerPage(input: NftMarkerInput): Omit<NftPageData, "names">
     back: { label: `Back to the ${words.token}`, href: nftHref(net.id, id, { offers: query.offers }) },
   };
 }
-
-/** The accounts a cell of `Sentence`'s segments draws as links (`AccountLink`); an amount's issuer is in a title, not a link. */
-const accountsIn = (segments: readonly Segment[]): string[] => segments.flatMap((segment) => (segment.t === "account" ? [segment.v] : []));
 
 /**
  * The accounts an NFT's page draws (display names spec 1 and 5), each once, in the order drawn: the owner line's owner or, for a burned NFT, the account that burned it; the details'

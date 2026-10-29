@@ -1,6 +1,7 @@
 import { redirect } from "react-router";
 
 import { decodeCtid } from "../domain/ctid";
+import { accountsIn } from "../domain/describe";
 import { shortHash } from "../domain/format";
 import { NAMED_PAGE_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
@@ -171,7 +172,23 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
   return cached(page, "short", { ttl: FROM_NODE_TTL });
 }
 
-/** The page with the names of the addresses it draws (`collectAddresses` of its shown parts, never of the raw data): one call, which never fails the page. */
+/**
+ * The accounts the page draws as account links, in the order drawn: those of the sentence (`accountsIn`: not an amount's issuer, which is in a title, nor a pool, which is a link to
+ * the pool), each step of the flow's account (a pool's too, under its label), the sender of the details, the accounts of the type's details, each balance change's account and the
+ * issuer it writes after "with", and each touched object's account. Never the raw data, a memo or an amount's issuer.
+ */
+function drawnAccounts(page: Omit<TransactionPageData, "names">): string[] {
+  return [
+    ...accountsIn(page.sentence),
+    ...(page.flow ?? []).map((step) => step.account),
+    page.account,
+    ...page.details.flatMap((detail) => accountsIn(detail.value)),
+    ...page.changes.flatMap((change) => (change.issuer === undefined ? [change.account] : [change.account, change.issuer])),
+    ...page.objects.flatMap((object) => (object.account === undefined ? [] : [object.account])),
+  ];
+}
+
+/** The page with the names of the accounts it draws (`drawnAccounts`, never of the raw data): one call, which never fails the page. */
 async function named(
   page: Omit<TransactionPageData, "names">,
   api: Pick<DataApi, "accountNames">,
@@ -179,7 +196,7 @@ async function named(
   context: Route.LoaderArgs["context"],
   request: Request,
 ): Promise<TransactionPageData> {
-  const addresses = collectAddresses(page.sentence, page.flow, page.account, page.details, page.changes, page.objects);
+  const addresses = collectAddresses(drawnAccounts(page));
   const { part } = await loadNames(api, addresses, { context, request, features: network.features });
   return { ...page, names: part };
 }

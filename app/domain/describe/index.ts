@@ -20,6 +20,7 @@ import { paymentHandlers } from "./payment";
 import type { Description, Input, Summary } from "./types";
 import { xahauHandlers } from "./xahau";
 
+export { accountsIn } from "./helpers";
 export { headlineAmount, rowSentence } from "./row";
 export type { Description, Detail, FlowAmount, FlowStep, Handler, HandlerMap, Input, Segment, Summary } from "./types";
 

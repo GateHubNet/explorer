@@ -9,7 +9,7 @@
 import BigNumber from "bignumber.js";
 
 import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
-import { describe, rowSentence, type Segment } from "../domain/describe";
+import { accountsIn, describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
@@ -887,9 +887,6 @@ export function failedList(tab: ListTab, net?: NetworkId): TabList {
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The accounts the page draws (display names spec 1 and 5): what the loader asks the names of, and nothing else it holds
-
-/** The accounts some segments draw as links (`Sentence`'s `AccountLink`): not a pool's account (a link to the pool) or an amount's issuer (`Amount` writes it in a title). */
-const accountsIn = (segments: readonly Segment[]): string[] => segments.flatMap((segment) => (segment.t === "account" ? [segment.v] : []));
 
 /**
  * The accounts a tab's list draws as links, each once, in the order drawn: the accounts of the transactions' sentences, the counterparty of each payment and of each trade, and
