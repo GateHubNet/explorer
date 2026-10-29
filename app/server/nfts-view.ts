@@ -25,6 +25,7 @@ import {
   type NftsQuery,
   type NftSort,
 } from "../domain/nft-params";
+import type { NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { formatDate } from "../domain/time-words";
 import { pendingCount, pendingNote, type PeriodWindow } from "../domain/window";
@@ -141,6 +142,11 @@ export interface NftsPageData {
   failures: { totals?: string; chart?: string; top?: string; sales?: string; collections?: string };
   /** A page behind a marker: the collections table alone. */
   marker: boolean;
+  /**
+   * The names of the accounts of the recent sales (`drawnAccounts`), which the loader adds after `nftsListPage` (display names spec 3.4). The collections table's issuer labels link to
+   * collections, not accounts, and are not named. `failed` when the names call did not work, `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 export interface NftSalesPageData {
@@ -149,6 +155,8 @@ export interface NftSalesPageData {
   rows: NftSaleRow[];
   paging: Paging;
   note: CoverageNoteText | null;
+  /** The names of the sellers and buyers of `rows` (`drawnAccounts`), which the loader adds after `nftSalesPage`. */
+  names: NamesPart;
 }
 
 /** The input of `nftsListPage`: the outcomes of the loader's calls (spec 2.2). */
@@ -395,9 +403,9 @@ function introOf(net: NftsNet): string {
 
 /**
  * The list's first page (spec 2.1 and 2.2) from the outcomes of the loader's calls. A card whose call was rejected, or whose answer it cannot be made of, is `null` and has its words in
- * `failures`; the page stands on the others.
+ * `failures`; the page stands on the others. The page's data but for its names, which the loader asks for once it has the rows (`NftsPageData.names`).
  */
-export function nftsListPage(input: NftsListInput): NftsPageData {
+export function nftsListPage(input: NftsListInput): Omit<NftsPageData, "names"> {
   const { net, query } = input;
   const words = nftWords(net.id);
   // What the sales' coverage notes say is missing: "NFT sales", "URIToken sales".
@@ -489,7 +497,7 @@ export function nftsListPage(input: NftsListInput): NftsPageData {
  * A page of the list behind a marker (spec 2.2): the collections table alone, titled "More NFT collections", with its form, sort headers, Newer and Older and coverage note. The
  * loader awaits the one call whole, so there is no failure to tell: a failed call is its 503.
  */
-export function nftsMarkerPage(net: NftsNet, query: NftsQuery, collections: NftCollectionsPage): NftsPageData {
+export function nftsMarkerPage(net: NftsNet, query: NftsQuery, collections: NftCollectionsPage): Omit<NftsPageData, "names"> {
   const words = nftWords(net.id);
   const card = collectionsCard(net, query, collections);
   return {
@@ -514,7 +522,7 @@ export function nftsMarkerPage(net: NftsNet, query: NftsQuery, collections: NftC
 /**
  * The older sales (spec 2.3): a page of the network's sales, newest first, with Newer and Older and the coverage note. The loader awaits the one call whole, so a failure is its 503.
  */
-export function nftSalesPage(net: NftsNet, query: NftSalesQuery, page: NftSalesPage): NftSalesPageData {
+export function nftSalesPage(net: NftsNet, query: NftSalesQuery, page: NftSalesPage): Omit<NftSalesPageData, "names"> {
   const words = nftWords(net.id);
   return {
     heading: words.salesHeading,
@@ -522,4 +530,22 @@ export function nftSalesPage(net: NftsNet, query: NftSalesQuery, page: NftSalesP
     paging: trailPaging({ marker: query.marker, back: query.back, next: page.marker }, (to) => nftSalesHref(net.id, to)),
     note: coverageNote(page.coverage, words.salesHeading),
   };
+}
+
+// ---- The accounts a page draws (display names spec 1 and 5) --------------------------------------------------------------------------------------
+
+/**
+ * The accounts a table of sales draws (`NftSalesTable`): each row's seller and buyer, once each, in the order drawn. Not the price's issuer (`Amount` writes it in a title) and not
+ * the collection's, whose label links to the collection. `null` is a card that failed or was not asked for.
+ */
+export function salesAccounts(rows: readonly NftSaleRow[] | null): string[] {
+  return [...new Set((rows ?? []).flatMap((row) => [row.seller, row.buyer]))];
+}
+
+/**
+ * The accounts the NFT list and the older sales page draw: the sellers and buyers of their sales (spec 1: the collections table links issuers to collections, so a page behind a
+ * marker, which is that table alone, draws none). The loader names these and no other address of the page.
+ */
+export function drawnAccounts(page: Omit<NftsPageData, "names"> | Omit<NftSalesPageData, "names">): string[] {
+  return salesAccounts("rows" in page ? page.rows : page.sales);
 }

@@ -10,7 +10,7 @@ import { staticClosure, valueImports } from "../support/value-imports";
 const appDir = new URL("../../app/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, appDir), "utf8");
 
-describe.each(["ui/pages/home-beat.ts", "ui/pages/pair-beat.ts"])("%s, the merge of a beat", (file) => {
+describe.each(["ui/pages/home-beat.ts", "ui/pages/pair-beat.ts", "ui/pages/validator-beat.ts"])("%s, the merge of a beat", (file) => {
   it("imports no value from app/server", () => {
     expect(valueImports(read(file)).filter((from) => /(^|\/)server(\/|$)/.test(from))).toEqual([]);
   });

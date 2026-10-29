@@ -15,6 +15,7 @@ import type BigNumber from "bignumber.js";
 import { compactNumber, formatAmount } from "../domain/format";
 import { NFT_FLAG_LABELS } from "../domain/nft-id";
 import { collectionHref, collectionLabel, COLLECTION_TABS, nftsHref, nftWords, NFT_MEASURES, type CollectionKey, type CollectionQuery, type CollectionTab, type NftMeasure } from "../domain/nft-params";
+import type { NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { formatDate } from "../domain/time-words";
 import type { PeriodWindow } from "../domain/window";
@@ -29,7 +30,7 @@ import { BN, decimalOf, divided } from "./exact";
 import { anchoredWindow, byDay, tokened } from "./network-view";
 import type { Network } from "./networks";
 import { counted, DASH, plain, queryPairsOf, salesCount, sharePercentTenth } from "./nft-format";
-import { saleRows, type NftSaleRow } from "./nfts-view";
+import { saleRows, salesAccounts, type NftSaleRow } from "./nfts-view";
 
 /** What the builders read of the network: its id (the words and the links), its name (a breadcrumb, a 404), its native currency, and its name in a sentence (`longName`). */
 export type CollectionNet = Pick<Network, "id" | "name" | "native" | "longName">;
@@ -114,6 +115,11 @@ export interface NftCollectionPageData {
   marker: boolean;
   /** "Back to the collection", to the tab's first page with its filter; `null` unless behind a marker. */
   back: { label: string; href: string } | null;
+  /**
+   * The names of the accounts the page draws (`drawnAccounts`), which the loader adds after `nftCollectionPage` or `collectionMarkerPage` (display names spec 3.4): the header's issuer
+   * and the tab's rows. `failed` when the names call did not work, `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 /** The tab's list as the loader reads it: the page of the call the tab asks (`nftCollectionSales`, `nftCollectionNfts` or `nftCollectionHolders`). */
@@ -380,7 +386,7 @@ function tabOf(
  * A collection's page (spec 3.1 and 3.2) from the outcomes of the loader's calls. A card whose call was rejected, or whose answer it cannot be made of, is `null` and has its words in
  * `failures`; the page stands on the others.
  */
-export function nftCollectionPage(input: NftCollectionPageInput): NftCollectionPageData {
+export function nftCollectionPage(input: NftCollectionPageInput): Omit<NftCollectionPageData, "names"> {
   const { net, key, query, ownerError } = input;
   const { collection } = input.collection;
   const words = nftWords(net.id);
@@ -457,7 +463,7 @@ function tabsOf(net: CollectionNet, key: CollectionKey, query: CollectionQuery):
  * A page of the tab's list behind a marker (spec 3.2): the breadcrumb, the header card without its dates, "Back to the collection" and the tab's rows, titled "Older sales of
  * rLULtF…mB3R · taxon 1". The loader awaits the two calls whole, so there is no failure to tell: a failed list is its 503.
  */
-export function collectionMarkerPage(input: CollectionMarkerInput): NftCollectionPageData {
+export function collectionMarkerPage(input: CollectionMarkerInput): Omit<NftCollectionPageData, "names"> {
   const { net, key, query } = input;
   const head = headOf(net, key);
   const tab = tabOf(net, query, input.collection.collection.supply, input.list);
@@ -480,6 +486,17 @@ export function collectionMarkerPage(input: CollectionMarkerInput): NftCollectio
     marker: true,
     back: { label: BACK_LABEL, href: collectionHref(net.id, key, view) },
   };
+}
+
+/**
+ * The accounts a collection's page draws (display names spec 1 and 5): the header's issuer, then the tab's rows: a sale's seller and buyer, the owner of an NFT (not a burned one,
+ * which is tagged "burned", and not one the index names no owner of), a holder. Each once, in the order drawn. Not the price's issuer in a sale or an NFT's last sale. A page behind a
+ * marker draws the header card too, so its issuer is named there.
+ */
+export function drawnAccounts(page: Omit<NftCollectionPageData, "names">): string[] {
+  const rows = page.rows ?? [];
+  const owners = rows.flatMap((row) => ("held" in row ? [row.owner] : "burned" in row && !row.burned && row.owner !== null ? [row.owner] : []));
+  return [...new Set([page.header.issuer, ...salesAccounts(rows.filter((row): row is NftSaleRow => "seller" in row)), ...owners])];
 }
 
 /** The words of the 404 of a collection the data API does not have: "We couldn't find NFT collection rLULtF…mB3R · taxon 1 on XRPL". */

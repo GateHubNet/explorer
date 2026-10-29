@@ -18,13 +18,16 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { validatorMeta } from "../server/meta-validator";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { networkInfoOf, requireNetwork } from "../server/network-route";
 import { networkOf, type Network } from "../server/networks";
 import { UpstreamError } from "../server/upstream";
-import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "../server/validator-view";
-import { createLiveOnScreen, keepLoaded } from "../ui/live-page";
+import { drawnAccounts, validatorHistoryPage, validatorPage } from "../server/validator-view";
+import { createLiveOnScreen } from "../ui/live-page";
+import { NamesProvider } from "../ui/names";
 import { isNetworkId } from "../ui/networks";
 import { ValidatorHistoryPage, ValidatorPage } from "../ui/pages/ValidatorPage";
+import { mergeValidatorBeat, type ValidatorLoaderData } from "../ui/pages/validator-beat";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 import { useLiveControls } from "../ui/use-live-controls";
 
@@ -36,12 +39,6 @@ export const headers = forwardCacheClass;
 
 // The header marks its Network item as the section of the page (`aria-current="true"`: the page is inside the section, it is not its index).
 export const handle = { navSection: "network" } satisfies NetworkRouteHandle;
-
-/** What this route's loader answers for the live view: the view builder's page, the ledger it was built from and the Worker's build. */
-type ValidatorLoaderData = ValidatorLiveData & { anchor: Anchor; build: string };
-
-/** The parts of the page that a beat may keep when its answer has them failed and the page shows them loaded (`keepLoaded`, spec 2.3): VV, S and A. */
-const VALIDATOR_PARTS = ["recent", "summary", "amendments"] as const;
 
 /** The validations a page shows: the foundation's list size (spec 4.1). */
 const VALIDATIONS_LIMIT = 20;
@@ -71,8 +68,11 @@ const scopeOf = (net: string, key: string): string => `${net}/validators/${key}`
  *   ledger index or close time is not a number (`anchorOrThrow`) is a 503 too, whatever D answered: no anchor can be worked out from it.
  * - **A part that failed is told in its place** (spec 4.4): the view builder gives VV, S and A each their own `failed` state, the failure is logged and the
  *   request is degraded, so that the page is served and not stored.
- * - **A page of older validations** (spec 4.5) asks for D and VV with the marker only, and no hold (it does not poll). A marker VV refuses (a 400) or a page
- *   with no rows (the 7 days have passed it) is a 404 of class `short`; any other failure of VV is a 503.
+ * - **One names call** (display names spec 1 and 5), after the five and the page is built: the accounts the page draws, which are the accounts line's (`drawnAccounts`: the accounts a
+ *   verified domain lists), asked for with the failure hold too. A names call that fails or is late never fails the page: the accounts are short addresses, the request is degraded
+ *   (served, not stored), and an open page keeps the names it shows (`mergeValidatorBeat`). The title and the description say no account.
+ * - **A page of older validations** (spec 4.5) asks for D and VV with the marker only, and no hold (it does not poll), and names nothing: it draws no account. A marker VV refuses (a 400)
+ *   or a page with no rows (the 7 days have passed it) is a 404 of class `short`; any other failure of VV is a 503.
  *
  * The live data carries the ledger it was built from (`anchor`) and the Worker's `BUILD_ID`.
  */
@@ -144,7 +144,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
   const master = toMaster(net, key, validator.value.validation_public_key, {});
   if (master !== null) return master;
 
-  const page = validatorPage({
+  const view = validatorPage({
     network: networkInfoOf(net),
     validator: validator.value,
     recent: partOf(recent),
@@ -152,6 +152,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
     amendments: partOf(amendments),
     anchor,
   });
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features, holdFailure: true });
 
   const failures = (
     [
@@ -163,7 +164,7 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
   for (const { part, error } of failures) logProblem(`the validator page's ${part} could not be loaded`, error, request);
   if (failures.length > 0) markDegraded(context, `validator: ${failures.map(({ part }) => part).join(", ")}`);
 
-  return cached({ ...page, anchor, build: getEnv(context).BUILD_ID } satisfies ValidatorLoaderData, "live-home");
+  return cached({ ...view, names, anchor, build: getEnv(context).BUILD_ID } satisfies ValidatorLoaderData, "live-home");
 }
 
 /** A page of older validations (spec 4.5): D and VV with the marker, awaited whole; history, stored for 300 s. */
@@ -200,11 +201,12 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 /**
  * What the validator page on screen shows, and what happens when its refresh does not work (the home page's `onScreen`, `live-page.ts`): the page keeps
  * what it shows, counts the failures, refuses an answer that is behind the ledger it is at or of another build, and keeps each of its three parts it shows
- * loaded when an answer has that part failed (`keepLoaded`, spec 2.3).
+ * loaded when an answer has that part failed, the names among them, and the names of accounts that left the page stay for the ones that stay (`mergeValidatorBeat`,
+ * app/ui/pages/validator-beat.ts; `keepLoaded`, spec 2.3).
  */
 const onScreen = createLiveOnScreen<ValidatorLoaderData>({
   order: (data) => data.anchor.lastValidated,
-  merge: (next, shown) => keepLoaded(next, shown, VALIDATOR_PARTS),
+  merge: mergeValidatorBeat,
 });
 
 /**
@@ -227,7 +229,11 @@ function LiveValidator({ data }: { data: ValidatorLoaderData }) {
   useEffect(() => onScreen.show(scope, data), [scope, data]);
   // Keyed by the scope: another validator or network is a navigation and a first render, not a ledger closing. The kit rings a chart whose token changes
   // after it is mounted, and a row that is new enters, so the page must be mounted again.
-  return <ValidatorPage key={scope} data={data} live={live} />;
+  return (
+    <NamesProvider names={data.names.map}>
+      <ValidatorPage key={scope} data={data} live={live} />
+    </NamesProvider>
+  );
 }
 
 export default function Validator({ loaderData }: Route.ComponentProps) {

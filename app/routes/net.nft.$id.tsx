@@ -11,12 +11,14 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { nftMeta } from "../server/meta-nft";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { networkOf, type Network } from "../server/networks";
 import { requireNetwork } from "../server/network-route";
 import { readNodeOffers, settleNft } from "../server/nft-read";
-import { nftMarkerPage, nftNotFound, nftPage, NFT_MODE_CLASS, type NftPageInput } from "../server/nft-view";
+import { drawnAccounts, nftMarkerPage, nftNotFound, nftPage, NFT_MODE_CLASS, type NftPageInput } from "../server/nft-view";
 import { redirectToHref } from "../server/pair-route";
 import { isNotFound, UpstreamError } from "../server/upstream";
+import { NamesProvider } from "../ui/names";
 import { NftPage } from "../ui/pages/NftPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 
@@ -59,6 +61,9 @@ const failedWords = (part: string, reason: unknown) => `the NFT${part === "" ? "
  *   nothing polls, so no call asks for the failure hold.
  * - **Behind a marker** (spec 4.3): #1 and #4, awaited whole, class `MARKER_PAGE_CLASS`. A 400 of the API for the marker, nothing behind it and an NFT the index does not have are 404s of
  *   class `short`, and any other failure, a "Cannot GET" of a data API without D3 included, a 503.
+ * - **One names call** (display names spec 1 and 5), after the calls the page awaits (on a page behind a marker too): the owner (or the account that burned the NFT), the issuer, the
+ *   minter and the account it went to, the open offers' accounts and destinations and the history's accounts (`drawnAccounts`). A names call that fails or is late never fails the
+ *   page: the accounts are short addresses, the request is degraded (served, not stored). The title, the description and the image keep the short forms (spec 7).
  */
 export async function loader({ request, url, params, context }: Route.LoaderArgs) {
   const started = Date.now();
@@ -101,7 +106,9 @@ async function markerPage(context: Route.LoaderArgs["context"], request: Request
   }
   // A marker past the last row has nothing behind it.
   if (history.value.events.length === 0) notFound({ notFound: olderNotFound });
-  return cached(nftMarkerPage({ net, id, query, index: index.value, history: history.value }), MARKER_PAGE_CLASS);
+  const view = nftMarkerPage({ net, id, query, index: index.value, history: history.value });
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features });
+  return cached({ ...view, names }, MARKER_PAGE_CLASS);
 }
 
 /** The first page (spec 4.3): #1, #3 and #4 together, #2 after #1 where it is needed, and the page of the mode they make. */
@@ -143,8 +150,10 @@ async function firstPage(context: Route.LoaderArgs["context"], request: Request,
   for (const { part, reason } of failed) logProblem(failedWords(part, reason), reason, request);
   if (failed.length > 0) markDegraded(context, `nft: ${failed.map(({ part }) => part).join(", ")}`);
 
+  const view = nftPage({ net, id, query, mode, now, ...(index.status === "fulfilled" && !fromNetwork ? { index: index.value } : {}), ...(entry === undefined ? {} : { node: entry }), offers, history });
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features });
   const { cls, ttl } = NFT_MODE_CLASS[mode];
-  return cached(nftPage({ net, id, query, mode, now, ...(index.status === "fulfilled" && !fromNetwork ? { index: index.value } : {}), ...(entry === undefined ? {} : { node: entry }), offers, history }), cls, { ttl });
+  return cached({ ...view, names }, cls, { ttl });
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -154,5 +163,9 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 export default function Nft({ loaderData }: Route.ComponentProps) {
-  return <NftPage data={loaderData} />;
+  return (
+    <NamesProvider names={loaderData.names.map}>
+      <NftPage data={loaderData} />
+    </NamesProvider>
+  );
 }

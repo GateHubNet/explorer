@@ -32,6 +32,7 @@ import { TooLate } from "./deadline";
 import {
   collectionDaySeries,
   collectionMarkerPage,
+  drawnAccounts,
   collectionNotFound,
   nftCollectionPage,
   type CollectionMarkerInput,
@@ -948,5 +949,46 @@ describe("over the recorded fixtures", () => {
     const held = a.holders.holders.reduce((sum, holder) => sum + holder.held, 0);
     expect(held).toBeLessThanOrEqual(a.collection.collection.supply);
     expect(holders.every((row) => /^\d+\.\d%$|^<0\.1%$/.test(row.share))).toBe(true);
+  });
+});
+
+// ---- The accounts the page draws (display names spec 1 and 5) -----------------------------------------------------------------------------------
+
+describe("drawnAccounts: the accounts a collection's page draws", () => {
+  const BUYER = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const PRICE_ISSUER = "rBg5JN5ShW8ZRV1TJhxVJRYcXVbPGC3ARi";
+
+  it("is the header's issuer first, then the Sales tab's sellers and buyers, each once", () => {
+    const sales = nftSalesPageSample({ sales: [nftSaleSample({ seller: NFT_SELLER, buyer: BUYER }), nftSaleSample({ event_index: 2, seller: BUYER, buyer: NFT_OWNER })], coverage: WHOLE });
+    expect(drawnAccounts(nftCollectionPage(pageInput({ list: fulfilled(sales) })))).toEqual([NFT_ISSUER, NFT_SELLER, BUYER, NFT_OWNER]);
+  });
+
+  it("is the NFTs tab's owners: not a burned NFT's, not one the index has no owner for, not the last sale's price issuer", () => {
+    const nfts = [
+      nftSample({ owner: NFT_OWNER, last_sale: { amount: "40", currency: "USD", amount_issuer: PRICE_ISSUER, ledger_index: 1, tx_hash: HASH_A, executed_time: "2026-10-24T16:08:12Z" } }),
+      nftSample({ nft_id: OTHER_NFT_ID, owner: BUYER, burned: true }),
+      nftSample({ nft_id: "AA".repeat(32), owner: undefined }),
+      nftSample({ nft_id: "BB".repeat(32), owner: NFT_OWNER }),
+    ];
+    const page = nftCollectionPage(pageInput({ query: { ...QUERY, tab: "nfts" }, list: fulfilled(nftsPageSample({ nfts, coverage: WHOLE })) }));
+    expect(drawnAccounts(page)).toEqual([NFT_ISSUER, NFT_OWNER]);
+  });
+
+  it("is the Holders tab's owners", () => {
+    const holders = [holderSample({ owner: NFT_OWNER, held: 4 }), holderSample({ owner: BUYER, held: 1 })];
+    const page = nftCollectionPage(pageInput({ query: { ...QUERY, tab: "holders" }, list: fulfilled(nftHoldersPageSample({ holders, coverage: WHOLE })) }));
+    expect(drawnAccounts(page)).toEqual([NFT_ISSUER, NFT_OWNER, BUYER]);
+  });
+
+  it("is the issuer alone while the tab's list failed or was not asked for, and on Xahau the issuer of the one collection", () => {
+    expect(drawnAccounts(nftCollectionPage(pageInput({ list: rejected(new TooLate()) })))).toEqual([NFT_ISSUER]);
+    expect(drawnAccounts(nftCollectionPage(pageInput({ query: { ...QUERY, tab: "nfts", owner: "not an address" }, ownerError: "Write a classic address (r…).", list: null })))).toEqual([NFT_ISSUER]);
+    const xahau = nftCollectionPage(pageInput({ net: XAHAU, key: URI_KEY, collection: answerOf(uriTokenCollectionSample()), list: fulfilled(nftSalesPageSample({ sales: [], count: 0 })) }));
+    expect(drawnAccounts(xahau)).toEqual([URI_TOKEN_ISSUER]);
+  });
+
+  it("is, behind a marker, the header's issuer and the rows: the header card is drawn there too", () => {
+    const page = collectionMarkerPage(markerInput({ list: fulfilled(nftSalesPageSample({ sales: [nftSaleSample({ buyer: BUYER })], coverage: WHOLE })) }));
+    expect(drawnAccounts(page)).toEqual([NFT_ISSUER, NFT_SELLER, BUYER]);
   });
 });

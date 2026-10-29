@@ -16,12 +16,14 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { nftCollectionMeta } from "../server/meta-nft-collection";
-import { collectionMarkerPage, collectionNotFound, nftCollectionPage, type CollectionList } from "../server/nft-collection-view";
+import { collectAddresses, loadNames } from "../server/names-load";
+import { collectionMarkerPage, collectionNotFound, drawnAccounts, nftCollectionPage, type CollectionList } from "../server/nft-collection-view";
 import { requireNetwork } from "../server/network-route";
 import { anchoredWindow } from "../server/network-view";
 import type { Network } from "../server/networks";
 import { redirectToHref } from "../server/pair-route";
 import { isNotFound, UpstreamError } from "../server/upstream";
+import { NamesProvider } from "../ui/names";
 import { NftCollectionPage } from "../ui/pages/NftCollectionPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 
@@ -82,6 +84,9 @@ const failedWords = (part: string, reason: unknown) => `the NFT collection${part
  *   loader began ("took too long"). #1 is the page's own: `collection not found` is the 404 above, any other failure a 503. The others are cards: a failed one is told in its place and
  *   logged under its name, and the request is degraded, served and not stored. A `last_validated` with no number in it fails the chart and the 30-day stats and is logged as their
  *   failure: it is #3's, which gives up before it asks. Nothing is deferred and nothing polls, so no call asks for the failure hold.
+ * - **One names call** (display names spec 1 and 5), after the calls the page awaits (on a page behind a marker too): the header's issuer and the tab's rows (`drawnAccounts`: a sale's
+ *   seller and buyer, an NFT's owner, a holder). A names call that fails or is late never fails the page: the accounts are short addresses, the request is degraded (served, not
+ *   stored). The title and the description keep the short issuer (spec 7).
  */
 export async function loader({ request, url, params, context }: Route.LoaderArgs) {
   const started = Date.now();
@@ -134,7 +139,9 @@ async function markerPage(context: Route.LoaderArgs["context"], request: Request
   }
   // A marker past the last row has nothing behind it.
   if (rowsIn(list.value) === 0) notFound({ notFound: olderNotFound });
-  return cached(collectionMarkerPage({ net, key, query, collection: collection.value, list }), MARKER_PAGE_CLASS);
+  const view = collectionMarkerPage({ net, key, query, collection: collection.value, list });
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features });
+  return cached({ ...view, names }, MARKER_PAGE_CLASS);
 }
 
 /** The first page (spec 3.2): the four calls, and the page from what came. */
@@ -178,7 +185,9 @@ async function firstPage(context: Route.LoaderArgs["context"], request: Request,
   for (const { part, reason } of failed) logProblem(failedWords(part, reason), reason, request);
   if (failed.length > 0) markDegraded(context, `nft collection: ${failed.map(({ part }) => part).join(", ")}`);
 
-  return cached(nftCollectionPage(input), ownerError === undefined ? "minute" : "short");
+  const view = nftCollectionPage(input);
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features });
+  return cached({ ...view, names }, ownerError === undefined ? "minute" : "short");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -188,5 +197,9 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 export default function NftCollection({ loaderData }: Route.ComponentProps) {
-  return <NftCollectionPage data={loaderData} />;
+  return (
+    <NamesProvider names={loaderData.names.map}>
+      <NftCollectionPage data={loaderData} />
+    </NamesProvider>
+  );
 }

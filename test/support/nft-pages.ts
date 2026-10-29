@@ -7,6 +7,7 @@ import { expect } from "vitest";
 
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
+import { withoutNames } from "./names";
 import { anchors, elementText } from "./pages";
 import { dataApiError, type UpstreamMock } from "./upstream";
 
@@ -15,8 +16,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** The data API failing: a 503. */
 export const unavailable = () => dataApiError(503, "unavailable");
 
-/** The keys of the requests the mock saw (`GET /v2/last_validated`), in order. */
-export const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
+/**
+ * The keys of the requests the mock saw (`GET /v2/last_validated`), in order, but for the names call: the calls of a page's own data are what these specs compare. The Worker keeps the
+ * answer of a names call a minute, so whether an earlier render of the file made the call a later one would make is the cache's state, and the names of each page are asserted
+ * in its own `*-names.spec.ts`.
+ */
+export const keysOf = (requests: UpstreamMock["requests"]) => withoutNames(requests).map((request) => request.key);
 
 /**
  * Whether the edge cache holds a copy of `path` (for after the answer has been read). The copy is stored behind the answer, in `waitUntil`, so a store that is wanted may take a moment:
@@ -30,6 +35,14 @@ export async function isStored(path: string): Promise<boolean> {
     await sleep(25);
   }
   return false;
+}
+
+/**
+ * Takes the edge cache's copy of `path` away, if a test before this one stored one: the Cache API of a spec file outlives its tests, and a test that says a page is not stored must
+ * start from a cache that holds none, whichever tests ran before it (the copy of a successful render is there, stale, but `isStored` finds it all the same).
+ */
+export async function forgetStored(path: string): Promise<void> {
+  await caches.default.delete(edgeCacheKey(`https://explorer.test${path}`, cacheGeneration(env)));
 }
 
 /** A degraded page: 200, never kept by the browser or the edge. */

@@ -26,7 +26,7 @@ import type { AmendmentStatus } from "../domain/amendments-params";
 import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-params";
 import type { FlowStep } from "../domain/describe";
 import { shortAddress, shortHash } from "../domain/format";
-import type { NameMap } from "../domain/names";
+import { NO_NAMES, type NameMap, type NamesPart } from "../domain/names";
 import type { ValidatorsParams } from "../domain/validators-params";
 import { NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
@@ -56,7 +56,7 @@ import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCo
 import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
 import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
 import { pairPage } from "./pair-view";
-import { validatorHistoryPage, validatorPage } from "./validator-view";
+import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 import { validatorsPage } from "./validators-view";
 
 // The tags of the pages (spec 9) as pure functions over the page data and the origin of the request. The data below is what the
@@ -780,8 +780,10 @@ describe("validatorsMeta", () => {
 describe("validatorMeta", () => {
   const NET: NetworkInfo = { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" };
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
-  const live = (validator = validatorDetailSample(), network = NET) =>
-    validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 } });
+  const live = (validator = validatorDetailSample(), network = NET): ValidatorLiveData => ({
+    ...validatorPage({ network, validator, recent: { state: "failed" }, summary: { state: "failed" }, amendments: { state: "failed" }, anchor: { lastValidated: 107748183, closeTime: 1792252452 } }),
+    names: NO_NAMES,
+  });
   const KEY = SAMPLE_KEYS[0];
   const TAIL = "Agreement, fee and amendment votes, and recent validations.";
 
@@ -845,6 +847,15 @@ describe("validatorMeta", () => {
   it("puts no age and no number that moves with the chain in the description", () => {
     // The version's figures are the only digits: no agreement, no ledger, no time.
     expect(content(validatorMeta(live(), XRPL), "description")!.match(/\d+/g)).toEqual(["3", "4", "1"]);
+  });
+
+  it("reads no name (display names spec 7): the tags of a page that names the accounts it lists are those of one that does not", () => {
+    const listed = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+    const names: NamesPart = { state: "ok", map: { [listed]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } } };
+    expect(live().grid.accounts?.map((account) => account.address)).toEqual([listed]);
+    const list = validatorMeta({ ...live(), names }, XRPL);
+    expect(list).toEqual(validatorMeta(live(), XRPL));
+    expect(JSON.stringify(list)).not.toContain("Northpeak Treasury");
   });
 });
 
@@ -1084,10 +1095,14 @@ describe("nftsMeta", () => {
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
   const failed = (): PromiseRejectedResult => ({ status: "rejected", reason: new Error("not asked in this test") });
   /** The page data of a view of the list, as the view builder writes it: the tags read what the page says of its view. */
-  const view = (query: Partial<NftsQuery> = {}, net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftsPageData =>
-    nftsListPage({ net, query: { period: "day", sort: "volume", order: "desc", back: [], ...query }, last: failed(), live: failed(), daily: null, sales: failed(), collections: failed() });
-  const marked = (query: Partial<NftsQuery> = {}, net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftsPageData =>
-    nftsMarkerPage(net, { period: "day", sort: "volume", order: "desc", marker: "M1", back: [], ...query }, nftCollectionsPageSample({ collections: [], count: 0, total: 0 }));
+  const view = (query: Partial<NftsQuery> = {}, net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftsPageData => ({
+    ...nftsListPage({ net, query: { period: "day", sort: "volume", order: "desc", back: [], ...query }, last: failed(), live: failed(), daily: null, sales: failed(), collections: failed() }),
+    names: NO_NAMES,
+  });
+  const marked = (query: Partial<NftsQuery> = {}, net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftsPageData => ({
+    ...nftsMarkerPage(net, { period: "day", sort: "volume", order: "desc", marker: "M1", back: [], ...query }, nftCollectionsPageSample({ collections: [], count: 0, total: 0 })),
+    names: NO_NAMES,
+  });
 
   it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
     const list = nftsMeta(view(), XRPL);
@@ -1158,8 +1173,10 @@ describe("nftsMeta", () => {
 
 describe("nftSalesMeta", () => {
   const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
-  const sales = (net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftSalesPageData =>
-    nftSalesPage(net, { back: [] }, nftSalesPageSample({ sales: [], count: 0 }));
+  const sales = (net: NftsNet = { id: "xrpl", native: "XRP", longName: "the XRP Ledger" }): NftSalesPageData => ({
+    ...nftSalesPage(net, { back: [] }, nftSalesPageSample({ sales: [], count: 0 })),
+    names: NO_NAMES,
+  });
 
   it("is noindex, follow with no canonical URL and no Open Graph or card tags, whichever page of the sales it is", () => {
     const list = nftSalesMeta(sales(), XRPL);
@@ -1196,8 +1213,8 @@ describe("nftCollectionMeta", () => {
   const QUERY: CollectionQuery = { measure: "volume", tab: "sales", burned: false, back: [] };
   const WHOLE = coverageSample({ complete: true });
   /** The page data of a view of the collection, as the view builder writes it: the tags read what the page says of its view. */
-  const view = (query: Partial<CollectionQuery> = {}, over: { net?: CollectionNet; key?: CollectionKey; ownerError?: string } = {}): NftCollectionPageData =>
-    nftCollectionPage({
+  const view = (query: Partial<CollectionQuery> = {}, over: { net?: CollectionNet; key?: CollectionKey; ownerError?: string } = {}): NftCollectionPageData => ({
+    ...nftCollectionPage({
       net: over.net ?? NET,
       key: over.key ?? KEY,
       query: { ...QUERY, ...query },
@@ -1206,15 +1223,19 @@ describe("nftCollectionMeta", () => {
       last: failed(),
       stats: null,
       list: query.tab === "nfts" ? { status: "fulfilled", value: nftsPageSample({ coverage: WHOLE }) } : { status: "fulfilled", value: nftSalesPageSample({ coverage: WHOLE }) },
-    });
-  const marked = (query: Partial<CollectionQuery> = {}, net: CollectionNet = NET, key: CollectionKey = KEY): NftCollectionPageData =>
-    collectionMarkerPage({
+    }),
+    names: NO_NAMES,
+  });
+  const marked = (query: Partial<CollectionQuery> = {}, net: CollectionNet = NET, key: CollectionKey = KEY): NftCollectionPageData => ({
+    ...collectionMarkerPage({
       net,
       key,
       query: { ...QUERY, marker: "M1", ...query },
       collection: nftCollectionAnswerSample({ coverage: WHOLE }),
       list: { status: "fulfilled", value: nftSalesPageSample({ coverage: WHOLE }) },
-    });
+    }),
+    names: NO_NAMES,
+  });
 
   it("has the tags of the first page: the title, a canonical URL on the origin that names the collection, Open Graph, a summary card and no image", () => {
     const tagsOf = nftCollectionMeta(view(), XRPL);
@@ -1229,6 +1250,15 @@ describe("nftCollectionMeta", () => {
     expect(keys(tagsOf)).not.toContain("og:image");
     expect(keys(tagsOf)).not.toContain("twitter:image");
     expect(keys(tagsOf)).not.toContain("robots");
+  });
+
+  it("keeps the issuer's short address (display names spec 7): a page that names its issuer has the tags of one that does not", () => {
+    const names: NamesPart = { state: "ok", map: { [NFT_ISSUER]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } } };
+    const list = nftCollectionMeta({ ...view(), names }, XRPL);
+    expect(title(list)).toBe(`Collection ${LABEL} · XRPL · explorer`);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(list).toEqual(nftCollectionMeta(view(), XRPL));
+    expect(JSON.stringify(list)).not.toContain("Northpeak Treasury");
   });
 
   it("keeps the tab in the canonical URL unless it is the first, and the measure and a filter's absence", () => {
@@ -1300,8 +1330,8 @@ describe("nftMeta", () => {
   const ALT = `NFT #95,234,705 of ${LABEL} on XRPL`;
 
   /** The page data of an indexed NFT (sold once for 10 XRP, held by the sample owner), as the view builder writes it: the tags read what the page says. */
-  const view = (over: Partial<Parameters<typeof nftPage>[0]> = {}): NftPageData =>
-    nftPage({
+  const view = (over: Partial<Parameters<typeof nftPage>[0]> = {}): NftPageData => ({
+    ...nftPage({
       net: NET,
       id: NFT_ID,
       query: { offers: false, back: [] },
@@ -1311,7 +1341,11 @@ describe("nftMeta", () => {
       offers: { status: "fulfilled", value: { coverage: coverageSample(), count: 0, offers: [] } },
       history: { status: "fulfilled", value: nftEventsPageSample() },
       ...over,
-    });
+    }),
+    names: NO_NAMES,
+  });
+  /** The page the loader answers: the builder's page with its names part, which no tag reads. */
+  const named = (page: Omit<NftPageData, "names">): NftPageData => ({ ...page, names: NO_NAMES });
 
   it("has the tags of an NFT: the title, the description with its owner and last sale, a canonical URL on the origin, Open Graph, the link-preview image and a large card", () => {
     const tagsOf = nftMeta(view(), XRPL);
@@ -1362,7 +1396,7 @@ describe("nftMeta", () => {
   });
 
   it("is Xahau's on Xahau: URIToken and its short id in the title, its token's price in XAH", () => {
-    const tagsOf = nftMeta(nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null }), XAHAU);
+    const tagsOf = nftMeta(named(nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null })), XAHAU);
     expect(title(tagsOf)).toBe("URIToken 96133366… of rodinG…zKyb · Xahau · explorer");
     expect(content(tagsOf, "description")).toBe(`Owned by ${shortAddress(URI_TOKEN_OWNER)} · last sold for 4,200 XAH · Xahau`);
     expect(link(tagsOf, "canonical")).toBe(`https://explorer.test/xahau/nft/${URI_TOKEN_ID}`);
@@ -1374,13 +1408,13 @@ describe("nftMeta", () => {
     expect(title(tagsOf)).toBe(`NFT #95,234,705 of ${LABEL} · XRPL Testnet · explorer`);
     expect(content(tagsOf, "description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL Testnet");
     expect(content(tagsOf, "og:image:alt")).toBe(`NFT #95,234,705 of ${LABEL} on XRPL Testnet`);
-    const xahau = nftMeta(nftPage({ net: { ...URI_NET, name: "Xahau Testnet", longName: "Xahau Testnet" }, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null }), XAHAU_TESTNET);
+    const xahau = nftMeta(named(nftPage({ net: { ...URI_NET, name: "Xahau Testnet", longName: "Xahau Testnet" }, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "indexed", now: NOW, index: nftAnswerSample({ nft: uriTokenSample() }), offers: null, history: null })), XAHAU_TESTNET);
     expect(title(xahau)).toBe("URIToken 96133366… of rodinG…zKyb · Xahau Testnet · explorer");
   });
 
   it.each([
     ["from the network", () => view({ mode: "network", index: undefined, node: nodeNftInfoSample(), id: NODE_NFT_ID, offers: null, history: null })],
-    ["a URIToken from the network", () => nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "network", now: NOW, node: nodeUriTokenSample(), offers: null, history: null })],
+    ["a URIToken from the network", () => named(nftPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, back: [] }, mode: "network", now: NOW, node: nodeUriTokenSample(), offers: null, history: null }))],
   ])("is noindex, with no canonical URL and nothing to share, %s", (_name, make) => {
     const tagsOf = nftMeta(make(), XRPL);
     expect(content(tagsOf, "robots")).toBe("noindex");
@@ -1388,6 +1422,14 @@ describe("nftMeta", () => {
     expect(keys(tagsOf).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
     expect(keys(tagsOf).sort()).toEqual(["description", "robots"]);
     expect(title(tagsOf)).toMatch(/ · XRPL · explorer$/);
+  });
+
+  it("keeps the owner's short address (display names spec 7): the tags of a page that names its accounts are those of one that does not, the title and the description in out-of-context shares", () => {
+    const names: NamesPart = { state: "ok", map: { [NFT_OWNER]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } } };
+    const list = nftMeta({ ...view(), names }, XRPL);
+    expect(content(list, "description")).toBe("Owned by rnKd8C…FrTx · last sold for 10 XRP · XRPL");
+    expect(list).toEqual(nftMeta(view(), XRPL));
+    expect(JSON.stringify(list)).not.toContain("Northpeak Treasury");
   });
 
   it("says Owned by the node's owner from the network", () => {
@@ -1400,14 +1442,14 @@ describe("nftMeta", () => {
   });
 
   it("is noindex, follow behind a marker, with no canonical URL or sharing tags, and titled for the older history", () => {
-    const marked = nftMarkerPage({ net: NET, id: NFT_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample(), history: nftEventsPageSample() });
+    const marked = named(nftMarkerPage({ net: NET, id: NFT_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample(), history: nftEventsPageSample() }));
     const tagsOf = nftMeta(marked, XRPL);
     expect(title(tagsOf)).toBe("Older history of NFT #95,234,705 · XRPL · explorer");
     expect(content(tagsOf, "description")).toBe(`Older history of NFT #95,234,705 of ${LABEL} on XRPL.`);
     expect(content(tagsOf, "robots")).toBe("noindex, follow");
     expect(tags(tagsOf).some((tag) => tag.tagName === "link")).toBe(false);
     expect(keys(tagsOf).sort()).toEqual(["description", "robots"]);
-    const token = nftMeta(nftMarkerPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample({ nft: uriTokenSample() }), history: nftEventsPageSample() }), XAHAU);
+    const token = nftMeta(named(nftMarkerPage({ net: URI_NET, id: URI_TOKEN_ID, query: { offers: false, marker: "M1", back: [] }, index: nftAnswerSample({ nft: uriTokenSample() }), history: nftEventsPageSample() })), XAHAU);
     expect(title(token)).toBe("Older history of URIToken 96133366… · Xahau · explorer");
   });
 });

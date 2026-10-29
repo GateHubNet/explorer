@@ -236,7 +236,9 @@ describe("the validator page", () => {
   });
 
   it("gives the links of a list a target of at least 24 px (WCAG 2.5.8), and the link to the amendments 32 px, 44 px on a phone or a touch screen", () => {
-    expect(Number.parseFloat(rule(pagesCss, ".validator__account")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    expect(Number.parseFloat(rule(pagesCss, ".validator__accounts a")["min-height"]!)).toBeGreaterThanOrEqual(24);
+    // The accounts' wrapper is no box: its links stay the flex items of the fact's value.
+    expect(rule(pagesCss, ".validator__accounts").display).toBe("contents");
     expect(Number.parseFloat(rule(pagesCss, ".validator__amendment")["min-height"]!)).toBeGreaterThanOrEqual(24);
     expect(Number.parseFloat(rule(pagesCss, ".validator__cross")["min-height"]!)).toBeGreaterThanOrEqual(32);
     expect(pagesCss).toMatch(/@media \(pointer: coarse\), \(max-width: 720px\) \{[^@]*\.validator__cross[^@]*min-height: 44px/);

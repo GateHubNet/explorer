@@ -13,11 +13,13 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { nftsMeta } from "../server/meta-nfts";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { anchoredWindow, seriesQuery } from "../server/network-view";
 import { requireNetwork } from "../server/network-route";
-import { nftsListPage, nftsMarkerPage } from "../server/nfts-view";
+import { drawnAccounts, nftsListPage, nftsMarkerPage } from "../server/nfts-view";
 import { redirectToHref } from "../server/pair-route";
 import { UpstreamError } from "../server/upstream";
+import { NamesProvider } from "../ui/names";
 import { NftsPage } from "../ui/pages/NftsPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 
@@ -56,6 +58,9 @@ const ISSUER_ERROR = "Write a classic address (r…).";
  *   chart's failure: it is #3's, which gives up before it asks.
  * - **A page behind a marker** (spec 1.3, 2.2) makes call #5 alone, awaited whole: the API refusing the marker (a 400), or nothing behind it, is a 404 of class `short`, and any
  *   other failure a 503 (`upstreamOutage`). It is `MARKER_PAGE_CLASS`.
+ * - **One names call** (display names spec 1 and 5), after the calls the page awaits: the sellers and buyers of the recent sales (`drawnAccounts`), which the table draws as
+ *   `AccountLink`s. The collections table's issuer labels link to collections, not accounts, and are not named; a page behind a marker is that table alone and names nothing. A names
+ *   call that fails or is late never fails the page: the accounts are short addresses, the request is degraded (served, not stored). The page does not poll: no failure hold.
  * - **The class is `minute`** (spec 9) for the first page: the aggregator's sets change at its minute. A page whose issuer is no address is `short`.
  */
 export async function loader({ request, url, params, context }: Route.LoaderArgs) {
@@ -84,7 +89,9 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
       return upstreamOutage(err, `the ${words.token} collections`);
     });
     if (page.collections.length === 0) throw cached({ notFound: moreNotFound }, "short", { status: 404 });
-    return cached(nftsMarkerPage(net, query, page), MARKER_PAGE_CLASS);
+    const view = nftsMarkerPage(net, query, page);
+    const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features });
+    return cached({ ...view, names }, MARKER_PAGE_CLASS);
   }
 
   const deadline = started + CARD_DEADLINE_MS;
@@ -128,7 +135,9 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   for (const { part, reason } of failed) logProblem(`the NFT list's ${part} ${reason instanceof TooLate ? "took too long" : "could not be loaded"}`, reason, request);
   if (failed.length > 0) markDegraded(context, `nft list: ${failed.map(({ part }) => part).join(", ")}`);
 
-  return cached(nftsListPage(input), issuerIsAddress ? "minute" : "short");
+  const view = nftsListPage(input);
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features });
+  return cached({ ...view, names }, issuerIsAddress ? "minute" : "short");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -138,5 +147,9 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 export default function Nfts({ loaderData }: Route.ComponentProps) {
-  return <NftsPage data={loaderData} />;
+  return (
+    <NamesProvider names={loaderData.names.map}>
+      <NftsPage data={loaderData} />
+    </NamesProvider>
+  );
 }

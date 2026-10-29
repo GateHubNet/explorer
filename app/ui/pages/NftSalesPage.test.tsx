@@ -5,6 +5,7 @@ import { coverageSample, nftSaleSample, nftSalesPageSample, NFT_ISSUER, URI_TOKE
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountPage, routedPage } from "../../../test/support/under-network";
 import { shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import type { NftSale } from "../../server/api-types";
 import { nftSalesPage, type NftSalesPageData, type NftsNet } from "../../server/nfts-view";
 import { NftSalesPage } from "./NftSalesPage";
@@ -22,8 +23,10 @@ const SALES: NftSale[] = [
   nftSaleSample({ event_index: 2, tx_hash: "D".repeat(64), serial: 7, amount: "310", converted_amount: "310", royalty_est: "15.5", mode: "brokered" }),
 ];
 
-const build = (net: NftsNet = XRPL, query: { marker?: string; back: readonly string[] } = { back: [] }, over = {}): NftSalesPageData =>
-  nftSalesPage(net, query, nftSalesPageSample({ sales: SALES, coverage: coverageSample({ complete: true }), ...over }));
+const build = (net: NftsNet = XRPL, query: { marker?: string; back: readonly string[] } = { back: [] }, over = {}): NftSalesPageData => ({
+  ...nftSalesPage(net, query, nftSalesPageSample({ sales: SALES, coverage: coverageSample({ complete: true }), ...over })),
+  names: NO_NAMES,
+});
 
 const mount = (data: NftSalesPageData, at = "/xrpl/nfts/sales", network = LAYOUT_XRPL) => mountPage(<NftSalesPage data={data} />, "sales", { at, network });
 
@@ -98,7 +101,7 @@ describe("NftSalesPage", () => {
 
   it("is Xahau's: URIToken sales, the URIToken column, a royalty that is a dash, the URIToken's note", () => {
     const uri = nftSaleSample({ nft_id: URI_TOKEN_ID, kind: "uritoken", issuer: URI_TOKEN_ISSUER, serial: undefined, taxon: undefined, currency: "XAH", amount: "520", converted_amount: "520", royalty_est: undefined });
-    mount(nftSalesPage(XAHAU, { back: [] }, nftSalesPageSample({ sales: [uri], coverage: coverageSample({ complete: false, from_ledger_index: 26533927 }) })), "/xahau/nfts/sales", LAYOUT_XAHAU);
+    mount({ ...nftSalesPage(XAHAU, { back: [] }, nftSalesPageSample({ sales: [uri], coverage: coverageSample({ complete: false, from_ledger_index: 26533927 }) })), names: NO_NAMES }, "/xahau/nfts/sales", LAYOUT_XAHAU);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("URIToken sales");
     expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getAllByRole("listitem").map((item) => item.textContent?.replace("/", ""))).toEqual(["Xahau", "URITokens", "Sales"]);
     const table = screen.getByRole("table", { name: "Sales" });

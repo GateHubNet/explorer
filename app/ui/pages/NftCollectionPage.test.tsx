@@ -22,6 +22,7 @@ import {
 } from "../../../test/support/nft-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountLoadedPage, mountPage, routedPage } from "../../../test/support/under-network";
+import { NO_NAMES } from "../../domain/names";
 import { parseCollectionParams, type CollectionKey, type CollectionQuery } from "../../domain/nft-params";
 import type { LastValidated, NftCollectionDay, NftCollectionDays } from "../../server/api-types";
 import { collectionMarkerPage, nftCollectionPage, type CollectionList, type CollectionNet, type NftCollectionPageData, type NftCollectionPageInput } from "../../server/nft-collection-view";
@@ -111,29 +112,33 @@ function pageInput(over: Partial<NftCollectionPageInput> = {}): NftCollectionPag
   };
 }
 
-const build = (over: Partial<NftCollectionPageInput> = {}): NftCollectionPageData => nftCollectionPage(pageInput(over));
+const build = (over: Partial<NftCollectionPageInput> = {}): NftCollectionPageData => ({ ...nftCollectionPage(pageInput(over)), names: NO_NAMES });
 const nftsTab = (query: Partial<CollectionQuery> = {}, over: Partial<NftCollectionPageInput> = {}) =>
   build({ query: { ...QUERY, tab: "nfts", ...query }, list: fulfilled(nftsPageSample({ nfts: NFTS, coverage: WHOLE })), ...over });
 const holdersTab = (over: Partial<NftCollectionPageInput> = {}) =>
   build({ query: { ...QUERY, tab: "holders" }, list: fulfilled(nftHoldersPageSample({ holders: [holderSample({ owner: NFT_OWNER, held: 4380 }), holderSample({ owner: OTHER_OWNER, held: 3 })], coverage: WHOLE })), ...over });
-const uriBuild = (over: Partial<NftCollectionPageInput> = {}): NftCollectionPageData =>
-  nftCollectionPage({
+const uriBuild = (over: Partial<NftCollectionPageInput> = {}): NftCollectionPageData => ({
+  ...nftCollectionPage({
     ...pageInput(),
     net: XAHAU,
     key: URI_KEY,
     collection: nftCollectionAnswerSample({ collection: uriTokenCollectionSample(), coverage: coverageSample({ complete: false, from_ledger_index: 26533927 }) }),
     list: fulfilled(nftSalesPageSample({ sales: [], count: 0, coverage: coverageSample({ complete: false, from_ledger_index: 26533927 }) })),
     ...over,
-  });
-const marker = (over: Partial<Parameters<typeof collectionMarkerPage>[0]> = {}): NftCollectionPageData =>
-  collectionMarkerPage({
+  }),
+  names: NO_NAMES,
+});
+const marker = (over: Partial<Parameters<typeof collectionMarkerPage>[0]> = {}): NftCollectionPageData => ({
+  ...collectionMarkerPage({
     net: XRPL,
     key: KEY,
     query: { ...QUERY, marker: MARKERS.M2, back: [MARKERS.M1] },
     collection: nftCollectionAnswerSample({ collection: COLLECTION, coverage: WHOLE }),
     list: fulfilled(nftSalesPageSample({ sales: SALES, coverage: WHOLE }) satisfies CollectionList),
     ...over,
-  });
+  }),
+  names: NO_NAMES,
+});
 
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
 const mount = (data: NftCollectionPageData, at = PATH, network = LAYOUT_XRPL) => mountPage(<NftCollectionPage data={data} />, "collection", { at, network });

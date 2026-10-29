@@ -13,6 +13,7 @@
 
 import type { Segment } from "../domain/describe";
 import { formatAmount, formatCurrency } from "../domain/format";
+import type { NamesPart } from "../domain/names";
 import { decodeNftId, NFT_FLAG_LABELS, uriText } from "../domain/nft-id";
 import { ARROW, collectionHref, collectionLabel, nftHref, nftsHref, nftWords, shortNftId, type CollectionKey, type NftQuery, type NftWords } from "../domain/nft-params";
 import { trailPaging, type Paging } from "../domain/paging";
@@ -412,6 +413,11 @@ export interface NftPageData {
   marker: boolean;
   /** "Back to the NFT", to the NFT's page in the view of offer events it is behind; `null` unless behind a marker. */
   back: { label: string; href: string } | null;
+  /**
+   * The names of the accounts the page draws (`drawnAccounts`), which the loader adds after `nftPage` or `nftMarkerPage` (display names spec 3.4): the owner, issuer, minter, the burner,
+   * the open offers' accounts and the history's. `failed` when the names call did not work, `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 /** The input of `nftPage`: the outcomes of the loader's calls (spec 4.3) and the mode they made. */
@@ -725,7 +731,7 @@ function toggleOf(net: NftNet, id: string, query: NftQuery): NftPageData["histor
  * An NFT's page (spec 4.2) from the outcomes of the loader's calls. A mode that needs an answer it was not given (`index` for the modes of the index, `node` for the owner from the
  * network and the modes from the network) is a bug of the caller and throws. A card whose call was rejected is `null` and has its words in `failures`; the page stands on the others.
  */
-export function nftPage(input: NftPageInput): NftPageData {
+export function nftPage(input: NftPageInput): Omit<NftPageData, "names"> {
   const { net, id, query, mode, now } = input;
   const words = nftWords(net.id);
   const local = networkWords(net, words);
@@ -779,7 +785,7 @@ export function nftPage(input: NftPageInput): NftPageData {
  * A page of the history behind a marker (spec 4.3): the breadcrumb, the header without its owner and last sale, "Back to the NFT" and the history rows, titled "Older history of NFT
  * #4,127". The loader awaits #1 and #4 whole, so there is no failure to tell: a failed call is its 503. The view of offer events (`query.offers`) is kept by Back and by the pager.
  */
-export function nftMarkerPage(input: NftMarkerInput): NftPageData {
+export function nftMarkerPage(input: NftMarkerInput): Omit<NftPageData, "names"> {
   const { net, id, query, index } = input;
   const words = nftWords(net.id);
   const local = networkWords(net, words);
@@ -811,6 +817,27 @@ export function nftMarkerPage(input: NftMarkerInput): NftPageData {
     marker: true,
     back: { label: `Back to the ${words.token}`, href: nftHref(net.id, id, { offers: query.offers }) },
   };
+}
+
+/** The accounts a cell of `Sentence`'s segments draws as links (`AccountLink`); an amount's issuer is in a title, not a link. */
+const accountsIn = (segments: readonly Segment[]): string[] => segments.flatMap((segment) => (segment.t === "account" ? [segment.v] : []));
+
+/**
+ * The accounts an NFT's page draws (display names spec 1 and 5), each once, in the order drawn: the owner line's owner or, for a burned NFT, the account that burned it; the details'
+ * accounts (the issuer, the minter and the account the mint went to); the id's card issuer; the open offers' accounts and their destinations (not "anyone" or the dash); and the
+ * history's accounts. Not the address of an amount's issuer (the price, an offer's amount, a broker's fee: `Amount` writes it in a title), nor `facts`' owner (for the tags and the
+ * image). A page behind a marker has only the history: no owner line, details or id card.
+ */
+export function drawnAccounts(page: Omit<NftPageData, "names">): string[] {
+  const { owner } = page.header;
+  const drawn = [
+    ...(owner === null ? [] : [owner.address, owner.by]),
+    ...page.details.flatMap((row) => accountsIn(row.value)),
+    ...page.idCard.flatMap((row) => accountsIn(row.value)),
+    ...(page.offers ?? []).flatMap((offer) => [offer.by, offer.onlyFor === null || offer.onlyFor === "anyone" ? undefined : offer.onlyFor]),
+    ...(page.history ?? []).flatMap((row) => accountsIn(row.accounts)),
+  ];
+  return [...new Set(drawn.filter((address): address is string => address !== undefined))];
 }
 
 /**

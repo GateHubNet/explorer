@@ -36,6 +36,7 @@ import type { Nft, NftAnswer, NftEvent, NftEventsPage, NftOffer, NodeNftInfo, No
 import { CACHE_CLASSES } from "./cache-class";
 import { TooLate } from "./deadline";
 import {
+  drawnAccounts,
   historyRows,
   needsNode,
   nftMarkerPage,
@@ -1059,5 +1060,90 @@ describe("the sample NFT", () => {
   it("stands on an id that decodes to its issuer, taxon, serial, flags and fee", () => {
     expect(decodeNftId(NFT_ID)).toMatchObject({ issuer: NFT_ISSUER, taxon: 10, serial: 95234705, flags: 8, transferFee: 5000 });
     expect(decodeNftId(NODE_NFT_ID)).toMatchObject({ issuer: "rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu", taxon: 500, serial: 106293080 });
+  });
+});
+
+// ---- The accounts the page draws (display names spec 1 and 5) -----------------------------------------------------------------------------------
+
+describe("drawnAccounts: the accounts an NFT's page draws", () => {
+  const MINTER = "rBg5JN5ShW8ZRV1TJhxVJRYcXVbPGC3ARi";
+  const MINTED_TO = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const BIDDER = "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY";
+  const FROM = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+  const TO = "rLUEXYuLiQptky37CqLcm9USQpPiz5rkpD";
+  const FEE_ISSUER = "rJF2XanJQGFLS5ZUdcqEzwJcTJ7aFfQvg";
+
+  it("is the owner, the issuer, the minter and the account it went to, the offers' accounts and the history's, each once, in the order the page draws them", () => {
+    const nft = nftSample({ minted: { ledger_index: 26689211, tx_hash: HASH_A, executed_time: "2026-03-14T09:00:00Z", by: MINTER, to: MINTED_TO } });
+    const page = nftPage(
+      input({
+        index: nftAnswerSample({ nft, coverage: WHOLE }),
+        offers: fulfilled(nftOffersPageSample({ offers: [nftOfferSample({ owner: BIDDER, destination: NFT_BROKER })] })),
+        history: fulfilled(nftEventsPageSample({ events: [nftEventSample({ from: FROM, to: TO, broker: NFT_BROKER })] })),
+      }),
+    );
+    // The owner line; the details (issuer, then the mint); the id's card repeats the issuer; the offers; the sale's two accounts and its broker.
+    expect(drawnAccounts(page)).toEqual([NFT_OWNER, NFT_ISSUER, MINTER, MINTED_TO, BIDDER, NFT_BROKER, FROM, TO]);
+  });
+
+  it("leaves out every other address the page holds: an amount's issuer, the offer's price issuer, the last sale's, the tags' owner", () => {
+    const nft = nftSample({ last_sale: { amount: "250", currency: "USD", amount_issuer: FEE_ISSUER, converted_amount: "96", ledger_index: 1, tx_hash: HASH_A, executed_time: "2026-10-20T17:01:12Z" } });
+    const sale = nftEventSample({ from: FROM, to: TO, broker: undefined, broker_fee: "3", amount: "250", currency: "USD", amount_issuer: FEE_ISSUER });
+    const brokered = nftEventSample({ event_index: 3, from: FROM, to: TO, broker: NFT_BROKER, broker_fee: "3", currency: "USD", amount_issuer: FEE_ISSUER });
+    const page = nftPage(
+      input({
+        index: nftAnswerSample({ nft }),
+        offers: fulfilled(nftOffersPageSample({ offers: [nftOfferSample({ owner: BIDDER, destination: undefined, currency: "USD", amount_issuer: FEE_ISSUER })] })),
+        history: fulfilled(nftEventsPageSample({ events: [sale, brokered] })),
+      }),
+    );
+    const drawn = drawnAccounts(page);
+    expect(drawn).not.toContain(FEE_ISSUER);
+    expect(drawn).toEqual([NFT_OWNER, NFT_ISSUER, BIDDER, FROM, TO, NFT_BROKER]);
+  });
+
+  it("is a sell offer's destination only when it names one: anyone and a buy offer's dash are no account", () => {
+    const sell = nftOfferSample({ is_sell_offer: true, owner: BIDDER, destination: undefined });
+    const targeted = nftOfferSample({ offer_id: "AB".repeat(32), is_sell_offer: true, owner: MINTER, destination: TO });
+    const buy = nftOfferSample({ offer_id: "CD".repeat(32), is_sell_offer: false, owner: MINTED_TO, destination: undefined });
+    const page = nftPage(input({ offers: fulfilled(nftOffersPageSample({ offers: [sell, targeted, buy] })), history: fulfilled(nftEventsPageSample({ events: [] })) }));
+    expect(page.offers!.map((row) => row.onlyFor)).toEqual(["anyone", TO, null]);
+    expect(drawnAccounts(page)).toEqual([NFT_OWNER, NFT_ISSUER, BIDDER, MINTER, TO, MINTED_TO]);
+  });
+
+  it("is the account that burned a burned NFT, who is in place of the owner, and no open offer's", () => {
+    const page = nftPage(input({ mode: "burned", index: nftAnswerSample({ nft: burnedNft({ burned_at: { ledger_index: 1, tx_hash: HASH_A, executed_time: "2026-10-25T10:00:00Z", by: MINTER } }) }), history: fulfilled(nftEventsPageSample({ events: [] })) }));
+    expect(page.header.owner).toMatchObject({ label: "Burned", by: MINTER });
+    expect(drawnAccounts(page)).toEqual([MINTER, NFT_ISSUER]);
+  });
+
+  it("is a burn's account and the owner it was owned by, in the history", () => {
+    const burn = nftEventSample({ event: "burn", account: MINTER, from: BIDDER, to: undefined, broker: undefined, broker_fee: undefined, amount: undefined, currency: undefined });
+    const page = nftPage(input({ offers: fulfilled(nftOffersPageSample({ offers: [] })), history: fulfilled(nftEventsPageSample({ events: [burn] })) }));
+    expect(drawnAccounts(page)).toEqual([NFT_OWNER, NFT_ISSUER, MINTER, BIDDER]);
+  });
+
+  it("is, from the network, the owner the node says, the issuer and the node's offers, and no history", () => {
+    const page = nftPage({
+      net: XRPL,
+      id: NODE_NFT_ID,
+      query: QUERY,
+      mode: "network",
+      now: NOW,
+      node: nodeNftInfoSample(),
+      offers: fulfilled(nodeOffers()),
+      history: null,
+    });
+    // The node's owner and issuer; the sell offer's owner, the buy offer's owner and its destination.
+    expect(drawnAccounts(page)).toEqual(["rfxioGqxazNZt3sbeVSZtziEQBHHJAXXjE", "rGxWAWXg8okZh29ojBRvEMpN5peQRV16Xu", NFT_SELLER, NFT_OWNER, NFT_BROKER]);
+  });
+
+  it("is nothing from a card that failed or was not asked for, and, behind a marker, the history's accounts alone: that page has no owner, details or id card", () => {
+    const failed = nftPage(input({ offers: rejected(new TooLate()), history: rejected(new TooLate()) }));
+    expect(drawnAccounts(failed)).toEqual([NFT_OWNER, NFT_ISSUER]);
+
+    const history = nftEventsPageSample({ events: [nftEventSample({ from: FROM, to: TO, broker: undefined })] }) as NftEventsPage;
+    const marker = nftMarkerPage({ net: XRPL, id: NFT_ID, query: { offers: false, marker: MARKERS.M2, back: [MARKERS.M1] }, index: nftAnswerSample(), history });
+    expect(drawnAccounts(marker)).toEqual([FROM, TO]);
   });
 });

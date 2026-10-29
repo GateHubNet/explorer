@@ -17,6 +17,7 @@ import { amendmentSegment } from "../domain/amendment-ref";
 import { amendmentHref } from "../domain/amendments-params";
 import { tokenOf } from "../domain/fnv";
 import { formatUtcDay, shortHash, utcMoment } from "../domain/format";
+import type { NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { formatDate } from "../domain/time-words";
 import { validatorHref } from "../domain/validators-params";
@@ -177,6 +178,11 @@ export interface ValidatorLiveData {
     | { state: "failed" };
   /** What the page's `<title>` and description say. `publishers` are D's ids, not labels: the tags word them with `listedByText`, which knows the fixed list by its id. */
   meta: { name: string; publishers: string[]; version: string | null; domain: "verified" | "unverified" | null };
+  /**
+   * The names of the accounts the page draws (`drawnAccounts`: the accounts line), which the loader adds after `validatorPage` (display names spec 3.4). A beat of the open page that
+   * has this part `failed` keeps the names on screen (`mergeValidatorBeat`). `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 /** The older validations behind a `?marker=`: history, with nothing live in it. */
@@ -403,7 +409,7 @@ export function validatorPage(input: {
   summary: Loaded<ValidatorsSummary>;
   amendments: Loaded<AmendmentsList>;
   anchor: Anchor;
-}): ValidatorLiveData {
+}): Omit<ValidatorLiveData, "names"> {
   const { network, validator, anchor } = input;
   const key = validator.validation_public_key;
   const identity = identityOf(network, validator);
@@ -433,6 +439,14 @@ export function validatorPage(input: {
       domain: domainStatus === "verified" ? "verified" : domainStatus === "unverified" ? "unverified" : null,
     },
   };
+}
+
+/**
+ * The accounts the page draws (display names spec 1 and 5): the accounts line, the accounts a verified domain's toml lists (`grid.accounts`, each an `AccountLink`). Not the master key
+ * or the signing key, which are keys and not accounts. The loader names these.
+ */
+export function drawnAccounts(page: Omit<ValidatorLiveData, "names">): string[] {
+  return [...new Set((page.grid.accounts ?? []).map((account) => account.address))];
 }
 
 /**

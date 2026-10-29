@@ -6,11 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { amendmentsSample, SAMPLE_KEYS, SAMPLE_SIGNING_KEYS, summarySample, UNKNOWN_ID, validationsSample, validatorDetailSample } from "../../../test/support/d1-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { shortHash } from "../../domain/format";
+import { shortAddress, shortHash } from "../../domain/format";
+import { NAMES_OFF, NO_NAMES, nameTitleOf, type NamesPart, type NameView } from "../../domain/names";
 import type { Loaded } from "../../server/account-view";
 import type { Anchor } from "../../server/anchor";
 import type { UnlPublisher, ValidatorDetail, ValidatorValidationsPage } from "../../server/api-types";
 import { validatorHistoryPage, validatorPage, type ValidatorHistoryData, type ValidatorLiveData } from "../../server/validator-view";
+import { NamesProvider } from "../names";
 import type { NetworkInfo } from "../networks";
 import type { LiveControls } from "../use-live-controls";
 import { ValidatorHistoryPage, ValidatorPage } from "./ValidatorPage";
@@ -47,17 +49,20 @@ const unix = (iso: string) => Date.parse(iso) / 1000;
 const ANCHOR: Anchor = { lastValidated: 107748183, closeTime: unix("2026-10-19T16:26:23Z") };
 
 type Input = Parameters<typeof validatorPage>[0];
-/** `northpeak.example` as the builder makes it from the samples: every part loaded, unless `over` says otherwise. */
-function build(over: Partial<Input> = {}): ValidatorLiveData {
-  return validatorPage({
-    network: XRPL,
-    validator: validatorDetailSample(),
-    recent: ok(validationsSample()),
-    summary: ok(summarySample()),
-    amendments: ok(amendmentsSample()),
-    anchor: ANCHOR,
-    ...over,
-  });
+/** `northpeak.example` as the builder makes it from the samples: every part loaded, unless `over` says otherwise, and with the loader's names part (nothing named by default). */
+function build(over: Partial<Input> = {}, names: NamesPart = NO_NAMES): ValidatorLiveData {
+  return {
+    ...validatorPage({
+      network: XRPL,
+      validator: validatorDetailSample(),
+      recent: ok(validationsSample()),
+      summary: ok(summarySample()),
+      amendments: ok(amendmentsSample()),
+      anchor: ANCHOR,
+      ...over,
+    }),
+    names,
+  };
 }
 
 /** What the route hands the page: the builder's data, the anchor the loader read and the build. */
@@ -78,7 +83,13 @@ function mount(ui: ReactElement, loader: () => null = () => null) {
   const router = createMemoryRouter([{ path: "*", element: ui, loader }], { initialEntries: [`/xrpl/validators/${KEY}`], hydrationData: { loaderData: { "0": null } } });
   return { router, ...render(<RouterProvider router={router} />) };
 }
-const mountPage = (data: ValidatorLiveData, live = controls(), loader?: () => null) => mount(<ValidatorPage data={loaded(data)} live={live} />, loader);
+/** The page as the route draws it: in a `NamesProvider` of the names of its data. */
+const named = (data: ValidatorLiveData, live: LiveControls) => (
+  <NamesProvider names={data.names.map}>
+    <ValidatorPage data={loaded(data)} live={live} />
+  </NamesProvider>
+);
+const mountPage = (data: ValidatorLiveData, live = controls(), loader?: () => null) => mount(named(data, live), loader);
 const mountHistory = (data: ValidatorHistoryData) => mount(<ValidatorHistoryPage data={data} />);
 
 const routed = (ui: ReactElement) => <RouterProvider router={createMemoryRouter([{ path: "*", element: ui }], { initialEntries: [`/xrpl/validators/${KEY}`] })} />;
@@ -222,6 +233,50 @@ describe("ValidatorPage, the identity", () => {
     const link = within(accounts.element as HTMLElement).getByRole("link");
     expect(link.getAttribute("href")).toBe("/xrpl/account/rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh");
     expect(link.getAttribute("title")).toBe("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh");
+  });
+
+  describe("the accounts the domain lists, by name (display names spec 1)", () => {
+    const ACCOUNT = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+    const OTHER = "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY";
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const HARBORLINE: NameView = { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: ["advisory"] };
+    const SCAMMER: NameView = { labels: ["scam"] };
+    const listing = (accounts: string[]) => validatorDetailSample({ domain_verification: { status: "verified", toml_url: "https://northpeak.example/.well-known/xrp-ledger.toml", checked: "2026-10-19T15:00:00Z", accounts } });
+    const links = () => within(fact("Accounts northpeak.example lists").element as HTMLElement).getAllByRole("link");
+
+    it("draws a named account by its name and the mark that says how the name is known, with the title that says so, and links to its page", () => {
+      mountPage(build({ validator: listing([ACCOUNT]) }, { state: "ok", map: { [ACCOUNT]: NORTHPEAK } }));
+      const [link] = links();
+      expect(link!.textContent).toBe("Northpeak Treasury verified name");
+      expect(link!.textContent).not.toContain(shortAddress(ACCOUNT));
+      expect(link!.getAttribute("href")).toBe(`/xrpl/account/${ACCOUNT}`);
+      expect(link!.getAttribute("title")).toBe(nameTitleOf(NORTHPEAK, ACCOUNT));
+    });
+
+    it("draws each account by what the names say of it: a name, a GateHub name with its network name and a label's mark, a label alone, nothing", () => {
+      const names = { state: "ok", map: { [ACCOUNT]: HARBORLINE, [OTHER]: SCAMMER } } satisfies NamesPart;
+      const third = "rLUEXYuLiQptky37CqLcm9USQpPiz5rkpD";
+      mountPage(build({ validator: listing([ACCOUNT, OTHER, third]) }, names));
+      expect(links().map((link) => link.textContent)).toEqual(["Harborline Exchange · hot wallet named by GateHub labelled advisory by GateHub", `${shortAddress(OTHER)} labelled scam by GateHub`, shortAddress(third)]);
+      expect(links().map((link) => link.getAttribute("href"))).toEqual([ACCOUNT, OTHER, third].map((address) => `/xrpl/account/${address}`));
+    });
+
+    it("draws the short address, with the whole one on hover, for an account nobody names and when the switch is off", () => {
+      for (const names of [NO_NAMES, NAMES_OFF, { state: "failed", map: {} } satisfies NamesPart]) {
+        mountPage(build({ validator: listing([ACCOUNT]) }, names));
+        const [link] = links();
+        expect(link!.textContent).toBe(shortAddress(ACCOUNT));
+        expect(link!.getAttribute("title")).toBe(ACCOUNT);
+        expect(link!.getAttribute("href")).toBe(`/xrpl/account/${ACCOUNT}`);
+        cleanup();
+      }
+    });
+
+    it("puts the links in the accounts line's own span, which the stylesheet sizes (test/unit/pages-css.test.ts)", () => {
+      mountPage(build({ validator: listing([ACCOUNT, OTHER]) }));
+      const line = fact("Accounts northpeak.example lists").element.querySelector(".validator__accounts")!;
+      expect(Array.from(line.querySelectorAll("a"), (link) => link.getAttribute("href"))).toEqual([ACCOUNT, OTHER].map((address) => `/xrpl/account/${address}`));
+    });
   });
 
   it("says 'one signing key seen', and dashes for what D left out", () => {

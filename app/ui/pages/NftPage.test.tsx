@@ -27,6 +27,7 @@ import {
 } from "../../../test/support/nft-samples";
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, LAYOUT_XRPL_TESTNET, mountPage, routedPage } from "../../../test/support/under-network";
+import { NO_NAMES } from "../../domain/names";
 import { ARROW, type NftQuery } from "../../domain/nft-params";
 import type { NftEvent, NftOffer, NodeNftOffers, NodeUriToken } from "../../server/api-types";
 import { nftMarkerPage, nftPage, type NftHistoryRow, type NftNet, type NftPageData, type NftPageInput } from "../../server/nft-view";
@@ -95,14 +96,20 @@ function input(over: Partial<NftPageInput> = {}): NftPageInput {
   };
 }
 
-const build = (over: Partial<NftPageInput> = {}): NftPageData => nftPage(input(over));
-const uriBuild = (over: Partial<NftPageInput> = {}): NftPageData =>
-  nftPage(input({ net: XAHAU, id: URI_TOKEN_ID, index: nftAnswerSample({ nft: uriTokenSample(), coverage: WHOLE }), offers: fulfilled(nftOffersPageSample({ offers: [], count: 0, coverage: WHOLE })), history: fulfilled(nftEventsPageSample({ events: [], count: 0, coverage: WHOLE })), ...over }));
+const build = (over: Partial<NftPageInput> = {}): NftPageData => ({ ...nftPage(input(over)), names: NO_NAMES });
+const uriBuild = (over: Partial<NftPageInput> = {}): NftPageData => ({
+  ...nftPage(input({ net: XAHAU, id: URI_TOKEN_ID, index: nftAnswerSample({ nft: uriTokenSample(), coverage: WHOLE }), offers: fulfilled(nftOffersPageSample({ offers: [], count: 0, coverage: WHOLE })), history: fulfilled(nftEventsPageSample({ events: [], count: 0, coverage: WHOLE })), ...over })),
+  names: NO_NAMES,
+});
 /** An XRPL NFT only the node has, with the node's two sides of offers joined. */
-const networkBuild = (over: Partial<NftPageInput> = {}): NftPageData =>
-  nftPage({ net: XRPL, id: NODE_NFT_ID, query: QUERY, mode: "network", now: NOW, node: nodeNftInfoSample(), offers: fulfilled({ offers: [], more: false }), history: null, ...over });
-const markerBuild = (over: Partial<Parameters<typeof nftMarkerPage>[0]> = {}): NftPageData =>
-  nftMarkerPage({ net: XRPL, id: NFT_ID, query: { offers: false, marker: MARKERS.M2, back: [MARKERS.M1] }, index: nftAnswerSample({ nft: SOLD }), history: nftEventsPageSample({ events: HISTORY, marker: NFT_MARKER, coverage: WHOLE }), ...over });
+const networkBuild = (over: Partial<NftPageInput> = {}): NftPageData => ({
+  ...nftPage({ net: XRPL, id: NODE_NFT_ID, query: QUERY, mode: "network", now: NOW, node: nodeNftInfoSample(), offers: fulfilled({ offers: [], more: false }), history: null, ...over }),
+  names: NO_NAMES,
+});
+const markerBuild = (over: Partial<Parameters<typeof nftMarkerPage>[0]> = {}): NftPageData => ({
+  ...nftMarkerPage({ net: XRPL, id: NFT_ID, query: { offers: false, marker: MARKERS.M2, back: [MARKERS.M1] }, index: nftAnswerSample({ nft: SOLD }), history: nftEventsPageSample({ events: HISTORY, marker: NFT_MARKER, coverage: WHOLE }), ...over }),
+  names: NO_NAMES,
+});
 
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
 const mount = (data: NftPageData, at = PATH, network = LAYOUT_XRPL) => mountPage(<NftPage data={data} />, "nft", { at, network });
@@ -251,7 +258,7 @@ describe("NftPage: an NFT shown from the network", () => {
 
   it("is Xahau's URIToken entry, its own sell offer in the offers table", () => {
     const entry: NodeUriToken = nodeUriTokenSample({ Amount: { currency: "XAH", value: "2200" } });
-    mount(nftPage({ net: XAHAU, id: URI_TOKEN_ID, query: QUERY, mode: "network", now: NOW, node: entry, offers: fulfilled(entry), history: null }), URI_PATH, LAYOUT_XAHAU);
+    mount({ ...nftPage({ net: XAHAU, id: URI_TOKEN_ID, query: QUERY, mode: "network", now: NOW, node: entry, offers: fulfilled(entry), history: null }), names: NO_NAMES }, URI_PATH, LAYOUT_XAHAU);
     expect(cellsOf(rowsOf("Open offers")[0]!).map((cell) => cell.textContent)).toEqual(["sell", "2,200 XAH", expect.stringMatching(/^rLEUHu/), "anyone", "—", "—"]);
     expect(screen.queryByRole("region", { name: "History" })).toBeNull();
   });

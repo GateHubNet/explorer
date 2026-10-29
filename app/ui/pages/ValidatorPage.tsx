@@ -2,12 +2,13 @@ import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { amendmentsHref } from "../../domain/amendments-params";
-import { formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { formatUtc, shortHash } from "../../domain/format";
 import { LOCAL_PUBLISHER, publisherLabel } from "../../domain/publishers";
 import type { Anchor } from "../../server/anchor";
 import type { DailyRow, LedgerLink, ValidationRowView, ValidatorHistoryData, ValidatorIdentity, ValidatorLiveData } from "../../server/validator-view";
 import { ChartCard } from "../charts/ChartCard";
 import { LineChart } from "../charts/LineChart";
+import { AccountLink } from "../components/AccountLink";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { CopyButton } from "../components/CopyButton";
 import { DataTable, type Column } from "../components/DataTable";
@@ -225,11 +226,12 @@ function Identity({ data }: { data: Data }) {
         <LastSeen data={data} />
         {grid.accounts && (
           <Fact label={`Accounts ${identity.heading.text} lists`}>
-            {grid.accounts.map((account) => (
-              <Link key={account.address} to={account.href} className="validator__account mono" title={account.address}>
-                {shortAddress(account.address)}
-              </Link>
-            ))}
+            {/* The accounts' names come from the page's `NamesProvider` (the route's): `AccountLink` draws a name with its mark, else the short address. */}
+            <span className="validator__accounts">
+              {grid.accounts.map((account) => (
+                <AccountLink key={account.address} net={data.network.id} address={account.address} />
+              ))}
+            </span>
           </Fact>
         )}
       </div>

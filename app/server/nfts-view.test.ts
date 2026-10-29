@@ -29,7 +29,7 @@ import {
 } from "../../test/support/nft-samples";
 import type { LastValidated, NftCollectionsPage, NftSalesPage, NftVolume, NftVolumeComponent, NftVolumeRow } from "./api-types";
 import { TooLate } from "./deadline";
-import { nftsListPage, nftsMarkerPage, nftSalesPage, saleRows, type NftsListInput, type NftsNet } from "./nfts-view";
+import { drawnAccounts, nftsListPage, nftsMarkerPage, nftSalesPage, saleRows, salesAccounts, type NftsListInput, type NftsNet } from "./nfts-view";
 import { UpstreamError } from "./upstream";
 
 // ---- The world of the tests: T is Oct 17, the live set ends at 17:01 UTC ------------------------------------------------------------------------
@@ -909,5 +909,41 @@ describe("over the recorded fixtures", () => {
     expect(page.paging.olderHref).toBe(nftsHref(id, { marker: a.collections.marker }));
     // XRPL's coverage is complete and Xahau's is not: both states are drawn.
     expect(withNotes(page)).toBe(id === "xrpl" ? 0 : 4);
+  });
+});
+
+// ---- The accounts the pages draw (display names spec 1 and 5) -----------------------------------------------------------------------------------
+
+describe("drawnAccounts: the accounts the NFT list and the sales page draw", () => {
+  const BUYER = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const LATER_SELLER = "rBg5JN5ShW8ZRV1TJhxVJRYcXVbPGC3ARi";
+
+  it("is the sellers and buyers of the recent sales, each once, in the order the table draws them", () => {
+    const sales = nftSalesPageSample({
+      sales: [nftSaleSample({ seller: NFT_SELLER, buyer: BUYER }), nftSaleSample({ event_index: 2, seller: BUYER, buyer: LATER_SELLER })],
+    });
+    expect(drawnAccounts(nftsListPage(listInput({ sales: fulfilled(sales) })))).toEqual([NFT_SELLER, BUYER, LATER_SELLER]);
+  });
+
+  it("leaves out every other address the page holds: the price's issuer, the collections' issuers", () => {
+    const sale = nftSaleSample({ amount: "420", currency: "USD", amount_issuer: OTHER_ISSUER, converted_amount: "96", seller: NFT_SELLER, buyer: BUYER });
+    const page = nftsListPage(listInput({ sales: fulfilled(nftSalesPageSample({ sales: [sale] })), collections: fulfilled(nftCollectionsPageSample({ collections: [collectionSample({ issuer: URI_TOKEN_ISSUER })] })) }));
+    expect(page.collections).toHaveLength(1);
+    expect(drawnAccounts(page)).toEqual([NFT_SELLER, BUYER]);
+  });
+
+  it("is nothing while the recent sales failed, and nothing behind a marker, which is the collections table alone", () => {
+    expect(drawnAccounts(nftsListPage(listInput({ sales: rejected(new TooLate()) })))).toEqual([]);
+    expect(drawnAccounts(nftsMarkerPage(XRPL, QUERY, nftCollectionsPageSample()))).toEqual([]);
+  });
+
+  it("is the older sales page's rows: each seller and buyer, once", () => {
+    const page = nftSalesPage(XRPL, { back: [] }, nftSalesPageSample({ sales: [nftSaleSample({ buyer: BUYER }), nftSaleSample({ event_index: 2, seller: BUYER, buyer: NFT_SELLER })] }));
+    expect(drawnAccounts(page)).toEqual([NFT_SELLER, BUYER]);
+  });
+
+  it("is the same for the rows of a collection's Sales tab (salesAccounts), and none for a list that is not there", () => {
+    expect(salesAccounts(saleRows(XRPL, [nftSaleSample({ buyer: BUYER })]))).toEqual([NFT_SELLER, BUYER]);
+    expect(salesAccounts(null)).toEqual([]);
   });
 });

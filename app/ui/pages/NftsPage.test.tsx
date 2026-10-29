@@ -19,6 +19,7 @@ import {
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, mountLoadedPage, mountPage, routedPage } from "../../../test/support/under-network";
 import { shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import { parseNftsParams } from "../../domain/nft-params";
 import { addDays, windowOf } from "../../domain/window";
 import type { LastValidated, NftVolume, NftVolumeComponent, NftVolumeRow } from "../../server/api-types";
@@ -124,7 +125,7 @@ function listInput(over: Partial<NftsListInput> = {}): NftsListInput {
   };
 }
 
-const build = (over: Partial<NftsListInput> = {}): NftsPageData => nftsListPage(listInput(over));
+const build = (over: Partial<NftsListInput> = {}): NftsPageData => ({ ...nftsListPage(listInput(over)), names: NO_NAMES });
 
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
 const mount = (data: NftsPageData, at = "/xrpl/nfts", network = LAYOUT_XRPL) => mountPage(<NftsPage data={data} />, "nfts", { at, network });
@@ -660,8 +661,10 @@ describe("NftsPage: the coverage notes", () => {
 // ---- A page behind a marker -----------------------------------------------------------------------------------------------------------------------
 
 describe("NftsPage: a page behind a marker", () => {
-  const marker = (query = { period: "day" as const, sort: "volume" as const, order: "desc" as const, marker: "M1", back: ["M0"] }) =>
-    nftsMarkerPage(XRPL, query, nftCollectionsPageSample({ total: 38511, collections: [collectionSample(), collectionSample({ issuer: OTHER_ISSUER, taxon: 0 })], coverage: coverageSample({ complete: false, from_ledger_index: 777 }) }));
+  const marker = (query = { period: "day" as const, sort: "volume" as const, order: "desc" as const, marker: "M1", back: ["M0"] }): NftsPageData => ({
+    ...nftsMarkerPage(XRPL, query, nftCollectionsPageSample({ total: 38511, collections: [collectionSample(), collectionSample({ issuer: OTHER_ISSUER, taxon: 0 })], coverage: coverageSample({ complete: false, from_ledger_index: 777 }) })),
+    names: NO_NAMES,
+  });
 
   it("is the collections table alone, titled More NFT collections, with Newer and More collections", () => {
     mount(marker(), "/xrpl/nfts?marker=M1&back=M0");
@@ -680,7 +683,7 @@ describe("NftsPage: a page behind a marker", () => {
   });
 
   it("says URITokens on Xahau", () => {
-    mount(nftsMarkerPage(XAHAU, { period: "day", sort: "volume", order: "desc", marker: "M1", back: [] }, nftCollectionsPageSample({ collections: [uriTokenCollectionSample()] })), "/xahau/nfts?marker=M1", LAYOUT_XAHAU);
+    mount({ ...nftsMarkerPage(XAHAU, { period: "day", sort: "volume", order: "desc", marker: "M1", back: [] }, nftCollectionsPageSample({ collections: [uriTokenCollectionSample()] })), names: NO_NAMES }, "/xahau/nfts?marker=M1", LAYOUT_XAHAU);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("More URIToken collections");
   });
 });
@@ -699,7 +702,7 @@ describe("NftsPage: hydration", () => {
       build({ live: rejected(outage()), daily: rejected(outage()), sales: rejected(outage()), collections: rejected(outage()) }),
       build({ live: fulfilled(nftVolumeSample({ rows: [nftVolumeRowSample({ components: [], count: 3, total: "0" })], coverage: COMPLETE })) }),
       build({ net: XAHAU }),
-      nftsMarkerPage(XRPL, { period: "day", sort: "volume", order: "desc", marker: "M1", back: [] }, nftCollectionsPageSample()),
+      { ...nftsMarkerPage(XRPL, { period: "day", sort: "volume", order: "desc", marker: "M1", back: [] }, nftCollectionsPageSample()), names: NO_NAMES },
       build({ query: { period: "day", issuer: "rNope", sort: "volume", order: "desc", back: [] }, issuerError: "Write a classic address (r…).", collections: null }),
     ]) {
       const { errors } = await serverThenHydrated(routed(data, "/xrpl/nfts", data.heading === "URITokens" ? LAYOUT_XAHAU : LAYOUT_XRPL));

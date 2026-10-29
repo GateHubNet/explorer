@@ -1480,6 +1480,7 @@ function validatorAt(index: number, over: Partial<ValidatorData> = {}, build = "
   const page = validationsSample();
   const [first, ...rest] = page.validations;
   return {
+    names: NO_NAMES,
     ...validatorPage({
       network: { id: "xrpl", kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", software: "rippled" },
       validator: validatorDetailSample(),
@@ -1598,6 +1599,54 @@ describe("net.validators.$key.tsx", () => {
     // Answered, but behind the page: not drawn.
     expect(answer).toHaveBeenCalledTimes(3);
     expect(newestRow()).toBe("#99");
+  });
+
+  describe("its names (display names spec 3.4)", () => {
+    /** The account the sample's domain lists. */
+    const LISTED = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const NORTHPEAK_CUSTODY: NameView = { name: { text: "Northpeak Custody", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const named = (view: NameView): NamesPart => ({ state: "ok", map: { [LISTED]: view } });
+    /** What the link to the listed account in the identity card says. */
+    const listedLink = () =>
+      within(screen.getByRole("region", { name: "Validator" }))
+        .getAllByRole("link")
+        .find((link) => link.getAttribute("href") === `/xrpl/account/${LISTED}`)!;
+
+    it("draws the accounts the domain lists by the names of its data", () => {
+      mountValidator(async () => validatorAt(101), validatorAt(100, { names: named(NORTHPEAK) }));
+      expect(listedLink().textContent).toContain("Northpeak Treasury");
+      expect(listedLink().textContent).not.toContain(shortAddress(LISTED));
+    });
+
+    it("draws the short address for an account that has no name, and when the switch is off", () => {
+      mountValidator(async () => validatorAt(101), validatorAt(100, { names: NAMES_OFF }));
+      expect(listedLink().textContent).toBe(shortAddress(LISTED));
+    });
+
+    it("keeps the names on screen through a beat whose names call failed, and takes the names of the next beat that has them", async () => {
+      const answers = [validatorAt(101, { names: { state: "failed", map: {} } }), validatorAt(102, { names: named(NORTHPEAK_CUSTODY) })];
+      const serverLoader = vi.fn(async () => answers.shift()!);
+      mountValidator(serverLoader, validatorAt(100, { names: named(NORTHPEAK) }));
+      expect(listedLink().textContent).toContain("Northpeak Treasury");
+
+      await pass(4000);
+      // The beat's ledger is on screen, and so is the name its failed call could not give again.
+      expect(newestRow()).toBe("#100");
+      expect(listedLink().textContent).toContain("Northpeak Treasury");
+      expect(listedLink().textContent).not.toContain(shortAddress(LISTED));
+
+      await pass(4000);
+      expect(newestRow()).toBe("#101");
+      expect(listedLink().textContent).toContain("Northpeak Custody");
+    });
+
+    it("keeps the names of accounts that left the page for the ones that stay: the clientLoader merges the maps", async () => {
+      mountValidator(async () => validatorAt(101), validatorAt(100, { names: named(NORTHPEAK) }));
+      const beat = validatorAt(101, { names: { state: "ok", map: {} } });
+      const merged = await validator.clientLoader({ params: { net: "xrpl", key: VALIDATOR_KEY }, request: new Request(`https://explorer.test/xrpl/validators/${VALIDATOR_KEY}`), serverLoader: async () => beat } as never);
+      expect(merged).toMatchObject({ names: { state: "ok", map: { [LISTED]: NORTHPEAK } } });
+    });
   });
 
   describe("its clientLoader", () => {

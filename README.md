@@ -1400,9 +1400,15 @@ time): the list 55 s, a validator 5 s for its validations and 23 s for the rest,
 the amendment pages every `AMENDMENTS_REFRESH_MS` (60 s). After a failure the beat backs off to at most `max(LIVE_REFRESH_MAX_MS, 4 × the beat)`. A page of older
 validations does not refresh. Under each `<h1>` is the live row ("Live · updates every ledger", "every 10 s", "every minute") with its pause button; a mouse over a live
 table, or keyboard focus on a link or button in it, holds the page ("Paused while you look at the table"). A beat whose answer has a card failed that the page shows loaded
-keeps the card (`keepLoaded`: `recent`, `summary` and `amendments` on a validator's page, `summary`, `list` and `amendments` on the list, `summary` on an amendment).
+keeps the card (`keepLoaded`: `recent`, `summary`, `amendments` and `names` on a validator's page, `summary`, `list` and `amendments` on the list, `summary` on an amendment; the validator's
+merge is `mergeValidatorBeat` in `app/ui/pages/validator-beat.ts`, which also keeps the names of accounts that left the page, display names spec 3.4).
 Rows enter and slide (`DataTable live`, keyed by master key, ledger and hash, or amendment ID), figures tick in (`LiveValue`). No age and no countdown is in the stored
 HTML: the server prints the absolute time and `RelativeTime` and `Countdown` tick in the browser.
+
+**Display names** (E9). The accounts line of a validator's page, the accounts a verified domain's toml lists, is `AccountLink`s: a name with its mark where the data API has one, else the short
+address with the whole one on hover. The live loader makes one names call after its five (`drawnAccounts`, `app/server/validator-view.ts`: those accounts and no other address of the page),
+asking for the failure hold like the rest of the page; a call that fails or is late leaves the addresses, marks the request degraded (served, not stored) and makes the `names` part `failed`,
+which an open page answers by keeping the names it shows. The page of older validations draws no account and names nothing. The title and the description say no account.
 
 **One URL per view.** Each loader reads its own parameters only. A query that is not exactly the canonical form of the view it names is a 302 to it
 (`cacheClassHeaders("short")`); the canonical form drops defaults, empty values, unknown values, repeats (the first is read) and unknown parameters, and orders the rest:
@@ -1453,6 +1459,13 @@ without an owner, the node. The words follow the network (`nftWords(net)` in `ap
 checks `nft-shape.ts` and `coverage.ts`; the readers `nft-read.ts`; the tags `meta-nfts.ts`, `meta-nft-sales.ts`, `meta-nft-collection.ts` and `meta-nft.ts`; the pages `app/ui/pages/NftsPage.tsx`, `NftSalesPage.tsx`, `NftCollectionPage.tsx` and
 `NftPage.tsx`, which draw data and never fetch, and import nothing at run time from `app/server`, `app/domain/describe`, `app/domain/parse`, `nft-id.ts` or `ripple-*` (`test/unit/nft-bundle.test.ts`); and the pieces they share, `NftSalesTable`,
 `NftGlyph`, `NftLink` and `CoverageNote` in `app/ui/components/`. Every number is a string from the API's or the node's text, or made with BigNumber; no float reaches a label.
+
+**Display names** (E9). Each of the four pages makes one names call, after the calls it awaits (a page behind a marker too), for the accounts it draws as links (`drawnAccounts` in `nfts-view.ts`,
+`nft-collection-view.ts` and `nft-view.ts`; the loader hands them to `loadNames`) and puts the result in its data (`names`), which the route gives to a `NamesProvider`: the list's recent sales and the older
+sales page, the sellers and buyers; a collection, the header's issuer and the tab's rows (a sale's two parties, the owner of an NFT that is not burned, a holder); an NFT, the owner (the account that burned
+a burned NFT), the issuer, the minter and the account the mint went to, the open offers' accounts and destinations and the history's accounts. Not an address that is only in a title (a price's or a broker
+fee's issuer), and not the collections table's issuer labels, which link to collections. A page behind a marker of the list is that table alone and names nothing. The pages do not poll, so no call asks for
+the failure hold; a call that fails or is late leaves the addresses and serves the page unstored. Titles, descriptions and the link-preview image keep the short addresses (display names spec 7).
 
 **One URL per view.** Each loader reads its own parameters, and a query that is not exactly the canonical form of its view is a 302 to it, class `short` (`immutable` when only the path differs), before any call. The canonical form drops
 defaults, unknown values, repeats and unknown parameters, drops `back` without a `marker`, and orders the rest:

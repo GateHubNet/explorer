@@ -16,7 +16,7 @@ import type { NetworkInfo } from "../ui/networks";
 import type { Loaded } from "./account-view";
 import type { Anchor } from "./anchor";
 import type { DomainVerification, UnlPublisher, ValidatorDetail, ValidatorsSummary, ValidatorValidation, ValidatorValidationsPage } from "./api-types";
-import { agreementAxisStart, validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
+import { agreementAxisStart, drawnAccounts, validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 
 // ---- The world of the tests ------------------------------------------------------------------------------------------------------------------
 
@@ -50,7 +50,7 @@ const NEXT_DAY: Anchor = { lastValidated: 107750000, closeTime: unix(2026, 9, 20
 
 type Input = Parameters<typeof validatorPage>[0];
 
-function build(over: Partial<Input> = {}): ValidatorLiveData {
+function build(over: Partial<Input> = {}): Omit<ValidatorLiveData, "names"> {
   return validatorPage({
     network: XRPL,
     validator: validatorDetailSample(),
@@ -220,6 +220,18 @@ describe("validatorPage: the grid", () => {
     expect(verified([badChecksum])).toBeNull();
     // D1 serves the field for a TOML that verified only; the builder links nothing a domain that did not verify says.
     expect(build({ validator: withVerification({ status: "unverified", reason: "not_listed", toml_url, accounts: [valid] }) }).grid.accounts).toBeNull();
+  });
+
+  it("draws the accounts a verified domain lists, and only those: the master key, the signing key and the signer lists are no accounts (display names spec 1)", () => {
+    const toml_url = "https://northpeak.example/.well-known/xrp-ledger.toml";
+    const first = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+    const second = "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY";
+    const verified = (accounts?: string[]) => build({ validator: withVerification({ status: "verified", toml_url, ...(accounts && { accounts }) }) });
+
+    expect(drawnAccounts(verified([second, "not an address", first, second]))).toEqual([second, first]);
+    expect(drawnAccounts(verified(undefined))).toEqual([]);
+    // A domain that did not verify lists nothing, whatever D1 sent.
+    expect(drawnAccounts(build({ validator: withVerification({ status: "unverified", reason: "not_listed", toml_url, accounts: [first] }) }))).toEqual([]);
   });
 
   it("takes last seen from D's last_seen and current_index, as the fallback of the page", () => {

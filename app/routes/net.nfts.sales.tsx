@@ -7,10 +7,12 @@ import { upstreamOutage } from "../server/loader-errors";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { nftSalesMeta } from "../server/meta-nft-sales";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
-import { nftSalesPage } from "../server/nfts-view";
+import { drawnAccounts, nftSalesPage } from "../server/nfts-view";
 import { redirectToHref } from "../server/pair-route";
 import { UpstreamError } from "../server/upstream";
+import { NamesProvider } from "../ui/names";
 import { NftSalesPage } from "../ui/pages/NftSalesPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 
@@ -34,6 +36,8 @@ const SALES_PAGE = 20;
  *   is not the route's own (`/xrpl/NFTs/sales`) one of class `immutable`. No call is made before these.
  * - **One call**, awaited whole: the page of sales. The API refusing a marker (a 400), or nothing behind it, is a 404 of class `short`; any other failure, a "Cannot GET" of a data
  *   API without D3 included, a 503 (`upstreamOutage`), which is not stored. On the first page there is no marker to refuse: a 400 there is the API failing.
+ * - **One names call** (display names spec 1 and 5), after the sales: the sellers and buyers of the page's rows (`drawnAccounts`), awaited. A names call that fails or is late never
+ *   fails the page: the accounts are short addresses, the request is degraded (served, not stored). The page does not poll: no failure hold.
  * - **The class is `minute`** (spec 9) for the first page, `MARKER_PAGE_CLASS` for a page behind a marker.
  */
 export async function loader({ request, url, params, context }: Route.LoaderArgs) {
@@ -58,7 +62,9 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   // A marker past the last sale has nothing behind it.
   if (query.marker !== undefined && page.sales.length === 0) throw cached({ notFound: moreNotFound }, "short", { status: 404 });
 
-  return cached(nftSalesPage(net, query, page), query.marker === undefined ? "minute" : MARKER_PAGE_CLASS);
+  const view = nftSalesPage(net, query, page);
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(view)), { context, request, features: net.features });
+  return cached({ ...view, names }, query.marker === undefined ? "minute" : MARKER_PAGE_CLASS);
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -68,5 +74,9 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 export default function NftSales({ loaderData }: Route.ComponentProps) {
-  return <NftSalesPage data={loaderData} />;
+  return (
+    <NamesProvider names={loaderData.names.map}>
+      <NftSalesPage data={loaderData} />
+    </NamesProvider>
+  );
 }

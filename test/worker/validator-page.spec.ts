@@ -11,6 +11,7 @@ import type { NetworkId } from "../../app/server/networks";
 import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
 import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
 import xrplList from "../fixtures/http/xrpl/data-api/network/validators@limit=1000&scope=all.json";
+import { withoutNames } from "../support/names";
 import { anchors, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { cold, SUBREQUESTS } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
@@ -107,7 +108,8 @@ async function expectDegraded(path: string, response: Response) {
 }
 
 const unavailable = () => dataApiError(503, "unavailable");
-const keysOf = (requests: UpstreamMock["requests"]) => requests.map((request) => request.key);
+/** The keys of the requests the mock saw but for the names call, which the names spec of the page (validator-page-names.spec.ts) asserts. */
+const keysOf = (requests: UpstreamMock["requests"]) => withoutNames(requests).map((request) => request.key);
 const urlOf = (request: RequestInfo | URL) => (request instanceof Request ? request.url : String(request));
 
 /**

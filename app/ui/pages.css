@@ -2469,8 +2469,13 @@ a.markets__pair:hover .markets__name {
   font-size: 13px;
 }
 
-/* An account the domain lists: a link of at least 24 px (WCAG 2.5.8). */
-.validator__account {
+/* The accounts the domain lists, each an AccountLink (a name with its mark, or the short address): the wrapper takes no box of its own, so that the links are the flex
+   items of the fact's value, as the bare links were; each is a link of at least 24 px (WCAG 2.5.8). */
+.validator__accounts {
+  display: contents;
+}
+
+.validator__accounts a {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
