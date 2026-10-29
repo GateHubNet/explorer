@@ -4,7 +4,9 @@ import { createMemoryRouter, Outlet, RouterProvider, useLoaderData, useParams, t
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { amendmentsHref, type AmendmentStatus } from "../domain/amendments-params";
+import { tokenOf } from "../domain/fnv";
 import { shortAddress } from "../domain/format";
+import { listedAccount } from "../domain/listed-account";
 import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "../domain/network-params";
 import { validatorsHref, type ValidatorsParams } from "../domain/validators-params";
@@ -932,6 +934,7 @@ function pairAt(index: number, over: Partial<LivePairData> = {}, build = "abc123
       note: "1 of 1 account that traded XRP/USD in the last 24 hours, by XRP volume. A trade counts for its buyer and its seller.",
       source: "/v2/active_accounts/{base}/{counter}",
     },
+    names: NO_NAMES,
     ...over,
   };
 }
@@ -945,6 +948,7 @@ const olderPair = (build = "abc1234"): OlderPairData => ({
   ammParts: true,
   note: { text: "Older trades of XRP/USD. The price, chart and order book are on the market's page.", link: "the market's page", href: PAIR_PATH },
   trades: { ...PAIR_TRADES, paging: { newerHref: PAIR_PATH, olderHref: `${PAIR_PATH}?marker=M2&back=M1` } },
+  names: NO_NAMES,
 });
 
 describe("net.markets.$base.$counter.tsx", () => {
@@ -990,12 +994,73 @@ describe("net.markets.$base.$counter.tsx", () => {
     return { router, layoutRuns, ...view };
   }
 
-  it("has a clientLoader, a handle that names the header's section, the headers that forward the class, and the parts a beat may keep", () => {
+  it("has a clientLoader, a handle that names the header's section, and the headers that forward the class", () => {
     expect(pair.clientLoader).toBeTypeOf("function");
     expect(pair.default).toBeTypeOf("function");
     expect(pair.headers).toBe(forwardCacheClass);
     expect(pair.handle).toEqual({ navSection: "markets" });
-    expect(pair.PAIR_PARTS).toEqual(["stats", "candles", "traders", "book", "pool", "share"]);
+  });
+
+  describe("its names (display names spec 3.4)", () => {
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const named = (view: NameView): NamesPart => ({ state: "ok", map: { [TRADER]: view } });
+    /** What the account link of the first trade's taker says. */
+    const takerLink = () =>
+      within(screen.getByRole("table", { name: "Recent trades" }))
+        .getAllByRole("link")
+        .find((link) => link.getAttribute("href") === `/xrpl/account/${TRADER}`)!;
+    /** The traders card's bars, as the page draws their labels. */
+    const tradersLabels = () => Array.from(document.querySelectorAll(".barlist__label"), (label) => label.textContent);
+
+    /** The traders card the view builder makes of the account TRADER with the names `names`: the bar is written with them. */
+    const tradersNamed = (names: NamesPart["map"]) => {
+      const data = pairAt(100).traders;
+      if (data.state !== "ok") throw new Error("traders");
+      const { id, label: _label, ...rest } = data.data.items[0]!;
+      const items = [{ id, ...listedAccount(TRADER, names), ...rest }];
+      return { ...data, data: { ...data.data, items, token: tokenOf({ items, format: data.data.format }) } };
+    };
+
+    it("draws the takers of the table by the names of its data", () => {
+      mountPair(async () => pairAt(101), pairAt(100, { names: named(NORTHPEAK), traders: tradersNamed({ [TRADER]: NORTHPEAK }) }));
+      expect(takerLink().textContent).toContain("Northpeak Treasury");
+      expect(takerLink().textContent).not.toContain(shortAddress(TRADER));
+      expect(tradersLabels()).toEqual(["Northpeak Treasury verified name"]);
+    });
+
+    it("draws the short address for an account that has no name, and when the switch is off", () => {
+      mountPair(async () => pairAt(101), pairAt(100, { names: NAMES_OFF }));
+      expect(takerLink().textContent).toBe(shortAddress(TRADER));
+    });
+
+    it("keeps the names on screen through a beat whose names call failed, the traders' bars too, and takes the names of the next beat that has them", async () => {
+      const answers = [pairAt(101, { names: { state: "failed", map: {} } }), pairAt(102, { names: named({ ...NORTHPEAK, name: { text: "Northpeak Custody", kind: "verified" } }) })];
+      const serverLoader = vi.fn(async () => answers.shift()!);
+      mountPair(serverLoader, pairAt(100, { names: named(NORTHPEAK), traders: tradersNamed({ [TRADER]: NORTHPEAK }) }));
+      expect(takerLink().textContent).toContain("Northpeak Treasury");
+
+      await pass(4000);
+      // The beat's ledger is on screen, and so is the name its failed call could not give again: in the table and in the bars the view builder wrote without it.
+      expect(lastPrice()).toBe("2.101");
+      expect(takerLink().textContent).toContain("Northpeak Treasury");
+      expect(takerLink().textContent).not.toContain(shortAddress(TRADER));
+      expect(tradersLabels()).toEqual(["Northpeak Treasury verified name"]);
+
+      await pass(4000);
+      expect(lastPrice()).toBe("2.102");
+      expect(takerLink().textContent).toContain("Northpeak Custody");
+    });
+
+    it("keeps the names of accounts that left the page for the ones that stay: the clientLoader merges the maps", async () => {
+      mountPair(async () => pairAt(101), pairAt(100, { names: named(NORTHPEAK) }));
+      const beat = pairAt(101, { names: { state: "ok", map: {} } });
+      const merged = await pair.clientLoader({
+        params: { net: "xrpl", base: "XRP", counter: `USD.${USD_ISSUER}` },
+        request: REQUEST(PAIR_PATH),
+        serverLoader: async () => beat,
+      } as never);
+      expect(merged).toMatchObject({ names: { state: "ok", map: { [TRADER]: NORTHPEAK } } });
+    });
   });
 
   it("asks the server's loader again every 4 s, shows what it answers, and does not ask for the layout again", async () => {

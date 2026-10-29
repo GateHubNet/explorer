@@ -7,7 +7,21 @@ import { shortAddress } from "../domain/format";
 import { queryOf } from "../domain/query-of";
 import { utcDayOf } from "../domain/window";
 import { anchorOrThrow } from "../server/anchor";
-import { ammHistoryPage, ammPoolPage, MODE_CLASS, poolModeOf, poolQueries, storedPair, TAB_LIST, type AmmActivityPage, type PoolQueries } from "../server/amm-view";
+import {
+  ammHistoryPage,
+  ammPoolPage,
+  drawnAccounts,
+  MODE_CLASS,
+  poolModeOf,
+  poolQueries,
+  storedPair,
+  TAB_LIST,
+  type AmmActivityPage,
+  type AmmHistoryPageData,
+  type AmmPoolInput,
+  type AmmPoolPageData,
+  type PoolQueries,
+} from "../server/amm-view";
 import type { LastValidated } from "../server/api-types";
 import { HOME_CALL_TTL_SECONDS, MARKER_PAGE_CLASS, PERIOD_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
@@ -21,11 +35,13 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { ammPoolMeta } from "../server/meta-amm-pool";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { anchoredWindow } from "../server/network-view";
 import { networkOf, type Network } from "../server/networks";
 import { redirectToCanonical } from "../server/pair-route";
 import { isMissingRoute, isNotFound, UpstreamError } from "../server/upstream";
+import { NamesProvider } from "../ui/names";
 import { AmmPoolPage } from "../ui/pages/AmmPoolPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
 
@@ -76,13 +92,19 @@ function activityOf(api: DataApi, pool: string, query: AmmPoolQuery): Promise<Am
  *   lead to a URL that holds it; and a path or a query that is not the canonical one is a 302 to the one URL (`redirectToCanonical` with `ammPoolPath` and
  *   `ammPoolQuery`). The path is React Router's `url` (the `.data` of the route's own request taken off) and the query the request's own text (`queryOf`:
  *   `_routes` dropped, nothing decoded), so the `.data` request of a canonical view answers its data. No call is made before these.
- * - **Behind a marker** (spec 3.3, step 2): #1 and #7, awaited whole, and stored as `MARKER_PAGE_CLASS`. The index's `pool not found`, the API refusing the
- *   marker (a 400) or nothing behind it is a 404; any other failure a 503. A list whose rows do not build is a failed card, logged, and the request degraded.
+ * - **Behind a marker** (spec 3.3, step 2): #1 and #7, awaited whole, then one names call, awaited too, and stored as `MARKER_PAGE_CLASS`. The index's `pool not found`,
+ *   the API refusing the marker (a 400) or nothing behind it is a 404; any other failure a 503. A list whose rows do not build is a failed card, logged, and the request
+ *   degraded.
  * - **A first page** (spec 3.3, step 3): every call side by side, each call and chain raced to `CARD_DEADLINE_MS` from the start of the loader ("took too
  *   long"), all awaited (`Promise.allSettled`). Then the mode, from #1 and #2 (`poolModeOf`): neither has the pool, a 404 that offers the account page; the
  *   index failed, or it has no such pool and the node failed, a 503 (the reason of the call that decides it, a missed deadline as an outage: `asOutage`).
  *   Otherwise the page (`ammPoolPage`): each card that failed is told in its place and logged, and the request is degraded, served and not stored. A missing
  *   creation event leaves out the Created line and is logged; the page is whole without it, and is stored.
+ * - **One names call** (display names spec 1 and 5), after the ten and the mode, for the accounts the page draws (`drawnAccounts`: the pool, the creator, the slot's holder
+ *   and authorized accounts, the voters, the rows' accounts, and the issuers that a text of the page names). The page is built once without names to see which it draws,
+ *   and again with their names when any has something to show (the votes' bars, the issuers' sublabels and a swap's title are written with them; the other accounts are
+ *   `AccountLink`s that read their names in the browser). A names call that fails or is late never fails the page: the accounts are addresses, and the request is degraded
+ *   (served, not stored).
  * - Nothing is deferred and nothing polls, so no call asks for the failure hold.
  */
 export async function loader({ request, url, params, context }: Route.LoaderArgs) {
@@ -135,10 +157,13 @@ async function olderRows(context: Route.LoaderArgs["context"], request: Request,
   if (Array.isArray(rows) && rows.length === 0) notFound({ notFound: OLDER_NOT_FOUND });
 
   // A list whose rows do not build is a card that says so: logged, and the request degraded, so it is served and never stored as the page behind the marker.
-  const { page, problems } = ammHistoryPage({ net, pool, query, index: index.value, activity: activity.value });
+  const input = { net, pool, query, index: index.value, activity: activity.value };
+  const draft = ammHistoryPage(input);
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(draft.page)), { context, request, features: net.features });
+  const { page, problems } = Object.keys(names.map).length === 0 ? draft : ammHistoryPage({ ...input, names: names.map });
   for (const problem of problems) logProblem("the AMM pool page behind a marker could not load a card", problem, request);
   if (problems.length > 0) markDegraded(context, `amm pool behind a marker: ${problems.join("; ")}`);
-  return cached(page, MARKER_PAGE_CLASS);
+  return cached({ ...page, names } satisfies AmmHistoryPageData, MARKER_PAGE_CLASS);
 }
 
 /** The first page (spec 3.2, 3.3): the ten calls, the mode, and the page from what came. */
@@ -193,7 +218,7 @@ async function firstPage(context: Route.LoaderArgs["context"], request: Request,
 
   // Not asked when #3 failed: the chains failed with it.
   const anchored = last.status === "fulfilled";
-  const { page, problems, logged } = ammPoolPage({
+  const input: AmmPoolInput = {
     net,
     pool,
     query,
@@ -208,13 +233,18 @@ async function firstPage(context: Route.LoaderArgs["context"], request: Request,
     activity,
     created,
     live,
-  });
+  };
+  // The page as it is built without names says which accounts it draws; the votes' bars, the issuers' sublabels and a swap's title are written with their names, so it is built
+  // again when any account has something to show. (The loader sorts and caps the addresses; `NO_NAMES` and no call when it draws none, and the switch's `NAMES_OFF`.)
+  const draft = ammPoolPage(input);
+  const { part: names } = await loadNames(api, collectAddresses(drawnAccounts(draft.page)), { context, request, features: net.features });
+  const { page, problems, logged } = Object.keys(names.map).length === 0 ? draft : ammPoolPage({ ...input, names: names.map });
   for (const problem of problems) logProblem("the AMM pool page could not load a card", problem, request);
   for (const line of logged) logProblem("the AMM pool page left a line out", line, request);
   if (problems.length > 0) markDegraded(context, `amm pool: ${problems.join("; ")}`);
 
   const { cls, ttl } = MODE_CLASS[mode];
-  return cached(page, cls, ttl === undefined ? {} : { ttl });
+  return cached({ ...page, names } satisfies AmmPoolPageData, cls, ttl === undefined ? {} : { ttl });
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {
@@ -224,5 +254,9 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 export default function AmmPool({ loaderData }: Route.ComponentProps) {
-  return <AmmPoolPage data={loaderData} />;
+  return (
+    <NamesProvider names={loaderData.names.map}>
+      <AmmPoolPage data={loaderData} />
+    </NamesProvider>
+  );
 }

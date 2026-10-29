@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { loader } from "../../app/routes/net.amm._index";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
+import { namesCalls, withoutNames } from "../support/names";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { cold, entryOf, keptFor, storedEntries } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
@@ -294,7 +295,9 @@ describe("the first page", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("max-age=0, must-revalidate");
     expect(await storedAs("/xrpl/amm")).toEqual({ cls: "live", ttl: 5 });
-    expect([...keysOf(mock.requests)].sort()).toEqual([LAST_VALIDATED, POOLS, LIVE, MONTH].sort());
+    // The four calls, and after them the one names call (its words are amm-list-names.spec.ts's): the page makes no other.
+    expect([...keysOf(withoutNames(mock.requests))].sort()).toEqual([LAST_VALIDATED, POOLS, LIVE, MONTH].sort());
+    expect(namesCalls(mock)).toHaveLength(1);
     expect(mock.requests.every((request) => request.status === 200)).toBe(true);
     // #1 is kept 2 s under the home page's key, #4 300 s under the network page's 30-day key; #2 and #3 are E3's class `minute`, 60 s.
     expect(await keptFor(kept, LAST_VALIDATED_ENTRY)).toBe("public, max-age=2");
@@ -322,6 +325,7 @@ describe("the first page", () => {
     mock = mockUpstream("xrpl");
     expect((await render("/xrpl/amm?asset=XRP&marker=AAAA")).response.status).toBe(200);
     const list = [...looked];
+    // The four calls. (This page has no pool, so no issuer to ask the names of: the names call is not made.)
     expect(list).toHaveLength(4);
     looked.length = 0;
     // The network page's default view is its 30 days.

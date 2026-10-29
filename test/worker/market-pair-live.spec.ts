@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import xrplLastValidated from "../fixtures/http/xrpl/data-api/last_validated.json";
+import { namesCalls, withoutNames } from "../support/names";
 import { pageClient, textOf } from "../support/pages";
 import { mockUpstream, nodeError, type SeenRequest, type UpstreamMock } from "../support/upstream";
 
@@ -61,10 +62,13 @@ describe("many visitors at the same moment", () => {
     const pages = await Promise.all(responses.map((response) => response.text()));
 
     expect(responses.map((response) => response.status)).toEqual([200, 200, 200, 200, 200, 200]);
-    // One render's calls, each once: the anchor, the trades, the two chains, the traders, both sides of the book, the pool.
-    const calls = mock.requests.map(callOf);
+    // One render's calls, each once: the anchor, the trades, the two chains, the traders, both sides of the book, the pool. (The names call is not counted: the answer of the
+    // render of another test of the file may be kept, and the names of the herd are market-pair-live-names.spec.ts's.)
+    const calls = withoutNames(mock.requests).map(callOf);
     expect(calls).toHaveLength(9);
     expect(new Set(calls).size).toBe(9);
+    // The names are asked for once at most, for the herd.
+    expect(namesCalls(mock).length).toBeLessThanOrEqual(1);
     // One render (MISS); the others were given its copy (MISS-SHARED) or, if they came after it, the stored page (HIT).
     const labels = responses.map((response) => response.headers.get("X-Cache"));
     expect(labels.filter((label) => label === "MISS")).toHaveLength(1);

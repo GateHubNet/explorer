@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
+import { NO_NAMES } from "../../domain/names";
 import type { MarketRowView, MarketsPageData } from "../../server/markets-view";
 import { count, DataTable, FIRST_ROWS } from "../components/DataTable";
 import { FIRST_ROWS as LEDGER_FIRST_ROWS } from "./LedgerPage";
@@ -136,6 +137,7 @@ function page(over: Partial<MarketsPageData> = {}): MarketsPageData {
     view: [],
     periodWords: "last 24 hours",
     indexable: true,
+    names: NO_NAMES,
     ...over,
   };
 }

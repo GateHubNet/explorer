@@ -28,6 +28,7 @@ import { ammPoolHref, type AmmPoolQuery } from "../../domain/amm-params";
 import type { Asset } from "../../domain/asset";
 import { shortAddress, shortHash } from "../../domain/format";
 import { marketHref } from "../../domain/market-pair";
+import { NO_NAMES } from "../../domain/names";
 import { ammHistoryPage, ammPoolPage, type AmmHistoryPageData, type AmmPoolInput, type AmmPoolPageData } from "../../server/amm-view";
 import type {
   AmmGovernanceRow,
@@ -201,11 +202,11 @@ function poolInput(over: Partial<AmmPoolInput> = {}): AmmPoolInput {
 }
 
 /** The page data, as the loader hands it to the page: the view builder's output of the input. */
-const build = (over: Partial<AmmPoolInput> = {}): AmmPoolPageData => ammPoolPage(poolInput(over)).page;
+const build = (over: Partial<AmmPoolInput> = {}): AmmPoolPageData => ({ ...ammPoolPage(poolInput(over)).page, names: NO_NAMES });
 
 /** A page of the swaps behind a marker. */
 const history = (over: Partial<Parameters<typeof ammHistoryPage>[0]> = {}): AmmHistoryPageData =>
-  ammHistoryPage({ net: NET(), pool: AMM_POOL, query: { ...QUERY, marker: "M1", back: [] }, index: indexPool(), activity: swapsPage(), ...over }).page;
+  ({ ...ammHistoryPage({ net: NET(), pool: AMM_POOL, query: { ...QUERY, marker: "M1", back: [] }, index: indexPool(), activity: swapsPage(), ...over }).page, names: NO_NAMES });
 
 /** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
 function mount(data: AmmPoolPageData | AmmHistoryPageData, at = POOL_PAGE) {

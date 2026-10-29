@@ -26,7 +26,9 @@ import type { AmendmentStatus } from "../domain/amendments-params";
 import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-params";
 import type { FlowStep } from "../domain/describe";
 import { shortAddress, shortHash } from "../domain/format";
+import type { NameMap } from "../domain/names";
 import type { ValidatorsParams } from "../domain/validators-params";
+import { NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
 import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
@@ -53,6 +55,7 @@ import { validatorsMeta } from "./meta-validators";
 import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCollectionPageData } from "./nft-collection-view";
 import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
 import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
+import { pairPage } from "./pair-view";
 import { validatorHistoryPage, validatorPage } from "./validator-view";
 import { validatorsPage } from "./validators-view";
 
@@ -620,6 +623,43 @@ describe("pairMeta", () => {
     expect(content(pairMeta({ head: evr, view: [], mode: "live", indexable: true }, XAHAU_TESTNET), "description")).toBe(
       "Price, candles, recent trades, order book and most active traders of EVR/XAH on the Xahau Testnet DEX. EVR issued by rEvern…HXr8.",
     );
+  });
+
+  describe("for a pair whose issuer has a name (display names spec 7)", () => {
+    // The page is built with the names of its accounts, the issuer's among them (verified, which the body of a page would write by name), and its tags are read from what the
+    // view builder made: the short issuers stay in the title and the description, which are shared out of context, with no room for a mark.
+    const NORTHPEAK = { name: { text: "Northpeak Treasury", kind: "verified" as const }, domain: "northpeak.example", labels: [] };
+    const NAMES: NameMap = { [RLUSD]: NORTHPEAK };
+    const NETWORK = { id: "xrpl" as const, name: "XRPL", native: "XRP" as const, hasAmm: true, features: { ...NO_FEATURES, ammData: true, markets: true } };
+    const input = {
+      network: NETWORK,
+      base: { currency: "XRP" },
+      counter: { currency: "RLUSD", issuer: RLUSD },
+      params: { interval: "1h" as const, trades: null, back: [] },
+      closeTime: 1_792_256_472,
+      trades: { result: "success" as const, count: 0, exchanges: [] },
+      hasTrade: true,
+      stats: { state: "failed" as const },
+      candles: { state: "failed" as const },
+      traders: { state: "failed" as const },
+      asks: { state: "failed" as const },
+      bids: { state: "failed" as const },
+      pool: null,
+      share: null,
+    };
+
+    it("keeps the short issuer in the title and the description of the live page built with the issuer's name", () => {
+      const { page } = pairPage({ ...input, names: NAMES });
+      const list = pairMeta({ head: page.head, view: page.view, mode: page.mode, indexable: page.indexable }, XRPL);
+      expect(title(list)).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer");
+      expect(content(list, "description")).toBe(DESCRIPTION);
+      expect(content(list, "og:title")).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer");
+      expect(content(list, "og:description")).toBe(DESCRIPTION);
+      expect(JSON.stringify(list)).not.toContain("Northpeak");
+      // The tags are the same as those of the page built without names.
+      const plain = pairPage(input).page;
+      expect(pairMeta({ head: plain.head, view: plain.view, mode: plain.mode, indexable: plain.indexable }, XRPL)).toEqual(list);
+    });
   });
 
   it("puts no number of the data in the description: the page is stored for a second", () => {

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import type { BookLevel, LivePairData, OlderPairData, PairHead, PairPageData, PriceChange, TradeRowView } from "../../server/pair-view";
 import type { CandleData } from "../charts/types";
 import type { LiveControls } from "../use-live-controls";
@@ -177,6 +178,7 @@ function page(over: Partial<LivePairData> = {}): LivePairData {
       note: TRADERS_NOTE,
       source: TRADERS_SOURCE,
     },
+    names: NO_NAMES,
     ...over,
   };
 }
@@ -224,6 +226,7 @@ function older(over: Partial<OlderPairData> = {}): OlderPairData {
       source: "/v2/exchanges/{base}/{counter}?descending=true",
       empty: "No trades yet.",
     },
+    names: NO_NAMES,
     ...over,
   };
 }

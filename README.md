@@ -1172,11 +1172,11 @@ made); on, a period whose answer has no `amm_share` yet shows "—". On Xahau th
 `"0.0000"` there is not read. Nothing asks the API whether it has AMM data.
 
 **The live pair page.** It follows the chain as the network page does ("Live updates"): `useLiveControls`, the beat of 4 s, the backoff, the pause, the build
-reload. In the route: `createLiveOnScreen` with `order: (d) => d.anchor.lastValidated` and `merge: keepLoaded(next, shown, PAIR_PARTS)`, the `clientLoader`
+reload. In the route: `createLiveOnScreen` with `order: (d) => d.anchor.lastValidated` and `merge: mergePairBeat` (`app/ui/pages/pair-beat.ts`: `keepLoaded(next, shown, PAIR_PARTS)`, then the names of the accounts that left the page kept), the `clientLoader`
 that hands the page what it shows when a refresh fails, and the page keyed by its scope (`{net}/markets/{base}/{counter}` and the canonical query), so another
 interval, filter or orientation is a navigation and a first render, which is not animated. A beat is one request:
 `/{net}/markets/{base}/{counter}.data?…&_routes=routes%2Fnet.markets.%24base.%24counter`. `PAIR_PARTS` is `stats` (#3), `candles` (#4), `traders` (#5),
-`book` (#6 and #7, one part), `pool` (#8) and `share` (#9): a beat whose answer has one of them failed where the page shows it loaded keeps what it shows (the
+`book` (#6 and #7, one part), `pool` (#8) and `share` (#9), and `names` (the accounts' names, display names spec 3.4): a beat whose answer has one of them failed where the page shows it loaded keeps what it shows (the
 book and the pool with the ledger they were read at, so a kept one says its age); a part that never loaded shows its error. The trades and the price are #2's,
 without which there is no answer, and the page then keeps itself, saying "Live updates paused, retrying…" after two failures. On a beat a new trade enters
 (`is-entering`) and the others slide, the price, the change, the figures, the spread and the ledger numbers tick in (`LiveValue`), and the candles redraw in

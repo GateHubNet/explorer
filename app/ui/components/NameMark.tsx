@@ -60,3 +60,27 @@ export function LabelMark({ labels }: { labels: readonly string[] }) {
     </span>
   );
 }
+
+/**
+ * The marks of a named account after its label or its name (E9, spec 4.3): how its name is known, then its labels, each after a space so that the words read on ("Northpeak
+ * Treasury verified name labelled scam by GateHub"). The chart kit's list and its table view both draw an item's `mark` with it. Nothing for no `mark`, or one of nothing.
+ */
+export function Marks({ mark }: { mark: { kind?: NameKind; labels: readonly string[] } | undefined }) {
+  if (!mark) return null;
+  return (
+    <>
+      {mark.kind !== undefined && (
+        <>
+          {" "}
+          <NameMark kind={mark.kind} />
+        </>
+      )}
+      {mark.labels.length > 0 && (
+        <>
+          {" "}
+          <LabelMark labels={mark.labels} />
+        </>
+      )}
+    </>
+  );
+}

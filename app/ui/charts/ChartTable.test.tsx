@@ -347,6 +347,65 @@ describe("ChartTable of a bar list", () => {
   });
 });
 
+// The table is the list's other view, so it says what the list's links say of a named account (E9, spec 4.3, T5 concern 2): the words of the marks, after the label and before the
+// sublabel, as the list draws them (visible, or visually hidden), and nothing for an item without a mark.
+describe("ChartTable of a bar list with marks", () => {
+  const marked: BarListData = {
+    items: [
+      { id: "a", label: "Northpeak Treasury", sublabel: "rHb9CJ…tyTh", value: "6100000", share: "58%", href: "/xrpl/account/rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", mark: { kind: "verified", labels: ["scam"] } },
+      { id: "b", label: "Harborline Exchange · hot wallet", sublabel: "rPEPPE…6GDY", value: "3050000", share: "29%", mark: { kind: "account", labels: [] } },
+      { id: "c", label: "lowtide.example", sublabel: "rLUEXY…kpD", value: "61000", share: "<1%", mark: { kind: "domain", labels: [] } },
+      { id: "d", label: "rBg5JN…ARi", value: "2000", share: "<1%", mark: { labels: ["scam", "spam"] } },
+      { id: "e", label: "rJF2Xa…fQvg", value: "1000", share: "<1%" },
+      { id: "f", label: "rN7n7o…2Rh", sublabel: "votes for 0.3%", value: "10", share: "<1%", mark: { labels: [] } },
+    ],
+    format: { kind: "amount", unit: "XRP" },
+    token: "t",
+  };
+
+  it("carries the words of each item's marks in its name cell: 'verified name', 'named by GateHub', 'not verified', and the labels", async () => {
+    const { container, errors } = await serverThenHydrated(<ChartTable title="Most active traders" data={marked} />);
+    expect(body(container).map((row) => row[0])).toEqual([
+      "Northpeak Treasury verified name labelled scam by GateHub rHb9CJ…tyTh",
+      "Harborline Exchange · hot wallet named by GateHub rPEPPE…6GDY",
+      "lowtide.example not verified rLUEXY…kpD",
+      "rBg5JN…ARi labelled scam and spam by GateHub",
+      "rJF2Xa…fQvg",
+      "rN7n7o…2Rh votes for 0.3%",
+    ]);
+    expect(errors).toEqual([]);
+  });
+
+  it("says them as the list does: the icons are hidden from assistive technology, and the words of a seal or a tag are visually hidden, those of 'not verified' visible", async () => {
+    const { container } = await serverThenHydrated(<ChartTable title="Most active traders" data={marked} />);
+    const cells = Array.from(container.querySelectorAll('[role="row"]'))
+      .slice(1)
+      .map((row) => row.querySelector('[role="cell"]')!);
+    for (const icon of container.querySelectorAll("svg")) expect(icon.getAttribute("aria-hidden")).toBe("true");
+    expect(cells[0]!.querySelector(".namemark--verified .sr")!.textContent).toBe("verified name");
+    expect(cells[0]!.querySelector(".labelmark .sr")!.textContent).toBe("labelled scam by GateHub");
+    expect(cells[1]!.querySelector(".namemark--account .sr")!.textContent).toBe("named by GateHub");
+    expect(cells[2]!.querySelector(".unv")!.textContent).toBe("not verified");
+    expect(cells[2]!.querySelector(".sr")).toBeNull();
+    // An item with nothing to mark draws nothing: no mark, no hidden words.
+    expect(cells[4]!.querySelector(".namemark, .labelmark, .unv, .sr")).toBeNull();
+    expect(cells[5]!.querySelector(".namemark, .labelmark, .unv, .sr")).toBeNull();
+  });
+
+  it("keeps the other columns as they are", async () => {
+    const { container } = await serverThenHydrated(<ChartTable title="Most active traders" data={marked} />);
+    expect(headers(container)).toEqual(["Name", "Value", "Share"]);
+    expect(body(container).map((row) => row.slice(1))).toEqual([
+      ["6,100,000", "58%"],
+      ["3,050,000", "29%"],
+      ["61,000", "<1%"],
+      ["2,000", "<1%"],
+      ["1,000", "<1%"],
+      ["10", "<1%"],
+    ]);
+  });
+});
+
 describe("ChartTable of shares", () => {
   const shares: ShareData = {
     rows: [

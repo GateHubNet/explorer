@@ -6,6 +6,7 @@ import { loader } from "../../app/routes/net.markets.$base.$counter";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import type { LivePairData } from "../../app/server/pair-view";
+import { isNamesRequest, withoutNames } from "../support/names";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { entryOf, SUBREQUESTS } from "../support/subrequest-miss";
 import xahauLastValidated from "../fixtures/http/xahau/data-api/last_validated.json";
@@ -157,7 +158,8 @@ function callOf(request: SeenRequest): string {
   if (method === "amm_info") return p.amm_account === undefined ? poolKey(subjectOf(p.asset), subjectOf(p.asset2)) : `node amm_info ${String(p.amm_account)}`;
   return request.key;
 }
-const callsOf = (requests: readonly SeenRequest[]) => requests.map(callOf);
+/** The calls of a page but its names call: whether an earlier render of the file kept that answer (a minute) is the cache's state, which these tests do not depend on. The names are market-pair-names.spec.ts's. */
+const callsOf = (requests: readonly SeenRequest[]) => withoutNames(requests).map(callOf);
 /** How many times the mock was asked for `call`. A held call does not reach it. */
 const timesAsked = (call: string) => callsOf(mock!.requests).filter((seen) => seen === call).length;
 
@@ -219,25 +221,45 @@ function viewKeys(
 function watchSubrequests() {
   const looked: string[] = [];
   const kept = new Map<string, string | null>();
+  /** The entries of the names call, which a render looks up after its other calls: those the mock answered (`namesEntries`) and those a kept answer was found for (here). */
+  const namesFound = new Set<string>();
   const match = caches.default.match.bind(caches.default);
   const put = caches.default.put.bind(caches.default);
   vi.spyOn(caches.default, "match").mockImplementation(async (request, options) => {
     const url = typeof request === "string" ? request : request instanceof URL ? request.href : request.url;
     if (url.startsWith(SUBREQUESTS)) looked.push(url);
-    return match(request, options);
+    const found = await match(request, options);
+    if (found !== undefined && url.startsWith(SUBREQUESTS) && (await found.clone().text()).includes('"account_names"')) namesFound.add(url);
+    return found;
   });
   vi.spyOn(caches.default, "put").mockImplementation(async (request, response) => {
     const url = typeof request === "string" ? request : request instanceof URL ? request.href : request.url;
     if (url.startsWith(SUBREQUESTS)) kept.set(url, (response as Response).headers.get("Cache-Control"));
     return put(request, response);
   });
+  /** The entries of the names calls the mock answered, under the key the subrequest cache keeps them by (the data API's origin, the path and the addresses as the client writes them). */
+  async function namesEntries(): Promise<Set<string>> {
+    const asked = mock!.requests.filter(isNamesRequest);
+    return new Set(
+      await Promise.all(
+        asked.map((request) => {
+          const url = new URL(request.url);
+          return entryOf(`GET ${url.origin}${url.pathname}?${new URLSearchParams({ addresses: url.searchParams.get("addresses") ?? "" }).toString()}`);
+        }),
+      ),
+    );
+  }
   /**
    * The keys looked up (those from the `from`th lookup to the `to`th: one render's, where a test makes two), by the names `keys` gives them; an
-   * entry of no key among them is shown by its URL.
+   * entry of no key among them is shown by its URL. The names call's entry is left out, whether the mock answered it or an earlier render kept its answer.
    */
   async function lookedUp(keys: readonly string[], from = 0, to = looked.length): Promise<string[]> {
     const names = new Map(await Promise.all(keys.map(async (key) => [await entryOf(key), key] as const)));
-    return looked.slice(from, to).map((url) => names.get(url) ?? `an entry of another key: ${url}`);
+    const ofNames = await namesEntries();
+    return looked
+      .slice(from, to)
+      .filter((url) => !ofNames.has(url) && !namesFound.has(url))
+      .map((url) => names.get(url) ?? `an entry of another key: ${url}`);
   }
   /** How long the entry of `key` was stored for (`max-age=N`), once it has been. */
   async function keptFor(key: string): Promise<string | null | undefined> {

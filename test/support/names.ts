@@ -2,10 +2,10 @@
 // the names calls a mock saw, and the links to an account a page draws. A spec computes what a page should say from these, never from a name written by hand:
 // the seeded names are not unique and a regeneration of the fixtures may change them.
 
-import { expect } from "vitest";
+import { expect, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
-import { linkTextOf, nameTitleOf, nameViewOf, type NameView } from "../../app/domain/names";
+import { linkTextOf, nameTitleOf, nameViewOf, shownIssuer, type NameView } from "../../app/domain/names";
 import type { AccountNameEntry } from "../../app/server/api-types";
 import { NAMES_BATCH_LIMIT } from "../../app/server/names-load";
 import { anchors, hrefs } from "./pages";
@@ -33,6 +33,17 @@ export async function viewOf(net: NetworkName, address: string): Promise<NameVie
   return entry === undefined ? null : nameViewOf(entry);
 }
 
+/** What a page writes for an issuer: its plain name when the fixtures give it one that is verified or GateHub's and has no label, else its short address (`shownIssuer`). */
+export async function issuerTextOf(net: NetworkName, address: string): Promise<string> {
+  const view = await viewOf(net, address);
+  return shownIssuer(address, view === null ? {} : { [address]: view });
+}
+
+/** What a page writes for an issuer when `answerNamesAfterTheirEnd` names it: `Fixture` and the last four characters of its address. */
+export function issuerTextAfterItsEnd(address: string): string {
+  return shownIssuer(address, { [address]: nameViewOf(nameAfterItsEnd(address))! });
+}
+
 /** The addresses of `addresses` that the fixtures give a name to (a verified, GateHub's or a domain's), in the order given. */
 export async function namedAmong(net: NetworkName, addresses: readonly string[]): Promise<string[]> {
   const views = await Promise.all(addresses.map((address) => viewOf(net, address)));
@@ -54,16 +65,32 @@ export async function shownName(net: NetworkName, address: string, { full = fals
   return view?.name ? linkTextOf(view) : full ? address : shortAddress(address);
 }
 
+/** Whether a request a mock saw is a call to the names batch. */
+export const isNamesRequest = (request: Pick<SeenRequest, "url">): boolean => new URL(request.url).pathname.endsWith("/v2/account_names");
+
+/**
+ * The requests of a mock but its names calls: what a spec about the other calls of a page compares. The Worker keeps the answer of a names call a minute, so whether an earlier
+ * render of the file has made the call a later one would make is the cache's state, which such a spec does not depend on.
+ */
+export const withoutNames = <T extends Pick<SeenRequest, "url">>(requests: readonly T[]): T[] => requests.filter((request) => !isNamesRequest(request));
+
 /** The names calls of a mock: the addresses each asked for, in the order the calls came. */
 export function namesCalls(mock: { requests: readonly SeenRequest[] }): string[][] {
-  return mock.requests
-    .filter((request) => new URL(request.url).pathname.endsWith("/v2/account_names"))
-    .map((request) => (new URL(request.url).searchParams.get("addresses") ?? "").split(","));
+  return mock.requests.filter(isNamesRequest).map((request) => (new URL(request.url).searchParams.get("addresses") ?? "").split(","));
 }
 
 /** The status each names call of a mock was answered with, in the order the calls came (whatever override key stood for them). */
 export function namesStatuses(mock: { requests: readonly SeenRequest[] }): number[] {
-  return mock.requests.filter((request) => new URL(request.url).pathname.endsWith("/v2/account_names")).map((request) => request.status);
+  return mock.requests.filter(isNamesRequest).map((request) => request.status);
+}
+
+/**
+ * Keeps the log line of a failed names call out of the test's output (until `vi.restoreAllMocks`), and counts the lines: `loadNames` logs "names could not be loaded" once for a call,
+ * however many of its chunks failed.
+ */
+export function watchNamesLog(): () => number {
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  return () => errors.mock.calls.filter(([line]) => String(line).includes("names could not be loaded")).length;
 }
 
 /** `addresses` sorted, as `loadNames` asks for them. */

@@ -12,6 +12,7 @@ import { valueImports } from "../../../test/support/value-imports";
 import { ammPoolHref } from "../../domain/amm-params";
 import type { Asset } from "../../domain/asset";
 import { compactNumber, shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import { ammListPage, noAmmPage, type AmmListInput, type AmmListPageData, type NoAmmPageData } from "../../server/amm-view";
 import type { AmmPool, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "../../server/api-types";
 import type { PublicNetwork } from "../../server/network-route";
@@ -179,7 +180,7 @@ function inputOf(over: Partial<AmmListInput> = {}): AmmListInput {
 }
 
 /** The page data, as the loader hands it to the page: the view builder's output of the input. */
-const build = (over: Partial<AmmListInput> = {}): AmmListPageData => ammListPage(inputOf(over)).page;
+const build = (over: Partial<AmmListInput> = {}): AmmListPageData => ({ ...ammListPage(inputOf(over)).page, names: NO_NAMES });
 
 /**
  * The routes of a page under the `/:net` layout, as the app has them (`useNetwork()` reads the layout's data). The layout's data is given as hydration data

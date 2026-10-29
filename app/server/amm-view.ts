@@ -19,6 +19,8 @@ import { tokenOf } from "../domain/fnv";
 import { compactNumber, decodesCurrency, formatAmount, formatCurrency, formatPrice, formatUtc, formatUtcDay, shortAddress, shortHash } from "../domain/format";
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import { marketsHref } from "../domain/market-params";
+import { listedAccount } from "../domain/listed-account";
+import { shownIssuer, type NameMap, type NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { sharePercent } from "../domain/percent";
 import { formatDateTime } from "../domain/time-words";
@@ -116,7 +118,7 @@ export interface AmmRowView {
   coins: [string, string];
   /** The pool's page. */
   href: string;
-  /** `rhWTXC…tcS3 · RLUSD rMxCKb…m5De`: the short account, then each issued side's code and short issuer. */
+  /** `rhWTXC…tcS3 · RLUSD rMxCKb…m5De`: the short account, then each issued side's code and its issuer (the name of one verified or named by GateHub and unlabelled, else its short address). */
   detail: string;
   /** The "Deleted" tag. */
   deleted: boolean;
@@ -163,6 +165,11 @@ export interface AmmListPageData {
     /** A failed table keeps its source line, as a failed chart does. */
     | (Failed & { source: string })
     | { state: "skipped" };
+  /**
+   * The names of the issuers of the table's rows (display names spec 3.4), which the loader adds after `ammListPage`: it asks for `listIssuers` before the rows are built, because the
+   * rows' issuer texts are written with them. `failed` when the names call did not work (the issuers are their short addresses), `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 /** What Xahau's page shows: the explanation, and the link to Xahau's markets while that page is on. */
@@ -196,6 +203,8 @@ export interface AmmListInput {
   live: PromiseSettledResult<Page<"rows", AmmVolumeRow>>;
   /** #4; `null`: not asked (#1 failed). */
   history: PromiseSettledResult<Page<"rows", AmmVolumeRow>> | null;
+  /** The names of the issuers the rows show (`listIssuers`); none when left out. */
+  names?: NameMap;
 }
 
 // ---- The list ---------------------------------------------------------------------------------------------------------------------------------
@@ -276,7 +285,7 @@ function slotOf(net: AmmListInput["net"], pool: AmmPool, now: number | null): Am
  * A row of the pools table from a pool, the components of the live set by account (`null` when it failed: there is no volume to say) and the data's own time
  * (spec 2.1).
  */
-function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<string, AmmVolumeComponent> | null, now: number | null): AmmRowView {
+function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<string, AmmVolumeComponent> | null, now: number | null, names: NameMap): AmmRowView {
   const { native } = net;
   const stored = [assetOf(pool.base_currency, pool.base_issuer), assetOf(pool.counter_currency, pool.counter_issuer)] as const;
   const shown = displayPair(stored[0], stored[1], native);
@@ -300,7 +309,7 @@ function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<
     pair: shown.text,
     coins: [formatCurrency(shown.first.currency), formatCurrency(shown.second.currency)],
     href: ammPoolHref(net.id, pool.amm_account),
-    detail: [shortAddress(pool.amm_account), issuersOf(shown.first, shown.second)].filter((part) => part !== "").join(SEPARATOR),
+    detail: [shortAddress(pool.amm_account), issuersOf(shown.first, shown.second, names)].filter((part) => part !== "").join(SEPARATOR),
     deleted: pool.deleted,
     value: pool.deleted || pool.value_native === undefined ? DASH : compactNumber(pool.value_native),
     reserves: [reserveText(0), reserveText(1)],
@@ -317,8 +326,8 @@ function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<
  * order (the totals, the chart, the table). An answer the card cannot be made of fails it with an `Error` that says why. Nothing in the page data is made of a
  * reason: the cards say what could not be loaded, and never why.
  */
-export function ammListPage(input: AmmListInput): { page: AmmListPageData; problems: AmmListProblem[] } {
-  const { net, asset } = input;
+export function ammListPage(input: AmmListInput): { page: Omit<AmmListPageData, "names">; problems: AmmListProblem[] } {
+  const { net, asset, names = {} } = input;
   const { native } = net;
   const problems: AmmListProblem[] = [];
   const failed = (part: AmmListPart, what: string, reason: unknown): Failed => {
@@ -410,7 +419,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
     try {
       const page = input.pools.value;
       const components = liveRow ? new Map(liveRow.components.map((component) => [component.amm_account, component] as const)) : null;
-      const rows = page.pools.map((pool) => rowOf(net, pool, components, now));
+      const rows = page.pools.map((pool) => rowOf(net, pool, components, now, names));
       const hrefOf = (to: { marker?: string; back: readonly string[] }): string =>
         ammListHref(net.id, { ...(filterAsset ? { asset: filterAsset.text } : {}), deleted: input.deleted, ...to });
       pools = {
@@ -430,7 +439,7 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
   }
 
   // The problems are in the page's order, top to bottom: the totals, the chart, the table.
-  const page: AmmListPageData = {
+  const page: Omit<AmmListPageData, "names"> = {
     kind: "list",
     net: net.id,
     native,
@@ -450,6 +459,16 @@ export function ammListPage(input: AmmListInput): { page: AmmListPageData; probl
     pools,
   };
   return { page, problems };
+}
+
+/**
+ * The issuers the list draws as texts (display names spec 1): those of the table's rows, row by row, the stored base's first. Not the pool's own account, its creator nor its slot's holder,
+ * which the table writes as short addresses. Read as far as the answer goes, as the builder reads it (a call that failed, was not asked, or answered no list has none): the loader
+ * names these before it builds the page, because the rows' issuer texts are written with the names.
+ */
+export function listIssuers(pools: AmmListInput["pools"]): string[] {
+  if (pools === null || pools.status !== "fulfilled" || !Array.isArray(pools.value?.pools)) return [];
+  return pools.value.pools.flatMap((pool) => [pool?.base_issuer, pool?.counter_issuer].filter((issuer): issuer is string => typeof issuer === "string"));
 }
 
 /** Xahau's page: no pools, and a way to its markets while the markets pages are on. */
@@ -526,18 +545,26 @@ const VOTE_WEIGHT_PERCENT_SHIFT = -3;
 
 /**
  * The fee votes as a `BarList` (spec 3.1 and 3.4): one item for each vote slot, the heaviest first and then by account. The item's `value` is the exact percent of the
- * LP tokens the weight is (`21.4`), which only draws the bar; `share` is the whole percent the tip says (`21%`, `<1%` below one half). `net` is for the account's page.
+ * LP tokens the weight is (`21.4`), which only draws the bar; `share` is the whole percent the tip says (`21%`, `<1%` below one half). `net` is for the account's page. A voter
+ * with a name is drawn by it, with its short address before "votes for" and the mark of how its name is known; one with labels only by its short address and the labels' mark
+ * (`listedAccount`, display names spec 4.3). The token covers the marks.
  */
-export function voteShares(votes: AmmInfo["vote_slots"], net: string): BarListData {
+export function voteShares(votes: AmmInfo["vote_slots"], net: string, names: NameMap = {}): BarListData {
   const ordered = [...votes].sort((a, b) => b.vote_weight - a.vote_weight || (a.account < b.account ? -1 : a.account > b.account ? 1 : 0));
-  const items = ordered.map((vote) => ({
-    id: vote.account,
-    label: shortAddress(vote.account),
-    sublabel: `votes for ${feePercent(vote.trading_fee)}`,
-    value: new BigNumber(vote.vote_weight).shiftedBy(VOTE_WEIGHT_PERCENT_SHIFT).toFixed(),
-    share: sharePercent(plain(vote.vote_weight), VOTE_WEIGHT_WHOLE),
-    href: accountHref(net, vote.account, {}),
-  }));
+  const items = ordered.map((vote) => {
+    const { label, sublabel, mark } = listedAccount(vote.account, names);
+    const votesFor = `votes for ${feePercent(vote.trading_fee)}`;
+    return {
+      id: vote.account,
+      label,
+      // A named voter has its short address under its name, before what it votes for (display names Ruling 7).
+      sublabel: sublabel === undefined ? votesFor : `${sublabel} · ${votesFor}`,
+      value: new BigNumber(vote.vote_weight).shiftedBy(VOTE_WEIGHT_PERCENT_SHIFT).toFixed(),
+      share: sharePercent(plain(vote.vote_weight), VOTE_WEIGHT_WHOLE),
+      href: accountHref(net, vote.account, {}),
+      ...(mark === undefined ? {} : { mark }),
+    };
+  });
   const format: BarListData["format"] = { kind: "percent", unit: "LP tokens" };
   return { items, format, token: tokenOf({ items, format }) };
 }
@@ -601,15 +628,15 @@ function rowIsFlipped(row: StoredSides, pair: DisplayPair): boolean {
 /**
  * The rows of the Swaps tab (spec 3.1 and 3.4) in the display pair. The reference: if the base flowed out of the pool, the seller is the pool; otherwise the base
  * went in. The amounts are the pool's own changes, unsigned, so the page puts the signs: `+` on what went in, U+2212 on what came out. The price is the effective
- * one, fee included: the second currency's amount over the first's.
+ * one, fee included: the second currency's amount over the first's. The issuers in `directionTitle` are written through `names` (`shownIssuer`).
  */
-export function swapRows(rows: readonly AmmSwap[], pair: DisplayPair, net: string): SwapRow[] {
+export function swapRows(rows: readonly AmmSwap[], pair: DisplayPair, net: string, names: NameMap = {}): SwapRow[] {
   const codes = [formatCurrency(pair.first.currency), formatCurrency(pair.second.currency)] as const;
   // A side with its issuer, for a pair whose codes are the same: only the issuers tell its sides apart.
   const sameCode = codes[0] === codes[1];
   const sideText = (at: 0 | 1): string => {
     const issuer = (at === 0 ? pair.first : pair.second).issuer;
-    return issuer === undefined ? codes[at] : `${codes[at]} of ${shortAddress(issuer)}`;
+    return issuer === undefined ? codes[at] : `${codes[at]} of ${shownIssuer(issuer, names)}`;
   };
   return rows.map((row) => {
     const flipped = rowIsFlipped(row, pair);
@@ -737,6 +764,8 @@ export interface DaySeriesInput {
   carryIn: AmmPoolDay | null;
   /** #6, the pair's AMM candles in the pool's stored order; `null`: #6 failed. */
   candles: readonly Candle[] | null;
+  /** The names of the issuers the reserves card's panels show under their currencies (`shownIssuer`); none when left out. */
+  names?: NameMap;
 }
 
 /** One value per bucket of `window.buckets`, as plain decimal text; `null` is a gap: no value, or no pool. The sides are the display pair's. */
@@ -959,7 +988,7 @@ export function poolCharts(input: DaySeriesInput | null): PoolCharts {
     };
   }
 
-  const { window, pair, native, days, candles } = input;
+  const { window, pair, native, days, candles, names = {} } = input;
   const { series, alive } = seriesOf(input);
   const codes = [formatCurrency(pair.first.currency), formatCurrency(pair.second.currency)] as const;
   const holdsNative = isNative(pair.first, native) || isNative(pair.second, native);
@@ -1024,7 +1053,7 @@ export function poolCharts(input: DaySeriesInput | null): PoolCharts {
   const panel = (id: string, asset: Asset, code: string, values: (string | null)[]): SmallMultiplesData["panels"][number] => ({
     id,
     label: code,
-    ...(asset.issuer === undefined ? {} : { sublabel: shortAddress(asset.issuer) }),
+    ...(asset.issuer === undefined ? {} : { sublabel: shownIssuer(asset.issuer, names) }),
     values,
     format: { kind: "amount", unit: code },
   });
@@ -1353,6 +1382,11 @@ export interface AmmPoolPageData {
    */
   votes: { state: "ok"; data: BarListData | null; text: string; figure: string | null } | Failed | null;
   activity: AmmActivity;
+  /**
+   * The names of the accounts the page draws (`drawnAccounts`), which the loader adds after `ammPoolPage` (display names spec 3.4): the accounts the page links (`AccountLink`) read
+   * their names from it in the browser, and the votes and the issuers' sublabels were written with them. `failed` when the names call did not work, `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 /** A page of the pool's activity behind a marker (spec 3.3, step 2): nothing that would be as old as the stored page. */
@@ -1364,6 +1398,8 @@ export interface AmmHistoryPageData {
   activity: AmmActivity;
   /** The first page of the tab: "Back to the pool". */
   backHref: string;
+  /** The names of the accounts the page draws (`drawnAccounts`), which the loader adds after `ammHistoryPage`. */
+  names: NamesPart;
 }
 
 /** The input of `ammPoolPage`: the mode, and the outcomes of the loader's calls (spec 3.2). */
@@ -1390,6 +1426,8 @@ export interface AmmPoolInput {
   created: PromiseSettledResult<Page<"liquidity", AmmLiquidityEvent>>;
   /** #9 */
   live: PromiseSettledResult<Page<"rows", AmmVolumeRow>>;
+  /** The names of the accounts the page writes into its texts (`drawnAccounts`): the votes' bars, the issuers' sublabels, a swap's title; none when left out. */
+  names?: NameMap;
 }
 
 const COULD_NOT_LOAD = "Couldn’t load";
@@ -1480,6 +1518,7 @@ function activityOf(
   outcome: PromiseSettledResult<AmmActivityPage>,
   emptyWhenMissing: boolean,
   problem: ProblemSink,
+  names: NameMap,
 ): AmmActivity {
   const { tab } = query;
   const what = TAB_WHAT[tab];
@@ -1501,7 +1540,7 @@ function activityOf(
       };
       list =
         tab === "swaps"
-          ? { ...common, tab, rows: swapRows(rows as AmmSwap[], pair, net.id) }
+          ? { ...common, tab, rows: swapRows(rows as AmmSwap[], pair, net.id, names) }
           : tab === "liquidity"
             ? { ...common, tab, rows: liquidityRows(rows as AmmLiquidityEvent[], pair, net.id) }
             : { ...common, tab, rows: governanceRows(rows as AmmGovernanceRow[], net.id) };
@@ -1615,8 +1654,8 @@ function indexSlot(net: string, index: AmmPool, now: number | null): AmmSlotView
  * card, in the page's order. In the network mode the index's `pool not found` on #4, #5, #7 and #10 is an empty answer (it has no committed state of the pool yet),
  * and no problem. A failed #8 leaves the Created line out and is in `logged` (P9): the loader logs it, and the page is whole without it, so it is stored.
  */
-export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; problems: string[]; logged: string[] } {
-  const { net, pool, query, mode, index } = input;
+export function ammPoolPage(input: AmmPoolInput): { page: Omit<AmmPoolPageData, "names">; problems: string[]; logged: string[] } {
+  const { net, pool, query, mode, index, names = {} } = input;
   const { native } = net;
   const problems: string[] = [];
   const logged: string[] = [];
@@ -1792,6 +1831,7 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
         days: days === null || carryIn === null ? null : days,
         carryIn: carryIn?.[0] ?? null,
         candles,
+        names,
       });
     } catch (error) {
       problem("the charts", error);
@@ -1808,16 +1848,16 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
     votes =
       info.vote_slots.length === 0
         ? { state: "ok", data: null, text: NO_VOTES_TEXT, figure: null }
-        : { state: "ok", data: voteShares(info.vote_slots, net.id), text: `Weighted result ${fee}, the pool's trading fee.`, figure: fee };
+        : { state: "ok", data: voteShares(info.vote_slots, net.id, names), text: `Weighted result ${fee}, the pool's trading fee.`, figure: fee };
   } else if (mode === "node-down" && index !== null) {
     slot = indexSlot(net.id, index, now);
     votes = { state: "failed", what: "the fee votes" };
   }
 
-  const activity = activityOf(net, pool, query, pair, input.activity, fromNetwork, problem);
+  const activity = activityOf(net, pool, query, pair, input.activity, fromNetwork, problem, names);
 
   const facts = ammPoolFacts(net, pool, index, info, created);
-  const page: AmmPoolPageData = {
+  const page: Omit<AmmPoolPageData, "names"> = {
     kind: "pool",
     meta: { ...facts, tab: query.tab, period: query.period, marker: query.marker !== undefined, mode },
     crumbs: crumbsOf(net, pair),
@@ -1851,24 +1891,62 @@ export function ammPoolPage(input: AmmPoolInput): { page: AmmPoolPageData; probl
  * build: its card then says it could not load, and the reason is in `problems`, which the loader logs and marks the request degraded with, so that the failed card
  * is never stored as the page behind the marker (`MARKER_PAGE_CLASS`, an hour).
  */
-export function ammHistoryPage(input: { net: AmmPoolNet; pool: string; query: AmmPoolQuery; index: AmmPool; activity: AmmActivityPage }): {
-  page: AmmHistoryPageData;
+export function ammHistoryPage(input: { net: AmmPoolNet; pool: string; query: AmmPoolQuery; index: AmmPool; activity: AmmActivityPage; names?: NameMap }): {
+  page: Omit<AmmHistoryPageData, "names">;
   problems: string[];
 } {
-  const { net, pool, query, index } = input;
+  const { net, pool, query, index, names = {} } = input;
   const problems: string[] = [];
   const problem: ProblemSink = (what, reason) => {
     problems.push(`${what}: ${reasonText(reason)}`);
   };
   const pair = poolPair(index, null, net.native)!;
   const facts = ammPoolFacts(net, pool, index, null, null);
-  const page: AmmHistoryPageData = {
+  const page: Omit<AmmHistoryPageData, "names"> = {
     kind: "history",
     meta: { ...facts, tab: query.tab, period: query.period, marker: query.marker !== undefined, mode: index.deleted ? "deleted" : "indexed" },
     crumbs: crumbsOf(net, pair),
     header: headOf(net, pool, pair),
-    activity: activityOf(net, pool, query, pair, { status: "fulfilled", value: input.activity }, false, problem),
+    activity: activityOf(net, pool, query, pair, { status: "fulfilled", value: input.activity }, false, problem, names),
     backHref: ammPoolHref(net.id, pool, { tab: query.tab }),
   };
   return { page, problems };
+}
+
+/**
+ * The accounts a pool page draws (display names spec 1), from the page as it is built without names: the ones the loader asks the data API's names for, then builds the page again
+ * with them. The pool's account (the pool card draws it whole, through `AccountLink`); on a first page the creator of the Created line, the holder and the authorized accounts of the
+ * slot, and the voters of the bars; the accounts of the tab's rows (a swap's taker, a liquidity event's provider and, for a clawback, the account it was by, a vote's or a bid's
+ * account); and the issuers, when a text of the page names them: the reserves card's panels, and the title of a swap of a pool of one code on both sides. Not the other addresses the
+ * answers hold: a swap's buyer and seller, an event's initiator, the holder and the authorized accounts a bid left, the LP token's issuer. Each once, in the order drawn.
+ */
+export function drawnAccounts(page: Omit<AmmPoolPageData, "names"> | Omit<AmmHistoryPageData, "names">): string[] {
+  const drawn = new Set<string>([page.header.account.address]);
+  if (page.kind === "pool") {
+    if (page.header.created !== null) drawn.add(page.header.created.by.address);
+    if (page.slot?.held) {
+      drawn.add(page.slot.held.holder.address);
+      for (const account of page.slot.held.authorized ?? []) drawn.add(account.address);
+    }
+    if (page.votes?.state === "ok") for (const item of page.votes.data?.items ?? []) drawn.add(item.id);
+  }
+  const { list } = page.activity;
+  let titled = false;
+  if (list.state === "ok") {
+    if (list.tab === "swaps") {
+      for (const row of list.rows) {
+        drawn.add(row.taker.address);
+        titled ||= row.directionTitle !== null;
+      }
+    } else if (list.tab === "liquidity") {
+      for (const row of list.rows) {
+        drawn.add(row.provider.address);
+        if (row.by !== null) drawn.add(row.by.address);
+      }
+    } else {
+      for (const row of list.rows) drawn.add(row.account.address);
+    }
+  }
+  if (titled || (page.kind === "pool" && page.charts.reserves.state === "ok")) for (const line of page.header.issuers) drawn.add(line.issuer.address);
+  return [...drawn];
 }

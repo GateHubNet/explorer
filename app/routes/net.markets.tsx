@@ -3,9 +3,10 @@ import { queryOf } from "../domain/network-params";
 import { clientsFor } from "../server/clients";
 import { cached, forwardCacheClass } from "../server/edge-cache";
 import { upstreamOutage } from "../server/loader-errors";
-import { marketsPage } from "../server/markets-view";
+import { marketIssuers, marketsPage, type MarketsPageData } from "../server/markets-view";
 import { metaContext } from "../server/meta";
 import { marketsMeta } from "../server/meta-markets";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { redirectToCanonical } from "../server/pair-route";
 import { MarketsPage } from "../ui/pages/MarketsPage";
@@ -38,6 +39,10 @@ const MARKETS_LIMIT = 1000;
  *   poll, so the call does not ask for the failure hold.
  * - **The class is `minute`** (spec 2.5): the data API rewrites its sets every minute at most, and the page has no live refresh and no
  *   `clientLoader`.
+ * - **One names call** (display names spec 1 and 5), after the markets call: the issuers of the rows the page lists (`marketIssuers`: not those of a row the Quote
+ *   filter leaves out), asked for before the page is built because the rows' issuer texts are written with them. An issuer with a verified name, or one GateHub gave, and no
+ *   label reads by that name; a names call that fails or is late never fails the page: the issuers are short addresses and the request is degraded (served, not stored).
+ *   The page does not poll, so the call does not ask for the failure hold.
  */
 export async function loader({ request, url, params, context }: Route.LoaderArgs) {
   const net = requireNetwork(context, params);
@@ -58,7 +63,9 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
     .networkMarkets({ period: PERIODS[view.period].api, limit: MARKETS_LIMIT, amm: view.trades === null ? undefined : TRADES_API[view.trades] })
     .catch((err: unknown) => upstreamOutage(err, "the markets"));
 
-  return cached(marketsPage({ network: net, params: view, answer }), "minute");
+  const { part: names } = await loadNames(api, collectAddresses(marketIssuers({ network: net, params: view, answer })), { context, request, features: net.features });
+  const page = marketsPage({ network: net, params: view, answer, names: names.map });
+  return cached({ ...page, names } satisfies MarketsPageData, "minute");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {

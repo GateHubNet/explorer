@@ -25,6 +25,8 @@ import {
 } from "../domain/format";
 import { marketHref, naturalOrientation } from "../domain/market-pair";
 import { candleWindow, INTERVALS, pairQuery, TRADES_API, type Interval, type PairParams, type TradesFilter } from "../domain/market-params";
+import { listedAccount } from "../domain/listed-account";
+import type { NameMap, NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { wholePercent } from "../domain/percent";
 import { poolLink } from "../domain/pool-link";
@@ -316,6 +318,12 @@ export interface LivePairData {
     | { state: "failed"; title: string; source: string };
   share: { state: "ok"; text: string } | { state: "off" } | { state: "failed" };
   traders: { state: "ok"; data: BarListData; note: string; source: string } | { state: "failed"; source: string };
+  /**
+   * The names of the accounts the page draws: the takers of `trades` (each an `AccountLink`) and the accounts of `traders` (a `BarList` item, named by the view builder). The loader adds
+   * it after `pairPage`, which it builds once to see which accounts it draws, and again with their names when any has something to show (display names spec 3.4). It is a part a beat may keep (`PAIR_PARTS`):
+   * `failed` when the names call did not work (the accounts are their short addresses), `off` when the switch is.
+   */
+  names: NamesPart;
 }
 
 /** The page behind a marker: old trades only, with no chart, no book and no live row. */
@@ -329,6 +337,8 @@ export interface OlderPairData {
   /** `link` is the part of `text` that links to `href`, the market's page. */
   note: { text: string; link: string; href: string };
   trades: TradesView;
+  /** The names of the takers of `trades` (each an `AccountLink`), which the loader adds after `olderPage`. */
+  names: NamesPart;
 }
 
 export type PairPageData = LivePairData | OlderPairData;
@@ -354,6 +364,8 @@ export interface PairInput {
   pool: Loaded<AmmInfo> | null;
   /** `null`: not asked (no AMM parts). */
   share: Loaded<ReducedRow> | null;
+  /** The names of the accounts the page draws as list items (the traders, `tradersOf`); none when left out. The takers are named in the browser. */
+  names?: NameMap;
 }
 
 /** The names of the page's parts that can fail alone, in the order they are listed in `problems`. */
@@ -607,21 +619,22 @@ const TRADERS_SHOWN = 5;
  * The most active traders card (spec 3.1 and 3.7): the top 5 accounts by base volume, each a link to its page with its volume and its trades. `pool`
  * is the pair's AMM pool account when the node named it: it is the other side of every swap and so leads the list once the index records swaps, and it
  * is left out when it is among the accounts (and the note says so). Nothing is left out where the node named no pool. The Trades filter does not apply
- * to this list (the API has no such filter), which the note says when the page has one.
+ * to this list (the API has no such filter), which the note says when the page has one. An account with a name is drawn by it, with its short address under it and the mark of how
+ * the name is known; one with labels only by its short address and the labels' mark (`listedAccount`, display names spec 4.3), and the token covers the marks.
  */
 export function tradersOf(
   answer: ActiveAccounts,
   pool: string | null,
-  ctx: { net: string; head: PairHead; filtered: boolean },
+  ctx: { net: string; head: PairHead; filtered: boolean; names?: NameMap },
 ): Extract<LivePairData["traders"], { state: "ok" }> {
-  const { head } = ctx;
+  const { head, names = {} } = ctx;
   const leftOut = pool !== null && answer.accounts.some((account) => account.account === pool);
   const items = answer.accounts
     .filter((account) => account.account !== pool)
     .slice(0, TRADERS_SHOWN)
     .map((account) => ({
       id: account.account,
-      label: shortAddress(account.account),
+      ...listedAccount(account.account, names),
       href: accountHref(ctx.net, account.account, {}),
       value: account.base_volume,
       count: String(account.count),
@@ -680,13 +693,13 @@ function tradesWords(params: PairParams): string[] {
 /**
  * The page of a pair (spec 3.7), put together from the answers of its calls: the part that failed is `failed` and its name is in `problems` (in the
  * order the parts are listed in), and everything else is shown. `problems` is what the route logs and marks the request degraded with. An absent
- * pool (`missing`, or not asked on Xahau) and the AMM parts that the network does not have are answers, not problems. The anchor and the build are the
- * route's to add.
+ * pool (`missing`, or not asked on Xahau) and the AMM parts that the network does not have are answers, not problems. The anchor, the build and the names part are
+ * the route's to add. The head is built without names, whatever `input.names` holds: its short issuers are the page's title and description (display names spec 7).
  *
  * The page is in the orientation of the URL: the asks and bids, the trades, the figures and the candles are the API's and the node's for that
  * orientation, and the pool's amounts are matched to it by asset.
  */
-export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" | "build">; problems: string[] } {
+export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" | "build" | "names">; problems: string[] } {
   const { network, base, counter } = input;
   const params = viewParams(network, input.params);
   const ammParts = hasAmmParts(network);
@@ -717,7 +730,7 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
   const poolAccount = input.pool?.state === "ok" && pool.state === "ok" ? input.pool.value.account : null;
   const traders: LivePairData["traders"] =
     input.traders.state === "ok"
-      ? tradersOf(input.traders.value, poolAccount, { net: network.id, head, filtered: params.trades !== null })
+      ? tradersOf(input.traders.value, poolAccount, { net: network.id, head, filtered: params.trades !== null, names: input.names })
       : { state: "failed", source: TRADERS_SOURCE };
   const book: LivePairData["book"] =
     input.asks.state === "ok" && input.bids.state === "ok"
@@ -736,7 +749,7 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
   const problems = (Object.keys(parts) as PartName[]).filter((name) => parts[name].state === "failed");
 
   const trades = tradesOf(input.trades, { net: network.id, base, counter, params, via: ammParts });
-  const page: Omit<LivePairData, "anchor" | "build"> = {
+  const page: Omit<LivePairData, "anchor" | "build" | "names"> = {
     mode: "live",
     head,
     indexable: input.hasTrade && !naturalOrientation(base, counter, network.native).inverted && pairQuery(params) === "",
@@ -772,7 +785,7 @@ export function pairPage(input: PairInput): { page: Omit<LivePairData, "anchor" 
  * The page behind a marker (spec 3.11): old trades only. The head, a note that sends the visitor to the market's page for the price, the chart and the
  * book, and the trades with their paging. There is no chart, book, pool or live row, so none of those is asked for or built.
  */
-export function olderPage(input: Pick<PairInput, "network" | "base" | "counter" | "params" | "trades">): Omit<OlderPairData, "build"> {
+export function olderPage(input: Pick<PairInput, "network" | "base" | "counter" | "params" | "trades">): Omit<OlderPairData, "build" | "names"> {
   const { network, base, counter } = input;
   const params = viewParams(network, input.params);
   const head = pairHead(network, base, counter, params);

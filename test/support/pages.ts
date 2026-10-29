@@ -129,3 +129,24 @@ export function tableRows(html: string, label: string): string[][] {
       .map((chunk) => textOf(chunk.slice(chunk.indexOf(">") + 1).replace(/<span\s[^>]*$/, ""))),
   );
 }
+
+/**
+ * The rows of the Pairs table (its `role="row"` elements, the header first) as arrays of cell texts. A cell of this table holds a `div` (the
+ * AMM share's meter), so a row is cut at the next row and the table at the card's foot, not at a `</div>` (`tableRows`, above).
+ */
+export function pairRows(html: string): string[][] {
+  const start = html.indexOf('role="table" aria-label="Pairs"');
+  if (start < 0) return [];
+  const end = html.indexOf('class="card__foot', start);
+  const table = html.slice(start, end < 0 ? undefined : end);
+  return table
+    .split('<div role="row"')
+    .slice(1)
+    .map((row) =>
+      row
+        .split(/role="(?:cell|columnheader)"/)
+        .slice(1)
+        // A chunk ends where the next cell's tag was cut: `<span `.
+        .map((chunk) => textOf(chunk.slice(chunk.indexOf(">") + 1).replace(/<span\s[^>]*$/, ""))),
+    );
+}

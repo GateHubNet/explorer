@@ -1,7 +1,7 @@
 import { memo, useRef, type CSSProperties } from "react";
 
 import { formatAmount } from "../../domain/format";
-import { LabelMark, NameMark } from "../components/NameMark";
+import { Marks } from "../components/NameMark";
 import { RouteLink } from "../components/RouteLink";
 import { cx } from "../cx";
 import { cellOf } from "./cells";
@@ -45,30 +45,6 @@ function markChars(mark: BarItem["mark"]): number {
 
 /** "312 trades", "1 trade": the count grouped, with its noun. */
 const tradesText = (count: string): string => `${formatAmount(count)} ${count === "1" ? "trade" : "trades"}`;
-
-/**
- * The marks of a named account after its label (E9, spec 4.3): how its name is known, then its labels, each after a space so that the words read on
- * ("Northpeak Treasury verified name labelled scam by GateHub"). Nothing for an item without `mark`, or with a `mark` of nothing.
- */
-function Marks({ mark }: { mark: BarItem["mark"] }) {
-  if (!mark) return null;
-  return (
-    <>
-      {mark.kind !== undefined && (
-        <>
-          {" "}
-          <NameMark kind={mark.kind} />
-        </>
-      )}
-      {mark.labels.length > 0 && (
-        <>
-          {" "}
-          <LabelMark labels={mark.labels} />
-        </>
-      )}
-    </>
-  );
-}
 
 /**
  * Labelled horizontal bars (spec 2.3 and 2.11), an ordered list with a row for each item, in the order given: its label, with the sublabel (a

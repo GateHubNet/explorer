@@ -5,12 +5,14 @@ import { describe, expect, it } from "vitest";
 
 import { bookFile, LIONS, RLUSD, XRP, type Asset as FixtureAsset } from "../../test/support/book-fixtures";
 import type { Asset } from "../domain/asset";
-import { compactNumber, dropsToNative } from "../domain/format";
+import { compactNumber, dropsToNative, shortAddress } from "../domain/format";
 import { candleWindow as marketParamsWindow, INTERVALS, type Interval, type PairParams } from "../domain/market-params";
+import { NO_NAMES, type NameMap, type NameView } from "../domain/names";
 import type { Loaded } from "./account-view";
 import type { ActiveAccount, ActiveAccounts, Candle, Page, PairExchange, ReducedRow } from "./api-types";
 import { NO_FEATURES, type Features } from "../ui/features";
 import { keepLoaded } from "../ui/live-page";
+import { PAIR_PARTS } from "../ui/pages/pair-beat";
 import type { AmmInfo, Book, BookOffer, NodeAmount } from "./node-rpc";
 import {
   BOOK_LEVELS,
@@ -683,8 +685,6 @@ const DEFAULT_PARAMS: PairParams = { interval: "1h", trades: null, back: [] };
 const usd = (value: string): NodeAmount => ({ currency: "USD", issuer: GH, value });
 
 const ok = <T>(value: T): Loaded<T> => ({ state: "ok", value });
-/** The parts a beat may keep: the pair route's `PAIR_PARTS` (pinned in app/ui/routes-wiring.test.tsx), written out: a Node test does not import a route module. */
-const PAIR_PARTS = ["stats", "candles", "traders", "book", "pool", "share"] as const;
 const FAILED: Loaded<never> = { state: "failed" };
 const MISSING: Loaded<never> = { state: "missing" };
 
@@ -1229,6 +1229,84 @@ describe("tradersOf", () => {
   });
 });
 
+describe("tradersOf: the names of the accounts (display names spec 4.3)", () => {
+  const CTX = { net: "xrpl", head: HEAD, filtered: false };
+  const verified: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+  const names: NameMap = {
+    [trader(1)]: verified,
+    [trader(2)]: { labels: ["spam"] },
+    [trader(3)]: { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: ["advisory"] },
+    // An account network name alone has no name to draw.
+    [trader(4)]: { network: "cold wallet", labels: [] },
+  };
+  const items = (map: NameMap | undefined) => {
+    const view = tradersOf(active(TRADERS, 1204), null, map === undefined ? CTX : { ...CTX, names: map });
+    return view.data.items;
+  };
+
+  it("draws a named trader by its name, with the short address under it and the mark of how its name is known", () => {
+    expect(items(names)[0]).toEqual({
+      id: trader(1),
+      label: "Northpeak Treasury",
+      sublabel: shortAddress(trader(1)),
+      href: `/xrpl/account/${trader(1)}`,
+      value: "7000000",
+      count: "390",
+      mark: { kind: "verified", labels: [] },
+    });
+  });
+
+  it("draws one that has labels only by its short address, with the labels' mark", () => {
+    expect(items(names)[1]).toEqual({
+      id: trader(2),
+      label: shortAddress(trader(2)),
+      href: `/xrpl/account/${trader(2)}`,
+      value: "6000000",
+      count: "380",
+      mark: { labels: ["spam"] },
+    });
+  });
+
+  it("carries the labels of a named trader in the same mark, and its account network name in the label", () => {
+    expect(items(names)[2]).toMatchObject({ label: "Harborline Exchange · hot wallet", sublabel: shortAddress(trader(3)), mark: { kind: "account", labels: ["advisory"] } });
+  });
+
+  it("draws every other trader as it was: the short address, no sublabel, no mark", () => {
+    const plain = items(undefined);
+    expect(items(names).slice(3)).toEqual(plain.slice(3));
+    for (const item of plain) {
+      expect(item).not.toHaveProperty("sublabel");
+      expect(item).not.toHaveProperty("mark");
+    }
+    expect(items({})).toEqual(plain);
+  });
+
+  it("changes only the list: the note and the format are the same", () => {
+    const [plain, named] = [tradersOf(active(TRADERS, 1204), null, CTX), tradersOf(active(TRADERS, 1204), null, { ...CTX, names })];
+    expect(named.note).toBe(plain.note);
+    expect(named.data.format).toEqual(plain.data.format);
+    expect(named.source).toBe(plain.source);
+  });
+
+  it("covers the marks in the token: the list redraws when only a mark changes, and not when the names are the same", () => {
+    const token = (map: NameMap) => tradersOf(active(TRADERS, 1204), null, { ...CTX, names: map }).data.token;
+    const base = token(names);
+    expect(token({ ...names })).toBe(base);
+    expect(token({})).not.toBe(base);
+    expect(token({ ...names, [trader(2)]: { labels: ["spam", "scam"] } })).not.toBe(base);
+    expect(token({ ...names, [trader(1)]: { ...verified, name: { text: "Northpeak Treasury", kind: "domain" } } })).not.toBe(base);
+    // Only a mark: the label and the sublabel are the same.
+    expect(token({ ...names, [trader(1)]: { ...verified, labels: ["scam"] } })).not.toBe(base);
+  });
+
+  it("names the accounts of the list the page draws, not the pool account it leaves out", () => {
+    const accounts = [activeAccount(POOL, "9000000", 900), ...TRADERS];
+    const view = tradersOf(active(accounts, 1204), POOL, { ...CTX, names: { [POOL]: verified, [trader(1)]: verified } });
+    expect(view.data.items.map((item) => item.id)).toEqual([1, 2, 3, 4, 5].map(trader));
+    expect(view.data.items[0]).toMatchObject({ label: "Northpeak Treasury" });
+  });
+});
+
 describe("existenceOf", () => {
   const empty = ok(book([]));
   const withOffer = ok(book([offer(xrp("10"), usd("24"))]));
@@ -1323,6 +1401,38 @@ describe("pairPage", () => {
     // The route adds the anchor and the build.
     expect(built).not.toHaveProperty("anchor");
     expect(built).not.toHaveProperty("build");
+  });
+
+  describe("with names", () => {
+    const verified: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const names: NameMap = { [trader(1)]: verified, [trader(2)]: { labels: ["scam"] }, [GH]: verified, [POOL]: { name: { text: "Pool Name", kind: "account" }, labels: [] } };
+
+    it("draws the traders by their names, and the rest of the page as it is built without them", () => {
+      const plain = build().page;
+      const named = build({ names }).page;
+      if (named.traders.state !== "ok" || plain.traders.state !== "ok") throw new Error("traders");
+      expect(named.traders.data.items[0]).toMatchObject({ id: trader(1), label: "Northpeak Treasury", mark: { kind: "verified", labels: [] } });
+      expect(named.traders.data.items[1]).toMatchObject({ id: trader(2), label: shortAddress(trader(2)), mark: { labels: ["scam"] } });
+      const { traders: _named, ...restNamed } = named;
+      const { traders: _plain, ...restPlain } = plain;
+      expect(restNamed).toEqual(restPlain);
+    });
+
+    it("keeps the head as it is whatever the names are: its short issuers are the page's title and description (display names spec 7)", () => {
+      const named = build({ names }).page;
+      expect(named.head).toEqual(build().page.head);
+      expect(named.head.issued).toEqual([`USD ${shortAddress(GH)}`]);
+      expect(named.head.issuedBy).toBe(`USD issued by ${shortAddress(GH)}`);
+    });
+
+    it("keeps the takers of the trades as addresses: the page names them where it draws them", () => {
+      expect(build({ names }).page.trades).toEqual(build().page.trades);
+    });
+
+    it("carries no names part: the loader adds it", () => {
+      expect(build({ names }).page).not.toHaveProperty("names");
+      expect(olderPage({ network: XRPL, base: XRP_ASSET, counter: USD_ASSET, params: DEFAULT_PARAMS, trades: tradePage([trade()]) })).not.toHaveProperty("names");
+    });
   });
 
   it("links the pool card by the network's AMM_PAGES: the pool page while it is on, the pool account while it is off", () => {
@@ -1613,14 +1723,16 @@ describe("pairPage", () => {
     });
 
     it("keeps the share shown with the pool card through a beat that failed the pool (keepLoaded, spec 3.10)", () => {
-      const shown = build().page;
+      // The loader adds the names part to the page the builder made (`PAIR_PARTS` has it).
+      const withNames = (over: Partial<PairInput>) => ({ ...build(over).page, names: NO_NAMES });
+      const shown = withNames({});
       expect(shown.share).toEqual({ state: "ok", text: "34%" });
       // amm_info and #9 failed: both parts are kept as they were shown.
-      const bothFailed = keepLoaded(build({ pool: FAILED, share: FAILED }).page, shown, PAIR_PARTS);
+      const bothFailed = keepLoaded(withNames({ pool: FAILED, share: FAILED }), shown, PAIR_PARTS);
       expect(bothFailed.pool).toBe(shown.pool);
       expect(bothFailed.share).toBe(shown.share);
       // amm_info alone failed: the kept card shows the share of the beat, worked out from #3 and #9 as ever.
-      const poolFailed = keepLoaded(build({ pool: FAILED, share: ok(reduced({ base_volume: "500" })) }).page, shown, PAIR_PARTS);
+      const poolFailed = keepLoaded(withNames({ pool: FAILED, share: ok(reduced({ base_volume: "500" })) }), shown, PAIR_PARTS);
       expect(poolFailed.pool).toBe(shown.pool);
       expect(poolFailed.share).toEqual({ state: "ok", text: "50%" });
     });
