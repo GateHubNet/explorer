@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FlowStep } from "../domain/describe";
 import { shortHash } from "../domain/format";
+import type { NameView } from "../domain/names";
 import { AMM_POOL, ammLiquiditySample, ammPoolSample } from "../../test/support/amm-samples";
 import { AMM_ID, amendmentDetailSample, SAMPLE_KEYS, UNKNOWN_ID, validatorDetailSample, XCB_ID } from "../../test/support/d1-samples";
 import { ammPoolFacts, type AmmPoolFacts } from "./amm-view";
@@ -159,6 +160,62 @@ describe("accountCard", () => {
 
   it("writes the balance as the page does", () => {
     expect(accountCard(account({ balance: "1234567.5", native: "XAH" }), XAHAU).footer).toEqual([{ text: "Balance " }, { text: "1,234,567.5 XAH", mono: true }]);
+  });
+
+  describe("for an account that has a name or a label (display names spec 7)", () => {
+    const ADDRESS = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const HARBORLINE: NameView = { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: [] };
+    const LOWTIDE: NameView = { name: { text: "lowtide.example", kind: "domain" }, domain: "lowtide.example", labels: [] };
+
+    it("has the plain name for a headline, in the text font, and the whole address under it", () => {
+      const card = accountCard(account({ name: NORTHPEAK }), XRPL);
+      expect(card.headline).toEqual({ text: "Northpeak Treasury", mono: false });
+      expect(card.parties).toEqual([ADDRESS]);
+      expect(card.note).toBe("Verified by northpeak.example · Activated 15 Jul 2025");
+      expect(card.footer).toEqual([{ text: "Balance " }, { text: "10.001625 XRP", mono: true }]);
+      // What is not about the name is as it was.
+      expect(card).toEqual({ ...accountCard(account(), XRPL), headline: card.headline, parties: [ADDRESS], note: card.note });
+    });
+
+    it("says a name GateHub gave as a link reads it, with the account network name", () => {
+      const card = accountCard(account({ name: HARBORLINE }), XRPL);
+      expect(card.headline).toEqual({ text: "Harborline Exchange · hot wallet", mono: false });
+      expect(card.parties).toEqual([ADDRESS]);
+      expect(card.note).toBe("Named by GateHub · Activated 15 Jul 2025");
+    });
+
+    it("says the parts of the note in the order the board has them: the warning, how the name is known, the activation", () => {
+      const card = accountCard(account({ name: { ...NORTHPEAK, labels: ["scam", "spam"] } }), XRPL);
+      expect(card.note).toBe("Warning: labelled scam and spam by GateHub · Verified by northpeak.example · Activated 15 Jul 2025");
+      expect(accountCard(account({ name: { ...HARBORLINE, labels: ["advisory"] } }), XRPL).note).toBe(
+        "Warning: labelled advisory by GateHub · Named by GateHub · Activated 15 Jul 2025",
+      );
+    });
+
+    it("keeps the address for a headline when the account is labelled, and warns in the note", () => {
+      const card = accountCard(account({ name: { ...HARBORLINE, labels: ["advisory"] } }), XRPL);
+      expect(card.headline).toEqual({ text: ADDRESS, mono: true });
+      expect(card.parties).toBeUndefined();
+      const labelsOnly = accountCard(account({ name: { labels: ["scam", "spam", "advisory"] } }), XRPL);
+      expect(labelsOnly.headline).toEqual({ text: ADDRESS, mono: true });
+      expect(labelsOnly.parties).toBeUndefined();
+      expect(labelsOnly.note).toBe("Warning: labelled scam, spam and advisory by GateHub · Activated 15 Jul 2025");
+    });
+
+    it("says only the parts that apply: no activation, no warning, no claim of a name nothing vouches for", () => {
+      expect(accountCard(account({ name: NORTHPEAK, activatedAt: null }), XRPL).note).toBe("Verified by northpeak.example");
+      expect(accountCard(account({ name: { labels: ["scam"] }, activatedAt: null }), XRPL).note).toBe("Warning: labelled scam by GateHub");
+    });
+
+    it("is today's card for a name only the account's domain gives, a network name alone, no name, and a view that is not there", () => {
+      const today = accountCard(account(), XRPL);
+      expect(accountCard(account({ name: LOWTIDE }), XRPL)).toEqual(today);
+      expect(accountCard(account({ name: { network: "cold", labels: [] } }), XRPL)).toEqual(today);
+      expect(accountCard(account({ name: undefined }), XRPL)).toEqual(today);
+      expect(today.headline).toEqual({ text: ADDRESS, mono: true });
+      expect(today.parties).toBeUndefined();
+    });
   });
 });
 

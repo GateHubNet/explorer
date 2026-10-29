@@ -4,6 +4,7 @@
 
 import { describe, headlineAmount, type FlowAmount } from "../domain/describe";
 import { formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
+import { labelWords, plainNameOf, vouchedByOf, type NameView } from "../domain/names";
 import type { Native } from "../domain/parse/types";
 import { formatDate } from "../domain/time-words";
 import type { CardData } from "../og/types";
@@ -127,21 +128,35 @@ export interface AccountCardFacts {
   activatedAt: number | null;
   /** Whole units of the native currency; `null` when it could not be read. */
   balance: string | null;
+  /** What the names batch says of the address (display names spec 3.3), when it says anything: its name, its account network name, its labels. */
+  name?: NameView;
 }
 
-/** The card of an account: the whole address, when it was activated, its balance. */
+/**
+ * The card of an account: the whole address, when it was activated, its balance. An account with a name a card may say (`plainNameOf`: verified or GateHub's, and unlabelled)
+ * has it for the headline, in the text font, with the whole address under it; one without has the address, as it always had. The note (display names spec 7) says, joined by `·`,
+ * the parts that apply: a warning that GateHub has labelled the address, who vouches for its name, and when it was activated.
+ */
 export function accountCard(account: AccountCardFacts, network: NetworkBrief): CardData {
+  const { name } = account;
+  const plain = plainNameOf(name);
   const card: CardData = {
     network: network.id,
     networkLabel: labelOf(network),
     kind: "Account",
-    headline: { text: account.address, mono: true },
+    headline: plain === null ? { text: account.address, mono: true } : { text: plain, mono: false },
+    ...(plain === null ? {} : { parties: [account.address] }),
     footer:
       account.balance === null
         ? [{ text: `Account on ${network.name}` }]
         : [{ text: "Balance " }, { text: `${formatAmount(account.balance)} ${account.native}`, mono: true }],
   };
-  if (account.activatedAt !== null) card.note = `Activated ${formatCardDate(account.activatedAt)}`;
+  const note = [
+    name && name.labels.length > 0 ? `Warning: labelled ${labelWords(name.labels)} by GateHub` : null,
+    vouchedByOf(name),
+    account.activatedAt === null ? null : `Activated ${formatCardDate(account.activatedAt)}`,
+  ].filter((part): part is string => part !== null);
+  if (note.length > 0) card.note = note.join(" · ");
   return card;
 }
 

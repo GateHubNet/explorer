@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
 import { XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
-import { count, LIVE, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
+import { accountTitle, count, LIVE, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
 import { expect, hydrated, test } from "./support";
 
 // The tags of a page are made by its `meta` export, which the browser runs too when a visitor follows a link inside the page: no new
@@ -162,7 +162,8 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await hydrated(page);
     await page.evaluate(() => Object.assign(window, { sameDocument: true }));
     const first = await head(page);
-    expect(first.title).toBe("Account rBbW6i…W5jh · XRPL · explorer");
+    // The account's title says its name (display names spec 7): a verified one in the fixtures.
+    expect(first.title).toMatch(accountTitle("xrpl", XRPL_ACCOUNT));
     expect(first.canonical).toBe(`${origin}/xrpl/account/${XRPL_ACCOUNT}`);
     expect(first.robots).toBeNull();
     expect(first.ogImage).toBe(`${origin}/og/xrpl/account/${XRPL_ACCOUNT}.png`);
@@ -199,7 +200,7 @@ test.describe("the tags of a page reached by a link in the page", () => {
     await page.waitForURL(`**${account}?tab=analytics`);
     await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
     expect(await head(page)).toEqual({
-      title: "Analytics · Account rBbW6i…W5jh · XRPL · explorer",
+      title: expect.stringMatching(accountTitle("xrpl", XRPL_ACCOUNT, "Analytics · ")),
       canonical: null,
       robots: "noindex, follow",
       ogTitle: null,
@@ -211,14 +212,14 @@ test.describe("the tags of a page reached by a link in the page", () => {
     // Another period of it: the period in the title, and the same tags.
     await page.getByRole("group", { name: "Analytics filters" }).getByRole("link", { name: "1 year" }).click();
     await page.waitForURL(`**${account}?tab=analytics&period=1y`);
-    await expect(page).toHaveTitle("Analytics, last 52 weeks · Account rBbW6i…W5jh · XRPL · explorer");
+    await expect(page).toHaveTitle(accountTitle("xrpl", XRPL_ACCOUNT, "Analytics, last 52 weeks · "));
     expect((await head(page)).robots).toBe("noindex, follow");
     expect((await head(page)).canonical).toBeNull();
 
     // Back twice with the browser's button, to the account page: its own tags again, in the same document.
     await page.goBack();
     await page.waitForURL(`**${account}?tab=analytics`);
-    await expect(page).toHaveTitle("Analytics · Account rBbW6i…W5jh · XRPL · explorer");
+    await expect(page).toHaveTitle(accountTitle("xrpl", XRPL_ACCOUNT, "Analytics · "));
     await page.goBack();
     await page.waitForURL((url) => url.pathname === account && url.search === "");
     await expect.poll(async () => (await head(page)).canonical).toBe(first.canonical);

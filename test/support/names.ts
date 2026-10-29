@@ -5,7 +5,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
-import { labelWords, linkTextOf, nameTitleOf, nameViewOf, shownIssuer, type NameKind, type NameView } from "../../app/domain/names";
+import { labelWords, linkTextOf, nameTitleOf, nameViewOf, plainNameOf, shownIssuer, type NameKind, type NameView } from "../../app/domain/names";
 import type { AccountNameEntry } from "../../app/server/api-types";
 import { NAMES_BATCH_LIMIT } from "../../app/server/names-load";
 import { decodeLoaderData } from "./loader-data";
@@ -45,6 +45,15 @@ export async function issuerTextOf(net: NetworkName, address: string): Promise<s
 /** What a page writes for an issuer when `answerNamesAfterTheirEnd` names it: `Fixture` and the last four characters of its address. */
 export function issuerTextAfterItsEnd(address: string): string {
   return shownIssuer(address, { [address]: nameViewOf(nameAfterItsEnd(address))! });
+}
+
+/**
+ * What an account's page calls it in its `<title>`, before the network and the product (display names spec 7): `Account {name} ({short address})` when the fixtures give it a name a title
+ * may say (`plainNameOf`: verified or GateHub's, and unlabelled), else `Account {short address}`.
+ */
+export async function accountHeadOf(net: NetworkName, address: string): Promise<string> {
+  const plain = plainNameOf((await viewOf(net, address)) ?? undefined);
+  return `Account ${plain === null ? shortAddress(address) : `${plain} (${shortAddress(address)})`}`;
 }
 
 /** The addresses of `addresses` that the fixtures give a name to (a verified, GateHub's or a domain's), in the order given. */

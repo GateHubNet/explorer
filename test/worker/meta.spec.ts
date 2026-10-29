@@ -2,6 +2,7 @@ import { exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
+import { accountHeadOf, viewOf } from "../support/names";
 import { collectionCase, collectionsMarker, nftCase, salesMarker } from "../support/nft-cases";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
@@ -253,16 +254,39 @@ describe("an account page", () => {
     const { html } = await page(`/xrpl/account/${ACTIVE}`);
     const tags = head(html);
 
-    const description = `${ACTIVE} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects.`;
-    expect(tags.titles).toEqual([`Account ${shortAddress(ACTIVE)} · XRPL · explorer`]);
+    // The fixtures give the account a verified name (display names spec 7): the title says it, ahead of the short address, and the description says who verified it.
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    expect(view.name?.kind).toBe("verified");
+    const title = `${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer`;
+    expect(title).toBe(`Account ${view.name!.text} (${shortAddress(ACTIVE)}) · XRPL · explorer`);
+    const description = `${ACTIVE} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects. Verified by ${view.domain}.`;
+    expect(tags.titles).toEqual([title]);
     expect(tags.content("description")).toBe(description);
     expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/account/${ACTIVE}`]);
-    expect(tags.content("og:title")).toBe(`Account ${shortAddress(ACTIVE)} · XRPL · explorer`);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("twitter:title")).toBe(title);
     expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("twitter:description")).toBe(description);
     expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/account/${ACTIVE}`);
     expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/account/${ACTIVE}.png`);
     expect(tags.content("twitter:card")).toBe("summary_large_image");
     expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("keeps the short address in the title of an account GateHub has labelled, says the label in words before its description, and says its name is GateHub's after it", async () => {
+    const DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
+    const view = (await viewOf("xrpl", DELETED))!;
+    expect([view.name?.kind, view.labels]).toEqual(["account", ["advisory"]]);
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/account/${DELETED}`)).html);
+
+    const title = `Account ${shortAddress(DELETED)} · XRPL · explorer`;
+    expect(await accountHeadOf("xrpl", DELETED)).toBe(`Account ${shortAddress(DELETED)}`);
+    const description = `GateHub has labelled this address advisory. ${DELETED} on XRPL: Deleted account, activated 2024-08-12. Transactions, payments, trades, offers and objects. Named by GateHub.`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.content("og:description")).toBe(description);
   });
 
   it("keeps a tab that is not the default in the canonical URL, and shares the account's image", async () => {
@@ -310,7 +334,7 @@ describe("an account page", () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}${query}`);
     const tags = head(html);
-    expect(tags.titles).toEqual([`${named} · Account ${shortAddress(ACTIVE)} · XRPL · explorer`]);
+    expect(tags.titles).toEqual([`${named} · ${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer`]);
     expect(tags.content("description")).toBe(
       `Account value, transactions sent, balances, money in and out, counterparties and DEX trading of ${ACTIVE} on XRPL.`,
     );

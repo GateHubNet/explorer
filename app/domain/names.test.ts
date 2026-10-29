@@ -15,6 +15,7 @@ import {
   NO_NAMES,
   plainNameOf,
   shownIssuer,
+  vouchedByOf,
   type NameMap,
   type NamesPart,
   type NameView,
@@ -151,6 +152,26 @@ describe("plainNameOf", () => {
 
   it("reads like the brief's three", () => {
     expect([plainNameOf(nameViewOf(verified)!), plainNameOf(nameViewOf(named)!), plainNameOf(undefined)]).toEqual(["Northpeak Treasury", null, null]);
+  });
+});
+
+describe("vouchedByOf", () => {
+  it("says who verified a verified name, and that GateHub gave an account's, whatever labels it has", () => {
+    expect(vouchedByOf(nameViewOf(verified)!)).toBe("Verified by northpeak.example");
+    expect(vouchedByOf(nameViewOf(named)!)).toBe("Named by GateHub");
+    expect(vouchedByOf(nameViewOf({ ...verified, labels: { scam: { description: "d" } } })!)).toBe("Verified by northpeak.example");
+  });
+
+  it("is null for a name only the account's domain gives, a label or a network name alone, and no view", () => {
+    expect(vouchedByOf(nameViewOf({ address: D, display_name: { text: "lowtide.example", kind: "domain" }, domain: "lowtide.example" })!)).toBeNull();
+    expect(vouchedByOf(nameViewOf({ address: E, labels: { spam: { description: "d" } } })!)).toBeNull();
+    expect(vouchedByOf(nameViewOf({ address: E, account_network_name: "cold" })!)).toBeNull();
+    expect(vouchedByOf(undefined)).toBeNull();
+  });
+
+  it("is the words the hover title starts with", () => {
+    expect(nameTitleOf(nameViewOf(verified)!, A)).toBe(`${vouchedByOf(nameViewOf(verified)!)} · ${A}`);
+    expect(nameTitleOf(nameViewOf({ ...named, labels: undefined })!, B)).toBe(`${vouchedByOf(nameViewOf(named)!)} · ${B}`);
   });
 });
 

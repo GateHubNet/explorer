@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { decodeNodePublic, encodeAccountID } from "ripple-address-codec";
 
+import { linkTextOf, vouchedByOf } from "../../app/domain/names";
 import * as render from "../../app/og/render";
 import { loader as ogLoader } from "../../app/routes/og.$net.$kind.$id[.png]";
 import type { Nft } from "../../app/server/api-types";
@@ -9,7 +10,10 @@ import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
 import xrplAmm from "../fixtures/http/xrpl/data-api/network/amendments/AMM.json";
 import { SAMPLE_KEYS } from "../support/d1-samples";
+import { recordingMark } from "../support/degraded-mark";
+import { failingNames, namesCalls, viewOf, watchNamesLog, withoutNames } from "../support/names";
 import { nftCase } from "../support/nft-cases";
+import { expectDegraded } from "../support/nft-pages";
 import { nftAnswerSample, nftSample } from "../support/nft-samples";
 import { decodePng, hex, pngSize } from "../support/png";
 import { pageClient } from "../support/pages";
@@ -122,7 +126,7 @@ function expectPng({ response, bytes }: Awaited<ReturnType<typeof image>>) {
 }
 
 /** The requests a mock has seen, as `net key`, in a stable order. */
-const keys = (m: UpstreamMock) => m.requests.map((request) => `${request.net} ${request.key}`).sort();
+const keys = (m: Pick<UpstreamMock, "requests">) => m.requests.map((request) => `${request.net} ${request.key}`).sort();
 
 /** The 66 hex digits, in upper case, that a base58 node public key spells. */
 const keyHex = (key: string) => Array.from(decodeNodePublic(key), (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
@@ -187,6 +191,54 @@ describe("when an upstream fails", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(await isStored(`/og/xrpl/account/${unknown}.png`)).toBe(false);
+  });
+
+  it("draws today's card of an account whose names call fails, and serves it without storing it: the picture is the account's, with no name on it", async () => {
+    // Xahau's verified account: the XRPL one is asked for by the success test of the account group, which reads the calls of its first render.
+    const view = (await viewOf("xahau", XAHAU_ACTIVE))!;
+    expect(view.name?.kind).toBe("verified");
+    const logged = watchNamesLog();
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xahau", failingNames());
+      const path = `/og/xahau/account/${XAHAU_ACTIVE}.png`;
+      const answer = await image(path);
+
+      expectPng(answer);
+      // Degraded, as a page whose names call failed is: 200, never kept by the browser or the edge, and one log line.
+      await expectDegraded(path, answer.response);
+      expect(logged()).toBe(1);
+      expect(namesCalls(mock)[0]).toEqual([XAHAU_ACTIVE]);
+      expect(drawing).toHaveBeenCalledTimes(1);
+      const card = drawing.mock.calls[0]![0];
+      expect(card.headline).toEqual({ text: XAHAU_ACTIVE, mono: true });
+      expect(card.parties).toBeUndefined();
+      expect(card.note).toMatch(/^Activated \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+      expect(card.kind).toBe("Account");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("marks the answer degraded once for a failed names call, and leaves its class slow: the edge cache is what keeps it from storing it", async () => {
+    watchNamesLog();
+    const { mark, marks } = recordingMark();
+    try {
+      mock = mockUpstream("xrpl", failingNames());
+      const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+      const response = (await ogLoader({
+        request: new Request(`https://explorer.test/og/xrpl/account/${DELETED}.png`),
+        params: { net: "xrpl", kind: "account", id: DELETED },
+        context: createLoadContext(env as unknown as Env, ctx, mark),
+      } as never)) as Response;
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("image/png");
+      expect(response.headers.get("X-Cache-Class")).toBe("slow");
+      expect(marks).toEqual(["names could not be loaded"]);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
 
@@ -910,30 +962,102 @@ describe("a ledger", () => {
 });
 
 describe("an account", () => {
-  it("is a PNG of 1200 × 630, class slow, from the data API alone", async () => {
-    mock = mockUpstream("xrpl");
-    const path = `/og/xrpl/account/${ACTIVE}.png`;
-    const answer = await image(path);
+  it("is a PNG of 1200 × 630, class slow, from the data API alone: the account, its balances and one names call of its address", async () => {
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const path = `/og/xrpl/account/${ACTIVE}.png`;
+      const answer = await image(path);
 
-    expectPng(answer);
-    expect(answer.response.headers.get("Cache-Control")).toBe("max-age=300");
-    expect(await storedAs(path)).toEqual(SLOW);
-    expect(keys(mock)).toEqual([`xrpl GET /v2/accounts/${ACTIVE}`, `xrpl GET /v2/accounts/${ACTIVE}/balances`]);
+      expectPng(answer);
+      expect(answer.response.headers.get("Cache-Control")).toBe("max-age=300");
+      expect(await storedAs(path)).toEqual(SLOW);
+      expect(keys({ requests: withoutNames(mock.requests) })).toEqual([`xrpl GET /v2/accounts/${ACTIVE}`, `xrpl GET /v2/accounts/${ACTIVE}/balances`]);
+      expect(namesCalls(mock)).toEqual([[ACTIVE]]);
+
+      // The fixtures' verified name is the headline, in the text font, with the whole address under it; the note says who verified it and when the account was activated.
+      expect(view.name?.kind).toBe("verified");
+      expect(drawing).toHaveBeenCalledTimes(1);
+      expect(drawing.mock.calls[0]![0]).toEqual({
+        network: "xrpl",
+        networkLabel: "XRPL mainnet",
+        kind: "Account",
+        headline: { text: linkTextOf(view), mono: false },
+        parties: [ACTIVE],
+        note: `Verified by ${view.domain} · Activated 15 Jul 2025`,
+        footer: [{ text: "Balance " }, { text: "10.001625 XRP", mono: true }],
+      });
+    } finally {
+      drawing.mockRestore();
+    }
   });
 
-  it("is a Xahau card for a Xahau account", async () => {
-    mock = mockUpstream("xahau");
-    const answer = await image(`/og/xahau/account/${XAHAU_ACTIVE}.png`);
-    expectPng(answer);
-    expect(await storedAs(`/og/xahau/account/${XAHAU_ACTIVE}.png`)).toEqual(SLOW);
-    expect(hex((await decodePng(answer.bytes)).pixel(600, 4))).toBe("#B45309");
+  it("is a Xahau card for a Xahau account, named from Xahau's own table", async () => {
+    const view = (await viewOf("xahau", XAHAU_ACTIVE))!;
+    expect(view.name?.kind).toBe("verified");
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xahau");
+      const answer = await image(`/og/xahau/account/${XAHAU_ACTIVE}.png`);
+      expectPng(answer);
+      expect(await storedAs(`/og/xahau/account/${XAHAU_ACTIVE}.png`)).toEqual(SLOW);
+      expect(hex((await decodePng(answer.bytes)).pixel(600, 4))).toBe("#B45309");
+
+      expect(namesCalls(mock)).toEqual([[XAHAU_ACTIVE]]);
+      expect(drawing.mock.calls[0]![0]).toMatchObject({
+        network: "xahau",
+        headline: { text: linkTextOf(view), mono: false },
+        parties: [XAHAU_ACTIVE],
+        note: expect.stringMatching(new RegExp(`^${vouchedByOf(view)} · Activated `)),
+      });
+    } finally {
+      drawing.mockRestore();
+    }
   });
 
-  it("is drawn for an account that was deleted (the index knows it), without a balance", async () => {
-    mock = mockUpstream("xrpl");
-    const path = `/og/xrpl/account/${DELETED}.png`;
-    expectPng(await image(path));
-    expect(await storedAs(path)).toEqual(SLOW);
+  it("is drawn for an account that was deleted (the index knows it), without a balance, and warns that GateHub has labelled it, keeping its address for the headline", async () => {
+    const view = (await viewOf("xrpl", DELETED))!;
+    expect(view.name?.kind).toBe("account");
+    expect(view.labels).toEqual(["advisory"]);
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const path = `/og/xrpl/account/${DELETED}.png`;
+      expectPng(await image(path));
+      expect(await storedAs(path)).toEqual(SLOW);
+
+      // A name beside a warning is not put first: the headline is the address, as today's, and the note's first words are the warning.
+      const card = drawing.mock.calls[0]![0];
+      expect(card.headline).toEqual({ text: DELETED, mono: true });
+      expect(card.parties).toBeUndefined();
+      expect(card.note).toMatch(/^Warning: labelled advisory by GateHub · Named by GateHub(?: · Activated \d{1,2} [A-Z][a-z]{2} \d{4})?$/);
+      expect(card.footer).toEqual([{ text: "Account on XRPL" }]);
+    } finally {
+      drawing.mockRestore();
+    }
+  });
+
+  it("makes no names call and draws today's card while NAMES is off: the route reads the switch of its environment", async () => {
+    const drawing = vi.spyOn(render, "renderCard");
+    try {
+      mock = mockUpstream("xrpl");
+      const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
+      const off = createLoadContext({ ...(env as unknown as Env), NAMES: "off" }, ctx);
+      const response = (await ogLoader({
+        request: new Request(`https://explorer.test/og/xrpl/account/${ACTIVE}.png`),
+        params: { net: "xrpl", kind: "account", id: ACTIVE },
+        context: off,
+      } as never)) as Response;
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("X-Cache-Class")).toBe("slow");
+      expect(namesCalls(mock)).toEqual([]);
+      expect(drawing.mock.calls[0]![0]).toMatchObject({ headline: { text: ACTIVE, mono: true }, note: "Activated 15 Jul 2025" });
+      expect(drawing.mock.calls[0]![0].parties).toBeUndefined();
+    } finally {
+      drawing.mockRestore();
+    }
   });
 
   it("is drawn without its balance when the balances cannot be read, and then stored as short, to be asked again soon", async () => {

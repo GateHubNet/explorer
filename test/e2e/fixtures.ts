@@ -61,14 +61,36 @@ export const LIVE = Boolean(process.env.E2E_DATA_API_URL || process.env.E2E_BASE
 
 export const count = (n: number) => n.toLocaleString("en-US");
 
+interface FixtureName {
+  display_name?: { text: string; kind: string };
+  account_network_name?: string;
+  labels?: Record<string, unknown>;
+}
+
+const fixtureNames = (net: "xrpl" | "xahau") =>
+  JSON.parse(readFileSync(new URL(`../fixtures/http/${net}/data-api/account_names.json`, import.meta.url), "utf8")) as Record<string, FixtureName | undefined>;
+
 /**
  * The name the network's names fixtures (`account_names.json`, synthetic: test/fixtures/PROVENANCE.md) give an account, the text a page draws it by (display names): `undefined`
  * for an account they give none. A real stack has names of its own, so a test that reads this does not check it against one (`LIVE`).
  */
 export function fixtureNameOf(net: "xrpl" | "xahau", address: string): string | undefined {
-  const table = JSON.parse(readFileSync(new URL(`../fixtures/http/${net}/data-api/account_names.json`, import.meta.url), "utf8")) as Record<
-    string,
-    { display_name?: { text: string } } | undefined
-  >;
-  return table[address]?.display_name?.text;
+  return fixtureNames(net)[address]?.display_name?.text;
+}
+
+/**
+ * The `<title>` of an account's page, with `lead` before it (the Analytics tab's "Analytics · "), as a pattern (display names spec 7): `Account {name} ({short address}) · {network} · explorer`
+ * for an account the fixtures give a verified name and no label, which a title may say. A real stack has names of its own (and not this account's), so against one it is the shape alone:
+ * the short address, with a name before it or none. An account the fixtures name otherwise (labelled, a domain's name, a network name) has no such title: the test that asked fails.
+ */
+export function accountTitle(net: "xrpl" | "xahau", address: string, lead = ""): RegExp {
+  const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+  const suffix = ` · ${net === "xrpl" ? "XRPL" : "Xahau"} · explorer`;
+  if (LIVE) return new RegExp(`^${escaped(lead)}Account (?:.+ \\()?${escaped(short)}\\)?${escaped(suffix)}$`);
+  const entry = fixtureNames(net)[address];
+  if (entry?.display_name?.kind !== "verified" || Object.keys(entry.labels ?? {}).length > 0 || entry.account_network_name !== undefined) {
+    throw new Error(`the fixtures give ${address} no verified name without a label or a network name, so its title has none`);
+  }
+  return new RegExp(`^${escaped(`${lead}Account ${entry.display_name.text} (${short})${suffix}`)}$`);
 }

@@ -26,7 +26,7 @@ import type { AmendmentStatus } from "../domain/amendments-params";
 import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-params";
 import type { FlowStep } from "../domain/describe";
 import { shortAddress, shortHash } from "../domain/format";
-import { NO_NAMES, type NameMap, type NamesPart } from "../domain/names";
+import { NAMES_OFF, NO_NAMES, type NameMap, type NamesPart, type NameView } from "../domain/names";
 import type { ValidatorsParams } from "../domain/validators-params";
 import { NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
@@ -258,6 +258,7 @@ const account = (over: Record<string, unknown> = {}) => ({
   address: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
   native: "XRP" as const,
   tab: "transactions" as const,
+  names: NO_NAMES,
   header: {
     status: "active" as const,
     activation: { time: 1752604243, parent: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ", initialBalance: "25", txHash: "9B10" },
@@ -319,6 +320,81 @@ describe("accountMeta", () => {
 
   it("names the NFTs tab in the canonical URL of its first page", () => {
     expect(link(accountMeta(account({ tab: "nfts" }), XRPL), "canonical")).toBe(`https://explorer.test/xrpl/account/${ADDRESS}?tab=nfts`);
+  });
+
+  describe("for an account that has a name or a label (display names spec 7)", () => {
+    const NORTHPEAK: NameView = { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] };
+    const HARBORLINE: NameView = { name: { text: "Harborline Exchange", kind: "account" }, network: "hot wallet", labels: [] };
+    const LABELLED_HARBORLINE: NameView = { ...HARBORLINE, labels: ["advisory"] };
+    const LOWTIDE: NameView = { name: { text: "lowtide.example", kind: "domain" }, domain: "lowtide.example", labels: [] };
+    const named = (view: NameView, over: Record<string, unknown> = {}) => account({ names: { state: "ok", map: { [ADDRESS]: view } }, ...over });
+    const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+    const TODAYS = `${ADDRESS} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects.`;
+
+    it("puts a verified name in the title, the short address after it, and says who verified it at the end of the description", () => {
+      const list = accountMeta(named(NORTHPEAK), XRPL);
+      expect(title(list)).toBe(`Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`${TODAYS} Verified by northpeak.example.`);
+      // The tags that repeat them, and the image, are the page's own.
+      expect(content(list, "og:title")).toBe(title(list));
+      expect(content(list, "og:description")).toBe(content(list, "description"));
+      expect(content(list, "og:image")).toBe(`https://explorer.test/og/xrpl/account/${ADDRESS}.png`);
+      expect(content(list, "og:image:alt")).toBe(`Account ${shortAddress(ADDRESS)} on XRPL`);
+    });
+
+    it("does the same for a name GateHub gave, with the account network name as a link has it, and for the description of a deleted account", () => {
+      const list = accountMeta(named(HARBORLINE), XRPL);
+      expect(title(list)).toBe(`Account Harborline Exchange · hot wallet (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`${TODAYS} Named by GateHub.`);
+      const deleted = accountMeta(named(HARBORLINE, { header: { status: "deleted", activation: null, balance: null } }), XRPL);
+      expect(content(deleted, "description")).toBe(`${ADDRESS} on XRPL: Deleted account. Transactions, payments, trades, offers and objects. Named by GateHub.`);
+    });
+
+    it("keeps today's title for a labelled account whose name it has, and says the label in words before the description", () => {
+      const list = accountMeta(named(LABELLED_HARBORLINE), XRPL);
+      expect(title(list)).toBe(`Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`GateHub has labelled this address advisory. ${TODAYS} Named by GateHub.`);
+      expect(content(list, "og:title")).toBe(`Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+    });
+
+    it("says every label of an account with labels only, before today's description and with nothing after it", () => {
+      const list = accountMeta(named({ labels: ["scam", "spam", "advisory"] }), XRPL);
+      expect(title(list)).toBe(`Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+      expect(content(list, "description")).toBe(`GateHub has labelled this address scam, spam and advisory. ${TODAYS}`);
+      expect(content(accountMeta(named({ labels: ["scam", "spam"] }), XRPL), "description")).toBe(`GateHub has labelled this address scam and spam. ${TODAYS}`);
+    });
+
+    it("has today's tags for a name only the account's domain gives, for a network name alone, and for an address with no entry", () => {
+      const today = accountMeta(account(), XRPL);
+      expect(accountMeta(named(LOWTIDE), XRPL)).toEqual(today);
+      expect(accountMeta(named({ network: "cold", labels: [] }), XRPL)).toEqual(today);
+      expect(accountMeta(account({ names: { state: "ok", map: { rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC: NORTHPEAK } } }), XRPL)).toEqual(today);
+    });
+
+    it("has today's tags with NAMES off, and when the names call failed", () => {
+      const today = accountMeta(account(), XRPL);
+      expect(accountMeta(account({ names: NAMES_OFF }), XRPL)).toEqual(today);
+      expect(accountMeta(account({ names: { state: "failed", map: {} } }), XRPL)).toEqual(today);
+    });
+
+    it("says the names of the account's own entry, not of another's on the page", () => {
+      const list = accountMeta(account({ names: { state: "ok", map: { rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ: { labels: ["spam"] }, [ADDRESS]: NORTHPEAK } } }), XRPL);
+      expect(title(list)).toBe(`Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(list, "description")).not.toContain("labelled");
+    });
+
+    it("names the account in the title of a page of old history and of the Analytics view, and leaves their descriptions as they are", () => {
+      const history = accountMeta(named(NORTHPEAK, { header: { status: "history" } }), XRPL);
+      expect(title(history)).toBe(`Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(history, "description")).toBe(`Older transactions of the account ${ADDRESS} on XRPL.`);
+      const analytics = accountMeta(named(LABELLED_HARBORLINE, { tab: "analytics", analytics: { period: "90d" } }), XRPL);
+      expect(title(analytics)).toBe(`Analytics, last 90 days · Account ${shortAddress(ADDRESS)} · XRPL · explorer`);
+      const namedAnalytics = accountMeta(named(NORTHPEAK, { tab: "analytics", analytics: { period: "90d" } }), XRPL);
+      expect(title(namedAnalytics)).toBe(`Analytics, last 90 days · Account Northpeak Treasury (${shortAddress(ADDRESS)}) · XRPL · explorer`);
+      expect(content(namedAnalytics, "description")).toBe(
+        `Account value, transactions sent, balances, money in and out, counterparties and DEX trading of ${ADDRESS} on XRPL.`,
+      );
+    });
   });
 
   describe("on the Analytics tab", () => {

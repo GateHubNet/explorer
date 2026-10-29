@@ -7,7 +7,7 @@ import { linkTextOf } from "../../app/domain/names";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
 import { encodeQr, qrPath } from "../../app/server/qr";
-import { expectTextWithAccounts, headingText, shownName, viewOf, withoutNamesOrTomls } from "../support/names";
+import { accountHeadOf, expectTextWithAccounts, headingText, shownName, viewOf, withoutNamesOrTomls } from "../support/names";
 import { holderCase } from "../support/nft-cases";
 import { coverageSample, nftSample, nftsPageSample } from "../support/nft-samples";
 import { anchors, elementText, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
@@ -665,8 +665,13 @@ describe("the active XRPL account", () => {
   it("has a title and a description built from its data, and is indexable", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(path);
-    expect(html).toContain(`<title>Account ${shortAddress(ACTIVE)} · XRPL · explorer</title>`);
-    expect(html).toMatch(new RegExp(`<meta name="description" content="${ACTIVE} on XRPL: Balance 10\\.001625 XRP, activated 2025-07-15\\.`));
+    // The fixtures' verified name is in the title (display names spec 7), with the short address after it, and the description says who verified it.
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    expect(html).toContain(`<title>${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer</title>`);
+    expect(html).toContain(`<title>Account ${linkTextOf(view)} (${shortAddress(ACTIVE)}) · XRPL · explorer</title>`);
+    expect(html).toContain(
+      `<meta name="description" content="${ACTIVE} on XRPL: Balance 10.001625 XRP, activated 2025-07-15. Transactions, payments, trades, offers and objects. Verified by ${view.domain}."`,
+    );
     expect(html).not.toMatch(/<meta name="robots"/);
   });
 
@@ -725,7 +730,8 @@ describe("the active Xahau account", () => {
     // The token's issuer is an account GateHub names in the fixtures: a name and its mark where the short address was.
     expect(text).toContain(`EVR ${await shownName("xahau", "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8")}`);
     expect(text).toContain("28,437,367.3675102");
-    expect(html).toContain(`<title>Account ${shortAddress(XAHAU_ACTIVE)} · Xahau · explorer</title>`);
+    expect(html).toContain(`<title>${await accountHeadOf("xahau", XAHAU_ACTIVE)} · Xahau · explorer</title>`);
+    expect((await viewOf("xahau", XAHAU_ACTIVE))?.name?.kind).toBe("verified");
     expect(await storedAs(`/xahau/account/${XAHAU_ACTIVE}`)).toEqual(LIVE);
   });
 });
@@ -1112,7 +1118,7 @@ describe("the NFTs tab", () => {
     const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html)![1]!;
     expect(anchors(nav).filter((a) => a.attrs.includes('aria-current="page"')).map((a) => a.text)).toEqual(["NFTs"]);
     expect(textOf(html)).toContain("Owned objects");
-    expect(html).toContain(`<title>Account ${shortAddress(ACTIVE)} · XRPL · explorer</title>`);
+    expect(html).toContain(`<title>${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer</title>`);
     expect(html).toMatch(new RegExp(`<link rel="canonical" href="[^"]*/xrpl/account/${ACTIVE}\\?tab=nfts"`));
     expect(html).not.toMatch(/<meta name="robots"/);
   });

@@ -79,15 +79,23 @@ export function nameTitleOf(view: NameView, address: string): string {
 
 /** How the account's name is known, then its address; the address alone when there is no name. */
 function knownBy(view: NameView, address: string): string {
-  switch (view.name?.kind) {
+  const vouched = vouchedByOf(view);
+  if (vouched !== null) return `${vouched} · ${address}`;
+  return view.name?.kind === "domain" ? `Domain not verified · ${address}` : address;
+}
+
+/**
+ * What GateHub says of a name it stands behind, as the hover title, the account's description and its link-preview card say it: `Verified by northpeak.example` or `Named by GateHub`, whatever
+ * labels the account has. `null` for a name only the account's domain gives, for an address with labels or a network name alone, and for no view.
+ */
+export function vouchedByOf(view: NameView | undefined): string | null {
+  switch (view?.name?.kind) {
     case "verified":
-      return `Verified by ${view.domain} · ${address}`;
+      return `Verified by ${view.domain}`;
     case "account":
-      return `Named by GateHub · ${address}`;
-    case "domain":
-      return `Domain not verified · ${address}`;
+      return "Named by GateHub";
     default:
-      return address;
+      return null;
   }
 }
 
