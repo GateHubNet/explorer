@@ -15,7 +15,7 @@
 //     hash matters, and nothing that is not a domain reaches a link.
 
 import { formatCurrency } from "../domain/format";
-import { type NameKind, type NameView, nameViewOf } from "../domain/names";
+import { type NameKind, type NameView, nameViewOf, withoutBidiControls } from "../domain/names";
 import { formatDate, formatDateTime, joinAnd } from "../domain/time-words";
 import type { Loaded } from "./account-view";
 import type { AccountNameEntry, LabelData, TomlAnswer, TomlData } from "./api-types";
@@ -141,8 +141,12 @@ function factsOf(toml: Loaded<TomlAnswer> | null): TomlFacts | null {
   if (toml?.state !== "ok") return null;
   const data: TomlData = toml.value.toml;
   if (data.fetched === undefined) return null;
-  const principals = data.principals && data.principals.length > 0 ? joinAnd(data.principals) : undefined;
-  const currencies = data.currencies && data.currencies.length > 0 ? data.currencies.map(({ code, issuer }) => ({ currency: code, code: formatCurrency(code), ...(issuer ? { issuer } : {}) })) : undefined;
+  // The toml is the domain owner's text: the words shown are without their bidi controls, which would turn the words around them. The raw code is kept for the token link.
+  const principals = data.principals && data.principals.length > 0 ? joinAnd(data.principals.map(withoutBidiControls)) : undefined;
+  const currencies =
+    data.currencies && data.currencies.length > 0
+      ? data.currencies.map(({ code, issuer }) => ({ currency: code, code: withoutBidiControls(formatCurrency(code)), ...(issuer ? { issuer } : {}) }))
+      : undefined;
   const modified = data.modified ? formatDate(data.modified) : undefined;
   if (!principals && !currencies && !modified) return null;
   return { ...(principals ? { principals } : {}), ...(currencies ? { currencies } : {}), ...(modified ? { modified } : {}) };

@@ -127,6 +127,14 @@ describe("accountNameHeader: a verified name", () => {
     expect(header.facts?.currencies).toEqual([{ currency: hex, code: "NPGBF", issuer: ISSUER }]);
   });
 
+  // The toml is the domain owner's text: a bidi control in a principal's name or a currency's code would turn the words around it in the facts' sentence. The words the header
+  // shows are without them; the raw code is kept for the token link.
+  it("takes the bidi and format controls out of the principals and the currencies' text, and keeps the raw code", () => {
+    const header = accountNameHeader(inputOf({ toml: tomlOf({ principals: ["\u202EMara\u202C Lindqvist", "Tomas\u2066 Okafor\u2069"], currencies: [{ code: "NP\u200FUSD", issuer: ISSUER }] }) }));
+    expect(header.facts?.principals).toBe("Mara Lindqvist and Tomas Okafor");
+    expect(header.facts?.currencies).toEqual([{ currency: "NP\u200FUSD", code: "NPUSD", issuer: ISSUER }]);
+  });
+
   it("has only the facts that are there, and none when none is", () => {
     expect(accountNameHeader(inputOf({ toml: tomlOf({ currencies: undefined, modified: undefined }) })).facts).toEqual({ principals: "Mara Lindqvist and Tomas Okafor" });
     expect(accountNameHeader(inputOf({ toml: tomlOf({ principals: undefined, modified: undefined }) })).facts).toEqual({
@@ -437,6 +445,13 @@ describe("accountNameHeader: an account with no domain", () => {
 });
 
 describe("accountNameHeader: the title", () => {
+  it("is the name without its bidi controls, and null for a name that was nothing else", () => {
+    const entry: AccountNameEntry = { address: ADDRESS, display_name: { text: "\u202ENorthpeak\u202C Treasury", kind: "account" }, account_network_name: "\u2067hot wallet\u2069" };
+    expect(accountNameHeader({ address: ADDRESS, entry, liveDomain: null, toml: null, network: XRPL }).title).toEqual({ text: "Northpeak Treasury", kind: "account", network: "hot wallet" });
+    const controls: AccountNameEntry = { address: ADDRESS, display_name: { text: "\u202E\u202C", kind: "account" } };
+    expect(accountNameHeader({ address: ADDRESS, entry: controls, liveDomain: null, toml: null, network: XRPL }).title).toBeNull();
+  });
+
   it("is null for an address with no name, and for a kind this build does not know", () => {
     expect(accountNameHeader({ address: ADDRESS, entry: { address: ADDRESS, account_network_name: "hot wallet" }, liveDomain: null, toml: null, network: XRPL }).title).toBeNull();
     const curated: AccountNameEntry = { address: ADDRESS, display_name: { text: "Curated Name", kind: "curated" } };

@@ -39,14 +39,24 @@ export const NO_NAMES: NamesPart = Object.freeze({ state: "ok", map: Object.free
 const KINDS: readonly string[] = ["verified", "account", "domain"] satisfies readonly NameKind[];
 const isNameKind = (kind: string): kind is NameKind => KINDS.includes(kind);
 
-/** Text that says something: a key the API leaves out has no value, and an empty one is the same. */
-const textOf = (value: string | undefined): string | undefined => (value ? value : undefined);
+/**
+ * The bidi and format controls a name's text may hold (a toml's `desc` is the domain owner's text): the embeddings and overrides (U+202A to U+202E), the isolates (U+2066 to
+ * U+2069), the left-to-right and right-to-left marks (U+200E, U+200F) and the Arabic letter mark (U+061C). In a `<title>`, an `<h1>` or an issuer's text they would turn
+ * the words around the name.
+ */
+const BIDI_CONTROLS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+
+/** `text` without its bidi and format controls (`BIDI_CONTROLS`). The view's name and network name are read through it, and the toml's words the account page shows. */
+export const withoutBidiControls = (text: string): string => text.replace(BIDI_CONTROLS, "");
+
+/** Text that says something, without its bidi controls: a key the API leaves out has no value, and an empty one (or one of controls alone) is the same. */
+const textOf = (value: string | undefined): string | undefined => (value ? withoutBidiControls(value) || undefined : undefined);
 
 /**
  * The view of an entry, or `null` when it has no name, no account network name and no label (most addresses), so that a map holds only addresses with something to show.
  * A name is read from `display_name` when its kind is one this build knows; another kind (the API may add one) is read as no name. A `domain` without a `display_name`
  * is no name either: it is how D4 answers when it could not read its toml store. A `verified` name always comes with its `domain` (D4's reference); one that does not has
- * nothing to be verified by, and is no name.
+ * nothing to be verified by, and is no name. The name and the network name are read without their bidi controls (`withoutBidiControls`); one that was nothing else is none.
  */
 export function nameViewOf(entry: AccountNameEntry): NameView | null {
   const domain = textOf(entry.domain);
@@ -61,7 +71,8 @@ function nameOf(entry: AccountNameEntry, domain: string | undefined): NameView["
   const shown = entry.display_name;
   if (!shown || !isNameKind(shown.kind)) return undefined;
   if (shown.kind === "verified" && domain === undefined) return undefined;
-  return { text: shown.text, kind: shown.kind };
+  const text = textOf(shown.text);
+  return text === undefined ? undefined : { text, kind: shown.kind };
 }
 
 /** What a link to the account reads: the name, then ` · ` and the account network name when there is one and it is not the name itself. `''` when there is no name: the caller draws the address. */

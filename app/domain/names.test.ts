@@ -91,6 +91,21 @@ describe("nameViewOf", () => {
   it("does not write a key it has no value for", () => {
     expect(Object.keys(nameViewOf({ address: E, labels: { scam: { description: "d" } } })!)).toEqual(["labels"]);
   });
+
+  // A toml's `desc` is the domain owner's text: a bidi control in it (an override, an embedding, an isolate, a mark) would turn the words around the name, in a <title>, an <h1>
+  // or an issuer's text. The view takes them out of the name and the network name; a name that was nothing else is no name.
+  it("takes the bidi and format controls out of a name and a network name, and a name of nothing else is none", () => {
+    const [RLO, PDF, LRI, PDI, LRM, ALM] = ["\u202E", "\u202C", "\u2066", "\u2069", "\u200E", "\u061C"];
+    expect(
+      nameViewOf({ address: A, display_name: { text: `${RLO}Northpeak${PDF} Treasury${LRM}`, kind: "verified" }, domain: "northpeak.example", account_network_name: `${LRI}hot${PDI} wallet${ALM}` }),
+    ).toEqual({ name: { text: "Northpeak Treasury", kind: "verified" }, network: "hot wallet", domain: "northpeak.example", labels: [] });
+    const controls = "\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u200E\u200F\u061C";
+    expect(nameViewOf({ address: B, display_name: { text: controls, kind: "account" } })).toBeNull();
+    expect(nameViewOf({ address: B, display_name: { text: controls, kind: "account" }, labels: { scam: { description: "d" } } })).toEqual({ labels: ["scam"] });
+    expect(nameViewOf({ address: B, display_name: { text: "Harborline", kind: "account" }, account_network_name: controls })).toEqual({ name: { text: "Harborline", kind: "account" }, labels: [] });
+    // What is not such a control stays: a zero-width joiner holds an emoji together.
+    expect(nameViewOf({ address: B, display_name: { text: "Café \u{1F469}\u200D\u{1F4BB}", kind: "account" } })!.name!.text).toBe("Café \u{1F469}\u200D\u{1F4BB}");
+  });
 });
 
 describe("linkTextOf", () => {
