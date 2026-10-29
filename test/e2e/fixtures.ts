@@ -29,6 +29,15 @@ export const XAHAU_ACCOUNT = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 /** A deleted XRPL account: the index has its creation and its recorded AccountDelete, the node has no account (README "Upstream fixtures"). */
 export const XRPL_DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
 
+/** A deleted Xahau account the names fixtures label `scam` and give neither a name nor a domain (the index has its history, the node has no account). */
+export const XAHAU_DELETED = "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD";
+
+/**
+ * An active Xahau account whose names entry has the domain saltmarsh.example, which is not verified: its toml's check failed (HTTP 404). The fixtures have no file of the account itself, so its page
+ * renders only with the answers `xahauSaltmarshPage()` (fixture-control.ts) puts in.
+ */
+export const XAHAU_SALTMARSH = "rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5";
+
 /** Valid, and in no recording: neither the index nor the node has it. */
 export const NEVER_FUNDED = "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC";
 
@@ -61,21 +70,41 @@ export const LIVE = Boolean(process.env.E2E_DATA_API_URL || process.env.E2E_BASE
 
 export const count = (n: number) => n.toLocaleString("en-US");
 
-interface FixtureName {
-  display_name?: { text: string; kind: string };
+/** An entry of the names fixtures (`account_names.json`), as D4 answers it: what a page draws an account by (display names spec 4, 10). */
+export interface FixtureName {
+  display_name?: { text: string; kind: "verified" | "account" | "domain" };
   account_network_name?: string;
-  labels?: Record<string, unknown>;
+  domain?: string;
+  labels?: Record<string, { description?: string; source?: string; url?: string }>;
 }
 
 const fixtureNames = (net: "xrpl" | "xahau") =>
   JSON.parse(readFileSync(new URL(`../fixtures/http/${net}/data-api/account_names.json`, import.meta.url), "utf8")) as Record<string, FixtureName | undefined>;
 
 /**
- * The name the network's names fixtures (`account_names.json`, synthetic: test/fixtures/PROVENANCE.md) give an account, the text a page draws it by (display names): `undefined`
- * for an account they give none. A real stack has names of its own, so a test that reads this does not check it against one (`LIVE`).
+ * The entry the network's names fixtures (`account_names.json`, synthetic: test/fixtures/PROVENANCE.md) give an account, `undefined` for an account they give none. A real stack has names of
+ * its own, so a test that reads this does not check it against one (`LIVE`).
+ */
+export const fixtureEntryOf = (net: "xrpl" | "xahau", address: string): FixtureName | undefined => fixtureNames(net)[address];
+
+/**
+ * The name the network's names fixtures give an account, the text a page draws it by (display names): `undefined` for an account they give none. A real stack has names of its own, so a test
+ * that reads this does not check it against one (`LIVE`).
  */
 export function fixtureNameOf(net: "xrpl" | "xahau", address: string): string | undefined {
-  return fixtureNames(net)[address]?.display_name?.text;
+  return fixtureEntryOf(net, address)?.display_name?.text;
+}
+
+/** What a toml fixture says that a page tells (`data-api/toml/{domain}.json`, synthetic): the accounts it lists, its currencies and its principals. */
+export interface FixtureToml {
+  accounts?: Array<{ address: string; desc?: string }>;
+  currencies?: Array<{ code: string }>;
+  principals?: string[];
+}
+
+/** What the network's toml fixtures say of `domain`: the `toml` of the data API's answer. */
+export function fixtureTomlOf(net: "xrpl" | "xahau", domain: string): FixtureToml {
+  return (JSON.parse(readFileSync(new URL(`../fixtures/http/${net}/data-api/toml/${domain}.json`, import.meta.url), "utf8")) as { toml: FixtureToml }).toml;
 }
 
 /**

@@ -1,9 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { featuresOff } from "../../scripts/e2e-env";
 import { XAHAU_COLLECTION, XAHAU_NFT, XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
-import { fixtures, RLUSD_ISSUER, unavailable } from "./fixture-control";
+import { fixtures, RLUSD_ISSUER, unavailable, xahauSaltmarshPage } from "./fixture-control";
 import {
   LIVE,
   NEVER_FUNDED,
@@ -11,7 +11,10 @@ import {
   SNK_XRP_POOL,
   SWAP_THROUGH_POOL,
   XAHAU_ACCOUNT,
+  XAHAU_DELETED,
   XAHAU_LEDGER,
+  XAHAU_REMIT,
+  XAHAU_SALTMARSH,
   XRP_RLUSD_POOL,
   XRPL_ACCOUNT,
   XRPL_DELETED,
@@ -19,6 +22,7 @@ import {
   XRPL_LEDGER,
   XRPL_PAYMENT,
 } from "./fixtures";
+import { drawnBy, type Net } from "./names-pages";
 import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
@@ -53,6 +57,8 @@ const NETWORK: PageUnderTest = { name: "network", path: "/xrpl/network", ready: 
 // The markets pages (E3), while `MARKETS` is on in the Worker under test: off, they are not found and the header says "soon".
 const FEATURES_OFF = featuresOff(process.env);
 const MARKETS_ON = !FEATURES_OFF.has("MARKETS");
+/** Display names (E9), while `NAMES` is on in the Worker under test: the pages that draw names, and the account's name header, are checked only then. The names are the fixtures' (a real stack has names of its own). */
+const NAMES_ON = !FEATURES_OFF.has("NAMES");
 
 /** XRP/RLUSD, the pair of the derived fixtures, in its natural orientation and the other way round. */
 const PAIR = `/xrpl/markets/XRP/RLUSD.${RLUSD_ISSUER}`;
@@ -147,9 +153,10 @@ const MORE: PageUnderTest[] = [
   { name: "account trades", path: `/xrpl/account/${XRPL_ACCOUNT}?tab=trades`, ready: visible("Trades") },
   { name: "account offers", path: `/xrpl/account/${XRPL_ACCOUNT}?tab=offers`, ready: visible("Offers") },
   { name: "account objects", path: `/xrpl/account/${XRPL_ACCOUNT}?tab=objects`, ready: async (page) => void (await expect(page.getByRole("navigation", { name: "Account activity" })).toBeVisible()) },
-  // The account's name header (E9): a verified name, on each network, with "How we know" opened with the keyboard (the summary takes the focus and Enter opens it), and the deleted
-  // account GateHub gave a name and a label, with its banner. The names are the fixtures' (a real stack has names of its own).
-  ...(LIVE
+  // The account's name header (E9): a verified name, on each network, with "How we know" opened with the keyboard (the summary takes the focus and Enter opens it), the deleted
+  // account GateHub gave a name and a label, with its banner, and the deleted Xahau account with a label and no name. The account whose domain is not verified needs answers the recordings
+  // lack, so it is with the pages whose fixture server answers differently, below. A Xahau transaction draws the accounts of every kind of name. The names are the fixtures' (a real stack has names of its own).
+  ...(LIVE || !NAMES_ON
     ? []
     : [
         { name: "account with a verified name, How we know open", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions"), act: openHowWeKnow },
@@ -161,6 +168,19 @@ const MORE: PageUnderTest[] = [
             await expect(page.getByRole("heading", { level: 1 })).toContainText("named by GateHub");
             await expect(page.locator(".notice--warning", { hasText: "Labelled advisory by GateHub" })).toBeVisible();
           },
+        },
+        {
+          name: "deleted Xahau account with a scam label and no name",
+          path: `/xahau/account/${XAHAU_DELETED}`,
+          ready: async (page: Page) => {
+            await expect(page.getByRole("heading", { level: 1 })).toContainText("labelled scam by GateHub");
+            await expect(page.locator(".notice--warning", { hasText: "Labelled scam by GateHub" })).toBeVisible();
+          },
+        },
+        {
+          name: "Xahau transaction with accounts named every way",
+          path: `/xahau/tx/${XAHAU_REMIT}`,
+          ready: async (page: Page) => void (await expect(page.getByRole("tablist", { name: "Raw data" })).toBeVisible()),
         },
       ]),
   // These are made of what the fixtures hold by hand (the newest ledger, a marker into six transactions, an address nobody funded).
@@ -427,6 +447,112 @@ test.describe("names", () => {
   }
 });
 
+// Display names (E9) are drawn with icons that a reader does not see (the seal, the tag and the label's alert are `aria-hidden`), so how a name is known is said in words beside them.
+// axe cannot say that those words are in a link's accessible name, or that "How we know" can be reached and operated with no mouse: these tests do. The pages and the names are the
+// fixtures' (a real stack has names of its own), and only while `NAMES` is on in the Worker under test.
+test.describe("display names", () => {
+  test.skip(LIVE || !NAMES_ON, "reads the names of the fixtures, while NAMES is on in the Worker under test");
+
+  /** The links of a snapshot of the accessibility tree: each one's accessible name and where it leads. */
+  const linksOf = (snapshot: string) =>
+    [...snapshot.matchAll(/- link "((?:[^"\\]|\\.)*)"[^\n]*:\n\s+- \/url: (\S+)/g)].map((match) => ({ name: match[1]!.replace(/\\(.)/g, "$1"), href: match[2]! }));
+
+  const NAMED_PAGES: Array<{
+    name: string;
+    net: Net;
+    path: string;
+    ready: (page: Page) => Promise<void>;
+    /** Where its links to accounts are: the page's main, unless the page has others that are no account's name (the home page's examples). */
+    scope?: (page: Page) => Locator;
+    /** The account the page is of: its tabs and its pager are links to the page by their own words. */
+    own?: string;
+    /** The kinds of names the links must have among them, and whether one must be an account with a label and no name. */
+    kinds: string[];
+    labelled?: boolean;
+  }> = [
+    { name: "a payment", net: "xrpl", path: `/xrpl/tx/${XRPL_PAYMENT}`, ready: visible("Balance changes"), kinds: ["verified"] },
+    { name: "a Xahau Remit", net: "xahau", path: `/xahau/tx/${XAHAU_REMIT}`, ready: visible("Balance changes"), kinds: ["verified", "account", "domain"] },
+    {
+      name: "the XRPL home page's transactions",
+      net: "xrpl",
+      path: "/xrpl",
+      ready: visible("Latest transactions"),
+      scope: (page) => page.getByRole("table", { name: "Latest transactions" }),
+      kinds: ["verified", "account", "domain"],
+    },
+    { name: "a Xahau account's page", net: "xahau", path: `/xahau/account/${XAHAU_ACCOUNT}`, ready: visible("Transactions"), own: XAHAU_ACCOUNT, kinds: ["verified", "account", "domain"] },
+    // The account that activated the XRPL account has a label and no name: its link is its address and the words of the label.
+    { name: "an XRPL account's page", net: "xrpl", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions"), own: XRPL_ACCOUNT, kinds: [], labelled: true },
+  ];
+
+  for (const under of NAMED_PAGES) {
+    test(`${under.name}: the accessible name of each link to an account has the words of its marks`, async ({ page }) => {
+      await page.goto(under.path);
+      await hydrated(page);
+      await under.ready(page);
+      const scope = under.scope?.(page) ?? page.getByRole("main");
+      const accounts = linksOf(await scope.ariaSnapshot()).filter((link) => link.href.startsWith(`/${under.net}/account/`));
+      expect(accounts.length, "the page links accounts").toBeGreaterThan(0);
+
+      const kinds = new Set<string>();
+      let labelled = 0;
+      for (const link of accounts) {
+        const address = link.href.slice(`/${under.net}/account/`.length).split(/[?#]/)[0]!;
+        if (address === under.own) continue;
+        // A page may draw an account both ways (a sentence's short link and a detail's whole one): the link says which.
+        const expected = drawnBy(under.net, address, { full: link.name.includes(address) });
+        expect(link.name, `the link to ${address}`).toBe(expected.text);
+        if (expected.kind) kinds.add(expected.kind);
+        if (!expected.named && expected.text.includes("labelled")) labelled += 1;
+      }
+      expect([...kinds].sort()).toEqual(expect.arrayContaining(under.kinds.slice().sort()));
+      if (under.labelled) expect(labelled, "a link to an account with a label and no name").toBeGreaterThan(0);
+    });
+  }
+
+  for (const net of ["xrpl", "xahau"] as const) {
+    test(`${net}: How we know is reached with Tab, opened and closed with Enter and Space, and what is in it is in the tab order only while it is open`, async ({ page }) => {
+      await page.goto(`/${net}/account/${net === "xrpl" ? XRPL_ACCOUNT : XAHAU_ACCOUNT}`);
+      await hydrated(page);
+      const disclosure = page.locator("details.disc");
+      const summary = disclosure.locator("summary");
+      const focusIn = (locator: Locator) => locator.evaluate((element) => element.contains(document.activeElement));
+
+      // Reached by Tab, from the top of the page, in a handful of presses (it is under the header and the name, before the tabs of the list).
+      let presses = 0;
+      while (!(await focusIn(summary)) && presses < 60) {
+        await page.keyboard.press("Tab");
+        presses += 1;
+      }
+      await expect(summary).toBeFocused();
+      expect(presses, "Tab presses from the top of the page").toBeLessThan(40);
+      // It shows where the focus is (the page's ring: 2 px), and it is a target of 44 px.
+      await expect(summary).toHaveCSS("outline-style", "solid");
+      await expect(summary).toHaveCSS("outline-width", "2px");
+      expect((await summary.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+      // Closed: its link is not in the tab order, so Tab leaves it for what follows.
+      await expect(disclosure).not.toHaveAttribute("open", "");
+      await page.keyboard.press("Tab");
+      expect(await focusIn(disclosure), "the focus left the closed disclosure").toBe(false);
+      await page.keyboard.press("Shift+Tab");
+      await expect(summary).toBeFocused();
+
+      // Enter opens it, and the next Tab is the first link inside; Shift+Tab is back on the summary, and Space closes it.
+      await page.keyboard.press("Enter");
+      await expect(disclosure).toHaveAttribute("open", "");
+      await page.keyboard.press("Tab");
+      expect(await focusIn(disclosure.locator(".disc__checks a").first()), "the focus is on the first link of the checks").toBe(true);
+      await page.keyboard.press("Shift+Tab");
+      await expect(summary).toBeFocused();
+      await page.keyboard.press("Space");
+      await expect(disclosure).not.toHaveAttribute("open", "");
+      await expect(disclosure.locator(".disc__checks")).toBeHidden();
+      await expect(summary).toBeFocused();
+    });
+  }
+});
+
 // axe cannot decide the contrast of the first amount in the account's table ("needs review": "overlapped by another element"). What overlaps it
 // is the line below, `+1 more`: that line's hit-test box starts under 1 px above its own layout box, inside the bottom of the amount's, and
 // axe, finding another element on top at that point, gives up. It has no background, so nothing about the amount's colours is in doubt: they
@@ -480,22 +606,23 @@ test.describe("the gate", () => {
 // `chromium` project with the others, so each call is one that no other spec asks for (`stats/type` of the 7 days on XRPL: the other specs open the
 // 30 days, the year and USD; `stats/transactions` of the Xahau account's 90 days: the other specs open its default view, and the `live` project,
 // which runs alone after them, its year), the tests of the group run one after another in one worker, and the override is taken away when the
-// last of them is done. Both calls are in the one override: a `PUT` replaces the overrides before it.
+// last of them is done. Both calls are in the one override: a `PUT` replaces the overrides before it. The Xahau account whose domain is not verified (E9) is in the group
+// for the same reason: its page renders only with answers the recordings lack (`xahauSaltmarshPage`), which no other spec of the project asks for, and they are in the same override.
 const TYPES_SEVEN_DAYS = "GET /v2/stats/type?end=2026-10-17&interval=day&limit=1000&start=2026-10-11";
 const XAHAU_SENT_NINETY_DAYS = `xahau GET /v2/accounts/${XAHAU_ACCOUNT}/stats/transactions?interval=day&limit=1000&start=2026-07-20`;
 
-test.describe("pages with a card that failed", () => {
+test.describe("pages the fixture server answers differently: a card that failed, an account the recordings lack", () => {
   test.skip(LIVE, "fails a call of the fixture server: it needs the fixture server of the stack, not a real stack or a deployed Worker");
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    await fixtures.override({ [TYPES_SEVEN_DAYS]: unavailable(), [XAHAU_SENT_NINETY_DAYS]: unavailable() });
+    await fixtures.override({ [TYPES_SEVEN_DAYS]: unavailable(), [XAHAU_SENT_NINETY_DAYS]: unavailable(), ...xahauSaltmarshPage() });
   });
   test.afterAll(async () => {
     await fixtures.reset();
   });
 
-  const failed: PageUnderTest[] = [
+  const answered: PageUnderTest[] = [
     {
       name: "network, a card that failed",
       path: "/xrpl/network?period=7d",
@@ -514,13 +641,26 @@ test.describe("pages with a card that failed", () => {
         },
       },
     ]),
+    // An account whose names entry has a domain that is not verified (its toml's check failed): its heading's visible words, and the sentence that says why, in text.
+    ...(NAMES_ON
+      ? [
+          {
+            name: "Xahau account whose domain is not verified",
+            path: `/xahau/account/${XAHAU_SALTMARSH}`,
+            ready: async (page: Page) => {
+              await expect(page.getByRole("heading", { level: 1 })).toHaveText("saltmarsh.example not verified");
+              await expect(page.locator(".account-head__kind")).toContainText("its xahau.toml could not be read");
+            },
+          },
+        ]
+      : []),
   ];
 
   for (const viewport of VIEWPORTS) {
     for (const setting of SETTINGS.filter((candidate) => candidate.toggle === undefined)) {
       test.describe(`${viewport.name}, ${setting.name}`, () => {
         test.use({ viewport: viewport.size, colorScheme: setting.system });
-        for (const under of failed) {
+        for (const under of answered) {
           test(`${under.name} has no serious or critical violation`, async ({ page }) => {
             await open(page, under, setting);
             expect(await seriousViolations(page)).toEqual([]);

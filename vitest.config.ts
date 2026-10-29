@@ -32,6 +32,9 @@ const resolve = { alias: { "~": fileURLToPath(new URL("./app", import.meta.url))
 // The `worker-off` project's bindings: the same, with every switch of `FEATURE_VARS` "off".
 const offBindings = { ...testBindings, ...Object.fromEntries(FEATURE_VARS.map((name) => [name, "off"])) };
 
+// The `worker-names-off` project's bindings: the top level's, with `NAMES` alone "off" (display names spec 2.2): the pages another switch gates are there, and name nothing.
+const namesOffBindings = { ...testBindings, NAMES: "off" };
+
 // The `worker-sandbox` project's bindings: the top level's (its placeholder URLs and its switches, so that every page can be drawn over the
 // existing fixtures, which are mainnet data standing in for the testnets') with `ENVIRONMENT` "sandbox". No test reaches a deployed data API.
 const sandboxBindings = { ...testBindings, ENVIRONMENT: "sandbox" };
@@ -100,7 +103,18 @@ export default defineConfig({
         test: {
           name: "worker-off",
           include: ["test/worker/**/*-off.spec.ts"],
+          // The files of the project below.
+          exclude: [...configDefaults.exclude, "test/worker/**/*-names-off.spec.ts"],
           provide: { workerBindings: offBindings },
+        },
+      },
+      {
+        // The same Worker with every switch the top level has "on" but `NAMES`, which is "off" (display names spec 2.2), in files named `*-names-off.spec.ts`: the pages another switch gates, which
+        // `worker-off` would have as 404s and redirects before any call, drawn with no name and no call for one. (The `worker` project leaves these files out with the other `-off` files.)
+        test: {
+          name: "worker-names-off",
+          include: ["test/worker/**/*-names-off.spec.ts"],
+          provide: { workerBindings: namesOffBindings },
         },
       },
       {

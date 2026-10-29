@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 
 import { fixturePort } from "../../scripts/e2e-env";
-import { XRPL_HEAD_LEDGER, XRPL_LEDGER } from "./fixtures";
+import { XAHAU_ACCOUNT, XAHAU_SALTMARSH, XRPL_HEAD_LEDGER, XRPL_LEDGER } from "./fixtures";
 
 const url = () => `http://127.0.0.1:${fixturePort(process.env)}/__fixture/overrides`;
 
@@ -119,5 +119,20 @@ export function xrplNextDay(): Record<string, unknown> {
       parent_hash: "68A33146F46A7B154CACA4034837D9A7AFEC0C46F7D963D6FD61F5CF87DAD092",
       close_time: "2026-10-18T00:00:05Z",
     },
+  };
+}
+
+/**
+ * What the page of `XAHAU_SALTMARSH` needs, which the fixtures do not hold (they have its names entry and its toml only): the node's `account_info`, the recorded Xahau account's with the
+ * account and a Domain of saltmarsh.example (hex, as a ledger holds it), and an empty history, so that the page renders whole: a domain that is not verified (its toml's check failed),
+ * with nothing else failing. The data API has no creation of it ("Activation is not in the index"), which the page takes as the index being behind. Put them in with `fixtures.override`: one `PUT`
+ * replaces the overrides before it, so a spec that needs other answers too puts them in the same call.
+ */
+export function xahauSaltmarshPage(): Record<string, unknown> {
+  const { result } = JSON.parse(readFileSync(new URL(`../fixtures/http/xahau/node/account_info/${XAHAU_ACCOUNT}.json`, import.meta.url), "utf8")) as { result: { account_data: Record<string, unknown> } };
+  const domain = Buffer.from("saltmarsh.example").toString("hex").toUpperCase();
+  return {
+    [`xahau node account_info ${XAHAU_SALTMARSH}`]: { ...result, account_data: { ...result.account_data, Account: XAHAU_SALTMARSH, Domain: domain } },
+    [`xahau GET /v2/accounts/${XAHAU_SALTMARSH}/transactions?descending=true&limit=20`]: { result: "success", count: 0, transactions: [] },
   };
 }
