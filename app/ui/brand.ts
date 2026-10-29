@@ -3,3 +3,6 @@ export const PRODUCT_NAME = "explorer";
 
 /** The footer credit, after the product name. */
 export const CREDIT = "by GateHub";
+
+/** What the header's logo (app/ui/logo/) reads: its alt text, and the start of its link's name. */
+export const LOGO_TEXT = "GateHub Explorer";

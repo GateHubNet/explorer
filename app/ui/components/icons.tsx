@@ -85,13 +85,3 @@ function triangle(path: string) {
 
 export const TriangleUpIcon = triangle("M5 1.5 9 8H1z");
 export const TriangleDownIcon = triangle("M5 8.5 1 2h8z");
-
-/** The mark of the header. The square takes the network's accent. */
-export function LogoMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true" focusable="false">
-      <rect className="logo__bg" width="28" height="28" rx="8" />
-      <path d="M8 10h7M8 14h12M8 18h9" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}

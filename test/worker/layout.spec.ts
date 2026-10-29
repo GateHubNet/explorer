@@ -220,6 +220,16 @@ describe("the document shell", () => {
     }
   });
 
+  it("links the favicon: the SVG of the logo's mark, and the .ico for browsers without SVG icons", async () => {
+    const { html } = await page("/xrpl");
+    const icons = [...html.matchAll(/<link[^>]*rel="icon"[^>]*>/g)].map((m) => m[0]);
+    expect(icons).toHaveLength(2);
+    expect(icons[0]).toContain('href="/favicon.ico"');
+    expect(icons[0]).toContain('sizes="32x32"');
+    expect(icons[1]).toContain('href="/favicon.svg"');
+    expect(icons[1]).toContain('type="image/svg+xml"');
+  });
+
   it("has a title, a viewport and both colour schemes", async () => {
     const { html } = await page("/xrpl");
     expect(html).toMatch(new RegExp(`<title>[^<]*${PRODUCT_NAME}[^<]*</title>`));

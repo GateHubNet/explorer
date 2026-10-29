@@ -1,4 +1,4 @@
-// The layout of the link-preview image (spec 9, the LinkPreview board): 1200 × 630, a bar and a logo in the network's accent, the kind of
+// The layout of the link-preview image (spec 9, the LinkPreview board): 1200 × 630, a bar in the network's accent, the logo, the kind of
 // object and its result, one big line, the accounts, and a footer. A tree of plain elements for Satori, which draws a
 // subset of CSS: every element with more than one child is `display: flex`, sizes are numbers, and nothing is fetched. Pure: no I/O,
 // and no React runtime beyond the elements themselves (the tree is never rendered to a page).
@@ -7,7 +7,7 @@
 
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
-import { PRODUCT_NAME } from "../ui/brand";
+import LOGO_SVG from "../ui/logo/gatehub-explorer-dark.svg?raw";
 import { CARD_HEIGHT, CARD_WIDTH, type CardData, type CardRun } from "./types";
 
 /** A network's accent (spec 8, `--accent-xrpl` and `--accent-xahau` of app/ui/tokens.css). */
@@ -92,11 +92,32 @@ function icon(size: number, viewBox: string, shapes: Array<["path" | "rect", Rec
   } as unknown as CardElement;
 }
 
-function logo(accent: string): CardElement {
-  return icon(48, "0 0 28 28", [
-    ["rect", { width: 28, height: 28, rx: 8, fill: accent }],
-    ["path", { d: "M8 10h7M8 14h12M8 18h9", stroke: "#FFFFFF", "stroke-width": 2.2, "stroke-linecap": "round" }],
-  ]);
+/** The attributes of an element's opening tag, `name="value"` as an SVG file writes them. */
+function attributesOf(tag: string): Record<string, string> {
+  return Object.fromEntries(Array.from(tag.matchAll(/([\w:-]+)="([^"]*)"/g), ([, name, value]) => [name!, value!]));
+}
+
+// The header's logo (app/ui/logo/), its dark one, as the card is light: the file's paths, drawn as they are there.
+const LOGO_VIEW_BOX = attributesOf(/<svg\b[^>]*>/.exec(LOGO_SVG)![0]).viewBox!;
+const LOGO_PATHS = Array.from(LOGO_SVG.matchAll(/<path\b[^>]*>/g), ([tag]) => attributesOf(tag));
+const [, , LOGO_WIDTH, LOGO_HEIGHT] = LOGO_VIEW_BOX.split(" ").map(Number) as [number, number, number, number];
+
+/** The logo's height: its words are as tall as the 30 px name the board had beside its mark. */
+export const LOGO_SIZE = 72;
+
+function logo(): CardElement {
+  return {
+    type: "svg",
+    key: null,
+    props: {
+      width: Math.round((LOGO_SIZE * LOGO_WIDTH) / LOGO_HEIGHT),
+      height: LOGO_SIZE,
+      viewBox: LOGO_VIEW_BOX,
+      fill: "none",
+      xmlns: "http://www.w3.org/2000/svg",
+      children: LOGO_PATHS.map((props) => ({ type: "path", key: null, props })),
+    },
+  } as unknown as CardElement;
 }
 
 function chip(status: "success" | "failed"): CardElement {
@@ -139,12 +160,7 @@ export function card(data: CardData): CardElement {
   const top = el(
     "div",
     { display: "flex", alignItems: "center", justifyContent: "space-between" },
-    el(
-      "div",
-      { display: "flex", alignItems: "center", gap: 16 },
-      logo(accent),
-      el("span", { fontSize: 30, fontWeight: 600, letterSpacing: -0.3 }, PRODUCT_NAME),
-    ),
+    logo(),
     el(
       "div",
       { display: "flex", alignItems: "center", gap: 12, fontSize: 26, fontWeight: 500, color: SECONDARY, border: `2px solid ${BORDER}`, borderRadius: 999, padding: "8px 22px" },
