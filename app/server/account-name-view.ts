@@ -6,16 +6,16 @@
 // It is compared with the entry's lower-cased. Its state is the board's:
 //   - `verified`: the entry's name is a verified one and the entry's domain is D. The batch says the toml of D lists the account; the toml call only adds the time and the facts, so a
 //     toml that failed to load does not take the name away;
-//   - `not-verified`: the entry's domain is D, the batch did read its toml store (the entry has a `display_name`), and the toml has a row (it was read, or its check failed) or its call
-//     failed. An entry that has a domain and no `display_name` is how the data API answers when it could not read its toml store at all: nothing is known, so it is `pending`, never
-//     this (a name of kind `account` beside a domain cannot be told from that case; accepted);
+//   - `not-verified`: the entry's domain is D, the batch did read its toml store (the entry has a name of a kind this build knows), and the toml has a row (it was read, or its check
+//     failed) or its call failed. An entry that has a domain and no name (no `display_name`, or one of a kind this build does not know) is how the data API answers when it could not
+//     read its toml store at all: nothing is known, so it is `pending`, never this (a name of kind `account` beside a domain cannot be told from that case; accepted);
 //   - `pending` ("not checked yet"): any other domain that is well formed: the entry names another domain or none (the index is behind, or the account was dormant since before the
 //     history), the toml was never read (`toml not found`), or there is no toml answer to say anything from;
 //   - `none`: not a well formed domain (`https://x.com`, an IPFS hash): text, with no mark. This is also the only state in which the text is not lower-cased: the case of an IPFS
 //     hash matters, and nothing that is not a domain reaches a link.
 
 import { formatCurrency } from "../domain/format";
-import { type NameKind, nameViewOf } from "../domain/names";
+import { type NameKind, type NameView, nameViewOf } from "../domain/names";
 import { formatDate, formatDateTime, joinAnd } from "../domain/time-words";
 import type { Loaded } from "./account-view";
 import type { AccountNameEntry, LabelData, TomlAnswer, TomlData } from "./api-types";
@@ -57,10 +57,13 @@ export interface HowWeKnow {
   checked?: string;
 }
 
-/** What else the toml says (decision 10), each only when present: the principals as a sentence, the currencies as the explorer writes a code, and the date in `[METADATA]`. */
+/**
+ * What else the toml says (decision 10), each only when present: the principals as a sentence, the currencies, and the date in `[METADATA]`. A currency has the toml's code as the
+ * data API gives it (`currency`, which a token link is made of) and the text the explorer writes for it (`code`).
+ */
 export interface TomlFacts {
   principals?: string;
-  currencies?: { code: string; issuer?: string }[];
+  currencies?: { currency: string; code: string; issuer?: string }[];
   modified?: string;
 }
 
@@ -98,11 +101,15 @@ export function isProperlyFormedDomain(text: string): boolean {
   return text.length >= 4 && text.length <= 128 && DOMAIN.test(text);
 }
 
-/** A label's link, only when it is `https:` (anything else, or text that is no URL, is not linked). */
+/**
+ * A label's link, only when it is `https:` (anything else, or text that is no URL, is not linked). It is the URL as it parses, not the text as given: `https:host/x` reports `https:`
+ * but in a page resolves as a relative link, and leading spaces survive in the text.
+ */
 function httpsLink(url: string | undefined): string | undefined {
   if (!url) return undefined;
   try {
-    return new URL(url).protocol === "https:" ? url : undefined;
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" ? parsed.href : undefined;
   } catch {
     return undefined;
   }
@@ -135,19 +142,36 @@ function factsOf(toml: Loaded<TomlAnswer> | null): TomlFacts | null {
   const data: TomlData = toml.value.toml;
   if (data.fetched === undefined) return null;
   const principals = data.principals && data.principals.length > 0 ? joinAnd(data.principals) : undefined;
-  const currencies = data.currencies && data.currencies.length > 0 ? data.currencies.map(({ code, issuer }) => ({ code: formatCurrency(code), ...(issuer ? { issuer } : {}) })) : undefined;
+  const currencies = data.currencies && data.currencies.length > 0 ? data.currencies.map(({ code, issuer }) => ({ currency: code, code: formatCurrency(code), ...(issuer ? { issuer } : {}) })) : undefined;
   const modified = data.modified ? formatDate(data.modified) : undefined;
   if (!principals && !currencies && !modified) return null;
   return { ...(principals ? { principals } : {}), ...(currencies ? { currencies } : {}), ...(modified ? { modified } : {}) };
 }
 
-/** The domain's state (see the top of the file). `domain` is D lower-cased, `entryDomain` the entry's lower-cased. */
-function stateOf(domain: string, entry: AccountNameEntry | undefined, kind: NameKind | undefined, toml: Loaded<TomlAnswer> | null): DomainState {
-  if (!isProperlyFormedDomain(domain)) return "none";
+/** "How we know" of a verified name: where the toml is, whether its `desc` gives the name, and when it was checked. `domain` is D lower-cased. */
+function howWeKnowOf(domain: string, name: NameView["name"], toml: Loaded<TomlAnswer> | null, file: string): HowWeKnow {
+  const checked = checkedOf(toml);
+  return {
+    domain,
+    tomlHref: `https://${domain}/.well-known/${file}`,
+    tomlText: `${domain}/.well-known/${file}`,
+    descGivesName: name?.text !== domain,
+    ...(checked ? { checked } : {}),
+  };
+}
+
+/**
+ * The line about the domain `domain` (D, lower-cased when well formed), with its state (see the top of the file). `entry.domain` is compared lower-cased; `name` is the entry's name
+ * of a kind this build knows.
+ */
+function domainLineOf(domain: string, entry: AccountNameEntry | undefined, name: NameView["name"], toml: Loaded<TomlAnswer> | null, file: string): DomainLine {
+  if (!isProperlyFormedDomain(domain)) return { text: domain, state: "none" };
   const named = entry?.domain?.toLowerCase() === domain;
-  if (named && kind === "verified") return "verified";
-  if (named && entry?.display_name !== undefined && (toml?.state === "ok" || toml?.state === "failed")) return "not-verified";
-  return "pending";
+  if (named && name?.kind === "verified") return { text: domain, state: "verified", href: `https://${domain}` };
+  if (named && name !== undefined && toml && toml.state !== "missing") {
+    return { text: domain, state: "not-verified", note: domainNotVerifiedSentence(domain, file, toml) };
+  }
+  return { text: domain, state: "pending", note: "Not checked yet." };
 }
 
 /**
@@ -161,43 +185,23 @@ export function accountNameHeader(input: NameHeaderInput): NameHeader {
   const title: NameTitle | null = name ? { text: name.text, kind: name.kind, ...(view.network && view.network !== name.text ? { network: view.network } : {}) } : null;
   const labels = Object.entries(entry?.labels ?? {}).map(([label, data]) => bannerOf(label, data));
   const labelMarks = labels.map((banner) => banner.label);
-  const help = title?.kind === "account" ? "named" : null;
 
   if (input.brief) return { title, labels, labelMarks, domainLine: null, howWeKnow: null, facts: null, help: null };
 
   const shown = liveDomain || entry?.domain || undefined;
-  if (shown === undefined) return { title, labels, labelMarks, domainLine: null, howWeKnow: null, facts: null, help };
-
   // A domain is a host name: its case does not matter, and the entry's is lower-cased by the data API. Anything else (an IPFS hash) is shown as it was written.
-  const domain = isProperlyFormedDomain(shown) ? shown.toLowerCase() : shown;
-  const state = stateOf(domain, entry, name?.kind, toml);
+  const domain = shown !== undefined && isProperlyFormedDomain(shown) ? shown.toLowerCase() : shown;
   const file = tomlFileOf(network.software);
+  const domainLine = domain === undefined ? null : domainLineOf(domain, entry, name, toml, file);
+  const verified = domainLine?.state === "verified";
 
-  switch (state) {
-    case "verified": {
-      const checked = checkedOf(toml);
-      return {
-        title,
-        labels,
-        labelMarks,
-        domainLine: { text: domain, state, href: `https://${domain}` },
-        howWeKnow: {
-          domain,
-          tomlHref: `https://${domain}/.well-known/${file}`,
-          tomlText: `${domain}/.well-known/${file}`,
-          descGivesName: name?.text !== domain,
-          ...(checked ? { checked } : {}),
-        },
-        facts: factsOf(toml),
-        help,
-      };
-    }
-    case "not-verified":
-      // The state is only this with an answer (`ok`, or the call failed), which is what the sentence is a function of.
-      return { title, labels, labelMarks, domainLine: { text: domain, state, note: domainNotVerifiedSentence(domain, file, toml!) }, howWeKnow: null, facts: null, help };
-    case "pending":
-      return { title, labels, labelMarks, domainLine: { text: domain, state, note: "Not checked yet." }, howWeKnow: null, facts: null, help };
-    case "none":
-      return { title, labels, labelMarks, domainLine: { text: domain, state }, howWeKnow: null, facts: null, help };
-  }
+  return {
+    title,
+    labels,
+    labelMarks,
+    domainLine,
+    howWeKnow: verified ? howWeKnowOf(domainLine.text, name, toml, file) : null,
+    facts: verified ? factsOf(toml) : null,
+    help: title?.kind === "account" ? "named" : null,
+  };
 }

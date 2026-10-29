@@ -36,6 +36,9 @@ function tomlOf(toml: Partial<TomlData> = {}): Loaded<TomlAnswer> {
   };
 }
 
+/** What the facts say of the currencies of `tomlOf`: the toml's code as D4 gives it (`currency`), the text the explorer writes for it (`code`), and the issuer where the toml names one. */
+const NORTHPEAK_CURRENCIES = [{ currency: "NPUSD", code: "NPUSD", issuer: ISSUER }, { currency: "NPEUR", code: "NPEUR" }];
+
 /** The entry of an account whose name northpeak.example's toml vouches for. */
 const verified = (entry: Partial<AccountNameEntry> = {}): AccountNameEntry => ({
   address: ADDRESS,
@@ -112,7 +115,7 @@ describe("accountNameHeader: a verified name", () => {
   it("has the facts of the toml: the principals, both currencies with the issuer where it names one, and the date", () => {
     expect(accountNameHeader(inputOf()).facts).toEqual({
       principals: "Mara Lindqvist and Tomas Okafor",
-      currencies: [{ code: "NPUSD", issuer: ISSUER }, { code: "NPEUR" }],
+      currencies: NORTHPEAK_CURRENCIES,
       modified: "Oct 2, 2026",
     });
   });
@@ -120,13 +123,14 @@ describe("accountNameHeader: a verified name", () => {
   it("writes the currencies as the explorer writes them everywhere (a hex code is its text)", () => {
     const hex = "4E50474246000000000000000000000000000000"; // "NPGBF"
     const header = accountNameHeader(inputOf({ toml: tomlOf({ currencies: [{ code: hex, issuer: ISSUER }] }) }));
-    expect(header.facts?.currencies).toEqual([{ code: "NPGBF", issuer: ISSUER }]);
+    // The raw code is kept beside its text, for the token link (E11).
+    expect(header.facts?.currencies).toEqual([{ currency: hex, code: "NPGBF", issuer: ISSUER }]);
   });
 
   it("has only the facts that are there, and none when none is", () => {
     expect(accountNameHeader(inputOf({ toml: tomlOf({ currencies: undefined, modified: undefined }) })).facts).toEqual({ principals: "Mara Lindqvist and Tomas Okafor" });
     expect(accountNameHeader(inputOf({ toml: tomlOf({ principals: undefined, modified: undefined }) })).facts).toEqual({
-      currencies: [{ code: "NPUSD", issuer: ISSUER }, { code: "NPEUR" }],
+      currencies: NORTHPEAK_CURRENCIES,
     });
     expect(accountNameHeader(inputOf({ toml: tomlOf({ principals: undefined, currencies: undefined }) })).facts).toEqual({ modified: "Oct 2, 2026" });
     expect(accountNameHeader(inputOf({ toml: tomlOf({ principals: undefined, currencies: undefined, modified: undefined }) })).facts).toBeNull();
@@ -140,7 +144,7 @@ describe("accountNameHeader: a verified name", () => {
     expect(header.howWeKnow).toHaveProperty("checked", "Oct 24, 2026, 07:12 UTC");
     expect(header.facts).toEqual({
       principals: "Mara Lindqvist and Tomas Okafor",
-      currencies: [{ code: "NPUSD", issuer: ISSUER }, { code: "NPEUR" }],
+      currencies: NORTHPEAK_CURRENCIES,
       modified: "Oct 2, 2026",
     });
   });
@@ -337,6 +341,46 @@ describe("accountNameHeader: pending (not checked yet)", () => {
     const header = accountNameHeader({ address: ADDRESS, entry: unvouched(), liveDomain: "lowtide.example", toml: null, network: XRPL });
     expect(header.domainLine).toEqual({ text: "lowtide.example", state: "pending", note: "Not checked yet." });
   });
+
+  // The page always asks for the toml of the domain the node shows, so when the index is behind the builder has an answer for a domain the entry does not name: whatever it says,
+  // it says nothing of the entry's, and the sentence "does not list the account" would be false.
+  describe("a domain the node shows and the entry does not name, with the toml of the shown domain answered (the index is behind)", () => {
+    const newhome = { domain: "newhome.example", toml_url: "https://newhome.example/.well-known/xrp-ledger.toml" };
+    const tomls: [string, Loaded<TomlAnswer>][] = [
+      ["a toml that lists the account", tomlOf({ ...newhome })],
+      ["a toml whose check failed, with the content of a good read", tomlOf({ ...newhome, status: "failed", reason: "timeout", checked: "2026-10-25T07:00:00.250Z" })],
+      ["a toml whose check failed, with no content", tomlOf({ ...newhome, status: "failed", reason: "http_status", status_code: 404, fetched: undefined, accounts: undefined, principals: undefined })],
+      ["a toml call that failed", { state: "failed" }],
+    ];
+    const entries: [string, AccountNameEntry, { text: string; kind: string }][] = [
+      ["a verified name for another domain", verified(), { text: "Northpeak Treasury", kind: "verified" }],
+      ["another domain that nothing vouches for", unvouched("oldhome.example"), { text: "oldhome.example", kind: "domain" }],
+      ["a name from GateHub and another domain", { address: ADDRESS, display_name: { text: "Harborline Exchange", kind: "account" }, domain: "oldhome.example" }, { text: "Harborline Exchange", kind: "account" }],
+      ["a name from GateHub and no domain", { address: ADDRESS, display_name: { text: "Harborline Exchange", kind: "account" } }, { text: "Harborline Exchange", kind: "account" }],
+    ];
+    const rows = entries.flatMap(([entryWhat, entry, title]) => tomls.map(([tomlWhat, toml]): [string, AccountNameEntry, Loaded<TomlAnswer>, { text: string; kind: string }] => [`${entryWhat} and ${tomlWhat}`, entry, toml, title]));
+
+    it.each(rows)("is pending, with no how we know and no facts: %s", (_what, entry, toml, title) => {
+      const header = accountNameHeader({ address: ADDRESS, entry, liveDomain: "newhome.example", toml, network: XRPL });
+      expect(header.domainLine).toEqual({ text: "newhome.example", state: "pending", note: "Not checked yet." });
+      expect(header.howWeKnow).toBeNull();
+      expect(header.facts).toBeNull();
+      expect(header.title).toEqual(title);
+    });
+  });
+
+  it("is a domain beside a name of a kind this build does not know, which is no name: nothing is known, whatever the toml says", () => {
+    const entry: AccountNameEntry = { address: ADDRESS, display_name: { text: "Curated Name", kind: "curated" }, domain: "lowtide.example" };
+    const lowtide = tomlOf({ domain: "lowtide.example", toml_url: "https://lowtide.example/.well-known/xrp-ledger.toml", accounts: [{ address: ISSUER }] });
+    const failed = tomlOf({ domain: "lowtide.example", toml_url: "https://lowtide.example/.well-known/xrp-ledger.toml", status: "failed", reason: "timeout" });
+    for (const toml of [lowtide, failed, { state: "failed" } as const]) {
+      const header = accountNameHeader({ address: ADDRESS, entry, liveDomain: "lowtide.example", toml, network: XRPL });
+      expect(header.title).toBeNull();
+      expect(header.domainLine).toEqual({ text: "lowtide.example", state: "pending", note: "Not checked yet." });
+      expect(header.howWeKnow).toBeNull();
+      expect(header.facts).toBeNull();
+    }
+  });
 });
 
 describe("accountNameHeader: a domain that is no domain", () => {
@@ -435,6 +479,10 @@ describe("accountNameHeader: the label banners", () => {
     for (const url of ["http://harborline.example/reports/1", "javascript:alert(1)", "data:text/html,<b>x</b>", "ftp://harborline.example/r", "//harborline.example/r", "harborline.example/r", "not a url", ""]) {
       expect(hrefOf(url), url).not.toHaveProperty("href");
     }
+    // The link is the URL as the browser parses it, not the text as given: "https:host/x" reports https but would resolve as a relative link on an https page, and leading spaces survive.
+    expect(hrefOf("https:host/x")).toHaveProperty("href", "https://host/x");
+    expect(hrefOf("  https://status.example/x")).toHaveProperty("href", "https://status.example/x");
+    expect(hrefOf("https://status.example")).toHaveProperty("href", "https://status.example/");
     // The banner is still there, with its words, when the link is not drawn.
     expect(hrefOf("javascript:alert(1)")).toEqual({ label: "scam", title: "Labelled scam by GateHub", description: "Fake" });
   });
