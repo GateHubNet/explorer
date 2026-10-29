@@ -52,6 +52,7 @@ import type { NodeRpc } from "../server/node-rpc";
 import { encodeQr, qrPath } from "../server/qr";
 import { UpstreamError } from "../server/upstream";
 import { PRODUCT_NAME } from "../ui/brand";
+import { NamesProvider } from "../ui/names";
 import { AccountPage, NeverActivatedPage } from "../ui/pages/AccountPage";
 import { useNetwork } from "../ui/use-network";
 
@@ -473,8 +474,11 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 
 export default function Account({ loaderData }: Route.ComponentProps) {
   const network = useNetwork();
+  // The page's names (the header's call) are one provider above everything it draws, the activator and the token issuers included; a list and a card have their own inside.
   return loaderData.kind === "account" ? (
-    <AccountPage network={network} data={loaderData} />
+    <NamesProvider names={loaderData.names.map}>
+      <AccountPage network={network} data={loaderData} />
+    </NamesProvider>
   ) : (
     <NeverActivatedPage network={network} data={loaderData} />
   );

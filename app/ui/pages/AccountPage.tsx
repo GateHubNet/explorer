@@ -7,6 +7,7 @@ import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from
 import { collectionLink } from "../../domain/nft-link";
 import { nftWords, shortNftId } from "../../domain/nft-params";
 import { poolLink } from "../../domain/pool-link";
+import type { DomainLine } from "../../server/account-name-view";
 import type {
   AccountAnalyticsPageData,
   AccountHeader,
@@ -25,20 +26,18 @@ import type {
   TxRow,
 } from "../../server/account-view";
 import { AccountLink } from "../components/AccountLink";
+import { AccountNameBlock, DomainText, LabelBanners, titleTextOf } from "../components/AccountNameBlock";
 import { Amount } from "../components/Amount";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { Card } from "../components/Card";
-import { CopyButton } from "../components/CopyButton";
 import { CoverageNote } from "../components/CoverageNote";
 import { DataTable, type Column } from "../components/DataTable";
-import { Identicon } from "../components/Identicon";
 import { CheckIcon } from "../components/icons";
 import { LiveStateNotice } from "../components/LiveStateNotice";
 import { NftGlyph } from "../components/NftGlyph";
 import { NftLink } from "../components/NftLink";
 import { Notice } from "../components/Notice";
 import { Pager } from "../components/Pager";
-import { QrButton } from "../components/QrButton";
 import { RelativeTime } from "../components/RelativeTime";
 import { SectionError } from "../components/SectionError";
 import { Sentence } from "../components/Sentence";
@@ -48,6 +47,7 @@ import { When } from "../components/WhenCell";
 import { ResultPill } from "../components/Pill";
 import type { Features } from "../features";
 import type { NetworkInfo } from "../networks";
+import { NamesProvider } from "../names";
 import { useFeatures } from "../use-network";
 import { useRetry } from "../use-retry";
 import { AnalyticsFilters } from "./AnalyticsFilters";
@@ -120,9 +120,11 @@ export function AccountPage({ network, data }: { network: NetworkInfo; data: Acc
         items={[
           { label: network.name, href: `/${net}` },
           { label: "Accounts" },
-          { label: shortAddress(data.address), mono: true },
+          // A name is the link text, cut by the stylesheet; without one the short address, as always.
+          header.name?.title ? { label: <span className="acct__name">{titleTextOf(header.name.title)}</span> } : { label: shortAddress(data.address), mono: true },
         ]}
       />
+      <LabelBanners labels={header.name?.labels ?? []} />
 
       <AccountCard network={network} data={data} />
 
@@ -191,7 +193,11 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
   const features = useFeatures();
   const activation = header.status === "history" ? null : header.activation;
   const live = header.status === "history" ? null : header.live;
-  const domain = live?.state === "ok" ? live.domain : null;
+  const name = header.name;
+  // The activation line says the account's domain, unless a title says it (the name's lines under the `<h1>` do). The builder's line has its state ("not checked yet"); without
+  // one (`NAMES` off, or the call failed) it is the node's domain as text.
+  const liveDomain = live?.state === "ok" ? live.domain : null;
+  const domain: DomainLine | null = name?.title ? null : (name?.domainLine ?? (liveDomain ? { text: liveDomain, state: "none" } : null));
   // A pool account's own page leads to its pool page while `AMM_PAGES` is on. The flag is the node's (`account_info`), so the line is there only when
   // the node answered.
   const isPool = live?.state === "ok" && live.flags.some((flag) => flag.id === "amm");
@@ -199,17 +205,7 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
   return (
     <section className="card account-card" aria-label="Account">
       <div className="account-id">
-        <div className="account-id__top">
-          <Identicon address={address} />
-          <div className="account-id__name">
-            <span className="account-id__label">Account</span>
-            <div className="account-id__address">
-              <h1 className="mono">{address}</h1>
-              <CopyButton value={address} label="address" />
-              <QrButton address={address} qr={data.qr} />
-            </div>
-          </div>
-        </div>
+        <AccountNameBlock net={net} address={address} qr={data.qr} name={name} />
 
         {isPool && features.ammPages && (
           <p className="account-id__meta account-id__pool">
@@ -234,7 +230,7 @@ function AccountCard({ network, data }: { network: NetworkInfo; data: AccountPag
             {domain && (
               <>
                 {" "}
-                · domain <span className="mono">{domain}</span>
+                · <DomainText line={domain} />
               </>
             )}
           </p>
@@ -521,9 +517,18 @@ function ListFailed({ what }: { what: string }) {
   );
 }
 
+/** A list that was loaded, drawn by the names of the accounts in it (the list's own call, display names spec 5); one that failed has no names to draw by. */
 function TabPanel({ network, data, list }: { network: NetworkInfo; data: AccountListPageData; list: TabList }) {
-  const net = network.id;
   if (list.state === "failed") return <ListFailed what={list.what} />;
+  return (
+    <NamesProvider names={list.names.map}>
+      <ListPanel network={network} list={list} />
+    </NamesProvider>
+  );
+}
+
+function ListPanel({ network, list }: { network: NetworkInfo; list: Exclude<TabList, { state: "failed" }> }) {
+  const net = network.id;
 
   switch (list.tab) {
     case "transactions":

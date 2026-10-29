@@ -14,9 +14,9 @@ import BigNumber from "bignumber.js";
 
 import { analyticsPhrases, type AnalyticsPeriod, type AnalyticsPhrases, type AnalyticsWindow } from "../domain/analytics-params";
 import { apiAssetText, type Asset } from "../domain/asset";
-import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue } from "../domain/format";
+import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue, shortAddress } from "../domain/format";
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
-import { shownIssuer, type NameMap, type NamesPart } from "../domain/names";
+import { plainNameOf, shownIssuer, type NameMap, type NamesPart } from "../domain/names";
 import type { Native } from "../domain/parse/types";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { bucketLabel } from "../ui/charts/labels";
@@ -155,14 +155,21 @@ export interface BalancesCard {
   names: NamesPart;
 }
 
+/** One issued side of a pair: its code, and its issuer as a page's text writes one. `name` says the issuer is a plain name, which the page does not set in mono as it does a code and an address. */
+export interface IssuedSide {
+  code: string;
+  issuer: string;
+  name: boolean;
+}
+
 /** A pair of the DEX table in its natural orientation, with Bought and Sold already read from the API's field that is of the displayed base. */
 export interface PairRow {
   /** The stored pair as the API writes it: a row's own key. */
   id: string;
   /** "XRP/USD". */
   label: string;
-  /** "USD rhub8V…F3wq": each issued side's code and its issuer as a page's text writes one (`shownIssuer`: its plain name, else its short address), base first. */
-  issued: string[];
+  /** Each issued side, base first: "USD" and its issuer as a page's text writes one (`shownIssuer`: its plain name, else its short address). */
+  issued: IssuedSide[];
   /** The pair page in that orientation; `null` while the markets are off, and for a pair the data API cannot be asked for (`isLinkable`). */
   href: string | null;
   volume: string;
@@ -653,6 +660,12 @@ export function balancesCard(frame: AnalyticsFrame, answer: AnalyticsBalances, n
 
 // ---- The DEX pairs -----------------------------------------------------------------------------------------------------------------
 
+/** An issued side as the pair's row writes it: its code and its issuer by `shownIssuer`, and whether that is a name. */
+const issuedSide = (currency: string, issuer: string, names: NameMap): IssuedSide => {
+  const name = plainNameOf(names[issuer]);
+  return { code: formatCurrency(currency), issuer: name ?? shortAddress(issuer), name: name !== null };
+};
+
 /** An asset of the API's fields: the native code alone, or a currency and its issuer. */
 const assetOf = (currency: string, issuer: string | undefined): Asset => (issuer ? { currency, issuer } : { currency });
 
@@ -680,7 +693,7 @@ export function pairsCard(
     return {
       id: `${apiAssetText(stored.base)}/${apiAssetText(stored.counter)}`,
       label: `${code}/${formatCurrency(counter.currency)}`,
-      issued: [base, counter].filter((side) => side.issuer).map((side) => `${formatCurrency(side.currency)} ${shownIssuer(side.issuer!, names)}`),
+      issued: [base, counter].filter((side) => side.issuer).map((side) => issuedSide(side.currency, side.issuer!, names)),
       href: markets && isLinkable([base, counter], native) ? marketHref(net, base, counter) : null,
       volume: pair.native_volume === undefined ? DASH : formatValue(numberOf(pair.native_volume, "native_volume").toFixed()),
       trades: formatAmount(String(pair.count)),

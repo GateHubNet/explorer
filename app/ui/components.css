@@ -767,6 +767,177 @@ a.nav-item:hover {
   white-space: nowrap;
 }
 
+/* The account page's header when the account has a name (E9, spec 6.1 to 6.4; the board AccountNames.dc.html). The name is the page's one h1, in the board's 22 px; its marks follow it,
+   drawn larger than in a link, and wrap with it. The address is the line under it, in mono. What is said of the name is a muted line: its links are told from the words around them by
+   more than their colour (WCAG 1.4.1, axe's link-in-text-block). */
+.account-head__name {
+  min-width: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+/* The marks are inline, after a space as text, so that a name that wraps has them on its last line and not on a line of their own. */
+.account-head__name .namemark,
+.account-head__name .labelmark {
+  vertical-align: -3px;
+}
+
+.account-head__name .namemark svg,
+.account-head__name .labelmark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.account-head__name .unv {
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  vertical-align: 2px;
+}
+
+.account-head__address {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.account-head__kind {
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.account-head__help {
+  font-size: 13px;
+}
+
+.account-head__kind a,
+.notice--warning a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A label's source and link, under its description in the banner. The link is a flex item here, not a word in a sentence, so it is a target of 24 px at least (WCAG 2.5.8). */
+.label-banner__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 16px;
+  margin-top: 4px;
+}
+
+.label-banner__meta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+/* The last item of a breadcrumb that is a name: cut with an ellipsis when it does not fit, never in the data. Where :has() is missing it wraps, as the others do. */
+.crumbs [aria-current]:has(> .acct__name) {
+  display: flex;
+  min-width: 0;
+}
+
+/* "How we know": the board's disclosure, a chevron that turns. The summary is a 44 px target; the checks are a list of what passed, the toml's facts a box of their own. */
+.disc {
+  border-top: 1px solid var(--border);
+}
+
+.disc > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--link);
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+.disc > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disc__chevron {
+  transition: transform 0.15s;
+}
+
+.disc[open] .disc__chevron {
+  transform: rotate(90deg);
+}
+
+.disc[open] {
+  padding-bottom: 4px;
+}
+
+.disc__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.disc__checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.disc__checks svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ok);
+}
+
+.disc__checks .mono {
+  font-size: 12.5px;
+}
+
+/* Under the checks, and the box under that: a `<details>` is no flex container, so their distance is theirs. */
+.disc__checked {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.disc__box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--sunken);
+  font-size: 13px;
+}
+
+/* The toml's facts: a grid of the rows it has, each label over its value. --muted on --sunken is 4.5:1 or more in both themes (tokens.test.ts); --faint is not asked to be. */
+.toml-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px 24px;
+}
+
+.toml-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.toml-facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 2px;
+}
+
+.toml-facts .mono {
+  font-size: 12.5px;
+}
+
 /* An account, in a sentence: a chip. */
 .ent {
   display: inline-flex;
@@ -1438,6 +1609,10 @@ a.tabs__item:hover {
 }
 
 @media (max-width: 640px) {
+  .account-head__name {
+    font-size: 19px;
+  }
+
   .kv {
     grid-template-columns: 1fr;
   }

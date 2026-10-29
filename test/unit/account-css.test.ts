@@ -122,3 +122,45 @@ describe("the activation line", () => {
     expect(rule(pagesCss, ".account-id__meta > a.num")["text-decoration"]).toBe("underline");
   });
 });
+
+describe("the name header (display names spec 6.1 to 6.4)", () => {
+  it("has the 'How we know' summary at 44 px, a native disclosure's summary with its marker drawn by the page", () => {
+    expect(rule(componentsCss, ".disc > summary")["min-height"]).toBe("44px");
+    expect(rule(componentsCss, ".disc > summary")["list-style"]).toBe("none");
+  });
+
+  it("turns the chevron when the disclosure is open", () => {
+    expect(rule(componentsCss, ".disc[open] .disc__chevron").transform).toBe("rotate(90deg)");
+  });
+
+  it("underlines the links in its muted lines and in a warning banner, so that more than their colour tells them from the words around them (WCAG 1.4.1)", () => {
+    expect(componentsCss).toMatch(/\.account-head__kind a,\s*\.notice--warning a\s*\{[^}]*text-decoration:\s*underline/);
+  });
+
+  it.each([
+    ["light", 0],
+    ["dark", DARK_AT],
+  ] as const)("holds the facts' labels (--muted) at 4.5:1 or more on the box's --sunken in %s, and the box has no ground but that", (_mode, from) => {
+    expect(rule(componentsCss, ".disc__box").background).toBe("var(--sunken)");
+    expect(rule(componentsCss, ".toml-facts dt").color).toBe("var(--muted)");
+    expect(contrast(rgb(token("--muted", from)), rgb(token("--sunken", from)))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("makes a banner's 'Details' link a target of 24 px at least: it is a flex item, not a word in a sentence", () => {
+    expect(rule(componentsCss, ".label-banner__meta a")["min-height"]).toBe("24px");
+  });
+
+  it("cuts a name in the breadcrumb's last item by the stylesheet, which lets it shrink", () => {
+    const cut = rule(componentsCss, ".crumbs [aria-current]:has(> .acct__name)");
+    expect(cut.display).toBe("flex");
+    expect(cut["min-width"]).toBe("0");
+  });
+
+  it("lets the h1 and the address under it wrap, so that a phone does not scroll sideways, and keeps the marks in the h1's line of text", () => {
+    expect(rule(componentsCss, ".account-head__name")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(componentsCss, ".account-head__name")["min-width"]).toBe("0");
+    expect(rule(componentsCss, ".account-head__address")["overflow-wrap"]).toBe("anywhere");
+    // Not a flex container: its marks would wrap to a line of their own under a name that wraps.
+    expect(rule(componentsCss, ".account-head__name").display).toBeUndefined();
+  });
+});

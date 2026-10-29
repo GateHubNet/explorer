@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { shortAddress } from "../../app/domain/format";
+import { linkTextOf } from "../../app/domain/names";
 import type { AccountHeader, AccountListPageData, HistoryHeader, TabList } from "../../app/server/account-view";
 import { loadAccountPage } from "../support/account-loader";
 import { hexOfText } from "../support/hex";
@@ -7,6 +9,7 @@ import {
   answerNamesAfterTheirEnd,
   askedIn,
   failingNames,
+  headingText,
   isNamesRequest,
   isTomlRequest,
   namesCalls,
@@ -18,7 +21,7 @@ import {
   watchNamesLog,
 } from "../support/names";
 import { expectDegraded, forgetStored, isStored, unavailable } from "../support/nft-pages";
-import { pageClient, tableRows, textOf } from "../support/pages";
+import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError } from "../support/upstream";
 import type { SeenRequest } from "../support/upstream-core";
 
@@ -44,6 +47,8 @@ const LIONS_ISSUER = "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS";
 const DELETED = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
 const XAHAU_ACTIVE = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 const XAHAU_DELETED = "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD";
+/** An XRPL account whose Domain is lowtide.example, which its toml does not list, with a scam label. */
+const LOWTIDE = "rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns";
 /** An active Xahau account whose names entry has the domain saltmarsh.example, whose toml failed (http_status 404); the fixtures have no account_info of it. */
 const SALTMARSH = "rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5";
 const MARKER = "WzEwNzYxMjU3MywyNV0";
@@ -315,5 +320,84 @@ describe("when a call fails", () => {
     expect(tableRows(html, "Transactions")).toHaveLength(5);
     expect(logged()).toBe(1);
     expect(await isStored(path)).toBe(false);
+  });
+});
+
+// The header the page draws (display names spec 6.1 to 6.4): what the loader hands the page, drawn on the real Worker. The unit tests of AccountPage.test.tsx say each state; here the wiring
+// is the point: the header's names reach the page (the provider of the route), the toml's facts reach "How we know", and a banner is drawn for a deleted account. Each page has its own `case`,
+// so that none is the stored copy of another.
+describe("the header the page draws", () => {
+  const html = async (path: string) => (await get(path)).text();
+
+  it("is the verified name as the one h1, the domain as a link that follows no one, 'How we know' closed with the toml's facts, and no domain on the activation line", async () => {
+    upstream("xrpl");
+    const page = await html(`/xrpl/account/${ACTIVE}?case=header-html`);
+
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    expect(headingText(page)).toBe(`${linkTextOf(view)} verified name`);
+    expect(page.match(/<h1\b/g)).toHaveLength(1);
+    const domain = anchors(page).find((a) => a.attrs.includes('href="https://northpeak.example"'));
+    expect(domain?.attrs).toContain('rel="noopener noreferrer nofollow"');
+    expect(elementText(page, "account-head__kind")).toContain("Verified name · domain northpeak.example");
+    // The disclosure is in the server's HTML, closed, with its words and the toml's facts.
+    expect(page).toContain('<details class="disc">');
+    const disclosure = textOf(/<details class="disc">[\s\S]*?<\/details>/.exec(page)![0]);
+    expect(disclosure).toMatch(/^How we know Passed: The account's Domain field is northpeak\.example ?\./);
+    expect(disclosure).toContain("northpeak.example/.well-known/xrp-ledger.toml (opens in a new tab) lists this address under [[ACCOUNTS]]");
+    expect(disclosure).toContain("and its desc gives the name.");
+    expect(disclosure).toContain("Checked Oct 17, 2026, 06:00 UTC");
+    expect(disclosure).toContain("What else that toml says Principals Mara Lindqvist and Tomas Okafor Currencies NPUSD NPEUR");
+    expect(elementText(page, "account-id__meta")).not.toContain("domain");
+    // The last item of the breadcrumb is the name, in place of the short address.
+    expect(elementText(page, "crumbs")).toContain(linkTextOf(view));
+    expect(elementText(page, "crumbs")).not.toContain(shortAddress(ACTIVE));
+  });
+
+  it("is a deleted account's name GateHub gave, its label's banner with its source and link, and the help sentence", async () => {
+    upstream("xrpl");
+    const page = await html(`/xrpl/account/${DELETED}?case=header-html-deleted`);
+
+    const view = (await viewOf("xrpl", DELETED))!;
+    expect(headingText(page)).toBe(`${linkTextOf(view)} named by GateHub labelled advisory by GateHub`);
+    expect(textOf(page)).toContain("Named by GateHub · no domain set");
+    expect(textOf(page)).toContain("GateHub names accounts that have no verified name, such as an exchange's hot wallet. If this name is wrong, or an account you run should have one, ask GateHub to change it.");
+    expect(page).not.toContain('<details class="disc">');
+    // The banner: after the breadcrumb, the title, the description, the source and the link.
+    const title = page.indexOf('<strong class="notice__title">Labelled advisory by GateHub</strong>');
+    expect(title).toBeGreaterThan(-1);
+    const banner = page.slice(title, page.indexOf("</div>", title));
+    expect(textOf(banner)).toBe("Labelled advisory by GateHub Test label: withdrawals paused Source: GateHub Details (opens in a new tab)");
+    const details = anchors(banner).find((a) => a.text.startsWith("Details"));
+    expect(details?.attrs).toContain('href="https://status.example/harborline"');
+    expect(details?.attrs).toContain('rel="noopener noreferrer nofollow"');
+    expect(page.indexOf("Labelled advisory by GateHub")).toBeGreaterThan(page.indexOf('aria-label="Breadcrumb"'));
+    expect(page.indexOf("Labelled advisory by GateHub")).toBeLessThan(page.indexOf('class="card account-card"'));
+  });
+
+  it("is a verified Xahau name whose toml file is xahau.toml", async () => {
+    upstream("xahau");
+    const page = await html(`/xahau/account/${XAHAU_ACTIVE}?case=header-html-xahau`);
+
+    const view = (await viewOf("xahau", XAHAU_ACTIVE))!;
+    expect(headingText(page)).toBe(`${linkTextOf(view)} verified name`);
+    expect(page).toContain("tidewater.example/.well-known/xahau.toml");
+  });
+
+  it("is a domain that is not verified: its sentence under the address, no link to the domain, and the label's banner", async () => {
+    // The node does not answer, so it is the data API's entry that names the domain; its toml (the fixtures') does not list the account.
+    upstream("xrpl", {
+      [`GET /v2/accounts/${LOWTIDE}`]: {
+        result: "success",
+        account_data: { account: LOWTIDE, parent: ACTIVE, initial_balance: "15", inception: "2026-07-02T17:43:31Z", ledger_index: 24000000, tx_hash: "8C".repeat(32) },
+      },
+      [`node account_info ${LOWTIDE}`]: unavailable(),
+      [`GET /v2/accounts/${LOWTIDE}/transactions?descending=true&limit=20`]: { result: "success", count: 0, transactions: [] },
+    });
+    const page = await html(`/xrpl/account/${LOWTIDE}?case=header-html-lowtide`);
+
+    expect(headingText(page)).toBe("lowtide.example not verified labelled scam by GateHub");
+    expect(textOf(page)).toContain("This account names lowtide.example in its Domain field, but lowtide.example's xrp-ledger.toml does not list the account. The explorer shows the domain, without vouching for it.");
+    expect(anchors(page).filter((a) => a.attrs.includes("lowtide.example"))).toEqual([]);
+    expect(textOf(page)).toContain("Labelled scam by GateHub");
   });
 });

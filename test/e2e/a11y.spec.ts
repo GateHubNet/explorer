@@ -114,6 +114,16 @@ const ANALYTICS: PageUnderTest = { name: "account analytics", path: `/xrpl/accou
 /** The analytics views, while ACCOUNT_ANALYTICS is on in the Worker under test; with it off they are redirects to the account page, which is above. */
 const analyticsViews = (pages: PageUnderTest[]): PageUnderTest[] => (FEATURES_OFF.has("ACCOUNT_ANALYTICS") ? [] : pages);
 
+/** A verified name's "How we know", opened as a keyboard does: the summary takes the focus, Enter opens it, and the checks are then in view. */
+const openHowWeKnow = async (page: Page) => {
+  const summary = page.locator("details.disc > summary");
+  await summary.focus();
+  await expect(page.locator("details.disc")).not.toHaveAttribute("open", "");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("details.disc")).toHaveAttribute("open", "");
+  await expect(page.locator("details.disc .disc__checks")).toBeVisible();
+};
+
 /** The pages the spec names, and the matrix below runs all of them in every setting. */
 const MAIN: PageUnderTest[] = [
   { name: "home", path: "/xrpl", ready: visible("Latest ledgers") },
@@ -137,6 +147,22 @@ const MORE: PageUnderTest[] = [
   { name: "account trades", path: `/xrpl/account/${XRPL_ACCOUNT}?tab=trades`, ready: visible("Trades") },
   { name: "account offers", path: `/xrpl/account/${XRPL_ACCOUNT}?tab=offers`, ready: visible("Offers") },
   { name: "account objects", path: `/xrpl/account/${XRPL_ACCOUNT}?tab=objects`, ready: async (page) => void (await expect(page.getByRole("navigation", { name: "Account activity" })).toBeVisible()) },
+  // The account's name header (E9): a verified name, on each network, with "How we know" opened with the keyboard (the summary takes the focus and Enter opens it), and the deleted
+  // account GateHub gave a name and a label, with its banner. The names are the fixtures' (a real stack has names of its own).
+  ...(LIVE
+    ? []
+    : [
+        { name: "account with a verified name, How we know open", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions"), act: openHowWeKnow },
+        { name: "Xahau account with a verified name, How we know open", path: `/xahau/account/${XAHAU_ACCOUNT}`, ready: visible("Transactions"), act: openHowWeKnow },
+        {
+          name: "deleted account named by GateHub, with its label's banner",
+          path: `/xrpl/account/${XRPL_DELETED}`,
+          ready: async (page: Page) => {
+            await expect(page.getByRole("heading", { level: 1 })).toContainText("named by GateHub");
+            await expect(page.locator(".notice--warning", { hasText: "Labelled advisory by GateHub" })).toBeVisible();
+          },
+        },
+      ]),
   // These are made of what the fixtures hold by hand (the newest ledger, a marker into six transactions, an address nobody funded).
   ...(LIVE
     ? []

@@ -43,7 +43,16 @@ test.describe("search", () => {
     await box.fill(XRPL_ACCOUNT);
     await page.getByRole("list", { name: "Matches" }).getByRole("link", { name: new RegExp(XRPL_ACCOUNT) }).click();
     await page.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(XRPL_ACCOUNT);
+    // The page's h1 is the account's name, with the words of its mark (a verified name in the fixtures), and the address is under it. A real stack has names of its own.
+    const heading = page.getByRole("heading", { level: 1 });
+    if (LIVE) {
+      await expect(heading).toBeVisible();
+    } else {
+      const name = fixtureNameOf("xrpl", XRPL_ACCOUNT);
+      expect(name, "the fixtures name the account").toBeDefined();
+      await expect(heading).toHaveText(`${name!} verified name`);
+      await expect(page.getByRole("region", { name: "Account" })).toContainText(XRPL_ACCOUNT);
+    }
   });
 
   test("a ledger index, grouped as the pages show it, leads to the ledger", async ({ page }) => {

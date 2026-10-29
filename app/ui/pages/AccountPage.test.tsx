@@ -7,16 +7,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
-import { NO_NAMES } from "../../domain/names";
-import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountNftRow, AccountPageData, NeverActivatedData, ObjectRow, TabList, TxRow } from "../../server/account-view";
+import { NO_NAMES, nameViewOf, type NameMap, type NamesPart } from "../../domain/names";
+import { accountNameHeader, type NameHeader, type NameHeaderInput } from "../../server/account-name-view";
+import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountNftRow, AccountPageData, Loaded, NeverActivatedData, ObjectRow, TabList, TxRow } from "../../server/account-view";
 import type { AnalyticsData } from "../../server/analytics-view";
+import type { AccountNameEntry, TomlAnswer } from "../../server/api-types";
+import xrplNames from "../../../test/fixtures/http/xrpl/data-api/account_names.json";
+import northpeakToml from "../../../test/fixtures/http/xrpl/data-api/toml/northpeak.example.json";
+import lowtideToml from "../../../test/fixtures/http/xrpl/data-api/toml/lowtide.example.json";
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { allSwitches } from "../../../test/support/switches";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, mountPage, NFTS_ON, renderUnderNetwork, routedPage } from "../../../test/support/under-network";
 import { featuresOf, NO_FEATURES, type Features } from "../features";
+import { NamesProvider } from "../names";
 import { AccountPage, NeverActivatedPage } from "./AccountPage";
 
 afterEach(cleanup);
+
+// The address a request to ask GateHub for a name goes to (`NAME_REQUEST_URL`, brand.ts): the owner has not given one, so it is `null`, and a test sets one.
+const brand = vi.hoisted(() => ({ nameRequestUrl: null as string | null }));
+vi.mock("../brand", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../brand")>()),
+  get NAME_REQUEST_URL() {
+    return brand.nameRequestUrl;
+  },
+}));
+afterEach(() => {
+  brand.nameRequestUrl = null;
+});
 
 // The analytics view is a chunk of its own that the page loads with `import()` (spec 5). Here it is a stand-in that counts its loads (each run of
 // its factory) and its mounts; AccountAnalytics.test.tsx tests the view itself. A test that looks at the page before the body is there holds
@@ -308,6 +326,417 @@ describe("the header", () => {
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
     container.remove();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The name header (display names spec 6.1 to 6.4). The headers are what `accountNameHeader` makes of the fixtures' entries (test/fixtures/http/xrpl/data-api): the page draws what it is given.
+
+const NAME_ENTRIES = xrplNames as unknown as Record<string, AccountNameEntry>;
+/** XRPL's verified "Northpeak Treasury" (northpeak.example, whose toml lists it). */
+const NORTHPEAK = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+/** A deleted account GateHub names "Harborline Exchange · hot wallet", with an advisory label (source GateHub, an https link). */
+const HARBORLINE = "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC";
+/** An account with a spam label and no name. */
+const SPAMMED = "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ";
+/** An account whose Domain is lowtide.example, which its toml does not list, with a scam label. */
+const LOWTIDE = "rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns";
+const NORTHPEAK_TOML: Loaded<TomlAnswer> = { state: "ok", value: northpeakToml as TomlAnswer };
+const LOWTIDE_TOML: Loaded<TomlAnswer> = { state: "ok", value: lowtideToml as TomlAnswer };
+
+/** The header of `address` as the loader builds it from the fixtures' entry for it. */
+const headerOf = (address: string, over: Partial<NameHeaderInput> = {}): NameHeader =>
+  accountNameHeader({ address, entry: NAME_ENTRIES[address], liveDomain: null, toml: null, network: { software: "rippled", id: "xrpl" }, ...over });
+
+/** The page of `address`, whose header (an active account on the node unless `over` says otherwise) holds `name`; the node's domain is `domain`. */
+function namedPage(address: string, name: NameHeader | null, domain: string | null, over: Partial<AccountHeader> = {}): AccountListPageData {
+  const ok = header().live as Extract<AccountHeader["live"], { state: "ok" }>;
+  return data({ address, header: header({ name, live: { ...ok, domain }, ...over }), qr: { ...QR, content: address } });
+}
+
+/** The header of an account that was deleted: the node has nothing of it. */
+const DELETED: Partial<AccountHeader> = { status: "deleted", live: { state: "none" }, balance: null, tokens: { state: "none" }, owned: null };
+
+const h1 = () => screen.getByRole("heading", { level: 1 });
+const kindLine = () => document.querySelector(".account-head__kind")!;
+const how = () => document.querySelector("details.disc") as HTMLDetailsElement;
+
+describe("the name header: a verified name", () => {
+  const page = () => namedPage(NORTHPEAK, headerOf(NORTHPEAK, { liveDomain: "northpeak.example", toml: NORTHPEAK_TOML }), "northpeak.example");
+
+  it("is the h1 with its seal and its words, the address under it with its buttons, and the domain as a link that follows no one", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={page()} />);
+    await screen.findByRole("heading", { level: 1 });
+    // The one h1 is the name, and its accessible name says how it is known; the address is not part of it.
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(h1().getAttribute("class")).toBe("account-head__name");
+    expect(h1().textContent).toBe("Northpeak Treasury verified name");
+    expect(h1().querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByRole("heading", { level: 1, name: "Northpeak Treasury verified name" })).toBeTruthy();
+
+    // The address under it, in mono, with the copy and QR buttons next to it; the label above both.
+    const row = document.querySelector(".account-id__address")!;
+    expect(row.querySelector(".mono")!.textContent).toBe(NORTHPEAK);
+    expect(h1().compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(row as HTMLElement).getByRole("button", { name: "Copy address" })).toBeTruthy();
+    expect(row.querySelector("details.qr")).not.toBeNull();
+    expect(screen.getByText("Account", { selector: ".account-id__label" })).toBeTruthy();
+
+    const link = within(kindLine() as HTMLElement).getByRole("link", { name: "northpeak.example (opens in a new tab)" });
+    expect(kindLine().textContent).toBe("Verified name · domain northpeak.example (opens in a new tab)");
+    expect(link.getAttribute("href")).toBe("https://northpeak.example");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+    expect(link.getAttribute("target")).toBe("_blank");
+  });
+
+  it("has 'How we know' closed, a native disclosure with its words in the summary, and two passed checks, when it was checked and the facts once it is opened", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={page()} />);
+    await screen.findByRole("heading", { level: 1 });
+    const disclosure = how();
+    expect(disclosure.hasAttribute("open")).toBe(false);
+    const summary = disclosure.querySelector(":scope > summary")!;
+    expect(summary.textContent).toBe("How we know");
+    expect(summary.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+
+    disclosure.open = true;
+    expect(disclosure.hasAttribute("open")).toBe(true);
+    const checks = [...disclosure.querySelectorAll("ul > li")];
+    expect(checks.map((check) => check.textContent)).toEqual([
+      "Passed: The account's Domain field is northpeak.example.",
+      "Passed: northpeak.example/.well-known/xrp-ledger.toml (opens in a new tab) lists this address under [[ACCOUNTS]], and its desc gives the name.",
+    ]);
+    // A check is a shape and words: the tick is decoration, "Passed: " is what a screen reader hears first.
+    for (const check of checks) {
+      expect(check.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+      expect(check.querySelector(".sr")!.textContent).toBe("Passed: ");
+    }
+    expect(checks[0]!.querySelector("strong, b")!.textContent).toBe("northpeak.example");
+    const file = checks[1]!.querySelector("a")!;
+    expect(file.getAttribute("href")).toBe("https://northpeak.example/.well-known/xrp-ledger.toml");
+    expect(file.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+    expect([...checks[1]!.querySelectorAll(".mono")].map((mono) => mono.textContent)).toEqual(["northpeak.example/.well-known/xrp-ledger.toml", "[[ACCOUNTS]]", "desc"]);
+    expect(disclosure.textContent).toContain("Checked Oct 17, 2026, 06:00 UTC");
+  });
+
+  it("lists what else the toml says, each row only when it has one: the principals, the currencies as text in mono, and the date from [METADATA]", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={page()} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(how().textContent).toContain("What else that toml says");
+    const facts = how().querySelector("dl.toml-facts")!;
+    const rows = [...facts.querySelectorAll(":scope > div")].map((row) => [row.querySelector("dt")!.textContent, row.querySelector("dd")!.textContent]);
+    expect(rows).toEqual([
+      ["Principals", "Mara Lindqvist and Tomas Okafor"],
+      ["Currencies", "NPUSD NPEUR"],
+      ["Last modified", "Oct 2, 2026 from [METADATA]"],
+    ]);
+    const currencies = [...facts.querySelectorAll("dd")[1]!.children];
+    expect(currencies.map((currency) => currency.className)).toEqual(["mono", "mono"]);
+    // Plain text for now: E11 makes them links when `TOKENS` is on.
+    expect(facts.querySelectorAll("a")).toHaveLength(0);
+  });
+
+  it("has no row for what the toml does not give: a date, the principals, the currencies, and no box at all when it gives none of them", async () => {
+    const { modified: _modified, ...withoutDate } = NORTHPEAK_TOML.value.toml;
+    const given = (toml: TomlAnswer["toml"]) => ({ state: "ok", value: { result: "success", toml } }) as const;
+    const { unmount } = renderInRouter(<AccountPage network={XRPL} data={namedPage(NORTHPEAK, headerOf(NORTHPEAK, { liveDomain: "northpeak.example", toml: given(withoutDate) }), "northpeak.example")} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect([...how().querySelectorAll("dl.toml-facts dt")].map((dt) => dt.textContent)).toEqual(["Principals", "Currencies"]);
+    unmount();
+    cleanup();
+
+    const { principals: _principals, currencies: _currencies, ...bare } = withoutDate;
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(NORTHPEAK, headerOf(NORTHPEAK, { liveDomain: "northpeak.example", toml: given(bare) }), "northpeak.example")} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(how().querySelector(".toml-facts")).toBeNull();
+    expect(how().textContent).not.toContain("What else that toml says");
+  });
+
+  it("says the name is the domain when the toml gives no desc, and leaves out the facts and the time when it gave nothing", async () => {
+    const entry: AccountNameEntry = { address: NORTHPEAK, display_name: { text: "northpeak.example", kind: "verified" }, domain: "northpeak.example" };
+    const name = accountNameHeader({ address: NORTHPEAK, entry, liveDomain: "northpeak.example", toml: { state: "missing" }, network: { software: "rippled", id: "xrpl" } });
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(NORTHPEAK, name, "northpeak.example")} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(h1().textContent).toBe("northpeak.example verified name");
+    const checks = [...how().querySelectorAll("ul > li")].map((check) => check.textContent);
+    expect(checks[1]).toBe("Passed: northpeak.example/.well-known/xrp-ledger.toml (opens in a new tab) lists this address under [[ACCOUNTS]]. It gives no desc, so the name is the domain.");
+    expect(how().textContent).not.toContain("Checked");
+    expect(how().querySelector(".toml-facts")).toBeNull();
+    expect(how().textContent).not.toContain("What else that toml says");
+  });
+
+  it("is on the server's page as it is in the browser: the disclosure is there, closed, with its words, for a reader without script", async () => {
+    const element = <AccountPage network={XRPL} data={page()} />;
+    const handler = createStaticHandler([{ path: "*", element }]);
+    const context = await handler.query(new Request(`http://explorer.test/xrpl/account/${NORTHPEAK}`));
+    if (context instanceof Response) throw new Error("expected a render");
+    const html = renderToString(<StaticRouterProvider router={createStaticRouter(handler.dataRoutes, context)} context={context} hydrate={false} />);
+    expect(html).toContain('<details class="disc">');
+    expect(html).toContain("<summary>How we know");
+    expect(html).toContain("The account&#x27;s Domain field is");
+    expect(html).toContain("Mara Lindqvist and Tomas Okafor");
+    expect(html).not.toMatch(/<details class="disc" open/);
+  });
+});
+
+describe("the name header: a name GateHub gave", () => {
+  // The fixture's account is deleted, so the node has no domain for it, and the entry has none.
+  const deleted = (name = headerOf(HARBORLINE)) => namedPage(HARBORLINE, name, null, DELETED);
+
+  it("is the link text as the h1 with the tag, its label's mark, 'Named by GateHub · no domain set', and the help sentence with no link while there is no address to ask", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={deleted()} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(h1().textContent).toBe("Harborline Exchange · hot wallet named by GateHub labelled advisory by GateHub");
+    expect(document.querySelector(".account-id__address .mono")!.textContent).toBe(HARBORLINE);
+    expect(kindLine().textContent).toBe("Named by GateHub · no domain set");
+    const help = screen.getByText(/GateHub names accounts that have no verified name/);
+    expect(help.textContent).toBe(
+      "GateHub names accounts that have no verified name, such as an exchange's hot wallet. If this name is wrong, or an account you run should have one, ask GateHub to change it.",
+    );
+    expect(within(help).queryByRole("link")).toBeNull();
+    // No disclosure for a name that is not verified by a toml.
+    expect(document.querySelector("details.disc")).toBeNull();
+  });
+
+  it("makes 'ask GateHub to change it' a link once there is an address to ask", async () => {
+    brand.nameRequestUrl = "https://gatehub.example/names";
+    renderInRouter(<AccountPage network={XRPL} data={deleted()} />);
+    const help = (await screen.findByText(/GateHub names accounts that have no verified name/)) as HTMLElement;
+    const link = within(help).getByRole("link", { name: "ask GateHub to change it (opens in a new tab)" });
+    expect(link.getAttribute("href")).toBe("https://gatehub.example/names");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+    expect(help.textContent).toMatch(/ask GateHub to change it \(opens in a new tab\)\.$/);
+  });
+
+  it("says its domain with the state of its check when it names one: the mark carries the sentence of what the toml said", async () => {
+    // The account is named by GateHub and names a domain whose toml does not list it.
+    const entry: AccountNameEntry = { ...NAME_ENTRIES[HARBORLINE]!, domain: "lowtide.example" };
+    const name = headerOf(HARBORLINE, { entry, liveDomain: "lowtide.example", toml: LOWTIDE_TOML });
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(HARBORLINE, name, "lowtide.example")} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(kindLine().textContent).toBe("Named by GateHub · domain lowtide.example not verified");
+    expect(kindLine().querySelector(".mono")!.textContent).toBe("lowtide.example");
+    const mark = kindLine().querySelector(".st")!;
+    expect(mark.textContent).toBe("not verified");
+    expect(mark.getAttribute("title")).toBe(
+      "This account names lowtide.example in its Domain field, but lowtide.example's xrp-ledger.toml does not list the account. The explorer shows the domain, without vouching for it.",
+    );
+    // Nobody vouches for it: no link to it.
+    expect(kindLine().querySelector("a")).toBeNull();
+  });
+});
+
+describe("the name header: a domain that is not verified", () => {
+  const page = () => namedPage(LOWTIDE, headerOf(LOWTIDE, { liveDomain: "lowtide.example", toml: LOWTIDE_TOML }), "lowtide.example");
+
+  it("is the domain as the h1 with the visible tag 'not verified', the sentence of 6.3 under the address, and no link to the domain", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={page()} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(h1().textContent).toBe("lowtide.example not verified labelled scam by GateHub");
+    expect(h1().querySelector(".unv")!.textContent).toBe("not verified");
+    expect(document.querySelector(".account-id__address .mono")!.textContent).toBe(LOWTIDE);
+    expect(kindLine().textContent).toBe(
+      "This account names lowtide.example in its Domain field, but lowtide.example's xrp-ledger.toml does not list the account. The explorer shows the domain, without vouching for it.",
+    );
+    expect(document.querySelector(".account-head__kind a")).toBeNull();
+    expect(document.querySelector("details.disc")).toBeNull();
+    // The activation line does not say the domain again.
+    expect(screen.getByText(/Activated on/).closest("p")!.textContent).not.toContain("domain");
+  });
+
+  it("keeps its banner, with no source and no link when the label has none", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={page()} />);
+    await screen.findByRole("heading", { level: 1 });
+    const banner = screen.getByText("Labelled scam by GateHub").closest(".notice") as HTMLElement;
+    expect(banner.textContent).toBe("Labelled scam by GateHubTest label");
+    expect(within(banner).queryByRole("link")).toBeNull();
+  });
+});
+
+describe("the name header: no name", () => {
+  it("is today's h1, the address, and a domain on the activation line that was not checked yet, saying so in words", async () => {
+    // The names batch has nothing for this account, and the node says its domain is example.com.
+    const name = accountNameHeader({ address: ADDRESS, entry: undefined, liveDomain: "example.com", toml: null, network: { software: "rippled", id: "xrpl" } });
+    renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ name }) })} />);
+    expect(await screen.findByRole("heading", { level: 1, name: ADDRESS })).toBeTruthy();
+    expect(h1().className).toBe("mono");
+    const meta = screen.getByText(/Activated on/).closest("p")!;
+    expect(meta.textContent).toBe(`Activated on 2019-03-14 18:40:00 UTC by ${shortAddress(PARENT)} with 25 XRP · domain example.com not checked yet`);
+    expect(meta.querySelector("span.mono")!.textContent).toBe("example.com");
+    expect(meta.querySelector(".st")!.textContent).toBe("not checked yet");
+    expect(within(meta).queryAllByRole("link")).toHaveLength(2);
+    expect(document.querySelector(".account-head__kind")).toBeNull();
+    expect(document.querySelector("details.disc")).toBeNull();
+  });
+
+  it("writes a Domain that is no domain as text, with no mark", async () => {
+    const name = accountNameHeader({ address: ADDRESS, entry: undefined, liveDomain: "https://example.com", toml: null, network: { software: "rippled", id: "xrpl" } });
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(ADDRESS, name, "https://example.com")} />);
+    const meta = (await screen.findByText(/Activated on/)).closest("p")!;
+    expect(meta.textContent).toMatch(/ · domain https:\/\/example\.com$/);
+    expect(meta.querySelector(".st")).toBeNull();
+  });
+
+  it("is today's page for a header the names call left out (the switch is off, or the call failed)", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data({ header: header({ name: null }) })} />);
+    await screen.findByRole("heading", { level: 1, name: ADDRESS });
+    expect(screen.getByText(/Activated on/).closest("p")!.textContent).toMatch(/ · domain example\.com$/);
+    expect(document.querySelector(".st")).toBeNull();
+    expect(document.querySelector(".notice--warning")).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" }).textContent).toBe(`XRPL/Accounts/${shortAddress(ADDRESS)}`);
+  });
+
+  it("keeps the address as the h1 for an account that has labels only, with the label's mark and its banner", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(SPAMMED, headerOf(SPAMMED), null)} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(h1().className).toBe("mono");
+    expect(h1().textContent).toBe(`${SPAMMED} labelled spam by GateHub`);
+    expect(h1().querySelector(".labelmark svg")!.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByText("Labelled spam by GateHub").closest(".notice--warning")).not.toBeNull();
+    // The copy and QR buttons are beside the h1, not in it.
+    expect(h1().querySelector("button")).toBeNull();
+    expect(screen.getByRole("button", { name: "Copy address" })).toBeTruthy();
+  });
+});
+
+describe("the label banners", () => {
+  const harborline = () => namedPage(HARBORLINE, headerOf(HARBORLINE), null, DELETED);
+
+  it("is one warning notice for each label: its title, its description, 'Source: GateHub' and 'Details', a link that follows no one", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={harborline()} />);
+    await screen.findByRole("heading", { level: 1 });
+    const banners = [...document.querySelectorAll(".notice--warning")].filter((notice) => notice.textContent!.includes("Labelled"));
+    expect(banners).toHaveLength(1);
+    const banner = banners[0] as HTMLElement;
+    expect(banner.querySelector(".notice__title")!.textContent).toBe("Labelled advisory by GateHub");
+    expect(banner.textContent).toContain("Test label: withdrawals paused");
+    expect(within(banner).getByText("Source: GateHub")).toBeTruthy();
+    const details = within(banner).getByRole("link", { name: "Details (opens in a new tab)" });
+    expect(details.getAttribute("href")).toBe("https://status.example/harborline");
+    expect(details.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+    // A banner is no heading: the page keeps its one h1 and its order of headings.
+    expect(banner.querySelector("h1, h2, h3, h4, h5, h6")).toBeNull();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("is after the breadcrumb and before the header's card, a deleted account's too, which keeps its own banner above the breadcrumb", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={harborline()} />);
+    await screen.findByRole("heading", { level: 1 });
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    const label = screen.getByText("Labelled advisory by GateHub").closest(".notice")!;
+    const card = document.querySelector(".account-card")!;
+    const deleted = screen.getByText("Deleted").closest(".notice")!;
+    const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(deleted, crumbs)).toBe(true);
+    expect(follows(crumbs, label)).toBe(true);
+    expect(follows(label, card)).toBe(true);
+  });
+
+  it("is one for each label, in the API's order, whatever the labels' keys", async () => {
+    const entry: AccountNameEntry = {
+      address: SPAMMED,
+      labels: { scam: { description: "First", source: "GateHub", url: "https://status.example/a" }, spam: { description: "Second" }, advisory: { description: "Third", url: "http://status.example/c" } },
+    };
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(SPAMMED, headerOf(SPAMMED, { entry }), null)} />);
+    await screen.findByRole("heading", { level: 1 });
+    const banners = [...document.querySelectorAll(".notice--warning")];
+    expect(banners.map((banner) => banner.querySelector(".notice__title")!.textContent)).toEqual(["Labelled scam by GateHub", "Labelled spam by GateHub", "Labelled advisory by GateHub"]);
+    expect(h1().textContent).toBe(`${SPAMMED} labelled scam, spam and advisory by GateHub`);
+    // Only an https link is a link.
+    expect(within(banners[0] as HTMLElement).getByRole("link", { name: /Details/ })).toBeTruthy();
+    expect(within(banners[2] as HTMLElement).queryByRole("link")).toBeNull();
+    expect(banners[2]!.textContent).not.toContain("Details");
+  });
+});
+
+describe("the name header: the breadcrumb and the activation line", () => {
+  it("ends the breadcrumb with the link text, cut by the stylesheet and not here, in place of the short address", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(HARBORLINE, headerOf(HARBORLINE), null, DELETED)} />);
+    await screen.findByRole("heading", { level: 1 });
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(crumbs.textContent).toBe("XRPL/Accounts/Harborline Exchange · hot wallet");
+    const last = crumbs.querySelector("[aria-current='page']")!;
+    expect(last.querySelector(".acct__name")!.textContent).toBe("Harborline Exchange · hot wallet");
+    expect(last.classList.contains("mono")).toBe(false);
+  });
+
+  it("keeps the short address in the breadcrumb of an account with no name, and of one with labels only", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(SPAMMED, headerOf(SPAMMED), null)} />);
+    await screen.findByRole("heading", { level: 1 });
+    const last = screen.getByRole("navigation", { name: "Breadcrumb" }).querySelector("[aria-current='page']")!;
+    expect(last.textContent).toBe(shortAddress(SPAMMED));
+    expect(last.classList.contains("mono")).toBe(true);
+  });
+
+  it("drops the domain from the activation line when the name's lines say it: a verified name's and a GateHub-named account's", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={namedPage(NORTHPEAK, headerOf(NORTHPEAK, { liveDomain: "northpeak.example", toml: NORTHPEAK_TOML }), "northpeak.example")} />);
+    const meta = (await screen.findByText(/Activated on/)).closest("p")!;
+    expect(meta.textContent).toBe(`Activated on 2019-03-14 18:40:00 UTC by ${shortAddress(PARENT)} with 25 XRP`);
+  });
+
+  it("draws the activator by the page's names, as every account link is: a provider above the page holds them", async () => {
+    const view = nameViewOf({ address: PARENT, display_name: { text: "Copperfield Payments", kind: "verified" }, domain: "copperfield.example" })!;
+    const names: NameMap = { [PARENT]: view };
+    renderInRouter(
+      <NamesProvider names={names}>
+        <AccountPage network={XRPL} data={data({ names: { state: "ok", map: names } })} />
+      </NamesProvider>,
+    );
+    const meta = (await screen.findByText(/Activated on/)).closest("p")!;
+    const link = within(meta).getByRole("link", { name: "Copperfield Payments verified name" });
+    expect(link.getAttribute("href")).toBe(`/xrpl/account/${PARENT}`);
+  });
+
+  it("names the toml file xahau.toml on Xahau", async () => {
+    const name = accountNameHeader({
+      address: NORTHPEAK,
+      entry: NAME_ENTRIES[NORTHPEAK],
+      liveDomain: "northpeak.example",
+      toml: NORTHPEAK_TOML,
+      network: { software: "xahaud", id: "xahau" },
+    });
+    renderInRouter(<AccountPage network={XAHAU} data={namedPage(NORTHPEAK, name, "northpeak.example")} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(how().querySelector("a")!.getAttribute("href")).toBe("https://northpeak.example/.well-known/xahau.toml");
+  });
+});
+
+describe("the name header: a page of old history", () => {
+  it("is the name and the labels only: the h1, its marks, the banners, and no line, no disclosure", async () => {
+    // A page behind a marker is stored for good: its header is the entry's name and labels (`brief`), never a domain.
+    const name = accountNameHeader({ address: HARBORLINE, entry: NAME_ENTRIES[HARBORLINE], liveDomain: null, toml: null, network: { software: "rippled", id: "xrpl" }, brief: true });
+    renderInRouter(<AccountPage network={XRPL} data={data({ address: HARBORLINE, mode: "history", header: { status: "history", name }, qr: { ...QR, content: HARBORLINE } })} />);
+    await screen.findByRole("heading", { level: 1 });
+    expect(h1().textContent).toBe("Harborline Exchange · hot wallet named by GateHub labelled advisory by GateHub");
+    expect(screen.getByText("Labelled advisory by GateHub")).toBeTruthy();
+    expect(document.querySelector(".account-head__kind")).toBeNull();
+    expect(screen.queryByText(/GateHub names accounts that have no verified name/)).toBeNull();
+    expect(document.querySelector("details.disc")).toBeNull();
+    expect(screen.getByText(/does not show the balance or the live state/)).toBeTruthy();
+  });
+});
+
+describe("the names of the list", () => {
+  const view = nameViewOf({ address: BOB, display_name: { text: "Copperfield Payments", kind: "verified" }, domain: "copperfield.example" })!;
+  const named = (): NamesPart => ({ state: "ok", map: { [BOB]: view } });
+  const asNamed = (rows: TxRow[] = [txRow()]): TabList => ({ ...(transactions(rows) as Extract<TabList, { state: "ok"; tab: "transactions" }>), names: named() });
+
+  it("draws the accounts of a list by the names of the list's own data, not the page's", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data({ list: asNamed() })} />);
+    const table = await screen.findByRole("table", { name: "Transactions" });
+    const link = within(table).getByRole("link", { name: "Copperfield Payments verified name" });
+    expect(link.getAttribute("href")).toBe(`/xrpl/account/${BOB}`);
+    expect(link.getAttribute("title")).toBe(`Verified by copperfield.example · ${BOB}`);
+  });
+
+  it("draws the accounts of a list that streams in by the names that came with it", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data({ list: Promise.resolve(asNamed()) })} />);
+    expect(await screen.findByRole("link", { name: "Copperfield Payments verified name" })).toBeTruthy();
+  });
+
+  it("draws the short address for an account the list's names do not hold", async () => {
+    renderInRouter(<AccountPage network={XRPL} data={data({ list: transactions() })} />);
+    const table = await screen.findByRole("table", { name: "Transactions" });
+    expect(within(table).getByRole("link", { name: shortAddress(BOB) })).toBeTruthy();
   });
 });
 

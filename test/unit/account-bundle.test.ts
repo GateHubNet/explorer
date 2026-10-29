@@ -16,6 +16,7 @@ const SERVER_ONLY = (from: string) => /\/server\//.test(from) || /\/describe(\/|
 describe("the files of the account page that run in the browser", () => {
   it.each([
     "ui/pages/AccountPage.tsx",
+    "ui/components/AccountNameBlock.tsx",
     "ui/components/Identicon.tsx",
     "ui/components/QrButton.tsx",
     "domain/identicon.ts",

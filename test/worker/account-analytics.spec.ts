@@ -2,11 +2,12 @@ import { env } from "cloudflare:workers";
 import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { linkTextOf } from "../../app/domain/names";
 import { loader } from "../../app/routes/net.account.$address";
 import type { AccountAnalyticsPageData } from "../../app/server/account-view";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
-import { withoutNamesOrTomls } from "../support/names";
+import { headingText, viewOf, withoutNamesOrTomls } from "../support/names";
 import { anchors, pageClient, textOf } from "../support/pages";
 import { entryOf } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
@@ -588,7 +589,9 @@ describe("the URL of the analytics view", () => {
     async (query) => {
       mock = mockUpstream("xrpl");
       const { html } = await page(`${base}?${query}`);
-      expect(html).toContain(`<h1 class="mono">${ACTIVE}</h1>`);
+      // The recorded account has a name (a verified one in the fixtures), which is its h1, with the words of its mark.
+      const view = (await viewOf("xrpl", ACTIVE))!;
+      expect(headingText(html)).toBe(`${linkTextOf(view)} verified name`);
       const tab = anchors(html).find((a) => a.text === "Analytics");
       expect(tab?.attrs).toContain('aria-current="page"');
     },

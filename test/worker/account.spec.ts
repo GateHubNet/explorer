@@ -3,10 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { classicAddressToXAddress, encodeAccountID, xAddressToClassicAddress } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
+import { linkTextOf } from "../../app/domain/names";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
 import { encodeQr, qrPath } from "../../app/server/qr";
-import { withoutNamesOrTomls } from "../support/names";
+import { expectTextWithAccounts, headingText, shownName, viewOf, withoutNamesOrTomls } from "../support/names";
 import { holderCase } from "../support/nft-cases";
 import { coverageSample, nftSample, nftsPageSample } from "../support/nft-samples";
 import { anchors, elementText, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
@@ -542,9 +543,13 @@ describe("the active XRPL account", () => {
     expect(response.headers.get("Content-Type")).toContain("text/html");
     expect(response.headers.get("Cache-Control")).toBe("max-age=0, must-revalidate");
     expect(elementText(html, "account-id__address")).toContain(ACTIVE);
-    expect(html).toMatch(new RegExp(`<h1[^>]*>${ACTIVE}</h1>`));
+    // The page's one h1 is the account's name, which the fixtures give it (a verified one), with the words of its mark; the address is the line under it.
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    expect(view.name?.kind).toBe("verified");
+    expect(headingText(html)).toBe(`${linkTextOf(view)} verified name`);
 
-    expect(text).toContain(`Activated on 2025-07-15 18:30:43 UTC by ${shortAddress("rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ")} with 25 XRP`);
+    // The activator has a label and no name: its short address, with the words of the label's mark.
+    await expectTextWithAccounts(elementText(html, "account-id__meta")!, "xrpl", ["Activated on 2025-07-15 18:30:43 UTC by ", { account: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ" }, " with 25 XRP"]);
     expect(hrefs(html)).toContain("/xrpl/account/rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ");
     expect(hrefs(html)).toContain(`/xrpl/tx/9B107B80D5606BB743A58ED7EA6DCA1BDC1E8619FBFA531CD881523C1DCC76F1`);
     expect(text).toContain("Sequence 98,986,800");
@@ -556,7 +561,9 @@ describe("the active XRPL account", () => {
 
     // Tokens: the LIONS line, its code as text, its issuer, its balance.
     expect(text).toContain("Tokens 1 trust line");
-    expect(text).toContain("LIONS rGHtf1…AuzS 48,329.908117603");
+    // The issuer is an account GateHub names in the fixtures.
+    expect(text).toContain(`LIONS ${await shownName("xrpl", "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS")}`);
+    expect(text).toContain("48,329.908117603");
     expect(hrefs(html)).toContain("/xrpl/account/rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS");
     // Owned objects: counts by type.
     expect(text).toContain("Owned objects 1 trust line");
@@ -715,7 +722,9 @@ describe("the active Xahau account", () => {
     expect(text).toContain("Sequence 755,783,996");
     expect(text).toContain("Available 9,349.639221");
     expect(text).toContain("Reserve 1.4 XAH = 1 base + 2 objects × 0.2");
-    expect(text).toContain("EVR rEvern…HXr8 28,437,367.3675102");
+    // The token's issuer is an account GateHub names in the fixtures: a name and its mark where the short address was.
+    expect(text).toContain(`EVR ${await shownName("xahau", "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8")}`);
+    expect(text).toContain("28,437,367.3675102");
     expect(html).toContain(`<title>Account ${shortAddress(XAHAU_ACTIVE)} · Xahau · explorer</title>`);
     expect(await storedAs(`/xahau/account/${XAHAU_ACTIVE}`)).toEqual(LIVE);
   });
@@ -918,7 +927,11 @@ describe("the tabs", () => {
     const rows = tableRows(html, "Payments");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toEqual(["Date (UTC)", "Direction", "Counterparty", "Delivered", "Tag"]);
-    expect(rows[1]).toEqual(["2026-10-13 21:34:30", "Received", expect.stringMatching(/^rDQSFB…[A-Za-z0-9]{4}$/), "+0.00001 XRP", ""]);
+    // The counterparty's domain is all that is known of it, which the fixtures give as a name that is not verified.
+    const counterparty = rows[1]![2]!;
+    await expectTextWithAccounts(counterparty, "xrpl", [{ account: "rDQSFBVK7Nrh2tTCmPPRjpjxdTZ2afhvFz" }]);
+    expect(counterparty).toMatch(/not verified$/);
+    expect(rows[1]).toEqual(["2026-10-13 21:34:30", "Received", counterparty, "+0.00001 XRP", ""]);
     const csv = anchors(html).find((a) => a.text === "Download CSV");
     expect(csv?.attrs).toContain(`href="/xrpl/account/${ACTIVE}/payments.csv"`);
     expect(csv?.attrs).toContain("download");
@@ -1349,8 +1362,9 @@ describe("the list streams after the header", () => {
   it("has the list's resolved markup after the header in the document, for the recorded account", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}?case=order`);
-    expect(html.indexOf(`<h1 class="mono">${ACTIVE}</h1>`)).toBeGreaterThan(-1);
-    expect(html.indexOf(`<h1 class="mono">${ACTIVE}</h1>`)).toBeLessThan(html.indexOf("OfferCreate"));
+    // The recorded account has a name, which is its h1 (a name is not mono).
+    expect(html.indexOf('<h1 class="account-head__name">')).toBeGreaterThan(-1);
+    expect(html.indexOf('<h1 class="account-head__name">')).toBeLessThan(html.indexOf("OfferCreate"));
   });
 
   it("serves a visitor who is a search engine's crawler the whole page: the list is in the document", async () => {
@@ -1572,12 +1586,17 @@ describe("the query of the URL", () => {
 /**
  * What a page tells, apart from its scripts: its visible text and the values of the attributes of its tags, outside `<script>` and `<style>`
  * elements (a canonical link, a `content`, an `href`, a `value`). The names of the build's own files (`/assets/...`, hashed with random text) are
- * not told by anybody.
+ * not told by anybody, nor is the geometry of a drawing (the `d` of a path, the `r` of a circle).
  */
+const GEOMETRY = new Set(["d", "r", "rx", "ry", "cx", "cy", "x", "y", "x1", "x2", "y1", "y2", "points"]);
+
 function toldBy(html: string): string[] {
   const markup = html.replace(/<script\b[\s\S]*?<\/script>/gi, "<script></script>").replace(/<style\b[\s\S]*?<\/style>/gi, "<style></style>");
+  // The geometry of a drawing is numbers: nobody is told by an icon's path or circle (the seal of a verified name has "21.5" in it, the tag of a name GateHub gave a radius of 1.5).
   const values = [...markup.matchAll(/<[a-zA-Z][^>]*>/g)].flatMap((tag) =>
-    [...tag[0].matchAll(/\s[\w:.-]+="([^"]*)"/g)].map((attribute) => attribute[1]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")),
+    [...tag[0].matchAll(/\s([\w:.-]+)="([^"]*)"/g)]
+      .filter((attribute) => !GEOMETRY.has(attribute[1]!))
+      .map((attribute) => attribute[2]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")),
   );
   return [textOf(html), ...values.filter((value) => !value.startsWith("/assets/"))];
 }
@@ -1599,6 +1618,12 @@ describe("what a page tells (toldBy, for the ?tag tests above)", () => {
     const html = sample.replace("</head>", "<style>.a007{color:red}</style></head>");
     expect(html).toContain("007");
     expect(toldBy(html).filter((told) => told.includes("007"))).toEqual([]);
+  });
+
+  it("does not find digits in the geometry of a drawing, which an icon is made of", () => {
+    const html = sample.replace("<p>", '<p><svg><path d="M12 21.5l-2.4-1.8"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>');
+    expect(html).toContain("1.5");
+    expect(toldBy(html).filter((told) => told.includes("1.5"))).toEqual([]);
   });
 
   it.each([

@@ -110,6 +110,27 @@ describe("DomainStatus", () => {
     const { container } = render(<DomainStatus status="revoked" />);
     expect(container.textContent).toBe("not verified");
   });
+
+  // The account page's activation line says what its domain's check found: the sentence of what the toml said is the mark's `title` (display names spec 6.3), for the mouse.
+  // A title is not a name: the mark's words stay what a screen reader reads.
+  it("carries the title it is given, whatever the status, and the words stay as they were", () => {
+    const note = "This account names lowtide.example in its Domain field, but lowtide.example's xrp-ledger.toml does not list the account. The explorer shows the domain, without vouching for it.";
+    for (const { status, list } of DOMAIN_CASES) {
+      const { container, unmount } = render(<DomainStatus status={status} title={note} />);
+      const mark = container.querySelector(".st")!;
+      expect(mark.getAttribute("title"), status).toBe(note);
+      expect(mark.textContent, status).toBe(list);
+      unmount();
+    }
+  });
+
+  it("has no title when it is given none", () => {
+    for (const { status } of DOMAIN_CASES) {
+      const { container, unmount } = render(<DomainStatus status={status} />);
+      expect(container.querySelector(".st")!.hasAttribute("title"), status).toBe(false);
+      unmount();
+    }
+  });
 });
 
 describe("UnlTag", () => {

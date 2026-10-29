@@ -2,16 +2,15 @@
 // never colour alone; colour is only for `ok` and `bad`. A browser file: it takes its types from app/server (`import type`, erased) and its
 // word from the domain files a browser file may import, never from validator-facts.ts, which value-imports a package of the Worker's.
 
-import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { statusWord } from "../../domain/amendments-params";
-import type { AmendmentStatusView, DomainStatusKind, TextPart } from "../../server/validator-facts";
+import type { AmendmentStatusView, TextPart } from "../../server/validator-facts";
 import { Countdown } from "./Countdown";
+import { ExternalLink } from "./ExternalLink";
 import { CrossIcon, InfoIcon } from "./icons";
 import { Pill } from "./Pill";
 import {
-  AlertCircleIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   BallotIcon,
@@ -19,7 +18,6 @@ import {
   ClockIcon,
   DashIcon,
   EqualsIcon,
-  ExternalIcon,
   LatestIcon,
   MinusCircleIcon,
   QuestionIcon,
@@ -28,19 +26,9 @@ import {
 
 // ---- Links (2.8) -------------------------------------------------------------------------------------------------------------------------------
 
-/**
- * A link to another site: it opens a new tab, without handing the page over (`noopener noreferrer`), and says so with the icon and, to a
- * screen reader, "(opens in a new tab)". `nofollow` is for what anyone can point at (a validator's TOML file).
- */
-export function ExternalLink({ href, nofollow, children }: { href: string; nofollow?: boolean; children: ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel={nofollow ? "noopener noreferrer nofollow" : "noopener noreferrer"}>
-      {children}
-      <ExternalIcon className="extlink__icon" />
-      <span className="sr"> (opens in a new tab)</span>
-    </a>
-  );
-}
+// `ExternalLink` and `DomainStatus` are files of their own, which the account page imports without the rest of this file; they are exported from here as they always were.
+export { DomainStatus } from "./DomainStatus";
+export { ExternalLink } from "./ExternalLink";
 
 /**
  * A sentence the builder wrote as parts: its strings, its internal links (React Router's `Link`, so a click navigates in the browser), its
@@ -70,36 +58,6 @@ export function Parts({ parts }: { parts: readonly TextPart[] }) {
 }
 
 // ---- A validator's marks ----------------------------------------------------------------------------------------------------------------------
-
-/**
- * What the check of a validator's domain found: "verified" in a list (the validator page spells it out, `page`: "Domain verified"), "not
- * verified", "not checked yet". A status this build does not know (a newer data API) reads "not verified", as the note under the name does.
- */
-export function DomainStatus({ status, page }: { status: DomainStatusKind; page?: boolean }) {
-  switch (status) {
-    case "verified":
-      return (
-        <span className="st st--ok">
-          <CheckCircleIcon />
-          {page ? "Domain verified" : "verified"}
-        </span>
-      );
-    case "pending":
-      return (
-        <span className="st st--quiet">
-          <ClockIcon />
-          not checked yet
-        </span>
-      );
-    default:
-      return (
-        <span className="st st--quiet">
-          <AlertCircleIcon />
-          not verified
-        </span>
-      );
-  }
-}
 
 /**
  * On a trusted list: the shield and "UNL". `listedBy`, the view's words for the lists that name the validator (`Listed by A and B`; empty when none does), follows in words a

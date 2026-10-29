@@ -5,11 +5,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
-import { linkTextOf, nameTitleOf, nameViewOf, shownIssuer, type NameKind, type NameView } from "../../app/domain/names";
+import { labelWords, linkTextOf, nameTitleOf, nameViewOf, shownIssuer, type NameKind, type NameView } from "../../app/domain/names";
 import type { AccountNameEntry } from "../../app/server/api-types";
 import { NAMES_BATCH_LIMIT } from "../../app/server/names-load";
 import { decodeLoaderData } from "./loader-data";
-import { anchors, hrefs } from "./pages";
+import { anchors, hrefs, textOf } from "./pages";
 import { cold } from "./subrequest-miss";
 import { dataApiError, mockUpstream, type UpstreamMock } from "./upstream";
 import type { NetworkName, SeenRequest } from "./upstream-core";
@@ -227,6 +227,12 @@ export async function expectAccountText(text: string, net: NetworkName, address:
   }
 }
 
+/** The text of the page's `<h1>` as a reader gets it: the name, then the words of its marks (`Northpeak Treasury verified name`); empty when the page has none. */
+export function headingText(html: string): string {
+  const heading = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(html);
+  return heading ? textOf(heading[1]!) : "";
+}
+
 const ACCOUNT_HREF = /href="\/(xrpl|xahau)\/account\/(r[1-9A-HJ-NP-Za-km-z]{24,34})"/;
 
 /**
@@ -307,8 +313,8 @@ const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\
 
 /**
  * Says that `text` is made of `parts`: a string is written literally, `{ account }` is a link to that account as the fixtures have it drawn. An account the fixtures give nothing to
- * show is exactly its short address (its whole address with `full`), so what follows it in `text` is pinned; one they name is its name `linkTextOf` gives, then the words of its
- * marks (and, with `full`, its whole address). The text is matched whole.
+ * show is exactly its short address (its whole address with `full`), so what follows it in `text` is pinned; one that has labels and no name is that, then the words of its label's
+ * mark; one they name is its name `linkTextOf` gives, then the words of its marks (and, with `full`, its whole address). The text is matched whole.
  */
 export async function expectTextWithAccounts(
   text: string,
@@ -324,7 +330,8 @@ export async function expectTextWithAccounts(
     const view = await viewOf(net, part.account);
     const whole = escaped(part.account);
     if (view?.name) pattern += `${escaped(linkTextOf(view))}(?: .*?)?${part.full ? ` ${whole}` : ""}`;
-    else pattern += part.full ? whole : escaped(shortAddress(part.account));
+    // An account with labels and no name is its address, then the words of the label's mark.
+    else pattern += `${part.full ? whole : escaped(shortAddress(part.account))}${view && view.labels.length > 0 ? ` labelled ${escaped(labelWords(view.labels))} by GateHub` : ""}`;
   }
   expect(text).toMatch(new RegExp(`${pattern}$`));
 }
