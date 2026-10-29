@@ -57,9 +57,9 @@ const tradesText = (count: string): string => `${formatAmount(count)} ${count ==
  * An item with an `href` has its label as a link to it (`RouteLink`, a client-side navigation); the bar and the tip stay text, so a row has
  * one target, and its hit area is the stylesheet's: 24 px high and more, dense or not, and 44 px on a touch screen or a phone (charts.css).
  *
- * Nothing is measured: the label's column is the characters of the longest label (or sublabel) and the room after the longest bar the
- * characters of the longest tip, in CSS units (`--label`, `--tip`; charts.css), so the Worker prints the finished list. The longest bar is the
- * whole width the tip leaves.
+ * Nothing is measured: the label's column is the characters of the longest label with the room its marks take after it (`markChars`), or of the
+ * longest sublabel (`SUB_SCALE`), and the room after the longest bar the characters of the longest tip, in CSS units (`--label`, `--tip`;
+ * charts.css), so the Worker prints the finished list. The longest bar is the whole width the tip leaves.
  *
  * Memoised on `dense`, `tip` and the data's `token` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the list.
  */

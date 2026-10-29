@@ -52,7 +52,8 @@ The domain an account's Domain field names, when it is a well-formed domain; a U
 _Avoid_: domain field (for the domain itself), website
 
 **Unverified domain**:
-A domain an account names whose toml does not list the account.
+A domain an account names that nothing vouches for: its toml does not list the account, or could not be read. A domain whose toml has not
+been read yet is shown as "Not checked yet", not as unverified.
 
 **Label**:
 A warning GateHub puts on an address, from a fixed list (scam, spam, advisory). It holds on every network.
@@ -65,6 +66,14 @@ _Avoid_: badge
 **Label mark**:
 The warning mark beside a labelled account's name or address, wherever it appears.
 _Avoid_: flag
+
+**Label banner**:
+The warning notice at the top of a labelled account's page, one for each label: the label, the operator's description, its source and a link
+to its details when it gave them.
+
+**How we know**:
+The disclosure on a verified name's account page that says what vouches for the name: the account's domain, the toml that lists the account,
+when the toml was checked, and what else the toml says.
 
 **Toml**:
 The file a domain publishes about its validators, accounts, servers, currencies and principals: `xrp-ledger.toml` for XRPL,

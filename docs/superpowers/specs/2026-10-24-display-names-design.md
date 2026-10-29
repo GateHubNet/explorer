@@ -68,7 +68,8 @@ Later pages (E10 objects and delegation, E11 tokens, E13's toml card, E14) use t
 ### 2.1 Client (`app/server/data-api.ts`)
 
 `PENDING_PATHS` gains `accountNames: "/v2/account_names"` and `toml: "/v2/toml/{domain}"` until `pnpm api:sync` brings them into
-`PATHS` (`test/unit/pending-paths.test.ts` says when).
+`PATHS` (`test/unit/pending-paths.test.ts` says when). *(Amended in the build, Ruling 1: D4 was complete when E9 started, so Task 1 synced
+`api/openapi.yaml` from D4's `3feb11a` and both paths went straight into `PATHS`; `PENDING_PATHS` stayed empty.)*
 
 - `accountNames(addresses: readonly string[], opts?: FreshOptions): Promise<AccountNamesResponse>`: 1 to 100 classic addresses, sent
   as given (`loadNames` sorts them), `?addresses=a,b,…`. Class `minute` (the data API reloads names every 60 s and says
@@ -76,7 +77,8 @@ Later pages (E10 objects and delegation, E11 tokens, E13's toml card, E14) use t
   length equal the addresses asked, each entry's `address` is the one asked at its place, `display_name` (when present) has a
   non-empty `text` and a `kind` string, `labels` (when present) an object of `{ description: string, source?, url? }`. A failure is
   kind `server` and is never stored. A `kind` this build does not know (a newer API) is read as no name, not as an error.
-- `toml(domain: string): Promise<TomlAnswer>`: class `slow` (a toml is read at most daily). `toml not found` is `not_found` (not
+- `toml(domain: string): Promise<TomlAnswer>`: class `minute` *(amended in the build, ruling Δ3: the spec said `slow`, "a toml is read at most
+  daily"; D4 as built changes a toml's row hourly and serves `max-age=60`, so the call is `minute`, like the batch)*. `toml not found` is `not_found` (not
   checked yet); `checkToml(body, domain)` checks the `domain`, the `status`, the lists' shapes.
 - Types (`app/server/api-types.ts`), written from D4's 5.2 and 6: `DisplayNameKind = "verified" | "account" | "domain"`,
   `AccountNameEntry { address; display_name?: { text; kind }; domain?; account_name?; account_network_name?; labels?: Record<string,
@@ -90,15 +92,19 @@ Later pages (E10 objects and delegation, E11 tokens, E13's toml card, E14) use t
 | What | Class | Notes |
 |---|---|---|
 | `accountNames` | `minute` (60 s) | key: the sorted addresses; polled pages pass `holdFailure: true` |
-| `toml` | `slow` (1 h) | |
+| `toml` | `minute` (60 s) *(amended in the build, Δ3: the spec said `slow`, 1 h)* | key: the domain; no `holdFailure` (the account page is not polled) |
 | A page of class `immutable` with names | `immutable`, edge TTL `NAMED_PAGE_TTL_SECONDS` = 3600 (`app/server/cache-class.ts`) while `NAMES` is on | `cached(page, "immutable", { ttl })`: the transaction page and a closed ledger's page; the subrequests under them keep their own class |
 | Every other page | its class as today | a page of `live`, `live-home`, `minute`, `slow` or `short` is kept less than an hour already |
 
-Worst case for a new label to show on a transaction page: the page's hour, plus the names call's minute, plus the data API's minute.
+Worst case for a new label to show on a transaction page: the page's hour, plus the names call's minute, plus the data API's minute. (The toml
+call adds no hour to any page: it is `minute`, ruling Δ3 above.)
 
 ## 3. The names helper
 
 ### 3.1 `collectAddresses(...parts: unknown[]): string[]` (`app/server/names-load.ts`)
+
+*(Amended in the build, ruling C2: the function and its regex are in the leaf `app/server/names-collect.ts`, which imports the address codec and nothing
+else; `names-load.ts` re-exports it, so loaders import it from either.)*
 
 Walks the plain data it is given (arrays and objects, depth first, keys in order) and keeps every string that is a classic address
 (`/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/` and `isValidClassicAddress`), once each, in the order first met. A loader passes the parts of its
@@ -115,7 +121,9 @@ is pure and runs in the Worker only (it imports the address codec).
 - Never rejects. A call that fails or misses the deadline: `markDegraded(context, "names could not be loaded")`, `logProblem(…)`, and
   the answers that did arrive are used; `state: "failed"` when any failed.
 - Returns `part: NamesPart` (`{ state: "ok" | "off" | "failed"; map: NameMap }`, which goes to the browser) and `entries:
-  ReadonlyMap<string, AccountNameEntry>` (Worker only: the account header reads the labels' descriptions and the domain from it).
+  ReadonlyMap<string, AccountNameEntry>` (Worker only: the account header reads the labels' descriptions and the domain from it). *(Amended in the
+  build, ruling 5: `NamesPart` is defined in `app/domain/names.ts`, which is browser-safe and which pages and the live merges read; `names-load.ts`
+  re-exports it. With no addresses the part is `NO_NAMES`, `state: "ok"` with an empty map; with the switch off it is `NAMES_OFF`.)*
 
 ### 3.3 The view (`app/domain/names.ts`, pure, browser-safe)
 
@@ -179,8 +187,9 @@ account page).
 
 `BarListData.items[]` gains `mark?: { kind?: NameKind; labels: string[] }` (`app/ui/charts/types.ts`); `BarList` draws `NameMark` and
 `LabelMark` after the label (the kit may import `app/ui/components/*`). The view builders of the pair page (active accounts) and the
-AMM pool page (votes) set `label: linkTextOf(view)`, `sublabel: shortAddress(address)` and `mark` for a named item; an unnamed one is
-unchanged. Issuer sublabels (`SmallMultiples` panels of the Analytics balances card, the network and markets views' `sublabel`s) and
+AMM pool page (votes) set `label: linkTextOf(view)`, `sublabel: shortAddress(address)` and `mark` for a named item (`listedAccount`,
+`app/domain/listed-account.ts`); an unnamed one is unchanged. *(Amended in the build, ruling 7: a named voter's sublabel is `{short address} ·
+votes for …`, so that neither the address nor the vote is lost.)* Issuer sublabels (`SmallMultiples` panels of the Analytics balances card, the network and markets views' `sublabel`s) and
 issuer texts in the page body (`issued` of the pair, markets and AMM views, the Analytics exchanges' `issued`) use `plainNameOf`, else
 the short address. The kit's token covers `mark` (it is part of what a chart draws).
 
@@ -203,8 +212,9 @@ Specifics:
 - **Account, first page**: the header's call after the header's calls (the address, the parent, the token issuers), awaited with the
   header; the toml call (6.5) starts as soon as `account_info` gives a domain, beside the rest, with the deadline of the last ledger's
   lookup (1.5 s). A deleted account has no `account_info`: its domain is the header call's entry's, and the toml call follows that
-  call. The list's names call runs inside the list's promise after its rows, within `LIST_DEADLINE_MS`; the list's data carries its
-  `names`.
+  call. *(Amended in the build, ruling Δ1: D4 gives a deleted account no domain, so a deleted account has no domain line and no toml call. The
+  entry's domain is used when the node did not answer or the account has no `Domain` field, and the toml call then follows the names call.)* The
+  list's names call runs inside the list's promise after its rows, within `LIST_DEADLINE_MS`; the list's data carries its `names`.
 - **Account, behind a marker**: one call for the address and the list's rows, awaited (the page is stored an hour).
 - **Account, Analytics view**: the header's call as on the first page (no token issuers: no holdings); in `loadAnalytics`, each card
   whose rows hold accounts (counterparties, balances, exchanges) calls `loadNames` inside its promise, before its deadline.
@@ -216,7 +226,9 @@ Specifics:
 ### 6.1 Layout, per state (the AccountNames board)
 
 The header block (`app/ui/components/AccountNameBlock.tsx`, used by `AccountPage.tsx` for the list tabs, the Analytics view and the
-page behind a marker) has the identicon and "Account" as today, then:
+page behind a marker) has the identicon and "Account" as today, then: *(amended in the build, ruling 8: the page behind a marker, which is
+stored an hour, draws the title and the labels only (`accountNameHeader` with `brief`); it makes no toml call, so it has no domain state to
+tell.)*
 
 | State | `<h1>` | Under it |
 |---|---|---|
@@ -229,9 +241,12 @@ The account network name is in the link text (decision 5). The activation line (
 its "· domain" part when the line under the `<h1>` names the domain. The breadcrumb's last item is the link text (cut by CSS) instead
 of the short address. The balance and holdings are unchanged.
 
-**The domain shown** is the node's (`live.domain`, today's `decodeDomain`), lower-cased for comparison; without live state (deleted, or
-the node did not answer) it is the entry's `domain`. Its state: **verified** when the entry's kind is `verified` and its `domain` is
-that domain; **not verified** when the entry's `domain` is that domain and the toml has a row; **pending** ("not checked yet") when it
+**The domain shown** is the node's (`live.domain`, today's `decodeDomain`), lower-cased for comparison; without live state (the node did not
+answer) it is the entry's `domain` *(amended in the build, ruling Δ1: "deleted," is gone from this list; D4 gives a deleted account no domain, so
+there is nothing to show or to ask)*. Its state: **verified** when the entry's kind is `verified` and its `domain` is
+that domain; **not verified** when the entry's `domain` is that domain and the toml has a row *(amended in the build, ruling Δ2: and the entry has
+a `display_name`; an entry with a `domain` and no `display_name` is how D4 answers when it could not read its tomls, so it is **pending**, never
+not verified)*; **pending** ("not checked yet") when it
 is a well-formed domain and the entry has another or none (the index is behind, the account is dormant since before the history, or the
 toml was never read: `toml not found`); **none** (text only, no mark) when it is not a well-formed domain (`https://…`, an IPFS hash).
 
@@ -243,8 +258,13 @@ toml was never read: `toml not found`); **none** (text only, no mark) when it is
   **northpeak.example**." and "[northpeak.example/.well-known/xrp-ledger.toml](toml_url) lists this address under `[[ACCOUNTS]]`, and
   its `desc` gives the name." (when the name is the domain: "…under `[[ACCOUNTS]]`. It gives no `desc`, so the name is the domain.").
   The file is `xahau.toml` on Xahau (`tomlFileOf(network.software)`). The link is `ExternalLink` with `nofollow`.
-- "Checked {date, time UTC}" from the toml's `checked`, when the toml call answered.
-- **What else that toml says** (decision 10), the board's facts list, each row only when present and the box only when any:
+- "Checked {date, time UTC}" from the toml's `checked`, when the toml call answered. *(Amended in the build, ruling Δ4: when the toml's latest read
+  failed (status `failed`) and the data API still has the last good one (`fetched`), "Checked" prints `fetched`; with a failed read and no
+  `fetched`, or when the toml call did not answer, there is no "Checked" line.)*
+- **What else that toml says** (decision 10), the board's facts list, each row only when present and the box only when any: *(amended in the
+  build, ruling Δ4: shown whenever the name is verified and the toml answer has `fetched`, whatever its `status`, since the data API keeps serving
+  the last good content for up to 24 h after a failed re-read (a dead site can stay verified for up to 48 h after its last good read); a failed
+  read without `fetched` shows no facts.)*
   **Principals** (the names, `joinAnd`), **Currencies** (each `code` through `formatCurrency`, mono, plain text; E11 makes each a link
   through its `tokenLink` to `/{net}/token/{currency}.{issuer}` when `TOKENS` is on and the entry has an issuer), **Last modified** (`formatDate(modified)` and
   "from `[METADATA]`").
@@ -365,6 +385,17 @@ page `AccountNameBlock.tsx` with the disclosure: about 1.5 KB gzipped on pages w
 stays under 150,000 bytes gzipped (the network page, the closest, draws no account and does not import them). `pnpm check:bundle`
 measures; the README's figures are updated. `collectAddresses` and `loadNames` are Worker-only (`app/server/`), so the address codec
 does not reach the browser (`test/unit/account-bundle.test.ts` and the module-graph check).
+
+*(Amended in the build. First, the network page does import the marks: `BarList` imports `NameMark` and `LabelMark` (ruling C6 amended; the
+spec's sentence was a budget rationale written when the network page was the closest, and a render-prop indirection was not worth the 0.5 to
+1 KB it would save on a page with about 8 KB to spare), so the network page's chunks hold them although
+it draws no account and makes no names call (ruling 2). Measured at the end of E9 against the end of E8: the network page 151,905 → 153,329 bytes
+(+1,424, of which the route manifest is 114: 2,158 → 2,272), 6,671 under its 160,000. Second, the measured growth of the pages with accounts is
++1.6 KB (+1,591 to +1,779 on the home, ledger, transaction and NFT pages) and +4.0 KB on the account page (143,398 → 147,378), more than the
+spec's 3 KB, and +4.1 KB on the account analytics view (155,569 → 159,662, 338 under its 160,000). Third, "every page under 150,000" no longer
+holds as the spec wrote it: the NFT list and the NFT collection took the dashboard budget, 160,000 bytes, with the reason in the README
+("Why the NFT list and collection are dashboards"); the pages are within the budgets as `scripts/bundle-budget.ts` lists them. The README's
+"The figures of E9" has every page.)*
 
 ## 13. README
 
