@@ -6,6 +6,7 @@ import { loadAnalytics, type AnalyticsInput } from "./analytics-load";
 import type { AnalyticsData } from "./analytics-view";
 import type {
   AccountData,
+  AccountNamesResponse,
   AccountTxStatsRow,
   AccountValueRow,
   AnalyticsBalanceChanges,
@@ -99,6 +100,8 @@ function deferred<T>() {
 
 interface WorldOptions {
   period?: AnalyticsPeriod;
+  /** What the names batch answers, with `NAMES` on; with this left out the switch is off, and no names call can be made. */
+  names?: (addresses: readonly string[]) => Promise<AccountNamesResponse>;
   /** What call 0 comes to. */
   last?: () => Promise<LastValidated>;
   /** What each call comes to; an answer at once when left out. */
@@ -130,6 +133,7 @@ function world(options: WorldOptions = {}) {
 
   const answer = (card: Card) => options.calls?.[card] ?? (() => Promise.resolve(answers[card]));
   const api = {
+    accountNames: vi.fn(options.names ?? (() => Promise.reject(new Error("NAMES is off: no names call")))),
     lastValidated: vi.fn(options.last ?? (() => Promise.resolve(LAST))),
     accountStats: vi.fn((_address: string, family: "value" | "transactions") => answer(family === "value" ? "value" : "sent")()),
     analyticsBalanceChanges: vi.fn(() => answer("changes")()),
@@ -145,7 +149,7 @@ function world(options: WorldOptions = {}) {
     context: createLoadContext(env, ctx, mark),
     request: new Request(`https://explorer.test/xrpl/account/${ADDRESS}?tab=analytics`),
     api: api as unknown as DataApi,
-    network: networkOf("xrpl", env),
+    network: networkOf("xrpl", options.names ? { ...env, NAMES: "on" } : env),
     address: ADDRESS,
     period: options.period ?? "30d",
     deadlineAt: Date.now() + CARD_DEADLINE_MS,
@@ -569,5 +573,145 @@ describe("loadAnalytics", () => {
       expect(await data.frame).toMatchObject({ state: "ok", start: "2025-10-20" });
       expect(probe).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ---- The names of the cards that draw accounts (display names spec 1 and 5) ----------------------------------------------------------------
+
+describe("the names of the cards that draw accounts", () => {
+  const PAID = "rq5QXrArpavMCfE5dRuR3uG55iV1rG8mj";
+  const PAID_BY = "rEhcqzSi5e1E1GJJ1xfY1cmrRaoePZWkzt";
+  const USD_ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
+  const LIONS_ISSUER = "rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS";
+  const LIONS = `4C494F4E53${"0".repeat(30)}`;
+  const counterparty = (account: string): AnalyticsCounterparties["counterparties"][number] => ({
+    account,
+    sent_value: "1",
+    received_value: "2",
+    total_value: "3",
+    payments_sent: 1,
+    payments_received: 1,
+    first: "2026-10-01T00:00:00Z",
+    last: "2026-10-02T00:00:00Z",
+  });
+  /** Each card that draws accounts with accounts of its own: the counterparties two, the balances' USD line and the pairs' LIONS issuer one each. */
+  const withAccounts = {
+    counterparties: () => Promise.resolve({ ...answers.counterparties, total: 2, count: 2, counterparties: [counterparty(PAID), counterparty(PAID_BY)] }),
+    balances: () =>
+      Promise.resolve({
+        ...answers.balances,
+        lines_total: 2,
+        lines: [{ currency: "XRP", balance: "5" }, { currency: "USD", counterparty: USD_ISSUER, balance: "7" }],
+        count: 2,
+        rows: [{ date: "2026-10-17T00:00:00Z", currency: "XRP", balance: "5" }, { date: "2026-10-17T00:00:00Z", currency: "USD", counterparty: USD_ISSUER, balance: "7" }],
+      }),
+    pairs: () =>
+      Promise.resolve({
+        ...answers.pairs,
+        total: 1,
+        count: 1,
+        pairs: [{ base_currency: LIONS, base_issuer: LIONS_ISSUER, counter_currency: "XRP", count: 3, base_volume: "100", counter_volume: "2", bought: "100", sold: "0", bought_counter: "2", sold_counter: "0", native_volume: "2" }],
+      }),
+  } satisfies WorldOptions["calls"];
+  /** The names batch as the data API answers it: a verified name for the USD issuer, a name GateHub gave the LIONS issuer, nothing for the others. */
+  const named = (addresses: readonly string[]): Promise<AccountNamesResponse> =>
+    Promise.resolve({
+      result: "success",
+      count: addresses.length,
+      account_names: addresses.map((address) =>
+        address === USD_ISSUER
+          ? { address, display_name: { text: "Bramble Ventures", kind: "verified" }, domain: "bramble.example" }
+          : address === LIONS_ISSUER
+            ? { address, display_name: { text: "Fernhill Custody", kind: "account" }, account_name: "Fernhill Custody" }
+            : { address },
+      ),
+    });
+
+  it("is one call for each card that draws accounts, after its own call: the counterparties' accounts, the balances' issuers and the pairs' issuers, sorted; none for the other cards", async () => {
+    const { input, api, deleted, marks } = world({ calls: withAccounts, names: named });
+    const data = loadAnalytics(input);
+    deleted.resolve(false);
+
+    expect(await statesAfter(data)).toEqual(allOk);
+    expect(api.accountNames.mock.calls.map(([addresses]) => addresses).sort()).toEqual([[LIONS_ISSUER], [PAID_BY, PAID].sort(), [USD_ISSUER]].sort());
+    expect(marks).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("carries each such card's names, and draws the balances' sublabels and the pairs' issuers with them", async () => {
+    const { input, deleted } = world({ calls: withAccounts, names: named });
+    const data = loadAnalytics(input);
+    deleted.resolve(false);
+
+    const [counterparties, balances, pairs] = await Promise.all([data.counterparties, data.balances, data.pairs]);
+    if (counterparties.state !== "ok" || balances.state !== "ok" || pairs.state !== "ok") throw new Error("the cards are not ok");
+    expect(counterparties.names).toEqual({ state: "ok", map: {} });
+    expect(counterparties.rows.map((row) => row.account)).toEqual([PAID, PAID_BY]);
+    expect(balances.names).toEqual({ state: "ok", map: { [USD_ISSUER]: { name: { text: "Bramble Ventures", kind: "verified" }, domain: "bramble.example", labels: [] } } });
+    expect(balances.chart!.panels.map((panel) => panel.sublabel)).toEqual([undefined, "Bramble Ventures"]);
+    expect(pairs.names.map).toHaveProperty(LIONS_ISSUER);
+    expect(pairs.rows[0]!.issued).toEqual(["LIONS Fernhill Custody"]);
+  });
+
+  it("makes no call for a card that has no account to draw, and none while NAMES is off: the cards' names are then the switch's", async () => {
+    const empty = world({ names: named });
+    const data = loadAnalytics(empty.input);
+    empty.deleted.resolve(false);
+    expect(await statesAfter(data)).toEqual(allOk);
+    expect(empty.api.accountNames).not.toHaveBeenCalled();
+    expect(await data.counterparties).toMatchObject({ state: "ok", names: { state: "ok", map: {} } });
+
+    vi.restoreAllMocks();
+    const off = world({ calls: withAccounts });
+    const offData = loadAnalytics(off.input);
+    off.deleted.resolve(false);
+    expect(await statesAfter(offData)).toEqual(allOk);
+    expect(off.api.accountNames).not.toHaveBeenCalled();
+    for (const card of [offData.counterparties, offData.balances, offData.pairs]) expect(await card).toMatchObject({ state: "ok", names: { state: "off", map: {} } });
+    const balances = await offData.balances;
+    expect(balances.state === "ok" && balances.chart!.panels[1]!.sublabel).toBe("rhub8V…F3wq");
+  });
+
+  it("makes no names call for a card whose own call failed or was late", async () => {
+    const { input, api, deleted } = world({ calls: { ...withAccounts, counterparties: () => Promise.reject(serverError("counterparties")), pairs: () => after(6_000, answers.pairs) }, names: named });
+    const data = loadAnalytics(input);
+    deleted.resolve(false);
+
+    expect(await statesAfter(data, CARD_DEADLINE_MS)).toEqual({ ...allOk, counterparties: "failed", pairs: "late" });
+    expect(api.accountNames.mock.calls).toEqual([[[USD_ISSUER], { holdFailure: undefined }]]);
+  });
+
+  it("gives a names call what is left of the card's deadline: a late one fails the names alone, and the card is drawn with addresses at the deadline", async () => {
+    const { input, api, deleted, marks, logged, handedOff } = world({
+      calls: { ...withAccounts, balances: () => withAccounts.balances().then((answer) => after(4_000, answer)) },
+      names: () => never(),
+    });
+    const data = loadAnalytics(input);
+    deleted.resolve(false);
+
+    // The counterparties and the pairs asked at once, the balances after 4 s: none has been answered, and none is drawn yet.
+    expect(await statesAfter(data, CARD_DEADLINE_MS - 1)).toEqual({ ...allOk, counterparties: "pending", balances: "pending", pairs: "pending" });
+    expect(api.accountNames).toHaveBeenCalledTimes(3);
+    expect(await statesAfter(data, 1)).toEqual(allOk);
+    const balances = await data.balances;
+    expect(balances).toMatchObject({ state: "ok", names: { state: "failed", map: {} } });
+    expect(balances.state === "ok" && balances.chart!.panels[1]!.sublabel).toBe("rhub8V…F3wq");
+    // Each call is marked and logged as the names', never as its card's: no card took too long, and nothing is handed on.
+    expect(marks).toEqual(["names could not be loaded", "names could not be loaded", "names could not be loaded"]);
+    expect(logged()).toEqual(["names could not be loaded", "names could not be loaded", "names could not be loaded"]);
+    expect(handedOff).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("draws the card with addresses when its names call fails", async () => {
+    const { input, deleted, marks } = world({ calls: withAccounts, names: () => Promise.reject(serverError("account_names")) });
+    const data = loadAnalytics(input);
+    deleted.resolve(false);
+
+    expect(await statesAfter(data)).toEqual(allOk);
+    const pairs = await data.pairs;
+    expect(pairs).toMatchObject({ state: "ok", names: { state: "failed" } });
+    expect(pairs.state === "ok" && pairs.rows[0]!.issued).toEqual(["LIONS rGHtf1…AuzS"]);
+    expect(marks).toEqual(["names could not be loaded", "names could not be loaded", "names could not be loaded"]);
   });
 });

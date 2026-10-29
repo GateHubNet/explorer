@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountNftRow, AccountPageData, NeverActivatedData, ObjectRow, TabList, TxRow } from "../../server/account-view";
 import type { AnalyticsData } from "../../server/analytics-view";
 import { serverThenHydrated } from "../../../test/support/hydrate";
@@ -107,6 +108,7 @@ const header = (over: Partial<AccountHeader> = {}): AccountHeader => ({
     truncated: false,
   },
   nodeProblem: false,
+  name: null,
   ...over,
 });
 
@@ -135,10 +137,11 @@ const transactions = (
   tab: "transactions",
   rows,
   paging,
+  names: NO_NAMES,
 });
 
 function data(over: Partial<AccountListPageData> = {}): AccountListPageData {
-  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "transactions", tag: null, qr: QR, analyticsTab: true, header: header(), list: transactions(), ...over };
+  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "transactions", tag: null, qr: QR, analyticsTab: true, header: header(), list: transactions(), names: NO_NAMES, ...over };
 }
 
 const NFT_ID = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
@@ -168,7 +171,7 @@ const nftsTab = (
   rows: AccountNftRow[] = [nftRow()],
   paging: { newerHref: string | null; olderHref: string | null } = { newerHref: null, olderHref: `/xrpl/account/${ADDRESS}?tab=nfts&marker=M1` },
   coverage: Extract<TabList, { tab: "nfts" }>["coverage"] = null,
-): TabList => ({ state: "ok", tab: "nfts", rows, paging, coverage });
+): TabList => ({ state: "ok", tab: "nfts", rows, paging, coverage, names: NO_NAMES });
 
 /** A promise that never settles: a part of the analytics that has not streamed in. */
 const pending = <T,>(): Promise<T> => new Promise<T>(() => {});
@@ -179,7 +182,7 @@ function analyticsOf(period: AnalyticsPeriod = "30d"): AnalyticsData {
 
 /** The analytics view's page. Its header has the tokens and the owned objects, which the view does not show all the same. */
 function analyticsPage(over: Partial<AccountAnalyticsPageData> = {}): AccountAnalyticsPageData {
-  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "analytics", tag: null, qr: QR, analyticsTab: true, header: header(), analytics: analyticsOf(), ...over };
+  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "analytics", tag: null, qr: QR, analyticsTab: true, header: header(), analytics: analyticsOf(), names: NO_NAMES, ...over };
 }
 
 function renderInRouter(ui: ReactElement, loader: () => null = () => null) {
@@ -262,7 +265,7 @@ describe("the header", () => {
     expect(document.querySelector(".account-balance")!.querySelectorAll("a")).toHaveLength(0);
     expect(document.querySelector(".account-balance")!.classList.contains("account-balance--soft")).toBe(false);
     unmount();
-    renderInRouter(<AccountPage network={XRPL} data={data({ mode: "history", header: { status: "history" } })} />);
+    renderInRouter(<AccountPage network={XRPL} data={data({ mode: "history", header: { status: "history", name: null } })} />);
     await screen.findByText(/does not show the balance/);
     const panel = document.querySelector(".account-balance")!;
     expect(panel.querySelectorAll("a")).toHaveLength(1);
@@ -507,7 +510,7 @@ describe("the tabs", () => {
   });
 
   it("lead to the analytics view from a page of old history too: the view is live mode", async () => {
-    const history = data({ mode: "history", header: { status: "history" }, list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: null }) });
+    const history = data({ mode: "history", header: { status: "history", name: null }, list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: null }) });
     renderInRouter(<AccountPage network={XRPL} data={history} />);
     expect((await tabLinks()).at(-1)).toEqual(["Analytics", `/xrpl/account/${ADDRESS}?tab=analytics`, null, "nofollow"]);
   });
@@ -536,7 +539,7 @@ describe("the tabs", () => {
     });
 
     it("is a link from every tab, and from a page of old history, where the live state is not", async () => {
-      const history = data({ mode: "history", header: { status: "history" }, list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: null }) });
+      const history = data({ mode: "history", header: { status: "history", name: null }, list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: null }) });
       renderUnderLayout(<AccountPage network={XRPL} data={history} />, NFTS_ON);
       expect((await tabLinks()).find(([label]) => label === "NFTs")).toEqual(["NFTs", `/xrpl/account/${ADDRESS}?tab=nfts`, null, null]);
     });
@@ -752,6 +755,7 @@ describe("the other tabs", () => {
     const list: TabList = {
       state: "ok",
       tab: "payments",
+      names: NO_NAMES,
       csvHref: `/xrpl/account/${ADDRESS}/payments.csv`,
       paging: { newerHref: `/xrpl/account/${ADDRESS}?tab=payments`, olderHref: null },
       rows: [
@@ -782,6 +786,7 @@ describe("the other tabs", () => {
     const list: TabList = {
       state: "ok",
       tab: "trades",
+      names: NO_NAMES,
       paging: { newerHref: null, olderHref: null },
       rows: [
         {
@@ -808,6 +813,7 @@ describe("the other tabs", () => {
     const list: TabList = {
       state: "ok",
       tab: "offers",
+      names: NO_NAMES,
       ledgerIndex: 107695660,
       truncated: false,
       rows: [
@@ -826,7 +832,7 @@ describe("the other tabs", () => {
   it("says 'Showing the first N open offers' and gives no total when the API's page was full, and 'All 1 open offer' for one", async () => {
     const rows = (n: number) =>
       Array.from({ length: n }, (_, i) => ({ side: "sell" as const, quantity: { value: "1", currency: "XRP" }, total: { value: "2", currency: "USD" }, rate: { value: "2", quote: "USD", per: "XRP" }, sequence: i + 1 }));
-    const offers = (n: number, truncated: boolean): TabList => ({ state: "ok", tab: "offers", ledgerIndex: 107695660, rows: rows(n), truncated });
+    const offers = (n: number, truncated: boolean): TabList => ({ state: "ok", tab: "offers", ledgerIndex: 107695660, rows: rows(n), truncated, names: NO_NAMES });
     const { unmount } = renderInRouter(<AccountPage network={XRPL} data={data({ tab: "offers", list: offers(200, true) })} />);
     expect(await screen.findByText("Showing the first 200 open offers")).toBeTruthy();
     expect(screen.queryByText(/All 200/)).toBeNull();
@@ -839,6 +845,7 @@ describe("the other tabs", () => {
     const list: TabList = {
       state: "ok",
       tab: "objects",
+      names: NO_NAMES,
       truncated: true,
       trustLines: 4,
       offers: 2,
@@ -1013,7 +1020,7 @@ describe("the NFTs", () => {
     const history = data({
       tab: "nfts",
       mode: "history",
-      header: { status: "history" },
+      header: { status: "history", name: null },
       list: nftsTab([nftRow()], { newerHref: `/xrpl/account/${ADDRESS}?tab=nfts`, olderHref: null }),
     });
     mount(<AccountPage network={XRPL} data={history} />);
@@ -1038,7 +1045,7 @@ describe("the NFTs", () => {
 
 describe("the NFT objects", () => {
   const mount = (rows: ObjectRow[], net: "xrpl" | "xahau" = "xrpl", features: Features = NFTS_ON) => {
-    const list: TabList = { state: "ok", tab: "objects", rows, trustLines: 0, offers: 0, truncated: false, ledgerIndex: 107695660 };
+    const list: TabList = { state: "ok", tab: "objects", rows, trustLines: 0, offers: 0, truncated: false, ledgerIndex: 107695660, names: NO_NAMES };
     const network = net === "xrpl" ? XRPL : XAHAU;
     return renderUnderNetwork(<AccountPage network={network} data={data({ tab: "objects", native: network.native, list })} />, features, {
       path: `/${net}/account/${ADDRESS}?tab=objects`,
@@ -1120,7 +1127,7 @@ describe("a page of old history", () => {
   it("shows no balance and no live state, no margin, and a link to the first page", async () => {
     const history = data({
       mode: "history",
-      header: { status: "history" },
+      header: { status: "history", name: null },
       list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: `/xrpl/account/${ADDRESS}?marker=M2&back=M1` }),
     });
     renderInRouter(<AccountPage network={XRPL} data={history} />);

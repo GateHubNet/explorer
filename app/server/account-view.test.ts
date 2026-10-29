@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { Segment } from "../domain/describe";
+import { NO_NAMES } from "../domain/names";
 import { nftSample, nftsPageSample, uriTokenSample, NFT_MARKER, NFT_OWNER, OTHER_ISSUER, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../../test/support/nft-samples";
 import type { AccountData, AccountExchange, BalancesResponse, NftsPage, OrdersResponse, Payment, TxObject } from "./api-types";
 import {
@@ -12,7 +13,9 @@ import {
   decodeDomain,
   existenceOf,
   failedList,
+  headerAccounts,
   isAccountTab,
+  listAddresses,
   loaded,
   objectRows,
   nftsList,
@@ -33,7 +36,10 @@ import {
   tradesList,
   transactionRows,
   transactionsList,
+  type AccountHeader,
   type Loaded,
+  type TabList,
+  type TxRow,
 } from "./account-view";
 import type { AccountInfo, AccountObjects, LedgerObject, ServerState } from "./node-rpc";
 import { UpstreamError } from "./upstream";
@@ -865,7 +871,7 @@ describe("the lists of the tabs", () => {
   });
 
   it("reads the offers live, with the ledger they were read at, and has no paging", () => {
-    expect(offersList({ result: "success", ledger_index: 107721455, limit: 200, orders: [] })).toEqual({ state: "ok", tab: "offers", rows: [], ledgerIndex: 107721455, truncated: false });
+    expect(offersList({ result: "success", ledger_index: 107721455, limit: 200, orders: [] })).toEqual({ state: "ok", tab: "offers", rows: [], ledgerIndex: 107721455, truncated: false, names: NO_NAMES });
     expect(offersList({ result: "success", orders: [] })).toMatchObject({ ledgerIndex: null, truncated: false });
   });
 
@@ -885,10 +891,10 @@ describe("the lists of the tabs", () => {
 
   it("lists the objects of the first page, and says when the node had more than that", () => {
     const objects = objectsOf("xrpl", XRPL);
-    expect(objectsList(objects, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 1, offers: 0, truncated: false, ledgerIndex: 107721455 });
+    expect(objectsList(objects, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 1, offers: 0, truncated: false, ledgerIndex: 107721455, names: NO_NAMES });
     expect(objectsList({ ...objects, marker: "MORE" }, "XRP")).toMatchObject({ truncated: true });
     // A deleted account has none to read.
-    expect(objectsList(null, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null });
+    expect(objectsList(null, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null, names: NO_NAMES });
   });
 
   describe("the NFTs", () => {
@@ -959,7 +965,7 @@ describe("the lists of the tabs", () => {
     it("has no rows for an account that holds none, and says nothing of coverage when it is whole", () => {
       // The deleted account's recorded list: an empty page of a whole coverage.
       const list = nftsList(read("xrpl/data-api/accounts/r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC/nfts@limit=20.json"), ctx());
-      expect(list).toEqual({ state: "ok", tab: "nfts", rows: [], paging: { newerHref: null, olderHref: null }, coverage: null });
+      expect(list).toEqual({ state: "ok", tab: "nfts", rows: [], paging: { newerHref: null, olderHref: null }, coverage: null, names: NO_NAMES });
     });
 
     it("says what an incomplete coverage leaves out, in the network's words: NFTs, or URITokens", () => {
@@ -989,5 +995,119 @@ describe("the lists of the tabs", () => {
     expect(failedList("payments", "xahau")).toEqual({ state: "failed", what: "payments" });
     // The analytics view is no list; its whole-view error says "Couldn't load the analytics."
     expect(TAB_WHAT.analytics).toBe("the analytics");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The accounts the page draws, for their names (display names spec 1 and 5)
+
+describe("the accounts the page draws", () => {
+  const ctx = { net: "xrpl" as const, native: "XRP" as const, address: XRPL, back: [] as string[] };
+  const PAGING = { newerHref: null, olderHref: null };
+  const txRow = (what: Segment[]): TxRow => ({ hash: "AB".repeat(32), ledgerIndex: 1, time: 0, type: "Payment", what, change: null, ok: true, code: "tesSUCCESS" });
+
+  describe("listAddresses: the accounts a tab's list draws as links", () => {
+    it("is the accounts of the transactions' sentences, each once in the order drawn: not a pool's account (a link to the pool) or an amount's issuer (a title)", () => {
+      const list: TabList = {
+        state: "ok",
+        tab: "transactions",
+        rows: [
+          txRow([{ t: "account", v: "rSender" }, { t: "text", v: " sent " }, { t: "amount", value: "1", currency: "USD", issuer: "rIssuer" }, { t: "text", v: " to " }, { t: "account", v: "rTo" }]),
+          txRow([{ t: "text", v: "Swapped through " }, { t: "pool", v: "rPool", pair: "XRP/USD" }, { t: "text", v: " for " }, { t: "account", v: "rSender" }]),
+          txRow([{ t: "text", v: "Burned " }, { t: "nft", v: "00".repeat(32) }]),
+        ],
+        paging: PAGING,
+        names: NO_NAMES,
+      };
+      expect(listAddresses(list)).toEqual(["rSender", "rTo"]);
+    });
+
+    it("is what the recorded list's sentences draw: the sender of another account's transaction, and the account itself where a sentence names it", () => {
+      const list = transactionsList(read(`xrpl/data-api/accounts/${XRPL}/transactions@descending=true&limit=20.json`), ctx);
+      const senders = list.state === "ok" && list.tab === "transactions" ? list.rows.flatMap((row) => row.what.filter((s) => s.t === "account").map((s) => (s as { v: string }).v)) : [];
+      expect(senders.length).toBeGreaterThan(0);
+      expect(listAddresses(list)).toEqual([...new Set(senders)]);
+      expect(listAddresses(list)[0]).toMatch(/^rDFDjd/);
+      expect(listAddresses(list)).toContain(XRPL);
+    });
+
+    it("is the counterparty of each payment and of each trade, and no issuer of their amounts or pairs", () => {
+      const payments = paymentsList(read(`xahau/data-api/accounts/${XAHAU}/payments@descending=true&limit=20.json`), { ...ctx, net: "xahau", native: "XAH", address: XAHAU });
+      const paid = payments.state === "ok" && payments.tab === "payments" ? payments.rows : [];
+      expect(paid.some((row) => row.amount.issuer !== undefined)).toBe(true);
+      expect(listAddresses(payments)).toEqual([...new Set(paid.map((row) => row.counterparty))]);
+
+      const trades = tradesList(read(`xrpl/data-api/accounts/${XRPL}/exchanges@descending=true&limit=20.json`), ctx);
+      const traded = trades.state === "ok" && trades.tab === "trades" ? trades.rows : [];
+      expect(traded.some((row) => row.amount.issuer !== undefined)).toBe(true);
+      expect(listAddresses(trades)).toEqual([...new Set(traded.map((row) => row.counterparty))]);
+      for (const row of traded) expect(listAddresses(trades)).not.toContain(row.amount.issuer);
+    });
+
+    it("is the accounts of the objects' fields (To, Only for, Issuer, Authorized, a sell offer's only for), and no amount's issuer", () => {
+      const objects = objectsList(
+        {
+          account: XRPL,
+          ledger_index: 5,
+          validated: true,
+          account_objects: [
+            { LedgerEntryType: "Escrow", index: "E1", Amount: "1000000", Destination: "rEscrowTo" },
+            { LedgerEntryType: "Check", index: "C1", SendMax: { currency: "USD", issuer: "rCheckIssuer", value: "5" }, Destination: "rCheckTo" },
+            { LedgerEntryType: "NFTokenOffer", index: "N1", Amount: "5", Destination: "rOnlyFor", Flags: 1 },
+            { LedgerEntryType: "URIToken", index: "U1", Issuer: "rUriIssuer", Amount: { currency: "EVR", issuer: "rEvr", value: "3" }, Destination: "rBuyer" },
+            { LedgerEntryType: "DepositPreauth", index: "D1", Authorize: "rFriend" },
+            { LedgerEntryType: "PayChannel", index: "P1", Amount: "5", Balance: "1", Destination: "rEscrowTo" },
+          ],
+        },
+        "XRP",
+      );
+      expect(listAddresses(objects)).toEqual(["rEscrowTo", "rCheckTo", "rOnlyFor", "rUriIssuer", "rBuyer", "rFriend"]);
+    });
+
+    it("is none for the open offers and the NFTs, which draw no account, and for a list that failed", () => {
+      const offers = offersList({
+        result: "success",
+        orders: [{ specification: { direction: "sell", quantity: { currency: "XRP", value: "1" }, totalPrice: { currency: "USD", value: "2", counterparty: "rI" } }, properties: { maker: XRPL, flags: 0, sequence: 1 } }],
+      });
+      expect(listAddresses(offers)).toEqual([]);
+      expect(listAddresses(nftsList(nftsPageSample(), ctx))).toEqual([]);
+      expect(listAddresses(failedList("transactions"))).toEqual([]);
+    });
+  });
+
+  describe("headerAccounts: the accounts the header draws", () => {
+    const tokens = (...items: Array<{ issuer: string; lp: boolean }>): AccountHeader["tokens"] => ({
+      state: "ok",
+      truncated: false,
+      items: items.map(({ issuer, lp }) => ({ currency: lp ? `03${"AB".repeat(19)}` : "USD", issuer, value: "1", lp })),
+    });
+    const activation = { time: 0, parent: "rParent", initialBalance: "25", txHash: "AB".repeat(32) };
+
+    it("is the address, the parent of its activation and the issuers of its tokens, in that order", () => {
+      expect(headerAccounts(XRPL, { activation, tokens: tokens({ issuer: "rUsd", lp: false }, { issuer: "rEur", lp: false }) }, { ammPages: true })).toEqual([XRPL, "rParent", "rUsd", "rEur"]);
+    });
+
+    it("has an LP token's pool only while AMM_PAGES is off: on, the page links the pool's page, not its account", () => {
+      const header = { activation, tokens: tokens({ issuer: "rUsd", lp: false }, { issuer: "rPool", lp: true }) };
+      expect(headerAccounts(XRPL, header, { ammPages: true })).toEqual([XRPL, "rParent", "rUsd"]);
+      expect(headerAccounts(XRPL, header, { ammPages: false })).toEqual([XRPL, "rParent", "rUsd", "rPool"]);
+    });
+
+    it("is the address alone without an activation or tokens (a genesis account, a deleted one, the analytics view)", () => {
+      expect(headerAccounts(XRPL, { activation: null, tokens: { state: "none" } }, { ammPages: true })).toEqual([XRPL]);
+      expect(headerAccounts(XRPL, { activation: null, tokens: { state: "failed" } }, { ammPages: true })).toEqual([XRPL]);
+    });
+  });
+
+  it("has every list builder give its list no names: the loader names it", () => {
+    const lists = [
+      transactionsList(read(`xrpl/data-api/accounts/${XRPL}/transactions@descending=true&limit=20.json`), ctx),
+      paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20.json`), ctx),
+      tradesList(read(`xrpl/data-api/accounts/${XRPL}/exchanges@descending=true&limit=20.json`), ctx),
+      offersList({ result: "success", orders: [] }),
+      objectsList(null, "XRP"),
+      nftsList(nftsPageSample(), ctx),
+    ];
+    for (const list of lists) expect(list.state === "ok" && list.names).toBe(NO_NAMES);
   });
 });

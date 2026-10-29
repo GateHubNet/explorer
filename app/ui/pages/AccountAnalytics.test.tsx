@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { analyticsWindow, type AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
+import { NO_NAMES } from "../../domain/names";
 import {
   analyticsFrame,
   balancesCard,
@@ -117,7 +118,7 @@ function changesOf(frame: AnalyticsFrame, dex: DexWording = XRPL_AMM, native: Ne
 /** The 2 largest of 14 counterparties, or none. */
 function counterpartiesOf(frame: AnalyticsFrame, total = 14): CounterpartiesCard {
   const first = at("2026-10-01");
-  return counterpartiesCard(frame, {
+  const card = counterpartiesCard(frame, {
     ...span(frame),
     sort: "value",
     total,
@@ -130,12 +131,13 @@ function counterpartiesOf(frame: AnalyticsFrame, total = 14): CounterpartiesCard
             { account: BOB, sent_value: "38100", received_value: "0", total_value: "38100", payments_sent: 2, payments_received: 0, first, last: at(T) },
           ],
   });
+  return { ...card, names: NO_NAMES };
 }
 
 /** XRP and a USD line in every bucket: the 2 largest of 7 balances. */
 function balancesOf(frame: AnalyticsFrame, empty = false): BalancesCard {
   const { buckets } = frame.axis;
-  return balancesCard(frame, {
+  const card = balancesCard(frame, {
     ...span(frame),
     interval: interval(frame),
     lines_total: empty ? 0 : 7,
@@ -148,12 +150,13 @@ function balancesOf(frame: AnalyticsFrame, empty = false): BalancesCard {
           { date: at(bucket), currency: "USD", counterparty: ISSUER, balance: "120.5" },
         ]),
   });
+  return { ...card, names: NO_NAMES };
 }
 
 /** USD/XRP as the API stores it, shown as XRP/USD: the largest of 9 pairs. */
 function pairsOf(frame: AnalyticsFrame, opts: { markets?: boolean; dex?: DexWording; net?: Net; empty?: boolean } = {}): PairsCard {
   const net = opts.net ?? XRPL;
-  return pairsCard(
+  const card = pairsCard(
     frame,
     {
       ...span(frame),
@@ -179,6 +182,7 @@ function pairsOf(frame: AnalyticsFrame, opts: { markets?: boolean; dex?: DexWord
     },
     { net: net.id, native: net.native, markets: opts.markets ?? true, dex: opts.dex ?? XRPL_AMM },
   );
+  return { ...card, names: NO_NAMES };
 }
 
 /** A part as the page data gives it: settled to a state, or never (`"pending"`, a stream that has not come yet). */

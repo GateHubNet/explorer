@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { analyticsWindow, type AnalyticsPeriod, type AnalyticsWindow } from "../domain/analytics-params";
 import { tokenOf } from "../domain/fnv";
 import { marketHref } from "../domain/market-pair";
+import { NO_NAMES, type NameMap } from "../domain/names";
 import { typeGroups, typeGroupsNote } from "../domain/type-groups";
 import type { SmallMultiplesData, TimeSeriesData } from "../ui/charts/types";
 import { featuresOf } from "../ui/features";
@@ -1141,6 +1142,20 @@ describe("balancesCard", () => {
     expect(lp!.sublabel).toBe("rKiCet…432Y");
   });
 
+  it("gives an issued line its issuer's name as the sublabel when it is verified or GateHub's and unlabelled (shownIssuer), else its short issuer", () => {
+    const names: NameMap = {
+      [ADDRESS_B]: { name: { text: "Bramble Ventures", kind: "verified" }, domain: "bramble.example", labels: [] },
+      [LP_ISSUER]: { name: { text: "Kite Pool", kind: "account" }, labels: ["scam"] },
+    };
+    const [xrp, usd, lp] = balancesCard(frame, balancesAnswer(lines, rows(), 7), names).chart!.panels;
+    expect(xrp).not.toHaveProperty("sublabel");
+    expect(usd!.sublabel).toBe("Bramble Ventures");
+    // A labelled account's name is never plain text: the short address, as without names.
+    expect(lp!.sublabel).toBe("rKiCet…432Y");
+    // The names change the text, not the panels or what they draw.
+    expect(balancesCard(frame, balancesAnswer(lines, rows(), 7), names).chart!.panels.map((panel) => panel.values)).toEqual(card.chart!.panels.map((panel) => panel.values));
+  });
+
   it("draws each in its own unit, so that the table's cells are exact", () => {
     expect(card.chart!.panels.map((panel) => panel.format)).toEqual([
       { kind: "amount", unit: "XRP" },
@@ -1342,6 +1357,17 @@ describe("pairsCard", () => {
     expect(row!.issued).toEqual(["EUR rGHtf1…AuzS", "USD rhub8V…F3wq"]);
   });
 
+  it("writes each issued side's issuer by its name when it is verified or GateHub's and unlabelled (shownIssuer), else by its short address", () => {
+    const eurUsd = pairOf({ base_currency: "EUR", base_issuer: LIONS_ISSUER, counter_currency: "USD", counter_issuer: ADDRESS_B, native_volume: "9" });
+    const names: NameMap = {
+      [LIONS_ISSUER]: { name: { text: "Fernhill Custody", kind: "account" }, network: "issuer", labels: [] },
+      [ADDRESS_B]: { name: { text: "bramble.example", kind: "domain" }, domain: "bramble.example", labels: [] },
+    };
+    const [row] = pairsCard(frame, exchangesAnswer([eurUsd]), ctx, names).rows;
+    // A name of a domain that is not verified is no plain text.
+    expect(row!.issued).toEqual(["EUR Fernhill Custody · issuer", "USD rhub8V…F3wq"]);
+  });
+
   it("reads Xahau's native code", () => {
     const xah = pairOf({ base_currency: "USD", base_issuer: ADDRESS_B, counter_currency: "XAH", bought: "1", sold: "2", bought_counter: "30", sold_counter: "40", native_volume: "70" });
     const [row] = pairsCard(frame, exchangesAnswer([xah]), { net: "xahau", native: "XAH", markets: true, dex: dexWording({ name: "Xahau", hasAmm: false, features: featuresOf({}) }) }).rows;
@@ -1518,8 +1544,8 @@ describe("AnalyticsData", () => {
       sent: Promise.resolve({ state: "late" }),
       changes: Promise.resolve({ state: "ok", ...changesCard(frame, changesAnswer([]), "XRP", XRPL_DEX) }),
       counterparties: failed,
-      balances: Promise.resolve({ state: "ok", ...balancesCard(frame, balancesAnswer([], [])) }),
-      pairs: Promise.resolve({ state: "ok", ...pairsCard(frame, exchangesAnswer([]), { net: "xrpl", native: "XRP", markets: true, dex: XRPL_DEX }) }),
+      balances: Promise.resolve({ state: "ok", ...balancesCard(frame, balancesAnswer([], [])), names: NO_NAMES }),
+      pairs: Promise.resolve({ state: "ok", ...pairsCard(frame, exchangesAnswer([]), { net: "xrpl", native: "XRP", markets: true, dex: XRPL_DEX }), names: NO_NAMES }),
     };
     expect((await data.frame).state).toBe("ok");
     expect((await data.sent).state).toBe("late");

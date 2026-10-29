@@ -77,6 +77,20 @@ export const isNamesRequest = (request: Pick<SeenRequest, "url">): boolean => ne
  */
 export const withoutNames = <T extends Pick<SeenRequest, "url">>(requests: readonly T[]): T[] => requests.filter((request) => !isNamesRequest(request));
 
+/** Whether a request a mock saw is a call for a domain's toml (`GET /v2/toml/{domain}`: the account page's header asks for one). */
+export const isTomlRequest = (request: Pick<SeenRequest, "url">): boolean => /\/v2\/toml\/[^/]+$/.test(new URL(request.url).pathname);
+
+/**
+ * The requests of a mock but its names calls and its toml calls: what a spec about the other calls of the account page compares. The Worker keeps a toml's answer a minute
+ * too (class `minute`), so whether an earlier render made the call is the cache's state, as for a names call; the account page's names specs assert both.
+ */
+export const withoutNamesOrTomls = <T extends Pick<SeenRequest, "url">>(requests: readonly T[]): T[] => requests.filter((request) => !isNamesRequest(request) && !isTomlRequest(request));
+
+/** The toml calls of a mock: the domain each asked for, as asked, in the order the calls came. */
+export function tomlCalls(mock: { requests: readonly SeenRequest[] }): string[] {
+  return mock.requests.filter(isTomlRequest).map((request) => decodeURIComponent(new URL(request.url).pathname.split("/").at(-1)!));
+}
+
 /** The names calls of a mock: the addresses each asked for, in the order the calls came. */
 export function namesCalls(mock: { requests: readonly SeenRequest[] }): string[][] {
   return mock.requests.filter(isNamesRequest).map((request) => (new URL(request.url).searchParams.get("addresses") ?? "").split(","));

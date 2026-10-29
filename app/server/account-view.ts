@@ -11,12 +11,15 @@ import BigNumber from "bignumber.js";
 import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
+import { NO_NAMES, type NamesPart } from "../domain/names";
 import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
 import { formatDate } from "../domain/time-words";
 import { nftGlyph } from "../ui/components/NftGlyph";
+import type { Features } from "../ui/features";
+import type { NameHeader } from "./account-name-view";
 import type { AnalyticsData } from "./analytics-view";
 import type { AccountData, AccountExchange, BalancesResponse, Nft, NftsPage, OrdersResponse, Page, Payment, TxObject } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
@@ -307,7 +310,15 @@ export interface AccountHeader {
   owned: OwnedView | null;
   /** Some of what the node tells could not be read: the page says "Live state unavailable". */
   nodeProblem: boolean;
+  /**
+   * The account's name, its domain and how it is known (display names spec 6.5), from the header's names call and the toml of the domain the header shows: `null` while
+   * `NAMES` is off and when that call failed (the header is today's). The loader adds it to what `accountHeader` gives.
+   */
+  name: NameHeader | null;
 }
+
+/** The header as `accountHeader` makes it, before the loader names it. */
+export type UnnamedHeader = Omit<AccountHeader, "name">;
 
 export interface HeaderInput {
   native: Native;
@@ -347,7 +358,7 @@ export function activationOf(created: AccountData): Activation {
  * Without it (the analytics view, spec 2.1) neither is read: `owned` is `null`, `tokens` is `none`, neither adds a problem, and the balance
  * is the node's alone (an account whose node did not answer has none, and the page says the balance could not be read).
  */
-export function accountHeader(input: HeaderInput, { holdings }: { holdings: boolean } = { holdings: true }): { header: AccountHeader; problems: string[] } {
+export function accountHeader(input: HeaderInput, { holdings }: { holdings: boolean } = { holdings: true }): { header: UnnamedHeader; problems: string[] } {
   const { native, created, info, state, lastLedgerTime, history } = input;
   const objects = holdings ? needed(input.objects, "objects") : undefined;
   const balances = holdings ? needed(input.balances, "balances") : undefined;
@@ -747,15 +758,18 @@ export interface AccountNftRow {
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tab list and the page
 
-/** What the active tab shows. `failed` is the section that could not be loaded: "Couldn't load {what}" and Retry. */
+/**
+ * What the active tab shows. `failed` is the section that could not be loaded: "Couldn't load {what}" and Retry. A list that is there carries the names of the accounts it draws
+ * (`names`, display names spec 3.4): the builders give it `NO_NAMES`, and the loader the names of its call (`listAddresses`); the Objects tab's are the header's call's.
+ */
 export type TabList =
   | { state: "failed"; what: string }
-  | { state: "ok"; tab: "transactions"; rows: TxRow[]; paging: Paging }
-  | { state: "ok"; tab: "payments"; rows: PaymentRow[]; paging: Paging; csvHref: string }
-  | { state: "ok"; tab: "trades"; rows: TradeRow[]; paging: Paging }
-  | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean }
-  | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null }
-  | { state: "ok"; tab: "nfts"; rows: AccountNftRow[]; paging: Paging; coverage: CoverageNoteText | null };
+  | { state: "ok"; tab: "transactions"; rows: TxRow[]; paging: Paging; names: NamesPart }
+  | { state: "ok"; tab: "payments"; rows: PaymentRow[]; paging: Paging; csvHref: string; names: NamesPart }
+  | { state: "ok"; tab: "trades"; rows: TradeRow[]; paging: Paging; names: NamesPart }
+  | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean; names: NamesPart }
+  | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null; names: NamesPart }
+  | { state: "ok"; tab: "nfts"; rows: AccountNftRow[]; paging: Paging; coverage: CoverageNoteText | null; names: NamesPart };
 
 /** What each tab is called in "Couldn't load transactions"; the analytics view's whole-view error is "Couldn't load the analytics." */
 export const TAB_WHAT: Record<AccountTab, string> = {
@@ -782,6 +796,7 @@ export function transactionsList(page: Page<"transactions", TxObject>, ctx: List
     tab: "transactions",
     rows: transactionRows(page.transactions, ctx.address, ctx.native),
     paging: pagingOf(ctx.net, ctx.address, { tab: "transactions", marker: ctx.marker, back: ctx.back, next: page.marker }),
+    names: NO_NAMES,
   };
 }
 
@@ -792,6 +807,7 @@ export function paymentsList(page: Page<"payments", Payment>, ctx: ListContext):
     rows: paymentRows(page.payments, ctx.address),
     paging: pagingOf(ctx.net, ctx.address, { tab: "payments", marker: ctx.marker, back: ctx.back, next: page.marker }),
     csvHref: `/${ctx.net}/account/${ctx.address}/payments.csv`,
+    names: NO_NAMES,
   };
 }
 
@@ -801,6 +817,7 @@ export function tradesList(page: Page<"exchanges", AccountExchange>, ctx: ListCo
     tab: "trades",
     rows: tradeRows(page.exchanges, ctx.address),
     paging: pagingOf(ctx.net, ctx.address, { tab: "trades", marker: ctx.marker, back: ctx.back, next: page.marker }),
+    names: NO_NAMES,
   };
 }
 
@@ -818,13 +835,21 @@ export function offersList(orders: OrdersResponse): TabList {
     rows: offerRows(orders),
     ledgerIndex: orders.ledger_index ?? null,
     truncated: orders.orders.length >= (orders.limit ?? ORDERS_DEFAULT_LIMIT),
+    names: NO_NAMES,
   };
 }
 
 /** The Objects tab; `null` for an account that has none to read (it was deleted). `nftsHref` is `objectRows`'s. */
 export function objectsList(objects: AccountObjects | null, native: Native, nftsHref?: string): TabList {
-  if (objects === null) return { state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null };
-  return { state: "ok", tab: "objects", ...objectRows(objects.account_objects, native, nftsHref), truncated: objects.marker !== undefined, ledgerIndex: objects.ledger_index };
+  if (objects === null) return { state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null, names: NO_NAMES };
+  return {
+    state: "ok",
+    tab: "objects",
+    ...objectRows(objects.account_objects, native, nftsHref),
+    truncated: objects.marker !== undefined,
+    ledgerIndex: objects.ledger_index,
+    names: NO_NAMES,
+  };
 }
 
 /** A row of the NFTs tab: the key of its collection is `{ issuer, taxon }` on XRPL and `{ issuer }` on Xahau, whose URITokens have none. */
@@ -851,12 +876,49 @@ export function nftsList(page: NftsPage, ctx: ListContext): TabList {
     rows: page.nfts.map(accountNftRow),
     paging: pagingOf(ctx.net, ctx.address, { tab: "nfts", marker: ctx.marker, back: ctx.back, next: page.marker }),
     coverage: coverageNote(page.coverage, nftWords(ctx.net).tokens),
+    names: NO_NAMES,
   };
 }
 
 /** The section that could not be loaded: `TAB_WHAT`'s words of the tab, and the network's own for the NFTs (`net`: "URITokens" on Xahau). */
 export function failedList(tab: ListTab, net?: NetworkId): TabList {
   return { state: "failed", what: tab === "nfts" && net !== undefined ? nftWords(net).tokens : TAB_WHAT[tab] };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The accounts the page draws (display names spec 1 and 5): what the loader asks the names of, and nothing else it holds
+
+/** The accounts some segments draw as links (`Sentence`'s `AccountLink`): not a pool's account (a link to the pool) or an amount's issuer (`Amount` writes it in a title). */
+const accountsIn = (segments: readonly Segment[]): string[] => segments.flatMap((segment) => (segment.t === "account" ? [segment.v] : []));
+
+/**
+ * The accounts a tab's list draws as links, each once, in the order drawn: the accounts of the transactions' sentences, the counterparty of each payment and of each trade, and
+ * the accounts of the objects' fields (To, Only for, Issuer, Authorized, a sell offer's only for). The open offers and the NFTs draw none (an amount's issuer is in a title, a
+ * collection is a link to the collection), and neither does a list that failed. The first page's list asks for these names in a call of its own, after its rows; the Objects
+ * tab's rows come with the header, and its accounts are in the header's call.
+ */
+export function listAddresses(list: TabList): string[] {
+  if (list.state !== "ok") return [];
+  switch (list.tab) {
+    case "transactions":
+      return [...new Set(list.rows.flatMap((row) => accountsIn(row.what)))];
+    case "payments":
+    case "trades":
+      return [...new Set(list.rows.map((row) => row.counterparty))];
+    case "objects":
+      return [...new Set(list.rows.flatMap((row) => row.fields.flatMap((field) => accountsIn(field.value))))];
+    default:
+      return [];
+  }
+}
+
+/**
+ * The accounts the header draws, in the order drawn: the address (the `<h1>`), the account that activated it, and the issuer of each token. An LP token's issuer is its AMM pool,
+ * which the page links as the pool while `AMM_PAGES` is on (`TokenRow`), and as an account only while it is off.
+ */
+export function headerAccounts(address: string, header: Pick<AccountHeader, "activation" | "tokens">, features: Pick<Features, "ammPages">): string[] {
+  const issuers = header.tokens.state === "ok" ? header.tokens.items.filter((token) => !(token.lp && features.ammPages)).map((token) => token.issuer) : [];
+  return [address, ...(header.activation === null ? [] : [header.activation.parent]), ...issuers];
 }
 
 /**
@@ -866,6 +928,8 @@ export function failedList(tab: ListTab, net?: NetworkId): TabList {
  */
 export interface HistoryHeader {
   status: "history";
+  /** The account's name and its labels only (`accountNameHeader`'s `brief`): no domain, which only the live state says. `null` as `AccountHeader.name`. */
+  name: NameHeader | null;
 }
 
 /**
@@ -894,6 +958,11 @@ interface AccountPageBase {
    * the page data, so that the stored HTML, the server's tab bar and the browser's agree.
    */
   analyticsTab: boolean;
+  /**
+   * The names of the accounts the header draws (`headerAccounts`), from the header's call; behind a marker, of the one call of the page (the address and the list's rows). A
+   * streamed list and the analytics cards carry their own.
+   */
+  names: NamesPart;
 }
 
 /**

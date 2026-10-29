@@ -14,8 +14,9 @@ import BigNumber from "bignumber.js";
 
 import { analyticsPhrases, type AnalyticsPeriod, type AnalyticsPhrases, type AnalyticsWindow } from "../domain/analytics-params";
 import { apiAssetText, type Asset } from "../domain/asset";
-import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue, shortAddress } from "../domain/format";
+import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue } from "../domain/format";
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
+import { shownIssuer, type NameMap, type NamesPart } from "../domain/names";
 import type { Native } from "../domain/parse/types";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { bucketLabel } from "../ui/charts/labels";
@@ -132,20 +133,26 @@ export interface ChangesCard {
   };
 }
 
-/** Tile 4 (Counterparties) and the table of the largest, every cell as text. */
+/**
+ * Tile 4 (Counterparties) and the table of the largest, every cell as text. `names` are those of the rows' accounts, from the card's own names call (display names spec 5): the
+ * builder leaves them out and the loader adds them, as for the two cards below.
+ */
 export interface CounterpartiesCard {
   tile: AnalyticsTile;
   rows: { account: string; sent: string; received: string; payments: string }[];
   note: string | null;
   empty: string | null;
   source: string;
+  names: NamesPart;
 }
 
+/** The balance history. `names` are those of the lines' issuers, which the panels' sublabels are written with. */
 export interface BalancesCard {
   chart: SmallMultiplesData | null;
   notes: string[];
   empty: string | null;
   source: string;
+  names: NamesPart;
 }
 
 /** A pair of the DEX table in its natural orientation, with Bought and Sold already read from the API's field that is of the displayed base. */
@@ -154,7 +161,7 @@ export interface PairRow {
   id: string;
   /** "XRP/USD". */
   label: string;
-  /** "USD rhub8V…F3wq": each issued side's code and short issuer, base first. */
+  /** "USD rhub8V…F3wq": each issued side's code and its issuer as a page's text writes one (`shownIssuer`: its plain name, else its short address), base first. */
   issued: string[];
   /** The pair page in that orientation; `null` while the markets are off, and for a pair the data API cannot be asked for (`isLinkable`). */
   href: string | null;
@@ -164,11 +171,13 @@ export interface PairRow {
   sold: string;
 }
 
+/** DEX trading per pair. `names` are those of the pairs' issuers, which `issued` is written with. */
 export interface PairsCard {
   rows: PairRow[];
   notes: string[];
   empty: string | null;
   source: string;
+  names: NamesPart;
 }
 
 /** What the tab hands the page (spec 1.5): the period, and one promise for the frame and for each card. None of them rejects. */
@@ -568,7 +577,7 @@ function valueOrDash(value: string, field: string): string {
 }
 
 /** Tile 4 and the top counterparties (spec 3.3 and 3.9): by value sent plus received, as the API ranks them. */
-export function counterpartiesCard(frame: AnalyticsFrame, answer: AnalyticsCounterparties): CounterpartiesCard {
+export function counterpartiesCard(frame: AnalyticsFrame, answer: AnalyticsCounterparties): Omit<CounterpartiesCard, "names"> {
   const source = frame.sources.counterparties;
   const { total, count } = answer;
   const rows = answer.counterparties.map((counterparty) => ({
@@ -602,9 +611,10 @@ export function counterpartiesCard(frame: AnalyticsFrame, answer: AnalyticsCount
 
 /**
  * The balance history (spec 3.6): a panel for each line in the API's order (the native line first, then by value), its balance in each bucket and
- * `null` before its first row. Every panel starts from zero on its own scale, so no panel is magnified differently from the others.
+ * `null` before its first row. Every panel starts from zero on its own scale, so no panel is magnified differently from the others. An issued line's
+ * sublabel is its issuer as a page's text writes one (`shownIssuer` over `names`, display names spec 7): its plain name, else its short address.
  */
-export function balancesCard(frame: AnalyticsFrame, answer: AnalyticsBalances): BalancesCard {
+export function balancesCard(frame: AnalyticsFrame, answer: AnalyticsBalances, names: NameMap = {}): Omit<BalancesCard, "names"> {
   const { axis, phrase } = frame;
   const source = frame.sources.balances;
   const { lines } = answer;
@@ -616,7 +626,7 @@ export function balancesCard(frame: AnalyticsFrame, answer: AnalyticsBalances): 
     return {
       id: line.counterparty ? `${line.currency}.${line.counterparty}` : line.currency,
       label,
-      ...(line.counterparty ? { sublabel: shortAddress(line.counterparty) } : {}),
+      ...(line.counterparty ? { sublabel: shownIssuer(line.counterparty, names) } : {}),
       values: aligned(axis.buckets, mine).map((row) => (row ? numberOf(row.balance, "balance").toFixed() : null)),
       format: { kind: "amount" as const, unit: label },
     };
@@ -650,13 +660,14 @@ const assetOf = (currency: string, issuer: string | undefined): Asset => (issuer
  * DEX trading per pair (spec 3.10): each pair in E3's natural orientation, as every page of the program shows one. The API stores a pair in its own
  * order, so Bought and Sold of the displayed base are read from the field that is of it: `bought` and `sold` when the order is kept, and, when it is
  * inverted (the displayed base is the API's counter), `sold_counter` (what the account received for what it sold) and `bought_counter` (what it paid
- * for what it bought).
+ * for what it bought). Each issuer is written as a page's text writes one (`shownIssuer` over `names`, display names spec 7).
  */
 export function pairsCard(
   frame: AnalyticsFrame,
   answer: AnalyticsExchanges,
   ctx: { net: NetworkId; native: Native; markets: boolean; dex: DexWording },
-): PairsCard {
+  names: NameMap = {},
+): Omit<PairsCard, "names"> {
   const { net, native, markets, dex } = ctx;
   const source = frame.sources.pairs;
 
@@ -669,7 +680,7 @@ export function pairsCard(
     return {
       id: `${apiAssetText(stored.base)}/${apiAssetText(stored.counter)}`,
       label: `${code}/${formatCurrency(counter.currency)}`,
-      issued: [base, counter].filter((side) => side.issuer).map((side) => `${formatCurrency(side.currency)} ${shortAddress(side.issuer!)}`),
+      issued: [base, counter].filter((side) => side.issuer).map((side) => `${formatCurrency(side.currency)} ${shownIssuer(side.issuer!, names)}`),
       href: markets && isLinkable([base, counter], native) ? marketHref(net, base, counter) : null,
       volume: pair.native_volume === undefined ? DASH : formatValue(numberOf(pair.native_volume, "native_volume").toFixed()),
       trades: formatAmount(String(pair.count)),

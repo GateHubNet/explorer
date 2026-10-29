@@ -6,6 +6,7 @@ import { shortAddress } from "../../app/domain/format";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
 import { encodeQr, qrPath } from "../../app/server/qr";
+import { withoutNamesOrTomls } from "../support/names";
 import { holderCase } from "../support/nft-cases";
 import { coverageSample, nftSample, nftsPageSample } from "../support/nft-samples";
 import { anchors, elementText, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
@@ -672,7 +673,8 @@ describe("the active XRPL account", () => {
     });
     const { html } = await page(`/xrpl/account/${a}`);
 
-    const asked = mock.requests.filter((r) => r.key !== "node server_state").map((r) => r.key).sort();
+    // The names calls are account-names.spec.ts's: the Worker keeps their answers a minute, so whether a render makes one is the cache's state.
+    const asked = withoutNamesOrTomls(mock.requests).filter((r) => r.key !== "node server_state").map((r) => r.key).sort();
     expect(asked).toEqual(
       [
         `GET /v2/accounts/${a}`,
@@ -1076,7 +1078,7 @@ describe("the NFTs tab", () => {
       "GET /v2/ledgers/107700783": { result: "success", ledger: { ledger_index: 107700783, close_time: 1792253462 } },
     });
     const { html } = await page(`/xrpl/account/${a}?tab=nfts`);
-    expect(mock.requests.filter((r) => r.key !== "node server_state").map((r) => r.key).sort()).toEqual(
+    expect(withoutNamesOrTomls(mock.requests).filter((r) => r.key !== "node server_state").map((r) => r.key).sort()).toEqual(
       [
         `GET /v2/accounts/${a}`,
         `GET /v2/accounts/${a}/balances`,
@@ -1151,7 +1153,7 @@ describe("the NFTs tab", () => {
     expect(hrefs(second.html)).toContain(`/xrpl/account/${a}?tab=nfts`);
     const nav = /<nav class="pager"[^>]*>([\s\S]*?)<\/nav>/.exec(second.html)![1]!;
     expect(anchors(nav).map((x) => x.text)).toEqual(["Newer"]);
-    expect(mock.requests.map((r) => r.key)).toEqual([NFTS(a, "M1")]);
+    expect(withoutNamesOrTomls(mock.requests).map((r) => r.key)).toEqual([NFTS(a, "M1")]);
   });
 
   it("goes back one page at a time: the third page remembers the markers before it", async () => {
@@ -1243,6 +1245,8 @@ describe("the NFTs tab", () => {
       ],
       paging: { newerHref: null, olderHref: `/xrpl/account/${a}?tab=nfts&marker=M1` },
       coverage: { before: "Covers ledger ", ledger: 107874617, after: " onwards: earlier NFTs are not in the index yet." },
+      // The NFTs draw no account: the list asks no names.
+      names: { state: "ok", map: {} },
     });
   });
 
@@ -1396,8 +1400,8 @@ describe("paging", () => {
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Live state unavailable");
     expect(hrefs(html)).toContain(`/xrpl/account/${a}`);
-    // Nothing but the page's own list was asked for: not the node, not the balances, not the creation of the account.
-    expect(mock.requests.map((r) => r.key)).toEqual([LIST(a, "transactions", "M1")]);
+    // Nothing but the page's own list was asked for (and its names: account-names.spec.ts): not the node, not the balances, not the creation of the account.
+    expect(withoutNamesOrTomls(mock.requests).map((r) => r.key)).toEqual([LIST(a, "transactions", "M1")]);
     expect(mock.unusedOverrides()).toEqual([]);
   });
 

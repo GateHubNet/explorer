@@ -6,6 +6,7 @@ import { loader } from "../../app/routes/net.account.$address";
 import type { AccountAnalyticsPageData } from "../../app/server/account-view";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration, createLoadContext, type Env } from "../../app/server/env";
+import { withoutNamesOrTomls } from "../support/names";
 import { anchors, pageClient, textOf } from "../support/pages";
 import { entryOf } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
@@ -354,7 +355,8 @@ describe("the calls", () => {
       mock = mockUpstream(net);
       await page(pathOf(address, period, net));
 
-      const asked = mock.requests.map((request) => request.key).sort();
+      // The names and toml calls are account-analytics-names.spec.ts's: the Worker keeps their answers a minute, so whether a render makes one is the cache's state.
+      const asked = withoutNamesOrTomls(mock.requests).map((request) => request.key).sort();
       expect(asked).toEqual(["GET /v2/last_validated", ...headerCalls(address, lastLedger), ...CARDS.map((card) => keyOf(address, card, period, start))].sort());
       expect(mock.requests.every((request) => request.net === net && request.status === 200)).toBe(true);
       expect(asked).not.toContain(`GET /v2/accounts/${address}/balances`);
@@ -374,7 +376,7 @@ describe("the calls", () => {
     const { html } = await page(pathOf(DELETED, "all"));
 
     expect(statusesOf(mock, probe)).toEqual([200]);
-    expect(mock.requests.map((request) => request.key).sort()).toEqual(
+    expect(withoutNamesOrTomls(mock.requests).map((request) => request.key).sort()).toEqual(
       [
         "GET /v2/last_validated",
         `GET /v2/accounts/${DELETED}`,
