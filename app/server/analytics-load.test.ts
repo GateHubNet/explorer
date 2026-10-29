@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { recordingMark } from "../../test/support/degraded-mark";
 import { allSwitches } from "../../test/support/switches";
 import type { AnalyticsPeriod } from "../domain/analytics-params";
 import { loadAnalytics, type AnalyticsInput } from "./analytics-load";
@@ -19,7 +20,6 @@ import type {
 } from "./api-types";
 import type { DataApi } from "./data-api";
 import { CARD_DEADLINE_MS } from "./deadline";
-import type { DegradedMark } from "./edge-cache";
 import { createLoadContext, type Env } from "./env";
 import { networkOf } from "./networks";
 import { UpstreamError } from "./upstream";
@@ -118,16 +118,7 @@ interface WorldOptions {
  */
 function world(options: WorldOptions = {}) {
   const handedOff: Promise<unknown>[] = [];
-  const marks: string[] = [];
-  const mark: DegradedMark = {
-    get degraded() {
-      return marks.length > 0;
-    },
-    get reason() {
-      return marks[0];
-    },
-    mark: (reason) => void marks.push(reason),
-  };
+  const { mark, marks } = recordingMark();
   const ctx = { waitUntil: (work: Promise<unknown>) => void handedOff.push(work), passThroughOnException() {} } as unknown as ExecutionContext;
   const logs = vi.spyOn(console, "error").mockImplementation(() => {});
 

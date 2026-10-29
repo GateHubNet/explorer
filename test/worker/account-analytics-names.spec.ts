@@ -17,7 +17,7 @@ import {
   viewOf,
   watchNamesLog,
 } from "../support/names";
-import { expectDegraded, forgetStored } from "../support/nft-pages";
+import { expectDegraded, forgetStored, isStored } from "../support/nft-pages";
 import { pageClient, textOf } from "../support/pages";
 
 // The names of the account's Analytics view, `/{net}/account/{address}?tab=analytics` (display names spec 1 and 5; ruling C13), on the real Worker: the header's names
@@ -92,6 +92,8 @@ describe("the analytics view", () => {
     expect(text).toContain(`USD ${usd}`);
     expect(text).not.toContain(shortAddress(LIONS_ISSUER));
     expect(text).not.toContain("Couldn’t load");
+    // The view is stored behind the answer (`waitUntil`): its write has landed before the test ends, so that it cannot land after another test's `forgetStored`.
+    expect(await isStored(PATH)).toBe(true);
   });
 
   it("hands the page the header's name with what the toml says, as the other tabs do, the header's names and each card's own", async () => {

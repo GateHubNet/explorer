@@ -1,11 +1,11 @@
 import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { recordingMark } from "../../test/support/degraded-mark";
 import { allSwitches } from "../../test/support/switches";
 import { NAMES_OFF, NO_NAMES } from "../domain/names";
 import type { AccountNameEntry, AccountNamesResponse } from "./api-types";
 import type { FreshOptions } from "./data-api";
-import type { DegradedMark } from "./edge-cache";
 import { createLoadContext, type Env } from "./env";
 import { collectAddresses } from "./names-collect";
 import * as namesLoad from "./names-load";
@@ -76,16 +76,7 @@ interface WorldOptions {
 }
 
 function world(options: WorldOptions = {}) {
-  const marks: string[] = [];
-  const mark: DegradedMark = {
-    get degraded() {
-      return marks.length > 0;
-    },
-    get reason() {
-      return marks[0];
-    },
-    mark: (reason) => void marks.push(reason),
-  };
+  const { mark, marks } = recordingMark();
   const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
   const logs = vi.spyOn(console, "error").mockImplementation(() => {});
   const accountNames = vi.fn(options.call ?? ((addresses: readonly string[]) => Promise.resolve(respond(addresses, options.known))));

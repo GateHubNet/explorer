@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AccountHeader, AccountListPageData, HistoryHeader, TabList } from "../../app/server/account-view";
 import { loadAccountPage } from "../support/account-loader";
+import { hexOfText } from "../support/hex";
 import {
   answerNamesAfterTheirEnd,
   askedIn,
@@ -56,8 +57,7 @@ const recordedInfo = import.meta.glob("../fixtures/http/xrpl/node/account_info/r
 async function activeInfoWithDomain(domain: string): Promise<Record<string, unknown>> {
   const load = Object.values(recordedInfo)[0]!;
   const { result } = JSON.parse(await load()) as { result: { account_data: Record<string, unknown> } };
-  const hex = [...domain].map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("").toUpperCase();
-  return { ...result, account_data: { ...result.account_data, Domain: hex } };
+  return { ...result, account_data: { ...result.account_data, Domain: hexOfText(domain) } };
 }
 
 /** Where in a mock's requests the first one `test` holds for is: what came before what. */

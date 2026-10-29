@@ -378,6 +378,7 @@ async function firstPage(
   const history = existenceOf(created, info) === "undetermined" ? await historyOf(api.accountTransactions(address, { limit: 1 })) : undefined;
 
   const existence = existenceOf(created, info, history);
+  // `nodeToml` is left running on purpose: it never rejects, logs or marks nothing itself, and the 404 or 503 never reads it.
   if (existence === "never-activated" || existence === "outage") return notAnAccount(context, existence, network, address);
 
   const unnamed = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, history });
@@ -442,6 +443,7 @@ async function analyticsPage(
     const history = existenceOf(created, info) === "undetermined" ? await historyOf(probe()) : undefined;
 
     const existence = existenceOf(created, info, history);
+    // `nodeToml` is left running on purpose, as on the first page: it never rejects, logs or marks nothing itself, and the 404 or 503 never reads it.
     if (existence === "never-activated" || existence === "outage") return notAnAccount(context, existence, network, address);
 
     const unnamed = accountHeader({ native: network.native, created, info, state, lastLedgerTime, history }, { holdings: false });

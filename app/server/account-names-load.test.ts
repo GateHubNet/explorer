@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { recordingMark } from "../../test/support/degraded-mark";
+import { hexOfText } from "../../test/support/hex";
 import { allSwitches } from "../../test/support/switches";
 import { NO_NAMES } from "../domain/names";
 import { LAST_LEDGER_DEADLINE_MS, LIST_DEADLINE_MS, namedHeader, nameList, nodeTomlOf, readToml, type NamingContext } from "./account-names-load";
 import type { TabList, TxRow, UnnamedHeader } from "./account-view";
 import type { AccountNamesResponse, TomlAnswer } from "./api-types";
-import type { DegradedMark } from "./edge-cache";
 import { createLoadContext, type Env } from "./env";
 import { networkOf } from "./networks";
 import type { AccountInfo } from "./node-rpc";
@@ -50,16 +51,7 @@ const TOML: TomlAnswer = {
 
 /** A request's context over a fake data API, with the degraded mark recording each reason and `console.error` (where `logProblem` writes) silenced and recorded. */
 function world(api: { accountNames?: (addresses: readonly string[]) => Promise<AccountNamesResponse>; toml?: (domain: string) => Promise<TomlAnswer> }) {
-  const marks: string[] = [];
-  const mark: DegradedMark = {
-    get degraded() {
-      return marks.length > 0;
-    },
-    get reason() {
-      return marks[0];
-    },
-    mark: (reason) => void marks.push(reason),
-  };
+  const { mark, marks } = recordingMark();
   const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
   const logs = vi.spyOn(console, "error").mockImplementation(() => {});
   const fake = {
@@ -163,11 +155,10 @@ describe("the header's names and toml", () => {
     owned: null,
     nodeProblem: false,
   });
-  const hexOf = (text: string) => [...text].map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("").toUpperCase();
   /** account_info with a Domain of `text` (hex, as the node writes it). */
   const infoWith = (text: string): Promise<AccountInfo> =>
     Promise.resolve({
-      account_data: { Account: ADDRESS, Balance: "1", Flags: 0, LedgerEntryType: "AccountRoot", OwnerCount: 0, Sequence: 1, Domain: hexOf(text) },
+      account_data: { Account: ADDRESS, Balance: "1", Flags: 0, LedgerEntryType: "AccountRoot", OwnerCount: 0, Sequence: 1, Domain: hexOfText(text) },
       ledger_index: 5,
       validated: true,
     } as AccountInfo);
