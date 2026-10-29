@@ -641,7 +641,7 @@ describe("the names of the cards that draw accounts", () => {
     expect(balances.names).toEqual({ state: "ok", map: { [USD_ISSUER]: { name: { text: "Bramble Ventures", kind: "verified" }, domain: "bramble.example", labels: [] } } });
     expect(balances.chart!.panels.map((panel) => panel.sublabel)).toEqual([undefined, "Bramble Ventures"]);
     expect(pairs.names.map).toHaveProperty(LIONS_ISSUER);
-    expect(pairs.rows[0]!.issued).toEqual([{ code: "LIONS", issuer: "Fernhill Custody", name: true }]);
+    expect(pairs.rows[0]!.issued).toEqual([{ code: "LIONS", issuer: "Fernhill Custody", name: true, labels: [] }]);
   });
 
   it("makes no call for a card that has no account to draw, and none while NAMES is off: the cards' names are then the switch's", async () => {
@@ -702,7 +702,7 @@ describe("the names of the cards that draw accounts", () => {
     expect(await statesAfter(data)).toEqual(allOk);
     const pairs = await data.pairs;
     expect(pairs).toMatchObject({ state: "ok", names: { state: "failed" } });
-    expect(pairs.state === "ok" && pairs.rows[0]!.issued).toEqual([{ code: "LIONS", issuer: "rGHtf1…AuzS", name: false }]);
+    expect(pairs.state === "ok" && pairs.rows[0]!.issued).toEqual([{ code: "LIONS", issuer: "rGHtf1…AuzS", labels: [] }]);
     expect(marks).toEqual(["names could not be loaded", "names could not be loaded", "names could not be loaded"]);
   });
 });

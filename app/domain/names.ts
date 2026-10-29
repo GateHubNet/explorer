@@ -110,6 +110,23 @@ export function shownIssuer(address: string, names: NameMap): string {
   return plainNameOf(names[address]) ?? shortAddress(address);
 }
 
+/**
+ * An issued side as a list's row writes it (the markets and the AMM pools lists; display names spec 7 and decision 12): its code, and its issuer by `shownIssuer`, with `name` when
+ * that is a name (which is not set in mono, as a code and an address are), and the issuer's labels, which the row marks (`LabelMark`) whatever its issuer reads.
+ */
+export interface IssuerPart {
+  code: string;
+  issuer: string;
+  name?: true;
+  labels: string[];
+}
+
+/** The `IssuerPart` of `code` (as the page writes the currency) and its `issuer`, through `names`. */
+export function issuerPart(code: string, issuer: string, names: NameMap): IssuerPart {
+  const name = plainNameOf(names[issuer]);
+  return { code, issuer: name ?? shortAddress(issuer), ...(name === null ? {} : { name: true }), labels: names[issuer]?.labels ?? [] };
+}
+
 /** The labels as a sentence says them: `scam`, `scam and spam`, `scam, spam and advisory`. */
 export function labelWords(labels: readonly string[]): string {
   return joinAnd(labels);

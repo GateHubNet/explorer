@@ -20,7 +20,7 @@ import { compactNumber, decodesCurrency, formatAmount, formatCurrency, formatPri
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import { marketsHref } from "../domain/market-params";
 import { listedAccount } from "../domain/listed-account";
-import { shownIssuer, type NameMap, type NamesPart } from "../domain/names";
+import { shownIssuer, type IssuerPart, type NameMap, type NamesPart } from "../domain/names";
 import { trailPaging, type Paging } from "../domain/paging";
 import { sharePercent } from "../domain/percent";
 import { formatDateTime } from "../domain/time-words";
@@ -45,7 +45,7 @@ import type {
 } from "./api-types";
 import { CACHE_CLASSES, type CacheClass } from "./cache-class";
 import { BN, decimalOf, feePercent, ratioOf, valueFloor } from "./exact";
-import { issuersOf } from "./markets-view";
+import { issuerParts } from "./markets-view";
 import { anchoredWindow, byDay, tokened, volumeOf } from "./network-view";
 import type { Network } from "./networks";
 import type { AmmInfo, NodeAmount } from "./node-rpc";
@@ -54,7 +54,6 @@ import { clock, ledgerLink, unixOf } from "./validator-facts";
 
 const DASH = "—";
 const MINUS = "−";
-const SEPARATOR = " · ";
 
 /** A day the data API has no row for may not be computed yet (spec 3.1, D2b): the one sentence the cards that read the pool's day rows say of it. */
 export const NOT_COMPUTED_NOTE = "A day without rows may not be computed yet.";
@@ -118,8 +117,11 @@ export interface AmmRowView {
   coins: [string, string];
   /** The pool's page. */
   href: string;
-  /** `rhWTXC…tcS3 · RLUSD rMxCKb…m5De`: the short account, then each issued side's code and its issuer (the name of one verified or named by GateHub and unlabelled, else its short address). */
-  detail: string;
+  /**
+   * Under the pair, `rhWTXC…tcS3 · RLUSD rMxCKb…m5De`: the pool's account, short, then each issued side's code and its issuer (`issuerParts`: the name of one verified or named by
+   * GateHub and unlabelled, not in mono, else its short address; a labelled issuer marked).
+   */
+  detail: { account: string; issuers: IssuerPart[] };
   /** The "Deleted" tag. */
   deleted: boolean;
   value: string;
@@ -128,10 +130,10 @@ export interface AmmRowView {
   fee: string;
   volume: string;
   /**
-   * The auction slot: the holder, short, and the page of its account; `Open` with no link and `open` true (a status, which the page draws with its icon); or
-   * `—`, with neither, for a slot that cannot be told (no time to compare a held slot with, or a deleted pool).
+   * The auction slot: its holder, an account the page links (`AccountLink`: by its name when it has one); `Open` and `open` true (a status, which the page draws with its icon);
+   * or `—`, for a slot that cannot be told (no time to compare a held slot with, or a deleted pool).
    */
-  slot: { text: string; href: string | null; open: boolean };
+  slot: { holder: string } | { text: string; open: boolean };
   /** `#86,800,123` and the ledger, or `—` with no link. */
   created: { text: string; href: string | null };
 }
@@ -166,8 +168,9 @@ export interface AmmListPageData {
     | (Failed & { source: string })
     | { state: "skipped" };
   /**
-   * The names of the issuers of the table's rows (display names spec 3.4), which the loader adds after `ammListPage`: it asks for `listIssuers` before the rows are built, because the
-   * rows' issuer texts are written with them. `failed` when the names call did not work (the issuers are their short addresses), `off` when the switch is.
+   * The names of the accounts the table draws (display names spec 3.4): the issuers of its rows and the holders of the slots it links (`listAccounts`), which the loader asks for
+   * before it builds the page, because the rows' issuer texts are written with them; the page's `NamesProvider` reads the holders' from it. `failed` when the names call did not work
+   * (the issuers and the holders are their short addresses), `off` when the switch is.
    */
   names: NamesPart;
 }
@@ -203,7 +206,7 @@ export interface AmmListInput {
   live: PromiseSettledResult<Page<"rows", AmmVolumeRow>>;
   /** #4; `null`: not asked (#1 failed). */
   history: PromiseSettledResult<Page<"rows", AmmVolumeRow>> | null;
-  /** The names of the issuers the rows show (`listIssuers`); none when left out. */
+  /** The names of the accounts the rows show (`listAccounts`); none when left out. */
   names?: NameMap;
 }
 
@@ -267,13 +270,13 @@ function tilesOf(net: AmmListInput["net"], row: AmmVolumeRow): [AmmTile, AmmTile
  * set's `end_time`, else the close time of the newest ledger), so that a stored page does not depend on when it was drawn. Without a `now` a held slot cannot be told
  * from an expired one: `—`. A deleted pool has no slot to hold or bid for: `—`, whatever the index kept of it.
  */
-function slotOf(net: AmmListInput["net"], pool: AmmPool, now: number | null): AmmRowView["slot"] {
-  const open = { text: "Open", href: null, open: true };
-  const unknown = { text: DASH, href: null, open: false };
+function slotOf(pool: AmmPool, now: number | null): AmmRowView["slot"] {
+  const open = { text: "Open", open: true };
+  const unknown = { text: DASH, open: false };
   if (pool.deleted) return unknown;
   const holder = pool.auction_slot?.holder;
   if (holder === undefined) return open;
-  const held = { text: shortAddress(holder), href: accountHref(net.id, holder, {}), open: false };
+  const held = { holder };
   const expires = pool.auction_slot?.expiration === undefined ? Number.NaN : Date.parse(pool.auction_slot.expiration);
   // The ledger sets an expiration with every holder; one that is missing leaves nothing to compare, and the slot as the index has it.
   if (Number.isNaN(expires)) return held;
@@ -309,13 +312,13 @@ function rowOf(net: AmmListInput["net"], pool: AmmPool, components: ReadonlyMap<
     pair: shown.text,
     coins: [formatCurrency(shown.first.currency), formatCurrency(shown.second.currency)],
     href: ammPoolHref(net.id, pool.amm_account),
-    detail: [shortAddress(pool.amm_account), issuersOf(shown.first, shown.second, names)].filter((part) => part !== "").join(SEPARATOR),
+    detail: { account: shortAddress(pool.amm_account), issuers: issuerParts(shown.first, shown.second, names) },
     deleted: pool.deleted,
     value: pool.deleted || pool.value_native === undefined ? DASH : compactNumber(pool.value_native),
     reserves: [reserveText(0), reserveText(1)],
     fee: pool.trading_fee === undefined ? DASH : feePercent(pool.trading_fee),
     volume,
-    slot: slotOf(net, pool, now),
+    slot: slotOf(pool, now),
     created: pool.created_ledger === undefined ? { text: DASH, href: null } : ledgerLink(net.id, pool.created_ledger),
   };
 }
@@ -462,13 +465,20 @@ export function ammListPage(input: AmmListInput): { page: Omit<AmmListPageData, 
 }
 
 /**
- * The issuers the list draws as texts (display names spec 1): those of the table's rows, row by row, the stored base's first. Not the pool's own account, its creator nor its slot's holder,
- * which the table writes as short addresses. Read as far as the answer goes, as the builder reads it (a call that failed, was not asked, or answered no list has none): the loader
- * names these before it builds the page, because the rows' issuer texts are written with the names.
+ * The accounts the list draws (display names spec 1), row by row: the issuers it writes as texts (the stored base's first) and the holder of a slot it links. Not the pool's own account
+ * nor its creator, which the table writes as short addresses, nor the holder of a slot it shows as Open or a dash. A table that failed, or was not asked for, draws none. The page is
+ * built once without names to see which slots it links (a held slot depends on the data's own time); the loader names these, then builds the page with them, because the rows'
+ * issuer texts are written with the names.
  */
-export function listIssuers(pools: AmmListInput["pools"]): string[] {
+export function listAccounts(input: AmmListInput): string[] {
+  const { pools } = input;
   if (pools === null || pools.status !== "fulfilled" || !Array.isArray(pools.value?.pools)) return [];
-  return pools.value.pools.flatMap((pool) => [pool?.base_issuer, pool?.counter_issuer].filter((issuer): issuer is string => typeof issuer === "string"));
+  const table = ammListPage({ ...input, names: {} }).page.pools;
+  if (table.state !== "ok") return [];
+  return pools.value.pools.flatMap((pool, at) => {
+    const slot = table.rows[at]?.slot;
+    return [pool?.base_issuer, pool?.counter_issuer, slot !== undefined && "holder" in slot ? slot.holder : undefined].filter((address): address is string => typeof address === "string");
+  });
 }
 
 /** Xahau's page: no pools, and a way to its markets while the markets pages are on. */

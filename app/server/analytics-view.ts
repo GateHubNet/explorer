@@ -16,7 +16,7 @@ import { analyticsPhrases, type AnalyticsPeriod, type AnalyticsPhrases, type Ana
 import { apiAssetText, type Asset } from "../domain/asset";
 import { compactNumber, formatAmount, formatChange, formatCurrency, formatValue, shortAddress } from "../domain/format";
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
-import { plainNameOf, shownIssuer, type NameMap, type NamesPart } from "../domain/names";
+import { issuerPart, shownIssuer, type IssuerPart, type NameMap, type NamesPart } from "../domain/names";
 import type { Native } from "../domain/parse/types";
 import { groupCounts, typeGroups, typeGroupsNote } from "../domain/type-groups";
 import { bucketLabel } from "../ui/charts/labels";
@@ -155,12 +155,11 @@ export interface BalancesCard {
   names: NamesPart;
 }
 
-/** One issued side of a pair: its code, and its issuer as a page's text writes one. `name` says the issuer is a plain name, which the page does not set in mono as it does a code and an address. */
-export interface IssuedSide {
-  code: string;
-  issuer: string;
-  name: boolean;
-}
+/**
+ * One issued side of a pair: its code, and its issuer as a page's text writes one (`IssuerPart`). `name` says the issuer is a plain name, which the page does not set in mono as it does a
+ * code and an address; `labels` are the issuer's, which the page marks (display names decision 12), as the markets and AMM pools lists do.
+ */
+export type IssuedSide = IssuerPart;
 
 /** A pair of the DEX table in its natural orientation, with Bought and Sold already read from the API's field that is of the displayed base. */
 export interface PairRow {
@@ -660,11 +659,8 @@ export function balancesCard(frame: AnalyticsFrame, answer: AnalyticsBalances, n
 
 // ---- The DEX pairs -----------------------------------------------------------------------------------------------------------------
 
-/** An issued side as the pair's row writes it: its code and its issuer by `shownIssuer`, and whether that is a name. */
-const issuedSide = (currency: string, issuer: string, names: NameMap): IssuedSide => {
-  const name = plainNameOf(names[issuer]);
-  return { code: formatCurrency(currency), issuer: name ?? shortAddress(issuer), name: name !== null };
-};
+/** An issued side as the pair's row writes it: its code and its issuer by `shownIssuer`, whether that is a name, and the issuer's labels. */
+const issuedSide = (currency: string, issuer: string, names: NameMap): IssuedSide => issuerPart(formatCurrency(currency), issuer, names);
 
 /** An asset of the API's fields: the native code alone, or a currency and its issuer. */
 const assetOf = (currency: string, issuer: string | undefined): Asset => (issuer ? { currency, issuer } : { currency });

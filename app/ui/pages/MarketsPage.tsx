@@ -7,6 +7,7 @@ import { Sparkline } from "../charts/Sparkline";
 import { Card } from "../components/Card";
 import { count, DataTable, FIRST_ROWS, type Column } from "../components/DataTable";
 import { SearchIcon, TriangleDownIcon, TriangleUpIcon } from "../components/icons";
+import { IssuerTexts } from "../components/IssuerTexts";
 import { SegmentedLinks } from "../components/SegmentedLinks";
 import { StatGrid, StatTile } from "../components/StatTile";
 import type { NetworkInfo } from "../networks";
@@ -47,12 +48,16 @@ function sorted(rows: readonly MarketRowView[], sort: Sort): readonly MarketRowV
 // ---------------------------------------------------------------------------------------------------------------------------
 // The cells
 
-/** The pair as the row's one target: a link to its page, a block of at least 44 px that holds the issuers under the pair, as text. */
+/** The pair as the row's one target: a link to its page, a block of at least 44 px that holds the issuers under the pair, as text (a name not in mono, a labelled issuer marked). */
 function PairCell({ row }: { row: MarketRowView }) {
   const content = (
     <>
       <span className="markets__name">{row.pair}</span>
-      {row.issuers !== "" && <span className="markets__issuers mono">{row.issuers}</span>}
+      {row.issuers.length > 0 && (
+        <span className="markets__issuers">
+          <IssuerTexts parts={row.issuers} />
+        </span>
+      )}
     </>
   );
   // A pair the data API cannot be asked for (a lower-case standard code) has no page: it is listed as text.

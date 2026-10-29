@@ -19,7 +19,7 @@ import {
 } from "../domain/format";
 import { isLinkable, marketHref, naturalOrientation } from "../domain/market-pair";
 import { marketsHref, PERIODS, QUOTES, TRADES_API, type MarketsParams, type Quote } from "../domain/market-params";
-import { shownIssuer, type NameMap, type NamesPart } from "../domain/names";
+import { issuerPart, type IssuerPart, type NameMap } from "../domain/names";
 import { wholePercent } from "../domain/percent";
 import type { MeterData } from "../ui/charts/types";
 import type { SegmentLink } from "../ui/components/SegmentedLinks";
@@ -37,8 +37,11 @@ export interface MarketRowView {
   pair: string;
   /** The pair page in that orientation; `null` when the data API could not be asked for the pair (a lower-case standard code). */
   href: string | null;
-  /** "USD rhub8V…F3wq · …": each issued side's code and its issuer, base first: the name of an issuer verified or named by GateHub and unlabelled, else its short address (`issuersOf`). */
-  issuers: string;
+  /**
+   * Each issued side, base first: its code and its issuer, the name of an issuer verified or named by GateHub and unlabelled, else its short address, and the issuer's labels
+   * (`issuerParts`; the page writes them "USD rhub8V…F3wq · …", a name not in mono, and marks a labelled issuer).
+   */
+  issuers: IssuerPart[];
   last: string;
   /** "+2.38%"; "—" and `flat` without one. */
   change: { text: string; dir: "up" | "down" | "flat" };
@@ -77,11 +80,6 @@ export interface MarketsPageData {
   /** The view's period as the page's sentences say it: "last 24 hours", "last 7 days", "last 30 days" (the description of its tags). */
   periodWords: string;
   indexable: boolean;
-  /**
-   * The names of the issuers of `rows` (display names spec 3.4), which the loader adds after `marketsPage`: it asks for `marketIssuers` before the rows are built, because the rows'
-   * issuer texts are written with them. `failed` when the names call did not work (the issuers are their short addresses), `off` when the switch is.
-   */
-  names: NamesPart;
 }
 
 export interface MarketsInput {
@@ -277,13 +275,17 @@ function ammCell(row: MarketRow): { text: string; meter: MeterData | null } {
 }
 
 /**
- * The pair's issued sides, base first: "USD rhub8V…F3wq · EUR rvYAfW…s59B", or "USD Northpeak Treasury · EUR rvYAfW…s59B" for an issuer with a name (`shownIssuer`: verified or
- * named by GateHub, and no label). The AMM list's rows write the same words (E5 2.1).
+ * The pair's issued sides, base first, as a row writes them (`IssuerPart`): each its code and its issuer, the name of one verified or named by GateHub and unlabelled (`shownIssuer`),
+ * else its short address, with the issuer's labels. The AMM list's rows write the same (E5 2.1).
  */
+export function issuerParts(base: Asset, counter: Asset, names: NameMap = {}): IssuerPart[] {
+  return [base, counter].filter((side) => side.issuer).map((side) => issuerPart(formatCurrency(side.currency), side.issuer!, names));
+}
+
+/** The words of the issued sides as a row reads them: "USD rhub8V…F3wq · EUR rvYAfW…s59B", or "USD Northpeak Treasury · EUR rvYAfW…s59B" for an issuer with a name. */
 export function issuersOf(base: Asset, counter: Asset, names: NameMap = {}): string {
-  return [base, counter]
-    .filter((side) => side.issuer)
-    .map((side) => `${formatCurrency(side.currency)} ${shownIssuer(side.issuer!, names)}`)
+  return issuerParts(base, counter, names)
+    .map((part) => `${part.code} ${part.issuer}`)
     .join(SEPARATOR);
 }
 
@@ -397,11 +399,11 @@ export function marketIssuers(input: Pick<MarketsInput, "network" | "answer"> & 
 }
 
 /**
- * The markets page's data (spec 2.4) but for its names, which the loader adds (`MarketsPageData.names`). Pure: the answer is the API's one markets call, `params` the view (its
+ * The markets page's data (spec 2.4). It carries no names of its own: the rows' issuer parts are what it draws of them (the browser has no names map to read). Pure: the answer is the API's one markets call, `params` the view (its
  * canonical parameters), and the network says which AMM parts exist. With a Quote filter only the rows with the currency on either side are listed, each oriented so that it
  * is the counter; otherwise each row is in the natural orientation. An inverted row's prices are recomputed from the API's own strings. The issuers are written through `names`.
  */
-export function marketsPage(input: MarketsInput): Omit<MarketsPageData, "names"> {
+export function marketsPage(input: MarketsInput): MarketsPageData {
   const { network, answer, names = {} } = input;
   const native = network.native;
   const ammState = ammStateOf(network);
@@ -428,12 +430,13 @@ export function marketsPage(input: MarketsInput): Omit<MarketsPageData, "names">
     const label = sparkLabel(price.closes);
     const codes = [shown.base, shown.counter].map((side) => formatCurrency(side.currency));
     const issuers = [shown.base, shown.counter].flatMap((side) => (side.issuer ? [side.issuer] : []));
-    const issuersText = issuersOf(shown.base, shown.counter, names);
+    const parts = issuerParts(shown.base, shown.counter, names);
+    const issuersText = parts.map((part) => `${part.code} ${part.issuer}`).join(SEPARATOR);
     return {
       key: `${apiAssetText(stored.base)}/${apiAssetText(stored.counter)}`,
       pair: `${codes[0]} / ${codes[1]}`,
       href: isLinkable([shown.base, shown.counter], native) ? marketHref(network.id, shown.base, shown.counter) : null,
-      issuers: issuersText,
+      issuers: parts,
       last: price.last,
       change: price.change,
       range: price.range,

@@ -5,7 +5,6 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { NO_NAMES } from "../../domain/names";
 import type { MarketRowView, MarketsPageData } from "../../server/markets-view";
 import { count, DataTable, FIRST_ROWS } from "../components/DataTable";
 import { FIRST_ROWS as LEDGER_FIRST_ROWS } from "./LedgerPage";
@@ -28,7 +27,7 @@ const ISSUER = "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq";
 function row(over: Partial<MarketRowView> & Pick<MarketRowView, "key" | "pair">): MarketRowView {
   return {
     href: `/xrpl/markets/${over.key}`,
-    issuers: "",
+    issuers: [],
     last: "1",
     change: { text: "+1.00%", dir: "up" },
     range: "1 – 2",
@@ -51,7 +50,7 @@ const FOUR: MarketRowView[] = [
   row({
     key: "A",
     pair: "AAA / XRP",
-    issuers: `AAA ${"rAAAAA…AAAA"}`,
+    issuers: [{ code: "AAA", issuer: "rAAAAA…AAAA", labels: [] }],
     last: "9",
     change: { text: "+5.00%", dir: "up" },
     volume: "10K",
@@ -103,7 +102,7 @@ const MANY: MarketRowView[] = Array.from({ length: 214 }, (_, at) => {
   return row({
     key: `K${at}`,
     pair,
-    issuers: usd ? `USD rhub8V…zF3wq` : `T${at} rT${at}…`,
+    issuers: [usd ? { code: "USD", issuer: "rhub8V…zF3wq", labels: [] } : { code: `T${at}`, issuer: `rT${at}…`, labels: [] }],
     search: usd ? `xrp/usd xrp usd ${ISSUER.toLowerCase()}` : `t${at}/xrp t${at} xrp rt${at}`,
     ranks: { last: at, change: at, volume: 213 - at, trades: at },
   });
@@ -137,7 +136,6 @@ function page(over: Partial<MarketsPageData> = {}): MarketsPageData {
     view: [],
     periodWords: "last 24 hours",
     indexable: true,
-    names: NO_NAMES,
     ...over,
   };
 }
@@ -287,6 +285,38 @@ describe("MarketsPage, the pairs card", () => {
     expect(within(last!).queryByRole("link")).toBeNull();
     expect(last!.querySelector(".markets__pair")!.tagName).toBe("SPAN");
     expect(last!.querySelector(".meter")).toBeNull();
+  });
+
+  // Decision 12: a labelled account has a warning mark wherever it is shown, an issuer's text too; a name is words, not set in mono as a code and an address are.
+  it("writes each issuer's code and short address in mono, a name not in mono, and marks a labelled issuer with the label's icon and words, inside the pair's one link", () => {
+    const named = row({
+      key: "N",
+      pair: "EUR / USD",
+      issuers: [
+        { code: "EUR", issuer: "rvYAfW…s59B", labels: ["scam"] },
+        { code: "USD", issuer: "Northpeak Treasury", name: true, labels: [] },
+      ],
+      ranks: { last: 3, change: 3, volume: 3, trades: 4 },
+    });
+    mount(page({ rows: [named] }));
+    const pairLink = within(within(table()).getAllByRole("row")[1]!).getByRole("link");
+    const issuers = pairLink.querySelector(".markets__issuers")!;
+    expect(issuers.classList.contains("mono")).toBe(false);
+    expect(issuers.textContent).toBe("EUR rvYAfW…s59B labelled scam by GateHub · USD Northpeak Treasury");
+    const spans = [...issuers.children].filter((child) => !child.classList.contains("labelmark"));
+    expect(spans.map((span) => [span.textContent, span.classList.contains("mono")])).toEqual([
+      ["EUR", true],
+      ["rvYAfW…s59B", true],
+      ["USD", true],
+      ["Northpeak Treasury", false],
+    ]);
+    // The mark: one, after the labelled issuer, an icon that is a picture and the words a reader gets; the link's name says it.
+    const mark = issuers.querySelector(".labelmark")!;
+    expect(issuers.querySelectorAll(".labelmark")).toHaveLength(1);
+    expect(mark.previousElementSibling!.textContent).toBe("rvYAfW…s59B");
+    expect(mark.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+    expect(mark.querySelector(".sr")!.textContent).toBe("labelled scam by GateHub");
+    expect(within(table()).getAllByRole("link")).toHaveLength(1);
   });
 
   it("shows the change with a triangle that is a picture, up or down, and none for 0.00% or a dash", () => {

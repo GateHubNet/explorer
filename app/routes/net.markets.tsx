@@ -41,8 +41,8 @@ const MARKETS_LIMIT = 1000;
  *   `clientLoader`.
  * - **One names call** (display names spec 1 and 5), after the markets call: the issuers of the rows the page lists (`marketIssuers`: not those of a row the Quote
  *   filter leaves out), asked for before the page is built because the rows' issuer texts are written with them. An issuer with a verified name, or one GateHub gave, and no
- *   label reads by that name; a names call that fails or is late never fails the page: the issuers are short addresses and the request is degraded (served, not stored).
- *   The page does not poll, so the call does not ask for the failure hold.
+ *   label reads by that name; a labelled issuer has the label's mark. The rows carry what they draw, and the names map stays in the Worker. A names call that fails or is late
+ *   never fails the page: the issuers are short addresses and the request is degraded (served, not stored). The page does not poll, so the call does not ask for the failure hold.
  */
 export async function loader({ request, url, params, context }: Route.LoaderArgs) {
   const net = requireNetwork(context, params);
@@ -64,8 +64,8 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
     .catch((err: unknown) => upstreamOutage(err, "the markets"));
 
   const { part: names } = await loadNames(api, collectAddresses(marketIssuers({ network: net, params: view, answer })), { context, request, features: net.features });
-  const page = marketsPage({ network: net, params: view, answer, names: names.map });
-  return cached({ ...page, names } satisfies MarketsPageData, "minute");
+  // The rows carry their issuers' words and marks; the names map is not sent to the browser, which draws no account by its name here.
+  return cached(marketsPage({ network: net, params: view, answer, names: names.map }) satisfies MarketsPageData, "minute");
 }
 
 export function meta({ loaderData, matches, params }: Route.MetaArgs) {

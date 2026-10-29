@@ -750,6 +750,20 @@ describe("the DEX pairs", () => {
     expect(issuers.textContent).toBe("USD Fernhill Custody");
     expect(issuers.classList.contains("mono")).toBe(false);
     expect([...issuers.querySelectorAll(".mono")].map((mono) => mono.textContent)).toEqual(["USD"]);
+    expect(issuers.querySelector(".labelmark")).toBeNull();
+  });
+
+  // Decision 12: a labelled account has a warning mark wherever it is shown, an issuer's text too. A labelled issuer keeps its short address, in mono, and the mark follows it.
+  it("marks a labelled issuer with the label's icon and words after its short address", async () => {
+    const frame = frameOf("30d");
+    const names: NameMap = { [ISSUER]: nameViewOf({ address: ISSUER, display_name: { text: "Fernhill Custody", kind: "verified" }, domain: "fernhill.example", labels: { scam: { description: "Fictional." } } })! };
+    await show(analytics("30d", { pairs: ok(pairsOf(frame, { names })) }));
+    const issuers = card(TITLES[6]!).querySelector(".analytics__issuers")!;
+    expect(issuers.textContent).toBe("USD rhub8V…F3wq labelled scam by GateHub");
+    expect([...issuers.querySelectorAll(".mono")].map((mono) => mono.textContent)).toEqual(["USD", "rhub8V…F3wq"]);
+    const mark = issuers.querySelector(".labelmark")!;
+    expect(mark.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+    expect(mark.querySelector(".sr")!.textContent).toBe("labelled scam by GateHub");
   });
 
   it("say what the index holds of the DEX in the data's words: AMM on, AMM off, and Xahau", async () => {

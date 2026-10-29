@@ -1,7 +1,7 @@
 import { ammListPath, ammListQuery, parseAmmListParams, type AmmListQuery } from "../domain/amm-params";
 import { assetText, parseAssetText } from "../domain/asset";
 import { queryOf } from "../domain/query-of";
-import { ammListPage, ammListWindow, listIssuers, noAmmPage, type AmmListInput, type AmmListPageData } from "../server/amm-view";
+import { ammListPage, ammListWindow, listAccounts, noAmmPage, type AmmListInput, type AmmListPageData } from "../server/amm-view";
 import { HOME_CALL_TTL_SECONDS, PERIOD_CALL_TTL_SECONDS } from "../server/cache-class";
 import { clientsFor } from "../server/clients";
 import { byDeadline, CARD_DEADLINE_MS, outcome, TooLate } from "../server/deadline";
@@ -16,6 +16,7 @@ import { requireNetwork } from "../server/network-route";
 import { seriesQuery } from "../server/network-view";
 import { redirectToCanonical } from "../server/pair-route";
 import { isMissingRoute, UpstreamError } from "../server/upstream";
+import { NamesProvider } from "../ui/names";
 import { AmmListPage } from "../ui/pages/AmmListPage";
 import { NoAmmPage } from "../ui/pages/NoAmmPage";
 import type { NetworkRouteHandle } from "../ui/route-handle";
@@ -51,10 +52,11 @@ const MORE_NOT_FOUND = "that page of the AMM pools";
  *   ("took too long"). Nothing is deferred and nothing polls, so no call asks for the failure hold.
  * - **A page behind a marker that is not there** (spec 1.3): the API refusing the marker (a 400), or nothing behind it, is a 404 of class `short`.
  *   On the first page there is no marker to refuse: a 400 there is the API failing, and the Pools card's failure, never a stored 404.
- * - **One names call** (display names spec 1 and 5), after the four: the issuers of the table's rows (`listIssuers`), asked for before the page is built because
- *   the rows' issuer texts are written with them ("RLUSD Northpeak Treasury" for an issuer with a verified name or one GateHub gave, and no label). None for an asset
- *   that does not parse (no pools were asked for). A names call that fails or is late never fails the page: the issuers are short addresses and the request is degraded
- *   (served, not stored). The page does not poll, so the call does not ask for the failure hold.
+ * - **One names call** (display names spec 1 and 5), after the four: the issuers of the table's rows and the holders of the slots it links (`listAccounts`), asked for
+ *   before the page is built because the rows' issuer texts are written with them ("RLUSD Northpeak Treasury" for an issuer with a verified name or one GateHub gave, and no
+ *   label; a labelled issuer is marked); a holder is an `AccountLink`, which reads its name from the page's `NamesProvider`. None for an asset that does not parse (no pools
+ *   were asked for). A names call that fails or is late never fails the page: the issuers and the holders are short addresses and the request is degraded (served, not
+ *   stored). The page does not poll, so the call does not ask for the failure hold.
  * - **A card that failed is told in its place** (`ammListPage`), and logged; the request is then degraded, served and not stored. The live set of an
  *   API without the route is logged as what it is: the data API serves no AMM volume.
  * - **The class is `live`** (spec 2.3, 4), for the first page and a page behind a marker alike: a render reads only entries kept 60 s and 300 s.
@@ -105,7 +107,6 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
     if (refused || empty) throw cached({ notFound: MORE_NOT_FOUND }, "short", { status: 404 });
   }
 
-  const { part: names } = await loadNames(api, collectAddresses(listIssuers(pools)), { context, request, features: net.features });
   const input: AmmListInput = {
     net,
     asset: typo !== null ? { error: typo } : asset === null ? null : { asset, text: assetText(asset) },
@@ -117,9 +118,9 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
     live,
     // Not asked when #1 failed: the chain failed with it.
     history: last.status === "rejected" ? null : month,
-    names: names.map,
   };
-  const { page, problems } = ammListPage(input);
+  const { part: names } = await loadNames(api, collectAddresses(listAccounts(input)), { context, request, features: net.features });
+  const { page, problems } = ammListPage({ ...input, names: names.map });
   for (const { part, reason } of problems) {
     // The totals are the live set's card: an API without its route is said for what it is.
     const what =
@@ -140,5 +141,10 @@ export function meta({ loaderData, matches, params }: Route.MetaArgs) {
 }
 
 export default function AmmList({ loaderData }: Route.ComponentProps) {
-  return loaderData.kind === "none" ? <NoAmmPage data={loaderData} /> : <AmmListPage data={loaderData} />;
+  if (loaderData.kind === "none") return <NoAmmPage data={loaderData} />;
+  return (
+    <NamesProvider names={loaderData.names.map}>
+      <AmmListPage data={loaderData} />
+    </NamesProvider>
+  );
 }

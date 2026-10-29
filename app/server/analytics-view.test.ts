@@ -1293,7 +1293,7 @@ describe("pairsCard", () => {
   it("shows a pair in its natural orientation, with its issued sides and its link in that orientation", () => {
     const [row] = pairsCard(frame, exchangesAnswer([usdXrp]), ctx).rows;
     expect(row!.label).toBe("XRP/USD");
-    expect(row!.issued).toEqual([{ code: "USD", issuer: "rhub8V…F3wq", name: false }]);
+    expect(row!.issued).toEqual([{ code: "USD", issuer: "rhub8V…F3wq", labels: [] }]);
     expect(row!.href).toBe(marketHref("xrpl", { currency: "XRP" }, { currency: "USD", issuer: ADDRESS_B }));
     expect(row!.id).toBe(`USD+${ADDRESS_B}/XRP`);
   });
@@ -1305,7 +1305,7 @@ describe("pairsCard", () => {
 
   it("keeps D2's order when it is the natural one, and reads its own sums, with a dash for 0", () => {
     const [row] = pairsCard(frame, exchangesAnswer([lionsXrp]), ctx).rows;
-    expect(row).toMatchObject({ label: "LIONS/XRP", issued: [{ code: "LIONS", issuer: "rGHtf1…AuzS", name: false }], bought: "100 LIONS", sold: "—", volume: "250.5", trades: "3" });
+    expect(row).toMatchObject({ label: "LIONS/XRP", issued: [{ code: "LIONS", issuer: "rGHtf1…AuzS", labels: [] }], bought: "100 LIONS", sold: "—", volume: "250.5", trades: "3" });
     expect(row!.href).toBe(marketHref("xrpl", { currency: LIONS, issuer: LIONS_ISSUER }, { currency: "XRP" }));
   });
 
@@ -1313,7 +1313,7 @@ describe("pairsCard", () => {
     const lower = pairOf({ base_currency: "usd", base_issuer: ADDRESS_B, counter_currency: "XRP", bought: "5", native_volume: "9" });
     const [row] = pairsCard(frame, exchangesAnswer([lower, usdXrp, lionsXrp]), ctx).rows;
     expect(row!.href).toBeNull();
-    expect(row).toMatchObject({ label: "usd/XRP", issued: [{ code: "usd", issuer: "rhub8V…F3wq", name: false }], volume: "9", bought: "5 usd" });
+    expect(row).toMatchObject({ label: "usd/XRP", issued: [{ code: "usd", issuer: "rhub8V…F3wq", labels: [] }], volume: "9", bought: "5 usd" });
     // The links of pairs that read back as themselves are unchanged, next to it.
     const rows = pairsCard(frame, exchangesAnswer([lower, usdXrp, lionsXrp]), ctx).rows;
     expect(rows[1]!.href).toBe(marketHref("xrpl", { currency: "XRP" }, { currency: "USD", issuer: ADDRESS_B }));
@@ -1355,8 +1355,8 @@ describe("pairsCard", () => {
     // The fiat that ranks better in QUOTE_RANK is the counter: USD, then EUR.
     expect(row!.label).toBe("EUR/USD");
     expect(row!.issued).toEqual([
-      { code: "EUR", issuer: "rGHtf1…AuzS", name: false },
-      { code: "USD", issuer: "rhub8V…F3wq", name: false },
+      { code: "EUR", issuer: "rGHtf1…AuzS", labels: [] },
+      { code: "USD", issuer: "rhub8V…F3wq", labels: [] },
     ]);
   });
 
@@ -1369,8 +1369,22 @@ describe("pairsCard", () => {
     const [row] = pairsCard(frame, exchangesAnswer([eurUsd]), ctx, names).rows;
     // A name of a domain that is not verified is no plain text.
     expect(row!.issued).toEqual([
-      { code: "EUR", issuer: "Fernhill Custody · issuer", name: true },
-      { code: "USD", issuer: "rhub8V…F3wq", name: false },
+      { code: "EUR", issuer: "Fernhill Custody · issuer", name: true, labels: [] },
+      { code: "USD", issuer: "rhub8V…F3wq", labels: [] },
+    ]);
+  });
+
+  // Decision 12: a labelled account has a warning mark wherever it is shown. A labelled issuer keeps its short address (no name is promoted) and carries its labels for the mark.
+  it("carries a labelled issuer's labels with its short address, whatever its name, for the page to mark", () => {
+    const eurUsd = pairOf({ base_currency: "EUR", base_issuer: LIONS_ISSUER, counter_currency: "USD", counter_issuer: ADDRESS_B, native_volume: "9" });
+    const names: NameMap = {
+      [LIONS_ISSUER]: { name: { text: "Fernhill Custody", kind: "account" }, labels: ["scam"] },
+      [ADDRESS_B]: { labels: ["spam"] },
+    };
+    const [row] = pairsCard(frame, exchangesAnswer([eurUsd]), ctx, names).rows;
+    expect(row!.issued).toEqual([
+      { code: "EUR", issuer: "rGHtf1…AuzS", labels: ["scam"] },
+      { code: "USD", issuer: "rhub8V…F3wq", labels: ["spam"] },
     ]);
   });
 

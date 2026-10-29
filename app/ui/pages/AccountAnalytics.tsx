@@ -26,6 +26,7 @@ import type { Delta } from "../charts/types";
 import { AccountLink } from "../components/AccountLink";
 import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
+import { LabelMark } from "../components/NameMark";
 import { SectionError } from "../components/SectionError";
 import { StatGrid, StatTile } from "../components/StatTile";
 import { NamesProvider } from "../names";
@@ -479,7 +480,8 @@ function CounterpartiesTable({ native, net, retry, source, part }: ViewProps & {
 
 /**
  * A pair: its name, a link to its page when the data gives one, over the issuers of its issued sides: each its code and its issuer. The code and an address are mono, as they
- * always were; a display name is not (`.acct__name` and `.acct__address` of a link, `AccountLink`).
+ * always were; a display name is not (`.acct__name` and `.acct__address` of a link, `AccountLink`); a labelled issuer has the label's mark (display names decision 12). Drawn
+ * here and not with the lists' `IssuerTexts`: a module the view shared with those pages would be a file of its own that the view loads beyond the account page's.
  */
 function Pair({ row }: { row: PairRow }) {
   return (
@@ -491,6 +493,12 @@ function Pair({ row }: { row: PairRow }) {
             <Fragment key={at}>
               {at > 0 && " · "}
               <span className="mono">{side.code}</span> <span className={side.name ? undefined : "mono"}>{side.issuer}</span>
+              {side.labels.length > 0 && (
+                <>
+                  {" "}
+                  <LabelMark labels={side.labels} />
+                </>
+              )}
             </Fragment>
           ))}
         </span>

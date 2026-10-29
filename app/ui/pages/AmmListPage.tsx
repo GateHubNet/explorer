@@ -7,8 +7,10 @@ import { ChartCard } from "../charts/ChartCard";
 import { ChartTable } from "../charts/ChartTable";
 import { ColumnChart } from "../charts/ColumnChart";
 import { cx } from "../cx";
+import { AccountLink } from "../components/AccountLink";
 import { Card } from "../components/Card";
 import { DataTable, type Column } from "../components/DataTable";
+import { IssuerTexts } from "../components/IssuerTexts";
 import { AlertIcon, SearchIcon } from "../components/icons";
 import { Pager } from "../components/Pager";
 import { PairCoins } from "../components/PairCoins";
@@ -27,8 +29,9 @@ const PAGER_LABELS = { newer: "Previous", older: "More pools" } as const;
 // ---------------------------------------------------------------------------------------------------------------------------
 // The cells
 
-/** The coins, then the pair as a link to the pool's page over the account and the issuers, and the "Deleted" tag of a deleted pool. */
+/** The coins, then the pair as a link to the pool's page over the account and the issuers (a name not in mono, a labelled issuer marked), and the "Deleted" tag of a deleted pool. */
 function PoolCell({ row }: { row: AmmRowView }) {
+  const { account, issuers } = row.detail;
   return (
     <span className="amm__pool">
       <PairCoins codes={row.coins} />
@@ -36,7 +39,15 @@ function PoolCell({ row }: { row: AmmRowView }) {
         <Link to={row.href} className="amm__pair">
           {row.pair}
         </Link>
-        <span className="amm__detail mono">{row.detail}</span>
+        <span className="amm__detail">
+          <span className="mono">{account}</span>
+          {issuers.length > 0 && (
+            <>
+              {" · "}
+              <IssuerTexts parts={issuers} />
+            </>
+          )}
+        </span>
       </span>
       {row.deleted && (
         <span className="tag tag--icon">
@@ -48,13 +59,13 @@ function PoolCell({ row }: { row: AmmRowView }) {
   );
 }
 
-/** The holder of the slot, linked; "Open", a status with its icon; or the dash of a slot that cannot be told (the view builder says which). */
-function SlotCell({ slot }: { slot: AmmRowView["slot"] }) {
-  if (slot.href !== null) {
+/** The holder of the slot, an account link (by its name when it has one); "Open", a status with its icon; or the dash of a slot that cannot be told (the view builder says which). */
+function SlotCell({ net, slot }: { net: AmmListPageData["net"]; slot: AmmRowView["slot"] }) {
+  if ("holder" in slot) {
     return (
-      <Link to={slot.href} className="mono amm__slot">
-        {slot.text}
-      </Link>
+      <span className="amm__slot">
+        <AccountLink net={net} address={slot.holder} />
+      </span>
     );
   }
   if (!slot.open) return <span className="muted">{slot.text}</span>;
@@ -70,7 +81,7 @@ function SlotCell({ slot }: { slot: AmmRowView["slot"] }) {
 // it hold on one line: the tracks at their least, the gaps (6 × 16 px) and the padding of a row (2 × 16 px) are `MIN_WIDTH`, below which the table
 // scrolls sideways inside its card. A cell wraps a figure longer than its track (`.amm__table`): a compact number
 // stops at "T", so an absurd reserve is a hundred digits, and it must not widen the table.
-const columns = (native: string): Column<AmmRowView>[] => [
+const columns = (net: AmmListPageData["net"], native: string): Column<AmmRowView>[] => [
   { id: "pool", header: "Pool", width: "minmax(240px, 1.4fr)", cell: (row) => <PoolCell row={row} /> },
   { id: "value", header: `Value (${native})`, width: "120px", align: "end", cell: (row) => <span className="mono num amm__figure">{row.value}</span> },
   {
@@ -87,7 +98,7 @@ const columns = (native: string): Column<AmmRowView>[] => [
   },
   { id: "fee", header: "Fee", width: "80px", align: "end", cell: (row) => <span className="mono num">{row.fee}</span> },
   { id: "volume", header: "Volume 24 h", width: "120px", align: "end", cell: (row) => <span className="mono num amm__figure">{row.volume}</span> },
-  { id: "slot", header: "Auction slot", width: "130px", cell: (row) => <SlotCell slot={row.slot} /> },
+  { id: "slot", header: "Auction slot", width: "130px", cell: (row) => <SlotCell net={net} slot={row.slot} /> },
   {
     id: "created",
     header: "Created",
@@ -224,7 +235,7 @@ function Pools({ data, onRetry, retrying }: { data: AmmListPageData; onRetry: ()
           )}
           <DataTable
             label="Pools"
-            columns={columns(data.native)}
+            columns={columns(data.net, data.native)}
             rows={pools.rows}
             rowKey={(row) => row.key}
             minWidth={MIN_WIDTH}

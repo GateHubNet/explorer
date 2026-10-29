@@ -8,7 +8,7 @@ import type { NameMap, NameView } from "../domain/names";
 import { NO_FEATURES } from "../ui/features";
 import { checkMarkets } from "./aggregate-shape";
 import type { MarketRow, MarketsResponse, SparklineDay } from "./api-types";
-import { issuersOf, marketIssuers, marketsPage, type MarketsPageData } from "./markets-view";
+import { issuersOf, marketIssuers, marketsPage, type MarketRowView, type MarketsPageData } from "./markets-view";
 
 // ---- The world of the tests: T is Oct 19, 11:42:31 UTC; the window starts on the hour before the 24 hours --------------------------
 
@@ -143,6 +143,9 @@ function significantDigits(text: string): number {
   return text.replace(/[,\u2212-]/g, "").replace(".", "").replace(/^0+/, "").replace(/0+$/, "").length;
 }
 
+/** A row's issuers as the page reads them: "EUR rvYAfW…s59B · USD rhub8V…F3wq". */
+const issuersText = (row: Pick<MarketRowView, "issuers">): string => row.issuers.map((part) => `${part.code} ${part.issuer}`).join(" · ");
+
 // ---- Orientation ------------------------------------------------------------------------------------------------------------------
 
 describe("marketsPage: a pair shown the other way round from the stored order", () => {
@@ -151,7 +154,7 @@ describe("marketsPage: a pair shown the other way round from the stored order", 
   it("shows the stored RLUSD/XRP as XRP / RLUSD, linked in that orientation", () => {
     expect(view.pair).toBe("XRP / RLUSD");
     expect(view.href).toBe(`/xrpl/markets/XRP/RLUSD.${RL}`);
-    expect(view.issuers).toBe("RLUSD rMxCKb…m5De");
+    expect(issuersText(view)).toBe("RLUSD rMxCKb…m5De");
   });
 
   it("prices it at 1/last, with the range from 1/low to 1/high, at 8 significant digits", () => {
@@ -256,14 +259,18 @@ describe("marketsPage: a pair shown as it is stored", () => {
   });
 
   it("names each issued side's code and short issuer, base first", () => {
-    expect(view.issuers).toBe("EUR rvYAfW…s59B · USD rhub8V…F3wq");
+    expect(issuersText(view)).toBe("EUR rvYAfW…s59B · USD rhub8V…F3wq");
+    expect(view.issuers).toEqual([
+      { code: "EUR", issuer: "rvYAfW…s59B", labels: [] },
+      { code: "USD", issuer: "rhub8V…F3wq", labels: [] },
+    ]);
   });
 
   it("shows USD/XRP, as stored, as XRP / USD", () => {
     const row = pageOf([usdXrp()]).rows[0]!;
     expect(row.pair).toBe("XRP / USD");
     expect(row.last).toBe("0.40983607");
-    expect(row.issuers).toBe("USD rhub8V…F3wq");
+    expect(issuersText(row)).toBe("USD rhub8V…F3wq");
     expect(row.href).toBe(`/xrpl/markets/XRP/USD.${GH}`);
   });
 
@@ -332,7 +339,7 @@ describe("marketsPage: the Quote filter", () => {
     const both: MarketRow = { ...eurUsd(), base_currency: "USD", base_issuer: BS, counter_currency: "USD", counter_issuer: GH, last: "0.5", open: "0.5", high: "0.5", low: "0.5" };
     const row = pageOf([both], { params: { quote: "usd" } }).rows[0]!;
     expect(row.pair).toBe("USD / USD");
-    expect(row.issuers).toBe("USD rhub8V…F3wq · USD rvYAfW…s59B");
+    expect(issuersText(row)).toBe("USD rhub8V…F3wq · USD rvYAfW…s59B");
     expect(row.last).toBe("2");
   });
 
@@ -910,11 +917,16 @@ describe("marketsPage: the names of the issuers", () => {
     const plain = pageOf(markets).rows;
     const named = pageOf(markets, { names }).rows;
 
-    expect(plain.map((row) => row.issuers)).toEqual([`EUR ${shortAddress(BS)} · USD ${shortAddress(GH)}`, `USD ${shortAddress(GH)}`, `RLUSD ${shortAddress(RL)}`]);
-    expect(named.map((row) => row.issuers)).toEqual([`EUR ${shortAddress(BS)} · USD Northpeak Treasury`, "USD Northpeak Treasury", "RLUSD Harborline Exchange · hot wallet"]);
+    expect(plain.map(issuersText)).toEqual([`EUR ${shortAddress(BS)} · USD ${shortAddress(GH)}`, `USD ${shortAddress(GH)}`, `RLUSD ${shortAddress(RL)}`]);
+    expect(named.map(issuersText)).toEqual([`EUR ${shortAddress(BS)} · USD Northpeak Treasury`, "USD Northpeak Treasury", "RLUSD Harborline Exchange · hot wallet"]);
+    // A name is said to be one (the page does not set it in mono); a short address is not.
+    expect(named[0]!.issuers).toEqual([
+      { code: "EUR", issuer: shortAddress(BS), labels: [] },
+      { code: "USD", issuer: "Northpeak Treasury", name: true, labels: [] },
+    ]);
     // The filter's text is the pair, the codes, the raw issuers and the issuers' words as the row shows them, lower-cased: it finds an address, and it finds the name the row reads.
-    expect(named[0]!.search).toBe(`eur/usd eur usd ${BS} ${GH} ${named[0]!.issuers}`.toLowerCase());
-    expect(plain[0]!.search).toBe(`eur/usd eur usd ${BS} ${GH} ${plain[0]!.issuers}`.toLowerCase());
+    expect(named[0]!.search).toBe(`eur/usd eur usd ${BS} ${GH} ${issuersText(named[0]!)}`.toLowerCase());
+    expect(plain[0]!.search).toBe(`eur/usd eur usd ${BS} ${GH} ${issuersText(plain[0]!)}`.toLowerCase());
     expect(named[0]!.search).toContain(GH.toLowerCase());
     expect(named[0]!.search).toContain("northpeak treasury");
     expect(plain[0]!.search).not.toContain("northpeak");
@@ -934,6 +946,19 @@ describe("marketsPage: the names of the issuers", () => {
     expect(finds(shortAddress(BS).toLowerCase())).toEqual(["EUR / USD"]);
     // Without the names, the name finds nothing.
     expect(pageOf([eurUsd()]).rows.filter((row) => row.search.includes("northpeak"))).toEqual([]);
+  });
+
+  // Decision 12: a labelled account has a warning mark wherever it is shown. An issuer with a label keeps its short address (no name is promoted), and its part carries the labels,
+  // whatever else it has: the page draws `LabelMark` after it. The filter's text is the words, as before: a label is not text of the row.
+  it("carries a labelled issuer's labels, with its short address, for the page to mark; the filter's text is the words alone", () => {
+    const names: NameMap = { [GH]: { ...NORTHPEAK, labels: ["scam"] }, [BS]: { labels: ["scam", "spam"] } };
+    const [row] = pageOf([eurUsd()], { names }).rows;
+    expect(row!.issuers).toEqual([
+      { code: "EUR", issuer: shortAddress(BS), labels: ["scam", "spam"] },
+      { code: "USD", issuer: shortAddress(GH), labels: ["scam"] },
+    ]);
+    expect(row!.search).toBe(`eur/usd eur usd ${BS} ${GH} EUR ${shortAddress(BS)} · USD ${shortAddress(GH)}`.toLowerCase());
+    expect(row!.search).not.toContain("scam");
   });
 
   it("leaves the rest of the page as it is: the names are the issuer texts' alone", () => {
@@ -973,7 +998,7 @@ describe("marketIssuers: the issuers the page draws", () => {
     const page = pageOf(markets, { params: { quote: "xrp" } });
     const asked = marketIssuers(input({ quote: "xrp" }));
     expect(asked).toEqual([GH, LIONS_ISSUER]);
-    expect(page.rows.map((row) => row.issuers)).toEqual([`USD ${shortAddress(GH)}`, `BTC ${shortAddress(LIONS_ISSUER)}`]);
+    expect(page.rows.map(issuersText)).toEqual([`USD ${shortAddress(GH)}`, `BTC ${shortAddress(LIONS_ISSUER)}`]);
   });
 
   it("is empty for an answer with no row, and for rows without an issuer", () => {

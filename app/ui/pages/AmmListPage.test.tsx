@@ -12,11 +12,12 @@ import { valueImports } from "../../../test/support/value-imports";
 import { ammPoolHref } from "../../domain/amm-params";
 import type { Asset } from "../../domain/asset";
 import { compactNumber, shortAddress } from "../../domain/format";
-import { NO_NAMES } from "../../domain/names";
+import { NO_NAMES, type NameMap } from "../../domain/names";
 import { ammListPage, noAmmPage, type AmmListInput, type AmmListPageData, type NoAmmPageData } from "../../server/amm-view";
 import type { AmmPool, AmmVolumeComponent, AmmVolumeRow, LastValidated, Page } from "../../server/api-types";
 import type { PublicNetwork } from "../../server/network-route";
 import { NO_FEATURES } from "../features";
+import { NamesProvider } from "../names";
 import { NETWORK_ROUTE_ID } from "../use-network";
 import { AmmListPage } from "./AmmListPage";
 import { NoAmmPage } from "./NoAmmPage";
@@ -191,10 +192,18 @@ const underLayout = (children: RouteObject[], network: PublicNetwork): RouteObje
 ];
 const layoutData = (network: PublicNetwork) => ({ [NETWORK_ROUTE_ID]: { network } });
 
-/** The page in a data router at its own URL, drawn in the browser. `loader` counts the revalidations a Retry asks for. */
+/**
+ * The page in a data router at its own URL, drawn in the browser, inside the names of its data as the route draws it (`NamesProvider`). `loader` counts the revalidations a Retry
+ * asks for.
+ */
 function mount(data: AmmListPageData, at = "/xrpl/amm", network = LAYOUT_XRPL) {
   const loader = vi.fn(() => null);
-  const router = createMemoryRouter(underLayout([{ id: "amm", path: "*", element: <AmmListPage data={data} />, loader }], network), {
+  const page = (
+    <NamesProvider names={data.names.map}>
+      <AmmListPage data={data} />
+    </NamesProvider>
+  );
+  const router = createMemoryRouter(underLayout([{ id: "amm", path: "*", element: page, loader }], network), {
     initialEntries: [at],
     hydrationData: { loaderData: { ...layoutData(network), amm: null } },
   });
@@ -612,5 +621,50 @@ describe("the files of the AMM pages that run in the browser", () => {
       "../../domain/asset",
       "ripple-address-codec",
     ]);
+  });
+});
+
+// ---- Names (display names decision 12; the slot's holder, final review M2) -----------------------------------------------------------------------------
+
+describe("AmmListPage: the names of the accounts it draws", () => {
+  /** Fictional: the RLUSD issuer is verified, the USD issuer is labelled and has no name, the slot's holder was named by GateHub. */
+  const NAMES: NameMap = {
+    [RL]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] },
+    [AMM_ISSUER]: { labels: ["scam"] },
+    [AMM_HOLDER]: { name: { text: "Harborline Exchange", kind: "account" }, labels: [] },
+  };
+  const named = (): AmmListPageData => ({ ...ammListPage(inputOf({ names: NAMES })).page, names: { state: "ok", map: NAMES } });
+
+  it("draws the slot's holder as an account link: by its name and its mark under the page's names, with the title that says how the name is known", () => {
+    mount(named());
+    const link = within(cellsOf(rowsOf()[0]!)[5]!).getByRole("link");
+    expect(link.getAttribute("href")).toBe(`/xrpl/account/${AMM_HOLDER}`);
+    expect(link.textContent).toBe("Harborline Exchange named by GateHub");
+    expect(link.getAttribute("title")).toBe(`Named by GateHub · ${AMM_HOLDER}`);
+    expect(link.querySelector(".acct__name")!.textContent).toBe("Harborline Exchange");
+    // Without a name it is the short address, mono, the whole one on hover, as an account link always was.
+    cleanup();
+    mount(build());
+    const plain = within(cellsOf(rowsOf()[0]!)[5]!).getByRole("link");
+    expect([plain.textContent, plain.className, plain.getAttribute("title")]).toEqual([shortAddress(AMM_HOLDER), "mono", AMM_HOLDER]);
+  });
+
+  it("writes a named issuer in words, not in mono, and marks a labelled one with the label's icon and words; the codes and addresses stay mono", () => {
+    mount(named());
+    const detail = cellsOf(rowsOf()[2]!)[0]!.querySelector(".amm__detail")!;
+    expect(detail.classList.contains("mono")).toBe(false);
+    expect(detail.textContent).toBe(`${shortAddress(ammPoolAccount(7))} · RLUSD Northpeak Treasury · USD ${shortAddress(AMM_ISSUER)} labelled scam by GateHub`);
+    const words = [...detail.querySelectorAll("span:not(.labelmark):not(.sr)")].filter((span) => span.closest(".labelmark") === null);
+    expect(words.map((span) => [span.textContent, span.classList.contains("mono")])).toEqual([
+      [shortAddress(ammPoolAccount(7)), true],
+      ["RLUSD", true],
+      ["Northpeak Treasury", false],
+      ["USD", true],
+      [shortAddress(AMM_ISSUER), true],
+    ]);
+    const mark = detail.querySelector(".labelmark")!;
+    expect(detail.querySelectorAll(".labelmark")).toHaveLength(1);
+    expect(mark.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+    expect(mark.querySelector(".sr")!.textContent).toBe("labelled scam by GateHub");
   });
 });

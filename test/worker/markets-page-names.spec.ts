@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
 import type { MarketRow } from "../../app/server/api-types";
+import type { MarketsPageData } from "../../app/server/markets-view";
 import { collectAddresses } from "../../app/server/names-collect";
 import xahauDay from "../fixtures/http/xahau/data-api/network/markets@limit=1000&period=day.json";
 import xrplDay from "../fixtures/http/xrpl/data-api/network/markets@limit=1000&period=day.json";
@@ -13,11 +14,11 @@ import {
   issuerTextAfterItsEnd,
   issuerTextOf,
   namesCalls,
-  namesPartOf,
   namesSpec,
   namesStatuses,
   watchNamesLog,
 } from "../support/names";
+import { decodeLoaderData } from "../support/loader-data";
 import { expectDegraded } from "../support/nft-pages";
 import { pageClient, pairRows } from "../support/pages";
 
@@ -36,6 +37,9 @@ const ROUTE = "routes/net.markets";
 /** The pairs of an answer as the data API wrote them. */
 const ROWS = (answer: { markets: unknown[] }) => answer.markets as unknown as MarketRow[];
 const issuersOfRows = (rows: readonly MarketRow[]) => collectAddresses(rows.flatMap((row) => [row.base_issuer, row.counter_issuer]));
+
+/** The markets route's data in the body of its `.data` response. */
+const routeData = (body: string) => (decodeLoaderData(body) as Record<string, { data: MarketsPageData }>)[ROUTE]!.data;
 
 /** The "Pair" cell of each row of the table: the pair, then its issuers' words. */
 const pairCells = (html: string) => pairRows(html).slice(1).map((row) => row[1]!);
@@ -106,12 +110,33 @@ describe("the names call of the page", () => {
     expect(pairCells(html)).toHaveLength(listed.length);
   });
 
-  it("carries the names the call gave in the page's data, for the browser", async () => {
+  // Decision 12: a labelled account has a warning mark wherever it is shown, an issuer's text too. Every issuer of the view is labelled scam here, and given no name: each keeps its
+  // short address, in mono, with the label's icon and words after it. A view no other test asks for.
+  it("marks a labelled issuer with the label's icon and words after its short address, in mono", async () => {
+    upstream("xrpl", {
+      "GET /v2/account_names": (request: Request) => {
+        const asked = (new URL(request.url).searchParams.get("addresses") ?? "").split(",");
+        const entries = asked.map((address) => ({ address, labels: { scam: { description: "Fictional." } } }));
+        return Response.json({ result: "success", count: entries.length, account_names: entries });
+      },
+    });
+    const { html } = await page("/xrpl/markets?period=30d");
+    const cells = pairCells(html);
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) if (/r\w{5}…\w{4}/.test(cell)) expect(cell).toMatch(/r\w{5}…\w{4} labelled scam by GateHub/);
+    expect(cells.filter((cell) => cell.includes("labelled scam by GateHub")).length).toBeGreaterThan(0);
+    expect(html).toMatch(/<span class="mono">r\w{5}…\w{4}<\/span> <span class="labelmark">/);
+  });
+
+  // The page draws no account by its name (no `NamesProvider`): its rows carry the issuers' words and marks, and the names map stays in the Worker.
+  it("sends the browser no names map: the rows carry the issuers' words, a name said to be one", async () => {
     upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
     const body = await (await get("/xrpl/markets.data?period=7d&_routes=routes%2Fnet.markets")).text();
-    const part = namesPartOf(body, ROUTE);
-    expect(part.state).toBe("ok");
-    expect(Object.keys(part.map).length).toBeGreaterThan(0);
+    const data = routeData(body);
+    expect(data).not.toHaveProperty("names");
+    const parts = data.rows.flatMap((row) => row.issuers);
+    expect(parts.length).toBeGreaterThan(0);
+    for (const part of parts) expect(part).toMatchObject({ issuer: expect.stringMatching(/^Fixture /), name: true, labels: [] });
   });
 });
 
@@ -137,10 +162,16 @@ describe("when the names call fails", () => {
     expect(logged()).toBe(1);
   });
 
-  it("marks the data of that page failed, with no names", async () => {
+  it("sends rows whose issuers are their short addresses, with no name and no mark", async () => {
     watchNamesLog();
     upstream("xrpl", failingNames());
     const body = await (await get("/xrpl/markets.data?period=7d&quote=eur&_routes=routes%2Fnet.markets")).text();
-    expect(namesPartOf(body, ROUTE)).toEqual({ state: "failed", map: {} });
+    const parts = routeData(body).rows.flatMap((row) => row.issuers);
+    expect(parts.length).toBeGreaterThan(0);
+    for (const part of parts) {
+      expect(part.issuer).toMatch(/^r\w{5}…\w{4}$/);
+      expect(part).not.toHaveProperty("name");
+      expect(part.labels).toEqual([]);
+    }
   });
 });
