@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { ACCENTS, card, headlineSize, type CardElement } from "./card";
+import { ACCENTS, card, headlineSize, LOGO_SIZE, type CardElement } from "./card";
 import { CARD_HEIGHT, CARD_WIDTH, type CardData } from "./types";
 
 // The layout of the link-preview image (the LinkPreview board): a tree of elements for Satori, which draws a subset of CSS. The tests
@@ -50,11 +50,25 @@ describe("the card", () => {
 
   it("shows what the board shows, in order", () => {
     const text = texts(card(PAYMENT)).join("|");
-    for (const part of ["explorer", "XRPL mainnet", "Payment", "Success", "1,250.00 USD", "rJF2Xa…FQvg", "rNYbL8…UKq5", "Ledger ", "#107,695,660", " · 17 Oct 2026, 15:42 UTC", "67F91E…7C31"]) {
+    for (const part of ["XRPL mainnet", "Payment", "Success", "1,250.00 USD", "rJF2Xa…FQvg", "rNYbL8…UKq5", "Ledger ", "#107,695,660", " · 17 Oct 2026, 15:42 UTC", "67F91E…7C31"]) {
       expect(text, part).toContain(part);
     }
-    const order = ["explorer", "XRPL mainnet", "Payment", "Success", "1,250.00 USD", "rJF2Xa…FQvg", "rNYbL8…UKq5", "#107,695,660", "67F91E…7C31"].map((part) => text.indexOf(part));
+    const order = ["XRPL mainnet", "Payment", "Success", "1,250.00 USD", "rJF2Xa…FQvg", "rNYbL8…UKq5", "#107,695,660", "67F91E…7C31"].map((part) => text.indexOf(part));
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it("starts with the header's logo, the dark one, drawn from its file at the logo's height", () => {
+    const file = readFileSync(new URL("../ui/logo/gatehub-explorer-dark.svg", import.meta.url), "utf8");
+    const logo = nodes(card(PAYMENT)).find((node) => node.type === "svg")!;
+    // 130 × 48, at 72 px: 195 px wide.
+    expect(logo.props).toMatchObject({ viewBox: "0 0 130 48", width: 195, height: LOGO_SIZE });
+    const paths = childrenOf(logo) as CardElement[];
+    expect(paths.map((path) => path.props.d)).toEqual(Array.from(file.matchAll(/ d="([^"]*)"/g), ([, d]) => d));
+    expect(new Set(paths.map((path) => path.props.fill))).toEqual(new Set(["#2B3040"]));
+    // "Explorer", lighter than "GateHub", as in the file.
+    expect(paths.filter((path) => path.props.opacity === "0.7")).toHaveLength(1);
+    // Its words are the logo's: the product's name is not written beside it.
+    expect(texts(card(PAYMENT))).not.toContain("explorer");
   });
 
   it("says Failed with the failure's icon and text, not by colour alone", () => {
@@ -71,13 +85,13 @@ describe("the card", () => {
     expect(text).not.toMatch(/Success|Failed/);
   });
 
-  it("draws the accent of the network on the top bar, the logo and the pill", () => {
+  it("draws the accent of the network on the top bar and the pill", () => {
     expect(ACCENTS).toEqual({ xrpl: "#0A6CF1", xahau: "#B45309" });
     for (const [network, accent] of Object.entries(ACCENTS)) {
       const root = card({ ...PAYMENT, network: network as "xrpl" | "xahau" });
       const painted = nodes(root).filter((node) => JSON.stringify(node.props).includes(accent));
-      // Top bar, the logo's square and the dot of the pill.
-      expect(painted.length, network).toBeGreaterThanOrEqual(3);
+      // Top bar and the dot of the pill.
+      expect(painted.length, network).toBeGreaterThanOrEqual(2);
     }
     expect(JSON.stringify(card(PAYMENT))).not.toContain(ACCENTS.xahau);
   });
@@ -128,8 +142,8 @@ describe("the card", () => {
     const headline = nodes(card(data)).find((node) => texts(node).join("") === sentence)!;
     const style = headline.props.style as { fontSize: number; lineHeight: number; lineClamp: number };
     expect(style.lineClamp).toBe(3);
-    // The body is 630 - 10 (bar) - 56 - 52 (padding) = 512 px; the header row is 48, the footer about 90 with its rule, the kind row 40 and two gaps of 18.
-    expect(3 * style.fontSize * style.lineHeight + 48 + 90 + 40 + 2 * 18).toBeLessThanOrEqual(512);
+    // The body is 630 - 10 (bar) - 56 - 52 (padding) = 512 px; the header row is the logo's height, the footer about 90 with its rule, the kind row 40 and two gaps of 18.
+    expect(3 * style.fontSize * style.lineHeight + LOGO_SIZE + 90 + 40 + 2 * 18).toBeLessThanOrEqual(512);
   });
 
   it("puts a sentence in the text font and a note under the headline", () => {

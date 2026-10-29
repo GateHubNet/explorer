@@ -25,9 +25,29 @@ test.describe("the built assets", () => {
     expect(response.headers()["cache-control"]).not.toContain("immutable");
   });
 
-  test("leave the favicon, which has no hash in its name, to the usual revalidation", async ({ request }) => {
-    const response = await request.get("/favicon.ico");
-    expect(response.status()).toBe(200);
-    expect(response.headers()["cache-control"] ?? "").not.toContain("immutable");
+  test("leave the favicons, which have no hash in their names, to the usual revalidation", async ({ request }) => {
+    for (const [path, type] of [
+      ["/favicon.ico", "image/vnd.microsoft.icon"],
+      ["/favicon.svg", "image/svg+xml"],
+    ]) {
+      const response = await request.get(path);
+      expect(response.status(), path).toBe(200);
+      expect(response.headers()["content-type"], path).toContain(type);
+      expect(response.headers()["cache-control"] ?? "", path).not.toContain("immutable");
+    }
+  });
+
+  test("have a favicon that follows the browser's theme: the logo's dark, and white when the browser is dark", async ({ contextFor }) => {
+    // The SVG opened by itself in each scheme: the colour its own style gives the mark.
+    for (const [scheme, colour] of [
+      ["light", "rgb(43, 48, 64)"],
+      ["dark", "rgb(255, 255, 255)"],
+    ] as const) {
+      const context = await contextFor({ colorScheme: scheme });
+      const page = await context.newPage();
+      await page.goto("/favicon.svg");
+      const fill = await page.evaluate(() => getComputedStyle(document.querySelector("path")!).fill);
+      expect(fill, scheme).toBe(colour);
+    }
   });
 });
