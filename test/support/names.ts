@@ -2,13 +2,16 @@
 // the names calls a mock saw, and the links to an account a page draws. A spec computes what a page should say from these, never from a name written by hand:
 // the seeded names are not unique and a regeneration of the fixtures may change them.
 
-import { expect, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
-import { linkTextOf, nameTitleOf, nameViewOf, shownIssuer, type NameView } from "../../app/domain/names";
+import { linkTextOf, nameTitleOf, nameViewOf, shownIssuer, type NameKind, type NameView } from "../../app/domain/names";
 import type { AccountNameEntry } from "../../app/server/api-types";
 import { NAMES_BATCH_LIMIT } from "../../app/server/names-load";
+import { decodeLoaderData } from "./loader-data";
 import { anchors, hrefs } from "./pages";
+import { cold } from "./subrequest-miss";
+import { dataApiError, mockUpstream, type UpstreamMock } from "./upstream";
 import type { NetworkName, SeenRequest } from "./upstream-core";
 
 const tables = import.meta.glob("../fixtures/http/*/data-api/account_names.json", { query: "?raw", import: "default" }) as Record<string, () => Promise<string>>;
@@ -84,6 +87,58 @@ export function namesStatuses(mock: { requests: readonly SeenRequest[] }): numbe
   return mock.requests.filter(isNamesRequest).map((request) => request.status);
 }
 
+/** The words the marks add to a name in a link's text (`NameMark`): a verified name's seal, GateHub's tag, the visible "not verified". */
+export const MARK_WORDS = { verified: "verified name", account: "named by GateHub", domain: "not verified" } as const satisfies Record<NameKind, string>;
+
+/** The names part of a route's data in the body of its `.data` response, by the route's id (`routes/net.amm._index`). */
+export function namesPartOf(body: string, routeId: string): { state: string; map: Record<string, unknown> } {
+  const routes = decodeLoaderData(body) as Record<string, { data: { names: { state: string; map: Record<string, unknown> } } }>;
+  return routes[routeId]!.data.names;
+}
+
+/** The override that makes the names call fail: a 503, as the data API answers when it is down. */
+export const failingNames = () => ({ "GET /v2/account_names": dataApiError(503, "unavailable") });
+
+/**
+ * The setup the specs of a page's names share, called once at the top of the file: `Date` alone is faked (the failure hold reads nothing else) and moved `advance` ms on after each
+ * test, past the longest keep or hold, so that no test reads what another left; with `cold` (the default) every lookup of a subrequest entry misses, so that each render reaches the
+ * mock whatever an earlier one kept; a first render may take longer than 5 s on a busy machine, so a test may take 20 s. Returns `upstream`, which puts the mock of a test in place
+ * (and the one before it away, which must have been used) and, after each test, says when an override was not.
+ */
+export function namesSpec({ advance, cold: dropSubrequests = true }: { advance: number; cold?: boolean }) {
+  vi.setConfig({ testTimeout: 20_000 });
+  let current: UpstreamMock | undefined;
+
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+  });
+  beforeEach(() => {
+    if (dropSubrequests) cold();
+  });
+  afterEach(() => {
+    const unused = current?.unusedOverrides();
+    current?.restore();
+    current = undefined;
+    vi.restoreAllMocks();
+    vi.setSystemTime(Date.now() + advance);
+    expect(unused ?? []).toEqual([]);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  return {
+    upstream(net: Parameters<typeof mockUpstream>[0], overrides?: Parameters<typeof mockUpstream>[1]): UpstreamMock {
+      if (current !== undefined) {
+        expect(current.unusedOverrides()).toEqual([]);
+        current.restore();
+      }
+      current = mockUpstream(net, overrides);
+      return current;
+    },
+  };
+}
+
 /**
  * Keeps the log line of a failed names call out of the test's output (until `vi.restoreAllMocks`), and counts the lines: `loadNames` logs "names could not be loaded" once for a call,
  * however many of its chunks failed.
@@ -106,6 +161,12 @@ export function inCalls(addresses: readonly string[]): string[][] {
 
 /** The links to `address`'s page in some HTML. */
 export const linksTo = (html: string, net: NetworkName, address: string) => anchors(html).filter((a) => a.attrs.includes(`href="/${net}/account/${address}"`));
+
+/** The accounts whose page the HTML links to, once each, in the order they are met (the head's issuers and the table's takers alike). */
+export function linkedAccounts(html: string, net: NetworkName): string[] {
+  const pattern = new RegExp(`^/${net}/account/(r\\w+)$`);
+  return [...new Set(hrefs(html).flatMap((href) => pattern.exec(href)?.[1] ?? []))];
+}
 
 /**
  * Says that every link to `address` in `html` is a link by name: the name `linkTextOf` gives, the title `nameTitleOf` gives, and not the short address. There must be at least
@@ -205,7 +266,7 @@ export function answerNamesAfterTheirEnd(): (request: Request) => Response {
  */
 export function expectLinkedAccountsNamed(mock: { requests: readonly SeenRequest[] }, html: string, net: NetworkName): void {
   const asked = namesCalls(mock).flat();
-  const linked = [...new Set(hrefs(html).flatMap((href) => new RegExp(`^/${net}/account/(r\\w+)$`).exec(href)?.[1] ?? []))];
+  const linked = linkedAccounts(html, net);
   expect(linked.length).toBeGreaterThan(0);
   for (const address of linked) {
     expect(asked, `${address} is asked for`).toContain(address);

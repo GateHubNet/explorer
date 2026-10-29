@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
 import type { MarketRow } from "../../app/server/api-types";
@@ -6,50 +6,32 @@ import { collectAddresses } from "../../app/server/names-collect";
 import xahauDay from "../fixtures/http/xahau/data-api/network/markets@limit=1000&period=day.json";
 import xrplDay from "../fixtures/http/xrpl/data-api/network/markets@limit=1000&period=day.json";
 import xrplWeek from "../fixtures/http/xrpl/data-api/network/markets@limit=1000&period=7day.json";
-import { decodeLoaderData } from "../support/loader-data";
-import { answerNamesAfterTheirEnd, inCalls, issuerTextAfterItsEnd, issuerTextOf, namesCalls, namesStatuses, watchNamesLog } from "../support/names";
+import {
+  answerNamesAfterTheirEnd,
+  failingNames,
+  inCalls,
+  issuerTextAfterItsEnd,
+  issuerTextOf,
+  namesCalls,
+  namesPartOf,
+  namesSpec,
+  namesStatuses,
+  watchNamesLog,
+} from "../support/names";
+import { expectDegraded } from "../support/nft-pages";
 import { pageClient, pairRows } from "../support/pages";
-import { cold } from "../support/subrequest-miss";
-import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The names of the issuers on the markets page, `/{net}/markets` (display names spec 1 and 5), on the real Worker: one names call after the markets call, for the issuers of the rows the
 // page lists, sorted; the issuers written by their names; no call for a row the Quote filter leaves out; a failed call leaves the short addresses and the page unstored.
 //
 // A file of its own, and each test a view of its own (the page of a view is stored, and so is the answer of a names call for a minute): markets-page.spec.ts renders the default view in
-// several tests, and which of them sees the names call would be the order the tests ran in. Here no test needs another to have run, or not. `cold` takes the subrequest entries away, so
-// that every render reaches the mock whatever an earlier one kept.
+// several tests, and which of them sees the names call would be the order the tests ran in. Here no test needs another to have run, or not: `namesSpec` takes the subrequest entries
+// away, so that every render reaches the mock whatever an earlier one kept.
 
-const { get, stored } = pageClient("198.51.117");
+const { get, page } = pageClient("198.51.117");
+const { upstream } = namesSpec({ advance: 301_000 });
 
-// A first render of a page can take longer than the default 5 s when the machine is busy (the suite runs all the worker specs side by side).
-vi.setConfig({ testTimeout: 20_000 });
-
-let mock: UpstreamMock | undefined;
-
-beforeAll(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-});
-
-afterEach(() => {
-  const unused = mock?.unusedOverrides();
-  mock?.restore();
-  mock = undefined;
-  vi.restoreAllMocks();
-  vi.setSystemTime(Date.now() + 301_000);
-  expect(unused ?? []).toEqual([]);
-});
-
-afterAll(() => {
-  vi.useRealTimers();
-});
-
-const unavailable = () => dataApiError(503, "unavailable");
-
-/** The page at `path`: its status, headers and HTML. */
-async function render(path: string) {
-  const response = await get(path);
-  return { response, html: await response.text() };
-}
+const ROUTE = "routes/net.markets";
 
 /** The pairs of an answer as the data API wrote them. */
 const ROWS = (answer: { markets: unknown[] }) => answer.markets as unknown as MarketRow[];
@@ -58,18 +40,12 @@ const issuersOfRows = (rows: readonly MarketRow[]) => collectAddresses(rows.flat
 /** The "Pair" cell of each row of the table: the pair, then its issuers' words. */
 const pairCells = (html: string) => pairRows(html).slice(1).map((row) => row[1]!);
 
-/** The names part of the markets route's data, in the body of a `.data` response. */
-const namesPartOf = (body: string) =>
-  (decodeLoaderData(body) as { "routes/net.markets": { data: { names: { state: string; map: Record<string, unknown> } } } })["routes/net.markets"].data.names;
-
 describe("the names call of the page", () => {
   it("is one, after the markets call, for the issuers of the rows sorted, and the page writes each issuer by its name", async () => {
-    cold();
     // The fixtures name none of the issuers of these pairs, so the data API names them all, after their last four characters (the issuers' words are the names').
-    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
-    const { response, html } = await render("/xrpl/markets");
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page("/xrpl/markets");
 
-    expect(response.status).toBe(200);
     const rows = ROWS(xrplDay);
     const issuers = issuersOfRows(rows);
     expect(namesCalls(mock)).toEqual(inCalls(issuers));
@@ -89,24 +65,31 @@ describe("the names call of the page", () => {
   });
 
   it("writes each issuer as the fixtures say when the data API answers what they hold: the short address of an unnamed one", async () => {
-    cold();
-    mock = mockUpstream("xahau");
-    const { response, html } = await render("/xahau/markets");
-    expect(response.status).toBe(200);
+    const mock = upstream("xahau");
+    const { html } = await page("/xahau/markets");
 
     const rows = ROWS(xahauDay);
     expect(namesCalls(mock)).toEqual(inCalls(issuersOfRows(rows)));
     const cells = pairCells(html);
+    let named = 0;
     for (const [at, row] of rows.entries()) {
-      for (const issuer of [row.base_issuer, row.counter_issuer]) if (issuer !== undefined) expect(cells[at]).toContain(await issuerTextOf("xahau", issuer));
+      for (const issuer of [row.base_issuer, row.counter_issuer]) {
+        if (issuer === undefined) continue;
+        const text = await issuerTextOf("xahau", issuer);
+        expect(cells[at]).toContain(text);
+        if (text !== shortAddress(issuer)) {
+          named += 1;
+          expect(cells[at]).not.toContain(shortAddress(issuer));
+        }
+      }
     }
+    // The fixtures name some of these issuers, so that the test sees a name and a short address.
+    expect(named).toBeGreaterThan(0);
   });
 
   it("is for the issuers of the rows the Quote filter lists alone: not the issuers of a pair with no USD", async () => {
-    cold();
-    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
-    const { response, html } = await render("/xrpl/markets?quote=usd");
-    expect(response.status).toBe(200);
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page("/xrpl/markets?quote=usd");
 
     const rows = ROWS(xrplDay);
     const isUsd = (currency: string, issuer?: string) => issuer !== undefined && currency === "USD";
@@ -124,10 +107,9 @@ describe("the names call of the page", () => {
   });
 
   it("carries the names the call gave in the page's data, for the browser", async () => {
-    cold();
-    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
     const body = await (await get("/xrpl/markets.data?period=7d&_routes=routes%2Fnet.markets")).text();
-    const part = namesPartOf(body);
+    const part = namesPartOf(body, ROUTE);
     expect(part.state).toBe("ok");
     expect(Object.keys(part.map).length).toBeGreaterThan(0);
   });
@@ -135,15 +117,13 @@ describe("the names call of the page", () => {
 
 describe("when the names call fails", () => {
   it("shows the short addresses, serves the page and does not store it", async () => {
-    cold();
     const logged = watchNamesLog();
-    mock = mockUpstream("xrpl", { "GET /v2/account_names": unavailable() });
+    const mock = upstream("xrpl", failingNames());
     const path = "/xrpl/markets?period=7d";
-    const { response, html } = await render(path);
+    const response = await get(path);
+    const html = await response.text();
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await stored(path)).toBeUndefined();
+    await expectDegraded(path, response);
     // (Every chunk of the call failed.)
     const calls = namesCalls(mock);
     expect(calls.length).toBeGreaterThan(0);
@@ -158,10 +138,9 @@ describe("when the names call fails", () => {
   });
 
   it("marks the data of that page failed, with no names", async () => {
-    cold();
     watchNamesLog();
-    mock = mockUpstream("xrpl", { "GET /v2/account_names": unavailable() });
+    upstream("xrpl", failingNames());
     const body = await (await get("/xrpl/markets.data?period=7d&quote=eur&_routes=routes%2Fnet.markets")).text();
-    expect(namesPartOf(body)).toEqual({ state: "failed", map: {} });
+    expect(namesPartOf(body, ROUTE)).toEqual({ state: "failed", map: {} });
   });
 });

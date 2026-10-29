@@ -43,17 +43,17 @@ function Crumbs({ network, head }: { network: NetworkInfo; head: PairHead }) {
   );
 }
 
-/** "USD issued by rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq · XRP is native": each issuer in full, in mono, a link to its account. */
-function Issuers({ head }: { head: PairHead }) {
+/**
+ * "USD issued by rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq · XRP is native": each issuer in full, a link to its account (`AccountLink full`: with a name in the page's names,
+ * the name, its mark and then the whole address).
+ */
+function Issuers({ net, head }: { net: NetworkInfo["id"]; head: PairHead }) {
   const parts: { key: string; node: ReactNode }[] = [
     ...head.issuers.map((issuer, at) => ({
       key: `issuer:${at}`,
       node: (
         <>
-          {issuer.code} issued by{" "}
-          <Link to={issuer.href} className="mono">
-            {issuer.address}
-          </Link>
+          {issuer.code} issued by <AccountLink net={net} address={issuer.address} full />
         </>
       ),
     })),
@@ -72,7 +72,7 @@ function Issuers({ head }: { head: PairHead }) {
 }
 
 /** The `<h1>`, the link to the other way round (the live page's), and the issuer line. */
-function Title({ head, invert }: { head: PairHead; invert: boolean }) {
+function Title({ net, head, invert }: { net: NetworkInfo["id"]; head: PairHead; invert: boolean }) {
   return (
     <div className="pair__name">
       <div className="pair__titles">
@@ -83,7 +83,7 @@ function Title({ head, invert }: { head: PairHead; invert: boolean }) {
           </Link>
         )}
       </div>
-      <Issuers head={head} />
+      <Issuers net={net} head={head} />
     </div>
   );
 }
@@ -309,7 +309,7 @@ function LivePair({ network, data, live }: { network: NetworkInfo; data: LivePai
 
       <section className="card pair__summary" aria-label="Pair summary">
         <div className="pair__lead">
-          <Title head={head} invert />
+          <Title net={network.id} head={head} invert />
           <Quote price={data.price} stats={data.stats} />
         </div>
         <Stats stats={data.stats} onRetry={retry} retrying={retrying} />
@@ -345,7 +345,7 @@ function OlderPair({ network, data }: { network: NetworkInfo; data: OlderPairDat
         <Crumbs network={network} head={head} />
       </div>
       <section className="card pair__summary" aria-label="Pair summary">
-        <Title head={head} invert={false} />
+        <Title net={network.id} head={head} invert={false} />
       </section>
       <p className="pair__older">
         {/* The link is the part of the note's text that names the market's page. */}

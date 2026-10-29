@@ -912,10 +912,28 @@ describe("marketsPage: the names of the issuers", () => {
 
     expect(plain.map((row) => row.issuers)).toEqual([`EUR ${shortAddress(BS)} · USD ${shortAddress(GH)}`, `USD ${shortAddress(GH)}`, `RLUSD ${shortAddress(RL)}`]);
     expect(named.map((row) => row.issuers)).toEqual([`EUR ${shortAddress(BS)} · USD Northpeak Treasury`, "USD Northpeak Treasury", "RLUSD Harborline Exchange · hot wallet"]);
-    // The filter's text is the pair, the codes and the raw issuers, lower-cased: what a visitor types is an address, not the name the row shows.
-    expect(named.map((row) => row.search)).toEqual(plain.map((row) => row.search));
+    // The filter's text is the pair, the codes, the raw issuers and the issuers' words as the row shows them, lower-cased: it finds an address, and it finds the name the row reads.
+    expect(named[0]!.search).toBe(`eur/usd eur usd ${BS} ${GH} ${named[0]!.issuers}`.toLowerCase());
+    expect(plain[0]!.search).toBe(`eur/usd eur usd ${BS} ${GH} ${plain[0]!.issuers}`.toLowerCase());
     expect(named[0]!.search).toContain(GH.toLowerCase());
-    expect(named.map(({ issuers: _issuers, ...rest }) => rest)).toEqual(plain.map(({ issuers: _issuers, ...rest }) => rest));
+    expect(named[0]!.search).toContain("northpeak treasury");
+    expect(plain[0]!.search).not.toContain("northpeak");
+    expect(named.map(({ issuers: _issuers, search: _search, ...rest }) => rest)).toEqual(plain.map(({ issuers: _issuers, search: _search, ...rest }) => rest));
+  });
+
+  it("finds a row by the name it reads: the filter's text of the row holds the name, whole and in part, and no other row's", () => {
+    const names: NameMap = { [GH]: NORTHPEAK, [RL]: HARBORLINE };
+    const rows = pageOf([eurUsd(), usdXrp(), rlusdXrp()], { names }).rows;
+    const finds = (needle: string) => rows.filter((row) => row.search.includes(needle)).map((row) => row.pair);
+    expect(finds("northpeak")).toEqual(["EUR / USD", "XRP / USD"]);
+    expect(finds("northpeak treasury")).toEqual(["EUR / USD", "XRP / USD"]);
+    expect(finds("harborline")).toEqual(["XRP / RLUSD"]);
+    expect(finds("hot wallet")).toEqual(["XRP / RLUSD"]);
+    // An address still finds its row, and so does the short address the row shows for an issuer with no name.
+    expect(finds(GH.toLowerCase())).toEqual(["EUR / USD", "XRP / USD"]);
+    expect(finds(shortAddress(BS).toLowerCase())).toEqual(["EUR / USD"]);
+    // Without the names, the name finds nothing.
+    expect(pageOf([eurUsd()]).rows.filter((row) => row.search.includes("northpeak"))).toEqual([]);
   });
 
   it("leaves the rest of the page as it is: the names are the issuer texts' alone", () => {

@@ -100,8 +100,8 @@ function activityOf(api: DataApi, pool: string, query: AmmPoolQuery): Promise<Am
  *   index failed, or it has no such pool and the node failed, a 503 (the reason of the call that decides it, a missed deadline as an outage: `asOutage`).
  *   Otherwise the page (`ammPoolPage`): each card that failed is told in its place and logged, and the request is degraded, served and not stored. A missing
  *   creation event leaves out the Created line and is logged; the page is whole without it, and is stored.
- * - **One names call** (display names spec 1 and 5), after the ten and the mode, for the accounts the page draws (`drawnAccounts`: the pool, the creator, the slot's holder
- *   and authorized accounts, the voters, the rows' accounts, and the issuers that a text of the page names). The page is built once without names to see which it draws,
+ * - **One names call** (display names spec 1 and 5), after the ten and the mode, for the accounts the page draws (`drawnAccounts`: the pool and its issuers, the creator, the slot's
+ *   holder and authorized accounts, the voters and the rows' accounts). The page is built once without names to see which it draws,
  *   and again with their names when any has something to show (the votes' bars, the issuers' sublabels and a swap's title are written with them; the other accounts are
  *   `AccountLink`s that read their names in the browser). A names call that fails or is late never fails the page: the accounts are addresses, and the request is degraded
  *   (served, not stored).

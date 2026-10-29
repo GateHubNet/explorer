@@ -1915,13 +1915,14 @@ export function ammHistoryPage(input: { net: AmmPoolNet; pool: string; query: Am
 
 /**
  * The accounts a pool page draws (display names spec 1), from the page as it is built without names: the ones the loader asks the data API's names for, then builds the page again
- * with them. The pool's account (the pool card draws it whole, through `AccountLink`); on a first page the creator of the Created line, the holder and the authorized accounts of the
- * slot, and the voters of the bars; the accounts of the tab's rows (a swap's taker, a liquidity event's provider and, for a clawback, the account it was by, a vote's or a bid's
- * account); and the issuers, when a text of the page names them: the reserves card's panels, and the title of a swap of a pool of one code on both sides. Not the other addresses the
- * answers hold: a swap's buyer and seller, an event's initiator, the holder and the authorized accounts a bid left, the LP token's issuer. Each once, in the order drawn.
+ * with them. The pool card's: the pool's account and each issuer (both `AccountLink full`), and on a first page the creator of the Created line; the holder and the authorized
+ * accounts of the slot, and the voters of the bars; the accounts of the tab's rows (a swap's taker, a liquidity event's provider and, for a clawback, the account it was by, a
+ * vote's or a bid's account). The issuers are on the card whatever else the page could not draw, and they are the names of the reserves chart's panels and of a swap's title too.
+ * Not the other addresses the answers hold: a swap's buyer and seller, an event's initiator, the holder and the authorized accounts a bid left, the LP token's issuer. Each once,
+ * in the order drawn.
  */
 export function drawnAccounts(page: Omit<AmmPoolPageData, "names"> | Omit<AmmHistoryPageData, "names">): string[] {
-  const drawn = new Set<string>([page.header.account.address]);
+  const drawn = new Set<string>([page.header.account.address, ...page.header.issuers.map((line) => line.issuer.address)]);
   if (page.kind === "pool") {
     if (page.header.created !== null) drawn.add(page.header.created.by.address);
     if (page.slot?.held) {
@@ -1931,13 +1932,9 @@ export function drawnAccounts(page: Omit<AmmPoolPageData, "names"> | Omit<AmmHis
     if (page.votes?.state === "ok") for (const item of page.votes.data?.items ?? []) drawn.add(item.id);
   }
   const { list } = page.activity;
-  let titled = false;
   if (list.state === "ok") {
     if (list.tab === "swaps") {
-      for (const row of list.rows) {
-        drawn.add(row.taker.address);
-        titled ||= row.directionTitle !== null;
-      }
+      for (const row of list.rows) drawn.add(row.taker.address);
     } else if (list.tab === "liquidity") {
       for (const row of list.rows) {
         drawn.add(row.provider.address);
@@ -1947,6 +1944,5 @@ export function drawnAccounts(page: Omit<AmmPoolPageData, "names"> | Omit<AmmHis
       for (const row of list.rows) drawn.add(row.account.address);
     }
   }
-  if (titled || (page.kind === "pool" && page.charts.reserves.state === "ok")) for (const line of page.header.issuers) drawn.add(line.issuer.address);
   return [...drawn];
 }

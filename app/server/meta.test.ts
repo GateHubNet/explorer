@@ -651,11 +651,15 @@ describe("pairMeta", () => {
     it("keeps the short issuer in the title and the description of the live page built with the issuer's name", () => {
       const { page } = pairPage({ ...input, names: NAMES });
       const list = pairMeta({ head: page.head, view: page.view, mode: page.mode, indexable: page.indexable }, XRPL);
-      expect(title(list)).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer");
+      const short = `XRP/RLUSD · RLUSD ${shortAddress(RLUSD)} · XRPL market · explorer`;
+      expect(title(list)).toBe(short);
       expect(content(list, "description")).toBe(DESCRIPTION);
-      expect(content(list, "og:title")).toBe("XRP/RLUSD · RLUSD rMxCKb…m5De · XRPL market · explorer");
+      expect(content(list, "description")).toContain(`RLUSD issued by ${shortAddress(RLUSD)}.`);
+      expect(content(list, "og:title")).toBe(short);
       expect(content(list, "og:description")).toBe(DESCRIPTION);
       expect(JSON.stringify(list)).not.toContain("Northpeak");
+      // The page itself draws the issuer in full, through the names (`AccountLink full`); its head holds the whole address, which the tags do not.
+      expect(page.head.issuers).toEqual([{ code: "RLUSD", address: RLUSD, href: `/xrpl/account/${RLUSD}` }]);
       // The tags are the same as those of the page built without names.
       const plain = pairPage(input).page;
       expect(pairMeta({ head: plain.head, view: plain.view, mode: plain.mode, indexable: plain.indexable }, XRPL)).toEqual(list);

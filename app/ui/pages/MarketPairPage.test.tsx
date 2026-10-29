@@ -6,9 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
 import { shortAddress } from "../../domain/format";
-import { NO_NAMES } from "../../domain/names";
+import { NO_NAMES, type NameMap } from "../../domain/names";
 import type { BookLevel, LivePairData, OlderPairData, PairHead, PairPageData, PriceChange, TradeRowView } from "../../server/pair-view";
 import type { CandleData } from "../charts/types";
+import { NamesProvider } from "../names";
 import type { LiveControls } from "../use-live-controls";
 import { MarketPairPage } from "./MarketPairPage";
 
@@ -354,6 +355,37 @@ describe("MarketPairPage, the pair summary", () => {
     const address = within(line as HTMLElement).getByRole("link", { name: ISSUER });
     expect(address.getAttribute("href")).toBe(`/xrpl/account/${ISSUER}`);
     expect(address.classList.contains("mono")).toBe(true);
+  });
+
+  describe("with the page's names", () => {
+    const NORTHPEAK: NameMap = { [ISSUER]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } };
+    const named = (data: PairPageData) =>
+      render(
+        routed(
+          <NamesProvider names={NORTHPEAK}>
+            <MarketPairPage network={XRPL} data={data} />
+          </NamesProvider>,
+        ),
+      );
+
+    it("draws a named issuer by its name and the mark of how the name is known, and then the whole address, all in the one link to its account", () => {
+      named(page());
+      const line = summary().querySelector(".pair__issuers")!;
+      expect(line.textContent).toBe(`USD issued by Northpeak Treasury verified name ${ISSUER} · XRP is native`);
+      const links = within(line as HTMLElement).getAllByRole("link");
+      expect(links).toHaveLength(1);
+      expect(links[0]!.getAttribute("href")).toBe(`/xrpl/account/${ISSUER}`);
+      expect(links[0]!.getAttribute("title")).toBe(`Verified by northpeak.example · ${ISSUER}`);
+      expect(links[0]!.querySelector(".acct__address")!.textContent).toBe(ISSUER);
+    });
+
+    it("does so on the page behind a marker too, and leaves an issuer nothing is known of as its whole address", () => {
+      named(older());
+      expect(document.querySelector(".pair__issuers")!.textContent).toBe(`USD issued by Northpeak Treasury verified name ${ISSUER} · XRP is native`);
+      cleanup();
+      render(routed(<NamesProvider names={{ [EUR_ISSUER]: NORTHPEAK[ISSUER]! }}><MarketPairPage network={XRPL} data={older()} /></NamesProvider>));
+      expect(document.querySelector(".pair__issuers")!.textContent).toBe(`USD issued by ${ISSUER} · XRP is native`);
+    });
   });
 
   it("names two issuers when both sides are issued, and an undecodable code in full", () => {

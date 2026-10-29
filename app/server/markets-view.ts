@@ -51,7 +51,7 @@ export interface MarketRowView {
   /** `null` unless the AMM state is "on". */
   amm: { text: string; meter: MeterData | null } | null;
   spark: { closes: (string | null)[]; label: string; token: string };
-  /** Lower case: the pair as "base/counter", the raw codes and the issuers. The text filter matches a substring of it. */
+  /** Lower case: the pair as "base/counter", the raw codes, the issuers, and the issuers' words as `issuers` shows them (a name finds its row). The text filter matches a substring of it. */
   search: string;
   /**
    * Each row's place (from 0) in an exact ascending sort of what the row shows, equal values sharing the place of the first of them, so that
@@ -428,11 +428,12 @@ export function marketsPage(input: MarketsInput): Omit<MarketsPageData, "names">
     const label = sparkLabel(price.closes);
     const codes = [shown.base, shown.counter].map((side) => formatCurrency(side.currency));
     const issuers = [shown.base, shown.counter].flatMap((side) => (side.issuer ? [side.issuer] : []));
+    const issuersText = issuersOf(shown.base, shown.counter, names);
     return {
       key: `${apiAssetText(stored.base)}/${apiAssetText(stored.counter)}`,
       pair: `${codes[0]} / ${codes[1]}`,
       href: isLinkable([shown.base, shown.counter], native) ? marketHref(network.id, shown.base, shown.counter) : null,
-      issuers: issuersOf(shown.base, shown.counter, names),
+      issuers: issuersText,
       last: price.last,
       change: price.change,
       range: price.range,
@@ -440,7 +441,7 @@ export function marketsPage(input: MarketsInput): Omit<MarketsPageData, "names">
       trades: groupedCount(row.count),
       amm: ammState === "on" ? ammCell(row) : null,
       spark: { closes: price.closes, label, token: tokenOf(price.closes) },
-      search: [`${codes[0]}/${codes[1]}`, shown.base.currency, shown.counter.currency, ...issuers].join(" ").toLowerCase(),
+      search: [`${codes[0]}/${codes[1]}`, shown.base.currency, shown.counter.currency, ...issuers, issuersText].join(" ").toLowerCase(),
       ranks: { last: lastRanks[at] ?? null, change: changeRanks[at] ?? null, volume: volumeRanks[at] ?? null, trades: tradesRanks[at]! },
     };
   });

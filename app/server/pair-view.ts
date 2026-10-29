@@ -319,7 +319,7 @@ export interface LivePairData {
   share: { state: "ok"; text: string } | { state: "off" } | { state: "failed" };
   traders: { state: "ok"; data: BarListData; note: string; source: string } | { state: "failed"; source: string };
   /**
-   * The names of the accounts the page draws: the takers of `trades` (each an `AccountLink`) and the accounts of `traders` (a `BarList` item, named by the view builder). The loader adds
+   * The names of the accounts the page draws: the issuers of `head` and the takers of `trades` (each an `AccountLink`) and the accounts of `traders` (a `BarList` item, named by the view builder). The loader adds
    * it after `pairPage`, which it builds once to see which accounts it draws, and again with their names when any has something to show (display names spec 3.4). It is a part a beat may keep (`PAIR_PARTS`):
    * `failed` when the names call did not work (the accounts are their short addresses), `off` when the switch is.
    */
@@ -337,7 +337,7 @@ export interface OlderPairData {
   /** `link` is the part of `text` that links to `href`, the market's page. */
   note: { text: string; link: string; href: string };
   trades: TradesView;
-  /** The names of the takers of `trades` (each an `AccountLink`), which the loader adds after `olderPage`. */
+  /** The names of the issuers of `head` and the takers of `trades` (each an `AccountLink`), which the loader adds after `olderPage`. */
   names: NamesPart;
 }
 
@@ -364,7 +364,7 @@ export interface PairInput {
   pool: Loaded<AmmInfo> | null;
   /** `null`: not asked (no AMM parts). */
   share: Loaded<ReducedRow> | null;
-  /** The names of the accounts the page draws as list items (the traders, `tradersOf`); none when left out. The takers are named in the browser. */
+  /** The names of the accounts the page draws as list items (the traders, `tradersOf`); none when left out. The issuers and the takers are named in the browser. */
   names?: NameMap;
 }
 

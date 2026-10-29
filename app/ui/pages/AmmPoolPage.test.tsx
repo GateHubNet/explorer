@@ -28,7 +28,7 @@ import { ammPoolHref, type AmmPoolQuery } from "../../domain/amm-params";
 import type { Asset } from "../../domain/asset";
 import { shortAddress, shortHash } from "../../domain/format";
 import { marketHref } from "../../domain/market-pair";
-import { NO_NAMES } from "../../domain/names";
+import { NO_NAMES, type NameMap } from "../../domain/names";
 import { ammHistoryPage, ammPoolPage, type AmmHistoryPageData, type AmmPoolInput, type AmmPoolPageData } from "../../server/amm-view";
 import type {
   AmmGovernanceRow,
@@ -45,6 +45,7 @@ import type {
 import type { AmmInfo } from "../../server/node-rpc";
 import { UpstreamError } from "../../server/upstream";
 import { NO_FEATURES } from "../features";
+import { NamesProvider } from "../names";
 import { AmmPoolPage } from "./AmmPoolPage";
 
 afterEach(() => {
@@ -285,6 +286,26 @@ describe("AmmPoolPage: the breadcrumb and the pool card", () => {
     const rule = ruleOf(".amm-pool .copy");
     expect(rule).toMatch(/min-width:\s*44px/);
     expect(rule).toMatch(/min-height:\s*44px/);
+  });
+
+  it("draws a named issuer by its name and the mark of how the name is known, and then the whole address, all in the one link to its account", () => {
+    const names: NameMap = { [RL]: { name: { text: "Northpeak Treasury", kind: "verified" }, domain: "northpeak.example", labels: [] } };
+    for (const data of [build(), history()]) {
+      render(
+        routed(
+          <NamesProvider names={names}>
+            <AmmPoolPage data={data} />
+          </NamesProvider>,
+        ),
+      );
+      const fact = region("Pool").querySelector(".amm-pool__fact:nth-child(2)")!;
+      expect(fact.textContent).toBe(`RLUSD issued by Northpeak Treasury verified name ${RL}`);
+      const links = within(fact as HTMLElement).getAllByRole("link");
+      expect(links).toHaveLength(1);
+      expect(links[0]!.getAttribute("href")).toBe(`/xrpl/account/${RL}`);
+      expect(links[0]!.getAttribute("title")).toBe(`Verified by northpeak.example · ${RL}`);
+      cleanup();
+    }
   });
 
   it("says who issues each issued side, the issuer in full as a link, and when and by whom the pool was created", () => {

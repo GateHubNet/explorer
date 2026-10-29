@@ -76,8 +76,8 @@ const ammOf = (view: PairParams) => (view.trades === null ? undefined : TRADES_A
  *   is not the canonical one is a 302 to the one URL (`redirectToCanonical`). The path is React Router's `url` (the `.data` of the route's own
  *   request taken off, the escapes kept) and the query the request's own text (`queryOf`: `_routes` dropped, nothing decoded), so the `.data`
  *   request of a canonical view answers its data. No call is made before these.
- * - **Behind a marker** (spec 3.11): one call, the page of trades, awaited whole and stored as `MARKER_PAGE_CLASS`, then one names call for the takers of
- *   its rows (display names spec 1 and 5), awaited too. The API refusing the marker, or nothing behind it, is a 404.
+ * - **Behind a marker** (spec 3.11): one call, the page of trades, awaited whole and stored as `MARKER_PAGE_CLASS`, then one names call for the issuers of the head and
+ *   the takers of its rows (display names spec 1 and 5), awaited too. The API refusing the marker, or nothing behind it, is a 404.
  * - **Otherwise every call is made side by side and all are awaited** (spec 3.3, 3.7): #2, #5, #6, #7, #8; the anchor chain, #1 then #3 and
  *   #4; the AMM chain, #1 then #9. Without #1 or #2 there is no page (a 503, thrown once everything has settled), and an anchor that is not a
  *   number is the API failing too. Each card call and chain has failed when it has not answered `CARD_DEADLINE_MS` after the loader began
@@ -88,11 +88,11 @@ const ammOf = (view: PairParams) => (view.trades === null ? undefined : TRADES_A
  *   and the AMM parts the switch leaves out are answers.
  * - **Every call asks for the failure hold** (spec 1.7): the page polls, so a failing upstream is remembered for 5 s and not asked again by
  *   every beat of every open tab. #1 is the home page's key, so a failure is held for both pages.
- * - **One names call** (display names spec 1 and 5), after the existence of the market is told: the takers of the rows of the trades (each an `AccountLink`) and the
- *   accounts of the traders list (a `BarList` item, named by the view builder), asked for with the failure hold too. The page is built once to see which accounts
+ * - **One names call** (display names spec 1 and 5), after the existence of the market is told: the issuers of the head and the takers of the rows of the trades (each an
+ *   `AccountLink`) and the accounts of the traders list (a `BarList` item, named by the view builder), asked for with the failure hold too. The page is built once to see which accounts
  *   it draws (the pool's account is left out of the traders, and only the top 5 are shown), and again with their names when any has something to show. A names
  *   call that fails or is late never fails the page: the accounts are short addresses, the request is degraded (served, not stored), and an open page keeps the
- *   names it shows (`mergePairBeat`). The issuers in the head keep their addresses, as the title and description do.
+ *   names it shows (`mergePairBeat`). The title and the description keep the short issuers (display names spec 7).
  *
  * The data carries the Worker's `BUILD_ID`, for an open page to tell a deploy (`live-page.ts`).
  */
@@ -140,8 +140,9 @@ async function olderTrades(context: Route.LoaderArgs["context"], request: Reques
   if (trades.exchanges.length === 0) throw cached({ notFound: OLDER_NOT_FOUND }, "short", { status: 404 });
 
   const page = olderPage({ network: net, base, counter, params: view, trades });
-  // The takers of the rows: the page draws each as an `AccountLink`, which reads its name from the page's names.
-  const { part: names } = await loadNames(api, collectAddresses(page.trades.rows.map((row) => row.taker)), { context, request, features: net.features, holdFailure: true });
+  // The takers of the rows and the issuers of the head: the page draws each as an `AccountLink`, which reads its name from the page's names.
+  const drawn = collectAddresses(page.head.issuers.map((issuer) => issuer.address), page.trades.rows.map((row) => row.taker));
+  const { part: names } = await loadNames(api, drawn, { context, request, features: net.features, holdFailure: true });
   return cached({ ...page, names, build: getEnv(context).BUILD_ID } satisfies OlderPairData, MARKER_PAGE_CLASS);
 }
 
@@ -263,9 +264,11 @@ async function livePage(context: Route.LoaderArgs["context"], request: Request, 
     pool: pool === null ? null : settle("pool", pool),
     share: share === null ? null : settle("share", share),
   };
-  // The page as it is built without names says which accounts it draws: the takers of its rows and the accounts of its traders list (not the pool's, not the ones past the top 5).
+  // The page as it is built without names says which accounts it draws: the issuers of its head, the takers of its rows and the accounts of its traders list (not the pool's, not the
+  // ones past the top 5).
   const draft = pairPage(input);
   const drawn = collectAddresses(
+    draft.page.head.issuers.map((issuer) => issuer.address),
     draft.page.trades.rows.map((row) => row.taker),
     draft.page.traders.state === "ok" ? draft.page.traders.data.items.map((item) => item.id) : [],
   );

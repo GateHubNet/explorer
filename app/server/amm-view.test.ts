@@ -3798,14 +3798,14 @@ describe("drawnAccounts: the accounts the pool page draws", () => {
   const INITIATOR = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
   const CREATOR = "rLUEXYuLiQptky37CqLcm9USQpPiz5rkpD";
 
-  it("is the pool's account, its creator, the slot's holder and authorized accounts, the voters, the swaps' takers and the issuers, each once, in the order drawn", () => {
+  it("is the pool's account, its issuers, its creator, the slot's holder and authorized accounts, the voters and the swaps' takers, each once, in the order drawn", () => {
     const authorized = "rBg5JN5ShW8ZRV1TJhxVJRYcXVbPGC3ARi";
     const page = poolPage({
       node: fulfilled(poolInfo({ auction_slot: heldSlot({ time_interval: 12, expiration: EXPIRATION, auth_accounts: [authorized] }) })),
       created: fulfilled({ result: "success", count: 1, liquidity: [createEvent({ account: CREATOR })] }),
     });
-    // The holder is a voter too; the heaviest vote first. The default swap's taker is AMM_ACCOUNT, a voter; the reserves chart names RLUSD's issuer.
-    expect(drawnAccounts(page)).toEqual([AMM_POOL, CREATOR, AMM_HOLDER, authorized, AMM_ACCOUNT, AMM_OTHER, RL]);
+    // The pool card draws the pool's account and RLUSD's issuer (each an `AccountLink` in full). The holder is a voter too; the heaviest vote first. The default swap's taker is AMM_ACCOUNT, a voter.
+    expect(drawnAccounts(page)).toEqual([AMM_POOL, RL, CREATOR, AMM_HOLDER, authorized, AMM_ACCOUNT, AMM_OTHER]);
   });
 
   it("is each row of the tab's accounts: a swap's taker, a deposit's provider, and a vote's or a bid's account", () => {
@@ -3839,12 +3839,16 @@ describe("drawnAccounts: the accounts the pool page draws", () => {
     expect(drawnAccounts(page)).toEqual(expect.arrayContaining([PROVIDER, INITIATOR]));
   });
 
-  it("is only what the cards that stand draw: no voters while the node is down, no issuers when the reserves chart failed and no swap names them", () => {
+  it("is only what the cards that stand draw: no voters while the node is down; the issuers whatever the charts, since the pool card draws them in full", () => {
     const down = poolPage({ mode: "node-down", node: rejected(serverError()) });
     expect(drawnAccounts(down)).not.toContain(AMM_OTHER);
+    expect(drawnAccounts(down)).toContain(RL);
+    // The pool card's issuer lines do not wait for the reserves chart.
     const noChart = poolPage({ days: rejected(new TooLate()) });
-    expect(drawnAccounts(noChart)).not.toContain(RL);
-    // A pool of one code names the issuers in the swaps' titles, whatever the chart.
+    expect(drawnAccounts(noChart)).toContain(RL);
+    const noWindow = poolPage({ last: rejected(new TooLate()) });
+    expect(drawnAccounts(noWindow)).toContain(RL);
+    // A pool of one code has both issuers on its card.
     const usdUsd = poolPage({
       index: indexPool({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL }),
       node: fulfilled(poolInfo({ amount: { currency: "USD", issuer: AMM_ISSUER, value: "1000" }, amount2: { currency: "USD", issuer: RL, value: "1100" } })),
@@ -3854,7 +3858,7 @@ describe("drawnAccounts: the accounts the pool page draws", () => {
     expect(drawnAccounts(usdUsd)).toEqual(expect.arrayContaining([RL, AMM_ISSUER]));
   });
 
-  it("is the pool, the issuers a swap's title names and the rows' accounts for a page behind a marker, and nothing of the cards it does not have", () => {
+  it("is the pool, its issuers and the rows' accounts for a page behind a marker, and nothing of the cards it does not have", () => {
     const index = indexPool({ base_currency: "USD", base_issuer: AMM_ISSUER, counter_currency: "USD", counter_issuer: RL });
     const activity: AmmActivityPage = {
       result: "success",
@@ -3863,9 +3867,9 @@ describe("drawnAccounts: the accounts the pool page draws", () => {
     };
     const { page } = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query: { period: "90d", tab: "swaps", marker: AMM_MARKER, back: [] }, index, activity });
     expect(drawnAccounts(page).sort()).toEqual([AMM_POOL, TAKER, AMM_ISSUER, RL].sort());
-    // Codes that tell the sides apart: no title names the issuers.
+    // Codes that tell the sides apart: the one issued side is on the card all the same.
     const rlusdIndex = indexPool();
     const apart = ammHistoryPage({ net: POOL_NET, pool: AMM_POOL, query: { period: "90d", tab: "swaps", marker: AMM_MARKER, back: [] }, index: rlusdIndex, activity: swapsPage([rlusdSwap({ taker: TAKER })]) }).page;
-    expect(drawnAccounts(apart)).toEqual([AMM_POOL, TAKER]);
+    expect(drawnAccounts(apart)).toEqual([AMM_POOL, RL, TAKER]);
   });
 });

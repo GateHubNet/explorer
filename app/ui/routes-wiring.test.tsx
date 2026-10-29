@@ -4,9 +4,7 @@ import { createMemoryRouter, Outlet, RouterProvider, useLoaderData, useParams, t
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { amendmentsHref, type AmendmentStatus } from "../domain/amendments-params";
-import { tokenOf } from "../domain/fnv";
 import { shortAddress } from "../domain/format";
-import { listedAccount } from "../domain/listed-account";
 import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../domain/names";
 import { networkHref, parseNetworkParams, queryOf, type NetworkParams } from "../domain/network-params";
 import { validatorsHref, type ValidatorsParams } from "../domain/validators-params";
@@ -20,6 +18,7 @@ import {
   validatorDetailSample,
   validatorRowSample,
 } from "../../test/support/d1-samples";
+import { tradersCard } from "../../test/support/traders-card";
 import type { Loaded } from "../server/account-view";
 import { amendmentPage, type AmendmentPageData } from "../server/amendment-view";
 import { amendmentsPage, type AmendmentsPageData } from "../server/amendments-view";
@@ -1012,17 +1011,8 @@ describe("net.markets.$base.$counter.tsx", () => {
     /** The traders card's bars, as the page draws their labels. */
     const tradersLabels = () => Array.from(document.querySelectorAll(".barlist__label"), (label) => label.textContent);
 
-    /** The traders card the view builder makes of the account TRADER with the names `names`: the bar is written with them. */
-    const tradersNamed = (names: NamesPart["map"]) => {
-      const data = pairAt(100).traders;
-      if (data.state !== "ok") throw new Error("traders");
-      const { id, label: _label, ...rest } = data.data.items[0]!;
-      const items = [{ id, ...listedAccount(TRADER, names), ...rest }];
-      return { ...data, data: { ...data.data, items, token: tokenOf({ items, format: data.data.format }) } };
-    };
-
     it("draws the takers of the table by the names of its data", () => {
-      mountPair(async () => pairAt(101), pairAt(100, { names: named(NORTHPEAK), traders: tradersNamed({ [TRADER]: NORTHPEAK }) }));
+      mountPair(async () => pairAt(101), pairAt(100, { names: named(NORTHPEAK), traders: tradersCard([TRADER], { [TRADER]: NORTHPEAK }) }));
       expect(takerLink().textContent).toContain("Northpeak Treasury");
       expect(takerLink().textContent).not.toContain(shortAddress(TRADER));
       expect(tradersLabels()).toEqual(["Northpeak Treasury verified name"]);
@@ -1034,9 +1024,9 @@ describe("net.markets.$base.$counter.tsx", () => {
     });
 
     it("keeps the names on screen through a beat whose names call failed, the traders' bars too, and takes the names of the next beat that has them", async () => {
-      const answers = [pairAt(101, { names: { state: "failed", map: {} } }), pairAt(102, { names: named({ ...NORTHPEAK, name: { text: "Northpeak Custody", kind: "verified" } }) })];
+      const answers = [pairAt(101, { names: { state: "failed", map: {} }, traders: tradersCard([TRADER]) }), pairAt(102, { names: named({ ...NORTHPEAK, name: { text: "Northpeak Custody", kind: "verified" } }) })];
       const serverLoader = vi.fn(async () => answers.shift()!);
-      mountPair(serverLoader, pairAt(100, { names: named(NORTHPEAK), traders: tradersNamed({ [TRADER]: NORTHPEAK }) }));
+      mountPair(serverLoader, pairAt(100, { names: named(NORTHPEAK), traders: tradersCard([TRADER], { [TRADER]: NORTHPEAK }) }));
       expect(takerLink().textContent).toContain("Northpeak Treasury");
 
       await pass(4000);

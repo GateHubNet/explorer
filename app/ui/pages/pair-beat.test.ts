@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { tokenOf } from "../../domain/fnv";
+import { tradersCard } from "../../../test/support/traders-card";
 import { shortAddress } from "../../domain/format";
-import { listedAccount } from "../../domain/listed-account";
 import { NAMES_OFF, NO_NAMES, type NamesPart, type NameView } from "../../domain/names";
 import type { LivePairData, OlderPairData, PairPageData } from "../../server/pair-view";
 import { mergePairBeat, PAIR_PARTS } from "./pair-beat";
@@ -51,17 +50,10 @@ function live(index: number, names: NamesPart, over: Partial<LivePairData> = {},
     book: { state: "failed", source: "live from the node · book_offers" },
     pool: { state: "missing" },
     share: { state: "off" },
-    traders: tradersOf([FIRST], {}),
+    traders: tradersCard([FIRST]),
     names,
     ...over,
   };
-}
-
-/** The traders card a view builder makes (`tradersOf`) of `accounts` with the names `names`: a bar for each, written through `listedAccount`. */
-function tradersOf(accounts: string[], names: NamesPart["map"] = {}): Extract<LivePairData["traders"], { state: "ok" }> {
-  const items = accounts.map((account, at) => ({ id: account, ...listedAccount(account, names), href: `/xrpl/account/${account}`, value: String(1000 - at), count: String(10 - at) }));
-  const format = { kind: "amount", unit: "XRP" } as const;
-  return { state: "ok", data: { items, format, token: tokenOf({ items, format }) }, note: "", source: "/v2/active_accounts/{base}/{counter}" };
 }
 
 const older = (names: NamesPart = NO_NAMES): OlderPairData => ({
@@ -172,39 +164,41 @@ describe("mergePairBeat", () => {
     };
 
     it("are named again from the names the page keeps when the beat's names call failed: the bars do not lose a name the table's links keep", () => {
-      const shown = live(100, part("ok", { [FIRST]: NORTHPEAK }), { traders: tradersOf([FIRST, SECOND], { [FIRST]: NORTHPEAK }) });
+      const shown = live(100, part("ok", { [FIRST]: NORTHPEAK }), { traders: tradersCard([FIRST, SECOND], { [FIRST]: NORTHPEAK }) });
       // The beat's call failed, so its bars were written without names.
-      const next = live(101, part("failed"), { traders: tradersOf([FIRST, SECOND]) });
+      const next = live(101, part("failed"), { traders: tradersCard([FIRST, SECOND]) });
       expect(labelsOf(next)).toEqual([[`${shortAddress(FIRST)}`, null], [`${shortAddress(SECOND)}`, null]]);
 
       const merged = mergePairBeat(next, shown);
 
       expect(labelsOf(merged)).toEqual([["Northpeak Treasury", "verified"], [`${shortAddress(SECOND)}`, null]]);
-      // The token follows what is drawn, so the list redraws.
+      // The card is the one the view builder would have made with those names, token and all (the token reads the keys of a bar in order), so the list redraws.
       if (merged.mode !== "live" || merged.traders.state !== "ok" || next.mode !== "live" || next.traders.state !== "ok") throw new Error("traders");
+      expect(merged.traders).toEqual(tradersCard([FIRST, SECOND], { [FIRST]: NORTHPEAK }));
       expect(merged.traders.data.token).not.toBe(next.traders.data.token);
-      expect(merged.traders.data.token).toBe(tradersOf([FIRST, SECOND], { [FIRST]: NORTHPEAK }).data.token);
       // The rest of the bars is the beat's.
       expect(merged.traders.data.items.map((item) => [item.id, item.value, item.count])).toEqual(next.traders.data.items.map((item) => [item.id, item.value, item.count]));
     });
 
     it("name the beat's new accounts from the names of the accounts that left, and keep what the beat named", () => {
-      const shown = live(100, part("ok", { [SECOND]: HARBORLINE }), { traders: tradersOf([SECOND], { [SECOND]: HARBORLINE }) });
-      const next = live(101, part("ok", { [FIRST]: NORTHPEAK }), { traders: tradersOf([FIRST, SECOND], { [FIRST]: NORTHPEAK }) });
-      expect(labelsOf(mergePairBeat(next, shown))).toEqual([["Northpeak Treasury", "verified"], ["Harborline Exchange · hot wallet", "account"]]);
+      const shown = live(100, part("ok", { [SECOND]: HARBORLINE }), { traders: tradersCard([SECOND], { [SECOND]: HARBORLINE }) });
+      const next = live(101, part("ok", { [FIRST]: NORTHPEAK }), { traders: tradersCard([FIRST, SECOND], { [FIRST]: NORTHPEAK }) });
+      const merged = mergePairBeat(next, shown);
+      expect(labelsOf(merged)).toEqual([["Northpeak Treasury", "verified"], ["Harborline Exchange · hot wallet", "account"]]);
+      expect(merged).toMatchObject({ traders: tradersCard([FIRST, SECOND], { [FIRST]: NORTHPEAK, [SECOND]: HARBORLINE }) });
     });
 
     it("are the beat's own object when no bar changes: the same token, and nothing to redraw", () => {
-      const shown = live(100, part("ok", { [THIRD]: TIDEWATER }), { traders: tradersOf([FIRST], {}) });
-      const next = live(101, part("failed"), { traders: tradersOf([FIRST]) });
+      const shown = live(100, part("ok", { [THIRD]: TIDEWATER }), { traders: tradersCard([FIRST], {}) });
+      const next = live(101, part("failed"), { traders: tradersCard([FIRST]) });
       const merged = mergePairBeat(next, shown);
       if (merged.mode !== "live") throw new Error("live");
       expect(merged.traders).toBe(next.traders);
     });
 
     it("are not touched when the switch is off, and not made when the traders could not be loaded", () => {
-      const shown = live(100, part("ok", { [FIRST]: NORTHPEAK }), { traders: tradersOf([FIRST], { [FIRST]: NORTHPEAK }) });
-      const off = live(101, NAMES_OFF, { traders: tradersOf([FIRST]) });
+      const shown = live(100, part("ok", { [FIRST]: NORTHPEAK }), { traders: tradersCard([FIRST], { [FIRST]: NORTHPEAK }) });
+      const off = live(101, NAMES_OFF, { traders: tradersCard([FIRST]) });
       expect(mergePairBeat(off, shown)).toMatchObject({ traders: off.traders });
       const failedTraders = live(101, part("failed"), { traders: { state: "failed", source: "/v2/active_accounts/{base}/{counter}" } });
       expect(mergePairBeat(failedTraders, shown)).toMatchObject({ traders: shown.traders });

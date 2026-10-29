@@ -1,8 +1,6 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { decodeLoaderData } from "../support/loader-data";
-import { namesCalls, namesStatuses, viewedAmong } from "../support/names";
-import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
+import { failingNames, namesCalls, namesPartOf, namesSpec, namesStatuses, viewedAmong, watchNamesLog } from "../support/names";
 import { pageClient } from "../support/pages";
 
 // The names of the home page that follows the chain, on the real Worker (display names spec 3.4): the beat of the open page asks the route's `.data` URL, and a beat whose names call
@@ -14,67 +12,50 @@ import { pageClient } from "../support/pages";
 // has made. Only `Date` is faked (the failure hold reads nothing else), and it is moved past the longest hold after each test.
 
 const { get, stored, storedAs } = pageClient("198.51.116");
+// Not cold: the hold is the Worker's own, and each test has a network of its own.
+const { upstream } = namesSpec({ advance: 31_000, cold: false });
 
-let mock: UpstreamMock | undefined;
-
-beforeAll(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-});
-
-afterEach(() => {
-  mock?.restore();
-  mock = undefined;
-  vi.setSystemTime(Date.now() + 31_000);
-});
-
-afterAll(() => {
-  vi.useRealTimers();
-});
-
-/** The names part of the home route's data in the body of a `.data` response. */
-const namesPartOf = (body: string) =>
-  (decodeLoaderData(body) as { "routes/net._index": { data: { names: { state: string; map: Record<string, unknown> } } } })["routes/net._index"].data.names;
+const ROUTE = "routes/net._index";
 
 const beat = (net: string, id: string) => `/${net}.data?beat=${id}&_routes=routes%2Fnet._index`;
-const unavailable = { "GET /v2/account_names": dataApiError(503, "unavailable") };
 
 describe("a beat whose names call fails", () => {
   it("answers the names part failed, with the rest of the page whole, and does not store the answer", async () => {
-    mock = mockUpstream("xrpl", unavailable);
+    watchNamesLog();
+    const mock = upstream("xrpl", failingNames());
     const response = await get(beat("xrpl", "failed"));
     const body = await response.text();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Cache")).toBe("MISS");
-    expect(namesPartOf(body)).toEqual({ state: "failed", map: {} });
+    expect(namesPartOf(body, ROUTE)).toEqual({ state: "failed", map: {} });
     // The rest of the answer is the beat's: the newest ledger is there.
     expect(body).toContain("107721455");
     // Degraded: served and not stored, so that the next beat asks again.
     expect(await stored(beat("xrpl", "failed"))).toBeUndefined();
     expect(namesStatuses(mock)).toEqual([503]);
-    expect(mock.unusedOverrides()).toEqual([]);
   });
 
   it("asks for the failure hold: the next beat does not make the call again until the hold is over, then the names arrive, and that answer is stored", async () => {
     // The first beat fails the call (this test's own failure) ...
-    mock = mockUpstream("xahau", unavailable);
+    watchNamesLog();
+    const failing = upstream("xahau", failingNames());
     const first = await get(beat("xahau", "1"));
-    expect(namesPartOf(await first.text()).state).toBe("failed");
-    expect(namesStatuses(mock)).toEqual([503]);
+    expect(namesPartOf(await first.text(), ROUTE).state).toBe("failed");
+    expect(namesStatuses(failing)).toEqual([503]);
 
     // ... the second, a second later (another URL, so another page of the edge cache): the held failure answers, and the data API is not asked.
     vi.setSystemTime(Date.now() + 1_000);
     const second = await get(beat("xahau", "2"));
-    expect(namesPartOf(await second.text()).state).toBe("failed");
-    expect(namesCalls(mock)).toHaveLength(1);
+    expect(namesPartOf(await second.text(), ROUTE).state).toBe("failed");
+    expect(namesCalls(failing)).toHaveLength(1);
     expect(await stored(beat("xahau", "2"))).toBeUndefined();
-    mock.restore();
 
     // Past the hold, with the data API answering: the part is ok, with the names of the rows the fixtures give something to show, and the answer is stored.
     vi.setSystemTime(Date.now() + 31_000);
-    mock = mockUpstream("xahau");
+    const mock = upstream("xahau");
     const third = await get(beat("xahau", "3"));
-    const part = namesPartOf(await third.text());
+    const part = namesPartOf(await third.text(), ROUTE);
     expect(part.state).toBe("ok");
     expect(namesCalls(mock)).toHaveLength(1);
     expect(Object.keys(part.map).sort()).toEqual((await viewedAmong("xahau", namesCalls(mock)[0]!)).sort());

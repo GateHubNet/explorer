@@ -50,9 +50,12 @@ type Retry = { onRetry: () => void; retrying: boolean };
 // ---------------------------------------------------------------------------------------------------------------------------
 // The pool card and the notices
 
+/** The words of an issuer line before the issuer: "RLUSD issued by" (the line's text up to the address, which the page draws as an `AccountLink`). */
+const issuedBy = (line: AmmPoolHead["issuers"][number]): string => line.text.slice(0, line.text.lastIndexOf(line.issuer.address)).trimEnd();
+
 /**
  * The pool card (spec 3.1): the coins, the `<h1>`, "Market →" (E3's market page, or the header's "soon" style while the markets pages are off), the pool
- * account in full with a copy button, each issuer in full, and on the first page the Created and LP token lines.
+ * account in full with a copy button, each issuer in full (both `AccountLink full`, so a name leads the address), and on the first page the Created and LP token lines.
  */
 function PoolCard({ net, head }: { net: Net; head: AmmPoolHead | AmmPoolHeader }) {
   const created = "created" in head ? head.created : null;
@@ -80,7 +83,7 @@ function PoolCard({ net, head }: { net: Net; head: AmmPoolHead | AmmPoolHeader }
         </span>
         {head.issuers.map((line, at) => (
           <span key={at} className="amm-pool__fact">
-            <LinkedText text={line.text} link={{ text: line.issuer.address, href: line.issuer.href }} className="mono" />
+            {issuedBy(line)} <AccountLink net={net} address={line.issuer.address} full />
           </span>
         ))}
         {created !== null && (
