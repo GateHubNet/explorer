@@ -52,8 +52,9 @@ The domain an account's Domain field names, when it is a well-formed domain; a U
 _Avoid_: domain field (for the domain itself), website
 
 **Unverified domain**:
-A domain an account names that nothing vouches for: its toml does not list the account, or could not be read. A domain whose toml has not
-been read yet is shown as "Not checked yet", not as unverified.
+A domain an account names that nothing vouches for: its toml does not list the account, or could not be read. A name that only such a domain
+gives is marked "not verified". On the account page's domain line, a domain whose toml has not been read yet says "Not checked yet", not that
+it is unverified.
 
 **Label**:
 A warning GateHub puts on an address, from a fixed list (scam, spam, advisory). It holds on every network.

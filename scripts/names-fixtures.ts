@@ -5,7 +5,7 @@
 // file of the network, generated or written by hand; the upstream mock composes `GET /v2/account_names` from `account_names.json` (test/support/upstream-core.ts), and
 // serves a toml from its file (`toml not found` for a domain without one).
 //
-// - The fixed cases (decision 11, `FIXED_NAMES`, as the controller's ruling Δ1 amends them): each network's active hand-written account is verified by a domain whose toml
+// - The fixed cases (decision 11, `FIXED_NAMES`, as plan Ruling 11 amends them): each network's active hand-written account is verified by a domain whose toml
 //   lists it with a `desc`, its principals, two currencies and `modified`; one account named by GateHub (with a network name on XRPL), one whose domain is not verified (an
 //   `ok` toml that does not list it on XRPL, a toml that failed on a 404 on Xahau), and labels: `scam`, `spam` alone, and `advisory` with its `source` and `url`.
 // - The seeded ones: up to `NAMES_SEEDED_MAX` other addresses, collected (`collectAddresses`) from the files of `NAMES_SOURCES`, in that order. `fnv1a32("<net>:<address>")`
@@ -113,7 +113,7 @@ function verifiedToml(net: NetworkName, domain: string, address: string, desc: s
 const TEST_LABEL: LabelData = { description: "Test label" };
 
 /**
- * The fixed cases (decision 11, the plan's table as ruling Δ1 amends it: a deleted account has no domain in D4, so Xahau's deleted account keeps its label only, and
+ * The fixed cases (decision 11, the plan's table as plan Ruling 11 amends it: a deleted account has no domain in D4, so Xahau's deleted account keeps its label only, and
  * `saltmarsh.example` is the domain of an active account the fixtures show, `rJ5mvu…`, which paid the active account in the newest recorded ledger). The active accounts'
  * domains are their `Domain` in `node/account_info/` too. Descriptions say they are test data.
  */

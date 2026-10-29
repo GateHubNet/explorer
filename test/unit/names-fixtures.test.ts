@@ -13,7 +13,7 @@ import { dataApiFile, type NetworkName } from "../support/upstream-core";
 
 // What the display names' fixtures promise the pages of E9 and the end-to-end suite: `account_names.json` and `toml/<domain>.json` of each network, which
 // scripts/names-fixtures.ts writes (`pnpm fixtures:sync`) as D4 would answer them (data-api-new `feat/explorer-data-2` at 3feb11a, docs/api-reference.md, "Account names and
-// tomls"; the display-name rule of apps/api/src/names/display-name.ts). The fixed cases are the plan's (decision 11), as the controller's ruling Δ1 amends them: a deleted
+// tomls"; the display-name rule of apps/api/src/names/display-name.ts). The fixed cases are the plan's (decision 11), as plan Ruling 11 amends them: a deleted
 // account has no domain, so Xahau's `saltmarsh.example` is an active account's.
 
 const NETS: NetworkName[] = ["xrpl", "xahau"];
@@ -64,7 +64,7 @@ const HARBOR_PARENT = "rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns";
 const TW = "rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto";
 const XAHAU_DELETED = "rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD";
 const HOOKFIELD = "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8";
-/** An active Xahau account the fixtures show (it paid the active account in the newest recorded ledger), which Δ1 gives the failed toml. */
+/** An active Xahau account the fixtures show (it paid the active account in the newest recorded ledger), which plan Ruling 11 gives the failed toml. */
 const SALTMARSH = "rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5";
 
 const EXPECTED: Record<NetworkName, Record<string, AccountNameEntry>> = {
@@ -166,7 +166,7 @@ describe.each(NETS)("the names of %s", (net) => {
     }
   });
 
-  it("have the fixed cases as the plan's table and ruling Δ1 say, with their tomls", () => {
+  it("have the fixed cases as the plan's table and its Ruling 11 say, with their tomls", () => {
     for (const [address, entry] of Object.entries(EXPECTED[net])) expect(names[address], address).toEqual(entry);
     for (const [domain, toml] of Object.entries(EXPECTED_TOMLS[net])) expect(tomlOf(net, domain), domain).toEqual(toml);
     expect(Object.keys(tomlOf(net, net === "xrpl" ? "lowtide.example" : "saltmarsh.example")!)).toEqual(

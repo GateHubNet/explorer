@@ -99,6 +99,8 @@ The validators and amendments pages' files are synthetic too ("Synthetic validat
 synthetic (the same section, "The synthetic part"). The NFT pages' files (`data-api/nfts/`, `data-api/accounts/<address>/nfts@…`, `data-api/nft_collections…`, `data-api/nft_sales@…`, `data-api/network/nft_volume@…`,
 `node/nft_info/`, `node/nft_sell_offers/`, `node/nft_buy_offers/`, `node/ledger_entry/`) are derived from the two `-nft` sets, around some synthetic and hand-made parts ("NFT answers"),
 the collections, the sales and the volume among them.
+The display names and the tomls (`data-api/account_names.json`, `data-api/toml/`) are synthetic, fictional names and `*.example` domains made up for the addresses the other
+files show ("Synthetic names and tomls").
 
 The account page asks the node for `account_objects` with `limit: 400` (the largest page), and a fixture is found by all the
 parameters of a request but its subject, so each active account has the same file twice: `node/account_objects/<ACCOUNT>.json`
@@ -746,9 +748,9 @@ is `toml not found`. Every toml was checked (and an `ok` one read) at `2026-10-1
 | XRPL | `rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ` | the active account's parent | label `spam` ("Test label") only |
 | XRPL | `rURtT5MMFzSUR54MAq9MKfzBoezTBZbKns` | the deleted account's parent | domain not verified, `lowtide.example`, whose `ok` toml lists nobody; label `scam` ("Test label") |
 | Xahau | `rHktfGUbjqzU4GsYCMc1pDjdHXb5CJamto` | the active account | verified: `tidewater.example` (`Domain` `7469…6C65`), "Tidewater Reserve", the toml as Northpeak's with `TWUSD` ("Tidewater Dollar") and `TWEUR` |
-| Xahau | `rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD` | the deleted account | label `scam` ("Test label") only: a deleted account has no domain in D4 (ruling Δ1) |
+| Xahau | `rMoPk1MiYJbmdNL8xr5s11r7jrxzBhJWLD` | the deleted account | label `scam` ("Test label") only: a deleted account has no domain in D4 (plan Ruling 11) |
 | Xahau | `rEvernodee8dJLaFsujS6q1EiXvZYmHXr8` | the accounts' parent | named by GateHub "Hookfield Labs", no network name |
-| Xahau | `rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5` | an active account (it paid the active account in the newest recorded ledger) | domain not verified, `saltmarsh.example`, whose toml failed on a 404 (ruling Δ1 moved it from the deleted account) |
+| Xahau | `rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5` | an active account (it paid the active account in the newest recorded ledger) | domain not verified, `saltmarsh.example`, whose toml failed on a 404 (plan Ruling 11 moved it from the deleted account) |
 
 **Generator and seeds.** The seeded addresses are the classic addresses of the files of `NAMES_SOURCES`, in its order (the hand-written accounts and balances, the eight newest
 transactions, the served transactions, the accounts' first pages, the pairs' active accounts, the AMM pages, the validators list, the NFT sales, collections and NFTs), the fixed
