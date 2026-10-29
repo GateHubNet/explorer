@@ -4,10 +4,10 @@ import { classicAddressToXAddress, isValidClassicAddress, isValidXAddress, xAddr
 import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { parseAnalyticsQuery, type AnalyticsPeriod } from "../domain/analytics-params";
 import { shortAddress } from "../domain/format";
-import { accountNameHeader, isProperlyFormedDomain, type NameHeader } from "../server/account-name-view";
+import { accountNameHeader } from "../server/account-name-view";
+import { LAST_LEDGER_DEADLINE_MS, LIST_DEADLINE_MS, namedHeader, nameList, nodeTomlOf, withNames } from "../server/account-names-load";
 import {
   accountHeader,
-  decodeDomain,
   existenceOf,
   failedList,
   headerAccounts,
@@ -24,18 +24,15 @@ import {
   tradesList,
   transactionsList,
   type AccountAnalyticsPageData,
-  type AccountHeader,
   type AccountListPageData,
   type HistoryHeader,
   type ListContext,
-  type LiveState,
   type Loaded,
   type NeverActivatedData,
   type TabList,
-  type UnnamedHeader,
 } from "../server/account-view";
 import { loadAnalytics } from "../server/analytics-load";
-import type { Page, TomlAnswer, TxObject } from "../server/api-types";
+import type { Page, TxObject } from "../server/api-types";
 import { MARKER_PAGE_CLASS } from "../server/cache-class";
 import type { DataApi } from "../server/data-api";
 import { clientsFor } from "../server/clients";
@@ -48,12 +45,12 @@ import { logProblem } from "../server/logging";
 import { isMarker } from "../server/marker";
 import { metaContext } from "../server/meta";
 import { accountMeta } from "../server/meta-account";
-import { collectAddresses, loadNames, type NamesPart, type NamesResult } from "../server/names-load";
+import { collectAddresses, loadNames } from "../server/names-load";
 import { requireNetwork } from "../server/network-route";
 import { networkOf, type Network } from "../server/networks";
 import type { NodeRpc } from "../server/node-rpc";
 import { encodeQr, qrPath } from "../server/qr";
-import { isNotFound, UpstreamError } from "../server/upstream";
+import { UpstreamError } from "../server/upstream";
 import { PRODUCT_NAME } from "../ui/brand";
 import { AccountPage, NeverActivatedPage } from "../ui/pages/AccountPage";
 import { useNetwork } from "../ui/use-network";
@@ -63,16 +60,6 @@ import type { Route } from "./+types/net.account.$address";
 // The loader names a cache class and throws 404s of class `short`; the answers that are served but never stored (the node is down, a
 // section could not be loaded) say so through the degraded mark (see edge-cache.ts).
 export const headers = forwardCacheClass;
-
-/**
- * How long the list of the active tab may take before the page gives up on it. The framework stops streaming a page's deferred data
- * 5 s after the request (`streamTimeout` in entry.server.tsx), and a client given a promise that is cut off then is left with an error
- * instead of a section that says it could not load; the data API's own deadline (5 s) is not early enough to be sure.
- */
-const LIST_DEADLINE_MS = 4_500;
-
-/** How long after account_info the page waits for the close time of the ledger of the account's last transaction: no time is no reason to hold the header. */
-const LAST_LEDGER_DEADLINE_MS = 1_500;
 
 /** A redirect to the one URL a thing has, with the class of the page it leads to. */
 function permanent(to: string) {
@@ -157,9 +144,9 @@ const withoutRoutesParam = (search: string) =>
  *   which would be as old as the page. A marker the API refuses is a 404.
  * - **Names** (display names spec 5, 6.5): the first page makes two names calls, so that the header never waits for the list: the header's,
  *   awaited after the header's calls (the address, its parent, its tokens' issuers and, on the Objects tab, the rows' accounts), and the list's,
- *   in the list's promise after its rows. The toml of the domain the header shows is asked as soon as the node gives it, beside the header's
- *   calls; when the node gives none (a deleted account, a node that did not answer, no Domain set), it is the header call's entry's, asked after
- *   that call (the data API gives a deleted account none: no toml call). The page behind a marker makes one call (the address and the rows)
+ *   in the list's promise after its rows. The toml of the domain the header shows is asked as soon as the node gives it, and awaited beside the
+ *   header's names call; when the node gives none (a deleted account, a node that did not answer, no Domain set), it is the header call's entry's,
+ *   asked after that call (the data API gives a deleted account none: no toml call). The calls and their deadlines are account-names-load.ts's. The page behind a marker makes one call (the address and the rows)
  *   and no toml call, and the analytics view the header's (the address and its parent) and the toml's, its cards their own. A names call that
  *   fails or is late, and a toml call that fails, never fail the page: it shows what it has without them and is served, not stored; `toml not
  *   found` (a domain the data API never checked) is no failure. With `NAMES` off neither call is made, and the page is today's.
@@ -302,89 +289,6 @@ function reportProblems(context: Route.LoaderArgs["context"], request: Request, 
   logProblem("an account page is degraded", new Error(problems.join("; ")), request);
 }
 
-/** A list with the names of the accounts it draws; a list that failed has none. */
-const withNames = (list: TabList, names: NamesPart): TabList => (list.state === "ok" ? { ...list, names } : list);
-
-/** What the toml call of the header's domain came to (`accountNameHeader` reads `toml`), and why it failed, for the log line. */
-interface TomlRead {
-  toml: Loaded<TomlAnswer>;
-  reason?: unknown;
-}
-
-/**
- * The toml of `domain` (a well-formed one, lower-cased: the data API answers for it as asked), within the deadline of the last ledger's lookup, as the header waits for it no more
- * than that. It never rejects: a domain the data API never checked (`toml not found`) is `missing`, which is no failure; any other failure, or no answer in time, is `failed`.
- */
-function readToml(api: DataApi, domain: string): Promise<TomlRead> {
-  return within(
-    api.toml(domain).then(
-      (answer): TomlRead => ({ toml: { state: "ok", value: answer } }),
-      (reason: unknown): TomlRead => ({ toml: isNotFound(reason) ? { state: "missing" } : { state: "failed" }, reason }),
-    ),
-    LAST_LEDGER_DEADLINE_MS,
-    () => ({ toml: { state: "failed" }, reason: new Error(`the toml of ${domain} took longer than ${LAST_LEDGER_DEADLINE_MS} ms`) }),
-  );
-}
-
-/**
- * The toml of the domain the node gives the account, asked as soon as account_info has answered, beside the header's other calls (spec 5, 6.5): `null` when there is none to ask
- * for (`NAMES` off, no answer, no Domain, or one that is not a well-formed domain, which the header shows as text).
- */
-function nodeTomlOf(api: DataApi, infoCall: ReturnType<NodeRpc["accountInfo"]>, network: Network): Promise<TomlRead | null> {
-  if (!network.features.names) return Promise.resolve(null);
-  return infoCall.then(
-    (found) => {
-      const domain = decodeDomain(found.account_data.Domain);
-      return domain !== null && isProperlyFormedDomain(domain) ? readToml(api, domain.toLowerCase()) : null;
-    },
-    () => null,
-  );
-}
-
-/** What the loaders that name an account's header share. */
-interface NamingContext {
-  context: Route.LoaderArgs["context"];
-  request: Request;
-  api: DataApi;
-  network: Network;
-}
-
-/**
- * The name header of an account page (spec 6.5), from the header's names call: `null` with `NAMES` off and when that call failed, so that the header is today's. The toml is that
- * of the domain the header shows: the node's, asked as soon as the node answered (`nodeToml`); else (the node gave no domain: a deleted account, a node that did not answer, an
- * account without a Domain) the entry's, as the data API gives it (lower-cased), asked now. A toml call that failed marks the page degraded and is logged.
- */
-async function nameHeaderOf(
-  { context, request, api, network }: NamingContext,
-  address: string,
-  names: NamesResult,
-  live: LiveState,
-  nodeToml: TomlRead | null,
-): Promise<NameHeader | null> {
-  if (names.part.state !== "ok") return null;
-  const entry = names.entries.get(address);
-  const liveDomain = live.state === "ok" ? live.domain : null;
-  const read = liveDomain === null && entry?.domain !== undefined && isProperlyFormedDomain(entry.domain) ? await readToml(api, entry.domain) : nodeToml;
-  if (read?.toml.state === "failed") {
-    logProblem("the toml of an account's domain could not be loaded", read.reason, request);
-    markDegraded(context, "toml could not be loaded");
-  }
-  return accountNameHeader({ address, entry, liveDomain, toml: read?.toml ?? null, network });
-}
-
-/** The header named: the header's names call over `addresses`, awaited, and the name header it gives. Returns the call's names too, the page's own. */
-async function namedHeader(
-  naming: NamingContext,
-  address: string,
-  header: UnnamedHeader,
-  addresses: readonly string[],
-  nodeToml: TomlRead | null,
-): Promise<{ header: AccountHeader; names: NamesResult }> {
-  const { context, request, api, network } = naming;
-  const names = await loadNames(api, collectAddresses(addresses), { context, request, features: network.features });
-  return { header: { ...header, name: await nameHeaderOf(naming, address, names, header.live, nodeToml) }, names };
-}
-
 /**
  * A page of old history: awaited whole, class `MARKER_PAGE_CLASS`, and nothing but the list and its one names call. It does not ask for the creation record: that
  * is slow-class data that must not sit in a page stored for a long time, and the index has none for an account that was created before its
@@ -429,8 +333,8 @@ async function firstPage(
   const address = ctx.address;
 
   // The list of the tab starts now, beside the header. It never rejects, and what it came to is settled before the page's stream ends. Its rows are
-  // raced against the list's deadline; then the names of the accounts they draw are asked for with what is left of it, outside that race, so that a
-  // names call that fails or is late leaves the list drawn with addresses (`loadNames` marks and logs it), and never makes it a list that failed.
+  // raced against the list's deadline; then the names of the accounts they draw are asked for with what is left of it (`nameList`), outside that race,
+  // so that a names call that fails or is late leaves the list drawn with addresses, and never makes it a list that failed.
   const listStarted = Date.now();
   const settled: Promise<TabList> | null =
     tab === "objects"
@@ -447,15 +351,11 @@ async function firstPage(
             markDegraded(context, `${tab} took too long`);
             return failedList(tab, network.id);
           },
-        ).then(async (list): Promise<TabList> => {
-          if (list.state !== "ok") return list;
-          const deadlineMs = LIST_DEADLINE_MS - (Date.now() - listStarted);
-          const { part } = await loadNames(api, collectAddresses(listAddresses(list)), { context, request, features: network.features, deadlineMs });
-          return withNames(list, part);
-        });
+        ).then((list) => nameList(api, list, listStarted, { context, request, features: network.features }));
 
   const infoCall = node.accountInfo(address);
   const lastLedger = lastLedgerTimeOf(api, infoCall, request);
+  // The toml of the node's domain starts as soon as account_info answers; it is awaited beside the header's names call (`namedHeader`), not before it.
   const nodeToml = nodeTomlOf(api, infoCall, network);
 
   const results = await Promise.allSettled([
@@ -465,7 +365,6 @@ async function firstPage(
     node.serverState(),
     api.balances(address),
     lastLedger,
-    nodeToml,
   ]);
   const created = loaded(results[0]);
   const info = loaded(results[1]);
@@ -473,7 +372,6 @@ async function firstPage(
   const state = loaded(results[3]);
   const balances = loaded(results[4]);
   const lastLedgerTime = results[5].status === "fulfilled" ? results[5].value : null;
-  const toml = results[6].status === "fulfilled" ? results[6].value : null;
 
   // Neither the index nor the node has the account: the history decides between a deleted account (the index's creation records start
   // at its first ledger) and an address that never was, with one row of it.
@@ -496,7 +394,7 @@ async function firstPage(
 
   // The header's names call: the accounts the header draws and the Objects tab's rows' accounts (spec 5: no call of their own).
   const drawn = [...headerAccounts(address, unnamed.header, network.features), ...(objectsTab === null ? [] : listAddresses(objectsTab))];
-  const { header, names } = await namedHeader({ context, request, api, network }, address, unnamed.header, drawn, toml);
+  const { header, names } = await namedHeader({ context, request, api, network }, address, unnamed.header, drawn, nodeToml);
   const list: Promise<TabList> | TabList = objectsTab === null ? settled! : withNames(objectsTab, names.part);
 
   const page: AccountListPageData = { ...common, mode: "live", header, list, names: names.part };
@@ -527,6 +425,7 @@ async function analyticsPage(
   const infoCall = node.accountInfo(address);
   const stateCall = node.serverState();
   const lastLedger = lastLedgerTimeOf(api, infoCall, request);
+  // As on the first page: asked as soon as account_info answers, awaited beside the header's names call.
   const nodeToml = nodeTomlOf(api, infoCall, network);
   let toldDeleted!: (deleted: boolean) => void;
   const deleted = new Promise<boolean>((resolve) => (toldDeleted = resolve));
@@ -535,12 +434,11 @@ async function analyticsPage(
 
   let isView = false;
   try {
-    const results = await Promise.allSettled([account, infoCall, stateCall, lastLedger, nodeToml]);
+    const results = await Promise.allSettled([account, infoCall, stateCall, lastLedger]);
     const created = loaded(results[0]);
     const info = loaded(results[1]);
     const state = loaded(results[2]);
     const lastLedgerTime = results[3].status === "fulfilled" ? results[3].value : null;
-    const toml = results[4].status === "fulfilled" ? results[4].value : null;
     const history = existenceOf(created, info) === "undetermined" ? await historyOf(probe()) : undefined;
 
     const existence = existenceOf(created, info, history);
@@ -553,7 +451,7 @@ async function analyticsPage(
 
     // The header's names call: the address and its parent (no holdings). The cards make their own (`loadAnalytics`).
     const drawn = headerAccounts(address, unnamed.header, network.features);
-    const { header, names } = await namedHeader({ context, request, api, network }, address, unnamed.header, drawn, toml);
+    const { header, names } = await namedHeader({ context, request, api, network }, address, unnamed.header, drawn, nodeToml);
     const page: AccountAnalyticsPageData = { ...common, mode: "live", header, analytics, names: names.part };
     return cached(page, "live");
   } finally {

@@ -91,9 +91,12 @@ export function tomlCalls(mock: { requests: readonly SeenRequest[] }): string[] 
   return mock.requests.filter(isTomlRequest).map((request) => decodeURIComponent(new URL(request.url).pathname.split("/").at(-1)!));
 }
 
+/** The addresses a names call asks for, in the order asked: a request the mock saw, or one an override is given. */
+export const askedIn = (request: Pick<SeenRequest, "url">): string[] => (new URL(request.url).searchParams.get("addresses") ?? "").split(",");
+
 /** The names calls of a mock: the addresses each asked for, in the order the calls came. */
 export function namesCalls(mock: { requests: readonly SeenRequest[] }): string[][] {
-  return mock.requests.filter(isNamesRequest).map((request) => (new URL(request.url).searchParams.get("addresses") ?? "").split(","));
+  return mock.requests.filter(isNamesRequest).map(askedIn);
 }
 
 /** The status each names call of a mock was answered with, in the order the calls came (whatever override key stood for them). */

@@ -4,6 +4,8 @@ import type { AccountHeader, AccountListPageData, HistoryHeader, TabList } from 
 import { loadAccountPage } from "../support/account-loader";
 import {
   answerNamesAfterTheirEnd,
+  askedIn,
+  failingNames,
   isNamesRequest,
   isTomlRequest,
   namesCalls,
@@ -46,8 +48,17 @@ const SALTMARSH = "rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5";
 const MARKER = "WzEwNzYxMjU3MywyNV0";
 const LIVE = { cls: "live", ttl: 5 };
 
-/** The addresses a names call asked for. */
-const askedIn = (request: Pick<Request, "url">): string[] => (new URL(request.url).searchParams.get("addresses") ?? "").split(",");
+/** The recorded account_info of ACTIVE (the node's `result`), whose Domain is northpeak.example. */
+const recordedInfo = import.meta.glob("../fixtures/http/xrpl/node/account_info/rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh.json", { query: "?raw", import: "default" }) as Record<
+  string,
+  () => Promise<string>
+>;
+async function activeInfoWithDomain(domain: string): Promise<Record<string, unknown>> {
+  const load = Object.values(recordedInfo)[0]!;
+  const { result } = JSON.parse(await load()) as { result: { account_data: Record<string, unknown> } };
+  const hex = [...domain].map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("").toUpperCase();
+  return { ...result, account_data: { ...result.account_data, Domain: hex } };
+}
 
 /** Where in a mock's requests the first one `test` holds for is: what came before what. */
 const indexOf = (requests: readonly SeenRequest[], test: (request: SeenRequest) => boolean): number => {
@@ -75,13 +86,12 @@ describe("the first page", () => {
     expect(namesCalls(mock).sort()).toEqual([headerAsked, listAsked].sort());
     expect(tomlCalls(mock)).toEqual(["northpeak.example"]);
 
-    // The toml as soon as account_info has answered, before the header's names call; that call after every call of the header; the list's after its rows.
+    // The toml once account_info has answered (it runs beside the header's names call: account-names-load.test.ts says when the header settles); the header's names
+    // call after every call of the header; the list's after its rows.
     const { requests } = mock;
     // The header's call is the one with the parent: the list's has the account too, where a row's sentence names it.
     const headerCall = indexOf(requests, (r) => isNamesRequest(r) && askedIn(r).includes(PARENT));
-    const toml = indexOf(requests, isTomlRequest);
-    expect(indexOf(requests, (r) => r.key.startsWith("node account_info"))).toBeLessThan(toml);
-    expect(toml).toBeLessThan(headerCall);
+    expect(indexOf(requests, (r) => r.key.startsWith("node account_info"))).toBeLessThan(indexOf(requests, isTomlRequest));
     const listRows = indexOf(requests, (r) => r.key.includes("/transactions?"));
     for (const [at, request] of requests.entries()) {
       if (!isNamesRequest(request) && !isTomlRequest(request) && at !== listRows) expect(at, request.key).toBeLessThan(headerCall);
@@ -100,6 +110,16 @@ describe("the first page", () => {
     expect(name.howWeKnow?.checked).toBeDefined();
     expect(name.facts).not.toBeNull();
     expect(marks).toEqual([]);
+  });
+
+  it("asks the toml of the node's Domain lower-cased, as the data API checks it, and the domain is verified whatever its case on the node", async () => {
+    const mock = upstream("xrpl", { [`node account_info ${ACTIVE}`]: await activeInfoWithDomain("NorthPeak.Example") });
+    const { data } = await loadAccountPage<AccountListPageData>(`/xrpl/account/${ACTIVE}`);
+    await data.list;
+
+    expect(tomlCalls(mock)).toEqual(["northpeak.example"]);
+    expect(nameOf(data)?.domainLine).toEqual({ text: "northpeak.example", state: "verified", href: "https://northpeak.example" });
+    expect(nameOf(data)?.howWeKnow?.checked).toBeDefined();
   });
 
   it("names an Objects tab's rows in the header's call (they come with the header): one names call, whose names the list carries, and no account of an amount's issuer", async () => {
@@ -204,6 +224,21 @@ describe("a page behind a marker", () => {
 });
 
 describe("when a call fails", () => {
+  it("serves a page behind a marker whose names call failed with addresses, and does not store it, although its class keeps one an hour", async () => {
+    const logged = watchNamesLog();
+    upstream("xrpl", failingNames());
+    const path = `/xrpl/account/${ACTIVE}?marker=${MARKER}&case=names-failed`;
+    await forgetStored(path);
+    const response = await get(path);
+    await response.text();
+
+    await expectDegraded(path, response);
+    expect(logged()).toBe(1);
+    const { data } = await loadAccountPage<AccountListPageData>(path);
+    expect(data.header).toEqual({ status: "history", name: null });
+    expect(data.names).toEqual({ state: "failed", map: {} });
+  });
+
   it("is today's page when the header's names call fails: no name, served and not stored, one log line; the list keeps its own names", async () => {
     const logged = watchNamesLog();
     const named = answerNamesAfterTheirEnd();
@@ -266,18 +301,16 @@ describe("when a call fails", () => {
     expect(marks).toEqual([]);
   });
 
-  it("draws the list with addresses when its names call is late: the names have what is left of the list's deadline, and only they fail", async () => {
+  // The wiring alone: when the names call is given what is left of the list's deadline is account-names-load.test.ts's (`nameList`, on a fake clock).
+  it("draws the list with addresses when its names call is late: only the names fail, the page is not stored, and it is logged once", async () => {
     const logged = watchNamesLog();
     const named = answerNamesAfterTheirEnd();
     upstream("xrpl", { "GET /v2/account_names": (request: Request) => (askedIn(request).includes(PARENT) ? named(request) : new Promise<Response>(() => {})) });
     const path = `/xrpl/account/${ACTIVE}?case=list-names-late`;
     await forgetStored(path);
-    // `Date` is the fake clock's here (`namesSpec`): the time a render takes is the performance clock's.
-    const started = performance.now();
     const response = await get(path);
     const html = await response.text();
 
-    expect(performance.now() - started).toBeLessThan(5_000);
     expect(textOf(html)).not.toContain("Couldn’t load transactions");
     expect(tableRows(html, "Transactions")).toHaveLength(5);
     expect(logged()).toBe(1);

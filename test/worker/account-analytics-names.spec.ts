@@ -4,6 +4,7 @@ import { shortAddress } from "../../app/domain/format";
 import type { AccountAnalyticsPageData } from "../../app/server/account-view";
 import { loadAccountPage } from "../support/account-loader";
 import {
+  askedIn,
   failingNames,
   isNamesRequest,
   isTomlRequest,
@@ -77,10 +78,11 @@ describe("the analytics view", () => {
     expect(response.status).toBe(200);
     expect(namesCalls(mock).sort()).toEqual([sorted([ACTIVE, PARENT]), sorted(COUNTERPARTIES), sorted([LIONS_ISSUER, USD_ISSUER]), [USD_ISSUER]].sort());
     expect(tomlCalls(mock)).toEqual(["northpeak.example"]);
-    const toml = mock.requests.findIndex(isTomlRequest);
-    const headerCall = mock.requests.findIndex((r) => isNamesRequest(r) && new URL(r.url).searchParams.get("addresses")!.includes(PARENT));
-    expect(toml).toBeGreaterThanOrEqual(0);
-    expect(toml).toBeLessThan(headerCall);
+    // The toml once account_info has answered, beside the header's names call (the call with the parent).
+    const info = mock.requests.findIndex((r) => r.key.startsWith("node account_info"));
+    expect(info).toBeGreaterThanOrEqual(0);
+    expect(mock.requests.findIndex(isTomlRequest)).toBeGreaterThan(info);
+    expect(mock.requests.some((r) => isNamesRequest(r) && askedIn(r).includes(PARENT))).toBe(true);
 
     // The balances' sublabels and the pairs' issuers are issuer texts: a plain name where the fixtures give one, else the short address.
     const lions = await issuerTextOf("xrpl", LIONS_ISSUER);
