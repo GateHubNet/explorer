@@ -161,6 +161,36 @@ describe("the NFTS switch", () => {
   });
 });
 
+// NAMES (E9): the display names, wherever an account shows. A feature-level switch: no route, no nav link.
+describe("the NAMES switch", () => {
+  // Its place is the seventh, after the NFTS switch. Checked as a prefix of both lists, not as their last entry, so that a switch appended after it by a later plan
+  // leaves this test as it is.
+  it("is the seventh switch, after the six before it, and its feature is names", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES"];
+    expect(FEATURE_VARS.slice(0, 7)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("NAMES")).toBe(6);
+    expect(Object.keys(FEATURE_NAME).slice(0, 7)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("NAMES")).toBe(6);
+    expect(FEATURE_NAME.NAMES).toBe("names");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ NAMES: "on" }).names).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ NAMES: value }).names, String(value)).toBe(false);
+    expect(featuresOf({}).names).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.names).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ NAMES: "on" })).toEqual({ ...NO_FEATURES, names: true });
+    expect(featuresOf({ ...allSwitches("on"), NAMES: "off" }).names).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on" }).names).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

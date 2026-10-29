@@ -298,10 +298,13 @@ describe("storing and serving a page", () => {
     // AMM_PAGES is another: a stored page never meets the other value of the header's AMM item or of a pool link.
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("AMM_PAGES=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, AMM_PAGES: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
-    // NFTS is another (sorted between MARKETS and VALIDATORS): a stored page never meets the other value of the header's NFTs item or of an NFT link.
-    expect(cacheGeneration(h.env)).toMatch(/,MARKETS=off,NFTS=off,VALIDATORS=off$/);
+    // NFTS is another (sorted between NAMES and VALIDATORS): a stored page never meets the other value of the header's NFTs item or of an NFT link.
+    expect(cacheGeneration(h.env)).toMatch(/,MARKETS=off,NAMES=off,NFTS=off,VALIDATORS=off$/);
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("NFTS=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, NFTS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
+    // NAMES is another (sorted between MARKETS and NFTS): a stored page never meets the other value of an account's name, mark and title.
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("NAMES=off"));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, NAMES: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(url, "build-b"));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(`${url}?x=1`, "build-a"));
     expect(edgeCacheKey(`${url}?x=1`, "build-a")).toBe(`${url}?x=1&__build=build-a`);

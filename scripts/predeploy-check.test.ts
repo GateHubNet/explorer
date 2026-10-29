@@ -390,6 +390,53 @@ describe("deployProblems", () => {
       });
     });
 
+    // NAMES (E9): the display names, wherever an account shows. A sandbox or production build must say it, and say it right. It needs no other switch: the names are D4's,
+    // which no switch of this list gates, so the guard has no cross-switch reason for it.
+    describe("NAMES", () => {
+      it("passes a build whose NAMES is off or on, and the passing configs carry it, off", () => {
+        expect((good("sandbox").vars as Config).NAMES).toBe("off");
+        expect((good("production").vars as Config).NAMES).toBe("off");
+        expect(deployProblems(good("sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(good("production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ NAMES: "on" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ NAMES: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ NAMES: "on" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without NAMES, and names it", () => {
+        const vars = { ...(good().vars as Config) };
+        delete vars.NAMES;
+        const problems = deployProblems(good("sandbox", { vars }), "sandbox");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("NAMES is not set");
+        expect(problems[0]).toContain('"on" or "off"');
+      });
+
+      it('refuses NAMES: "yes", and names it', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const problems = deployProblems(withVars({ NAMES: "yes" }, env), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("NAMES");
+          expect(problems[0]).toContain('"yes"');
+          expect(problems[0]).toContain('not exactly "on" or "off"');
+        }
+      });
+
+      it('refuses a misspelt NAME: "on" as a var that is not a switch, naming NAMES among the switches', () => {
+        const problems = deployProblems(withVars({ NAME: "on" }), "sandbox");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("NAME is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("NAMES");
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+
+      it("depends on no other switch: on over every other switch off is accepted", () => {
+        expect(deployProblems(withVars({ ...allSwitches("off"), NAMES: "on" }, "sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ ...allSwitches("off"), NAMES: "on" }, "production"), "production")).toEqual([]);
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "sandbox")).toEqual([]);
     });
@@ -930,5 +977,14 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(vars().NFTS).toBe("on");
     expect(vars("sandbox").NFTS).toBe("off");
     expect(vars("production").NFTS).toBe("off");
+  });
+
+  // NAMES (README "Switches"): on in development and the tests (the top level), off in sandbox and production until that environment's data API has D4 deployed, its seed run
+  // and its first toml sweep done (`syncer_tomls_due` near 0). A flip is a commit, so it is read from the file.
+  it("has NAMES on at the top level and off in sandbox and production", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().NAMES).toBe("on");
+    expect(vars("sandbox").NAMES).toBe("off");
+    expect(vars("production").NAMES).toBe("off");
   });
 });
