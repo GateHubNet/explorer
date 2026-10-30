@@ -1816,7 +1816,8 @@ export type ObjectAnswer = EscrowAnswer | CheckAnswer | PaymentChannelAnswer;
 //   - amounts (`supply`, `balance`, `limit`, `volume`, `counter_volume`, `native_volume`, `amount`) are exact text in whole units, and `price` and `last` are 8 significant digits that come as
 //     exponent text below 0.000001 and from 100,000,000 (`"9.9000000e-7"`): number text (`isNumberText`). `price_change`, `change` and `transfer_fee` are plain decimal text (percent,
 //     2 decimals; `transfer_fee` exact); `share` is `"0.117300"`, 6 decimals. A market's `last` is the other asset per token and is `"Infinity"` for a pair whose stored rate is 0
-//     (D6 declined to fix it): `token-shape.ts` leaves that key out of the market, which is why `last` is optional on `TokenMarket`;
+//     (D6 declined to fix it), and so is the `price` of a token that is the counter side of its pair with the native currency: `token-shape.ts` leaves that key out of the market, the row or
+//     the detail, which is why `last` is optional on `TokenMarket` and `price` on the row and the detail;
 //   - `totals.holders` is left out while the tokens job has not counted the distinct holders (never a false 0), and `totals.native_volume` while there is no `day` set of the markets.
 
 /**

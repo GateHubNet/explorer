@@ -17,9 +17,11 @@
 //   - `toml.display_decimals` is a whole number from 0 to 30, the rest of the toml is text;
 //   - the detail is the token that was asked for: its `currency` and `issuer` are the ones in the path, as the ledger holds the currency. An answer for another token is not the answer to
 //     that request, and a page would show it as the one asked for;
-//   - one field is not checked but deleted when it is not readable: a market's `last`. D6 writes `"Infinity"` for a pair whose stored rate is 0 (its ratio of 1 and 0, which it declined to
-//     fix), and one such pair among a token's markets must not take the token's page down. A `last` that is not number text is deleted from the returned value, so that it reads as not
-//     known (`TokenMarket.last` is optional) and the page draws "—", as `checkMarkets` does for an AMM field it cannot read.
+//   - two fields are not checked but deleted when they are not readable: a market's `last` and a token's `price` (a row's and the detail's). D6 writes `"Infinity"` for a pair whose stored
+//     rate is 0 (its ratio of 1 and 0, which it declined to fix): the `last` of that market, and the `price` of a token that is the counter side of its pair with the native currency.
+//     One such pair or token must not take the whole list, or the token's page, down. A `last` or `price` that is not number text is deleted from the returned value, so that it reads as
+//     not known (both are optional in the types) and the page draws "—", as `checkMarkets` does for an AMM field it cannot read. `price_change` and `price_time` are not affected: D6
+//     leaves out a change that is not finite.
 
 import { dropUnless, fields, isAccount, isBoolean, isDecimalText, isIsoTime, isName, isNumberText, isText, isWhole, listOf, optionalFields, rowsOf } from "./aggregate-shape";
 import type { TokenAnswer, TokenHoldersResponse, TokensResponse, TokenTransfersResponse } from "./api-types";
@@ -62,14 +64,16 @@ function answerOf(what: string, body: unknown, asOf: boolean): Row {
   return body;
 }
 
-/** What a row of the list and the token of the detail have in common, from `currency` to `listed` (the rest of each is its own). */
+/** What a row of the list and the token of the detail have in common, from `currency` to `listed` (the rest of each is its own). A `price` that is not number text is deleted. */
 function checkTokenFields(what: string, where: string, token: Row): void {
   fields(what, where, token, ["currency"], isName, "a currency");
   optionalFields(what, where, token, ["code"], isName, "a code");
   fields(what, where, token, ["issuer"], isAccount, ACCOUNT);
   fields(what, where, token, ["holders", "trust_lines"], isWhole, WHOLE);
   fields(what, where, token, ["supply"], isNumberText, NUMBER);
-  optionalFields(what, where, token, ["price", "native_volume"], isNumberText, NUMBER);
+  // A `price` D6 could not compute (`"Infinity"`, see the head of this file) is deleted, as a market's `last` is.
+  dropUnless(token, ["price"], isNumberText);
+  optionalFields(what, where, token, ["native_volume"], isNumberText, NUMBER);
   optionalFields(what, where, token, ["price_change"], isDecimalText, DECIMAL);
   optionalFields(what, where, token, ["price_time"], isIsoTime, TIME);
   optionalFields(what, where, token, ["trades"], isWhole, WHOLE);

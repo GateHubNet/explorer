@@ -156,7 +156,6 @@ const tokenDefects: Defect[] = [
   wrong("trust_lines that are text", "trust_lines", "150"),
   missing("supply"),
   ...numberTextDefects("supply"),
-  ...numberTextDefects("price"),
   wrong("a price_change in exponent form", "price_change", "1e-7"),
   wrong("a price_change that is a number", "price_change", -20),
   wrong("a price_time that is no time", "price_time", "2026-10-29"),
@@ -222,6 +221,30 @@ describe("the check of the tokens answer", () => {
     for (const key of ["price", "price_change", "price_time", "domain", "name"] as const) delete row[key];
     const body = tokensSample({ tokens: [row], count: 1 });
     expect(check(body)).toBe(body);
+  });
+
+  it("leaves out the price of a row that D6 gave no number (Infinity), and takes the other rows and the rest of that row as they are", () => {
+    for (const price of ["Infinity", "-Infinity", "NaN", "", "unknown", 0.4, null]) {
+      const other = tokenRowSample({ rank: 3, currency: "EUR", code: "EUR", price: "2.5000000e-7" });
+      const body = tokensSample({ tokens: [tokenRowSample({ rank: 1 }), tokenRowSample({ rank: 2, issuer: TOKEN_SAMPLE_OTHER_ISSUER }), other], count: 3 });
+      body.tokens[0]!.price = price as never;
+
+      const checked = check(body);
+
+      expect(checked, String(price)).toBe(body);
+      expect("price" in checked.tokens[0]!, String(price)).toBe(false);
+      const { price: _price, ...rest } = tokenRowSample({ rank: 1 });
+      expect(checked.tokens[0], String(price)).toStrictEqual(rest);
+      expect(checked.tokens[1], String(price)).toStrictEqual(tokenRowSample({ rank: 2, issuer: TOKEN_SAMPLE_OTHER_ISSUER }));
+      expect(checked.tokens[2], String(price)).toStrictEqual(other);
+    }
+  });
+
+  it("does not forgive another field of a row: a native_volume, a price_change or a supply of Infinity still fails the list", () => {
+    for (const change of [{ native_volume: "Infinity" }, { price_change: "Infinity" }, { supply: "Infinity" }]) {
+      const [field] = Object.keys(change);
+      refuses(check, PATH.tokens, tokensSample({ tokens: [tokenRowSample(change)] }), `tokens[0].${field}`);
+    }
   });
 
   it("takes prices and volumes in exponent form, which D6 writes for a price below 0.000001 and from 100,000,000", () => {
@@ -368,9 +391,34 @@ describe("the check of the token answer", () => {
     expect(body.token.markets.map((m) => m.last)).toEqual(["0.5", "2.5000000e-7"]);
   });
 
-  it("does not forgive another field of a market, nor a price of the token: only last is left out", () => {
+  it("leaves out the price of the token that D6 gave no number (a token that is the counter side of its native pair, whose stored rate is 0, has Infinity), and takes the rest as it is", () => {
+    for (const price of ["Infinity", "-Infinity", "NaN", "", "unknown", 0.4, null]) {
+      const body = tokenSample({ token: tokenDetailSample() });
+      body.token.price = price as never;
+
+      const checked = check(body);
+
+      expect(checked, String(price)).toBe(body);
+      expect("price" in checked.token, String(price)).toBe(false);
+      // The rest of the token is as it was: the change and the time of the price, the volume and the markets.
+      const { price: _price, ...rest } = tokenDetailSample();
+      expect(checked.token, String(price)).toStrictEqual(rest);
+    }
+  });
+
+  it("does not leave out a price it can read: a decimal and one in exponent form", () => {
+    for (const price of ["0.40000000", "1.2000000e-7", "1.2345679e+8"]) {
+      const body = tokenSample({ token: tokenDetailSample({ price }) });
+      check(body);
+      expect(body.token.price).toBe(price);
+    }
+  });
+
+  it("does not forgive another field of a market, nor another field of the token: only last and price are left out", () => {
     refuses(check, PATH.token, tokenSample({ token: tokenDetailSample({ markets: [tokenMarketSample({ volume: "Infinity" })] }) }), "markets[0].volume");
-    refuses(check, PATH.token, tokenSample({ token: tokenDetailSample({ price: "Infinity" }) }), "token.price");
+    refuses(check, PATH.token, tokenSample({ token: tokenDetailSample({ native_volume: "Infinity" }) }), "token.native_volume");
+    refuses(check, PATH.token, tokenSample({ token: tokenDetailSample({ price_change: "Infinity" }) }), "token.price_change");
+    refuses(check, PATH.token, tokenSample({ token: tokenDetailSample({ supply: "Infinity" }) }), "token.supply");
   });
 });
 
