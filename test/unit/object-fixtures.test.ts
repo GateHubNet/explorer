@@ -14,6 +14,7 @@ import {
   escrowKeylet,
   OBJECT_ROW_LISTS,
   OBJECTS_ACCOUNT,
+  UNSERVED_SYNTHETIC,
   objectAnswers,
   objectFixtures,
   objectWorld,
@@ -476,7 +477,15 @@ describe("the synthetic transactions", () => {
   it("serve every event of every synthetic object, its creation and its removal, each at its place in its ledger's list, the hash its serialization's", () => {
     const world = worlds.xrpl;
     let linked = 0;
+    // `channel-long` is a paging fixture: its 120 events link to transactions that are not served (a controller ruling: 250 KB of links nobody follows), nor in any list.
+    expect(UNSERVED_SYNTHETIC).toEqual(["channel-long"]);
+    const long = world.synthetic.get("channel-long")!;
+    for (const placed of world.rows.filter((row) => row.object_id === long)) {
+      expect(files.has(`xrpl/data-api/transactions/${placed.tx_hash}.json`), placed.tx_hash).toBe(false);
+      expect(valueAt(`xrpl/data-api/ledgers/${placed.ledger_index}@transactions=true.json`)?.ledger.transactions ?? [], placed.tx_hash).not.toContain(placed.tx_hash);
+    }
     for (const [name, id] of world.synthetic) {
+      if (UNSERVED_SYNTHETIC.includes(name)) continue;
       const route = name.startsWith("escrow") ? "escrows" : name.startsWith("check") ? "checks" : "payment_channels";
       const answer = valueAt(`xrpl/data-api/${route}/${id}.json`)!;
       const pages = [...answers.xrpl].filter(({ path }) => path.startsWith(`xrpl/data-api/${route}/${id}/history@`)).map(({ value }) => value as Json);
@@ -493,7 +502,7 @@ describe("the synthetic transactions", () => {
         linked++;
       }
     }
-    expect(linked).toBe(130);
+    expect(linked).toBe(10);
     // None is in a ledger of the sets, whose lists are the recorded ones.
     const inSets = new Set(readLedgers("xrpl").map((raw) => Number(raw.ledger.ledger_index)));
     for (const placed of world.made) expect(inSets.has(Number(placed.raw.ledger.ledger_index)), placed.tx.hash).toBe(false);

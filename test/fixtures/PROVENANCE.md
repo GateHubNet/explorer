@@ -778,12 +778,12 @@ networks had these objects before the recordings), and an object whose creation 
 | `data-api/escrows/<ID>.json`, `data-api/checks/<ID>.json`, `data-api/payment_channels/<ID>.json` | the object as of the set's newest ledger and its newest 50 events, newest first, with `history_marker` when there are more |
 | `…/<ID>/history@descending=true&limit=50&marker=<M>.json` | the events behind each marker, newest first (the object page asks a page of 50 behind a marker); only `channel-long` has any |
 | `data-api/ledger_objects/<ID>.json` | `{ result, ledger_object }` of every ID of the index (a delegation's too), and of the delegations the hand-written files list |
-| `data-api/transactions/<HASH>.json`, `…@binary=true.json` | the transactions with a row of the index, a `Delegate` field or of type `DelegateSet` (C3), but those `generate()` serves already from `SETS`, and the synthetic ones (the synthetic objects' 130 and C9's 4); made as the sets' transactions are made, the binary form re-hashing to the hash |
+| `data-api/transactions/<HASH>.json`, `…@binary=true.json` | the transactions with a row of the index, a `Delegate` field or of type `DelegateSet` (C3), but those `generate()` serves already from `SETS`, and the synthetic ones (the synthetic objects' 10, not `channel-long`'s, and C9's 4); made as the sets' transactions are made, the binary form re-hashing to the hash |
 | `data-api/ledgers/<index>@transactions=true.json` | the hashes of a ledger of those transactions that is not among `SETS` (XRPL 16, Xahau 12), in ledger order, which the transaction page reads for a transaction's neighbours, the synthetic transactions last |
 | `node/ledger_entry/<ID>.json` | rippled's and xahaud's `ledger_entry` (`validated`, the set's newest ledger) of every object still in the ledger: its fields as its newest transaction left them, `Flags` and the directory pages a node fills in (`"0"`), a channel's zero `Balance`, and its thread (`PreviousTxnID`, `PreviousTxnLgrSeq`); Ripple-epoch times, drops |
 
-508 files, 1,024,795 bytes (about 0.98 MiB, under the budget of 1.0 MiB): XRPL 450 files of 856,585 bytes (32 answers and 2 history pages, 90,077; 38 lookups, 10,320; 24 node
-entries, 22,353; 169 transactions and their binary forms, 506,907, of which the synthetic objects' 130 are 280,813; 16 ledger lists, 226,928), Xahau 58 of 168,210 (9 answers, 9
+268 files, 753,396 bytes (about 0.72 MiB, under the budget of 1.0 MiB): XRPL 210 files of 585,186 bytes (32 answers and 2 history pages, 90,077; 38 lookups, 10,320; 24 node
+entries, 22,353; 49 transactions and their binary forms, 244,388, of which the synthetic objects' 10 are 18,294; 16 ledger lists, 218,048), Xahau 58 of 168,210 (9 answers, 9
 lookups, 4 node entries, 12 transactions and their binary forms, 67,847, 12 ledger lists, 81,838). They are `isObjectGenerated` in `scripts/http-fixtures.ts` (`node/ledger_entry/` but
 the NFT generator's URIToken entries, `nftLedgerEntryIds`, C5; and the transactions and ledger lists this generator writes), and have a size budget of their own in
 `test/unit/http-fixtures.test.ts` (at most 1.0 MiB, outside the recorded files': C4). An object's events and an account's delegations are a row to a line (`OBJECT_ROW_LISTS`).
@@ -797,7 +797,9 @@ row, no escrow answer, no lookup and no transaction file. They would be 190 escr
 - **Objects** the recordings cannot give, each made of transactions written here and derived by the port as the recorded ones are (IDs are their keylets: an escrow's and a check's
   of owner and sequence, a channel's of owner, destination and sequence), each transaction in a recorded ledger that is not among `SETS` (whose lists are the recorded ones), at an
   index past the ledger's own (`placesOf`), with its type's fields, a fee and a `LastLedgerSequence` (no signature), the object's node as its metadata, and the hash of its
-  serialization; each has a file, its binary form and its place in its ledger's list, so that every event's link opens (130 transactions). The active account (`rBbW6i…`,
+  serialization; each has a file, its binary form and its place in its ledger's list, so that every event's link opens (10 transactions), **but `channel-long`'s**: a paging fixture,
+  its 120 events link to transactions that are not served and are in no ledger's list (`UNSERVED_SYNTHETIC`, a controller ruling: 250 KB of links nobody follows; made last, its
+  places come after the others', so the lists have no gap). The active account (`rBbW6i…`,
   `OBJECTS_ACCOUNT`, test/e2e/fixtures.ts's `XRPL_ACCOUNT`) owns an escrow that can be cancelled (both its times passed, made in 107641123), one cancelled by its owner (made in
   107558036, cancelled in 107624182) and a channel asked to close (made in 107296498, claimed once in 107558036, its `Expiration` set in 107641123 a 30-day settle delay on), and is
   the destination of a check that expired a day after it was written (107641123): all four before the explorer's head (107721455),

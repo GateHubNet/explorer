@@ -152,14 +152,14 @@ describe("every fixture file", () => {
     // its data, never above 1.0 MiB.
     expect(bytes(files.filter(isNftGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isNftGenerated))).toBeLessThan(1.0 * 1024 * 1024);
-    // The ledger-object pages' files (scripts/object-fixtures.ts, a row to a line: 508 files of 1,024,795 bytes, about 0.98 MiB; XRPL 450 of 856,585: the answers of 32 escrows, checks
-    // and channels with the long channel's two history pages, 90 KB, 38 lookups, 24 node entries, 169 transactions (35 recorded, C9's 4, the synthetic objects' 130: 281 KB)
-    // and their binary forms, 507 KB, and the lists of 16 recorded ledgers not among the sets, 227 KB; Xahau 58 of 168,210, of which 82 KB the lists of its 12 ledgers) are reviewed as
+    // The ledger-object pages' files (scripts/object-fixtures.ts, a row to a line: 268 files of 753,396 bytes, about 0.72 MiB; XRPL 210 of 585,186: the answers of 32 escrows, checks
+    // and channels with the long channel's two history pages, 90 KB, 38 lookups, 24 node entries, 49 transactions (35 recorded, C9's 4, the synthetic objects' 10 but channel-long's)
+    // and their binary forms, 244 KB, and the lists of 16 recorded ledgers not among the sets, 218 KB; Xahau 58 of 168,210, of which 82 KB the lists of its 12 ledgers) are reviewed as
     // their generator too (C4), with a budget of their own, left out of the recorded files' above: at most 1.0 MiB, which a later file raises with its data, never above.
     expect(bytes(files.filter(isObjectGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isObjectGenerated))).toBeLessThan(1.0 * 1024 * 1024);
-    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 212 entries of 39,795 bytes and
-    // 132 tomls of 48,700, 88,495 bytes, about 86 KiB; Xahau 44 entries of 8,185 bytes and 27 tomls of 10,063, 18,248 bytes, about 18 KiB, after E10 added the ledger objects'
+    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 210 entries of 39,428 bytes and
+    // 131 tomls of 48,308, 87,736 bytes, about 86 KiB; Xahau 44 entries of 8,185 bytes and 27 tomls of 10,063, 18,248 bytes, about 18 KiB, after E10 added the ledger objects'
     // transactions to the names' sources) are reviewed as their generator too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later
     // file raises with its data, never above.
     for (const net of NETS) {

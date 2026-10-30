@@ -23,7 +23,8 @@
 // port, in a recorded ledger that is not among `SETS` at a transaction index past the ledger's own: `placesOf`, its hash that of its serialization): the states the recordings
 // cannot give. The active account `OBJECTS_ACCOUNT` owns an escrow that
 // can be cancelled, one that was cancelled and a closing channel, and is the destination of an expired check (its Objects tab: C7); an escrow that is pending, one that can be
-// finished, an MPT escrow, and a channel with 120 events (three pages). Their transactions have files, as every event's link leads to one. Synthetic too (C9), D5's `delegatedFrom` and
+// finished, an MPT escrow, and a channel with 120 events (three pages). Their transactions have files, as every event's link leads to one, but `channel-long`'s
+// (`UNSERVED_SYNTHETIC`: a paging fixture, its events link to transactions that are not served). Synthetic too (C9), D5's `delegatedFrom` and
 // `delegate_set_empty` over recorded transactions of the ledger of the recorded `DelegateSet`: a delegated Payment, a delegated `tec`, an empty `DelegateSet` and a failed one. They
 // are not rows of the index: D5 never indexed them, and the recorded delegation stays as it is.
 
@@ -77,6 +78,12 @@ export const SYNTHETIC_DELEGATE = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
 
 /** The MPT issuance of D5's synthetic MPT escrow (`MPT_ISSUANCE` of object-changes.parser.spec.ts at PIN). */
 export const SYNTHETIC_MPT_ISSUANCE = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+
+/**
+ * The synthetic objects whose transactions have no file (controller ruling of Task 2's second fix round): `channel-long` is a paging fixture, and its 120 transactions (about 250 KB
+ * with their binary forms) are links nobody follows; they are in no ledger's list either.
+ */
+export const UNSERVED_SYNTHETIC: readonly string[] = ["channel-long"];
 
 /** How many events the object page asks for behind a marker: a page of the detail's size. */
 export const HISTORY_LIMIT = DETAIL_EVENTS;
@@ -215,17 +222,20 @@ export function objectWorld(net: NetworkName): ObjectWorld {
   const synthetic = new Map<string, string>();
   const delegation: DelegationTx[] = [];
   const made: Placed[] = [];
+  const toServe: Placed[] = [];
   if (net === "xrpl") {
     const place = placesOf(ledgers, setLedgerIndexes(net));
     // C9 first: its places are the first past the ledger's own.
     for (const each of delegationTransactions(ledgers, place)) {
       delegation.push(each);
       made.push(each);
+      toServe.push(each);
     }
     for (const object of syntheticObjects(place)) {
       synthetic.set(object.name, object.id);
       for (const placed of object.txs) {
         made.push(placed);
+        if (!UNSERVED_SYNTHETIC.includes(object.name)) toServe.push(placed);
         rows.push(...rowsOfTransaction(placed.raw, placed.tx));
       }
     }
@@ -247,7 +257,7 @@ export function objectWorld(net: NetworkName): ObjectWorld {
     }
   }
 
-  // The transactions with a file (C3): a row of the index, a `Delegate` field or a `DelegateSet`, but those generate() serves; then the synthetic ones.
+  // The transactions with a file (C3): a row of the index, a `Delegate` field or a `DelegateSet`, but those generate() serves; then the synthetic ones but `UNSERVED_SYNTHETIC`'s.
   const already = servedHashes(net);
   const indexed = new Set(recorded.map((row) => row.tx_hash));
   const served: Placed[] = [];
@@ -257,7 +267,7 @@ export function objectWorld(net: NetworkName): ObjectWorld {
       if (wanted && !already.has(tx.hash)) served.push({ raw, tx });
     }
   }
-  served.push(...made);
+  served.push(...toServe);
 
   return { net, ledgers, head, asOf, coverage, rows, txs, synthetic, nodeOnly, served, delegation, made };
 }
@@ -743,7 +753,10 @@ export function objectAnswers(net: NetworkName): ObjectFile[] {
   const lists = new Map<number, RawLedger>();
   for (const { raw } of world.served) if (!inSets.has(Number(raw.ledger.ledger_index))) lists.set(Number(raw.ledger.ledger_index), raw);
   for (const [index, raw] of [...lists].sort(([a], [b]) => a - b)) {
-    const extra = world.made.filter((made) => made.raw === raw).sort((a, b) => a.tx.metaData.TransactionIndex - b.tx.metaData.TransactionIndex);
+    // The synthetic transactions served of the ledger, after its own: `channel-long`'s, which have no file, took the places after them (it is made last), so they are left out of the
+    // list without a gap.
+    const madeHashes = new Set(world.made.map((made) => made.tx.hash));
+    const extra = world.served.filter((made) => made.raw === raw && madeHashes.has(made.tx.hash)).sort((a, b) => a.tx.metaData.TransactionIndex - b.tx.metaData.TransactionIndex);
     const hashes = [...inLedgerOrder(raw).map((tx) => tx.hash), ...extra.map((made) => made.tx.hash)];
     extra.forEach((made, at) => {
       if (made.tx.metaData.TransactionIndex !== raw.ledger.transactions.length + at) throw new Error(`${made.tx.hash} is not at its place in ledger ${index}`);
