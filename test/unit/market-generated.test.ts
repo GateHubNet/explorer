@@ -262,9 +262,10 @@ describe("the market fixtures: the requests", () => {
     expect(onDisk.sort()).toEqual(generated);
   });
 
+  // A whole generation: about 1 s on a developer's machine, and close to 4 s on a CI runner.
   it("isMarketGenerated is true of the files marketFixtures writes and of no other generated file", () => {
     expect([...generate().keys()].filter(isMarketGenerated).sort()).toEqual([...marketFixtures().keys()].sort());
-  });
+  }, 15_000);
 
   it("are answered by the fixture server with a 200, and an answer that passes the check the client runs", async () => {
     for (const call of allCalls()) {

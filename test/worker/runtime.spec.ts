@@ -8,6 +8,9 @@ import { afterEach, describe, expect, it } from "vitest";
 // 107671558, taken from data-api-new/packages/shared/test/fixtures/xrpl/recorded/107671558.json.gz.
 import ammDepositMeta from "../fixtures/runtime/amm-deposit.meta.json";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
+import { warmWorker } from "../support/warm-worker";
+
+warmWorker();
 
 describe("the parsing libraries in the Workers runtime", () => {
   it("parseBalanceChanges reads the metadata of an AMMDeposit", () => {

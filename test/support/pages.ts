@@ -7,6 +7,7 @@ import { expect } from "vitest";
 
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
+import { warmWorker } from "./warm-worker";
 
 const ORIGIN = "https://explorer.test";
 
@@ -15,6 +16,7 @@ const ORIGIN = "https://explorer.test";
  * addresses (RFC 5737) and every request its own address.
  */
 export function pageClient(addressPrefix: string) {
+  warmWorker();
   let visitors = 0;
 
   const get = (path: string, headers: Record<string, string> = {}) =>
