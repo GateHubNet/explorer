@@ -70,6 +70,7 @@ describe("publicNetwork", () => {
       ctidNetworkId: 0,
       other: "xahau",
       hasAmm: true,
+      hasDelegation: true,
       software: "rippled",
       displays: ["native", "usd"],
       features: featuresOf(allSwitches("off")),

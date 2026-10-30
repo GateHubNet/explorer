@@ -54,6 +54,7 @@ const xrpl = {
   nodeUrl: "https://s1.ripple.com:51234/",
   other: "xahau",
   hasAmm: true,
+  hasDelegation: true,
   displays: ["native", "usd"],
 };
 const passThrough = { json: <T>(_key: string, _cls: string, load: () => Promise<T>) => load() };

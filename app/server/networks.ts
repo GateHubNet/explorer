@@ -35,6 +35,8 @@ export interface Network {
   other: NetworkId;
   /** Whether the network's ledger has automated market makers (XRPL and XRPL Testnet do, Xahau and Xahau Testnet do not). */
   hasAmm: boolean;
+  /** Whether the network's ledger has permission delegation, the Delegate object (XRPL and XRPL Testnet do, Xahau and Xahau Testnet do not): the Delegation tab of an account is drawn by it, besides its `DELEGATION` switch. */
+  hasDelegation: boolean;
   /** The server software the network's validators run: it names the file their domains publish (`xrp-ledger.toml` or `xahau.toml`). */
   software: "rippled" | "xahaud";
   /** The currencies the network's amounts can be shown in, the native one first. Only the mainnet XRPL has USD (issued by GateHub). */
@@ -43,7 +45,7 @@ export interface Network {
   features: Features;
 }
 
-type NetworkEntry = Pick<Network, "id" | "kind" | "native" | "ctidNetworkId" | "other" | "hasAmm" | "software" | "displays"> & {
+type NetworkEntry = Pick<Network, "id" | "kind" | "native" | "ctidNetworkId" | "other" | "hasAmm" | "hasDelegation" | "software" | "displays"> & {
   /** The `Env` variables that hold this network's URLs. */
   dataApiUrlVar: "XRPL_DATA_API_URL" | "XAHAU_DATA_API_URL";
   nodeUrlVar: "XRPL_NODE_URL" | "XAHAU_NODE_URL";
@@ -59,6 +61,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       ctidNetworkId: 0,
       other: "xahau",
       hasAmm: true,
+      hasDelegation: true,
       software: "rippled",
       displays: ["native", "usd"],
       dataApiUrlVar: "XRPL_DATA_API_URL",
@@ -71,6 +74,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       ctidNetworkId: 21337,
       other: "xrpl",
       hasAmm: false,
+      hasDelegation: false,
       software: "xahaud",
       displays: ["native"],
       dataApiUrlVar: "XAHAU_DATA_API_URL",
@@ -85,6 +89,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       ctidNetworkId: 1,
       other: "xahau",
       hasAmm: true,
+      hasDelegation: true,
       software: "rippled",
       displays: ["native"],
       dataApiUrlVar: "XRPL_DATA_API_URL",
@@ -97,6 +102,7 @@ const NETWORKS: Record<NetworkKind, Record<NetworkId, NetworkEntry>> = {
       ctidNetworkId: 21338,
       other: "xrpl",
       hasAmm: false,
+      hasDelegation: false,
       software: "xahaud",
       displays: ["native"],
       dataApiUrlVar: "XAHAU_DATA_API_URL",

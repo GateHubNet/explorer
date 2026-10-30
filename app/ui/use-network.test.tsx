@@ -19,6 +19,7 @@ const XRPL = {
   ctidNetworkId: 0,
   other: "xahau",
   hasAmm: true,
+  hasDelegation: true,
   displays: ["native", "usd"],
 } as const;
 

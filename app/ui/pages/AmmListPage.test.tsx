@@ -48,6 +48,7 @@ const LAYOUT_XRPL: PublicNetwork = {
   ctidNetworkId: 0,
   other: "xahau",
   hasAmm: true,
+  hasDelegation: true,
   software: "rippled",
   displays: ["native", "usd"],
 };
@@ -72,6 +73,7 @@ const LAYOUT_XAHAU: PublicNetwork = {
   ctidNetworkId: 21337,
   other: "xrpl",
   hasAmm: false,
+  hasDelegation: false,
   software: "xahaud",
   displays: ["native"],
 };

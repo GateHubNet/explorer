@@ -25,6 +25,7 @@ export const LAYOUT_XRPL: Omit<PublicNetwork, "features"> = {
   ctidNetworkId: 0,
   other: "xahau",
   hasAmm: true,
+  hasDelegation: true,
   software: "rippled",
   displays: ["native", "usd"],
 };
@@ -40,6 +41,7 @@ export const LAYOUT_XAHAU: Omit<PublicNetwork, "features"> = {
   ctidNetworkId: 21337,
   other: "xrpl",
   hasAmm: false,
+  hasDelegation: false,
   software: "xahaud",
   displays: ["native"],
 };

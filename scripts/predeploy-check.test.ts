@@ -437,6 +437,114 @@ describe("deployProblems", () => {
       });
     });
 
+    // LEDGER_OBJECTS (E10): the escrow, check and payment-channel pages, their redirect, the links into them and the object question of search. A sandbox or production build must say it, and say it right.
+    // It needs no other switch: the objects are D5's, which no switch of this list gates, so the guard has no cross-switch reason for it. DELEGATION is independent of it.
+    describe("LEDGER_OBJECTS", () => {
+      it("passes a build whose LEDGER_OBJECTS is off or on, and the passing configs carry it, off", () => {
+        expect((good("sandbox").vars as Config).LEDGER_OBJECTS).toBe("off");
+        expect((good("production").vars as Config).LEDGER_OBJECTS).toBe("off");
+        expect(deployProblems(good("sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(good("production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ LEDGER_OBJECTS: "on" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ LEDGER_OBJECTS: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ LEDGER_OBJECTS: "on" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without LEDGER_OBJECTS, and names it", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const vars = { ...(good(env).vars as Config) };
+          delete vars.LEDGER_OBJECTS;
+          const problems = deployProblems(good(env, { vars }), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("LEDGER_OBJECTS is not set");
+          expect(problems[0]).toContain('"on" or "off"');
+        }
+      });
+
+      it('refuses LEDGER_OBJECTS: "yes", and names it', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const problems = deployProblems(withVars({ LEDGER_OBJECTS: "yes" }, env), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("LEDGER_OBJECTS");
+          expect(problems[0]).toContain('"yes"');
+          expect(problems[0]).toContain('not exactly "on" or "off"');
+        }
+      });
+
+      it('refuses a misspelt LEDGER_OBJECT: "on" as a var that is not a switch, naming LEDGER_OBJECTS among the switches', () => {
+        const problems = deployProblems(withVars({ LEDGER_OBJECT: "on" }), "sandbox");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("LEDGER_OBJECT is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("LEDGER_OBJECTS");
+        expect(problems[0]).toContain(`the switches are ${FEATURE_VARS.join(", ")}`);
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+
+      it("depends on no other switch: on over every other switch off is accepted, and so is off over every other switch on", () => {
+        expect(deployProblems(withVars({ ...allSwitches("off"), LEDGER_OBJECTS: "on" }, "sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ ...allSwitches("off"), LEDGER_OBJECTS: "on" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ ...allSwitches("on"), LEDGER_OBJECTS: "off" }, "sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ ...allSwitches("on"), LEDGER_OBJECTS: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ LEDGER_OBJECTS: "on", DELEGATION: "off" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ LEDGER_OBJECTS: "on", DELEGATION: "off" }, "production"), "production")).toEqual([]);
+      });
+    });
+
+    // DELEGATION (E10): the Delegation tab of an account and every link into it. A sandbox or production build must say it, and say it right. It needs no other switch: the delegations are D5's, which
+    // no switch of this list gates, so the guard has no cross-switch reason for it, LEDGER_OBJECTS included.
+    describe("DELEGATION", () => {
+      it("passes a build whose DELEGATION is off or on, and the passing configs carry it, off", () => {
+        expect((good("sandbox").vars as Config).DELEGATION).toBe("off");
+        expect((good("production").vars as Config).DELEGATION).toBe("off");
+        expect(deployProblems(good("sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(good("production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ DELEGATION: "on" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ DELEGATION: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ DELEGATION: "on" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without DELEGATION, and names it", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const vars = { ...(good(env).vars as Config) };
+          delete vars.DELEGATION;
+          const problems = deployProblems(good(env, { vars }), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("DELEGATION is not set");
+          expect(problems[0]).toContain('"on" or "off"');
+        }
+      });
+
+      it('refuses DELEGATION: "yes", and names it', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const problems = deployProblems(withVars({ DELEGATION: "yes" }, env), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("DELEGATION");
+          expect(problems[0]).toContain('"yes"');
+          expect(problems[0]).toContain('not exactly "on" or "off"');
+        }
+      });
+
+      it('refuses a misspelt DELEGATE: "on" as a var that is not a switch, naming DELEGATION among the switches', () => {
+        const problems = deployProblems(withVars({ DELEGATE: "on" }), "sandbox");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("DELEGATE is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("DELEGATION");
+        expect(problems[0]).toContain(`the switches are ${FEATURE_VARS.join(", ")}`);
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+
+      it("depends on no other switch: on over every other switch off is accepted, and so is off over every other switch on", () => {
+        expect(deployProblems(withVars({ ...allSwitches("off"), DELEGATION: "on" }, "sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ ...allSwitches("off"), DELEGATION: "on" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ ...allSwitches("on"), DELEGATION: "off" }, "sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ ...allSwitches("on"), DELEGATION: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ DELEGATION: "on", LEDGER_OBJECTS: "off" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ DELEGATION: "on", LEDGER_OBJECTS: "off" }, "production"), "production")).toEqual([]);
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "sandbox")).toEqual([]);
     });
@@ -986,5 +1094,23 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(vars().NAMES).toBe("on");
     expect(vars("sandbox").NAMES).toBe("off");
     expect(vars("production").NAMES).toBe("off");
+  });
+
+  // LEDGER_OBJECTS (README "Switches"): on in development and the tests (the top level), off in sandbox and production until that environment's data API serves D5 on both networks.
+  // A flip is a commit, so it is read from the file.
+  it("has LEDGER_OBJECTS on at the top level and off in sandbox and production", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().LEDGER_OBJECTS).toBe("on");
+    expect(vars("sandbox").LEDGER_OBJECTS).toBe("off");
+    expect(vars("production").LEDGER_OBJECTS).toBe("off");
+  });
+
+  // DELEGATION (README "Switches"): on in development and the tests (the top level), off in sandbox and production until that environment's data API serves D5 and D5's re-ingest from
+  // 107,524,865 is done there (the delegations answer `complete: true`); the sandbox's coverage is never complete, so it goes on once the routes answer. A flip is a commit, so it is read from the file.
+  it("has DELEGATION on at the top level and off in sandbox and production", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().DELEGATION).toBe("on");
+    expect(vars("sandbox").DELEGATION).toBe("off");
+    expect(vars("production").DELEGATION).toBe("off");
   });
 });

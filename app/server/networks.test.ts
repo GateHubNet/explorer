@@ -36,6 +36,7 @@ describe("networkOf", () => {
       nodeUrl: "https://s1.ripple.com:51234/",
       other: "xahau",
       hasAmm: true,
+      hasDelegation: true,
       software: "rippled",
       displays: ["native", "usd"],
       features: { ...featuresOf(allSwitches("off")), ammData: true },
@@ -58,6 +59,7 @@ describe("networkOf", () => {
       nodeUrl: "https://xahau.network/",
       other: "xrpl",
       hasAmm: false,
+      hasDelegation: false,
       software: "xahaud",
       displays: ["native"],
       features: { ...featuresOf(allSwitches("off")), ammData: true },
@@ -96,6 +98,44 @@ describe("networkOf", () => {
     expect(networkOf("xrpl", { ...env, NFTS: "on" }).features.nfts).toBe(true);
     expect(networkOf("xahau", { ...env, NFTS: "on" }).features.nfts).toBe(true);
     expect(networkOf("xrpl", { ...env, AMM_DATA: "on", MARKETS: "on", VALIDATORS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on" }).features.nfts).toBe(false);
+    // LEDGER_OBJECTS and DELEGATION likewise, each on its own: off in this env, on for both networks when the env says so, and neither turns the other on.
+    expect(networkOf("xrpl", env).features.ledgerObjects).toBe(false);
+    expect(networkOf("xrpl", env).features.delegation).toBe(false);
+    for (const id of ["xrpl", "xahau"] as const) {
+      const objects = networkOf(id, { ...env, LEDGER_OBJECTS: "on" }).features;
+      expect([objects.ledgerObjects, objects.delegation], id).toEqual([true, false]);
+      const delegation = networkOf(id, { ...env, DELEGATION: "on" }).features;
+      expect([delegation.ledgerObjects, delegation.delegation], id).toEqual([false, true]);
+    }
+  });
+
+  // Whether the ledger has permission delegation (the Delegate object): XRPL and XRPL Testnet do, Xahau and Xahau Testnet do not. A fact of the network, as `hasAmm` is,
+  // and not a switch: it holds in every environment of its kind, and the public network carries it, because the browser draws the Delegation tab by it.
+  it.each([
+    ["development", "xrpl", true],
+    ["development", "xahau", false],
+    ["production", "xrpl", true],
+    ["production", "xahau", false],
+    ["sandbox", "xrpl", true],
+    ["sandbox", "xahau", false],
+  ] as const)("says in %s that %s has delegation: %s, whichever switches are on", (environment, id, hasDelegation) => {
+    for (const switches of [allSwitches("off"), allSwitches("on")]) {
+      const net = networkOf(id, { ...env, ...switches, ENVIRONMENT: environment });
+      expect(net.hasDelegation).toBe(hasDelegation);
+      expect(publicNetwork(net).hasDelegation).toBe(hasDelegation);
+    }
+  });
+
+  it("has delegation on the two XRP Ledger networks of each kind and on neither Xahau network", () => {
+    const cells = (["mainnet", "testnet"] as const).flatMap((kind) =>
+      (["xrpl", "xahau"] as const).map((id) => [kind, id, networkOf(id, { ...env, ENVIRONMENT: kind === "mainnet" ? "development" : "sandbox" }).hasDelegation] as const),
+    );
+    expect(cells).toEqual([
+      ["mainnet", "xrpl", true],
+      ["mainnet", "xahau", false],
+      ["testnet", "xrpl", true],
+      ["testnet", "xahau", false],
+    ]);
   });
 
   it("points each network at the other", () => {
@@ -105,12 +145,12 @@ describe("networkOf", () => {
   // The facts and names of each cell of the sandbox spec's tables (§5), written out here and not read from the module under test.
   const FACTS = {
     mainnet: {
-      xrpl: { kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", ctidNetworkId: 0, hasAmm: true, software: "rippled", displays: ["native", "usd"] },
-      xahau: { kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", ctidNetworkId: 21337, hasAmm: false, software: "xahaud", displays: ["native"] },
+      xrpl: { kind: "mainnet", name: "XRPL", label: "XRPL mainnet", longName: "the XRP Ledger", dexName: "the XRP Ledger DEX", native: "XRP", ctidNetworkId: 0, hasAmm: true, hasDelegation: true, software: "rippled", displays: ["native", "usd"] },
+      xahau: { kind: "mainnet", name: "Xahau", label: "Xahau mainnet", longName: "Xahau", dexName: "the Xahau DEX", native: "XAH", ctidNetworkId: 21337, hasAmm: false, hasDelegation: false, software: "xahaud", displays: ["native"] },
     },
     testnet: {
-      xrpl: { kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", ctidNetworkId: 1, hasAmm: true, software: "rippled", displays: ["native"] },
-      xahau: { kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", ctidNetworkId: 21338, hasAmm: false, software: "xahaud", displays: ["native"] },
+      xrpl: { kind: "testnet", name: "XRPL Testnet", label: "XRPL Testnet", longName: "XRPL Testnet", dexName: "the XRPL Testnet DEX", native: "XRP", ctidNetworkId: 1, hasAmm: true, hasDelegation: true, software: "rippled", displays: ["native"] },
+      xahau: { kind: "testnet", name: "Xahau Testnet", label: "Xahau Testnet", longName: "Xahau Testnet", dexName: "the Xahau Testnet DEX", native: "XAH", ctidNetworkId: 21338, hasAmm: false, hasDelegation: false, software: "xahaud", displays: ["native"] },
     },
   } as const;
 

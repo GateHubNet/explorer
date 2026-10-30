@@ -292,7 +292,7 @@ describe("storing and serving a page", () => {
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, ENVIRONMENT: "sandbox" }))).toContain(encodeURIComponent("test-build:sandbox:"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, ENVIRONMENT: "sandbox" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     // ACCOUNT_ANALYTICS is one of the switches the generation names (sorted first), and flipping it is another key.
-    expect(cacheGeneration(h.env)).toMatch(/^test-build:development:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,MARKETS=off,/);
+    expect(cacheGeneration(h.env)).toMatch(/^test-build:development:ACCOUNT_ANALYTICS=off,AMM_DATA=on,AMM_PAGES=off,DELEGATION=off,LEDGER_OBJECTS=off,MARKETS=off,/);
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("ACCOUNT_ANALYTICS=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, ACCOUNT_ANALYTICS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
     // AMM_PAGES is another: a stored page never meets the other value of the header's AMM item or of a pool link.
@@ -305,6 +305,13 @@ describe("storing and serving a page", () => {
     // NAMES is another (sorted between MARKETS and NFTS): a stored page never meets the other value of an account's name, mark and title.
     expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("NAMES=off"));
     expect(edgeCacheKey(url, cacheGeneration({ ...h.env, NAMES: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
+    // LEDGER_OBJECTS and DELEGATION are two more (sorted between AMM_PAGES and MARKETS, DELEGATION first): a stored page never meets the other value of an object
+    // page, its links and the object question of search, or of the Delegation tab and the links into it.
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("DELEGATION=off"));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, DELEGATION: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
+    expect(edgeCacheKey(url, cacheGeneration(h.env))).toContain(encodeURIComponent("LEDGER_OBJECTS=off"));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, LEDGER_OBJECTS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration(h.env)));
+    expect(edgeCacheKey(url, cacheGeneration({ ...h.env, LEDGER_OBJECTS: "on" }))).not.toBe(edgeCacheKey(url, cacheGeneration({ ...h.env, DELEGATION: "on" })));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(url, "build-b"));
     expect(edgeCacheKey(url, "build-a")).not.toBe(edgeCacheKey(`${url}?x=1`, "build-a"));
     expect(edgeCacheKey(`${url}?x=1`, "build-a")).toBe(`${url}?x=1&__build=build-a`);

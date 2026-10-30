@@ -191,6 +191,67 @@ describe("the NAMES switch", () => {
   });
 });
 
+// LEDGER_OBJECTS (E10): the escrow, check and payment-channel pages, their redirect, the links into them and the object question of search. Its own switch from DELEGATION,
+// which gates the Delegation tab only: the two are independent.
+describe("the LEDGER_OBJECTS switch", () => {
+  // Its place is the eighth, after NAMES. Checked as a prefix of both lists, not as their last entry, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the eighth switch, after the seven before it, and its feature is ledgerObjects", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS"];
+    expect(FEATURE_VARS.slice(0, 8)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("LEDGER_OBJECTS")).toBe(7);
+    expect(Object.keys(FEATURE_NAME).slice(0, 8)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("LEDGER_OBJECTS")).toBe(7);
+    expect(FEATURE_NAME.LEDGER_OBJECTS).toBe("ledgerObjects");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ LEDGER_OBJECTS: "on" }).ledgerObjects).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ LEDGER_OBJECTS: value }).ledgerObjects, String(value)).toBe(false);
+    expect(featuresOf({}).ledgerObjects).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.ledgerObjects).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on, DELEGATION included", () => {
+    expect(featuresOf({ LEDGER_OBJECTS: "on" })).toEqual({ ...NO_FEATURES, ledgerObjects: true });
+    expect(featuresOf({ ...allSwitches("on"), LEDGER_OBJECTS: "off" }).ledgerObjects).toBe(false);
+    expect(featuresOf({ ...allSwitches("on"), LEDGER_OBJECTS: "off" }).delegation).toBe(true);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", DELEGATION: "on" }).ledgerObjects).toBe(false);
+  });
+});
+
+// DELEGATION (E10): the Delegation tab of an account ("soon" while off) and every link into it. The "Sent by" row, the "sent it on behalf of" sentence, the DelegateSet sentences and the
+// "· sent by" tail of a list row are not gated by it. Independent of LEDGER_OBJECTS.
+describe("the DELEGATION switch", () => {
+  it("is the ninth switch, after LEDGER_OBJECTS, and its feature is delegation", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION"];
+    expect(FEATURE_VARS.slice(0, 9)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("DELEGATION")).toBe(8);
+    expect(Object.keys(FEATURE_NAME).slice(0, 9)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("DELEGATION")).toBe(8);
+    expect(FEATURE_NAME.DELEGATION).toBe("delegation");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ DELEGATION: "on" }).delegation).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ DELEGATION: value }).delegation, String(value)).toBe(false);
+    expect(featuresOf({}).delegation).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.delegation).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on, LEDGER_OBJECTS included", () => {
+    expect(featuresOf({ DELEGATION: "on" })).toEqual({ ...NO_FEATURES, delegation: true });
+    expect(featuresOf({ ...allSwitches("on"), DELEGATION: "off" }).delegation).toBe(false);
+    expect(featuresOf({ ...allSwitches("on"), DELEGATION: "off" }).ledgerObjects).toBe(true);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on" }).delegation).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);
