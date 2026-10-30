@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "yarrow-8056.example",
+    "toml_url": "https://yarrow-8056.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rss2EKAZEYRAfY5czvA4wZRRkYKHdi8xsh",
+        "desc": "Yarrow Custody"
+      }
+    ]
+  }
+}

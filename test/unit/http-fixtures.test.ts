@@ -13,6 +13,7 @@ import {
   isNftGenerated,
   isObjectGenerated,
   isSynthetic,
+  isTokenGenerated,
   isValidatorsGenerated,
   LEDGERS,
   isoTime,
@@ -122,7 +123,8 @@ describe("every fixture file", () => {
             !isAmmGenerated(file) &&
             !isNftGenerated(file) &&
             !isNamesGenerated(file) &&
-            !isObjectGenerated(file),
+            !isObjectGenerated(file) &&
+            !isTokenGenerated(file),
         ),
       ),
     ).toBeLessThan(3.5 * 1024 * 1024);
@@ -140,9 +142,9 @@ describe("every fixture file", () => {
     // which the 30 days of XRPL's majority amendment, under its name and its ID, are 0.7 MiB) are reviewed as their generator too, with a budget of their own.
     expect(bytes(files.filter(isValidatorsGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isValidatorsGenerated))).toBeLessThan(3.0 * 1024 * 1024);
-    // The AMM pages' files (scripts/amm-fixtures.ts, a row to a line: the pool routes derived from the recordings, 192 files of 193,128 bytes, the list with the
-    // deleted pools' 7 pages of 50,897 among them, and the synthetic day rows, AMM-only candles and live volume as P2 of E5 scopes them, VOX/XRP's four empty
-    // answers among them, 39 files of 516,361 bytes; 231 files, 709,489 bytes, about 0.68 MiB) are reviewed as their generator too, with a budget of their own
+    // The AMM pages' files (scripts/amm-fixtures.ts, a row to a line: the pool routes derived from the recordings, 195 files of 194,156 bytes, the list with the
+    // deleted pools' 7 pages of 50,897 and the three filters E11's featured tokens add, 1,028 bytes, among them, and the synthetic day rows, AMM-only candles and live volume as P2 of E5 scopes them, VOX/XRP's four empty
+    // answers among them, 39 files of 516,361 bytes; 234 files, 710,517 bytes, about 0.68 MiB) are reviewed as their generator too, with a budget of their own
     // (P2), which a later file raises with its data, never above 1.0 MiB.
     expect(bytes(files.filter(isAmmGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isAmmGenerated))).toBeLessThan(0.7 * 1024 * 1024);
@@ -158,9 +160,14 @@ describe("every fixture file", () => {
     // their generator too (C4), with a budget of their own, left out of the recorded files' above: at most 1.0 MiB, which a later file raises with its data, never above.
     expect(bytes(files.filter(isObjectGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isObjectGenerated))).toBeLessThan(1.0 * 1024 * 1024);
-    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 210 entries of 39,428 bytes and
-    // 131 tomls of 48,308, 87,736 bytes, about 86 KiB; Xahau 44 entries of 8,185 bytes and 27 tomls of 10,063, 18,248 bytes, about 18 KiB, after E10 added the ledger objects'
-    // transactions to the names' sources) are reviewed as their generator too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later
+    // The token pages' files (scripts/token-fixtures.ts, a row to a line: 54 files of 222,640 bytes, about 0.21 MiB; XRPL 32 of 128,365: the 12 lists, 59,869 bytes, and the four featured tokens'
+    // details, holders and transfers; Xahau 22 of 94,275: the 12 lists, 58,580 bytes, and its two) are reviewed as their generator too (C8), with a budget of their own, left out of the recorded files' above: at most 0.3 MiB. Their
+    // pools files are the AMM generator's, in its budget above.
+    expect(bytes(files.filter(isTokenGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isTokenGenerated))).toBeLessThan(0.3 * 1024 * 1024);
+    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 224 entries of 41,991 bytes and
+    // 140 tomls of 51,418, 93,409 bytes, about 91 KiB; Xahau 116 entries of 21,723 bytes and 65 tomls of 23,459, 45,182 bytes, about 44 KiB, after E11 added the token files to the
+    // names' sources) are reviewed as their generator too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later
     // file raises with its data, never above.
     for (const net of NETS) {
       const names = files.filter((file) => isNamesGenerated(file) && file.startsWith(`${net}/`));

@@ -1,0 +1,17 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "supply": "7754369128.371586",
+  "count": 4,
+  "holders": [
+    {"rank":51,"holder":"r37txiTHAGKTjhY86nF9AATnc1mcPMBAQJ","balance":"2371374.930027","share":"0.000306","limit":"4742750","frozen":false,"authorized":false},
+    {"rank":52,"holder":"rGo1N1utyFs8bNB21MB5MHJJWNea9TKFPv","balance":"2039655.758445","share":"0.000263","limit":"6118968","frozen":false,"authorized":false},
+    {"rank":53,"holder":"rH5QAw12oDmvYuS91NEFdMapGqJiQdTUs7","balance":"1778717.548843","share":"0.000229","limit":"5336153","frozen":false,"authorized":false},
+    {"rank":54,"holder":"rDcBxtyqKmcfTvjvnCXYaZjmLhLCW86cBv","balance":"1449823.839085","share":"0.000187","limit":"11598591","frozen":false,"authorized":false}
+  ]
+}

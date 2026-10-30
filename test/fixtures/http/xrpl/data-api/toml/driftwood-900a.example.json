@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "driftwood-900a.example",
+    "toml_url": "https://driftwood-900a.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rPT4D1v7SyYSH33LLxfjVq4zdJ1rf1E5Fx",
+        "desc": "Driftwood Payments"
+      }
+    ]
+  }
+}

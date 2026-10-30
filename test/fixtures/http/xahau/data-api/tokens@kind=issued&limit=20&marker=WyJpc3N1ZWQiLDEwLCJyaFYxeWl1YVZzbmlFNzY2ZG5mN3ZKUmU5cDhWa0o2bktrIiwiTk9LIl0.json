@@ -1,0 +1,41 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1350,
+    "native_volume": "15359117.971"
+  },
+  "total": 100,
+  "count": 20,
+  "marker": "WyJpc3N1ZWQiLDYsInJuSks5WjNHbnd5WVFxdmdtMnRjZ3lZbnJ2S2Z5aVh4dWQiLCI0NDUyNDk0NjU0NTc0RjRGNDQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIl0",
+  "tokens": [
+    {"rank":61,"currency":"COP","code":"COP","issuer":"rEvhoR7Wfu6YEMLJKeNjy8CKjFodeAhHAq","holders":9,"trust_lines":10,"supply":"2010.48","price":"0.018266530","price_change":"14.04","price_time":"2026-10-17T06:25:53Z","native_volume":"382261.488","trades":127,"listed":false},
+    {"rank":62,"currency":"5348494E474C4500000000000000000000000000","code":"SHINGLE","issuer":"rHBDD855FtFqLuBvwBJ1wZyQzsnKo8gNDE","holders":9,"trust_lines":14,"supply":"5409.91","price":"0.14110255","price_time":"2026-09-23T17:47:11Z","native_volume":"0","trades":0,"domain":"oakfield-63a8.example","listed":false},
+    {"rank":63,"currency":"474F525345000000000000000000000000000000","code":"GORSE","issuer":"rG7wPZdrLBqMHwFrB9W3sajoXfPZMXmrW6","holders":8,"trust_lines":8,"supply":"3145.98","price":"0.19812322","price_change":"-1.04","price_time":"2026-10-17T09:35:31Z","native_volume":"476985.196","trades":21,"domain":"harbourgate-ab22.example","listed":true,"name":"Copperline GORSE"},
+    {"rank":64,"currency":"53504F5245000000000000000000000000000000","code":"SPORE","issuer":"rKBEVzVU92MjK5ZFWu8CToyFkxpu6Ys5qm","holders":8,"trust_lines":11,"supply":"1847.61","price":"2.2116900","price_change":"14.66","price_time":"2026-10-16T18:49:15Z","native_volume":"208555.985","trades":382,"domain":"bluewave-bc65.example","listed":true,"name":"Bluewave SPORE"},
+    {"rank":65,"currency":"5255534845530000000000000000000000000000","code":"RUSHES","issuer":"rQanawDCiaMkk9mPhaXvwR1VYKbJ2wqSMu","holders":8,"trust_lines":13,"supply":"4740.38","price":"2.4441455","price_change":"13.78","price_time":"2026-10-17T04:32:05Z","native_volume":"383297.261","trades":173,"domain":"willowmere-1ea9.example","listed":true,"name":"Kestrel RUSHES"},
+    {"rank":66,"currency":"504C414E4B544F4E000000000000000000000000","code":"PLANKTON","issuer":"r911dcMWyRK8jZKMY6XSfWadDgXf2BYEDN","holders":7,"trust_lines":12,"supply":"308.7","price":"2.4038391","price_change":"-10.53","price_time":"2026-10-16T18:04:16Z","native_volume":"318149.226","trades":213,"domain":"fernhill-95f6.example","listed":false},
+    {"rank":67,"currency":"47524156454C0000000000000000000000000000","code":"GRAVEL","issuer":"rDx1L33Pb1NyeBE5c9X7zrX6jGuVpxECHg","holders":7,"trust_lines":12,"supply":"4903.2","price":"2.3102551","price_time":"2026-10-15T17:47:11Z","native_volume":"0","trades":0,"domain":"fernhill-da90.example","listed":false},
+    {"rank":68,"currency":"ARS","code":"ARS","issuer":"rEcaU7AfFfuc3NTH5vgWUbUQ3eg7U3kZby","holders":7,"trust_lines":7,"supply":"2761.8","price":"1.2345679e+8","price_change":"-12.43","price_time":"2026-10-17T01:08:49Z","native_volume":"334540.289","trades":53,"domain":"northpeak-9c93.example","listed":true,"name":"Oakfield ARS"},
+    {"rank":69,"currency":"4C494348454E0000000000000000000000000000","code":"LICHEN","issuer":"rGTh9HvZaZ5ApoGT7GP5RF4S1iW2FXBSMQ","holders":7,"trust_lines":9,"supply":"1343.99","price":"0.025136316","price_change":"11.11","price_time":"2026-10-17T00:37:34Z","native_volume":"488156.86","trades":256,"domain":"ashgrove-2f97.example","listed":true,"name":"Lanternway LICHEN"},
+    {"rank":70,"currency":"5345444745000000000000000000000000000000","code":"SEDGE","issuer":"rJ9UNrZGjW8rtgbDynXLYhYabSMjgW2Yqo","holders":7,"trust_lines":11,"supply":"4927.08","native_volume":"0","trades":0,"listed":false},
+    {"rank":71,"currency":"CLP","code":"CLP","issuer":"rKBEVzVU92MjK5ZFWu8CToyFkxpu6Ys5qm","holders":7,"trust_lines":10,"supply":"1046.07","price":"2.1043392","price_time":"2026-09-30T17:47:11Z","native_volume":"0","trades":0,"domain":"bluewave-bc65.example","listed":true,"name":"Bluewave CLP"},
+    {"rank":72,"currency":"5553445800000000000000000000000000000000","code":"USDX","issuer":"rQfeysYwYH32qxZPyb3b9BQcw2PKTggBNR","holders":7,"trust_lines":9,"supply":"4824.29","price":"1.2333907","price_change":"-10.57","price_time":"2026-10-16T20:01:01Z","native_volume":"405214.274","trades":389,"listed":false},
+    {"rank":73,"currency":"IDR","code":"IDR","issuer":"raJNFtMA6rcqAvJJJDPZGdCejctTUuUD6W","holders":7,"trust_lines":8,"supply":"2678.16","price":"4.8925039","price_change":"7.26","price_time":"2026-10-16T19:35:18Z","native_volume":"289581.807","trades":170,"domain":"copperline-2767.example","listed":true,"name":"Harbourgate IDR"},
+    {"rank":74,"currency":"4B52494C4C000000000000000000000000000000","code":"KRILL","issuer":"rh9vtTgCE8LFxEbAgD5UCghM9YLh66sTTH","holders":7,"trust_lines":10,"supply":"5876.25","native_volume":"0","trades":0,"domain":"thistle-5e87.example","listed":true,"name":"Bluewave KRILL"},
+    {"rank":75,"currency":"MAD","code":"MAD","issuer":"rBaDtTeAXNrZfCFdNEy7PB9p86f6s8ehpS","holders":6,"trust_lines":7,"supply":"182.59","native_volume":"0","trades":0,"domain":"northpeak-fbbc.example","listed":false},
+    {"rank":76,"currency":"015841550000000041F78E0A28CBF19200000000","issuer":"rE1DQXQRUJaiJD9cacF5RjPPn1Gb2J6LDo","holders":6,"trust_lines":10,"supply":"3647.23","price":"0.0068269113","price_change":"0.35","price_time":"2026-10-17T06:19:22Z","native_volume":"371866.711","trades":36,"domain":"riverstone-e06e.example","listed":true,"name":"Tidewater token"},
+    {"rank":77,"currency":"414C474145000000000000000000000000000000","code":"ALGAE","issuer":"rEvhoR7Wfu6YEMLJKeNjy8CKjFodeAhHAq","holders":6,"trust_lines":8,"supply":"5232.4","native_volume":"0","trades":0,"listed":false},
+    {"rank":78,"currency":"VND","code":"VND","issuer":"rKzuDWuyh9Entg8rBxxZMM8PiRgJdw2aUi","holders":6,"trust_lines":8,"supply":"5370.78","price":"0.096311180","price_change":"-11.65","price_time":"2026-10-17T01:51:08Z","native_volume":"418627.442","trades":362,"listed":false},
+    {"rank":79,"currency":"THB","code":"THB","issuer":"rh9vtTgCE8LFxEbAgD5UCghM9YLh66sTTH","holders":6,"trust_lines":6,"supply":"1190.09","price":"0.21315054","price_time":"2026-09-29T17:47:11Z","native_volume":"0","trades":0,"domain":"thistle-5e87.example","listed":true,"name":"Ashgrove THB"},
+    {"rank":80,"currency":"4452494654574F4F440000000000000000000000","code":"DRIFTWOOD","issuer":"rnJK9Z3GnwyYQqvgm2tcgyYnrvKfyiXxud","holders":6,"trust_lines":9,"supply":"4753.25","price":"4.0652835","price_change":"8.04","price_time":"2026-10-17T03:04:24Z","native_volume":"26030.219","trades":7,"domain":"riverstone-79a3.example","listed":false}
+  ]
+}

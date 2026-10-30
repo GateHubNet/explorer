@@ -8,7 +8,8 @@
     "fetched": "2026-10-17T06:00:00.000Z",
     "accounts": [
       {
-        "address": "r9PfV3sQpKLWxccdg3HL2FXKxGW2orAcLE"
+        "address": "r9PfV3sQpKLWxccdg3HL2FXKxGW2orAcLE",
+        "desc": "Bramble Exchange"
       }
     ]
   }

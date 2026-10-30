@@ -240,9 +240,11 @@ describe.each(NETS)("the names of %s", (net) => {
     expect(inOrder.some((path) => path.includes("@binary=true"))).toBe(false);
     const collected = collectAddresses(...inOrder.map((path) => JSON.parse(files[net].get(prefix + path)!)));
     expect(seeded).toEqual(collected.filter((address) => !fixed.has(address)).slice(0, NAMES_SEEDED_MAX));
-    // neither network reaches the cap: XRPL has 458 addresses besides the fixed ones, Xahau 103 (400 and 86 before E10 served the ledger objects' transactions, the recorded,
-    // C9's and the synthetic objects' but channel-long's, which are `transactions/<HASH>.json` files and so among the sources: scripts/object-fixtures.ts)
-    expect(seeded.length).toBe(net === "xrpl" ? 458 : 103);
+    // XRPL reaches the cap, Xahau does not: besides the fixed ones, XRPL had 458 addresses and Xahau 103 (400 and 86 before E10 served the ledger objects' transactions, the recorded,
+    // C9's and the synthetic objects' but channel-long's, which are `transactions/<HASH>.json` files and so among the sources: scripts/object-fixtures.ts) before E11's token files, the
+    // last of the sources, added the list's issuers, then the featured tokens' holders and the parties of their transfers. On XRPL those are cut at the cap: its 42 places hold the 34 issuers
+    // of the list, none left out, and 8 addresses of the first token's files; on Xahau all of them fit (scripts/token-fixtures.ts).
+    expect(seeded.length).toBe(net === "xrpl" ? NAMES_SEEDED_MAX : 280);
     // every entry is a fixed or a seeded address
     for (const address of Object.keys(names)) expect(fixed.has(address) || seeded.includes(address), address).toBe(true);
   });

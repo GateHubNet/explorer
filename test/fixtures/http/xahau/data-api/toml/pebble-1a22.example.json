@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "pebble-1a22.example",
+    "toml_url": "https://pebble-1a22.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rwwddrNJJQm8JBuLH6sfbhHVqjJ28XXerS",
+        "desc": "Pebble Payments"
+      }
+    ]
+  }
+}

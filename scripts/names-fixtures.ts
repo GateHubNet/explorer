@@ -30,7 +30,9 @@ export const NAMES_SEEDED_MAX = 500;
 /**
  * The files the seeded addresses are collected from, in priority order, as paths below `<net>/data-api/` (the files of one pattern by path, a file under the first
  * pattern it matches): the hand-written accounts and their balances, the eight newest transactions, every served transaction (not its `?binary=true` form), the
- * hand-written accounts' first pages, the pair pages' active accounts, the AMM pages, the validators list, and E8's sales, collections and NFTs.
+ * hand-written accounts' first pages, the pair pages' active accounts, the AMM pages, the validators list, E8's sales, collections and NFTs, and last E11's tokens: the lists, whose issuers
+ * come first (a file's `tokens/` sorts before `tokens@`, so one pattern would put a token's holders before them), then the tokens' own files. Last, so that the addresses that were here keep
+ * their names; on XRPL the cap cuts the tail (test/unit/names-fixtures.test.ts has the counts).
  */
 export const NAMES_SOURCES: readonly RegExp[] = [
   /^accounts\/r[^/]+\.json$/,
@@ -44,6 +46,8 @@ export const NAMES_SOURCES: readonly RegExp[] = [
   /^nft_sales@/,
   /^nft_collections\//,
   /^nfts\//,
+  /^tokens@/,
+  /^tokens\//,
 ];
 
 /** The paths (below test/fixtures/http/) that this generator writes: each network's `data-api/account_names.json` and `data-api/toml/<domain>.json`. */

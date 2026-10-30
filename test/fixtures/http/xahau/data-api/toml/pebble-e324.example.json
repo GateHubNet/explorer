@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "pebble-e324.example",
+    "toml_url": "https://pebble-e324.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "reDJAN1332aTGMxdm4cfYcuoaozZGXyxE",
+        "desc": "Pebble Holdings"
+      }
+    ]
+  }
+}

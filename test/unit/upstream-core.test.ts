@@ -309,6 +309,36 @@ describe("createUpstream", () => {
     }
   });
 
+  // D6's detail and holders answer `token not found` for what the index does not know; its transfers never do (the list does not look the token up, D6's "No 404"): an empty page with
+  // the feature's coverage, as D3 answers the NFTs of any account. Its list is a route like any other: without a file it stays a missing route, `Cannot GET`.
+  it("answers an unknown token and its holders with token not found, its transfers with an empty page of the first recorded ledger's coverage", async () => {
+    const upstream = make();
+    const token = `ZZZ.${ACCOUNT}`;
+    for (const path of [`/v2/tokens/${token}`, `/v2/tokens/${token}/holders?limit=50`, `/v2/tokens/${token}/holders?limit=50&marker=M`]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: "token not found" });
+    }
+    // A `null` override is the same "absent" answer.
+    const removed = await make({ [`GET /v2/tokens/${token}`]: null }).handle(get(`/xrpl/v2/tokens/${token}`));
+    expect(await jsonOf(removed)).toEqual({ result: "error", message: "token not found" });
+
+    for (const [net, from_ledger_index] of [["xrpl", 93663334], ["xahau", 26540187]] as const) {
+      for (const path of [`/v2/tokens/${token}/transfers`, `/v2/tokens/${token}/transfers?descending=true&limit=20`]) {
+        const answer = await upstream.handle(get(`/${net}${path}`));
+        expect(answer!.status, path).toBe(200);
+        expect(await jsonOf(answer), path).toEqual({ result: "success", coverage: { from_ledger_index, complete: false }, count: 0, transfers: [] });
+      }
+    }
+
+    // The list without a file, and any other path below a token, stay missing routes.
+    for (const path of ["/v2/tokens", "/v2/tokens?kind=issued&limit=20", `/v2/tokens/${token}/supply`, `/v2/tokens/${token}/holders/more`, `/v2/tokens/${token}/transfers/more`]) {
+      const answer = await upstream.handle(get(`/xrpl${path}`));
+      expect(answer!.status, path).toBe(404);
+      expect(await jsonOf(answer), path).toEqual({ result: "error", message: `Cannot GET ${path.split("?")[0]}` });
+    }
+  });
+
   // D3's detail routes answer `nft not found` and `collection not found` for what the index has none of, and everything below them with the same words; its lists are
   // routes like any other (no such thing as a missing list), so they stay missing routes here, `Cannot GET`, like the AMM list.
   it("answers an unknown NFT, and anything below it, with the route's own `nft not found`", async () => {

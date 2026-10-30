@@ -1,0 +1,41 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1350,
+    "native_volume": "15359117.971"
+  },
+  "total": 60,
+  "total_below": 40,
+  "count": 20,
+  "tokens": [
+    {"rank":41,"currency":"474F4C4400000000000000000000000000000000","code":"GOLD","issuer":"rDGoec6WXzTHJ4RKw6jYnqypyQTzvs8eeU","holders":17,"trust_lines":17,"supply":"1411.72","price":"4.3946270","price_change":"13.32","price_time":"2026-10-17T01:27:42Z","native_volume":"477354.042","trades":185,"domain":"lanternway-e249.example","listed":false},
+    {"rank":42,"currency":"4D41524C4F570000000000000000000000000000","code":"MARLOW","issuer":"rhV1yiuaVsniE766dnf7vJRe9p8VkJ6nKk","holders":17,"trust_lines":22,"supply":"13940.98","price":"2.5664764","price_change":"5.59","price_time":"2026-10-16T18:48:53Z","native_volume":"399106.688","trades":316,"listed":false},
+    {"rank":43,"currency":"5553444300000000000000000000000000000000","code":"USDC","issuer":"r911dcMWyRK8jZKMY6XSfWadDgXf2BYEDN","holders":15,"trust_lines":19,"supply":"11251.25","price":"3.2660517","price_time":"2026-10-06T17:47:11Z","native_volume":"0","trades":0,"domain":"fernhill-95f6.example","listed":true,"name":"Riverstone USDC"},
+    {"rank":44,"currency":"ZAR","code":"ZAR","issuer":"rDx1L33Pb1NyeBE5c9X7zrX6jGuVpxECHg","holders":15,"trust_lines":18,"supply":"8545.97","price":"0.32564526","price_time":"2026-09-20T17:47:11Z","native_volume":"0","trades":0,"domain":"fernhill-da90.example","listed":false},
+    {"rank":45,"currency":"4645524E434F494E000000000000000000000000","code":"FERNCOIN","issuer":"rGTh9HvZaZ5ApoGT7GP5RF4S1iW2FXBSMQ","holders":15,"trust_lines":19,"supply":"10876.49","price":"2.2729157","price_time":"2026-09-25T17:47:11Z","native_volume":"0","trades":0,"domain":"ashgrove-2f97.example","listed":false},
+    {"rank":46,"currency":"NZD","code":"NZD","issuer":"rBY1ZgWyPe6zzvW4BQCJbN6RFr4jScF1nm","holders":14,"trust_lines":19,"supply":"7054.81","price":"2.0810378","price_time":"2026-10-02T17:47:11Z","native_volume":"0","trades":0,"domain":"harbourgate-24e4.example","listed":true,"name":"Marlow NZD"},
+    {"rank":47,"currency":"4F414B5348415245000000000000000000000000","code":"OAKSHARE","issuer":"rEvhoR7Wfu6YEMLJKeNjy8CKjFodeAhHAq","holders":14,"trust_lines":16,"supply":"5106.42","native_volume":"0","trades":0,"listed":false},
+    {"rank":48,"currency":"4E4F525448434F494E0000000000000000000000","code":"NORTHCOIN","issuer":"rG7wPZdrLBqMHwFrB9W3sajoXfPZMXmrW6","holders":14,"trust_lines":17,"supply":"4624.94","price":"3.9557609","price_change":"-6.09","price_time":"2026-10-17T00:54:38Z","native_volume":"480568.811","trades":368,"domain":"harbourgate-ab22.example","listed":false},
+    {"rank":49,"currency":"USD","code":"USD","issuer":"rKBEVzVU92MjK5ZFWu8CToyFkxpu6Ys5qm","holders":14,"trust_lines":17,"supply":"4809.88","price":"0.48955829","price_change":"-10.71","price_time":"2026-10-17T05:41:20Z","native_volume":"46425.585","trades":371,"domain":"bluewave-bc65.example","listed":false},
+    {"rank":50,"currency":"424C554557415645000000000000000000000000","code":"BLUEWAVE","issuer":"rJ9UNrZGjW8rtgbDynXLYhYabSMjgW2Yqo","holders":13,"trust_lines":16,"supply":"7085.86","native_volume":"0","trades":0,"listed":false},
+    {"rank":51,"currency":"53494C5645520000000000000000000000000000","code":"SILVER","issuer":"rMPWkSySgU2yb3RWzT64pgBfQTo1afCzgS","holders":13,"trust_lines":18,"supply":"8825.06","price":"0.0050617987","price_change":"12.05","price_time":"2026-10-17T11:18:24Z","native_volume":"142090.551","trades":167,"domain":"kestrel-7af2.example","listed":true,"name":"Thistle SILVER"},
+    {"rank":52,"currency":"4D41525348474153000000000000000000000000","code":"MARSHGAS","issuer":"rQanawDCiaMkk9mPhaXvwR1VYKbJ2wqSMu","holders":13,"trust_lines":16,"supply":"11424.1","price":"0.45530754","price_time":"2026-10-06T17:47:11Z","native_volume":"0","trades":0,"domain":"willowmere-1ea9.example","listed":true,"name":"Oakfield MARSHGAS"},
+    {"rank":53,"currency":"4E494D4255530000000000000000000000000000","code":"NIMBUS","issuer":"rnJK9Z3GnwyYQqvgm2tcgyYnrvKfyiXxud","holders":12,"trust_lines":17,"supply":"5073.14","price":"0.0047025745","price_time":"2026-09-26T17:47:11Z","native_volume":"0","trades":0,"domain":"riverstone-79a3.example","listed":false},
+    {"rank":54,"currency":"4349525255530000000000000000000000000000","code":"CIRRUS","issuer":"rnXpDf5RkF9MMjTDqx9M5RhtotFD9fr9wg","holders":12,"trust_lines":16,"supply":"5097.32","price":"3.2759810","price_time":"2026-10-10T17:47:11Z","native_volume":"0","trades":0,"listed":false},
+    {"rank":55,"currency":"AUD","code":"AUD","issuer":"rs8NMYddaNhcWKt69NoqxWeKiGeDM3BiA8","holders":12,"trust_lines":14,"supply":"2986.13","price":"1.0246208","price_change":"9.52","price_time":"2026-10-17T00:27:03Z","native_volume":"201324.572","trades":186,"listed":false},
+    {"rank":56,"currency":"SGD","code":"SGD","issuer":"rMPWkSySgU2yb3RWzT64pgBfQTo1afCzgS","holders":11,"trust_lines":14,"supply":"1803.95","native_volume":"0","trades":0,"domain":"kestrel-7af2.example","listed":true,"name":"Harbourgate SGD"},
+    {"rank":57,"currency":"434F505045524C494E4500000000000000000000","code":"COPPERLINE","issuer":"rE1DQXQRUJaiJD9cacF5RjPPn1Gb2J6LDo","holders":10,"trust_lines":12,"supply":"8861.71","price":"2.2793933","price_change":"9.33","price_time":"2026-10-17T13:47:29Z","native_volume":"172627.897","trades":285,"domain":"riverstone-e06e.example","listed":false},
+    {"rank":58,"currency":"CHF","code":"CHF","issuer":"rE1DQXQRUJaiJD9cacF5RjPPn1Gb2J6LDo","holders":10,"trust_lines":14,"supply":"393.06","native_volume":"0","trades":0,"domain":"riverstone-e06e.example","listed":false},
+    {"rank":59,"currency":"5349524F43434F00000000000000000000000000","code":"SIROCCO","issuer":"rJ9UNrZGjW8rtgbDynXLYhYabSMjgW2Yqo","holders":10,"trust_lines":15,"supply":"4435.25","native_volume":"0","trades":0,"listed":false},
+    {"rank":60,"currency":"NOK","code":"NOK","issuer":"rhV1yiuaVsniE766dnf7vJRe9p8VkJ6nKk","holders":10,"trust_lines":13,"supply":"7248.82","native_volume":"0","trades":0,"listed":false}
+  ]
+}

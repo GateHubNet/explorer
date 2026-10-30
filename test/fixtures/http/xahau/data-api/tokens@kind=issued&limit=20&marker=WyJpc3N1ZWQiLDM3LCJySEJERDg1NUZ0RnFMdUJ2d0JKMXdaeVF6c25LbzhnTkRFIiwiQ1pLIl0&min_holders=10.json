@@ -1,0 +1,42 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1350,
+    "native_volume": "15359117.971"
+  },
+  "total": 60,
+  "total_below": 40,
+  "count": 20,
+  "marker": "WyJpc3N1ZWQiLDE5LCJyblhwRGY1UmtGOU1NalREcXg5TTVSaHRvdEZEOWZyOXdnIiwiTFRDIl0",
+  "tokens": [
+    {"rank":21,"currency":"PLN","code":"PLN","issuer":"rQrnVH8BaKYxsgaetxb46H5qTcMais4cX6","holders":37,"trust_lines":39,"supply":"15835.75","price":"0.70620359","price_time":"2026-09-22T17:47:11Z","native_volume":"0","trades":0,"listed":false},
+    {"rank":22,"currency":"612E622E63000000000000000000000000000000","code":"a.b.c","issuer":"rQrnVH8BaKYxsgaetxb46H5qTcMais4cX6","holders":36,"trust_lines":40,"supply":"23003.9","price":"0.18306805","price_change":"0.77","price_time":"2026-10-17T08:33:36Z","native_volume":"99392.942","trades":200,"listed":false},
+    {"rank":23,"currency":"INR","code":"INR","issuer":"rBaDtTeAXNrZfCFdNEy7PB9p86f6s8ehpS","holders":35,"trust_lines":37,"supply":"16244.83","price":"0.13637620","price_change":"-12.29","price_time":"2026-10-17T16:22:29Z","native_volume":"364523.853","trades":358,"domain":"northpeak-fbbc.example","listed":false},
+    {"rank":24,"currency":"5155494C4C504159000000000000000000000000","code":"QUILLPAY","issuer":"rEcaU7AfFfuc3NTH5vgWUbUQ3eg7U3kZby","holders":34,"trust_lines":34,"supply":"12380.6","price":"3.2261784","price_change":"11.73","price_time":"2026-10-16T18:21:42Z","native_volume":"278501.035","trades":249,"domain":"northpeak-9c93.example","listed":true,"name":"Stonebridge QUILLPAY"},
+    {"rank":25,"currency":"4155524F52410000000000000000000000000000","code":"AURORA","issuer":"rHMJ5FpWWNZjk2FJQmY2pM1kp7BGwuoZTk","holders":33,"trust_lines":35,"supply":"10989.88","price":"0.12455253","price_change":"12.53","price_time":"2026-10-16T17:54:41Z","native_volume":"323142.466","trades":277,"domain":"saltmarsh-8165.example","listed":true,"name":"Tidewater AURORA"},
+    {"rank":26,"currency":"4C414E5445524E00000000000000000000000000","code":"LANTERN","issuer":"rKzuDWuyh9Entg8rBxxZMM8PiRgJdw2aUi","holders":33,"trust_lines":38,"supply":"17797.81","price":"0.75556384","price_change":"-5.78","price_time":"2026-10-16T23:58:14Z","native_volume":"223907.332","trades":144,"listed":false},
+    {"rank":27,"currency":"4D6F6F6E20436F696E0000000000000000000000","code":"Moon Coin","issuer":"rDx1L33Pb1NyeBE5c9X7zrX6jGuVpxECHg","holders":31,"trust_lines":34,"supply":"9830.41","price":"1.5081334","price_change":"-6.60","price_time":"2026-10-17T16:09:10Z","native_volume":"356144.93","trades":124,"domain":"fernhill-da90.example","listed":false},
+    {"rank":28,"currency":"USD","code":"USD","issuer":"rEcaU7AfFfuc3NTH5vgWUbUQ3eg7U3kZby","holders":31,"trust_lines":34,"supply":"1874.8","price":"0.60975425","price_change":"-13.61","price_time":"2026-10-17T14:40:43Z","native_volume":"45341.018","trades":344,"domain":"northpeak-9c93.example","listed":false},
+    {"rank":29,"currency":"4D49535452414C00000000000000000000000000","code":"MISTRAL","issuer":"rG7wPZdrLBqMHwFrB9W3sajoXfPZMXmrW6","holders":31,"trust_lines":35,"supply":"8736.16","price":"0.53074419","price_change":"-12.20","price_time":"2026-10-16T17:56:11Z","native_volume":"372407.274","trades":120,"domain":"harbourgate-ab22.example","listed":false},
+    {"rank":30,"currency":"ETH","code":"ETH","issuer":"rnJK9Z3GnwyYQqvgm2tcgyYnrvKfyiXxud","holders":31,"trust_lines":36,"supply":"9629.41","native_volume":"0","trades":0,"domain":"riverstone-79a3.example","listed":false},
+    {"rank":31,"currency":"57494C4C4F570000000000000000000000000000","code":"WILLOW","issuer":"rs8NMYddaNhcWKt69NoqxWeKiGeDM3BiA8","holders":30,"trust_lines":31,"supply":"17747.43","price":"3.6838248","price_change":"-4.45","price_time":"2026-10-17T03:25:17Z","native_volume":"28087.293","trades":359,"listed":false},
+    {"rank":32,"currency":"41534847524F5645000000000000000000000000","code":"ASHGROVE","issuer":"rJDF4WtRiXCB1sKSa9i6RbKuZvHSmRTZLg","holders":28,"trust_lines":33,"supply":"5596.17","price":"0.21714531","price_change":"-2.22","price_time":"2026-10-17T01:51:53Z","native_volume":"363064.701","trades":290,"domain":"ashgrove-357a.example","listed":false},
+    {"rank":33,"currency":"DKK","code":"DKK","issuer":"rJDF4WtRiXCB1sKSa9i6RbKuZvHSmRTZLg","holders":27,"trust_lines":31,"supply":"21886.18","price":"0.00017666759","price_change":"0.20","price_time":"2026-10-16T20:23:28Z","native_volume":"131077.195","trades":193,"domain":"ashgrove-357a.example","listed":false},
+    {"rank":34,"currency":"50414C4C414449554D0000000000000000000000","code":"PALLADIUM","issuer":"rfbynNi3VarQcz1n4bRaJjAN6DRzQvhaBi","holders":27,"trust_lines":30,"supply":"3165.67","price":"0.70749188","price_change":"-13.17","price_time":"2026-10-17T06:45:42Z","native_volume":"308786.642","trades":150,"domain":"tidewater-8110.example","listed":true,"name":"Tidewater PALLADIUM"},
+    {"rank":35,"currency":"4556525300000000000000000000000000000000","code":"EVRS","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","holders":26,"trust_lines":26,"supply":"19226.03","price":"0.027131823","price_change":"-3.97","price_time":"2026-10-17T16:46:35Z","native_volume":"85890.845","trades":19,"domain":"evernode.org","listed":false},
+    {"rank":36,"currency":"5A45504859520000000000000000000000000000","code":"ZEPHYR","issuer":"rHBDD855FtFqLuBvwBJ1wZyQzsnKo8gNDE","holders":22,"trust_lines":22,"supply":"1374.24","price":"0.15068458","price_change":"-0.74","price_time":"2026-10-17T06:34:14Z","native_volume":"7155.18","trades":245,"domain":"oakfield-63a8.example","listed":false},
+    {"rank":37,"currency":"534F4C4152495300000000000000000000000000","code":"SOLARIS","issuer":"raCGQ8ab7SRZGnSdt6g2ZQ326WR3TDkrLC","holders":22,"trust_lines":24,"supply":"7087.25","price":"1.4295343","price_change":"1.26","price_time":"2026-10-17T02:00:23Z","native_volume":"21200.853","trades":37,"listed":false},
+    {"rank":38,"currency":"BRL","code":"BRL","issuer":"raCGQ8ab7SRZGnSdt6g2ZQ326WR3TDkrLC","holders":22,"trust_lines":24,"supply":"5734.76","price":"1.6742006","price_change":"-4.98","price_time":"2026-10-16T22:31:24Z","native_volume":"232681.04","trades":378,"listed":false},
+    {"rank":39,"currency":"MXN","code":"MXN","issuer":"rHMJ5FpWWNZjk2FJQmY2pM1kp7BGwuoZTk","holders":19,"trust_lines":23,"supply":"8449.89","price":"0.019972819","price_change":"-1.52","price_time":"2026-10-17T08:24:03Z","native_volume":"40417.321","trades":366,"domain":"saltmarsh-8165.example","listed":true,"name":"Saltmarsh MXN"},
+    {"rank":40,"currency":"LTC","code":"LTC","issuer":"rnXpDf5RkF9MMjTDqx9M5RhtotFD9fr9wg","holders":19,"trust_lines":23,"supply":"6361.58","native_volume":"0","trades":0,"listed":false}
+  ]
+}

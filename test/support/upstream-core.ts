@@ -324,6 +324,15 @@ function delegationsAbsent(net: NetworkName, address: string, search: URLSearchP
   return new Response(JSON.stringify({ result: "success", coverage, ledger_index, close_time, count: 0, delegations: [] }), { status: 200, headers: JSON_HEADERS });
 }
 
+/**
+ * D6's coverage of the tokens as the mock has it, by network (scripts/token-fixtures.ts; test/unit/token-fixtures.test.ts compares the two): from the first recorded ledger of the network,
+ * never complete, as the transfers of a token without a file state it.
+ */
+const TOKEN_COVERAGE: Record<NetworkName, { from_ledger_index: number; complete: boolean }> = {
+  xrpl: { from_ledger_index: 93663334, complete: false },
+  xahau: { from_ledger_index: 26540187, complete: false },
+};
+
 /** The "absent" answer of a data API path: what the real API says for a thing that does not exist. `net` is the network whose API is asked. */
 function dataApiAbsent(net: NetworkName, segments: string[], search: URLSearchParams = new URLSearchParams()): Response {
   const [version, resource, id, sub] = segments;
@@ -351,6 +360,14 @@ function dataApiAbsent(net: NetworkName, segments: string[], search: URLSearchPa
   // `/v2/nfts` has no list, and the lists of the network (`nft_collections`, `nft_sales`, `network/nft_volume`) never answer 404: they stay missing routes, `Cannot GET`.
   if (version === "v2" && resource === "nfts" && id !== undefined) return dataApiError(404, "nft not found");
   if (version === "v2" && resource === "nft_collections" && id !== undefined) return dataApiError(404, "collection not found");
+  // D6's token and its holders: the routes' own not-found message. Its transfers never answer 404 (the list does not look the token up): an empty page with the feature's coverage. The list
+  // of tokens (`/v2/tokens`) has no such thing: it stays a missing route, `Cannot GET`, and so does anything else below a token.
+  if (version === "v2" && resource === "tokens" && id !== undefined) {
+    if (sub === undefined || (sub === "holders" && segments.length === 4)) return dataApiError(404, "token not found");
+    if (sub === "transfers" && segments.length === 4) {
+      return new Response(JSON.stringify({ result: "success", coverage: TOKEN_COVERAGE[net], count: 0, transfers: [] }), { status: 200, headers: JSON_HEADERS });
+    }
+  }
   // D1's validator and its validations (`summary` is a route of its own), and one amendment: the routes' own not-found messages.
   if (version === "v2" && resource === "network") {
     const [, , , key, page, ...rest] = segments;

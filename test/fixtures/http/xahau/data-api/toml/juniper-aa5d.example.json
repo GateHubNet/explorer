@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "juniper-aa5d.example",
+    "toml_url": "https://juniper-aa5d.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rEvw76EUbSdkTLzfoPE6wUKwLDLyC1dadW",
+        "desc": "Juniper Markets"
+      }
+    ]
+  }
+}

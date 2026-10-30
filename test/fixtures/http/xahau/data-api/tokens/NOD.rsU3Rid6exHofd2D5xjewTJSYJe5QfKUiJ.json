@@ -1,0 +1,34 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 26540187,
+    "complete": false
+  },
+  "ledger_index": 26596843,
+  "close_time": "2026-10-17T17:47:11Z",
+  "token": {
+    "currency": "NOD",
+    "code": "NOD",
+    "issuer": "rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ",
+    "holders": 61,
+    "trust_lines": 61,
+    "supply": "373082.727084",
+    "price": "0.034000000",
+    "price_time": "2026-10-05T17:47:11Z",
+    "native_volume": "0",
+    "trades": 0,
+    "domain": "nodefield-7c31.example",
+    "toml_url": "https://nodefield-7c31.example/.well-known/xahau.toml",
+    "listed": false,
+    "issuer_settings": {
+      "transfer_fee": "0.5",
+      "global_freeze": false,
+      "no_freeze": true,
+      "allow_trust_line_clawback": false,
+      "require_auth": true,
+      "default_ripple": false
+    },
+    "markets": [],
+    "last_ledger": 26593999
+  }
+}

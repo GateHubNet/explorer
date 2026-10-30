@@ -1,0 +1,24 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1579,
+    "native_volume": "17067234.131442"
+  },
+  "total": 3,
+  "total_below": 0,
+  "count": 3,
+  "tokens": [
+    {"rank":1,"currency":"USD","code":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","holders":72,"trust_lines":77,"supply":"8056808.906342","price":"0.40863434","price_change":"5.76","price_time":"2026-10-17T09:41:11Z","native_volume":"6623.312","trades":349,"domain":"bitstamp.net","listed":false},
+    {"rank":2,"currency":"BTC","code":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","holders":15,"trust_lines":15,"supply":"13376.04","price":"2.3986409","price_change":"7.68","price_time":"2026-10-17T14:12:59Z","native_volume":"84613.623","trades":172,"domain":"bitstamp.net","listed":true,"name":"Copperline BTC"},
+    {"rank":3,"currency":"EUR","code":"EUR","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","holders":13,"trust_lines":17,"supply":"6326.66","price":"1.2703177","price_change":"-3.73","price_time":"2026-10-17T07:19:18Z","native_volume":"78564.336","trades":120,"domain":"bitstamp.net","listed":false}
+  ]
+}

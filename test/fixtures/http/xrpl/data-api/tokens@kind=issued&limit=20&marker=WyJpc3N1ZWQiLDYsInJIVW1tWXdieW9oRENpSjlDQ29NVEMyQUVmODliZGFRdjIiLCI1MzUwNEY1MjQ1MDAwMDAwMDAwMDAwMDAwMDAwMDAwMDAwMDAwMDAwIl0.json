@@ -1,0 +1,40 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "kind": "issued",
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "totals": {
+    "tokens": 100,
+    "tokens_with_10_holders": 60,
+    "holders": 1579,
+    "native_volume": "17067234.131442"
+  },
+  "total": 100,
+  "count": 20,
+  "tokens": [
+    {"rank":81,"currency":"5255534845530000000000000000000000000000","code":"RUSHES","issuer":"r3dqtC6bnbS791tCt3AntdqZjxYzTQcFHv","holders":5,"trust_lines":6,"supply":"1850.36","native_volume":"0","trades":0,"domain":"harbourgate-c48f.example","listed":true,"name":"Ashgrove RUSHES"},
+    {"rank":82,"currency":"IDR","code":"IDR","issuer":"rJjUPJudY9eWsSyrgXgb4MybfRP4v3vhcd","holders":5,"trust_lines":6,"supply":"738.49","price":"2.9467481","price_change":"5.47","price_time":"2026-10-17T07:24:47Z","native_volume":"126565.96","trades":31,"listed":false},
+    {"rank":83,"currency":"5855534400000000000000000000000000000000","code":"XUSD","issuer":"rLjdSRYGdEp33d1F61p6DiJvxhYijPWPFU","holders":5,"trust_lines":9,"supply":"3091.69","native_volume":"0","trades":0,"listed":false},
+    {"rank":84,"currency":"504542424C450000000000000000000000000000","code":"PEBBLE","issuer":"rncNRMDXrBc3KjrcRhX2Z6hSAA7Z8FaaSz","holders":5,"trust_lines":7,"supply":"3365.33","price":"3.7353530","price_change":"11.08","price_time":"2026-10-17T10:56:33Z","native_volume":"385560.786","trades":30,"domain":"northpeak-7696.example","listed":true,"name":"Oakfield PEBBLE"},
+    {"rank":85,"currency":"USD","code":"USD","issuer":"r3dqtC6bnbS791tCt3AntdqZjxYzTQcFHv","holders":4,"trust_lines":5,"supply":"2559.88","native_volume":"0","trades":0,"domain":"harbourgate-c48f.example","listed":true,"name":"Riverstone USD"},
+    {"rank":86,"currency":"MAD","code":"MAD","issuer":"rJrAbYCZyV7RsEXECKnMn83t6YPEhQ8WnU","holders":4,"trust_lines":8,"supply":"281.8","price":"2.7243568","price_change":"2.93","price_time":"2026-10-17T15:38:04Z","native_volume":"150260.536","trades":230,"listed":false},
+    {"rank":87,"currency":"TIN","code":"TIN","issuer":"rNwnk4Z6aDGGVcytB5NWeegHLZKbHRjdL3","holders":4,"trust_lines":6,"supply":"1530.337627","native_volume":"0","trades":0,"listed":false},
+    {"rank":88,"currency":"VND","code":"VND","issuer":"rfCtDAxk5C9VhhFCeLzFHzKWwGk2qRYyDU","holders":4,"trust_lines":6,"supply":"2815.91","price":"0.34160713","price_change":"-6.20","price_time":"2026-10-17T11:40:56Z","native_volume":"444663.665","trades":304,"domain":"fernhill-b6dd.example","listed":false},
+    {"rank":89,"currency":"NGN","code":"NGN","issuer":"rnNCDAz9cJsM9Neiz2hkzqVwTAmdX1CBZP","holders":4,"trust_lines":7,"supply":"1342.22","price":"1.0921662","price_change":"-2.67","price_time":"2026-10-16T20:48:50Z","native_volume":"329645.599","trades":112,"listed":false},
+    {"rank":90,"currency":"KES","code":"KES","issuer":"rDSp2xmEEjRn1XkhGbQ51skDXF53UVohdw","holders":3,"trust_lines":8,"supply":"2315.97","price":"1.0843087","price_change":"14.91","price_time":"2026-10-17T13:46:40Z","native_volume":"207245.918","trades":100,"domain":"ashgrove-856e.example","listed":false},
+    {"rank":91,"currency":"4C494348454E0000000000000000000000000000","code":"LICHEN","issuer":"rLjdSRYGdEp33d1F61p6DiJvxhYijPWPFU","holders":3,"trust_lines":6,"supply":"238.29","native_volume":"0","trades":0,"listed":false},
+    {"rank":92,"currency":"47524156454C0000000000000000000000000000","code":"GRAVEL","issuer":"rNoELYfF2MShXbD1hNhNUKygiqGV4GgyyM","holders":3,"trust_lines":3,"supply":"998.52","price":"0.16765480","price_change":"-0.43","price_time":"2026-10-17T10:44:42Z","native_volume":"155315.552","trades":230,"listed":false},
+    {"rank":93,"currency":"015841550000000041F78E0A28CBF19200000000","issuer":"rfCtDAxk5C9VhhFCeLzFHzKWwGk2qRYyDU","holders":3,"trust_lines":3,"supply":"885.95","native_volume":"0","trades":0,"domain":"fernhill-b6dd.example","listed":false},
+    {"rank":94,"currency":"SAR","code":"SAR","issuer":"r3VZ2hyZiC1QnYAA6G8eXTbsDGdwtwwMTn","holders":2,"trust_lines":3,"supply":"188.4","price":"0.17679948","price_change":"-4.29","price_time":"2026-10-17T00:58:18Z","native_volume":"160520.208","trades":249,"listed":false},
+    {"rank":95,"currency":"4845415448455200000000000000000000000000","code":"HEATHER","issuer":"rDSoMjAccxR71EUew6H2ydvwiCXhgggyVb","holders":2,"trust_lines":3,"supply":"242.56","price":"1.6840333","price_change":"1.79","price_time":"2026-10-16T22:25:01Z","native_volume":"208006.66","trades":62,"domain":"riverstone-49f9.example","listed":true,"name":"Stonebridge HEATHER"},
+    {"rank":96,"currency":"CLP","code":"CLP","issuer":"rHUmmYwbyohDCiJ9CCoMTC2AEf89bdaQv2","holders":2,"trust_lines":4,"supply":"1183.96","price":"0.99654938","price_change":"0.19","price_time":"2026-10-17T08:32:08Z","native_volume":"310650.234","trades":151,"listed":false},
+    {"rank":97,"currency":"46554E4749000000000000000000000000000000","code":"FUNGI","issuer":"rKCgSQ6vDhH8wjiwfcCXc2EZ4p3k48UsiG","holders":2,"trust_lines":6,"supply":"1329.92","price":"0.11116119","price_change":"10.36","price_time":"2026-10-17T04:38:16Z","native_volume":"218175.798","trades":168,"domain":"ashgrove-10e8.example","listed":true,"name":"Ashgrove FUNGI"},
+    {"rank":98,"currency":"ARS","code":"ARS","issuer":"rKCgSQ6vDhH8wjiwfcCXc2EZ4p3k48UsiG","holders":2,"trust_lines":5,"supply":"857.84","price":"1.2345679e+8","price_change":"-4.56","price_time":"2026-10-16T22:47:19Z","native_volume":"201692.507","trades":334,"domain":"ashgrove-10e8.example","listed":true,"name":"Northpeak ARS"},
+    {"rank":99,"currency":"474F525345000000000000000000000000000000","code":"GORSE","issuer":"rGTkqPHJQkoS8PEhiJP9rjuhgJ2Ej8QhNG","holders":1,"trust_lines":1,"supply":"536.16","price":"4.2046206","price_change":"3.92","price_time":"2026-10-17T11:29:56Z","native_volume":"416996.607","trades":121,"listed":false},
+    {"rank":100,"currency":"4B52494C4C000000000000000000000000000000","code":"KRILL","issuer":"rBfxgwG5sj2MzAKPWtRE5v8N88agjSRES5","holders":0,"trust_lines":1,"supply":"0","native_volume":"0","trades":0,"listed":false}
+  ]
+}

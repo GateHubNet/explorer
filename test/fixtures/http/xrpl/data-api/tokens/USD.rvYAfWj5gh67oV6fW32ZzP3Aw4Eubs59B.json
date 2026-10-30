@@ -1,0 +1,39 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "ledger_index": 107721455,
+  "close_time": "2026-10-17T17:01:12Z",
+  "token": {
+    "currency": "USD",
+    "code": "USD",
+    "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
+    "holders": 72,
+    "trust_lines": 77,
+    "supply": "8056808.906342",
+    "price": "0.40863434",
+    "price_change": "5.76",
+    "price_time": "2026-10-17T09:41:11Z",
+    "native_volume": "6623.312",
+    "trades": 349,
+    "domain": "bitstamp.net",
+    "toml_url": "https://bitstamp.net/.well-known/xrp-ledger.toml",
+    "listed": false,
+    "issuer_settings": {
+      "transfer_fee": "0.2",
+      "global_freeze": false,
+      "no_freeze": false,
+      "allow_trust_line_clawback": false,
+      "require_auth": false,
+      "default_ripple": true
+    },
+    "markets": [
+      {"counter_currency":"EUR","counter_issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","count":121,"volume":"9063","counter_volume":"8337.96","native_volume":"3733.956","last":"0.92470430","change":"6.77","last_time":"2026-10-16T20:22:21Z","amm_pool":false},
+      {"counter_currency":"XRP","count":217,"volume":"7013","counter_volume":"2889.356","native_volume":"2889.356","last":"0.40863434","change":"5.76","last_time":"2026-10-17T09:41:11Z","amm_pool":true},
+      {"counter_currency":"524C555344000000000000000000000000000000","counter_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","count":11,"volume":"3988","counter_volume":"3986.4048","last":"0.99513659","change":"2.67","last_time":"2026-10-17T09:01:38Z","amm_pool":false}
+    ],
+    "last_ledger": 107506489
+  }
+}

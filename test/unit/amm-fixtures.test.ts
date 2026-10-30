@@ -22,6 +22,7 @@ import { derivedExchanges } from "../../scripts/derived-trades";
 import { AMM_INFO_POOLS, ammInfoResult } from "../../scripts/amm-info-fixtures";
 import { deriveAmm, type AmmState } from "../../scripts/amm-derive";
 import { ammFixtures, ammSeries, ammSynthetic, FEATURED_POOLS } from "../../scripts/amm-fixtures";
+import { FEATURED_XRPL_TOKENS } from "../../scripts/token-fixtures";
 import { apiAssetText, sameAsset, type Asset } from "../../app/domain/asset";
 import { formatCurrency } from "../../app/domain/format";
 import { naturalOrientation } from "../../app/domain/market-pair";
@@ -678,6 +679,8 @@ describe("the files", () => {
       { query: "asset=XRP&limit=20", pools: live.filter(has(XRP)) },
       { query: `asset=${encodeURIComponent(apiAssetText(RLUSD))}&limit=20`, pools: live.filter(has(RLUSD)) },
       { query: `asset=${encodeURIComponent(apiAssetText(SNK))}&include_deleted=true&limit=20`, pools: [...derived.pools].sort(listOrder).filter(has(SNK)) },
+      // The other featured tokens of the token pages, whose page asks for its pools: Bitstamp's USD has two, and LIONS and the token with few holders an empty list, not a missing route.
+      ...FEATURED_XRPL_TOKENS.filter((asset) => !sameAsset(asset, RLUSD)).map((asset) => ({ query: `asset=${encodeURIComponent(apiAssetText(asset))}&limit=20`, pools: live.filter(has(asset)) })),
     ];
     for (const { query, pools } of cases) {
       const page = json(file("/v2/amm/pools", query)) as Page<"pools", AmmPool>;
@@ -689,6 +692,8 @@ describe("the files", () => {
     }
     expect(files.has("xrpl/data-api/amm/pools@asset=524C555344000000000000000000000000000000+rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De&limit=20.json")).toBe(true);
     expect(files.has("xrpl/data-api/amm/pools@asset=SNK+rDDYXY17rzuF44gVAAQ9MB6GRQFkvWSccm&include_deleted=true&limit=20.json")).toBe(true);
+    expect((json(file("/v2/amm/pools", `asset=USD%2BrvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B&limit=20`)) as Page<"pools", AmmPool>).pools.map((pool) => pool.amm_account)).toContain(FEATURED_POOLS["XRP/USD"]);
+    expect(json(file("/v2/amm/pools", `asset=4C494F4E53000000000000000000000000000000%2BrGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS&limit=20`))).toEqual({ result: "success", count: 0, pools: [] });
     const snk = json(file("/v2/amm/pools", cases[2]!.query)) as Page<"pools", AmmPool>;
     expect(snk.pools.some((pool) => pool.amm_account === FEATURED_POOLS["SNK/XRP"] && pool.deleted)).toBe(true);
   });

@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "driftwood-fcac.example",
+    "toml_url": "https://driftwood-fcac.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rNdhMktRLED4YS2p739kKwyLhDVL3iCLwU",
+        "desc": "Driftwood Holdings"
+      }
+    ]
+  }
+}

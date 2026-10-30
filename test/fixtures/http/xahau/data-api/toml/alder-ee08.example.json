@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "alder-ee08.example",
+    "toml_url": "https://alder-ee08.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rfbynNi3VarQcz1n4bRaJjAN6DRzQvhaBi",
+        "desc": "Alder Treasury"
+      }
+    ]
+  }
+}

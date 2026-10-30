@@ -1,0 +1,24 @@
+{
+  "result": "success",
+  "coverage": {
+    "from_ledger_index": 93663334,
+    "complete": false
+  },
+  "count": 14,
+  "transfers": [
+    {"hash":"D872B518BAF015E920AB182B68031B607C918E85FC5217A400438262AA9839A7","ledger_index":107721392,"executed_time":"2026-10-17T16:57:00Z","source":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","destination":"rHUpaqUPbwzKZdzQ8ZQCme18FrgW9pB4am","amount":"5066.246419","source_tag":206464783},
+    {"hash":"DB2FDFFC756AC7F577326019D9F90A30EE2BCF80D9A2AC68B9AD7EA2C65EC522","ledger_index":107721179,"executed_time":"2026-10-17T16:42:48Z","source":"rPWwcnDhvZg3x2KrW6UXRdeKMkvFQApyw6","destination":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","amount":"8567.878958"},
+    {"hash":"E773FD15C22C5515C9CA117E3BB586016C4DD40C09DA3556178D280210375FCF","ledger_index":107720839,"executed_time":"2026-10-17T16:20:08Z","source":"rP3QNUpgKedsVcmAG1E8kNfjc7PzUspjf9","destination":"rncRGkpMerUoAN2crwhsXHn5KVmePsWJqN","amount":"2889.057627"},
+    {"hash":"AC6652F3838896C56C6624D807D4F3280369727F3D57F66E050947366FD76650","ledger_index":107720737,"executed_time":"2026-10-17T16:13:20Z","source":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","destination":"r9mt7WRXWcvkPQQ7aQRn6B41ayf6TADRC2","amount":"15136.179561","destination_tag":0},
+    {"hash":"6F83B584350C5A02B6C016E0870682FAF812FE4FD53DB1BE45F333094E812648","ledger_index":107720515,"executed_time":"2026-10-17T15:58:32Z","source":"raaKnEVDaHzjR2sjabpQKCjGCYrsFCVwad","destination":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","amount":"7143.230839"},
+    {"hash":"1E675457A830847D2505034A6CD40FECC00FB48C879B9E5EE11A437E24C21DED","ledger_index":107720461,"executed_time":"2026-10-17T15:54:56Z","source":"rQaBiN6pi7FV2ZnkBi37y35ZJ3sY5QMMYL","destination":"rfaEgcfB3hf7dfQASAAvCzxaCTMJUfGSUU","amount":"19916.512203","source_tag":2733936207,"destination_tag":224786776},
+    {"hash":"EB37D9B7CAC9DECF745196481E0321A53CC070C5C18B3B1239A12A53194098B0","ledger_index":107720085,"executed_time":"2026-10-17T15:29:52Z","source":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","destination":"rf9dN2QxofpunGt4Y81pQcyJiUbn388kV8","amount":"19028.138649"},
+    {"hash":"710C68FBE1445F881DC28628063748A0EE55BFB68248AEAD86A55DF54229B371","ledger_index":107720003,"executed_time":"2026-10-17T15:24:24Z","source":"rPWwcnDhvZg3x2KrW6UXRdeKMkvFQApyw6","destination":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","amount":"8700.083164"},
+    {"hash":"E0496F8B4E238E1CDC7A5E9A27EADFA436B981BEB7ED9DBC37A6E347B5273FFC","ledger_index":107719733,"executed_time":"2026-10-17T15:06:24Z","source":"raKeZbt8YeSQT2KBiYELEy8zzyLNtED7by","destination":"rNDy7vqW8bmZjm1xvWWYtGqwsHQLMGgzYa","amount":"19598.973869"},
+    {"hash":"1DCCAF41302ACA5BA929EA050CECB17164BAB0EC3C2F452ED232FDFDA2A968CE","ledger_index":107719532,"executed_time":"2026-10-17T14:53:00Z","source":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","destination":"r3L5uGg8TbmV2i7fPVyM4477FLzL31S1pa","amount":"1184.233353"},
+    {"hash":"D7EBC92449EB79A6A9087C87BA8A5DD706B78143EA68FD8648878E30BE041D5A","ledger_index":107719392,"executed_time":"2026-10-17T14:43:40Z","source":"rn59EJ9U9bn1nHRMbYgK1e1M91YW2NbZMo","destination":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","amount":"6041.212539","source_tag":2882121660,"destination_tag":0},
+    {"hash":"C67A6F80E42A1C27DEB32D07BA841B66684E27D7FA6A7E9ABC2AEFE391F60DAE","ledger_index":107719291,"executed_time":"2026-10-17T14:36:56Z","source":"rZDMyFJZ9Y33eaFFMpjP83jZnhmkNeyi5","destination":"rB7Mb4P2J6FkVZRvaxVDbYNgrU7i1q1Cyq","amount":"2255.729754"},
+    {"hash":"14162FAC61EE9B4F673BDE8B862AC49496988AED02079608E02F56479227AACA","ledger_index":107719017,"executed_time":"2026-10-17T14:18:40Z","source":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","destination":"rn4RsVqZUePiiaGqDsfh8rcsBmfN3XxRBX","amount":"6503.466224","destination_tag":1603641454},
+    {"hash":"90C0E27F6D5A24407CF68ADAA3784F86B3AA63DC9405E8674FC21072C083C7F6","ledger_index":107718778,"executed_time":"2026-10-17T14:02:44Z","source":"rGvpwZWc8RBTdnh2NAk5BFEp2ZwZV5CZE2","destination":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B","amount":"1165.682143"}
+  ]
+}

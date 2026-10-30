@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "elmstead-d9eb.example",
+    "toml_url": "https://elmstead-d9eb.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rwFGLfpEYQKhGipJPKyzhFdvgF4SaLUQzm",
+        "desc": "Elmstead Labs"
+      }
+    ]
+  }
+}

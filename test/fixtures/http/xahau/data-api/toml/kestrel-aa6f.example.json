@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "kestrel-aa6f.example",
+    "toml_url": "https://kestrel-aa6f.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rKP5X8SuzXYPToZsEQ2qWotWvZwhUi82uU",
+        "desc": "Kestrel Ventures"
+      }
+    ]
+  }
+}

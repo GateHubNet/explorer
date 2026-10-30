@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "ironbark-3ebe.example",
+    "toml_url": "https://ironbark-3ebe.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rBbRcCU6eSkeqe64UTT4vu9DcYNmtZTkdz",
+        "desc": "Ironbark Custody"
+      }
+    ]
+  }
+}

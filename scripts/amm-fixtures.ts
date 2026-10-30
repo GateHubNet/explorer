@@ -11,7 +11,8 @@
 //   amm/pools@limit=20[&marker=<M>].json      the live pools, by `value_native` descending (the stored Float64; the pools without one last), then account; the
 //                                             marker of a page is `encodePoolsMarker`: the base64url JSON of `[value | null, amm_account]` of its last pool
 //   amm/pools@include_deleted=true&limit=20[&marker=<M>].json   every pool, the deleted ones too, in the same order and with the same markers
-//   amm/pools@asset=…[&include_deleted=true]&limit=20.json   the first page of three filters: XRP, RLUSD, and SNK with the deleted pools
+//   amm/pools@asset=…[&include_deleted=true]&limit=20.json   the first page of six filters: XRP, RLUSD, SNK with the deleted pools, and the other featured tokens of the token pages
+//                                             (`FEATURED_XRPL_TOKENS` of token-fixtures.ts: USD, LIONS and the token with few holders, whose token page asks for its pools)
 //   amm/pools/<POOL>/swaps|liquidity|governance@descending=true&limit=20[&marker=<M>].json   each featured pool's rows, newest first: split into two pages
 //                                             when it has two or more (the newer half, rounded up, and the marker of its last row, then the rest), so the
 //                                             pages' pager has something to do with the few rows the recordings hold; an event's marker is
@@ -57,6 +58,7 @@ import { derivedExchanges, NATIVE } from "./derived-trades";
 import { encodeMarker, fixtureText, isoTime, readLedgers, txMarker, unixOf, type RawLedger } from "./http-fixtures";
 import { Api, candlesOf, exactOf, isNative, listPages, precision8, Wide, type Fill } from "./market-aggregates";
 import { mulberry32, seedOf } from "./synthetic";
+import { FEATURED_XRPL_TOKENS } from "./token-fixtures";
 
 /** The pools the AMM pages' fixtures and tests are about, real pools of the recordings named in E3's natural orientation (spec section 9). */
 export const FEATURED_POOLS = {
@@ -167,6 +169,7 @@ export function ammFixtures(): Map<string, string> {
     { asset: { currency: "XRP" }, includeDeleted: false },
     { asset: RLUSD, includeDeleted: false },
     { asset: SNK, includeDeleted: true },
+    ...FEATURED_XRPL_TOKENS.filter((asset) => !sameAsset(asset, RLUSD)).map((asset) => ({ asset, includeDeleted: false })),
   ];
   for (const { asset, includeDeleted } of filters) {
     const shown = (includeDeleted ? inOrder : live).filter(hasAsset(asset));

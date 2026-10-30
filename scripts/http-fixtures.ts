@@ -32,6 +32,9 @@
 // the transactions behind them that the sets do not serve already, and the nodes' `ledger_entry` of the objects still in the ledger; `generate` joins them per network
 // (PROVENANCE.md, "Ledger object answers"). That module too reads nothing of this one while it loads.
 //
+// The token pages' answers (D6's four routes: `data-api/tokens@…`, `data-api/tokens/…`) are token-fixtures.ts's: synthetic around real issuers, with holders and transfers from the recordings
+// where they have them; `generate` joins them per network, with their keys as D6 orders them (`builtFixtureText`; PROVENANCE.md, "Token answers"). That module too reads nothing of this one while it loads.
+//
 // The display names' files (`data-api/account_names.json` and `data-api/toml/<domain>.json`) are names-fixtures.ts's: synthetic, over the addresses of every other file of
 // the network, generated or written by hand, so `generate` joins them last (PROVENANCE.md, "Synthetic names and tomls"). That module reads nothing of this one either.
 //
@@ -44,7 +47,7 @@ import { gunzipSync } from "node:zlib";
 
 import { DEFAULT_DEFINITIONS, encode, XrplDefinitions, type XrplDefinitionsBase } from "ripple-binary-codec";
 
-import type { FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerValidations, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
+import type { AmmPool, FeeRow, LastValidated, Ledger, LedgerExpanded, LedgerValidations, LedgerWithHashes, Page, TxBinary, TxObject } from "../app/server/api-types";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 import { ammFixtures } from "./amm-fixtures";
 import { ammInfoFixtures } from "./amm-info-fixtures";
@@ -54,6 +57,7 @@ import { namesFixtures } from "./names-fixtures";
 import { networkFixtures } from "./network-fixtures";
 import { nftFixtures, nftLedgerEntryIds } from "./nft-fixtures";
 import { objectFixtures, objectPaths } from "./object-fixtures";
+import { TOKEN_ROW_LISTS, tokenFixtures } from "./token-fixtures";
 import { VALIDATORS_ROW_LISTS, validatorsFixtures } from "./validators-fixtures";
 
 export const LEDGERS = new URL("../test/fixtures/ledgers/", import.meta.url);
@@ -368,6 +372,14 @@ export function fixtureText(value: unknown, rowLists: readonly string[] = []): s
   return `${layout(sorted(value), 0, "", rowLists)}\n`;
 }
 
+/**
+ * The same layout with the keys as the value was built: the token files, whose key orders are D6's and are pinned by test/unit/token-fixtures.test.ts in the files themselves. The value has
+ * no `undefined` key.
+ */
+export function builtFixtureText(value: unknown, rowLists: readonly string[] = []): string {
+  return `${layout(value, 0, "", rowLists)}\n`;
+}
+
 // ---- Which files are written by hand ---------------------------------------------------------------------------------
 
 /**
@@ -460,6 +472,15 @@ export function isObjectGenerated(path: string): boolean {
   if (/^(xrpl|xahau)\/node\/ledger_entry\//.test(path)) return !isNftGenerated(path);
   if (/^(xrpl|xahau)\/data-api\/(transactions\/[0-9A-F]{64}(@binary=true)?|ledgers\/\d+@transactions=true)\.json$/.test(path)) return objectPaths().has(path);
   return false;
+}
+
+/**
+ * Paths (below test/fixtures/http/) of the token pages' files that token-fixtures.ts writes (E11): D6's list (`data-api/tokens@…`) and a token, its holders and its transfers
+ * (`data-api/tokens/…`). The featured tokens' pools files are below `data-api/amm/`, amm-fixtures.ts's (`isAmmGenerated`). Reviewed in the generator, they have a size budget of their own
+ * (test/unit/http-fixtures.test.ts), and test/unit/token-fixtures.test.ts keeps this in step with the generator.
+ */
+export function isTokenGenerated(path: string): boolean {
+  return /^(xrpl|xahau)\/data-api\/tokens[@/]/.test(path);
 }
 
 /**
@@ -658,9 +679,22 @@ export function generate(): Map<string, string> {
   // The markets pages' answers, the pools' amm_info answers, the AMM pages' answers, the NFT pages' answers and the ledger-object pages' answers, each in the layout its generator
   // chose (fixtureText, with the rows of the markets, AMM, NFT and object lists one to a line). None may take the place of another generated file.
   const objects = (Object.keys(SETS) as NetworkName[]).flatMap((net) => objectFixtures(net));
-  for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...ammFixtures(), ...nftFixtures(), ...objects]) {
+  const amm = ammFixtures();
+  for (const [path, text] of [...marketFixtures(), ...ammInfoFixtures(), ...amm, ...nftFixtures(), ...objects]) {
     if (files.has(path)) throw new Error(`${path} is generated twice`);
     files.set(path, text);
+  }
+
+  // The token pages' answers (D6's four routes, token-fixtures.ts), with D6's key orders. The pools are the AMM generator's, handed over in memory and never read back from the disk.
+  const pools = [...amm].filter(([path]) => /^xrpl\/data-api\/amm\/pools\/r[^/]+\.json$/.test(path)).map(([, text]) => (JSON.parse(text) as { pool: AmmPool }).pool);
+  for (const net of Object.keys(SETS) as NetworkName[]) {
+    const ledgers = readLedgers(net);
+    for (const { path, query, value } of tokenFixtures(net, { ledgers, last: dataApiLastValidated(ledgers.at(-1)!), pools: net === "xrpl" ? pools : [] })) {
+      const file = dataApiFile(net, path, query);
+      if (file === undefined) throw new Error(`no file for ${path}?${query}`);
+      if (files.has(file)) throw new Error(`${file} is generated twice`);
+      files.set(file, builtFixtureText(value, TOKEN_ROW_LISTS));
+    }
   }
 
   // The display names' files, last: each network's names are made over all of its other files, the generated ones above and the ones written by hand or recorded,

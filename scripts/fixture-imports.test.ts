@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 // derived-trades.ts first, on purpose: it imports http-fixtures.ts, whose `generate()` joins the generators that import derived-trades.ts in turn
-// (amm-info-fixtures.ts, market-fixtures.ts, and amm-fixtures.ts by way of amm-derive.ts). nft-fixtures.ts and nft-derive.ts, and object-fixtures.ts and object-derive.ts, do not
-// import derived-trades.ts, but they import http-fixtures.ts as the others do (http-fixtures.ts imports nft-fixtures.ts and object-fixtures.ts back), and read nothing of it while
+// (amm-info-fixtures.ts, market-fixtures.ts, and amm-fixtures.ts by way of amm-derive.ts). nft-fixtures.ts and nft-derive.ts, object-fixtures.ts and object-derive.ts, and token-fixtures.ts (which
+// amm-fixtures.ts reads the featured tokens from) do not
+// import derived-trades.ts, but they import http-fixtures.ts as the others do (http-fixtures.ts imports nft-fixtures.ts, object-fixtures.ts and token-fixtures.ts back), and read nothing of it while
 // they load either. Loaded in this order, a module of that cycle that read
 // derived-trades.ts while it was being made got nothing (Vitest) or a ReferenceError (Node): their lists are made at load time of nothing but their own
 // constants, and this file keeps it so.
@@ -13,6 +14,7 @@ import { compare, generate, readLedgers } from "./http-fixtures";
 import { marketFixtures } from "./market-fixtures";
 import { NFT_ACCOUNTS, NFT_CASE_TXS, NFT_SETS, nftFixtures } from "./nft-fixtures";
 import { OBJECT_ROW_LISTS, OBJECT_SETS, OBJECTS_ACCOUNT, objectFixtures, SYNTHETIC_DELEGATE } from "./object-fixtures";
+import { FEATURED_XRPL_TOKENS, TOKEN_ROW_LISTS } from "./token-fixtures";
 
 describe("the fixture generators, loaded from derived-trades.ts", () => {
   it("have their constants whole: the XRP/RLUSD pool is the native currency and RLUSD", () => {
@@ -41,6 +43,14 @@ describe("the fixture generators, loaded from derived-trades.ts", () => {
     expect(OBJECTS_ACCOUNT).toBe("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh");
     expect(SYNTHETIC_DELEGATE).toBe("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh");
     expect(OBJECT_ROW_LISTS).toEqual(["history", "delegations"]);
+  });
+
+  // E11's token generator: its constants are whole too, and amm-fixtures.ts reads the featured tokens of it.
+  it("have the token generator's constants whole: the featured XRPL tokens, whose pools files the AMM generator writes, and the lists a row to a line", () => {
+    expect(FEATURED_XRPL_TOKENS.map(({ currency }) => currency)).toEqual(["524C555344000000000000000000000000000000", "USD", "4C494F4E53000000000000000000000000000000", "TIN"]);
+    expect(FEATURED_XRPL_TOKENS.every(({ issuer }) => /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(issuer))).toBe(true);
+    expect(TOKEN_ROW_LISTS).toEqual(["tokens", "holders", "transfers"]);
+    for (const { currency, issuer } of FEATURED_XRPL_TOKENS) expect(ammFixtures().has(`xrpl/data-api/amm/pools@asset=${currency}+${issuer}&limit=20.json`), currency).toBe(true);
   });
 
   it("generate the files `pnpm fixtures:sync` wrote, which loads them from http-fixtures.ts", () => {

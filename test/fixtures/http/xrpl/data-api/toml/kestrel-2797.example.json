@@ -1,0 +1,15 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "kestrel-2797.example",
+    "toml_url": "https://kestrel-2797.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "r37txiTHAGKTjhY86nF9AATnc1mcPMBAQJ"
+      }
+    ]
+  }
+}

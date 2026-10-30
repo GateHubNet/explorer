@@ -341,7 +341,7 @@ generator rather than fall back to floats, as the API would (none does); a trade
 `change` of a market, which the reference computes from the exact rates, is worked out at both ends of what the 8 digits leave open: the generator stops if the two round
 apart (they agree for every recorded pair). The AMM fields of the markets tables follow D2's absent-field contract as in "Synthetic aggregates".
 
-## Recorded node answers: `http/<net>/node/book_offers/`
+## Recorded node answers: `http/<net>/node/book_offers/` and `http/xrpl/node/account_info/rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS.json`
 
 These six files are recorded, not derived and not made up: the markets pages read the order book of a pair from the node (`book_offers`), a book is the
 state of one ledger, and nothing in the recorded ledgers above gives it. `scripts/record-node-fixtures.ts` asked the public nodes for the six books below and
@@ -385,6 +385,20 @@ is not what the file holds, when `validated` is anything but true or absent, whe
 one ledger, when a file is not in `fixtureText`'s layout, and when a file is in `node/book_offers/` and has no row. The six books and the rules the recorder keeps
 (`acceptAnswer`, `checkOneLedger`) are in `test/support/book-fixtures.ts`, which the recorder and the test share and the test tries without a network; this table is the
 independent pin of the pairs. `scripts/http-fixtures.test.ts` fails when the generator would write or report one of them.
+
+### The `account_info` of LIONS' issuer
+
+One more recorded answer, for the token pages (E11, "Token answers" below): D6 has no row for LIONS' issuer in the fixtures, so the token page reads its settings from the node. One JSON-RPC POST
+of `{"method":"account_info","params":[{"account":"rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS","ledger_index":"validated"}]}`, a read-only method, and the whole answer written with `fixtureText` at
+`nodeFile`'s path (keys sorted; nothing added, left out or edited, so the Clio server's `warnings` and `account_flags` are in the file). It was made once, by a throwaway script, not by
+`scripts/record-node-fixtures.ts`, which records the books; `pnpm fixtures:sync` leaves it alone (`node/account_info/` is `isHandWritten`). Run again, it would read another ledger.
+
+| Network | Node | Answered (UTC) | `result.ledger_index` | File below `http/` |
+|---|---|---|---|---|
+| XRPL | `https://s1.ripple.com:51234/` (a Clio server) | 2026-10-30, 21:01:25.503 | `108009034` | `xrpl/node/account_info/rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS.json` |
+
+That ledger is newer than the head of the recordings, and nothing relates the two, as with the books. The account is real: its `Domain` and flags are the node's, and the data API's answer for
+LIONS leaves out `domain` and `issuer_settings` on purpose, as an issuer the state tables do not hold yet.
 
 ## Synthetic validators and amendments: `http/<net>/data-api/network/validators…` and `…/amendments…`
 
@@ -849,6 +863,60 @@ lines, the reference's examples text for text, the statuses the recordings show,
 hand-written files against the generator's, that `isObjectGenerated` names the files and nothing else, and that a second run writes the same bytes. `scripts/http-fixtures.test.ts` fails
 when a file is not what the generator writes.
 
+## Token answers: `http/<net>/data-api/tokens@…` and `http/<net>/data-api/tokens/…`, with the featured tokens' pools files
+
+The data API's answers of D6 (`GET /v2/tokens`, `GET /v2/tokens/{token}`, its `/holders` and its `/transfers`) for the token pages (E11). D6 has no deployment yet, so nothing here is recorded:
+`scripts/token-fixtures.ts` generates them, `generate()` joins them per network, and `pnpm fixtures:sync` writes them with their keys in D6's order (`builtFixtureText`, not `fixtureText`, which
+sorts them; a row to a line). They follow D6 at data-api `feat/explorer-data-2` commit **2fb4183** (2fb4183721af6df58dd345f4a6ef90a293ae70b0): its `docs/api-reference.md`, section "Tokens", and its
+spec `docs/superpowers/specs/2026-10-24-issued-tokens-design.md`.
+
+**Every answer** says the coverage `{ from_ledger_index: <the first recorded ledger of the network>, complete: false }` (XRPL 93663334, Xahau 26540187), and the list, the detail and the holders
+are as of the newest recorded ledger (XRPL 107721455, 2026-10-17T17:01:12Z; Xahau 26596843, 2026-10-17T17:47:11Z). The upstream mock answers a token without a file as D6 does: 404
+`token not found` for it and its holders, and for its transfers a 200 with no rows and that coverage (D6's transfers never answer 404). Its list without a file stays a missing route.
+
+| Files below `<net>/data-api/` | Holds | Kind |
+|---|---|---|
+| `tokens@kind=issued&limit=20&min_holders=10[&marker=<M>].json` | the 60 tokens with 10 holders or more, 3 pages | synthetic around the featured tokens |
+| `tokens@kind=issued&limit=20[&marker=<M>].json` | all 100 tokens, 5 pages | the same rows |
+| `tokens@kind=issued&limit=20&min_holders=10&q=USD.json`, `…&q=<an issuer>` | a search by its code and by an issuer (XRPL `rvYAfW…`, Xahau `rEvernode…`), ranked among what it selects, none behind the first page | the same rows |
+| `tokens@kind=issued&limit=20&q=USD.json` | the search under `all=1`, the link of "more among tokens with fewer than 10 holders" | the same rows |
+| `tokens@kind=issued&limit=1&min_holders=10.json` | the first row: a token page's 404 reads its coverage here | the same rows |
+| `tokens/<CUR>.<issuer>.json` | each featured token: its toml, its issuer's settings, its markets | synthetic around real issuers |
+| `tokens/<CUR>.<issuer>/holders@limit=10.json`, `…/holders@limit=50[&marker=<M>].json` | its holders, every one of them: the supply is their exact sum | real addresses of the recordings first, then seeded; balances, limits and flags synthetic |
+| `tokens/<CUR>.<issuer>/transfers@descending=true&limit=20[&marker=<M>].json` | the payments that delivered it, newest first | derived where the recordings have them, seeded otherwise |
+| `amm/pools@asset=<CUR>+<issuer>&limit=20.json` of USD, LIONS and TIN | the live pools holding the token, in the list's order (LIONS and TIN: none), which their token pages read beside RLUSD's existing file | derived: `scripts/amm-fixtures.ts`, `isAmmGenerated`, not this generator |
+
+**The featured tokens.** Currency and issuer as the plan names them; the figures are made up.
+
+| Network | Token | Issuer | What it is for |
+|---|---|---|---|
+| XRPL | `RLUSD` (`524C…`) | `rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De` | a text code, listed with a full toml, clawback allowed, markets against XRP and two issued tokens; 96 holders, rank 1, a frozen one among the ten; a second page of transfers |
+| XRPL | `USD` | `rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B` | a 3-character code, a transfer fee of `"0.2"`, a domain and not listed; 72 holders; a market with no native volume |
+| XRPL | `LIONS` (`4C49…`) | `rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS` | no domain and no `issuer_settings`: the node's recorded `account_info` (above) serves them; a price in exponent form; 54 holders |
+| XRPL | `TIN` | `rNwnk4Z6aDGGVcytB5NWeegHLZKbHRjdL3` (made up) | 4 holders, no price, no market, no domain |
+| Xahau | `EVR` | `rEvernodee8dJLaFsujS6q1EiXvZYmHXr8` | listed, a price in XAH, a toml `icon` that is no `https:` URL; 88 holders |
+| Xahau | `NOD` | `rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ` (made up) | a domain and not listed, the issuer authorizes lines (`require_auth`), a price of the 30-day set (a time, no change, no market); 61 holders |
+
+The token pages' LP case is no file of these: it is the XRP/RLUSD pool's `lp_currency` and account, from the pools (`03B245BE…`, `rhWTXC2m…`), and D6 has no such token. The cases are found by their
+rules in `test/support/token-case-rules.ts` (`rlusd`, `usd`, `lions`, `few-holders`, `lp`, `evr`, `xahau-unlisted`), never from a table, which `test/support/token-cases.ts` (the worker specs) and the
+fixtures test share.
+
+**Real, from the recordings** (the sets of `readLedgers`, not the NFT or objects sets): a featured token's first holders are the holders of its recorded trust lines, with a positive balance at the
+end of the recordings, in the order they are first met (their balances are not the real ones), and `last_ledger` the newest ledger that changed one. RLUSD's transfers are the newest 40 of the 61
+recorded payments that delivered it (a successful `Payment` between two different accounts, its `DeliveredAmount` or else its `Amount`, its tags), so that a second page ends the list and every
+marker has its file; EVR's first is its one such payment. USD and LIONS deliver nothing in the recordings (USD's are tec or to oneself), so theirs are seeded. The transactions behind the
+transfers are not served, unless `generate()` serves them for another reason.
+
+**Invented, and not checked against anything real:** the seeded tokens of each network (XRPL 96, Xahau 98) and their issuers (`r…` from seeded bytes, domains `*.example`), every count, supply, price, change,
+volume, balance, limit and flag, the seeded transfers and their hashes, the tomls and the issuers' settings (RLUSD's domain `ripple.com`, USD's `bitstamp.net` and EVR's `evernode.org` are only words
+on a card: nothing was read from them). Seeds: `mulberry32(seedOf(<net>, "tokens"))` for the seeded rows, and `seedOf(<net>, "tokens", <name>, "holders" | "markets" | "transfers" | "last_ledger")`
+for a featured token (`scripts/synthetic.ts`). The first list page holds a price in exponent form (`"1.2000000e-7"`) and a row with no price, so the pages draw both; `totals.holders` is in every list.
+
+**What keeps them true.** `test/unit/token-fixtures.test.ts`, over `generate()`'s files: D6's key lines in their order, and the client's shape checks (`app/server/token-shape.ts`) on every file;
+ranks, markers and pages that concatenate; counts and totals against the rows; every search by D6's rule; every share against its balance and the supply, the supply against the balances; the
+addresses; a token's page against its list row and its markets; transfers against the recordings; every case; the same output whatever the order. `isTokenGenerated` names the files, which have a budget
+of their own in `test/unit/http-fixtures.test.ts` (0.3 MiB). `test/unit/amm-fixtures.test.ts` checks the pools files. `test/unit/upstream-core.test.ts` checks the mock's answers for a token without a file.
+
 ## Synthetic names and tomls: `http/<net>/data-api/account_names.json` and `http/<net>/data-api/toml/`
 
 Nothing in these files is recorded or copied. The display names (E9) read D4's two routes, which the data API builds from the operator's names and labels (ADR-0014), the
@@ -880,14 +948,16 @@ is `toml not found`. Every toml was checked (and an `ok` one read) at `2026-10-1
 | Xahau | `rJ5mvuNKjbjdghjCn5AGXXJFhJGgqdg9Q5` | an active account (it paid the active account in the newest recorded ledger) | domain not verified, `saltmarsh.example`, whose toml failed on a 404 (plan Ruling 11 moved it from the deleted account) |
 
 **Generator and seeds.** The seeded addresses are the classic addresses of the files of `NAMES_SOURCES`, in its order (the hand-written accounts and balances, the eight newest
-transactions, the served transactions, the accounts' first pages, the pairs' active accounts, the AMM pages, the validators list, the NFT sales, collections and NFTs), the fixed
-ones left out, up to 500: XRPL 400, Xahau 86. `fnv1a32("<net>:<address>") % 40` picks the state (0–7 verified, 8–12 named by GateHub, with a network name when bit 8 is set,
+transactions, the served transactions, the accounts' first pages, the pairs' active accounts, the AMM pages, the validators list, the NFT sales, collections and NFTs, and last the token
+lists, then the tokens' own files, each in order of its path), the fixed ones left out, up to 500: XRPL 500, where the cap cuts the tail (458 before the token files, then the list's 34 issuers
+and 8 addresses of the first token's files), Xahau 280. `fnv1a32("<net>:<address>") % 40` picks the state (0–7 verified, 8–12 named by GateHub, with a network name when bit 8 is set,
 13–16 domain not verified, the rest nothing), and the hash the name (a word of 24 and one of 8) and the domain (the word and the hash's upper 16 bits in hex, `alder-1f2e.example`;
 the generator fails on a domain two addresses would share). A verified domain's `ok` toml lists its account with its `desc` (the first by sort without one: its name is its
 domain); every second unverified one by sort has an `ok` toml that lists nobody, the others none. An account the fixtures mark deleted (a transaction's `DeletedNode` of its
 `AccountRoot`, an AMM pool the data API marks `deleted`, a hand-written account the node does not have: on XRPL `r3Cgerz…` and the SNK/XRP pool's `rGLnUK…`, on Xahau `rMoPk1…`)
-gets no domain, so a seeded one is named by GateHub or not at all. XRPL: 91 verified, 45 named by GateHub (27 with a network name), 50 domain not verified, 214 nothing; Xahau: 17,
-7 (5), 10, 52.
+gets no domain, so a seeded one is named by GateHub or not at all. XRPL: 109 verified, 53 named by GateHub (29 with a network name), 58 domain not verified, 280 nothing; Xahau: 48,
+33 (19), 31, 168. Adding addresses moves the "first by sort" and the "every second by sort" among the others: E11's token files changed one name from its domain to its `desc` a network
+and moved tomls of unverified domains, whose stale files were removed by hand as `pnpm fixtures:sync` reports them.
 
 **Invented, and not checked against anything real:** every name, network name, label, domain, principal, currency and time, and the `Domain` of the two active accounts (the
 recordings show none). No operator is implied: the names are fictional and the domains `*.example` (RFC 2606).

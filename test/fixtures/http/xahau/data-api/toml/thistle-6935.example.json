@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "thistle-6935.example",
+    "toml_url": "https://thistle-6935.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rh9vtTgCE8LFxEbAgD5UCghM9YLh66sTTH",
+        "desc": "Thistle Markets"
+      }
+    ]
+  }
+}
