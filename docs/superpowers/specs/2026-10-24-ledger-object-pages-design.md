@@ -377,7 +377,7 @@ itself and show whatever `DELEGATION` says; only the links into the Delegation t
 ## 11. SEO
 
 `meta-escrow.ts`, `meta-check.ts`, `meta-payment-channel.ts`: title "Escrow 5B9C0E…D21F · XRPL · explorer" (it ends with `suffixOf(network)`, the codebase's rule for a page of one object), description "Escrow of 1,000 XRP from
-{owner} to {destination} · pending · XRPL" (display names when E9's map has them, else short addresses; no ages), canonical
+{owner} to {destination} · pending · XRPL" (short addresses, as every page's tags but the account's own; no ages), canonical
 `/{net}/escrows/{ID}`, `og:*`, `twitter:card=summary`, no image (decision 9). A page of older events: `noindex, follow`, no canonical, no
 `og:*`. The 404s: `noindex`. The Delegation tab: the account page's tags with `?tab=delegation` in the canonical URL (as other tabs).
 
