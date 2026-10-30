@@ -1857,6 +1857,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the tokens, ranked by holders
+         * @description The tokens of a kind (`issued`: the currencies issued on trust lines) with the most holders first, then by issuer, then by currency; `rank` is the place of a token in that order among the tokens the filters select. A token is a currency and its issuer, as of the last run of the tokens job (`ledger_index` and `close_time` are the ledger it is through): its holders (the accounts that hold a positive balance), `trust_lines` (the lines that count), `supply` (the exact sum of the balances), the `price` of the last day against the native currency with its `price_change` (percent) and `price_time` (the month when the day has none, without a change), the `native_volume` and `trades` of the day, and the issuer's `domain`, whether its toml `listed` the token, and the `name` it gives it. `min_holders` keeps the tokens with at least that many holders; `q` (1 to 64 characters) keeps the tokens of an issuer (a classic address), or those whose code, name or domain contains it (any case), whose currency it is (40 hex digits) or whose issuer starts with it. `total` is the number of tokens the filters select, on all pages; `total_below`, with `min_holders`, the number that match `q` but have fewer holders. `totals` describe the whole kind, whatever the filters: `tokens`, `tokens_with_10_holders`, `holders` (distinct holders of all tokens; left out while the job has not counted them) and the `native_volume` of the day on the markets (left out without a day set). Before the job has built a generation the answer has no tokens. The ranking is rebuilt each minute, so a token can move between pages from one minute to the next. `format=csv` gives the tokens as a CSV file (without `coverage`).
+         */
+        get: operations["TokensController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/tokens/{token}/holders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the holders of a token
+         * @description The accounts that hold a positive balance of the token, the largest balance first, then by address, as of the last run of the tokens job (`ledger_index` and `close_time` are the ledger it is through). `rank` is the holder's place in that order among all the holders, whatever the page; `share` is its balance over the token `supply` (exact, rounded half up to 6 decimals); `limit` is the holder's limit; `frozen` and `authorized` are the issuer's freeze and authorization of the line. The path names the token like the detail does; a token the job does not know (no live row, an LP token, no generation yet) is a 404. `format=csv` gives the holders as a CSV file `<code or currency> <issuer> - holders.csv` (without `coverage`).
+         */
+        get: operations["TokensController_holders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/tokens/{token}/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the transfers of a token
+         * @description The payments that delivered the token, oldest first: the `Payment` transactions between two different accounts that delivered the currency of the issuer (a payment to oneself is not a payment, as in `/v2/payments`), with the `amount` delivered and the tags the payment has. The window, `descending`, `limit` and `marker` are those of `/v2/payments` (`start` inclusive, `end` the end of the period it names; the marker is `(ledger_index, tx_index)`). The path names the token like the detail does, but the list does not look the token up: a token nobody was paid in, one the tokens job does not know and an LP token list the transfers they have, and no transfers is an empty list. `coverage` is that of the payments of the ledgers, not of the state tables. `format=csv` gives the transfers as a CSV file `<code or currency> <issuer> - transfers.csv` with a column for each key of a transfer (without `coverage`).
+         */
+        get: operations["TokensController_transfers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/tokens/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a token
+         * @description One issued token as of the last run of the tokens job (`ledger_index` and `close_time` are the ledger it is through): its holders, `trust_lines` and exact `supply`, the `price` of the last day with its change and the volume and trades of the day, the issuer's `domain` and the `toml_url` of its toml, whether the toml `listed` the token and what it says of it (`toml`), the issuer's `issuer_settings` (left out while the issuer has no row in the state tables), its `markets` of the day (the token is always the base), and `last_ledger`, the newest ledger of one of its lines. A token with no live row (no line counts, an LP token, or no generation yet) is a 404 `token not found`. No CSV.
+         */
+        get: operations["TokensController_token"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4768,6 +4848,116 @@ export interface operations {
             path: {
                 /** @description The id `POST /v2/exports` answered. */
                 id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TokensController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description A search, 1 to 64 characters: an issuer address, or text in the code, name or domain, a currency in hex, an issuer prefix. */
+                q?: unknown;
+                /** @description Only the tokens with at least this many holders: 0 to 1,000,000,000. Default 0. */
+                min_holders?: number;
+                /** @description Default: issued. */
+                kind?: "issued";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TokensController_holders: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description A currency and its issuer, `{currency}.{issuer}` (or with `+` or `|` for the dot): a 3-character code, 40 hex digits or a text of 4 to 20 characters, then the issuer address. The segment is split at its last separator. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TokensController_transfers: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+                /** @description End time. Default: the newest ledger. */
+                end?: unknown;
+                /** @description Start time. Default: the beginning. */
+                start?: unknown;
+            };
+            header?: never;
+            path: {
+                /** @description A currency and its issuer, `{currency}.{issuer}` (or with `+` or `|` for the dot): a 3-character code, 40 hex digits or a text of 4 to 20 characters, then the issuer address. The segment is split at its last separator. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TokensController_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A currency and its issuer, `{currency}.{issuer}` (or with `+` or `|` for the dot): a 3-character code, 40 hex digits or a text of 4 to 20 characters, then the issuer address. The segment is split at its last separator. */
+                token: string;
             };
             cookie?: never;
         };

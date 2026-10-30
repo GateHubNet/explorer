@@ -1804,6 +1804,184 @@ export interface LedgerObjectRef {
 export type ObjectApiKind = "escrow" | "check" | "payment_channel";
 export type ObjectAnswer = EscrowAnswer | CheckAnswer | PaymentChannelAnswer;
 
+// ---- Tokens: GET /v2/tokens, GET /v2/tokens/{token}, GET /v2/tokens/{token}/holders, GET /v2/tokens/{token}/transfers --------------------------------------------------------------
+//
+// D6 (data-api `feat/explorer-data-2`, pinned at `2fb4183721af6df58dd345f4a6ef90a293ae70b0`; the section "Tokens" of its docs/api-reference.md). Keys are in the reference's order
+// (its "Keys of …" lines); a key it marks `?` is left out of an answer when it has no value, `null` is never served, so those keys are optional here and every other key is there.
+// `token-shape.ts` makes that true. The facts the reference states:
+//   - the tokens are the issued tokens of the network (a currency and its issuer with at least one trust line that counts), ranked by holders; `kind` is `issued`, the only kind
+//     there is. `rank` is the place of a token or a holder in the whole ordered list, whatever the page;
+//   - the list, the detail and the holders have `ledger_index` and `close_time` after `coverage`: the ledger the live generation of the aggregate is through. The list has none (and no
+//     `totals`, `total`) before the first generation exists: then it is `{ result, coverage, kind, count: 0, tokens: [] }`, and the detail and the holders are a 404;
+//   - amounts (`supply`, `balance`, `limit`, `volume`, `counter_volume`, `native_volume`, `amount`) are exact text in whole units, and `price` and `last` are 8 significant digits that come as
+//     exponent text below 0.000001 and from 100,000,000 (`"9.9000000e-7"`): number text (`isNumberText`). `price_change`, `change` and `transfer_fee` are plain decimal text (percent,
+//     2 decimals; `transfer_fee` exact); `share` is `"0.117300"`, 6 decimals. A market's `last` is the other asset per token and is `"Infinity"` for a pair whose stored rate is 0
+//     (D6 declined to fix it): `token-shape.ts` leaves that key out of the market, which is why `last` is optional on `TokenMarket`;
+//   - `totals.holders` is left out while the tokens job has not counted the distinct holders (never a false 0), and `totals.native_volume` while there is no `day` set of the markets.
+
+/**
+ * A row of the list: an issued token with its holders, supply and the price and volume of the day. A token that has not traded against the native currency in 30 days has no `price` and no
+ * `price_time`, and the `price_change` is there only when the price is of the day; `native_volume` and `trades` are `"0"` and 0 for a token with no pair, and left out only while D6 has no `day` set.
+ */
+export interface IssuedTokenRow {
+  rank: number;
+  /** As the ledger holds it: the 3 characters, or 40 upper-case hex digits. */
+  currency: string;
+  /** The 3-character code, or the text of the hex when it is printable ASCII; left out otherwise. */
+  code?: string;
+  issuer: string;
+  holders: number;
+  trust_lines: number;
+  supply: string;
+  price?: string;
+  price_change?: string;
+  price_time?: string;
+  native_volume?: string;
+  trades?: number;
+  domain?: string;
+  listed: boolean;
+  name?: string;
+}
+
+/** What describes the whole kind, whatever the filters. */
+export interface IssuedTokensTotals {
+  tokens: number;
+  tokens_with_10_holders: number;
+  /** The distinct accounts that hold any token; left out until the job has counted them. */
+  holders?: number;
+  native_volume?: string;
+}
+
+/** `GET /v2/tokens`. `total` is the number of tokens the filters select, `total_below` (with `min_holders`) the number that match the search but have fewer holders. */
+export interface TokensResponse {
+  result: "success";
+  coverage: Coverage;
+  kind: "issued";
+  ledger_index?: number;
+  close_time?: string;
+  totals?: IssuedTokensTotals;
+  total?: number;
+  total_below?: number;
+  count: number;
+  marker?: string;
+  tokens: IssuedTokenRow[];
+}
+
+/** What the issuer's toml says of a token, each as the toml gives it (text), `display_decimals` a whole number 0 to 30. Left out when the token is not listed. */
+export interface TokenToml {
+  name?: string;
+  desc?: string;
+  icon?: string;
+  symbol?: string;
+  display_decimals?: number;
+  asset_class?: string;
+  asset_subclass?: string;
+  attestation?: string;
+}
+
+/** The settings of the issuer's account: `transfer_fee` a percent, exact (`"0.2"`, none is `"0"`). Left out while the issuer has no row in the state tables (unknown, not off). */
+export interface IssuerSettings {
+  transfer_fee: string;
+  global_freeze: boolean;
+  no_freeze: boolean;
+  allow_trust_line_clawback: boolean;
+  require_auth: boolean;
+  default_ripple: boolean;
+}
+
+/**
+ * A pair of the `day` set of the markets with the token on a side, turned so that the token is the base: `volume` is the token's side, `counter_volume` the other, `last` the other
+ * asset per token. `last` is optional because D6 writes `"Infinity"` for a pair whose stored rate is 0, and `token-shape.ts` leaves it out then (a page draws "—").
+ */
+export interface TokenMarket {
+  counter_currency: string;
+  counter_issuer?: string;
+  count: number;
+  volume: string;
+  counter_volume: string;
+  native_volume?: string;
+  last?: string;
+  change?: string;
+  last_time: string;
+  amm_pool?: boolean;
+}
+
+/** The token of `GET /v2/tokens/{token}`: the keys of a row of the list without `rank`, and the rest. `last_ledger` is the newest ledger in which one of its lines changed. */
+export interface TokenDetail {
+  currency: string;
+  code?: string;
+  issuer: string;
+  holders: number;
+  trust_lines: number;
+  supply: string;
+  price?: string;
+  price_change?: string;
+  price_time?: string;
+  native_volume?: string;
+  trades?: number;
+  domain?: string;
+  toml_url?: string;
+  listed: boolean;
+  toml?: TokenToml;
+  issuer_settings?: IssuerSettings;
+  /** At most 20, the biggest by native volume first; `[]` for a token with no pair in the day set. */
+  markets: TokenMarket[];
+  last_ledger: number;
+}
+
+/** `GET /v2/tokens/{token}`. */
+export interface TokenAnswer {
+  result: "success";
+  coverage: Coverage;
+  ledger_index: number;
+  close_time: string;
+  token: TokenDetail;
+}
+
+/** A holder of a token: `share` is the balance over the token's `supply`, 6 decimals (`"0.048214"`); `limit` is the holder's own limit. */
+export interface TokenHolder {
+  rank: number;
+  holder: string;
+  balance: string;
+  share: string;
+  limit: string;
+  frozen: boolean;
+  authorized: boolean;
+}
+
+/** `GET /v2/tokens/{token}/holders`, the largest balance first. `supply` is the token's. */
+export interface TokenHoldersResponse {
+  result: "success";
+  coverage: Coverage;
+  ledger_index: number;
+  close_time: string;
+  supply: string;
+  count: number;
+  marker?: string;
+  holders: TokenHolder[];
+}
+
+/** A payment that delivered the token: `amount` is what it delivered, not what it asked for. A tag of 0 is a tag and is served. */
+export interface TokenTransfer {
+  hash: string;
+  ledger_index: number;
+  executed_time: string;
+  source: string;
+  destination: string;
+  amount: string;
+  source_tag?: number;
+  destination_tag?: number;
+}
+
+/** `GET /v2/tokens/{token}/transfers`: no ledger of its own, and a `coverage` of the payments of the ledgers (not of the state tables). Never a 404: no transfers is `count: 0`. */
+export interface TokenTransfersResponse {
+  result: "success";
+  coverage: Coverage;
+  count: number;
+  marker?: string;
+  transfers: TokenTransfer[];
+}
+
 // ---- What the node answers for an NFT --------------------------------------------------------------------------------------------------------------------------
 
 // The node's answers as `node-rpc.ts` returns them (read on 2026-10-24 from `https://s1.ripple.com:51234/`, a Clio server, and `https://xahau.network/`): times in unix seconds

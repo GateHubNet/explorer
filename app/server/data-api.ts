@@ -87,6 +87,10 @@ import type {
   PaymentVolumeComponent,
   ReducedRow,
   StatsRow,
+  TokenAnswer,
+  TokenHoldersResponse,
+  TokensResponse,
+  TokenTransfersResponse,
   TomlAnswer,
   TxBinary,
   TxObject,
@@ -124,6 +128,7 @@ import {
 import { checkDelegations, checkLedgerObject, checkObjectAnswer, checkObjectHistory } from "./object-shape";
 import type { paths } from "./openapi";
 import { PENDING_PATHS } from "./pending-paths";
+import { checkToken, checkTokenHolders, checkTokens, checkTokenTransfers } from "./token-shape";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
 import { ANALYTICS_SLOW_TIMEOUT_MS, clip, DATA_API_TIMEOUT_MS, retryAfterOf, UpstreamError, withDeadline } from "./upstream";
 import {
@@ -226,6 +231,13 @@ const PATHS = {
   paymentChannelHistory: "/v2/payment_channels/{channel_id}/history",
   accountDelegations: "/v2/accounts/{address}/delegations",
   ledgerObject: "/v2/ledger_objects/{object_id}",
+  // D6's four routes (data-api `feat/explorer-data-2`, pinned at `2fb4183721af6df58dd345f4a6ef90a293ae70b0`), which the token pages (E11) ask for only while `TOKENS` is on. The token is one
+  // segment, `{currency}.{issuer}` (the path parameter is `token`). A data API deployed without D6 answers `Cannot GET`, an outage.
+  /** The issued tokens ranked by holders, `?kind=issued&limit=…`. */
+  tokens: "/v2/tokens",
+  token: "/v2/tokens/{token}",
+  tokenHolders: "/v2/tokens/{token}/holders",
+  tokenTransfers: "/v2/tokens/{token}/transfers",
 } as const satisfies Record<string, keyof paths>;
 
 /** The two forms of each route of a collection: of an issuer alone (Xahau) and of an issuer and a taxon (XRPL). */
@@ -572,6 +584,26 @@ export interface DataApi {
   accountDelegations(address: string, q: { direction: "given" | "held"; limit: number }): Promise<DelegationsPage>;
   /** Which kind of object an ID is, who owns it and whether it is deleted (the part under `ledger_object`; `ledger object not found` is `not_found`). Class `live`. */
   ledgerObject(id: string): Promise<LedgerObjectRef>;
+
+  // E11's token calls (data-api D6, `feat/explorer-data-2`, pinned at `2fb4183721af6df58dd345f4a6ef90a293ae70b0`). Only a data API that has D6 has the routes: without it each call fails with the
+  // missing-route outage (kind `server`, never stored), and the routes' own `token not found` stays `not_found`. The token pages ask only while `TOKENS` is on. Every answer is checked inside the
+  // load (token-shape.ts, and its `coverage` with it), and one that is not what the reference promises, or is another token's than the one asked for, is kind `server` too. A token is a currency as
+  // the ledger holds it (3 characters, or 40 upper-case hex digits) and its issuer; the path segment is `{currency}.{issuer}`.
+  /**
+   * The issued tokens, the most held first: `limit` of them after `marker`; with `minHolders` (D6 reads 0 to 1,000,000,000) only those with at least that many holders, with `q` (1 to 64 characters: an
+   * issuer address, or text in the code, name or domain, a currency in hex, an issuer prefix) only those it matches. Sent as `kind`, `limit`, `marker`, `min_holders`, `q`. Class `minute`, whatever the
+   * page: D6 rebuilds the ranking each minute, so a marker is a cursor into this minute's. `kind` is `issued` for now.
+   */
+  tokens(q: { kind: "issued"; limit: number; minHolders?: number; q?: string; marker?: string }, opts?: FreshOptions): Promise<TokensResponse>;
+  /** One token, with its toml, its issuer's settings and its markets: the whole answer, which must be of the token asked for. Class `minute`. `token not found` is `not_found`. */
+  token(asset: { currency: string; issuer: string }, opts?: FreshOptions): Promise<TokenAnswer>;
+  /** The holders of a token, the largest balance first. Class `minute`, whatever the page. `token not found` is `not_found`. */
+  tokenHolders(asset: { currency: string; issuer: string }, q: { limit: number; marker?: string }, opts?: FreshOptions): Promise<TokenHoldersResponse>;
+  /**
+   * The payments that delivered the token, newest first (sent as `descending=true`, `limit`, `marker`). Class `live`, `MARKER_PAGE_CLASS` behind a marker (`listClass`: it is newest first); the TTL is for
+   * a first page only. D6 does not look the token up: a token nobody was paid in has no transfers, which is an answer, and there is no 404.
+   */
+  tokenTransfers(asset: { currency: string; issuer: string }, q: { limit: number; marker?: string }, opts?: FreshOptions): Promise<TokenTransfersResponse>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -790,6 +822,9 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
 
   /** The options of a call that takes `FreshOptions`, as `get` takes them. */
   const fresh = (opts?: FreshOptions) => ({ ttl: opts?.ttl, holdFailure: opts?.holdFailure });
+
+  /** The path parameter of a token's routes: `{currency}.{issuer}`, the currency as the ledger holds it. `get` escapes it as one segment. */
+  const tokenOf = (asset: { currency: string; issuer: string }) => ({ token: `${asset.currency}.${asset.issuer}` });
 
   /** What every account analytics call asks of the cache (spec 2.7): its failure held a few seconds, and its load shared with the same load in flight. */
   const analyticsOptions = { holdFailure: true, shareInFlight: true } as const;
@@ -1051,5 +1086,24 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
     accountDelegations: (address, q) =>
       get<DelegationsPage>(PATHS.accountDelegations, { address }, { direction: q.direction, limit: q.limit }, "live", { finish: checkDelegations }),
     ledgerObject: (id) => get<LedgerObjectRef>(PATHS.ledgerObject, { object_id: id }, {}, "live", { unwrap: "ledger_object", finish: checkLedgerObject }),
+    // E11's token calls. The list, the detail and the holders are a minute, whatever the page (D6's ranking is rebuilt each minute); the transfers are the payments of the ledgers, newest first:
+    // `live`, and `MARKER_PAGE_CLASS` behind a marker, with the TTL for a first page only (`listClass`). A query is written in the order of the reference's table.
+    tokens: (q, opts) =>
+      get<TokensResponse>(PATHS.tokens, {}, { kind: q.kind, limit: q.limit, marker: q.marker || undefined, min_holders: q.minHolders, q: q.q || undefined }, "minute", {
+        ...fresh(opts),
+        finish: checkTokens,
+      }),
+    token: (asset, opts) =>
+      get<TokenAnswer>(PATHS.token, tokenOf(asset), {}, "minute", { ...fresh(opts), finish: (body, path) => checkToken(body, path, asset) }),
+    tokenHolders: (asset, q, opts) =>
+      get<TokenHoldersResponse>(PATHS.tokenHolders, tokenOf(asset), { limit: q.limit, marker: q.marker || undefined }, "minute", { ...fresh(opts), finish: checkTokenHolders }),
+    tokenTransfers: (asset, q, opts) => {
+      const newestFirst = { descending: true, limit: q.limit, marker: q.marker } as const;
+      return get<TokenTransfersResponse>(PATHS.tokenTransfers, tokenOf(asset), listQuery(newestFirst), listClass(newestFirst), {
+        ttl: q.marker ? undefined : opts?.ttl,
+        holdFailure: opts?.holdFailure,
+        finish: checkTokenTransfers,
+      });
+    },
   };
 }

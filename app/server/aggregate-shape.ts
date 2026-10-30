@@ -97,9 +97,10 @@ export function optionalFields(what: string, where: string, row: Record<string, 
 
 /**
  * Deletes each of `names` that `row` has and that fails `is`. For the fields that are there only when known (the AMM keys of the markets answer, D2: absent =
- * not known): one the client cannot read is not known, and never takes the whole answer down.
+ * not known; a market's `last` of a token, which D6 writes as `"Infinity"` for a pair with a stored rate of 0): one the client cannot read is not known, and
+ * never takes the whole answer down.
  */
-function dropUnless(row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean): void {
+export function dropUnless(row: Record<string, unknown>, names: readonly string[], is: (value: unknown) => boolean): void {
   for (const name of names) {
     if (row[name] !== undefined && !is(row[name])) delete row[name];
   }

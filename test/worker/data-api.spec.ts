@@ -26,6 +26,7 @@ import type {
   FeeBucketRow,
   FeeRow,
   FeeStatsRow,
+  IssuedTokensTotals,
   LedgerObjectRef,
   LedgerValidations,
   MarketRow,
@@ -48,6 +49,11 @@ import type {
   PaymentVolumeComponent,
   ReducedRow,
   StatsRow,
+  TokenAnswer,
+  TokenHoldersResponse,
+  TokenMarket,
+  TokensResponse,
+  TokenTransfersResponse,
   TomlAnswer,
   TxObject,
   ValidatorDetail,
@@ -120,6 +126,18 @@ import {
 } from "../support/object-samples";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
+import {
+  holdersSample,
+  TOKEN_SAMPLE_CURRENCY,
+  TOKEN_SAMPLE_ISSUER,
+  TOKEN_SAMPLE_OTHER_ISSUER,
+  tokenDetailSample,
+  tokenHolderSample,
+  tokenSample,
+  tokensSample,
+  TRANSFERS_MARKER,
+  transfersSample,
+} from "../support/token-samples";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The Data API client, in the Workers runtime. Nothing here reaches the network: `fetch` is replaced in every
@@ -4456,6 +4474,315 @@ describe("E10's object calls", () => {
     expectTypeOf<Delegation["created"]>().toEqualTypeOf<ObjectRef | undefined>();
     // The history pages are asked newest first.
     expectTypeOf<Parameters<DataApi["escrowHistory"]>[1]["descending"]>().toEqualTypeOf<true>();
+  });
+});
+
+describe("D6's token calls", () => {
+  const ASSET = { currency: TOKEN_SAMPLE_CURRENCY, issuer: TOKEN_SAMPLE_ISSUER };
+  /** The path segment of the token: the currency as the ledger holds it, a dot, the issuer. */
+  const TOKEN = `${TOKEN_SAMPLE_CURRENCY}.${TOKEN_SAMPLE_ISSUER}`;
+
+  interface TokenCall {
+    name: string;
+    call: (api: DataApi) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    cls: CacheClass;
+    /** The words of the route's own 404; the list and the transfers have none (the transfers never look the token up). */
+    missing?: string;
+    /** What D6 answers. */
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const FOUR: TokenCall[] = [
+    {
+      name: "tokens",
+      call: (api) => api.tokens({ kind: "issued", limit: 20, minHolders: 10 }),
+      url: "/v2/tokens?kind=issued&limit=20&min_holders=10",
+      cls: "minute",
+      good: () => tokensSample(),
+      bad: () => tokensSample({ tokens: {} as never }),
+      field: "tokens",
+    },
+    {
+      name: "token",
+      call: (api) => api.token(ASSET),
+      url: `/v2/tokens/${TOKEN}`,
+      cls: "minute",
+      missing: "token not found",
+      good: () => tokenSample(),
+      bad: () => tokenSample({ token: tokenDetailSample({ supply: 7320 as never }) }),
+      field: "supply",
+    },
+    {
+      name: "tokenHolders",
+      call: (api) => api.tokenHolders(ASSET, { limit: 10 }),
+      url: `/v2/tokens/${TOKEN}/holders?limit=10`,
+      cls: "minute",
+      missing: "token not found",
+      good: () => holdersSample(),
+      bad: () => holdersSample({ holders: [tokenHolderSample({ share: "0.0055" })] }),
+      field: "share",
+    },
+    {
+      name: "tokenTransfers",
+      call: (api) => api.tokenTransfers(ASSET, { limit: 20 }),
+      url: `/v2/tokens/${TOKEN}/transfers?descending=true&limit=20`,
+      cls: "live",
+      good: () => transfersSample(),
+      bad: () => transfersSample({ transfers: {} as never }),
+      field: "transfers",
+    },
+  ];
+
+  /** What D6 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const found = FOUR.find((c) => c.url.split("?")[0] === pathname);
+    if (found === undefined) throw new Error(`unexpected request for ${pathname}`);
+    return json(found.good());
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it.each(FOUR.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d6-malformed-${name}`);
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+      const error = await failureOf(c.call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain(`data API GET ${c.url}`);
+      // The field is looked for in the reason alone: the request every message holds says "tokens" for three of the calls.
+      expect(error.message.split("answered something unexpected: ")[1]).toContain(c.field);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(c.good()));
+      expect((await storedBy(() => c.call(api))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await c.call(api);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it.each(FOUR.map((c) => [c.name, c] as const))("%s: keeps its own 404 as not_found, and makes Cannot GET (a data API without D6) a server error that is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d6-failures-${name}`);
+      const path = c.url.split("?")[0]!;
+
+      if (c.missing !== undefined) {
+        fetchSpy.mockResolvedValueOnce(notFound(c.missing));
+        const missing = await failureOf(c.call(api));
+        expect([missing.kind, missing.status]).toEqual(["not_found", 404]);
+        expect(missing.message).toBe(`data API GET ${c.url} answered 404: ${c.missing}`);
+        expect(isNotFound(missing)).toBe(true);
+        expect(isMissingRoute(missing)).toBe(false);
+      }
+
+      // An API without D6 answers the framework's words: an outage, which is never stored and never a 404 page.
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+      const noRoute = await failureOf(c.call(api));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe(`data API GET ${c.url} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(isNotFound(noRoute)).toBe(false);
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it("refuses the answer for another token than the one asked, as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d6-other-token");
+      const other = { currency: TOKEN_SAMPLE_CURRENCY, issuer: TOKEN_SAMPLE_OTHER_ISSUER };
+      fetchSpy.mockResolvedValueOnce(json(tokenSample()));
+
+      const error = await failureOf(api.token(other));
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("token.issuer");
+
+      fetchSpy.mockResolvedValueOnce(json(tokenSample()));
+      expect(await storedBy(() => api.token(other).catch(() => undefined))).toEqual([]);
+      // The same answer is the one for the token asked.
+      fetchSpy.mockResolvedValueOnce(json(tokenSample()));
+      expect((await storedBy(() => api.token(ASSET))).length).toBeGreaterThan(0);
+    });
+
+    it("does not make a market whose last is Infinity (D6's ratio of a pair with a stored rate of 0) a failure: the answer is stored without that last", async () => {
+      const { api, storedBy } = storing("d6-infinity");
+      const body = tokenSample();
+      body.token.markets[0]!.last = "Infinity";
+      fetchSpy.mockResolvedValueOnce(json(body));
+
+      let answered: TokenAnswer | undefined;
+      expect((await storedBy(async (a) => (answered = await a.token(ASSET)))).length).toBeGreaterThan(0);
+
+      expect("last" in answered!.token.markets[0]!).toBe(false);
+      expect(answered!.token.markets[1]).toEqual(tokenSample().token.markets[1]);
+      // What was stored is the answer without that last: the next call reads it, and asks nothing.
+      const again = await api.token(ASSET);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect("last" in again.token.markets[0]!).toBe(false);
+    });
+
+    it("takes a list before the first generation exists, with no totals and no total", async () => {
+      const { api } = storing("d6-no-generation");
+      const none = { result: "success", coverage: { complete: false }, kind: "issued", count: 0, tokens: [] };
+      fetchSpy.mockResolvedValueOnce(json(none));
+
+      expect(await api.tokens({ kind: "issued", limit: 20 })).toEqual(none);
+    });
+  });
+
+  it("asks D6's four paths with their queries and classes", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of FOUR) await c.call(api);
+
+    // The keys are `GET <host><path and query as sent>`; the list's query is `kind`, `limit`, then the optional `marker`, `min_holders`, `q`.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual(FOUR.map((c) => [`GET ${BASE}${c.url}`, c.cls, undefined]));
+    expect(cache.calls.map((call) => "holdFailure" in call)).toEqual(FOUR.map(() => false));
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual(FOUR.map((c) => `${BASE}${c.url}`));
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(sentRequest(1).url).toBe(`${BASE}/v2/tokens/524C555344000000000000000000000000000000.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De`);
+    expect(CACHE_CLASSES.minute.edgeTtl).toBe(60);
+  });
+
+  it("returns what each call asked for: the whole answer", async () => {
+    const { api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    expect(await api.tokens({ kind: "issued", limit: 20, minHolders: 10 })).toEqual(tokensSample());
+    expect(await api.token(ASSET)).toEqual(tokenSample());
+    expect(await api.tokenHolders(ASSET, { limit: 10 })).toEqual(holdersSample());
+    expect(await api.tokenTransfers(ASSET, { limit: 20 })).toEqual(transfersSample());
+  });
+
+  it("writes the list's query as kind, limit, marker, min_holders, q, and leaves out the ones that are none (an empty marker or search is none, a min_holders of 0 is sent)", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokens({ kind: "issued", limit: 20, marker: "M", minHolders: 10, q: "north" });
+    await api.tokens({ kind: "issued", limit: 20, marker: "", q: "" });
+    await api.tokens({ kind: "issued", limit: 20, minHolders: 0 });
+
+    // A list is a minute whatever its page: the ranking is rebuilt each minute, and a page behind a marker is not stored for longer.
+    expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/tokens`.length), c.cls])).toEqual([
+      ["?kind=issued&limit=20&marker=M&min_holders=10&q=north", "minute"],
+      ["?kind=issued&limit=20", "minute"],
+      ["?kind=issued&limit=20&min_holders=0", "minute"],
+    ]);
+  });
+
+  it("asks the holders a minute whatever their page, with the marker after the limit", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokenHolders(ASSET, { limit: 10, marker: "M" });
+    await api.tokenHolders(ASSET, { limit: 10, marker: "" });
+
+    expect(cache.calls.map((c) => [c.key.slice(`GET ${BASE}/v2/tokens/${TOKEN}/holders`.length), c.cls])).toEqual([
+      ["?limit=10&marker=M", "minute"],
+      ["?limit=10", "minute"],
+    ]);
+  });
+
+  it("is class live for the first page of the transfers, MARKER_PAGE_CLASS behind a marker, and an empty marker is none", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokenTransfers(ASSET, { limit: 20 });
+    await api.tokenTransfers(ASSET, { limit: 20, marker: TRANSFERS_MARKER });
+    await api.tokenTransfers(ASSET, { limit: 20, marker: "" });
+
+    expect(cache.calls.map((c) => c.cls)).toEqual(["live", MARKER_PAGE_CLASS, "live"]);
+    expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}/v2/tokens/${TOKEN}/transfers`.length))).toEqual([
+      "?descending=true&limit=20",
+      `?descending=true&limit=20&marker=${TRANSFERS_MARKER}`,
+      "?descending=true&limit=20",
+    ]);
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+  });
+
+  it("passes the TTL and the failure hold on: the TTL makes an entry of its own and, for the transfers, only for a first page", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    await api.tokens({ kind: "issued", limit: 20 }, { ttl: 7, holdFailure: true });
+    await api.token(ASSET, { ttl: 7, holdFailure: true });
+    await api.tokenHolders(ASSET, { limit: 10 }, { ttl: 7 });
+    await api.tokenTransfers(ASSET, { limit: 20 }, { ttl: 7, holdFailure: true });
+    await api.tokenTransfers(ASSET, { limit: 20, marker: TRANSFERS_MARKER }, { ttl: 7 });
+
+    expect(cache.calls.map((c) => [c.ttlOverride, c.holdFailure])).toEqual([
+      [7, true],
+      [7, true],
+      [7, undefined],
+      [7, true],
+      [undefined, undefined],
+    ]);
+    expect(cache.calls.map((c) => c.key.endsWith(" [kept 7 s]"))).toEqual([true, true, true, true, false]);
+  });
+
+  it("escapes what it puts in a path, so that a currency cannot reach another endpoint", async () => {
+    fetchSpy.mockImplementation(async () => json(transfersSample()));
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    // A text code can hold anything but is one segment here: the slash, the question mark and the hash are escaped, the dot (the separator) is not.
+    await api.token({ currency: "a/b?c#d", issuer: TOKEN_SAMPLE_ISSUER }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/tokens/a%2Fb%3Fc%23d.${TOKEN_SAMPLE_ISSUER}`);
+    await api.tokenHolders({ currency: "a/b", issuer: TOKEN_SAMPLE_ISSUER }, { limit: 10 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/tokens/a%2Fb.${TOKEN_SAMPLE_ISSUER}/holders?limit=10`);
+    await api.tokenTransfers({ currency: "a|b+c", issuer: TOKEN_SAMPLE_ISSUER }, { limit: 20 });
+    expect(sentRequest().url).toBe(`${BASE}/v2/tokens/a%7Cb%2Bc.${TOKEN_SAMPLE_ISSUER}/transfers?descending=true&limit=20`);
+  });
+
+  it("refuses an empty currency and issuer, which make the segment a single dot that the URL parser would resolve away, without sending anything", async () => {
+    const api = createDataApi(xrpl, env, passThroughCache);
+    const nothing = { currency: "", issuer: "" };
+
+    expect((await failureOf(api.token(nothing))).kind).toBe("bad_request");
+    expect((await failureOf(api.tokenHolders(nothing, { limit: 10 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.tokenTransfers(nothing, { limit: 20 }))).kind).toBe("bad_request");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => json(tokensSample()));
+
+    await createDataApi(xrpl, env, cache).tokens({ kind: "issued", limit: 20 });
+    await createDataApi(xahau, env, cache).tokens({ kind: "issued", limit: 20 });
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(2);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.tokens({ kind: "issued", limit: 20 })).toEqualTypeOf<Promise<TokensResponse>>();
+    expectTypeOf(api.token(ASSET)).toEqualTypeOf<Promise<TokenAnswer>>();
+    expectTypeOf(api.tokenHolders(ASSET, { limit: 10 })).toEqualTypeOf<Promise<TokenHoldersResponse>>();
+    expectTypeOf(api.tokenTransfers(ASSET, { limit: 20 })).toEqualTypeOf<Promise<TokenTransfersResponse>>();
+    // The keys the reference lets an answer go without: the list before its first generation has no totals; the totals have no holders until the job has counted them; and a market has
+    // no last when D6 wrote Infinity.
+    expectTypeOf<TokensResponse["totals"]>().toEqualTypeOf<IssuedTokensTotals | undefined>();
+    expectTypeOf<TokensResponse["total"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<IssuedTokensTotals["holders"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<TokenMarket["last"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<TokensResponse["coverage"]["complete"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<TokensResponse["kind"]>().toEqualTypeOf<"issued">();
+    expectTypeOf<TokenHoldersResponse["marker"]>().toEqualTypeOf<string | undefined>();
   });
 });
 
