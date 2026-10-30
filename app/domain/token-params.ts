@@ -163,12 +163,6 @@ export function tokenHoldersHref(net: string, asset: { currency: string; issuer:
   return `${tokenPath(net, asset)}/holders${tokenPageQuery(p)}`;
 }
 
-/**
- * What `tokenLink` reads of the switches. `tokens` is the TOKENS switch's field, which joins `Features` with the switch itself (ui/features.ts); until it does it is an optional
- * field here, which a `Features` that has it satisfies.
- */
-type TokenLinkFeatures = Features & { readonly tokens?: boolean };
-
 /** The network's native code, from its id: Xahau's is XAH, any other's XRP (as `kindTabs` tells Xahau by its id). */
 function nativeOf(net: string): NativeCode {
   return net === "xahau" ? "XAH" : "XRP";
@@ -179,10 +173,10 @@ function nativeOf(net: string): NativeCode {
  * and the code stays text. A link is made only for an asset its own path reads back as itself, so it never leads to a 404 or to another token: the native currency (no
  * issuer), an issuer that is no classic address, a currency not in the ledger's own form (`usd` would be `USD`) and a code `parseTokenPath` leaves unread are text.
  */
-export function tokenLink(net: string, asset: Asset, features: TokenLinkFeatures): string | null {
+export function tokenLink(net: string, asset: Asset, features: Features): string | null {
   if (!asset.issuer) return null;
   const lp = LP_CURRENCY.test(asset.currency);
-  if (!lp && features.tokens !== true) return null;
+  if (!lp && !features.tokens) return null;
   const path = parseTokenPath({ native: nativeOf(net) }, assetText(asset));
   if (path.kind === "lp") return lp ? poolLink(net, path.issuer, features) : null;
   if (path.kind !== "token" || !sameAsset(path.asset, asset)) return null;

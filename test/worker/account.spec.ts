@@ -452,7 +452,8 @@ describe("a deleted account", () => {
     expect(text).toContain("Deleted This account was deleted from the ledger");
     expect(text).toContain("The account no longer exists");
     expect(text).not.toContain("Live state unavailable");
-    expect(text).not.toContain("Tokens");
+    // The Tokens card, not the header's Tokens item (E11), which is on every page: the page's main only.
+    expect(textOf(html.slice(html.indexOf('<main id="main"')))).not.toContain("Tokens");
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Sequence");
     const rows = tableRows(html, "Transactions");
@@ -1416,7 +1417,8 @@ describe("paging", () => {
     expect(text).not.toContain("Activation is not in the index");
     expect(text).toContain("does not show the balance or the live state");
     expect(text).not.toContain("Sequence");
-    expect(text).not.toContain("Tokens");
+    // The Tokens card, not the header's Tokens item (E11), which is on every page: the page's main only.
+    expect(textOf(html.slice(html.indexOf('<main id="main"')))).not.toContain("Tokens");
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Live state unavailable");
     expect(hrefs(html)).toContain(`/xrpl/account/${a}`);

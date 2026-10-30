@@ -252,6 +252,35 @@ describe("the DELEGATION switch", () => {
   });
 });
 
+// TOKENS (E11): the token pages, the header's Tokens item ("soon" while off) and every link to a token. A page-level switch.
+describe("the TOKENS switch", () => {
+  // Its place is the tenth, after E10's two. Checked as a prefix of both lists, not as their last entry, so that a switch appended after it by a later plan leaves this test as it is.
+  it("is the tenth switch, after the nine before it, and its feature is tokens", () => {
+    const order = ["VALIDATORS", "AMM_DATA", "MARKETS", "ACCOUNT_ANALYTICS", "AMM_PAGES", "NFTS", "NAMES", "LEDGER_OBJECTS", "DELEGATION", "TOKENS"];
+    expect(FEATURE_VARS.slice(0, 10)).toEqual(order);
+    expect(FEATURE_VARS.indexOf("TOKENS")).toBe(9);
+    expect(Object.keys(FEATURE_NAME).slice(0, 10)).toEqual(order);
+    expect(Object.keys(FEATURE_NAME).indexOf("TOKENS")).toBe(9);
+    expect(FEATURE_NAME.TOKENS).toBe("tokens");
+  });
+
+  it('is on for "on" only', () => {
+    expect(featuresOf({ TOKENS: "on" }).tokens).toBe(true);
+    for (const value of ["off", "ON", "On", "yes", undefined]) expect(featuresOf({ TOKENS: value }).tokens, String(value)).toBe(false);
+    expect(featuresOf({}).tokens).toBe(false);
+  });
+
+  it("is off in NO_FEATURES", () => {
+    expect(NO_FEATURES.tokens).toBe(false);
+  });
+
+  it("does not turn on another feature, and no other switch turns it on", () => {
+    expect(featuresOf({ TOKENS: "on" })).toEqual({ ...NO_FEATURES, tokens: true });
+    expect(featuresOf({ ...allSwitches("on"), TOKENS: "off" }).tokens).toBe(false);
+    expect(featuresOf({ VALIDATORS: "on", AMM_DATA: "on", MARKETS: "on", ACCOUNT_ANALYTICS: "on", AMM_PAGES: "on", NFTS: "on", NAMES: "on", LEDGER_OBJECTS: "on", DELEGATION: "on" }).tokens).toBe(false);
+  });
+});
+
 describe("NO_FEATURES", () => {
   it("is frozen, so that a component cannot turn a feature on for everyone", () => {
     expect(Object.isFrozen(NO_FEATURES)).toBe(true);

@@ -47,10 +47,9 @@ const PIPE_STANDARD_HEX = "000000000000000000000000557C440000000000";
 const RLUSD = { currency: RLUSD_HEX, issuer: RL };
 const USD = { currency: "USD", issuer: GH };
 
-/** Every switch on, as a deployment where all of today's switches are; `tokens` is the TOKENS switch's field, which a test sets itself. */
-const ON: Features = featuresOf(Object.fromEntries(FEATURE_VARS.map((name) => [name, "on"])));
-const TOKENS_ON = { ...ON, tokens: true };
-const TOKENS_OFF = { ...ON, tokens: false };
+/** Every switch on, as a deployment where all of today's switches are, and the same with TOKENS alone off. */
+const TOKENS_ON: Features = featuresOf(Object.fromEntries(FEATURE_VARS.map((name) => [name, "on"])));
+const TOKENS_OFF: Features = { ...TOKENS_ON, tokens: false };
 
 const tokens = (query: string, mptAvailable = false) => parseTokensParams(new URLSearchParams(query), { mptAvailable });
 const page = (query: string) => parseTokenPageParams(new URLSearchParams(query));
@@ -488,12 +487,12 @@ describe("tokenLink: where a token's code leads", () => {
   });
 
   it("is nothing while TOKENS is off, whatever else is on: the code stays text", () => {
-    expect([tokenLink("xrpl", RLUSD, NO_FEATURES), tokenLink("xrpl", RLUSD, TOKENS_OFF), tokenLink("xrpl", RLUSD, ON)]).toEqual([null, null, null]);
+    expect([tokenLink("xrpl", RLUSD, NO_FEATURES), tokenLink("xrpl", RLUSD, TOKENS_OFF), tokenLink("xrpl", RLUSD, { ...NO_FEATURES, ammPages: true })]).toEqual([null, null, null]);
     expect(tokenLink("xahau", USD, TOKENS_OFF)).toBeNull();
   });
 
   it("is nothing for the native currency, which has no page and no issuer", () => {
-    expect([tokenLink("xrpl", { currency: "XRP" }, ON), tokenLink("xrpl", { currency: "XRP" }, TOKENS_ON), tokenLink("xahau", { currency: "XAH" }, TOKENS_ON)]).toEqual([null, null, null]);
+    expect([tokenLink("xrpl", { currency: "XRP" }, TOKENS_OFF), tokenLink("xrpl", { currency: "XRP" }, TOKENS_ON), tokenLink("xahau", { currency: "XAH" }, TOKENS_ON)]).toEqual([null, null, null]);
     expect(tokenLink("xrpl", { currency: "XRP", issuer: "" }, TOKENS_ON)).toBeNull();
     // the native code with an issuer is no token of the ledger
     expect(tokenLink("xrpl", { currency: "XRP", issuer: GH }, TOKENS_ON)).toBeNull();
@@ -501,7 +500,7 @@ describe("tokenLink: where a token's code leads", () => {
   });
 
   it("is an LP token's pool, with TOKENS on or off", () => {
-    expect(tokenLink("xrpl", LP, { ...ON, ammPages: true })).toBe(`/xrpl/amm/${POOL}`);
+    expect(tokenLink("xrpl", LP, { ...NO_FEATURES, ammPages: true })).toBe(`/xrpl/amm/${POOL}`);
     expect(tokenLink("xrpl", LP, { ...TOKENS_ON, ammPages: true })).toBe(`/xrpl/amm/${POOL}`);
     expect(tokenLink("xrpl", LP, { ...TOKENS_OFF, ammPages: true })).toBe(`/xrpl/amm/${POOL}`);
   });
@@ -541,7 +540,7 @@ describe("tokenLink: where a token's code leads", () => {
 describe("mptAvailableOf: E14's seam", () => {
   it("is false for both networks and every set of switches, until E14 makes it features.mpt && net.hasMpt", () => {
     for (const net of [{ id: "xrpl" }, { id: "xahau" }]) {
-      for (const features of [NO_FEATURES, ON, TOKENS_ON, TOKENS_OFF]) expect(mptAvailableOf(net, features)).toBe(false);
+      for (const features of [NO_FEATURES, TOKENS_ON, TOKENS_OFF]) expect(mptAvailableOf(net, features)).toBe(false);
     }
   });
 });

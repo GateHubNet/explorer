@@ -545,6 +545,58 @@ describe("deployProblems", () => {
       });
     });
 
+    // TOKENS (E11): the token pages, the header's Tokens item and the links to a token. A sandbox or production build must say it, and say it right. It needs no other switch: the token data is D6's,
+    // which no switch of this list gates, so the guard has no cross-switch reason for it (`AMM_PAGES`' rule on `AMM_DATA` has no counterpart here).
+    describe("TOKENS", () => {
+      it("passes a build whose TOKENS is off or on, and the passing configs carry it, off", () => {
+        expect((good("sandbox").vars as Config).TOKENS).toBe("off");
+        expect((good("production").vars as Config).TOKENS).toBe("off");
+        expect(deployProblems(good("sandbox"), "sandbox")).toEqual([]);
+        expect(deployProblems(good("production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ TOKENS: "on" }), "sandbox")).toEqual([]);
+        expect(deployProblems(withVars({ TOKENS: "off" }, "production"), "production")).toEqual([]);
+        expect(deployProblems(withVars({ TOKENS: "on" }, "production"), "production")).toEqual([]);
+      });
+
+      it("refuses a build without TOKENS, and names it", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const vars = { ...(good(env).vars as Config) };
+          delete vars.TOKENS;
+          const problems = deployProblems(good(env, { vars }), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("TOKENS is not set");
+          expect(problems[0]).toContain('"on" or "off"');
+        }
+      });
+
+      it('refuses TOKENS: "yes", and names it', () => {
+        for (const env of ["sandbox", "production"] as const) {
+          const problems = deployProblems(withVars({ TOKENS: "yes" }, env), env);
+          expect(problems, env).toHaveLength(1);
+          expect(problems[0]).toContain("TOKENS");
+          expect(problems[0]).toContain('"yes"');
+          expect(problems[0]).toContain('not exactly "on" or "off"');
+        }
+      });
+
+      it('refuses a misspelt TOKEN: "on" as a var that is not a switch, naming TOKENS among the switches', () => {
+        const problems = deployProblems(withVars({ TOKEN: "on" }), "sandbox");
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain("TOKEN is");
+        expect(problems[0]).toContain("not a switch");
+        expect(problems[0]).toContain("TOKENS");
+        expect(problems[0]).toContain(`the switches are ${FEATURE_VARS.join(", ")}`);
+        expect(problems[0]).toContain("a misspelt one?");
+      });
+
+      it("depends on no other switch: on over every other switch off is accepted, and so is off over every other switch on", () => {
+        for (const env of ["sandbox", "production"] as const) {
+          expect(deployProblems(withVars({ ...allSwitches("off"), TOKENS: "on" }, env), env), env).toEqual([]);
+          expect(deployProblems(withVars({ ...allSwitches("on"), TOKENS: "off" }, env), env), env).toEqual([]);
+        }
+      });
+    });
+
     it("lets a var that is not a switch have any other value", () => {
       expect(deployProblems(withVars({ SENTRY_DSN: "", SOMETHING: "ON", OTHER: 3, YES: "yes" }), "sandbox")).toEqual([]);
     });
@@ -1112,5 +1164,14 @@ describe("the deploy scripts and wrangler.jsonc", () => {
     expect(vars().DELEGATION).toBe("on");
     expect(vars("sandbox").DELEGATION).toBe("off");
     expect(vars("production").DELEGATION).toBe("off");
+  });
+
+  // TOKENS (README "Switches"): on in development and the tests (the top level), off in sandbox and production until that environment's data API serves D6 with a live generation
+  // (`syncer_tokens_live` 1, `syncer_tokens_lag_ledgers` under 300). A flip is a commit, so it is read from the file.
+  it("has TOKENS on at the top level and off in sandbox and production", () => {
+    const vars = (env?: string) => unstable_readConfig({ config: join(project, "wrangler.jsonc"), env }).vars as Record<string, unknown>;
+    expect(vars().TOKENS).toBe("on");
+    expect(vars("sandbox").TOKENS).toBe("off");
+    expect(vars("production").TOKENS).toBe("off");
   });
 });
