@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { featuresOff } from "../../scripts/e2e-env";
 import { NFT_ACCEPT_OFFER, NFT_ACCEPTED, XAHAU_COLLECTION, XAHAU_NFT, XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
 import { LIVE, XAHAU_ACCOUNT, XRPL_ACCOUNT } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { expect, hashHint, hashWords, hydrated, test } from "./support";
 
 // The NFT pages (`/{net}/nfts`, `/{net}/nfts/sales`, a collection, `/{net}/nft/{ID}`, README "NFTs") in a browser, on both networks and with and without JavaScript: the header's link to
 // them, the list (the period, the sort both ways, the issuer filter and its error, the older sales, more collections), a collection (the measure, the three tabs, the owner filter,
@@ -12,6 +12,10 @@ import { expect, hydrated, test } from "./support";
 // that is a transaction and an NFT, the Objects tab's link) is nfts-live.spec.ts's. Where `E2E_FEATURES_OFF` lists `NFTS` the pages are not found, and the off-case is checked instead.
 
 const NFTS_OFF = featuresOff(process.env).has("NFTS");
+/** The hero's placeholder with `NFTS` on: the NFT id, and the object id while `LEDGER_OBJECTS` is on. */
+const HERO_PLACEHOLDER = featuresOff(process.env).has("LEDGER_OBJECTS")
+  ? "Address, transaction hash, ledger index, CTID or NFT id"
+  : "Address, transaction hash, ledger index, CTID, NFT id or object id";
 const FEATURED = XRPL_COLLECTION.featured;
 const XRPL_FEATURED_PATH = `/xrpl/nfts/${FEATURED.issuer}/${FEATURED.taxon}`;
 const XAHAU_FEATURED_PATH = `/xahau/nfts/${XAHAU_COLLECTION.featured.issuer}`;
@@ -121,14 +125,14 @@ test.describe("with NFTS off", () => {
     await expect(page.locator(`span.mono[title="${NFT_ACCEPTED}"]`).first()).toHaveText("00081388…E6D8");
   });
 
-  test("a search for an NFT's id asks only for a transaction or a ledger, and says so", async ({ page }) => {
+  test("a search for an NFT's id asks no NFT question, and says what it asked", async ({ page }) => {
     await page.goto("/xrpl");
     await hydrated(page);
     await page.getByRole("main").getByRole("searchbox", { name: "Search XRPL" }).fill(XRPL_NFT.featured);
-    await expect(page.getByRole("list", { name: "Matches" })).toContainText("Transaction or ledger");
+    await expect(page.getByRole("list", { name: "Matches" })).toContainText(hashHint("xrpl", false));
     await page.getByRole("main").getByRole("button", { name: "Search" }).click();
     await expect(heading(page)).toHaveText("Not found");
-    await expect(page.getByRole("main")).toContainText(`We couldn’t find transaction or ledger ${XRPL_NFT.featured.slice(0, 6)}…${XRPL_NFT.featured.slice(-4)} on XRPL.`);
+    await expect(page.getByRole("main")).toContainText(`We couldn’t find ${hashWords("xrpl", false)} ${XRPL_NFT.featured.slice(0, 6)}…${XRPL_NFT.featured.slice(-4)} on XRPL.`);
   });
 });
 
@@ -614,9 +618,9 @@ test.describe("search by an NFT's id", () => {
     await page.goto("/xrpl");
     await hydrated(page);
     const box = page.getByRole("main").getByRole("searchbox", { name: "Search XRPL" });
-    await expect(box).toHaveAttribute("placeholder", "Address, transaction hash, ledger index, CTID or NFT id");
+    await expect(box).toHaveAttribute("placeholder", HERO_PLACEHOLDER);
     await box.fill(XRPL_NFT.featured.toLowerCase());
-    await expect(page.getByRole("list", { name: "Matches" })).toContainText("Transaction, ledger or NFT");
+    await expect(page.getByRole("list", { name: "Matches" })).toContainText(hashHint("xrpl", true));
     await box.press("Enter");
     await page.waitForURL(`**/xrpl/nft/${XRPL_NFT.featured}`);
     await expect(heading(page)).toHaveText("NFT #107,604,335");
@@ -646,10 +650,10 @@ test.describe("search by an NFT's id", () => {
     await hydrated(page);
     const box = page.getByRole("banner").getByRole("searchbox", { name: "Search Xahau" });
     await box.fill(XAHAU_NFT.missing);
-    await expect(page.getByRole("list", { name: "Matches" })).toContainText("Transaction, ledger or URIToken");
+    await expect(page.getByRole("list", { name: "Matches" })).toContainText(hashHint("xahau", true));
     await box.press("Enter");
     await expect(heading(page)).toHaveText("Not found");
-    await expect(page.getByRole("main")).toContainText(`We couldn’t find transaction, ledger or URIToken ${XAHAU_NFT.missing.slice(0, 6)}…${XAHAU_NFT.missing.slice(-4)} on Xahau.`);
+    await expect(page.getByRole("main")).toContainText(`We couldn’t find ${hashWords("xahau", true)} ${XAHAU_NFT.missing.slice(0, 6)}…${XAHAU_NFT.missing.slice(-4)} on Xahau.`);
   });
 });
 

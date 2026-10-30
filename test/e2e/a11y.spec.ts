@@ -24,7 +24,7 @@ import {
   XRPL_PAYMENT,
 } from "./fixtures";
 import { drawnBy, type Net } from "./names-pages";
-import { expect, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
+import { expect, hashWords, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
 // Spec 12: axe (WCAG 2.2 AA: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) reports no serious or critical violation on the home,
@@ -974,12 +974,12 @@ const NFT_MORE: PageUnderTest[] = [
   {
     name: "search help with NFTs on",
     path: "/xahau/search?q=",
-    ready: async (page) => void (await expect(page.getByText("Enter an address, a transaction, ledger or URIToken hash, a ledger index or a CTID.")).toBeVisible()),
+    ready: async (page) => void (await expect(page.getByText(`Enter an address, a ${hashWords("xahau", true)} hash, a ledger index or a CTID.`)).toBeVisible()),
   },
   {
     name: "search for a hash nothing has",
     path: `/xrpl/search?q=${XRPL_NFT.missing}`,
-    ready: async (page) => void (await expect(page.getByRole("main")).toContainText("transaction, ledger or NFT")),
+    ready: async (page) => void (await expect(page.getByRole("main")).toContainText(hashWords("xrpl", true))),
   },
 ];
 

@@ -16,6 +16,7 @@ import {
   ctidNotFoundPage,
   hashNotFoundPage,
   helpPage,
+  objectMatchHref,
   otherNetworkPage,
   shownQuery,
   type NetworkName,
@@ -47,10 +48,11 @@ function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkNam
  *
  * - A ledger index (plain, or grouped as the explorer shows it), an address and an X-address (with `?tag=`): a redirect,
  *   without asking anyone.
- * - A hash: the data API is asked for the transaction, the ledger and, while `NFTS` is on, the NFT, and when it has none of them, the node is (spec 10; the NFT
- *   by XRPL's `nft_info`, Xahau's URIToken entry). One found: a redirect to it (`/{net}/nft/{HASH}` for an NFT, whose page shows what only the node has too). Two or
- *   three: a page with a link to each. None: a 404 that offers the same search on the other network. While `NFTS` is off no NFT question is asked (the sequence is
- *   `findHash`'s, which E10 and E14 extend).
+ * - A hash: the data API is asked for the transaction, the ledger and, while `NFTS` is on, the NFT and, while `LEDGER_OBJECTS` is on, the object (an escrow, a check, a payment channel or a
+ *   delegation), and when it has none of them, the node is (spec 10; the NFT by XRPL's `nft_info`, Xahau's URIToken entry; the object by `ledger_entry`). One found: a redirect to it
+ *   (`/{net}/nft/{HASH}` for an NFT, whose page shows what only the node has too; an object's page; a delegation's delegator's Delegation tab, or the account page when `DELEGATION` is off or
+ *   the delegation is removed: `objectMatchHref`). Two or more: a page with a link to each. None: a 404 that offers the same search on the other network. While `NFTS` or `LEDGER_OBJECTS` is off
+ *   its question is not asked (the sequence is `findHash`'s, which E14 extends).
  * - A CTID: of this network, the transaction at its place in the ledger (a redirect, or a 404 if there is none); of the
  *   other network, a page that offers it there; of neither, a 404.
  * - Anything else: the help text, as a 200.
@@ -79,10 +81,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       } catch (err) {
         return upstreamFailure(err, `${hashWhat(asked.net, asked)} ${input.hash}`);
       }
-      if ([matches.tx, matches.ledger, matches.nft].filter(Boolean).length > 1) return cached(choicePage(input.hash, matches), "short");
+      if ([matches.tx, matches.ledger, matches.nft, matches.object].filter(Boolean).length > 1) return cached(choicePage(input.hash, matches, network), "short");
       if (matches.tx) return found(`/${network.id}/tx/${input.hash}`);
       if (matches.ledger) return found(`/${network.id}/ledger/${input.hash}`);
       if (matches.nft) return found(nftPath(network.id, input.hash));
+      if (matches.object) return found(objectMatchHref(network.id, input.hash, matches.object, network.features));
       return cached(hashNotFoundPage(query, input.hash, other, asked), "short", { status: 404 });
     }
 

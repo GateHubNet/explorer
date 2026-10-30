@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
 import { createDataApi, UpstreamError, type DataApi } from "../../app/server/data-api";
+import type { LedgerObjectRef } from "../../app/server/api-types";
 import type { Env } from "../../app/server/env";
 import { networkOf, type NetworkId } from "../../app/server/networks";
 import { createNodeRpc } from "../../app/server/node-rpc";
@@ -10,6 +11,7 @@ import { findHash, resolveCtid } from "../../app/server/resolve";
 import { recordedHashes } from "../support/ledger-hashes";
 import { passThroughCache } from "../support/subrequest-cache";
 import { nftAnswerSample, nftSample, NFT_ISSUER, uriTokenSample, URI_TOKEN_ISSUER } from "../support/nft-samples";
+import { DELEGATOR, ESCROW_OWNER, ledgerObjectSample } from "../support/object-samples";
 import { dataApiError, mockUpstream, nodeError, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // `resolveCtid` (spec 3): a CTID to the hash of the transaction at that place, and `findHash` (spec 6, 10): what a 64-digit hash
@@ -262,7 +264,7 @@ const TX_HASH = "8F2DCA944394B29981E24DDD6C46192C404D90F7F5FC4EAB6813B0AFD7751A2
 const LEDGER_HASH = "11EF780A54D66662233920C6318B19D60DAD5F644E687AAEC0F829B82142BC02";
 const UNKNOWN_HASH = "0D".repeat(32);
 /** What `findHash` asks while `NFTS` is off (the questions of before E8): the transaction and the ledger. The NFT cases are below. */
-const ASKING = { net: "xrpl", nfts: false } as const;
+const ASKING = { net: "xrpl", nfts: false, ledgerObjects: false } as const;
 
 /** The keys of the requests a mock has answered. */
 const asked = (m: UpstreamMock) => m.requests.map((request) => request.key);
@@ -440,8 +442,8 @@ describe("findHash", () => {
 // none of its questions failed, the node is asked side by side for the same three (XRPL's `nft_info`, Xahau's `ledger_entry` of a URIToken). A found answer wins over another
 // question's failure, and the node is never asked in place of a failed index.
 
-const NFTS = { net: "xrpl", nfts: true } as const;
-const XAHAU_NFTS = { net: "xahau", nfts: true } as const;
+const NFTS = { net: "xrpl", nfts: true, ledgerObjects: false } as const;
+const XAHAU_NFTS = { net: "xahau", nfts: true, ledgerObjects: false } as const;
 
 /** A hash of its own for each test: the mock answers "not found" for it unless a test says otherwise. */
 let made = 0;
@@ -727,7 +729,7 @@ describe("findHash with NFTs off", () => {
     const { api } = clientFor(net);
     const { node } = nodeFor(net);
 
-    expect(await findHash(api, node, hash, { net, nfts: false })).toEqual({});
+    expect(await findHash(api, node, hash, { net, nfts: false, ledgerObjects: false })).toEqual({});
     expect(asked2(mock, "data-api").sort()).toEqual([`GET /v2/ledgers/${hash}`, `GET /v2/transactions/${hash}`].sort());
     expect(asked2(mock, "node").map((key) => key.split(" ")[1]).sort()).toEqual(["ledger", "tx"]);
   });
@@ -738,7 +740,387 @@ describe("findHash with NFTs off", () => {
     const { api } = clientFor("xrpl");
     const { node } = nodeFor("xrpl");
 
-    expect(await findHash(api, node, hash, { net: "xrpl", nfts: false })).toEqual({});
+    expect(await findHash(api, node, hash, { net: "xrpl", nfts: false, ledgerObjects: false })).toEqual({});
     expect(asked2(mock, "data-api").some((key) => key.includes("/v2/nfts/"))).toBe(false);
+  });
+});
+
+// ---- With ledger objects (E10, spec 8) ----------------------------------------------------------------------------------------------------------------------
+
+// E10 extends the same two steps: while `ledgerObjects` the index is asked `ledgerObject(id)` beside the transaction, the ledger and the NFT; only when it has none of them, and none
+// of its questions failed, the node is asked `ledgerEntry(id)` beside its others (an entry of a type the index does not track is nothing, and a node's object is never deleted). On Xahau one
+// `ledger_entry` read answers the URIToken question and the object question: the node is asked once.
+
+const OBJECTS = { net: "xrpl", nfts: false, ledgerObjects: true } as const;
+const XAHAU_OBJECTS = { net: "xahau", nfts: false, ledgerObjects: true } as const;
+const BOTH = { net: "xrpl", nfts: true, ledgerObjects: true } as const;
+const XAHAU_BOTH = { net: "xahau", nfts: true, ledgerObjects: true } as const;
+
+/** The data API's answer for `hash` as an object (`/v2/ledger_objects/{id}`): an escrow of `ESCROW_OWNER` unless `over` says otherwise. */
+const asIndexedObject = (hash: string, over: Partial<LedgerObjectRef> = {}): Overrides => ({
+  [`GET /v2/ledger_objects/${hash}`]: {
+    result: "success",
+    ledger_object: ledgerObjectSample({ object_id: hash, object_type: "Escrow", account: ESCROW_OWNER, deleted: false, ...over }),
+  },
+});
+/** What the node's `ledger_entry` says of `hash`: an entry of `type` with the fields `over` adds, as the node wrote it (`Account` unless `over` says otherwise). */
+const asNodeEntry = (hash: string, type: string, over: Record<string, unknown> = {}): Overrides => ({
+  [`node ledger_entry ${hash}`]: {
+    index: hash,
+    ledger_index: 107972000,
+    node: { LedgerEntryType: type, Account: ESCROW_OWNER, Flags: 0, index: hash, ...over },
+    status: "success",
+    validated: true,
+  },
+});
+const objectCalls = (hash: string) => `GET /v2/ledger_objects/${hash}`;
+const indexCalls = (hash: string, more: string[] = []) => [`GET /v2/ledgers/${hash}`, `GET /v2/transactions/${hash}`, ...more].sort();
+const methodsOf = (m: UpstreamMock) => asked2(m, "node").map((key) => key.split(" ")[1]).sort();
+
+describe("findHash with ledger objects: what the index has", () => {
+  it("finds an escrow in the index beside a transaction miss, and does not ask the node", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asIndexedObject(hash));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({ object: { type: "Escrow", account: ESCROW_OWNER, deleted: false } });
+    expect(asked2(mock, "data-api").sort()).toEqual(indexCalls(hash, [objectCalls(hash)]));
+    expect(asked2(mock, "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it.each(["Check", "PayChannel", "Delegate"] as const)("finds a %s in the index, with its account", async (type) => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asIndexedObject(hash, { object_type: type, account: DELEGATOR }));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({ object: { type, account: DELEGATOR, deleted: false } });
+    expect(asked2(mock, "node")).toEqual([]);
+  });
+
+  it("says that an object is removed when the index says it was deleted, and still finds it", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asIndexedObject(hash, { deleted: true }));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({ object: { type: "Escrow", account: ESCROW_OWNER, deleted: true } });
+    expect(asked2(mock, "node")).toEqual([]);
+  });
+
+  it("finds a transaction that is also an object: both, and the node is not asked", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asTransaction(hash), ...asIndexedObject(hash, { object_type: "Check" }) });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({
+      tx: { ledgerIndex: 107600010, type: "Payment" },
+      object: { type: "Check", account: ESCROW_OWNER, deleted: false },
+    });
+    expect(asked2(mock, "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("asks the object question beside the NFT's while both switches are on, side by side with the transaction and the ledger", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asIndexedObject(hash, { object_type: "PayChannel" }));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, BOTH)).toEqual({ object: { type: "PayChannel", account: ESCROW_OWNER, deleted: false } });
+    expect(asked2(mock, "data-api").sort()).toEqual(indexCalls(hash, [objectCalls(hash), `GET /v2/nfts/${hash}`]));
+    expect(asked2(mock, "node")).toEqual([]);
+  });
+});
+
+describe("findHash with ledger objects: when the index fails", () => {
+  it("answers with what was found when the object question failed, and does not ask the node", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asTransaction(hash), [objectCalls(hash)]: dataApiError(503, "unavailable") });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({ tx: { ledgerIndex: 107600010, type: "Payment" } });
+    expect(asked2(mock, "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("answers with the object when the transaction question failed", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asIndexedObject(hash), [`GET /v2/transactions/${hash}`]: dataApiError(500, "boom") });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toMatchObject({ object: { type: "Escrow" } });
+    expect(asked2(mock, "node")).toEqual([]);
+  });
+
+  it.each([
+    ["a 503", dataApiError(503, "unavailable"), "server"],
+    ["a 429", dataApiError(429, "slow down"), "rate_limited"],
+    ["a data API without D5 ('Cannot GET')", dataApiError(404, "Cannot GET /v2/ledger_objects/HASH"), "server"],
+    ["a 200 that is no object", { result: "success", ledger_object: "none" }, "server"],
+    ["a 200 of an entry type the index does not track", { result: "success", ledger_object: { object_type: "Offer" } }, "server"],
+  ])("throws when the object question failed with %s and nothing else was found, and does not ask the node in its place", async (_what, answer, kind) => {
+    const hash = fresh();
+    // The node has the escrow: the visitor must not be sent to it while the index could not say.
+    mock = mockUpstream("xrpl", { ...asNodeEntry(hash, "Escrow"), [objectCalls(hash)]: answer });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    const failure = await findHash(api, node, hash, OBJECTS).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).kind).toBe(kind);
+    expect(asked2(mock, "data-api").sort()).toEqual(indexCalls(hash, [objectCalls(hash)]));
+    expect(asked2(mock, "node")).toEqual([]);
+  });
+
+  it("throws when the transaction question failed and the object is not in the index, and does not ask the node for it in its place", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asNodeEntry(hash, "Check"), [`GET /v2/transactions/${hash}`]: dataApiError(503, "unavailable") });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    const failure = await findHash(api, node, hash, OBJECTS).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect(asked2(mock, "node")).toEqual([]);
+  });
+});
+
+describe("findHash with ledger objects: what only the node has", () => {
+  it("asks the node's ledger_entry beside its tx and ledger only when the index has nothing, and finds an escrow there, never deleted", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asNodeEntry(hash, "Escrow"));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({ object: { type: "Escrow", account: ESCROW_OWNER, deleted: false } });
+    // The index was asked first, for all of its questions; then the node, side by side, for its three.
+    expect(asked2(mock, "data-api").sort()).toEqual(indexCalls(hash, [objectCalls(hash)]));
+    expect(methodsOf(mock)).toEqual(["ledger", "ledger_entry", "tx"]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it.each(["Check", "PayChannel", "Delegate"] as const)("finds a %s of the node, with the account it says", async (type) => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asNodeEntry(hash, type, { Account: DELEGATOR }));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({ object: { type, account: DELEGATOR, deleted: false } });
+  });
+
+  it("does not ask the node when the index has the object: the node's entry is never read", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asIndexedObject(hash, { deleted: true }), ...asNodeEntry(hash, "Escrow", { Account: DELEGATOR }) });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({ object: { type: "Escrow", account: ESCROW_OWNER, deleted: true } });
+    expect(asked2(mock, "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([`node ledger_entry ${hash}`]);
+  });
+
+  it("asks the node's nft_info and ledger_entry, which are two commands, side by side with tx and ledger when both switches are on", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asNodeEntry(hash, "Check"));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, BOTH)).toEqual({ object: { type: "Check", account: ESCROW_OWNER, deleted: false } });
+    expect(methodsOf(mock)).toEqual(["ledger", "ledger_entry", "nft_info", "tx"]);
+  });
+
+  it.each(["AccountRoot", "NFTokenPage", "Offer", "RippleState", "URIToken"])("counts an entry of the type %s as nothing, and is no failure", async (type) => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asNodeEntry(hash, type));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({});
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("finds nothing when the node has no entry (entryNotFound) either", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl");
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toEqual({});
+    expect(asked2(mock, "data-api").sort()).toEqual(indexCalls(hash, [objectCalls(hash)]));
+    expect(methodsOf(mock)).toEqual(["ledger", "ledger_entry", "tx"]);
+  });
+
+  it("finds a transaction the node has and an object it has too: both, from the node's round", async () => {
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${TX_HASH}`]: null, ...asNodeEntry(TX_HASH, "Escrow") });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, TX_HASH, OBJECTS)).toEqual({
+      tx: { ledgerIndex: 107671593, type: "AccountDelete" },
+      object: { type: "Escrow", account: ESCROW_OWNER, deleted: false },
+    });
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("answers with the object when the node's transaction question failed: something found wins", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asNodeEntry(hash, "Escrow"), [`node tx ${hash}`]: new Response("busy", { status: 503 }) });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, OBJECTS)).toMatchObject({ object: { type: "Escrow" } });
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("answers with the transaction when the node's object question failed: something found wins", async () => {
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${TX_HASH}`]: null, [`node ledger_entry ${TX_HASH}`]: nodeError("internal") });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, TX_HASH, OBJECTS)).toEqual({ tx: { ledgerIndex: 107671593, type: "AccountDelete" } });
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it.each([
+    ["a node that gives nothing readable", () => new Response("not json", { status: 200 })],
+    ["a node that fails at the gateway", () => new Response("bad gateway", { status: 502 })],
+    ["a node that is not synced", nodeError("noNetwork")],
+    ["an entry that is not validated", { index: "", ledger_index: 1, node: { LedgerEntryType: "Escrow", Account: ESCROW_OWNER }, status: "success", validated: false }],
+  ])("throws when the node's object question failed with %s and nothing was found", async (_what, answer) => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { [`node ledger_entry ${hash}`]: answer });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    const failure = await findHash(api, node, hash, OBJECTS).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+  });
+
+  // An escrow, check, channel or delegation without an account is the node failing, not a thing that is nothing (the account goes into a path and a row).
+  it.each([
+    ["no account", undefined],
+    ["an account that is no address", "not-an-address"],
+    ["an account that is not text", 7],
+  ])("counts an object of a tracked type with %s as an upstream failure", async (_what, account) => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asNodeEntry(hash, "Escrow", { Account: account }));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    const failure = await findHash(api, node, hash, OBJECTS).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).kind).toBe("server");
+  });
+
+  it("answers with the transaction when the node's entry is unreadable: something found wins", async () => {
+    mock = mockUpstream("xrpl", { [`GET /v2/transactions/${TX_HASH}`]: null, ...asNodeEntry(TX_HASH, "Escrow", { Account: undefined }) });
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, TX_HASH, OBJECTS)).toEqual({ tx: { ledgerIndex: 107671593, type: "AccountDelete" } });
+  });
+});
+
+describe("findHash with ledger objects on Xahau: one ledger_entry read answers both questions", () => {
+  const readsOf = (m: UpstreamMock) => asked2(m, "node").filter((key) => key.startsWith("node ledger_entry"));
+
+  it("finds a URIToken with the one read, and the entry is no object", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xahau", asUriTokenEntry(hash));
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    expect(await findHash(api, node, hash, XAHAU_BOTH)).toEqual({ nft: { kind: "uritoken", issuer: "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb", burned: false } });
+    expect(readsOf(mock)).toHaveLength(1);
+    expect(methodsOf(mock)).toEqual(["ledger", "ledger_entry", "tx"]);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("finds an escrow with the one read, and the entry is no URIToken", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xahau", asNodeEntry(hash, "Escrow"));
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    expect(await findHash(api, node, hash, XAHAU_BOTH)).toEqual({ object: { type: "Escrow", account: ESCROW_OWNER, deleted: false } });
+    expect(readsOf(mock)).toHaveLength(1);
+  });
+
+  it("finds nothing with the one read when the node has no entry", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xahau");
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    expect(await findHash(api, node, hash, XAHAU_BOTH)).toEqual({});
+    expect(readsOf(mock)).toHaveLength(1);
+  });
+
+  it("finds nothing with the one read when the entry is of a type that is neither a URIToken nor tracked", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xahau", asNodeEntry(hash, "AccountRoot"));
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    expect(await findHash(api, node, hash, XAHAU_BOTH)).toEqual({});
+    expect(readsOf(mock)).toHaveLength(1);
+  });
+
+  it("throws the one read's failure when nothing was found, as one failure of the one read", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xahau", { [`node ledger_entry ${hash}`]: nodeError("internal") });
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    const failure = await findHash(api, node, hash, XAHAU_BOTH).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect(readsOf(mock)).toHaveLength(1);
+  });
+
+  it("asks the node once with the object question alone (no NFT question), and once with the NFT question alone, as before", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xahau", asNodeEntry(hash, "PayChannel"));
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    expect(await findHash(api, node, hash, XAHAU_OBJECTS)).toMatchObject({ object: { type: "PayChannel" } });
+    expect(readsOf(mock)).toHaveLength(1);
+    mock.restore();
+
+    const token = fresh();
+    mock = mockUpstream("xahau", asUriTokenEntry(token));
+    expect(await findHash(api, node, token, XAHAU_NFTS)).toMatchObject({ nft: { kind: "uritoken" } });
+    expect(readsOf(mock)).toHaveLength(1);
+  });
+});
+
+describe("findHash with ledger objects off", () => {
+  it.each(["xrpl", "xahau"] as const)("asks no object question of the index or the node on %s: the index's object and the node's entry are not found", async (net) => {
+    const hash = fresh();
+    mock = mockUpstream(net, { ...asIndexedObject(hash), ...asNodeEntry(hash, "Escrow") });
+    const { api } = clientFor(net);
+    const { node } = nodeFor(net);
+
+    expect(await findHash(api, node, hash, { net, nfts: false, ledgerObjects: false })).toEqual({});
+    expect(asked2(mock, "data-api").sort()).toEqual(indexCalls(hash));
+    expect(methodsOf(mock)).toEqual(["ledger", "tx"]);
+    expect(asked2(mock, "data-api").some((key) => key.includes("/v2/ledger_objects/"))).toBe(false);
+    expect(mock.unusedOverrides().sort()).toEqual([objectCalls(hash), `node ledger_entry ${hash}`].sort());
+  });
+
+  it("asks no object question with the NFT question on either: the NFT's questions are what they were", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", asIndexedObject(hash));
+    const { api } = clientFor("xrpl");
+    const { node } = nodeFor("xrpl");
+
+    expect(await findHash(api, node, hash, NFTS)).toEqual({});
+    expect(asked2(mock, "data-api").sort()).toEqual(indexCalls(hash, [`GET /v2/nfts/${hash}`]));
+    expect(methodsOf(mock)).toEqual(["ledger", "nft_info", "tx"]);
   });
 });

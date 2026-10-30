@@ -1,4 +1,4 @@
-// What a 64-hexadecimal search can be, as the nouns the words around the search use ("transaction, ledger or NFT"). One list for the places that say it: the search's 404 and its
+// What a 64-hexadecimal search can be, as the nouns the words around the search use ("transaction, ledger, NFT, escrow, check or payment channel"). One list for the places that say it: the search's 404 and its
 // 503, the page that helps when nothing was typed, the box's hint of a hash and its "Nothing … looks like that". Pure and safe for the browser: the search box is on every page, so this
 // file imports nothing but a type. The order is the order the search asks (`findHash`, app/server/resolve.ts).
 //
@@ -14,17 +14,27 @@ import type { NetworkId } from "../server/networks";
 export interface HashNounOptions {
   /** `NFTS`: while off no NFT question is asked, so a hash is never said to be one. */
   nfts: boolean;
+  /** `LEDGER_OBJECTS`: while off no object question is asked, so a hash is never said to be an escrow, a check or a payment channel (nor a delegation, which no word of the list names). */
+  ledgerObjects: boolean;
 }
 
 /** Every switch off: what a box with no layout to read its switches from (a test, an error page) says. */
-export const NO_HASH_NOUNS: HashNounOptions = { nfts: false };
+export const NO_HASH_NOUNS: HashNounOptions = { nfts: false, ledgerObjects: false };
 
 /** A text with its first letter in capitals: "transaction or ledger" is the title of a choice and the label of a hint as "Transaction or ledger". */
 export const capitalized = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
-/** What a 64-hexadecimal search can find on `net`, in the order it asks: `["transaction", "ledger"]`, with `NFTS` on `["transaction", "ledger", "NFT"]` (Xahau's "URIToken"). */
+/**
+ * What a 64-hexadecimal search can find on `net`, in the order it asks: `["transaction", "ledger"]`, with `NFTS` on `["transaction", "ledger", "NFT"]` (Xahau's "URIToken"), and with
+ * `LEDGER_OBJECTS` on the objects that have a page after them: `[…, "escrow", "check", "payment channel"]`.
+ */
 export function hashNouns(net: NetworkId, options: HashNounOptions): string[] {
-  return ["transaction", "ledger", ...(options.nfts ? [net === "xahau" ? "URIToken" : "NFT"] : [])];
+  return [
+    "transaction",
+    "ledger",
+    ...(options.nfts ? [net === "xahau" ? "URIToken" : "NFT"] : []),
+    ...(options.ledgerObjects ? ["escrow", "check", "payment channel"] : []),
+  ];
 }
 
 /** The nouns as a list of a sentence: "transaction", "transaction or ledger", "transaction, ledger or NFT". */
@@ -34,7 +44,10 @@ export function joinNouns(nouns: readonly string[]): string {
   return nouns.length === 1 ? last : `${nouns.slice(0, -1).join(", ")} or ${last}`;
 }
 
-/** What a hash can be on `net`, as the words use it: "transaction or ledger" while `NFTS` is off, "transaction, ledger or NFT" ("… or URIToken") while it is on. */
+/**
+ * What a hash can be on `net`, as the words use it: "transaction or ledger" while `NFTS` and `LEDGER_OBJECTS` are off, "transaction, ledger or NFT" ("… or URIToken") with `NFTS` on,
+ * "transaction, ledger, escrow, check or payment channel" with `LEDGER_OBJECTS` on, and with both "transaction, ledger, NFT, escrow, check or payment channel".
+ */
 export function hashWhat(net: NetworkId, options: HashNounOptions): string {
   return joinNouns(hashNouns(net, options));
 }

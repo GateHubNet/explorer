@@ -1,14 +1,16 @@
 // What a search input names, found out by asking the data API and, for a hash it has not indexed, the node (spec 3, 6, 10;
-// NFT spec 7): the transaction behind a CTID, and what a 64-digit hash is. Both answer "nothing" for a thing that does not exist and
+// NFT spec 7; ledger object pages spec 8): the transaction behind a CTID, and what a 64-digit hash is. Both answer "nothing" for a thing that does not exist and
 // let an upstream failure through, because the two are different pages: "not found" is a 404 that may be stored for 30 s,
 // a failure is a 503 that is never stored. Worker-only code, for loaders; the callers map failures with `upstreamFailure`.
 
+import { isValidClassicAddress } from "ripple-address-codec";
+
 import { decodeCtid } from "../domain/ctid";
 import type { HashNounOptions } from "../domain/hash-nouns";
-import type { NftAnswer, NftKind } from "./api-types";
+import type { LedgerObjectRef, NftAnswer, NftKind } from "./api-types";
 import type { DataApi } from "./data-api";
 import { networkIdOfCtid, type Network, type NetworkId } from "./networks";
-import type { NodeRpc } from "./node-rpc";
+import type { LedgerEntry, NodeRpc } from "./node-rpc";
 import { readNodeNft, type NodeNft } from "./nft-read";
 import { UpstreamError } from "./upstream";
 
@@ -67,19 +69,23 @@ export async function resolveCtid(
 
 /**
  * What a hash is, as far as the choice page needs to say. Any of the parts, several or none is there. `nft` is an NFT of XRPL or a URIToken of Xahau whose id this is: its issuer
- * (and, for an NFT, its taxon and serial, which a URIToken does not have) and whether it is burned, which is all the choice page says of it.
+ * (and, for an NFT, its taxon and serial, which a URIToken does not have) and whether it is burned, which is all the choice page says of it. `object` is an escrow, a check, a payment
+ * channel or a delegation (E10): its `type` (the ledger entry type), its owner (the delegator of a `Delegate`) and whether it was deleted; an object the node holds is in the ledger now,
+ * so never deleted.
  */
 export interface HashMatches {
   tx?: { ledgerIndex: number; type: string };
   /** `closeTime` in unix seconds. */
   ledger?: { index: number; closeTime: number };
   nft?: { kind: NftKind; issuer: string; taxon?: number; serial?: number; burned: boolean };
+  object?: { type: LedgerObjectRef["object_type"]; account: string; deleted: boolean };
 }
 
 /**
  * What a search asks of a 64-digit hash besides the transaction and the ledger, which it always asks: `net` says which command asks the node for an NFT (XRPL's `nft_info`,
  * Xahau's `ledger_entry` of a URIToken), and the switches (`HashNounOptions`, app/domain/hash-nouns.ts, which the words of the search read too) whether it asks for one at all: `nfts`, the
- * `NFTS` switch, while it is off no NFT question is asked of the index or the node. A feature that adds a question adds its switch to `HashNounOptions`, not here (E10: `ledgerObjects`).
+ * `NFTS` switch, while it is off no NFT question is asked of the index or the node, and `ledgerObjects`, the `LEDGER_OBJECTS` switch, the same for the object question (E10). A feature that
+ * adds a question adds its switch to `HashNounOptions`, not here.
  */
 export interface HashQuestions extends HashNounOptions {
   net: NetworkId;
@@ -99,11 +105,47 @@ function nftOfNode(entry: NodeNft): NftMatch {
     : { kind: "uritoken", issuer: entry.Issuer, burned: false };
 }
 
-/** The questions of one side (the index's or the node's): `nft` is there only while the switch is on. */
+/** An object a search found: the part of `HashMatches` that says so. */
+export type ObjectMatch = NonNullable<HashMatches["object"]>;
+
+/** The entry types the index tracks as objects (`LedgerObjectRef.object_type`, the ones the pages of E10 are for): any other entry the node holds is nothing to a search. */
+const OBJECT_TYPES: readonly string[] = ["Escrow", "Check", "PayChannel", "Delegate"] satisfies ObjectMatch["type"][];
+const isObjectType = (type: string): type is ObjectMatch["type"] => OBJECT_TYPES.includes(type);
+
+/** The object of the index's answer (`/v2/ledger_objects/{id}`, whose shape the client has checked: the type, the account and `deleted`). */
+function objectOfIndex({ object_type: type, account, deleted }: LedgerObjectRef): ObjectMatch {
+  return { type, account, deleted };
+}
+
+/**
+ * The object of the node's entry (`ledger_entry`), or none for an entry of a type the index does not track (an account root, an offer, a URIToken): nothing, which is no failure. An
+ * entry of a tracked type that has no account is the node failing (the account goes into a link and a row). The node holds what is in the ledger now: never deleted.
+ */
+function objectOfEntry({ node }: LedgerEntry): ObjectMatch | undefined {
+  const type = node.LedgerEntryType;
+  if (!isObjectType(type)) return undefined;
+  const account = node.Account;
+  if (typeof account !== "string" || !isValidClassicAddress(account)) throw malformed("ledger entry lookup");
+  return { type, account, deleted: false };
+}
+
+/**
+ * The URIToken of Xahau's entry at the id, or none for an entry of another type. Read from the entry that the object question reads too (the node is asked once: `entryQuestions`),
+ * so it takes what the search says of a URIToken, its issuer; `readNodeNft` reads the rest of it when its page does.
+ */
+function uriTokenOfEntry({ node }: LedgerEntry): NftMatch | undefined {
+  if (node.LedgerEntryType !== "URIToken") return undefined;
+  const issuer = node.Issuer;
+  if (typeof issuer !== "string" || !isValidClassicAddress(issuer)) throw malformed("ledger entry lookup");
+  return { kind: "uritoken", issuer, burned: false };
+}
+
+/** The questions of one side (the index's or the node's): `nft` and `object` are there only while their switches are on. A question that is answered with `undefined` found nothing. */
 interface Questions {
   transaction: () => Promise<{ ledger_index: unknown; tx?: unknown }>;
   ledger: () => Promise<{ ledger_index: unknown; close_time: unknown }>;
-  nft?: () => Promise<NftMatch>;
+  nft?: () => Promise<NftMatch | undefined>;
+  object?: () => Promise<ObjectMatch | undefined>;
 }
 
 interface Asked {
@@ -115,10 +157,11 @@ interface Asked {
 /**
  * Asks the questions of one side side by side, and waits for all of them, so that nothing runs on after the answer. What the answers of the transaction and the ledger hold is
  * checked here, because a 200 is not proof of a transaction: one without its `tx` (or a ledger without its index) is the upstream failing, and is counted as a failure, not read
- * through (a TypeError would be a 500). The NFT question is made of an answer that is already checked (the clients check the NFT's shape), so its failures are the clients'.
+ * through (a TypeError would be a 500). The NFT and object questions are made of answers that are already checked (the clients check their shapes; the node's entry is checked where it is
+ * turned into a match), so their failures are the clients'.
  */
-async function ask({ transaction, ledger, nft }: Questions): Promise<Asked> {
-  const [tx, lgr, token] = await Promise.allSettled([transaction(), ledger(), nft?.()]);
+async function ask({ transaction, ledger, nft, object }: Questions): Promise<Asked> {
+  const [tx, lgr, token, thing] = await Promise.allSettled([transaction(), ledger(), nft?.(), object?.()]);
   const matches: HashMatches = {};
   const failures: unknown[] = [];
 
@@ -150,27 +193,59 @@ async function ask({ transaction, ledger, nft }: Questions): Promise<Asked> {
   } else if (!isMissing(token.reason)) {
     failures.push(token.reason);
   }
+
+  if (thing.status === "fulfilled") {
+    if (thing.value !== undefined) matches.object = thing.value;
+  } else if (!isMissing(thing.reason)) {
+    failures.push(thing.reason);
+  }
   return { matches, failures };
 }
 
 /**
- * What a 64-hex hash names (spec 6; NFT spec 7): a transaction, a ledger, an NFT (a URIToken on Xahau), several (the choice page) or none (`{}`).
+ * The node's NFT and object questions. XRPL asks two commands (`nft_info` and `ledger_entry`); Xahau reads a URIToken and an object with the one, `ledger_entry` by id, so while both
+ * switches are on it is asked once and both questions read its answer (the failure, "not found" and the entry alike). With one switch on the questions are what they were: the NFT
+ * page's reader for the NFT, the entry for the object.
+ */
+function entryQuestions(node: NodeRpc, net: NetworkId, hash: string, { nfts, ledgerObjects }: HashNounOptions): Pick<Questions, "nft" | "object"> {
+  if (net === "xahau" && nfts && ledgerObjects) {
+    let read: Promise<LedgerEntry> | undefined;
+    const entry = () => (read ??= node.ledgerEntry(hash));
+    return { nft: () => entry().then(uriTokenOfEntry), object: () => entry().then(objectOfEntry) };
+  }
+  return {
+    ...(nfts && { nft: () => readNodeNft(node, { id: net }, hash).then(nftOfNode) }),
+    ...(ledgerObjects && { object: () => node.ledgerEntry(hash).then(objectOfEntry) }),
+  };
+}
+
+/**
+ * What a 64-hex hash names (spec 6; NFT spec 7; ledger object pages spec 8): a transaction, a ledger, an NFT (a URIToken on Xahau), an escrow, a check, a payment channel or a delegation, several
+ * (the choice page) or none (`{}`).
  *
- * The sequence, whose parts later features extend: (1) the data API is asked side by side for the transaction, the ledger and, while `nfts`, the NFT (`api.nft`); (2) only when it
- * has none of them, the node is (spec 10: history before the backfill, the seconds before ingest), side by side for `tx`, `ledger` and, while `nfts`, the NFT (`nftInfo` on XRPL, `uriToken`
- * on Xahau, by `readNodeNft`, which the NFT page reads the node with: a node that is not Clio is "not found", not a failure). A failure of the side asked is thrown, but only when it
+ * The sequence, whose parts later features extend: (1) the data API is asked side by side for the transaction, the ledger, while `nfts` the NFT (`api.nft`) and while `ledgerObjects` the
+ * object (`api.ledgerObject`); (2) only when it has none of them, the node is (spec 10: history before the backfill, the seconds before ingest), side by side for `tx`, `ledger`, while `nfts` the NFT
+ * (`nftInfo` on XRPL, `uriToken` on Xahau, by `readNodeNft`, which the NFT page reads the node with: a node that is not Clio is "not found", not a failure) and while `ledgerObjects` the object
+ * (`ledgerEntry`, of a tracked type: any other entry is nothing; on Xahau one `ledger_entry` read answers both, `entryQuestions`). A failure of the side asked is thrown, but only when it
  * leaves the question open: something found is an answer however another question of its side went, and the node is not asked in place of a data API with a question that failed.
  *
  * The NFT page's own rule (`settleNft`: the index first and the node after it where `needsNode` says so) is not what this asks: a search needs to know that there is an NFT, so an
  * NFT of the index with no owner is found as it is, and the node's NFT is asked only when the index had none of the three (the NFT page asks the node whenever the index lacks the NFT).
  */
-export async function findHash(api: DataApi, node: NodeRpc, hash: string, { net, nfts }: HashQuestions): Promise<HashMatches> {
+export async function findHash(api: DataApi, node: NodeRpc, hash: string, questions: HashQuestions): Promise<HashMatches> {
+  const { net, nfts, ledgerObjects } = questions;
   for (const asked of [
-    () => ask({ transaction: () => api.transaction(hash), ledger: () => api.ledger(hash), ...(nfts && { nft: () => api.nft(hash).then(nftOfIndex) }) }),
-    () => ask({ transaction: () => node.tx(hash), ledger: () => node.ledger(hash), ...(nfts && { nft: () => readNodeNft(node, { id: net }, hash).then(nftOfNode) }) }),
+    () =>
+      ask({
+        transaction: () => api.transaction(hash),
+        ledger: () => api.ledger(hash),
+        ...(nfts && { nft: () => api.nft(hash).then(nftOfIndex) }),
+        ...(ledgerObjects && { object: () => api.ledgerObject(hash).then(objectOfIndex) }),
+      }),
+    () => ask({ transaction: () => node.tx(hash), ledger: () => node.ledger(hash), ...entryQuestions(node, net, hash, questions) }),
   ]) {
     const { matches, failures } = await asked();
-    if (matches.tx || matches.ledger || matches.nft) return matches;
+    if (matches.tx || matches.ledger || matches.nft || matches.object) return matches;
     if (failures.length > 0) throw failures[0];
   }
   return {};

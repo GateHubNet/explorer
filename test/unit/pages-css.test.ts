@@ -692,3 +692,17 @@ describe("the type link of a transaction's ledger objects touched", () => {
     for (const css of [componentsCss, baseCss]) expect(css).not.toContain(".objects__type");
   });
 });
+
+describe("the hints of the search box", () => {
+  // The tag of a hash's hint is "Transaction, ledger, URIToken, escrow, check or payment channel" (E10), about 400 px of 12 px text: wider than a 375 px phone. `.type` never wraps (a transaction
+  // type is one word), so in a hint it does (e2e a11y: "a hint of a hash fits a … px phone").
+  it("lets the tag of a hint wrap, though a type tag never does", () => {
+    expect(rule(componentsCss, ".type")["white-space"]).toBe("nowrap");
+    expect(rule(componentsCss, ".search__hints .hit .type")["white-space"]).toBe("normal");
+  });
+
+  it("lets the row of a hint wrap, and gives the hash at least 8rem of it", () => {
+    expect(rule(componentsCss, ".search__hints .hit")["flex-wrap"]).toBe("wrap");
+    expect(rule(componentsCss, ".search__hints .hit__detail")["flex-basis"]).toBe("8rem");
+  });
+});

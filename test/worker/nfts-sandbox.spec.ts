@@ -114,12 +114,12 @@ describe("an NFT in the sandbox", () => {
 });
 
 describe("the search in the sandbox", () => {
-  it("a hash nothing has says what was looked for on XRPL Testnet, NFT included", async () => {
+  it("a hash nothing has says what was looked for on XRPL Testnet, NFT and objects included", async () => {
     mock = mockUpstream("xrpl");
     const hash = "7D".repeat(32);
     const { html } = await page(`/xrpl/search?q=${hash}`, 404);
 
-    expect(textOf(html)).toContain("We couldn’t find transaction, ledger or NFT 7D7D7D…7D7D on XRPL Testnet.");
+    expect(textOf(html)).toContain("We couldn’t find transaction, ledger, NFT, escrow, check or payment channel 7D7D7D…7D7D on XRPL Testnet.");
     expect(anchors(html).find((a) => a.text === "Search on Xahau Testnet")?.attrs).toContain(`href="/xahau/search?q=${hash}"`);
   });
 });

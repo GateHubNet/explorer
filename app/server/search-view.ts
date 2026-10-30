@@ -1,13 +1,15 @@
-// What `/{net}/search` shows when it does not redirect (spec 6, 10; NFT spec 7): the choice between what one hash is (a transaction, a
-// ledger, an NFT), the help text, the offer to open a CTID on the other network, and the not-found pages. The page gets this and
+// What `/{net}/search` shows when it does not redirect (spec 6, 10; NFT spec 7; ledger object pages spec 8): the choice between what one hash is (a transaction, a
+// ledger, an NFT, an escrow, a check, a payment channel, a delegation), the help text, the offer to open a CTID on the other network, and the not-found pages. The page gets this and
 // draws it. No I/O.
 
-import { formatAmount, shortHash } from "../domain/format";
+import { formatAmount, shortAddress, shortHash } from "../domain/format";
 import { hashWhat } from "../domain/hash-nouns";
 import { collectionLabel, nftWords } from "../domain/nft-params";
+import { delegationHref, kindOfType, OBJECT_KINDS, objectHref } from "../domain/object-link";
+import type { Features } from "../ui/features";
 import type { NftKind } from "./api-types";
-import type { NetworkId } from "./networks";
-import type { HashMatches, HashQuestions } from "./resolve";
+import type { Network, NetworkId } from "./networks";
+import type { HashMatches, HashQuestions, ObjectMatch } from "./resolve";
 
 /** A network as a page names it. */
 export interface NetworkName {
@@ -17,7 +19,7 @@ export interface NetworkName {
 
 export type SearchPageData =
   | {
-      /** A hash that is two or three of a transaction, a ledger and an NFT (a URIToken on Xahau): the page links to each that it is, in that order. */
+      /** A hash that is two or more of a transaction, a ledger, an NFT (a URIToken on Xahau) and an object: the page links to each that it is, in that order. */
       kind: "choice";
       hash: string;
       tx?: { ledgerIndex: number; type: string };
@@ -25,6 +27,11 @@ export type SearchPageData =
       ledger?: { index: number; closeTime: number };
       /** `token` is the network's word for it (`NFT`, `URIToken`) and `detail` what follows it in its row ("#4,127 of rLULtF…mB3R · taxon 1", "of rEvRt8…Lk2P"). */
       nft?: { token: string; detail: string; burned: boolean };
+      /**
+       * An escrow, a check, a payment channel or a delegation (E10): `noun` is what it is called ("escrow", "check", "payment channel", "delegation"), `detail` what follows it in its row ("of
+       * rLULtF…mB3R", the owner, a delegation's delegator), `href` where the row leads (`objectMatchHref`: the server decides it, from the switches), `removed` whether the index says it was deleted.
+       */
+      object?: { noun: string; detail: string; href: string; removed: boolean };
     }
   | {
       /** Nothing the box was given looks like anything searchable: the help text. */
@@ -71,10 +78,38 @@ function nftRow(nft: NonNullable<HashMatches["nft"]>): NonNullable<Extract<Searc
   return { token: tokenWord(nft.kind), detail: `${serial}of ${collection}`, burned: nft.burned };
 }
 
-/** The choice page of a hash that is two or more of a transaction, a ledger and an NFT: a row for each that it is. */
-export function choicePage(hash: string, matches: HashMatches): SearchPageData {
-  const { tx, ledger, nft } = matches;
-  return { kind: "choice", hash, ...(tx && { tx }), ...(ledger && { ledger }), ...(nft && { nft: nftRow(nft) }) };
+/** What an object is called in the words of the search: the pages' words for the three that have one ("escrow", "check", "payment channel"), and "delegation" for a `Delegate`. */
+const objectNoun = (type: ObjectMatch["type"]): string => OBJECT_KINDS.find((each) => each.type === type)?.words ?? "delegation";
+
+/**
+ * Where an object that a search found leads (spec 8): its page (`objectHref`) for an escrow, a check or a payment channel, including one that was deleted (the page says so); a
+ * `Delegate`'s delegator's Delegation tab while `DELEGATION` is on (`delegationHref`), else the delegator's account page. A deleted Delegate is on the account page too: the tab lists
+ * the delegations in the ledger now, so it would not be there (E10Δ3). `features.ledgerObjects` is on whenever an object was asked for; the account page is the one page that exists
+ * whatever the switches say, which an object whose own link is off falls back to.
+ */
+export function objectMatchHref(net: NetworkId, id: string, { type, account, deleted }: ObjectMatch, features: Features): string {
+  const accountPage = `/${net}/account/${account}`;
+  if (type === "Delegate") return (!deleted && delegationHref(net, account, features)) || accountPage;
+  const kind = kindOfType(type);
+  return (kind === undefined ? null : objectHref(net, kind, { id }, features)) ?? accountPage;
+}
+
+/** The row of an object: "{noun} of {owner}", with `removed` for one that was deleted. */
+function objectRow(hash: string, object: ObjectMatch, { id, features }: Pick<Network, "id" | "features">): NonNullable<Extract<SearchPageData, { kind: "choice" }>["object"]> {
+  return { noun: objectNoun(object.type), detail: `of ${shortAddress(object.account)}`, href: objectMatchHref(id, hash, object, features), removed: object.deleted };
+}
+
+/** The choice page of a hash that is two or more of a transaction, a ledger, an NFT and an object: a row for each that it is. `network` says where an object's row leads. */
+export function choicePage(hash: string, matches: HashMatches, network: Pick<Network, "id" | "features">): SearchPageData {
+  const { tx, ledger, nft, object } = matches;
+  return {
+    kind: "choice",
+    hash,
+    ...(tx && { tx }),
+    ...(ledger && { ledger }),
+    ...(nft && { nft: nftRow(nft) }),
+    ...(object && { object: objectRow(hash, object, network) }),
+  };
 }
 
 export function helpPage(query: string): SearchPageData {

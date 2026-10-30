@@ -17,7 +17,8 @@ export interface Hint {
 
 /**
  * What the box says of an input. With `features.nfts` (the `NFTS` switch: `SearchBox` passes what `useFeatures()` gives) a 64-digit hash can be an NFT too: "Transaction, ledger or NFT" ("… or
- * URIToken" on Xahau). The nouns are `hashWhat` (app/domain/hash-nouns.ts, the list every word of the search uses), whose token's word is `nftWords(net).token`
+ * URIToken" on Xahau), and with `features.ledgerObjects` (`LEDGER_OBJECTS`) an escrow, a check or a payment channel: "Transaction, ledger, NFT, escrow, check or payment channel", each part
+ * only while its switch is on. The nouns are `hashWhat` (app/domain/hash-nouns.ts, the list every word of the search uses), whose token's word is `nftWords(net).token`
  * (app/domain/nft-params.ts), written there because the box is on every page and that file is the NFT pages' (a test holds the two together).
  */
 export function hintsFor(found: SearchKind, net: NetworkId, features: HashNounOptions = NO_HASH_NOUNS): Hint[] {

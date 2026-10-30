@@ -1,9 +1,8 @@
-import { featuresOff } from "../../scripts/e2e-env";
 import { fixtureNameOf, LIVE, NEVER_FUNDED, NO_SUCH_TRANSACTION, XAHAU_REMIT, XRPL_ACCOUNT, XRPL_LEDGER, XRPL_PAYMENT } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { expect, hashHint, hydrated, test } from "./support";
 
-/** What the box says a 64-digit hash can be: with `NFTS` on (the Worker's own var) it can be an NFT too (E8); `E2E_FEATURES_OFF` tells the suite when it is off. */
-const HASH_HINT = featuresOff(process.env).has("NFTS") ? "Transaction or ledger" : "Transaction, ledger or NFT";
+/** What the box says a 64-digit hash can be: with `NFTS` on (the Worker's own var) it can be an NFT too (E8), with `LEDGER_OBJECTS` on an escrow, a check or a payment channel (E10); `E2E_FEATURES_OFF` tells the suite when a switch is off. */
+const HASH_HINT = hashHint("xrpl");
 
 test.describe("search", () => {
   test("a pasted transaction hash, with the noise a paste brings, leads to the transaction", async ({ page }) => {

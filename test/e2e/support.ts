@@ -1,9 +1,31 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type BrowserContextOptions, expect, type Locator, test as base, type Page } from "@playwright/test";
 
-import { isExpectedConsoleError } from "../../scripts/e2e-env";
+import { featuresOff, isExpectedConsoleError } from "../../scripts/e2e-env";
 
 export { expect };
+
+/**
+ * What the search says a 64-digit hash can be on `net` in the Worker under test (E8, E10): "transaction, ledger, NFT, escrow, check or payment channel" ("URIToken" for the NFT on Xahau),
+ * each part only while its switch is on there (`E2E_FEATURES_OFF` lists the ones that are off). `nfts` is `NFTS` as the Worker has it unless a test says what it is (a case that runs only
+ * with `NFTS` on passes `true`). Written out here, not read from the app's `hashWhat`, so that the words are checked against an independent copy; the e2e project has no part of `app/` but
+ * the switches.
+ */
+export function hashWords(net: "xrpl" | "xahau", nfts: boolean = !featuresOff(process.env).has("NFTS")): string {
+  const parts = [
+    "transaction",
+    "ledger",
+    ...(nfts ? [net === "xahau" ? "URIToken" : "NFT"] : []),
+    ...(featuresOff(process.env).has("LEDGER_OBJECTS") ? [] : ["escrow", "check", "payment channel"]),
+  ];
+  return parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} or ${parts.at(-1)!}`;
+}
+
+/** The same with its first letter in capitals: the label of the hint of a hash. */
+export const hashHint = (net: "xrpl" | "xahau", nfts?: boolean): string => {
+  const words = hashWords(net, nfts);
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+};
 
 let visitors = 0;
 

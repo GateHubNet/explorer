@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Form, Link } from "react-router";
 
-import { hashWhat } from "../../domain/hash-nouns";
+import { hashWhat, joinNouns, type HashNounOptions } from "../../domain/hash-nouns";
 import type { classify as Classify, SearchKind } from "../../domain/search";
 import { cx } from "../cx";
 import type { NetworkBrief } from "../networks";
@@ -25,16 +25,17 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
-/** What the empty box says it takes: with NFTS on, an NFT id too (the board's words). */
-function placeholderOf(variant: "header" | "hero", nfts: boolean): string {
-  const end = nfts ? ", CTID or NFT id" : " or CTID";
-  return variant === "hero" ? `Address, transaction hash, ledger index${end}` : `Address, hash, ledger${end}`;
+/** What the empty box says it takes: with NFTS on, an NFT id too (the board's words), and with LEDGER_OBJECTS on an object id: "Address, hash, ledger, CTID, NFT id or object id". */
+function placeholderOf(variant: "header" | "hero", { nfts, ledgerObjects }: HashNounOptions): string {
+  const takes = variant === "hero" ? ["Address", "transaction hash", "ledger index"] : ["Address", "hash", "ledger"];
+  return joinNouns([...takes, "CTID", ...(nfts ? ["NFT id"] : []), ...(ledgerObjects ? ["object id"] : [])]);
 }
 
 /**
  * The search box. A GET form to `/{net}/search?q=...`, so it works before JavaScript loads; with JavaScript it shows what the
  * input looks like as you type (a ledger, an account, a hash, a CTID), without any request. `/` focuses it from anywhere on
- * the page except while another field has focus. It reads the switches (`useFeatures()`): while `NFTS` is on, its placeholders and the hint of a hash name the NFT.
+ * the page except while another field has focus. It reads the switches (`useFeatures()`): while `NFTS` is on, its placeholders and the hint of a hash name the NFT, and while `LEDGER_OBJECTS`
+ * is on they name the objects too.
  *
  * `variant="header"` is the compact box of the header; `"hero"` the large one with a Search button. A second box on the same
  * page (the 404 page has the header's and its own) passes `shortcut={false}`, so that it does not claim the `/` key, and
@@ -120,7 +121,7 @@ export function SearchBox({
             if (event.key === "Escape") setOpen(false);
           }}
           className={cx("search__input", variant === "hero" && "mono")}
-          placeholder={placeholderOf(variant, features.nfts)}
+          placeholder={placeholderOf(variant, features)}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}

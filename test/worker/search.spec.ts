@@ -2,13 +2,16 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { encodeCtid } from "../../app/domain/ctid";
-import { shortHash } from "../../app/domain/format";
+import { shortAddress, shortHash } from "../../app/domain/format";
 import { loader } from "../../app/routes/net.search";
+import type { LedgerObjectRef } from "../../app/server/api-types";
 import { createLoadContext, type Env } from "../../app/server/env";
 import { recordedHashes } from "../support/ledger-hashes";
 import { nftCase } from "../support/nft-cases";
 import { nftAnswerSample, nftSample, uriTokenSample } from "../support/nft-samples";
 import { isStored } from "../support/nft-pages";
+import { objectCase } from "../support/object-cases";
+import { CHANNEL_ID, CHECK_ID, DELEGATION_ID, DELEGATOR, ESCROW_ID, ESCROW_OWNER, ledgerObjectSample } from "../support/object-samples";
 import { anchors, hrefs, pageClient, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
@@ -87,6 +90,24 @@ const asLedger = (hash: string, ledgerIndex: number): Overrides => {
   const both = bothAnswered(hash, ledgerIndex);
   return { [`GET /v2/ledgers/${hash}`]: both[`GET /v2/ledgers/${hash}`] };
 };
+
+/** The index's object for `hash` (`/v2/ledger_objects/{id}`, as the data API answers it): an escrow of `ESCROW_OWNER` unless `over` says otherwise. */
+const indexedObject = (hash: string, over: Partial<LedgerObjectRef> = {}): Overrides => ({
+  [`GET /v2/ledger_objects/${hash}`]: {
+    result: "success",
+    ledger_object: ledgerObjectSample({ object_id: hash, object_type: "Escrow", account: ESCROW_OWNER, deleted: false, ...over }),
+  },
+});
+/** What the node's `ledger_entry` says of `hash`: an entry of `type` of `ESCROW_OWNER`, as the node wrote it. */
+const nodeEntry = (hash: string, type: string, over: Record<string, unknown> = {}): Overrides => ({
+  [`node ledger_entry ${hash}`]: {
+    index: hash,
+    ledger_index: 107972000,
+    node: { LedgerEntryType: type, Account: ESCROW_OWNER, Flags: 0, index: hash, ...over },
+    status: "success",
+    validated: true,
+  },
+});
 
 // First in the file: the subrequest cache keeps the answers that worked, so the failing ones are asked for first and for
 // hashes and ledgers that nothing else in the file asks for.
@@ -195,7 +216,7 @@ describe("when the NFT question fails", () => {
     expect(await isStored(search(hash))).toBe(false);
   });
 
-  it("names what it asked for in what its 503 throws, as the 404 does: transaction, ledger or NFT (URIToken on Xahau)", async () => {
+  it("names what it asked for in what its 503 throws, as the 404 does: transaction, ledger, NFT (URIToken on Xahau), escrow, check or payment channel", async () => {
     // The Worker's busy page replaces a 503's body, so the phrase is read where the loader throws it (the log's and the error boundary's).
     const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
     for (const [net, word] of [
@@ -213,7 +234,7 @@ describe("when the NFT question fails", () => {
         (error: unknown) => error,
       );
 
-      expect(thrown, net).toMatchObject({ data: { unavailable: `transaction, ledger or ${word} ${hash}` }, init: { status: 503 } });
+      expect(thrown, net).toMatchObject({ data: { unavailable: `transaction, ledger, ${word}, escrow, check or payment channel ${hash}` }, init: { status: 503 } });
       mock.restore();
     }
   });
@@ -250,6 +271,97 @@ describe("when the NFT question fails", () => {
     expect(response.headers.get("Retry-After")).toBeTruthy();
     expect(mock.unusedOverrides()).toEqual([]);
     expect(await isStored(search(hash))).toBe(false);
+  });
+});
+
+// The failure rules of Review Focus 3 with the object question (ledger object pages spec 8): the index asks the transaction, the ledger, the NFT and the object side by side; the node is asked
+// only when the index had none of them and none of its questions failed.
+describe("when the object question fails", () => {
+  it("answers 503 when the index fails the object question and has nothing else, and does not send the visitor to the node's entry in its place", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { [`GET /v2/ledger_objects/${hash}`]: dataApiError(503, "unavailable"), ...nodeEntry(hash, "Escrow") });
+    const response = await get(search(hash));
+    const html = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(html).toContain("Temporarily unavailable");
+    expect(statusesOf(mock, `GET /v2/ledger_objects/${hash}`)).toEqual([503]);
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([`node ledger_entry ${hash}`]);
+    expect(await isStored(search(hash))).toBe(false);
+  });
+
+  it("answers 503 for a data API without D5 ('Cannot GET'): an outage, never a 404 that is stored", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { [`GET /v2/ledger_objects/${hash}`]: dataApiError(404, `Cannot GET /v2/ledger_objects/${hash}`) });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(503);
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    expect(mock.unusedOverrides()).toEqual([]);
+    expect(await isStored(search(hash))).toBe(false);
+  });
+
+  it("still redirects to the transaction when only the object question failed", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...asTransaction(hash, 107600700), [`GET /v2/ledger_objects/${hash}`]: dataApiError(500, "boom") });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/tx/${hash}`);
+    expect(statusesOf(mock, `GET /v2/ledger_objects/${hash}`)).toEqual([500]);
+    expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+  });
+
+  it("still redirects to the object when only the transaction question failed", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { ...indexedObject(hash), [`GET /v2/transactions/${hash}`]: dataApiError(500, "boom") });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/escrows/${hash}`);
+    expect(statusesOf(mock, `GET /v2/transactions/${hash}`)).toEqual([500]);
+  });
+
+  it("answers 503 when the index has nothing and the node fails the object question: it cannot tell", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", { [`node ledger_entry ${hash}`]: nodeError("internal") });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(mock.unusedOverrides()).toEqual([]);
+    expect(await isStored(search(hash))).toBe(false);
+  });
+
+  it("still redirects to the transaction the node has when the node's object question failed", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xrpl", {
+      [`GET /v2/transactions/${hash}`]: null,
+      [`node tx ${hash}`]: {
+        status: "success",
+        validated: true,
+        ledger_index: 107600710,
+        date: 845378370,
+        hash,
+        tx_json: { TransactionType: "Payment", Account: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", Fee: "10" },
+        Account: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+        TransactionType: "Payment",
+        Fee: "10",
+        meta: { TransactionIndex: 1, TransactionResult: "tesSUCCESS", AffectedNodes: [] },
+      },
+      [`node ledger_entry ${hash}`]: nodeError("internal"),
+    });
+    const response = await get(search(hash));
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/tx/${hash}`);
   });
 });
 
@@ -305,8 +417,13 @@ describe("a 64-digit hash", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe(`/xrpl/tx/${XRPL_TX}`);
-    // The NFT question is asked with the others while NFTS is on; the node is not asked, as the index had an answer.
-    expect(keys(mock).sort()).toEqual([`xrpl GET /v2/ledgers/${XRPL_TX}`, `xrpl GET /v2/nfts/${XRPL_TX}`, `xrpl GET /v2/transactions/${XRPL_TX}`]);
+    // The NFT and object questions are asked with the others while their switches are on; the node is not asked, as the index had an answer.
+    expect(keys(mock).sort()).toEqual([
+      `xrpl GET /v2/ledger_objects/${XRPL_TX}`,
+      `xrpl GET /v2/ledgers/${XRPL_TX}`,
+      `xrpl GET /v2/nfts/${XRPL_TX}`,
+      `xrpl GET /v2/transactions/${XRPL_TX}`,
+    ]);
     expect(await storedAs(search(XRPL_TX))).toEqual({ cls: "short", ttl: 30 });
   });
 
@@ -359,7 +476,7 @@ describe("a 64-digit hash", () => {
   });
 
   describe("that is an NFT (NFT spec 7)", () => {
-    it("redirects the id of an NFT of the index to the NFT's page, with the NFT question asked and the node not", async () => {
+    it("redirects the id of an NFT of the index to the NFT's page, with the NFT and object questions asked and the node not", async () => {
       const { id } = await nftCase("xrpl", "featured");
       mock = mockUpstream("xrpl");
       const response = await get(search(id));
@@ -367,7 +484,7 @@ describe("a 64-digit hash", () => {
 
       expect(response.status).toBe(302);
       expect(response.headers.get("Location")).toBe(`/xrpl/nft/${id}`);
-      expect(keys(mock).sort()).toEqual([`xrpl GET /v2/ledgers/${id}`, `xrpl GET /v2/nfts/${id}`, `xrpl GET /v2/transactions/${id}`]);
+      expect(keys(mock).sort()).toEqual([`xrpl GET /v2/ledger_objects/${id}`, `xrpl GET /v2/ledgers/${id}`, `xrpl GET /v2/nfts/${id}`, `xrpl GET /v2/transactions/${id}`]);
       expect(await storedAs(search(id))).toEqual({ cls: "short", ttl: 30 });
     });
 
@@ -389,9 +506,14 @@ describe("a 64-digit hash", () => {
 
       expect(response.status).toBe(302);
       expect(response.headers.get("Location")).toBe(`/xrpl/nft/${id}`);
-      // The index said "nft not found" (and had neither a transaction nor a ledger), so the node was asked, for the same three.
+      // The index said "nft not found" (and had neither a transaction nor a ledger nor an object), so the node was asked, for the same four.
       expect(keys(mock).filter((key) => key.includes("node")).sort()).toEqual(
-        [`xrpl node ledger ledger_hash=${id}`, `xrpl node nft_info ledger_index=validated&nft_id=${id}`, `xrpl node tx transaction=${id}`].sort(),
+        [
+          `xrpl node ledger ledger_hash=${id}`,
+          `xrpl node ledger_entry index=${id}&ledger_index=validated`,
+          `xrpl node nft_info ledger_index=validated&nft_id=${id}`,
+          `xrpl node tx transaction=${id}`,
+        ].sort(),
       );
       expect(await storedAs(search(id))).toEqual({ cls: "short", ttl: 30 });
     });
@@ -475,6 +597,190 @@ describe("a 64-digit hash", () => {
     });
   });
 
+  describe("that is a ledger object (ledger object pages spec 8)", () => {
+    const rowsOf = (html: string) => hrefs(html).filter((href) => href.includes("/escrows/") || href.includes("/checks/") || href.includes("/payment-channels/") || href.includes("/account/"));
+
+    it.each([
+      ["an escrow", ESCROW_ID, "escrows"],
+      ["a check", CHECK_ID, "checks"],
+      ["a payment channel", CHANNEL_ID, "payment-channels"],
+    ] as const)("redirects the ID of %s of the index to its page, with the object question asked beside the others and the node not", async (_what, id, segment) => {
+      mock = mockUpstream("xrpl");
+      const response = await get(search(id));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/${segment}/${id}`);
+      expect(keys(mock).sort()).toEqual([`xrpl GET /v2/ledger_objects/${id}`, `xrpl GET /v2/ledgers/${id}`, `xrpl GET /v2/nfts/${id}`, `xrpl GET /v2/transactions/${id}`]);
+      expect(await storedAs(search(id))).toEqual({ cls: "short", ttl: 30 });
+    });
+
+    it("sends the ID on in upper case, whatever was typed, with or without 0x", async () => {
+      mock = mockUpstream("xrpl");
+      for (const q of [ESCROW_ID.toLowerCase(), `0x${ESCROW_ID}`]) {
+        const response = await get(search(q));
+        await response.text();
+        expect(response.headers.get("Location"), q).toBe(`/xrpl/escrows/${ESCROW_ID}`);
+      }
+    });
+
+    it("redirects the ID of a removed escrow to its page, which says that it was removed", async () => {
+      // The recorded escrow that the index says was deleted (test/fixtures/http/xrpl/data-api/ledger_objects/).
+      const removed = "03256CCB3E90DBCFC6AE5E78E72095EB67595B0844BD85F152577C11B103C698";
+      mock = mockUpstream("xrpl");
+      const response = await get(search(removed));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/escrows/${removed}`);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+    });
+
+    it("redirects the ID of a Delegate to its delegator's Delegation tab", async () => {
+      mock = mockUpstream("xrpl");
+      const response = await get(search(DELEGATION_ID));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/account/${DELEGATOR}?tab=delegation`);
+      expect(await storedAs(search(DELEGATION_ID))).toEqual({ cls: "short", ttl: 30 });
+    });
+
+    it("redirects the ID of a removed Delegate to its delegator's account page: the tab lists the delegations in the ledger now (E10Δ3)", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", indexedObject(hash, { object_type: "Delegate", account: DELEGATOR, deleted: true }));
+      const response = await get(search(hash));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/account/${DELEGATOR}`);
+    });
+
+    it.each([
+      ["an escrow", "escrow-node-only", "escrows"],
+      ["a check", "check-node-only", "checks"],
+    ] as const)("redirects the ID of %s that only the node has to its page: the page shows it from the network", async (_what, which, segment) => {
+      const { id } = await objectCase("xrpl", which);
+      mock = mockUpstream("xrpl");
+      const response = await get(search(id));
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xrpl/${segment}/${id}`);
+      // The index had no object (and neither a transaction nor a ledger nor an NFT), so the node was asked, for the same four.
+      expect(keys(mock).filter((key) => key.includes("node")).sort()).toEqual(
+        [
+          `xrpl node ledger ledger_hash=${id}`,
+          `xrpl node ledger_entry index=${id}&ledger_index=validated`,
+          `xrpl node nft_info ledger_index=validated&nft_id=${id}`,
+          `xrpl node tx transaction=${id}`,
+        ].sort(),
+      );
+      expect(await storedAs(search(id))).toEqual({ cls: "short", ttl: 30 });
+    });
+
+    it("redirects the ID of an escrow of Xahau to its page, from the index and from the node, the node asked once for the URIToken and the object together", async () => {
+      const { id } = await objectCase("xahau", "xahau-escrow");
+      mock = mockUpstream("xahau");
+      const fromIndex = await get(`/xahau/search?q=${id}`);
+      await fromIndex.text();
+      expect(fromIndex.status).toBe(302);
+      expect(fromIndex.headers.get("Location")).toBe(`/xahau/escrows/${id}`);
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      mock.restore();
+
+      const hash = fresh();
+      mock = mockUpstream("xahau", nodeEntry(hash, "Escrow"));
+      const fromNode = await get(`/xahau/search?q=${hash}`);
+      await fromNode.text();
+      expect(fromNode.status).toBe(302);
+      expect(fromNode.headers.get("Location")).toBe(`/xahau/escrows/${hash}`);
+      expect(keys(mock).filter((key) => key.startsWith("xahau node ledger_entry"))).toEqual([`xahau node ledger_entry index=${hash}&ledger_index=validated`]);
+    });
+
+    it("is a 404 for an entry of a type that has no page: it counts as nothing", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", nodeEntry(hash, "AccountRoot"));
+      const { html } = await page(search(hash), 404);
+
+      expect(textOf(html)).toContain(`We couldn’t find transaction, ledger, NFT, escrow, check or payment channel ${shortHash(hash)} on XRPL.`);
+      expect(mock.unusedOverrides()).toEqual([]);
+    });
+
+    it("is a choice between the transaction and the object when the ID is both, each row leading to its page", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { ...asTransaction(hash, 107600800), ...indexedObject(hash) });
+      const { response, html } = await page(search(hash));
+      const text = textOf(html);
+
+      expect(response.headers.get("Cache-Control")).toBe("max-age=0");
+      expect(text).toContain("Transaction or escrow?");
+      expect(text).toContain("both a transaction and an escrow on XRPL");
+      expect(hrefs(html)).toContain(`/xrpl/tx/${hash}`);
+      expect(hrefs(html)).toContain(`/xrpl/escrows/${hash}`);
+      expect(hrefs(html)).not.toContain(`/xrpl/ledger/${hash}`);
+      expect(text).toContain("OfferCreate in ledger #107,600,800");
+      expect(text).toContain(`Escrow of ${shortAddress(ESCROW_OWNER)}`);
+      expect(text).not.toContain("removed");
+      expect(isNoindexFollow(html)).toBe(true);
+      expect(await storedAs(search(hash))).toEqual({ cls: "short", ttl: 30 });
+      expect(mock.requests.filter((r) => r.kind === "node")).toEqual([]);
+      expect(mock.unusedOverrides()).toEqual([]);
+    });
+
+    it.each([
+      ["a check", "Check", "checks", "Check of"],
+      ["a payment channel", "PayChannel", "payment-channels", "Payment channel of"],
+    ] as const)("names %s in its row: '%s of {owner}', and says 'removed' of one that was deleted", async (_what, type, segment, words) => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { ...asLedger(hash, 107600900), ...indexedObject(hash, { object_type: type, deleted: true }) });
+      const { html } = await page(search(hash));
+      const text = textOf(html);
+
+      expect(hrefs(html).filter((href) => href.includes(hash))).toEqual([`/xrpl/ledger/${hash}`, `/xrpl/${segment}/${hash}`]);
+      expect(text).toContain(`${words} ${shortAddress(ESCROW_OWNER)} removed`);
+    });
+
+    it("names a delegation in its row, 'Delegation of {delegator}', leading to the Delegation tab", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { ...asTransaction(hash, 107601000), ...indexedObject(hash, { object_type: "Delegate", account: DELEGATOR }) });
+      const { html } = await page(search(hash));
+
+      expect(textOf(html)).toContain("Transaction or delegation?");
+      expect(textOf(html)).toContain(`Delegation of ${shortAddress(DELEGATOR)}`);
+      expect(textOf(html)).not.toContain("removed");
+      expect(rowsOf(html)).toEqual([`/xrpl/account/${DELEGATOR}?tab=delegation`]);
+    });
+
+    it("leads the row of a removed delegation to the account page, with 'removed' (E10Δ3)", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { ...asTransaction(hash, 107601100), ...indexedObject(hash, { object_type: "Delegate", account: DELEGATOR, deleted: true }) });
+      const { html } = await page(search(hash));
+
+      expect(textOf(html)).toContain(`Delegation of ${shortAddress(DELEGATOR)} removed`);
+      expect(rowsOf(html)).toEqual([`/xrpl/account/${DELEGATOR}`]);
+    });
+
+    it("is a choice among all four, in the order the search asks them: the transaction, the ledger, the NFT and the object", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xrpl", { ...asTransaction(hash, 107601200), ...asLedger(hash, 107601201), ...indexedNft(hash), ...indexedObject(hash) });
+      const { html } = await page(search(hash));
+
+      expect(textOf(html)).toContain("Transaction, ledger, NFT or escrow?");
+      expect(hrefs(html).filter((href) => href.includes(hash))).toEqual([`/xrpl/tx/${hash}`, `/xrpl/ledger/${hash}`, `/xrpl/nft/${hash}`, `/xrpl/escrows/${hash}`]);
+    });
+
+    it("is a choice on Xahau between the transaction and the escrow, each row leading to Xahau's page", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xahau", { ...asTransaction(hash, 26800100), ...indexedObject(hash, { account: "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb" }) });
+      const { html } = await page(`/xahau/search?q=${hash}`);
+
+      expect(textOf(html)).toContain("Transaction or escrow?");
+      expect(textOf(html)).toContain("both a transaction and an escrow on Xahau");
+      expect(hrefs(html).filter((href) => href.includes(hash))).toEqual([`/xahau/tx/${hash}`, `/xahau/escrows/${hash}`]);
+    });
+  });
+
   describe("that nothing has", () => {
     const UNKNOWN = "3B".repeat(32);
 
@@ -483,7 +789,7 @@ describe("a 64-digit hash", () => {
       const { response, html } = await page(search(UNKNOWN), 404);
       const text = textOf(html);
 
-      expect(text).toContain(`We couldn’t find transaction, ledger or NFT ${shortHash(UNKNOWN)} on XRPL.`);
+      expect(text).toContain(`We couldn’t find transaction, ledger, NFT, escrow, check or payment channel ${shortHash(UNKNOWN)} on XRPL.`);
       const link = anchors(html).find((a) => a.text === "Search on Xahau");
       expect(link?.attrs).toContain(`href="/xahau/search?q=${UNKNOWN}"`);
       // The box keeps what was typed, and the way home is there.
@@ -494,28 +800,31 @@ describe("a 64-digit hash", () => {
       expect(await storedAs(search(UNKNOWN))).toEqual({ cls: "short", ttl: 30 });
     });
 
-    it("asked the data API for the transaction, the ledger and the NFT, and then the node for the same three", async () => {
+    it("asked the data API for the transaction, the ledger, the NFT and the object, and then the node for the same four", async () => {
       const hash = "3C".repeat(32);
       mock = mockUpstream("xrpl");
       await page(search(hash), 404);
       expect(keys(mock).sort()).toEqual(
         [
+          `xrpl GET /v2/ledger_objects/${hash}`,
           `xrpl GET /v2/ledgers/${hash}`,
           `xrpl GET /v2/nfts/${hash}`,
           `xrpl GET /v2/transactions/${hash}`,
           `xrpl node ledger ledger_hash=${hash}`,
+          `xrpl node ledger_entry index=${hash}&ledger_index=validated`,
           `xrpl node nft_info ledger_index=validated&nft_id=${hash}`,
           `xrpl node tx transaction=${hash}`,
         ].sort(),
       );
     });
 
-    it("asks Xahau's node for the URIToken as a ledger entry, not XRPL's command", async () => {
+    it("asks Xahau's node for the URIToken and the object with the one ledger entry, not XRPL's command, and asks it once", async () => {
       const hash = "3E".repeat(32);
       mock = mockUpstream("xahau");
       await page(`/xahau/search?q=${hash}`, 404);
       expect(keys(mock).sort()).toEqual(
         [
+          `xahau GET /v2/ledger_objects/${hash}`,
           `xahau GET /v2/ledgers/${hash}`,
           `xahau GET /v2/nfts/${hash}`,
           `xahau GET /v2/transactions/${hash}`,
@@ -531,7 +840,7 @@ describe("a 64-digit hash", () => {
       mock = mockUpstream("xrpl", { [`node nft_info ${hash}`]: nodeError("unknownCmd") });
       const { html } = await page(search(hash), 404);
 
-      expect(textOf(html)).toContain(`We couldn’t find transaction, ledger or NFT ${shortHash(hash)} on XRPL.`);
+      expect(textOf(html)).toContain(`We couldn’t find transaction, ledger, NFT, escrow, check or payment channel ${shortHash(hash)} on XRPL.`);
       expect(mock.unusedOverrides()).toEqual([]);
     });
 
@@ -542,7 +851,7 @@ describe("a 64-digit hash", () => {
       const link = anchors(html).find((a) => a.text === "Search on XRPL");
       expect(link?.attrs).toContain(`href="/xrpl/search?q=${hash}"`);
       // What was looked for is what the search asked: Xahau's token is a URIToken.
-      expect(textOf(html)).toContain(`We couldn’t find transaction, ledger or URIToken ${shortHash(hash)} on Xahau.`);
+      expect(textOf(html)).toContain(`We couldn’t find transaction, ledger, URIToken, escrow, check or payment channel ${shortHash(hash)} on Xahau.`);
     });
 
     it("leads to the transaction when the other network has it", async () => {
@@ -710,14 +1019,19 @@ describe("anything else", () => {
     }
   });
 
-  it("says what a hash can be as the search asks it with NFTS on, on each network, in the prompt of an empty box and in the box's own words", async () => {
+  it("says what a hash can be as the search asks it with NFTS and LEDGER_OBJECTS on, on each network, in the prompt of an empty box, the help's bullets and the box's own words", async () => {
     mock = mockUpstream("xrpl");
     const xrpl = await page(search(""));
-    expect(textOf(xrpl.html)).toContain("Enter an address, a transaction, ledger or NFT hash, a ledger index or a CTID.");
+    expect(textOf(xrpl.html)).toContain("Enter an address, a transaction, ledger, NFT, escrow, check or payment channel hash, a ledger index or a CTID.");
+    expect(textOf(xrpl.html)).toContain("An NFT or URIToken id: 64 hexadecimal characters");
+    expect(textOf(xrpl.html)).toContain("An escrow, check or payment channel id: 64 hexadecimal characters");
+    // The box's placeholders, the header's and the page's own.
+    expect(xrpl.html).toContain('placeholder="Address, hash, ledger, CTID, NFT id or object id"');
+    expect(xrpl.html).toContain('placeholder="Address, transaction hash, ledger index, CTID, NFT id or object id"');
     mock.restore();
     mock = mockUpstream("xahau");
     const xahau = await page("/xahau/search?q=");
-    expect(textOf(xahau.html)).toContain("Enter an address, a transaction, ledger or URIToken hash, a ledger index or a CTID.");
+    expect(textOf(xahau.html)).toContain("Enter an address, a transaction, ledger, URIToken, escrow, check or payment channel hash, a ledger index or a CTID.");
   });
 
   it("shows a long or hostile input as text, cut short", async () => {

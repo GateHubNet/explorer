@@ -380,7 +380,7 @@ a.nav-item:hover {
   color: var(--faint);
 }
 
-/* The row of a hint wraps when its tag is long ("Transaction, ledger or URIToken", E8): the detail has at least 8rem, or it goes to the next line, so that a phone
+/* The row of a hint wraps when its tag is long ("Transaction, ledger or URIToken", E8; with objects, E10, the tag itself wraps, below): the detail has at least 8rem, or it goes to the next line, so that a phone
    never gets a row wider than itself nor a hash cut to nothing. The page of a choice (.choice, pages.css) writes its own lines. */
 .search__hints .hit {
   flex-wrap: wrap;
@@ -388,6 +388,12 @@ a.nav-item:hover {
 
 .search__hints .hit__detail {
   flex-basis: 8rem;
+}
+
+/* The tag of a hash's hint names everything the search can find ("Transaction, ledger, URIToken, escrow, check or payment channel", E10), which is wider than a phone: it wraps in its own
+   box, where a transaction type's tag (.type, nowrap) never does. */
+.search__hints .hit .type {
+  white-space: normal;
 }
 
 .search__empty {

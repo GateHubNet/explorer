@@ -1032,6 +1032,36 @@ describe("SearchBox", () => {
     expect(await screen.findByRole("link", { name: /Transaction, ledger or URIToken/ })).toBeTruthy();
   });
 
+  it("names the objects in its placeholders and in the hint of a hash while LEDGER_OBJECTS is on, each part only while its switch is on (E10)", async () => {
+    const objects = { ...NO_FEATURES, ledgerObjects: true };
+    const both = { ...NFTS_ON, ledgerObjects: true };
+    for (const [features, variant, placeholder] of [
+      [objects, "header", "Address, hash, ledger, CTID or object id"],
+      [objects, "hero", "Address, transaction hash, ledger index, CTID or object id"],
+      [both, "header", "Address, hash, ledger, CTID, NFT id or object id"],
+      [both, "hero", "Address, transaction hash, ledger index, CTID, NFT id or object id"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} variant={variant} />, features);
+      expect((await screen.findByRole("searchbox")).getAttribute("placeholder"), `${variant} ${JSON.stringify(features)}`).toBe(placeholder);
+      cleanup();
+    }
+
+    for (const [features, words] of [
+      [objects, "Transaction, ledger, escrow, check or payment channel"],
+      [both, "Transaction, ledger, NFT, escrow, check or payment channel"],
+    ] as const) {
+      renderUnderNetwork(<SearchBox net={XRPL} />, features);
+      fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH.toLowerCase() } });
+      const hint = await screen.findByRole("link", { name: new RegExp(`^${words}`) });
+      expect(hint.getAttribute("href")).toBe(`/xrpl/search?q=${HASH}`);
+      cleanup();
+    }
+
+    renderUnderNetwork(<SearchBox net={XAHAU} />, both, { network: { id: "xahau", name: "Xahau" }, path: "/xahau" });
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: HASH } });
+    expect(await screen.findByRole("link", { name: /^Transaction, ledger, URIToken, escrow, check or payment channel/ })).toBeTruthy();
+  });
+
   it("says what it can search for when the input is none of those, and shows no hints for an empty box", async () => {
     renderInRouter(<SearchBox net={XRPL} variant="hero" />);
     const input = screen.getByRole("searchbox");
@@ -1057,6 +1087,12 @@ describe("SearchBox", () => {
     expect(await said(<SearchBox net={XRPL} />, NFTS_ON)).toBe(`Nothing on XRPL looks like that.${tail.replace("HASH", "transaction, ledger or NFT")}`);
     expect(await said(<SearchBox net={XAHAU} />, NFTS_ON, { network: { id: "xahau", name: "Xahau" }, path: "/xahau" })).toBe(
       `Nothing on Xahau looks like that.${tail.replace("HASH", "transaction, ledger or URIToken")}`,
+    );
+    expect(await said(<SearchBox net={XRPL} />, { ...NFTS_ON, ledgerObjects: true })).toBe(
+      `Nothing on XRPL looks like that.${tail.replace("HASH", "transaction, ledger, NFT, escrow, check or payment channel")}`,
+    );
+    expect(await said(<SearchBox net={XRPL} />, { ...NO_FEATURES, ledgerObjects: true })).toBe(
+      `Nothing on XRPL looks like that.${tail.replace("HASH", "transaction, ledger, escrow, check or payment channel")}`,
     );
   });
 
