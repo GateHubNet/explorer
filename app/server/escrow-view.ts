@@ -24,9 +24,14 @@ import {
   amountText,
   commonAccounts,
   commonOf,
+  detailAccounts,
   displayAmount,
   fromNodeEntry,
+  issuerOf,
+  none,
+  optionalUnix,
   sentence,
+  tagValue,
   text,
   theAmount,
   when,
@@ -112,8 +117,6 @@ interface Facts {
   /** Whether a fulfillment finishes it: it has a condition. */
   conditional: boolean;
 }
-
-const optionalUnix = (iso: string | undefined): number | undefined => (iso === undefined ? undefined : unixOf(iso));
 
 function factsOf(source: ObjectSource, native: Native): Facts {
   let escrow: EscrowObject;
@@ -341,9 +344,6 @@ const NO_FEE = 1_000_000_000;
 /** A transfer rate as the percent it charges: 1,005,000,000 is 0.5%, and 1,000,000,000 (and anything below it) is 0%. */
 const transferPercent = (rate: number): string => `${BigNumber.max(0, new BigNumber(rate).minus(NO_FEE)).shiftedBy(-7).toFixed()}%`;
 
-/** The value of a row that has nothing to say, built fresh for each row (a shared object would be one value in many places of the page data). */
-const none = (words = "None"): DetailRow["value"] => ({ kind: "text", text: words, faint: true });
-
 /** The board's words about the condition: what it is, and what has happened to the secret that matches it. */
 function conditionHint(f: Facts): string {
   const what = "A PREIMAGE-SHA-256 crypto-condition: only the fulfillment, the secret whose SHA-256 hash it holds, can finish the escrow.";
@@ -361,8 +361,7 @@ function conditionHint(f: Facts): string {
 
 function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
   const { escrow, amount, finishAfter: fa, cancelAfter: ca } = f;
-  const token = amount !== null && "issuer" in amount && amount.issuer !== undefined;
-  const tag = (value: number | undefined): DetailRow["value"] => (value === undefined ? none() : { kind: "number", text: String(value) });
+  const token = issuerOf(amount) !== undefined;
   return [
     { label: "Escrow ID", field: "ledger object ID", value: { kind: "code", text: escrow.escrow_id, copy: "Copy escrow ID" } },
     { label: "Owner", field: "source", value: { kind: "account", address: escrow.account } },
@@ -392,8 +391,8 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
             hint: "The secret that matches the condition, revealed by the EscrowFinish.",
           },
         ]),
-    { label: "Destination tag", value: tag(escrow.destination_tag) },
-    { label: "Source tag", value: tag(escrow.source_tag) },
+    { label: "Destination tag", value: tagValue(escrow.destination_tag) },
+    { label: "Source tag", value: tagValue(escrow.source_tag) },
     // rippled leaves the field out of an entry with no fee, so a token escrow without one charges nothing
     ...(token ? [{ label: "Transfer rate", value: { kind: "text" as const, text: transferPercent(escrow.transfer_rate ?? NO_FEE) } }] : []),
     ...(reserve === null ? [] : [{ label: "Owner reserve", value: { kind: "amount" as const, amount: { value: reserve.amount, currency: reserve.currency } }, hint: reserve.hint }]),
@@ -448,10 +447,5 @@ export function escrowPage(
  * `collectAddresses`, then `loadNames`.
  */
 export function drawnAccounts(page: EscrowPageData): string[] {
-  const details = page.details.flatMap((row): string[] => {
-    if (row.value.kind === "account") return [row.value.address];
-    const amount = row.value.kind === "amount" ? row.value.amount : null;
-    return amount !== null && "issuer" in amount && amount.issuer !== undefined ? [amount.issuer] : [];
-  });
-  return commonAccounts(page, [...accountsIn(page.summary), ...page.statusLines.flatMap(accountsIn), ...details]);
+  return commonAccounts(page, [...accountsIn(page.summary), ...page.statusLines.flatMap(accountsIn), ...detailAccounts(page.details)]);
 }

@@ -28,6 +28,8 @@ import {
   fromNodeEntry,
   issuerOf,
   none,
+  optionalUnix,
+  rawValue,
   sentence,
   tagValue,
   text,
@@ -115,8 +117,6 @@ interface Facts {
   cancelledBySource: boolean;
 }
 
-const optionalUnix = (iso: string | undefined): number | undefined => (iso === undefined ? undefined : unixOf(iso));
-
 function factsOf(source: ObjectSource, native: Native): Facts {
   let check: CheckObject;
   if (source.origin === "index") {
@@ -138,9 +138,6 @@ function factsOf(source: ObjectSource, native: Native): Facts {
     cancelledBySource: canceller !== undefined && canceller === check.account,
   };
 }
-
-/** The raw value of an amount, for comparing two of the same currency. */
-const valueOf = (amount: DisplayAmount): string => ("mpt" in amount ? amount.mpt.units : amount.value);
 
 /** What the check's money is called where a sentence says where it comes from: the currency, or "the funds" (an MPT, or an amount D5 could not read), with the verb that agrees. */
 function fundsOf(sendMax: DisplayAmount | null): { noun: string; verb: string } {
@@ -182,7 +179,7 @@ function statusLinesOf(f: Facts): Segment[][] {
       const allowed =
         delivered === null || sendMax === null
           ? ""
-          : new BigNumber(valueOf(delivered)).lt(valueOf(sendMax))
+          : new BigNumber(rawValue(delivered)).lt(rawValue(sendMax))
             ? sentence(" of the ", amountSegment(sendMax), " it allowed")
             : ", all it allowed";
       return [

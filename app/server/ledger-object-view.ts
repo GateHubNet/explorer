@@ -178,6 +178,12 @@ export function displayAmount(a: ObjectAmount): DisplayAmount {
   return a.issuer === undefined ? { value: a.value, currency: a.currency } : { value: a.value, currency: a.currency, issuer: a.issuer };
 }
 
+/** The raw value of an amount, to compare two of one currency: the units of an MPT, the value of anything else, as the API wrote it. */
+export const rawValue = (amount: DisplayAmount): string => ("mpt" in amount ? amount.mpt.units : amount.value);
+
+/** A time of the API (`YYYY-MM-DDTHH:mm:ssZ`) as unix seconds, or nothing for a field the object does not have. */
+export const optionalUnix = (iso: string | undefined): number | undefined => (iso === undefined ? undefined : unixOf(iso));
+
 /** What `MptAmount` draws, as words for a sentence: "2,500,000 units of MPT 0000012A…". */
 const mptWords = ({ id, units }: { id: string; units: string }): string => `${formatAmount(units)} units of MPT ${id.slice(0, 8)}…`;
 

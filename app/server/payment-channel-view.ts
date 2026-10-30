@@ -32,6 +32,8 @@ import {
   displayAmount,
   fromNodeEntry,
   none,
+  optionalUnix,
+  rawValue,
   sentence,
   tagValue,
   text,
@@ -105,11 +107,14 @@ const PILLS: Record<ChannelStatus, { tone: PillTone; text: string }> = {
 /** The states of the strip in the board's order; `removed` is none of them. */
 const STATE_IDS = ["open", "closing", "closed"] as const;
 
-/** The states of the strip, each with the board's one line of what it means; the channel's own marked, none for a `removed` one. */
-function statesOf(status: ChannelStatus): StateItem[] {
+/**
+ * The states of the strip, each with the board's one line of what it means; the channel's own marked, none for a `removed` one. A channel can be closing for two reasons (decision 12):
+ * its Expiration is set (the board's "Close requested…"), or only its CancelAfter has passed, which nobody asked for, and then the strip says what is true of that.
+ */
+function statesOf(status: ChannelStatus, expiration: number | undefined): StateItem[] {
   const meaning: Record<(typeof STATE_IDS)[number], string> = {
     open: "Claims can be redeemed; no close requested.",
-    closing: "Close requested; it closes after the settle delay.",
+    closing: status === "closing" && expiration === undefined ? "CancelAfter has passed; any transaction on the channel now closes it." : "Close requested; it closes after the settle delay.",
     closed: "What was left went back to the source; removed.",
   };
   return STATE_IDS.map((id) => ({ id, label: PILLS[id].text, meaning: meaning[id], current: id === status }));
@@ -163,7 +168,6 @@ interface Facts {
   closedByClaim: boolean;
 }
 
-const optionalUnix = (iso: string | undefined): number | undefined => (iso === undefined ? undefined : unixOf(iso));
 const show = (amount: ObjectAmount | undefined): DisplayAmount | null => (amount === undefined ? null : displayAmount(amount));
 
 /** What is left of `whole` after `part` (D5's `remaining`, worked out for an event, which does not carry it), in `whole`'s currency; `null` when either is missing or not a number. */
@@ -214,9 +218,6 @@ function factsOf(source: ObjectSource, native: Native): Facts {
   };
 }
 
-/** The raw value of an amount, for comparing two of the same currency. */
-const valueOf = (amount: DisplayAmount): string => ("mpt" in amount ? amount.mpt.units : amount.value);
-
 // ---- The summary, the status lines and the banner --------------------------------------------------------------------------------------------------------
 
 function summaryOf(f: Facts): Segment[] {
@@ -233,7 +234,7 @@ function summaryOf(f: Facts): Segment[] {
 /** What the destination has been paid, for the open channel's second line: nothing, or the running total of the claims. */
 function redeemedOf(balance: DisplayAmount | null): Segment[] {
   if (balance === null) return [];
-  return new BigNumber(valueOf(balance)).isZero() ? sentence("No claim has been redeemed yet. ") : sentence("The destination has redeemed claims for ", amountSegment(balance), " so far. ");
+  return new BigNumber(rawValue(balance)).isZero() ? sentence("No claim has been redeemed yet. ") : sentence("The destination has redeemed claims for ", amountSegment(balance), " so far. ");
 }
 
 /** The sentences of the status: the headline and what it means (the board's, with its ages left out). */
@@ -302,7 +303,8 @@ function depositOf(f: Facts): { deposit: ShareData; shares: DepositShare[] } {
   const left = total.minus(paid);
   if (!total.gt(0) || paid.isNaN() || paid.lt(0) || left.lt(0)) return noDeposit();
 
-  const ended = f.removed !== undefined;
+  // Returned to the source is said of a closed channel alone: where the remainder of one that another transaction removed went is not known.
+  const ended = f.status === "closed";
   const parts: { id: "paid" | "left"; name: string; slot: Slot; value: BigNumber }[] = [
     { id: "paid", name: "Paid out", slot: 1, value: paid },
     { id: "left", name: ended ? "Returned to the source" : "Left", slot: "neutral", value: left },
@@ -352,7 +354,7 @@ function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords {
           what:
             paidMore === null
               ? sentence("Redeemed a claim", balance === null ? "." : sentence("; ", amountSegment(balance), " in all so far."))
-              : balance !== null && new BigNumber(valueOf(paidMore)).eq(valueOf(balance))
+              : balance !== null && new BigNumber(rawValue(paidMore)).eq(rawValue(balance))
                 ? sentence("Paid out ", amountSegment(paidMore), " with the first claim.")
                 : sentence("Paid out ", amountSegment(paidMore), " more", balance === null ? "." : sentence("; ", amountSegment(balance), " in all so far.")),
         };
@@ -433,20 +435,22 @@ function paidOutHint(f: Facts): string | undefined {
 
 function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
   const { channel, amount, balance, remaining, settleDelay, expiration, cancelAfter } = f;
-  const ended = f.removed !== undefined;
+  const ended = f.status === "closed";
   const [deposited, paidOut] = [depositedHint(f), paidOutHint(f)];
-  const leftHint = ended
-    ? "Went back to the source when the channel closed."
-    : f.status === "closing"
-      ? "Goes back to the source when the channel closes, unless the destination claims it first."
-      : "Can still be paid out by claims.";
+  // Where what is left goes, by state; for a channel another transaction removed that is not known, so it has no hint.
+  const leftHint = {
+    open: "Can still be paid out by claims.",
+    closing: "Goes back to the source when the channel closes, unless the destination claims it first.",
+    closed: "Went back to the source when the channel closed.",
+    removed: undefined,
+  }[f.status];
   return [
     { label: "Channel ID", field: "ledger object ID", value: { kind: "code", text: channel.channel_id, copy: "Copy channel ID" } },
     { label: "Source", value: { kind: "account", address: channel.account } },
     { label: "Destination", value: { kind: "account", address: channel.destination } },
     { label: "Deposited", field: "Amount", value: { kind: "amount", amount }, ...(deposited !== undefined && { hint: deposited }) },
     { label: "Paid out", field: "Balance", value: { kind: "amount", amount: balance }, ...(paidOut !== undefined && { hint: paidOut }) },
-    { label: ended ? "Returned to the source" : "Left", value: { kind: "amount", amount: remaining }, hint: leftHint },
+    { label: ended ? "Returned to the source" : "Left", value: { kind: "amount", amount: remaining }, ...(leftHint !== undefined && { hint: leftHint }) },
     {
       label: "Settle delay",
       field: "SettleDelay",
@@ -503,7 +507,7 @@ export function paymentChannelPage(
   const common = commonOf(
     source,
     { net: o.net, kind: "payment-channel", serverState: o.serverState, names: o.names, marker: o.marker, back: o.back },
-    { pill, states: statesOf(f.status), marks: marksOf(f), bannerSentence: bannerSentenceOf(f), say: eventWordsOf(f) },
+    { pill, states: statesOf(f.status, f.expiration), marks: marksOf(f), bannerSentence: bannerSentenceOf(f), say: eventWordsOf(f) },
   );
   return {
     ...common,

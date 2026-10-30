@@ -4,42 +4,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { objectCase, type ObjectCase } from "../../test/support/object-cases";
 import { CHANNEL_ID, DELEGATE, historySample, MPT_ISSUANCE_ID, paymentChannelAnswerSample, TOKEN_ISSUER } from "../../test/support/object-samples";
-import { allSwitches } from "../../test/support/switches";
+import { said, stateOf, walk, XAHAU, XRPL } from "../../test/support/object-view-world";
 import type { Segment } from "../domain/describe";
-import { formatAmount, formatCurrency, shortAddress } from "../domain/format";
+import { shortAddress } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import { formatDate } from "../domain/time-words";
 import type { ObjectEvent, ObjectHistoryPage, PaymentChannelAnswer } from "./api-types";
-import type { Env } from "./env";
 import type { DetailRow, ObjectSource } from "./ledger-object-view";
-import { networkOf } from "./networks";
 import { collectAddresses } from "./names-collect";
-import { RIPPLE_EPOCH_OFFSET, type LedgerObject, type ServerState } from "./node-rpc";
+import { RIPPLE_EPOCH_OFFSET, type LedgerObject } from "./node-rpc";
 import { drawnAccounts, paymentChannelPage, type PaymentChannelPageData } from "./payment-channel-view";
 import { unixOf } from "./validator-facts";
 
 // ---- The world of the tests ---------------------------------------------------------------------------------------------------------------------
-
-const env: Env = {
-  ENVIRONMENT: "development",
-  XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
-  XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
-  XRPL_NODE_URL: "https://s1.ripple.com:51234/",
-  XAHAU_NODE_URL: "https://xahau.network/",
-  DATA_API_KEY: "test-key",
-  BUILD_ID: "test-build",
-  ...allSwitches("on"),
-  VISITOR_LIMITER: { limit: async () => ({ success: true }) },
-};
-const XRPL = networkOf("xrpl", env);
-const XAHAU = networkOf("xahau", env);
-
-const stateOf = (reserveInc = 200_000): ServerState => ({
-  build_version: "2.5.0",
-  complete_ledgers: "1-107972102",
-  server_state: "full",
-  validated_ledger: { base_fee: 10, close_time: 846_000_000, hash: "A".repeat(64), reserve_base: 1_000_000, reserve_inc: reserveInc, seq: 107_972_102 },
-});
 
 const FIXTURES = new URL("../../test/fixtures/http/", import.meta.url);
 const fixture = <T>(path: string): T => JSON.parse(readFileSync(new URL(path, FIXTURES), "utf8")) as T;
@@ -68,22 +45,6 @@ const fromNode = (entry: LedgerObject, ledgerIndex: number, now: number): Object
 type Options = Parameters<typeof paymentChannelPage>[1];
 const page = (source: ObjectSource, over: Partial<Options> = {}, net = XRPL): PaymentChannelPageData =>
   paymentChannelPage(source, { net, serverState: stateOf(), names: NO_NAMES, back: [], ...over });
-
-/** A sentence as the page reads it. */
-const said = (segments: readonly Segment[]): string =>
-  segments
-    .map((segment) =>
-      segment.t === "text"
-        ? segment.v
-        : segment.t === "account"
-          ? shortAddress(segment.v)
-          : segment.t === "amount"
-            ? `${formatAmount(segment.value)} ${formatCurrency(segment.currency)}`
-            : segment.t === "pool"
-              ? segment.pair
-              : segment.v,
-    )
-    .join("");
 
 /** What the timeline reads, one line for each item. */
 const lines = (data: PaymentChannelPageData): string[] => data.timeline.map((item) => `${item.kind}:${item.type}:${item.title}`);
@@ -127,6 +88,31 @@ describe("paymentChannelPage from the index", () => {
       ["closed", "Closed", "What was left went back to the source; removed."],
     ]);
     expect(data.states.filter((state) => state.current).map((state) => state.id)).toEqual(["open"]);
+  });
+
+  it("gives the closing state the meaning of the reason the channel is closing: a close request (an Expiration), or only a CancelAfter that has passed (decision 12)", async () => {
+    const closingMeaning = (data: PaymentChannelPageData) => data.states.find((state) => state.id === "closing")!.meaning;
+    const BOARD = "Close requested; it closes after the settle delay.";
+    const CANCEL_AFTER = "CancelAfter has passed; any transaction on the channel now closes it.";
+    // an Expiration is set: the board's words, before and after it has passed
+    const requested = await answerOf("xrpl", "channel-closing");
+    expect(closingMeaning(page(indexed(requested)))).toBe(BOARD);
+    requested.payment_channel.expiration = "2026-10-20T00:00:00Z";
+    expect(closingMeaning(page(indexed(requested)))).toBe(BOARD);
+    // an Expiration and a CancelAfter that has passed: the close was requested, so the board's words
+    expect(closingMeaning(page(indexed(answerWith("closing", { expiration: "2026-11-01T00:00:00Z", cancel_after: "2026-10-20T00:00:00Z" }))))).toBe(BOARD);
+    // only a CancelAfter that has passed: nobody asked to close it
+    const onlyCancelAfter = page(indexed(answerWith("closing", { cancel_after: "2026-10-20T00:00:00Z" })));
+    expect(closingMeaning(onlyCancelAfter)).toBe(CANCEL_AFTER);
+    expect(onlyCancelAfter.states.filter((state) => state.current).map((state) => state.id)).toEqual(["closing"]);
+    // the other states, and the other two meanings, do not move with it
+    expect(onlyCancelAfter.states.map((state) => state.meaning).filter((meaning) => meaning !== CANCEL_AFTER)).toEqual([
+      "Claims can be redeemed; no close requested.",
+      "What was left went back to the source; removed.",
+    ]);
+    // a channel that is open (CancelAfter ahead) or closed keeps the board's words for the state it is not in
+    expect(closingMeaning(page(indexed(answerWith("open", { cancel_after: "2031-01-01T00:00:00Z" }))))).toBe(BOARD);
+    expect(closingMeaning(page(indexed(await answerOf("xrpl", "channel-closed"))))).toBe(BOARD);
   });
 
   describe("open (channel-open: 1 XRP, 0.032185 paid out, no end time)", () => {
@@ -293,7 +279,14 @@ describe("paymentChannelPage from the index", () => {
       expect(data.banner).toMatchObject({ ledger: 107_960_000, txType: "AccountDelete", hash: "D".repeat(64) });
       expect(said(data.banner!.sentence)).toBe("Removed on Oct 27, 2026, 01:00 UTC.");
       expect(lines(data)).toEqual(["tx:PaymentChannelCreate:Opened", "tx:PaymentChannelClaim:Claim redeemed"]);
-      expect(data.deposit.rows[0]!.segments[1]!.label).toBe("Returned to the source");
+      // where what was left went is not known for a channel another transaction removed: it is Left, not Returned to the source
+      expect(data.deposit.rows[0]!.segments[1]!.label).toBe("Left");
+      expect(data.shares[1]).toMatchObject({ name: "Left", share: "97% of the deposit" });
+      expect(labels(data)).toContain("Left");
+      expect(labels(data)).not.toContain("Returned to the source");
+      expect(rowOf(data, "Left")).toEqual({ label: "Left", value: { kind: "amount", amount: { value: "0.967815", currency: "XRP" } } });
+      expect(rowOf(data, "Paid out")!.hint).toBe("Claimed in all, in 1 claim redeemed on the ledger.");
+      expect(rowOf(data, "Owner reserve")!.hint).toBe("Released to the source when the channel was removed.");
     });
 
     it("says Removed in the timeline, with the banner's sentence (C25), and Changed by {tx_type} for a change no one expects", () => {
@@ -727,6 +720,8 @@ describe("paymentChannelPage from the node", () => {
     const closing = at(cancelAfter + RIPPLE_EPOCH_OFFSET);
     expect(closing.pill.text).toBe("Closing");
     expect(closing.statusLines.map(said)[0]).toBe("Closing: any transaction on the channel now closes it");
+    expect(closing.states.find((state) => state.id === "closing")!.meaning).toBe("CancelAfter has passed; any transaction on the channel now closes it.");
+    expect(open.states.find((state) => state.id === "closing")!.meaning).toBe("Close requested; it closes after the settle delay.");
   });
 
   it("reads a channel that has never paid out (no Balance in the entry), and a token channel of Xahau", async () => {
@@ -754,18 +749,6 @@ describe("paymentChannelPage from the node", () => {
 
 describe("paymentChannelPage holds unix seconds and strings only: no ages", () => {
   const CASES = ["channel-open", "channel-closing", "channel-closed", "channel-long"] as const;
-
-  /** Every value of the data, with the path it is at; it fails on anything a stored page cannot hold. */
-  function* walk(value: unknown, path = "page"): Generator<[string, unknown]> {
-    if (value === null || typeof value === "string" || typeof value === "boolean") return void (yield [path, value]);
-    if (typeof value === "number") return void (yield [path, value]);
-    if (Array.isArray(value)) {
-      for (const [i, item] of value.entries()) yield* walk(item, `${path}[${i}]`);
-      return;
-    }
-    expect(Object.getPrototypeOf(value), path).toBe(Object.prototype);
-    for (const [key, item] of Object.entries(value as object)) if (item !== undefined) yield* walk(item, `${path}.${key}`);
-  }
 
   it.each(CASES)("%s: only strings, whole numbers, booleans, arrays and plain objects", async (which) => {
     const data = page(indexed(await answerOf("xrpl", which)));

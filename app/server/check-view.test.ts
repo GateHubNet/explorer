@@ -4,42 +4,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { objectCase, type ObjectCase } from "../../test/support/object-cases";
 import { checkAnswerSample, CHECK_ID, DELEGATE, ESCROW_OWNER, historySample, MPT_ISSUANCE_ID, TOKEN_ISSUER } from "../../test/support/object-samples";
-import { allSwitches } from "../../test/support/switches";
+import { said, stateOf, walk, XAHAU, XRPL } from "../../test/support/object-view-world";
 import type { Segment } from "../domain/describe";
-import { formatAmount, formatCurrency, shortAddress } from "../domain/format";
+import { shortAddress } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import { formatDate } from "../domain/time-words";
 import type { CheckAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
 import { checkPage, drawnAccounts, type CheckPageData } from "./check-view";
-import type { Env } from "./env";
 import type { DetailRow, ObjectSource } from "./ledger-object-view";
-import { networkOf } from "./networks";
 import { collectAddresses } from "./names-collect";
-import { RIPPLE_EPOCH_OFFSET, type LedgerObject, type ServerState } from "./node-rpc";
+import { RIPPLE_EPOCH_OFFSET, type LedgerObject } from "./node-rpc";
 import { unixOf } from "./validator-facts";
 
 // ---- The world of the tests ---------------------------------------------------------------------------------------------------------------------
-
-const env: Env = {
-  ENVIRONMENT: "development",
-  XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
-  XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
-  XRPL_NODE_URL: "https://s1.ripple.com:51234/",
-  XAHAU_NODE_URL: "https://xahau.network/",
-  DATA_API_KEY: "test-key",
-  BUILD_ID: "test-build",
-  ...allSwitches("on"),
-  VISITOR_LIMITER: { limit: async () => ({ success: true }) },
-};
-const XRPL = networkOf("xrpl", env);
-const XAHAU = networkOf("xahau", env);
-
-const stateOf = (reserveInc = 200_000): ServerState => ({
-  build_version: "2.5.0",
-  complete_ledgers: "1-107972102",
-  server_state: "full",
-  validated_ledger: { base_fee: 10, close_time: 846_000_000, hash: "A".repeat(64), reserve_base: 1_000_000, reserve_inc: reserveInc, seq: 107_972_102 },
-});
 
 const FIXTURES = new URL("../../test/fixtures/http/", import.meta.url);
 const fixture = <T>(path: string): T => JSON.parse(readFileSync(new URL(path, FIXTURES), "utf8")) as T;
@@ -66,22 +43,6 @@ const indexed = (answer: CheckAnswer, history?: ObjectHistoryPage): ObjectSource
 
 type Options = Parameters<typeof checkPage>[1];
 const page = (source: ObjectSource, over: Partial<Options> = {}, net = XRPL): CheckPageData => checkPage(source, { net, serverState: stateOf(), names: NO_NAMES, back: [], ...over });
-
-/** A sentence as the page reads it. */
-const said = (segments: readonly Segment[]): string =>
-  segments
-    .map((segment) =>
-      segment.t === "text"
-        ? segment.v
-        : segment.t === "account"
-          ? shortAddress(segment.v)
-          : segment.t === "amount"
-            ? `${formatAmount(segment.value)} ${formatCurrency(segment.currency)}`
-            : segment.t === "pool"
-              ? segment.pair
-              : segment.v,
-    )
-    .join("");
 
 /** What the timeline reads, one line for each item. */
 const lines = (data: CheckPageData): string[] => data.timeline.map((item) => `${item.kind}:${item.type}:${item.title}`);
@@ -560,18 +521,6 @@ describe("checkPage from the node", () => {
 
 describe("checkPage holds unix seconds and strings only: no ages", () => {
   const CASES = ["check-open", "check-expired", "check-cashed", "check-cancelled"] as const;
-
-  /** Every value of the data, with the path it is at; it fails on anything a stored page cannot hold. */
-  function* walk(value: unknown, path = "page"): Generator<[string, unknown]> {
-    if (value === null || typeof value === "string" || typeof value === "boolean") return void (yield [path, value]);
-    if (typeof value === "number") return void (yield [path, value]);
-    if (Array.isArray(value)) {
-      for (const [i, item] of value.entries()) yield* walk(item, `${path}[${i}]`);
-      return;
-    }
-    expect(Object.getPrototypeOf(value), path).toBe(Object.prototype);
-    for (const [key, item] of Object.entries(value as object)) if (item !== undefined) yield* walk(item, `${path}.${key}`);
-  }
 
   it.each(CASES)("%s: only strings, whole numbers, booleans, arrays and plain objects", async (which) => {
     const data = page(indexed(await answerOf("xrpl", which)));

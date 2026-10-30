@@ -18,12 +18,11 @@ import {
   paymentChannelAnswerSample,
   TOKEN_ISSUER,
 } from "../../test/support/object-samples";
-import { allSwitches } from "../../test/support/switches";
+import { stateOf, XAHAU, XRPL } from "../../test/support/object-view-world";
 import type { Segment } from "../domain/describe";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import type { TimelineItem } from "../ui/components/Timeline";
 import type { ObjectAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
-import type { Env } from "./env";
 import {
   amountSegment,
   amountText,
@@ -36,6 +35,8 @@ import {
   fromNodeEntry,
   issuerOf,
   none,
+  optionalUnix,
+  rawValue,
   removedBannerOf,
   reserveOf,
   sentence,
@@ -46,34 +47,11 @@ import {
   type EventWords,
   type ObjectSource,
 } from "./ledger-object-view";
-import { networkOf } from "./networks";
-import { RIPPLE_EPOCH_OFFSET, type LedgerObject, type ServerState } from "./node-rpc";
+import { RIPPLE_EPOCH_OFFSET, type LedgerObject } from "./node-rpc";
 import { UpstreamError } from "./upstream";
 import { unixOf } from "./validator-facts";
 
 // ---- The world of the tests ---------------------------------------------------------------------------------------------------------------------
-
-const env: Env = {
-  ENVIRONMENT: "development",
-  XRPL_DATA_API_URL: "https://xrpl.data.example.invalid",
-  XAHAU_DATA_API_URL: "https://xahau.data.example.invalid",
-  XRPL_NODE_URL: "https://s1.ripple.com:51234/",
-  XAHAU_NODE_URL: "https://xahau.network/",
-  DATA_API_KEY: "test-key",
-  BUILD_ID: "test-build",
-  ...allSwitches("on"),
-  VISITOR_LIMITER: { limit: async () => ({ success: true }) },
-};
-const XRPL = networkOf("xrpl", env);
-const XAHAU = networkOf("xahau", env);
-
-/** A server state whose validated ledger has the reserve of the XRP Ledger today: 0.2 XRP per object, in drops. */
-const stateOf = (reserveInc = 200_000): ServerState => ({
-  build_version: "2.5.0",
-  complete_ledgers: "1-107972102",
-  server_state: "full",
-  validated_ledger: { base_fee: 10, close_time: 846_000_000, hash: "A".repeat(64), reserve_base: 1_000_000, reserve_inc: reserveInc, seq: 107_972_102 },
-});
 
 const FIXTURES = new URL("../../test/fixtures/http/", import.meta.url);
 const fixture = <T>(path: string): T => JSON.parse(readFileSync(new URL(path, FIXTURES), "utf8")) as T;
@@ -691,7 +669,7 @@ describe("commonAccounts", () => {
   });
 });
 
-describe("the rows of the Details card the three views share", () => {
+describe("the helpers the three views share", () => {
   const A = (n: number) => `r${String(n).repeat(25)}`.slice(0, 26);
 
   it("gives the issuer of a token amount, and none for a native amount, an MPT or an amount D5 could not read", () => {
@@ -724,5 +702,18 @@ describe("the rows of the Details card the three views share", () => {
     expect(tagValue(88231)).toEqual({ kind: "number", text: "88231" });
     expect(tagValue(0)).toEqual({ kind: "number", text: "0" });
     expect(tagValue(undefined)).toEqual({ kind: "text", text: "None", faint: true });
+  });
+
+  it("reads a time of the API as unix seconds, or nothing where the object has none", () => {
+    expect(optionalUnix("2026-10-29T03:50:41Z")).toBe(unixOf("2026-10-29T03:50:41Z"));
+    expect(optionalUnix("2026-10-29T03:50:41Z")).toBe(1_793_245_841);
+    expect(optionalUnix(undefined)).toBeUndefined();
+  });
+
+  it("gives the raw value of an amount to compare with: the units of an MPT, the value of anything else, as the API wrote it", () => {
+    expect(rawValue({ value: "135584318.6204475", currency: "FRIZZY", issuer: TOKEN_ISSUER })).toBe("135584318.6204475");
+    expect(rawValue({ value: "1e3", currency: "USD", issuer: TOKEN_ISSUER })).toBe("1e3");
+    expect(rawValue({ value: "5", currency: "XRP" })).toBe("5");
+    expect(rawValue({ mpt: { id: MPT_ISSUANCE_ID, units: "2500000" } })).toBe("2500000");
   });
 });
