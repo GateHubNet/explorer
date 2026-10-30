@@ -615,6 +615,15 @@ describe("transactionRows", () => {
       expect(transactionRows([delegateGot], delegate, "XRP")[0]!.change).toEqual({ value: "5", currency: "USD", more: 0 });
     });
 
+    it("gives a delegated tec's fee to the delegate: the sender's balance did not move, and an account the transaction names but did not touch has no change", async () => {
+      const tec = read(`xrpl/data-api/transactions/${(await objectCase("xrpl", "delegated-tec")).id}.json`).transaction as TxObject;
+      const [sender, delegate, destination, fee] = [tec.tx.Account, tec.tx.Delegate as string, tec.tx.Destination as string, tec.tx.Fee];
+      expect(tec.meta.TransactionResult).toMatch(/^tec/);
+      expect(transactionRows([tec], sender, "XRP")[0]!.change).toBeNull();
+      expect(transactionRows([tec], delegate, "XRP")[0]!.change).toEqual({ value: `-${dropsToNative(fee)}`, currency: "XRP", more: 0 });
+      expect(transactionRows([tec], destination, "XRP")[0]!.change).toBeNull();
+    });
+
     it("ends the row with who sent it: the delegate on any other page, this account on the delegate's own", async () => {
       const payment = await delegatedPayment();
       const [sender, delegate, destination] = [payment.tx.Account, payment.tx.Delegate as string, payment.tx.Destination as string];

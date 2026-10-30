@@ -32,7 +32,7 @@ export const OBJECTS_SHOWN = 10;
 
 const count = (n: number) => formatAmount(String(n));
 
-const ROLE_LABEL: Record<ChangeRole, string> = { sender: "sender", destination: "destination", pool: "AMM pool" };
+const ROLE_LABEL: Record<ChangeRole, string> = { sender: "sender", delegate: "delegate", destination: "destination", pool: "AMM pool" };
 const CHANGE_LABEL = { created: "Created", modified: "Modified", deleted: "Deleted" } as const;
 
 // What a Binary tab without hex says must be true: a page without the hex is stored for 30 s (`short`) and asking again may find it;

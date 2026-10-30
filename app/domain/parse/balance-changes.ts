@@ -16,8 +16,9 @@ const keyOf = (account: string, { counterparty, currency }: LibraryChange): stri
  * issued one, from the point of view of each of its two sides. The library calls the native currency `XRP`
  * and gives it an empty counterparty; it is relabelled `native`, so Xahau shows `XAH`.
  *
- * The change of the sender's native balance is the whole change of its `AccountRoot`, so it includes the fee
- * (the fee is shown on a line of its own elsewhere). The sender's entries come first; the rest are in the order
+ * The change of an account's native balance is the whole change of its `AccountRoot`, so the fee payer's includes
+ * the fee (the fee is shown on a line of its own elsewhere): the sender's, or on a transaction a delegate sent (its
+ * `Delegate` field) the delegate's. The sender's entries come first; the rest are in the order
  * of the metadata. Values are exact decimal strings in whole units, never in exponent notation. `after` is the
  * balance after the transaction.
  *

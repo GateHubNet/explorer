@@ -311,7 +311,7 @@ describe("TransactionPage: a transaction a delegate sent", () => {
     // The delegation is on the Delegation tab of the account that gave it.
     expect(within(row).getByRole("link", { name: "View the delegation" }).getAttribute("href")).toBe(`/xrpl/account/${ALICE}?tab=delegation`);
     expect(detailRows(detailsCard()).Fee).toBe("0.000012 XRP · paid by the delegate, burned");
-    // The delegate's balance carries the fee, not the sender's.
+    // The delegate's balance carries the fee, not the sender's, and its row says whose it is.
     expect(screen.getByText(/the delegate.s XRP change includes the fee/i)).toBeTruthy();
   });
 
@@ -452,6 +452,22 @@ describe("TransactionPage: the balance changes", () => {
     expect(cells(rows[1]!)[0]!.textContent).toBe(`${shortAddress(POOL)}AMM pool`);
     expect(cells(rows[3]!)[0]!.textContent).toBe(`${shortAddress(BOB)}destination`);
     expect(within(cells(rows[0]!)[0]!).getByRole("link").getAttribute("href")).toBe(`/xrpl/account/${ALICE}`);
+  });
+
+  it("marks the delegate of a transaction a delegate sent, whose change the caption says holds the fee", () => {
+    const CAROL = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+    renderPage(
+      transaction({
+        delegate: CAROL,
+        changes: [
+          { account: ALICE, currency: "XRP", value: "-5", after: "100", role: "sender" },
+          { account: CAROL, currency: "XRP", value: "-0.000012", after: "20", role: "delegate" },
+        ],
+      }),
+    );
+    const rows = within(table()).getAllByRole("row").slice(1);
+    expect(cells(rows[1]!)[0]!.textContent).toBe(`${shortAddress(CAROL)}delegate`);
+    expect(screen.getByText(/the delegate.s XRP change includes the fee/i)).toBeTruthy();
   });
 
   it("shows the other side of the trust line of an issued currency in the open, so that two currencies of one code can be told apart", () => {

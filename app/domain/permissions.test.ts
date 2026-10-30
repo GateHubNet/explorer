@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { DelegationPermission } from "../server/api-types";
 import { staticClosure, valueImports } from "../../test/support/value-imports";
-import { GRANULAR_PERMISSIONS, permissionChip } from "./permissions";
+import { permissionCount as leafCount, permissionTitle as leafTitle } from "./permission-chip";
+import { GRANULAR_PERMISSIONS, permissionChip, permissionCount, permissionTitle } from "./permissions";
 
 // The twelve granular permissions of xrpl.org's "Permission Values", as D5's table has them (data-api-new `feat/explorer-data-2` at 0c2e58c, packages/shared/src/parsers/permissions.ts,
 // FINDINGS (7) of test/fixtures/xrpl/objects), with the board's words (the ledger-object pages' plan, Task 4).
@@ -71,11 +72,35 @@ describe("permissionChip", () => {
 });
 
 describe("the browser bundle", () => {
-  // permissions.ts is drawn in the browser and reaches the account page by way of Sentence: names and words only, no definitions, nothing at run time.
+  // permissions.ts is drawn in the browser (the account page's Delegation tab): names and words only, no definitions. A sentence's chip needs only the leaf permission-chip.ts (the
+  // view, the title, the count), so that Sentence, on every page that draws a sentence, does not carry the table of the granular permissions into its first JavaScript.
   const appDir = new URL("../", import.meta.url);
 
-  it("imports nothing at run time, and so loads no file but itself", () => {
-    expect(valueImports(readFileSync(new URL("domain/permissions.ts", appDir), "utf8"))).toEqual([]);
-    expect(staticClosure(appDir, "domain/permissions.ts")).toEqual(["domain/permissions.ts"]);
+  it("loads no file but itself and the leaf, which imports nothing at run time", () => {
+    expect(valueImports(readFileSync(new URL("domain/permissions.ts", appDir), "utf8"))).toEqual(["./permission-chip", "./permission-chip"]);
+    expect(staticClosure(appDir, "domain/permissions.ts")).toEqual(["domain/permission-chip.ts", "domain/permissions.ts"]);
+    expect(valueImports(readFileSync(new URL("domain/permission-chip.ts", appDir), "utf8"))).toEqual([]);
+  });
+
+  it("Sentence reaches the chip and the leaf, never the table", () => {
+    const closure = staticClosure(appDir, "ui/components/Sentence.tsx");
+    expect(closure).toEqual(expect.arrayContaining(["domain/permission-chip.ts", "ui/components/PermissionChip.tsx"]));
+    expect(closure).not.toContain("domain/permissions.ts");
+  });
+
+  it("PermissionChip loads neither at run time: the view it draws is a type", () => {
+    const closure = staticClosure(appDir, "ui/components/PermissionChip.tsx");
+    expect(closure.filter((path) => path.startsWith("domain/permission"))).toEqual([]);
+  });
+
+  it("re-exports what the leaf has, so that a file of the Worker or of the Delegation tab can ask either", () => {
+    expect(permissionTitle).toBe(leafTitle);
+    expect(permissionCount).toBe(leafCount);
+    expect(permissionCount(3)).toBe("3 of 10");
+    expect([permissionTitle("transaction", "Any Payment transaction"), permissionTitle("granular", "Only x"), permissionTitle("unknown", "Unknown")]).toEqual([
+      "Transaction type. Any Payment transaction",
+      "Narrower right. Only x",
+      "Unknown",
+    ]);
   });
 });

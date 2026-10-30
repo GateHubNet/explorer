@@ -1,11 +1,15 @@
 // The permissions of a delegation (XLS-75) in words: the names and the words only, never the transaction definitions (which are the Worker's and large), so that the account page, which
-// draws a sentence about a delegation, can load this. Pure: no import at run time.
+// draws a delegation, can load this. Pure: its one import at run time is the leaf permission-chip.ts (the chip's view, its title and the count), which it re-exports; a sentence's chip
+// needs only that leaf, not the table here.
 //
 // A permission is a transaction type's name (its right to send any transaction of that type), or one of the 12 granular permissions of xrpl.org's "Permission Values" (read 2026-10-29,
 // FINDINGS (7) of D5's test/fixtures/xrpl/objects), which narrow one type to a part of what it can do, or a number this explorer does not know. D5 (data-api-new `feat/explorer-data-2`
 // at 0c2e58c, packages/shared/src/parsers/permissions.ts) keeps the same table and tells the three apart (`kind`); an API `DelegationPermission` is read by its `permission` and `kind`.
 
 import type { DelegationPermission } from "../server/api-types";
+import { permissionTitle, type PermissionChipView } from "./permission-chip";
+
+export { permissionCount, permissionTitle, type PermissionChipView } from "./permission-chip";
 
 /** A granular permission: it lets the delegate send only the part of a transaction type that its name says. */
 export interface GranularPermission {
@@ -35,28 +39,6 @@ export const GRANULAR_PERMISSIONS: readonly GranularPermission[] = [
   { name: "MPTokenIssuanceLock", value: 65547, transactionType: "MPTokenIssuanceSet", words: "Only locking MPT balances, within MPTokenIssuanceSet" },
   { name: "MPTokenIssuanceUnlock", value: 65548, transactionType: "MPTokenIssuanceSet", words: "Only unlocking MPT balances, within MPTokenIssuanceSet" },
 ];
-
-/** What a chip of a permission draws: the `name` it is labelled with, its `kind`, the `words` that say what it allows and the `title` (the tooltip: the kind of right, then the words). */
-export interface PermissionChipView {
-  name: string;
-  kind: "transaction" | "granular" | "unknown";
-  words: string;
-  title: string;
-}
-
-/**
- * A chip's tooltip, from its kind and words: the kind of right, then the words (a permission this explorer does not know is its words alone, which say so). What a sentence's
- * permission segment, which carries the kind and the words, is drawn with.
- */
-export function permissionTitle(kind: PermissionChipView["kind"], words: string): string {
-  return kind === "transaction" ? `Transaction type. ${words}` : kind === "granular" ? `Narrower right. ${words}` : words;
-}
-
-/** The most permissions one delegation grants (XLS-75). */
-const MOST_PERMISSIONS = 10;
-
-/** How many permissions a delegation grants, of the most it can: "3 of 10". */
-export const permissionCount = (n: number): string => `${n} of ${MOST_PERMISSIONS}`;
 
 /** A permission this explorer does not know, by what it was given as: a number, or a name the data API called granular but this table lacks. */
 function unknownPermission(value: string): PermissionChipView {

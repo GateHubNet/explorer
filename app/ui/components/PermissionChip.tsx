@@ -1,4 +1,4 @@
-import type { PermissionChipView } from "../../domain/permissions";
+import type { PermissionChipView } from "../../domain/permission-chip";
 import { cx } from "../cx";
 
 /**

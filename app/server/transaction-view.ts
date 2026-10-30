@@ -4,7 +4,7 @@
 // data, only as the text of the raw tabs, so the code that reads metadata stays out of the browser bundle. No I/O.
 
 import { encodeCtid } from "../domain/ctid";
-import { describe, isInnerBatch, type Detail, type FlowStep, type Segment } from "../domain/describe";
+import { delegateOf, describe, isInnerBatch, type Detail, type FlowStep, type Segment } from "../domain/describe";
 import { decodeHex } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
 import type { NamesPart } from "../domain/names";
@@ -111,8 +111,8 @@ export function binaryOf(answer: TxBinary | TxStoredJson): Extract<BinaryRaw, { 
 
 // ---- The page ------------------------------------------------------------------------------------------------------------
 
-/** What an account was in the transaction, when it was something: the row of the balance changes says so. */
-export type ChangeRole = "sender" | "destination" | "pool";
+/** What an account was in the transaction, when it was something: the row of the balance changes says so. A delegate's row holds the fee it paid. */
+export type ChangeRole = "sender" | "delegate" | "destination" | "pool";
 
 export type ChangeRow = BalanceChange & { role?: ChangeRole };
 
@@ -163,7 +163,10 @@ export interface TransactionPageData {
   /** The type's own details, with the destination ahead of them when the type does not list it. */
   details: Detail[];
   memos: Memo[];
-  /** The sender's native change is the whole change of its balance, so it includes the fee (spec 1.1). */
+  /**
+   * A native change is the whole change of the account's balance, so the fee payer's includes the fee (spec 1.1): the sender's, or the delegate's for a transaction a delegate sent
+   * (ledger object pages spec 6.2; one of a `Batch`, whose fee the Batch paid, holds none).
+   */
   changes: ChangeRow[];
   objects: TouchedObject[];
   /** `null` when they are not shown (a transaction from the node: they appear once it is indexed). */
@@ -239,15 +242,27 @@ function ctidOf(ledgerIndex: number, position: number, networkId: number): strin
   }
 }
 
-/** Where each account of the balance changes stands in the transaction: the sender, the destination, an AMM pool. */
+/**
+ * Where each account of the balance changes stands in the transaction: the sender, the delegate that sent it (whose change holds the fee, which the page's caption says; before the
+ * destination, for a delegate that paid itself), the destination, an AMM pool.
+ */
 function withRoles(changes: BalanceChange[], tx: TxJson, meta: TxMeta): ChangeRow[] {
   const pools = new Set<string>();
   for (const node of nodesOf(meta)) {
     if (isPoolAccountRoot(node) && typeof node.fields.Account === "string") pools.add(node.fields.Account);
   }
+  const delegate = delegateOf(tx);
   return changes.map((change) => {
     const role: ChangeRole | undefined =
-      change.account === tx.Account ? "sender" : change.account === tx.Destination ? "destination" : pools.has(change.account) ? "pool" : undefined;
+      change.account === tx.Account
+        ? "sender"
+        : change.account === delegate
+          ? "delegate"
+          : change.account === tx.Destination
+            ? "destination"
+            : pools.has(change.account)
+              ? "pool"
+              : undefined;
     return role === undefined ? change : { ...change, role };
   });
 }

@@ -7,6 +7,7 @@ import {
   amountSegment,
   account,
   closingDetails,
+  delegateOf,
   detail,
   fieldDetail,
   parseAmount,
@@ -30,8 +31,8 @@ const PAYMENT_FLAGS: FlagTable = [
 
 /**
  * What the sender spent of the `SendMax` currency: the fall of its balance of it. The sender's native change
- * includes the fee, which is taken out. Undefined when the balances show no fall, so a sentence never claims a
- * number the metadata does not give.
+ * includes the fee, which is taken out, unless a delegate sent the transaction: the delegate paid the fee. Undefined
+ * when the balances show no fall, so a sentence never claims a number the metadata does not give.
  */
 function spentOf(input: Input, max: FlowAmount): FlowAmount | undefined {
   const { tx, native } = input;
@@ -39,7 +40,7 @@ function spentOf(input: Input, max: FlowAmount): FlowAmount | undefined {
   for (const change of input.changes()) {
     if (change.account === tx.Account && change.currency === max.currency) net = net.plus(change.value);
   }
-  if (max.currency === native) net = net.plus(dropsToNative(tx.Fee));
+  if (max.currency === native && delegateOf(tx) === undefined) net = net.plus(dropsToNative(tx.Fee));
 
   const spent = net.negated();
   if (!spent.isGreaterThan(0)) return undefined;

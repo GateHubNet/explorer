@@ -1865,6 +1865,42 @@ describe("describe: delegation", () => {
     ]);
   });
 
+  /**
+   * A recorded transaction as if a delegate had sent it: `Delegate` set, the fee taken out of the sender's root and paid from the delegate's, a root added to the metadata as C9's
+   * synthetic transactions have it. What the sender's balances did but for the fee is as recorded.
+   */
+  function sentByDelegate(set: FixtureSet, hash: string): { tx: TxJson; meta: TxMeta } {
+    const { tx, meta } = loadTx(set, hash);
+    const fee = BigInt(tx.Fee);
+    const nodes = meta.AffectedNodes.map((node) => {
+      const body = "ModifiedNode" in node ? node.ModifiedNode : undefined;
+      if (body?.LedgerEntryType !== "AccountRoot" || body.FinalFields?.Account !== tx.Account) return node;
+      return { ModifiedNode: { ...body, FinalFields: { ...body.FinalFields, Balance: String(BigInt(body.FinalFields.Balance as string) + fee) } } };
+    });
+    const payer = { LedgerEntryType: "AccountRoot", LedgerIndex: "CD".repeat(32), FinalFields: { Account: C, Balance: "100000000" }, PreviousFields: { Balance: String(100000000n + fee) } };
+    return { tx: { ...tx, Delegate: C }, meta: { ...meta, AffectedNodes: [...nodes, { ModifiedNode: payer }] } };
+  }
+
+  it("does not take the fee out of a delegated payment's native spend: the delegate paid it", () => {
+    // SendMax 100 drops, fee 12 drops: sent by the account, its balance fell by 112, and it spent 100. Sent by a delegate, its balance fell by the 100 alone.
+    const hash = "321FF4B8FF29D159DA805961F61EA3A4FDE2D12F31AE34A5FF56568C2C950BDD";
+    const own = run("xrpl", hash);
+    const { tx, meta } = sentByDelegate("xrpl", hash);
+    const delegated = describeTx(tx, meta, { native: "XRP" });
+    const spent = { value: "0.0001", currency: "XRP" };
+    expect(textOf(delegated.sentence)).toBe(textOf(own.sentence));
+    expect(textOf(delegated.sentence)).toMatch(/, spending 0\.0001 XRP\.$/);
+    expect(delegated.details.find((row) => row.label === "Spent")).toStrictEqual({ label: "Spent", value: [{ t: "amount", ...spent }] });
+    expect(delegated.flow![0]).toStrictEqual({ role: "sender", account: tx.Account, label: "Sender", amount: spent });
+  });
+
+  it("does not take the fee out of what a delegated AMM deposit put in of the native currency: the delegate paid it", () => {
+    const hash = "94E38B2BCCA96997BCEC32925AEB289D35EC9FD67977995102D91A7E3DD71FEF";
+    const { tx, meta } = sentByDelegate("xrpl-amm", hash);
+    expect(readOf(describeTx(tx, meta, { native: "XRP" }).sentence)).toBe("rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f added 1010 XRP to the XRP/RLUSD pool.");
+    expect(readOf(run("xrpl-amm", hash).sentence)).toBe("rPcANyJoYnZvNP85sJZZzoXiB9Ux2gF3f added 1010 XRP to the XRP/RLUSD pool.");
+  });
+
   it("DelegateSet with an empty list: removed every permission it had given", async () => {
     const empty = await delegated("delegate-set-empty");
     const [sender, delegate] = [empty.tx.Account, empty.tx.Authorize as string];
@@ -1877,6 +1913,30 @@ describe("describe: delegation", () => {
       { label: "Delegate", value: [account(delegate)] },
       { label: "Permissions", value: [text("0 of 10")] },
     ]);
+  });
+
+  it("keeps a permission it cannot read as an unknown chip, and counts it: only a list with no entry removes every permission", () => {
+    const unreadable: Segment = { t: "permission", name: "Unreadable permission", kind: "unknown", words: "Unreadable permission" };
+    const d = describeTx(synth("DelegateSet", { Authorize: B, Permissions: [{ Permission: {} }, { NotAPermission: 1 }, "Payment"] }), SUCCESS, { native: "XRP" });
+    expect(d.sentence).toStrictEqual([
+      account(A),
+      text(" let "),
+      account(B),
+      text(" send "),
+      unreadable,
+      text(", "),
+      unreadable,
+      text(" and "),
+      unreadable,
+      text(" on its behalf."),
+    ]);
+    expect(d.details[1]).toStrictEqual({ label: "Permissions", value: [unreadable, text(" "), unreadable, text(" "), unreadable, text(" · 3 of 10")] });
+    expect(d.note).toBeDefined();
+    // One readable among them is read.
+    const mixed = describeTx(synth("DelegateSet", { Authorize: B, Permissions: [{ Permission: { PermissionValue: "Payment" } }, { Permission: { PermissionValue: null } }] }), SUCCESS, {
+      native: "XRP",
+    });
+    expect(readOf(mixed.sentence)).toBe(`${A} let ${B} send Payment and Unreadable permission on its behalf.`);
   });
 
   it("a failed DelegateSet: tried to let …", async () => {

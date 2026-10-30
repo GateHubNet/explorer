@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { Link } from "react-router";
 
 import type { Segment } from "../../domain/describe";
-import { permissionTitle } from "../../domain/permissions";
+import { permissionTitle } from "../../domain/permission-chip";
 import { poolLink } from "../../domain/pool-link";
 import type { NetworkId } from "../../server/networks";
 import { useFeatures } from "../use-network";

@@ -5,15 +5,21 @@ import { permissionChip, permissionCount } from "../permissions";
 import { account, closingDetails, detail, listOf, seq, type Part } from "./helpers";
 import type { HandlerMap, Input, Segment, Summary } from "./types";
 
-/** The permissions of a `DelegateSet` (`Permissions[].Permission.PermissionValue`: a transaction type's or a granular permission's name, or a number), each as `permissionChip` says it. */
+/** An entry of the list that is not a permission this explorer can read: a chip of its own, so that it is counted and the list is not taken for an empty one. */
+const UNREADABLE: Segment = { t: "permission", name: "Unreadable permission", kind: "unknown", words: "Unreadable permission" };
+
+/**
+ * The permissions of a `DelegateSet` (`Permissions[].Permission.PermissionValue`: a transaction type's or a granular permission's name, or a number), each as `permissionChip` says it.
+ * An entry without a value it can read is `UNREADABLE`; only a list with no entry is empty (a field that is not a list is one entry).
+ */
 function permissionsOf(raw: unknown): Segment[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((entry: unknown): Segment[] => {
+  if (raw === undefined) return [];
+  return (Array.isArray(raw) ? raw : [raw]).map((entry: unknown): Segment => {
     const permission = typeof entry === "object" && entry !== null ? (entry as { Permission?: unknown }).Permission : undefined;
     const value = typeof permission === "object" && permission !== null ? (permission as { PermissionValue?: unknown }).PermissionValue : undefined;
-    if (typeof value !== "string" && typeof value !== "number") return [];
+    if (typeof value !== "string" && typeof value !== "number") return { ...UNREADABLE };
     const { name, kind, words } = permissionChip(value);
-    return [{ t: "permission", name, kind, words }];
+    return { t: "permission", name, kind, words };
   });
 }
 

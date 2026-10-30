@@ -445,6 +445,16 @@ describe("transactionPage over a transaction a delegate sent, and a DelegateSet"
     expect(data.summary).toBe(plainText(data.sentence));
   });
 
+  it("marks the delegate's balance change, which holds the fee it paid", async () => {
+    const source = await sourceOf("delegated-payment");
+    const data = build(source);
+    expect(data.changes.map((change) => [change.account, change.value, change.role])).toEqual([
+      [source.tx.Account, "-373", "sender"],
+      [source.tx.Destination, "373", "destination"],
+      [source.tx.Delegate, `-${dropsToNative(source.tx.Fee)}`, "delegate"],
+    ]);
+  });
+
   it("has none of it for a transaction the account sent itself", () => {
     expect(page(PAYMENT)).toMatchObject({ delegate: null, sentBy: null, note: null, innerBatch: false });
   });
