@@ -1622,6 +1622,184 @@ export interface TomlAnswer {
   toml: TomlData;
 }
 
+// ---- Ledger objects: GET /v2/escrows/{escrow_id}, /v2/checks/{check_id}, /v2/payment_channels/{channel_id} (each with /history), GET /v2/accounts/{address}/delegations, ----
+// ---- GET /v2/ledger_objects/{object_id} ---------------------------------------------------------------------------------------------------------------------------------
+//
+// D5 (data-api-new `feat/explorer-data-2`, pinned at `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb`; the section "Ledger objects" of its docs/api-reference.md). Keys are in the
+// reference's order (its "Keys of …" lines); a key it marks `?` is left out of an answer when it has no value, `null` is never served, so those keys are optional here and every
+// other key is there. `object-shape.ts` makes the rest true. The facts the reference states:
+//   - an object ID (and a transaction hash) is 64 hexadecimal digits, upper-case in every answer; the routes accept any case. Times are `YYYY-MM-DDTHH:mm:ssZ`;
+//   - an amount is `{ currency, issuer?, value, mpt_issuance_id? }`: the native currency's code with no issuer and its value in whole units; an issued token as on the ledger (its
+//     `value` text is the ledger's, so it may be in exponent form); an MPT with its 48-digit issuance ID in `currency` and again in `mpt_issuance_id`, `value` the raw integer units.
+//     What D5 computes (`remaining`, `amount_change`, `balance_change`) is plain decimal text in every currency;
+//   - every answer but the lookup has `result`, `coverage` (whether the history it is read from is whole: complete when the object's creation is indexed), then `ledger_index` and
+//     `close_time`, the newest committed ledger and when it closed, which the object, its `history` and its `status` are as of;
+//   - the detail embeds the newest 50 events, newest first, with `history_marker` when there are more; the history route is oldest first unless asked `descending`.
+
+/** An amount of a ledger object. Native: no `issuer`. Issued token: `issuer`, no `mpt_issuance_id`. MPT: `currency` and `mpt_issuance_id` are the same 48 upper-case hex digits. */
+export type ObjectAmount = { currency: string; issuer?: string; value: string; mpt_issuance_id?: string };
+
+/** The place of a fact in the ledger history (`created`, a delegation's `updated`); `removed` also has the type of the transaction that deleted the object. */
+export type ObjectRef = { ledger_index: number; time: string; tx_hash: string; tx_type?: string }; // tx_type on `removed`
+
+export type EscrowStatus = "pending" | "can_be_finished" | "can_be_cancelled" | "finished" | "cancelled" | "removed";
+export type CheckStatus = "open" | "expired" | "cashed" | "cancelled" | "removed";
+export type ChannelStatus = "open" | "closing" | "closed" | "removed";
+
+/** An escrow. `sequence` is left out when no indexed row says it, `created` when its creation is not indexed, `removed` while it is in the ledger. */
+export interface EscrowObject {
+  escrow_id: string;
+  account: string;
+  sequence?: number;
+  destination: string;
+  amount: ObjectAmount;
+  finish_after?: string;
+  cancel_after?: string;
+  condition?: string;
+  fulfillment?: string;
+  destination_tag?: number;
+  source_tag?: number;
+  transfer_rate?: number;
+  status: EscrowStatus;
+  created?: ObjectRef;
+  removed?: ObjectRef;
+}
+
+/** A check. `delivered` is there once it is cashed. */
+export interface CheckObject {
+  check_id: string;
+  account: string;
+  sequence?: number;
+  destination: string;
+  send_max: ObjectAmount;
+  expiration?: string;
+  invoice_id?: string;
+  destination_tag?: number;
+  source_tag?: number;
+  delivered?: ObjectAmount;
+  status: CheckStatus;
+  created?: ObjectRef;
+  removed?: ObjectRef;
+}
+
+/** A payment channel: `amount` is what was deposited in all, `balance` what was paid out so far, `remaining` their difference. `funds` and `claims` count the events of the whole history. */
+export interface PaymentChannelObject {
+  channel_id: string;
+  account: string;
+  sequence?: number;
+  destination: string;
+  amount: ObjectAmount;
+  balance: ObjectAmount;
+  remaining: ObjectAmount;
+  settle_delay: number;
+  public_key: string;
+  expiration?: string;
+  cancel_after?: string;
+  destination_tag?: number;
+  source_tag?: number;
+  status: ChannelStatus;
+  opened_with?: ObjectAmount;
+  funds: number;
+  claims: number;
+  created?: ObjectRef;
+  removed?: ObjectRef;
+}
+
+/**
+ * One event of an object's history: the transaction, then the facts of the object's type. An escrow's adds `amount` (a `create`) and `fulfillment` (a `finish`); a check's `send_max`
+ * and `expiration` (a `create`) and `delivered` (a `cash`); a channel's `amount` and `balance` (every event), `amount_change` and `balance_change` (only when nonzero), `expiration`
+ * (when it has one after the transaction) and `settle_delay` (a `create`). `account` is the sender of the transaction, `delegate` the account that sent it for `account`.
+ */
+export interface ObjectEvent {
+  event: string;
+  ledger_index: number;
+  time: string;
+  tx_hash: string;
+  tx_type: string;
+  account: string;
+  delegate?: string;
+  result: string;
+  amount?: ObjectAmount;
+  fulfillment?: string;
+  send_max?: ObjectAmount;
+  expiration?: string;
+  delivered?: ObjectAmount;
+  balance?: ObjectAmount;
+  amount_change?: ObjectAmount;
+  balance_change?: ObjectAmount;
+  settle_delay?: number;
+}
+
+/** What every answer but the lookup starts with. */
+interface AsOfAnswer {
+  result: "success";
+  coverage: Coverage;
+  ledger_index: number;
+  close_time: string;
+}
+
+export interface EscrowAnswer extends AsOfAnswer {
+  escrow: EscrowObject;
+  history: ObjectEvent[];
+  history_marker?: string;
+}
+
+export interface CheckAnswer extends AsOfAnswer {
+  check: CheckObject;
+  history: ObjectEvent[];
+  history_marker?: string;
+}
+
+export interface PaymentChannelAnswer extends AsOfAnswer {
+  payment_channel: PaymentChannelObject;
+  history: ObjectEvent[];
+  history_marker?: string;
+}
+
+/** `/{id}/history` of each of the three: a page of events, with the `coverage` of the object. */
+export interface ObjectHistoryPage extends AsOfAnswer {
+  count: number;
+  marker?: string;
+  history: ObjectEvent[];
+}
+
+/** One permission of a delegation. `kind` is `transaction` for a transaction type's name, `granular` for one of the 12 granular permissions (which also gives the `transaction_type` it narrows), `unknown` for a number. */
+export interface DelegationPermission {
+  permission: string;
+  kind: "transaction" | "granular" | "unknown";
+  transaction_type?: string;
+}
+
+/** A delegation (XLS-75): `account` lets `authorize` send the transactions of `permissions` for it. `created` is left out when its transaction is not indexed. */
+export interface Delegation {
+  delegation_id: string;
+  account: string;
+  authorize: string;
+  permissions: DelegationPermission[];
+  updated: ObjectRef;
+  created?: ObjectRef;
+}
+
+/** `GET /v2/accounts/{address}/delegations`: the delegations in the ledger now, the one changed last first. Xahau has none: an empty list with a complete coverage. */
+export interface DelegationsPage extends AsOfAnswer {
+  count: number;
+  marker?: string;
+  delegations: Delegation[];
+}
+
+/** `ledger_object` of `GET /v2/ledger_objects/{object_id}`: which kind of object an ID is. `deleted` is whether the newest row of the object deleted it, `ledger_index` the ledger of that row. */
+export interface LedgerObjectRef {
+  object_id: string;
+  object_type: "Escrow" | "Check" | "PayChannel" | "Delegate";
+  account: string;
+  deleted: boolean;
+  ledger_index: number;
+}
+
+/** The three objects that have a detail and a history, as the explorer names them. */
+export type ObjectApiKind = "escrow" | "check" | "payment_channel";
+export type ObjectAnswer = EscrowAnswer | CheckAnswer | PaymentChannelAnswer;
+
 // ---- What the node answers for an NFT --------------------------------------------------------------------------------------------------------------------------
 
 // The node's answers as `node-rpc.ts` returns them (read on 2026-10-24 from `https://s1.ripple.com:51234/`, a Clio server, and `https://xahau.network/`): times in unix seconds

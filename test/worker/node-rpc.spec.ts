@@ -2,7 +2,7 @@ import { encodeAccountID } from "ripple-address-codec";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import type { Asset } from "../../app/domain/asset";
-import type { CacheClass } from "../../app/server/cache-class";
+import type { CacheClass, SubrequestCache } from "../../app/server/cache-class";
 import { createSubrequestCache } from "../../app/server/edge-cache";
 import type { Env } from "../../app/server/env";
 import { networkOf } from "../../app/server/networks";
@@ -2038,5 +2038,164 @@ describe("the NFT commands", () => {
       expect(cache.calls.map((c) => [c.cls, c.ttlOverride])).toEqual([["live", undefined]]);
       expect(cache.calls[0]!.key).toBe(`POST https://xahau.network/ {"method":"ledger_entry","params":[{"index":"${URI_TOKEN_ID}","ledger_index":"validated"}]}`);
     });
+  });
+});
+
+// ---- Ledger objects: ledger_entry by index (E10) ----------------------------------------------------------------------------
+
+// `ledger_entry` with an `index` answers the entry at that key whatever its type, as it does for a URIToken (above): `{ index, ledger_hash, ledger_index, node: { …the entry's fields,
+// LedgerEntryType, index }, validated: true }`; a key with no entry is `entryNotFound`. The fields are the ledger's own (times in Ripple-epoch seconds, a native amount in drops as
+// text), which the view builder converts. `uriToken` reads the same request, so that the two share one cache entry and one stored shape.
+
+describe("ledgerEntry", () => {
+  const ESCROW_ENTRY_ID = "B95064B1A92F02EE009E6BDFB369CF476FB925BB8615456970E38774034A5D30";
+  const escrowNode = (extra: Record<string, unknown> = {}) => ({
+    Account: ACCOUNT,
+    Amount: "500000",
+    CancelAfter: 814_000_000,
+    Destination: "rGtW2dWHmHQ3f65pfbjYF5PbFbdZwgwuqW",
+    DestinationNode: "0",
+    FinishAfter: 813_000_000,
+    Flags: 0,
+    LedgerEntryType: "Escrow",
+    OwnerNode: "0",
+    PreviousTxnID: TX_HASH,
+    PreviousTxnLgrSeq: 107897249,
+    index: ESCROW_ENTRY_ID,
+    ...extra,
+  });
+  const entryResult = (node: Record<string, unknown> = escrowNode(), extra: Record<string, unknown> = {}) => ({
+    index: ESCROW_ENTRY_ID,
+    ledger_hash: LEDGER_HASH,
+    ledger_index: 107972102,
+    node,
+    validated: true,
+    ...extra,
+  });
+  const ledgerEntry = (id = ESCROW_ENTRY_ID) => createNodeRpc(xrpl, passThroughCache).ledgerEntry(id);
+
+  it("asks the node for the entry at the index, on the newest validated ledger", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    await ledgerEntry();
+
+    expect(sentRequest().url).toBe("https://s1.ripple.com:51234/");
+    expect(await sentBody()).toEqual({ method: "ledger_entry", params: [{ index: ESCROW_ENTRY_ID, ledger_index: "validated" }] });
+  });
+
+  it("returns the entry as the node wrote it, with its index and the ledger it was read at: the Ripple-epoch times and the drops are the ledger's own", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    const found = await ledgerEntry();
+
+    expect(found).toEqual({ node: escrowNode(), index: ESCROW_ENTRY_ID, ledger_index: 107972102 });
+    expect(Object.keys(found)).toEqual(["node", "index", "ledger_index"]);
+    expect(found.node.LedgerEntryType).toBe("Escrow");
+    expect(found.node.FinishAfter).toBe(813_000_000);
+  });
+
+  it("takes the index in any case and returns the entry's own, upper-case", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    expect((await ledgerEntry(ESCROW_ENTRY_ID.toLowerCase())).index).toBe(ESCROW_ENTRY_ID);
+    expect(await sentBody()).toEqual({ method: "ledger_entry", params: [{ index: ESCROW_ENTRY_ID, ledger_index: "validated" }] });
+  });
+
+  it("takes the index from the node (a node that puts it in the entry alone), and an entry of any type", async () => {
+    fetchSpy.mockResolvedValueOnce(success(entryResult(escrowNode(), { index: undefined })));
+    expect((await ledgerEntry()).index).toBe(ESCROW_ENTRY_ID);
+
+    for (const LedgerEntryType of ["Check", "PayChannel", "Delegate", "AccountRoot"]) {
+      fetchSpy.mockResolvedValueOnce(success(entryResult(escrowNode({ LedgerEntryType }))));
+      expect((await ledgerEntry()).node.LedgerEntryType).toBe(LedgerEntryType);
+    }
+  });
+
+  it("is not_found for entryNotFound, which the node says with no error_code", async () => {
+    fetchSpy.mockResolvedValueOnce(answer({ error: "entryNotFound", ledger_hash: LEDGER_HASH, ledger_index: 107972102, validated: true, request: {}, status: "error" }));
+
+    const error = await failureOf(ledgerEntry());
+
+    expect(error.kind).toBe("not_found");
+    expect(error.message).toContain("entryNotFound");
+  });
+
+  it("is the node's own kind for any other failure", async () => {
+    for (const [code, kind] of [
+      ["slowDown", "rate_limited"],
+      ["malformedRequest", "bad_request"],
+      ["invalidParams", "bad_request"],
+      ["noNetwork", "server"],
+      ["lgrNotFound", "server"],
+      ["objectNotFound", "server"],
+      ["unknownCmd", "server"],
+    ] as const) {
+      fetchSpy.mockResolvedValueOnce(failure(code));
+      expect((await failureOf(ledgerEntry())).kind, code).toBe(kind);
+    }
+  });
+
+  it.each([
+    ["an entry for another index than the one asked for", "index", entryResult(escrowNode({ index: "A".repeat(64) }), { index: "A".repeat(64) })],
+    ["a result for another index, with the entry's own", "index", entryResult(undefined, { index: "A".repeat(64) })],
+    ["an entry for another index, in a result with none", "node.index", entryResult(escrowNode({ index: "A".repeat(64) }), { index: undefined })],
+    ["no index", "index", entryResult(escrowNode({ index: undefined }), { index: undefined })],
+    ["no validated", "validated", entryResult(undefined, { validated: undefined })],
+    ["a validated that is false", "validated", entryResult(undefined, { validated: false })],
+    ["no node", "node", entryResult(undefined, { node: undefined })],
+    ["a node that is text", "node", entryResult(undefined, { node: "entry" })],
+    ["no ledger_index", "ledger_index", entryResult(undefined, { ledger_index: undefined })],
+    ["a ledger_index that is text", "ledger_index", entryResult(undefined, { ledger_index: "107972102" })],
+    ["no LedgerEntryType", "LedgerEntryType", entryResult(escrowNode({ LedgerEntryType: undefined }))],
+    ["a LedgerEntryType that is a number", "LedgerEntryType", entryResult(escrowNode({ LedgerEntryType: 117 }))],
+  ])("is a server error: %s", async (_what, field, result) => {
+    fetchSpy.mockResolvedValueOnce(success(result));
+
+    const error = await failureOf(ledgerEntry());
+
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message).toContain("node ledger_entry answered something unexpected");
+    expect(error.message).toContain(field);
+  });
+
+  it("is class live, under the key uriToken's request has", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => success(entryResult()));
+
+    await createNodeRpc(xrpl, cache).ledgerEntry(ESCROW_ENTRY_ID);
+
+    expect(cache.calls.map((c) => [c.cls, c.ttlOverride])).toEqual([["live", undefined]]);
+    expect(cache.calls[0]!.key).toBe(`POST https://s1.ripple.com:51234/ {"method":"ledger_entry","params":[{"index":"${ESCROW_ENTRY_ID}","ledger_index":"validated"}]}`);
+  });
+
+  it("shares its cache entry with uriToken: the one request is made once, and each call reads its own from what is stored", async () => {
+    const stored = new Map<string, unknown>();
+    const memory: SubrequestCache = {
+      async json<T>(key: string, _cls: CacheClass, load: () => Promise<T>): Promise<T> {
+        if (!stored.has(key)) stored.set(key, await load());
+        return stored.get(key) as T;
+      },
+    };
+    const node = createNodeRpc(xahau, memory);
+    const token = {
+      Digest: "772B38763E8E603AEE9BBB2026B8E9B97537ECC8867E46D042630C0B326B8736",
+      Flags: 0,
+      Issuer: URI_TOKEN_ISSUER,
+      LedgerEntryType: "URIToken",
+      Owner: "rLEUHuVCd8o9XmKn3nk8oGwYS3QEpUjo3e",
+      URI: "6F64696E73657965733A726176656E3A76323A3030346230353234",
+      index: URI_TOKEN_ID,
+    };
+    fetchSpy.mockResolvedValueOnce(success({ index: URI_TOKEN_ID, ledger_hash: LEDGER_HASH, ledger_index: 26829859, node: token, validated: true }));
+
+    const entry = await node.ledgerEntry(URI_TOKEN_ID);
+    const uri = await node.uriToken(URI_TOKEN_ID);
+    const again = await node.ledgerEntry(URI_TOKEN_ID);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(entry).toEqual({ node: token, index: URI_TOKEN_ID, ledger_index: 26829859 });
+    expect(uri).toEqual(nodeUriTokenSample());
+    expect(again).toEqual(entry);
   });
 });

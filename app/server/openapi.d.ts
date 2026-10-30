@@ -857,6 +857,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/accounts/{address}/escrows/{sequence}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the escrow an account created with a sequence
+         * @description The escrow the account created with this `Sequence` (a ticketed `EscrowCreate`: its `TicketSequence`), as `GET /v2/escrows/{escrow_id}` gives it.
+         */
+        get: operations["AccountEscrowController_escrow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/accounts/{address}/delegations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the delegations of an account
+         * @description The delegations the account gave (`direction=given`, the default: it is the `account` of the entry) or holds (`direction=held`: it is the `authorize`) that are in the ledger as of the newest committed ledger, the entry changed last first, then by `delegation_id`. Each lists the `permissions` the delegate was given, with the last transaction that changed the entry (`updated`) and the one that made it (`created`, when it is indexed). An entry whose list was emptied is deleted and is not listed. `format=csv` gives the delegations as a CSV file, with the permission names in one cell separated by a space (without `coverage`). Xahau has no delegation: its list is empty.
+         */
+        get: operations["AccountDelegationsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/nfts/{nft_id}": {
         parameters: {
             query?: never;
@@ -1189,6 +1229,146 @@ export interface paths {
          * @description What the toml file of a domain says, as the last check of it stored: the accounts it lists, the currencies, the principals' names and the validators, only the entries that count on this network (no network, or a name of it). `status` is `ok` (the file was read) or `failed`, with the `reason` and, for `http_status`, the `status_code`; a toml that failed transiently still carries what its last read said until 24 hours after the re-read it missed, one after a definite failure carries nothing but the check. `checked` is when the domain was last checked, `fetched` when the content was read. Emails and social handles are never served. A key without a value is left out. 404 when the domain was never checked (no account named it while the worker ran, or its first check has not run yet); a domain no account names any more answers its last check.
          */
         get: operations["TomlController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/escrows/{escrow_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an escrow
+         * @description The escrow with the ID, as of the newest committed ledger: its owner (`account`), destination, amount, times, condition and `status` (`pending`, `can_be_finished`, `can_be_cancelled`, or once deleted `finished`, `cancelled` or `removed`, with `removed` naming the transaction that deleted it), and the newest 50 transactions that changed it. `history_marker` continues them at `/v2/escrows/{id}/history?descending=true`.
+         */
+        get: operations["EscrowsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/escrows/{escrow_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the history of an escrow
+         * @description The transactions that changed the escrow (created, finished, cancelled, or removed), oldest first, or newest first with `descending=true`. `format=csv` gives the events as a CSV file (without `coverage`).
+         */
+        get: operations["EscrowsController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/checks/{check_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a check
+         * @description The check with the ID, as of the newest committed ledger: its owner (`account`), destination, `send_max`, `expiration` and `status` (`open`, `expired`, or once deleted `cashed`, `cancelled` or `removed`, with `removed` naming the transaction that deleted it and `delivered` what a cash delivered), and the newest 50 transactions that changed it. `history_marker` continues them at `/v2/checks/{id}/history?descending=true`.
+         */
+        get: operations["ChecksController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/checks/{check_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the history of a check
+         * @description The transactions that changed the check (created, cashed, cancelled, or removed), oldest first, or newest first with `descending=true`. `format=csv` gives the events as a CSV file (without `coverage`).
+         */
+        get: operations["ChecksController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/payment_channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a payment channel
+         * @description The payment channel with the ID, as of the newest committed ledger: its owner (`account`), destination, what was deposited (`amount`), paid out (`balance`) and is left (`remaining`), `settle_delay`, `status` (`open`, `closing`, or once deleted `closed` or `removed`), how many times it was funded and claimed from (`funds`, `claims`), and the newest 50 transactions that changed it. `history_marker` continues them at `/v2/payment_channels/{id}/history?descending=true`.
+         */
+        get: operations["PaymentChannelsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/payment_channels/{channel_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the history of a payment channel
+         * @description The transactions that changed the payment channel (created, funded, claimed from, closed), oldest first, or newest first with `descending=true`. `format=csv` gives the events as a CSV file (without `coverage`).
+         */
+        get: operations["PaymentChannelsController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/ledger_objects/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up a ledger object by its ID
+         * @description Which kind of object the ID is, among the escrows, checks, payment channels and delegations: its `object_type` (`Escrow`, `Check`, `PayChannel` or `Delegate`), its owner (`account`), whether it was `deleted`, and the ledger of its newest row, as of the newest committed ledger. An object that was created before the index starts and has not been touched since is not known.
+         */
+        get: operations["LedgerObjectsController_lookup"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3150,6 +3330,57 @@ export interface operations {
             };
         };
     };
+    AccountEscrowController_escrow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The address of the escrow owner (a classic address). */
+                address: string;
+                /** @description The `Sequence` (or `TicketSequence`) of the `EscrowCreate`: digits, at most 4294967295. */
+                sequence: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AccountDelegationsController_list: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description `given` (default): the delegations the account made. `held`: those it was given. */
+                direction?: "given" | "held";
+            };
+            header?: never;
+            path: {
+                /** @description The address of the account (a classic address). */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     NftsController_detail: {
         parameters: {
             query?: never;
@@ -3621,6 +3852,173 @@ export interface operations {
             path: {
                 /** @description A domain as an account names it (`northpeak.example`); the case does not matter. */
                 domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    EscrowsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the escrow ID, in any case. */
+                escrow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    EscrowsController_history: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the escrow ID, in any case. */
+                escrow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChecksController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the check ID, in any case. */
+                check_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChecksController_history: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the check ID, in any case. */
+                check_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PaymentChannelsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the payment channel ID, in any case. */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PaymentChannelsController_history: {
+        parameters: {
+            query?: {
+                /** @description Default: json. */
+                format?: "json" | "csv";
+                /** @description From the previous page. */
+                marker?: unknown;
+                /** @description Default 200, at most 1000. */
+                limit?: number;
+                /** @description Newest first. */
+                descending?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the payment channel ID, in any case. */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    LedgerObjectsController_lookup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The 64 hex digits of the object ID, in any case. */
+                object_id: string;
             };
             cookie?: never;
         };

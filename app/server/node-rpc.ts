@@ -15,6 +15,9 @@
 //
 // The NFT readers (E8) ask for what the data API's index may lack: the XRPL's `nft_info`, `nft_sell_offers` and `nft_buy_offers` (Clio; rippled cannot look an NFT up by its
 // id) and Xahau's URIToken, read with `ledger_entry` by its id. Each checks that the answer is the NFT asked for and validated.
+//
+// The ledger-object pages (E10) read an object the index lacks, or has not caught up with, with the same `ledger_entry` by its id (`ledgerEntry`): the entry as the node wrote it,
+// whatever its type. `ledgerEntry` and `uriToken` make the one request, so they share one cache entry, which holds the checked entry; `uriToken` reads its fields from it.
 
 import BigNumber from "bignumber.js";
 import { isValidClassicAddress } from "ripple-address-codec";
@@ -113,6 +116,16 @@ export interface LedgerObject {
   /** The entry's key in the ledger. */
   index?: string;
   [field: string]: unknown;
+}
+
+/**
+ * `ledger_entry` by `index` on the newest validated ledger: the entry at that key as the node wrote it (its times in Ripple-epoch seconds, a native amount in drops as text),
+ * the key (upper-case, the one asked for) and the ledger it was read at.
+ */
+export interface LedgerEntry {
+  node: LedgerObject;
+  index: string;
+  ledger_index: number;
 }
 
 /** `account_objects` on the newest validated ledger: a page of the account's entries. */
@@ -259,6 +272,12 @@ export interface NodeRpc {
    * entry, or one that does not say `validated: true`, is `server`. Class `live`.
    */
   uriToken(id: string): Promise<NodeUriToken>;
+  /**
+   * The ledger entry at this key (any case; `ledger_entry` by `index`) on the newest validated ledger, whatever its type: `node` as the node wrote it, the key in upper case and the
+   * ledger it was read at. `not_found` for `entryNotFound`. An answer for another key, one that does not say `validated: true`, or one with no `ledger_index` or no
+   * `LedgerEntryType` is `server`. Class `live`. The request is `uriToken`'s, so the two share one cache entry.
+   */
+  ledgerEntry(id: string): Promise<LedgerEntry>;
 }
 
 // ---- Reading the node's answers ------------------------------------------------------------------------------------
@@ -800,24 +819,34 @@ function toNftOffers(what: string, native: string, asked: string, result: Json):
 }
 
 /**
- * A URIToken from `ledger_entry` by `index` (`asked`, in upper case). The entry at an id may be of any type (`index` is any entry's key): one that is not a `URIToken` is no
- * such NFT, `not_found`, and is told before its fields are read (an account root has none of them).
+ * An entry from `ledger_entry` by `index` (`asked`, in upper case), whatever its type: validated, the entry an object, the key it says (in the result, in the entry, or both) the
+ * one asked for, a ledger index and a type. This is what is stored, so that a malformed answer never is, and what `ledgerEntry` and `uriToken` both read.
  */
-function toUriToken(what: string, native: string, asked: string, result: Json): NodeUriToken {
+function toLedgerEntry(what: string, asked: string, result: Json): LedgerEntry {
   requireValidatedAnswer(what, result, true);
   const node = objectField(what, result, "node");
   if (result.index === undefined && node.index === undefined) throw malformed(what, 'no "index"');
   for (const [where, said] of [["index", result.index], ["node.index", node.index]] as const) {
     if (said !== undefined && (typeof said !== "string" || said.toUpperCase() !== asked)) throw malformed(what, `"${where}" is not the entry asked for`);
   }
+  if (typeof node.LedgerEntryType !== "string") throw malformed(what, '"LedgerEntryType" is not text');
+  return { node: node as LedgerObject, index: asked, ledger_index: integerField(what, result, "ledger_index", 0) };
+}
+
+/**
+ * A URIToken from the entry at its `index`. The entry at an id may be of any type (`index` is any entry's key): one that is not a `URIToken` is no such NFT, `not_found`, and is
+ * told before its fields are read (an account root has none of them).
+ */
+function toUriToken(what: string, native: string, entry: LedgerEntry): NodeUriToken {
+  const node = entry.node;
   if (node.LedgerEntryType !== "URIToken") {
     throw new UpstreamError("not_found", `${what}: the entry is a ${clip(String(node.LedgerEntryType))}, not a URIToken`, { status: 200 });
   }
   const digest = node.Digest;
   if (digest !== undefined && (typeof digest !== "string" || !HEX64_TEXT.test(digest))) throw malformed(what, '"Digest" is not 64 hexadecimal digits');
   return {
-    index: asked,
-    ledger_index: integerField(what, result, "ledger_index", 0),
+    index: entry.index,
+    ledger_index: entry.ledger_index,
     Owner: accountField(what, node, "Owner", "the URIToken's"),
     Issuer: accountField(what, node, "Issuer", "the URIToken's"),
     URI: hexField(what, node, "URI"),
@@ -924,6 +953,14 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
     );
   }
 
+  /** The entry at `id` (any case), asked for in upper case: the same request, key and stored value whoever asks, `ledgerEntry` or `uriToken`. */
+  function entryAt(id: string): Promise<LedgerEntry> {
+    const asked = id.toUpperCase();
+    return call("ledger_entry", { index: asked, ledger_index: "validated" }, "live", (what, result) => toLedgerEntry(what, asked, result), undefined, {
+      notFound: ENTRY_NOT_FOUND,
+    });
+  }
+
   const readBook = (asked: BookAsked) => (what: string, result: Json) => toBook(what, net.native, asked, result);
   const readAmm = (asked: AmmAsked) => (what: string, result: Json) => toAmmInfo(what, net.native, asked, result);
 
@@ -991,11 +1028,8 @@ export function createNodeRpc(net: Network, cache: SubrequestCache): NodeRpc {
     },
     nftSellOffers: async (id) => nftOffersOf("nft_sell_offers", id),
     nftBuyOffers: async (id) => nftOffersOf("nft_buy_offers", id),
-    uriToken: async (id) => {
-      const asked = id.toUpperCase();
-      return call("ledger_entry", { index: asked, ledger_index: "validated" }, "live", (what, result) => toUriToken(what, net.native, asked, result), undefined, {
-        notFound: ENTRY_NOT_FOUND,
-      });
-    },
+    // A URIToken and an object of E10 are the same request, so one cache entry holding the checked entry: `uriToken` reads its fields from it.
+    uriToken: async (id) => toUriToken("node ledger_entry", net.native, await entryAt(id)),
+    ledgerEntry: async (id) => entryAt(id),
   };
 }

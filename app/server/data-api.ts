@@ -50,7 +50,10 @@ import type {
   AnalyticsExchanges,
   BalancesResponse,
   Candle,
+  CheckAnswer,
   CollectionKey,
+  DelegationsPage,
+  EscrowAnswer,
   ExchangeVolumeComponent,
   FeeBucketRow,
   FeeRow,
@@ -58,6 +61,7 @@ import type {
   LastValidated,
   Ledger,
   LedgerExpanded,
+  LedgerObjectRef,
   LedgerValidations,
   LedgerWithHashes,
   MarketsResponse,
@@ -74,10 +78,12 @@ import type {
   NftsPage,
   NftSort,
   NftVolume,
+  ObjectHistoryPage,
   OrdersResponse,
   Page,
   PairExchange,
   Payment,
+  PaymentChannelAnswer,
   PaymentVolumeComponent,
   ReducedRow,
   StatsRow,
@@ -115,6 +121,7 @@ import {
   checkNftsPage,
   checkNftVolume,
 } from "./nft-shape";
+import { checkDelegations, checkLedgerObject, checkObjectAnswer, checkObjectHistory } from "./object-shape";
 import type { paths } from "./openapi";
 import { PENDING_PATHS } from "./pending-paths";
 import { checkBinaryAnswer, checkIndexTransaction, checkLedgerHashes } from "./tx-shape";
@@ -208,6 +215,17 @@ const PATHS = {
   accountNames: "/v2/account_names",
   /** What the toml of a domain says, as D4's `tomls` worker last stored it; the domain is a well-formed lower-case one. */
   toml: "/v2/toml/{domain}",
+  // D5's eight routes (data-api-new `feat/explorer-data-2`, pinned at `0c2e58c`), which the ledger-object pages (E10) ask for only while `LEDGER_OBJECTS` (and, for the delegations,
+  // `DELEGATION`) is on. The path parameters are the ones of its openapi.yaml: `escrow_id`, `check_id`, `channel_id`, `object_id` and `address`. A data API deployed without D5 answers
+  // `Cannot GET`, an outage. (Not `/v2/accounts/{address}/escrows/{sequence}`: E10 works the escrow's ID out itself and redirects to it.)
+  escrow: "/v2/escrows/{escrow_id}",
+  escrowHistory: "/v2/escrows/{escrow_id}/history",
+  check: "/v2/checks/{check_id}",
+  checkHistory: "/v2/checks/{check_id}/history",
+  paymentChannel: "/v2/payment_channels/{channel_id}",
+  paymentChannelHistory: "/v2/payment_channels/{channel_id}/history",
+  accountDelegations: "/v2/accounts/{address}/delegations",
+  ledgerObject: "/v2/ledger_objects/{object_id}",
 } as const satisfies Record<string, keyof paths>;
 
 /** The two forms of each route of a collection: of an issuer alone (Xahau) and of an issuer and a taxon (XRPL). */
@@ -224,6 +242,9 @@ type Template = (typeof PATHS)[keyof typeof PATHS] | (typeof PENDING_PATHS)[keyo
 
 /** Paging of a list: `marker` is the opaque token of the previous page's answer. */
 export type ListQuery = { descending?: boolean; limit?: number; marker?: string };
+
+/** A page of older events of an object, newest first: the client asks for no other order, and `marker` is the previous page's. */
+export type ObjectHistoryQuery = { descending: true; limit: number; marker?: string };
 
 /** `fees` by the day: a row for each day that starts within `start` and `end` (`YYYY-MM-DD`). Sent in this order. */
 export type FeeBucketQuery = { interval: "day"; start: string; end: string; limit: number };
@@ -526,6 +547,31 @@ export interface DataApi {
    * status, the lists' shapes).
    */
   toml(domain: string): Promise<TomlAnswer>;
+
+  // E10's object calls (data-api-new D5, `feat/explorer-data-2`, pinned at `0c2e58c`). Only a data API that has D5 has the routes: without it each call fails with the missing-route
+  // outage (kind `server`, never stored), and the routes' own `escrow not found`, `check not found`, `payment channel not found` and `ledger object not found` stay `not_found`. The
+  // ledger-object pages ask only while `LEDGER_OBJECTS` is on. Every answer is checked inside the load (object-shape.ts, and its `coverage` with it), and one that is not what the
+  // reference promises, or is another object's than the ID asked for, is kind `server`, never stored. D5's 400s (`invalid escrow id`, `invalid marker`) are `bad_request`: E10 checks
+  // IDs before it asks.
+  /** One escrow by its ID (any case; the answer's is upper-case) as of the newest committed ledger, with its newest 50 events, newest first, and its own coverage. Class `live`. */
+  escrow(id: string): Promise<EscrowAnswer>;
+  /** The events of an escrow, newest first. Class `MARKER_PAGE_CLASS` behind a marker (a page of older events), `live` without one. */
+  escrowHistory(id: string, q: ObjectHistoryQuery): Promise<ObjectHistoryPage>;
+  /** One check, as `escrow`. Class `live`. */
+  check(id: string): Promise<CheckAnswer>;
+  /** The events of a check, as `escrowHistory`. */
+  checkHistory(id: string, q: ObjectHistoryQuery): Promise<ObjectHistoryPage>;
+  /** One payment channel, as `escrow`. Class `live`. */
+  paymentChannel(id: string): Promise<PaymentChannelAnswer>;
+  /** The events of a payment channel, as `escrowHistory`. */
+  paymentChannelHistory(id: string, q: ObjectHistoryQuery): Promise<ObjectHistoryPage>;
+  /**
+   * The delegations an account gave (`given`) or holds (`held`), the one changed last first, at most `limit` (D5's default is 200 and its maximum 1000). Xahau has none: an empty page
+   * with a complete coverage. Class `live`.
+   */
+  accountDelegations(address: string, q: { direction: "given" | "held"; limit: number }): Promise<DelegationsPage>;
+  /** Which kind of object an ID is, who owns it and whether it is deleted (the part under `ledger_object`; `ledger object not found` is `not_found`). Class `live`. */
+  ledgerObject(id: string): Promise<LedgerObjectRef>;
 }
 
 /** Query parameters; `undefined` and `false` are left out (every flag of the API is off unless it says `true`). */
@@ -988,5 +1034,22 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
         finish: (body) => checkAccountNames(body, addresses),
       }),
     toml: (domain) => get<TomlAnswer>(PATHS.toml, { domain }, {}, "minute", { finish: (body) => checkToml(body, domain) }),
+    // E10's object calls. The object and the lookup are in the ledger as of now: `live`. A history is newest first and written `descending`, `limit`, `marker`; behind a marker it is
+    // `MARKER_PAGE_CLASS` (the rule of `nftListClass`), the first page `live`. The lookup answers `{ result, ledger_object }`: the part under `ledger_object` is what is checked and returned.
+    escrow: (id) => get<EscrowAnswer>(PATHS.escrow, { escrow_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("escrow", body, path) }),
+    escrowHistory: (id, q) =>
+      get<ObjectHistoryPage>(PATHS.escrowHistory, { escrow_id: id }, listQuery(q), nftListClass(q), { finish: (body, path) => checkObjectHistory("escrow", body, path) }),
+    check: (id) => get<CheckAnswer>(PATHS.check, { check_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("check", body, path) }),
+    checkHistory: (id, q) =>
+      get<ObjectHistoryPage>(PATHS.checkHistory, { check_id: id }, listQuery(q), nftListClass(q), { finish: (body, path) => checkObjectHistory("check", body, path) }),
+    paymentChannel: (id) =>
+      get<PaymentChannelAnswer>(PATHS.paymentChannel, { channel_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("payment_channel", body, path) }),
+    paymentChannelHistory: (id, q) =>
+      get<ObjectHistoryPage>(PATHS.paymentChannelHistory, { channel_id: id }, listQuery(q), nftListClass(q), {
+        finish: (body, path) => checkObjectHistory("payment_channel", body, path),
+      }),
+    accountDelegations: (address, q) =>
+      get<DelegationsPage>(PATHS.accountDelegations, { address }, { direction: q.direction, limit: q.limit }, "live", { finish: checkDelegations }),
+    ledgerObject: (id) => get<LedgerObjectRef>(PATHS.ledgerObject, { object_id: id }, {}, "live", { unwrap: "ledger_object", finish: checkLedgerObject }),
   };
 }

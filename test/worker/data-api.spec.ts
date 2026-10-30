@@ -18,10 +18,15 @@ import type {
   AnalyticsCounterparties,
   AnalyticsExchanges,
   Candle,
+  CheckAnswer,
+  Delegation,
+  DelegationsPage,
+  EscrowAnswer,
   ExchangeVolumeComponent,
   FeeBucketRow,
   FeeRow,
   FeeStatsRow,
+  LedgerObjectRef,
   LedgerValidations,
   MarketRow,
   MarketsResponse,
@@ -35,8 +40,11 @@ import type {
   NftSalesPage,
   NftsPage,
   NftVolume,
+  ObjectHistoryPage,
+  ObjectRef,
   Page,
   PairExchange,
+  PaymentChannelAnswer,
   PaymentVolumeComponent,
   ReducedRow,
   StatsRow,
@@ -96,6 +104,20 @@ import {
   uriTokenSample,
   URI_TOKEN_ISSUER,
 } from "../support/nft-samples";
+import {
+  CHANNEL_ID,
+  CHECK_ID,
+  checkAnswerSample,
+  DELEGATE,
+  DELEGATION_ID,
+  delegationsSample,
+  DELEGATOR,
+  ESCROW_ID,
+  escrowAnswerSample,
+  historySample,
+  ledgerObjectSample,
+  paymentChannelAnswerSample,
+} from "../support/object-samples";
 import { passThroughCache, recordingCache } from "../support/subrequest-cache";
 import { allSwitches } from "../support/switches";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
@@ -4063,6 +4085,362 @@ describe("E9's names and toml calls", () => {
     expectTypeOf<AccountNamesResponse["account_names"][number]["display_name"]>().toEqualTypeOf<{ text: string; kind: string } | undefined>();
     expectTypeOf<TomlAnswer["toml"]["fetched"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<TomlAnswer["toml"]["accounts"]>().toEqualTypeOf<{ address: string; desc?: string }[] | undefined>();
+  });
+});
+
+// E10's eight calls (ledger-object pages spec 2.1): D5's escrows, checks and payment channels with their histories, an account's delegations and the lookup of an ID
+// (data-api-new `feat/explorer-data-2` at 0c2e58c, docs/api-reference.md, "Ledger objects"). Each answer is checked inside the load the cache runs (object-shape.ts), so that one
+// that is not what the reference promises is a failure of kind `server` and is never stored. The object and the lookup are class `live`; a page of older events, reached with a
+// marker, is `MARKER_PAGE_CLASS`.
+describe("E10's object calls", () => {
+  const OTHER_ID = "A".repeat(64);
+  const MARKER = "WzEwNzk0NTQzOCw5OF0";
+
+  interface ObjectCall {
+    name: string;
+    call: (api: DataApi) => Promise<unknown>;
+    /** Path and query of the request, in the order the client writes it, after the host. */
+    url: string;
+    cls: CacheClass;
+    /** The words of the route's own 404 (an ID with no object); the delegations have none. */
+    missing?: string;
+    /** The words of its 400, which E10 never sends (it checks IDs first). */
+    invalid?: string;
+    /** What D5 answers. */
+    good: () => unknown;
+    /** What makes `good` an answer the check refuses, and the field the message names. */
+    bad: () => unknown;
+    field: string;
+  }
+
+  const checkHistorySample = () => historySample({ history: checkAnswerSample().history });
+  const channelHistorySample = () => historySample({ history: paymentChannelAnswerSample().history, count: 2 });
+  const withBadHistory = <T extends { history: unknown }>(page: T): T => ({ ...page, history: {} });
+
+  const EIGHT: ObjectCall[] = [
+    {
+      name: "escrow",
+      call: (api) => api.escrow(ESCROW_ID),
+      url: `/v2/escrows/${ESCROW_ID}`,
+      cls: "live",
+      missing: "escrow not found",
+      invalid: "invalid escrow id",
+      good: () => escrowAnswerSample(),
+      bad: () => escrowAnswerSample({ escrow: { ...escrowAnswerSample().escrow, status: "unknown" as never } }),
+      field: "status",
+    },
+    {
+      name: "escrowHistory",
+      call: (api) => api.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker: "M" }),
+      url: `/v2/escrows/${ESCROW_ID}/history?descending=true&limit=50&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      missing: "escrow not found",
+      invalid: "invalid marker",
+      good: () => historySample(),
+      bad: () => withBadHistory(historySample()),
+      field: "history",
+    },
+    {
+      name: "check",
+      call: (api) => api.check(CHECK_ID),
+      url: `/v2/checks/${CHECK_ID}`,
+      cls: "live",
+      missing: "check not found",
+      invalid: "invalid check id",
+      good: () => checkAnswerSample(),
+      bad: () => checkAnswerSample({ check: { ...checkAnswerSample().check, send_max: { currency: "USD", issuer: "rNope", value: "1" } } }),
+      field: "issuer",
+    },
+    {
+      name: "checkHistory",
+      call: (api) => api.checkHistory(CHECK_ID, { descending: true, limit: 50, marker: "M" }),
+      url: `/v2/checks/${CHECK_ID}/history?descending=true&limit=50&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      missing: "check not found",
+      invalid: "invalid marker",
+      good: () => checkHistorySample(),
+      bad: () => withBadHistory(checkHistorySample()),
+      field: "history",
+    },
+    {
+      name: "paymentChannel",
+      call: (api) => api.paymentChannel(CHANNEL_ID),
+      url: `/v2/payment_channels/${CHANNEL_ID}`,
+      cls: "live",
+      missing: "payment channel not found",
+      invalid: "invalid channel id",
+      good: () => paymentChannelAnswerSample(),
+      bad: () => paymentChannelAnswerSample({ payment_channel: { ...paymentChannelAnswerSample().payment_channel, settle_delay: "1209600" as never } }),
+      field: "settle_delay",
+    },
+    {
+      name: "paymentChannelHistory",
+      call: (api) => api.paymentChannelHistory(CHANNEL_ID, { descending: true, limit: 50, marker: "M" }),
+      url: `/v2/payment_channels/${CHANNEL_ID}/history?descending=true&limit=50&marker=M`,
+      cls: MARKER_PAGE_CLASS,
+      missing: "payment channel not found",
+      invalid: "invalid marker",
+      good: () => channelHistorySample(),
+      bad: () => withBadHistory(channelHistorySample()),
+      field: "history",
+    },
+    {
+      name: "accountDelegations",
+      call: (api) => api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 }),
+      url: `/v2/accounts/${DELEGATOR}/delegations?direction=given&limit=200`,
+      cls: "live",
+      invalid: "invalid direction",
+      good: () => delegationsSample(),
+      bad: () => delegationsSample({ delegations: [{ ...delegationsSample().delegations[0]!, authorize: "rNope" }] }),
+      field: "authorize",
+    },
+    {
+      name: "ledgerObject",
+      call: (api) => api.ledgerObject(DELEGATION_ID),
+      url: `/v2/ledger_objects/${DELEGATION_ID}`,
+      cls: "live",
+      missing: "ledger object not found",
+      invalid: "invalid ledger object id",
+      good: () => ({ result: "success", ledger_object: ledgerObjectSample() }),
+      bad: () => ({ result: "success", ledger_object: ledgerObjectSample({ object_type: "Offer" as never }) }),
+      field: "object_type",
+    },
+  ];
+
+  /** What D5 answers for the path asked, in the body of the sample of that route. */
+  const answer = async (input: RequestInfo | URL) => {
+    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
+    const found = EIGHT.find((c) => c.url.split("?")[0] === pathname);
+    if (found === undefined) throw new Error(`unexpected request for ${pathname}`);
+    return json(found.good());
+  };
+
+  const recording = () => {
+    const cache = recordingCache();
+    return { cache, api: createDataApi(xrpl, env, cache) };
+  };
+
+  const notFound = (message: string) => json({ result: "error", message }, { status: 404 });
+
+  // Failure tests first, each on a host of its own: the Cache API and the hold of this file outlive a test.
+  describe("a failure", () => {
+    it.each(EIGHT.filter((c) => c.missing !== undefined).map((c) => [c.name, c] as const))("%s: keeps its own 404 as not_found, and makes Cannot GET (a data API without D5) a server error", async (name, c) => {
+      const { api, storedBy } = storing(`d5-failures-${name}`);
+      const path = c.url.split("?")[0]!;
+
+      fetchSpy.mockResolvedValueOnce(notFound(c.missing!));
+      const missing = await failureOf(c.call(api));
+      expect([missing.kind, missing.status]).toEqual(["not_found", 404]);
+      expect(missing.message).toBe(`data API GET ${c.url} answered 404: ${c.missing}`);
+      expect(isNotFound(missing)).toBe(true);
+
+      // An API without D5 answers the framework's words: an outage, which is never stored and never a 404 page.
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+      const noRoute = await failureOf(c.call(api));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(noRoute.message).toBe(`data API GET ${c.url} answered 404: Cannot GET ${path} (the data API has no such route)`);
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(isNotFound(noRoute)).toBe(false);
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it("makes the delegations' Cannot GET a server error, and never stores it", async () => {
+      const { api, storedBy } = storing("d5-failures-delegations");
+      const path = `/v2/accounts/${DELEGATOR}/delegations`;
+      fetchSpy.mockImplementation(async () => notFound(`Cannot GET ${path}`));
+
+      const noRoute = await failureOf(api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 }));
+      expect([noRoute.kind, noRoute.status]).toEqual(["server", 404]);
+      expect(isMissingRoute(noRoute)).toBe(true);
+      expect(await storedBy(() => api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 }).catch(() => undefined))).toEqual([]);
+    });
+
+    it.each(EIGHT.map((c) => [c.name, c] as const))("%s: D5's 400 is the visitor's (bad_request), its 500 a server failure, its 429 the API limiting us, and none is stored", async (name, c) => {
+      const { api, storedBy } = storing(`d5-errors-${name}`);
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: c.invalid }, { status: 400 }));
+      const refused = await failureOf(c.call(api));
+      expect([refused.kind, refused.status]).toEqual(["bad_request", 400]);
+      expect(refused.message).toContain(c.invalid);
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve" }, { status: 500 }));
+      expect(await failureOf(c.call(api))).toMatchObject({ kind: "server", status: 500 });
+
+      fetchSpy.mockResolvedValueOnce(json({ error: "rate limit exceeded" }, { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "7" } }));
+      expect(await failureOf(c.call(api))).toMatchObject({ kind: "rate_limited", retryAfter: 7 });
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "error", message: "unable to retrieve" }, { status: 500 }));
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+    });
+
+    it.each(EIGHT.map((c) => [c.name, c] as const))("%s: a malformed 200 is a server error naming the field, and is not stored", async (name, c) => {
+      const { api, storedBy } = storing(`d5-malformed-${name}`);
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+
+      const error = await failureOf(c.call(api));
+      expect(error.kind).toBe("server");
+      expect(error.status).toBe(200);
+      expect(error.message).toContain("answered something unexpected");
+      expect(error.message).toContain(c.field);
+      expect(error.message).toContain(`data API GET ${c.url}`);
+
+      // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
+      fetchSpy.mockResolvedValueOnce(json(c.bad()));
+      expect(await storedBy(() => c.call(api).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(c.good()));
+      expect((await storedBy(() => c.call(api))).length).toBeGreaterThan(0);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await c.call(api);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("refuses the answer for another object than the one asked for, as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d5-other-object");
+      fetchSpy.mockResolvedValueOnce(json(escrowAnswerSample()));
+
+      const error = await failureOf(api.escrow(OTHER_ID));
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message).toContain("escrow_id");
+
+      fetchSpy.mockResolvedValueOnce(json({ result: "success", ledger_object: ledgerObjectSample() }));
+      expect(await storedBy(() => api.ledgerObject(OTHER_ID).catch(() => undefined))).toEqual([]);
+    });
+
+    it("makes a lookup answered without ledger_object a server error", async () => {
+      const { api } = storing("d5-no-ledger-object");
+      fetchSpy.mockResolvedValueOnce(json({ result: "success" }));
+
+      expect(await failureOf(api.ledgerObject(DELEGATION_ID))).toMatchObject({
+        kind: "server",
+        status: 200,
+        message: expect.stringContaining('answered without "ledger_object"'),
+      });
+    });
+  });
+
+  it("asks D5's eight paths with their queries and classes", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    for (const c of EIGHT) await c.call(api);
+
+    // The keys are `GET <host><path and query as sent>`; the history's query is `descending`, `limit`, `marker`, the delegations' `direction`, `limit`.
+    expect(cache.calls.map((call) => [call.key, call.cls, call.ttlOverride])).toEqual(EIGHT.map((c) => [`GET ${BASE}${c.url}`, c.cls, undefined]));
+    expect(cache.calls.map((call) => "holdFailure" in call)).toEqual(EIGHT.map(() => false));
+    // What went out is the same path and query, with the key and nothing else of the visitor's.
+    expect(fetchSpy.mock.calls.map((_call, index) => sentRequest(index).url)).toEqual(EIGHT.map((c) => `${BASE}${c.url}`));
+    expect(sentRequest(0).headers.get("X-API-Key")).toBe("test-key");
+    expect(MARKER_PAGE_CLASS).toBe("slow");
+  });
+
+  it("returns what each call asked for: the whole answer, and for the lookup the part under ledger_object", async () => {
+    const { api } = recording();
+    fetchSpy.mockImplementation(answer);
+
+    expect(await api.escrow(ESCROW_ID)).toEqual(escrowAnswerSample());
+    expect(await api.check(CHECK_ID)).toEqual(checkAnswerSample());
+    expect(await api.paymentChannel(CHANNEL_ID)).toEqual(paymentChannelAnswerSample());
+    expect(await api.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker: "M" })).toEqual(historySample());
+    expect(await api.accountDelegations(DELEGATOR, { direction: "given", limit: 200 })).toEqual(delegationsSample());
+    expect(await api.ledgerObject(DELEGATION_ID)).toEqual(ledgerObjectSample());
+  });
+
+  it("sends the delegations' direction and limit as asked", async () => {
+    const { cache, api } = recording();
+    fetchSpy.mockImplementation(async () => json(delegationsSample()));
+
+    await api.accountDelegations(DELEGATE, { direction: "held", limit: 1000 });
+
+    expect(cache.calls.map((call) => call.key)).toEqual([`GET ${BASE}/v2/accounts/${DELEGATE}/delegations?direction=held&limit=1000`]);
+  });
+
+  it("is class live for the first page of a history, MARKER_PAGE_CLASS behind a marker, and an empty marker is none", async () => {
+    const histories: Array<[name: string, call: (api: DataApi, marker?: string) => Promise<unknown>, route: string]> = [
+      ["escrowHistory", (a, marker) => a.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker }), `/v2/escrows/${ESCROW_ID}/history`],
+      ["checkHistory", (a, marker) => a.checkHistory(CHECK_ID, { descending: true, limit: 50, marker }), `/v2/checks/${CHECK_ID}/history`],
+      ["paymentChannelHistory", (a, marker) => a.paymentChannelHistory(CHANNEL_ID, { descending: true, limit: 50, marker }), `/v2/payment_channels/${CHANNEL_ID}/history`],
+    ];
+    for (const [name, call, route] of histories) {
+      const { cache, api } = recording();
+      fetchSpy.mockImplementation(answer);
+
+      await call(api).catch(() => undefined);
+      await call(api, MARKER);
+      // An empty marker is none.
+      await call(api, "").catch(() => undefined);
+
+      expect(cache.calls.map((c) => c.cls), name).toEqual(["live", MARKER_PAGE_CLASS, "live"]);
+      expect(cache.calls.map((c) => c.key.slice(`GET ${BASE}${route}`.length)), name).toEqual(["?descending=true&limit=50", `?descending=true&limit=50&marker=${MARKER}`, "?descending=true&limit=50"]);
+    }
+  });
+
+  it("takes the delegations of Xahau: none, with the coverage of a feature the network cannot have", async () => {
+    const none = delegationsSample({ coverage: { from_ledger_index: 8852809, complete: true }, ledger_index: 26399329, close_time: "2026-10-09T12:49:32Z", count: 0, delegations: [] });
+    fetchSpy.mockResolvedValueOnce(json(none));
+
+    expect(await createDataApi(xahau, env, passThroughCache).accountDelegations(DELEGATOR, { direction: "given", limit: 200 })).toEqual(none);
+    expect(sentRequest().url).toBe(`https://xahau.data.example.invalid/v2/accounts/${DELEGATOR}/delegations?direction=given&limit=200`);
+    expect(sentRequest().headers.get("X-API-Key")).toBe("test-key");
+  });
+
+  it("escapes what it puts in a path, so that an identifier cannot reach another endpoint", async () => {
+    fetchSpy.mockImplementation(answer);
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    await api.escrow("a/b?c#d").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/escrows/a%2Fb%3Fc%23d`);
+    await api.checkHistory("a/b", { descending: true, limit: 50 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/checks/a%2Fb/history?descending=true&limit=50`);
+    await api.accountDelegations("a/b?c#d", { direction: "given", limit: 200 }).catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/accounts/a%2Fb%3Fc%23d/delegations?direction=given&limit=200`);
+    await api.ledgerObject("a/b").catch(() => undefined);
+    expect(sentRequest().url).toBe(`${BASE}/v2/ledger_objects/a%2Fb`);
+  });
+
+  it.each(["..", ".", ""])("refuses %j as an ID or an address without sending anything", async (id) => {
+    const api = createDataApi(xrpl, env, passThroughCache);
+
+    expect((await failureOf(api.escrow(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.escrowHistory(id, { descending: true, limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.check(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.checkHistory(id, { descending: true, limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.paymentChannel(id))).kind).toBe("bad_request");
+    expect((await failureOf(api.paymentChannelHistory(id, { descending: true, limit: 50 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.accountDelegations(id, { direction: "given", limit: 200 }))).kind).toBe("bad_request");
+    expect((await failureOf(api.ledgerObject(id))).kind).toBe("bad_request");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keys the two networks apart", async () => {
+    const cache = recordingCache();
+    fetchSpy.mockImplementation(async () => json(delegationsSample()));
+
+    await createDataApi(xrpl, env, cache).accountDelegations(DELEGATOR, { direction: "given", limit: 200 });
+    await createDataApi(xahau, env, cache).accountDelegations(DELEGATOR, { direction: "given", limit: 200 });
+
+    expect(new Set(cache.calls.map((c) => c.key)).size).toBe(2);
+  });
+
+  it("types each answer by what the reference gives it", () => {
+    // A cache that answers nothing: only the types of the calls are looked at, and the promises are left alone.
+    const api = createDataApi(xrpl, env, { json: () => new Promise<never>(() => {}) });
+
+    expectTypeOf(api.escrow(ESCROW_ID)).toEqualTypeOf<Promise<EscrowAnswer>>();
+    expectTypeOf(api.escrowHistory(ESCROW_ID, { descending: true, limit: 50, marker: "M" })).toEqualTypeOf<Promise<ObjectHistoryPage>>();
+    expectTypeOf(api.check(CHECK_ID)).toEqualTypeOf<Promise<CheckAnswer>>();
+    expectTypeOf(api.checkHistory(CHECK_ID, { descending: true, limit: 50 })).toEqualTypeOf<Promise<ObjectHistoryPage>>();
+    expectTypeOf(api.paymentChannel(CHANNEL_ID)).toEqualTypeOf<Promise<PaymentChannelAnswer>>();
+    expectTypeOf(api.paymentChannelHistory(CHANNEL_ID, { descending: true, limit: 50 })).toEqualTypeOf<Promise<ObjectHistoryPage>>();
+    expectTypeOf(api.accountDelegations(DELEGATOR, { direction: "held", limit: 200 })).toEqualTypeOf<Promise<DelegationsPage>>();
+    expectTypeOf(api.ledgerObject(DELEGATION_ID)).toEqualTypeOf<Promise<LedgerObjectRef>>();
+    // The keys the reference lets an answer go without.
+    expectTypeOf<EscrowAnswer["history_marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<EscrowAnswer["escrow"]["created"]>().toEqualTypeOf<ObjectRef | undefined>();
+    expectTypeOf<EscrowAnswer["coverage"]["complete"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<ObjectHistoryPage["marker"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<Delegation["created"]>().toEqualTypeOf<ObjectRef | undefined>();
+    // The history pages are asked newest first.
+    expectTypeOf<Parameters<DataApi["escrowHistory"]>[1]["descending"]>().toEqualTypeOf<true>();
   });
 });
 
