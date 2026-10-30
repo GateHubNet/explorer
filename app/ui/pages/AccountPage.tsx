@@ -1,7 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { Await, Link } from "react-router";
 
-import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
+import { accountHref, ACCOUNT_TABS, DELEGATIONS_WORD, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
 import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
 import { formatAmount, formatCurrency, formatUtc, shortAddress } from "../../domain/format";
 import { nftWords } from "../../domain/nft-words";
@@ -494,9 +494,9 @@ function ListSection({ network, data }: { network: NetworkInfo; data: AccountLis
 
 /**
  * What a tab's list is called in "Loading …" and in the error of a promise that was refused: the tab's name, the NFTs' in the network's words (`NFTs`, `URITokens`), and what the
- * Delegation tab lists ("delegations", as the loader's `failedList` says).
+ * Delegation tab lists (`DELEGATIONS_WORD`, as the loader's `failedList` says).
  */
-const listWord = (tab: ListTab, net: NetworkInfo["id"]): string => (tab === "nfts" ? nftWords(net).tokens : tab === "delegation" ? "delegations" : tab);
+const listWord = (tab: ListTab, net: NetworkInfo["id"]): string => (tab === "nfts" ? nftWords(net).tokens : tab === "delegation" ? DELEGATIONS_WORD : tab);
 
 function ListLoading({ word }: { word: string }) {
   return (

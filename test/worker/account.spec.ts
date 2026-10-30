@@ -1,16 +1,17 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { classicAddressToXAddress, encodeAccountID, xAddressToClassicAddress } from "ripple-address-codec";
+import { classicAddressToXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
 import { shortAddress } from "../../app/domain/format";
 import { linkTextOf } from "../../app/domain/names";
 import { edgeCacheKey } from "../../app/server/edge-cache";
 import { cacheGeneration } from "../../app/server/env";
 import { encodeQr, qrPath } from "../../app/server/qr";
+import { account, healthy, type Health } from "../support/account-loader";
 import { accountHeadOf, expectTextWithAccounts, headingText, shownName, viewOf, withoutNamesOrTomls } from "../support/names";
 import { holderCase } from "../support/nft-cases";
 import { coverageSample, nftSample, nftsPageSample } from "../support/nft-samples";
-import { anchors, elementText, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
+import { accountTabsNav, anchors, elementText, hrefsRead as hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The account page, `/{net}/account/{address}`, on the real Worker against the recorded answers of the data API and the nodes
@@ -49,12 +50,6 @@ const IMMUTABLE = { cls: "immutable", ttl: 31_536_000 };
 const MARKER_PAGE = { cls: "slow", ttl: 3_600 };
 const SHORT = { cls: "short", ttl: 30 };
 
-/** A valid address that no recording has: 20 bytes of `n`. */
-const account = (n: number) => encodeAccountID(new Uint8Array(20).fill(n));
-
-/** The `href`s of a page as a browser reads them (`&amp;` is `&`). */
-const hrefs = (html: string) => rawHrefs(html).map((href) => href.replace(/&amp;/g, "&"));
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Whether the edge cache holds a copy of `path` now (for after the answer has been read; waits a moment for a store that is not wanted). */
@@ -77,55 +72,6 @@ async function recordedList(name: string): Promise<{ result: string; count: numb
   const load = rawLists[`../fixtures/http/xrpl/data-api/accounts/${ACTIVE}/${name}.json`];
   if (!load) throw new Error(`no recorded list ${name}`);
   return JSON.parse(await load());
-}
-
-interface Health {
-  /** The account's `account_info` fields over the defaults. */
-  info?: Record<string, unknown>;
-  /** What the node lists as its objects, and a marker when it has more. */
-  objects?: Array<Record<string, unknown>>;
-  objectsMarker?: string;
-  /** The balances after the native one. */
-  tokens?: Array<Record<string, unknown>>;
-}
-
-/** The answers of a healthy active account of `address` on the XRP Ledger, except for its lists, which a test adds. */
-function healthy(address: string, health: Health = {}): Overrides {
-  const objects = health.objects ?? [];
-  return {
-    [`GET /v2/accounts/${address}`]: {
-      result: "success",
-      account_data: { account: address, parent: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ", initial_balance: "25", inception: "2025-07-15T18:30:43Z", ledger_index: 97500000, tx_hash: "9B".repeat(32) },
-    },
-    [`GET /v2/accounts/${address}/balances`]: {
-      result: "success",
-      ledger_index: 107721455,
-      limit: 200,
-      balances: [{ currency: "XRP", value: "25" }, ...(health.tokens ?? [])],
-    },
-    [`node account_info ${address}`]: {
-      account_data: {
-        Account: address,
-        Balance: "25000000",
-        Flags: 0,
-        LedgerEntryType: "AccountRoot",
-        OwnerCount: objects.length,
-        PreviousTxnID: "C7FE6468BA25CE904C41722C0892316954133B000339C644073A88CACD8A9143",
-        PreviousTxnLgrSeq: 107720688,
-        Sequence: 12,
-        ...health.info,
-      },
-      ledger_index: 107721455,
-      validated: true,
-    },
-    [`node account_objects ${address}`]: {
-      account: address,
-      account_objects: objects,
-      ledger_index: 107721455,
-      validated: true,
-      ...(health.objectsMarker ? { marker: health.objectsMarker } : {}),
-    },
-  };
 }
 
 const LIST = (address: string, kind: "transactions" | "payments" | "exchanges", marker?: string) =>
@@ -641,9 +587,9 @@ describe("the active XRPL account", () => {
   it("has the eight tabs as links, the NFTs and Delegation before Analytics and Analytics with rel=nofollow (NFTS, DELEGATION and ACCOUNT_ANALYTICS are on here; nfts-off.spec.ts, delegation-off.spec.ts and account-analytics-off.spec.ts have them off)", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(path);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
-    expect(nav).not.toBeNull();
-    const tabs = anchors(nav![1]!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"'), /rel="([^"]*)"/.exec(a.attrs)?.[1] ?? null]);
+    const nav = accountTabsNav(html);
+    expect(nav).toBeDefined();
+    const tabs = anchors(nav!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"'), /rel="([^"]*)"/.exec(a.attrs)?.[1] ?? null]);
     expect(tabs).toEqual([
       ["Transactions", `/xrpl/account/${ACTIVE}`, true, null],
       ["Payments", `/xrpl/account/${ACTIVE}?tab=payments`, false, null],
@@ -654,7 +600,7 @@ describe("the active XRPL account", () => {
       ["Delegation", `/xrpl/account/${ACTIVE}?tab=delegation`, false, null],
       ["Analytics", `/xrpl/account/${ACTIVE}?tab=analytics`, false, "nofollow"],
     ]);
-    expect(nav![1]).not.toContain("is-soon");
+    expect(nav).not.toContain("is-soon");
   });
 
   it("is stored as class live: 5 s at the edge, revalidated by the browser", async () => {
@@ -1118,7 +1064,7 @@ describe("the NFTs tab", () => {
   it("has the NFTs tab current, the account's holdings beside it, and the tab's own title, description and canonical URL, indexable", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(path);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html)![1]!;
+    const nav = accountTabsNav(html)!;
     expect(anchors(nav).filter((a) => a.attrs.includes('aria-current="page"')).map((a) => a.text)).toEqual(["NFTs"]);
     expect(textOf(html)).toContain("Owned objects");
     expect(html).toContain(`<title>${await accountHeadOf("xrpl", ACTIVE)} · XRPL · explorer</title>`);
@@ -1129,7 +1075,7 @@ describe("the NFTs tab", () => {
   it("is the URITokens of Xahau: the tab, the table and the note of a coverage that starts late are in the network's words", async () => {
     mock = mockUpstream("xahau");
     const { html } = await page(`/xahau/account/${XAHAU_ACTIVE}?tab=nfts`);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html)![1]!;
+    const nav = accountTabsNav(html)!;
     expect(anchors(nav).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "URITokens", "Analytics"]);
     const rows = tableRows(html, "URITokens");
     expect(rows[0]).toEqual(["URIToken", "Collection", "Last sale", "Minted"]);

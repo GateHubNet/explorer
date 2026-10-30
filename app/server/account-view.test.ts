@@ -14,6 +14,7 @@ import {
   decodeDomain,
   delegationList,
   DELEGATIONS_LIMIT,
+  DELEGATIONS_WORD,
   existenceOf,
   failedList,
   headerAccounts,
@@ -1016,7 +1017,9 @@ describe("the lists of the tabs", () => {
     expect(failedList("offers")).toEqual({ state: "failed", what: "offers" });
     expect(failedList("nfts")).toEqual({ state: "failed", what: "NFTs" });
     expect(failedList("delegation")).toEqual({ state: "failed", what: "delegations" });
-    expect(TAB_WHAT.delegation).toBe("delegations");
+    // The word is written once, in the domain file the page's loading line reads too.
+    expect(TAB_WHAT.delegation).toBe(DELEGATIONS_WORD);
+    expect(DELEGATIONS_WORD).toBe("delegations");
     expect(TAB_WHAT.nfts).toBe("NFTs");
     // The words of a network are its own: Xahau's tokens are URITokens.
     expect(failedList("nfts", "xrpl")).toEqual({ state: "failed", what: "NFTs" });

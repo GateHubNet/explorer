@@ -2,7 +2,7 @@ import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { DELEGATIONS_LIMIT, OBJECTS_LIMIT } from "../../domain/account-tabs";
-import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { formatAmount, formatCurrency, shortAddress, shortHash } from "../../domain/format";
 import { plainNameOf } from "../../domain/names";
 import { collectionLink } from "../../domain/nft-link";
 import { nftWords, shortNftId } from "../../domain/nft-params";
@@ -20,7 +20,7 @@ import { Pager } from "../components/Pager";
 import { PermissionChip } from "../components/PermissionChip";
 import { Sentence } from "../components/Sentence";
 import { TypeTag } from "../components/TypeTag";
-import { When } from "../components/WhenCell";
+import { When, WhenText } from "../components/WhenCell";
 import { ResultPill } from "../components/Pill";
 import type { NetworkInfo } from "../networks";
 import { NamesProvider, useNameOf } from "../names";
@@ -397,20 +397,14 @@ function DelegationSection({ net, name, which, list }: { net: NetworkInfo["id"];
       width: "104px",
       align: "end",
       // The date with the time of day under it, as the other lists write them; the ledger is the tooltip. The transaction is linked in the cell before.
-      cell: (row) => {
-        const at = formatUtc(row.time);
-        return (
-          <span className="when num" title={`Ledger #${count(row.ledger)}`}>
-            <span>{at.slice(0, 10)}</span>
-            <span className="faint">{at.slice(11, 19)}</span>
-          </span>
-        );
-      },
+      cell: (row) => <WhenText time={row.time} title={`Ledger #${count(row.ledger)}`} />,
     },
   ];
+  // How many count: the rows there are, unless the API had more than the page holds, when any number would understate it.
+  const counted = list.more ? "each counts" : list.rows.length === 1 ? "this one counts" : `these ${count(list.rows.length)} count`;
   const reserve =
     isGiven && list.rows.length > 0
-      ? `Each delegation given is a Delegate object ${name} owns, so ${list.rows.length === 1 ? "this one counts" : `these ${count(list.rows.length)} count`} toward its reserve. A new DelegateSet for the same delegate replaces its whole list.`
+      ? `Each delegation given is a Delegate object ${name} owns, so ${counted} toward its reserve. A new DelegateSet for the same delegate replaces its whole list.`
       : null;
   return (
     <section className="delegation__section" aria-labelledby={titleId}>

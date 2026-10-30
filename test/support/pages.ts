@@ -73,6 +73,16 @@ export function hrefs(html: string): string[] {
   return anchors(html).flatMap((a) => /href="([^"]*)"/.exec(a.attrs)?.[1] ?? []);
 }
 
+/** The `href`s of the anchors as a browser reads them: `&amp;` is `&`. */
+export function hrefsRead(html: string): string[] {
+  return hrefs(html).map((href) => href.replace(/&amp;/g, "&"));
+}
+
+/** The tab bar of an account page (its `nav` "Account activity"): what is inside it, or `undefined` when the page has none. */
+export function accountTabsNav(html: string): string | undefined {
+  return /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html)?.[1];
+}
+
 /** The visible text of some HTML: no scripts, styles or tags, entities decoded, white space collapsed. */
 export function textOf(html: string): string {
   return html

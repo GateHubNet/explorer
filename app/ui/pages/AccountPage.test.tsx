@@ -1670,6 +1670,18 @@ describe("the delegations", () => {
     expect(screen.queryByText(/count toward its reserve|counts toward its reserve/)).toBeNull();
   });
 
+  it("counts none of the rows in the reserve note of a list the API cut: each counts, whatever the rows there are", async () => {
+    const note = `Each delegation given is a Delegate object ${shortAddress(ADDRESS)} owns, so each counts toward its reserve. A new DelegateSet for the same delegate replaces its whole list.`;
+    const rows = [delegationRow({ key: "D1" }), delegationRow({ key: "D2", account: PARENT })];
+    const { unmount } = renderInRouter(xrpl(delegationsTab(delegationRows(rows, { more: true }))));
+    await given();
+    expect(screen.getByText(note)).toBeTruthy();
+    unmount();
+    renderInRouter(xrpl(delegationsTab(delegationRows([delegationRow()], { more: true }))));
+    await given();
+    expect(screen.getByText(note)).toBeTruthy();
+  });
+
   it("puts the account's plain name in the sentences where the words say {name}, and its short address when it has none or a label", async () => {
     named(xrpl(delegationsTab(delegationRows([delegationRow()]), delegationRows())), { [ADDRESS]: COPPERFIELD });
     await given();

@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { anchors, hrefs, pageClient } from "../support/pages";
+import { accountTabsNav, anchors, hrefs, pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The account page's Delegation tab with every switch "off" (the `worker-off` project, README "Switches"), as production has it until the owner turns `DELEGATION` on (ledger object pages
@@ -36,14 +36,14 @@ describe("the account's Delegation tab with DELEGATION off", () => {
   it("shows the XRPL account's tab as 'soon', a label and not a link, and links nothing to it", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}`);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
-    expect(nav).not.toBeNull();
+    const nav = accountTabsNav(html);
+    expect(nav).toBeDefined();
     // Every switch is off here: the NFTs and Analytics are the "soon" labels of before too.
-    expect(anchors(nav![1]!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
-    expect(nav![1]).toContain(`<span class="tabs__item is-soon" aria-disabled="true"><span>Delegation</span><span class="soon">soon</span></span>`);
+    expect(anchors(nav!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
+    expect(nav).toContain(`<span class="tabs__item is-soon" aria-disabled="true"><span>Delegation</span><span class="soon">soon</span></span>`);
     // Between the NFTs and Analytics, where the tab is when it is on.
-    expect(nav![1]!.indexOf("NFTs")).toBeLessThan(nav![1]!.indexOf("Delegation"));
-    expect(nav![1]!.indexOf("Delegation")).toBeLessThan(nav![1]!.indexOf("Analytics"));
+    expect(nav!.indexOf("NFTs")).toBeLessThan(nav!.indexOf("Delegation"));
+    expect(nav!.indexOf("Delegation")).toBeLessThan(nav!.indexOf("Analytics"));
     expect(html).not.toContain("tab=delegation");
     expect(mock.requests.some((request) => request.key.includes("/delegations"))).toBe(false);
   });
@@ -51,10 +51,10 @@ describe("the account's Delegation tab with DELEGATION off", () => {
   it("shows no Delegation tab on Xahau, not even the label: there is no delegation there for the switch to hold back", async () => {
     mock = mockUpstream("xahau");
     const { html } = await page(`/xahau/account/${XAHAU_ACTIVE}`);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html)!;
-    expect(nav[1]).not.toContain("Delegation");
+    const nav = accountTabsNav(html)!;
+    expect(nav).not.toContain("Delegation");
     expect(html).not.toContain("tab=delegation");
-    expect(hrefs(nav[1]!).some((href) => href.includes("delegation"))).toBe(false);
+    expect(hrefs(nav).some((href) => href.includes("delegation"))).toBe(false);
     expect(mock.requests.some((request) => request.key.includes("/delegations"))).toBe(false);
   });
 

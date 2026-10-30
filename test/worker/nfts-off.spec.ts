@@ -7,7 +7,7 @@ import { loader as searchLoader } from "../../app/routes/net.search";
 import { createLoadContext, type Env } from "../../app/server/env";
 import { nftCase } from "../support/nft-cases";
 import { isStored } from "../support/nft-pages";
-import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
+import { accountTabsNav, anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The NFT pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `NFTS` on (NFT spec 1.4, 15). `NFTS` is
@@ -262,11 +262,11 @@ describe("the account's NFTs with NFTS off", () => {
   ] as const)("shows the %s account's NFTs tab as 'soon', a label and not a link, and links nothing to it", async (net, address, label) => {
     mock = mockUpstream(net);
     const { html } = await page(`/${net}/account/${address}`);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
-    expect(nav).not.toBeNull();
+    const nav = accountTabsNav(html);
+    expect(nav).toBeDefined();
     // Every switch is off here: Analytics is the "soon" label of before too.
-    expect(anchors(nav![1]!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
-    expect(nav![1]).toContain(`<span class="tabs__item is-soon" aria-disabled="true"><span>${label}</span><span class="soon">soon</span></span>`);
+    expect(anchors(nav!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
+    expect(nav).toContain(`<span class="tabs__item is-soon" aria-disabled="true"><span>${label}</span><span class="soon">soon</span></span>`);
     expect(html).not.toContain("tab=nfts");
     expect(mock.requests.some((request) => request.key.includes("/nfts"))).toBe(false);
   });

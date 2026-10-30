@@ -1,15 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { encodeAccountID } from "ripple-address-codec";
 
 import { shortAddress, shortHash } from "../../app/domain/format";
 import { plainNameOf } from "../../app/domain/names";
 import type { AccountListPageData } from "../../app/server/account-view";
 import type { Delegation, DelegationsPage } from "../../app/server/api-types";
-import { loadAccountPage } from "../support/account-loader";
+import { account, healthy, loadAccountPage } from "../support/account-loader";
 import { isStored } from "../support/nft-pages";
 import { viewOf, withoutNamesOrTomls } from "../support/names";
 import { DELEGATE, DELEGATOR, delegationsSample, objectCoverageSample } from "../support/object-samples";
-import { anchors, hrefs as rawHrefs, pageClient, tableRows, textOf } from "../support/pages";
+import { accountTabsNav, anchors, hrefsRead as hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError, mockUpstream, statusesOf, type Overrides, type UpstreamMock } from "../support/upstream";
 
 // The account page's Delegation tab, `/{net}/account/{address}?tab=delegation` (ledger object pages spec 6.1), on the real Worker against the recorded delegations of the active XRPL
@@ -40,32 +39,14 @@ const MARKER = "WzEwNzYxMjU3MywyNV0";
 const LIVE = { cls: "live", ttl: 5 };
 const SHORT = { cls: "short", ttl: 30 };
 
-/** A valid address that no recording has: 20 bytes of `n`. */
-const account = (n: number) => encodeAccountID(new Uint8Array(20).fill(n));
-
-/** The `href`s of a page as a browser reads them (`&amp;` is `&`). */
-const hrefs = (html: string) => rawHrefs(html).map((href) => href.replace(/&amp;/g, "&"));
-
 const given = (a: string) => `GET /v2/accounts/${a}/delegations?direction=given&limit=200`;
 const held = (a: string) => `GET /v2/accounts/${a}/delegations?direction=held&limit=200`;
 
-/** The answers of an active account of `address` on the XRP Ledger that owns nothing and has no history; the delegations are the test's (the index answers an account it has none of with empty lists). */
-function active(address: string, ledger: number): Overrides {
-  return {
-    [`GET /v2/accounts/${address}`]: {
-      result: "success",
-      account_data: { account: address, parent: "rpiFwLYi6Gb1ESHYorn2QG1WU5vw2u4exQ", initial_balance: "25", inception: "2025-07-15T18:30:43Z", ledger_index: 97500000, tx_hash: "9B".repeat(32) },
-    },
-    [`GET /v2/accounts/${address}/balances`]: { result: "success", ledger_index: 107721455, limit: 200, balances: [{ currency: "XRP", value: "25" }] },
-    [`node account_info ${address}`]: {
-      account_data: { Account: address, Balance: "25000000", Flags: 0, LedgerEntryType: "AccountRoot", OwnerCount: 0, PreviousTxnLgrSeq: ledger, Sequence: 12 },
-      ledger_index: 107721455,
-      validated: true,
-    },
-    [`node account_objects ${address}`]: { account: address, account_objects: [], ledger_index: 107721455, validated: true },
-    [`GET /v2/ledgers/${ledger}`]: { result: "success", ledger: { ledger_index: ledger, close_time: 1792253462 } },
-  };
-}
+/** `healthy(address)` (the shared made-up account) whose last activity is in `ledger`, which the index knows: the delegations are the test's (the mock answers an account it has none of with empty lists). */
+const active = (address: string, ledger: number): Overrides => ({
+  ...healthy(address, { info: { PreviousTxnLgrSeq: ledger } }),
+  [`GET /v2/ledgers/${ledger}`]: { result: "success", ledger: { ledger_index: ledger, close_time: 1792253462 } },
+});
 
 /** A delegation `owner` gave `delegate`: the sample's, with these permissions and its own ID. */
 function delegation(owner: string, delegate: string, id: string, permissions: Delegation["permissions"]): Delegation {
@@ -85,9 +66,6 @@ function chipsOf(html: string, label: string): Array<Array<[string, string, stri
     [...row.matchAll(/<span class="permchip(?: permchip--(\w+))?" title="([^"]*)">([^<]*)<span class="sr">/g)].map((chip): [string, string, string] => [chip[3]!, chip[1] ?? "transaction", chip[2]!]),
   );
 }
-
-/** The tab bar's HTML. */
-const nav = (html: string) => /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html)![1]!;
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // When an upstream fails. First in the file.
@@ -189,10 +167,36 @@ describe("the Delegation tab", () => {
     expect(html).toContain(`<title>Account ${shortAddress(a)} · XRPL · explorer</title>`);
   });
 
+  it("asks the two directions side by side: the given answer waits until the held request has been made, so a call that waits for the other's answer would time out", async () => {
+    const a = account(40);
+    let heldAsked!: () => void;
+    const asked = new Promise<void>((resolve) => (heldAsked = resolve));
+    mock = mockUpstream("xrpl", {
+      ...active(a, 107700740),
+      [given(a)]: async () => {
+        await asked;
+        return Response.json(pageOf([delegation(a, DELEGATE, ID(8), [{ permission: "Payment", kind: "transaction" }])]));
+      },
+      [held(a)]: () => {
+        heldAsked();
+        return Response.json(pageOf([]));
+      },
+    });
+    const started = Date.now();
+    const { html } = await page(`/xrpl/account/${a}?tab=delegation`);
+
+    // Both are drawn, and well inside the list's deadline: the held call did not wait for the given one, nor the given one for the held.
+    expect(Date.now() - started).toBeLessThan(4_000);
+    expect(textOf(html)).not.toContain("Couldn’t load delegations");
+    expect(tableRows(html, "Permissions given")).toHaveLength(2);
+    expect(statusesOf(mock, given(a))).toEqual([200]);
+    expect(statusesOf(mock, held(a))).toEqual([200]);
+  }, 15_000);
+
   it("has the Delegation tab between NFTs and Analytics, a link, the current one on its own page; the other tabs lead on as before", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}?tab=delegation`);
-    const tabs = anchors(nav(html)).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"'), /rel="([^"]*)"/.exec(a.attrs)?.[1] ?? null]);
+    const tabs = anchors(accountTabsNav(html)!).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1], a.attrs.includes('aria-current="page"'), /rel="([^"]*)"/.exec(a.attrs)?.[1] ?? null]);
     expect(tabs).toEqual([
       ["Transactions", `/xrpl/account/${ACTIVE}`, false, null],
       ["Payments", `/xrpl/account/${ACTIVE}?tab=payments`, false, null],
@@ -306,6 +310,11 @@ describe("the Delegation tab", () => {
 
   it("writes the short address in the empty sentences of an account that has a name but also a label: only a plain name is put in a sentence", async () => {
     mock = mockUpstream("xrpl");
+    // The precondition: the fixtures give it a name and a label, and a label keeps the name out of a sentence.
+    const view = (await viewOf("xrpl", DELETED))!;
+    expect(view.name).toBeTruthy();
+    expect(view.labels.length).toBeGreaterThan(0);
+    expect(plainNameOf(view)).toBeNull();
     const { html } = await page(`/xrpl/account/${DELETED}?tab=delegation`);
     const text = textOf(html);
     expect(text).toContain("Deleted");
@@ -340,6 +349,9 @@ describe("the Delegation tab", () => {
     });
     const { html } = await page(`/xrpl/account/${a}?tab=delegation`);
     expect(textOf(html).match(/Showing the first 200/g)).toHaveLength(1);
+    // A list the API cut is more than its rows: the note under it counts none of them (one row, and it still does not say "this one").
+    expect(textOf(html)).toContain(`Each delegation given is a Delegate object ${shortAddress(a)} owns, so each counts toward its reserve. A new DelegateSet for the same delegate replaces its whole list.`);
+    expect(textOf(html)).not.toContain("this one counts");
     const given200 = html.indexOf("Showing the first 200");
     expect(given200).toBeGreaterThan(html.indexOf('aria-label="Permissions given"'));
     expect(given200).toBeLessThan(html.indexOf('aria-label="Permissions held"'));
@@ -395,8 +407,8 @@ describe("what has no Delegation tab", () => {
     mock = mockUpstream("xahau");
     const { html } = await page(`/xahau/account/${XAHAU_ACTIVE}`);
     // Neither a link nor a "soon" label: Xahau has no delegation, so there is no tab to wait for.
-    expect(anchors(nav(html)).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "URITokens", "Analytics"]);
-    expect(nav(html)).not.toContain("Delegation");
+    expect(anchors(accountTabsNav(html)!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "URITokens", "Analytics"]);
+    expect(accountTabsNav(html)).not.toContain("Delegation");
     expect(html).not.toContain("tab=delegation");
     expect(mock.requests.some((r) => r.key.includes("/delegations"))).toBe(false);
 

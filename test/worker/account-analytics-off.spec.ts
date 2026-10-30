@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { anchors, pageClient } from "../support/pages";
+import { accountTabsNav, anchors, pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The account's Analytics tab with every switch "off" (the `worker-off` project, README "Switches"): ACCOUNT_ANALYTICS off is the "soon" tab of
@@ -22,10 +22,10 @@ describe("the account page with ACCOUNT_ANALYTICS off", () => {
   it("shows Analytics in the tab bar as 'soon', a label and not a link, and links nothing to the view", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}`);
-    const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
-    expect(nav).not.toBeNull();
-    expect(anchors(nav![1]!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
-    expect(nav![1]).toMatch(/<span class="tabs__item is-soon" aria-disabled="true"><span>Analytics<\/span><span class="soon">soon<\/span><\/span>/);
+    const nav = accountTabsNav(html);
+    expect(nav).toBeDefined();
+    expect(anchors(nav!).map((a) => a.text)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
+    expect(nav).toMatch(/<span class="tabs__item is-soon" aria-disabled="true"><span>Analytics<\/span><span class="soon">soon<\/span><\/span>/);
     expect(html).not.toContain("tab=analytics");
   });
 

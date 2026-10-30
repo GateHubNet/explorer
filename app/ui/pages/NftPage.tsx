@@ -1,6 +1,5 @@
 import { Link } from "react-router";
 
-import { formatUtc } from "../../domain/format";
 import { ARROW, nftWords } from "../../domain/nft-params";
 import type { NetworkId } from "../../server/networks";
 import type { NftDetailRow, NftHistoryRow, NftLastSaleView, NftOfferRow, NftOwnerLine, NftPageData } from "../../server/nft-view";
@@ -18,6 +17,7 @@ import { Notice } from "../components/Notice";
 import { Pager } from "../components/Pager";
 import { SectionError } from "../components/SectionError";
 import { Sentence } from "../components/Sentence";
+import { WhenText } from "../components/WhenCell";
 import { useNetwork } from "../use-network";
 import { useRetry } from "../use-retry";
 
@@ -226,20 +226,9 @@ function Accounts({ net, segments }: { net: NetworkId; segments: NftHistoryRow["
   );
 }
 
-/** The UTC date and, under it, the time of day. The transaction is in the last column, so the time is no link. */
-function Time({ at }: { at: number }) {
-  const full = formatUtc(at);
-  return (
-    <span className="when num">
-      <span>{full.slice(0, 10)}</span>
-      <span className="faint">{full.slice(11, 19)}</span>
-    </span>
-  );
-}
-
 function historyColumns(net: NetworkId): Column<NftHistoryRow>[] {
   return [
-    { id: "time", header: "Time", width: "110px", cell: (row) => <Time at={row.time} /> },
+    { id: "time", header: "Time", width: "110px", cell: (row) => <WhenText time={row.time} /> },
     { id: "event", header: "Event", width: "120px", cell: (row) => <span className="tag">{row.event}</span> },
     { id: "accounts", header: "Accounts", width: "minmax(240px, 2fr)", cell: (row) => <Accounts net={net} segments={row.accounts} /> },
     {

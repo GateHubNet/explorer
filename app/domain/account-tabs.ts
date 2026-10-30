@@ -13,6 +13,9 @@ export function isAccountTab(value: unknown): value is AccountTab {
 /** The most entries asked of the node for the objects of an account: its largest page. The Objects tab says when there are more. */
 export const OBJECTS_LIMIT = 400;
 
+/** What the Delegation tab lists, in "Couldn't load delegations" and "Loading delegations…": the one place the word is written (the Worker's `TAB_WHAT` and the page's loading line read it). */
+export const DELEGATIONS_WORD = "delegations";
+
 /** The most delegations asked of the data API in each direction (D5's default): the Delegation tab shows them in one page, and says when there are more. */
 export const DELEGATIONS_LIMIT = 200;
 

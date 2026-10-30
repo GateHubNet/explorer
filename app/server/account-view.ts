@@ -8,7 +8,7 @@
 
 import BigNumber from "bignumber.js";
 
-import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
+import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { accountsIn, describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
@@ -32,7 +32,7 @@ import { UpstreamError } from "./upstream";
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tabs and the URL
 
-export { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
+export { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
 
 /** The tabs whose list is paged by marker (the data API's lists, the NFTs' too); the offers and the objects are read live from the node and have one page, and so has the delegation's (200 of each direction). */
 export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades", "nfts"];
@@ -781,7 +781,7 @@ export const TAB_WHAT: Record<AccountTab, string> = {
   offers: "offers",
   objects: "objects",
   nfts: "NFTs",
-  delegation: "delegations",
+  delegation: DELEGATIONS_WORD,
   analytics: "the analytics",
 };
 

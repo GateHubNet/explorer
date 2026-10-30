@@ -1,6 +1,7 @@
 // What the account page's Delegation tab shows (ledger object pages spec 6.1), worked out in the Worker from the two pages of D5's delegations: the ones the account gave and the ones it
 // holds. The page gets rows of strings, numbers and chips (never the API's JSON), so it needs nothing of the API's types. No I/O.
 
+import { DELEGATIONS_WORD } from "../domain/account-tabs";
 import { permissionChip, type PermissionChipView } from "../domain/permissions";
 import type { Delegation, DelegationsPage } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
@@ -50,7 +51,7 @@ function listOf(page: DelegationsPage, other: "account" | "authorize"): Delegati
     rows: page.delegations.map((delegation) => rowOf(delegation, other)),
     // The API's marker is its word that there are more than the page holds (no totals).
     more: page.marker !== undefined,
-    coverage: coverageNote(page.coverage, "delegations"),
+    coverage: coverageNote(page.coverage, DELEGATIONS_WORD),
   };
 }
 
