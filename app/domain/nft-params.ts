@@ -19,6 +19,8 @@ import { queryValue, trailPairs, withQuery } from "./query-of";
 // `NftPeriod` and `NftSort` are declared in api-types.ts, so that the data API client imports nothing of the domain, and re-exported here for the pages.
 export { collectionPath, nftPath } from "./nft-link";
 export type { CollectionKey, NftPeriod, NftSort };
+// The networks' words for their tokens live in the leaf nft-words.ts, which the account page and its tags load alone.
+export { nftWords, type NftWords } from "./nft-words";
 
 /** The list's periods, in the order of their selector (24 h, 7 days, 30 days); the first is the default. They are the periods of D3's live `nft_volume`. */
 export const NFT_PERIODS = ["day", "7day", "30day"] as const satisfies readonly NftPeriod[];
@@ -230,30 +232,4 @@ export function shortNftId(id: string): string {
 export function collectionLabel(key: CollectionKey): string {
   const issuer = shortAddress(key.issuer);
   return key.taxon === undefined ? issuer : `${issuer} · taxon ${formatAmount(String(key.taxon))}`;
-}
-
-/** The words a network's NFT pages use for what it calls its non-fungible tokens (NFTs on XRPL, URITokens on Xahau; the testnets take their mainnet's). */
-export interface NftWords {
-  /** One token: `NFT`, `URIToken`. */
-  token: string;
-  /** Tokens: `NFTs`, `URITokens`. */
-  tokens: string;
-  /** The tag of a token's kind: `NFToken`, `URIToken`. */
-  kindTag: string;
-  /** The tag of a collection: `NFToken collection`, `URIToken collection`. */
-  collectionTag: string;
-  /** The heading of the list page. */
-  listHeading: string;
-  /** The heading of the older sales page. */
-  salesHeading: string;
-}
-
-const WORDS = {
-  xrpl: { token: "NFT", tokens: "NFTs", kindTag: "NFToken", collectionTag: "NFToken collection", listHeading: "NFTs", salesHeading: "NFT sales" },
-  xahau: { token: "URIToken", tokens: "URITokens", kindTag: "URIToken", collectionTag: "URIToken collection", listHeading: "URITokens", salesHeading: "URIToken sales" },
-} as const satisfies Record<NetworkId, NftWords>;
-
-/** The words of a network's NFT pages, by its id (a network's name is the layout's, `network.name`: the words here are the tokens'). */
-export function nftWords(net: NetworkId): NftWords {
-  return WORDS[net];
 }

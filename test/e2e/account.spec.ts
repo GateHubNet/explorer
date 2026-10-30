@@ -80,6 +80,34 @@ test.describe("the account page", () => {
     await expect(page.getByRole("navigation", { name: "Account activity" }).getByRole("link", { name: "Payments" })).toHaveAttribute("aria-current", "page");
   });
 
+  // The list of the Objects tab and of a page behind a marker is not a promise: it is drawn in the document's shell, and the page hydrates once the list
+  // panels' chunk is in (`lazyChunk`, AccountPage.tsx). Each is opened as a document by a browser that has not loaded the chunk; the fixture fails the test
+  // on a console error (a hydration mismatch among them), and a link the router handles shows that the page works.
+  test("hydrates the Objects tab and a page behind a marker opened as documents, cold, and their links then navigate in the page", async ({ page, contextFor }) => {
+    test.skip(LIVE, HAND_WRITTEN);
+    const sameDocument = (on: import("@playwright/test").Page) => on.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument === true);
+
+    await page.goto(`/xrpl/account/${XRPL_ACCOUNT}?tab=objects`);
+    await hydrated(page);
+    await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+    await page.getByRole("navigation", { name: "Account activity" }).getByRole("link", { name: "Transactions" }).click();
+    await page.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
+    await expect(rowsOf(page, "Transactions")).toHaveCount(5);
+    expect(await sameDocument(page)).toBe(true);
+
+    // The page behind the first page's Older, in a browser of its own (nothing of the build in its cache).
+    const older = await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).getAttribute("href");
+    const cold = await (await contextFor()).newPage();
+    await cold.goto(older!);
+    await hydrated(cold);
+    await expect(rowsOf(cold, "Transactions")).toHaveCount(3);
+    await cold.evaluate(() => Object.assign(window, { sameDocument: true }));
+    await cold.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Newer" }).click();
+    await cold.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
+    await expect(rowsOf(cold, "Transactions")).toHaveCount(5);
+    expect(await sameDocument(cold)).toBe(true);
+  });
+
   test("shows the balance, the token and the reserve read from the node", async ({ page }) => {
     test.skip(LIVE, HAND_WRITTEN);
     await page.goto(`/xrpl/account/${XRPL_ACCOUNT}`);

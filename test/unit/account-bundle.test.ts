@@ -57,6 +57,12 @@ describe("the account page's list panels", () => {
     expect(importers).toEqual(["ui/pages/AccountPage.tsx"]);
     expect(staticClosure(appDir, "ui/pages/AccountAnalytics.tsx")).not.toContain("ui/pages/AccountListPanels.tsx");
   });
+
+  it("import nothing of AccountPage.tsx: what the two share is the leaf account-list-words.tsx, so the page stays in the account route's chunk", () => {
+    expect(staticClosure(appDir, "ui/pages/AccountListPanels.tsx")).not.toContain("ui/pages/AccountPage.tsx");
+    expect(valueImports(read("ui/pages/AccountListPanels.tsx"))).toContain("./account-list-words");
+    expect(valueImports(read("ui/pages/AccountPage.tsx"))).toContain("./account-list-words");
+  });
 });
 
 describe("the QR encoder", () => {

@@ -657,13 +657,21 @@ describe("the browser bundle", () => {
     expect(valueImports(read("domain/nft-params.ts")).filter(FORBIDDEN)).toEqual([]);
   });
 
-  it("imports only format.ts, nft-link.ts, paging.ts and query-of.ts at run time", () => {
-    expect([...new Set(valueImports(read("domain/nft-params.ts")))].sort()).toEqual(["./format", "./nft-link", "./paging", "./query-of"]);
+  it("imports only format.ts, nft-link.ts, nft-words.ts, paging.ts and query-of.ts at run time", () => {
+    expect([...new Set(valueImports(read("domain/nft-params.ts")))].sort()).toEqual(["./format", "./nft-link", "./nft-words", "./paging", "./query-of"]);
+  });
+
+  it("has the networks' words in nft-words.ts, a leaf that imports nothing at run time, which the account page and its tags load without nft-params.ts", () => {
+    expect(valueImports(read("domain/nft-words.ts"))).toEqual([]);
+    for (const file of ["ui/pages/AccountPage.tsx", "server/meta-account.ts"]) {
+      expect(valueImports(read(file)), file).toContain(file.startsWith("ui/") ? "../../domain/nft-words" : "../domain/nft-words");
+      expect(staticClosure(appDir, file), file).not.toContain("domain/nft-params.ts");
+    }
   });
 
   it("loads none of those through the files it imports either; the only file of app/server it reaches is the marker alphabet, a leaf", () => {
     const closure = staticClosure(appDir, "domain/nft-params.ts");
-    expect(closure).toEqual(["domain/format.ts", "domain/nft-link.ts", "domain/nft-params.ts", "domain/paging.ts", "domain/query-of.ts", "server/marker.ts"]);
+    expect(closure).toEqual(["domain/format.ts", "domain/nft-link.ts", "domain/nft-params.ts", "domain/nft-words.ts", "domain/paging.ts", "domain/query-of.ts", "server/marker.ts"]);
     expect(closure.filter((path) => FORBIDDEN(path) && path !== "server/marker.ts")).toEqual([]);
     expect(valueImports(read("server/marker.ts"))).toEqual([]);
   });

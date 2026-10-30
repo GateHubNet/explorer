@@ -6,7 +6,7 @@ import { accountHref, type AccountTab } from "../domain/account-tabs";
 import { ANALYTICS_META, type AnalyticsPeriod } from "../domain/analytics-params";
 import { formatAmount, formatUtc, shortAddress } from "../domain/format";
 import { labelWords, plainNameOf, vouchedByOf, type NamesPart } from "../domain/names";
-import { nftWords } from "../domain/nft-params";
+import { nftWords } from "../domain/nft-words";
 import type { Native } from "../domain/parse/types";
 import type { Activation, BalanceView } from "./account-view";
 import { absolute, imageUrl, sharing, suffixOf, type MetaContext } from "./meta";

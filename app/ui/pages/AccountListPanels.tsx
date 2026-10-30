@@ -20,12 +20,12 @@ import { ResultPill } from "../components/Pill";
 import type { NetworkInfo } from "../networks";
 import { NamesProvider } from "../names";
 import { useFeatures } from "../use-network";
-import { count, ListFailed, plural } from "./AccountPage";
+import { count, ListFailed, plural } from "./account-list-words";
 
 // The list panels of the account page: the list of a tab, drawn by its own names, in its panel (the note, the footer with the count and the pager), and the
 // tables and the objects list it is made of. A chunk of its own, which `AccountPage.tsx` loads with `lazy()` (README, "The account page"): the analytics view
 // never draws a list, so its first load holds none of this, and a first page draws the list inside its streamed `Suspense` and `Await` already. What the
-// panels share with the rest of the page (`count`, `plural`, `ListFailed`) stays in `AccountPage.tsx`, which the account route loads anyway.
+// panels share with the rest of the page (`count`, `plural`, `ListFailed`) is the leaf `account-list-words.tsx`: they import nothing of `AccountPage.tsx`.
 
 /** A list that was loaded, drawn by the names of the accounts in it (the list's own call, display names spec 5); one that failed has no names to draw by. */
 export default function TabPanel({ network, data, list }: { network: NetworkInfo; data: AccountListPageData; list: TabList }) {

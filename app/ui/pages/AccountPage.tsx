@@ -1,10 +1,10 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Await, Link } from "react-router";
 
 import { accountHref, ACCOUNT_TABS, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../../domain/account-tabs";
 import { analyticsHref, DEFAULT_ANALYTICS_PERIOD } from "../../domain/analytics-params";
 import { formatAmount, formatCurrency, formatUtc, shortAddress } from "../../domain/format";
-import { nftWords } from "../../domain/nft-params";
+import { nftWords } from "../../domain/nft-words";
 import { poolLink } from "../../domain/pool-link";
 import type { DomainLine } from "../../server/account-name-view";
 import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountPageData, NeverActivatedData, TabList, Token } from "../../server/account-view";
@@ -24,9 +24,11 @@ import { RelativeTime } from "../components/RelativeTime";
 import { SectionError } from "../components/SectionError";
 import { Tabs, type TabItem } from "../components/Tabs";
 import type { Features } from "../features";
+import { lazyChunk } from "../lazy-chunk";
 import type { NetworkInfo } from "../networks";
 import { useFeatures } from "../use-network";
 import { useRetry } from "../use-retry";
+import { count, ListFailed, plural } from "./account-list-words";
 import { AnalyticsFilters } from "./AnalyticsFilters";
 import { NotFoundPage } from "./NotFoundPage";
 
@@ -45,9 +47,10 @@ const TAB_LABELS: Record<Exclude<AccountTab, "nfts">, string> = {
 
 /**
  * The analytics view, a chunk of its own (spec 5): the other tabs load none of it. On the server it resolves during the render, so the HTML
- * holds the view; in the browser, hydration keeps that HTML until the chunk has loaded.
+ * holds the view; in the browser, hydration keeps that HTML until the chunk has loaded. Like the list panels below, it loads through `lazyChunk`, which
+ * reloads the page once when the chunk will not load (a deploy took the build away).
  */
-const AccountAnalytics = lazy(() => import("./AccountAnalytics"));
+const AccountAnalytics = lazyChunk("AccountAnalytics", () => import("./AccountAnalytics"));
 
 /**
  * The Analytics tab's `onIntent`: the pointer entered it or it took the focus, so its chunk is fetched ahead of the click. Only the chunk: its
@@ -63,10 +66,7 @@ const warmAnalytics = () => void import("./AccountAnalytics").catch(() => {});
  * render waits for the chunk, so the HTML holds the rows, and the browser hydrates the page once the chunk is in, as a client-side navigation shows the
  * page it leads to once it is.
  */
-const TabPanel = lazy(() => import("./AccountListPanels"));
-
-export const count = (n: number) => formatAmount(String(n));
-export const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
+const TabPanel = lazyChunk("AccountListPanels", () => import("./AccountListPanels"));
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // The page
@@ -491,15 +491,6 @@ function ListLoading({ word }: { word: string }) {
   return (
     <div className="activity__loading" role="status">
       {`Loading ${word}…`}
-    </div>
-  );
-}
-
-export function ListFailed({ what }: { what: string }) {
-  const { retry, retrying } = useRetry();
-  return (
-    <div className="activity__failed">
-      <SectionError what={what} onRetry={retry} retrying={retrying} />
     </div>
   );
 }
