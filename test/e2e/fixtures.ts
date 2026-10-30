@@ -62,6 +62,16 @@ export const SNK_XRP_LAST_LEDGER = 100132150;
 export const SWAP_THROUGH_POOL = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
 
 /**
+ * Escrows of the object fixtures (scripts/object-fixtures.ts), each the case of test/support/object-case-rules.ts its name says, which the Worker's specs find in the files by those rules;
+ * the Playwright process cannot read the files the way Vite does, so the IDs are written here, and test/unit/object-fixtures.test.ts fails when a regeneration moves one of them.
+ * `cancellable` (escrow-cancellable) has a Pending window of an hour on a bar of two weeks, the window bar's narrowest button; `finished` (escrow-finished) has the removed banner.
+ */
+export const XRPL_ESCROW = {
+  cancellable: "0D1331F9B60A0BCEC44FA9A0A1C60BEE947936ED5BF17A8DFA7D1BA9DA22273E",
+  finished: "FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4",
+} as const;
+
+/**
  * Whether the suite runs against a real stack or a deployed Worker (E2E_DATA_API_URL, E2E_BASE_URL) and not the fixtures. The
  * recorded ledgers and transactions are the same there; what the fixtures hold by hand is not (the account files: six transactions in
  * two pages, a balance of 10.001625 XRP, an address nobody funded), so the tests that read those say `test.skip(LIVE, ...)`.

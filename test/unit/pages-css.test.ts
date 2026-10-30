@@ -538,3 +538,15 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     expect(rule(componentsCss, ".checkflow")["overflow-wrap"]).toBe("anywhere");
   });
 });
+
+describe("the ledger object pages", () => {
+  // The title line's ledger and transaction, the removed banner's, and the issuer of a token's amount are links inside words: each is told from them by more than its colour
+  // (WCAG 1.4.1). An issuer without a name is its mono address; a named one underlines its name already (`a.acct:not(.ent) > .acct__name`, components.css), so that link draws no second line.
+  it("underlines the links inside their sentences", () => {
+    expect(rule(pagesCss, ".object-page__titleline a,\n.object-page__removed a,\n.object-page__issuer a.mono")["text-decoration"]).toBe("underline");
+  });
+
+  it("puts the two cards side by side while there is room for 400 px each, and one under the other when there is not, each able to shrink", () => {
+    expect(rule(pagesCss, ".object-page__col")).toMatchObject({ flex: "1 1 400px", "min-width": "0" });
+  });
+});

@@ -35,6 +35,7 @@ import * as amendment from "../routes/net.amendments.$name";
 import * as amendments from "../routes/net.amendments";
 import * as net from "../routes/net";
 import * as root from "../root";
+import routes from "../routes";
 import * as pair from "../routes/net.markets.$base.$counter";
 import * as network from "../routes/net.network";
 import * as validators from "../routes/net.validators";
@@ -2060,5 +2061,17 @@ describe("net.amendments.$name.tsx", () => {
       await pass(300_000);
       expect(answer).not.toHaveBeenCalled();
     });
+  });
+});
+
+// The route table (app/routes.ts): the ledger object pages (spec 1.1) are children of the `/:net` layout, so that their pages sit in its header and footer and its loader's network is theirs.
+describe("routes.ts", () => {
+  it("has an escrow's page and the redirect of its owner and sequence under :net", () => {
+    const net = routes.find((route) => route.path === ":net");
+    const escrows = (net?.children ?? []).filter((route) => route.path?.startsWith("escrows")).map(({ path, file }) => ({ path, file }));
+    expect(escrows).toEqual([
+      { path: "escrows/:id", file: "routes/net.escrows.$id.tsx" },
+      { path: "escrows/:owner/:sequence", file: "routes/net.escrows.$owner.$sequence.tsx" },
+    ]);
   });
 });

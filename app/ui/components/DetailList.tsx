@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 export interface DetailRow {
   label: string;
+  /** The ledger's name for the field, a small mono line under the label (the object pages' "FinishAfter"), when it has one. */
+  field?: string;
   value: ReactNode;
 }
 
@@ -12,7 +14,10 @@ export function DetailList({ rows }: { rows: readonly DetailRow[] }) {
       {rows.map((row, index) => (
         // The index too: a transaction can have two rows of the same name (Memo).
         <div key={`${index}:${row.label}`} className="kv">
-          <dt>{row.label}</dt>
+          <dt>
+            {row.label}
+            {row.field !== undefined && <span className="kv__field mono">{row.field}</span>}
+          </dt>
           <dd>{row.value}</dd>
         </div>
       ))}

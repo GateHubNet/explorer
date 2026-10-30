@@ -34,12 +34,14 @@ import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
 import type { AmmListFacts, AmmPoolMeta } from "./amm-view";
 import type { AmendmentDetail } from "./api-types";
+import type { EscrowMeta } from "./escrow-view";
 import { imageUrl, metaContext, suffixOf, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
 import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
 import { ammListMeta } from "./meta-amm-list";
 import { ammPoolMeta } from "./meta-amm-pool";
+import { escrowMeta } from "./meta-escrow";
 import { nftMeta } from "./meta-nft";
 import { nftCollectionMeta } from "./meta-nft-collection";
 import { nftSalesMeta } from "./meta-nft-sales";
@@ -1658,5 +1660,57 @@ describe("ammPoolMeta", () => {
 
   it("puts no figure of the pool's state in the description: its value changes with each swap", () => {
     expect(content(ammPoolMeta(facts(), XRPL), "description")).not.toContain("3.61M");
+  });
+});
+
+describe("escrowMeta", () => {
+  const ID = "5B9C0E2A0D5C8B7F6E1A3D4C5B6A79880F1E2D3C4B5A69788796A5B4C3D2D21F";
+  const URL = `https://explorer.test/xrpl/escrows/${ID}`;
+  const facts = (over: Partial<EscrowMeta> = {}): EscrowMeta => ({
+    id: ID,
+    amount: "1,000 XRP",
+    owner: "rJF2Xa…fQvg",
+    destination: "rNYbL8…UKq5",
+    status: "pending",
+    marker: false,
+    ...over,
+  });
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("is the escrow's short ID in the title, and what it holds, from whom, to whom and its status in the description, with short addresses (C14)", () => {
+    const list = escrowMeta(facts(), XRPL);
+    expect(title(list)).toBe("Escrow 5B9C0E…D21F · XRPL · explorer");
+    expect(content(list, "description")).toBe("Escrow of 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · pending · XRPL");
+  });
+
+  it("reads well without an amount D5 could not read", () => {
+    expect(content(escrowMeta(facts({ amount: "" }), XRPL), "description")).toBe("Escrow from rJF2Xa…fQvg to rNYbL8…UKq5 · pending · XRPL");
+  });
+
+  it("has the canonical URL and the sharing tags with no image: a summary card (decision 9)", () => {
+    const list = escrowMeta(facts({ status: "can be cancelled" }), XRPL);
+    expect(link(list, "canonical")).toBe(URL);
+    expect(content(list, "og:url")).toBe(URL);
+    expect(content(list, "og:title")).toBe("Escrow 5B9C0E…D21F · XRPL · explorer");
+    expect(content(list, "og:description")).toBe("Escrow of 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · can be cancelled · XRPL");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau", () => {
+    const list = escrowMeta(facts({ amount: "200 XAH" }), XAHAU);
+    expect(title(list)).toBe("Escrow 5B9C0E…D21F · Xahau · explorer");
+    expect(content(list, "description")).toBe("Escrow of 200 XAH from rJF2Xa…fQvg to rNYbL8…UKq5 · pending · Xahau");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xahau/escrows/${ID}`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and nothing to share", () => {
+    const list = escrowMeta(facts({ marker: true }), XRPL);
+    expect(title(list)).toBe("Escrow 5B9C0E…D21F · XRPL · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(link(list, "canonical")).toBeUndefined();
+    expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
   });
 });

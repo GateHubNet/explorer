@@ -21,7 +21,7 @@ import {
   SYNTHETIC_DELEGATE,
   syntheticId,
 } from "../../scripts/object-fixtures";
-import { XRPL_ACCOUNT } from "../e2e/fixtures";
+import { XRPL_ACCOUNT, XRPL_ESCROW } from "../e2e/fixtures";
 import { OBJECT_CASES, resolveObjectCase, type ObjectCase, type ObjectSources } from "../support/object-case-rules";
 import { createUpstream, type NetworkName } from "../support/upstream-core";
 
@@ -606,6 +606,11 @@ describe("the cases and the account's files", () => {
     if (["delegated-payment", "delegated-tec", "delegate-set-empty", "delegate-set-failed"].includes(which)) {
       expect(worlds.xrpl.delegation.find((made) => made.name === which)!.tx.hash).toBe(found.id);
     }
+  });
+
+  it("names the e2e suite's escrows by their cases", () => {
+    expect(resolveObjectCase("escrow-cancellable", sourcesOf("xrpl"))?.id).toBe(XRPL_ESCROW.cancellable);
+    expect(resolveObjectCase("escrow-finished", sourcesOf("xrpl"))?.id).toBe(XRPL_ESCROW.finished);
   });
 
   it.each(["xahau-escrow", "xahau-token-channel"] as const)("Xahau holds %s", (which) => {

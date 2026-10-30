@@ -18,6 +18,7 @@ import {
   XRP_RLUSD_POOL,
   XRPL_ACCOUNT,
   XRPL_DELETED,
+  XRPL_ESCROW,
   XRPL_HEAD_LEDGER,
   XRPL_LEDGER,
   XRPL_PAYMENT,
@@ -1059,6 +1060,74 @@ test.describe("the NFT pages", () => {
         const results = await new AxeBuilder({ page }).withRules(["aria-prohibited-attr", "aria-allowed-attr", "aria-allowed-role"]).analyze();
         const found = [...results.violations, ...results.incomplete].map((rule) => `${rule.id}: ${rule.nodes.map((node) => node.target.join(" ")).join(" | ")}`);
         expect(found).toEqual([]);
+      });
+    }
+  });
+});
+
+// ---- The ledger object pages ---------------------------------------------------------------------------------------------------------------
+// An escrow's page (ledger object pages spec 4.1 and 4.2): one that can be cancelled, whose Pending window is an hour on a bar of two weeks, so that axe's target-size runs on the window
+// bar's narrowest button (24 px, 44 px on a phone), the same with a window's tooltip shown, and a finished one with the removed banner and its links; at both widths, in the two system
+// themes. At 375 px no page scrolls sideways. Where E2E_FEATURES_OFF lists LEDGER_OBJECTS the pages are not found and the block skips itself; against a real stack, which has none of the
+// generated objects, too. (Task 15 adds the other two pages and the end-to-end spec of their own.)
+
+const LEDGER_OBJECTS_ON = !FEATURES_OFF.has("LEDGER_OBJECTS");
+const windowBar = (page: Page) => page.getByRole("group", { name: "When the escrow can be finished or cancelled" });
+const escrowReady = async (page: Page) => {
+  await expect(page.getByRole("heading", { level: 1, name: "Escrow" })).toBeVisible();
+  await expect(windowBar(page)).toBeVisible();
+};
+
+const ESCROW_PAGES: PageUnderTest[] = [
+  { name: "escrow that can be cancelled", path: `/xrpl/escrows/${XRPL_ESCROW.cancellable}`, ready: escrowReady },
+  {
+    name: "escrow that can be cancelled, its shortest window focused",
+    path: `/xrpl/escrows/${XRPL_ESCROW.cancellable}`,
+    ready: escrowReady,
+    act: async (page) => {
+      await windowBar(page).getByRole("button", { name: /^Pending: / }).focus();
+      await expect(windowBar(page).locator(".wbar__tip")).toBeVisible();
+    },
+  },
+  {
+    name: "finished escrow",
+    path: `/xrpl/escrows/${XRPL_ESCROW.finished}`,
+    ready: async (page) => {
+      await escrowReady(page);
+      await expect(page.getByText(/^Removed from the ledger in ledger/)).toBeVisible();
+    },
+  },
+];
+
+test.describe("the ledger object pages", () => {
+  test.skip(!LEDGER_OBJECTS_ON, "LEDGER_OBJECTS is off in the Worker under test: its pages are not found (ledger-objects-off.spec.ts checks that)");
+  test.skip(LIVE, "the pages are drawn from the generated object fixtures, which a real stack does not hold");
+
+  for (const viewport of VIEWPORTS) {
+    test.describe(`axe at ${viewport.name}`, () => {
+      for (const setting of SETTINGS.filter((candidate) => candidate.toggle === undefined)) {
+        test.describe(`${setting.name}`, () => {
+          test.use({ viewport: viewport.size, colorScheme: setting.system });
+          for (const under of ESCROW_PAGES) {
+            test(`${under.name} has no serious or critical violation${viewport.size.width === 375 ? ", and does not scroll sideways" : ""}`, async ({ page }) => {
+              await open(page, under, setting);
+              expect(await seriousViolations(page)).toEqual([]);
+              if (viewport.size.width === 375) expect(await sideways(page)).toBeLessThanOrEqual(0);
+            });
+          }
+        });
+      }
+    });
+  }
+
+  test.describe("landmarks", () => {
+    for (const under of ESCROW_PAGES) {
+      test(`${under.name} has no two landmarks of one role and name`, async ({ page }) => {
+        await page.goto(under.path);
+        await hydrated(page);
+        await under.ready(page);
+        const results = await new AxeBuilder({ page }).withRules(["landmark-unique"]).analyze();
+        expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(" | ")}`)).toEqual([]);
       });
     }
   });

@@ -20,6 +20,9 @@ export default [
     route("nfts/:issuer/:taxon?", "routes/net.nfts.$issuer.$taxon.tsx"),
     // An NFT (a URIToken on Xahau) by its id.
     route("nft/:id", "routes/net.nft.$id.tsx"),
+    // An escrow by its ID, and the address of one by its owner and the sequence of its creation: a redirect to its ID (E10).
+    route("escrows/:id", "routes/net.escrows.$id.tsx"),
+    route("escrows/:owner/:sequence", "routes/net.escrows.$owner.$sequence.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

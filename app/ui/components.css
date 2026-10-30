@@ -557,6 +557,13 @@ a.nav-item:hover {
   overflow-wrap: anywhere;
 }
 
+/* The ledger's name for a row's field, under its label (DetailList's `field`: the object pages' "FinishAfter", the board's small mono line). */
+.kv__field {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Pills, tags, amounts, entities, buttons */
 

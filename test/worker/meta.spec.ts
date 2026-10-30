@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../app/domain/format";
 import { accountHeadOf, viewOf } from "../support/names";
 import { collectionCase, collectionsMarker, nftCase, salesMarker } from "../support/nft-cases";
+import { objectCase } from "../support/object-cases";
+import { historySample, OBJECT_MARKER } from "../support/object-samples";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 import { amendmentCase, validationsMarker, validatorCase } from "../support/validators-cases";
@@ -977,6 +979,41 @@ describe("an amendment's page", () => {
     expect(tags.content("description")).toBe("Import is enabled on Xahau since Sep 12, 2025 (ledger 17,956,865).");
     expect(tags.canonical).toEqual([`${ORIGIN}/xahau/amendments/Import`]);
     expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/amendment/Import.png`);
+  });
+});
+
+describe("an escrow's page", () => {
+  // The pending escrow of the fixtures: 100 XRP from rh49Zq…jxvt to rE8gwQ…5fF3, and a finished one for a page of its older events.
+  it("has a title, a description with short addresses and the status, a canonical URL and the sharing tags, with no image", async () => {
+    const { id, owner } = await objectCase("xrpl", "escrow-pending");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/escrows/${id}`)).html);
+    const title = `Escrow ${shortHash(id)} · XRPL · explorer`;
+    const description = `Escrow of 100 XRP from ${shortAddress(owner)} to ${shortAddress("rE8gwQaAppgYCtmGKF1WjPirzRP5hH5fF3")} · pending · XRPL`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/escrows/${id}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/escrows/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("twitter:title")).toBe(title);
+    // No link-preview image (decision 9).
+    for (const key of ["og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:image"]) expect(tags.content(key), key).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags", async () => {
+    const { id } = await objectCase("xrpl", "escrow-finished");
+    mock = mockUpstream("xrpl", { [`GET /v2/escrows/${id}/history?descending=true&limit=50&marker=${OBJECT_MARKER}`]: historySample() });
+    const tags = head((await page(`/xrpl/escrows/${id}?marker=${OBJECT_MARKER}`)).html);
+    expect(tags.titles).toEqual([`Escrow ${shortHash(id)} · XRPL · explorer`]);
+    expect(tags.content("description")).toMatch(/^Escrow of 75,000 XRB from .+ · finished · XRPL$/);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
   });
 });
 

@@ -1362,7 +1362,7 @@ a.markets__pair:hover .markets__name {
 }
 
 /* The issuers wrap, at their separators first, and are never cut: a labelled issuer's mark follows it, the counter's last, and an ellipsis would hide it first (display
-   names decision 12; the mark is held to its issuer by a no-break space). As the AMM list's `.amm__detail`. */
+   names decision 12; a labelled issuer and its mark are one unit that does not break, `.issued-marked`, components.css). As the AMM list's `.amm__detail`. */
 .markets__issuers {
   color: var(--faint);
   font-size: 11.5px;
@@ -4502,5 +4502,142 @@ a.markets__pair:hover .markets__name {
 
   .nft-page__facts > div {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Ledger object pages (E10: an escrow, a check, a payment channel; LedgerObjectFrame.tsx and the board Escrow.dc.html): the breadcrumb, the title row, the banners and the states
+   strip, one under another, then Details and History side by side while each has 400 px, one under the other on a phone. */
+
+.object-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.object-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.object-page__title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.object-page__titleline {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* The links inside words: the title line's ledger and transaction, the removed banner's, and the issuer of a token's amount where it is its address (`AccountLink` without a name is
+   mono). They are told from the words around them by more than their colour (WCAG 1.4.1, axe's link-in-text-block). A named issuer underlines its name already (components.css):
+   no second line under it. */
+.object-page__titleline a,
+.object-page__removed a,
+.object-page__issuer a.mono {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.object-page__removed,
+.object-page__removed-note {
+  margin: 0;
+}
+
+/* A ledger or a hash is one word: on a phone it goes to the next line whole, never cut at its ellipsis (the banner, a notice, breaks anywhere). */
+.object-page__titleline a,
+.object-page__removed a {
+  white-space: nowrap;
+}
+
+.object-page__removed {
+  font-weight: 600;
+}
+
+.object-page__removed-note {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.object-page__cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.object-page__col {
+  flex: 1 1 400px;
+  min-width: 0;
+}
+
+/* The Details card: the summary, the status in a headline and the words under it, the type's figure (the escrow's window bar, whose tooltip opens over the lines above it, inside
+   the card), the rows and the as-of note. */
+.object-page__summary {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.object-page__status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.object-page__status p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.object-page__status .object-page__headline {
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* The age of a date in a status line, the browser's alone: in brackets once it has words, nothing on the server's page. */
+.object-page__age:not(:empty)::before {
+  content: " (";
+}
+
+.object-page__age:not(:empty)::after {
+  content: ")";
+}
+
+.object-page__figure {
+  margin-bottom: 8px;
+}
+
+.object-page__hint,
+.object-page__issuer {
+  display: block;
+  margin-top: 3px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.object-page__hint {
+  max-width: 640px;
+}
+
+.object-page__asof {
+  margin: 12px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .object-page__title {
+    font-size: 22px;
   }
 }

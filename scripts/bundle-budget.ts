@@ -4,7 +4,7 @@
 // with `process.argv[1]`; through a link they differ, and it then printed nothing and exited 0.) The check fails when
 //
 //   - the JavaScript a page loads first, gzipped, is over the page's budget (`BUDGETS`, ruling R19): 150 KB on the home, ledger, transaction,
-//     account, markets, NFT older sales and NFT pages, 160 KB on the network, market pair, validators, validator, amendments, amendment,
+//     account, markets, NFT older sales, NFT and escrow pages, 160 KB on the network, market pair, validators, validator, amendments, amendment,
 //     AMM pools, AMM pool, NFT list and NFT collection pages (the route manifest is in it: see below);
 //   - the analytics view of the account page loads more than 160 KB of JavaScript, gzipped, in all (spec 5, gate 2): the account route's first
 //     load, the chunk of the view that its `import()` names (`ANALYTICS_VIEW`), and the files that chunk imports statically, followed from file
@@ -55,6 +55,7 @@ export const PAGES = [
   { name: "nft-sales", route: "routes/net.nfts.sales", budget: "lookup" },
   { name: "nft-collection", route: "routes/net.nfts.$issuer.$taxon", budget: "dashboard" },
   { name: "nft", route: "routes/net.nft.$id", budget: "lookup" },
+  { name: "escrow", route: "routes/net.escrows.$id", budget: "lookup" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 
 /**
