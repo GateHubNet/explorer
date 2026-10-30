@@ -85,7 +85,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       if (matches.tx) return found(`/${network.id}/tx/${input.hash}`);
       if (matches.ledger) return found(`/${network.id}/ledger/${input.hash}`);
       if (matches.nft) return found(nftPath(network.id, input.hash));
-      if (matches.object) return found(objectMatchHref(network.id, input.hash, matches.object, network.features));
+      if (matches.object) return found(objectMatchHref(network, input.hash, matches.object));
       return cached(hashNotFoundPage(query, input.hash, other, asked), "short", { status: 404 });
     }
 

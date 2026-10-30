@@ -7,8 +7,8 @@ const HASH = "4BC50C9B0D8515D3EAAE1E74B29A95804346C491EE1A95BF25E4AAB854A6A651";
 const ISSUER = "rLxc1bt5defiLJ9gaZEJqQWnNKYNawrwMy";
 const XAHAU = { id: "xahau", name: "Xahau" } as const;
 const XRPL = { id: "xrpl", name: "XRPL" } as const;
-/** The network a choice is made on, as the route gives it: its id and its switches (what an object's row leads to depends on them). */
-const NETWORK = { id: "xrpl", features: { ...NO_FEATURES, ledgerObjects: true, delegation: true } } as const;
+/** The network a choice is made on, as the route gives it: its id, its switches and whether its ledger has delegation (what an object's row leads to depends on them). */
+const NETWORK = { id: "xrpl", hasDelegation: true, features: { ...NO_FEATURES, ledgerObjects: true, delegation: true } } as const;
 
 describe("shownQuery", () => {
   it("trims what was typed", () => {
@@ -104,6 +104,13 @@ describe("the pages", () => {
     });
   });
 
+  it("leads the row of a delegation of a network without delegation to the account page, and still says what it is", () => {
+    const xahau = { id: "xahau", hasDelegation: false, features: NETWORK.features } as const;
+    expect(choicePage(HASH, { tx: { ledgerIndex: 5, type: "DelegateSet" }, object: { type: "Delegate", account: ISSUER, deleted: false } }, xahau)).toMatchObject({
+      object: { noun: "delegation", detail: "of rLxc1b…rwMy", href: `/xahau/account/${ISSUER}`, removed: false },
+    });
+  });
+
   it("builds the choice of an NFT and an object: both rows, the NFT's before the object's", () => {
     const page = choicePage(HASH, { nft: { kind: "nftoken", issuer: ISSUER, taxon: 0, serial: 1, burned: false }, object: { type: "Escrow", account: ISSUER, deleted: false } }, NETWORK);
     expect(Object.keys(page)).toEqual(["kind", "hash", "nft", "object"]);
@@ -156,7 +163,12 @@ describe("the pages", () => {
 
 describe("objectMatchHref: where a search that found an object leads", () => {
   const ESCROW = { type: "Escrow", account: ISSUER, deleted: false } as const;
+  const DELEGATE = { ...ESCROW, type: "Delegate" } as const;
   const on = { ...NO_FEATURES, ledgerObjects: true, delegation: true };
+  /** XRPL, which has delegation, with the switches `features` says. */
+  const xrpl = (features = on) => ({ id: "xrpl", hasDelegation: true, features }) as const;
+  /** Xahau, whose ledger has none. */
+  const xahau = (features = on) => ({ id: "xahau", hasDelegation: false, features }) as const;
 
   it.each([
     ["an escrow", { ...ESCROW }, `/xrpl/escrows/${HASH}`],
@@ -167,25 +179,30 @@ describe("objectMatchHref: where a search that found an object leads", () => {
     ["a removed check", { ...ESCROW, type: "Check", deleted: true }, `/xrpl/checks/${HASH}`],
     ["a removed payment channel", { ...ESCROW, type: "PayChannel", deleted: true }, `/xrpl/payment-channels/${HASH}`],
   ] as const)("leads %s to its page", (_what, object, href) => {
-    expect(objectMatchHref("xrpl", HASH, object, on)).toBe(href);
+    expect(objectMatchHref(xrpl(), HASH, object)).toBe(href);
   });
 
   it("leads a delegation to its delegator's Delegation tab while DELEGATION is on", () => {
-    expect(objectMatchHref("xrpl", HASH, { ...ESCROW, type: "Delegate" }, on)).toBe(`/xrpl/account/${ISSUER}?tab=delegation`);
+    expect(objectMatchHref(xrpl(), HASH, DELEGATE)).toBe(`/xrpl/account/${ISSUER}?tab=delegation`);
   });
 
   it("leads a delegation to its delegator's account page while DELEGATION is off, with LEDGER_OBJECTS on (C23)", () => {
-    expect(objectMatchHref("xrpl", HASH, { ...ESCROW, type: "Delegate" }, { ...NO_FEATURES, ledgerObjects: true, delegation: false })).toBe(`/xrpl/account/${ISSUER}`);
+    expect(objectMatchHref(xrpl({ ...NO_FEATURES, ledgerObjects: true, delegation: false }), HASH, DELEGATE)).toBe(`/xrpl/account/${ISSUER}`);
   });
 
   it("leads a removed delegation to its delegator's account page, with DELEGATION on or off: the tab lists the delegations in the ledger now (E10Δ3)", () => {
     for (const delegation of [true, false]) {
-      expect(objectMatchHref("xrpl", HASH, { ...ESCROW, type: "Delegate", deleted: true }, { ...NO_FEATURES, ledgerObjects: true, delegation })).toBe(`/xrpl/account/${ISSUER}`);
+      expect(objectMatchHref(xrpl({ ...NO_FEATURES, ledgerObjects: true, delegation }), HASH, { ...DELEGATE, deleted: true })).toBe(`/xrpl/account/${ISSUER}`);
     }
   });
 
+  it("leads a delegation of a network without delegation to the account page, with DELEGATION on: the account route would send the tab there (Network.hasDelegation)", () => {
+    expect(objectMatchHref(xahau(), HASH, DELEGATE)).toBe(`/xahau/account/${ISSUER}`);
+    expect(objectMatchHref(xahau(), HASH, { ...DELEGATE, deleted: true })).toBe(`/xahau/account/${ISSUER}`);
+  });
+
   it("keeps the network, and the hash as it is given", () => {
-    expect(objectMatchHref("xahau", HASH, ESCROW, on)).toBe(`/xahau/escrows/${HASH}`);
-    expect(objectMatchHref("xahau", HASH, { ...ESCROW, type: "Delegate" }, on)).toBe(`/xahau/account/${ISSUER}?tab=delegation`);
+    expect(objectMatchHref(xahau(), HASH, ESCROW)).toBe(`/xahau/escrows/${HASH}`);
+    expect(objectMatchHref(xrpl(), HASH, ESCROW)).toBe(`/xrpl/escrows/${HASH}`);
   });
 });

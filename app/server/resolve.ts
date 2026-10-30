@@ -10,8 +10,9 @@ import type { HashNounOptions } from "../domain/hash-nouns";
 import type { LedgerObjectRef, NftAnswer, NftKind } from "./api-types";
 import type { DataApi } from "./data-api";
 import { networkIdOfCtid, type Network, type NetworkId } from "./networks";
-import type { LedgerEntry, NodeRpc } from "./node-rpc";
+import { toUriToken, type LedgerEntry, type NodeRpc } from "./node-rpc";
 import { readNodeNft, type NodeNft } from "./nft-read";
+import { OBJECT_TYPES } from "./object-shape";
 import { UpstreamError } from "./upstream";
 
 const HEX_64 = /^[0-9A-Fa-f]{64}$/;
@@ -108,9 +109,8 @@ function nftOfNode(entry: NodeNft): NftMatch {
 /** An object a search found: the part of `HashMatches` that says so. */
 export type ObjectMatch = NonNullable<HashMatches["object"]>;
 
-/** The entry types the index tracks as objects (`LedgerObjectRef.object_type`, the ones the pages of E10 are for): any other entry the node holds is nothing to a search. */
-const OBJECT_TYPES: readonly string[] = ["Escrow", "Check", "PayChannel", "Delegate"] satisfies ObjectMatch["type"][];
-const isObjectType = (type: string): type is ObjectMatch["type"] => OBJECT_TYPES.includes(type);
+/** Whether a ledger entry type is one the index tracks as an object (`OBJECT_TYPES`, object-shape.ts: the list its answers are checked by): any other entry the node holds is nothing to a search. */
+const isObjectType = (type: string): type is ObjectMatch["type"] => (OBJECT_TYPES as readonly string[]).includes(type);
 
 /** The object of the index's answer (`/v2/ledger_objects/{id}`, whose shape the client has checked: the type, the account and `deleted`). */
 function objectOfIndex({ object_type: type, account, deleted }: LedgerObjectRef): ObjectMatch {
@@ -127,17 +127,6 @@ function objectOfEntry({ node }: LedgerEntry): ObjectMatch | undefined {
   const account = node.Account;
   if (typeof account !== "string" || !isValidClassicAddress(account)) throw malformed("ledger entry lookup");
   return { type, account, deleted: false };
-}
-
-/**
- * The URIToken of Xahau's entry at the id, or none for an entry of another type. Read from the entry that the object question reads too (the node is asked once: `entryQuestions`),
- * so it takes what the search says of a URIToken, its issuer; `readNodeNft` reads the rest of it when its page does.
- */
-function uriTokenOfEntry({ node }: LedgerEntry): NftMatch | undefined {
-  if (node.LedgerEntryType !== "URIToken") return undefined;
-  const issuer = node.Issuer;
-  if (typeof issuer !== "string" || !isValidClassicAddress(issuer)) throw malformed("ledger entry lookup");
-  return { kind: "uritoken", issuer, burned: false };
 }
 
 /** The questions of one side (the index's or the node's): `nft` and `object` are there only while their switches are on. A question that is answered with `undefined` found nothing. */
@@ -204,14 +193,16 @@ async function ask({ transaction, ledger, nft, object }: Questions): Promise<Ask
 
 /**
  * The node's NFT and object questions. XRPL asks two commands (`nft_info` and `ledger_entry`); Xahau reads a URIToken and an object with the one, `ledger_entry` by id, so while both
- * switches are on it is asked once and both questions read its answer (the failure, "not found" and the entry alike). With one switch on the questions are what they were: the NFT
- * page's reader for the NFT, the entry for the object.
+ * switches are on it is asked once and both questions read its answer (the failure, "not found" and the entry alike). The URIToken is read from that entry by the reader `uriToken` uses
+ * (`toUriToken`: an entry of another type is "not found", a corrupt one a failure), so it is found or fails as it does with `NFTS` alone. With one switch on the questions are what they
+ * were: the NFT page's reader for the NFT, the entry for the object.
  */
 function entryQuestions(node: NodeRpc, net: NetworkId, hash: string, { nfts, ledgerObjects }: HashNounOptions): Pick<Questions, "nft" | "object"> {
   if (net === "xahau" && nfts && ledgerObjects) {
     let read: Promise<LedgerEntry> | undefined;
     const entry = () => (read ??= node.ledgerEntry(hash));
-    return { nft: () => entry().then(uriTokenOfEntry), object: () => entry().then(objectOfEntry) };
+    // The reader needs the native currency of the network for a sell offer's amount; the search says nothing of it, and this branch is Xahau's.
+    return { nft: () => entry().then((read) => nftOfNode(toUriToken("node ledger_entry", "XAH", read))), object: () => entry().then(objectOfEntry) };
   }
   return {
     ...(nfts && { nft: () => readNodeNft(node, { id: net }, hash).then(nftOfNode) }),

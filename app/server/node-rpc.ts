@@ -835,9 +835,10 @@ function toLedgerEntry(what: string, asked: string, result: Json): LedgerEntry {
 
 /**
  * A URIToken from the entry at its `index`. The entry at an id may be of any type (`index` is any entry's key): one that is not a `URIToken` is no such NFT, `not_found`, and is
- * told before its fields are read (an account root has none of them).
+ * told before its fields are read (an account root has none of them). Exported for the search (resolve.ts), whose one `ledger_entry` read answers the URIToken question and the object
+ * question of Xahau together: it reads the URIToken from that entry with this, as `uriToken` does, so that an entry that is corrupt fails as it does there.
  */
-function toUriToken(what: string, native: string, entry: LedgerEntry): NodeUriToken {
+export function toUriToken(what: string, native: string, entry: LedgerEntry): NodeUriToken {
   const node = entry.node;
   if (node.LedgerEntryType !== "URIToken") {
     throw new UpstreamError("not_found", `${what}: the entry is a ${clip(String(node.LedgerEntryType))}, not a URIToken`, { status: 200 });

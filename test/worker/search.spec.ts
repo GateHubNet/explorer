@@ -656,6 +656,16 @@ describe("a 64-digit hash", () => {
       expect(response.headers.get("Location")).toBe(`/xrpl/account/${DELEGATOR}`);
     });
 
+    it("redirects the ID of a Delegate on Xahau, whose ledger has no delegation, to its delegator's account page: the tab is not there", async () => {
+      const hash = fresh();
+      mock = mockUpstream("xahau", indexedObject(hash, { object_type: "Delegate", account: DELEGATOR }));
+      const response = await get(`/xahau/search?q=${hash}`);
+      await response.text();
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(`/xahau/account/${DELEGATOR}`);
+    });
+
     it.each([
       ["an escrow", "escrow-node-only", "escrows"],
       ["a check", "check-node-only", "checks"],

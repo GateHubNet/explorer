@@ -89,7 +89,8 @@ const KINDS = {
 } as const satisfies Record<ObjectApiKind, { route: string; key: string; id: string; noun: string }>;
 
 const PERMISSION_KINDS = ["transaction", "granular", "unknown"];
-const OBJECT_TYPES = ["Escrow", "Check", "PayChannel", "Delegate"];
+/** The entry types of an object that `GET /v2/ledger_objects/{object_id}` can say an ID is: the one list of them, which the search reads the node's entries by too (resolve.ts). */
+export const OBJECT_TYPES = ["Escrow", "Check", "PayChannel", "Delegate"] as const satisfies readonly LedgerObjectRef["object_type"][];
 
 /** The object under `where`, or a failure. */
 function objectAt(what: string, where: string, value: unknown): Row {

@@ -1071,6 +1071,66 @@ describe("findHash with ledger objects on Xahau: one ledger_entry read answers b
     expect(readsOf(mock)).toHaveLength(1);
   });
 
+  // The URIToken is read from the one entry by node-rpc's own reader, `uriToken`'s: a URIToken with a valid issuer and a body that is corrupt fails as it does with `NFTS` alone (E8), and is not "found".
+  const corruptUriToken = (hash: string, node: Record<string, unknown>): Overrides => ({
+    [`node ledger_entry ${hash}`]: {
+      index: hash,
+      ledger_index: 26774724,
+      node: { Flags: 0, Issuer: "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb", LedgerEntryType: "URIToken", Owner: "rAucmWmE8yiueemhmrGh5MyD2mNjXfpQp", URI: "6F64696E", index: hash, ...node },
+      status: "success",
+      validated: true,
+    },
+  });
+  const CORRUPT = [
+    ["an owner that is no address", { Owner: "not-an-address" }],
+    ["a URI that is not hex", { URI: "ZZ" }],
+    ["flags that are not a whole number", { Flags: "none" }],
+    ["a digest that is not 64 hex digits", { Digest: "ABCD" }],
+    ["a sell offer that is not an amount", { Amount: { value: "x" } }],
+  ] as const;
+
+  it.each(CORRUPT)("fails for a URIToken with %s as it does with NFTS alone, from the one read", async (_what, node) => {
+    const failures: UpstreamError[] = [];
+    for (const asked of [XAHAU_NFTS, XAHAU_BOTH]) {
+      const hash = fresh();
+      mock = mockUpstream("xahau", corruptUriToken(hash, node));
+      const { api } = clientFor("xahau");
+      const { node: rpc } = nodeFor("xahau");
+
+      const failure = await findHash(api, rpc, hash, asked).catch((error: unknown) => error);
+      expect(failure, JSON.stringify(asked)).toBeInstanceOf(UpstreamError);
+      expect((failure as UpstreamError).kind).toBe("server");
+      expect(readsOf(mock)).toHaveLength(1);
+      failures.push(failure as UpstreamError);
+      mock.restore();
+    }
+    // The same failure, but for the ID it names.
+    const [alone, both] = failures.map((failure) => failure.message.replace(/[0-9A-F]{64}/g, "HASH"));
+    expect(both).toBe(alone);
+  });
+
+  it("answers with the transaction when the URIToken beside it is corrupt: something found wins, as with NFTS alone", async () => {
+    // A recorded Xahau transaction (a Remit) that the index does not have, so that the node's round finds it beside the entry.
+    const hash = "8C50C44787A12B785AA62377D0AFA6C4711E8E07EF68BA6E83DC286F7EE79AAF";
+    mock = mockUpstream("xahau", { [`GET /v2/transactions/${hash}`]: null, ...corruptUriToken(hash, { Owner: "not-an-address" }) });
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    expect(await findHash(api, node, hash, XAHAU_BOTH)).toMatchObject({ tx: { type: "Remit" } });
+    expect(readsOf(mock)).toHaveLength(1);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  it("finds a URIToken that has a sell offer, as with NFTS alone: its amount is read in the network's own currency", async () => {
+    const hash = fresh();
+    mock = mockUpstream("xahau", corruptUriToken(hash, { Amount: "4200000000", Destination: "rAucmWmE8yiueemhmrGh5MyD2mNjXfpQp" }));
+    const { api } = clientFor("xahau");
+    const { node } = nodeFor("xahau");
+
+    expect(await findHash(api, node, hash, XAHAU_BOTH)).toEqual({ nft: { kind: "uritoken", issuer: "rodinGM9xiKq7rDDnLPyieREkqGJ6zKyb", burned: false } });
+    expect(readsOf(mock)).toHaveLength(1);
+  });
+
   it("throws the one read's failure when nothing was found, as one failure of the one read", async () => {
     const hash = fresh();
     mock = mockUpstream("xahau", { [`node ledger_entry ${hash}`]: nodeError("internal") });
