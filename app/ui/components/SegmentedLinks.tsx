@@ -8,6 +8,11 @@ export interface SegmentLink {
   current: boolean;
   /** The link's `rel`: `nofollow` for a view crawlers are kept off (the account's analytics). */
   rel?: string;
+  /**
+   * A view that cannot be chosen yet (the token list's MPT tab): to be drawn as text, not as a link, with `tag` beside its label and `note` as the reason a screen reader is
+   * given. `href` is still the view's own, which keys the segment.
+   */
+  disabled?: { tag?: string; note?: string };
 }
 
 /**
