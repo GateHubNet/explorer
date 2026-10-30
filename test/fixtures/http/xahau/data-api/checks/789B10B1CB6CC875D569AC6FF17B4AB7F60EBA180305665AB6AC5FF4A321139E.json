@@ -1,0 +1,35 @@
+{
+  "check": {
+    "account": "r3P95p78ACnB7BKDiZKyeHTmwSNRaYSJ3H",
+    "check_id": "789B10B1CB6CC875D569AC6FF17B4AB7F60EBA180305665AB6AC5FF4A321139E",
+    "delivered": {
+      "currency": "EVR",
+      "issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "value": "0.001"
+    },
+    "destination": "rU1MTfFx4Fphm941qDPDzv8nLs7Vo463Z",
+    "removed": {
+      "ledger_index": 26399329,
+      "time": "2026-10-09T12:49:32Z",
+      "tx_hash": "2615DA09A9FB5E0F919EE108066407A518771B63541BCA51DEB10B96D9FFA026",
+      "tx_type": "CheckCash"
+    },
+    "send_max": {
+      "currency": "EVR",
+      "issuer": "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8",
+      "value": "0.001"
+    },
+    "sequence": 844160555,
+    "status": "cashed"
+  },
+  "close_time": "2026-10-09T12:49:32Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 8852809
+  },
+  "history": [
+    {"account":"rU1MTfFx4Fphm941qDPDzv8nLs7Vo463Z","delivered":{"currency":"EVR","issuer":"rEvernodee8dJLaFsujS6q1EiXvZYmHXr8","value":"0.001"},"event":"cash","ledger_index":26399329,"result":"tesSUCCESS","time":"2026-10-09T12:49:32Z","tx_hash":"2615DA09A9FB5E0F919EE108066407A518771B63541BCA51DEB10B96D9FFA026","tx_type":"CheckCash"}
+  ],
+  "ledger_index": 26399329,
+  "result": "success"
+}

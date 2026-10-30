@@ -11,6 +11,7 @@ import {
   isAnalyticsGenerated,
   isMarketGenerated,
   isNftGenerated,
+  isObjectGenerated,
   isSynthetic,
   isValidatorsGenerated,
   LEDGERS,
@@ -120,7 +121,8 @@ describe("every fixture file", () => {
             !isValidatorsGenerated(file) &&
             !isAmmGenerated(file) &&
             !isNftGenerated(file) &&
-            !isNamesGenerated(file),
+            !isNamesGenerated(file) &&
+            !isObjectGenerated(file),
         ),
       ),
     ).toBeLessThan(3.5 * 1024 * 1024);
@@ -150,9 +152,16 @@ describe("every fixture file", () => {
     // its data, never above 1.0 MiB.
     expect(bytes(files.filter(isNftGenerated))).toBeGreaterThan(0);
     expect(bytes(files.filter(isNftGenerated))).toBeLessThan(1.0 * 1024 * 1024);
-    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 190 entries of 35,758 bytes and
-    // 118 tomls of 43,329, 79,087 bytes, about 77 KiB; Xahau 38 entries of 7,058 bytes and 24 tomls of 8,905, 15,963 bytes, about 16 KiB) are reviewed as their generator
-    // too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later file raises with its data, never above.
+    // The ledger-object pages' files (scripts/object-fixtures.ts, a row to a line: 628 files of 1,018,593 bytes, about 0.97 MiB; XRPL 570 of 850,383: the answers of 222 escrows, checks
+    // and channels with the long channel's two history pages, 234 KB of them the 191 escrows the cancels of ledger 106179366 removed, 228 lookups, 24 node entries, 39 transactions
+    // and their binary forms, 226 KB, and the lists of 16 recorded ledgers not among the sets, 217 KB; Xahau 58 of 168,210, of which 82 KB the lists of its 12 ledgers) are reviewed as
+    // their generator too (C4), with a budget of their own, left out of the recorded files' above: at most 1.0 MiB, which a later file raises with its data, never above.
+    expect(bytes(files.filter(isObjectGenerated))).toBeGreaterThan(0);
+    expect(bytes(files.filter(isObjectGenerated))).toBeLessThan(1.0 * 1024 * 1024);
+    // The display names' files (scripts/names-fixtures.ts: each network's account_names.json, an entry to a line, and its tomls; XRPL 209 entries of 39,244 bytes and
+    // 131 tomls of 48,308, 87,552 bytes, about 86 KiB; Xahau 44 entries of 8,185 bytes and 27 tomls of 10,063, 18,248 bytes, about 18 KiB, after E10 added the ledger objects'
+    // transactions to the names' sources) are reviewed as their generator too (C5), with a budget of their own, left out of the recorded files' above: 128 KiB a network, which a later
+    // file raises with its data, never above.
     for (const net of NETS) {
       const names = files.filter((file) => isNamesGenerated(file) && file.startsWith(`${net}/`));
       expect(bytes(names), net).toBeGreaterThan(0);
@@ -346,7 +355,10 @@ describe("the accounts written by hand", () => {
   it("has an active XRPL account that owns what its objects say, and a trade it was part of on each side", () => {
     const info = json(`xrpl/node/account_info/${ACTIVE.xrpl}.json`).result.account_data;
     const objects = json(`xrpl/node/account_objects/${ACTIVE.xrpl}.json`).result.account_objects;
-    expect(info.OwnerCount).toBe(objects.length); // one trust line, and nothing else it owns
+    // What it owns: a trust line, and the escrow, the channel and the delegation of the ledger-object pages (C7); the check it was sent is in its list but its sender's to own.
+    const owned = objects.filter((object: any) => object.LedgerEntryType === "RippleState" || object.Account === ACTIVE.xrpl);
+    expect(owned.map((object: any) => object.LedgerEntryType)).toEqual(["RippleState", "Escrow", "PayChannel", "Delegate"]);
+    expect(info.OwnerCount).toBe(owned.length);
     const roles = new Set(rowsOf("xrpl", ACTIVE.xrpl, "exchanges").map((row) => (row.taker === ACTIVE.xrpl ? "taker" : "provider")));
     expect([...roles].sort()).toEqual(["provider", "taker"]);
   });

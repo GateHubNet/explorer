@@ -53,9 +53,10 @@ function sourcesOf(net: NetworkId): Promise<NftSources> {
         const { result } = await read<{ result: { issuer: string; nft_taxon: number; nft_serial: number; is_burned: boolean } }>(nodeInfos, path);
         node.set(key, { issuer: result.issuer, taxon: result.nft_taxon, serial: result.nft_serial, burned: result.is_burned });
       }
+      // `node/ledger_entry/` holds the ledger-object pages' entries too (scripts/object-fixtures.ts): only a URIToken is an NFT.
       for (const { path, key } of filesOf(nodeEntries, net, /^node\/ledger_entry\/([0-9A-F]{64})\.json$/)) {
-        const { result } = await read<{ result: { node: { Issuer: string } } }>(nodeEntries, path);
-        node.set(key, { issuer: result.node.Issuer, burned: false });
+        const { result } = await read<{ result: { node: { Issuer: string; LedgerEntryType: string } } }>(nodeEntries, path);
+        if (result.node.LedgerEntryType === "URIToken") node.set(key, { issuer: result.node.Issuer, burned: false });
       }
       const holdings = new Map<string, NftsPage>(await Promise.all(filesOf(accounts, net, /^data-api\/accounts\/([^/]+)\/nfts@limit=20\.json$/).map(async ({ path, key }) => [key, await read<NftsPage>(accounts, path)] as const)));
       return { nfts, histories: events, pagedHistories: paged, node, holdings };

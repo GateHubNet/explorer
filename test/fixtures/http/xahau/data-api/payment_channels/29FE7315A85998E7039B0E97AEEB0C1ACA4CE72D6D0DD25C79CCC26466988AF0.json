@@ -1,0 +1,49 @@
+{
+  "close_time": "2026-10-09T12:49:32Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 8852809
+  },
+  "history": [
+    {"account":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","amount":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"1"},"balance":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0.023506"},"balance_change":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0.023506"},"event":"claim","ledger_index":11083603,"result":"tesSUCCESS","time":"2025-01-04T00:03:00Z","tx_hash":"8A6812049815D9A8D9B582BA682AD18A4ADB5C049412978CEBA0F8E56AC4A037","tx_type":"PaymentChannelClaim"},
+    {"account":"rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m","amount":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"1"},"balance":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0"},"event":"create","ledger_index":11056548,"result":"tesSUCCESS","settle_delay":1209600,"time":"2025-01-02T20:49:11Z","tx_hash":"658229F6A67A15A316105775DF582A3211B519874CADF899623D121735FE30CC","tx_type":"PaymentChannelCreate"}
+  ],
+  "ledger_index": 26399329,
+  "payment_channel": {
+    "account": "rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m",
+    "amount": {
+      "currency": "DHA",
+      "issuer": "rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS",
+      "value": "1"
+    },
+    "balance": {
+      "currency": "DHA",
+      "issuer": "rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS",
+      "value": "0.023506"
+    },
+    "channel_id": "29FE7315A85998E7039B0E97AEEB0C1ACA4CE72D6D0DD25C79CCC26466988AF0",
+    "claims": 1,
+    "created": {
+      "ledger_index": 11056548,
+      "time": "2025-01-02T20:49:11Z",
+      "tx_hash": "658229F6A67A15A316105775DF582A3211B519874CADF899623D121735FE30CC"
+    },
+    "destination": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+    "funds": 0,
+    "opened_with": {
+      "currency": "DHA",
+      "issuer": "rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS",
+      "value": "1"
+    },
+    "public_key": "ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425",
+    "remaining": {
+      "currency": "DHA",
+      "issuer": "rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS",
+      "value": "0.976494"
+    },
+    "sequence": 777987460,
+    "settle_delay": 1209600,
+    "status": "open"
+  },
+  "result": "success"
+}

@@ -1,0 +1,10 @@
+{
+  "ledger_object": {
+    "account": "rwEPtzveRSB2eb7Yp1PPxSPLFyrcp2oa4j",
+    "deleted": true,
+    "ledger_index": 106179366,
+    "object_id": "7D741F82FEA8C3B95EC0969F23EF2C3A574B271FB85EC5BCC3183FC9578F3F50",
+    "object_type": "Escrow"
+  },
+  "result": "success"
+}

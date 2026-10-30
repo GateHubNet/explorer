@@ -1,0 +1,47 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 102145584
+  },
+  "history": [
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"12"},"event":"close_request","expiration":"2026-11-16T06:18:50Z","ledger_index":107711512,"result":"tesSUCCESS","time":"2026-10-17T06:18:50Z","tx_hash":"AA495399F6392298F2B99B6149CE9439B13F2DB1CAC876A01DAFB0FBA5A1FCB3","tx_type":"PaymentChannelClaim"},
+    {"account":"rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"12"},"balance_change":{"currency":"XRP","value":"12"},"event":"claim","ledger_index":107558036,"result":"tesSUCCESS","time":"2026-10-10T09:03:20Z","tx_hash":"49F2B6C74AEA0F9CAB4BC720B7BBB844251F79FD62517872FC5FEDBE6E6464CC","tx_type":"PaymentChannelClaim"},
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"0"},"event":"create","ledger_index":107296498,"result":"tesSUCCESS","settle_delay":2592000,"time":"2026-09-28T16:40:31Z","tx_hash":"4C22E77E87D34CFF8E3747EC2F713B9E3D59F59F555E369C3F4A7F5984F32AE7","tx_type":"PaymentChannelCreate"}
+  ],
+  "ledger_index": 107972102,
+  "payment_channel": {
+    "account": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+    "amount": {
+      "currency": "XRP",
+      "value": "50"
+    },
+    "balance": {
+      "currency": "XRP",
+      "value": "12"
+    },
+    "channel_id": "B5AEC697DEA9EA4F87F6DF5AE07F475BD10096646B57077EC1743A00702543A3",
+    "claims": 1,
+    "created": {
+      "ledger_index": 107296498,
+      "time": "2026-09-28T16:40:31Z",
+      "tx_hash": "4C22E77E87D34CFF8E3747EC2F713B9E3D59F59F555E369C3F4A7F5984F32AE7"
+    },
+    "destination": "rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB",
+    "expiration": "2026-11-16T06:18:50Z",
+    "funds": 0,
+    "opened_with": {
+      "currency": "XRP",
+      "value": "50"
+    },
+    "public_key": "03BD9BE9089DF014E1417D621A8B5207D171A3E03E25A49106E529539648D76538",
+    "remaining": {
+      "currency": "XRP",
+      "value": "38"
+    },
+    "sequence": 98405610,
+    "settle_delay": 2592000,
+    "status": "closing"
+  },
+  "result": "success"
+}

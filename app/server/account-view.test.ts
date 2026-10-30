@@ -274,8 +274,14 @@ describe("ownedCounts", () => {
     expect(ownedCounts([object("SomethingNew")])).toEqual([{ type: "SomethingNew", label: "SomethingNew", count: 1 }]);
   });
 
-  it("counts the one trust line of the recorded XRPL account", () => {
-    expect(ownedCounts(objectsOf("xrpl", XRPL).account_objects)).toEqual([{ type: "RippleState", label: "trust line", count: 1 }]);
+  it("counts the one trust line of the recorded XRPL account, and the ledger-object pages' escrow, check, channel and delegation (C7)", () => {
+    expect(ownedCounts(objectsOf("xrpl", XRPL).account_objects)).toEqual([
+      { type: "RippleState", label: "trust line", count: 1 },
+      { type: "Escrow", label: "escrow", count: 1 },
+      { type: "Check", label: "check", count: 1 },
+      { type: "PayChannel", label: "payment channel", count: 1 },
+      { type: "Delegate", label: "Delegate", count: 1 },
+    ]);
   });
 
   it("says URIToken, the glossary's word, and not 'URI token' (decision 18), in the singular and the plural", () => {
@@ -342,13 +348,23 @@ describe("accountHeader", () => {
       domain: "northpeak.example",
       lastActive: { ledgerIndex: 107720688, hash: "C7FE6468BA25CE904C41722C0892316954133B000339C644073A88CACD8A9143", time: 1792253462 },
     });
+    // It owns four objects: its trust line, and the ledger-object pages' escrow, channel and delegation (scripts/object-fixtures.ts, C7).
     expect(header.balance).toEqual({
       native: "10.001625",
-      available: "8.801625",
-      reserve: { total: "1.2", base: "1", increment: "0.2", objects: 1 },
+      available: "8.201625",
+      reserve: { total: "1.8", base: "1", increment: "0.2", objects: 4 },
     });
     expect(header.tokens.state).toBe("ok");
-    expect(header.owned).toEqual({ counts: [{ type: "RippleState", label: "trust line", count: 1 }], truncated: false });
+    expect(header.owned).toEqual({
+      counts: [
+        { type: "RippleState", label: "trust line", count: 1 },
+        { type: "Escrow", label: "escrow", count: 1 },
+        { type: "Check", label: "check", count: 1 },
+        { type: "PayChannel", label: "payment channel", count: 1 },
+        { type: "Delegate", label: "Delegate", count: 1 },
+      ],
+      truncated: false,
+    });
   });
 
   it("decodes the domain, sees the regular key and the flags of the Xahau account", () => {
@@ -371,7 +387,7 @@ describe("accountHeader", () => {
     expect(accountHeader(input({ state: voted })).header.balance).toEqual({
       native: "10.001625",
       available: "0",
-      reserve: { total: "12", base: "10", increment: "2", objects: 1 },
+      reserve: { total: "18", base: "10", increment: "2", objects: 4 },
     });
 
     const unsynced = accountHeader(input({ state: ok({ ...state, validated_ledger: undefined }) }));
@@ -891,7 +907,10 @@ describe("the lists of the tabs", () => {
 
   it("lists the objects of the first page, and says when the node had more than that", () => {
     const objects = objectsOf("xrpl", XRPL);
-    expect(objectsList(objects, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 1, offers: 0, truncated: false, ledgerIndex: 107721455, names: NO_NAMES });
+    const list = objectsList(objects, "XRP");
+    expect(list).toMatchObject({ state: "ok", tab: "objects", trustLines: 1, offers: 0, truncated: false, ledgerIndex: 107721455, names: NO_NAMES });
+    // A row for each of the ledger-object pages' objects of the account (scripts/object-fixtures.ts, C7).
+    expect(list.state === "ok" && list.tab === "objects" ? list.rows.map((row) => row.type) : []).toEqual(["Escrow", "Check", "PayChannel", "Delegate"]);
     expect(objectsList({ ...objects, marker: "MORE" }, "XRP")).toMatchObject({ truncated: true });
     // A deleted account has none to read.
     expect(objectsList(null, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null, names: NO_NAMES });

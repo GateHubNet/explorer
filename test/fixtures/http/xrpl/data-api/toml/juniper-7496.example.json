@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "juniper-7496.example",
+    "toml_url": "https://juniper-7496.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu",
+        "desc": "Juniper Custody"
+      }
+    ]
+  }
+}

@@ -554,9 +554,9 @@ describe("the active XRPL account", () => {
     expect(hrefs(html)).toContain(`/xrpl/tx/9B107B80D5606BB743A58ED7EA6DCA1BDC1E8619FBFA531CD881523C1DCC76F1`);
     expect(text).toContain("Sequence 98,986,800");
     expect(text).toContain("XRP balance 10.001625");
-    // 1 base + 1 object * 0.2 = 1.2 reserve, from the node's server_state; 10.001625 - 1.2 available.
-    expect(text).toContain("Available 8.801625");
-    expect(text).toContain("Reserve 1.2 XRP = 1 base + 1 object × 0.2");
+    // 1 base + 4 objects * 0.2 = 1.8 reserve, from the node's server_state (its trust line, and the escrow, channel and delegation of the ledger-object pages); 10.001625 - 1.8 available.
+    expect(text).toContain("Available 8.201625");
+    expect(text).toContain("Reserve 1.8 XRP = 1 base + 4 objects × 0.2");
     expect(text).toContain("Read live from the network at ledger #107,721,455.");
 
     // Tokens: the LIONS line, its code as text, its issuer, its balance.
@@ -1041,8 +1041,10 @@ describe("the tabs", () => {
   });
 
   it("?tab=objects without more than one page does not say it is cut", async () => {
-    mock = mockUpstream("xrpl");
-    const { html } = await page(`/xrpl/account/${ACTIVE}?tab=objects`);
+    // An account that owns a trust line and nothing else (the active account owns the ledger-object pages' escrow, channel and delegation, and was sent their check: C7).
+    const a = account(38);
+    mock = mockUpstream("xrpl", healthy(a, { objects: [{ LedgerEntryType: "RippleState", index: "R".repeat(64) }] }));
+    const { html } = await page(`/xrpl/account/${a}?tab=objects`);
     expect(textOf(html)).not.toContain("Showing the first 400");
     expect(textOf(html)).toContain("This account owns no other objects");
   });

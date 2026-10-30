@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "oakmoor-07b0.example",
+    "toml_url": "https://oakmoor-07b0.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "ratyeNK9ug2GtCjzbms8ns99VU47gcu4Pz",
+        "desc": "Oakmoor Treasury"
+      }
+    ]
+  }
+}

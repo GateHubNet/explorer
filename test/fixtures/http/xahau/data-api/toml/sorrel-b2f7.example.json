@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "sorrel-b2f7.example",
+    "toml_url": "https://sorrel-b2f7.example/.well-known/xahau.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT",
+        "desc": "Sorrel Ventures"
+      }
+    ]
+  }
+}

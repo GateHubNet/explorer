@@ -1,0 +1,25 @@
+{
+  "result": {
+    "index": "60FCB1E8C72A695CBB6BDF718D30AF2310A9BED6D3F6D92F54C0E429186D1A42",
+    "ledger_hash": "CD362D14BCEACBF65B9BFDE226CD393FC1F930FC814F21269935D7FA6DD5A697",
+    "ledger_index": 107972102,
+    "node": {
+      "Account": "r9CaVb4X1JVQoi6Q8Gw5cznAMRFARJDWyN",
+      "Destination": "rBi1QrVjwaNofisZAQnovoXdHkS73FG1tJ",
+      "DestinationNode": "0",
+      "Expiration": 845488191,
+      "Flags": 0,
+      "InvoiceID": "AB9E9A322F4A89059C5402523B218CA53745DE3672A109BD14BB1A186640AD36",
+      "LedgerEntryType": "Check",
+      "OwnerNode": "0",
+      "PreviousTxnID": "CCDBCADF2DE0EF5E85A3332C4CADE9A0C28F3B5E7220C4890E27D196415D0326",
+      "PreviousTxnLgrSeq": 107698980,
+      "SendMax": {"currency":"524C555344000000000000000000000000000000","issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","value":"1"},
+      "Sequence": 106635339,
+      "SourceTag": 804681468,
+      "index": "60FCB1E8C72A695CBB6BDF718D30AF2310A9BED6D3F6D92F54C0E429186D1A42"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

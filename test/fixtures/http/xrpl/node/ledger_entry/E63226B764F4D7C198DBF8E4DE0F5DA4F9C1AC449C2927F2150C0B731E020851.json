@@ -1,0 +1,20 @@
+{
+  "result": {
+    "index": "E63226B764F4D7C198DBF8E4DE0F5DA4F9C1AC449C2927F2150C0B731E020851",
+    "ledger_hash": "CD362D14BCEACBF65B9BFDE226CD393FC1F930FC814F21269935D7FA6DD5A697",
+    "ledger_index": 107972102,
+    "node": {
+      "Account": "rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL",
+      "Authorize": "rw2X2GFePFiLDdcQw6iELFfUEw1hPqAGcK",
+      "Flags": 0,
+      "LedgerEntryType": "Delegate",
+      "OwnerNode": "0",
+      "Permissions": [{"Permission":{"PermissionValue":"OfferCreate"}},{"Permission":{"PermissionValue":"OfferCancel"}}],
+      "PreviousTxnID": "4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66",
+      "PreviousTxnLgrSeq": 107558036,
+      "index": "E63226B764F4D7C198DBF8E4DE0F5DA4F9C1AC449C2927F2150C0B731E020851"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

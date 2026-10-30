@@ -1,0 +1,25 @@
+{
+  "result": {
+    "index": "29FE7315A85998E7039B0E97AEEB0C1ACA4CE72D6D0DD25C79CCC26466988AF0",
+    "ledger_hash": "FD816B31FFE84E838E6645C4BAFA181F58F7581A55547F452B376A4DC1DCFAB7",
+    "ledger_index": 26399329,
+    "node": {
+      "Account": "rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m",
+      "Amount": {"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"1"},
+      "Balance": {"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0.023506"},
+      "Destination": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+      "DestinationNode": "0",
+      "Flags": 0,
+      "LedgerEntryType": "PayChannel",
+      "OwnerNode": "0",
+      "PreviousTxnID": "8A6812049815D9A8D9B582BA682AD18A4ADB5C049412978CEBA0F8E56AC4A037",
+      "PreviousTxnLgrSeq": 11083603,
+      "PublicKey": "ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425",
+      "SettleDelay": 1209600,
+      "TransferRate": 1000000000,
+      "index": "29FE7315A85998E7039B0E97AEEB0C1ACA4CE72D6D0DD25C79CCC26466988AF0"
+    },
+    "status": "success",
+    "validated": true
+  }
+}

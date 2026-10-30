@@ -1,0 +1,16 @@
+{
+  "result": "success",
+  "toml": {
+    "domain": "cinder-8e04.example",
+    "toml_url": "https://cinder-8e04.example/.well-known/xrp-ledger.toml",
+    "status": "ok",
+    "checked": "2026-10-17T06:00:00.000Z",
+    "fetched": "2026-10-17T06:00:00.000Z",
+    "accounts": [
+      {
+        "address": "rwEPtzveRSB2eb7Yp1PPxSPLFyrcp2oa4j",
+        "desc": "Cinder Holdings"
+      }
+    ]
+  }
+}

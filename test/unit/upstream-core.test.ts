@@ -371,6 +371,63 @@ describe("createUpstream", () => {
     expect(await jsonOf(await upstream.handle(get(`/xrpl/v2/accounts/${ACCOUNT}/nft_history`)))).toEqual({ result: "error", message: `Cannot GET /v2/accounts/${ACCOUNT}/nft_history` });
   });
 
+  // D5's escrows, checks and payment channels, and the lookup of an ID: each route's own 404, for the object and the pages of its history (scripts/object-fixtures.ts writes a file
+  // for every object of the recordings); a node has no entry of an ID it does not hold.
+  it("answers an unknown object with D5's not-found messages and an unknown ledger entry with entryNotFound", async () => {
+    const upstream = make();
+    const id = "B95064B1A92F02EE009E6BDFB369CF476FB925BB8615456970E38774034A5D30";
+    for (const [route, message] of [
+      ["escrows", "escrow not found"],
+      ["checks", "check not found"],
+      ["payment_channels", "payment channel not found"],
+    ] as const) {
+      for (const path of [`/v2/${route}/${id}`, `/v2/${route}/${id.toLowerCase()}`, `/v2/${route}/${id}/history?descending=true&limit=50&marker=WzEsMl0`]) {
+        const answer = await upstream.handle(get(`/xrpl${path}`));
+        expect(answer!.status, path).toBe(404);
+        expect(await jsonOf(answer), path).toEqual({ result: "error", message });
+      }
+      // Nothing else is below an object, and the route has no list.
+      expect(await jsonOf(await upstream.handle(get(`/xrpl/v2/${route}/${id}/offers`)))).toEqual({ result: "error", message: `Cannot GET /v2/${route}/${id}/offers` });
+      expect(await jsonOf(await upstream.handle(get(`/xrpl/v2/${route}`)))).toEqual({ result: "error", message: `Cannot GET /v2/${route}` });
+    }
+    const lookup = await upstream.handle(get(`/xahau/v2/ledger_objects/${id}`));
+    expect(lookup!.status).toBe(404);
+    expect(await jsonOf(lookup)).toEqual({ result: "error", message: "ledger object not found" });
+    // A `null` override is the same "absent" answer.
+    expect(await jsonOf(await make({ [`GET /v2/escrows/${id}`]: null }).handle(get(`/xrpl/v2/escrows/${id}`)))).toEqual({ result: "error", message: "escrow not found" });
+
+    const entry = await upstream.handle(rpc("http://fixtures.test/xrpl-node", "ledger_entry", { index: id, ledger_index: "validated" }));
+    expect(entry!.status).toBe(200);
+    expect((await jsonOf(entry)).result).toEqual({ error: "entryNotFound", request: { index: id, ledger_index: "validated", command: "ledger_entry" }, status: "error" });
+  });
+
+  // D5 answers the delegations of any valid address, and of an address with none an empty page with the delegations' coverage and the ledger it is as of (C11; the objects'
+  // recordings' newest ledger, scripts/object-fixtures.ts; test/unit/object-fixtures.test.ts compares the pages); its two 400s come first.
+  it("answers the delegations of an account without a file with D5's empty page, and D5's 400s", async () => {
+    const upstream = make();
+    for (const query of ["", "?direction=given&limit=200", "?direction=&limit=200", "?direction=held&limit=200"]) {
+      const answer = await upstream.handle(get(`/xrpl/v2/accounts/${ACCOUNT}/delegations${query}`));
+      expect(answer!.status, query).toBe(200);
+      const body = await jsonOf(answer);
+      expect(body, query).toEqual({
+        result: "success",
+        coverage: { from_ledger_index: 102145584, complete: true },
+        ledger_index: 107972102,
+        close_time: "2026-10-29T03:50:41Z",
+        count: 0,
+        delegations: [],
+      });
+      expect(Object.keys(body)).toEqual(["result", "coverage", "ledger_index", "close_time", "count", "delegations"]);
+    }
+    expect(await jsonOf(await upstream.handle(get(`/xahau/v2/accounts/${ACCOUNT}/delegations`)))).toMatchObject({ coverage: { from_ledger_index: 8852809, complete: true }, ledger_index: 26399329 });
+    const wrong = await upstream.handle(get(`/xrpl/v2/accounts/${ACCOUNT}/delegations?direction=both`));
+    expect(wrong!.status).toBe(400);
+    expect(await jsonOf(wrong)).toEqual({ result: "error", message: "invalid direction" });
+    const xAddress = classicAddressToXAddress(ACCOUNT, false, false);
+    expect(await jsonOf(await upstream.handle(get(`/xrpl/v2/accounts/${xAddress}/delegations`)))).toEqual({ result: "error", message: "invalid ripple address" });
+    expect(upstream.requests.map((request) => request.source).every((source) => source === "absent")).toBe(true);
+  });
+
   it("is given a file for an account's NFTs, which is what it answers", async () => {
     const page = { result: "success", coverage: { complete: true }, count: 0, nfts: [] };
     const filed = createUpstream({ files: { read: async (path) => (path === `xrpl/data-api/accounts/${ACCOUNT}/nfts@limit=20.json` ? JSON.stringify(page) : undefined) }, bases, primary: "xrpl" });

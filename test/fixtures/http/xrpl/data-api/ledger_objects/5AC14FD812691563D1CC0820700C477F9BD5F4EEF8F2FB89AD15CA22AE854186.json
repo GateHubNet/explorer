@@ -1,0 +1,10 @@
+{
+  "ledger_object": {
+    "account": "r4CxvmYahDYfTjxCo5YNu6YsLUo6eTFzbX",
+    "deleted": false,
+    "ledger_index": 104850488,
+    "object_id": "5AC14FD812691563D1CC0820700C477F9BD5F4EEF8F2FB89AD15CA22AE854186",
+    "object_type": "Delegate"
+  },
+  "result": "success"
+}

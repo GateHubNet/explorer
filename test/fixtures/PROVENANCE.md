@@ -21,11 +21,20 @@ last touched the source directory, which is the one that put these exact files t
 | `ledgers/xahau/` (6 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/recorded/` | `75bea47e536ce4b0c4ce70d3bc70a40cb6f407d2` | `wss://xahau.network` | 2026-10-15T12:28:12Z | 26541064 |
 | `ledgers/xrpl-nft/` (11 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/nft/` at D3's `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de` (`PIN`, see below) | `f4789b565ed866939cee34d4a728cc2eff928751` | `wss://s2.ripple.com` | 2026-10-26T16:05:15Z | 107918450 |
 | `ledgers/xahau-nft/` (9 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/uritoken/` at `PIN` | `ed8edd3fed57ac5b8b9cd120ae88e51a59f5a81b` | `wss://xahau.network` | 2026-10-26T15:30:01Z | 26811706 |
+| `ledgers/xrpl-objects/` (22 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xrpl/objects/` at D5's `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb` (`PIN` of E10, see below) | `c3fe181141f62cbabb24693f26771eb228f8c2d5` | `wss://s2.ripple.com` | 2026-10-29T04:51:57.628Z | 107973016 |
+| `ledgers/xahau-objects/` (12 ledgers + `manifest.json`) | `packages/shared/test/fixtures/xahau/objects/` at the same commit | `9a56f23cc8693bedc00acd5ca494138a018396a2` | `wss://xahau.network` | 2026-10-29T04:56:33.429Z | 26873124 |
 | `runtime/amm-deposit.meta.json` | the metadata of AMMDeposit `83F332E0141EF2AD30427A8476FFD8469D678321F58E649F30761A862D880A4B`, taken from `xrpl/recorded/107671558.json.gz` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` | as `ledgers/xrpl/` |
 
 The two `-nft` sets were copied later and from another checkout: D3's worktree, branch `feat/explorer-data-2`, commit `da5ce14ccfe9e429aacaf5ab6672eac15ce0d1de` (`PIN`), read with
 `git show` (`git -C <D3 worktree> show da5ce14:packages/shared/test/fixtures/<xrpl/nft|xahau/uritoken>/<file>`), byte for byte, the `.json.gz` ledgers and `manifest.json` only: not
 `server_definitions.json`, `server_info.json` or `FINDINGS.md`. They are newer than every other set (mainnet 2026-10-24 and 25, where the rest end on 2026-10-17): see "NFT answers".
+
+The two `-objects` sets were copied for E10 (the ledger-object pages) from D5's worktree, branch `feat/explorer-data-2`, at commit `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb`
+(D5's last, E10's `PIN`), read with `git show` (`git -C <D5 worktree> show 0c2e58c:packages/shared/test/fixtures/<xrpl|xahau>/objects/<file>`, never `cp` from the tree, which another
+session was changing), byte for byte (each file's blob is the pin's), the `.json.gz` ledgers and `manifest.json` only: not `server_definitions.json`, `server_info.json` or `FINDINGS.md`.
+"Last changed in" is `git -C <D5 worktree> log -1 --format=%H 0c2e58c -- packages/shared/test/fixtures/<xrpl|xahau>/objects` for each directory. They are not among `SETS`
+(scripts/http-fixtures.ts): most of their ledgers are newer than the head of the other sets (2026-10-17), which `last_validated` and every page built on it would follow (plan
+Ruling 7); see "Ledger object answers".
 
 What each set holds (details in `data-api-new/packages/shared/test/fixtures/README.md`):
 
@@ -43,6 +52,16 @@ What each set holds (details in `data-api-new/packages/shared/test/fixtures/READ
   `{ledger, type, result}`. The ledgers hold 121 `NFTokenCreateOffer`s, 12 mints, 5 accepts, 8 cancels, a burn pair and a modify.
 - `ledgers/xahau-nft/`: 9 ledgers, 26533927 to 26774724 (2026-10-21 to 25), the cases of D3's URIToken parser (a mint, a sell offer made and cancelled, a `URITokenBuy`, a burn that
   removes an offer, a `Remit` that moves a token, a `Remit` that mints one, a burn and a re-mint of one id). `uritoken_mint_with_offer` was not found.
+
+- `ledgers/xrpl-objects/`: 22 ledgers, 102145584 to 107972102 (2026-02-10 to 10-29), each holding one of the 19 cases of D5's object parser or one of the three transactions that
+  support them (the manifest's `cases` and `txs`): escrows timed, conditional (a token), finished without a fulfillment, cancelled by a third party, of a token created and finished;
+  checks of XRP and of RLUSD created, cashed for an amount and of a token, cancelled by the source; channels created, funded with an `Expiration`, claimed for the first time,
+  asked to close by the source, closed by the destination, renewed, closed after expiring; the one `DelegateSet` found on the network (`rnt8Pb…` to `rw2X2G…`) and a delegated
+  Batch inner `OfferCreate`. Six of them are ledgers of the sets above too (107670360, 107671568, 107698980, 107699656, 107703707, 107711512), byte for byte. Ledger 106179366
+  holds 191 successful `EscrowCancel`s: the case's (a third party) and 190 of token-escrow testers.
+- `ledgers/xahau-objects/`: 12 ledgers, 8852809 to 26399329 (2024-09-30 to 2026-10-09), the 11 cases of Xahau (an escrow created to itself, finished by its owner, finished with an
+  `EscrowID`, cancelled by a third party, of a token; a check created and cashed with `DeliverMin`; a channel created and claimed, and a token channel created and claimed) and one
+  supporting token cash.
 
 To add a transaction that is not here (the plan's later tasks may need one), record it in `data-api-new` with
 `record-fixtures --txs <hash>`, copy the new ledger file and the merged manifest the same way, and add its row above.
@@ -721,6 +740,110 @@ concatenate to every collection once in the sort's order with ties by issuer and
 NFT files' events count, that the three collections' lists and days are their NFT files', that the sales lists are every sale of the NFT files newest first (and the featured collection's first
 page is the network's), that the volume's rolling rows nest and its rows are sums of their components, that every file of a network has the network's coverage, and the places of the events.
 `test/worker/nft-fixtures.spec.ts` reads them in the Workers runtime with the data API client and the node client, the requests being theirs (the ascending lists by the text `descending=false`). `scripts/http-fixtures.test.ts` fails when a file is not what the generator writes.
+
+## Ledger object answers: `http/<net>/data-api/escrows/`, `…/checks/`, `…/payment_channels/`, `…/ledger_objects/`, their transactions, and the nodes' `ledger_entry`
+
+The data API's answers of D5 (`GET /v2/escrows/{id}` and its `/history`, the same for checks and payment channels, `GET /v2/ledger_objects/{id}`) for the ledger-object pages (E10), the
+transactions behind them, and the nodes' `ledger_entry` of the objects still in the ledger. Not recorded: worked out from the objects ledgers D5 recorded (`ledgers/xrpl-objects/`,
+`ledgers/xahau-objects/`, above), as D5's index would hold them, around some synthetic objects and transactions below. Generated by `generate()` (`pnpm fixtures:sync`), from
+`scripts/object-derive.ts` (the port) and `scripts/object-fixtures.ts` (the files), which `scripts/http-fixtures.ts` joins per network. The ledgers are read through `readLedgerSet`
+and are not among `SETS`, so `last_validated` stays where it was. **Every answer is as of the newest ledger of its set** (XRPL 107972102, 2026-10-29T03:50:41Z; Xahau 26399329,
+2026-10-09T12:49:32Z: D5's "as of" and the close time a `status` is worked out at), which is newer than the explorer's head on XRPL (107721455), as D5's examples are.
+
+### The port
+
+E10's `PIN` is `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb`, D5's `feat/explorer-data-2` (data-api-new), read with `git show <PIN>:<path>`, never checked out or imported:
+
+| Path at `PIN` | Last changed in | For |
+|---|---|---|
+| `packages/shared/src/parsers/object-changes.parser.ts` | `0ba8fb1` | the rows (D5 §2.1, §2.2): a row for every created, modified (with `PreviousFields`) or deleted `Escrow`, `Check`, `PayChannel` or `Delegate` node, its event by the table (`update` else), its stored fields without the thread and directory fields, the facts it takes from the transaction (`sequence`, `fulfillment`, `delivered`) |
+| `packages/shared/src/ingest/build-rows.ts`, `packages/shared/src/parsers/parser.interface.ts` | `2e7fbc8`, `0c2e58c` | the columns a row gets from its transaction: place, hash, close time, type, result, sender (the zero account for an empty `Account`), `Delegate` |
+| `apps/api/src/ledger-objects/object-views.ts` | `ef6674b` | the objects and events, their key orders, the keys left out (`compact`), the amounts (drops to whole units, an issued token as on the ledger, an MPT as the data API's MPT amount), a channel's zero balance, `remaining` and the changes |
+| `apps/api/src/ledger-objects/object-status.ts` | `ef6674b` | the status at the answer's close time, and a deleted object's by its deleting event |
+| `apps/api/src/ledger-objects/ledger-objects.service.ts`, `object-answers.ts` | `8d3da27`, `e33c538` | which rows a detail reads (the newest 51, each transaction once) and its creation (the page's, else the object's first), a history page after a marker, a channel's `funds` and `claims` over its whole history, the lookup (the newest row of an ID) |
+| `apps/api/src/common/feature-coverage.service.ts`, `apps/api/src/common/pagination.ts` | `86391c4`, `d0c1ab0` | `itemCoverage` (the feature's coverage, complete when the object's creation is indexed), `paginate` and the marker (base64url JSON `[ledger_index, tx_index]`) |
+| `packages/shared/test/synthetic-delegated.ts`, `packages/shared/src/parsers/object-changes.parser.spec.ts` | `e173d8e`, `af4e631` | `delegatedFrom` and `delegate_set_empty`, which C9's synthetic transactions follow (below) |
+| `docs/api-reference.md` ("Ledger objects") | `0c2e58c` | the key orders, the rules, and the examples: the six object answers, the two lookups and Xahau's delegations of an account are real answers over these recordings, and `test/unit/object-fixtures.test.ts` compares the files with them, text for text |
+
+What the recordings give: XRPL 217 objects in 221 rows (201 escrows, 191 of them cancelled and one finished without their creation indexed, nine checks, six channels and the one
+delegation), Xahau 9 in 12 rows. **Coverage** (C8): the feature's coverage is the set's first ledger, not whole (`{ from_ledger_index: 102145584 | 8852809, complete: false }`: both
+networks had these objects before the recordings), and an object whose creation is indexed has it complete; one created before has no `created` (escrow `8993DA09…`, finished in
+107670360, is the reference's example of it). **One open recorded escrow and one open check** (the first of each by ID, `0F0EE149…` and `24BC04C8…`) have a node file and no index file
+(no answer, no lookup): the node fallback (`escrow-node-only`, `check-node-only`).
+
+### The files
+
+| Files below `http/<net>/` | What |
+|---|---|
+| `data-api/escrows/<ID>.json`, `data-api/checks/<ID>.json`, `data-api/payment_channels/<ID>.json` | the object as of the set's newest ledger and its newest 50 events, newest first, with `history_marker` when there are more |
+| `…/<ID>/history@descending=true&limit=50&marker=<M>.json` | the events behind each marker, newest first (the object page asks a page of 50 behind a marker); only `channel-long` has any |
+| `data-api/ledger_objects/<ID>.json` | `{ result, ledger_object }` of every ID of the index (a delegation's too), and of the delegations the hand-written files list |
+| `data-api/transactions/<HASH>.json`, `…@binary=true.json` | the transactions with a tracked node, a `Delegate` field or of type `DelegateSet` (C3), but those `generate()` serves already from `SETS` and the 190 bulk cancels (below), and the four of C9; made as the sets' transactions are made, the binary form re-hashing to the hash |
+| `data-api/ledgers/<index>@transactions=true.json` | the hashes of a ledger of those transactions that is not among `SETS` (XRPL 16, Xahau 12), in ledger order, which the transaction page reads for a transaction's neighbours (and which C9's transactions end) |
+| `node/ledger_entry/<ID>.json` | rippled's and xahaud's `ledger_entry` (`validated`, the set's newest ledger) of every object still in the ledger: its fields as its newest transaction left them, `Flags` and the directory pages a node fills in (`"0"`), a channel's zero `Balance`, and its thread (`PreviousTxnID`, `PreviousTxnLgrSeq`); Ripple-epoch times, drops |
+
+628 files, 1,018,593 bytes (about 0.97 MiB, under the budget of 1.0 MiB): XRPL 570 files of 850,383 bytes (222 answers and 2 history pages, 323,008, of them 234,153 the 191 escrows the
+cancels of ledger 106179366 removed; 228 lookups, 61,620; 24 node entries, 22,353; 39 transactions and their binary forms, 226,094; 16 ledger lists, 217,308), Xahau 58 of 168,210 (9 answers, 9 lookups, 4
+node entries, 12 transactions and their binary forms, 67,847, 12 ledger lists, 81,838). They are `isObjectGenerated` in `scripts/http-fixtures.ts` (`node/ledger_entry/` but the NFT
+generator's URIToken entries, `nftLedgerEntryIds`, C5; and the transactions and ledger lists this generator writes), and have a size budget of their own in
+`test/unit/http-fixtures.test.ts` (at most 1.0 MiB, outside the recorded files': C4). An object's events and an account's delegations are a row to a line (`OBJECT_ROW_LISTS`).
+
+**The bulk cancels.** Ledger 106179366 holds 191 escrow cancels: the case `escrow_cancel` and 190 of the token-escrow testers, cancelling escrows created before the recordings. Their 191
+escrows are derived and answered like any other (234,153 bytes, and 51,570 of lookups), but the 190 cancels the manifest does not name have no transaction file (`isBulkCancel`): they are
+0.9 MB of transactions, which the budget cannot hold (C4). Their escrows' `cancel` events link to a transaction page that is a 404 in the fixtures.
+
+### The synthetic parts (XRPL, seeded with `mulberry32(seedOf("xrpl", "objects", <name>))`, `scripts/synthetic.ts`)
+
+- **Objects** the recordings cannot give, each made of transactions written here and derived by the port as the recorded ones are (IDs are their keylets: an escrow's and a check's
+  of owner and sequence, a channel's of owner, destination and sequence), each transaction in a recorded ledger at an index past the ledger's own (`placesOf`), its hash drawn,
+  with no transaction file. The active account (`rBbW6i…`, `OBJECTS_ACCOUNT`, test/e2e/fixtures.ts's `XRPL_ACCOUNT`) owns an escrow that can be cancelled (both its times passed, made
+  in 107641123), one cancelled by its owner (made in 107558036, cancelled in 107624182) and a channel asked to close (made in 107296498, claimed once in 107558036, its `Expiration` set
+  in 107711512 a 30-day settle delay on), and is the destination of a check that expired a day after it was written (107670360): all four before the explorer's head (107721455),
+  whose `account_objects` holds the three still in the ledger (C7). Others own an escrow pending until 2030 (no recorded XRPL escrow is pending at the as-of time), one that can be
+  finished and has no `CancelAfter` (none is), an escrow of D5's synthetic MPT issuance (`0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8`, 250 units: none was found on the
+  network, D5's FINDINGS (8)), and `channel-long`: created in the first recorded ledger and then claimed from (108 claims) and funded (11 funds) across the later ones, 120 events,
+  so that its answer embeds 50 and two pages follow (50 and 20). The open ones have node entries too.
+- **C9's transactions**, in the ledger of the recorded `DelegateSet` (107558036), at the indexes after its own (71 to 74), with files and appended to that ledger's list: a delegated
+  `Payment` and a delegated `tec` (D5's `delegatedFrom` over the ledger's first successful XRP `Payment` between two accounts and its first `tec` `Payment`: the `Delegate`
+  `rHb9CJAW…`, D5's `SYNTHETIC_DELEGATE`, pays the fee from a root appended to the metadata, the sender's balance keeps it), the `DelegateSet` with an empty list that deletes
+  the recorded delegation (D5's `delegate_set_empty`, as the account's next transaction), and the same `DelegateSet` failed with `tecINSUFFICIENT_RESERVE` (its fee and sequence
+  only). Their hash is that of their serialization (the binary form re-hashes to it), not D5's `syntheticHash`. They are not rows of the index: D5 never indexed them, so the recorded
+  delegation stays as the reference has it (not deleted).
+
+### Written by hand
+
+- XRPL `node/account_objects/rBbW6i….json` (and its byte copy `…@limit=400.json`) gains the node entries of the three live synthetic objects (as their `node/ledger_entry/` files
+  have them) and a `Delegate` (`Authorize` the first delegation given below, its three permissions), and `node/account_info/rBbW6i….json` its `OwnerCount` 4 (the trust line, the
+  escrow, the channel and the delegation; the check is its sender's).
+- XRPL `data-api/accounts/<A>/delegations@direction=given&limit=200.json` and `…held…`: `rBbW6i…` gives three (the Delegation board's: `Payment`, `TrustlineAuthorize` and
+  `TrustlineFreeze`; eight; `TrustlineUnfreeze` and the two MPT locks) and holds two (`Payment`; `TrustSet`, `OfferCreate`, `OfferCancel`), its delegates' addresses drawn from
+  `seedOf("xrpl", "objects", "delegations")`, the IDs their keylets, the times and ledgers on the board's days; the deleted account `r3Cger…` has none, and the never-funded one
+  none with a coverage that is not whole. All as of 107972102 with the delegations' coverage, `{ from_ledger_index: 102145584, complete: true }` (the first ledger of the recordings
+  is before the PermissionDelegation amendment). An account with no file is D5's empty page with the same coverage and ledger (`DELEGATIONS_AS_OF` in `test/support/upstream-core.ts`,
+  C11; Xahau's is the reference's example).
+
+### The cases of the pages
+
+`test/support/object-cases.ts` (`objectCase(net, which)`) finds an object of each case in the committed files by the predicates of `test/support/object-case-rules.ts`, never from a table
+of IDs; `test/unit/object-fixtures.test.ts` checks that they resolve, the first by ID of those a rule takes:
+
+| Case | Rule | XRPL |
+|---|---|---|
+| `escrow-pending`, `escrow-finishable` | pending, of the native currency; can be finished | synthetic |
+| `escrow-cancellable`, `escrow-cancelled` | can be cancelled, native, created indexed; cancelled, created indexed | the active account's (synthetic) |
+| `escrow-finished`, `escrow-token`, `escrow-mpt` | finished with its creation; a token escrow with its creation; an MPT escrow | `FA8631A0…` (XRB); `1A137C89…`; synthetic |
+| `escrow-incomplete` | finished, no `created`, coverage not whole (C8) | `8993DA09…` |
+| `escrow-node-only`, `check-node-only` | a node entry of the type that has no answer | `0F0EE149…`, `24BC04C8…` |
+| `check-open`, `check-expired`, `check-cashed`, `check-cancelled` | by status (open: native, created indexed) | `DA6BE164…`; synthetic (to the active account); `A13EFD94…`; `2C0D06B6…` |
+| `channel-open`, `channel-closing`, `channel-closed`, `channel-long` | open with one page; closing by an `expiration`, created indexed; closed; more than one page (`markers`) | `E22CCE8F…`; the active account's (synthetic); `BA23FAA9…`; synthetic |
+| `xahau-escrow`, `xahau-token-channel` (asked of Xahau) | an escrow in the ledger, native; a token channel | `B7083D00…`; `29FE7315…` (DHA) |
+| `delegated-payment`, `delegated-tec`, `delegate-set-empty`, `delegate-set-failed` | the transaction (`id` its hash, `owner` its `Account`) | C9's |
+
+**What keeps them true.** `test/unit/object-fixtures.test.ts` checks every answer, page and lookup with the client's shape checks (`app/server/object-shape.ts`) and the reference's key
+lines, the reference's examples text for text, the statuses the recordings show, the coverage rule, each escrow's ID against its `EscrowCreate`'s created node and its keylet,
+`channel-long`'s pages and markers, the synthetic objects and transactions, which transactions have a file and that each is at its place in its ledger's list, the cases, the
+hand-written files against the generator's, that `isObjectGenerated` names the files and nothing else, and that a second run writes the same bytes. `scripts/http-fixtures.test.ts` fails
+when a file is not what the generator writes.
 
 ## Synthetic names and tomls: `http/<net>/data-api/account_names.json` and `http/<net>/data-api/toml/`
 

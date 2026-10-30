@@ -240,8 +240,9 @@ describe.each(NETS)("the names of %s", (net) => {
     expect(inOrder.some((path) => path.includes("@binary=true"))).toBe(false);
     const collected = collectAddresses(...inOrder.map((path) => JSON.parse(files[net].get(prefix + path)!)));
     expect(seeded).toEqual(collected.filter((address) => !fixed.has(address)).slice(0, NAMES_SEEDED_MAX));
-    // neither network reaches the cap: XRPL has 400 addresses besides the fixed ones, Xahau 86
-    expect(seeded.length).toBe(net === "xrpl" ? 400 : 86);
+    // neither network reaches the cap: XRPL has 448 addresses besides the fixed ones, Xahau 103 (400 and 86 before E10 served the ledger objects' transactions, which are
+    // `transactions/<HASH>.json` files and so among the sources: scripts/object-fixtures.ts)
+    expect(seeded.length).toBe(net === "xrpl" ? 448 : 103);
     // every entry is a fixed or a seeded address
     for (const address of Object.keys(names)) expect(fixed.has(address) || seeded.includes(address), address).toBe(true);
   });

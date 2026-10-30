@@ -1,0 +1,26 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2025-06-03T07:28:50+00:00",
+    "hash": "3F0CBC302AD643A2EE6D19871648810FDCA2C352DB7F935321160330AD28B676",
+    "ledger_index": 14634228,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi","AccountIndex":"8aa","Balance":"5156370971","EmailHash":"A680A712FC0E8E8769888402739998FC","Flags":0,"ImportSequence":57710509,"OwnerCount":58,"RewardAccumulator":"8cd01cff","RewardLgrFirst":13172151,"RewardLgrLast":14634228,"RewardTime":796898150,"Sequence":756253179,"TouchCount":"2"},"LedgerEntryType":"AccountRoot","LedgerIndex":"61F7083523CECCBF90322A1DA2BE2BD4C1472EF1C541B3A30A1C8E713C647DAB","PreviousFields":{"Balance":"5356370983","OwnerCount":57,"RewardAccumulator":"8ccee32b","RewardLgrLast":14634213,"Sequence":756253178}}},{"CreatedNode":{"LedgerEntryType":"Escrow","LedgerIndex":"B7083D00A118CFF42E9DC482BC84322C101D95EDA2BB8D06C70A9AB8839C3554","NewFields":{"Account":"rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi","Amount":"200000000","Destination":"rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi","FinishAfter":922161600,"OwnerNode":"1","TransferRate":1000000000}}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi","RootIndex":"5D8AA796F3CECB10A024FA765767CA10604DC3EC62000836E9EF51477EBD0E5E"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"F6EDD781D44E77A21E574A3C7F46BD23728FD6117D31038D44F0FCB680D56B1E"}}],
+      "TransactionIndex": 0,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi",
+      "Amount": "200000000",
+      "Destination": "rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi",
+      "Fee": "12",
+      "FinishAfter": 922161600,
+      "LastLedgerSequence": 14634246,
+      "NetworkID": 21337,
+      "Sequence": 756253178,
+      "SigningPubKey": "02EF314A90DAECB2FA2FD31B85424DFCDA378EB2F5268A8B72E847798874061250",
+      "TransactionType": "EscrowCreate",
+      "TxnSignature": "304402202D04FE29F45A45A905EF9BAA2A18EB109951483A6EA75DD4AC53CF5226793BA6022076ED4B635CFC7BFB25E652F265BE663879090FBE13D6D4C57EB66C9F519BCD92"
+    }
+  }
+}

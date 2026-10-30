@@ -1,0 +1,30 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2025-01-04T00:03:00+00:00",
+    "hash": "8A6812049815D9A8D9B582BA682AD18A4ADB5C049412978CEBA0F8E56AC4A037",
+    "ledger_index": 11083603,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m","Amount":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"1"},"Balance":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0.023506"},"Destination":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","DestinationNode":"0","Flags":0,"OwnerNode":"0","PublicKey":"ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425","SettleDelay":1209600,"TransferRate":1000000000},"LedgerEntryType":"PayChannel","LedgerIndex":"29FE7315A85998E7039B0E97AEEB0C1ACA4CE72D6D0DD25C79CCC26466988AF0","PreviousFields":{"Balance":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0"}}}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"DHA","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-0.023506"},"Flags":131072,"HighLimit":{"currency":"DHA","issuer":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","value":"10000000000"},"HighNode":"0","LowLimit":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"73C7AD7D6979F52DCFBC948B7B7AAD0887AFC52523FFAD4DBBD8012C26EF49E2","PreviousFields":{"Balance":{"currency":"DHA","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"0"}}}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"DHA","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-9997.975617"},"Flags":131072,"HighLimit":{"currency":"DHA","issuer":"rL6rwNe6puyoN5X1BUy8pEQb6Un23m2f1m","value":"10000000000"},"HighNode":"0","LockCount":6,"LockedBalance":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"-5.954613"},"LowLimit":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0"},"LowNode":"0"},"LedgerEntryType":"RippleState","LedgerIndex":"BD863E5D43AF24C933B6C1B3E2EF119B5D9B7B8C871322CA0A033D1F822189C3","PreviousFields":{"Balance":{"currency":"DHA","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-9997.999123"},"LockedBalance":{"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"-5.978119"}}}},{"ModifiedNode":{"FinalFields":{"Account":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","AccountIndex":"16569","Balance":"1986054","Flags":0,"ImportSequence":87535249,"OwnerCount":2,"Sequence":778224559},"LedgerEntryType":"AccountRoot","LedgerIndex":"D6511F55F7C7ADDFCDCE57EF5ECFC2357DB5B0860ADA83030E26EBAB7DB03F1B","PreviousFields":{"Balance":"1991091","Sequence":778224558}}}],
+      "TransactionIndex": 113,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR",
+      "Amount": {"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0.1"},
+      "Balance": {"currency":"DHA","issuer":"rDyz9rX7eGJRdVDC8NGxMxqh9U14qduqzS","value":"0.023506"},
+      "Channel": "29FE7315A85998E7039B0E97AEEB0C1ACA4CE72D6D0DD25C79CCC26466988AF0",
+      "Fee": "5037",
+      "Flags": 0,
+      "LastLedgerSequence": 11083606,
+      "NetworkID": 21337,
+      "PublicKey": "ED3E65C66F452D4C5029F4B338213FC6691C43ED04FCBC5AB88850471C9979F425",
+      "Sequence": 778224558,
+      "Signature": "3EE4F0AE2FE5F0114DAD712651752595AD620F4A33FA2E3C947440FA2D38DCAC0D636FF7153D63F17F5EEDED4F402A188EE6CC65EAB7AC95A5FF43A8D175540C",
+      "SigningPubKey": "EDC59AAEF1CCAE7CCCAA696F4B95E0F40292103BB58AB77C12F6CAC63C4C00057B",
+      "SourceTag": 280957156,
+      "TransactionType": "PaymentChannelClaim",
+      "TxnSignature": "4B01661880BC0F54F272FD91B22BFE4388163EACDDBFAFCCA796430F3E0B18037FAF5E39A1AAE842C1331FBB348D030E2B74D0F0F3B3DE751DF07A18709CF405"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "count": 3,
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 102145584
+  },
+  "delegations": [
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","authorize":"rGCMDQCMGueT8HTcKL3j7cA9aJ7qfX92GW","created":{"ledger_index":107652633,"time":"2026-10-14T16:03:22Z","tx_hash":"3E76B7DF382BBD6B33DC0874F69F796C3360FCDBED6FE43FB8C5A39269A33FD4"},"delegation_id":"041F102BEEE0B4DC4578BDC0F32FCB08BE1F85DBF6A1ECD44522D8F2643F0522","permissions":[{"kind":"transaction","permission":"Payment"},{"kind":"granular","permission":"TrustlineAuthorize","transaction_type":"TrustSet"},{"kind":"granular","permission":"TrustlineFreeze","transaction_type":"TrustSet"}],"updated":{"ledger_index":107652633,"time":"2026-10-14T16:03:22Z","tx_hash":"3E76B7DF382BBD6B33DC0874F69F796C3360FCDBED6FE43FB8C5A39269A33FD4"}},
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","authorize":"rneMZ5XxbdDi9oaNFNsR6ZQPEyugUjn4VY","created":{"ledger_index":106710983,"time":"2026-09-02T11:27:40Z","tx_hash":"688E69AD9F8DC7E6ABEB29BEE7CC166BE1BD41064E027158958989013A4A255D"},"delegation_id":"13FD4EF5A6A501DF5A5331C309E977AF5385EE2E3B7FA8ECC259093745F8C261","permissions":[{"kind":"transaction","permission":"Payment"},{"kind":"granular","permission":"PaymentMint","transaction_type":"Payment"},{"kind":"granular","permission":"PaymentBurn","transaction_type":"Payment"},{"kind":"transaction","permission":"TrustSet"},{"kind":"transaction","permission":"OfferCreate"},{"kind":"transaction","permission":"OfferCancel"},{"kind":"granular","permission":"AccountDomainSet","transaction_type":"AccountSet"},{"kind":"granular","permission":"AccountTransferRateSet","transaction_type":"AccountSet"}],"updated":{"ledger_index":106710983,"time":"2026-09-02T11:27:40Z","tx_hash":"688E69AD9F8DC7E6ABEB29BEE7CC166BE1BD41064E027158958989013A4A255D"}},
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","authorize":"r43VwKWSW5mAVAxJpSk4UNUkRwx7HVt3Yn","created":{"ledger_index":105746947,"time":"2026-07-21T08:14:51Z","tx_hash":"F982592FBF9617B9D4B9C70F7B95C953E9270886C65782DF88FAB0372E73737C"},"delegation_id":"FEC2A4077E8803951437892944605B832780B7AF88E24899D79CABB34AC2C9E9","permissions":[{"kind":"granular","permission":"TrustlineUnfreeze","transaction_type":"TrustSet"},{"kind":"granular","permission":"MPTokenIssuanceLock","transaction_type":"MPTokenIssuanceSet"},{"kind":"granular","permission":"MPTokenIssuanceUnlock","transaction_type":"MPTokenIssuanceSet"}],"updated":{"ledger_index":105746947,"time":"2026-07-21T08:14:51Z","tx_hash":"F982592FBF9617B9D4B9C70F7B95C953E9270886C65782DF88FAB0372E73737C"}}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

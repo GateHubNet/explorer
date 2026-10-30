@@ -1,0 +1,37 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 102145584
+  },
+  "escrow": {
+    "account": "rfd4xkXuigdGJV2XYkbosFzBQaLsc6M8Vm",
+    "amount": {
+      "currency": "XRB",
+      "issuer": "rD9ixf7RRUKuKVFTsZa3fZGAN6HtNziPKa",
+      "value": "75000"
+    },
+    "created": {
+      "ledger_index": 107945438,
+      "time": "2026-10-27T22:14:51Z",
+      "tx_hash": "3D7F58900F76F6B50D7B5BB1988D9E3C4E33744928B14DE1106848FFA9A3343C"
+    },
+    "destination": "rHiwfnKJCwNePaTj8HmEYCx8G5NCsSEJSt",
+    "escrow_id": "FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4",
+    "finish_after": "2026-10-28T22:14:47Z",
+    "removed": {
+      "ledger_index": 107967068,
+      "time": "2026-10-28T22:14:51Z",
+      "tx_hash": "375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA",
+      "tx_type": "EscrowFinish"
+    },
+    "sequence": 107945427,
+    "status": "finished"
+  },
+  "history": [
+    {"account":"rPw6JAdM9BGwH4y4LxJQBDybaGNhFLCspU","event":"finish","ledger_index":107967068,"result":"tesSUCCESS","time":"2026-10-28T22:14:51Z","tx_hash":"375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA","tx_type":"EscrowFinish"},
+    {"account":"rfd4xkXuigdGJV2XYkbosFzBQaLsc6M8Vm","amount":{"currency":"XRB","issuer":"rD9ixf7RRUKuKVFTsZa3fZGAN6HtNziPKa","value":"75000"},"event":"create","ledger_index":107945438,"result":"tesSUCCESS","time":"2026-10-27T22:14:51Z","tx_hash":"3D7F58900F76F6B50D7B5BB1988D9E3C4E33744928B14DE1106848FFA9A3343C","tx_type":"EscrowCreate"}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

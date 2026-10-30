@@ -22,7 +22,8 @@
 //                                     (the currency as the ledger holds it)
 //   node amm_info rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3
 //                                     a pool by its account; by its pair the subject is `<asset>_<asset2>`, written as a book's
-//   node nft_info <NFT ID>            an NFT by its id (so are `nft_sell_offers` and `nft_buy_offers`); `node ledger_entry <ID>` a ledger entry (a URIToken) by its `index`
+//   node nft_info <NFT ID>            an NFT by its id (so are `nft_sell_offers` and `nft_buy_offers`); `node ledger_entry <ID>` a ledger entry (a URIToken, an escrow, a check, a
+//                                     payment channel, a delegation) by its `index`
 //   GET /v2/account_names             without a query: every names call of the network (`GET /v2/account_names?addresses=…` is one call, and wins over it)
 //
 // `GET /v2/account_names` has no file per call: the mock composes D4's answer from the network's `data-api/account_names.json` (`composeAccountNames`).
@@ -294,8 +295,37 @@ const NFT_COVERAGE: Record<NetworkName, { from_ledger_index: number; complete: b
   xahau: { from_ledger_index: 26533927, complete: false },
 };
 
+/**
+ * D5's delegations as the mock has them, by network (scripts/object-fixtures.ts and the hand-written `delegations@…` files; test/unit/object-fixtures.test.ts compares the two): the
+ * delegations' coverage (XRPL's is whole from the first ledger of the objects recordings, which is before the PermissionDelegation amendment; Xahau cannot have delegations, which
+ * D5 says complete from its first ledger: docs/api-reference.md at 0c2e58c) and the ledger every objects answer is as of, the newest of the network's objects recordings.
+ */
+const DELEGATIONS_AS_OF: Record<NetworkName, { coverage: { from_ledger_index: number; complete: boolean }; ledger_index: number; close_time: string }> = {
+  xrpl: { coverage: { from_ledger_index: 102145584, complete: true }, ledger_index: 107972102, close_time: "2026-10-29T03:50:41Z" },
+  xahau: { coverage: { from_ledger_index: 8852809, complete: true }, ledger_index: 26399329, close_time: "2026-10-09T12:49:32Z" },
+};
+
+/** D5's 404 of each object route (`NOT_FOUND_OF`, `LEDGER_OBJECT_NOT_FOUND`): the object and the pages of its history. */
+const OBJECT_NOT_FOUND: Record<string, string> = {
+  escrows: "escrow not found",
+  checks: "check not found",
+  payment_channels: "payment channel not found",
+};
+
+/**
+ * `GET /v2/accounts/{address}/delegations` of an account without a file, as D5 answers it: 400 `invalid ripple address` for an address that is no classic one, 400 `invalid direction`
+ * for a direction that is neither `given` nor `held` (missing or empty is `given`), else 200 with an empty page and the delegations' coverage (C11), as D3 answers the NFTs of any account.
+ */
+function delegationsAbsent(net: NetworkName, address: string, search: URLSearchParams): Response {
+  if (!isValidClassicAddress(address)) return dataApiError(400, "invalid ripple address");
+  const direction = search.get("direction") || "given";
+  if (direction !== "given" && direction !== "held") return dataApiError(400, "invalid direction");
+  const { coverage, ledger_index, close_time } = DELEGATIONS_AS_OF[net];
+  return new Response(JSON.stringify({ result: "success", coverage, ledger_index, close_time, count: 0, delegations: [] }), { status: 200, headers: JSON_HEADERS });
+}
+
 /** The "absent" answer of a data API path: what the real API says for a thing that does not exist. `net` is the network whose API is asked. */
-function dataApiAbsent(net: NetworkName, segments: string[]): Response {
+function dataApiAbsent(net: NetworkName, segments: string[], search: URLSearchParams = new URLSearchParams()): Response {
   const [version, resource, id, sub] = segments;
   if (version === "v2" && resource === "ledgers" && id !== undefined && sub === undefined) {
     return dataApiError(404, "ledger not found");
@@ -310,7 +340,13 @@ function dataApiAbsent(net: NetworkName, segments: string[]): Response {
     if (sub === "nfts" && segments.length === 4) {
       return new Response(JSON.stringify({ result: "success", coverage: NFT_COVERAGE[net], count: 0, nfts: [] }), { status: 200, headers: JSON_HEADERS });
     }
+    if (sub === "delegations" && segments.length === 4) return delegationsAbsent(net, id, search);
   }
+  // D5's escrows, checks and payment channels (`/{id}` and `/{id}/history`) and the lookup of an ID: the routes' own not-found messages. Nothing else is below them.
+  if (version === "v2" && resource !== undefined && OBJECT_NOT_FOUND[resource] !== undefined && id !== undefined && (sub === undefined || (sub === "history" && segments.length === 4))) {
+    return dataApiError(404, OBJECT_NOT_FOUND[resource]!);
+  }
+  if (version === "v2" && resource === "ledger_objects" && id !== undefined && sub === undefined) return dataApiError(404, "ledger object not found");
   // D3's NFT and collection routes, and everything below them (an NFT's history and offers, a collection's NFTs, holders, sales and stats): the routes' own not-found messages.
   // `/v2/nfts` has no list, and the lists of the network (`nft_collections`, `nft_sales`, `network/nft_volume`) never answer 404: they stay missing routes, `Cannot GET`.
   if (version === "v2" && resource === "nfts" && id !== undefined) return dataApiError(404, "nft not found");
@@ -365,7 +401,7 @@ const NODE_ABSENT: Record<string, string> = {
   server_state: "noNetwork",
   // A pair or an account that is no pool. (`book_offers` has no code: a book nobody offers in is an empty one, see `createUpstream`.)
   amm_info: "actNotFound",
-  // An NFT the node has none of (Clio), and the entry of a URIToken it has none of (xahaud). The offers of an NFT with none are `objectNotFound` too.
+  // An NFT the node has none of (Clio), and an entry it has none of (a URIToken on xahaud, an object of E10 on either). The offers of an NFT with none are `objectNotFound` too.
   nft_info: "objectNotFound",
   nft_sell_offers: "objectNotFound",
   nft_buy_offers: "objectNotFound",
@@ -577,7 +613,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
           override.get(key),
           request,
           (body) => new Response(JSON.stringify(body), { status: 200, headers: JSON_HEADERS }),
-          () => dataApiAbsent(net, segments),
+          () => dataApiAbsent(net, segments, url.searchParams),
         );
       }
 
@@ -606,7 +642,7 @@ export function createUpstream({ files, bases, primary, overrides = {}, requests
       const body = file === undefined ? undefined : await files.read(file);
       if (body === undefined) {
         seen.source = "absent";
-        return dataApiAbsent(net, segments);
+        return dataApiAbsent(net, segments, url.searchParams);
       }
       return new Response(body, { status: 200, headers: JSON_HEADERS });
     };

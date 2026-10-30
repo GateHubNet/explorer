@@ -1,0 +1,32 @@
+{
+  "close_time": "2026-10-29T03:50:41Z",
+  "coverage": {
+    "complete": false,
+    "from_ledger_index": 102145584
+  },
+  "escrow": {
+    "account": "rwEPtzveRSB2eb7Yp1PPxSPLFyrcp2oa4j",
+    "amount": {
+      "currency": "5852504C00000000000000000000000000000000",
+      "issuer": "rwxD9HftXdnfZGhGawvXRE3GUtaFdx7eSN",
+      "value": "4839"
+    },
+    "cancel_after": "2026-08-07T10:43:40Z",
+    "condition": "A0258020690DEDDF2371B05F7367DCE5CF110E91DEC45C9AFC9EB413419D7A0095A55F7C810100",
+    "destination": "rhyc2QxaHV5pVEtMSPNr27or475C2bQQNd",
+    "escrow_id": "F47CF0CD08D2B71A82AC15AFC0F8B9D2222A68A0516BF9CC81BC7CD3962E18B2",
+    "removed": {
+      "ledger_index": 106179366,
+      "time": "2026-08-09T15:01:30Z",
+      "tx_hash": "BA4D9B19D2B50440D90459E842C55FEAFCFFBC2D2423F121D581289A5442D43D",
+      "tx_type": "EscrowCancel"
+    },
+    "sequence": 106124396,
+    "status": "cancelled"
+  },
+  "history": [
+    {"account":"rJeThUw6DV5UMnHdJd8y724yCsBRVjDZ6E","event":"cancel","ledger_index":106179366,"result":"tesSUCCESS","time":"2026-08-09T15:01:30Z","tx_hash":"BA4D9B19D2B50440D90459E842C55FEAFCFFBC2D2423F121D581289A5442D43D","tx_type":"EscrowCancel"}
+  ],
+  "ledger_index": 107972102,
+  "result": "success"
+}

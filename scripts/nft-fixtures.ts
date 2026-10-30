@@ -1168,6 +1168,23 @@ export function nftAnswers(): NftAnswer[] {
   return answers;
 }
 
+let ledgerEntryIds: Set<string> | undefined;
+
+/**
+ * The ids of the Xahau URITokens whose `node/ledger_entry/<ID>.json` this generator writes (`nodeFiles`), worked out once: `node/ledger_entry/` is the ledger-object pages' too, and
+ * `isNftGenerated` claims these entries only (C5).
+ */
+export function nftLedgerEntryIds(): ReadonlySet<string> {
+  if (ledgerEntryIds === undefined) {
+    ledgerEntryIds = new Set();
+    for (const { path } of nftAnswers()) {
+      const id = /^(xrpl|xahau)\/node\/ledger_entry\/([0-9A-F]{64})\.json$/.exec(path)?.[2];
+      if (id !== undefined) ledgerEntryIds.add(id);
+    }
+  }
+  return ledgerEntryIds;
+}
+
 /** Every NFT file: path below test/fixtures/http/ and text. */
 export function nftFixtures(): Array<[path: string, text: string]> {
   return nftAnswers().map(({ path, value }) => [path, fixtureText(value, ROW_LISTS)]);

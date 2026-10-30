@@ -1,0 +1,39 @@
+{
+  "check": {
+    "account": "rwietsevLFg8XSmG3bEZzFein1g8RBqWDZ",
+    "check_id": "F3B54B771F9269A2381A227CC01386C651C3A5AE7EE2234BD2A958EFDAE81716",
+    "created": {
+      "ledger_index": 12064511,
+      "time": "2025-02-14T07:13:21Z",
+      "tx_hash": "2351E62FD79D086C7F9248CAB28B9DD32E090457858B65380EB269EEF79E2916"
+    },
+    "delivered": {
+      "currency": "XAH",
+      "value": "1"
+    },
+    "destination": "rsYxnKtb8JBzfG4hp6sVF3WiVNw2broUFo",
+    "removed": {
+      "ledger_index": 12064524,
+      "time": "2025-02-14T07:14:21Z",
+      "tx_hash": "11B73A143945187700479CA7B6965F763DB6FCD04244E48A227B68F54055F89C",
+      "tx_type": "CheckCash"
+    },
+    "send_max": {
+      "currency": "XAH",
+      "value": "1"
+    },
+    "sequence": 751998463,
+    "status": "cashed"
+  },
+  "close_time": "2026-10-09T12:49:32Z",
+  "coverage": {
+    "complete": true,
+    "from_ledger_index": 8852809
+  },
+  "history": [
+    {"account":"rsYxnKtb8JBzfG4hp6sVF3WiVNw2broUFo","delivered":{"currency":"XAH","value":"1"},"event":"cash","ledger_index":12064524,"result":"tesSUCCESS","time":"2025-02-14T07:14:21Z","tx_hash":"11B73A143945187700479CA7B6965F763DB6FCD04244E48A227B68F54055F89C","tx_type":"CheckCash"},
+    {"account":"rwietsevLFg8XSmG3bEZzFein1g8RBqWDZ","event":"create","ledger_index":12064511,"result":"tesSUCCESS","send_max":{"currency":"XAH","value":"1"},"time":"2025-02-14T07:13:21Z","tx_hash":"2351E62FD79D086C7F9248CAB28B9DD32E090457858B65380EB269EEF79E2916","tx_type":"CheckCreate"}
+  ],
+  "ledger_index": 26399329,
+  "result": "success"
+}

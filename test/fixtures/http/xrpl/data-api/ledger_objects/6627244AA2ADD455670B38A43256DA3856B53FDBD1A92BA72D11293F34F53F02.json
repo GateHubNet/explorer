@@ -1,0 +1,10 @@
+{
+  "ledger_object": {
+    "account": "rUDFYW6YgX1xNwApecHYxwhH1Kk3f6Epj3",
+    "deleted": false,
+    "ledger_index": 107641123,
+    "object_id": "6627244AA2ADD455670B38A43256DA3856B53FDBD1A92BA72D11293F34F53F02",
+    "object_type": "PayChannel"
+  },
+  "result": "success"
+}

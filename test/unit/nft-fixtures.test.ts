@@ -1492,7 +1492,11 @@ function sourcesOf(net: NetworkName): NftSources {
     else if ((match = /^node\/nft_info\/([0-9A-F]{64})\.json$/.exec(rest))) {
       const { result } = JSON.parse(text);
       node.set(match[1]!, { issuer: result.issuer, taxon: result.nft_taxon, serial: result.nft_serial, burned: result.is_burned });
-    } else if ((match = /^node\/ledger_entry\/([0-9A-F]{64})\.json$/.exec(rest))) node.set(match[1]!, { issuer: JSON.parse(text).result.node.Issuer, burned: false });
+    } else if ((match = /^node\/ledger_entry\/([0-9A-F]{64})\.json$/.exec(rest))) {
+      // `node/ledger_entry/` holds the ledger-object pages' entries too (C5): only a URIToken is an NFT.
+      const entry = JSON.parse(text).result.node;
+      if (entry.LedgerEntryType === "URIToken") node.set(match[1]!, { issuer: entry.Issuer, burned: false });
+    }
     else if ((match = /^data-api\/accounts\/([^/]+)\/nfts@limit=20\.json$/.exec(rest))) holdings.set(match[1]!, JSON.parse(text));
   }
   const made = { nfts, histories, pagedHistories: paged, node, holdings };

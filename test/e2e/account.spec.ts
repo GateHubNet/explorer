@@ -113,6 +113,6 @@ test.describe("the account page", () => {
     await page.goto(`/xrpl/account/${XRPL_ACCOUNT}`);
     await expect(page.getByRole("region", { name: "Account" })).toContainText(/XRP balance\s*10\.001625/);
     await expect(page.getByRole("region", { name: "Tokens" })).toContainText("LIONS");
-    await expect(page.getByRole("region", { name: "Account" })).toContainText("Reserve 1.2 XRP = 1 base + 1 object × 0.2");
+    await expect(page.getByRole("region", { name: "Account" })).toContainText("Reserve 1.8 XRP = 1 base + 4 objects × 0.2");
   });
 });

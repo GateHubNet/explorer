@@ -1,0 +1,24 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-09-25T04:25:22+00:00",
+    "hash": "FCBC932640226E26E212E3E2F8F71763440DC092A398CA8C84B06FA870CABCE8",
+    "ledger_index": 107218583,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu","Amount":"5000000","Balance":"2469","Destination":"rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR","DestinationNode":"2","Flags":0,"OwnerNode":"0","PublicKey":"03A6C6BED4F26E1EBD97A7A4AE82560D3BA21C465F95A350FEAFC1BF17574CD306","SettleDelay":1209600},"LedgerEntryType":"PayChannel","LedgerIndex":"494E75E70AAFD8E655C4EBEA9541991367C038EC2251BEB4ABEBAC2AED8B0B7F","PreviousFields":{"Expiration":844406430},"PreviousTxnID":"29DE719FF22F8F1CE291BE2350C459CE9B06982EE4B15ACEAA1E5925FFE709DB","PreviousTxnLgrSeq":107107437}},{"ModifiedNode":{"FinalFields":{"Account":"rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu","Balance":"1199998","Domain":"706A726970706572696F2E787270","Flags":8388608,"OwnerCount":1,"Sequence":97255757},"LedgerEntryType":"AccountRoot","LedgerIndex":"B726121A8861E40795571B39B525CF9BF3D40EB1B3D35DB3AA85F5BD0ED2C279","PreviousFields":{"Balance":"1200010","Sequence":97255756},"PreviousTxnID":"5845DA32A3221393191B6C3E5EFDFF521A2E2F26C2012C5FAF6BC348556FD2F4","PreviousTxnLgrSeq":107121414}}],
+      "TransactionIndex": 13,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rfn1iu8peiUtayZMqXcpL8rt7x4cfk1Qfu",
+      "Channel": "494E75E70AAFD8E655C4EBEA9541991367C038EC2251BEB4ABEBAC2AED8B0B7F",
+      "Fee": "12",
+      "Flags": 65536,
+      "LastLedgerSequence": 107218610,
+      "Sequence": 97255756,
+      "SigningPubKey": "03A6C6BED4F26E1EBD97A7A4AE82560D3BA21C465F95A350FEAFC1BF17574CD306",
+      "TransactionType": "PaymentChannelClaim",
+      "TxnSignature": "304402205FB4C505FAC2314D56B06187D326B5D9D37AEDEFF41400C6B271FFADA2235C2F022031C49E30EC5573726E521AC1F7AF8EEE7DCB222D7C3B8CF5AAD237476210D639"
+    }
+  }
+}

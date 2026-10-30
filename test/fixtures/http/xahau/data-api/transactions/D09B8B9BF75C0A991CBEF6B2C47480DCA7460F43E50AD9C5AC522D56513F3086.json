@@ -1,0 +1,27 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-08-21T16:32:42+00:00",
+    "hash": "D09B8B9BF75C0A991CBEF6B2C47480DCA7460F43E50AD9C5AC522D56513F3086",
+    "ledger_index": 25229443,
+    "meta": {
+      "AffectedNodes": [{"CreatedNode":{"LedgerEntryType":"Escrow","LedgerIndex":"04CE36B38E978993BEC1DC2EAC552C3083E3B2EB98C0DC9DD47A15DDEAE57971","NewFields":{"Account":"rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT","Amount":{"currency":"CLV","issuer":"rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT","value":"80875"},"CancelAfter":1109602800,"Destination":"rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT","FinishAfter":1009904400,"TransferRate":1000000000}}},{"ModifiedNode":{"FinalFields":{"Account":"rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT","AccountIndex":"ac5d","Balance":"34034928474","Flags":0,"ImportSequence":79234570,"OwnerCount":12,"RewardAccumulator":"4171a6e92","RewardLgrFirst":24713268,"RewardLgrLast":25229443,"RewardTime":838776361,"Sequence":758570559,"TouchCount":"1c"},"LedgerEntryType":"AccountRoot","LedgerIndex":"7C87FB6EB56ED11A06C0EC699298E5FCC0A8BD8358097DA980DF0D3710C13F1D","PreviousFields":{"Balance":"34034928486","OwnerCount":11,"RewardAccumulator":"1fda80","RewardLgrLast":24713330,"Sequence":758570558,"TouchCount":"1b"},"PreviousTxnID":"8ED8911E90FE36D7EF53B15B1FDFBE33837D9A254B6344662ABB1B42D9DCA641","PreviousTxnLgrSeq":24713330}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT","RootIndex":"850DA01C438C90E000FC1070A06BC91D228B5EBDA3DFE218E25687611EB20D97"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"850DA01C438C90E000FC1070A06BC91D228B5EBDA3DFE218E25687611EB20D97"}},{"ModifiedNode":{"FinalFields":{"Balance":{"currency":"CLV","issuer":"rrrrrrrrrrrrrrrrrrrrBZbvji","value":"-181878.6463528408"},"Flags":2228224,"HighLimit":{"currency":"CLV","issuer":"rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT","value":"589000000"},"HighNode":"0","LockCount":1,"LockedBalance":{"currency":"CLV","issuer":"rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT","value":"-80875"},"LowLimit":{"currency":"CLV","issuer":"rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT","value":"0"},"LowNode":"3a0"},"LedgerEntryType":"RippleState","LedgerIndex":"E9076EE5AD08C2057BF4425887F76B3F789768CCBA20A0EE9708BB4438B324E0","PreviousFields":{},"PreviousTxnID":"5F76463CCBBC6D7601FBD8DB3218E25ED2704FC64874E872C4FCC83AA0608344","PreviousTxnLgrSeq":14152929}},{"ModifiedNode":{"FinalFields":{"Account":"rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT","AccountIndex":"dc90","Balance":"1999952","Domain":"0C0E0E","Flags":10158080,"OwnerCount":0,"RegularKey":"rrrrrrrrrrrrrrrrrrrrrhoLvTp","Sequence":760700926,"TickSize":5,"TouchCount":"110b"},"LedgerEntryType":"AccountRoot","LedgerIndex":"EEA9940ADBF28AE1E87302769E2E7430C6415A585CC792DF5E7655A6E72E94DD","PreviousFields":{"TouchCount":"110a"},"PreviousTxnID":"D2AB8FB26AB72311B8085B94F1B06B8A22924017D083C69414D23E5B942AF006","PreviousTxnLgrSeq":25217052}}],
+      "TransactionIndex": 1,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT",
+      "Amount": {"currency":"CLV","issuer":"rK8rYUs6gFH4QJ9JS814EF9112gKuYZZT","value":"80875"},
+      "CancelAfter": 1109602800,
+      "Destination": "rNyv2vcKQiR3UqsFBrjWR2MpjACJDFhcJT",
+      "Fee": "12",
+      "FinishAfter": 1009904400,
+      "LastLedgerSequence": 25229461,
+      "NetworkID": 21337,
+      "Sequence": 758570558,
+      "SigningPubKey": "032368D6A46F8971138524F5164E16AC5B6EF068EC62A8CD69D8FA76F51DD1E6E5",
+      "TransactionType": "EscrowCreate",
+      "TxnSignature": "30440220726DD7C497D210B7A96BD61B55B76EE2C11A6249FFA86CF96CA2B3BB1F17000B022074DE3574E416907165B4F5E9AED4064D65B3F04312D105050E058CDE847F385C"
+    }
+  }
+}

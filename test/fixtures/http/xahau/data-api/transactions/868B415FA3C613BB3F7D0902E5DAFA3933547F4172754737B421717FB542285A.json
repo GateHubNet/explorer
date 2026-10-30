@@ -1,0 +1,27 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-02-03T08:27:13+00:00",
+    "hash": "868B415FA3C613BB3F7D0902E5DAFA3933547F4172754737B421717FB542285A",
+    "ledger_index": 20449602,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"r42noEGvAqfwXnDBebeEPfYVswZVe6CKPo","Balance":"513437943338","Cron":"F7B645436187CC61312766C894079C8D313AACB7D70AC0533F39E0D180EEB325","Flags":1107296256,"OwnerCount":3,"RewardAccumulator":"2ccc1218ad","RewardLgrFirst":20074868,"RewardLgrLast":20449602,"RewardTime":822062220,"Sequence":751983705,"TouchCount":"10"},"LedgerEntryType":"AccountRoot","LedgerIndex":"05D94E6B897D7F11E5BB2318BA69A1B05FA77B1F805CEC68C88A7C86A43420F3","PreviousFields":{"Balance":"513437943365","RewardAccumulator":"103b27489a","RewardLgrLast":20210643,"Sequence":751983704,"TouchCount":"f"},"PreviousTxnID":"C404D873550187ABC0BA54B63D33604DFC6124157CE8B0F7D995FD6C71F6E5F4","PreviousTxnLgrSeq":20210643}},{"ModifiedNode":{"FinalFields":{"Account":"rfjquSFSKXnDYdQyGWuXBSSSW87jfpX7Qm","AccountIndex":"16665","Balance":"22700844","Cron":"F7B645436187CC61312DD7A7A09DA91CF1011256E4FD683F78518EE5D7D2E25B","Flags":1107296256,"OwnerCount":29,"RewardAccumulator":"374a98","RewardLgrFirst":20191314,"RewardLgrLast":20356022,"RewardTime":822484331,"Sequence":778422252,"TouchCount":"26"},"LedgerEntryType":"AccountRoot","LedgerIndex":"1143F5F49FF21890230F12C22F8459F60A37BDEF42C0D2BA66C4B8E734DB10F8","PreviousFields":{"TouchCount":"25"},"PreviousTxnID":"F60B612531DB551F787BE9F113FFF517AC29E4FD9566816C7F0C1D012A42B1EA","PreviousTxnLgrSeq":20356034}},{"ModifiedNode":{"FinalFields":{"Flags":0,"Owner":"rN2DeuLywSibJ1kH5VtkbN2MYEV3qrXgM1","RootIndex":"1DF2814B40A3AC4ACC260099E41E82F3E734E2AA06B8F9A709622853AE291608"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"1DF2814B40A3AC4ACC260099E41E82F3E734E2AA06B8F9A709622853AE291608"}},{"ModifiedNode":{"FinalFields":{"Account":"rN2DeuLywSibJ1kH5VtkbN2MYEV3qrXgM1","AccountIndex":"16aad","Balance":"6260282","Cron":"F7B645436187CC61313B79A8D0D91460EF8429335F6FAB91283EEF9E91DD7965","Flags":3263299584,"OwnerCount":10,"RewardAccumulator":"3550cf","RewardLgrFirst":19750783,"RewardLgrLast":20449602,"RewardTime":820880470,"Sequence":782424088,"TouchCount":"25"},"LedgerEntryType":"AccountRoot","LedgerIndex":"3D6D82D6CD4E00DDC04AF8179B68FFE7E1097E3E7B7C9E6D794BA6E2218B1FCA","PreviousFields":{"Balance":"5260282","OwnerCount":11,"RewardAccumulator":"346093","RewardLgrLast":20437302,"TouchCount":"24"},"PreviousTxnID":"90B17BBA051F9662268DD4BAE9B4CB116EFA583D0857CEDE0F35B81235A3ABFA","PreviousTxnLgrSeq":20437302}},{"ModifiedNode":{"FinalFields":{"Flags":0,"IndexNext":"1","IndexPrevious":"1","Owner":"rfjquSFSKXnDYdQyGWuXBSSSW87jfpX7Qm","RootIndex":"99DA90A1C86DF6A738FE99178691C63E99F66E76962A908B4B35928E1DB5D2C7"},"LedgerEntryType":"DirectoryNode","LedgerIndex":"99DA90A1C86DF6A738FE99178691C63E99F66E76962A908B4B35928E1DB5D2C7"}},{"DeletedNode":{"FinalFields":{"Account":"rN2DeuLywSibJ1kH5VtkbN2MYEV3qrXgM1","Amount":"1000000","CancelAfter":804114000,"Destination":"rfjquSFSKXnDYdQyGWuXBSSSW87jfpX7Qm","DestinationNode":"0","DestinationTag":76765654,"FinishAfter":804027600,"Flags":0,"OwnerNode":"0","PreviousTxnID":"2ACAE5E51DB5ED8CA6C4AF44524CA42A9E786FC6FD693C90847E57AEA48CBF90","PreviousTxnLgrSeq":15042521,"SourceTag":42697468,"TransferRate":1000000000},"LedgerEntryType":"Escrow","LedgerIndex":"9B4F20C2D27BBD54C96E0F25051A3D53DDF47AC56A56000198C1915E1217BF78"}}],
+      "TransactionIndex": 0,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "r42noEGvAqfwXnDBebeEPfYVswZVe6CKPo",
+      "Fee": "27",
+      "LastLedgerSequence": 20449620,
+      "Memos": [{"Memo":{"MemoData":"78616861756578706C6F7265722E636F6D"}}],
+      "NetworkID": 21337,
+      "OfferSequence": 782424048,
+      "Owner": "rN2DeuLywSibJ1kH5VtkbN2MYEV3qrXgM1",
+      "Sequence": 751983704,
+      "SigningPubKey": "03C54F87A40B70C6A74E38E9022130990DF10643D700541E1C30C760F8DE03B830",
+      "SourceTag": 42697468,
+      "TransactionType": "EscrowCancel",
+      "TxnSignature": "304402204A388A5EA03A10398AA25E697E077E87CC181973C848DBD25B3322914A08AEBC0220148C7D6D71B38B65F994724D45FCF917CD82172A2DF73B16AE6BFFDA165FC9A6"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "result": {
+    "index": "746A9316E23A9C5FFFFEDCB0CB2BACC43F6C4B44B8A51C9EB8CE020583E1BC65",
+    "ledger_hash": "CD362D14BCEACBF65B9BFDE226CD393FC1F930FC814F21269935D7FA6DD5A697",
+    "ledger_index": 107972102,
+    "node": {
+      "Account": "rNwZP7YtyrWyYJ44aJtvi711fm1iqEQLX",
+      "Amount": "10000000",
+      "Destination": "rsjLNx2A2kKj877nnV5mU7Uqpjb4fokevo",
+      "DestinationNode": "0",
+      "FinishAfter": 846348560,
+      "Flags": 0,
+      "LedgerEntryType": "Escrow",
+      "OwnerNode": "0",
+      "PreviousTxnID": "3C497889030EC57E7B12D691B31610424EC58F9D15B01FEA14FE124DC97C3840",
+      "PreviousTxnLgrSeq": 107897249,
+      "Sequence": 91531908,
+      "index": "746A9316E23A9C5FFFFEDCB0CB2BACC43F6C4B44B8A51C9EB8CE020583E1BC65"
+    },
+    "status": "success",
+    "validated": true
+  }
+}
