@@ -996,7 +996,7 @@ describe("describe: the objects of the escrow, check and channel types", () => {
     const ID = "AB".repeat(32);
     const finish = say(synth("EscrowFinish", { Owner: B, EscrowID: ID }), FAILED);
     expect(finish.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
-    expect(textOf(finish.sentence)).toBe(`${A} tried to finish an escrow.${NO_PERMISSION}`);
+    expect(textOf(finish.sentence)).toBe(`${A} tried to release an escrow.${NO_PERMISSION}`);
     expect(rows(finish)).toStrictEqual([]);
     const cancel = say(synth("EscrowCancel", { Owner: B, EscrowID: ID }), FAILED);
     expect(cancel.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
@@ -1004,12 +1004,12 @@ describe("describe: the objects of the escrow, check and channel types", () => {
     expect(rows(cancel)).toStrictEqual([]);
     // With a sequence too: its words, and the detail of the sequence alone.
     const withSequence = say(synth("EscrowFinish", { Owner: B, EscrowID: ID, OfferSequence: 12 }), FAILED);
-    expect(textOf(withSequence.sentence)).toBe(`${A} tried to finish escrow 12.${NO_PERMISSION}`);
+    expect(textOf(withSequence.sentence)).toBe(`${A} tried to release escrow 12.${NO_PERMISSION}`);
     expect(rows(withSequence)).toStrictEqual([["Escrow sequence", "12"]]);
     // The recorded Xahau transaction, had it failed: its Owner field, the escrow's destination, is drawn nowhere.
     const { tx } = loadTx("xahau-objects", "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA");
     const recorded = say(tx, FAILED, "XAH");
-    expect(textOf(recorded.sentence)).toBe(`r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH tried to finish an escrow.${NO_PERMISSION}`);
+    expect(textOf(recorded.sentence)).toBe(`r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH tried to release an escrow.${NO_PERMISSION}`);
     expect(rows(recorded)).toStrictEqual([]);
     expect(JSON.stringify([recorded.sentence, recorded.details])).not.toContain("rPicqzcyoxw22XBrFCMAcFXYU2boeqYjm6");
     // An EscrowID that is no ID says nothing: the Owner field is all there is.

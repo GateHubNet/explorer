@@ -81,8 +81,7 @@ function describeEscrowFinish(input: Input): Summary {
   const { escrow, owner } = escrowOf(input);
   return {
     title: "Escrow release",
-    // A failed one named by its ID, whose owner is not known, says "tried to finish an escrow".
-    predicate: seq(`${input.verb("released", owner === null ? "finish" : "release")} `, escrow, ofOwner(owner)),
+    predicate: seq(`${input.verb("released", "release")} `, escrow, ofOwner(owner)),
     details: escrowDetails(input.tx, owner),
   };
 }
