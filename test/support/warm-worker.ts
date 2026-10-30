@@ -14,16 +14,17 @@ import { beforeAll } from "vitest";
 const WARM_TIMEOUT_MS = 30_000;
 
 /**
- * An unknown network: a 404 page drawn without the upstream (no file has mocked it yet when this runs). A 404 page is stored
- * (class `short`), so the path is nobody else's.
+ * The root: React Router answers it (the redirect to a network's home), and the edge cache neither stores it nor counts it
+ * against the visitor limit (`UNCACHED_PATHS`), so it leaves nothing behind for a test to find: no entry, and no late `put` in
+ * `waitUntil` for a test that watches the cache's writes. It reads no upstream.
  */
-const WARM_PATH = "/warm-the-worker";
+const WARM_PATH = "/";
 
 /** Registers a `beforeAll` in the calling file that asks the Worker for a page, so that its first test finds the app loaded. */
 export function warmWorker(): void {
   beforeAll(async () => {
-    // The documentation range (RFC 3849), apart from the addresses of the files: the visitor limit is per address.
-    const response = await exports.default.fetch(`https://explorer.test${WARM_PATH}`, { headers: { "CF-Connecting-IP": "2001:db8:ffff::1" } });
+    // Not followed: the network's home would ask the upstream, which no file has mocked yet.
+    const response = await exports.default.fetch(`https://explorer.test${WARM_PATH}`, { redirect: "manual" });
     await response.arrayBuffer();
   }, WARM_TIMEOUT_MS);
 }
