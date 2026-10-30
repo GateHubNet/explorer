@@ -315,7 +315,7 @@ export function windowBarOf(
     if (to !== null && to <= (from ?? start)) return [];
     // nothing was open after a removal
     if (ended && from !== null && from > mark.at) return [];
-    const length = from !== null && to !== null ? lengthOf(to - from) : from === null && to !== null ? `Until ${when(to)}` : openLength;
+    const length = from !== null && to !== null ? lengthOf(to - from) : from === null && to !== null ? "" : openLength;
     return [{ id, label, slot, from: from === null ? null : String(from), to: to === null ? null : String(to), range: range(from, to), length }];
   };
 
@@ -342,7 +342,7 @@ const NO_FEE = 1_000_000_000;
 const transferPercent = (rate: number): string => `${BigNumber.max(0, new BigNumber(rate).minus(NO_FEE)).shiftedBy(-7).toFixed()}%`;
 
 /** The value of a row that has nothing to say, built fresh for each row (a shared object would be one value in many places of the page data). */
-const none = (text = "None"): DetailRow["value"] => ({ kind: "text", text, faint: true });
+const none = (words = "None"): DetailRow["value"] => ({ kind: "text", text: words, faint: true });
 
 /** The board's words about the condition: what it is, and what has happened to the secret that matches it. */
 function conditionHint(f: Facts): string {

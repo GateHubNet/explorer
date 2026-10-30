@@ -262,7 +262,7 @@ export const WindowBar = memo(
                 <b>{open.segment.label}</b>
               </span>
               <span className="plot__tip-name">{open.segment.range}</span>
-              <span className="plot__tip-date">{open.segment.length}</span>
+              {open.segment.length !== "" && <span className="plot__tip-date">{open.segment.length}</span>}
             </div>
           )}
         </div>

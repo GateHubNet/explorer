@@ -658,7 +658,7 @@ describe("windowBarOf", () => {
     // FinishAfter ahead of the page: Pending runs from the start of the bar, which is the as-of time
     const ahead = windowBarOf({ finishAfter: NOW + 10 * D, cancelAfter: NOW + 40 * D }, now);
     expect(ids(ahead)).toEqual(["pending", "finishable", "cancellable"]);
-    expect(ahead.segments[0]).toMatchObject({ from: null, to: String(NOW + 10 * D), range: "Until Nov 8, 2026, 09:30 UTC", length: "Until Nov 8, 2026, 09:30 UTC" });
+    expect(ahead.segments[0]).toMatchObject({ from: null, to: String(NOW + 10 * D), range: "Until Nov 8, 2026, 09:30 UTC", length: "" });
     expect(ahead.bounds.map((bound) => bound.id)).toEqual(["finish_after", "cancel_after"]);
     // FinishAfter behind the page: the bar starts at FinishAfter and there is no Pending to draw
     const behind = windowBarOf({ finishAfter: NOW - 3 * D, cancelAfter: NOW + 40 * D }, now);
@@ -666,13 +666,15 @@ describe("windowBarOf", () => {
     expect(behind.bounds.map((bound) => bound.id)).toEqual(["finish_after", "cancel_after"]);
   });
 
-  it("does not claim a start for a window whose start is unknown: its length reads Until {FinishAfter}, not Since its creation", () => {
+  it("gives a window whose start is unknown no length: its range, Until {end}, is all its tooltip says", () => {
     const [pending] = windowBarOf({ finishAfter: NOW + 10 * D }, now).segments;
-    expect(pending).toMatchObject({ id: "pending", from: null, length: "Until Nov 8, 2026, 09:30 UTC" });
-    expect(pending!.length).not.toMatch(/creation/);
-    // a window with no start whose end is CancelAfter says the same of it
+    expect(pending).toMatchObject({ id: "pending", from: null, range: "Until Nov 8, 2026, 09:30 UTC", length: "" });
+    // a window with no start whose end is CancelAfter is the same
     const [finishable] = windowBarOf({ cancelAfter: NOW + 10 * D }, now).segments;
-    expect(finishable).toMatchObject({ id: "finishable", from: null, length: "Until Nov 8, 2026, 09:30 UTC" });
+    expect(finishable).toMatchObject({ id: "finishable", from: null, range: "Until Nov 8, 2026, 09:30 UTC", length: "" });
+    // one with a start, or with neither end, still has its length
+    expect(windowBarOf({ created: NOW - D, finishAfter: NOW + 10 * D }, now).segments[0]!.length).toBe("11 days");
+    expect(windowBarOf({}, now).segments[0]!.length).toBe("Until someone finishes it");
   });
 
   it("writes a window with neither end known plainly, and leaves out one with no start whose end has passed", () => {

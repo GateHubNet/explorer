@@ -82,7 +82,7 @@ export interface CandleData {
 /**
  * One window of an escrow on the `WindowBar`: when it opens and closes, and the words of its tooltip. `from` and `to` are unix seconds as text. `null` is
  * open: a `from` runs from the start of the bar (a creation nobody knows), a `to` to its end (a window with no end). The builder writes `range`
- * ("24 Oct 2026, 09:30 UTC to 3 Nov 2026, 09:30 UTC") and `length` ("10 days"); the kit makes no text of its own. The `slot` colours the segment, which
+ * ("24 Oct 2026, 09:30 UTC to 3 Nov 2026, 09:30 UTC") and `length` ("10 days", or "" for a window whose range says it all: the tooltip then has no third line); the kit makes no text of its own. The `slot` colours the segment, which
  * is a graphic on the card and needs 3:1 against it in both themes: slots 1, 2, "other", "neutral", "up" and "down" have it, 3, 4 and 5 do not in light
  * (tokens.test.ts says which).
  */

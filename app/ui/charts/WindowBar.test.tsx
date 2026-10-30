@@ -359,6 +359,19 @@ describe("the tooltip of a window", () => {
     expect(errors).toEqual([]);
   });
 
+  it("has no line for a length a window does not have (the builder gives an empty one when the range says it all)", () => {
+    const data = bar({ segments: DATA.segments.map((segment) => (segment.id === "pending" ? { ...segment, from: null, range: "Until 3 Nov 2026, 09:30 UTC", length: "" } : segment)) });
+    const { container } = render(<WindowBar data={data} />);
+    const [pending, finishable] = segs(container);
+    fireEvent.focus(pending!);
+    const shown = tip(container)!;
+    expect(lines(shown)).toEqual(["Pending", "Until 3 Nov 2026, 09:30 UTC"]);
+    expect(shown.querySelector(".plot__tip-date")).toBeNull();
+    // another window of the same bar keeps its line
+    fireEvent.focus(finishable!);
+    expect(lines(tip(container)!)).toEqual(["Can be finished", RANGES.finishable, "30 days"]);
+  });
+
   it("shows under the pointer and goes with it", () => {
     const { container } = render(<WindowBar data={DATA} />);
     const [, , cancellable] = segs(container);
