@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { allTxs, loadManifest, loadTx, type FixtureSet } from "../../../test/support/ledgers";
+import { objectCase, type ObjectCase } from "../../../test/support/object-cases";
+import type { TxObject } from "../../server/api-types";
+import { permissionChip } from "../permissions";
 import type { Native, TxJson, TxMeta } from "../parse/types";
 import { formatCurrency } from "../format";
 import { resultText } from "../results";
@@ -9,10 +13,10 @@ import type { Description, Handler, Segment } from "./types";
 
 const nativeOf = (set: FixtureSet): Native => (set.startsWith("xahau") ? "XAH" : "XRP");
 
-/** A sentence as text: an account is its address, an amount `'<value> <currency>'` (raw), a pool its address. */
+/** A sentence as text: an account is its address, an amount `'<value> <currency>'` (raw), a pool its address, a permission its name in brackets. */
 function textOf(segments: Segment[]): string {
   return segments
-    .map((s) => {
+    .map((s): string => {
       switch (s.t) {
         case "text":
         case "account":
@@ -21,15 +25,17 @@ function textOf(segments: Segment[]): string {
           return s.v;
         case "amount":
           return `${s.value} ${s.currency}`;
+        case "permission":
+          return `[${s.name}]`;
       }
     })
     .join("");
 }
 
-/** A sentence as a reader sees it: a pool is its pair, an amount its value and the currency as shown. */
+/** A sentence as a reader sees it: a pool is its pair, an amount its value and the currency as shown, a permission its name. */
 function readOf(segments: Segment[]): string {
   return segments
-    .map((s) => {
+    .map((s): string => {
       switch (s.t) {
         case "text":
         case "account":
@@ -39,6 +45,8 @@ function readOf(segments: Segment[]): string {
           return s.pair;
         case "amount":
           return `${s.value} ${formatCurrency(s.currency)}`;
+        case "permission":
+          return s.name;
       }
     })
     .join("");
@@ -1761,6 +1769,140 @@ describe.each<FixtureSet>(["xrpl-extra", "xahau-extra"])("the recorded %s set", 
     }
     const types = new Set(allTxs(set).map(({ tx }) => tx.TransactionType));
     for (const type of manifest.missing as string[]) expect(types.has(type), type).toBe(false);
+  });
+});
+
+// Delegation (ledger object pages spec 6.2). The recorded DelegateSet of the objects set (the one found on the network, `delegate_set_create`) and C9's synthetic transactions of the http
+// fixtures (test/fixtures/PROVENANCE.md): a delegated Payment and a delegated tec (the delegate pays the fee from its own root), the DelegateSet with an empty list that deletes the
+// recorded delegation, and the same DelegateSet failed. The synthetic ones are found by their rules (`objectCase`), never by a table of hashes.
+describe("describe: delegation", () => {
+  /** The transaction of a delegation case of the http fixtures, as the data API serves it. */
+  async function delegated(which: ObjectCase): Promise<TxObject> {
+    const { id } = await objectCase("xrpl", which);
+    return JSON.parse(readFileSync(new URL(`../../../test/fixtures/http/xrpl/data-api/transactions/${id}.json`, import.meta.url), "utf8")).transaction;
+  }
+  const xrp = (object: TxObject): Description => describeTx(object.tx, object.meta, { native: "XRP" });
+  /** A permission as a sentence and a detail carry it: what `permissionChip` says of it, without the title the page makes. */
+  const permission = (value: string | number): Segment => {
+    const { name, kind, words } = permissionChip(value);
+    return { t: "permission", name, kind, words };
+  };
+  const sentBy = (delegate: string, sender: string): Segment[] => [account(delegate), text(" sent it on behalf of "), account(sender), text(".")];
+  const RECORDED = () => loadManifest("xrpl-objects").cases.delegate_set_create.hash as string;
+  const C = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+
+  it("adds sentBy and delegate to a delegated Payment and keeps Delegate out of its details", async () => {
+    const payment = await delegated("delegated-payment");
+    const [sender, delegate, destination] = [payment.tx.Account, payment.tx.Delegate as string, payment.tx.Destination as string];
+    const d = xrp(payment);
+    expect(textOf(d.sentence)).toBe(`${sender} sent 373 XRP to ${destination}.`);
+    expect(d.delegate).toBe(delegate);
+    expect(d.sentBy).toStrictEqual(sentBy(delegate, sender));
+    expect(d.details.map((row) => row.label)).not.toContain("Delegate");
+    expect(d.note).toBeUndefined();
+
+    // No type lists the field as a detail: a type without a handler of its own lists every field but the common ones, and `Delegate` is one of them.
+    const unknown = describeTx(synth("FooBar", { Delegate: C, Foo: "bar" }), SUCCESS, { native: "XRP" });
+    expect(unknown.details).toStrictEqual([{ label: "Foo", value: [text("bar")] }]);
+    expect(unknown.sentBy).toStrictEqual(sentBy(C, A));
+    // A transaction the account sent itself has neither.
+    const own = run("xrpl", "38D85B89F3CB0E036084946F1E38677BE418B2E13255209CB31AD3B5B6F8F6F2");
+    expect(own).not.toHaveProperty("delegate");
+    expect(own).not.toHaveProperty("sentBy");
+  });
+
+  it("describes a delegated tec with sentBy and the result's text", async () => {
+    const tec = await delegated("delegated-tec");
+    const [sender, delegate] = [tec.tx.Account, tec.tx.Delegate as string];
+    const d = xrp(tec);
+    expect(d.ok).toBe(false);
+    expect(textOf(d.sentence)).toMatch(new RegExp(`^${sender} tried to send .+\\.$`));
+    expect(d.sentence.at(-1)).toStrictEqual(text(` ${resultText(tec.meta.TransactionResult).text}`));
+    expect(d.delegate).toBe(delegate);
+    expect(d.sentBy).toStrictEqual(sentBy(delegate, sender));
+  });
+
+  it("DelegateSet with permissions: let … send {chips} on its behalf, and the replace note", () => {
+    const d = run("xrpl-objects", RECORDED());
+    const { tx } = loadTx("xrpl-objects", RECORDED());
+    const [sender, delegate] = [tx.Account, tx.Authorize as string];
+    expect(d.title).toBe("Delegation");
+    expect(d.ok).toBe(true);
+    expect(d.sentence).toStrictEqual([
+      account(sender),
+      text(" let "),
+      account(delegate),
+      text(" send "),
+      permission("OfferCreate"),
+      text(" and "),
+      permission("OfferCancel"),
+      text(" on its behalf."),
+    ]);
+    expect(d.note).toStrictEqual([text("This replaces any permissions "), account(sender), text(" had given "), account(delegate), text(" before; it does not add to them.")]);
+    expect(d.details).toStrictEqual([
+      { label: "Delegate", value: [account(delegate)] },
+      { label: "Permissions", value: [permission("OfferCreate"), text(" "), permission("OfferCancel"), text(" · 2 of 10")] },
+    ]);
+    // The account sent it itself: it names no delegate.
+    expect(d.sentBy).toBeUndefined();
+
+    // A transaction type is one kind of chip, a narrower right another, and a number this explorer does not know a third; three or more are a list with commas.
+    const mixed = describeTx(
+      synth("DelegateSet", {
+        Authorize: B,
+        Permissions: ["Payment", "TrustlineAuthorize", 65538, 70001].map((value) => ({ Permission: { PermissionValue: value } })),
+        Flags: 0x40000000,
+      }),
+      SUCCESS,
+      { native: "XRP" },
+    );
+    expect(readOf(mixed.sentence)).toBe(`${A} let ${B} send Payment, TrustlineAuthorize, TrustlineFreeze and Permission 70001 on its behalf.`);
+    expect(mixed.sentence.filter((segment) => segment.t === "permission").map((segment) => (segment as { kind: string }).kind)).toEqual(["transaction", "granular", "granular", "unknown"]);
+    expect(mixed.details.map((row) => [row.label, readOf(row.value)])).toEqual([
+      ["Delegate", B],
+      ["Permissions", "Payment TrustlineAuthorize TrustlineFreeze Permission 70001 · 4 of 10"],
+      ["Flags", "tfInnerBatchTxn"],
+    ]);
+  });
+
+  it("DelegateSet with an empty list: removed every permission it had given", async () => {
+    const empty = await delegated("delegate-set-empty");
+    const [sender, delegate] = [empty.tx.Account, empty.tx.Authorize as string];
+    const d = xrp(empty);
+    expect(d.ok).toBe(true);
+    expect(d.title).toBe("Delegation");
+    expect(d.sentence).toStrictEqual([account(sender), text(" removed every permission it had given "), account(delegate), text(".")]);
+    expect(d.note).toBeUndefined();
+    expect(d.details).toStrictEqual([
+      { label: "Delegate", value: [account(delegate)] },
+      { label: "Permissions", value: [text("0 of 10")] },
+    ]);
+  });
+
+  it("a failed DelegateSet: tried to let …", async () => {
+    const failed = await delegated("delegate-set-failed");
+    const [sender, delegate] = [failed.tx.Account, failed.tx.Authorize as string];
+    const d = xrp(failed);
+    const why = text(` ${resultText(failed.meta.TransactionResult).text}`);
+    expect(d.ok).toBe(false);
+    expect(d.sentence).toStrictEqual([
+      account(sender),
+      text(" tried to let "),
+      account(delegate),
+      text(" send "),
+      permission("OfferCreate"),
+      text(" and "),
+      permission("OfferCancel"),
+      text(" on its behalf."),
+      why,
+    ]);
+    // Nothing was replaced.
+    expect(d.note).toBeUndefined();
+
+    // The empty list's failure: "tried to remove …".
+    const empty = await delegated("delegate-set-empty");
+    const removal = describeTx(empty.tx, { ...empty.meta, TransactionResult: failed.meta.TransactionResult }, { native: "XRP" });
+    expect(removal.sentence).toStrictEqual([account(sender), text(" tried to remove every permission it had given "), account(delegate), text("."), why]);
   });
 });
 

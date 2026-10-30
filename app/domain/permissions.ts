@@ -44,21 +44,35 @@ export interface PermissionChipView {
   title: string;
 }
 
+/**
+ * A chip's tooltip, from its kind and words: the kind of right, then the words (a permission this explorer does not know is its words alone, which say so). What a sentence's
+ * permission segment, which carries the kind and the words, is drawn with.
+ */
+export function permissionTitle(kind: PermissionChipView["kind"], words: string): string {
+  return kind === "transaction" ? `Transaction type. ${words}` : kind === "granular" ? `Narrower right. ${words}` : words;
+}
+
+/** The most permissions one delegation grants (XLS-75). */
+const MOST_PERMISSIONS = 10;
+
+/** How many permissions a delegation grants, of the most it can: "3 of 10". */
+export const permissionCount = (n: number): string => `${n} of ${MOST_PERMISSIONS}`;
+
 /** A permission this explorer does not know, by what it was given as: a number, or a name the data API called granular but this table lacks. */
 function unknownPermission(value: string): PermissionChipView {
   const words = `A permission this explorer does not know (value ${value})`;
-  return { name: `Permission ${value}`, kind: "unknown", words, title: words };
+  return { name: `Permission ${value}`, kind: "unknown", words, title: permissionTitle("unknown", words) };
 }
 
 /** One of the 12, by the name or value it is given as. */
 function granularView(granular: GranularPermission): PermissionChipView {
-  return { name: granular.name, kind: "granular", words: granular.words, title: `Narrower right. ${granular.words}` };
+  return { name: granular.name, kind: "granular", words: granular.words, title: permissionTitle("granular", granular.words) };
 }
 
 /** A transaction type's name: the right to send any transaction of that type. */
 function transactionView(name: string): PermissionChipView {
   const words = `Any ${name} transaction`;
-  return { name, kind: "transaction", words, title: `Transaction type. ${words}` };
+  return { name, kind: "transaction", words, title: permissionTitle("transaction", words) };
 }
 
 /**

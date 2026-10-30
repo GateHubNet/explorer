@@ -33,7 +33,7 @@ export const stateOf = (reserveInc = 200_000): ServerState => ({
   validated_ledger: { base_fee: 10, close_time: 846_000_000, hash: "A".repeat(64), reserve_base: 1_000_000, reserve_inc: reserveInc, seq: 107_972_102 },
 });
 
-/** A sentence as the page reads it: an account by its short address, an amount in its grouped digits and currency. */
+/** A sentence as the page reads it: an account by its short address, an amount in its grouped digits and currency, a permission by its name. */
 export const said = (segments: readonly Segment[]): string =>
   segments
     .map((segment) =>
@@ -45,7 +45,9 @@ export const said = (segments: readonly Segment[]): string =>
             ? `${formatAmount(segment.value)} ${formatCurrency(segment.currency)}`
             : segment.t === "pool"
               ? segment.pair
-              : segment.v,
+              : segment.t === "permission"
+                ? segment.name
+                : segment.v,
     )
     .join("");
 

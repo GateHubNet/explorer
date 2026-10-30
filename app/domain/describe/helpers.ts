@@ -96,8 +96,15 @@ export type FlagTable = ReadonlyArray<readonly [mask: number, name: string]>;
 
 /** `tfFullyCanonicalSig` is set on nearly every transaction and says nothing, so it is never listed. */
 const FULLY_CANONICAL_SIG = 0x80000000;
+/** `tfInnerBatchTxn`: the transaction is one of a `Batch`, which paid its fee. */
+const INNER_BATCH = 0x40000000;
 /** Flags of every transaction type. */
-const UNIVERSAL_FLAGS: FlagTable = [[0x40000000, "tfInnerBatchTxn"]];
+const UNIVERSAL_FLAGS: FlagTable = [[INNER_BATCH, "tfInnerBatchTxn"]];
+
+/** Whether a transaction is one of a `Batch` (`tfInnerBatchTxn`): it was sent within the Batch, which paid its fee. */
+export function isInnerBatch(tx: TxJson): boolean {
+  return typeof tx.Flags === "number" && Number.isInteger(tx.Flags) && (tx.Flags & INNER_BATCH) !== 0;
+}
 
 /** The names of the flags a transaction sets; a bit the table does not know is shown as hex. */
 export function flagNames(flags: unknown, table: FlagTable): string[] {
@@ -137,9 +144,10 @@ export function closingDetails(tx: TxJson, flags: FlagTable): Detail[] {
   ];
 }
 
-/** Fields every transaction has, which a table of "its fields" leaves out. */
+/** Fields every transaction has, which a table of "its fields" leaves out. (`Delegate` is any type's too: the page says who sent the transaction in a row of its own.) */
 export const COMMON_FIELDS: ReadonlySet<string> = new Set([
   "Account",
+  "Delegate",
   "Fee",
   "Sequence",
   "SigningPubKey",
@@ -190,6 +198,11 @@ export function genericDetails(tx: TxJson, native: Native, skip: ReadonlySet<str
 }
 
 // --- Values --------------------------------------------------------------------------------------------------------
+
+/** The account that signed a transaction and paid its fee on behalf of its `Account` (its `Delegate` field, XLS-75), if it has one. */
+export function delegateOf(tx: TxJson): string | undefined {
+  return typeof tx.Delegate === "string" && tx.Delegate !== "" ? tx.Delegate : undefined;
+}
 
 /** Hex as UTF-8 text, when it is text: valid UTF-8 with no control characters. */
 export function decodeHex(hex: unknown): string | undefined {

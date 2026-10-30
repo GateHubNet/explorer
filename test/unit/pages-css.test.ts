@@ -630,3 +630,30 @@ describe("the account's Delegation tab", () => {
     for (const css of [componentsCss, baseCss]) expect(css).not.toContain(".delegation__");
   });
 });
+
+describe("the transaction page's delegation", () => {
+  // What a transaction a delegate sent adds (ledger object pages spec 6.2): the note under the summary's sentence (a DelegateSet's), and the "Sent by" row, the delegate on a line of its own
+  // with what that means under it, both in the board's small muted words. Each class is declared once in the sheet: a second rule of the same selector later in the file would override
+  // the first without a word (an AccountLink once lost its look that way).
+  it("writes the note under the sentence small and muted", () => {
+    expect(rule(pagesCss, ".summary__note")).toMatchObject({ color: "var(--muted)", "font-size": "13px" });
+  });
+
+  it("puts the delegate of the Sent by row above what that means, which is small and muted", () => {
+    expect(rule(pagesCss, ".sentby")).toMatchObject({ display: "flex", "flex-direction": "column", "align-items": "flex-start" });
+    expect(rule(pagesCss, ".sentby__why")).toMatchObject({ color: "var(--muted)", "font-size": "12.5px" });
+  });
+
+  const DECLARED_ONCE = [".summary__note", ".sentby", ".sentby__why"];
+  it.each(DECLARED_ONCE)("declares %s once in the sheet", (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    expect(pagesCss.match(new RegExp(`(?:^|[},])\\s*${escaped}\\s*[{,]`, "gm")) ?? []).toHaveLength(1);
+  });
+
+  it("does not declare them in the component sheet or the base sheet either", () => {
+    for (const css of [componentsCss, baseCss]) {
+      expect(css).not.toContain(".sentby");
+      expect(css).not.toContain(".summary__note");
+    }
+  });
+});

@@ -89,7 +89,21 @@ const WHOLE = coverageSample({ complete: true });
 
 /** What a cell says, as the page would show it: text as it is, an account shortened, an amount grouped with its currency. */
 const said = (segments: readonly Segment[]): string =>
-  segments.map((segment) => (segment.t === "text" ? segment.v : segment.t === "account" ? shortAddress(segment.v) : segment.t === "amount" ? `${formatAmount(segment.value)} ${segment.currency}` : segment.t === "nft" ? segment.v : segment.pair)).join("");
+  segments
+    .map((segment) =>
+      segment.t === "text"
+        ? segment.v
+        : segment.t === "account"
+          ? shortAddress(segment.v)
+          : segment.t === "amount"
+            ? `${formatAmount(segment.value)} ${segment.currency}`
+            : segment.t === "nft"
+              ? segment.v
+              : segment.t === "pool"
+                ? segment.pair
+                : segment.name,
+    )
+    .join("");
 
 /** An NFT of the index without an owner and not burned: its history starts after its mint, only offers seen. */
 const unowned = (over: Partial<Nft> = {}): Nft => nftSample({ owner: undefined, owner_since: undefined, ...over });

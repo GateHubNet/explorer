@@ -4,19 +4,21 @@ import type { AmmHop, BalanceChange, Native, TxJson, TxMeta } from "../parse/typ
 
 /**
  * A piece of a sentence, in a form the page can render: plain text, a link to an account, an amount, a link to an AMM
- * pool, or a link to an NFT. Text segments are final, ready-to-show text. The other four are structured, and the page
- * formats them (`formatAmount` and `formatCurrency` for an amount, `shortAddress` for an account, `NftLink` for an NFT): an
- * amount carries its value in whole units as an unformatted decimal string (native drops already converted) and its currency
- * code as it is in the JSON (`XRP` or `XAH` for the native currency); a pool's `v` is its account and `pair` its name; an
- * NFT's `v` is its id (a URIToken's index on Xahau), shown as `#serial` when the segment has one; describe leaves the serial
- * out, and the page shows the id shortened.
+ * pool, a link to an NFT, or a permission of a delegation. Text segments are final, ready-to-show text. The others are
+ * structured, and the page formats them (`formatAmount` and `formatCurrency` for an amount, `shortAddress` for an account,
+ * `NftLink` for an NFT, `PermissionChip` for a permission): an amount carries its value in whole units as an unformatted
+ * decimal string (native drops already converted) and its currency code as it is in the JSON (`XRP` or `XAH` for the native
+ * currency); a pool's `v` is its account and `pair` its name; an NFT's `v` is its id (a URIToken's index on Xahau), shown as
+ * `#serial` when the segment has one; describe leaves the serial out, and the page shows the id shortened; a permission is
+ * what `permissionChip` makes of it (its name, its kind and the words that say what it allows).
  */
 export type Segment =
   | { t: "text"; v: string }
   | { t: "account"; v: string }
   | { t: "amount"; value: string; currency: string; issuer?: string }
   | { t: "pool"; v: string; pair: string }
-  | { t: "nft"; v: string; serial?: number };
+  | { t: "nft"; v: string; serial?: number }
+  | { t: "permission"; name: string; kind: "transaction" | "granular" | "unknown"; words: string };
 
 /** An amount without the segment tag, as a flow step carries it. */
 export type FlowAmount = { value: string; currency: string; issuer?: string };
@@ -52,6 +54,12 @@ export type Description = {
   /** Sender, the pools or offers on the way, destination. Only for a transaction that moved something. */
   flow?: FlowStep[];
   details: Detail[];
+  /** The account that signed the transaction and paid its fee on behalf of its `Account` (its `Delegate` field), when it has one. */
+  delegate?: string;
+  /** "{delegate} sent it on behalf of {account}.", as segments: the page puts it after `sentence`, in the same paragraph. Only with `delegate`. */
+  sentBy?: Segment[];
+  /** A line the page shows under the sentence (`Summary.note`), when the handler has one. */
+  note?: Segment[];
 };
 
 /** What a handler is given for one transaction. */
@@ -81,6 +89,8 @@ export type Summary = {
   /** Left out when nothing moved; `describe` drops it for a transaction that failed. */
   flow?: FlowStep[];
   details?: Detail[];
+  /** A line that says more than the sentence, which the page shows under it (`DelegateSet`: what the new list does to the old one). */
+  note?: Segment[];
 };
 
 /** Describes one transaction type. A handler never mutates its input and does no I/O. */

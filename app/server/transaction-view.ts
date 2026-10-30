@@ -4,7 +4,7 @@
 // data, only as the text of the raw tabs, so the code that reads metadata stays out of the browser bundle. No I/O.
 
 import { encodeCtid } from "../domain/ctid";
-import { describe, type Detail, type FlowStep, type Segment } from "../domain/describe";
+import { describe, isInnerBatch, type Detail, type FlowStep, type Segment } from "../domain/describe";
 import { decodeHex } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency, shortAddress, shortHash } from "../domain/format";
 import type { NamesPart } from "../domain/names";
@@ -146,6 +146,14 @@ export interface TransactionPageData {
   sentence: Segment[];
   /** The sentence as plain text, for the page's description. */
   summary: string;
+  /** The account that signed the transaction and paid its fee on behalf of `account` (its `Delegate` field); `null` for one the account sent itself. */
+  delegate: string | null;
+  /** "{delegate} sent it on behalf of {account}.", which the page puts after the sentence, in the same paragraph; `null` without a delegate. */
+  sentBy: Segment[] | null;
+  /** A line under the sentence (a `DelegateSet`'s: the new list replaces the old one); `null` for most transactions. */
+  note: Segment[] | null;
+  /** One of a `Batch` (`tfInnerBatchTxn`): sent within the Batch, which paid its fee. */
+  innerBatch: boolean;
   /** Sender, the pools or offers on the way, destination: only for a transaction that moved something. */
   flow: FlowStep[] | null;
   account: string;
@@ -200,10 +208,10 @@ function memosOf(tx: TxJson): Memo[] {
   return memos;
 }
 
-/** A sentence as plain text: accounts shortened, amounts as the page writes them, a pool by its pair. */
+/** A sentence as plain text: accounts shortened, amounts as the page writes them, a pool by its pair, a permission by its name. */
 export function plainText(segments: readonly Segment[]): string {
   return segments
-    .map((segment) => {
+    .map((segment): string => {
       switch (segment.t) {
         case "text":
           return segment.v;
@@ -215,6 +223,8 @@ export function plainText(segments: readonly Segment[]): string {
           return segment.pair;
         case "nft":
           return shortNftId(segment.v);
+        case "permission":
+          return segment.name;
       }
     })
     .join("");
@@ -277,6 +287,10 @@ export function transactionPage(
     result: description.result,
     sentence: description.sentence,
     summary: plainText(description.sentence),
+    delegate: description.delegate ?? null,
+    sentBy: description.sentBy ?? null,
+    note: description.note ?? null,
+    innerBatch: isInnerBatch(tx),
     flow,
     account: tx.Account,
     fee: typeof tx.Fee === "string" ? dropsToNative(tx.Fee) : "0",

@@ -174,14 +174,18 @@ async function transactionAnswer(context: Route.LoaderArgs["context"], network: 
 
 /**
  * The accounts the page draws as account links, in the order drawn: those of the sentence (`accountsIn`: not an amount's issuer, which is in a title, nor a pool, which is a link to
- * the pool), each step of the flow's account (a pool's too, under its label), the sender of the details, the accounts of the type's details, each balance change's account and the
- * issuer it writes after "with", and each touched object's account. Never the raw data, a memo or an amount's issuer.
+ * the pool), of the "sent by" words after it and of the note under it, each step of the flow's account (a pool's too, under its label), the sender of the details and the delegate
+ * of its "Sent by" row, the accounts of the type's details, each balance change's account and the issuer it writes after "with", and each touched object's account. Never the raw
+ * data, a memo or an amount's issuer.
  */
 function drawnAccounts(page: Omit<TransactionPageData, "names">): string[] {
   return [
     ...accountsIn(page.sentence),
+    ...accountsIn(page.sentBy ?? []),
+    ...accountsIn(page.note ?? []),
     ...(page.flow ?? []).map((step) => step.account),
     page.account,
+    ...(page.delegate === null ? [] : [page.delegate]),
     ...page.details.flatMap((detail) => accountsIn(detail.value)),
     ...page.changes.flatMap((change) => (change.issuer === undefined ? [change.account] : [change.account, change.issuer])),
     ...page.objects.flatMap((object) => (object.account === undefined ? [] : [object.account])),

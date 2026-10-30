@@ -9,7 +9,7 @@
 import BigNumber from "bignumber.js";
 
 import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
-import { accountsIn, describe, rowSentence, type Segment } from "../domain/describe";
+import { accountsIn, delegateOf, describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
@@ -487,9 +487,12 @@ export interface TxRow {
 
 const lowerFirst = (word: string) => (/^[A-Z][a-z]/.test(word) ? `${word.charAt(0).toLowerCase()}${word.slice(1)}` : word);
 
-/** The row's sentence: the account's own transactions leave their sender out (it is the page's subject); another account's name it. */
+/**
+ * The row's sentence: the account's own transactions leave their sender out (it is the page's subject); another account's name it. A transaction a delegate sent ends
+ * " · sent by {delegate}", or " · sent by this account as its delegate" on the delegate's own page (`rowSentence`'s viewer).
+ */
 function sentenceFor(description: Parameters<typeof rowSentence>[0], sender: string, subject: string): Segment[] {
-  const row = rowSentence(description);
+  const row = rowSentence(description, subject);
   if (sender === subject) return row;
   const [first, ...rest] = row;
   if (first?.t === "text") return [{ t: "account", v: sender }, { t: "text", v: ` ${lowerFirst(first.v)}` }, ...rest];
@@ -499,13 +502,17 @@ function sentenceFor(description: Parameters<typeof rowSentence>[0], sender: str
 /** Whether a currency and its issuer (if any) are the network's native currency: the code alone. An issued `XAH` on XRPL is not. */
 export const isNative = (side: { currency: string; issuer?: string }, native: string): boolean => side.issuer === undefined && side.currency === native;
 
-/** Of the changes the transaction made to the account's balances, the one to show (see `ChangeView`). */
+/**
+ * Of the changes the transaction made to the account's balances, the one to show (see `ChangeView`). The fee is the change of the account that paid it: the delegate of a transaction a
+ * delegate sent (ledger object pages spec 6.2), else the sender.
+ */
 function changeOf(tx: TxObject, address: string, native: Native): ChangeView | null {
   const mine = balanceChanges(tx.tx, tx.meta, native).filter((change) => change.account === address && !isZero(change.value));
   const isNativeChange = (change: { currency: string; issuer?: string }) => isNative(change, native);
   const fee = new BigNumber(dropsToNative(tx.tx.Fee)).negated();
-  // The sender's native change includes the fee. When that is all of it, the change that is not the fee is the one that matters.
-  const feeOnly = (change: { value: string; currency: string; issuer?: string }) => tx.tx.Account === address && isNativeChange(change) && new BigNumber(change.value).isEqualTo(fee);
+  const payer = delegateOf(tx.tx) ?? tx.tx.Account;
+  // The payer's native change includes the fee. When that is all of it, the change that is not the fee is the one that matters.
+  const feeOnly = (change: { value: string; currency: string; issuer?: string }) => payer === address && isNativeChange(change) && new BigNumber(change.value).isEqualTo(fee);
   const meaningful = mine.filter((change) => !feeOnly(change));
   const pool = meaningful.length > 0 ? meaningful : mine;
   const ordered = [...pool.filter(isNativeChange), ...pool.filter((change) => !isNativeChange(change))];

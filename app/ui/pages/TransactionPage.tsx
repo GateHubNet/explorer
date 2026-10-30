@@ -1,7 +1,9 @@
 import { Link } from "react-router";
 
 import type { Segment } from "../../domain/describe";
-import { formatAmount, formatCurrency, formatUtc, shortHash } from "../../domain/format";
+import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { plainNameOf } from "../../domain/names";
+import { delegationHref } from "../../domain/object-link";
 import type { ChangeRole, ChangeRow, Neighbour, TransactionPageData } from "../../server/transaction-view";
 import { AccountLink } from "../components/AccountLink";
 import { Amount } from "../components/Amount";
@@ -21,7 +23,9 @@ import { RelativeTime } from "../components/RelativeTime";
 import { Sentence } from "../components/Sentence";
 import { TypeTag } from "../components/TypeTag";
 import { cx } from "../cx";
+import { useNameOf } from "../names";
 import type { NetworkInfo } from "../networks";
+import { useFeatures } from "../use-network";
 
 /** Ledger objects listed before the rest are held back behind "Show N more". */
 export const OBJECTS_SHOWN = 10;
@@ -68,6 +72,32 @@ function detailValue(net: NetworkInfo["id"], value: readonly Segment[]) {
 }
 
 /**
+ * Who sent a transaction a delegate sent (ledger object pages spec 6.2): the delegate in full, and under it what that means, with a link to the delegation on the Delegation tab of the
+ * account that gave it, while `DELEGATION` is on. `{account}` in the words is the account's plain name, else its short address (as the Delegation tab writes `{name}`): the Account
+ * row above links it. One of a `Batch` was sent within the Batch, which paid its fee.
+ */
+function SentBy({ net, delegate, account, innerBatch }: { net: NetworkInfo["id"]; delegate: string; account: string; innerBatch: boolean }) {
+  const name = plainNameOf(useNameOf(account)) ?? shortAddress(account);
+  const href = delegationHref(net, account, useFeatures());
+  return (
+    <span className="sentby">
+      <AccountLink net={net} address={delegate} full />
+      <span className="sentby__why">
+        {innerBatch
+          ? `The delegate sent this within its Batch, using a permission ${name} gave it.`
+          : `The delegate signed this transaction and paid its fee, using a permission ${name} gave it.`}
+        {href !== null && (
+          <>
+            {" "}
+            <Link to={href}>View the delegation</Link>
+          </>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/**
  * The transaction page: what it is and whether it worked, the sentence and the flow of the money, the details, the balance
  * changes, and in the margin what the result means, the neighbours in the ledger and the ledger objects it touched; the raw
  * data last. Takes what the loader made of the transaction (`transactionPage`) and never fetches or parses anything.
@@ -75,6 +105,8 @@ function detailValue(net: NetworkInfo["id"], value: readonly Segment[]) {
 export function TransactionPage({ network, data }: { network: NetworkInfo; data: TransactionPageData }) {
   const net = network.id;
   const { position } = data;
+  // The delegate paid the fee of a transaction it sent, but for one of a Batch, whose fee the Batch paid.
+  const delegatePaid = data.delegate !== null && !data.innerBatch;
 
   const rows: DetailRow[] = [
     {
@@ -117,12 +149,15 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
       ),
     },
     { label: "Account", value: <AccountLink net={net} address={data.account} full /> },
+    ...(data.delegate === null
+      ? []
+      : [{ label: "Sent by", value: <SentBy net={net} delegate={data.delegate} account={data.account} innerBatch={data.innerBatch} /> }]),
     ...data.details.map((detail) => ({ label: detail.label, value: detailValue(net, detail.value) })),
     {
       label: "Fee",
       value: (
         <>
-          <Amount value={data.fee} currency={network.native} /> <span className="faint">· burned</span>
+          <Amount value={data.fee} currency={network.native} /> <span className="faint">{delegatePaid ? "· paid by the delegate, burned" : "· burned"}</span>
         </>
       ),
     },
@@ -233,7 +268,18 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
       <Card label="Summary" className="summary">
         <p className="sentence summary__sentence">
           <Sentence net={net} segments={data.sentence} />
+          {data.sentBy && (
+            <>
+              {" "}
+              <Sentence net={net} segments={data.sentBy} />
+            </>
+          )}
         </p>
+        {data.note && (
+          <p className="summary__note">
+            <Sentence net={net} segments={data.note} compact />
+          </p>
+        )}
         {data.flow && <Flow net={net} steps={data.flow} />}
       </Card>
 
@@ -246,7 +292,7 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
           title="Balance changes"
           className="txgrid__balance"
           flush
-          action={<span className="faint">{`from the transaction metadata · the sender’s ${network.native} change includes the fee`}</span>}
+          action={<span className="faint">{`from the transaction metadata · the ${delegatePaid ? "delegate" : "sender"}’s ${network.native} change includes the fee`}</span>}
         >
           <DataTable
             label="Balance changes"

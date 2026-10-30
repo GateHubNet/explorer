@@ -11,6 +11,7 @@ import { NAMES_MAX_ADDRESSES } from "../../app/server/names-load";
 import { collectAddresses } from "../../app/server/names-collect";
 import { answerNamesAfterTheirEnd, expectAccountText, expectLinkedAccountsNamed, expectNamedLinks, inCalls, linkedAccounts, namedAmong, namesCalls, sorted } from "../support/names";
 import { dataApiError, mockUpstream, statusesOf, type UpstreamMock } from "../support/upstream";
+import { objectCase } from "../support/object-cases";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 
 // The ledger page, `/{net}/ledger/{index|hash}`, on the real Worker against the recorded answers of the data API and the
@@ -586,6 +587,31 @@ describe("a ledger whose rows write an amount's issuer and a pool", () => {
 
     expect(namesCalls(mock)).toEqual(callsOfLinks(html, "xrpl"));
     for (const address of unlinked) expect(namesCalls(mock).flat(), `${address} is not asked for`).not.toContain(address);
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+});
+
+describe("a ledger whose row was sent by a delegate", () => {
+  // A row of a transaction a delegate sent ends " · sent by {delegate}" (ledger object pages spec 6.2): the delegate is an account the page links, so the names call asks for it. A
+  // ledger no other test asks for, of C9's synthetic delegated Payment of the fixtures, found by its rule.
+  const delegatedFixtures = import.meta.glob("../fixtures/http/xrpl/data-api/transactions/*.json", { query: "?raw", import: "default" }) as Record<string, () => Promise<string>>;
+
+  it("links the delegate at the end of the row, and asks its name with the other accounts it links", async () => {
+    const index = 107700070;
+    const { id } = await objectCase("xrpl", "delegated-payment");
+    const payment = (JSON.parse(await delegatedFixtures[`../fixtures/http/xrpl/data-api/transactions/${id}.json`]!()) as { transaction: { tx: Record<string, unknown>; meta: Record<string, unknown> } })
+      .transaction;
+    const delegate = payment.tx.Delegate as string;
+    const { body } = await syntheticLedger(index, 0);
+    (body.ledger as { transactions: unknown[] }).transactions = [{ ...payment, ledger_index: index, meta: { ...payment.meta, TransactionIndex: 0 } }];
+    mock = mockUpstream("xrpl", { [`GET /v2/ledgers/${index}?expand=true&transactions=true`]: body, "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/ledger/${index}`);
+
+    expect(pageOf(body).rows[0]!.what.at(-1)).toEqual({ t: "account", v: delegate });
+    expect(tableRows(html, "Transactions")[1]!.join(" ")).toContain(`· sent by Fixture ${delegate.slice(-4)}`);
+    expect(linkedAccounts(html, "xrpl")).toContain(delegate);
+    expect(namesCalls(mock)).toEqual(callsOfLinks(html, "xrpl"));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
     expect(mock.unusedOverrides()).toEqual([]);
   });
 });

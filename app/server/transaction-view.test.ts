@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { objectCase } from "../../test/support/object-cases";
 import { encodeCtid } from "../domain/ctid";
 import { dropsToNative, shortAddress, shortHash } from "../domain/format";
 import { shortNftId } from "../domain/nft-params";
@@ -154,6 +155,23 @@ describe("plainText", () => {
         { t: "text", v: " AMM pool." },
       ]),
     ).toBe(`${shortAddress("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh")} paid 1,250.5 RLUSD through the XRP/RLUSD AMM pool.`);
+  });
+});
+
+describe("plainText with a permission", () => {
+  it("writes a permission of a delegation by its name, as its chip shows it", () => {
+    expect(
+      plainText([
+        { t: "account", v: "rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL" },
+        { t: "text", v: " let " },
+        { t: "account", v: "rw2X2GFePFiLDdcQw6iELFfUEw1hPqAGcK" },
+        { t: "text", v: " send " },
+        { t: "permission", name: "Payment", kind: "transaction", words: "Any Payment transaction" },
+        { t: "text", v: " and " },
+        { t: "permission", name: "Permission 70001", kind: "unknown", words: "A permission this explorer does not know (value 70001)" },
+        { t: "text", v: " on its behalf." },
+      ]),
+    ).toBe(`${shortAddress("rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL")} let ${shortAddress("rw2X2GFePFiLDdcQw6iELFfUEw1hPqAGcK")} send Payment and Permission 70001 on its behalf.`);
   });
 });
 
@@ -397,6 +415,63 @@ describe("transactionPage, the pieces a transaction can have or lack", () => {
     expect(data.neighbours).toBeNull();
     expect(data.position).toEqual({ index: 12, count: null });
     expect(data.raw.binary).toEqual({ state: "pending" });
+  });
+});
+
+// Delegation (ledger object pages spec 6.2): C9's synthetic delegated Payment of the http fixtures (its `Delegate` paid the fee from its own root) and the recorded DelegateSet.
+describe("transactionPage over a transaction a delegate sent, and a DelegateSet", () => {
+  const sourceOf = async (which: "delegated-payment" | "delegate-set-failed"): Promise<TransactionSource> => txFromIndex(fixtureTx("xrpl", (await objectCase("xrpl", which)).id));
+  const build = (source: TransactionSource) => transactionPage(source, { network: XRPL, neighbours: null, binary: { state: "failed" } });
+  const DELEGATE_SET = "4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66";
+
+  it("carries the delegate and the words that it sent the transaction on behalf of the account, after the sentence", async () => {
+    const source = await sourceOf("delegated-payment");
+    const delegate = source.tx.Delegate as string;
+    const data = build(source);
+    expect(data.delegate).toBe(delegate);
+    expect(data.account).toBe(source.tx.Account);
+    expect(data.sentBy).toStrictEqual([
+      { t: "account", v: delegate },
+      { t: "text", v: " sent it on behalf of " },
+      { t: "account", v: source.tx.Account },
+      { t: "text", v: "." },
+    ]);
+    expect(data.note).toBeNull();
+    expect(data.innerBatch).toBe(false);
+    // The fee is the transaction's, whoever paid it.
+    expect(data.fee).toBe(dropsToNative(source.tx.Fee));
+    expect(data.details.map((detail) => detail.label)).not.toContain("Delegate");
+    // The summary is the sentence alone, as before.
+    expect(data.summary).toBe(plainText(data.sentence));
+  });
+
+  it("has none of it for a transaction the account sent itself", () => {
+    expect(page(PAYMENT)).toMatchObject({ delegate: null, sentBy: null, note: null, innerBatch: false });
+  });
+
+  it("knows a delegated inner transaction of a Batch, which the Batch paid the fee of: the delegated Payment with tfInnerBatchTxn", async () => {
+    const source = await sourceOf("delegated-payment");
+    const flags = source.tx.Flags as number;
+    const data = build({ ...source, tx: { ...source.tx, Flags: (flags | 0x40000000) >>> 0 } });
+    expect(data.innerBatch).toBe(true);
+    expect(data.delegate).toBe(source.tx.Delegate);
+    expect(data.sentBy).not.toBeNull();
+  });
+
+  it("carries the note of a DelegateSet, and writes its permissions by name in the summary", async () => {
+    const data = build(txFromIndex(fixtureTx("xrpl", DELEGATE_SET)));
+    const [sender, delegate] = [data.account, data.details[0]!.value[0]!];
+    expect(data.title).toBe("Delegation");
+    expect(data.note).toStrictEqual([
+      { t: "text", v: "This replaces any permissions " },
+      { t: "account", v: sender },
+      { t: "text", v: " had given " },
+      delegate,
+      { t: "text", v: " before; it does not add to them." },
+    ]);
+    expect(data.summary).toBe(`${shortAddress(sender)} let ${shortAddress((delegate as { v: string }).v)} send OfferCreate and OfferCancel on its behalf.`);
+    // A failed one has no note: nothing was replaced.
+    expect(build(await sourceOf("delegate-set-failed")).note).toBeNull();
   });
 });
 

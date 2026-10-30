@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { Segment } from "../domain/describe";
+import { dropsToNative } from "../domain/format";
 import { NO_NAMES } from "../domain/names";
 import { nftSample, nftsPageSample, uriTokenSample, NFT_MARKER, NFT_OWNER, OTHER_ISSUER, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../../test/support/nft-samples";
+import { objectCase } from "../../test/support/object-cases";
 import { DELEGATE, DELEGATOR, delegationsSample } from "../../test/support/object-samples";
 import type { AccountData, AccountExchange, BalancesResponse, NftsPage, OrdersResponse, Payment, TxObject } from "./api-types";
 import {
@@ -65,7 +67,8 @@ const stateOf = (net: "xrpl" | "xahau"): ServerState => read(`${net}/node/server
 const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: string, key: K, marker?: string) =>
   read(`${net}/data-api/accounts/${address}/${kind}@descending=true&limit=20${marker ? `&marker=${marker}` : ""}.json`)[key];
 
-const text = (segments: readonly Segment[]) => segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : s.t === "nft" ? `<NFT ${s.v}>` : `[${s.pair}]`)).join("");
+const text = (segments: readonly Segment[]) =>
+  segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : s.t === "nft" ? `<NFT ${s.v}>` : s.t === "pool" ? `[${s.pair}]` : `(${s.name})`)).join("");
 
 describe("the tabs and the URL", () => {
   it("lists the eight tabs of the page, the first being the default, the NFTs and the delegation before the last, and the last the analytics", () => {
@@ -563,6 +566,62 @@ describe("transactionRows", () => {
     expect(row).toMatchObject({ ok: false, code: "tecKILLED" });
     expect(text(row.what)).not.toMatch(/\.$/);
     expect(row.what.length).toBeGreaterThan(0);
+  });
+
+  // Delegation (ledger object pages spec 6.2): C9's synthetic delegated Payment of the http fixtures. Its delegate paid the fee from its own root (the sender's balance moved by the
+  // amount alone). A copy made up beside it gives the sender or the delegate one more change: a trust line's.
+  describe("of a transaction a delegate sent", () => {
+    const ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+    const delegatedPayment = async (): Promise<TxObject> => read(`xrpl/data-api/transactions/${(await objectCase("xrpl", "delegated-payment")).id}.json`).transaction;
+    /** A trust line of `holder` (the low account) to `ISSUER` that went from `before` to `after` USD. */
+    const line = (holder: string, before: string, after: string) => ({
+      ModifiedNode: {
+        LedgerEntryType: "RippleState",
+        LedgerIndex: "AB".repeat(32),
+        FinalFields: {
+          Balance: { currency: "USD", issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji", value: after },
+          Flags: 0,
+          HighLimit: { currency: "USD", issuer: ISSUER, value: "0" },
+          LowLimit: { currency: "USD", issuer: holder, value: "1000" },
+        },
+        PreviousFields: { Balance: { currency: "USD", issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji", value: before } },
+      },
+    });
+    /** The account roots of the meta, `account`'s balance moved by `drops` (negative: it paid). */
+    const withRoot = (nodes: unknown[], account: string, drops: number) =>
+      nodes.map((node) => {
+        const body = (node as { ModifiedNode?: { LedgerEntryType: string; FinalFields: Record<string, unknown>; PreviousFields: Record<string, unknown> } }).ModifiedNode;
+        if (body?.LedgerEntryType !== "AccountRoot" || body.FinalFields.Account !== account) return node;
+        return { ModifiedNode: { ...body, PreviousFields: { ...body.PreviousFields, Balance: String(Number(body.FinalFields.Balance) - drops) } } };
+      });
+
+    it("does not take a delegated transaction's fee for the sender's change", async () => {
+      const payment = await delegatedPayment();
+      const [sender, delegate, fee] = [payment.tx.Account, payment.tx.Delegate as string, payment.tx.Fee];
+      // As recorded: the sender's change is what it sent; the delegate's is the fee it paid, all of its change, which its own page shows (the payer is shown the fee).
+      expect(transactionRows([payment], sender, "XRP")[0]!.change).toEqual({ value: "-373", currency: "XRP", more: 0 });
+      expect(transactionRows([payment], delegate, "XRP")[0]!.change).toEqual({ value: `-${dropsToNative(fee)}`, currency: "XRP", more: 0 });
+
+      // Made up: the sender sent as much as the fee, and a trust line of it moved too. That native change is the payment's, not the fee: it is the one shown, first.
+      const sameAsFee = {
+        ...payment,
+        tx: { ...payment.tx, Amount: fee },
+        meta: { ...payment.meta, delivered_amount: fee, AffectedNodes: [...withRoot(payment.meta.AffectedNodes, sender, -Number(fee)), line(sender, "0", "1")] },
+      } as TxObject;
+      expect(transactionRows([sameAsFee], sender, "XRP")[0]!.change).toEqual({ value: `-${dropsToNative(fee)}`, currency: "XRP", more: 1 });
+
+      // Made up: the delegate got 5 USD in the same transaction. Its native change is the fee alone, which is set aside as the sender's is when it pays: the change is the USD.
+      const delegateGot = { ...payment, meta: { ...payment.meta, AffectedNodes: [...payment.meta.AffectedNodes, line(delegate, "0", "5")] } } as TxObject;
+      expect(transactionRows([delegateGot], delegate, "XRP")[0]!.change).toEqual({ value: "5", currency: "USD", more: 0 });
+    });
+
+    it("ends the row with who sent it: the delegate on any other page, this account on the delegate's own", async () => {
+      const payment = await delegatedPayment();
+      const [sender, delegate, destination] = [payment.tx.Account, payment.tx.Delegate as string, payment.tx.Destination as string];
+      expect(text(transactionRows([payment], sender, "XRP")[0]!.what)).toBe(`Sent {373 XRP} to <${destination}> · sent by <${delegate}>`);
+      expect(text(transactionRows([payment], destination, "XRP")[0]!.what)).toBe(`<${sender}> sent {373 XRP} to <${destination}> · sent by <${delegate}>`);
+      expect(text(transactionRows([payment], delegate, "XRP")[0]!.what)).toBe(`<${sender}> sent {373 XRP} to <${destination}> · sent by this account as its delegate`);
+    });
   });
 
   it("is empty for no transactions, and carries nothing of the transaction's JSON", () => {

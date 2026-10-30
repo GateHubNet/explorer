@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
 import { linkTextOf, plainNameOf } from "../../app/domain/names";
+import type { TxObject } from "../../app/server/api-types";
 import type { AccountHeader, AccountListPageData, HistoryHeader, TabList } from "../../app/server/account-view";
 import { loadAccountPage } from "../support/account-loader";
 import { hexOfText } from "../support/hex";
@@ -24,6 +25,7 @@ import {
   watchNamesLog,
 } from "../support/names";
 import { expectDegraded, forgetStored, isStored, unavailable } from "../support/nft-pages";
+import { objectCase } from "../support/object-cases";
 import { delegationsSample } from "../support/object-samples";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError } from "../support/upstream";
@@ -324,6 +326,32 @@ describe("when a call fails", () => {
     expect(tableRows(html, "Transactions")).toHaveLength(5);
     expect(logged()).toBe(1);
     expect(await isStored(path)).toBe(false);
+  });
+});
+
+// A row of a transaction a delegate sent ends " · sent by {delegate}" (ledger object pages spec 6.2): the delegate is an account the list links, so the list's names call asks for it. C9's
+// synthetic delegated Payment of the fixtures, found by its rule, is the one row of ACTIVE's list here.
+describe("a transaction a delegate sent, in the list", () => {
+  const transactions = import.meta.glob("../fixtures/http/xrpl/data-api/transactions/*.json", { query: "?raw", import: "default" }) as Record<string, () => Promise<string>>;
+
+  it("asks the list's names of the delegate its row ends with, and draws it by its name", async () => {
+    const { id } = await objectCase("xrpl", "delegated-payment");
+    const payment = (JSON.parse(await transactions[`../fixtures/http/xrpl/data-api/transactions/${id}.json`]!()) as { transaction: TxObject }).transaction;
+    const delegate = payment.tx.Delegate as string;
+    const mock = upstream("xrpl", {
+      [`GET /v2/accounts/${ACTIVE}/transactions?descending=true&limit=20`]: { result: "success", count: 1, transactions: [payment] },
+      "GET /v2/account_names": answerNamesAfterTheirEnd(),
+    });
+    const html = await (await get(`/xrpl/account/${ACTIVE}?case=delegated-row`)).text();
+
+    // The list's call (the one without the parent) asks for the delegate, with the sender and the destination its sentence links.
+    const listCall = namesCalls(mock).find((call) => !call.includes(PARENT))!;
+    expect(listCall).toEqual(sorted([payment.tx.Account, payment.tx.Destination as string, delegate]));
+    const [row] = tableRows(html, "Transactions").slice(1);
+    expect(row!.join(" ")).toContain(`· sent by Fixture ${delegate.slice(-4)}`);
+    const table = html.slice(html.indexOf('aria-label="Transactions"'));
+    expect(linkedAccounts(table, "xrpl")).toContain(delegate);
+    expectLinkedAccountsNamed(mock, table, "xrpl");
   });
 });
 

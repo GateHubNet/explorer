@@ -67,6 +67,30 @@ describe("rowSentence", () => {
     expect(rowSentence({ ok: true, sentence: [] })).toEqual([]);
   });
 
+  it("ends a delegated row with · sent by {delegate}, and on the delegate's page with · sent by this account as its delegate", () => {
+    const CAROL = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+    const description = describeTx(payment({ Delegate: CAROL }), { ...SUCCESS, delivered_amount: "5000000" }, { native: "XRP" });
+    const sent: Segment[] = [
+      { t: "text", v: "Sent " },
+      { t: "amount", value: "5", currency: "XRP" },
+      { t: "text", v: " to " },
+      { t: "account", v: BOB },
+    ];
+    // The delegate is an account segment: a link, which the list's names call asks for.
+    expect(rowSentence(description)).toEqual<Segment[]>([...sent, { t: "text", v: " · sent by " }, { t: "account", v: CAROL }]);
+    // On the page of the account it acted for (the sender), and of any other account, the same.
+    expect(rowSentence(description, ALICE)).toEqual(rowSentence(description));
+    expect(rowSentence(description, BOB)).toEqual(rowSentence(description));
+    expect(rowSentence(description, CAROL)).toEqual<Segment[]>([...sent, { t: "text", v: " · sent by this account as its delegate" }]);
+
+    // A failure keeps the tail, after the sentence without its reason.
+    const failed = rowSentence(describeTx(payment({ Delegate: CAROL }), { ...SUCCESS, TransactionResult: "tecPATH_DRY" }, { native: "XRP" }));
+    expect(failed[0]).toEqual({ t: "text", v: "Tried to send " });
+    expect(failed.slice(-3)).toEqual<Segment[]>([{ t: "account", v: BOB }, { t: "text", v: " · sent by " }, { t: "account", v: CAROL }]);
+    // A row of a transaction without a delegate has no tail.
+    expect(JSON.stringify(rowSentence(describeTx(payment(), SUCCESS, { native: "XRP" })))).not.toContain("sent by");
+  });
+
   describe("of an NFT mint, recorded", () => {
     const MINTED = "0019000040FEFE9E7C73D4F8A4DC7A7A09DD13B724827F945B2680E5061B0D4A";
     const mint = (name: string) => {

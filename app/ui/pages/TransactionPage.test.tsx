@@ -4,9 +4,12 @@ import { renderToString } from "react-dom/server";
 import { createMemoryRouter, RouterProvider, StaticRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { LAYOUT_XAHAU, renderUnderNetwork } from "../../../test/support/under-network";
 import { formatUtc, shortAddress } from "../../domain/format";
 import { NO_NAMES } from "../../domain/names";
 import type { TransactionPageData } from "../../server/transaction-view";
+import { NO_FEATURES, type Features } from "../features";
+import { NamesProvider } from "../names";
 import { OBJECTS_SHOWN, TransactionPage } from "./TransactionPage";
 
 afterEach(cleanup);
@@ -44,6 +47,10 @@ function transaction(extra: Partial<TransactionPageData> = {}): TransactionPageD
       { t: "text", v: "." },
     ],
     summary: "rJF2Xa…Qvg paid 1,250.00 USD to rNYbL8…Kq5.",
+    delegate: null,
+    sentBy: null,
+    note: null,
+    innerBatch: false,
     flow: [
       { role: "sender", account: ALICE, label: "Sender", amount: { value: "512.402115", currency: "XRP" } },
       { role: "pool", account: POOL, label: "XRP/USD AMM pool", amount: { value: "1250.00", ...USD } },
@@ -269,6 +276,144 @@ describe("TransactionPage: the details", () => {
     renderPage(transaction(), XAHAU);
     expect(detailRows(detailsCard()).Fee).toBe("0.000012 XAH · burned");
     expect(within(detailsCard()).getByRole("link", { name: "#107,695,660" }).getAttribute("href")).toBe("/xahau/ledger/107695660");
+  });
+});
+
+// A transaction a delegate sent (ledger object pages spec 6.2): the words after the sentence, the "Sent by" row after Account with the link to the delegation while DELEGATION is on, and
+// the Fee row's words. None of it is gated (decision 5) but the link.
+describe("TransactionPage: a transaction a delegate sent", () => {
+  const CAROL = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const delegated = (extra: Partial<TransactionPageData> = {}) =>
+    transaction({
+      delegate: CAROL,
+      sentBy: [{ t: "account", v: CAROL }, { t: "text", v: " sent it on behalf of " }, { t: "account", v: ALICE }, { t: "text", v: "." }],
+      ...extra,
+    });
+  const DELEGATION_ON: Features = { ...NO_FEATURES, delegation: true };
+  /** The page under the `/:net` layout, whose data holds the switches `useFeatures()` reads. */
+  const renderWith = (data: TransactionPageData, features: Features, network: typeof XRPL | typeof XAHAU = XRPL) =>
+    renderUnderNetwork(<TransactionPage network={network} data={data} />, features, {
+      path: `/${network.id}/tx/${data.hash}`,
+      hydrated: true,
+      ...(network.id === "xahau" ? { network: LAYOUT_XAHAU } : {}),
+    });
+  const sentByRow = () => [...detailsCard().querySelectorAll(".kv")].find((row) => row.querySelector("dt")!.textContent === "Sent by") as HTMLElement | undefined;
+
+  it("draws the Sent by row with View the delegation, and the Fee words", () => {
+    renderWith(delegated(), DELEGATION_ON);
+    expect(Object.keys(detailRows(detailsCard())).slice(4, 7)).toEqual(["Account", "Sent by", "Destination"]);
+    const row = sentByRow()!;
+    // The delegate in full, on a line of its own, linked to its page.
+    expect(within(row).getByRole("link", { name: CAROL }).getAttribute("href")).toBe(`/xrpl/account/${CAROL}`);
+    expect(row.querySelector(".sentby__why")!.textContent).toBe(
+      `The delegate signed this transaction and paid its fee, using a permission ${shortAddress(ALICE)} gave it. View the delegation`,
+    );
+    // The delegation is on the Delegation tab of the account that gave it.
+    expect(within(row).getByRole("link", { name: "View the delegation" }).getAttribute("href")).toBe(`/xrpl/account/${ALICE}?tab=delegation`);
+    expect(detailRows(detailsCard()).Fee).toBe("0.000012 XRP · paid by the delegate, burned");
+    // The delegate's balance carries the fee, not the sender's.
+    expect(screen.getByText(/the delegate.s XRP change includes the fee/i)).toBeTruthy();
+  });
+
+  it("shows Sent by without the link while DELEGATION is off", () => {
+    renderWith(delegated(), NO_FEATURES);
+    const row = sentByRow()!;
+    expect(row.querySelector(".sentby__why")!.textContent).toBe(`The delegate signed this transaction and paid its fee, using a permission ${shortAddress(ALICE)} gave it.`);
+    expect(within(row).queryByRole("link", { name: "View the delegation" })).toBeNull();
+    expect(within(row).getByRole("link", { name: CAROL })).toBeTruthy();
+    expect(detailRows(detailsCard()).Fee).toBe("0.000012 XRP · paid by the delegate, burned");
+  });
+
+  it("writes the plain name of the account that gave the permission, as the Delegation tab does", () => {
+    const names = { [ALICE]: { name: { text: "Northpeak Treasury", kind: "verified" as const }, domain: "northpeak.example", labels: [] } };
+    renderUnderNetwork(
+      <NamesProvider names={names}>
+        <TransactionPage network={XRPL} data={delegated()} />
+      </NamesProvider>,
+      DELEGATION_ON,
+      { path: `/xrpl/tx/${HASH}`, hydrated: true },
+    );
+    expect(sentByRow()!.querySelector(".sentby__why")!.textContent).toContain("using a permission Northpeak Treasury gave it.");
+  });
+
+  it("says a delegated inner transaction of a Batch was sent within it, and leaves its fee to the Batch", () => {
+    renderWith(delegated({ innerBatch: true, fee: "0" }), DELEGATION_ON);
+    const row = sentByRow()!;
+    expect(row.querySelector(".sentby__why")!.textContent).toBe(`The delegate sent this within its Batch, using a permission ${shortAddress(ALICE)} gave it. View the delegation`);
+    expect(detailRows(detailsCard()).Fee).toBe("0 XRP · burned");
+    expect(screen.getByText(/the sender.s XRP change includes the fee/i)).toBeTruthy();
+  });
+
+  it("puts who sent it after the sentence, in the same paragraph", () => {
+    renderWith(delegated(), DELEGATION_ON);
+    const sentence = screen.getByRole("region", { name: "Summary" }).querySelector("p.sentence")!;
+    expect(sentence.textContent).toBe(`${shortAddress(ALICE)} paid 1,250.00 USD to ${shortAddress(BOB)}. ${shortAddress(CAROL)} sent it on behalf of ${shortAddress(ALICE)}.`);
+    expect(within(sentence as HTMLElement).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
+      `/xrpl/account/${ALICE}`,
+      `/xrpl/account/${BOB}`,
+      `/xrpl/account/${CAROL}`,
+      `/xrpl/account/${ALICE}`,
+    ]);
+  });
+
+  it("has no Sent by row, no words after the sentence and the plain fee for a transaction the account sent itself", () => {
+    renderWith(transaction(), DELEGATION_ON);
+    expect(sentByRow()).toBeUndefined();
+    expect(screen.getByRole("region", { name: "Summary" }).querySelector("p.sentence")!.textContent).not.toContain("on behalf of");
+    expect(detailRows(detailsCard()).Fee).toBe("0.000012 XRP · burned");
+  });
+});
+
+describe("TransactionPage: a DelegateSet", () => {
+  const DELEGATE = "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh";
+  const chip = (name: string, kind: "transaction" | "granular", words: string) => ({ t: "permission" as const, name, kind, words });
+  const delegateSet = transaction({
+    type: "DelegateSet",
+    title: "Delegation",
+    flow: null,
+    sentence: [
+      { t: "account", v: ALICE },
+      { t: "text", v: " let " },
+      { t: "account", v: DELEGATE },
+      { t: "text", v: " send " },
+      chip("Payment", "transaction", "Any Payment transaction"),
+      { t: "text", v: " and " },
+      chip("TrustlineFreeze", "granular", "Only freezing trust lines, within TrustSet"),
+      { t: "text", v: " on its behalf." },
+    ],
+    note: [
+      { t: "text", v: "This replaces any permissions " },
+      { t: "account", v: ALICE },
+      { t: "text", v: " had given " },
+      { t: "account", v: DELEGATE },
+      { t: "text", v: " before; it does not add to them." },
+    ],
+    details: [
+      { label: "Delegate", value: [{ t: "account", v: DELEGATE }] },
+      { label: "Permissions", value: [chip("Payment", "transaction", "Any Payment transaction"), { t: "text", v: " " }, chip("TrustlineFreeze", "granular", "Only freezing trust lines, within TrustSet"), { t: "text", v: " · 2 of 10" }] },
+    ],
+  });
+
+  it("draws each permission of the sentence and of the details as a chip, with its words as the title and for a screen reader", () => {
+    renderPage(delegateSet);
+    const sentence = screen.getByRole("region", { name: "Summary" }).querySelector("p.sentence")!;
+    const chips = [...sentence.querySelectorAll(".permchip")];
+    expect(chips.map((each) => each.className)).toEqual(["permchip", "permchip permchip--granular"]);
+    expect(chips.map((each) => each.getAttribute("title"))).toEqual(["Transaction type. Any Payment transaction", "Narrower right. Only freezing trust lines, within TrustSet"]);
+    expect(chips[1]!.querySelector(".sr")!.textContent).toContain("Only freezing trust lines, within TrustSet");
+    expect(detailsCard().querySelectorAll(".permchip")).toHaveLength(2);
+    expect(detailRows(detailsCard()).Permissions).toContain("· 2 of 10");
+  });
+
+  it("shows the note under the sentence, its accounts as links", () => {
+    renderPage(delegateSet);
+    const note = screen.getByRole("region", { name: "Summary" }).querySelector("p.summary__note")!;
+    expect(note.textContent).toBe(`This replaces any permissions ${shortAddress(ALICE)} had given ${shortAddress(DELEGATE)} before; it does not add to them.`);
+    expect(within(note as HTMLElement).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`, `/xrpl/account/${DELEGATE}`]);
+    // A transaction without a note has none.
+    cleanup();
+    renderPage(transaction());
+    expect(screen.getByRole("region", { name: "Summary" }).querySelector(".summary__note")).toBeNull();
   });
 });
 

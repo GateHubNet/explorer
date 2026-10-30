@@ -11,6 +11,7 @@ import { transactionPage, txFromIndex } from "../../app/server/transaction-view"
 import { answerNamesAfterTheirEnd, expectAccountsDrawn, expectLinkedAccountsNamed, expectTextWithAccounts, inCalls, linkedAccounts, linksTo, namesCalls, viewOf } from "../support/names";
 import { anchors, elementText, hrefs, pageClient, tableRows, textOf } from "../support/pages";
 import { recordedHashes } from "../support/ledger-hashes";
+import { objectCase } from "../support/object-cases";
 import { dataApiError, mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The transaction page, `/{net}/tx/{hash|ctid}`, on the real Worker against the recorded answers of the data API and the
@@ -756,7 +757,74 @@ describe("a Xahau transaction", () => {
     expect(hrefs(html)).toContain("/xahau/ledger/26540613");
     expect(hrefs(html)).toContain(`/xahau/tx/${hashes[87]}`);
     expect(text).toContain("Xahau / Ledger 26,540,613");
+    // Xahau has no delegation: no transaction there has a Delegate, so none has a "Sent by" row.
+    expect(text).not.toContain("Sent by");
+    expect(text).not.toContain("on behalf of");
     expect(await storedAs(`/xahau/tx/${REMIT}`)).toEqual(NAMED);
+  });
+});
+
+// A transaction a delegate sent, and a DelegateSet (ledger object pages spec 6.2): C9's synthetic delegated Payment of the fixtures, whose `Delegate` paid the fee, found by its rule
+// (`objectCase`), and the recorded DelegateSet. DELEGATION is on in this project: the "Sent by" row links the delegation. Each is asked for here only.
+describe("a transaction a delegate sent", () => {
+  it("says who sent it after the sentence, has a Sent by row after Account and the delegate's fee, and names exactly the accounts it links", async () => {
+    const { id: hash, owner: sender } = await objectCase("xrpl", "delegated-payment");
+    const delegate = (await recorded("xrpl", hash)).tx.Delegate as string;
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/tx/${hash}`);
+    const text = textOf(html);
+
+    expect(elementText(html, "sentence")).toMatch(/ sent it on behalf of /);
+    expect(text).toContain("Sent by");
+    const row = /<dt[^>]*>Sent by<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    // The delegate in full (its name, then its whole address), what that means with the sender's plain name, and the link to the sender's Delegation tab.
+    expect(textOf(row)).toContain(delegate);
+    expect(textOf(row)).toContain(`The delegate signed this transaction and paid its fee, using a permission Fixture ${sender.slice(-4)} gave it. View the delegation`);
+    expect(hrefs(row)).toEqual([`/xrpl/account/${delegate}`, `/xrpl/account/${sender}?tab=delegation`]);
+    expect(text).toMatch(/Fee 0\.006 XRP · paid by the delegate, burned/);
+    // The Account row comes before the Sent by row.
+    expect(html.indexOf(">Account</dt>")).toBeLessThan(html.indexOf(">Sent by</dt>"));
+
+    // The names asked are the accounts linked, the delegate among them, each drawn by its name.
+    expect(linkedAccounts(html, "xrpl")).toContain(delegate);
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+
+  // The recorded delegated inner OfferCreate of a Batch (xrpl-objects' `delegated_batch_inner`): its Batch paid the fee, and its delegate is in no node of its metadata, so the
+  // "Sent by" row and the words after the sentence are the only places the page draws it.
+  it("says a delegated inner transaction of a Batch was sent within it, leaves its fee to the Batch, and asks the name of the delegate it draws only there", async () => {
+    const hash = "8A57855B074280D7783182F3556BADD92246252E6EFFE0FD7E807E0B200FC2D8";
+    const { tx, meta } = await recorded("xrpl", hash);
+    const delegate = tx.Delegate as string;
+    expect(JSON.stringify(meta)).not.toContain(delegate);
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/tx/${hash}`);
+
+    const row = /<dt[^>]*>Sent by<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    expect(textOf(row)).toContain(`The delegate sent this within its Batch, using a permission Fixture ${tx.Account.slice(-4)} gave it. View the delegation`);
+    expect(textOf(html)).toMatch(/Fee 0 XRP · burned/);
+    expect(textOf(html)).not.toContain("paid by the delegate");
+    expect(namesCalls(mock).flat()).toContain(delegate);
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("draws a DelegateSet's permissions as chips, in the sentence and the details, with the note under the sentence", async () => {
+    const hash = "4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66";
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${hash}`);
+    const text = textOf(html);
+
+    expect(html).toMatch(/<h1[^>]*>Delegation<\/h1>/);
+    expect(elementText(html, "sentence")).toMatch(/ let .+ send OfferCreate: Any OfferCreate transaction and OfferCancel: Any OfferCancel transaction on its behalf\.$/);
+    expect(html.match(/class="permchip"/g)).toHaveLength(4);
+    expect(html).toContain('title="Transaction type. Any OfferCreate transaction"');
+    expect(text).toMatch(/This replaces any permissions .+ had given .+ before; it does not add to them\./);
+    expect(text).toContain("· 2 of 10");
+    // The account sent it itself: no Sent by row.
+    expect(text).not.toContain("Sent by");
   });
 });
 

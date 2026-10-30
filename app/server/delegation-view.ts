@@ -2,13 +2,10 @@
 // holds. The page gets rows of strings, numbers and chips (never the API's JSON), so it needs nothing of the API's types. No I/O.
 
 import { DELEGATIONS_WORD } from "../domain/account-tabs";
-import { permissionChip, type PermissionChipView } from "../domain/permissions";
+import { permissionChip, permissionCount, type PermissionChipView } from "../domain/permissions";
 import type { Delegation, DelegationsPage } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
 import { unixOf } from "./validator-facts";
-
-/** The most permissions one delegation grants (XLS-75): every count reads "{n} of 10". */
-const MOST_PERMISSIONS = 10;
 
 /**
  * A delegation, a row of the list it is in. `account` is the other account: the delegate (`authorize`) in the list of the delegations the account gave, and the account that gave the
@@ -39,7 +36,7 @@ function rowOf(delegation: Delegation, other: "account" | "authorize"): Delegati
     key: delegation.delegation_id,
     account: delegation[other],
     permissions: delegation.permissions.map(permissionChip),
-    count: `${delegation.permissions.length} of ${MOST_PERMISSIONS}`,
+    count: permissionCount(delegation.permissions.length),
     tx: delegation.updated.tx_hash,
     ledger: delegation.updated.ledger_index,
     time: unixOf(delegation.updated.time),
