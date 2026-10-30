@@ -1,29 +1,34 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { OBJECTS_LIMIT } from "../../domain/account-tabs";
-import { formatAmount, formatCurrency, shortHash } from "../../domain/format";
+import { DELEGATIONS_LIMIT, OBJECTS_LIMIT } from "../../domain/account-tabs";
+import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
+import { plainNameOf } from "../../domain/names";
 import { collectionLink } from "../../domain/nft-link";
 import { nftWords, shortNftId } from "../../domain/nft-params";
+import { permissionChip } from "../../domain/permissions";
 import type { AccountListPageData, AccountNftRow, ChangeView, ObjectRow, OfferRow, PaymentRow, RowAmount, TabList, TradeRow, TxRow } from "../../server/account-view";
+import type { DelegationList, DelegationRow } from "../../server/delegation-view";
 import { AccountLink } from "../components/AccountLink";
 import { Amount } from "../components/Amount";
 import { CoverageNote } from "../components/CoverageNote";
 import { DataTable, type Column } from "../components/DataTable";
+import { HashLink } from "../components/HashLink";
 import { NftGlyph } from "../components/NftGlyph";
 import { NftLink } from "../components/NftLink";
 import { Pager } from "../components/Pager";
+import { PermissionChip } from "../components/PermissionChip";
 import { Sentence } from "../components/Sentence";
 import { TypeTag } from "../components/TypeTag";
 import { When } from "../components/WhenCell";
 import { ResultPill } from "../components/Pill";
 import type { NetworkInfo } from "../networks";
-import { NamesProvider } from "../names";
+import { NamesProvider, useNameOf } from "../names";
 import { useFeatures } from "../use-network";
 import { count, ListFailed, plural } from "./account-list-words";
 
 // The list panels of the account page: the list of a tab, drawn by its own names, in its panel (the note, the footer with the count and the pager), and the
-// tables and the objects list it is made of. A chunk of its own, which `AccountPage.tsx` loads with `lazy()` (README, "The account page"): the analytics view
+// tables and the objects list it is made of; the Delegation tab's two lists, whose panel is its own (`DelegationPanel`: no count and no pager). A chunk of its own, which `AccountPage.tsx` loads with `lazy()` (README, "The account page"): the analytics view
 // never draws a list, so its first load holds none of this, and a first page draws the list inside its streamed `Suspense` and `Await` already. What the
 // panels share with the rest of the page (`count`, `plural`, `ListFailed`) is the leaf `account-list-words.tsx`: they import nothing of `AccountPage.tsx`.
 
@@ -32,12 +37,12 @@ export default function TabPanel({ network, data, list }: { network: NetworkInfo
   if (list.state === "failed") return <ListFailed what={list.what} />;
   return (
     <NamesProvider names={list.names.map}>
-      <ListPanel network={network} list={list} />
+      <ListPanel network={network} address={data.address} list={list} />
     </NamesProvider>
   );
 }
 
-function ListPanel({ network, list }: { network: NetworkInfo; list: Exclude<TabList, { state: "failed" }> }) {
+function ListPanel({ network, address, list }: { network: NetworkInfo; address: string; list: Exclude<TabList, { state: "failed" }> }) {
   const net = network.id;
 
   switch (list.tab) {
@@ -105,6 +110,8 @@ function ListPanel({ network, list }: { network: NetworkInfo; list: Exclude<TabL
         </Panel>
       );
     }
+    case "delegation":
+      return <DelegationPanel net={net} address={address} given={list.given} held={list.held} />;
   }
 }
 
@@ -313,5 +320,121 @@ function ObjectsList({ net, rows }: { net: NetworkInfo["id"]; rows: ObjectRow[] 
         </li>
       ))}
     </ul>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The delegations
+
+/**
+ * The Delegation tab (ledger object pages spec 6.1): what a delegation is, with the legend of the two kinds of chip, then the permissions the account gave and the ones it holds. It
+ * is not a `Panel` (no count and no pager: the API has no totals, and each list is one page of at most `DELEGATIONS_LIMIT`), and each list has the notes it is owed under its table.
+ * `{name}` in its sentences is the account's plain name, else its short address (`plainNameOf`, as `shownIssuer` writes an issuer in a sentence).
+ */
+function DelegationPanel({ net, address, given, held }: { net: NetworkInfo["id"]; address: string; given: DelegationList; held: DelegationList }) {
+  const name = plainNameOf(useNameOf(address)) ?? shortAddress(address);
+  return (
+    <div className="activity__panel">
+      <div className="delegation__intro">
+        <p>
+          A delegation lets another account, the delegate, send some kinds of transaction on this account&rsquo;s behalf. Each permission is a transaction type or one narrower right, and a
+          delegation grants up to 10.
+        </p>
+        <div className="delegation__legend">
+          <span className="delegation__key">
+            <span aria-hidden="true">
+              <PermissionChip chip={permissionChip("Payment")} />
+            </span>
+            transaction type
+          </span>
+          <span className="delegation__key">
+            <span aria-hidden="true">
+              <PermissionChip chip={permissionChip("TrustlineFreeze")} />
+            </span>
+            narrower right
+          </span>
+        </div>
+      </div>
+      <DelegationSection net={net} name={name} which="given" list={given} />
+      <DelegationSection net={net} name={name} which="held" list={held} />
+    </div>
+  );
+}
+
+// The tracks at their least, the gaps (3 x 16 px) and the padding of a row (2 x 16 px), below which the table scrolls sideways inside its card.
+const DELEGATIONS_WIDTH = 200 + 340 + 120 + 104 + 3 * 16 + 2 * 16;
+
+/** One list of the tab: its head (the title and what it lists), the table, and under it the notes it is owed (more than a page, the reserve, a coverage that starts late). */
+function DelegationSection({ net, name, which, list }: { net: NetworkInfo["id"]; name: string; which: "given" | "held"; list: DelegationList }) {
+  const titleId = useId();
+  const isGiven = which === "given";
+  const title = isGiven ? "Permissions given" : "Permissions held";
+  const columns: Column<DelegationRow>[] = [
+    { id: "account", header: isGiven ? "Delegate" : "On behalf of", width: "minmax(200px, 1fr)", ellipsis: true, cell: (row) => <AccountLink net={net} address={row.account} /> },
+    {
+      id: "permissions",
+      header: "Permissions",
+      width: "minmax(340px, 2.4fr)",
+      cell: (row) => (
+        <span className="delegation__perms">
+          {row.permissions.map((chip, index) => (
+            <PermissionChip key={`${index}:${chip.name}`} chip={chip} />
+          ))}
+          <span className="delegation__count num">{row.count}</span>
+        </span>
+      ),
+    },
+    {
+      id: "granted",
+      header: "Granted in",
+      width: "120px",
+      // The transaction that last set the delegation, named for a screen reader by what it leads to (it holds the text the link shows).
+      cell: (row) => <HashLink net={net} kind="tx" hash={row.tx} label={`Transaction ${shortHash(row.tx)}`} />,
+    },
+    {
+      id: "date",
+      header: "Date (UTC)",
+      width: "104px",
+      align: "end",
+      // The date with the time of day under it, as the other lists write them; the ledger is the tooltip. The transaction is linked in the cell before.
+      cell: (row) => {
+        const at = formatUtc(row.time);
+        return (
+          <span className="when num" title={`Ledger #${count(row.ledger)}`}>
+            <span>{at.slice(0, 10)}</span>
+            <span className="faint">{at.slice(11, 19)}</span>
+          </span>
+        );
+      },
+    },
+  ];
+  const reserve =
+    isGiven && list.rows.length > 0
+      ? `Each delegation given is a Delegate object ${name} owns, so ${list.rows.length === 1 ? "this one counts" : `these ${count(list.rows.length)} count`} toward its reserve. A new DelegateSet for the same delegate replaces its whole list.`
+      : null;
+  return (
+    <section className="delegation__section" aria-labelledby={titleId}>
+      <div className="delegation__head">
+        <h2 id={titleId} className="card__title">
+          {title}
+        </h2>
+        <span className="delegation__sub">{isGiven ? `Accounts that may send transactions on ${name}’s behalf` : `Accounts on whose behalf ${name} may send transactions`}</span>
+      </div>
+      <DataTable
+        label={title}
+        columns={columns}
+        rows={list.rows}
+        rowKey={(row) => row.key}
+        minWidth={DELEGATIONS_WIDTH}
+        empty={isGiven ? `No account may send transactions on ${name}’s behalf.` : `${name} may not send transactions on any other account’s behalf.`}
+      />
+      {(list.more || reserve !== null || list.coverage !== null) && (
+        <div className="delegation__foot">
+          {list.more && <p>{`Showing the first ${count(DELEGATIONS_LIMIT)}`}</p>}
+          {reserve !== null && <p>{reserve}</p>}
+          <CoverageNote net={net} note={list.coverage} />
+        </div>
+      )}
+    </section>
   );
 }

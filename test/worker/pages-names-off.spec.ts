@@ -8,7 +8,7 @@ import { objectCase } from "../support/object-cases";
 import { textOf } from "../support/pages";
 import { validatorCase } from "../support/validators-cases";
 
-// The pages that another switch gates, with only `NAMES` off (display names spec 2.2 and 6.1; global constraints): the account's Analytics view and NFTs tab, the markets and a pair, the AMM
+// The pages that another switch gates, with only `NAMES` off (display names spec 2.2 and 6.1; global constraints): the account's Analytics view, NFTs tab and Delegation tab, the markets and a pair, the AMM
 // list and a pool, a swap through it, the validators, the NFT pages, an escrow, a check and a payment channel. They make no `account_names` request and no toml request, whatever they hold that a name could be made of, and draw no
 // name or mark (no `acct__name`). The `worker-off` project (names-off.spec.ts) has every switch off, where each of these is a 404 or a redirect before any call, and "no names request" of a
 // 404 says nothing; the `worker-names-off` project (vitest.config.ts) has every switch on but this one, so that each page is there. Each page also says what a name would have been made
@@ -46,6 +46,7 @@ describe("the pages the other switches gate", () => {
   it.each([
     ["the account's Analytics view", "xrpl", `/xrpl/account/${ACTIVE}?tab=analytics`, "linked"],
     ["the account's NFTs tab", "xrpl", `/xrpl/account/${ACTIVE}?tab=nfts`, "linked"],
+    ["the account's Delegation tab", "xrpl", `/xrpl/account/${ACTIVE}?tab=delegation`, "linked"],
     ["the markets", "xrpl", "/xrpl/markets", "short"],
     ["the Xahau markets", "xahau", "/xahau/markets", "short"],
     ["the pair XRP/RLUSD", "xrpl", `/xrpl/markets/XRP/RLUSD.${RLUSD_ISSUER}`, "short"],

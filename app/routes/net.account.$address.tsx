@@ -1,13 +1,14 @@
 import { redirect } from "react-router";
 import { classicAddressToXAddress, isValidClassicAddress, isValidXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
-import { accountHref, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
+import { accountHref, DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { parseAnalyticsQuery, type AnalyticsPeriod } from "../domain/analytics-params";
 import { shortAddress } from "../domain/format";
 import { accountNameHeader } from "../server/account-name-view";
 import { LAST_LEDGER_DEADLINE_MS, LIST_DEADLINE_MS, namedHeader, nameList, nodeTomlOf, withNames } from "../server/account-names-load";
 import {
   accountHeader,
+  delegationList,
   existenceOf,
   failedList,
   headerAccounts,
@@ -25,6 +26,7 @@ import {
   transactionsList,
   type AccountAnalyticsPageData,
   type AccountListPageData,
+  type DelegationTab,
   type HistoryHeader,
   type ListContext,
   type Loaded,
@@ -85,7 +87,10 @@ async function within<T>(list: Promise<T>, ms: number, onTimeout: () => T): Prom
   }
 }
 
-/** The data of the list of a tab that is read from the data API: transactions, payments, trades, NFTs (paged) and the open offers. */
+/**
+ * The data of the list of a tab that is read from the data API: transactions, payments, trades, NFTs (paged), the delegations given and held (both directions at once, one page each)
+ * and the open offers. Either direction failing fails the tab: half a list would say that an account has no delegations it has.
+ */
 function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList> {
   const query = { descending: true, limit: PAGE_SIZE, marker: ctx.marker };
   switch (tab) {
@@ -98,6 +103,11 @@ function readList(api: DataApi, tab: ListTab, ctx: ListContext): Promise<TabList
     case "nfts":
       // What the account holds now, in the API's order (by collection and serial): no `descending`.
       return api.accountNfts(ctx.address, { limit: PAGE_SIZE, marker: ctx.marker }).then((page) => nftsList(page, ctx));
+    case "delegation":
+      return Promise.all([
+        api.accountDelegations(ctx.address, { direction: "given", limit: DELEGATIONS_LIMIT }),
+        api.accountDelegations(ctx.address, { direction: "held", limit: DELEGATIONS_LIMIT }),
+      ]).then(([given, held]) => delegationList(given, held));
     default:
       return api.orders(ctx.address).then(
         (orders) => offersList(orders),
@@ -132,6 +142,9 @@ const withoutRoutesParam = (search: string) =>
  *   `live`, the header without the holdings, and the frame and six cards streamed after it.
  * - **The NFTs tab** (`?tab=nfts`, NFT spec 6.1) is a list of the data API (`accountNfts`) paged by marker as the transactions are. While `NFTS` is off the
  *   tab is the "soon" label and its URL a 302 of class `short` to the account page before any call, as Analytics'; while it is on, the Objects tab's NFT pages lead to it.
+ * - **The Delegation tab** (`?tab=delegation`, ledger object pages spec 6.1) is two lists of the data API (`accountDelegations`, the delegations given and held, 200 of each and no pages), read
+ *   side by side in the list's promise: either failing is "Couldn't load delegations". Where the network has no delegation (`hasDelegation`) there is no tab, and while `DELEGATION` is off it is
+ *   the "soon" label; either way its URL is a 302 of class `short` to the account page before any call, as the NFTs'. A `marker` on it is a 302 to the URL without it, as on the offers' and objects'.
  * - **The first page of a tab** (no marker) is class `live`. The header is read side by side from the data API (creation, balances) and
  *   the node (`account_info`, `account_objects`, `server_state` for the reserves) and awaited. The list of the tab is a promise that
  *   streams in after it, and that never rejects: when it cannot be loaded it is a `failed` list, which the page shows as "Couldn't
@@ -181,6 +194,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
   // The NFTs tab is the "soon" label while `NFTS` is off, and its URL is as an unknown tab's, a 302 to the account page before any call.
   if (tab === "nfts" && !network.features.nfts) return tidied(base);
+  // So is the Delegation tab's: the "soon" label while `DELEGATION` is off, and no tab at all on a network without delegation (`hasDelegation`), whatever the switch says.
+  if (tab === "delegation" && !(network.hasDelegation && network.features.delegation)) return tidied(base);
 
   if (tab === "analytics") {
     if (!network.features.accountAnalytics) return tidied(base);
@@ -208,8 +223,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     : historyPage(context, request, network, tab, ctx, common);
 }
 
-type Common = Pick<AccountListPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab">;
-type AnalyticsCommon = Pick<AccountAnalyticsPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab">;
+type Common = Pick<AccountListPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab" | "delegationTab">;
+type AnalyticsCommon = Pick<AccountAnalyticsPageData, "kind" | "address" | "native" | "tab" | "tag" | "qr" | "analyticsTab" | "delegationTab">;
 
 /**
  * What every account page is drawn from, whatever its tab. A page opened with a destination tag has the tag in its QR code, as the X-address of
@@ -225,7 +240,14 @@ function pageBase(network: Network, address: string, tag: number | null) {
     tag,
     qr: { size: code.size, path: qrPath(code), content, tag },
     analyticsTab: network.features.accountAnalytics,
+    delegationTab: delegationTabOf(network),
   };
+}
+
+/** How the tab bar shows the Delegation tab: not at all where the ledger has no delegation, as the "soon" label while `DELEGATION` is off, else as a link. */
+function delegationTabOf(network: Pick<Network, "hasDelegation" | "features">): DelegationTab {
+  if (!network.hasDelegation) return "none";
+  return network.features.delegation ? "link" : "soon";
 }
 
 /** `make()`'s value: made on the first call, and the same on every call after. */

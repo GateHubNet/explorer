@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Segment } from "../domain/describe";
 import { NO_NAMES } from "../domain/names";
 import { nftSample, nftsPageSample, uriTokenSample, NFT_MARKER, NFT_OWNER, OTHER_ISSUER, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../../test/support/nft-samples";
+import { DELEGATE, DELEGATOR, delegationsSample } from "../../test/support/object-samples";
 import type { AccountData, AccountExchange, BalancesResponse, NftsPage, OrdersResponse, Payment, TxObject } from "./api-types";
 import {
   ACCOUNT_TABS,
@@ -11,6 +12,8 @@ import {
   accountHeader,
   accountHref,
   decodeDomain,
+  delegationList,
+  DELEGATIONS_LIMIT,
   existenceOf,
   failedList,
   headerAccounts,
@@ -64,14 +67,19 @@ const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: st
 const text = (segments: readonly Segment[]) => segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : s.t === "nft" ? `<NFT ${s.v}>` : `[${s.pair}]`)).join("");
 
 describe("the tabs and the URL", () => {
-  it("lists the seven tabs of the page, the first being the default, the NFTs before the last, and the last the analytics", () => {
-    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects", "nfts", "analytics"]);
+  it("lists the eight tabs of the page, the first being the default, the NFTs and the delegation before the last, and the last the analytics", () => {
+    expect(ACCOUNT_TABS).toEqual(["transactions", "payments", "trades", "offers", "objects", "nfts", "delegation", "analytics"]);
     for (const tab of ACCOUNT_TABS) expect(isAccountTab(tab)).toBe(true);
-    for (const other of ["Analytics", "NFTs", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
+    for (const other of ["Analytics", "NFTs", "Delegation", "delegations", "", "Transactions", "tx", "constructor", "__proto__", null, undefined, 1]) expect(isAccountTab(other), String(other)).toBe(false);
   });
 
-  it("pages the lists that are read from the data API by marker, the NFTs' among them, and not the offers or the objects, which the node answers live", () => {
+  it("pages the lists that are read from the data API by marker, the NFTs' among them, and not the offers, the objects or the delegations, which have one page", () => {
     expect([...PAGED_TABS]).toEqual(["transactions", "payments", "trades", "nfts"]);
+  });
+
+  it("names the tab in the URL as it names the others, and asks the API for at most 200 delegations of each direction", () => {
+    expect(accountHref("xrpl", XRPL, { tab: "delegation" })).toBe(`/xrpl/account/${XRPL}?tab=delegation`);
+    expect(DELEGATIONS_LIMIT).toBe(200);
   });
 
   it.each([
@@ -1007,6 +1015,8 @@ describe("the lists of the tabs", () => {
     expect(failedList("trades")).toEqual({ state: "failed", what: "trades" });
     expect(failedList("offers")).toEqual({ state: "failed", what: "offers" });
     expect(failedList("nfts")).toEqual({ state: "failed", what: "NFTs" });
+    expect(failedList("delegation")).toEqual({ state: "failed", what: "delegations" });
+    expect(TAB_WHAT.delegation).toBe("delegations");
     expect(TAB_WHAT.nfts).toBe("NFTs");
     // The words of a network are its own: Xahau's tokens are URITokens.
     expect(failedList("nfts", "xrpl")).toEqual({ state: "failed", what: "NFTs" });
@@ -1081,6 +1091,18 @@ describe("the accounts the page draws", () => {
         "XRP",
       );
       expect(listAddresses(objects)).toEqual(["rEscrowTo", "rCheckTo", "rOnlyFor", "rUriIssuer", "rBuyer", "rFriend"]);
+    });
+
+    it("is the delegates of the given list, then the accounts of the held one, each once in the order drawn", () => {
+      const row = (account: string, authorize: string) => ({ ...delegationsSample().delegations[0]!, account, authorize });
+      const list = delegationList(
+        delegationsSample({ delegations: [row(XRPL, DELEGATE), row(XRPL, "rSecondDelegate")], count: 2 }),
+        delegationsSample({ delegations: [row(DELEGATOR, XRPL), row("rSecondDelegate", XRPL), row(DELEGATE, XRPL)], count: 3 }),
+      );
+      expect(list).toMatchObject({ state: "ok", tab: "delegation", names: NO_NAMES });
+      // The account itself is in no row (it is the header's), a delegate that is also a delegator is drawn once.
+      expect(listAddresses(list)).toEqual([DELEGATE, "rSecondDelegate", DELEGATOR]);
+      expect(listAddresses(delegationList(delegationsSample({ delegations: [], count: 0 }), delegationsSample({ delegations: [], count: 0 })))).toEqual([]);
     });
 
     it("is none for the open offers and the NFTs, which draw no account, and for a list that failed", () => {

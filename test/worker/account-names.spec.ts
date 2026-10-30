@@ -1,17 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { shortAddress } from "../../app/domain/format";
-import { linkTextOf } from "../../app/domain/names";
+import { linkTextOf, plainNameOf } from "../../app/domain/names";
 import type { AccountHeader, AccountListPageData, HistoryHeader, TabList } from "../../app/server/account-view";
 import { loadAccountPage } from "../support/account-loader";
 import { hexOfText } from "../support/hex";
 import {
   answerNamesAfterTheirEnd,
   askedIn,
+  expectAddressesOnly,
+  expectLinkedAccountsNamed,
   failingNames,
   headingText,
   isNamesRequest,
   isTomlRequest,
+  linkedAccounts,
   namesCalls,
   namesSpec,
   sorted,
@@ -21,6 +24,7 @@ import {
   watchNamesLog,
 } from "../support/names";
 import { expectDegraded, forgetStored, isStored, unavailable } from "../support/nft-pages";
+import { delegationsSample } from "../support/object-samples";
 import { anchors, elementText, pageClient, tableRows, textOf } from "../support/pages";
 import { dataApiError } from "../support/upstream";
 import type { SeenRequest } from "../support/upstream-core";
@@ -320,6 +324,83 @@ describe("when a call fails", () => {
     expect(tableRows(html, "Transactions")).toHaveLength(5);
     expect(logged()).toBe(1);
     expect(await isStored(path)).toBe(false);
+  });
+});
+
+// The Delegation tab (ledger object pages spec 6.1; display names spec 5): its two lists are one list, whose names are asked for once, after both delegations calls, for the delegates of the
+// given list and the accounts of the held one, sorted, in the list's own call beside the header's; the account itself is in the header's call, and `{name}` in its sentences is its plain name.
+describe("the Delegation tab", () => {
+  const GIVEN = `GET /v2/accounts/${ACTIVE}/delegations?direction=given&limit=200`;
+  const HELD = `GET /v2/accounts/${ACTIVE}/delegations?direction=held&limit=200`;
+  /** The three delegates ACTIVE gave permissions and the two accounts that gave them to it, in the fixtures (test/fixtures/http/xrpl/data-api/accounts/<ACTIVE>/delegations@…). */
+  const DELEGATES = ["rGCMDQCMGueT8HTcKL3j7cA9aJ7qfX92GW", "rneMZ5XxbdDi9oaNFNsR6ZQPEyugUjn4VY", "r43VwKWSW5mAVAxJpSk4UNUkRwx7HVt3Yn"];
+  const DELEGATORS = ["rwzUz9i822B3MGRnogyQkJFu3zWc6HYek1", "r4CxvmYahDYfTjxCo5YNu6YsLUo6eTFzbX"];
+  const html = async (path: string) => (await get(path)).text();
+
+  it("asks the names of the accounts of both lists in one sorted call after the delegations, the header's call beside it, and draws each by its name", async () => {
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const page = await html(`/xrpl/account/${ACTIVE}?tab=delegation&case=names`);
+
+    // The header's call (the address, its parent, its token's issuer) and the list's: the delegates of the given list and the delegators of the held one, each once.
+    expect(namesCalls(mock).sort()).toEqual([sorted([ACTIVE, PARENT, LIONS_ISSUER]), sorted([...DELEGATES, ...DELEGATORS])].sort());
+    const listCall = indexOf(mock.requests, (r) => isNamesRequest(r) && !askedIn(r).includes(PARENT));
+    expect(listCall).toBeGreaterThan(indexOf(mock.requests, (r) => r.key === GIVEN));
+    expect(listCall).toBeGreaterThan(indexOf(mock.requests, (r) => r.key === HELD));
+    // The lists link exactly those accounts (the tab bar above them links the account's own page by the tab's name, which is no account link), each asked for and each read by its name.
+    const lists = page.slice(page.indexOf('aria-label="Permissions given"'));
+    expect(linkedAccounts(lists, "xrpl").sort()).toEqual(sorted([...DELEGATES, ...DELEGATORS]));
+    expectLinkedAccountsNamed(mock, lists, "xrpl");
+  });
+
+  it("asks nothing for a list that is empty: the header's call alone", async () => {
+    const empty = delegationsSample({ delegations: [], count: 0 });
+    const mock = upstream("xrpl", { [GIVEN]: empty, [HELD]: empty });
+    await html(`/xrpl/account/${ACTIVE}?tab=delegation&case=names-empty`);
+    expect(namesCalls(mock)).toEqual([sorted([ACTIVE, PARENT, LIONS_ISSUER])]);
+  });
+
+  it("draws the addresses when the list's names call fails: the header keeps its names, the page is served and not stored, and it is logged once", async () => {
+    const logged = watchNamesLog();
+    const named = answerNamesAfterTheirEnd();
+    // The header's call is the one with the parent.
+    upstream("xrpl", { "GET /v2/account_names": (request: Request) => (askedIn(request).includes(PARENT) ? named(request) : unavailable()) });
+    const path = `/xrpl/account/${ACTIVE}?tab=delegation&case=list-names-failed`;
+    await forgetStored(path);
+    const response = await get(path);
+    const page = await response.text();
+
+    await expectDegraded(path, response);
+    expect(logged()).toBe(1);
+    // The lists are there, every account in them its address; the page above them is named.
+    expect(textOf(page)).not.toContain("Couldn’t load delegations");
+    const lists = page.slice(page.indexOf('aria-label="Permissions given"'));
+    expect(linkedAccounts(lists, "xrpl").sort()).toEqual(sorted([...DELEGATES, ...DELEGATORS]));
+    expect(expectAddressesOnly(lists, "xrpl")).toBe(5);
+    expect(page).toContain("acct__name");
+
+    const { data, marks } = await loadAccountPage<AccountListPageData>(path);
+    const list = await data.list;
+    expect(list).toMatchObject({ state: "ok", tab: "delegation", names: { state: "failed", map: {} } });
+    expect(data.names.state).toBe("ok");
+    expect(marks).toEqual(["names could not be loaded"]);
+  });
+
+  it("writes the account's plain name for {name} in the sentences of the tab: the empty held list and the note under the given one", async () => {
+    const view = (await viewOf("xrpl", ACTIVE))!;
+    const name = plainNameOf(view);
+    expect(name, "the fixtures name ACTIVE plainly").not.toBeNull();
+    const only = delegationsSample().delegations[0]!;
+    upstream("xrpl", {
+      [GIVEN]: delegationsSample({ delegations: [{ ...only, account: ACTIVE }] }),
+      [HELD]: delegationsSample({ delegations: [], count: 0 }),
+    });
+    const text = textOf(await html(`/xrpl/account/${ACTIVE}?tab=delegation&case=name-in-words`));
+
+    expect(text).toContain(`Each delegation given is a Delegate object ${name} owns, so this one counts toward its reserve.`);
+    expect(text).toContain(`${name} may not send transactions on any other account’s behalf.`);
+    expect(text).toContain(`Accounts that may send transactions on ${name}’s behalf`);
+    expect(text).toContain(`Accounts on whose behalf ${name} may send transactions`);
+    expect(text).not.toContain(`${shortAddress(ACTIVE)} may not send`);
   });
 });
 

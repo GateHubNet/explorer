@@ -8,7 +8,7 @@
 
 import BigNumber from "bignumber.js";
 
-import { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
+import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { accountsIn, describe, rowSentence, type Segment } from "../domain/describe";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
@@ -21,8 +21,9 @@ import { nftGlyph } from "../ui/components/NftGlyph";
 import type { Features } from "../ui/features";
 import type { NameHeader } from "./account-name-view";
 import type { AnalyticsData } from "./analytics-view";
-import type { AccountData, AccountExchange, BalancesResponse, Nft, NftsPage, OrdersResponse, Page, Payment, TxObject } from "./api-types";
+import type { AccountData, AccountExchange, BalancesResponse, DelegationsPage, Nft, NftsPage, OrdersResponse, Page, Payment, TxObject } from "./api-types";
 import { coverageNote, type CoverageNoteText } from "./coverage";
+import { delegationLists, type DelegationList } from "./delegation-view";
 import type { NetworkId } from "./networks";
 import { DASH } from "./nft-format";
 import { RIPPLE_EPOCH_OFFSET, type AccountInfo, type AccountObjects, type LedgerObject, type ServerState } from "./node-rpc";
@@ -31,9 +32,9 @@ import { UpstreamError } from "./upstream";
 // ---------------------------------------------------------------------------------------------------------------------------
 // The tabs and the URL
 
-export { accountHref, ACCOUNT_TABS, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
+export { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab };
 
-/** The tabs whose list is paged by marker (the data API's lists, the NFTs' too); the offers and the objects are read live from the node and have one page. */
+/** The tabs whose list is paged by marker (the data API's lists, the NFTs' too); the offers and the objects are read live from the node and have one page, and so has the delegation's (200 of each direction). */
 export const PAGED_TABS: readonly AccountTab[] = ["transactions", "payments", "trades", "nfts"];
 
 /** Rows of a page of a list. */
@@ -769,7 +770,8 @@ export type TabList =
   | { state: "ok"; tab: "trades"; rows: TradeRow[]; paging: Paging; names: NamesPart }
   | { state: "ok"; tab: "offers"; rows: OfferRow[]; ledgerIndex: number | null; truncated: boolean; names: NamesPart }
   | { state: "ok"; tab: "objects"; rows: ObjectRow[]; trustLines: number; offers: number; truncated: boolean; ledgerIndex: number | null; names: NamesPart }
-  | { state: "ok"; tab: "nfts"; rows: AccountNftRow[]; paging: Paging; coverage: CoverageNoteText | null; names: NamesPart };
+  | { state: "ok"; tab: "nfts"; rows: AccountNftRow[]; paging: Paging; coverage: CoverageNoteText | null; names: NamesPart }
+  | { state: "ok"; tab: "delegation"; given: DelegationList; held: DelegationList; names: NamesPart };
 
 /** What each tab is called in "Couldn't load transactions"; the analytics view's whole-view error is "Couldn't load the analytics." */
 export const TAB_WHAT: Record<AccountTab, string> = {
@@ -779,6 +781,7 @@ export const TAB_WHAT: Record<AccountTab, string> = {
   offers: "offers",
   objects: "objects",
   nfts: "NFTs",
+  delegation: "delegations",
   analytics: "the analytics",
 };
 
@@ -880,6 +883,14 @@ export function nftsList(page: NftsPage, ctx: ListContext): TabList {
   };
 }
 
+/**
+ * The Delegation tab (ledger object pages spec 6.1): the delegations the account gave and the ones it holds, each list one page of at most `DELEGATIONS_LIMIT` rows with no pager (the page
+ * says when there are more), and the coverage note of each in the words of the delegations. Both come from the API, or the tab is the section that could not be loaded.
+ */
+export function delegationList(given: DelegationsPage, held: DelegationsPage): TabList {
+  return { state: "ok", tab: "delegation", ...delegationLists(given, held), names: NO_NAMES };
+}
+
 /** The section that could not be loaded: `TAB_WHAT`'s words of the tab, and the network's own for the NFTs (`net`: "URITokens" on Xahau). */
 export function failedList(tab: ListTab, net?: NetworkId): TabList {
   return { state: "failed", what: tab === "nfts" && net !== undefined ? nftWords(net).tokens : TAB_WHAT[tab] };
@@ -889,10 +900,10 @@ export function failedList(tab: ListTab, net?: NetworkId): TabList {
 // The accounts the page draws (display names spec 1 and 5): what the loader asks the names of, and nothing else it holds
 
 /**
- * The accounts a tab's list draws as links, each once, in the order drawn: the accounts of the transactions' sentences, the counterparty of each payment and of each trade, and
- * the accounts of the objects' fields (To, Only for, Issuer, Authorized, a sell offer's only for). The open offers and the NFTs draw none (an amount's issuer is in a title, a
- * collection is a link to the collection), and neither does a list that failed. The first page's list asks for these names in a call of its own, after its rows; the Objects
- * tab's rows come with the header, and its accounts are in the header's call.
+ * The accounts a tab's list draws as links, each once, in the order drawn: the accounts of the transactions' sentences, the counterparty of each payment and of each trade, the
+ * accounts of the objects' fields (To, Only for, Issuer, Authorized, a sell offer's only for), and the delegates of the delegations given and then the accounts of those held. The
+ * open offers and the NFTs draw none (an amount's issuer is in a title, a collection is a link to the collection), and neither does a list that failed. The first page's list asks
+ * for these names in a call of its own, after its rows; the Objects tab's rows come with the header, and its accounts are in the header's call.
  */
 export function listAddresses(list: TabList): string[] {
   if (list.state !== "ok") return [];
@@ -904,6 +915,8 @@ export function listAddresses(list: TabList): string[] {
       return [...new Set(list.rows.map((row) => row.counterparty))];
     case "objects":
       return [...new Set(list.rows.flatMap((row) => row.fields.flatMap((field) => accountsIn(field.value))))];
+    case "delegation":
+      return [...new Set([...list.given.rows, ...list.held.rows].map((row) => row.account))];
     default:
       return [];
   }
@@ -941,6 +954,9 @@ export interface QrPicture {
   tag: number | null;
 }
 
+/** How the tab bar shows the Delegation tab: a link, the "soon" label, or not at all. */
+export type DelegationTab = "link" | "soon" | "none";
+
 /** What every account page is drawn from, whatever its tab. */
 interface AccountPageBase {
   kind: "account";
@@ -955,6 +971,11 @@ interface AccountPageBase {
    * the page data, so that the stored HTML, the server's tab bar and the browser's agree.
    */
   analyticsTab: boolean;
+  /**
+   * The Delegation tab: a `link` while the network has delegation (`Network.hasDelegation`) and `DELEGATION` is on, the "soon" label while only the switch is off, and `none` on a network
+   * without delegation (Xahau), where there is nothing to wait for. Carried in the page data as `analyticsTab` is, for the same reason.
+   */
+  delegationTab: DelegationTab;
   /**
    * The names of the accounts the header draws (`headerAccounts`), from the header's call; behind a marker, of the one call of the page (the address and the list's rows). A
    * streamed list and the analytics cards carry their own.

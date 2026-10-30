@@ -638,7 +638,7 @@ describe("the active XRPL account", () => {
     expect(textOf(html)).toContain("4 transactions");
   });
 
-  it("has the seven tabs as links, the NFTs before Analytics and Analytics with rel=nofollow (NFTS and ACCOUNT_ANALYTICS are on here; nfts-off.spec.ts and account-analytics-off.spec.ts have them off)", async () => {
+  it("has the eight tabs as links, the NFTs and Delegation before Analytics and Analytics with rel=nofollow (NFTS, DELEGATION and ACCOUNT_ANALYTICS are on here; nfts-off.spec.ts, delegation-off.spec.ts and account-analytics-off.spec.ts have them off)", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(path);
     const nav = /<nav class="tabs" aria-label="Account activity">([\s\S]*?)<\/nav>/.exec(html);
@@ -651,6 +651,7 @@ describe("the active XRPL account", () => {
       ["Offers", `/xrpl/account/${ACTIVE}?tab=offers`, false, null],
       ["Objects", `/xrpl/account/${ACTIVE}?tab=objects`, false, null],
       ["NFTs", `/xrpl/account/${ACTIVE}?tab=nfts`, false, null],
+      ["Delegation", `/xrpl/account/${ACTIVE}?tab=delegation`, false, null],
       ["Analytics", `/xrpl/account/${ACTIVE}?tab=analytics`, false, "nofollow"],
     ]);
     expect(nav![1]).not.toContain("is-soon");

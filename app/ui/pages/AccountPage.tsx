@@ -42,6 +42,7 @@ const TAB_LABELS: Record<Exclude<AccountTab, "nfts">, string> = {
   trades: "Trades",
   offers: "Offers",
   objects: "Objects",
+  delegation: "Delegation",
   analytics: "Analytics",
 };
 
@@ -74,8 +75,8 @@ const TabPanel = lazyChunk("AccountListPanels", () => import("./AccountListPanel
 /**
  * The account page: the address with its picture, copy button and QR code, when and by whom it was activated, its flags, the balance
  * with the reserve, the tokens and owned objects, and the tabs (transactions, payments with a CSV link, trades, offers, objects, the NFTs while
- * `NFTS` is on, the "soon" label otherwise, and analytics while `ACCOUNT_ANALYTICS` is on, the "soon" label otherwise). Takes what the loader made of the account (`AccountPageData`) and
- * never fetches.
+ * `NFTS` is on, the "soon" label otherwise, the delegations where the network has them, as a link while `DELEGATION` is on and the "soon" label otherwise, and analytics while
+ * `ACCOUNT_ANALYTICS` is on, the "soon" label otherwise). Takes what the loader made of the account (`AccountPageData`) and never fetches.
  *
  * - On the first page the header is read live. The tab's list is a promise: it streams in after the header, and when it could not be
  *   loaded the page says "Couldn't load transactions" with a Retry that fetches it again.
@@ -418,20 +419,27 @@ function OwnedCard({ header }: { header: AccountHeader }) {
  * The Activity card: the tabs, then the list of a list tab, or the analytics view's filter row. The Analytics tab is a link while the switch is
  * on (`data.analyticsTab`), to the view's default period from every page of the account, history pages included (the view is live mode). The
  * NFTs tab, called as the network calls them (NFTs, URITokens), is a link while `NFTS` is on (the layout's switches, as the NFT links read them)
- * and the "soon" label while it is off.
+ * and the "soon" label while it is off. The Delegation tab is `data.delegationTab`'s: a link, the "soon" label, or none (the loader knows that the network has no delegation).
  */
 function Activity({ network, data }: { network: NetworkInfo; data: AccountPageData }) {
   const net = network.id;
   const features = useFeatures();
-  const items: TabItem[] = ACCOUNT_TABS.map((id) => {
+  const items: TabItem[] = ACCOUNT_TABS.flatMap((id): TabItem[] => {
     if (id === "nfts") {
       const label = nftWords(net).tokens;
-      return features.nfts ? { id, label, href: accountHref(net, data.address, { tab: id }) } : { id, label, soon: true };
+      return [features.nfts ? { id, label, href: accountHref(net, data.address, { tab: id }) } : { id, label, soon: true }];
     }
-    if (id !== "analytics") return { id, label: TAB_LABELS[id], href: accountHref(net, data.address, { tab: id }) };
-    return data.analyticsTab
-      ? { id, label: TAB_LABELS[id], href: analyticsHref(net, data.address, DEFAULT_ANALYTICS_PERIOD), rel: "nofollow", onIntent: warmAnalytics }
-      : { id, label: TAB_LABELS[id], soon: true };
+    if (id === "delegation") {
+      if (data.delegationTab === "none") return [];
+      const label = TAB_LABELS[id];
+      return [data.delegationTab === "link" ? { id, label, href: accountHref(net, data.address, { tab: id }) } : { id, label, soon: true }];
+    }
+    if (id !== "analytics") return [{ id, label: TAB_LABELS[id], href: accountHref(net, data.address, { tab: id }) }];
+    return [
+      data.analyticsTab
+        ? { id, label: TAB_LABELS[id], href: analyticsHref(net, data.address, DEFAULT_ANALYTICS_PERIOD), rel: "nofollow", onIntent: warmAnalytics }
+        : { id, label: TAB_LABELS[id], soon: true },
+    ];
   });
 
   return (
@@ -484,8 +492,11 @@ function ListSection({ network, data }: { network: NetworkInfo; data: AccountLis
   );
 }
 
-/** What a tab's list is called in "Loading …" and in the error of a promise that was refused: the tab's name, and the NFTs' in the network's words (`NFTs`, `URITokens`). */
-const listWord = (tab: ListTab, net: NetworkInfo["id"]): string => (tab === "nfts" ? nftWords(net).tokens : tab);
+/**
+ * What a tab's list is called in "Loading …" and in the error of a promise that was refused: the tab's name, the NFTs' in the network's words (`NFTs`, `URITokens`), and what the
+ * Delegation tab lists ("delegations", as the loader's `failedList` says).
+ */
+const listWord = (tab: ListTab, net: NetworkInfo["id"]): string => (tab === "nfts" ? nftWords(net).tokens : tab === "delegation" ? "delegations" : tab);
 
 function ListLoading({ word }: { word: string }) {
   return (

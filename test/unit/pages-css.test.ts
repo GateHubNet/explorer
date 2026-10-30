@@ -584,3 +584,49 @@ describe("the ledger object pages", () => {
     expect(pagesCss.match(new RegExp(`(?:^|[},])\\s*${escaped}\\s*[{,]`, "gm")) ?? []).toHaveLength(1);
   });
 });
+
+describe("the account's Delegation tab", () => {
+  // The tab's two lists are tables of the page's DataTable under a head each; what the stylesheet adds is the intro with its legend, the head of a section, the cell of the chips and the foot under a
+  // table. Each class is declared once in the sheet: a second rule of the same selector later in the file would override the first without a word (an AccountLink once lost its look that way).
+  it("lays the intro and its legend out side by side while there is room, the legend wrapping under the words on a phone", () => {
+    expect(rule(pagesCss, ".delegation__intro")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "justify-content": "space-between" });
+    expect(rule(pagesCss, ".delegation__intro > p").flex).toBe("1 1 560px");
+    expect(rule(pagesCss, ".delegation__legend")).toMatchObject({ display: "flex", "flex-wrap": "wrap", color: "var(--muted)" });
+    expect(rule(pagesCss, ".delegation__key")).toMatchObject({ display: "inline-flex", "align-items": "center" });
+  });
+
+  it("separates the two lists by a line, and heads each with its title above its sentence in the muted colour", () => {
+    expect(rule(pagesCss, ".delegation__section")["border-top"]).toBe("1px solid var(--border)");
+    expect(rule(pagesCss, ".delegation__head")).toMatchObject({ display: "flex", "flex-direction": "column" });
+    expect(rule(pagesCss, ".delegation__sub").color).toBe("var(--muted)");
+  });
+
+  it("wraps the chips of a delegation inside their cell, a row as tall as its chips need, with the count after them in the faint colour", () => {
+    expect(rule(pagesCss, ".delegation__perms")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "align-items": "center" });
+    expect(rule(pagesCss, ".delegation__count").color).toBe("var(--faint)");
+  });
+
+  it("writes the notes under a list in the faint colour, one under another", () => {
+    expect(rule(pagesCss, ".delegation__foot")).toMatchObject({ display: "flex", "flex-direction": "column", color: "var(--faint)" });
+  });
+
+  const DECLARED_ONCE = [
+    ".delegation__intro",
+    ".delegation__legend",
+    ".delegation__key",
+    ".delegation__section",
+    ".delegation__head",
+    ".delegation__sub",
+    ".delegation__perms",
+    ".delegation__count",
+    ".delegation__foot",
+  ];
+  it.each(DECLARED_ONCE)("declares %s once in the sheet", (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    expect(pagesCss.match(new RegExp(`(?:^|[},])\\s*${escaped}\\s*[{,]`, "gm")) ?? []).toHaveLength(1);
+  });
+
+  it("does not declare them in the component sheet or the base sheet either", () => {
+    for (const css of [componentsCss, baseCss]) expect(css).not.toContain(".delegation__");
+  });
+});

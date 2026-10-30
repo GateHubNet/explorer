@@ -1,7 +1,7 @@
 // The tabs of the account page and the URL of a tab or of a page of its list. Pure: the Worker builds the Newer and Older links with
 // it and the page builds the links of its tabs, so it must stay small (the page runs in the browser too).
 
-export const ACCOUNT_TABS = ["transactions", "payments", "trades", "offers", "objects", "nfts", "analytics"] as const;
+export const ACCOUNT_TABS = ["transactions", "payments", "trades", "offers", "objects", "nfts", "delegation", "analytics"] as const;
 export type AccountTab = (typeof ACCOUNT_TABS)[number];
 /** The tabs that show a list. Analytics is a view of its own (`app/domain/analytics-params.ts` has its URLs). */
 export type ListTab = Exclude<AccountTab, "analytics">;
@@ -12,6 +12,9 @@ export function isAccountTab(value: unknown): value is AccountTab {
 
 /** The most entries asked of the node for the objects of an account: its largest page. The Objects tab says when there are more. */
 export const OBJECTS_LIMIT = 400;
+
+/** The most delegations asked of the data API in each direction (D5's default): the Delegation tab shows them in one page, and says when there are more. */
+export const DELEGATIONS_LIMIT = 200;
 
 /**
  * The URL of an account's tab, or of a page of its list. The first tab and the first page have none of it: there is one URL for them.

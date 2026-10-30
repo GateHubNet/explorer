@@ -6,11 +6,13 @@ import { createMemoryRouter, createStaticHandler, createStaticRouter, RouterProv
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnalyticsPeriod } from "../../domain/analytics-params";
-import { shortAddress } from "../../domain/format";
+import { shortAddress, shortHash } from "../../domain/format";
 import { NO_NAMES, nameViewOf, type NameMap, type NamesPart } from "../../domain/names";
+import { permissionChip } from "../../domain/permissions";
 import { accountNameHeader, type NameHeader, type NameHeaderInput } from "../../server/account-name-view";
 import type { AccountAnalyticsPageData, AccountHeader, AccountListPageData, AccountNftRow, AccountPageData, Loaded, NeverActivatedData, ObjectRow, TabList, TxRow } from "../../server/account-view";
 import type { AnalyticsData } from "../../server/analytics-view";
+import type { DelegationList, DelegationRow } from "../../server/delegation-view";
 import type { AccountNameEntry, TomlAnswer } from "../../server/api-types";
 import xrplNames from "../../../test/fixtures/http/xrpl/data-api/account_names.json";
 import northpeakToml from "../../../test/fixtures/http/xrpl/data-api/toml/northpeak.example.json";
@@ -159,7 +161,7 @@ const transactions = (
 });
 
 function data(over: Partial<AccountListPageData> = {}): AccountListPageData {
-  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "transactions", tag: null, qr: QR, analyticsTab: true, header: header(), list: transactions(), names: NO_NAMES, ...over };
+  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "transactions", tag: null, qr: QR, analyticsTab: true, delegationTab: "link", header: header(), list: transactions(), names: NO_NAMES, ...over };
 }
 
 const NFT_ID = "00081388AF09C1D4B4D1E8031467F3508DFFADABEA73255F370449870655E6D8";
@@ -191,6 +193,20 @@ const nftsTab = (
   coverage: Extract<TabList, { tab: "nfts" }>["coverage"] = null,
 ): TabList => ({ state: "ok", tab: "nfts", rows, paging, coverage, names: NO_NAMES });
 
+/** A delegation row: `BOB` and a transaction type with a narrower right of it, set by `TX` at 2026-10-14 16:03:22 UTC. */
+const delegationRow = (over: Partial<DelegationRow> = {}): DelegationRow => ({
+  key: "D1",
+  account: BOB,
+  permissions: [permissionChip("Payment"), permissionChip("TrustlineFreeze")],
+  count: "2 of 10",
+  tx: TX,
+  ledger: 107652633,
+  time: 1791993802,
+  ...over,
+});
+const delegationRows = (rows: DelegationRow[] = [], over: Partial<DelegationList> = {}): DelegationList => ({ rows, more: false, coverage: null, ...over });
+const delegationsTab = (given: DelegationList = delegationRows([delegationRow()]), held: DelegationList = delegationRows()): TabList => ({ state: "ok", tab: "delegation", given, held, names: NO_NAMES });
+
 /** A promise that never settles: a part of the analytics that has not streamed in. */
 const pending = <T,>(): Promise<T> => new Promise<T>(() => {});
 
@@ -200,7 +216,7 @@ function analyticsOf(period: AnalyticsPeriod = "30d"): AnalyticsData {
 
 /** The analytics view's page. Its header has the tokens and the owned objects, which the view does not show all the same. */
 function analyticsPage(over: Partial<AccountAnalyticsPageData> = {}): AccountAnalyticsPageData {
-  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "analytics", tag: null, qr: QR, analyticsTab: true, header: header(), analytics: analyticsOf(), names: NO_NAMES, ...over };
+  return { kind: "account", mode: "live", address: ADDRESS, native: "XRP", tab: "analytics", tag: null, qr: QR, analyticsTab: true, delegationTab: "link", header: header(), analytics: analyticsOf(), names: NO_NAMES, ...over };
 }
 
 function renderInRouter(ui: ReactElement, loader: () => null = () => null) {
@@ -956,7 +972,7 @@ describe("the tabs", () => {
       .map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("aria-current"), a.getAttribute("rel")]);
   }
 
-  it("are links, one is current, and the NFTs and Analytics lead to their views (Analytics rel=nofollow), while NFTS and ACCOUNT_ANALYTICS are on", async () => {
+  it("are links, one is current, and the NFTs, the delegation and Analytics lead to their views (Analytics rel=nofollow), while NFTS, DELEGATION and ACCOUNT_ANALYTICS are on", async () => {
     renderUnderLayout(<AccountPage network={XRPL} data={data({ tab: "payments" })} />, NFTS_ON);
     expect(await tabLinks()).toEqual([
       ["Transactions", `/xrpl/account/${ADDRESS}`, null, null],
@@ -965,6 +981,7 @@ describe("the tabs", () => {
       ["Offers", `/xrpl/account/${ADDRESS}?tab=offers`, null, null],
       ["Objects", `/xrpl/account/${ADDRESS}?tab=objects`, null, null],
       ["NFTs", `/xrpl/account/${ADDRESS}?tab=nfts`, null, null],
+      ["Delegation", `/xrpl/account/${ADDRESS}?tab=delegation`, null, null],
       ["Analytics", `/xrpl/account/${ADDRESS}?tab=analytics`, null, "nofollow"],
     ]);
     expect(screen.queryByText("soon")).toBeNull();
@@ -972,7 +989,7 @@ describe("the tabs", () => {
 
   it("show Analytics as a disabled tab that says 'soon' while ACCOUNT_ANALYTICS is off", async () => {
     renderInRouter(<AccountPage network={XRPL} data={data({ tab: "payments", analyticsTab: false })} />);
-    expect((await tabLinks()).map(([label]) => label)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects"]);
+    expect((await tabLinks()).map(([label]) => label)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "Delegation"]);
     const nav = screen.getByRole("navigation", { name: "Account activity" });
     const soon = within(nav).getByText("Analytics").parentElement!;
     expect(soon.getAttribute("aria-disabled")).toBe("true");
@@ -998,7 +1015,7 @@ describe("the tabs", () => {
     it("is a link between Objects and Analytics, called NFTs, the current one on its own page, while NFTS is on", async () => {
       renderUnderLayout(<AccountPage network={XRPL} data={data({ tab: "nfts", list: nftsTab() })} />, NFTS_ON);
       const links = await tabLinks();
-      expect(links.map(([label]) => label)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "NFTs", "Analytics"]);
+      expect(links.map(([label]) => label)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "NFTs", "Delegation", "Analytics"]);
       expect(links.filter(([, , current]) => current !== null)).toEqual([["NFTs", `/xrpl/account/${ADDRESS}?tab=nfts`, "page", null]]);
       expect(screen.queryByText("soon")).toBeNull();
     });
@@ -1035,6 +1052,50 @@ describe("the tabs", () => {
       const nav = await screen.findByRole("navigation", { name: "Account activity" });
       expect(within(nav).getByText("NFTs").parentElement!.textContent).toBe("NFTssoon");
       expect(nav.innerHTML).not.toContain("tab=nfts");
+    });
+  });
+
+  // The tab is the page data's `delegationTab` (the loader reads the network's `hasDelegation` and the `DELEGATION` switch, as it reads `ACCOUNT_ANALYTICS` for `analyticsTab`), so that the
+  // stored HTML, the server's tab bar and the browser's agree whatever the layout holds.
+  describe("the Delegation tab", () => {
+    it("is a link between NFTs and Analytics, called Delegation, with no count, the current one on its own page", async () => {
+      renderInRouter(<AccountPage network={XRPL} data={data({ tab: "delegation", list: delegationsTab() })} />);
+      const links = await tabLinks();
+      expect(links.map(([label]) => label)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "Delegation", "Analytics"]);
+      expect(links.filter(([, , current]) => current !== null)).toEqual([["Delegation", `/xrpl/account/${ADDRESS}?tab=delegation`, "page", null]]);
+      // NFTs are the "soon" label here (no layout), so the order is what the neighbours say.
+      const nav = screen.getByRole("navigation", { name: "Account activity" });
+      expect(nav.textContent).toBe("TransactionsPaymentsTradesOffersObjectsNFTssoonDelegationAnalytics");
+    });
+
+    it("is a link from every tab, and from a page of old history, where the live state is not", async () => {
+      const history = data({ mode: "history", header: { status: "history", name: null }, list: transactions([txRow()], { newerHref: `/xrpl/account/${ADDRESS}`, olderHref: null }) });
+      renderInRouter(<AccountPage network={XRPL} data={history} />);
+      expect((await tabLinks()).find(([label]) => label === "Delegation")).toEqual(["Delegation", `/xrpl/account/${ADDRESS}?tab=delegation`, null, null]);
+    });
+
+    it("is a disabled tab that says 'soon', not a link, while DELEGATION is off", async () => {
+      renderInRouter(<AccountPage network={XRPL} data={data({ tab: "payments", delegationTab: "soon" })} />);
+      const nav = await screen.findByRole("navigation", { name: "Account activity" });
+      expect((await tabLinks()).map(([text]) => text)).not.toContain("Delegation");
+      const soon = within(nav).getByText("Delegation").parentElement!;
+      expect(soon.getAttribute("aria-disabled")).toBe("true");
+      expect(soon.textContent).toBe("Delegationsoon");
+      expect(soon.tagName).toBe("SPAN");
+      expect(nav.innerHTML).not.toContain("tab=delegation");
+    });
+
+    it("is not there at all on a network without delegation: neither a link nor the 'soon' label", async () => {
+      renderInRouter(<AccountPage network={XAHAU} data={data({ native: "XAH", delegationTab: "none" })} />);
+      const nav = await screen.findByRole("navigation", { name: "Account activity" });
+      expect(nav.textContent).not.toContain("Delegation");
+      expect(nav.innerHTML).not.toContain("tab=delegation");
+      expect((await tabLinks()).map(([label]) => label)).toEqual(["Transactions", "Payments", "Trades", "Offers", "Objects", "Analytics"]);
+    });
+
+    it("is there on the analytics view too, as every tab is", async () => {
+      renderInRouter(<AccountPage network={XRPL} data={analyticsPage()} />);
+      expect((await tabLinks()).find(([label]) => label === "Delegation")).toEqual(["Delegation", `/xrpl/account/${ADDRESS}?tab=delegation`, null, null]);
     });
   });
 });
@@ -1511,6 +1572,187 @@ describe("the NFTs", () => {
       const at = `/${net}/account/${ADDRESS}?tab=nfts`;
       const { errors } = await serverThenHydrated(routedPage(element, { at, network: net === "xrpl" ? LAYOUT_XRPL : LAYOUT_XAHAU }));
       expect(errors, net).toEqual([]);
+    }
+  });
+});
+
+describe("the delegations", () => {
+  const xrpl = (list: TabList | Promise<TabList>) => <AccountPage network={XRPL} data={data({ tab: "delegation", list })} />;
+  const given = async () => within(await screen.findByRole("table", { name: "Permissions given" }));
+  const heldTable = async () => within(await screen.findByRole("table", { name: "Permissions held" }));
+  /** The page as the app has it, with the page-level names a provider above it holds (the header's call): the account's own among them. */
+  const named = (ui: ReactElement, names: NameMap) => renderInRouter(<NamesProvider names={names}>{ui}</NamesProvider>);
+  const COPPERFIELD = nameViewOf({ address: ADDRESS, display_name: { text: "Copperfield Payments", kind: "verified" }, domain: "copperfield.example" })!;
+
+  it("says what a delegation is, with the legend of the two kinds of chip", async () => {
+    renderInRouter(xrpl(delegationsTab()));
+    expect(
+      await screen.findByText(
+        "A delegation lets another account, the delegate, send some kinds of transaction on this account’s behalf. Each permission is a transaction type or one narrower right, and a delegation grants up to 10.",
+      ),
+    ).toBeTruthy();
+    // The legend: a filled chip for a transaction type and an outlined one for a narrower right, hidden from assistive technology (their words are the text beside them).
+    const legend = document.querySelector(".delegation__legend")!;
+    expect(legend.textContent).toContain("transaction type");
+    expect(legend.textContent).toContain("narrower right");
+    const samples = [...legend.querySelectorAll(".permchip")];
+    expect(samples.map((chip) => chip.classList.contains("permchip--granular"))).toEqual([false, true]);
+    for (const chip of samples) expect(chip.closest("[aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("is two tables, Permissions given and Permissions held, each in a section named by its heading, with the board's columns", async () => {
+    renderInRouter(xrpl(delegationsTab(delegationRows([delegationRow()]), delegationRows([delegationRow({ key: "D2" })]))));
+    expect((await given()).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Delegate", "Permissions", "Granted in", "Date (UTC)"]);
+    expect((await heldTable()).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["On behalf of", "Permissions", "Granted in", "Date (UTC)"]);
+    expect(screen.getByRole("region", { name: "Permissions given" }).querySelector("table, [role='table']")).not.toBeNull();
+    expect(screen.getByRole("heading", { level: 2, name: "Permissions given" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Permissions held" })).toBeTruthy();
+  });
+
+  it("draws a row: the account by its page, the chips by their kind with their words, how many of ten, the transaction linked, and the date", async () => {
+    renderInRouter(xrpl(delegationsTab()));
+    const table = await given();
+    const row = table.getAllByRole("row")[1]!;
+    const cells = within(row).getAllByRole("cell");
+
+    expect(within(cells[0]!).getByRole("link", { name: shortAddress(BOB) }).getAttribute("href")).toBe(`/xrpl/account/${BOB}`);
+    const chips = [...cells[1]!.querySelectorAll(".permchip")];
+    expect(chips.map((chip) => chip.firstChild!.textContent)).toEqual(["Payment", "TrustlineFreeze"]);
+    expect(chips.map((chip) => chip.classList.contains("permchip--granular"))).toEqual([false, true]);
+    expect(chips[1]!.getAttribute("title")).toBe("Narrower right. Only freezing trust lines, within TrustSet");
+    expect(chips[0]!.getAttribute("title")).toBe("Transaction type. Any Payment transaction");
+    expect(chips[1]!.querySelector(".sr")!.textContent).toBe(": Only freezing trust lines, within TrustSet");
+    expect(cells[1]!.textContent).toMatch(/2 of 10$/);
+    // Granted in: the transaction that last set the delegation, named for a screen reader by what it leads to.
+    const granted = within(cells[2]!).getByRole("link", { name: `Transaction ${shortHash(TX)}` });
+    expect(granted.getAttribute("href")).toBe(`/xrpl/tx/${TX}`);
+    expect(granted.textContent).toBe(shortHash(TX));
+    // The date is UTC with the time of day under it, as the other lists write it; no age (the stored page is the same at any age), and no second link to the transaction.
+    expect(cells[3]!.textContent).toBe("2026-10-14" + "16:03:22");
+    expect(cells[3]!.querySelector("a, time")).toBeNull();
+    expect(cells[3]!.querySelector(".when")!.getAttribute("title")).toBe("Ledger #107,652,633");
+    expect(row.textContent).not.toMatch(/\d+ (s|min|h|d) ago/);
+  });
+
+  it("shows an unknown permission as Permission 70001, outlined", async () => {
+    renderInRouter(xrpl(delegationsTab(delegationRows([delegationRow({ permissions: [permissionChip({ permission: "70001", kind: "unknown" })], count: "1 of 10" })]))));
+    const chip = (await given()).getByText("Permission 70001").closest(".permchip")!;
+    expect(chip.classList.contains("permchip--unknown")).toBe(true);
+    expect(chip.getAttribute("title")).toBe("A permission this explorer does not know (value 70001)");
+  });
+
+  it("draws the held list by the account on whose behalf, and the delegates of the given list by the names of the list's own call", async () => {
+    const view = nameViewOf({ address: BOB, display_name: { text: "Copperfield Payments", kind: "verified" }, domain: "copperfield.example" })!;
+    const list: TabList = { ...(delegationsTab(delegationRows([delegationRow()]), delegationRows([delegationRow({ key: "D2", account: PARENT })])) as Extract<TabList, { tab: "delegation" }>), names: { state: "ok", map: { [BOB]: view } } };
+    renderInRouter(xrpl(list));
+    const delegate = within((await given()).getAllByRole("row")[1]!).getByRole("link", { name: "Copperfield Payments verified name" });
+    expect(delegate.getAttribute("href")).toBe(`/xrpl/account/${BOB}`);
+    // The held account is not in the list's names: its short address.
+    expect(within((await heldTable()).getAllByRole("row")[1]!).getByRole("link", { name: shortAddress(PARENT) }).getAttribute("href")).toBe(`/xrpl/account/${PARENT}`);
+  });
+
+  it("says under the given list that each delegation is a Delegate object the account owns, with how many count toward its reserve", async () => {
+    const rows = [delegationRow({ key: "D1" }), delegationRow({ key: "D2", account: PARENT }), delegationRow({ key: "D3", account: ISSUER })];
+    renderInRouter(xrpl(delegationsTab(delegationRows(rows))));
+    await given();
+    expect(
+      screen.getByText(`Each delegation given is a Delegate object ${shortAddress(ADDRESS)} owns, so these 3 count toward its reserve. A new DelegateSet for the same delegate replaces its whole list.`),
+    ).toBeTruthy();
+  });
+
+  it("counts one as one, and says nothing of the reserve when there is none", async () => {
+    const { unmount } = renderInRouter(xrpl(delegationsTab(delegationRows([delegationRow()]))));
+    await given();
+    expect(screen.getByText(`Each delegation given is a Delegate object ${shortAddress(ADDRESS)} owns, so this one counts toward its reserve. A new DelegateSet for the same delegate replaces its whole list.`)).toBeTruthy();
+    unmount();
+    renderInRouter(xrpl(delegationsTab(delegationRows(), delegationRows([delegationRow()]))));
+    await given();
+    expect(screen.queryByText(/count toward its reserve|counts toward its reserve/)).toBeNull();
+  });
+
+  it("puts the account's plain name in the sentences where the words say {name}, and its short address when it has none or a label", async () => {
+    named(xrpl(delegationsTab(delegationRows([delegationRow()]), delegationRows())), { [ADDRESS]: COPPERFIELD });
+    await given();
+    expect(screen.getByText("Each delegation given is a Delegate object Copperfield Payments owns, so this one counts toward its reserve. A new DelegateSet for the same delegate replaces its whole list.")).toBeTruthy();
+    expect(screen.getByText("Accounts that may send transactions on Copperfield Payments’s behalf")).toBeTruthy();
+    expect(screen.getByText("Accounts on whose behalf Copperfield Payments may send transactions")).toBeTruthy();
+    expect(screen.getByText("Copperfield Payments may not send transactions on any other account’s behalf.")).toBeTruthy();
+    cleanup();
+
+    // A name with a label is not a plain name: it is not put in a sentence (`plainNameOf`), the short address is.
+    const labelled = nameViewOf({ address: ADDRESS, display_name: { text: "Harborline Exchange", kind: "account" }, labels: { advisory: { description: "Test label" } } })!;
+    named(xrpl(delegationsTab(delegationRows(), delegationRows())), { [ADDRESS]: labelled });
+    await given();
+    expect(screen.getByText(`${shortAddress(ADDRESS)} may not send transactions on any other account’s behalf.`)).toBeTruthy();
+  });
+
+  it("draws both empty sentences for an account with none, with its short address, and a table of no rows", async () => {
+    renderInRouter(xrpl(delegationsTab(delegationRows(), delegationRows())));
+    await given();
+    expect(screen.getByText(`No account may send transactions on ${shortAddress(ADDRESS)}’s behalf.`)).toBeTruthy();
+    expect(screen.getByText(`${shortAddress(ADDRESS)} may not send transactions on any other account’s behalf.`)).toBeTruthy();
+    expect((await given()).getAllByRole("row")).toHaveLength(1);
+    expect((await heldTable()).getAllByRole("row")).toHaveLength(1);
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/Showing the first/)).toBeNull();
+  });
+
+  it("says Showing the first 200 under the list the API cut, and not under the other", async () => {
+    renderInRouter(xrpl(delegationsTab(delegationRows([delegationRow()], { more: true }), delegationRows([delegationRow({ key: "D2" })]))));
+    await given();
+    const more = screen.getAllByText("Showing the first 200");
+    expect(more).toHaveLength(1);
+    const section = more[0]!.closest("section")!;
+    expect(within(section).getByRole("table", { name: "Permissions given" })).toBeTruthy();
+  });
+
+  it("has the coverage note under each list whose answer is not complete, with the ledger it starts at as a link to that ledger", async () => {
+    const coverage = { before: "Covers ledger ", ledger: 102145584, after: " onwards: earlier delegations are not in the index yet." };
+    renderInRouter(xrpl(delegationsTab(delegationRows([delegationRow()], { coverage }), delegationRows([], { coverage: { before: "The index does not hold this history yet.", ledger: null, after: "" } }))));
+    await given();
+    const notes = screen.getAllByRole("note");
+    expect(notes.map((note) => note.textContent)).toEqual(["Covers ledger #102,145,584 onwards: earlier delegations are not in the index yet.", "The index does not hold this history yet."]);
+    expect(within(notes[0]!).getByRole("link", { name: "#102,145,584" }).getAttribute("href")).toBe("/xrpl/ledger/102145584");
+    // Under the list each is about, inside its section.
+    expect(notes[0]!.closest("section")!.querySelector("[role='table']")!.getAttribute("aria-label")).toBe("Permissions given");
+    expect(notes[1]!.closest("section")!.querySelector("[role='table']")!.getAttribute("aria-label")).toBe("Permissions held");
+    expect(notes[0]!.closest("section")!.querySelector("[role='table']")!.compareDocumentPosition(notes[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows a placeholder until the list streams in", async () => {
+    let settle!: (list: TabList) => void;
+    const list = new Promise<TabList>((resolve) => (settle = resolve));
+    renderInRouter(xrpl(list));
+    expect(await screen.findByText("Loading delegations…")).toBeTruthy();
+    settle(delegationsTab());
+    expect(await screen.findByRole("table", { name: "Permissions given" })).toBeTruthy();
+  });
+
+  it("says 'Couldn’t load delegations' with a Retry that fetches the route's own data again", async () => {
+    const { loader: mounted } = mountPage(xrpl(Promise.resolve<TabList>({ state: "failed", what: "delegations" })), "account", { at: `/xrpl/account/${ADDRESS}?tab=delegation` });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Couldn’t load delegations.");
+    const calls = mounted.mock.calls.length;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(mounted.mock.calls.length).toBe(calls + 1));
+  });
+
+  it("says the same when the list's own promise is refused", async () => {
+    const refused = Promise.reject(new Error("no")) as Promise<TabList>;
+    refused.catch(() => {});
+    renderInRouter(xrpl(refused));
+    expect((await screen.findByRole("alert")).textContent).toContain("Couldn’t load delegations.");
+  });
+
+  it("is the same on the server as in the browser, with rows, with more and a coverage note, and when empty", async () => {
+    const coverage = { before: "Covers ledger ", ledger: 5, after: " onwards: earlier delegations are not in the index yet." };
+    for (const list of [
+      delegationsTab(delegationRows([delegationRow(), delegationRow({ key: "D2", account: PARENT })], { more: true, coverage }), delegationRows([delegationRow({ key: "D3" })])),
+      delegationsTab(delegationRows(), delegationRows()),
+    ]) {
+      const at = `/xrpl/account/${ADDRESS}?tab=delegation`;
+      const { errors } = await serverThenHydrated(routedPage(xrpl(list), { at }));
+      expect(errors).toEqual([]);
     }
   });
 });

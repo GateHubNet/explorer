@@ -1035,6 +1035,78 @@ a.example:hover {
   font-size: 13px;
 }
 
+/* Delegation: the account's Delegation tab (ledger object pages spec 6.1, the board's layout). The intro and its legend side by side while there is room, the legend under the words on a
+   phone; the two lists each under a line, with a head (the title over what it lists), their tables the page's own, and the notes under a table. */
+.delegation__intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 24px;
+  padding: 14px 16px;
+}
+
+.delegation__intro > p {
+  flex: 1 1 560px;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.delegation__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.delegation__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.delegation__section {
+  border-top: 1px solid var(--border);
+}
+
+.delegation__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px 10px;
+}
+
+.delegation__sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The chips of a delegation and how many of ten they are: the cell grows to hold them on as many lines as they need, with room above and below. */
+.delegation__perms {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.delegation__count {
+  margin-left: 4px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.delegation__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px 14px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Network: the dashboard of /{net}/network (the board's layout: one column of rows, the cards in pairs that fold on a phone). The classes
    of the chart kit (charts.css, which comes before this sheet) are never defined here: a rule of this sheet would win over the kit's. */
