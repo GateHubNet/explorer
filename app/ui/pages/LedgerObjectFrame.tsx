@@ -1,6 +1,6 @@
 // What the pages of an escrow, a check and a payment channel have in common (ledger object pages spec 1.1, 4.1 and 5; the Escrow board): the breadcrumb, the title row, the removed banner,
-// the states strip and the two cards, Details and History, around what is the type's own; and the parts of a page that draw the view's data the same way for the three (the Details rows,
-// a status line with the ages of its dates). Types only from app/server: the data is the view builder's (`ledger-object-view.ts`), made in the Worker.
+// the states strip and the two cards, Details and History, around what is the type's own (its figure); and the parts of a page that draw the view's data the same way for the three (the
+// summary and the status lines with the ages of their dates, the Details rows, an amount). Types only from app/server: the data is the view builder's (`ledger-object-view.ts`), made in the Worker.
 //
 // The page data holds no age: a time is drawn written out, and the browser puts its age beside it (`RelativeTime` for one that passed, `Countdown` for one to come, by the page's own as-of
 // moment), so the HTML the Worker prints and the edge cache keeps is the same at any age.
@@ -11,7 +11,7 @@ import type { Segment } from "../../domain/describe";
 import { formatUtc, shortHash } from "../../domain/format";
 import type { ObjectKind } from "../../domain/object-link";
 import { formatDateTime } from "../../domain/time-words";
-import type { DetailRow, DetailValue, ObjectPageCommon, RemovedBanner, TitleLine } from "../../server/ledger-object-view";
+import type { DetailRow, DetailValue, DisplayAmount, ObjectPageCommon, RemovedBanner, TitleLine } from "../../server/ledger-object-view";
 import type { NetworkId } from "../../server/networks";
 import { AccountLink } from "../components/AccountLink";
 import { Amount } from "../components/Amount";
@@ -33,6 +33,7 @@ import { Sentence } from "../components/Sentence";
 import { StatesStrip } from "../components/StatesStrip";
 import { AlertCircleIcon, ClockIcon, DashIcon, MinusCircleIcon } from "../components/status-icons";
 import { Timeline } from "../components/Timeline";
+import { useNetwork } from "../use-network";
 
 /** The footnote of every object's history (spec 4.1). */
 const TIMELINE_FOOTNOTE = "Oldest first. Filled dots are transactions; dashed ones are what can still happen.";
@@ -62,7 +63,7 @@ function Age({ at, asOf, lead, className }: { at: number; asOf: number; lead?: s
  * A sentence of the page's status with the age of each date it names right after it, "after Nov 2, 2026, 04:00 UTC (in 4 days)": a date of `moments` (unix seconds, as the view writes them
  * with `formatDateTime`) in a text segment is followed by its `Age`, whose brackets the stylesheet draws round what the browser writes (`.object-page__age`). The other segments are `Sentence`'s.
  */
-export function DatedSentence({ net, segments, moments, asOf }: { net: NetworkId; segments: readonly Segment[]; moments: readonly number[]; asOf: number }) {
+function DatedSentence({ net, segments, moments, asOf }: { net: NetworkId; segments: readonly Segment[]; moments: readonly number[]; asOf: number }) {
   const dated = moments.filter(Number.isFinite).map((at) => ({ at, text: formatDateTime(at) }));
   return (
     <>
@@ -87,6 +88,58 @@ export function DatedSentence({ net, segments, moments, asOf }: { net: NetworkId
   );
 }
 
+/**
+ * The summary sentence and the status lines of a page (spec 4.1: "{owner} locked {amount} for {destination} on {day}.", then the status in a headline and the sentences under it), each line
+ * through `DatedSentence`: the age of each date of `moments` beside it, told against `asOf` (unix seconds, the moment the page is as of). The three object pages draw it the same way.
+ */
+export function ObjectStatus({
+  net,
+  summary,
+  statusLines,
+  moments,
+  asOf,
+}: {
+  net: NetworkId;
+  summary: readonly Segment[];
+  statusLines: readonly (readonly Segment[])[];
+  moments: readonly number[];
+  asOf: number;
+}) {
+  return (
+    <>
+      <p className="sentence object-page__summary">
+        <Sentence net={net} segments={summary} />
+      </p>
+      <div className="object-page__status">
+        {statusLines.map((line, index) => (
+          <p key={index} className={index === 0 ? "object-page__headline" : undefined}>
+            <DatedSentence net={net} segments={line} moments={moments} asOf={asOf} />
+          </p>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
+ * An amount of an object as a page draws it, by what it is: an MPT as `MptAmount` (its raw units and the issuance), anything else as `Amount`, which has its issuer in a title. With `link`, the
+ * issuer of a token is also in the words "issued by", as an `AccountLink` (named, marked and collected for the names: the view's `detailAccounts` lists it); without it there is no link, where
+ * the amount stands under something that has one already (the channel's deposit bar, whose Deposited row links its issuer).
+ */
+export function AmountValue({ net, amount, link }: { net: NetworkId; amount: DisplayAmount; link: boolean }) {
+  if ("mpt" in amount) return <MptAmount id={amount.mpt.id} units={amount.mpt.units} />;
+  return (
+    <>
+      <Amount value={amount.value} currency={amount.currency} issuer={amount.issuer} />
+      {link && amount.issuer !== undefined && (
+        <span className="object-page__issuer">
+          issued by <AccountLink net={net} address={amount.issuer} />
+        </span>
+      )}
+    </>
+  );
+}
+
 /** The value of a row of the Details card, drawn by its kind (`DetailValue`, the view's). */
 function Value({ net, value, asOf }: { net: NetworkId; value: DetailValue; asOf: number }) {
   switch (value.kind) {
@@ -98,21 +151,8 @@ function Value({ net, value, asOf }: { net: NetworkId; value: DetailValue; asOf:
       );
     case "account":
       return <AccountLink net={net} address={value.address} full />;
-    case "amount": {
-      const { amount } = value;
-      if (amount === null) return <span className="faint">—</span>;
-      if ("mpt" in amount) return <MptAmount id={amount.mpt.id} units={amount.mpt.units} />;
-      return (
-        <>
-          <Amount value={amount.value} currency={amount.currency} issuer={amount.issuer} />
-          {amount.issuer !== undefined && (
-            <span className="object-page__issuer">
-              issued by <AccountLink net={net} address={amount.issuer} />
-            </span>
-          )}
-        </>
-      );
-    }
+    case "amount":
+      return value.amount === null ? <span className="faint">—</span> : <AmountValue net={net} amount={value.amount} link />;
     case "time":
       return (
         <>
@@ -128,7 +168,7 @@ function Value({ net, value, asOf }: { net: NetworkId; value: DetailValue; asOf:
 }
 
 /** The rows of the Details card (`DetailRow`, the view's): the label with the ledger's name for the field under it, the value by its kind, and the board's hint under it. */
-export function ObjectDetails({ net, rows, asOf }: { net: NetworkId; rows: readonly DetailRow[]; asOf: number }) {
+function ObjectDetails({ net, rows, asOf }: { net: NetworkId; rows: readonly DetailRow[]; asOf: number }) {
   return (
     <DetailList
       rows={rows.map((row) => ({
@@ -145,10 +185,18 @@ export function ObjectDetails({ net, rows, asOf }: { net: NetworkId; rows: reado
   );
 }
 
-/** The account of a Details row of kind `account` (the Owner's, the Source's), for the breadcrumb. */
-export function accountOf(rows: readonly DetailRow[], label: string): string | undefined {
-  const value = rows.find((row) => row.label === label)?.value;
-  return value?.kind === "account" ? value.address : undefined;
+/** The row of the Details card that names the account that holds the object, and its reserve: the escrow's Owner, the Source of a check and of a channel. */
+const HOLDER_ROWS: Record<ObjectKind, string> = { escrow: "Owner", check: "Source", "payment-channel": "Source" };
+
+/** "{Net} / Accounts / {owner} / Escrow": the owner as its link (by its name where the page's names have one; none where the row is missing), and the type as the current page. */
+function crumbsOf(net: NetworkId, networkName: string, kind: ObjectKind, rows: readonly DetailRow[], type: string): Crumb[] {
+  const row = rows.find((each) => each.label === HOLDER_ROWS[kind])?.value;
+  return [
+    { label: networkName, href: `/${net}` },
+    { label: "Accounts" },
+    ...(row?.kind === "account" ? [{ label: <AccountLink net={net} address={row.address} /> }] : []),
+    { label: type },
+  ];
 }
 
 /** The line beside the title: the creation written out with its age, where the index's history starts, or the ledger and the transaction that last changed what the node holds. */
@@ -197,28 +245,40 @@ function RemovedNotice({ net, banner }: { net: NetworkId; banner: RemovedBanner 
   );
 }
 
+/** What the frame draws of a page besides its figure: the common part, the summary, the status lines and the rows of the Details card. The three view builders' page data are all of it. */
+export interface ObjectPageBody extends ObjectPageCommon {
+  summary: Segment[];
+  statusLines: Segment[][];
+  details: DetailRow[];
+}
+
 /**
- * The frame of an object's page (spec 1.1 and 4.1): the breadcrumb, the title row (the type as the one `<h1>`, the status pill with its icon and word, and the title line), the removed
- * banner, `extra` (a banner of the type's own: the check's "Expired, but still in the ledger"), the states strip, and the two cards side by side where there is room: Details, which holds
- * `children` (the type's summary, status lines, its figure and its rows) and the as-of note, and History, the timeline with its footnote, Newer and Older, and the coverage note.
+ * The frame of an object's page (spec 1.1 and 4.1): the breadcrumb ("{Net} / Accounts / {owner} / {title}", the owner or the source as its link), the title row (the type as the one `<h1>`, the
+ * status pill with its icon and word, and the title line), the removed banner, `extra` (a banner of the type's own: the check's "Expired, but still in the ledger"), the states strip, and the
+ * two cards side by side where there is room: Details, which holds the summary and status lines (`ObjectStatus`), then `children`, the type's own figure (the escrow's window bar, the check's
+ * flow, the channel's deposit), then the rows and the as-of note; and History, the timeline with its footnote, Newer and Older, and the coverage note. `moments` are the dates the status
+ * lines write out and `asOf` the moment the page is as of, unix seconds, which their ages and the rows' are told against.
  */
 export function LedgerObjectFrame({
   data,
   title,
-  breadcrumb,
+  moments,
+  asOf,
   children,
   extra,
 }: {
-  data: ObjectPageCommon;
+  data: ObjectPageBody;
   title: string;
-  breadcrumb: Crumb[];
+  moments: readonly number[];
+  asOf: number;
   children: ReactNode;
   extra?: ReactNode;
 }) {
   const net = data.net;
+  const network = useNetwork();
   return (
     <div className="object-page">
-      <Breadcrumbs items={breadcrumb} />
+      <Breadcrumbs items={crumbsOf(net, network.name, data.kind, data.details, title)} />
       <div className="object-page__head">
         <h1 className="object-page__title">{title}</h1>
         <Pill tone={data.pill.tone} icon={PILL_ICONS[data.pill.tone]}>
@@ -233,7 +293,9 @@ export function LedgerObjectFrame({
       <StatesStrip states={data.states} what={STRIP_WORDS[data.kind]} />
       <div className="object-page__cols">
         <Card title="Details" className="object-page__col">
+          <ObjectStatus net={net} summary={data.summary} statusLines={data.statusLines} moments={moments} asOf={asOf} />
           {children}
+          <ObjectDetails net={net} rows={data.details} asOf={asOf} />
           <p className="object-page__asof">{data.asOf}</p>
         </Card>
         <Card title="History" className="object-page__col">

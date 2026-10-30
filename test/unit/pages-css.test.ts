@@ -553,6 +553,8 @@ describe("the ledger object pages", () => {
   // The channel's deposit: the two parts under the bar share a row while they fit and wrap under one another on a phone, and a long amount breaks at the edge of its part. Each class is declared
   // once in the sheet: a second rule of the same selector later in the file would override the first without a word (an AccountLink once lost its look that way).
   it("lays the deposit's two parts out side by side, wrapping on a phone, with the amount in the page's text colour and the name and share faint", () => {
+    // The deposit is the legend, the bar and the parts one under another, with a gap between them.
+    expect(rule(pagesCss, ".object-page__deposit")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "10px" });
     expect(rule(pagesCss, ".object-page__shares")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "justify-content": "space-between" });
     expect(rule(pagesCss, ".object-page__share")).toMatchObject({ display: "flex", "flex-direction": "column", "min-width": "0", "overflow-wrap": "anywhere" });
     expect(rule(pagesCss, ".object-page__share-amount").color).toBe("var(--fg)");
@@ -567,7 +569,17 @@ describe("the ledger object pages", () => {
     expect(pagesCss).toMatch(stacked);
   });
 
-  it.each([".object-page__flow", ".object-page__deposit", ".object-page__shares", ".object-page__share", ".object-page__share-amount", ".object-page__claims"])("declares %s once in the sheet", (selector) => {
+  const DECLARED_ONCE = [
+    ".object-page__flow",
+    ".object-page__deposit",
+    ".object-page__shares",
+    ".object-page__share",
+    ".object-page__share-name",
+    ".object-page__share-of",
+    ".object-page__share-amount",
+    ".object-page__claims",
+  ];
+  it.each(DECLARED_ONCE)("declares %s once in the sheet", (selector) => {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     expect(pagesCss.match(new RegExp(`(?:^|[},])\\s*${escaped}\\s*[{,]`, "gm")) ?? []).toHaveLength(1);
   });

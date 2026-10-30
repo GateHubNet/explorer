@@ -18,7 +18,15 @@ export interface ShareBarProps {
   data: ShareData;
   /** What a row's total counts, printed after it in the label column: `{ one: "validator", other: "validators" }` gives "35 validators" and "1 validator". Without it, the total is the number alone. */
   unit?: { one: string; other: string };
+  /**
+   * The last sentence of the summary a screen reader hears. Without it, "Choose Table for every value.", which is true where a `ChartCard` has the table; a page that draws the values itself
+   * beside the bar, with no table, says where they are instead.
+   */
+  tableHint?: string;
 }
+
+/** What the summary ends with, where the bar is in a card that has a table of every value. */
+const TABLE_HINT = "Choose Table for every value.";
 
 type Row = ShareData["rows"][number];
 type Segment = Row["segments"][number];
@@ -87,10 +95,10 @@ export function shareLegend(data: ShareData): LegendItem[] {
  * plot cursor's (`useCursorState` in Cursor.tsx), so that they do not differ between forms; only the pointer is this form's own, since a
  * plot's cursor finds a bucket by its x and these segments are as wide as their values.
  *
- * Memoised on `title`, the data's `token` and the `unit` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the rows.
+ * Memoised on `title`, the data's `token`, the `unit` and the `tableHint` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the rows.
  */
 export const ShareBar = memo(
-  function ShareBar({ title, data, unit }: ShareBarProps) {
+  function ShareBar({ title, data, unit, tableHint = TABLE_HINT }: ShareBarProps) {
     const lines = partsOf(data);
     const parts = lines.flatMap((line) => line.parts);
     const last = parts.length - 1;
@@ -116,7 +124,7 @@ export const ShareBar = memo(
     const summary = drawn
       ? `${title}. ${lines
           .map(({ row, parts: own }) => (own.length > 0 ? `${row.label}: largest ${largest(own).segment.label}, ${sharePercent(largest(own).segment.value, row.total)}.` : `${row.label}: no data.`))
-          .join(" ")} Choose Table for every value.`
+          .join(" ")} ${tableHint}`
       : `${title}: No data.`;
 
     return (
@@ -231,5 +239,6 @@ export const ShareBar = memo(
     before.title === after.title &&
     before.data.token === after.data.token &&
     before.unit?.one === after.unit?.one &&
-    before.unit?.other === after.unit?.other,
+    before.unit?.other === after.unit?.other &&
+    before.tableHint === after.tableHint,
 );

@@ -871,6 +871,24 @@ describe("a payment channel's page", () => {
     expect(elementText(html, "object-page__asof")).toBe("As of ledger #26,399,329, Oct 9, 2026, 12:49 UTC.");
   });
 
+  it.each([
+    ["closing, from a date to come", CHANNEL_CLOSING, "Closing: claims can still be redeemed until Nov 13, 2026, 02:25 UTC"],
+    ["closed, from a date that passed", CHANNEL_CLOSED, "Closed on Feb 10, 2026, 05:01 UTC"],
+  ])("holds no age or countdown in the stored HTML of a channel that is %s", async (_what, channel, dated) => {
+    mock = mockUpstream("xrpl");
+    const path = `/xrpl/payment-channels/${channel.id}`;
+    const { html } = await render(path);
+    const copy = await (await stored(path))!.text();
+
+    // The status line has the date written out and an empty `<time>` the browser fills; the stored page holds neither an age nor a countdown, in the status or anywhere else (the rows and the
+    // timeline have theirs).
+    for (const page of [html, copy]) {
+      expect(elementText(page, "object-page__status")).toContain(dated);
+      expect(textOf(page)).not.toMatch(AGES);
+      expect(page).toMatch(/<time [^>]*class="object-page__age"[^>]*><\/time>/);
+    }
+  });
+
   it.each([["0x" + CHANNEL_OPEN.id], [CHANNEL_OPEN.id.slice(1)]])("404s %s in the words of a payment channel, without a call", async (asked) => {
     mock = mockUpstream("xrpl");
     const path = `/xrpl/payment-channels/${asked}`;
@@ -879,6 +897,53 @@ describe("a payment channel's page", () => {
     expect(response.status).toBe(404);
     expect(text).toContain("We couldn’t find payment channel");
     expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+});
+
+// ---- What the check's and the channel's routes do by kind of object ----------------------------------------------------------------------------------------------------------------
+
+// The loader is the three pages' (the escrow's cases above drive every row of spec 1.2 through it); these are the rows that name a kind: the words of the 404, the URL a 302 leads to, and the
+// pages the other kinds' IDs lead to.
+
+describe.each([
+  { kind: "check", segment: "checks", words: "check", id: CHECK_OPEN.id, other: { id: CHANNEL_OPEN.id, to: "payment-channels" } },
+  { kind: "payment channel", segment: "payment-channels", words: "payment channel", id: CHANNEL_OPEN.id, other: { id: CHECK_NODE_ONLY.id, to: "checks" } },
+])("the $kind route", ({ segment, words, id, other }) => {
+  it("redirects an ID in lower case to the upper-case URL, its query kept, as immutable, with no call", async () => {
+    mock = mockUpstream("xrpl");
+    const from = `/xrpl/${segment}/${id.toLowerCase()}?marker=${OBJECT_MARKER}&x=1`;
+    const response = await get(from);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/${segment}/${id}?marker=${OBJECT_MARKER}&x=1`);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(from)).toEqual(IMMUTABLE);
+  });
+
+  it("offers the other network when neither the index nor the node has it, in the words of the kind", async () => {
+    const missing = fresh();
+    mock = mockUpstream("xrpl");
+    const path = `/xrpl/${segment}/${missing}`;
+    const { response, html, text } = await render(path);
+
+    expect(response.status).toBe(404);
+    expect(await storedAs(path)).toEqual(SHORT);
+    expect(html).toMatch(/<meta name="robots" content="noindex"\/?>/);
+    expect(text).toContain(`We couldn’t find ${words} ${shortHash(missing)} on XRPL.`);
+    expect(anchors(html).find((a) => a.text === "Search on Xahau")?.attrs).toContain(`href="/xahau/search?q=${missing}"`);
+    expect(statusesOf(mock, nodeCalls(missing).ENTRY)).toEqual([200]);
+  });
+
+  it("redirects the ID of another kind of object the node holds to that kind's page, as short", async () => {
+    mock = mockUpstream("xrpl");
+    const path = `/xrpl/${segment}/${other.id}`;
+    const response = await get(path);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/${other.to}/${other.id}`);
     expect(await storedAs(path)).toEqual(SHORT);
   });
 });

@@ -145,6 +145,22 @@ describe("ShareBar as the Worker prints it and the browser takes it over", () =>
     for (const seg of container.querySelectorAll(".share__seg")) expect(seg.closest('[aria-hidden="true"]')).not.toBeNull();
     expect(container.querySelectorAll('[role="img"]')).toHaveLength(1);
   });
+
+  it("ends the summary with the page's own sentence where it has no table, and keeps the one for a card with a table where it gives none", async () => {
+    const { container } = await serverThenHydrated(<ShareBar title={TITLE} data={shares()} tableHint="Every value is listed under the bar." />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe(
+      "Validator software versions. UNL: largest 3.4.1, 34%. All: largest 3.4.1, 34%. Every value is listed under the bar.",
+    );
+    cleanup();
+    const plain = render(<ShareBar title={TITLE} data={shares()} />);
+    expect(plain.container.querySelector('[role="img"]')!.getAttribute("aria-label")).toMatch(/ Choose Table for every value\.$/);
+  });
+
+  it("has no sentence of the table in the summary of a bar with nothing to draw, whatever the hint", () => {
+    const none: ShareData = { rows: [], token: "n" };
+    const { container } = render(<ShareBar title={TITLE} data={none} tableHint="Every value is listed under the bar." />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe("Validator software versions: No data.");
+  });
 });
 
 describe("ShareBar's unit, the word after a row's total (the validators page: \"35 validators\")", () => {
@@ -481,6 +497,12 @@ describe("ShareBar, memoised on the token (spec 2.9)", () => {
     const { container, rerender } = render(<ShareBar title={TITLE} data={shares()} />);
     rerender(<ShareBar title="Amendment votes" data={shares()} />);
     expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toMatch(/^Amendment votes\./);
+  });
+
+  it("is part of what the bar is memoised on: another closing sentence draws again", () => {
+    const { container, rerender } = render(<ShareBar title={TITLE} data={shares()} />);
+    rerender(<ShareBar title={TITLE} data={shares()} tableHint="Every value is listed under the bar." />);
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toMatch(/ Every value is listed under the bar\.$/);
   });
 
   it("keeps the cursor in range when new data has fewer segments than the one it was on", async () => {

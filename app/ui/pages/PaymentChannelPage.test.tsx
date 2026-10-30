@@ -139,6 +139,13 @@ describe("PaymentChannelPage", () => {
     expect(container.querySelectorAll(".share")).toHaveLength(1);
   });
 
+  it("tells a screen reader that every value is listed under the bar, not that a table has them: this card has none", () => {
+    mount(build());
+    const summary = deposit().querySelector('[role="img"]')!.getAttribute("aria-label")!;
+    expect(summary).toBe("Paid out and left. Deposit: largest Left, 97%. Every value is listed under the bar.");
+    expect(summary).not.toContain("Table");
+  });
+
   it("calls the part that is left Returned to the source once the channel is closed, and Left for one another transaction removed", () => {
     const names = () => [...deposit().querySelectorAll(".object-page__share-name")].map((name) => name.textContent);
     mount(closed());
@@ -330,6 +337,12 @@ describe("PaymentChannelPage: the page the Worker prints is the page the browser
     expect(await lines(closing())).toEqual([
       "Closing: claims can still be redeemed until Nov 2, 2026, 04:00 UTCin 4 days",
       "The source asked to close the channel. From Nov 2, 2026, 04:00 UTCin 4 days, any transaction on the channel closes it, and the 0.967815 XRP left go back to the source.",
+    ]);
+    cleanup();
+    // Closing only because its CancelAfter passed (nobody asked to close): "now closes it", with the CancelAfter's age beside it, and no "close requested" anywhere.
+    expect(await lines(build({ status: "closing", cancel_after: "2026-10-20T00:00:00Z" }))).toEqual([
+      "Closing: any transaction on the channel now closes it",
+      "CancelAfter passed on Oct 20, 2026, 00:00 UTC9 d ago. When it closes, the 0.967815 XRP left go back to the source.",
     ]);
     cleanup();
     expect((await lines(closed()))[1]).toBe("Closed on Oct 29, 2026, 01:00 UTC3 h ago, when the destination redeemed its last claim and closed the channel.");
