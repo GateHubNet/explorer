@@ -20,7 +20,7 @@ import {
 } from "../../test/support/object-samples";
 import { allSwitches } from "../../test/support/switches";
 import type { Segment } from "../domain/describe";
-import { NO_NAMES } from "../domain/names";
+import { NO_NAMES, type NamesPart } from "../domain/names";
 import type { TimelineItem } from "../ui/components/Timeline";
 import type { ObjectAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
 import type { Env } from "./env";
@@ -29,11 +29,14 @@ import {
   amountText,
   answerObject,
   asOfNoteOf,
+  commonAccounts,
   commonOf,
   displayAmount,
   fromNodeEntry,
   removedBannerOf,
   reserveOf,
+  sentence,
+  theAmount,
   timelineOf,
   type EventWords,
   type ObjectSource,
@@ -613,5 +616,72 @@ describe("commonOf", () => {
       expect(note("check", checkAnswerSample({ coverage: incomplete }))).toBe(" onwards: earlier events of this check are not in the index yet.");
       expect(note("payment-channel", paymentChannelAnswerSample({ coverage: incomplete }))).toBe(" onwards: earlier events of this payment channel are not in the index yet.");
     });
+  });
+});
+
+// ---- The words and the accounts of a sentence --------------------------------------------------------------------------------------------------------
+
+describe("sentence and theAmount", () => {
+  it("makes a sentence of strings, segments and lists of segments, with the text next to text made one segment", () => {
+    const account: Segment = { t: "account", v: ESCROW_OWNER };
+    expect(sentence("a ", "b", account, " c", [{ t: "text", v: " d" }, { t: "amount", value: "1", currency: "XRP" }], "!")).toEqual([
+      { t: "text", v: "a b" },
+      account,
+      { t: "text", v: " c d" },
+      { t: "amount", value: "1", currency: "XRP" },
+      { t: "text", v: "!" },
+    ]);
+    // a part left out as "" leaves nothing behind
+    expect(sentence("", "", [{ t: "text", v: "" }])).toEqual([]);
+    expect(sentence("a", "", account)).toEqual([{ t: "text", v: "a" }, account]);
+  });
+
+  it("names the amount as a noun phrase, or the funds where D5 could not read it", () => {
+    expect(theAmount({ value: "5", currency: "XRP" })).toEqual([{ t: "text", v: "the " }, { t: "amount", value: "5", currency: "XRP" }]);
+    expect(theAmount(null)).toEqual([{ t: "text", v: "the funds" }]);
+    expect(sentence("Until then ", theAmount(null), " stay locked.")).toEqual([{ t: "text", v: "Until then the funds stay locked." }]);
+  });
+});
+
+describe("commonAccounts", () => {
+  const A = (n: number) => `r${String(n).repeat(25)}`.slice(0, 26);
+  const account = (v: string): Segment => ({ t: "account", v });
+  const issued = (issuer: string): Segment => ({ t: "amount", value: "1", currency: "USD", issuer });
+  const base = commonOf(
+    { origin: "index", answer: escrowAnswerSample() },
+    { net: XRPL, kind: "escrow", serverState: stateOf(), names: NO_NAMES, back: [] },
+    { pill: { tone: "info", text: "Pending" }, states: [], marks: [], bannerSentence: null, say: () => ({ title: "t", what: [] }) },
+  );
+  const tx = (over: Partial<TimelineItem>): TimelineItem => ({ kind: "tx", type: "EscrowCreate", title: "t", what: [], by: A(1), ...over });
+
+  it("lists the accounts of the banner's sentence, and the by, the delegate and the sentence of each timeline item, each once, in the order drawn", () => {
+    const page = {
+      ...base,
+      banner: { ledger: 1, txType: "EscrowFinish", hash: "H", sentence: [account(A(2))] },
+      timeline: [tx({ by: A(1), delegate: A(3), what: [account(A(4))] }), tx({ by: A(1), what: [account(A(2)), account(A(5))] }), { kind: "next", type: "EscrowCancel", title: "t", what: [account(A(6))] } as TimelineItem],
+    };
+    expect(commonAccounts(page)).toEqual([A(2), A(1), A(3), A(4), A(5), A(6)]);
+  });
+
+  it("is empty for a page with no banner and no timeline account", () => {
+    expect(commonAccounts({ ...base, banner: null, timeline: [] })).toEqual([]);
+    expect(commonAccounts({ ...base, banner: null, timeline: [tx({ what: [{ t: "text", v: "x" }], by: undefined })] })).toEqual([]);
+  });
+
+  it("puts the accounts of the type's own parts between the banner's and the timeline's, and lists each once", () => {
+    const page = { ...base, banner: { ledger: 1, txType: "EscrowFinish", hash: "H", sentence: [account(A(2))] }, timeline: [tx({ by: A(1), delegate: A(3) })] };
+    expect(commonAccounts(page, [A(7), A(1), A(2), A(8)])).toEqual([A(2), A(7), A(1), A(8), A(3)]);
+    expect(commonAccounts(page, [])).toEqual(commonAccounts(page));
+  });
+
+  it("never lists the issuer of an amount in a sentence, nor the names it is given, nor an address anywhere else in the page", () => {
+    const names: NamesPart = { state: "ok", map: { [A(9)]: { name: { text: "Elsewhere", kind: "account" }, labels: [] } } };
+    const page = {
+      ...base,
+      names,
+      banner: { ledger: 1, txType: "EscrowFinish", hash: "H", sentence: [issued(A(2))] },
+      timeline: [tx({ by: A(1), what: [issued(A(3))] })],
+    };
+    expect(commonAccounts(page)).toEqual([A(1)]);
   });
 });

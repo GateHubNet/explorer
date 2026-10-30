@@ -10,7 +10,7 @@
 import BigNumber from "bignumber.js";
 import { encodeAccountID } from "ripple-address-codec";
 
-import type { Segment } from "../domain/describe";
+import { accountsIn, type Segment } from "../domain/describe";
 import { dropsToNative, formatAmount, formatCurrency } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import { OBJECT_KINDS, type ObjectKind } from "../domain/object-link";
@@ -193,6 +193,34 @@ export function amountSegment(a: DisplayAmount): Segment {
 export function amountText(a: DisplayAmount): string {
   return "mpt" in a ? mptWords(a.mpt) : `${formatAmount(a.value)} ${formatCurrency(a.currency)}`;
 }
+
+// ---- Words ------------------------------------------------------------------------------------------------------------------------------------
+
+/** A piece of a sentence that is just text. */
+export const text = (v: string): Segment => ({ t: "text", v });
+
+/** What a sentence is made of: words, a segment, or a list of segments (an amount's phrase). */
+export type Part = string | Segment | readonly Segment[];
+
+/** A sentence from strings, segments and lists of segments, with the text next to text made one segment and no empty text (a part left out is `""`). */
+export function sentence(...parts: Part[]): Segment[] {
+  const segments: Segment[] = [];
+  for (const part of parts) {
+    for (const segment of typeof part === "string" ? [text(part)] : "t" in part ? [part] : part) {
+      if (segment.t === "text" && segment.v === "") continue;
+      const last = segments.at(-1);
+      if (segment.t === "text" && last?.t === "text") segments[segments.length - 1] = text(last.v + segment.v);
+      else segments.push(segment);
+    }
+  }
+  return segments;
+}
+
+/** The object's amount as a noun phrase: "the 1,000 XRP", or "the funds" where D5 could not read it. */
+export const theAmount = (amount: DisplayAmount | null): Segment[] => (amount === null ? [text("the funds")] : [text("the "), amountSegment(amount)]);
+
+/** A moment (unix seconds) written into a sentence: an absolute time in UTC, "Oct 29, 2026, 03:50 UTC". */
+export const when = (unix: number): string => formatDateTime(unix);
 
 // ---- The rows of the Details card ------------------------------------------------------------------------------------------------------------------
 
@@ -435,4 +463,18 @@ export function commonOf(
     reserve: reserveOf(o.serverState, net.native, kind, removed !== undefined),
     names: o.names,
   };
+}
+
+/**
+ * The accounts the common part of a page draws as an `AccountLink` (E9, "Display names"), each once, in the order the page draws them: the accounts of the removed banner's sentence, then
+ * `own`, the accounts of the type's own parts (its summary, status lines and rows), which stand between the banner and the history, then for each timeline item the account that sent the
+ * transaction, the delegate and the accounts of what it did. Never an amount's issuer in a sentence, which `Amount` writes in a title, nor the names the page carries.
+ */
+export function commonAccounts(page: ObjectPageCommon, own: readonly string[] = []): string[] {
+  const drawn = [
+    ...(page.banner === null ? [] : accountsIn(page.banner.sentence)),
+    ...own,
+    ...page.timeline.flatMap((item) => [item.by, item.delegate, ...accountsIn(item.what)]),
+  ];
+  return [...new Set(drawn.filter((address): address is string => address !== undefined))];
 }

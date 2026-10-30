@@ -13,7 +13,7 @@ import { tokenOf } from "../domain/fnv";
 import { formatUtcDay, shortAddress } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import type { Native } from "../domain/parse/types";
-import { formatDate, formatDateTime } from "../domain/time-words";
+import { formatDate } from "../domain/time-words";
 import type { PillTone } from "../ui/components/Pill";
 import type { StateItem } from "../ui/components/StatesStrip";
 import type { TimelineItem } from "../ui/components/Timeline";
@@ -22,9 +22,14 @@ import type { EscrowObject, EscrowStatus, ObjectEvent, ObjectRef } from "./api-t
 import {
   amountSegment,
   amountText,
+  commonAccounts,
   commonOf,
   displayAmount,
   fromNodeEntry,
+  sentence,
+  text,
+  theAmount,
+  when,
   type DetailRow,
   type DisplayAmount,
   type EventWords,
@@ -76,28 +81,6 @@ const PILLS: Record<EscrowStatus, { tone: PillTone; text: string }> = {
 
 /** The states of the strip in the board's order; `removed` is none of them. */
 const STATE_IDS = ["pending", "can_be_finished", "can_be_cancelled", "finished", "cancelled"] as const;
-
-const text = (v: string): Segment => ({ t: "text", v });
-
-type Part = string | Segment | readonly Segment[];
-
-/** A sentence from strings, segments and lists of segments, with the text next to text made one segment. */
-function sentence(...parts: Part[]): Segment[] {
-  const segments: Segment[] = [];
-  for (const part of parts) {
-    for (const segment of typeof part === "string" ? [text(part)] : "t" in part ? [part] : part) {
-      const last = segments.at(-1);
-      if (segment.t === "text" && last?.t === "text") segments[segments.length - 1] = text(last.v + segment.v);
-      else segments.push(segment);
-    }
-  }
-  return segments;
-}
-
-/** The escrow's amount as a noun phrase: "the 1,000 XRP", or "the funds" where D5 could not read it. */
-const theAmount = (amount: DisplayAmount | null): Segment[] => (amount === null ? [text("the funds")] : [text("the "), amountSegment(amount)]);
-
-const when = (unix: number): string => formatDateTime(unix);
 
 /** The states of the strip, each with the board's one line of what it means; the escrow's own marked, none for a `removed` one. */
 function statesOf(status: EscrowStatus, conditional: boolean): StateItem[] {
@@ -198,12 +181,12 @@ function statusLinesOf(f: Facts): Segment[][] {
       ];
     case "finished":
       return [
-        amount === null ? sentence("Finished: delivered to the destination") : sentence("Finished: ", amountSegment(amount), " delivered to the destination"),
+        amount === null ? sentence("Finished: funds delivered to the destination") : sentence("Finished: ", amountSegment(amount), " delivered to the destination"),
         sentence("Finished", removed === undefined ? "" : ` on ${when(removed.at)}`, ", by an EscrowFinish", f.conditional ? " that carried the fulfillment" : "", "."),
       ];
     case "cancelled":
       return [
-        amount === null ? sentence("Cancelled: returned to the owner") : sentence("Cancelled: ", amountSegment(amount), " returned to the owner"),
+        amount === null ? sentence("Cancelled: funds returned to the owner") : sentence("Cancelled: ", amountSegment(amount), " returned to the owner"),
         sentence("Cancelled", removed === undefined ? "" : ` on ${when(removed.at)}`, ", after CancelAfter had passed. It was never finished."),
       ];
     case "removed":
@@ -332,7 +315,7 @@ export function windowBarOf(
     if (to !== null && to <= (from ?? start)) return [];
     // nothing was open after a removal
     if (ended && from !== null && from > mark.at) return [];
-    const length = from !== null && to !== null ? lengthOf(to - from) : from === null && to !== null ? "Since its creation" : openLength;
+    const length = from !== null && to !== null ? lengthOf(to - from) : from === null && to !== null ? `Until ${when(to)}` : openLength;
     return [{ id, label, slot, from: from === null ? null : String(from), to: to === null ? null : String(to), range: range(from, to), length }];
   };
 
@@ -352,10 +335,14 @@ export function windowBarOf(
 
 // ---- The Details card ----------------------------------------------------------------------------------------------------------------------------
 
-/** A transfer rate as the percent it charges: 1,005,000,000 is 0.5%, and 1,000,000,000 (and anything below it) is 0%. */
-const transferPercent = (rate: number): string => `${BigNumber.max(0, new BigNumber(rate).minus(1_000_000_000)).shiftedBy(-7).toFixed()}%`;
+/** The transfer rate of no fee: a billionths multiplier of 1. */
+const NO_FEE = 1_000_000_000;
 
-const NONE: DetailRow["value"] = { kind: "text", text: "None", faint: true };
+/** A transfer rate as the percent it charges: 1,005,000,000 is 0.5%, and 1,000,000,000 (and anything below it) is 0%. */
+const transferPercent = (rate: number): string => `${BigNumber.max(0, new BigNumber(rate).minus(NO_FEE)).shiftedBy(-7).toFixed()}%`;
+
+/** The value of a row that has nothing to say, built fresh for each row (a shared object would be one value in many places of the page data). */
+const none = (text = "None"): DetailRow["value"] => ({ kind: "text", text, faint: true });
 
 /** The board's words about the condition: what it is, and what has happened to the secret that matches it. */
 function conditionHint(f: Facts): string {
@@ -375,7 +362,7 @@ function conditionHint(f: Facts): string {
 function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
   const { escrow, amount, finishAfter: fa, cancelAfter: ca } = f;
   const token = amount !== null && "issuer" in amount && amount.issuer !== undefined;
-  const tag = (value: number | undefined): DetailRow["value"] => (value === undefined ? NONE : { kind: "number", text: String(value) });
+  const tag = (value: number | undefined): DetailRow["value"] => (value === undefined ? none() : { kind: "number", text: String(value) });
   return [
     { label: "Escrow ID", field: "ledger object ID", value: { kind: "code", text: escrow.escrow_id, copy: "Copy escrow ID" } },
     { label: "Owner", field: "source", value: { kind: "account", address: escrow.account } },
@@ -384,17 +371,17 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
     {
       label: "Can be finished after",
       field: "FinishAfter",
-      value: fa === undefined ? NONE : { kind: "time", at: fa },
+      value: fa === undefined ? none() : { kind: "time", at: fa },
       ...(fa !== undefined && { hint: "The earliest time anyone can send an EscrowFinish." }),
     },
     {
       label: "Can be cancelled after",
       field: "CancelAfter",
-      value: ca === undefined ? NONE : { kind: "time", at: ca },
+      value: ca === undefined ? none() : { kind: "time", at: ca },
       ...(ca !== undefined && { hint: "From this time it can no longer be finished, only cancelled." }),
     },
     escrow.condition === undefined
-      ? { label: "Condition", value: NONE, hint: "Time-based only: no secret is needed to finish it." }
+      ? { label: "Condition", value: none("None: time-based only"), hint: "No secret is needed to finish it." }
       : { label: "Condition", value: { kind: "code", text: escrow.condition, copy: "Copy condition" }, hint: conditionHint(f) },
     ...(escrow.fulfillment === undefined
       ? []
@@ -407,7 +394,8 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
         ]),
     { label: "Destination tag", value: tag(escrow.destination_tag) },
     { label: "Source tag", value: tag(escrow.source_tag) },
-    ...(token && escrow.transfer_rate !== undefined ? [{ label: "Transfer rate", value: { kind: "text" as const, text: transferPercent(escrow.transfer_rate) } }] : []),
+    // rippled leaves the field out of an entry with no fee, so a token escrow without one charges nothing
+    ...(token ? [{ label: "Transfer rate", value: { kind: "text" as const, text: transferPercent(escrow.transfer_rate ?? NO_FEE) } }] : []),
     ...(reserve === null ? [] : [{ label: "Owner reserve", value: { kind: "amount" as const, amount: { value: reserve.amount, currency: reserve.currency } }, hint: reserve.hint }]),
   ];
 }
@@ -456,7 +444,8 @@ export function escrowPage(
  * The accounts the page draws as an `AccountLink` (E9, "Display names"), each once, in the order the page draws them: the accounts of the banner's sentence, the summary and the status lines
  * (`accountsIn`: an account segment), the owner and the destination of the Details card, the issuer of a token in its Amount row (the page draws it as a link there), and for each item of the
  * timeline the account that sent the transaction, the delegate and the accounts of what it did. Never an amount's issuer in a sentence, which `Amount` writes in a title, nor an MPT's, nor
- * the short addresses of the meta tags. The loader passes this to `collectAddresses`, then `loadNames`.
+ * the short addresses of the meta tags. The common parts (the banner, the timeline) are `commonAccounts`'s, with the escrow's own parts between them. The loader passes this to
+ * `collectAddresses`, then `loadNames`.
  */
 export function drawnAccounts(page: EscrowPageData): string[] {
   const details = page.details.flatMap((row): string[] => {
@@ -464,12 +453,5 @@ export function drawnAccounts(page: EscrowPageData): string[] {
     const amount = row.value.kind === "amount" ? row.value.amount : null;
     return amount !== null && "issuer" in amount && amount.issuer !== undefined ? [amount.issuer] : [];
   });
-  const drawn = [
-    ...(page.banner === null ? [] : accountsIn(page.banner.sentence)),
-    ...accountsIn(page.summary),
-    ...page.statusLines.flatMap(accountsIn),
-    ...details,
-    ...page.timeline.flatMap((item) => [item.by, item.delegate, ...accountsIn(item.what)]),
-  ];
-  return [...new Set(drawn.filter((address): address is string => address !== undefined))];
+  return commonAccounts(page, [...accountsIn(page.summary), ...page.statusLines.flatMap(accountsIn), ...details]);
 }

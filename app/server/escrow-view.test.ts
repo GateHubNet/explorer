@@ -471,7 +471,7 @@ describe("escrowPage: the details", () => {
       { label: "Amount", value: { kind: "amount", amount: { value: "25", currency: "XRP" } } },
       { label: "Can be finished after", field: "FinishAfter", value: { kind: "time", at: unix("2026-10-14T03:25:30Z") }, hint: "The earliest time anyone can send an EscrowFinish." },
       { label: "Can be cancelled after", field: "CancelAfter", value: { kind: "time", at: unix("2026-10-15T02:25:30Z") }, hint: "From this time it can no longer be finished, only cancelled." },
-      { label: "Condition", value: { kind: "text", text: "None", faint: true }, hint: "Time-based only: no secret is needed to finish it." },
+      { label: "Condition", value: { kind: "text", text: "None: time-based only", faint: true }, hint: "No secret is needed to finish it." },
       { label: "Destination tag", value: { kind: "text", text: "None", faint: true } },
       { label: "Source tag", value: { kind: "text", text: "None", faint: true } },
       {
@@ -533,6 +533,31 @@ describe("escrowPage: the details", () => {
     expect(rowOf(page(indexed(sample)), "Transfer rate")!.value).toEqual({ kind: "text", text: "0%" });
   });
 
+  it("shows 0% for a token escrow whose entry has no transfer rate: rippled omits the field when there is no fee", async () => {
+    const answer = await answerOf("xrpl", "escrow-token");
+    expect(answer.escrow.transfer_rate).toBeUndefined();
+    const data = page(indexed(answer));
+    expect(data.details.map((row) => row.label)).toEqual(expect.arrayContaining(["Transfer rate"]));
+    expect(rowOf(data, "Transfer rate")).toEqual({ label: "Transfer rate", value: { kind: "text", text: "0%" } });
+    // after Source tag and before Owner reserve
+    const labels = data.details.map((row) => row.label);
+    expect(labels.slice(labels.indexOf("Source tag"))).toEqual(["Source tag", "Transfer rate", "Owner reserve"]);
+    // from the node, which has no field either
+    const { entry, ledgerIndex } = await entryOf("xrpl", "escrow-node-only");
+    expect(entry.TransferRate).toBeUndefined();
+    expect(rowOf(page({ origin: "node", entry, ledgerIndex, now: Date.UTC(2026, 9, 29) / 1000 }), "Transfer rate")!.value).toEqual({ kind: "text", text: "0%" });
+  });
+
+  it("shows no transfer rate row for a native escrow, with the field or without, nor for an MPT", async () => {
+    const native = escrowAnswerSample();
+    expect(native.escrow.transfer_rate).toBeUndefined();
+    expect(rowOf(page(indexed(native)), "Transfer rate")).toBeUndefined();
+    native.escrow = { ...native.escrow, transfer_rate: 1_005_000_000 };
+    expect(rowOf(page(indexed(native)), "Transfer rate")).toBeUndefined();
+    const mpt = await answerOf("xrpl", "escrow-mpt");
+    expect(rowOf(page(indexed(mpt)), "Transfer rate")).toBeUndefined();
+  });
+
   it("shows no transfer rate for a native escrow, whatever the ledger holds (Xahau's hold the default)", async () => {
     const answer = await answerOf("xahau", "xahau-escrow");
     expect(answer.escrow.transfer_rate).toBe(1_000_000_000);
@@ -582,6 +607,8 @@ describe("escrowPage: the details", () => {
       expect(everything.some((segment) => segment.t === "amount"), which).toBe(false);
       expect(said(each.summary), which).toContain("locked funds for");
       expect(JSON.stringify(everything), which).not.toMatch(/undefined|NaN|null/);
+      if (which === "escrow-finished") expect(each.statusLines.map(said)[0]).toBe("Finished: funds delivered to the destination");
+      if (which === "escrow-cancelled") expect(each.statusLines.map(said)[0]).toBe("Cancelled: funds returned to the owner");
     }
   });
 });
@@ -631,12 +658,21 @@ describe("windowBarOf", () => {
     // FinishAfter ahead of the page: Pending runs from the start of the bar, which is the as-of time
     const ahead = windowBarOf({ finishAfter: NOW + 10 * D, cancelAfter: NOW + 40 * D }, now);
     expect(ids(ahead)).toEqual(["pending", "finishable", "cancellable"]);
-    expect(ahead.segments[0]).toMatchObject({ from: null, to: String(NOW + 10 * D), range: "Until Nov 8, 2026, 09:30 UTC", length: "Since its creation" });
+    expect(ahead.segments[0]).toMatchObject({ from: null, to: String(NOW + 10 * D), range: "Until Nov 8, 2026, 09:30 UTC", length: "Until Nov 8, 2026, 09:30 UTC" });
     expect(ahead.bounds.map((bound) => bound.id)).toEqual(["finish_after", "cancel_after"]);
     // FinishAfter behind the page: the bar starts at FinishAfter and there is no Pending to draw
     const behind = windowBarOf({ finishAfter: NOW - 3 * D, cancelAfter: NOW + 40 * D }, now);
     expect(ids(behind)).toEqual(["finishable", "cancellable"]);
     expect(behind.bounds.map((bound) => bound.id)).toEqual(["finish_after", "cancel_after"]);
+  });
+
+  it("does not claim a start for a window whose start is unknown: its length reads Until {FinishAfter}, not Since its creation", () => {
+    const [pending] = windowBarOf({ finishAfter: NOW + 10 * D }, now).segments;
+    expect(pending).toMatchObject({ id: "pending", from: null, length: "Until Nov 8, 2026, 09:30 UTC" });
+    expect(pending!.length).not.toMatch(/creation/);
+    // a window with no start whose end is CancelAfter says the same of it
+    const [finishable] = windowBarOf({ cancelAfter: NOW + 10 * D }, now).segments;
+    expect(finishable).toMatchObject({ id: "finishable", from: null, length: "Until Nov 8, 2026, 09:30 UTC" });
   });
 
   it("writes a window with neither end known plainly, and leaves out one with no start whose end has passed", () => {
@@ -782,6 +818,21 @@ describe("escrowPage holds unix seconds and strings only: no ages", () => {
 // ---- The accounts the page draws --------------------------------------------------------------------------------------------------------------
 
 describe("drawnAccounts", () => {
+  /** The recorded escrows the test reads, each asked for by name: one the fixtures lack fails the test (`objectCase` throws), none is skipped. */
+  const RECORDED: ReadonlyArray<readonly [NetName, ObjectCase]> = [
+    ["xrpl", "escrow-pending"],
+    ["xrpl", "escrow-finishable"],
+    ["xrpl", "escrow-cancellable"],
+    ["xrpl", "escrow-finished"],
+    ["xrpl", "escrow-cancelled"],
+    ["xrpl", "escrow-token"],
+    ["xrpl", "escrow-mpt"],
+    ["xrpl", "escrow-incomplete"],
+    ["xahau", "escrow-pending"],
+    ["xahau", "escrow-token"],
+    ["xahau", "escrow-incomplete"],
+    ["xahau", "xahau-escrow"],
+  ];
   const A = (n: number) => `r${String(n).repeat(25)}`.slice(0, 26);
 
   it("lists the owner, the destination, the issuer of a token in the Amount row, a delegate and every account of a sentence, each once, in the order the page draws them", () => {
@@ -794,22 +845,15 @@ describe("drawnAccounts", () => {
 
   it("lists exactly the accounts that the page holds, on every recorded escrow: collectAddresses over the page finds no other", async () => {
     const seen = new Set<string>();
-    for (const net of ["xrpl", "xahau"] as const) {
-      for (const which of ["escrow-pending", "escrow-finishable", "escrow-cancellable", "escrow-finished", "escrow-cancelled", "escrow-token", "escrow-mpt", "escrow-incomplete", "xahau-escrow"] as const) {
-        const found = await objectCase(net, which).then(
-          () => true,
-          () => false,
-        );
-        if (!found) continue;
-        const data = page(indexed(await answerOf(net, which)), {}, net === "xrpl" ? XRPL : XAHAU);
-        const drawn = drawnAccounts(data);
-        expect(new Set(drawn).size, `${net} ${which}`).toBe(drawn.length);
-        expect([...collectAddresses({ ...data, names: undefined, meta: undefined })].sort(), `${net} ${which}`).toEqual([...drawn].sort());
-        // the owner and the destination come first (they are one account where an escrow is to its own owner)
-        const parties = [...new Set([data.details[1]!.value, data.details[2]!.value].map((value) => (value as { address: string }).address))];
-        expect(drawn.slice(0, parties.length), `${net} ${which}`).toEqual(parties);
-        drawn.forEach((address) => seen.add(address));
-      }
+    for (const [net, which] of RECORDED) {
+      const data = page(indexed(await answerOf(net, which)), {}, net === "xrpl" ? XRPL : XAHAU);
+      const drawn = drawnAccounts(data);
+      expect(new Set(drawn).size, `${net} ${which}`).toBe(drawn.length);
+      expect([...collectAddresses({ ...data, names: undefined, meta: undefined })].sort(), `${net} ${which}`).toEqual([...drawn].sort());
+      // the owner and the destination come first (they are one account where an escrow is to its own owner)
+      const parties = [...new Set([data.details[1]!.value, data.details[2]!.value].map((value) => (value as { address: string }).address))];
+      expect(drawn.slice(0, parties.length), `${net} ${which}`).toEqual(parties);
+      drawn.forEach((address) => seen.add(address));
     }
     expect(seen.size).toBeGreaterThan(8);
   });
