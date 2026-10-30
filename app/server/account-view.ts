@@ -10,12 +10,15 @@ import BigNumber from "bignumber.js";
 
 import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { accountsIn, delegateOf, describe, rowSentence, type Segment } from "../domain/describe";
+import { ledgerId } from "../domain/describe/helpers";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
+import { delegationHref, OBJECT_KINDS, objectHref } from "../domain/object-link";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";
+import { permissionCount } from "../domain/permission-chip";
 import { formatDate } from "../domain/time-words";
 import { nftGlyph } from "../ui/components/NftGlyph";
 import type { Features } from "../ui/features";
@@ -215,6 +218,7 @@ const OWNED_LABELS: ReadonlyArray<readonly [type: string, one: string, many: str
   ["DepositPreauth", "deposit preauthorization", "deposit preauthorizations"],
   ["NFTokenOffer", "NFT offer", "NFT offers"],
   ["URIToken", "URIToken", "URITokens"],
+  ["Delegate", "delegation given", "delegations given"],
 ];
 
 /**
@@ -635,8 +639,19 @@ export interface ObjectRow {
   fields: ObjectField[];
   /** The transaction that last changed it. */
   tx: string | null;
-  /** Where the object leads besides its fields: an NFT page's to the account's NFTs (only while `NFTS` is on, which is when `objectRows` is given the link). */
+  /**
+   * Where the object leads besides its fields: an NFT page to the account's NFTs (while `NFTS` is on), an escrow, a check or a payment channel to its page (while `LEDGER_OBJECTS` is on), a
+   * delegation the account gave to the Delegation tab of its delegator (while `DELEGATION` is on). None while the switch is off.
+   */
   link?: { label: string; href: string };
+}
+
+/** What the Objects tab's rows are built in: the account's network and its native currency, the account (whose incoming objects name their source) and the switches its links follow. */
+export interface ObjectRowsContext {
+  net: NetworkId;
+  native: Native;
+  address: string;
+  features: Features;
 }
 
 const text = (v: string): Segment => ({ t: "text", v });
@@ -678,34 +693,49 @@ function sellOfferField(entry: LedgerObject, native: Native): Segment[] | null {
   return only === null ? [amount] : [amount, text(", only for "), only];
 }
 
+/** The source of an object the account is the destination of (an escrow, a check or a channel it was sent: ledger object pages decision 11): its `Account`; none for one of its own. */
+const fromField = (entry: LedgerObject, address: string): Segment | null => (entry.Destination === address ? accountField(entry.Account) : null);
+
+/** How many permissions a delegation grants, of the ten it can: "3 of 10". A `Permissions` that is no list says nothing of it. */
+const permissionsField = (value: unknown): Segment | null => (Array.isArray(value) ? text(permissionCount(value.length)) : null);
+
 /** The fields to show of each type of object, in order; a field the entry does not have, or in a shape unknown here, is left out. */
-const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => ReadonlyArray<readonly [string, Segment | Segment[] | null]>> = {
-  Escrow: (e, native) => [
+const OBJECT_FIELDS: Record<string, (entry: LedgerObject, ctx: ObjectRowsContext) => ReadonlyArray<readonly [string, Segment | Segment[] | null]>> = {
+  Escrow: (e, { native, address }) => [
     ["Amount", amountField(e.Amount, native)],
+    ["From", fromField(e, address)],
     ["To", accountField(e.Destination)],
     ["Can finish after", timeField(e.FinishAfter)],
     ["Can cancel after", timeField(e.CancelAfter)],
   ],
-  Check: (e, native) => [
+  Check: (e, { native, address }) => [
     ["Send up to", amountField(e.SendMax, native)],
+    ["From", fromField(e, address)],
     ["To", accountField(e.Destination)],
     ["Expires", timeField(e.Expiration)],
   ],
-  PayChannel: (e, native) => [
+  PayChannel: (e, { native, address }) => [
     ["Amount", amountField(e.Amount, native)],
     ["Claimed so far", amountField(e.Balance, native)],
+    ["From", fromField(e, address)],
     ["To", accountField(e.Destination)],
     ["Expires", timeField(e.Expiration)],
   ],
+  // A delegation the account gave (ledger object pages spec 7): the delegate, the account it may act for, and how many permissions it holds.
+  Delegate: (e) => [
+    ["Delegate", accountField(e.Authorize)],
+    ["On behalf of", accountField(e.Account)],
+    ["Permissions", permissionsField(e.Permissions)],
+  ],
   NFTokenPage: (e) => [["NFTs", countField(e.NFTokens)]],
-  NFTokenOffer: (e, native) => [
+  NFTokenOffer: (e, { native }) => [
     ["NFT", nftField(e.NFTokenID)],
     ["Side", sideField(e.Flags)],
     ["Amount", amountField(e.Amount, native)],
     ["Only for", accountField(e.Destination)],
     ["Expires", timeField(e.Expiration)],
   ],
-  URIToken: (e, native) => [
+  URIToken: (e, { native }) => [
     ["URIToken", nftField(e.index)],
     ["Issuer", accountField(e.Issuer)],
     ["Sell offer", sellOfferField(e, native)],
@@ -719,11 +749,29 @@ const OBJECT_FIELDS: Record<string, (entry: LedgerObject, native: Native) => Rea
 };
 
 /**
- * The objects an account owns, as rows for the Objects tab. Trust lines and offers have a place of their own (Tokens, the Offers
- * tab), so they are counted and left out. `nftsHref`, which the loader gives only while `NFTS` is on, is the account's NFTs tab: an
- * NFT page then says "See the account's NFTs" and leads there.
+ * Where a row leads besides its fields (`ObjectRow.link`), while its switch is on: an NFT page to the account's NFTs tab (`NFTS`); an escrow, a check or a payment channel to its page by its
+ * `index` (`LEDGER_OBJECTS`; an index that is no ID leads nowhere); a delegation the account gave to its delegator's Delegation tab (`DELEGATION`).
  */
-export function objectRows(objects: readonly LedgerObject[], native: Native, nftsHref?: string): { rows: ObjectRow[]; trustLines: number; offers: number } {
+function linkOf(entry: LedgerObject, ctx: ObjectRowsContext): ObjectRow["link"] {
+  const type = entry.LedgerEntryType;
+  if (type === "NFTokenPage") return ctx.features.nfts ? { label: "See the account’s NFTs", href: accountHref(ctx.net, ctx.address, { tab: "nfts" }) } : undefined;
+  if (type === "Delegate") {
+    const href = typeof entry.Account === "string" && entry.Account !== "" ? delegationHref(ctx.net, entry.Account, ctx.features) : null;
+    return href === null ? undefined : { label: "View delegation →", href };
+  }
+  const kind = OBJECT_KINDS.find((each) => each.type === type);
+  const id = ledgerId(entry.index);
+  if (kind === undefined || id === undefined) return undefined;
+  const href = objectHref(ctx.net, kind.kind, { id }, ctx.features);
+  // "Open escrow →", "Open check →", "Open payment channel →": the words of `OBJECT_KINDS`.
+  return href === null ? undefined : { label: `Open ${kind.words} →`, href };
+}
+
+/**
+ * The objects an account owns, as rows for the Objects tab. Trust lines and offers have a place of their own (Tokens, the Offers
+ * tab), so they are counted and left out. Each row's fields, and where it leads while its switch is on (`linkOf`).
+ */
+export function objectRows(objects: readonly LedgerObject[], ctx: ObjectRowsContext): { rows: ObjectRow[]; trustLines: number; offers: number } {
   let trustLines = 0;
   let offers = 0;
   const rows: ObjectRow[] = [];
@@ -736,14 +784,15 @@ export function objectRows(objects: readonly LedgerObject[], native: Native, nft
       offers += 1;
       return;
     }
-    const fields = Object.hasOwn(OBJECT_FIELDS, entry.LedgerEntryType) ? OBJECT_FIELDS[entry.LedgerEntryType]!(entry, native) : [];
+    const fields = Object.hasOwn(OBJECT_FIELDS, entry.LedgerEntryType) ? OBJECT_FIELDS[entry.LedgerEntryType]!(entry, ctx) : [];
     const last = entry.PreviousTxnID;
+    const link = linkOf(entry, ctx);
     rows.push({
       key: typeof entry.index === "string" ? entry.index : String(index),
       type: entry.LedgerEntryType,
       fields: fields.flatMap(([label, value]) => (value === null ? [] : [{ label, value: Array.isArray(value) ? value : [value] }])),
       tx: typeof last === "string" && /^[0-9A-Fa-f]{64}$/.test(last) ? last : null,
-      ...(entry.LedgerEntryType === "NFTokenPage" && nftsHref !== undefined ? { link: { label: "See the account’s NFTs", href: nftsHref } } : {}),
+      ...(link === undefined ? {} : { link }),
     });
   });
   return { rows, trustLines, offers };
@@ -849,13 +898,13 @@ export function offersList(orders: OrdersResponse): TabList {
   };
 }
 
-/** The Objects tab; `null` for an account that has none to read (it was deleted). `nftsHref` is `objectRows`'s. */
-export function objectsList(objects: AccountObjects | null, native: Native, nftsHref?: string): TabList {
+/** The Objects tab; `null` for an account that has none to read (it was deleted). */
+export function objectsList(objects: AccountObjects | null, ctx: ObjectRowsContext): TabList {
   if (objects === null) return { state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null, names: NO_NAMES };
   return {
     state: "ok",
     tab: "objects",
-    ...objectRows(objects.account_objects, native, nftsHref),
+    ...objectRows(objects.account_objects, ctx),
     truncated: objects.marker !== undefined,
     ledgerIndex: objects.ledger_index,
     names: NO_NAMES,
@@ -908,9 +957,9 @@ export function failedList(tab: ListTab, net?: NetworkId): TabList {
 
 /**
  * The accounts a tab's list draws as links, each once, in the order drawn: the accounts of the transactions' sentences, the counterparty of each payment and of each trade, the
- * accounts of the objects' fields (To, Only for, Issuer, Authorized, a sell offer's only for), and the delegates of the delegations given and then the accounts of those held. The
- * open offers and the NFTs draw none (an amount's issuer is in a title, a collection is a link to the collection), and neither does a list that failed. The first page's list asks
- * for these names in a call of its own, after its rows; the Objects tab's rows come with the header, and its accounts are in the header's call.
+ * accounts of the objects' fields (From, To, Only for, Issuer, Authorized, a sell offer's only for, a delegation's Delegate and On behalf of), and the delegates of the delegations given
+ * and then the accounts of those held. The open offers and the NFTs draw none (an amount's issuer is in a title, a collection is a link to the collection), and neither does a list that
+ * failed. The first page's list asks for these names in a call of its own, after its rows; the Objects tab's rows come with the header, and its accounts are in the header's call.
  */
 export function listAddresses(list: TabList): string[] {
   if (list.state !== "ok") return [];

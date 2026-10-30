@@ -1819,6 +1819,18 @@ describe("the NFT objects", () => {
     expect(within(item!).queryByRole("link", { name: /See the account/ })).toBeNull();
   });
 
+  // Where a row leads, as the board draws it (ledger object pages spec 7: "Open escrow →" and the like): a button at the row's end, over the transaction that last changed it.
+  it("draws where a row leads as a button at the row's end, over the link to the transaction that last changed it", async () => {
+    const escrow: ObjectRow = { key: "E1", type: "Escrow", fields: [], tx: TX, link: { label: "Open escrow →", href: `/xrpl/escrows/${"AB".repeat(32)}` } };
+    mount([escrow]);
+    const [item] = await items();
+    const end = item!.querySelector(".object__end")!;
+    expect([...end.querySelectorAll("a")].map((a) => [a.textContent, a.className, a.getAttribute("href")])).toEqual([
+      ["Open escrow →", "btn", `/xrpl/escrows/${"AB".repeat(32)}`],
+      [`Last changed in ${shortHash(TX)} →`, "object__tx", `/xrpl/tx/${TX}`],
+    ]);
+  });
+
   it("shows an NFT offer's NFT as a link to the NFT, its side, amount, who it is only for and when it expires", async () => {
     mount([offer]);
     const [item] = await items();

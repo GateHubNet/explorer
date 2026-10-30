@@ -101,7 +101,9 @@ const said = (segments: readonly Segment[]): string =>
               ? segment.v
               : segment.t === "pool"
                 ? segment.pair
-                : segment.name,
+                : segment.t === "permission"
+                  ? segment.name
+                  : segment.v,
     )
     .join("");
 

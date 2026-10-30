@@ -155,6 +155,19 @@ describe("the first page", () => {
     expect(tomlCalls(mock)).toEqual(["northpeak.example"]);
   });
 
+  // The fields the links into the ledger object pages bring (ledger object pages spec 7; C15, C17): the source (From) of the check the account was sent, and its delegation's delegate and the
+  // account it acts for. They are accounts the tab links, so the header's one call asks for them with the rest; an object's own link is no account's.
+  it("asks, in the header's call, the names of exactly the accounts the Objects tab links, the check's source and the delegate among them, and draws each by its name", async () => {
+    const mock = upstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const html = await (await get(`/xrpl/account/${ACTIVE}?tab=objects&case=object-links`)).text();
+
+    const list = html.slice(html.indexOf('class="objectlist"'));
+    const linked = linkedAccounts(list, "xrpl");
+    expect(linked).toEqual(expect.arrayContaining(["rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp", "rGCMDQCMGueT8HTcKL3j7cA9aJ7qfX92GW", ACTIVE]));
+    expect(namesCalls(mock)).toEqual([sorted([...new Set([ACTIVE, PARENT, LIONS_ISSUER, ...linked])])]);
+    expectLinkedAccountsNamed(mock, list, "xrpl");
+  });
+
   it("asks a deleted XRPL account's names and no toml: the data API gives a deleted account no domain", async () => {
     const mock = upstream("xrpl");
     const { data } = await loadAccountPage<AccountListPageData>(`/xrpl/account/${DELETED}`);

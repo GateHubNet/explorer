@@ -1,8 +1,10 @@
 // The small pieces the handlers of `describe/` are built from: segments, amounts, flags, details. Pure.
 
 import BigNumber from "bignumber.js";
-import { dropsToNative, formatAmount, formatCurrency, formatUtc } from "../format";
-import type { AmmHop, Asset, Native, TxJson } from "../parse/types";
+import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortHash } from "../format";
+import { kindOfType, type ObjectKind, type ObjectRefParts } from "../object-link";
+import { nodesOf } from "../parse/objects";
+import type { AmmHop, Asset, Native, TxJson, TxMeta } from "../parse/types";
 import type { Detail, FlowAmount, Handler, HandlerMap, Segment } from "./types";
 
 // --- Segments ------------------------------------------------------------------------------------------------------
@@ -34,6 +36,14 @@ export const pool = (hop: AmmHop): Segment => ({ t: "pool", v: hop.pool, pair: p
 
 /** A link to an NFT, or on Xahau a URIToken, by its id. No serial: describe does not decode the id. */
 export const nftSegment = (v: string): Segment => ({ t: "nft", v });
+
+/** An escrow, a check or a payment channel, in the words `v`, which link to its page by `ref` while LEDGER_OBJECTS is on (ledger object pages spec 7). */
+export const objectSegment = (kind: ObjectKind, ref: ObjectRefParts, v: string): Segment => ({ t: "object", kind, ref, v });
+
+/** An ID of a ledger entry, 64 hexadecimal digits, in capitals, as a link names it; anything else (a field left out, a malformed one) is none. */
+export function ledgerId(raw: unknown): string | undefined {
+  return typeof raw === "string" && /^[0-9A-Fa-f]{64}$/.test(raw) ? raw.toUpperCase() : undefined;
+}
 
 /** Strings, segments and lists of them, in the order they read. */
 export type Part = string | Segment | readonly Part[];
@@ -132,6 +142,21 @@ export function fieldDetail(tx: TxJson, field: string, label: string): Detail[] 
 export function nftFieldDetail(tx: TxJson, field: string, label: string): Detail[] {
   const id = tx[field];
   return typeof id === "string" && id !== "" ? [detail(label, nftSegment(id))] : [];
+}
+
+/** A detail for a field that holds the ID of an escrow, a check or a channel (`CheckID`, `Channel`): the ID, in capitals, linking to its page; a value that is no ID is shown as it is. */
+export function objectFieldDetail(tx: TxJson, field: string, label: string, kind: ObjectKind): Detail[] {
+  const id = ledgerId(tx[field]);
+  return id === undefined ? fieldDetail(tx, field, label) : [detail(label, objectSegment(kind, { id }, id))];
+}
+
+/**
+ * The detail of the escrow, check or channel a transaction created ("Escrow", "Check", "Channel"): the ID of the node its metadata created, shortened, linking to its page. None when it
+ * created none (one that failed).
+ */
+export function createdDetail(meta: TxMeta, type: "Escrow" | "Check" | "PayChannel", label: string): Detail[] {
+  const id = ledgerId(nodesOf(meta).find((node) => node.change === "created" && node.type === type)?.index);
+  return id === undefined ? [] : [detail(label, objectSegment(kindOfType(type)!, { id }, shortHash(id)))];
 }
 
 /** What nearly every type has at the end of its details: the source tag, the ticket it used, its flags. */

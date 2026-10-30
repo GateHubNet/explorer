@@ -825,6 +825,62 @@ describe("a transaction a delegate sent", () => {
     expect(text).toContain("· 2 of 10");
     // The account sent it itself: no Sent by row.
     expect(text).not.toContain("Sent by");
+    // The Delegate it made, among the objects it touched, leads to the Delegation tab of the account that gave it (ledger object pages spec 7; DELEGATION is on).
+    const touched = html.slice(html.indexOf('aria-label="Ledger objects touched"'));
+    expect(anchors(touched.slice(0, touched.indexOf("</ul>"))).find((a) => a.text === "Delegate")?.attrs).toContain('href="/xrpl/account/rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL?tab=delegation"');
+  });
+});
+
+// The escrows, checks and payment channels a transaction names, and the ledger objects it touched (ledger object pages spec 7): links to their pages while LEDGER_OBJECTS is on (it is in this
+// project; the same pages with it off are in ledger-objects-off.spec.ts). An escrow released or cancelled is the node its metadata deleted; on Xahau a transaction may name it by its EscrowID,
+// and its Owner field is then the escrow's destination: the sentence names the node's Account (C21). Each transaction is asked for here only.
+describe("the ledger objects of a transaction", () => {
+  /** The HTML of the sentence, and of the list of the ledger objects touched. */
+  const sentenceOf = (html: string) => html.slice(html.indexOf('class="sentence summary__sentence"'), html.indexOf("</p>", html.indexOf('class="sentence summary__sentence"')));
+  const touchedOf = (html: string) => html.slice(html.indexOf('aria-label="Ledger objects touched"'), html.indexOf("</ul>", html.indexOf('aria-label="Ledger objects touched"')));
+  /** Each link's text and where it leads. */
+  const linksOf = (html: string) => anchors(html).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)?.[1]]);
+
+  it("links the escrow an EscrowFinish released, in its sentence and among the objects it touched, by the node its metadata deleted, and names exactly the accounts it links", async () => {
+    const hash = "375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA";
+    const ESCROW = "FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4";
+    const [finisher, owner] = ["rPw6JAdM9BGwH4y4LxJQBDybaGNhFLCspU", "rfd4xkXuigdGJV2XYkbosFzBQaLsc6M8Vm"];
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/tx/${hash}`);
+
+    const sentence = sentenceOf(html);
+    expect(elementText(html, "summary__sentence")).toMatch(new RegExp(`^Fixture ${finisher.slice(-4)} .*released escrow 107945427 of Fixture ${owner.slice(-4)}\\b`));
+    expect(hrefs(sentence)).toEqual([`/xrpl/account/${finisher}`, `/xrpl/escrows/${ESCROW}`, `/xrpl/account/${owner}`]);
+    expect(anchors(sentence).find((a) => a.text === "escrow 107945427")?.attrs).toContain(`title="${ESCROW}"`);
+    expect(linksOf(touchedOf(html))).toContainEqual(["Escrow", `/xrpl/escrows/${ESCROW}`]);
+    // An object's link is no account's: the names asked are the accounts linked, each drawn by its name.
+    expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
+    expectLinkedAccountsNamed(mock, html, "xrpl");
+  });
+
+  it("links the escrow a Xahau EscrowFinish names by its EscrowID, whose owner is the deleted node's Account and not the transaction's Owner (ledger 10090323)", async () => {
+    const hash = "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA";
+    const ESCROW = "10C5F525E3D07CAC9CD2BF3F53367653504B7D8A54451E311F5B38E70442457F";
+    mock = mockUpstream("xahau");
+    const { html } = await page(`/xahau/tx/${hash}`);
+
+    expect(hrefs(sentenceOf(html))).toEqual(["/xahau/account/r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH", `/xahau/escrows/${ESCROW}`, "/xahau/account/rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv"]);
+    expect(linksOf(sentenceOf(html))[1]).toEqual(["an escrow", `/xahau/escrows/${ESCROW}`]);
+    expect(linksOf(touchedOf(html))).toContainEqual(["Escrow", `/xahau/escrows/${ESCROW}`]);
+  });
+
+  it("links the check a CheckCreate wrote, in its Check detail (the short ID, the whole one as its title) and among the objects it touched", async () => {
+    const hash = "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E";
+    const CHECK = "DA6BE1644276D17524D4C5645D322D4A0249B444C0A3C320EA941597243F30EA";
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/tx/${hash}`);
+
+    const detail = /<dt[^>]*>Check<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    expect(linksOf(detail)).toEqual([[shortHash(CHECK), `/xrpl/checks/${CHECK}`]]);
+    expect(anchors(detail)[0]!.attrs).toContain(`title="${CHECK}"`);
+    expect(linksOf(touchedOf(html))).toContainEqual(["Check", `/xrpl/checks/${CHECK}`]);
+    // Its sentence names no object: the detail does.
+    expect(hrefs(sentenceOf(html)).some((href) => href.includes("/checks/"))).toBe(false);
   });
 });
 

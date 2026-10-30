@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { allSwitches } from "../../test/support/switches";
 import { staticClosure, valueImports } from "../../test/support/value-imports";
 import { featuresOf, NO_FEATURES } from "../ui/features";
+import { objectHref as leafHref } from "./object-href";
 import { delegationHref, kindOfType, OBJECT_KINDS, objectHref } from "./object-link";
 
 const ID = "090539D4CC40DE307852D4EA97EFAE492E975525B4F8091D75542883A9D0AFB6";
@@ -75,12 +76,25 @@ describe("delegationHref", () => {
 });
 
 describe("the browser bundle", () => {
-  // object-link.ts is what every page with a link to an object loads, and the account page loads it by way of Sentence. It is pure: it imports types, which the compiler erases, and
-  // nothing at run time.
+  // object-link.ts is what a page with a link to an object or a delegation loads (the transaction page's objects touched). It is pure: it imports types, which the compiler erases, and at
+  // run time only the leaf object-href.ts, `objectHref` and the paths' segments, which imports nothing. Sentence, on every page that draws a sentence, loads the leaf alone (ledger object
+  // pages spec 7), not the kinds' other facts nor the delegation's link.
   const appDir = new URL("../", import.meta.url);
 
-  it("imports nothing at run time, and so loads no file but itself", () => {
-    expect(valueImports(readFileSync(new URL("domain/object-link.ts", appDir), "utf8"))).toEqual([]);
-    expect(staticClosure(appDir, "domain/object-link.ts")).toEqual(["domain/object-link.ts"]);
+  it("loads no file but itself and the leaf, which imports nothing at run time", () => {
+    expect(valueImports(readFileSync(new URL("domain/object-link.ts", appDir), "utf8"))).toEqual(["./object-href", "./object-href"]);
+    expect(staticClosure(appDir, "domain/object-link.ts")).toEqual(["domain/object-href.ts", "domain/object-link.ts"]);
+    expect(valueImports(readFileSync(new URL("domain/object-href.ts", appDir), "utf8"))).toEqual([]);
+  });
+
+  it("Sentence reaches the leaf, never object-link.ts", () => {
+    const closure = staticClosure(appDir, "ui/components/Sentence.tsx");
+    expect(closure).toContain("domain/object-href.ts");
+    expect(closure).not.toContain("domain/object-link.ts");
+  });
+
+  it("re-exports the leaf's objectHref, so that a file of the Worker or a page can ask either, and the kinds' segments are the leaf's", () => {
+    expect(objectHref).toBe(leafHref);
+    expect(OBJECT_KINDS.map((each) => leafHref("xrpl", each.kind, { id: ID }, ON))).toEqual(OBJECT_KINDS.map((each) => `/xrpl/${each.segment}/${ID}`));
   });
 });

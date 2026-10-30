@@ -1051,8 +1051,20 @@ a.example:hover {
   overflow-wrap: anywhere;
 }
 
-.object__tx {
+/* The end of a row, as the board has it: where the object leads (its page, the account's NFTs, the delegation) as a button, over the transaction that last changed it. The link under the
+   button is 24 px high, so the two targets do not crowd each other (WCAG 2.5.8). */
+.object__end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   margin-left: auto;
+}
+
+.object__tx {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   font-size: 13px;
 }
 
@@ -2082,7 +2094,8 @@ a.markets__pair:hover .markets__name {
     padding-inline: 12px;
   }
 
-  .object__tx {
+  .object__end {
+    align-items: flex-start;
     margin-left: 0;
   }
 

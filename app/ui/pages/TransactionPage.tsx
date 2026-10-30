@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import type { Segment } from "../../domain/describe";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
 import { plainNameOf } from "../../domain/names";
-import { delegationHref } from "../../domain/object-link";
+import { delegationHref, kindOfType, objectHref } from "../../domain/object-link";
 import type { ChangeRole, ChangeRow, Neighbour, TransactionPageData } from "../../server/transaction-view";
 import { AccountLink } from "../components/AccountLink";
 import { Amount } from "../components/Amount";
@@ -23,6 +23,7 @@ import { RelativeTime } from "../components/RelativeTime";
 import { Sentence } from "../components/Sentence";
 import { TypeTag } from "../components/TypeTag";
 import { cx } from "../cx";
+import type { Features } from "../features";
 import { useNameOf } from "../names";
 import type { NetworkInfo } from "../networks";
 import { useFeatures } from "../use-network";
@@ -62,6 +63,16 @@ function Delta({ value }: { value: string }) {
   const formatted = formatAmount(value);
   const gain = !formatted.startsWith("−") && /[1-9]/.test(formatted);
   return <span className={cx("amt", gain && "amt--pos")}>{gain ? `+${formatted}` : formatted}</span>;
+}
+
+/**
+ * Where a ledger object the transaction touched leads (ledger object pages spec 7): an escrow, a check or a payment channel to its page by its index (while `LEDGER_OBJECTS` is on), a
+ * delegation to the Delegation tab of the account that gave it (while `DELEGATION` is on); any other, or an index that is no ID, nowhere.
+ */
+function touchedHref(net: NetworkInfo["id"], object: TransactionPageData["objects"][number], features: Features): string | null {
+  const kind = kindOfType(object.type);
+  if (kind !== undefined) return /^[0-9A-Fa-f]{64}$/.test(object.index) ? objectHref(net, kind, { id: object.index.toUpperCase() }, features) : null;
+  return object.type === "Delegate" && object.account !== undefined ? delegationHref(net, object.account, features) : null;
 }
 
 /** The value of one of the type's own details: a lone account in full (it has a line to itself), anything else as a sentence. */
@@ -104,6 +115,7 @@ function SentBy({ net, delegate, account, innerBatch }: { net: NetworkInfo["id"]
  */
 export function TransactionPage({ network, data }: { network: NetworkInfo; data: TransactionPageData }) {
   const net = network.id;
+  const features = useFeatures();
   const { position } = data;
   // The delegate paid the fee of a transaction it sent, but for one of a Batch, whose fee the Batch paid.
   const delegatePaid = data.delegate !== null && !data.innerBatch;
@@ -221,15 +233,24 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
 
   const shownObjects = data.objects.slice(0, OBJECTS_SHOWN);
   const moreObjects = data.objects.slice(OBJECTS_SHOWN);
-  const objectItem = (object: TransactionPageData["objects"][number], index: number) => (
-    <li key={`${index}:${object.index}`}>
-      <span className="type" title={object.index}>
-        {CHANGE_LABEL[object.change]}
-      </span>
-      <span className="mono">{object.type}</span>
-      {object.account && <AccountLink net={net} address={object.account} />}
-    </li>
-  );
+  const objectItem = (object: TransactionPageData["objects"][number], index: number) => {
+    const href = touchedHref(net, object, features);
+    return (
+      <li key={`${index}:${object.index}`}>
+        <span className="type" title={object.index}>
+          {CHANGE_LABEL[object.change]}
+        </span>
+        {href === null ? (
+          <span className="mono">{object.type}</span>
+        ) : (
+          <Link to={href} className="mono">
+            {object.type}
+          </Link>
+        )}
+        {object.account && <AccountLink net={net} address={object.account} />}
+      </li>
+    );
+  };
 
   return (
     <>

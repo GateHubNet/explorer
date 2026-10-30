@@ -1,7 +1,7 @@
 import { redirect } from "react-router";
 import { classicAddressToXAddress, isValidClassicAddress, isValidXAddress, xAddressToClassicAddress } from "ripple-address-codec";
 
-import { accountHref, DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
+import { DELEGATIONS_LIMIT, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { parseAnalyticsQuery, type AnalyticsPeriod } from "../domain/analytics-params";
 import { shortAddress } from "../domain/format";
 import { accountNameHeader } from "../server/account-name-view";
@@ -407,12 +407,13 @@ async function firstPage(
   const unnamed = accountHeader({ native: network.native, created, info, objects, state, balances, lastLedgerTime, history });
   reportProblems(context, request, unnamed.problems);
 
-  // The Objects tab's rows come with the header. An NFT page of it leads to the account's NFTs while `NFTS` is on; with it off there is no such tab to lead to.
-  const nftsHref = network.features.nfts ? accountHref(network.id, address, { tab: "nfts" }) : undefined;
+  // The Objects tab's rows come with the header. Where a row leads follows the switches (`objectRows`): an NFT page to the account's NFTs, an escrow, a check or a channel to its page, a
+  // delegation to the Delegation tab.
   let objectsTab: TabList | null = null;
   if (settled === null) {
-    if (objects.state === "ok") objectsTab = objectsList(objects.value, network.native, nftsHref);
-    else if (objects.state === "missing") objectsTab = objectsList(null, network.native);
+    const ctx = { net: network.id, native: network.native, address, features: network.features };
+    if (objects.state === "ok") objectsTab = objectsList(objects.value, ctx);
+    else if (objects.state === "missing") objectsTab = objectsList(null, ctx);
     else objectsTab = failedList("objects");
   }
 

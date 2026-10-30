@@ -211,7 +211,7 @@ function memosOf(tx: TxJson): Memo[] {
   return memos;
 }
 
-/** A sentence as plain text: accounts shortened, amounts as the page writes them, a pool by its pair, a permission by its name. */
+/** A sentence as plain text: accounts shortened, amounts as the page writes them, a pool by its pair, a permission by its name, an escrow, a check or a channel by its words. */
 export function plainText(segments: readonly Segment[]): string {
   return segments
     .map((segment): string => {
@@ -228,6 +228,8 @@ export function plainText(segments: readonly Segment[]): string {
           return shortNftId(segment.v);
         case "permission":
           return segment.name;
+        case "object":
+          return segment.v;
       }
     })
     .join("");

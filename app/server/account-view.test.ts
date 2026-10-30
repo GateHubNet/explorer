@@ -7,6 +7,8 @@ import { NO_NAMES } from "../domain/names";
 import { nftSample, nftsPageSample, uriTokenSample, NFT_MARKER, NFT_OWNER, OTHER_ISSUER, URI_TOKEN_ID, URI_TOKEN_ISSUER } from "../../test/support/nft-samples";
 import { objectCase } from "../../test/support/object-cases";
 import { DELEGATE, DELEGATOR, delegationsSample } from "../../test/support/object-samples";
+import { allSwitches } from "../../test/support/switches";
+import { featuresOf, NO_FEATURES } from "../ui/features";
 import type { AccountData, AccountExchange, BalancesResponse, NftsPage, OrdersResponse, Payment, TxObject } from "./api-types";
 import {
   ACCOUNT_TABS,
@@ -44,6 +46,7 @@ import {
   transactionsList,
   type AccountHeader,
   type Loaded,
+  type ObjectRowsContext,
   type TabList,
   type TxRow,
 } from "./account-view";
@@ -68,7 +71,26 @@ const list = <K extends string>(net: "xrpl" | "xahau", address: string, kind: st
   read(`${net}/data-api/accounts/${address}/${kind}@descending=true&limit=20${marker ? `&marker=${marker}` : ""}.json`)[key];
 
 const text = (segments: readonly Segment[]) =>
-  segments.map((s) => (s.t === "text" ? s.v : s.t === "account" ? `<${s.v}>` : s.t === "amount" ? `{${s.value} ${s.currency}}` : s.t === "nft" ? `<NFT ${s.v}>` : s.t === "pool" ? `[${s.pair}]` : `(${s.name})`)).join("");
+  segments
+    .map((s) =>
+      s.t === "text"
+        ? s.v
+        : s.t === "account"
+          ? `<${s.v}>`
+          : s.t === "amount"
+            ? `{${s.value} ${s.currency}}`
+            : s.t === "nft"
+              ? `<NFT ${s.v}>`
+              : s.t === "pool"
+                ? `[${s.pair}]`
+                : s.t === "permission"
+                  ? `(${s.name})`
+                  : `«${s.v}»`,
+    )
+    .join("");
+
+/** What the Objects tab's rows are built in (`ObjectRowsContext`): XRPL's active account, every switch off, unless a test says otherwise. */
+const objectsCtx = (over: Partial<ObjectRowsContext> = {}): ObjectRowsContext => ({ net: "xrpl", native: "XRP", address: XRPL, features: NO_FEATURES, ...over });
 
 describe("the tabs and the URL", () => {
   it("lists the eight tabs of the page, the first being the default, the NFTs and the delegation before the last, and the last the analytics", () => {
@@ -292,7 +314,15 @@ describe("ownedCounts", () => {
       { type: "Escrow", label: "escrow", count: 1 },
       { type: "Check", label: "check", count: 1 },
       { type: "PayChannel", label: "payment channel", count: 1 },
-      { type: "Delegate", label: "Delegate", count: 1 },
+      { type: "Delegate", label: "delegation given", count: 1 },
+    ]);
+  });
+
+  it("calls a Delegate the account owns a delegation given, after the other known types (C27)", () => {
+    expect(ownedCounts([object("Delegate"), object("Delegate"), object("Ticket"), object("Hook")])).toEqual([
+      { type: "Ticket", label: "ticket", count: 1 },
+      { type: "Delegate", label: "delegations given", count: 2 },
+      { type: "Hook", label: "Hook", count: 1 },
     ]);
   });
 
@@ -373,7 +403,7 @@ describe("accountHeader", () => {
         { type: "Escrow", label: "escrow", count: 1 },
         { type: "Check", label: "check", count: 1 },
         { type: "PayChannel", label: "payment channel", count: 1 },
-        { type: "Delegate", label: "Delegate", count: 1 },
+        { type: "Delegate", label: "delegation given", count: 1 },
       ],
       truncated: false,
     });
@@ -764,7 +794,7 @@ describe("objectRows", () => {
     { LedgerEntryType: "DepositPreauth", index: "D1", Authorize: "rFriend" },
     { LedgerEntryType: "Whatever", index: "W1" },
   ];
-  const { rows, trustLines, offers } = objectRows(objects, "XRP");
+  const { rows, trustLines, offers } = objectRows(objects, objectsCtx());
 
   it("leaves the trust lines and offers to their own places and counts them", () => {
     expect(trustLines).toBe(1);
@@ -799,8 +829,72 @@ describe("objectRows", () => {
   });
 
   it("reads an amount it has no shape for as no field at all, and never throws on a malformed object", () => {
-    const odd = objectRows([{ LedgerEntryType: "Escrow", Amount: { mpt_issuance_id: "x", value: "1" }, Destination: 5, FinishAfter: "soon" }, { LedgerEntryType: "Check" }], "XRP");
+    const odd = objectRows([{ LedgerEntryType: "Escrow", Amount: { mpt_issuance_id: "x", value: "1" }, Destination: 5, FinishAfter: "soon" }, { LedgerEntryType: "Check" }], objectsCtx());
     expect(odd.rows.map((r) => r.fields)).toEqual([[], []]);
+  });
+});
+
+// The links of the Objects tab into the ledger object pages and the Delegation tab (ledger object pages spec 7, decision 11; C20: E8's `link`): an escrow, a check and a payment channel open their page
+// by their index while LEDGER_OBJECTS is on, a delegation the account gave its Delegation tab while DELEGATION is on, and an object the account is the destination of names its source, always.
+// The active XRPL account owns the three live objects of the ledger-object pages and a Delegate, and was sent the check (scripts/object-fixtures.ts, C7).
+describe("objectRows: the links into the object pages", () => {
+  const ESCROW = "0D1331F9B60A0BCEC44FA9A0A1C60BEE947936ED5BF17A8DFA7D1BA9DA22273E";
+  const CHECK = "1D17BE181E11B2C0DF66782CCE12E3A47B569ADDB904BCE9B0482D0F02BC4F72";
+  const CHANNEL = "B5AEC697DEA9EA4F87F6DF5AE07F475BD10096646B57077EC1743A00702543A3";
+  const recorded = objectsOf("xrpl", XRPL).account_objects;
+  const ON = featuresOf(allSwitches("on"));
+  const fields = (row: { fields: Array<{ label: string; value: Segment[] }> }) => row.fields.map((f) => `${f.label}: ${text(f.value)}`);
+
+  it("adds Open escrow, Open check and Open payment channel by index, From for an incoming object, and the Delegate row's fields and link", () => {
+    const { rows } = objectRows(recorded, objectsCtx({ features: ON }));
+    expect(rows.map((row) => [row.type, row.link])).toEqual([
+      ["Escrow", { label: "Open escrow →", href: `/xrpl/escrows/${ESCROW}` }],
+      ["Check", { label: "Open check →", href: `/xrpl/checks/${CHECK}` }],
+      ["PayChannel", { label: "Open payment channel →", href: `/xrpl/payment-channels/${CHANNEL}` }],
+      ["Delegate", { label: "View delegation →", href: `/xrpl/account/${XRPL}?tab=delegation` }],
+    ]);
+    // The check was sent to the account: its source, before its destination. The account's own escrow and channel have none.
+    const [escrow, check, channel, delegation] = rows.map(fields);
+    expect(check).toEqual(["Send up to: {100 XRP}", "From: <rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp>", `To: <${XRPL}>`, "Expires: 2026-10-15 02:25:30 UTC"]);
+    expect(escrow!.map((field) => field.split(":")[0])).toEqual(["Amount", "To", "Can finish after", "Can cancel after"]);
+    expect(channel!.map((field) => field.split(":")[0])).toEqual(["Amount", "Claimed so far", "To", "Expires"]);
+    // A delegation: the delegate, the account it acts for, and how many of the ten permissions it holds.
+    expect(delegation).toEqual(["Delegate: <rGCMDQCMGueT8HTcKL3j7cA9aJ7qfX92GW>", `On behalf of: <${XRPL}>`, "Permissions: 3 of 10"]);
+    expect(rows[3]!.tx).toBe("3E76B7DF382BBD6B33DC0874F69F796C3360FCDBED6FE43FB8C5A39269A33FD4");
+  });
+
+  it("names the source of an incoming escrow and channel too, links an index in capitals on the account's network, and has no link for an index that is no ID", () => {
+    const incoming: LedgerObject[] = [
+      { LedgerEntryType: "Escrow", index: ESCROW.toLowerCase(), Account: "rSource", Amount: "1000000", Destination: XAHAU },
+      { LedgerEntryType: "PayChannel", index: "P1", Account: "rSource", Amount: "1000000", Balance: "0", Destination: XAHAU },
+      { LedgerEntryType: "Check", index: CHECK, Account: XAHAU, Destination: "rElse", SendMax: "1" },
+    ];
+    const rows = objectRows(incoming, objectsCtx({ net: "xahau", native: "XAH", address: XAHAU, features: ON })).rows;
+    expect(rows.map(fields)).toEqual([
+      ["Amount: {1 XAH}", "From: <rSource>", `To: <${XAHAU}>`],
+      ["Amount: {1 XAH}", "Claimed so far: {0 XAH}", "From: <rSource>", `To: <${XAHAU}>`],
+      ["Send up to: {0.000001 XAH}", "To: <rElse>"],
+    ]);
+    expect(rows.map((row) => row.link?.href)).toEqual([`/xahau/escrows/${ESCROW}`, undefined, `/xahau/checks/${CHECK}`]);
+  });
+
+  it("leaves the open links out while their switches are off", () => {
+    // Both off: no link, and the fields as they are on (From and the Delegate row's own are no links to the pages).
+    const off = objectRows(recorded, objectsCtx({ features: { ...ON, ledgerObjects: false, delegation: false } }));
+    expect(off.rows.map((row) => "link" in row)).toEqual([false, false, false, false]);
+    expect(off.rows.map(fields)).toEqual(objectRows(recorded, objectsCtx({ features: ON })).rows.map(fields));
+    // Each switch leads to its own pages only.
+    expect(objectRows(recorded, objectsCtx({ features: { ...NO_FEATURES, ledgerObjects: true } })).rows.map((row) => row.link?.label)).toEqual(["Open escrow →", "Open check →", "Open payment channel →", undefined]);
+    expect(objectRows(recorded, objectsCtx({ features: { ...NO_FEATURES, delegation: true } })).rows.map((row) => row.link?.label)).toEqual([undefined, undefined, undefined, "View delegation →"]);
+  });
+
+  it("keeps a Delegate row's fields it can read, and counts its permissions only from a list", () => {
+    const [row] = objectRows([{ LedgerEntryType: "Delegate", index: "D1", Account: XRPL, Authorize: "rDelegate", Permissions: "all" }], objectsCtx({ features: ON })).rows;
+    expect(fields(row!)).toEqual(["Delegate: <rDelegate>", `On behalf of: <${XRPL}>`]);
+    expect(row!.link).toEqual({ label: "View delegation →", href: `/xrpl/account/${XRPL}?tab=delegation` });
+    // No delegator to lead to: no link.
+    expect(objectRows([{ LedgerEntryType: "Delegate", index: "D1", Permissions: [] }], objectsCtx({ features: ON })).rows[0]).toMatchObject({ fields: [{ label: "Permissions", value: [{ t: "text", v: "0 of 10" }] }] });
+    expect("link" in objectRows([{ LedgerEntryType: "Delegate", index: "D1", Permissions: [] }], objectsCtx({ features: ON })).rows[0]!).toBe(false);
   });
 });
 
@@ -809,15 +903,17 @@ describe("objectRows: the NFT objects", () => {
   const RIPPLE = 946_684_800;
   const page: LedgerObject = { LedgerEntryType: "NFTokenPage", index: "N1", NFTokens: Array.from({ length: 32 }, () => ({})), PreviousTxnID: "AB".repeat(32) };
   const NFTS_HREF = `/xrpl/account/${XRPL}?tab=nfts`;
-  const only = (objects: LedgerObject[], native: "XRP" | "XAH" = "XRP", href?: string) => objectRows(objects, native, href).rows;
+  /** The rows of an XRPL or a Xahau account's objects, with `NFTS` on or off (every other switch is off). */
+  const only = (objects: LedgerObject[], native: "XRP" | "XAH" = "XRP", nfts = false) =>
+    objectRows(objects, native === "XRP" ? objectsCtx({ features: { ...NO_FEATURES, nfts } }) : objectsCtx({ net: "xahau", native, address: XAHAU, features: { ...NO_FEATURES, nfts } })).rows;
 
-  it("keeps 'NFTs: 32' of an NFT page and links to the account's NFTs when it is given the link", () => {
-    const [row] = only([page], "XRP", NFTS_HREF);
+  it("keeps 'NFTs: 32' of an NFT page and links to the account's NFTs while NFTS is on", () => {
+    const [row] = only([page], "XRP", true);
     expect(row!.fields).toEqual([{ label: "NFTs", value: [{ t: "text", v: "32" }] }]);
     expect(row!.link).toEqual({ label: "See the account’s NFTs", href: NFTS_HREF });
   });
 
-  it("has no link without it: NFTS is off, or nothing was given", () => {
+  it("has no link while NFTS is off", () => {
     const [row] = only([page]);
     expect(row!.fields).toEqual([{ label: "NFTs", value: [{ t: "text", v: "32" }] }]);
     expect(row!.link).toBeUndefined();
@@ -825,7 +921,7 @@ describe("objectRows: the NFT objects", () => {
   });
 
   it("links from an NFT page only: no other object has the link", () => {
-    const rows = only([page, { LedgerEntryType: "Ticket", index: "T1", TicketSequence: 5 }, { LedgerEntryType: "NFTokenOffer", index: "F1", NFTokenID: NFT, Flags: 1, Amount: "1" }], "XRP", NFTS_HREF);
+    const rows = only([page, { LedgerEntryType: "Ticket", index: "T1", TicketSequence: 5 }, { LedgerEntryType: "NFTokenOffer", index: "F1", NFTokenID: NFT, Flags: 1, Amount: "1" }], "XRP", true);
     expect(rows.map((row) => [row.type, row.link?.href])).toEqual([
       ["NFTokenPage", NFTS_HREF],
       ["Ticket", undefined],
@@ -933,7 +1029,7 @@ describe("objectRows: the NFT objects", () => {
     });
 
     it("has no link to the account's NFTs: only the NFT page has it", () => {
-      expect(only([token()], "XAH", `/xahau/account/${XAHAU}?tab=nfts`)[0]!.link).toBeUndefined();
+      expect(only([token()], "XAH", true)[0]!.link).toBeUndefined();
     });
   });
 });
@@ -984,13 +1080,13 @@ describe("the lists of the tabs", () => {
 
   it("lists the objects of the first page, and says when the node had more than that", () => {
     const objects = objectsOf("xrpl", XRPL);
-    const list = objectsList(objects, "XRP");
+    const list = objectsList(objects, objectsCtx());
     expect(list).toMatchObject({ state: "ok", tab: "objects", trustLines: 1, offers: 0, truncated: false, ledgerIndex: 107721455, names: NO_NAMES });
     // A row for each of the ledger-object pages' objects of the account (scripts/object-fixtures.ts, C7).
     expect(list.state === "ok" && list.tab === "objects" ? list.rows.map((row) => row.type) : []).toEqual(["Escrow", "Check", "PayChannel", "Delegate"]);
-    expect(objectsList({ ...objects, marker: "MORE" }, "XRP")).toMatchObject({ truncated: true });
+    expect(objectsList({ ...objects, marker: "MORE" }, objectsCtx())).toMatchObject({ truncated: true });
     // A deleted account has none to read.
-    expect(objectsList(null, "XRP")).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null, names: NO_NAMES });
+    expect(objectsList(null, objectsCtx())).toEqual({ state: "ok", tab: "objects", rows: [], trustLines: 0, offers: 0, truncated: false, ledgerIndex: null, names: NO_NAMES });
   });
 
   describe("the NFTs", () => {
@@ -1159,9 +1255,15 @@ describe("the accounts the page draws", () => {
             { LedgerEntryType: "PayChannel", index: "P1", Amount: "5", Balance: "1", Destination: "rEscrowTo" },
           ],
         },
-        "XRP",
+        objectsCtx(),
       );
       expect(listAddresses(objects)).toEqual(["rEscrowTo", "rCheckTo", "rOnlyFor", "rUriIssuer", "rBuyer", "rFriend"]);
+    });
+
+    it("is also the source (From) of an incoming object and the two accounts of a delegation given, each once, in the order drawn (C15, C17)", () => {
+      const objects = objectsList({ account: XRPL, ledger_index: 5, validated: true, account_objects: objectsOf("xrpl", XRPL).account_objects }, objectsCtx());
+      // The escrow's and the channel's destinations, the check's source and its destination (the account), the delegate and the delegator (the account, drawn already).
+      expect(listAddresses(objects)).toEqual(["rLxhH2P6SfxV71EnWdcAZMPpcAnSe5HyFB", "rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp", XRPL, "rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB", "rGCMDQCMGueT8HTcKL3j7cA9aJ7qfX92GW"]);
     });
 
     it("is the delegates of the given list, then the accounts of the held one, each once in the order drawn", () => {
@@ -1217,7 +1319,7 @@ describe("the accounts the page draws", () => {
       paymentsList(read(`xrpl/data-api/accounts/${XRPL}/payments@descending=true&limit=20.json`), ctx),
       tradesList(read(`xrpl/data-api/accounts/${XRPL}/exchanges@descending=true&limit=20.json`), ctx),
       offersList({ result: "success", orders: [] }),
-      objectsList(null, "XRP"),
+      objectsList(null, objectsCtx()),
       nftsList(nftsPageSample(), ctx),
     ];
     for (const list of lists) expect(list.state === "ok" && list.names).toBe(NO_NAMES);

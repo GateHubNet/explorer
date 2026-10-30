@@ -347,6 +347,46 @@ describe("Sentence", () => {
       expect(link.getAttribute("title")).toBe(ID);
     });
   });
+  // An escrow, a check or a payment channel a sentence or a detail names (ledger object pages spec 7): its words, linking to its page on the network of the sentence while LEDGER_OBJECTS is on
+  // (objectHref), by its ID or, for an escrow a failed transaction names, by its owner and sequence; the same words as text while it is off.
+  it("draws an object as a link, and as text while LEDGER_OBJECTS is off", async () => {
+    const ESCROW = "8993DA09444641A6BDA272A292157A0E8AF79F040AA4E551C48257F493228455";
+    const CHANNEL = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+    const objects: Segment[] = [
+      { t: "text", v: "released " },
+      { t: "object", kind: "escrow", ref: { id: ESCROW }, v: "escrow 57978925" },
+      { t: "text", v: ", tried " },
+      { t: "object", kind: "escrow", ref: { owner: ADDRESS, sequence: 12 }, v: "escrow 12" },
+      { t: "text", v: ", cashed " },
+      { t: "object", kind: "check", ref: { id: HASH }, v: "a check" },
+      { t: "text", v: " and claimed from " },
+      { t: "object", kind: "payment-channel", ref: { id: CHANNEL }, v: "channel E22CCE…69EA" },
+    ];
+    const words = "released escrow 57978925, tried escrow 12, cashed a check and claimed from channel E22CCE…69EA";
+    const on = { ...NO_FEATURES, ledgerObjects: true };
+
+    const { container } = renderUnderNetwork(<Sentence net="xrpl" segments={objects} />, on);
+    const links = await screen.findAllByRole("link");
+    expect(links.map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("title")])).toEqual([
+      ["escrow 57978925", `/xrpl/escrows/${ESCROW}`, ESCROW],
+      ["escrow 12", `/xrpl/escrows/${ADDRESS}/12`, null],
+      ["a check", `/xrpl/checks/${HASH}`, HASH],
+      ["channel E22CCE…69EA", `/xrpl/payment-channels/${CHANNEL}`, CHANNEL],
+    ]);
+    expect(container.textContent).toBe(words);
+    cleanup();
+
+    // On the sentence's network, and the same in a table's cell.
+    renderUnderNetwork(<Sentence net="xahau" segments={objects} compact />, on, { network: XAHAU });
+    expect((await screen.findByRole("link", { name: "a check" })).getAttribute("href")).toBe(`/xahau/checks/${HASH}`);
+    cleanup();
+
+    // Off, whatever the other switches are (DELEGATION, NFTS): the words, and no link.
+    const off = renderUnderNetwork(<Sentence net="xrpl" segments={objects} />, { ...featuresOf(allSwitches("on")), ledgerObjects: false });
+    await screen.findByText(/released escrow 57978925/);
+    expect(off.container.querySelector("a")).toBeNull();
+    expect(off.container.textContent).toBe(words);
+  });
 });
 
 describe("CopyButton", () => {

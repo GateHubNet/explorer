@@ -311,11 +311,19 @@ function ObjectsList({ net, rows }: { net: NetworkInfo["id"]; rows: ObjectRow[] 
               </span>
             </div>
           ))}
-          {row.link && <Link to={row.link.href}>{row.link.label}</Link>}
-          {row.tx && (
-            <Link to={`/${net}/tx/${row.tx}`} className="object__tx">
-              Last changed in {shortHash(row.tx)} →
-            </Link>
+          {(row.link || row.tx) && (
+            <div className="object__end">
+              {row.link && (
+                <Link to={row.link.href} className="btn">
+                  {row.link.label}
+                </Link>
+              )}
+              {row.tx && (
+                <Link to={`/${net}/tx/${row.tx}`} className="object__tx">
+                  Last changed in {shortHash(row.tx)} →
+                </Link>
+              )}
+            </div>
           )}
         </li>
       ))}

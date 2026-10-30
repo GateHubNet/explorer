@@ -995,6 +995,26 @@ describe("the tabs", () => {
     expect(textOf(html)).not.toContain("Showing the first 400");
     expect(textOf(html)).toContain("This account owns no other objects");
   });
+
+  // The links of the Objects tab (ledger object pages spec 7, decision 11): the active account owns the escrow, the payment channel and a delegation of the ledger-object pages, and was sent
+  // their check (C7); LEDGER_OBJECTS and DELEGATION are on in this project.
+  it("?tab=objects of the active account opens its escrow, check and payment channel by their IDs, leads to its delegation, and names the source of the check it was sent", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(`/xrpl/account/${ACTIVE}?tab=objects`);
+    const list = html.slice(html.indexOf('class="objectlist"'));
+    const opens = anchors(list).filter((a) => /^(Open|View) /.test(a.text));
+    expect(opens.map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)![1]])).toEqual([
+      ["Open escrow →", "/xrpl/escrows/0D1331F9B60A0BCEC44FA9A0A1C60BEE947936ED5BF17A8DFA7D1BA9DA22273E"],
+      ["Open check →", "/xrpl/checks/1D17BE181E11B2C0DF66782CCE12E3A47B569ADDB904BCE9B0482D0F02BC4F72"],
+      ["Open payment channel →", "/xrpl/payment-channels/B5AEC697DEA9EA4F87F6DF5AE07F475BD10096646B57077EC1743A00702543A3"],
+      ["View delegation →", `/xrpl/account/${ACTIVE}?tab=delegation`],
+    ]);
+    // The check's source, its From, is an account link; the delegation's row has its delegate, the account and the count of its permissions.
+    expect(hrefs(list)).toContain("/xrpl/account/rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp");
+    expect(textOf(list)).toMatch(/Check Send up to 100 XRP From .+ To .+ Expires/);
+    expect(textOf(list)).toMatch(/Delegate Delegate .+ On behalf of .+ Permissions 3 of 10/);
+    expect(textOf(html)).toContain("1 delegation given");
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------

@@ -657,3 +657,24 @@ describe("the transaction page's delegation", () => {
     }
   });
 });
+
+describe("the end of a row of the account's Objects tab", () => {
+  // Where a row leads (ledger object pages spec 7: "Open escrow →" and the like, the board's button; an NFT page's "See the account’s NFTs") over the transaction that last changed it, at the
+  // row's end; on a phone, where the row wraps, at the start of a line of its own. The link under the button is 24 px high, so the two do not crowd each other (axe, WCAG 2.5.8).
+  it("stacks the button over the transaction's link at the row's end, the link 24 px high, and lines them up on the left on a phone", () => {
+    expect(rule(pagesCss, ".object__end")).toMatchObject({ display: "flex", "flex-direction": "column", "align-items": "flex-end", "margin-left": "auto" });
+    expect(rule(pagesCss, ".object__tx")).toMatchObject({ display: "inline-flex", "align-items": "center", "min-height": "24px" });
+    expect(pagesCss).toMatch(/@media \(max-width: 640px\) \{[^@]*\.object__end \{\s*align-items: flex-start;\s*margin-left: 0;\s*\}/);
+  });
+
+  // Each class is declared once in the sheet but for the phone's rule: a second rule of the same selector later in the file would override the first without a word.
+  const outsideMedia = pagesCss.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*\s*\}/g, "");
+  it.each([".object__end", ".object__tx"])("declares %s once in the sheet, the phone's rule aside", (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    expect(outsideMedia.match(new RegExp(`(?:^|[},])\\s*${escaped}\\s*[{,]`, "gm")) ?? []).toHaveLength(1);
+  });
+
+  it("does not declare them in the component sheet or the base sheet either", () => {
+    for (const css of [componentsCss, baseCss]) expect(css).not.toMatch(/\.object__(end|tx)\b/);
+  });
+});

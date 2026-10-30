@@ -13,7 +13,7 @@ import type { Description, Handler, Segment } from "./types";
 
 const nativeOf = (set: FixtureSet): Native => (set.startsWith("xahau") ? "XAH" : "XRP");
 
-/** A sentence as text: an account is its address, an amount `'<value> <currency>'` (raw), a pool its address, a permission its name in brackets. */
+/** A sentence as text: an account is its address, an amount `'<value> <currency>'` (raw), a pool its address, a permission its name in brackets, an object its words. */
 function textOf(segments: Segment[]): string {
   return segments
     .map((s): string => {
@@ -22,6 +22,7 @@ function textOf(segments: Segment[]): string {
         case "account":
         case "pool":
         case "nft":
+        case "object":
           return s.v;
         case "amount":
           return `${s.value} ${s.currency}`;
@@ -32,7 +33,7 @@ function textOf(segments: Segment[]): string {
     .join("");
 }
 
-/** A sentence as a reader sees it: a pool is its pair, an amount its value and the currency as shown, a permission its name. */
+/** A sentence as a reader sees it: a pool is its pair, an amount its value and the currency as shown, a permission its name, an object its words. */
 function readOf(segments: Segment[]): string {
   return segments
     .map((s): string => {
@@ -40,6 +41,7 @@ function readOf(segments: Segment[]): string {
         case "text":
         case "account":
         case "nft":
+        case "object":
           return s.v;
         case "pool":
           return s.pair;
@@ -616,8 +618,9 @@ describe("describe: escrows", () => {
       expect(d.title).toBe("Escrow");
     });
 
-    it("lists the amount, the destination, when it can be cancelled and the condition", () => {
+    it("lists the escrow it made, the amount, the destination, when it can be cancelled and the condition", () => {
       expect(rows(run("xrpl-extra", CONDITIONAL))).toStrictEqual([
+        ["Escrow", "7B2D6D\u2026957D"],
         ["Amount", "10000000 XRP"],
         ["Destination", "rMLNvZR9dascY5jtCfCv3whAp8HdUSZAQ"],
         ["Cancel after", "2026-10-31 16:00:00 UTC"],
@@ -666,7 +669,7 @@ describe("describe: escrows", () => {
         "rDjzmUuSPJp9Evb2C7Ea8D2eTYyA5eApFP released escrow 57978925 of r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5.",
       );
       expect(d.title).toBe("Escrow release");
-      expect(d.sentence[2]).toStrictEqual(account("r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5"));
+      expect(d.sentence.slice(3)).toStrictEqual([text(" of "), account("r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5"), text(".")]);
     });
 
     it("lists the owner and the sequence of the escrow", () => {
@@ -855,8 +858,9 @@ describe("describe: checks", () => {
     expect(d.sentence[2]).toStrictEqual(account("rNT1FNDEgQdXRrMVgiSxpgHFubMfkqoXap"));
   });
 
-  it("lists the destination, the send max, the expiry, the invoice and the source tag", () => {
+  it("lists the check it wrote, the destination, the send max, the expiry, the invoice and the source tag", () => {
     expect(rows(run("xrpl-amm", "CCDBCADF2DE0EF5E85A3332C4CADE9A0C28F3B5E7220C4890E27D196415D0326"))).toStrictEqual([
+      ["Check", "60FCB1\u20261A42"],
       ["Destination", "rBi1QrVjwaNofisZAQnovoXdHkS73FG1tJ"],
       ["Send max", "1 524C555344000000000000000000000000000000"],
       ["Expires", "2026-10-16 17:49:51 UTC"],
@@ -898,6 +902,104 @@ describe("describe: checks", () => {
       "rNT1FNDEgQdXRrMVgiSxpgHFubMfkqoXap tried to cash a check for 50 XRP. Only part of the amount could be delivered, and the payment did not allow a partial delivery.",
     );
     expect(d.ok).toBe(false);
+  });
+});
+
+// The links into the ledger object pages (ledger object pages spec 7): an escrow, a check or a payment channel a transaction names is an object segment, which the page links to the object's page
+// while LEDGER_OBJECTS is on, by the form of its ID the transaction gives. A created one is the detail "Escrow", "Check" or "Channel", the node's ID shortened; an escrow released or cancelled is
+// the node its metadata deleted, whose Account is its owner (on Xahau a transaction may name it by its EscrowID, and its Owner field is then the escrow's destination: C21), else its EscrowID,
+// else, for one that failed, its owner and sequence; a check is its CheckID, a channel its Channel. The recorded objects sets (D5's) have one of each type, and Xahau's escrow named by its ID.
+describe("describe: the objects of the escrow, check and channel types", () => {
+  type Ref = { id: string } | { owner: string; sequence: number };
+  const object = (kind: "escrow" | "check" | "payment-channel", ref: Ref, v: string): Segment => ({ t: "object", kind, ref, v });
+  const short = (id: string) => `${id.slice(0, 6)}\u2026${id.slice(-4)}`;
+
+  const ESCROW_OWNER = "r3pzUULRxwRF1m5DjBWMk6FMEMwViRMCN5";
+  const CREATED_ESCROW = "B95064B1A92F02EE009E6BDFB369CF476FB925BB8615456970E38774034A5D30";
+  const FINISHED = "8993DA09444641A6BDA272A292157A0E8AF79F040AA4E551C48257F493228455";
+  const XAHAU_ESCROW = "10C5F525E3D07CAC9CD2BF3F53367653504B7D8A54451E311F5B38E70442457F";
+  const CANCELLED = "E81C0A083ACEFCF624FCFF28725A52760DFC33FB979EF9215311EAB12603C6DF";
+  const CREATED_CHECK = "DA6BE1644276D17524D4C5645D322D4A0249B444C0A3C320EA941597243F30EA";
+  const CASHED = "F53F1F3FB5630BEAEEA41F42AA110DF4068EBD227EC6C03BDED04DED76111B82";
+  const CANCELLED_CHECK = "2C0D06B6A0D7FC898B4761E20220ECBC68515725AECC982BA9238B3BBA735341";
+  const CREATED_CHANNEL = "416E3F2B081C7ABBA0774A8AEE81B5577CBF707A1D1D5B26F55DC15201EC35BA";
+  const FUNDED = "494E75E70AAFD8E655C4EBEA9541991367C038EC2251BEB4ABEBAC2AED8B0B7F";
+  const CLAIMED = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+
+  /** The sentence's object and what follows it of an escrow (" of {owner}"), none for a created one; and the one detail that holds an object, if any. */
+  type Want = { sentence: Segment[]; detail?: [label: string, value: Segment[]] };
+  const NINE_TYPES: ReadonlyArray<[name: string, set: FixtureSet, hash: string, want: Want]> = [
+    ["EscrowCreate, by the created node", "xrpl-objects", "BF93E9B72AE372BCEB27781CA58C4ABE7E51EE9F5D254D02B83C92EC1A22AE53", { sentence: [], detail: ["Escrow", [object("escrow", { id: CREATED_ESCROW }, short(CREATED_ESCROW))]] }],
+    ["EscrowFinish, by the deleted node", "xrpl-objects", "92EC1EA8B38B7242F07591AB4BF1AAB5E6B2E3015CE6E15AAAADAC05E6B74046", { sentence: [object("escrow", { id: FINISHED }, "escrow 57978925"), text(" of "), account(ESCROW_OWNER)] }],
+    [
+      "EscrowFinish on Xahau (ledger 10090323), by its EscrowID: the deleted node's Account is the owner, not the Owner field",
+      "xahau-objects",
+      "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA",
+      { sentence: [object("escrow", { id: XAHAU_ESCROW }, "an escrow"), text(" of "), account("rD74dUPRFNfgnY2NzrxxYRXN4BrfGSN6Mv")] },
+    ],
+    ["EscrowFinish that failed, by the owner and sequence", "xrpl", "2822F9AB8EE2094C25A5881D3BEFDE660AE8DA5CE927B7E753C846D45C3B418C", { sentence: [object("escrow", { owner: ESCROW_OWNER, sequence: 57978925 }, "escrow 57978925"), text(" of "), account(ESCROW_OWNER)] }],
+    ["EscrowCancel, by the deleted node", "xrpl-objects", "852853679C20D7128E4201E8F3DC7B7FE894F93A03F7435C9FC7D3980C70C198", { sentence: [object("escrow", { id: CANCELLED }, "escrow 106124446"), text(" of "), account("rwEPtzveRSB2eb7Yp1PPxSPLFyrcp2oa4j")] }],
+    ["CheckCreate, by the created node", "xrpl-objects", "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E", { sentence: [], detail: ["Check", [object("check", { id: CREATED_CHECK }, short(CREATED_CHECK))]] }],
+    ["CheckCash, by its CheckID", "xrpl-objects", "A0EE5458F913A115FC3BA022BDC227FBBCE81236DDF4A6B2BEA06BAEFAA8C1CE", { sentence: [object("check", { id: CASHED }, "a check")], detail: ["Check ID", [object("check", { id: CASHED }, CASHED)]] }],
+    ["CheckCancel, by its CheckID", "xrpl-objects", "BC27613BAFC8E4A3B198A1458E1CF9EC28BDD0E8AFCE02C733C484F9F3979C77", { sentence: [object("check", { id: CANCELLED_CHECK }, "a check")], detail: ["Check ID", [object("check", { id: CANCELLED_CHECK }, CANCELLED_CHECK)]] }],
+    ["PaymentChannelCreate, by the created node", "xrpl-objects", "04BF7DE957E5E2EE8BB67EF00CEB2EFF7A72496FAED3442CA9680E8ECF2EAFB7", { sentence: [], detail: ["Channel", [object("payment-channel", { id: CREATED_CHANNEL }, short(CREATED_CHANNEL))]] }],
+    ["PaymentChannelFund, by its Channel", "xrpl-objects", "0E08BB2ADB8831F0D20DC26CB9AEE0782E82C141725ECB7F465B78CF3D63F6DE", { sentence: [object("payment-channel", { id: FUNDED }, `channel ${short(FUNDED)}`)], detail: ["Channel", [object("payment-channel", { id: FUNDED }, FUNDED)]] }],
+    ["PaymentChannelClaim, by its Channel", "xrpl-objects", "886A9054CD78D4C2F1250999F8D65DB3048F8FC9AFB24523AD755B29797AC790", { sentence: [object("payment-channel", { id: CLAIMED }, `channel ${short(CLAIMED)}`)], detail: ["Channel", [object("payment-channel", { id: CLAIMED }, CLAIMED)]] }],
+  ];
+
+  it.each(NINE_TYPES)("%s: the object segment and detail, by the id form of its metadata", (_name, set, hash, want) => {
+    const d = run(set, hash);
+    const objects = d.sentence.filter((segment) => segment.t === "object");
+    expect(objects).toHaveLength(want.sentence.length === 0 ? 0 : 1);
+    const at = d.sentence.findIndex((segment) => segment.t === "object");
+    expect(at === -1 ? [] : d.sentence.slice(at, at + want.sentence.length)).toStrictEqual(want.sentence);
+    // The one detail that holds an object, if any, holds only it.
+    expect(d.details.filter((row) => row.value.some((segment) => segment.t === "object")).map((row) => [row.label, row.value])).toStrictEqual(want.detail === undefined ? [] : [want.detail]);
+  });
+
+  it("puts a created object's detail first", () => {
+    expect(run("xrpl-objects", "BF93E9B72AE372BCEB27781CA58C4ABE7E51EE9F5D254D02B83C92EC1A22AE53").details[0]!.label).toBe("Escrow");
+    expect(run("xrpl-objects", "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E").details[0]!.label).toBe("Check");
+    expect(run("xrpl-objects", "04BF7DE957E5E2EE8BB67EF00CEB2EFF7A72496FAED3442CA9680E8ECF2EAFB7").details[0]!.label).toBe("Channel");
+  });
+
+  it("names an escrow released by the deleted node first, then by its EscrowID, then by its owner and sequence, and as text when it has none of them", () => {
+    const ID = "AB".repeat(32);
+    const deleted = (index: string, owner: string): TxMeta => ({ ...SUCCESS, AffectedNodes: [{ DeletedNode: { LedgerEntryType: "Escrow", LedgerIndex: index, FinalFields: { Account: owner, Destination: B } } }] });
+    const objectOf = (d: Description) => d.sentence.find((segment) => segment.t === "object");
+
+    // The node, and its Account, whatever the transaction's fields say.
+    const finished = say(synth("EscrowFinish", { Owner: B, OfferSequence: 12, EscrowID: "CD".repeat(32) }), deleted(ID, K));
+    expect(objectOf(finished)).toStrictEqual(object("escrow", { id: ID }, "escrow 12"));
+    expect(textOf(finished.sentence)).toBe(`${A} released escrow 12 of ${K}.`);
+    expect(rows(finished)[0]).toStrictEqual(["Owner", K]);
+    // A failed one has no node: its EscrowID (upper-cased), else its owner and sequence.
+    expect(objectOf(say(synth("EscrowFinish", { Owner: B, EscrowID: ID.toLowerCase() }), FAILED))).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
+    expect(objectOf(say(synth("EscrowCancel", { Owner: B, OfferSequence: 12 }), FAILED))).toStrictEqual(object("escrow", { owner: B, sequence: 12 }, "escrow 12"));
+    // Neither: the words, and no link.
+    const none = say(synth("EscrowFinish", { Owner: B }), FAILED);
+    expect(objectOf(none)).toBeUndefined();
+    expect(textOf(none.sentence)).toBe(`${A} tried to release an escrow of ${B}.${NO_PERMISSION}`);
+    // An EscrowID that is no ID is none.
+    expect(objectOf(say(synth("EscrowFinish", { Owner: B, EscrowID: "nope" }), FAILED))).toBeUndefined();
+  });
+
+  it("links no field that is not an ID: a check's or a channel's words and detail are then as they were", () => {
+    const cash = say(synth("CheckCash", { CheckID: "nope", Amount: "5" }));
+    expect(cash.sentence.some((segment) => segment.t === "object")).toBe(false);
+    expect(rows(cash)[0]).toStrictEqual(["Check ID", "nope"]);
+    const fund = say(synth("PaymentChannelFund", { Channel: "nope", Amount: "5" }));
+    expect(fund.sentence.some((segment) => segment.t === "object")).toBe(false);
+    expect(rows(fund)[0]).toStrictEqual(["Channel", "nope"]);
+    expect(textOf(say(synth("PaymentChannelFund", { Amount: "5" })).sentence)).toBe(`${A} added 0.000005 XRP to a channel.`);
+  });
+
+  it("links and writes a check or a channel named in lower case by its ID in capitals, as the ledger writes it", () => {
+    const id = "ab".repeat(32);
+    const cancel = say(synth("CheckCancel", { CheckID: id }));
+    expect(cancel.details[0]!.value).toStrictEqual([object("check", { id: id.toUpperCase() }, id.toUpperCase())]);
+    const claim = say(synth("PaymentChannelClaim", { Channel: id, Flags: 0x20000 }));
+    expect(claim.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("payment-channel", { id: id.toUpperCase() }, `channel ${short(id.toUpperCase())}`));
   });
 });
 
