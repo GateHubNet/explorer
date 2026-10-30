@@ -6,10 +6,10 @@
   },
   "ledger_index": 26596843,
   "close_time": "2026-10-17T17:47:11Z",
-  "supply": "373082.727084",
+  "supply": "373089.407877",
   "count": 11,
   "holders": [
-    {"rank":51,"holder":"rBzAMGwP8n3BXPPvJZzuB3Kfduts1dYciD","balance":"130.495754","share":"0.000350","limit":"1305","frozen":false,"authorized":true},
+    {"rank":51,"holder":"rKKqfgb83yEUsFTy81iuXbxT5Ed6QQjaxY","balance":"137.176547","share":"0.000368","limit":"1098","frozen":false,"authorized":true},
     {"rank":52,"holder":"rfJQH3UFxBWaAaKDEG5nkzqqBJmfe6R8Dd","balance":"120.954398","share":"0.000324","limit":"1089","frozen":false,"authorized":true},
     {"rank":53,"holder":"rp5T9kWoAd6ThXqmjim5ZQzCfeGxaeM9EF","balance":"119.16676","share":"0.000319","limit":"716","frozen":false,"authorized":true},
     {"rank":54,"holder":"rUVzYffCL7hrQVc7M4hVnRfC3KEsgvnCvY","balance":"108.060785","share":"0.000290","limit":"865","frozen":false,"authorized":true},

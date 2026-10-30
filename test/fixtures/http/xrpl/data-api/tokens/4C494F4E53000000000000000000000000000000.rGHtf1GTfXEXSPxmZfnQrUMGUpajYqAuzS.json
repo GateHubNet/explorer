@@ -22,6 +22,6 @@
     "markets": [
       {"counter_currency":"XRP","count":131,"volume":"5349927770","counter_volume":"1818.975442","native_volume":"1818.975442","last":"3.4303654e-7","change":"-13.85","last_time":"2026-10-16T18:13:58Z","amm_pool":false}
     ],
-    "last_ledger": 107720688
+    "last_ledger": 107721243
   }
 }

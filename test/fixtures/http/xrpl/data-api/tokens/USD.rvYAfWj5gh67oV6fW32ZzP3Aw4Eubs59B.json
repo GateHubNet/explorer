@@ -34,6 +34,6 @@
       {"counter_currency":"XRP","count":217,"volume":"7013","counter_volume":"2889.356","native_volume":"2889.356","last":"0.40863434","change":"5.76","last_time":"2026-10-17T09:41:11Z","amm_pool":true},
       {"counter_currency":"524C555344000000000000000000000000000000","counter_issuer":"rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De","count":11,"volume":"3988","counter_volume":"3986.4048","last":"0.99513659","change":"2.67","last_time":"2026-10-17T09:01:38Z","amm_pool":false}
     ],
-    "last_ledger": 107506489
+    "last_ledger": 107721392
   }
 }

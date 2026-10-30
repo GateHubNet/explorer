@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { assetText, sameAsset, type Asset } from "../../app/domain/asset";
 import type { AmmPool, IssuedTokenRow, TokenAnswer, TokenHolder, TokenHoldersResponse, TokensResponse, TokenTransfer, TokenTransfersResponse } from "../../app/server/api-types";
 import { checkToken, checkTokenHolders, checkTokens, checkTokenTransfers } from "../../app/server/token-shape";
-import { dataApiLastValidated, encodeMarker, generate, inLedgerOrder, isTokenGenerated, readLedgers, txMarker, type RawLedger } from "../../scripts/http-fixtures";
+import { dataApiLastValidated, generate, inLedgerOrder, isTokenGenerated, readLedgers, type RawLedger } from "../../scripts/http-fixtures";
 import { NAMES_SOURCES } from "../../scripts/names-fixtures";
 import { FEATURED_XRPL_TOKENS, tokenFixtures } from "../../scripts/token-fixtures";
 import { resolveHoldersMarker, resolveTokenCase, resolveTransfersMarker, TOKEN_CASE_NET, TOKEN_CASES, tokenPath, tokenSourcesOf, type TokenSources } from "../support/token-case-rules";
@@ -95,6 +95,12 @@ function routeOf(path: string): { route: "list" | "token" | "holders" | "transfe
   if (match === null) throw new Error(`${path}: no route of D6's`);
   return { route: (match[2] as "holders" | "transfers" | undefined) ?? "token", segment: match[1]! };
 }
+
+/**
+ * A marker as D6 writes one, the base64url of the JSON of its key values: this test's own, not the generator's `encodeMarker`, so that a file's marker is checked against something else. "the
+ * markers" below pins it to D6's three examples.
+ */
+const markerOf = (values: readonly unknown[]): string => Buffer.from(JSON.stringify(values)).toString("base64url");
 
 /** D6's order of the list: `holders` descending, then `issuer`, then `currency`. */
 const inListOrder = (a: IssuedTokenRow, b: IssuedTokenRow): number => b.holders - a.holders || (a.issuer < b.issuer ? -1 : a.issuer > b.issuer ? 1 : 0) || (a.currency < b.currency ? -1 : a.currency > b.currency ? 1 : 0);
@@ -209,7 +215,7 @@ describe.each(NETS)("%s", (net) => {
           expect(page.count, filter).toBe(20);
           const last = page.tokens.at(-1)!;
           // The marker holds the kind and the key of the last row, as D6's example does.
-          expect(page.marker, filter).toBe(encodeMarker(["issued", last.holders, last.issuer, last.currency]));
+          expect(page.marker, filter).toBe(markerOf(["issued", last.holders, last.issuer, last.currency]));
         } else expect(page, filter).not.toHaveProperty("marker");
       }
     }
@@ -325,14 +331,14 @@ describe.each(NETS)("%s", (net) => {
       // A page that goes on has the marker of its last row; only the last page has none.
       for (const [at, page] of pages.entries()) {
         const last = page.holders.at(-1)!;
-        if (at < pages.length - 1) expect(page.marker, segment).toBe(encodeMarker([Number(last.balance), last.holder]));
+        if (at < pages.length - 1) expect(page.marker, segment).toBe(markerOf([Number(last.balance), last.holder]));
         else expect(page, segment).not.toHaveProperty("marker");
       }
       // The token page's ten: the first ten, with the marker of the tenth when there are more.
       const ten = read(net, `tokens/${segment}/holders@limit=10.json`) as TokenHoldersResponse;
       expect(ten.holders, segment).toEqual(rows.slice(0, 10));
       expect(ten.count, segment).toBe(ten.holders.length);
-      if (rows.length > 10) expect(ten.marker, segment).toBe(encodeMarker([Number(rows[9]!.balance), rows[9]!.holder]));
+      if (rows.length > 10) expect(ten.marker, segment).toBe(markerOf([Number(rows[9]!.balance), rows[9]!.holder]));
       else expect(ten, segment).not.toHaveProperty("marker");
     }
   });
@@ -383,6 +389,8 @@ describe.each(NETS)("%s", (net) => {
       expect(row!.name, segment).toBe(token.toml?.name);
       expect(segment, segment).toBe(`${token.currency}.${token.issuer}`);
       expect(token.last_ledger, segment).toBeLessThanOrEqual(ledger_index);
+      // The newest ledger a line changed: a delivered payment changes one.
+      expect(token.last_ledger, segment).toBeGreaterThanOrEqual(transferPages(net, segment)[0]!.transfers[0]!.ledger_index);
       // The toml is the listed entry's and the toml's URL the domain's.
       if (token.toml !== undefined) expect(token.listed, segment).toBe(true);
       expect(token.toml_url, segment).toBe(token.domain === undefined ? undefined : `https://${token.domain}/.well-known/${net === "xrpl" ? "xrp-ledger" : "xahau"}.toml`);
@@ -433,8 +441,11 @@ describe.each(NETS)("%s", (net) => {
         expect(page.count, segment).toBe(page.transfers.length);
         if (at === pages.length - 1) expect(page, segment).not.toHaveProperty("marker");
         else {
+          // The only page that goes on is RLUSD's, of recorded payments: the transaction's index is the recording's, not the marker's own.
           const last = page.transfers.at(-1)!;
-          expect(page.marker, segment).toBe(txMarker(last.ledger_index, places.get(last.hash) ?? markerTxIndex(page.marker!)));
+          const place = places.get(last.hash);
+          expect(place, `${segment} ${last.hash}`).toBeDefined();
+          expect(page.marker, segment).toBe(markerOf([last.ledger_index, place]));
           expect(page.count, segment).toBe(20);
         }
       }
@@ -487,13 +498,21 @@ function recordedPlaces(ledgers: readonly RawLedger[]): Map<string, number> {
   for (const raw of ledgers) for (const tx of inLedgerOrder(raw)) places.set(tx.hash, tx.metaData.TransactionIndex);
   return places;
 }
-/** The transaction index a marker names, for a seeded row. */
-const markerTxIndex = (marker: string): number => (JSON.parse(Buffer.from(marker, "base64url").toString("utf8")) as [number, number])[1];
 /** A ledger with its transactions the other way round. */
 const reversedLedger = (raw: RawLedger): RawLedger => ({ ...raw, ledger: { ...raw.ledger, transactions: [...raw.ledger.transactions].reverse() } });
 /** Every pool, from the AMM generator's files. */
 const poolsOfFiles = (): AmmPool[] =>
   [...generated].filter(([path]) => /^xrpl\/data-api\/amm\/pools\/r[^/]+\.json$/.test(path)).map(([, text]) => (JSON.parse(text) as { pool: AmmPool }).pool);
+
+describe("the markers", () => {
+  // Literally from D6's reference at the pin (docs/api-reference.md at 2fb4183, "Tokens"): the examples of `GET /v2/tokens?limit=2`, of the holders and of the transfers, with the key of the row
+  // each is the marker of. Every file's marker is checked with `markerOf` above, so this is what holds them to D6.
+  it("are written as D6's three examples", () => {
+    expect(markerOf(["issued", 60, "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q", "USD"])).toBe("WyJpc3N1ZWQiLDYwLCJyTXdqWWVkamM3cXF0S1lWTGlBY2NKU21Dd2loNExuRTJxIiwiVVNEIl0");
+    expect(markerOf([38.5, "rrrrrrrrrrrrrrrrrrcJY2vaNnX"])).toBe("WzM4LjUsInJycnJycnJycnJycnJycnJycmNKWTJ2YU5uWCJd");
+    expect(markerOf([107873024, 5])).toBe("WzEwNzg3MzAyNCw1XQ");
+  });
+});
 
 describe("the featured tokens", () => {
   const token = (net: NetworkName, which: (typeof TOKEN_CASES)[number]) => {
@@ -591,6 +610,25 @@ describe("the featured tokens", () => {
     expect(usdRows.some((row) => row.source === usd.issuer)).toBe(true);
     expect(usdRows.some((row) => row.destination === usd.issuer)).toBe(true);
     expect(usdRows.some((row) => row.destination_tag === 0)).toBe(true);
+  });
+
+  // D6: "two balances that are different texts and the same double … are tied and come in the order of their holders, and the marker is that double and the holder of the last row".
+  it("holds one tie of D6's rule: an equal balance ordered by holder, across the holders page's boundary, whose marker names the first of the two", () => {
+    const ties = NETS.flatMap((net) =>
+      details(net).flatMap(([segment]) => {
+        const rows = holderPages(net, segment).flatMap((page) => page.holders);
+        return rows.flatMap((row, at) => (at > 0 && Number(rows[at - 1]!.balance) === Number(row.balance) ? [{ net, segment, before: rows[at - 1]!, row }] : []));
+      }),
+    );
+    expect(ties.length).toBe(1);
+    const { net, segment, before, row } = ties[0]!;
+    expect(before.holder < row.holder, `${before.holder} before ${row.holder}`).toBe(true);
+    expect([before.rank, row.rank]).toEqual([50, 51]);
+    expect(row.share).toBe(before.share);
+    const [first, second] = holderPages(net, segment);
+    expect(first!.holders.at(-1)).toEqual(before);
+    expect(second!.holders[0]).toEqual(row);
+    expect(first!.marker).toBe(markerOf([Number(before.balance), before.holder]));
   });
 
   it("holds each state a holder can be in, and each state of the toml card", () => {

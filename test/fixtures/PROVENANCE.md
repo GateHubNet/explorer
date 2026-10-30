@@ -876,7 +876,7 @@ are as of the newest recorded ledger (XRPL 107721455, 2026-10-17T17:01:12Z; Xaha
 
 | Files below `<net>/data-api/` | Holds | Kind |
 |---|---|---|
-| `tokens@kind=issued&limit=20&min_holders=10[&marker=<M>].json` | the 60 tokens with 10 holders or more, 3 pages | synthetic around the featured tokens |
+| `tokens@kind=issued&limit=20&min_holders=10.json`, `tokens@kind=issued&limit=20&marker=<M>&min_holders=10.json` | the 60 tokens with 10 holders or more, 3 pages | synthetic around the featured tokens |
 | `tokens@kind=issued&limit=20[&marker=<M>].json` | all 100 tokens, 5 pages | the same rows |
 | `tokens@kind=issued&limit=20&min_holders=10&q=USD.json`, `…&q=<an issuer>` | a search by its code and by an issuer (XRPL `rvYAfW…`, Xahau `rEvernode…`), ranked among what it selects, none behind the first page | the same rows |
 | `tokens@kind=issued&limit=20&q=USD.json` | the search under `all=1`, the link of "more among tokens with fewer than 10 holders" | the same rows |
@@ -895,14 +895,14 @@ are as of the newest recorded ledger (XRPL 107721455, 2026-10-17T17:01:12Z; Xaha
 | XRPL | `LIONS` (`4C49…`) | `rGHtf1GTfXEXSPxmZfnQrUMGUpajYqAuzS` | no domain and no `issuer_settings`: the node's recorded `account_info` (above) serves them; a price in exponent form; 54 holders |
 | XRPL | `TIN` | `rNwnk4Z6aDGGVcytB5NWeegHLZKbHRjdL3` (made up) | 4 holders, no price, no market, no domain |
 | Xahau | `EVR` | `rEvernodee8dJLaFsujS6q1EiXvZYmHXr8` | listed, a price in XAH, a toml `icon` that is no `https:` URL; 88 holders |
-| Xahau | `NOD` | `rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ` (made up) | a domain and not listed, the issuer authorizes lines (`require_auth`), a price of the 30-day set (a time, no change, no market); 61 holders |
+| Xahau | `NOD` | `rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ` (made up) | a domain and not listed, the issuer authorizes lines (`require_auth`), a price of the 30-day set (a time, no change, no market); 61 holders, ranks 50 and 51 tied on one balance, across the holders page's boundary (D6's tie, which the holder decides) |
 
 The token pages' LP case is no file of these: it is the XRP/RLUSD pool's `lp_currency` and account, from the pools (`03B245BE…`, `rhWTXC2m…`), and D6 has no such token. The cases are found by their
 rules in `test/support/token-case-rules.ts` (`rlusd`, `usd`, `lions`, `few-holders`, `lp`, `evr`, `xahau-unlisted`), never from a table, which `test/support/token-cases.ts` (the worker specs) and the
 fixtures test share.
 
 **Real, from the recordings** (the sets of `readLedgers`, not the NFT or objects sets): a featured token's first holders are the holders of its recorded trust lines, with a positive balance at the
-end of the recordings, in the order they are first met (their balances are not the real ones), and `last_ledger` the newest ledger that changed one. RLUSD's transfers are the newest 40 of the 61
+end of the recordings, in the order they are first met (their balances are not the real ones), and `last_ledger` the newest ledger that changed one, or the newest of its transfers (a delivered payment changes a line). RLUSD's transfers are the newest 40 of the 61
 recorded payments that delivered it (a successful `Payment` between two different accounts, its `DeliveredAmount` or else its `Amount`, its tags), so that a second page ends the list and every
 marker has its file; EVR's first is its one such payment. USD and LIONS deliver nothing in the recordings (USD's are tec or to oneself), so theirs are seeded. The transactions behind the
 transfers are not served, unless `generate()` serves them for another reason.
@@ -913,7 +913,7 @@ on a card: nothing was read from them). Seeds: `mulberry32(seedOf(<net>, "tokens
 for a featured token (`scripts/synthetic.ts`). The first list page holds a price in exponent form (`"1.2000000e-7"`) and a row with no price, so the pages draw both; `totals.holders` is in every list.
 
 **What keeps them true.** `test/unit/token-fixtures.test.ts`, over `generate()`'s files: D6's key lines in their order, and the client's shape checks (`app/server/token-shape.ts`) on every file;
-ranks, markers and pages that concatenate; counts and totals against the rows; every search by D6's rule; every share against its balance and the supply, the supply against the balances; the
+ranks, markers against D6's three examples, and pages that concatenate; the tie; counts and totals against the rows; every search by D6's rule; every share against its balance and the supply, the supply against the balances; the
 addresses; a token's page against its list row and its markets; transfers against the recordings; every case; the same output whatever the order. `isTokenGenerated` names the files, which have a budget
 of their own in `test/unit/http-fixtures.test.ts` (0.3 MiB). `test/unit/amm-fixtures.test.ts` checks the pools files. `test/unit/upstream-core.test.ts` checks the mock's answers for a token without a file.
 

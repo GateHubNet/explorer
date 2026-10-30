@@ -4,7 +4,8 @@
 // test/unit/token-fixtures.test.ts checks them. Each network has 100 tokens: 60 with 10 holders or more and 40 below, the featured ones among seeded ones, as of its newest recorded ledger,
 // with the coverage `{ from_ledger_index: <its first recorded ledger>, complete: false }` in every answer (test/support/upstream-core.ts has the same one for a token without a file):
 //
-//   tokens@kind=issued&limit=20&min_holders=10[&marker=<M>].json     the tokens with 10 holders or more (3 pages)
+//   tokens@kind=issued&limit=20&min_holders=10.json                  the tokens with 10 holders or more, the first of 3 pages
+//   tokens@kind=issued&limit=20&marker=<M>&min_holders=10.json       the other two
 //   tokens@kind=issued&limit=20&min_holders=10&q=USD.json            a search, and the same with `q=<an issuer>`: the featured issuer that has more tokens (`SIBLINGS`)
 //   tokens@kind=issued&limit=20&q=USD.json                           the same search under `all=1`: the link of "more among tokens with fewer than 10 holders"
 //   tokens@kind=issued&limit=20[&marker=<M>].json                    every token (5 pages)
@@ -15,7 +16,8 @@
 //   tokens/<CUR>.<issuer>/transfers@descending=true&limit=20[&marker=<M>].json     its transfers, newest first (only RLUSD has a second page)
 //
 // A seeded token has a row and no page: its link is D6's 404. D6's rules are kept: `rank` runs on over the pages of what the filters select; the order is `holders` descending, then `issuer`,
-// then `currency`; a marker is the kind and that key of the last row (a holder's the balance as a double and the holder, a transfer's the ledger and the transaction's index); `total`,
+// then `currency`; a marker is the kind and that key of the last row (a holder's the balance as a double and the holder, a transfer's the ledger and the transaction's index); holders are ordered by that double,
+// then by the holder, and one pair is tied, across a page's boundary (`tiedRank`); `total`,
 // `total_below` and `totals` are counts of the rows, `totals` the same in every list (`totals.holders` a seeded count between the largest token's and their sum, `totals.native_volume` the rows'
 // sum); `share` is the balance over the supply, exact, 6 decimals half up; `price` and `last` have 8 significant digits, in exponent form below 0.000001 and from 100,000,000; a token's
 // `price`, `price_change` and `price_time` are its native market's, or the 30-day set's (a time, no change, no market in the day set), or none, and its `native_volume` and `trades` its markets'
@@ -23,7 +25,7 @@
 //
 // Real, from the recordings (the sets of `readLedgers`): a featured token's first holders, the holders of its recorded trust lines in the order they are first met, then seeded ones; RLUSD's
 // transfers, the newest 40 of the recorded payments that delivered it (a successful Payment between two different accounts, its `DeliveredAmount` or else its `Amount`); EVR's one such payment,
-// then seeded ones; `last_ledger`, the newest ledger that changed a recorded line of the token. USD and LIONS deliver nothing in the recordings, so their transfers are seeded. The transaction
+// then seeded ones; `last_ledger`, the newest ledger that changed a recorded line of the token, or of its transfers if that is newer (a delivered payment changes a line). USD and LIONS deliver nothing in the recordings, so their transfers are seeded. The transaction
 // behind a transfer has no file (a link to it is a 404, but for the served ones). The rest is synthetic, drawn per network and route from `mulberry32(seedOf(net, "tokens", …))`, so that no
 // file depends on what another drew.
 //
@@ -79,8 +81,6 @@ const DAY = 86_400;
 /** About how many seconds a ledger takes: the time of a seeded transfer in a ledger that is not recorded. */
 const LEDGER_SECONDS = 4;
 
-const NATIVE: Record<NetworkName, "XRP" | "XAH"> = { xrpl: "XRP", xahau: "XAH" };
-
 type Next = () => number;
 type Row = Omit<IssuedTokenRow, "rank">;
 type Asset = { currency: string; issuer: string };
@@ -128,6 +128,8 @@ interface FeaturedSpec extends Asset {
   oldPrice?: { price: number; daysAgo: number };
   /** The ranks whose line the issuer froze. */
   frozen?: readonly number[];
+  /** The rank whose balance is the one before it: D6's tie, which the holder's address decides. */
+  tiedRank?: number;
   /** The issuer authorizes lines (`require_auth`): every holder is authorized but the last. */
   authorizes?: boolean;
   /** How many transfers it has: the recorded ones first, then seeded. */
@@ -220,6 +222,8 @@ const FEATURED: Record<NetworkName, readonly FeaturedSpec[]> = {
       settings: { transfer_fee: "0.5", global_freeze: false, no_freeze: true, allow_trust_line_clawback: false, require_auth: true, default_ripple: false },
       markets: [],
       oldPrice: { price: 0.034, daysAgo: 12 },
+      // The last of the holders page's first page and the first of its second: the marker's holder is what tells them apart.
+      tiedRank: 51,
       authorizes: true,
       transfers: 6,
     },
@@ -343,8 +347,8 @@ function recordedTransfers(ledgers: readonly RawLedger[], token: Asset): Placed[
 // ---- A featured token's rows ----------------------------------------------------------------------------------------------------------
 
 /**
- * Its holders by D6's rule, from `mulberry32(seedOf(net, "tokens", name, "holders"))`: the recorded ones first, then seeded, each with a balance below the one before, so that they keep that order.
- * The supply is the balances' exact sum, and each share of it.
+ * Its holders by D6's rule, from `mulberry32(seedOf(net, "tokens", name, "holders"))`: the recorded ones first, then seeded, each with a balance below the one before, so that they keep that order,
+ * but `tiedRank`'s, which has the balance before it. The supply is the balances' exact sum, and each share of it.
  */
 function holdersOf(world: World, spec: FeaturedSpec, recorded: readonly string[]): { holders: TokenHolder[]; supply: string } {
   if (spec.holders > 2 * HOLDERS_LIMIT) throw new Error(`${spec.name}: more holders than the two pages the holders files have`);
@@ -353,14 +357,28 @@ function holdersOf(world: World, spec: FeaturedSpec, recorded: readonly string[]
   while (addresses.size < spec.holders) addresses.add(accountOf(next));
 
   let units = spec.top * 1_000_000;
+  let before = "";
   const rows = [...addresses].map((holder, at) => {
-    const balance = millionths(units);
+    const balance = at + 1 === spec.tiedRank ? before : millionths(units);
+    before = balance;
     units = Math.max(Math.floor(units * (0.8 + 0.19 * next())) - 1, 1);
     const limit = new BigNumber(balance).times(1 + drawIn(next, 1, 9)).integerValue(BigNumber.ROUND_CEIL).toFixed();
-    return { holder, balance, limit, frozen: spec.frozen?.includes(at + 1) ?? false, authorized: spec.authorizes === true && at < spec.holders - 1 };
+    return { holder, balance, limit };
   });
+  // D6's order: the balance as a double, then the holder. The balances go down, so only the tie moves.
+  rows.sort((a, b) => Number(b.balance) - Number(a.balance) || byText(a.holder, b.holder));
   const supply = sumOf(rows.map((row) => row.balance));
-  const holders = rows.map(({ holder, balance, limit, frozen, authorized }, at): TokenHolder => ({ rank: at + 1, holder, balance, share: shareOf(balance, supply), limit, frozen, authorized }));
+  const holders = rows.map(
+    ({ holder, balance, limit }, at): TokenHolder => ({
+      rank: at + 1,
+      holder,
+      balance,
+      share: shareOf(balance, supply),
+      limit,
+      frozen: spec.frozen?.includes(at + 1) ?? false,
+      authorized: spec.authorizes === true && at < spec.holders - 1,
+    }),
+  );
   return { holders, supply };
 }
 
@@ -456,8 +474,10 @@ function featuredOf(world: World, spec: FeaturedSpec, ledgers: readonly RawLedge
   const { holders, supply } = holdersOf(world, spec, recorded?.holders ?? []);
   const markets = marketsOf(world, spec, pools);
   const figures = figuresOf(world, spec, markets);
+  const transfers = transfersOf(world, spec, recordedTransfers(ledgers, spec), holders);
   const next = mulberry32(seedOf(world.net, "tokens", spec.name, "last_ledger"));
-  const lastLedger = recorded?.lastLedger ?? world.ledgerIndex - drawIn(next, 1, 5000);
+  // D6's newest ledger that changed a line: a delivered payment changes one, so it is never older than the newest transfer.
+  const lastLedger = Math.max(recorded?.lastLedger ?? world.ledgerIndex - drawIn(next, 1, 5000), transfers[0]?.row.ledger_index ?? 0);
   const head = {
     currency: spec.currency,
     code: spec.code,
@@ -482,7 +502,7 @@ function featuredOf(world: World, spec: FeaturedSpec, ledgers: readonly RawLedge
     markets,
     last_ledger: lastLedger,
   };
-  return { spec, row, detail, holders, transfers: transfersOf(world, spec, recordedTransfers(ledgers, spec), holders) };
+  return { spec, row, detail, holders, transfers };
 }
 
 // ---- The seeded tokens -----------------------------------------------------------------------------------------------------------------

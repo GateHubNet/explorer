@@ -12,7 +12,7 @@
     "issuer": "rsU3Rid6exHofd2D5xjewTJSYJe5QfKUiJ",
     "holders": 61,
     "trust_lines": 61,
-    "supply": "373082.727084",
+    "supply": "373089.407877",
     "price": "0.034000000",
     "price_time": "2026-10-05T17:47:11Z",
     "native_volume": "0",
@@ -29,6 +29,6 @@
       "default_ripple": false
     },
     "markets": [],
-    "last_ledger": 26593999
+    "last_ledger": 26596510
   }
 }
