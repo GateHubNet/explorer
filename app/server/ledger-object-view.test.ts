@@ -31,13 +31,18 @@ import {
   asOfNoteOf,
   commonAccounts,
   commonOf,
+  detailAccounts,
   displayAmount,
   fromNodeEntry,
+  issuerOf,
+  none,
   removedBannerOf,
   reserveOf,
   sentence,
+  tagValue,
   theAmount,
   timelineOf,
+  type DetailRow,
   type EventWords,
   type ObjectSource,
 } from "./ledger-object-view";
@@ -654,13 +659,13 @@ describe("commonAccounts", () => {
   );
   const tx = (over: Partial<TimelineItem>): TimelineItem => ({ kind: "tx", type: "EscrowCreate", title: "t", what: [], by: A(1), ...over });
 
-  it("lists the accounts of the banner's sentence, and the by, the delegate and the sentence of each timeline item, each once, in the order drawn", () => {
+  it("lists the accounts of the banner's sentence, and the sentence, the by and the delegate of each timeline item (the order Timeline draws them), each once", () => {
     const page = {
       ...base,
       banner: { ledger: 1, txType: "EscrowFinish", hash: "H", sentence: [account(A(2))] },
       timeline: [tx({ by: A(1), delegate: A(3), what: [account(A(4))] }), tx({ by: A(1), what: [account(A(2)), account(A(5))] }), { kind: "next", type: "EscrowCancel", title: "t", what: [account(A(6))] } as TimelineItem],
     };
-    expect(commonAccounts(page)).toEqual([A(2), A(1), A(3), A(4), A(5), A(6)]);
+    expect(commonAccounts(page)).toEqual([A(2), A(4), A(1), A(3), A(5), A(6)]);
   });
 
   it("is empty for a page with no banner and no timeline account", () => {
@@ -683,5 +688,41 @@ describe("commonAccounts", () => {
       timeline: [tx({ by: A(1), what: [issued(A(3))] })],
     };
     expect(commonAccounts(page)).toEqual([A(1)]);
+  });
+});
+
+describe("the rows of the Details card the three views share", () => {
+  const A = (n: number) => `r${String(n).repeat(25)}`.slice(0, 26);
+
+  it("gives the issuer of a token amount, and none for a native amount, an MPT or an amount D5 could not read", () => {
+    expect(issuerOf({ value: "1", currency: "USD", issuer: TOKEN_ISSUER })).toBe(TOKEN_ISSUER);
+    expect(issuerOf({ value: "1", currency: "XRP" })).toBeUndefined();
+    expect(issuerOf({ mpt: { id: MPT_ISSUANCE_ID, units: "5" } })).toBeUndefined();
+    expect(issuerOf(null)).toBeUndefined();
+  });
+
+  it("lists the accounts the rows draw as links, in their order: an account row's address and the issuer of a token in an amount row", () => {
+    const rows: DetailRow[] = [
+      { label: "ID", value: { kind: "code", text: A(9), copy: "Copy" } },
+      { label: "Source", value: { kind: "account", address: A(1) } },
+      { label: "Destination", value: { kind: "account", address: A(2) } },
+      { label: "Amount", value: { kind: "amount", amount: { value: "1", currency: "USD", issuer: A(3) } } },
+      { label: "Native", value: { kind: "amount", amount: { value: "1", currency: "XRP" } } },
+      { label: "Unread", value: { kind: "amount", amount: null } },
+      { label: "MPT", value: { kind: "amount", amount: { mpt: { id: MPT_ISSUANCE_ID, units: "5" } } } },
+      { label: "Tag", value: { kind: "number", text: "7" } },
+    ];
+    // a code row holding an address-shaped text is not a link, and a sentence's issuer is not a row
+    expect(detailAccounts(rows)).toEqual([A(1), A(2), A(3)]);
+    expect(detailAccounts([])).toEqual([]);
+  });
+
+  it("makes a row's value of nothing to say fresh each time, and a tag a number or nothing", () => {
+    expect(none()).toEqual({ kind: "text", text: "None", faint: true });
+    expect(none("—")).toEqual({ kind: "text", text: "—", faint: true });
+    expect(none()).not.toBe(none());
+    expect(tagValue(88231)).toEqual({ kind: "number", text: "88231" });
+    expect(tagValue(0)).toEqual({ kind: "number", text: "0" });
+    expect(tagValue(undefined)).toEqual({ kind: "text", text: "None", faint: true });
   });
 });

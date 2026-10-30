@@ -246,6 +246,27 @@ export interface DetailRow {
   hint?: string;
 }
 
+/** The value of a row that has nothing to say (a field the object lacks: "None"; one D5 could not read: "—"), built fresh for each row (a shared object would be one value in many places of the page data). */
+export const none = (words = "None"): DetailValue => ({ kind: "text", text: words, faint: true });
+
+/** A destination tag or a source tag: the number, or "None". */
+export const tagValue = (tag: number | undefined): DetailValue => (tag === undefined ? none() : { kind: "number", text: String(tag) });
+
+/** The issuer of a token amount, which a row draws as an `AccountLink` (and a sentence's `Amount` writes in a title); none for a native amount, an MPT or an amount D5 could not read. */
+export const issuerOf = (amount: DisplayAmount | null): string | undefined => (amount !== null && "issuer" in amount ? amount.issuer : undefined);
+
+/**
+ * The accounts the rows of the Details card draw as an `AccountLink`, in the order of the rows: an `account` row's address, and the issuer of a token in an `amount` row. (Not a `code`
+ * row's text: it is copied, not linked.) A page gives these to `commonAccounts` among its own accounts.
+ */
+export function detailAccounts(rows: readonly DetailRow[]): string[] {
+  return rows.flatMap(({ value }): string[] => {
+    if (value.kind === "account") return [value.address];
+    const issuer = value.kind === "amount" ? issuerOf(value.amount) : undefined;
+    return issuer === undefined ? [] : [issuer];
+  });
+}
+
 // ---- The words of a kind of object ----------------------------------------------------------------------------------------------------------------
 
 /** What a sentence calls an object of each kind, and who holds its reserve (the boards': an escrow has an owner, a check and a channel a source). */
@@ -467,14 +488,14 @@ export function commonOf(
 
 /**
  * The accounts the common part of a page draws as an `AccountLink` (E9, "Display names"), each once, in the order the page draws them: the accounts of the removed banner's sentence, then
- * `own`, the accounts of the type's own parts (its summary, status lines and rows), which stand between the banner and the history, then for each timeline item the account that sent the
- * transaction, the delegate and the accounts of what it did. Never an amount's issuer in a sentence, which `Amount` writes in a title, nor the names the page carries.
+ * `own`, the accounts of the type's own parts (its summary, status lines and rows), which stand between the banner and the history, then for each timeline item the accounts of what it did, the
+ * account that sent the transaction and the delegate (`Timeline` draws what the item did first). Never an amount's issuer in a sentence, which `Amount` writes in a title, nor the names the page carries.
  */
 export function commonAccounts(page: ObjectPageCommon, own: readonly string[] = []): string[] {
   const drawn = [
     ...(page.banner === null ? [] : accountsIn(page.banner.sentence)),
     ...own,
-    ...page.timeline.flatMap((item) => [item.by, item.delegate, ...accountsIn(item.what)]),
+    ...page.timeline.flatMap((item) => [...accountsIn(item.what), item.by, item.delegate]),
   ];
   return [...new Set(drawn.filter((address): address is string => address !== undefined))];
 }
