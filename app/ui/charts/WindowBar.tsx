@@ -2,8 +2,9 @@ import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { cx } from "../cx";
 import { cellOf } from "./cells";
-import { percent } from "./geometry";
+import { percent, tooltipSide } from "./geometry";
 import { Legend } from "./Legend";
+import { usePlotRing } from "./Plot";
 import type { WindowBarData, WindowBarSegment } from "./types";
 
 type Segment = WindowBarSegment;
@@ -43,7 +44,12 @@ interface Part {
   to: number;
 }
 
-/** The windows in the order of their starts, cut where one runs into the next, with a part for each stretch between them. An open end is the bar's. */
+/**
+ * The windows in the order of their starts, cut where one runs into the next, with a part for each stretch between them. An open end is the bar's. A window with
+ * no span (its start at its end, or its end before its start) is a part of 0 share, which CSS gives its 24 px: a stub with a button, since the bar draws what it
+ * is given. The builder leaves an empty window out (no Pending for an unknown creation that the page is as of FinishAfter, no Can be finished between two equal
+ * bounds), as it does a window the escrow does not have.
+ */
 function partsOf(segments: readonly Segment[], start: number, end: number): Part[] {
   const clamp = (moment: number) => Math.min(end, Math.max(start, moment));
   const windows = segments
@@ -73,10 +79,11 @@ function anchorOf(parts: readonly Part[], moment: number): { part: number; along
 }
 
 /**
- * Which side of its window the tooltip opens on: right under 30% of the bar, left over 70%, else centred. It is up to 340 px wide (the kit's 22% and 78% are for
- * its 260), so that on a bar of 480 px, the least that has this rule, it does not stick out past either end. Under 480 px of bar CSS centres it on the bar.
+ * The tooltip is up to 340 px wide, not the kit's 260, so it opens to the right under 30% of the bar and to the left over 70% (`tooltipSide`'s edge; the kit's is
+ * 22%). Centred between, on a bar of 480 px, the least that has this rule, it sticks out past an end by about 14 to 26 px (a tooltip of 312 to 340 px at 30% or 70%
+ * of 480), which the card's padding takes. Under 480 px of bar CSS centres it on the bar.
  */
-const sideOf = (fraction: number): "right" | "left" | "center" => (fraction < 0.3 ? "right" : fraction > 0.7 ? "left" : "center");
+const TIP_EDGE = 0.3;
 
 /** A character of the bounds' labels (11 px Geist, figures and letters: 5.2 to 5.5 measured) and of the mark's (11.5 px, 600), in px. */
 const CHAR_PX = { tick: 5.6, mark: 6.2 } as const;
@@ -126,20 +133,23 @@ function placeLabels(labels: readonly { place: number; chars: number }[], charPx
  * row out, gives it its 24 px and the others give way, in proportion, and the times that are in a window (its bounds, the mark) are placed in it, as far
  * along as they are in its span, so that a label is where its window changes whatever the widths come to. A button is named by its label and range, and
  * a keyboard reaches each with Tab. Focus, the pointer and a tap show the kit's tooltip (`plot__tip`: the window's name, its range and its length) over
- * it, and the others are dimmed while it shows (the kit's cursor, as the share bars have it). Escape puts the tooltip away until the next focus
- * (WCAG 1.4.13), and so does a tap anywhere outside the bar. The bounds are picture only: the buttons say the ranges, and the Details list has every time.
+ * it, and the others are dimmed while it shows (the kit's cursor, as the share bars have it). Escape, from anywhere in the page, puts the tooltip away until the
+ * next focus (WCAG 1.4.13), and so does a tap outside the bar. The bounds are picture only: the buttons say the ranges, and the Details list has every time.
  * The mark's label is repeated in a line for a screen reader. There is no table view; nothing in the bar is a number the Details list does not say.
  *
  * Nothing is measured, so the Worker prints the finished bar: where the labels go (`placeLabels`) is worked out for two widths and the bar's own width,
- * which CSS asks, picks one. Memoised on the data's `token` (spec 2.9): a beat that brings the same token renders nothing. (The kit's ring after a
- * change is left to the plots: it would load the plot's modules into the page of an escrow for a mark that moves with the page's own time.)
+ * which CSS asks, picks one. Memoised on the data's `token` (spec 2.9): a beat that brings the same token renders nothing, and a new one rings the bar (`usePlotRing`, as
+ * the share bars and the bar list do).
  */
 export const WindowBar = memo(
   function WindowBar({ data }: { data: WindowBarData }) {
     const [active, setActive] = useState<Segment["id"] | null>(null);
     const root = useRef<HTMLDivElement>(null);
+    // The ring of a changed figure, when a beat brings a new token (spec 2.9), as the other forms have it.
+    const ring = usePlotRing(data.token, root);
 
-    // A touch that lands outside the bar puts the tooltip away: a tap that did not focus the button (Safari's) has no blur to do it.
+    // While a tooltip shows: a touch that lands outside the bar puts it away (a tap that did not focus the button, Safari's, has no blur to do it), and so does Escape
+    // from anywhere in the page (WCAG 1.4.13): a tooltip that the pointer opened has no focus for a key to come from.
     const shown = active !== null;
     useEffect(() => {
       if (!shown) return;
@@ -147,8 +157,15 @@ export const WindowBar = memo(
         if (event.target instanceof Node && root.current?.contains(event.target)) return;
         setActive(null);
       };
+      const escape = (event: KeyboardEvent) => {
+        if (event.key === "Escape") setActive(null);
+      };
       document.addEventListener("pointerdown", away, true);
-      return () => document.removeEventListener("pointerdown", away, true);
+      document.addEventListener("keydown", escape);
+      return () => {
+        document.removeEventListener("pointerdown", away, true);
+        document.removeEventListener("keydown", escape);
+      };
     }, [shown]);
 
     if (data.segments.length === 0) return null;
@@ -171,7 +188,7 @@ export const WindowBar = memo(
     const open = current < 0 ? null : { segment: parts[current]!.segment!, middle: (at(parts[current]!.from) + at(parts[current]!.to)) / 2 };
 
     return (
-      <div ref={root} className="wbar" role="group" aria-label={GROUP_LABEL} data-active={current < 0 ? undefined : active!}>
+      <div ref={root} className={cx("wbar", ring && "is-changed")} role="group" aria-label={GROUP_LABEL} data-active={current < 0 ? undefined : active!}>
         <Legend items={data.segments.map(({ id, label, slot }) => ({ id, label, key: "swatch", slot }))} />
         <div className="wbar__plot">
           <div className="wbar__track">
@@ -194,9 +211,6 @@ export const WindowBar = memo(
                       onClick={() => setActive(segment.id)}
                       onFocus={() => setActive(segment.id)}
                       onBlur={() => setActive(null)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") setActive(null);
-                      }}
                     />
                   )}
                   {mark.part === p && (
@@ -239,7 +253,7 @@ export const WindowBar = memo(
           <div className="wbar__ticks" style={{ "--rows": rows(wide), "--rows-narrow": rows(narrow) } as CSSProperties} />
           {open && (
             <div
-              className={cx("plot__tip", "wbar__tip", sideOf(open.middle))}
+              className={cx("plot__tip", "wbar__tip", tooltipSide(open.middle, TIP_EDGE))}
               style={{ "--tip-left": percent(open.middle, 3) } as CSSProperties}
               aria-hidden="true"
             >

@@ -594,6 +594,17 @@ describe("tooltipSide", () => {
     expect(tooltipSide(0)).toBe("right");
     expect(tooltipSide(1)).toBe("left");
   });
+
+  it("takes the edge as a second argument, 22% unless it is given: a wider tooltip flips earlier", () => {
+    expect(tooltipSide(0.25, 0.22)).toBe("center");
+    expect(tooltipSide(0.25, 0.3)).toBe("right");
+    expect(tooltipSide(0.3, 0.3)).toBe("center");
+    expect(tooltipSide(0.7, 0.3)).toBe("center");
+    expect(tooltipSide(0.71, 0.3)).toBe("left");
+    expect(tooltipSide(0.5, 0.3)).toBe("center");
+    // The edge is the same on both sides, and 0.5 or more leaves nowhere to centre.
+    expect(tooltipSide(0.6, 0.5)).toBe("left");
+  });
 });
 
 describe("the constants of the spec", () => {

@@ -196,6 +196,50 @@ describe("the windows' places", () => {
     expect(parts(container).map(shareOf)).toEqual([100]);
     expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
   });
+
+  // An empty window (no span: the bar starts where it ends, two bounds are the same moment, or its end is before its start) is drawn as a stub, 24 px by CSS, with its
+  // button: the bar draws what it is given. The builder leaves an empty window out (WindowBar.tsx, `partsOf`), and these are what a builder that does not gets.
+  describe("a window with no span", () => {
+    const empty = (container: HTMLElement) => parts(container).map((part) => [shareOf(part), part.querySelectorAll("button").length]);
+
+    it.each([
+      ["at FinishAfter", 10, [0, 81.967, 18.033]],
+      ["past FinishAfter", 20, [0, 81.967, 18.033]],
+    ])("keeps the Pending window of an unknown creation as a stub when the page is as of a moment %s", (_name, day, shares) => {
+      const data = bar({
+        segments: [{ ...DATA.segments[0]!, from: null }, DATA.segments[1]!, DATA.segments[2]!],
+        bounds: DATA.bounds.slice(1),
+        mark: { label: "Now · 3 Nov 09:30", at: at(day) },
+      });
+      const { container } = render(<WindowBar data={data} />);
+      // The bar starts at FinishAfter, which is where Pending ends.
+      expect(parts(container).map(shareOf)).toEqual(shares);
+      expect(empty(container).map(([, buttons]) => buttons)).toEqual([1, 1, 1]);
+      expect(segs(container)[0]!.getAttribute("aria-label")).toBe(`Pending: ${RANGES.pending}`);
+      expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
+    });
+
+    it("keeps the Can be finished window of an escrow whose FinishAfter and CancelAfter are the same moment as a stub", () => {
+      const data = bar({
+        segments: [DATA.segments[0]!, { ...DATA.segments[1]!, to: at(10) }, { ...DATA.segments[2]!, from: at(10) }],
+        bounds: [DATA.bounds[0]!, DATA.bounds[1]!, { ...DATA.bounds[2]!, at: at(10) }],
+        mark: { label: "Now · 18 Nov 09:30", at: at(25) },
+      });
+      const { container } = render(<WindowBar data={data} />);
+      // Day 0 to 25 and 22% of those after: 30.5 days, Pending a third of them and Can be cancelled the rest.
+      expect(empty(container)).toEqual([[32.787, 1], [0, 1], [67.213, 1]]);
+      expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
+    });
+
+    it("keeps a window that ends before it starts as a stub at its start, with the stretch it leaves open as a part with no button", () => {
+      const data = bar({ segments: [DATA.segments[0]!, { ...DATA.segments[1]!, from: at(40), to: at(10) }, DATA.segments[2]!] });
+      const { container } = render(<WindowBar data={data} />);
+      // Pending, then nothing from day 10 to day 40, then the stub of the inverted window at day 40, then Can be cancelled.
+      expect(empty(container)).toEqual([[20.492, 1], [61.475, 0], [0, 1], [18.033, 1]]);
+      expect(parts(container).map((part) => part.classList.contains("wbar__part--window"))).toEqual([true, false, true, true]);
+      expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
+    });
+  });
 });
 
 describe("the bounds and the mark", () => {
@@ -360,6 +404,29 @@ describe("the tooltip of a window", () => {
     expect(tip(container)).not.toBeNull();
   });
 
+  it("is dismissed by Escape from anywhere in the page: a tooltip that the pointer opened has no focus to be on, and the listener is there only while it shows", () => {
+    const [add, remove] = [vi.spyOn(document, "addEventListener"), vi.spyOn(document, "removeEventListener")];
+    const keydowns = (spy: typeof add) => spy.mock.calls.filter(([type]) => type === "keydown").length;
+    const { container, unmount } = render(<WindowBar data={DATA} />);
+    expect(keydowns(add)).toBe(0);
+    const [, finishable] = segs(container);
+    fireEvent.pointerEnter(finishable!, { pointerType: "mouse" });
+    expect(tip(container)).not.toBeNull();
+    expect(keydowns(add)).toBe(1);
+    // Another key leaves it, and Escape from the page's body takes it away.
+    fireEvent.keyDown(document.body, { key: "a" });
+    expect(tip(container)).not.toBeNull();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(tip(container)).toBeNull();
+    expect(keydowns(remove)).toBe(1);
+    // It comes back with the pointer, and an unmount while it shows puts the listener away.
+    fireEvent.pointerLeave(finishable!, { pointerType: "mouse" });
+    fireEvent.pointerEnter(finishable!, { pointerType: "mouse" });
+    expect(keydowns(add)).toBe(2);
+    unmount();
+    expect(keydowns(remove)).toBe(2);
+  });
+
   it("marks the window it is on and the bar, so that the others are dimmed, and nothing when none is", () => {
     const { container } = render(<WindowBar data={DATA} />);
     const root = container.querySelector(".wbar")!;
@@ -438,6 +505,23 @@ describe("WindowBar, memoised on the token (spec 2.9)", () => {
     expect(segs(container)[0]).toBe(first);
     expect(segs(container)).toHaveLength(3);
     expect(container.querySelector(".sr")!.textContent).toBe("Now · 18 Nov 09:30");
+  });
+
+  it("rings once for a new token, as the other forms do, and not for the same one", () => {
+    const { container, rerender } = render(<WindowBar data={DATA} />);
+    expect(container.querySelector(".wbar.is-changed")).toBeNull();
+    rerender(<WindowBar data={{ ...CLOSED, token: "w1" }} />);
+    expect(container.querySelector(".wbar.is-changed")).toBeNull();
+    rerender(<WindowBar data={CLOSED} />);
+    expect(container.querySelectorAll(".wbar.is-changed")).toHaveLength(1);
+    expect(segs(container)).toHaveLength(2);
+  });
+
+  it("does not ring on the server's render or on hydration", async () => {
+    const { html, container, errors } = await serverThenHydrated(<WindowBar data={DATA} />);
+    expect(html).not.toContain("is-changed");
+    expect(container.querySelector(".wbar.is-changed")).toBeNull();
+    expect(errors).toEqual([]);
   });
 
   it("is drawn again for a new token", () => {

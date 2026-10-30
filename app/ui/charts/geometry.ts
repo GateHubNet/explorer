@@ -295,8 +295,11 @@ export function xLabelPicks(n: number, width: "wide" | "narrow" | "ends"): numbe
   return picks;
 }
 
-/** Which side of the cursor the tooltip opens on: right under 22% of the plot's width, left over 78%, else centred. */
-export function tooltipSide(fraction: number): "right" | "left" | "center" {
-  if (fraction < 0.22) return "right";
-  return fraction > 0.78 ? "left" : "center";
+/**
+ * Which side of the cursor the tooltip opens on: right under `edge` of the plot's width (22%), left over the same from the end (78%), else centred. A tooltip
+ * wider than the kit's 260 px takes a larger edge, so that centred it does not stick out past an end of the plot.
+ */
+export function tooltipSide(fraction: number, edge = 0.22): "right" | "left" | "center" {
+  if (fraction < edge) return "right";
+  return fraction > 1 - edge ? "left" : "center";
 }

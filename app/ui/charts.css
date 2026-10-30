@@ -1269,12 +1269,16 @@
    as its span (the Worker's style says it in percent, to 3 decimals), and a window has 24 px at the least: the browser lays the row out and gives a short window
    its 24 px, the others giving way. What is in a part (the mark's line and label, a bound's label) is placed in it, as far along as its time is in the part's
    span, so that it is where the window changes whatever the widths come to. The 2 px gap between two windows is drawn inside the end of the first, in the
-   card's colour, so that the widths stay exact. Each window is a button: WCAG 2.5.8 counts the button's own box, not a pseudo-element's, so the box is 24 px
-   high (the bar's 12 and 6 above and below it) and the colour is a 12 px fill (::before) in the middle of it. The colour is the slot's (a segment is a
+   card's colour, so that the widths stay exact. Each window is a button: WCAG 2.5.8 counts the button's own box, not a pseudo-element's, so the box is the
+   target (`--target`: 24 px, and 44 px, spec 8, on a touch screen and a phone, as the bar list's links are) high and wide, and the colour is a 12 px fill
+   (::before) in the middle of it: the bar's 12 px and `--hit`, half of what is left of the target, above and below it. What the box reaches over and under the
+   bar moves the mark's label, the bounds and the plot's room by as much, so that no label is under a button. The colour is the slot's (a segment is a
    graphic on the card: 3:1, tokens.test.ts). The tooltip is the plot's (`plot__tip`), opening over the bar. The bar sets no overflow of its own, which would
    cut the buttons' boxes and their focus rings. */
 
 .wbar {
+  --target: 24px;
+  --hit: calc((var(--target) - 12px) / 2);
   position: relative;
   container-type: inline-size;
   display: flex;
@@ -1283,9 +1287,18 @@
   padding-top: 4px;
 }
 
+/* Touch targets: 44 px (spec 8) on touch screens and phones, as the bar list's links have it (and components.css and pages.css). The buttons' boxes grow by
+   10 px above and below the bar, and what is over and under it moves with them (`--hit`), so that the boxes of neighbours do not meet: a window is as wide as
+   44 px, and the parts of a row of three are 132 px of a phone's 300. The fill stays the bar's 12 px. */
+@media (pointer: coarse), (max-width: 720px) {
+  .wbar {
+    --target: 44px;
+  }
+}
+
 .wbar__plot {
   position: relative;
-  padding-top: 22px;
+  padding-top: calc(16px + var(--hit));
 }
 
 .wbar__track {
@@ -1300,7 +1313,7 @@
 }
 
 .wbar__part--window {
-  min-width: 24px;
+  min-width: var(--target);
 }
 
 /* The global focus ring is the button's (base.css: 2 px, 2 px off the box), and the next part's fill would paint over it. */
@@ -1310,8 +1323,8 @@
 
 .wbar__seg {
   position: absolute;
-  top: -6px;
-  bottom: -6px;
+  top: calc(var(--hit) * -1);
+  bottom: calc(var(--hit) * -1);
   left: 0;
   right: 0;
   padding: 0;
@@ -1323,7 +1336,7 @@
 .wbar__seg::before {
   content: "";
   position: absolute;
-  inset: 6px 0;
+  inset: var(--hit) 0;
   background: var(--mark);
 }
 
@@ -1363,7 +1376,7 @@
 
 .wbar__mark-label {
   position: absolute;
-  bottom: calc(100% + 7px);
+  bottom: calc(100% + var(--hit) + 1px);
   font-size: 11.5px;
   font-weight: 600;
   line-height: 1.3;
@@ -1376,14 +1389,15 @@
 /* The bounds: a label under its time, in --faint 11 px. It is centred on its time, and near an end of the bar it opens inwards from it: `--shift` is how far left
    of the time it starts (0%, -50% or -100% of its own width). Labels that would be written over each other are in rows of 15 px. The component worked
    out the shifts and the rows for a bar of 480 px (`--shift`, `--row`, and `--rows` of them) and for one of 280 (`-narrow`); the bar's own width says
-   which is drawn. The labels hang from the bar (the row of 8 px under it is clear of the buttons, which reach 6 px below it); the band under the bar is room for them. */
+   which is drawn. The labels hang from the bar: the first row starts 2 px under the buttons' boxes (which reach `--hit` below the bar), and the band under the bar is
+   room for the rows and 8 px more. */
 .wbar__ticks {
-  height: calc(16px + var(--rows, 1) * 15px);
+  height: calc(10px + var(--hit) + var(--rows, 1) * 15px);
 }
 
 .wbar__tick {
   position: absolute;
-  top: calc(20px + var(--row, 0) * 15px);
+  top: calc(14px + var(--hit) + var(--row, 0) * 15px);
   color: var(--faint);
   font-size: 11px;
   line-height: 1.3;
@@ -1395,11 +1409,11 @@
 
 @container (width < 480px) {
   .wbar__ticks {
-    height: calc(16px + var(--rows-narrow, 1) * 15px);
+    height: calc(10px + var(--hit) + var(--rows-narrow, 1) * 15px);
   }
 
   .wbar__tick {
-    top: calc(20px + var(--row-narrow, 0) * 15px);
+    top: calc(14px + var(--hit) + var(--row-narrow, 0) * 15px);
     transform: translateX(var(--shift-narrow, 0%));
   }
 
@@ -1408,7 +1422,8 @@
   }
 }
 
-/* The tooltip opens over the bar, its bottom edge 12 px of the plot from the plot's top (the bar is at 22 px, the buttons' boxes at 16), and not under it as the
+/* The tooltip opens over the bar, its bottom edge 12 px of the plot from the plot's top (the buttons' boxes start at 16, at either size: the room above the bar and
+   what the button reaches above it move together), and not under it as the
    board draws it: the bar is the last thing in its card, `.card` clips what is outside it, and a tooltip of three lines under the bounds would be cut by the card's
    edge. Over the bar it is over the legend and the mark's label, which are in the card; and a finger on a phone does not cover it. It is at the middle of its window
    (`--tip-left`, a place on a bar of true widths), on the side that keeps it on the bar (`right`, `center` and `left`, which `plot__tip` has), and up to 340 px wide,
@@ -1434,7 +1449,8 @@
 
 .plot.is-changed,
 .share.is-changed,
-.barlist.is-changed {
+.barlist.is-changed,
+.wbar.is-changed {
   animation: value-mark 1200ms ease-out;
 }
 
@@ -1443,7 +1459,8 @@
 @media (prefers-reduced-motion: reduce) {
   .plot.is-changed,
   .share.is-changed,
-  .barlist.is-changed {
+  .barlist.is-changed,
+  .wbar.is-changed {
     animation: value-mark 1200ms ease-out !important;
   }
 }
@@ -1481,6 +1498,11 @@
   /* The mark is a position, not an identity: it is the system's text colour, which is what the page is read in. */
   .wbar__mark {
     background: CanvasText;
+  }
+
+  /* `forced-color-adjust: none` leaves the global ring in `--link`, which the user's colours say nothing about: the ring is the system's. */
+  .wbar__seg:focus-visible {
+    outline-color: Highlight;
   }
 
   .chart__toggle label:has(input:checked) {

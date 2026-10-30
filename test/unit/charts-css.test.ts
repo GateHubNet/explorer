@@ -939,6 +939,19 @@ describe("the window bar (WindowBar)", () => {
   /** Whether a stylesheet's rules mention `name` as a class: not a longer class that starts with it (`.wbar` is not `.wbar__seg`). */
   const mentions = (css: string, name: string) => new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(css);
   const px = (value: string | undefined) => Number.parseFloat(value ?? "NaN");
+  const COARSE = "@media (pointer: coarse), (max-width: 720px)";
+  /** A `calc()` of lengths in px and `var()`s as a number of px, with the variables given (a `100% + ` is the box's own edge and left out). */
+  const evalPx = (value: string, vars: Record<string, number>): number => {
+    const text = value
+      .replace(/var\((--[\w-]+)(?:\s*,\s*([^)]+))?\)/g, (_, name: string, fallback?: string) => String(vars[name] ?? Number.parseFloat(fallback ?? "NaN")))
+      .replace(/100% [+-] /g, "")
+      .replace(/calc/g, "")
+      .replace(/(\d)px/g, "$1");
+    if (!/^[\d\s.+\-*/()]+$/.test(text)) throw new Error(`not arithmetic on px: ${value}`);
+    return Function(`return (${text})`)() as number;
+  };
+  /** The sizes of the bar at a target of 24 px (the base) and at 44 px (a touch screen or a phone): `--target` and what `--hit`, the part of it that is not the bar, comes to. */
+  const sizes = (target: number) => ({ "--target": target, "--hit": evalPx(rule(chartsCss, ".wbar")["--hit"]!, { "--target": target }) });
   const OTHER_SHEETS = [["components.css", componentsCss], ["pages.css", read("pages.css")], ["base.css", read("base.css")], ["tokens.css", read("tokens.css")]] as const;
 
   // E9 found `.acct` also defined in pages.css, which is imported after components.css: the later rule won at equal specificity. The classes of the bar are this sheet's alone.
@@ -953,7 +966,10 @@ describe("the window bar (WindowBar)", () => {
 
   it("has the legend above a plot of 22 px of room for the mark's label, the bar of 12 px as a row, and the bounds' room under it", () => {
     expect(rule(chartsCss, ".wbar")).toMatchObject({ position: "relative", display: "flex", "flex-direction": "column", gap: "6px" });
-    expect(rule(chartsCss, ".wbar__plot")).toMatchObject({ position: "relative", "padding-top": "22px" });
+    expect(rule(chartsCss, ".wbar__plot").position).toBe("relative");
+    // 16 px of room and what the button reaches above the bar: 22 px, and 32 on a phone (the bar is at the same 12 px, and the buttons' boxes start 16 px into the room).
+    expect(evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, sizes(24))).toBe(22);
+    expect(evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, sizes(44))).toBe(32);
     expect(rule(chartsCss, ".wbar__track")).toMatchObject({ display: "flex", height: "12px" });
   });
 
@@ -961,19 +977,45 @@ describe("the window bar (WindowBar)", () => {
   // (flex-shrink 1, which the style's own 1 says, and the grow takes up what is left), and a stretch no window covers has none.
   it("lays the parts of the bar out in a row where a window has 24 px at the least, which the others give way for, and what is in a part is placed in it", () => {
     expect(rule(chartsCss, ".wbar__part")).toMatchObject({ position: "relative", "min-width": "0" });
-    expect(rule(chartsCss, ".wbar__part--window")["min-width"]).toBe("24px");
+    expect(rule(chartsCss, ".wbar__part--window")["min-width"]).toBe("var(--target)");
   });
 
-  // axe (WCAG 2.5.8, target-size) reads the button's own box, never a pseudo-element's: so the box has to be the 24 px, and the colour the 12 px in the middle of it.
-  it("makes the button of a window 24 px high, and as wide as its part, with the 12 px of colour in the middle of it", () => {
-    const segment = rule(chartsCss, ".wbar__seg");
-    expect(segment).toMatchObject({ position: "absolute", left: "0", right: "0", border: "0", background: "transparent", padding: "0" });
-    // The bar's 12 px, and what the button has above it and below it (negative offsets).
-    const height = px(rule(chartsCss, ".wbar__track").height) - px(segment.top) - px(segment.bottom);
-    expect(height).toBeGreaterThanOrEqual(24);
-    const fill = rule(chartsCss, ".wbar__seg::before");
-    expect(fill).toMatchObject({ content: '""', position: "absolute", background: "var(--mark)", inset: "6px 0" });
-    expect(height - 2 * px(fill.inset!.split(" ")[0])).toBe(px(rule(chartsCss, ".wbar__track").height));
+  // axe (WCAG 2.5.8, target-size) reads the button's own box, never a pseudo-element's: so the box has to be the target, and the colour the 12 px in the middle of it.
+  // The target is 24 px, and 44 px (spec 8) on a touch screen and on a phone, as the bar list's links are (`pointer: coarse` or a viewport of 720 px at most).
+  it("makes the button of a window 24 px high and wide, and 44 px on a touch screen or a phone, with the 12 px of colour in the middle of it", () => {
+    expect(rule(chartsCss, ".wbar")["--target"]).toBe("24px");
+    expect(rule(chartsCss, ".wbar", [COARSE])["--target"]).toBe("44px");
+    // What the button has above the bar and below it is `--hit`, and the target less the bar's 12 px is two of them.
+    expect(rule(chartsCss, ".wbar")["--hit"]).toBe("calc((var(--target) - 12px) / 2)");
+    const [segment, fill] = [rule(chartsCss, ".wbar__seg"), rule(chartsCss, ".wbar__seg::before")];
+    expect(segment).toMatchObject({ position: "absolute", left: "0", right: "0", border: "0", background: "transparent", padding: "0", top: "calc(var(--hit) * -1)", bottom: "calc(var(--hit) * -1)" });
+    expect(fill).toMatchObject({ content: '""', position: "absolute", background: "var(--mark)", inset: "var(--hit) 0" });
+    expect(rule(chartsCss, ".wbar__part--window")["min-width"]).toBe("var(--target)");
+    const bar = px(rule(chartsCss, ".wbar__track").height);
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      // The button's box is the target, and the fill in it is the bar.
+      expect(bar - evalPx(segment.top!, vars) - evalPx(segment.bottom!, vars), `the box at ${target}`).toBe(target);
+      expect(target - 2 * evalPx(fill.inset!.split(" ")[0]!, vars), `the fill at ${target}`).toBe(bar);
+    }
+  });
+
+  it("keeps what is over and under the bar clear of the button's box at either size, and takes no pointer, so that the button under a label is hovered", () => {
+    const bar = px(rule(chartsCss, ".wbar__track").height);
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      const hit = vars["--hit"];
+      // The mark's label ends above the button's top (the part's top less `--hit`); the first row of the bounds starts under the button's bottom.
+      const label = rule(chartsCss, ".wbar__mark-label");
+      expect(evalPx(label.bottom!, vars), `the label at ${target}`).toBeGreaterThan(hit);
+      for (const [vars2, top, at] of [[{ ...vars, "--row": 0 }, rule(chartsCss, ".wbar__tick").top, []], [{ ...vars, "--row-narrow": 0 }, rule(chartsCss, ".wbar__tick", [NARROW]).top, [NARROW]]] as const) {
+        expect(evalPx(top!, vars2), `the bounds at ${target} ${at.join(" ")}`).toBeGreaterThanOrEqual(bar + hit);
+      }
+      // The band under the bar holds a row of bounds, which starts under the button's box, and a line of text (11 px at 1.3).
+      const first = evalPx(rule(chartsCss, ".wbar__tick").top!, { ...vars, "--row": 0 }) - bar;
+      expect(evalPx(rule(chartsCss, ".wbar__ticks").height!, { ...vars, "--rows": 1 }), `the band at ${target}`).toBeGreaterThanOrEqual(first + Math.ceil(11 * 1.3));
+    }
+    for (const selector of [".wbar__mark", ".wbar__mark-label", ".wbar__tick", ".plot__tip"]) expect(rule(chartsCss, selector)["pointer-events"], selector).toBe("none");
   });
 
   it("draws the 2 px gap inside the end of each window but the last, in --surface, so that the widths stay exact spans", () => {
@@ -1006,16 +1048,19 @@ describe("the window bar (WindowBar)", () => {
     // It hangs from the bar's top (the part is the bar's 12 px).
     expect(px(mark.top)).toBeLessThan(0);
     expect(px(mark.top) + px(mark.height)).toBeGreaterThan(px(rule(chartsCss, ".wbar__track").height));
-    // Its label is over the bar: 7 px above it, in the 22 px that the plot keeps.
+    // Its label is over the bar: 7 px above it, in the 22 px that the plot keeps (32 px of room on a phone, where the button reaches 10 px further).
     const label = rule(chartsCss, ".wbar__mark-label");
-    expect(label).toMatchObject({ position: "absolute", bottom: "calc(100% + 7px)", "white-space": "nowrap", "pointer-events": "none" });
-    expect(Number(/calc\(100% \+ (\d+)px\)/.exec(label.bottom!)![1]) + Math.ceil(11.5 * 1.3)).toBeLessThanOrEqual(px(rule(chartsCss, ".wbar__plot")["padding-top"]));
+    expect(label).toMatchObject({ position: "absolute", bottom: "calc(100% + var(--hit) + 1px)", "white-space": "nowrap", "pointer-events": "none" });
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      expect(evalPx(label.bottom!, vars) + Math.ceil(11.5 * 1.3), `the label at ${target}`).toBeLessThanOrEqual(evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, vars));
+    }
   });
 
-  it("writes the bounds in --faint 11 px under the bar, clear of the buttons, which reach 6 px below it, and takes no pointer", () => {
+  it("writes the bounds in --faint 11 px under the bar, clear of the buttons, and takes no pointer", () => {
     expect(rule(chartsCss, ".wbar__tick")).toMatchObject({ position: "absolute", color: "var(--faint)", "font-size": "11px", "white-space": "nowrap", "pointer-events": "none" });
-    // The first row starts at 20 px of the part, which is 8 px under the bar of 12.
-    expect(Number(/^calc\((\d+)px/.exec(rule(chartsCss, ".wbar__tick").top!)![1])).toBeGreaterThanOrEqual(px(rule(chartsCss, ".wbar__track").height) + 6);
+    // The first row starts 8 px under the bar's bottom, and under the button's box (the next test): 14 px from the bar's top and what the button has above it.
+    expect(rule(chartsCss, ".wbar__tick").top).toBe("calc(14px + var(--hit) + var(--row, 0) * 15px)");
   });
 
   it("moves a label left of its time by the component's `--shift`, for the wide bar, and by `--shift-narrow` where the bar is under 480 px", () => {
@@ -1026,10 +1071,10 @@ describe("the window bar (WindowBar)", () => {
   });
 
   it("puts labels that would meet in rows of 15 px, as many as the component says, for the wide bar and (under 480 px of it) for the narrow one", () => {
-    expect(rule(chartsCss, ".wbar__tick").top).toBe("calc(20px + var(--row, 0) * 15px)");
-    expect(rule(chartsCss, ".wbar__ticks").height).toBe("calc(16px + var(--rows, 1) * 15px)");
-    expect(rule(chartsCss, ".wbar__tick", [NARROW]).top).toBe("calc(20px + var(--row-narrow, 0) * 15px)");
-    expect(rule(chartsCss, ".wbar__ticks", [NARROW]).height).toBe("calc(16px + var(--rows-narrow, 1) * 15px)");
+    expect(rule(chartsCss, ".wbar__tick").top).toBe("calc(14px + var(--hit) + var(--row, 0) * 15px)");
+    expect(rule(chartsCss, ".wbar__ticks").height).toBe("calc(10px + var(--hit) + var(--rows, 1) * 15px)");
+    expect(rule(chartsCss, ".wbar__tick", [NARROW]).top).toBe("calc(14px + var(--hit) + var(--row-narrow, 0) * 15px)");
+    expect(rule(chartsCss, ".wbar__ticks", [NARROW]).height).toBe("calc(10px + var(--hit) + var(--rows-narrow, 1) * 15px)");
   });
 
   it("is the container that the query asks, so that the bar's own width and not the page's says which labels are drawn", () => {
@@ -1040,10 +1085,13 @@ describe("the window bar (WindowBar)", () => {
   it("opens the tooltip over the bar, above the buttons' boxes, at the middle of its window, and not under the bar, where the card would clip it", () => {
     const tip = rule(chartsCss, ".wbar__tip");
     expect(tip).toMatchObject({ top: "auto", bottom: "calc(100% - 12px)", left: "var(--tip-left, 50%)" });
-    // The tooltip ends 12 px from the top of the plot; the bar is at 22 and the buttons' boxes reach 6 px above it, to 16.
-    const buttons = px(rule(chartsCss, ".wbar__plot")["padding-top"]) + px(rule(chartsCss, ".wbar__seg").top);
-    expect(buttons).toBe(16);
-    expect(Number(/calc\(100% - (\d+)px\)/.exec(tip.bottom!)![1])).toBeLessThan(buttons);
+    // The tooltip ends 12 px from the top of the plot; the buttons' boxes start 16 px from it, at either size (the bar is lower on a phone by what the button has more above it).
+    for (const target of [24, 44]) {
+      const vars = sizes(target);
+      const buttons = evalPx(rule(chartsCss, ".wbar__plot")["padding-top"]!, vars) + evalPx(rule(chartsCss, ".wbar__seg").top!, vars);
+      expect(buttons, `the buttons at ${target}`).toBe(16);
+      expect(Number(/calc\(100% - (\d+)px\)/.exec(tip.bottom!)![1])).toBeLessThan(buttons);
+    }
     // Up to 340 px, for a range on one line, and 90% of a bar that is narrower.
     expect(tip["max-width"]).toBe("min(340px, 90%)");
   });
@@ -1055,9 +1103,17 @@ describe("the window bar (WindowBar)", () => {
     expect(order).toBeGreaterThan(parse(chartsCss).findIndex((r) => r.selectors.includes(".plot__tip.right")));
   });
 
-  it("keeps the colours of the windows under forced colours, and draws the mark in the system's text colour, since a background would be gone", () => {
-    expect(rule(chartsCss, ".wbar__seg", ["@media (forced-colors: active)"])["forced-color-adjust"]).toBe("none");
-    expect(rule(chartsCss, ".wbar__mark", ["@media (forced-colors: active)"]).background).toBe("CanvasText");
+  it("keeps the colours of the windows under forced colours, draws the mark in the system's text colour, since a background would be gone, and the focus ring in Highlight", () => {
+    const forced = ["@media (forced-colors: active)"];
+    expect(rule(chartsCss, ".wbar__seg", forced)["forced-color-adjust"]).toBe("none");
+    expect(rule(chartsCss, ".wbar__mark", forced).background).toBe("CanvasText");
+    // `forced-color-adjust: none` leaves the global ring in `--link`, which the user's colours do not promise anything about.
+    expect(rule(chartsCss, ".wbar__seg:focus-visible", forced)["outline-color"]).toBe("Highlight");
+  });
+
+  it("rings after a change of the token, as the other forms do, and under reduced motion too", () => {
+    expect(rule(chartsCss, ".wbar.is-changed").animation).toBe("value-mark 1200ms ease-out");
+    expect(rule(chartsCss, ".wbar.is-changed", [REDUCED]).animation).toBe("value-mark 1200ms ease-out !important");
   });
 });
 
