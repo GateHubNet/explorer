@@ -10,11 +10,10 @@ import BigNumber from "bignumber.js";
 
 import { accountHref, ACCOUNT_TABS, DELEGATIONS_LIMIT, DELEGATIONS_WORD, isAccountTab, OBJECTS_LIMIT, type AccountTab, type ListTab } from "../domain/account-tabs";
 import { accountsIn, delegateOf, describe, rowSentence, type Segment } from "../domain/describe";
-import { ledgerId } from "../domain/describe/helpers";
 import { dropsToNative, formatUtc } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import { collectionLabel, nftWords, type CollectionKey } from "../domain/nft-params";
-import { delegationHref, OBJECT_KINDS, objectHref } from "../domain/object-link";
+import { delegationHref, ledgerId, OBJECT_KINDS, objectHref } from "../domain/object-link";
 import { MAX_TRAIL, parseTrail, trailPaging, type Paging } from "../domain/paging";
 import { balanceChanges } from "../domain/parse";
 import type { Native } from "../domain/parse/types";

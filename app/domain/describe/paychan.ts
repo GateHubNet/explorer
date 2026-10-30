@@ -2,6 +2,7 @@
 
 import BigNumber from "bignumber.js";
 import { dropsToNative, shortHash } from "../format";
+import { ledgerId } from "../object-link";
 import { nodesOf } from "../parse/objects";
 import {
   account,
@@ -11,7 +12,6 @@ import {
   createdDetail,
   detail,
   fieldDetail,
-  ledgerId,
   objectFieldDetail,
   objectSegment,
   parseAmount,

@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { allSwitches } from "../../test/support/switches";
 import { staticClosure, valueImports } from "../../test/support/value-imports";
 import { featuresOf, NO_FEATURES } from "../ui/features";
-import { objectHref as leafHref } from "./object-href";
-import { delegationHref, kindOfType, OBJECT_KINDS, objectHref } from "./object-link";
+import { ledgerId as leafLedgerId, objectHref as leafHref } from "./object-href";
+import { delegationHref, kindOfType, ledgerId, OBJECT_KINDS, objectHref } from "./object-link";
 
 const ID = "090539D4CC40DE307852D4EA97EFAE492E975525B4F8091D75542883A9D0AFB6";
 const A = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
@@ -58,6 +58,17 @@ describe("objectHref", () => {
   });
 });
 
+describe("ledgerId", () => {
+  it("is 64 hexadecimal digits in capitals, whatever their case", () => {
+    expect(ledgerId(ID)).toBe(ID);
+    expect(ledgerId(ID.toLowerCase())).toBe(ID);
+  });
+
+  it("is none for anything else: one digit short or long, a character that is no digit, a field left out", () => {
+    for (const raw of [ID.slice(1), `${ID}0`, `${ID.slice(1)}G`, `0x${ID.slice(2)}`, "", "nope", 5, null, undefined]) expect(ledgerId(raw), String(raw)).toBeUndefined();
+  });
+});
+
 describe("delegationHref", () => {
   it("is the delegator's Delegation tab while DELEGATION is on", () => {
     expect(delegationHref("xrpl", A, ON)).toBe(`/xrpl/account/${A}?tab=delegation`);
@@ -93,8 +104,9 @@ describe("the browser bundle", () => {
     expect(closure).not.toContain("domain/object-link.ts");
   });
 
-  it("re-exports the leaf's objectHref, so that a file of the Worker or a page can ask either, and the kinds' segments are the leaf's", () => {
+  it("re-exports the leaf's objectHref and ledgerId, so that a file of the Worker or a page can ask either, and the kinds' segments are the leaf's", () => {
     expect(objectHref).toBe(leafHref);
+    expect(ledgerId).toBe(leafLedgerId);
     expect(OBJECT_KINDS.map((each) => leafHref("xrpl", each.kind, { id: ID }, ON))).toEqual(OBJECT_KINDS.map((each) => `/xrpl/${each.segment}/${ID}`));
   });
 });

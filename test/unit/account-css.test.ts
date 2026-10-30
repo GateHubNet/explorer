@@ -91,9 +91,10 @@ describe("targets and boxes", () => {
     expect(rule(pagesCss, ".account-balance__link")["min-height"]).toBe("44px");
   });
 
-  it("makes the QR button a 44 px target on touch screens and phones, as every .copy button is", () => {
+  it("makes the QR button a 44 px target on touch screens and phones, as every .copy button is, and every .btn too (the Objects tab's row button: its 36 px is the desktop's)", () => {
     const touch = /@media \(pointer: coarse\), \(max-width: 720px\)\s*\{([\s\S]*?)\n\}/.exec(componentsCss)![1]!;
     expect(touch).toMatch(/\.copy\s*\{[^}]*min-height:\s*44px/);
+    expect(touch).toMatch(/\.btn,[^{}]*\{[^}]*min-height:\s*44px/);
   });
 
   it("lets the boxes of the page shrink below their content, so that a phone does not scroll sideways", () => {

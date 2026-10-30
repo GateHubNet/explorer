@@ -1,6 +1,7 @@
 // CheckCreate, CheckCash and CheckCancel.
 
-import { account, amountSegment, closingDetails, createdDetail, detail, fieldDetail, ledgerId, objectFieldDetail, objectSegment, rippleTime, seq } from "./helpers";
+import { ledgerId } from "../object-link";
+import { account, amountSegment, closingDetails, createdDetail, detail, fieldDetail, objectFieldDetail, objectSegment, rippleTime, seq } from "./helpers";
 import type { Detail, HandlerMap, Input, Segment, Summary } from "./types";
 
 /** "a check", linking to the check's page by the `CheckID` of a cashing or a cancellation; text when it has none. */

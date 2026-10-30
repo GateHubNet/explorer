@@ -588,6 +588,11 @@ a.example:hover {
   white-space: nowrap;
 }
 
+/* The link of an object's type keeps its width: the account's link beside it is the one that shrinks. */
+.objects__type {
+  flex: none;
+}
+
 .objects__more summary {
   display: flex;
   align-items: center;

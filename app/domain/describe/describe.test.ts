@@ -975,13 +975,45 @@ describe("describe: the objects of the escrow, check and channel types", () => {
     expect(rows(finished)[0]).toStrictEqual(["Owner", K]);
     // A failed one has no node: its EscrowID (upper-cased), else its owner and sequence.
     expect(objectOf(say(synth("EscrowFinish", { Owner: B, EscrowID: ID.toLowerCase() }), FAILED))).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
-    expect(objectOf(say(synth("EscrowCancel", { Owner: B, OfferSequence: 12 }), FAILED))).toStrictEqual(object("escrow", { owner: B, sequence: 12 }, "escrow 12"));
+    const bySequence = say(synth("EscrowCancel", { Owner: B, OfferSequence: 12 }), FAILED);
+    expect(objectOf(bySequence)).toStrictEqual(object("escrow", { owner: B, sequence: 12 }, "escrow 12"));
+    expect(textOf(bySequence.sentence)).toBe(`${A} tried to cancel escrow 12 of ${B}.${NO_PERMISSION}`);
+    expect(rows(bySequence)).toStrictEqual([
+      ["Owner", B],
+      ["Escrow sequence", "12"],
+    ]);
     // Neither: the words, and no link.
     const none = say(synth("EscrowFinish", { Owner: B }), FAILED);
     expect(objectOf(none)).toBeUndefined();
     expect(textOf(none.sentence)).toBe(`${A} tried to release an escrow of ${B}.${NO_PERMISSION}`);
     // An EscrowID that is no ID is none.
     expect(objectOf(say(synth("EscrowFinish", { Owner: B, EscrowID: "nope" }), FAILED))).toBeUndefined();
+  });
+
+  // A transaction that names the escrow by its ID says nothing of who owns it: on Xahau its Owner field may be the escrow's destination (ledger 10090323: rPicq… is the node's Destination, and
+  // rD74… its Account). Without the node, nothing says who owns it, so neither the sentence nor the details name an owner.
+  it("names no owner for a failed release or cancellation named by its EscrowID, whose metadata deleted no node: the link stays, the words and the Owner detail go", () => {
+    const ID = "AB".repeat(32);
+    const finish = say(synth("EscrowFinish", { Owner: B, EscrowID: ID }), FAILED);
+    expect(finish.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
+    expect(textOf(finish.sentence)).toBe(`${A} tried to finish an escrow.${NO_PERMISSION}`);
+    expect(rows(finish)).toStrictEqual([]);
+    const cancel = say(synth("EscrowCancel", { Owner: B, EscrowID: ID }), FAILED);
+    expect(cancel.sentence.find((segment) => segment.t === "object")).toStrictEqual(object("escrow", { id: ID }, "an escrow"));
+    expect(textOf(cancel.sentence)).toBe(`${A} tried to cancel an escrow.${NO_PERMISSION}`);
+    expect(rows(cancel)).toStrictEqual([]);
+    // With a sequence too: its words, and the detail of the sequence alone.
+    const withSequence = say(synth("EscrowFinish", { Owner: B, EscrowID: ID, OfferSequence: 12 }), FAILED);
+    expect(textOf(withSequence.sentence)).toBe(`${A} tried to finish escrow 12.${NO_PERMISSION}`);
+    expect(rows(withSequence)).toStrictEqual([["Escrow sequence", "12"]]);
+    // The recorded Xahau transaction, had it failed: its Owner field, the escrow's destination, is drawn nowhere.
+    const { tx } = loadTx("xahau-objects", "D1B7A0AD6C6DA3551F97F1C63E4035DABC7C58AE21F9F758090C588B824973BA");
+    const recorded = say(tx, FAILED, "XAH");
+    expect(textOf(recorded.sentence)).toBe(`r223rsyz1cfqPbjmiX6oYu1hFgNwCkWZH tried to finish an escrow.${NO_PERMISSION}`);
+    expect(rows(recorded)).toStrictEqual([]);
+    expect(JSON.stringify([recorded.sentence, recorded.details])).not.toContain("rPicqzcyoxw22XBrFCMAcFXYU2boeqYjm6");
+    // An EscrowID that is no ID says nothing: the Owner field is all there is.
+    expect(textOf(say(synth("EscrowFinish", { Owner: B, EscrowID: "nope" }), FAILED).sentence)).toBe(`${A} tried to release an escrow of ${B}.${NO_PERMISSION}`);
   });
 
   it("links no field that is not an ID: a check's or a channel's words and detail are then as they were", () => {

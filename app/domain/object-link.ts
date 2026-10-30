@@ -1,13 +1,13 @@
 // Where a link to an escrow, a check, a payment channel or a delegation leads (E10): the one decision every inbound link makes, and the pages' paths. Pure and safe for the browser, so that
 // the pages that show such an object but are no object page (a transaction's sentence, an account's Objects and Delegation tabs, the search) load only this. Types are imported, and
-// erased; its one import at run time is the leaf object-href.ts (`objectHref` and the paths' segments), which it re-exports, and which `Sentence` loads alone.
+// erased; its one import at run time is the leaf object-href.ts (`objectHref`, `ledgerId` and the paths' segments), which it re-exports, and which `Sentence` loads alone.
 
 import type { Features } from "../ui/features";
 import type { NetworkId } from "../server/networks";
 import type { ObjectApiKind } from "../server/api-types";
 import { OBJECT_SEGMENTS, type ObjectKind } from "./object-href";
 
-export { objectHref, type ObjectKind, type ObjectRefParts } from "./object-href";
+export { ledgerId, objectHref, type ObjectKind, type ObjectRefParts } from "./object-href";
 
 /**
  * Each kind of object: the ledger entry type it is (`type`), its name in a path (`kind`) and the segment the path has for it, the data API's name (`api`) and what a sentence

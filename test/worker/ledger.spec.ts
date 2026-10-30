@@ -616,6 +616,36 @@ describe("a ledger whose row was sent by a delegate", () => {
   });
 });
 
+describe("a ledger whose row names an escrow", () => {
+  // An escrow, a check or a channel a row names (ledger object pages spec 7) comes through `rowSentence` and the row's compact sentence as a link to its page, not an account: the names call does
+  // not ask for it. A ledger no other test asks for: EscrowFinish 375202…'s, of xrpl-objects, whose answer here is the page's expanded form, which the fixtures have only as a list of hashes.
+  const recorded = import.meta.glob("../fixtures/http/xrpl/data-api/transactions/375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA.json", { query: "?raw", import: "default" }) as Record<
+    string,
+    () => Promise<string>
+  >;
+
+  it("links the escrow an EscrowFinish released inside its row, by the node its metadata deleted", async () => {
+    const index = 107967068;
+    const ESCROW = "FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4";
+    const [load] = Object.values(recorded);
+    const { transaction } = JSON.parse(await load!()) as { transaction: { ledger_index: number; meta: Record<string, unknown> } };
+    expect(transaction.ledger_index).toBe(index);
+    const { body } = await syntheticLedger(index, 0);
+    (body.ledger as { transactions: unknown[] }).transactions = [transaction];
+    mock = mockUpstream("xrpl", { [`GET /v2/ledgers/${index}?expand=true&transactions=true`]: body, "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html } = await page(`/xrpl/ledger/${index}`);
+
+    const table = html.slice(html.indexOf('role="table" aria-label="Transactions"'));
+    const link = anchors(table).find((a) => a.text === "escrow 107945427");
+    expect(link?.attrs).toContain(`href="/xrpl/escrows/${ESCROW}"`);
+    expect(link?.attrs).toContain(`title="${ESCROW}"`);
+    expect(tableRows(html, "Transactions")[1]!.join(" ")).toContain("Released escrow 107945427 of");
+    // An object's link is no account's: the names asked are the accounts the page links.
+    expect(namesCalls(mock)).toEqual(callsOfLinks(html, "xrpl"));
+    expect(mock.unusedOverrides()).toEqual([]);
+  });
+});
+
 describe("a ledger without transactions", () => {
   it("says so, and still has its header", async () => {
     const { body } = await syntheticLedger(107700003, 0);

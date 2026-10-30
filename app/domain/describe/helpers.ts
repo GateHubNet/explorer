@@ -2,7 +2,7 @@
 
 import BigNumber from "bignumber.js";
 import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortHash } from "../format";
-import { kindOfType, type ObjectKind, type ObjectRefParts } from "../object-link";
+import { kindOfType, ledgerId, type ObjectKind, type ObjectRefParts } from "../object-link";
 import { nodesOf } from "../parse/objects";
 import type { AmmHop, Asset, Native, TxJson, TxMeta } from "../parse/types";
 import type { Detail, FlowAmount, Handler, HandlerMap, Segment } from "./types";
@@ -39,11 +39,6 @@ export const nftSegment = (v: string): Segment => ({ t: "nft", v });
 
 /** An escrow, a check or a payment channel, in the words `v`, which link to its page by `ref` while LEDGER_OBJECTS is on (ledger object pages spec 7). */
 export const objectSegment = (kind: ObjectKind, ref: ObjectRefParts, v: string): Segment => ({ t: "object", kind, ref, v });
-
-/** An ID of a ledger entry, 64 hexadecimal digits, in capitals, as a link names it; anything else (a field left out, a malformed one) is none. */
-export function ledgerId(raw: unknown): string | undefined {
-  return typeof raw === "string" && /^[0-9A-Fa-f]{64}$/.test(raw) ? raw.toUpperCase() : undefined;
-}
 
 /** Strings, segments and lists of them, in the order they read. */
 export type Part = string | Segment | readonly Part[];

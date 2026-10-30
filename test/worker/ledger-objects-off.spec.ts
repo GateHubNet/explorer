@@ -104,19 +104,31 @@ describe("the links into the pages with LEDGER_OBJECTS off", () => {
     expect(text).not.toMatch(/Open (escrow|check|payment channel) →|View delegation →/);
   });
 
+  // Each with the words of its sentence, the one detail that holds its object (its label and text), and its type among the objects it touched. The short forms are the page's own: the raw tabs
+  // hold only the full IDs, so that these say what the sentence and the details draw.
   it.each([
-    ["an EscrowFinish", "375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA", "released escrow 107945427 of"],
-    ["a CheckCreate", "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E", "wrote a check to"],
-    ["a PaymentChannelClaim", "886A9054CD78D4C2F1250999F8D65DB3048F8FC9AFB24523AD755B29797AC790", "from channel E22CCE…69EA"],
-    ["a DelegateSet", "4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66", "on its behalf"],
-  ])("draws %s with its objects in words, in its sentence, its details and the objects it touched, and links none of them", async (_name, hash, words) => {
+    ["an EscrowFinish", "375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA", "released escrow 107945427 of", null, "Escrow"],
+    ["a CheckCreate", "DE0C4334780CE8115BCCB7E41371B85D13D284F82F48EFB98BE8D2F894207E0E", "wrote a check to", ["Check", "DA6BE1…30EA"], "Check"],
+    ["a PaymentChannelClaim", "886A9054CD78D4C2F1250999F8D65DB3048F8FC9AFB24523AD755B29797AC790", "from channel E22CCE…69EA", ["Channel", "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA"], "PayChannel"],
+    ["a DelegateSet", "4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66", "on its behalf", null, "Delegate"],
+  ] as const)("draws %s as text: the words of its sentence, its object's detail where it has one and its type among the objects it touched, and links none of them", async (_name, hash, words, detail, type) => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/tx/${hash}`);
 
     expect(textOf(html)).toContain(words);
+    if (detail !== null) {
+      const [label, value] = detail;
+      expect(textOf(new RegExp(`<dt[^>]*>${label}</dt>\\s*<dd[^>]*>([\\s\\S]*?)</dd>`).exec(html)![1]!)).toBe(value);
+    }
     expect(hrefs(html).filter((href) => OBJECT_LINK.test(href))).toEqual([]);
-    // The objects touched are their type in mono and their account, as before the pages.
-    const touched = html.slice(html.indexOf('aria-label="Ledger objects touched"'));
-    expect(anchors(touched.slice(0, touched.indexOf("</ul>"))).every((a) => /href="\/xrpl\/account\/r\w+"/.test(a.attrs))).toBe(true);
+
+    // The objects touched are there: the type in mono, as text, and each link of the list an account's.
+    const at = html.indexOf('aria-label="Ledger objects touched"');
+    expect(at, "the list of the objects touched").toBeGreaterThan(-1);
+    const touched = html.slice(at, html.indexOf("</ul>", at));
+    expect(touched).toContain(`<span class="mono">${type}</span>`);
+    const links = anchors(touched);
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every((a) => /href="\/xrpl\/account\/r\w+"/.test(a.attrs))).toBe(true);
   });
 });

@@ -584,6 +584,62 @@ describe("TransactionPage: the context", () => {
     renderPage(transaction({ objects: [] }));
     expect(context().textContent).toContain("No ledger objects.");
   });
+
+  // Where a touched object leads (ledger object pages spec 7): an escrow, a check or a payment channel to its page by its index while LEDGER_OBJECTS is on, a delegation to the Delegation tab
+  // of the account that gave it while DELEGATION is on; any other, a Delegate with no account and an index that is no ID nowhere. The page has no loader validating the index.
+  describe("where a touched object leads", () => {
+    const CHANNEL = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+    const ON: Features = { ...NO_FEATURES, ledgerObjects: true, delegation: true };
+    const touched = async (objects: TransactionPageData["objects"], features: Features = ON) => {
+      renderUnderNetwork(<TransactionPage network={XRPL} data={transaction({ objects })} />, features, { path: `/xrpl/tx/${HASH}` });
+      return within(await screen.findByRole("list", { name: "Ledger objects touched" })).getAllByRole("listitem");
+    };
+
+    it("links a PayChannel to its page, and its type's link keeps its own width beside a long name", async () => {
+      const [item] = await touched([{ change: "modified", type: "PayChannel", index: CHANNEL, account: ALICE }]);
+      const link = within(item!).getByRole("link", { name: "PayChannel" });
+      expect(link.getAttribute("href")).toBe(`/xrpl/payment-channels/${CHANNEL}`);
+      expect(link.classList.contains("mono")).toBe(true);
+      expect(link.classList.contains("objects__type")).toBe(true);
+    });
+
+    it("links a Delegate to the Delegation tab of the account that gave it, and nowhere when it has no account", async () => {
+      const [given, unknown] = await touched([
+        { change: "created", type: "Delegate", index: CHANNEL, account: ALICE },
+        { change: "deleted", type: "Delegate", index: CHANNEL },
+      ]);
+      expect(within(given!).getByRole("link", { name: "Delegate" }).getAttribute("href")).toBe(`/xrpl/account/${ALICE}?tab=delegation`);
+      expect(unknown!.textContent).toBe("DeletedDelegate");
+      expect(within(unknown!).queryByRole("link")).toBeNull();
+    });
+
+    it("links none of a kind with a page whose index is no ID: its type is text, and its account still a link", async () => {
+      const items = await touched([
+        { change: "modified", type: "Escrow", index: "nope", account: ALICE },
+        { change: "modified", type: "Check", index: "AB".repeat(31) },
+        { change: "modified", type: "PayChannel", index: `${CHANNEL}0` },
+      ]);
+      expect(items.map((item) => item.textContent)).toEqual([`ModifiedEscrow${shortAddress(ALICE)}`, "ModifiedCheck", "ModifiedPayChannel"]);
+      expect(within(items[0]!).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`]);
+      expect(within(items[1]!).queryByRole("link")).toBeNull();
+      expect(within(items[2]!).queryByRole("link")).toBeNull();
+    });
+
+    it("links an index in lower case in capitals, and follows each switch: off, the type is text", async () => {
+      const [lower] = await touched([{ change: "modified", type: "Check", index: CHANNEL.toLowerCase() }]);
+      expect(within(lower!).getByRole("link", { name: "Check" }).getAttribute("href")).toBe(`/xrpl/checks/${CHANNEL}`);
+      cleanup();
+      const off = await touched(
+        [
+          { change: "modified", type: "Check", index: CHANNEL },
+          { change: "created", type: "Delegate", index: CHANNEL, account: ALICE },
+        ],
+        NO_FEATURES,
+      );
+      expect(within(off[0]!).queryByRole("link")).toBeNull();
+      expect(within(off[1]!).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([`/xrpl/account/${ALICE}`]);
+    });
+  });
 });
 
 describe("TransactionPage: a transaction shown from the node", () => {

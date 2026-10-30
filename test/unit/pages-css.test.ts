@@ -678,3 +678,17 @@ describe("the end of a row of the account's Objects tab", () => {
     for (const css of [componentsCss, baseCss]) expect(css).not.toMatch(/\.object__(end|tx)\b/);
   });
 });
+
+describe("the type link of a transaction's ledger objects touched", () => {
+  // `.objects li > a` lets the account's link shrink and ellipsize beside the rest of its row (ledger object pages spec 7: the type is now a link too, which the rule also matches). The type keeps
+  // its own width, as its text did, so that "PayChannel" never reads "PayCh…" beside a long name.
+  it("does not shrink, whatever the account's link beside it does", () => {
+    expect(rule(pagesCss, ".objects li > a")["min-width"]).toBe("0");
+    expect(rule(pagesCss, ".objects__type").flex).toBe("none");
+  });
+
+  it("declares .objects__type once in the sheet, and not in the component sheet or the base sheet", () => {
+    expect(pagesCss.match(/(?:^|[},])\s*\.objects__type\s*[{,]/gm) ?? []).toHaveLength(1);
+    for (const css of [componentsCss, baseCss]) expect(css).not.toContain(".objects__type");
+  });
+});

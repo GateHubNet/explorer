@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import type { Segment } from "../../domain/describe";
 import { formatAmount, formatCurrency, formatUtc, shortAddress, shortHash } from "../../domain/format";
 import { plainNameOf } from "../../domain/names";
-import { delegationHref, kindOfType, objectHref } from "../../domain/object-link";
+import { delegationHref, kindOfType, ledgerId, objectHref } from "../../domain/object-link";
 import type { ChangeRole, ChangeRow, Neighbour, TransactionPageData } from "../../server/transaction-view";
 import { AccountLink } from "../components/AccountLink";
 import { Amount } from "../components/Amount";
@@ -71,7 +71,10 @@ function Delta({ value }: { value: string }) {
  */
 function touchedHref(net: NetworkInfo["id"], object: TransactionPageData["objects"][number], features: Features): string | null {
   const kind = kindOfType(object.type);
-  if (kind !== undefined) return /^[0-9A-Fa-f]{64}$/.test(object.index) ? objectHref(net, kind, { id: object.index.toUpperCase() }, features) : null;
+  if (kind !== undefined) {
+    const id = ledgerId(object.index);
+    return id === undefined ? null : objectHref(net, kind, { id }, features);
+  }
   return object.type === "Delegate" && object.account !== undefined ? delegationHref(net, object.account, features) : null;
 }
 
@@ -243,7 +246,7 @@ export function TransactionPage({ network, data }: { network: NetworkInfo; data:
         {href === null ? (
           <span className="mono">{object.type}</span>
         ) : (
-          <Link to={href} className="mono">
+          <Link to={href} className="mono objects__type">
             {object.type}
           </Link>
         )}
