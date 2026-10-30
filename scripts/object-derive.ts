@@ -4,7 +4,7 @@
 //   - the rows (D5 §2.1, §2.2): `packages/shared/src/parsers/object-changes.parser.ts` (`ObjectChangesParser`, `eventOf`) and the columns `build-rows.ts` adds to each change (the
 //     transaction's place, type, result, sender and `Delegate`): `derivedObjectRows`;
 //   - the answers (D5 §5): `apps/api/src/ledger-objects/object-views.ts` (the objects and events, their key orders and the keys left out), `object-status.ts` (the status at the
-//     answer's close time), `ledger-objects.service.ts` (which rows a detail and a history page read, the creation, a channel's counts) and `object-answers.ts` (the bodies, the
+//     answer's close time: imported, not ported here, as app/domain/object-status.ts is the one implementation), `ledger-objects.service.ts` (which rows a detail and a history page read, the creation, a channel's counts) and `object-answers.ts` (the bodies, the
 //     coverage of an object: `itemCoverage` of `feature-coverage.service.ts`), `common/pagination.ts` (`paginate`, the marker): `derivedAnswer`, `derivedHistory`, `derivedLookup`.
 //
 // The objects are written key by key in the reference's order (docs/api-reference.md at PIN, "Ledger objects"); `fixtureText` sorts the keys of a file, so the tests check the order
@@ -13,6 +13,7 @@
 import BigNumber from "bignumber.js";
 import { encodeAccountID } from "ripple-address-codec";
 
+import { channelStatus, checkStatus, escrowStatus } from "../app/domain/object-status";
 import type {
   CheckObject,
   Coverage,
@@ -197,24 +198,8 @@ export function derivedObjectRows(ledgers: readonly RawLedger[]): DerivedObjectR
 
 // ---- Status (object-status.ts) -------------------------------------------------------------------------------------------------
 
-/** Every time is unix seconds; `t` is the answer's close time. A deleted object has the status its deleting event gives. */
-export function escrowStatus(o: { finishAfter?: number; cancelAfter?: number; removedBy?: string }, t: number): EscrowObject["status"] {
-  if (o.removedBy !== undefined) return o.removedBy === "finish" ? "finished" : o.removedBy === "cancel" ? "cancelled" : "removed";
-  if (o.cancelAfter !== undefined && t > o.cancelAfter) return "can_be_cancelled";
-  if (o.finishAfter !== undefined && t <= o.finishAfter) return "pending";
-  return "can_be_finished";
-}
-
-export function checkStatus(o: { expiration?: number; removedBy?: string }, t: number): CheckObject["status"] {
-  if (o.removedBy !== undefined) return o.removedBy === "cash" ? "cashed" : o.removedBy === "cancel" ? "cancelled" : "removed";
-  return o.expiration !== undefined && t >= o.expiration ? "expired" : "open";
-}
-
-export function channelStatus(o: { expiration?: number; cancelAfter?: number; removedBy?: string }, t: number): PaymentChannelObject["status"] {
-  if (o.removedBy !== undefined) return o.removedBy === "close" ? "closed" : "removed";
-  if (o.expiration !== undefined) return "closing";
-  return o.cancelAfter !== undefined && t >= o.cancelAfter ? "closing" : "open";
-}
+// The rules of a status are the app's (app/domain/object-status.ts, D5's `object-status.ts`): one implementation, which the pages apply to an object they read from the node and this
+// generator to the index's answers, so that the two cannot part ways (the agreement test of object-status.test.ts holds them to the generated files).
 
 // ---- The objects and events (object-views.ts) -----------------------------------------------------------------------------------
 

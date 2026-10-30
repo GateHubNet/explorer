@@ -112,7 +112,11 @@ function keylet(space: string, ...parts: string[]): string {
 }
 const accountHex = (address: string): string => Buffer.from(decodeAccountID(address)).toString("hex");
 const u32 = (n: number): string => n.toString(16).padStart(8, "0");
-/** The keylets of the four types: Escrow `u` (0x75) of owner and sequence, Check `C` (0x43) of owner and sequence, PayChannel `x` (0x78) of owner, destination and sequence, Delegate `E` (0x45) of account and authorize. */
+/**
+ * The keylets of the four types: Escrow `u` (0x75) of owner and sequence, Check `C` (0x43) of owner and sequence, PayChannel `x` (0x78) of owner, destination and sequence, Delegate `E` (0x45)
+ * of account and authorize. The escrow's is also the Worker's (app/server/keylet.ts: Web Crypto, so asynchronous, which this synchronous generator cannot await): the copy is kept, and
+ * test/unit/object-fixtures.test.ts pins the two equal over every recorded EscrowCreate.
+ */
 export const escrowKeylet = (owner: string, sequence: number): string => keylet("0075", accountHex(owner), u32(sequence));
 export const checkKeylet = (owner: string, sequence: number): string => keylet("0043", accountHex(owner), u32(sequence));
 export const channelKeylet = (owner: string, destination: string, sequence: number): string => keylet("0078", accountHex(owner), accountHex(destination), u32(sequence));

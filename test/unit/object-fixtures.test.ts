@@ -3,10 +3,12 @@ import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { channelStatus, checkStatus, escrowStatus } from "../../app/domain/object-status";
 import type { ObjectAnswer, ObjectApiKind, ObjectHistoryPage, TxObject } from "../../app/server/api-types";
+import { escrowKeylet as workerEscrowKeylet } from "../../app/server/keylet";
 import { checkDelegations, checkLedgerObject, checkObjectAnswer, checkObjectHistory } from "../../app/server/object-shape";
 import { HTTP, isHandWritten, isNftGenerated, isObjectGenerated, readLedgers, servedHashes, TX_HASH_PREFIX, type RawLedger, type RawTx } from "../../scripts/http-fixtures";
-import { checkStatus, channelStatus, derivedAnswer, derivedObjectRows, escrowStatus, markerPosition, rowsOfTransaction, type DerivedObjectRow } from "../../scripts/object-derive";
+import { derivedAnswer, derivedObjectRows, markerPosition, rowsOfTransaction, type DerivedObjectRow } from "../../scripts/object-derive";
 import {
   channelKeylet,
   checkKeylet,
@@ -199,6 +201,23 @@ describe.each(NETS)("%s", (net) => {
       created++;
     }
     expect(created).toBeGreaterThan(net === "xrpl" ? 8 : 1);
+  });
+
+  it("keeps the generator's synchronous escrow keylet equal to the Worker's (app/server/keylet.ts, Web Crypto) over every recorded EscrowCreate, and to the ID the ledger gave", async () => {
+    let pinned = 0;
+    for (const raw of worlds[net].ledgers) {
+      for (const tx of raw.ledger.transactions) {
+        if (tx.TransactionType !== "EscrowCreate") continue;
+        const nodes = (tx.metaData.AffectedNodes as Json[]).map((wrapper) => wrapper.CreatedNode).filter((node) => node?.LedgerEntryType === "Escrow");
+        if (nodes.length === 0) continue; // a tec created nothing
+        const sequence = typeof tx.Sequence === "number" && tx.Sequence > 0 ? tx.Sequence : (tx.TicketSequence as number);
+        const generated = escrowKeylet(tx.Account, sequence);
+        expect(await workerEscrowKeylet(tx.Account, sequence), tx.hash).toBe(generated);
+        expect(generated, tx.hash).toBe(nodes[0]!.LedgerIndex);
+        pinned++;
+      }
+    }
+    expect(pinned).toBeGreaterThan(net === "xrpl" ? 8 : 1);
   });
 
   it("writes every object, event and body in the reference's key order", () => {
