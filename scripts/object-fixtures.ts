@@ -335,6 +335,8 @@ function delegatedEdit(tx: Json, meta: Json): void {
     ModifiedNode: {
       FinalFields: { Account: SYNTHETIC_DELEGATE, Balance: String(held), Flags: 0, OwnerCount: 0, Sequence: 1 },
       LedgerEntryType: "AccountRoot",
+      // Every node of the ledger's metadata has its index; the delegate's is seeded, so the two delegated transactions name one node.
+      LedgerIndex: hexOf(mulberry32(seedOf("xrpl", "objects", "delegate-root")), 64),
       PreviousFields: { Balance: String(held + fee) },
     },
   });

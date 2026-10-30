@@ -5,7 +5,7 @@
     "hash": "338995CFE5A58C3D1DBB0E0A56C63E3F7120EEB8F4BBAFFA15634F5DFBACA4C2",
     "ledger_index": 107558036,
     "meta": {
-      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rEb6n764cg1J7vKLvySBviTuT5Pquf3q3v","Balance":"5641883","Flags":0,"OwnerCount":6,"Sequence":68630923},"LedgerEntryType":"AccountRoot","LedgerIndex":"D2AEED3A8C2ACE9B5F40F510D69EC6C8E1FA3F2B041EEA39B09B035D0F9C3F86","PreviousFields":{"Sequence":68630922},"PreviousTxnID":"F1EDC6A793C05B4B15FB1448292EC45DC2A17573A31220F3897C8134011411D7","PreviousTxnLgrSeq":107558035}},{"ModifiedNode":{"FinalFields":{"Account":"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh","Balance":"100000000","Flags":0,"OwnerCount":0,"Sequence":1},"LedgerEntryType":"AccountRoot","PreviousFields":{"Balance":"100000010"}}}],
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"rEb6n764cg1J7vKLvySBviTuT5Pquf3q3v","Balance":"5641883","Flags":0,"OwnerCount":6,"Sequence":68630923},"LedgerEntryType":"AccountRoot","LedgerIndex":"D2AEED3A8C2ACE9B5F40F510D69EC6C8E1FA3F2B041EEA39B09B035D0F9C3F86","PreviousFields":{"Sequence":68630922},"PreviousTxnID":"F1EDC6A793C05B4B15FB1448292EC45DC2A17573A31220F3897C8134011411D7","PreviousTxnLgrSeq":107558035}},{"ModifiedNode":{"FinalFields":{"Account":"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh","Balance":"100000000","Flags":0,"OwnerCount":0,"Sequence":1},"LedgerEntryType":"AccountRoot","LedgerIndex":"3AA71286C6EF68C9156C1544BF45C9ACDEBEC4CE82DAF3B6450DB94EA7EF7A4E","PreviousFields":{"Balance":"100000010"}}}],
       "TransactionIndex": 72,
       "TransactionResult": "tecPATH_DRY"
     },

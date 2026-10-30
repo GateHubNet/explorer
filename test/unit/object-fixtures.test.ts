@@ -461,6 +461,9 @@ describe("the synthetic objects", () => {
       expect(tx.Delegate).toBe(SYNTHETIC_DELEGATE);
       const delegateRoot = (tx.metaData.AffectedNodes as Json[]).map((wrapper) => wrapper.ModifiedNode).find((node) => node?.FinalFields?.Account === SYNTHETIC_DELEGATE);
       expect(BigInt(delegateRoot.PreviousFields.Balance) - BigInt(delegateRoot.FinalFields.Balance)).toBe(BigInt(tx.Fee!));
+      // Every node of the ledger's metadata has its index, and the delegate's root is one node.
+      expect(delegateRoot.LedgerIndex).toMatch(/^[0-9A-F]{64}$/);
+      expect(delegateRoot.LedgerIndex).toBe((payment!.metaData.AffectedNodes as Json[]).map((wrapper) => wrapper.ModifiedNode).find((node) => node?.FinalFields?.Account === SYNTHETIC_DELEGATE).LedgerIndex);
     }
     expect(payment!.metaData.TransactionResult).toBe("tesSUCCESS");
     expect(tec!.metaData.TransactionResult).toMatch(/^tec/);
