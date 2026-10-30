@@ -23,7 +23,8 @@ import {
   XRPL_LEDGER,
   XRPL_PAYMENT,
 } from "./fixtures";
-import { drawnBy, type Net } from "./names-pages";
+import { drawnBy, type NamedPage, namedPagesOn, objectNamedPages } from "./names-pages";
+import { type ObjectCase, objectCase } from "./object-pages";
 import { expect, hashWords, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
@@ -458,19 +459,9 @@ test.describe("display names", () => {
   const linksOf = (snapshot: string) =>
     [...snapshot.matchAll(/- link "((?:[^"\\]|\\.)*)"[^\n]*:\n\s+- \/url: (\S+)/g)].map((match) => ({ name: match[1]!.replace(/\\(.)/g, "$1"), href: match[2]! }));
 
-  const NAMED_PAGES: Array<{
-    name: string;
-    net: Net;
-    path: string;
-    ready: (page: Page) => Promise<void>;
-    /** Where its links to accounts are: the page's main, unless the page has others that are no account's name (the home page's examples). */
-    scope?: (page: Page) => Locator;
-    /** The account the page is of: its tabs and its pager are links to the page by their own words. */
-    own?: string;
-    /** The kinds of names the links must have among them, and whether one must be an account with a label and no name. */
-    kinds: string[];
-    labelled?: boolean;
-  }> = [
+  // The pages are `NamedPage`s (test/e2e/names-pages.ts): where its links to accounts are (the page's main, unless the page has others that are no account's name: the home page's examples), the
+  // account the page is of (its tabs and its pager are links to the page by their own words), and the kinds of names the links must have among them, with whether one must be an account with a label and no name.
+  const NAMED_PAGES: NamedPage[] = [
     { name: "a payment", net: "xrpl", path: `/xrpl/tx/${XRPL_PAYMENT}`, ready: visible("Balance changes"), kinds: ["verified"] },
     { name: "a Xahau Remit", net: "xahau", path: `/xahau/tx/${XAHAU_REMIT}`, ready: visible("Balance changes"), kinds: ["verified", "account", "domain"] },
     {
@@ -484,6 +475,8 @@ test.describe("display names", () => {
     { name: "a Xahau account's page", net: "xahau", path: `/xahau/account/${XAHAU_ACCOUNT}`, ready: visible("Transactions"), own: XAHAU_ACCOUNT, kinds: ["verified", "account", "domain"] },
     // The account that activated the XRPL account has a label and no name: its link is its address and the words of the label.
     { name: "an XRPL account's page", net: "xrpl", path: `/xrpl/account/${XRPL_ACCOUNT}`, ready: visible("Transactions"), own: XRPL_ACCOUNT, kinds: [], labelled: true },
+    // The ledger object pages and the account's Delegation tab (E10), those the Worker under test has: the three kinds of names are among them (names-pages.ts says which).
+    ...namedPagesOn(objectNamedPages(), FEATURES_OFF),
   ];
 
   for (const under of NAMED_PAGES) {
@@ -1065,18 +1058,27 @@ test.describe("the NFT pages", () => {
   });
 });
 
-// ---- The ledger object pages ---------------------------------------------------------------------------------------------------------------
+// ---- The ledger object pages and the Delegation tab ------------------------------------------------------------------------------------------
 // An escrow's page (ledger object pages spec 4.1 and 4.2): one that can be cancelled, whose Pending window is an hour on a bar of two weeks, so that axe's target-size runs on the window
-// bar's narrowest button (24 px, 44 px on a phone), the same with a window's tooltip shown, and a finished one with the removed banner and its links; at both widths, in the two system
-// themes. At 375 px no page scrolls sideways. Where E2E_FEATURES_OFF lists LEDGER_OBJECTS the pages are not found and the block skips itself; against a real stack, which has none of the
-// generated objects, too. (Task 15 adds the other two pages and the end-to-end spec of their own.)
+// bar's narrowest button (24 px, 44 px on a phone), the same with a window's tooltip shown, and a finished one with the removed banner and its links. A check's page (4.3): one that expired
+// and is still in the ledger, with its banner and its flow, and a cashed one, removed, whose history the index starts late. A channel's page (4.4): one that is closing, with its deposit bar,
+// a closed one, removed, and the long one's second page of events (its Newer and Older). The account's Delegation tab (6.1) with its two lists. Each at both widths, in the two system
+// themes (the objects are the fixtures' cases, test/e2e/object-pages.ts); at 375 px no page scrolls sideways. Where E2E_FEATURES_OFF lists LEDGER_OBJECTS the pages are not found, and where it
+// lists DELEGATION the tab is the "soon" label: each block skips itself (the specs of the pages check that); against a real stack, which has none of the generated objects, too.
 
 const LEDGER_OBJECTS_ON = !FEATURES_OFF.has("LEDGER_OBJECTS");
+const DELEGATION_ON = !FEATURES_OFF.has("DELEGATION");
 const windowBar = (page: Page) => page.getByRole("group", { name: "When the escrow can be finished or cancelled" });
 const escrowReady = async (page: Page) => {
   await expect(page.getByRole("heading", { level: 1, name: "Escrow" })).toBeVisible();
   await expect(windowBar(page)).toBeVisible();
 };
+/** A check's or a channel's page is whole when its `<h1>` and its figure (the flow, the deposit bar) are drawn. */
+const figureReady = (title: string, figure: string) => async (page: Page) => {
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  await expect(page.getByRole("group", { name: figure })).toBeVisible();
+};
+const objectPath = (segment: string, which: ObjectCase) => `/xrpl/${segment}/${objectCase("xrpl", which).id}`;
 
 const ESCROW_PAGES: PageUnderTest[] = [
   { name: "escrow that can be cancelled", path: `/xrpl/escrows/${XRPL_ESCROW.cancellable}`, ready: escrowReady },
@@ -1099,16 +1101,63 @@ const ESCROW_PAGES: PageUnderTest[] = [
   },
 ];
 
-test.describe("the ledger object pages", () => {
-  test.skip(!LEDGER_OBJECTS_ON, "LEDGER_OBJECTS is off in the Worker under test: its pages are not found (ledger-objects-off.spec.ts checks that)");
-  test.skip(LIVE, "the pages are drawn from the generated object fixtures, which a real stack does not hold");
+const CHECK_PAGES: PageUnderTest[] = [
+  {
+    name: "check that expired and is still in the ledger",
+    path: objectPath("checks", "check-expired"),
+    ready: async (page) => {
+      await figureReady("Check", "Flow of the check")(page);
+      await expect(page.getByText("Expired, but still in the ledger")).toBeVisible();
+    },
+  },
+  {
+    name: "cashed check",
+    path: objectPath("checks", "check-cashed"),
+    ready: async (page) => {
+      await figureReady("Check", "Flow of the check")(page);
+      await expect(page.getByText(/^Removed from the ledger in ledger/)).toBeVisible();
+    },
+  },
+];
 
+const CHANNEL_PAGES: PageUnderTest[] = [
+  { name: "channel that is closing", path: objectPath("payment-channels", "channel-closing"), ready: figureReady("Payment channel", "Deposit paid out and left") },
+  {
+    name: "closed channel",
+    path: objectPath("payment-channels", "channel-closed"),
+    ready: async (page) => {
+      await figureReady("Payment channel", "Deposit paid out and left")(page);
+      await expect(page.getByText(/^Removed from the ledger in ledger/)).toBeVisible();
+    },
+  },
+  {
+    name: "channel's second page of events",
+    path: `${objectPath("payment-channels", "channel-long")}?marker=${objectCase("xrpl", "channel-long").markers![0]}`,
+    ready: figureReady("Payment channel", "Deposit paid out and left"),
+  },
+];
+
+/** The Delegation tab is whole when its two lists have streamed in (nothing in it is `aria-busy` and both tables are drawn). */
+const DELEGATION_TAB: PageUnderTest[] = [
+  {
+    name: "account's Delegation tab",
+    path: `/xrpl/account/${XRPL_ACCOUNT}?tab=delegation`,
+    ready: async (page) => {
+      await expect(page.getByRole("table", { name: "Permissions given" })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Permissions held" })).toBeVisible();
+      await expect(page.locator(".delegation__section [aria-busy]")).toHaveCount(0);
+    },
+  },
+];
+
+/** Axe at both widths in the two system themes (a phone's page not scrolling sideways), the landmarks of one role and name, and the names nothing is given that it cannot have, for `pages`. */
+function matrixOf(pages: PageUnderTest[]): void {
   for (const viewport of VIEWPORTS) {
     test.describe(`axe at ${viewport.name}`, () => {
       for (const setting of SETTINGS.filter((candidate) => candidate.toggle === undefined)) {
         test.describe(`${setting.name}`, () => {
           test.use({ viewport: viewport.size, colorScheme: setting.system });
-          for (const under of ESCROW_PAGES) {
+          for (const under of pages) {
             test(`${under.name} has no serious or critical violation${viewport.size.width === 375 ? ", and does not scroll sideways" : ""}`, async ({ page }) => {
               await open(page, under, setting);
               expect(await seriousViolations(page)).toEqual([]);
@@ -1121,7 +1170,7 @@ test.describe("the ledger object pages", () => {
   }
 
   test.describe("landmarks", () => {
-    for (const under of ESCROW_PAGES) {
+    for (const under of pages) {
       test(`${under.name} has no two landmarks of one role and name`, async ({ page }) => {
         await page.goto(under.path);
         await hydrated(page);
@@ -1131,4 +1180,30 @@ test.describe("the ledger object pages", () => {
       });
     }
   });
+
+  // axe reports a name on an element that cannot have one (a permission chip's `title` is no name; a bar's buttons have theirs) not as a violation but as "needs review".
+  test.describe("names", () => {
+    for (const under of pages) {
+      test(`${under.name}: nothing is given a name it cannot have`, async ({ page }) => {
+        await page.goto(under.path);
+        await hydrated(page);
+        await under.ready(page);
+        const results = await new AxeBuilder({ page }).withRules(["aria-prohibited-attr", "aria-allowed-attr", "aria-allowed-role"]).analyze();
+        const found = [...results.violations, ...results.incomplete].map((rule) => `${rule.id}: ${rule.nodes.map((node) => node.target.join(" ")).join(" | ")}`);
+        expect(found).toEqual([]);
+      });
+    }
+  });
+}
+
+test.describe("the ledger object pages", () => {
+  test.skip(!LEDGER_OBJECTS_ON, "LEDGER_OBJECTS is off in the Worker under test: its pages are not found (ledger-objects.spec.ts checks that)");
+  test.skip(LIVE, "the pages are drawn from the generated object fixtures, which a real stack does not hold");
+  matrixOf([...ESCROW_PAGES, ...CHECK_PAGES, ...CHANNEL_PAGES]);
+});
+
+test.describe("the account's Delegation tab", () => {
+  test.skip(!DELEGATION_ON, "DELEGATION is off in the Worker under test: the tab is the 'soon' label (delegation.spec.ts checks that)");
+  test.skip(LIVE, "the tab is drawn from the hand-written delegation files of the fixtures, which a real stack does not hold");
+  matrixOf(DELEGATION_TAB);
 });

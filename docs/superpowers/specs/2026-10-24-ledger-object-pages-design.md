@@ -118,9 +118,10 @@ The paths go in `PENDING_PATHS` until `pnpm api:sync` brings them into `PATHS`. 
 `ObjectHistoryPage`, `Delegation`, `DelegationPermission` (`{ permission, kind: "transaction" | "granular" | "unknown",
 transaction_type? }`), `DelegationsPage`, `LedgerObjectRef`; `Coverage` is E8's type. `object-shape.ts` checks each answer inside the
 cached load (`checkObjectAnswer(kind, body)`, `checkObjectHistory`, `checkDelegations`, `checkLedgerObject`): IDs of 64 hex digits,
-accounts classic addresses with a valid checksum (they go into links), amounts with decimal-text values (`isDecimalText`), times ISO
-(`isIsoTime`), statuses and events from D5's lists, and `coverage` through E8's `checkCoverage` (`app/server/coverage.ts`). A 200 that
-fails is kind `server`, never stored.
+accounts classic addresses with a valid checksum (they go into links), amounts with text values (E10Δ2, C29: a token's `amount`, `balance`, `send_max`, `delivered` and
+`opened_with`, and the same keys on events, are `isNumberText`, because the ledger writes large and tiny token values in exponent form and D5 serves them as on the ledger; every native
+and MPT value, and `remaining`, `amount_change` and `balance_change`, are `isDecimalText`), times ISO (`isIsoTime`), statuses and events from D5's lists, and `coverage` through E8's
+`checkCoverage` (`app/server/coverage.ts`). A 200 that fails is kind `server`, never stored.
 
 ### 2.2 Node client (`app/server/node-rpc.ts`)
 
@@ -311,7 +312,7 @@ the Newer/Older links of the account tabs. New:
   had given {authorize} before; it does not add to them."; with an empty list, "{account} removed every permission it had given
   {authorize}". Failed: "tried to let …" / "tried to remove …" and the result's text. Details: Delegate, Permissions (chips and "n of 10"),
   then `closingDetails`.
-- **Lists** (`rowSentence`, the home, ledger and account lists): a delegated transaction's row ends "· sent by {delegate}"; on the
+- **Lists** (`rowSentence`, the ledger and account lists; the home list has no sentence column, so no tail): a delegated transaction's row ends "· sent by {delegate}"; on the
   delegate's own account page "· sent by this account as its delegate". `changeOf` in `account-view.ts` tests the fee against the fee
   payer (`tx.Delegate ?? tx.Account`), not the sender.
 
@@ -319,12 +320,12 @@ the Newer/Older links of the account tabs. New:
 
 | From | Link | While |
 |---|---|---|
-| Objects tab: an `Escrow`, `Check`, `PayChannel` row | "Open escrow →", "Open check →", "Open payment channel →" to the object's page by its `index` | `LEDGER_OBJECTS` on (else no button) |
+| Objects tab: an `Escrow`, `Check`, `PayChannel` row | "Open escrow →", "Open check →", "Open payment channel →" to the object's page by its `index`, as the row's `link` field (E8's, C20) | `LEDGER_OBJECTS` on (else no button) |
 | Objects tab: a `Delegate` row (new fields: Delegate, On behalf of, Permissions "n of 10") | "View delegation →" to `?tab=delegation` of the delegator | `DELEGATION` on |
 | Objects tab: an incoming object (destination = the account) | a "From" field with its account | always (`objectRows(objects, native, address)`) |
 | Transaction page, ledger objects touched | the entry links its page (`objectHref`); a `Delegate` entry the delegator's Delegation tab | the switches |
 | `EscrowCreate`, `CheckCreate`, `PaymentChannelCreate` | a detail "Escrow" / "Check" / "Channel" with the created node's ID | `LEDGER_OBJECTS` (else the ID as text) |
-| `EscrowFinish`, `EscrowCancel` | "escrow 57978925" in the sentence: by the deleted node's `LedgerIndex`, else Xahau's `EscrowID`, else `/escrows/{owner}/{sequence}` (a failed one) | `LEDGER_OBJECTS` |
+| `EscrowFinish`, `EscrowCancel` | "escrow 57978925" in the sentence: by the deleted node's `LedgerIndex`, else Xahau's `EscrowID`, else `/escrows/{owner}/{sequence}` (a failed one); a failed one named only by its `EscrowID` has no owner to name, so it reads "tried to release an escrow" (or "cancel"), with no "of {owner}" and no Owner detail | `LEDGER_OBJECTS` |
 | `CheckCash`, `CheckCancel` | "a check" in the sentence and the "Check ID" detail, by `CheckID` | `LEDGER_OBJECTS` |
 | `PaymentChannelFund`, `PaymentChannelClaim` | "channel 3F9A21…B7C4" and the "Channel" detail, by `Channel` | `LEDGER_OBJECTS` |
 
@@ -338,7 +339,8 @@ and `permission`; the compiler's exhaustiveness check finds them.
 E10 extends E8's search sequence (E8 §7) at its two points and changes nothing else in it: while `LEDGER_OBJECTS` is on, `findHash`
 (`app/server/resolve.ts`) adds `ledgerObject(id)` to the index's questions (beside the transaction, the ledger and E8's NFT) and, when the
 index has none of them, `ledgerEntry(id)` (tracked types only) to the node's (beside `tx`, `ledger` and E8's NFT readers). An object: 302 to
-its page (a `Delegate`: its delegator's Delegation tab while `DELEGATION` is on, else the account page). Two or more found: E8's choice
+its page (a `Delegate`: its delegator's Delegation tab while `DELEGATION` is on, else the account page; a removed `Delegate`, the account page, because the tab lists only the delegations
+in the ledger now: E10Δ3). Two or more found: E8's choice
 page, with a row per object. The help text and the search hints (`search-hints.ts`) add the objects to E8's words for 64 hex digits:
 "Transaction, ledger, NFT, escrow, check or payment channel" (each part only while its switch is on). Failures keep E8's rules (a failure
 that leaves the question open is a 503).

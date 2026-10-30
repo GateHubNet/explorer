@@ -3,9 +3,11 @@
 // the words here are the spec's, written out, so that a page that drew them wrongly is not excused by the code that drew them. (test/support/names.ts could not be imported here in any case:
 // it uses `import.meta.glob`, which only Vite knows.)
 
-import type { Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
-import { fixtureEntryOf, type FixtureName } from "./fixtures";
+import type { FeatureVar } from "../../app/ui/features";
+import { fixtureEntryOf, type FixtureName, XRPL_ACCOUNT } from "./fixtures";
+import { objectCase, type ObjectCase } from "./object-pages";
 import { expect } from "./support";
 
 export type Net = "xrpl" | "xahau";
@@ -72,4 +74,65 @@ export async function expectAccountsDrawn(scope: Locator, net: Net, { full = fal
     else plain += 1;
   }
   return { kinds, plain, links: links.length };
+}
+
+/**
+ * A page that draws accounts, as the specs of names look at it: where it is, what shows that it is whole, where its links to accounts are (the page's main, unless it has others that are no
+ * account's name), the account it is of (its tabs and its pager are links to the page by their own words), the kinds of names the links must have among them (`verified`, `account`, `domain`), and
+ * whether one must be an account with a label and no name. `needs` is the switch the page needs on in the Worker under test: with it off the page is not there.
+ */
+export interface NamedPage {
+  name: string;
+  net: Net;
+  path: string;
+  ready: (page: Page) => Promise<void>;
+  scope?: (page: Page) => Locator;
+  own?: string;
+  kinds: string[];
+  labelled?: boolean;
+  needs?: FeatureVar;
+}
+
+/** The pages of `pages` that the Worker under test has: those whose switch is not in `off` (`featuresOff(process.env)`). */
+export const namedPagesOn = (pages: readonly NamedPage[], off: ReadonlySet<FeatureVar>): NamedPage[] => pages.filter((page) => page.needs === undefined || !off.has(page.needs));
+
+/** An object's page is whole when its `<h1>` is drawn. */
+const titled = (title: string) => async (page: Page) => void (await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible());
+
+/**
+ * The ledger object pages (E10) and the account's Delegation tab: every address on them is an `AccountLink`, drawn by what the names fixtures say. The objects are the cases of the fixtures
+ * (test/e2e/object-pages.ts, never written here), chosen so that the three kinds of names are among them: the escrow's and the channel's owner is a verified name, the finished escrow's owner is
+ * a domain that is not verified, the cashed check's destination is GateHub's own name; Xahau's channel has all three. The tab's accounts are the delegates and the delegators of the active
+ * account's two lists, and, in its header, the account that activated it, which has a label and no name. The names are the fixtures' (a real stack has names of its own).
+ */
+export function objectNamedPages(): NamedPage[] {
+  const object = (name: string, net: Net, segment: string, which: ObjectCase, title: string, kinds: string[]): NamedPage => ({
+    name,
+    net,
+    path: `/${net}/${segment}/${objectCase(net, which).id}`,
+    ready: titled(title),
+    kinds,
+    needs: "LEDGER_OBJECTS",
+  });
+  return [
+    object("an escrow that can be cancelled", "xrpl", "escrows", "escrow-cancellable", "Escrow", ["verified"]),
+    object("a finished escrow", "xrpl", "escrows", "escrow-finished", "Escrow", ["domain"]),
+    object("an expired check", "xrpl", "checks", "check-expired", "Check", ["verified"]),
+    object("a cashed check", "xrpl", "checks", "check-cashed", "Check", ["account"]),
+    object("a channel that is closing", "xrpl", "payment-channels", "channel-closing", "Payment channel", ["verified"]),
+    object("a channel on Xahau", "xahau", "payment-channels", "xahau-token-channel", "Payment channel", ["verified", "account"]),
+    {
+      name: "the account's Delegation tab",
+      net: "xrpl",
+      path: `/xrpl/account/${XRPL_ACCOUNT}?tab=delegation`,
+      ready: async (page) => {
+        await expect(page.getByRole("table", { name: "Permissions given" })).toBeVisible();
+        await expect(page.getByRole("table", { name: "Permissions held" })).toBeVisible();
+      },
+      own: XRPL_ACCOUNT,
+      kinds: ["account"],
+      labelled: true,
+      needs: "DELEGATION",
+    },
+  ];
 }
