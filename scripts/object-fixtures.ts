@@ -34,6 +34,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { decodeAccountID, encodeAccountID } from "ripple-address-codec";
 
 import type { Coverage, LedgerWithHashes, ObjectApiKind, TxObject } from "../app/server/api-types";
+import { escrowPreimage } from "../app/server/keylet";
 import { XRPL_ACCOUNT } from "../test/e2e/fixtures";
 import { dataApiFile, nodeFile, type NetworkName } from "../test/support/upstream-core";
 import {
@@ -106,18 +107,18 @@ const drops = (whole: number): string => String(whole * 1_000_000);
 /** A Ripple-epoch time from unix seconds. */
 const rippleOf = (unix: number): number => unix - RIPPLE_EPOCH;
 
-/** SHA-512Half of a ledger key's namespace and parts: a keylet (rippled's `Indexes.cpp`). */
-function keylet(space: string, ...parts: string[]): string {
-  return createHash("sha512").update(Buffer.from(space + parts.join(""), "hex")).digest("hex").slice(0, 64).toUpperCase();
-}
+/** SHA-512Half (the first 32 bytes of SHA-512, upper-case hex) of a keylet's preimage: rippled's `Indexes.cpp`. */
+const sha512Half = (preimage: Uint8Array): string => createHash("sha512").update(preimage).digest("hex").slice(0, 64).toUpperCase();
+/** A keylet of a namespace and parts, as hex. */
+const keylet = (space: string, ...parts: string[]): string => sha512Half(Buffer.from(space + parts.join(""), "hex"));
 const accountHex = (address: string): string => Buffer.from(decodeAccountID(address)).toString("hex");
 const u32 = (n: number): string => n.toString(16).padStart(8, "0");
 /**
  * The keylets of the four types: Escrow `u` (0x75) of owner and sequence, Check `C` (0x43) of owner and sequence, PayChannel `x` (0x78) of owner, destination and sequence, Delegate `E` (0x45)
- * of account and authorize. The escrow's is also the Worker's (app/server/keylet.ts: Web Crypto, so asynchronous, which this synchronous generator cannot await): the copy is kept, and
- * test/unit/object-fixtures.test.ts pins the two equal over every recorded EscrowCreate.
+ * of account and authorize. The escrow's preimage is the Worker's (`escrowPreimage` of app/server/keylet.ts, whose `escrowKeylet` hashes it with Web Crypto, which is asynchronous and this
+ * generator is not): the layout is written once, and only the hash is Node's here.
  */
-export const escrowKeylet = (owner: string, sequence: number): string => keylet("0075", accountHex(owner), u32(sequence));
+export const escrowKeylet = (owner: string, sequence: number): string => sha512Half(escrowPreimage(owner, sequence));
 export const checkKeylet = (owner: string, sequence: number): string => keylet("0043", accountHex(owner), u32(sequence));
 export const channelKeylet = (owner: string, destination: string, sequence: number): string => keylet("0078", accountHex(owner), accountHex(destination), u32(sequence));
 export const delegateKeylet = (account: string, authorize: string): string => keylet("0045", accountHex(account), accountHex(authorize));

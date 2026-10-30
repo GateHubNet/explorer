@@ -26,6 +26,10 @@ describe("escrowStatus", () => {
     expect(escrowStatus({ finishAfter: 1000, cancelAfter: 2000, removedBy: "finish" }, 5000)).toBe("finished");
   });
 
+  it("is can_be_cancelled from cancel_after even when that is before finish_after", () => {
+    expect([escrowStatus({ finishAfter: 200, cancelAfter: 100 }, 100), escrowStatus({ finishAfter: 200, cancelAfter: 100 }, 101)]).toEqual(["pending", "can_be_cancelled"]);
+  });
+
   it("is removed for an event it does not know", () => {
     expect(escrowStatus({ removedBy: "update" }, 0)).toBe("removed");
   });
@@ -47,6 +51,10 @@ describe("channelStatus", () => {
   it("is closing once an expiration is set, or from cancel_after, else open", () => {
     expect([channelStatus({ expiration: 9_999_999 }, 1), channelStatus({ cancelAfter: 2000 }, 1999), channelStatus({ cancelAfter: 2000 }, 2000)]).toEqual(["closing", "open", "closing"]);
     expect(channelStatus({}, 1)).toBe("open");
+  });
+
+  it("is closing with an expiration far in the future, whatever the time", () => {
+    expect([0, 1e12 - 1].map((t) => channelStatus({ expiration: 1e12 }, t))).toEqual(["closing", "closing"]);
   });
 
   it("is what the deleting event says once it is deleted, whatever the time", () => {
@@ -78,9 +86,14 @@ describe("the rules over the recordings", () => {
     return channelStatus({ expiration: unix(node.Expiration), cancelAfter: unix(node.CancelAfter) }, t);
   }
 
-  // XRPL's node fallback: an open escrow and an open check the generator leaves out of the index on purpose, so that a page reads them from the node alone (the "Ledger object answers"
-  // of test/fixtures/PROVENANCE.md). Their entries are in the node's files with no answer of the index to agree with.
+  // What the node's files hold, pinned (a generator change that moves them is read here, not passed over):
+  // - COMPARED: the entries that have an answer of the index, whose statuses are held to it;
+  // - NODE_ONLY: XRPL's node fallback, an open escrow and an open check the generator leaves out of the index on purpose, so that a page reads them from the node alone (the "Ledger object
+  //   answers" of test/fixtures/PROVENANCE.md): their entries have no answer of the index to agree with;
+  // - NOT_OBJECTS: the entries of a type that has no status, by type (the Delegate of the delegation, Xahau's URITokens).
+  const COMPARED = { xrpl: 21, xahau: 4 } as const;
   const NODE_ONLY = { xrpl: 2, xahau: 0 } as const;
+  const NOT_OBJECTS = { xrpl: { Delegate: 1 }, xahau: { URIToken: 2 } } as const;
 
   it("agrees with every derived answer of the recordings", () => {
     const seen = new Set<string>();
@@ -88,10 +101,14 @@ describe("the rules over the recordings", () => {
       const dir = new URL(`${net}/node/ledger_entry/`, HTTP);
       let compared = 0;
       let nodeOnly = 0;
+      const notObjects: Record<string, number> = {};
       for (const name of readdirSync(dir).filter((each) => each.endsWith(".json"))) {
         const entry = json(new URL(name, dir)).result;
         const node = entry.node as Json;
-        if (!isType(node.LedgerEntryType)) continue; // a Delegate (no status), a URIToken
+        if (!isType(node.LedgerEntryType)) {
+          notObjects[node.LedgerEntryType] = (notObjects[node.LedgerEntryType] ?? 0) + 1;
+          continue;
+        }
         const type = node.LedgerEntryType;
         if (!answered(net, type).has(`${node.index}.json`)) {
           nodeOnly++;
@@ -107,8 +124,9 @@ describe("the rules over the recordings", () => {
         seen.add(`${type}:${status}`);
         compared++;
       }
-      expect(compared, net).toBeGreaterThan(0);
+      expect(compared, `${net}: entries compared`).toBe(COMPARED[net]);
       expect(nodeOnly, `${net}: entries with no answer of the index`).toBe(NODE_ONLY[net]);
+      expect(notObjects, `${net}: entries that are no escrow, check or channel`).toEqual(NOT_OBJECTS[net]);
     }
     // Not a test of one status: the recordings hold every status an object in the ledger can have.
     expect([...seen].sort()).toEqual([

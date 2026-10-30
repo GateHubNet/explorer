@@ -3,9 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { channelStatus, checkStatus, escrowStatus } from "../../app/domain/object-status";
 import type { ObjectAnswer, ObjectApiKind, ObjectHistoryPage, TxObject } from "../../app/server/api-types";
-import { escrowKeylet as workerEscrowKeylet } from "../../app/server/keylet";
 import { checkDelegations, checkLedgerObject, checkObjectAnswer, checkObjectHistory } from "../../app/server/object-shape";
 import { HTTP, isHandWritten, isNftGenerated, isObjectGenerated, readLedgers, servedHashes, TX_HASH_PREFIX, type RawLedger, type RawTx } from "../../scripts/http-fixtures";
 import { derivedAnswer, derivedObjectRows, markerPosition, rowsOfTransaction, type DerivedObjectRow } from "../../scripts/object-derive";
@@ -201,23 +199,6 @@ describe.each(NETS)("%s", (net) => {
       created++;
     }
     expect(created).toBeGreaterThan(net === "xrpl" ? 8 : 1);
-  });
-
-  it("keeps the generator's synchronous escrow keylet equal to the Worker's (app/server/keylet.ts, Web Crypto) over every recorded EscrowCreate, and to the ID the ledger gave", async () => {
-    let pinned = 0;
-    for (const raw of worlds[net].ledgers) {
-      for (const tx of raw.ledger.transactions) {
-        if (tx.TransactionType !== "EscrowCreate") continue;
-        const nodes = (tx.metaData.AffectedNodes as Json[]).map((wrapper) => wrapper.CreatedNode).filter((node) => node?.LedgerEntryType === "Escrow");
-        if (nodes.length === 0) continue; // a tec created nothing
-        const sequence = typeof tx.Sequence === "number" && tx.Sequence > 0 ? tx.Sequence : (tx.TicketSequence as number);
-        const generated = escrowKeylet(tx.Account, sequence);
-        expect(await workerEscrowKeylet(tx.Account, sequence), tx.hash).toBe(generated);
-        expect(generated, tx.hash).toBe(nodes[0]!.LedgerIndex);
-        pinned++;
-      }
-    }
-    expect(pinned).toBeGreaterThan(net === "xrpl" ? 8 : 1);
   });
 
   it("writes every object, event and body in the reference's key order", () => {
@@ -584,23 +565,6 @@ describe("D5's rules, on rows made for them", () => {
     // A creation with no Sequence (0, no ticket) says none; a ticket's sequence is its TicketSequence.
     expect(rowsOfTransaction(ledger(), tx({ TransactionType: "EscrowCreate", Sequence: 0, TicketSequence: 9 }, [node("CreatedNode", "Escrow", { ...A, Amount: "1" })]))[0]!.event_fields).toEqual({ sequence: 9 });
     expect(rowsOfTransaction(ledger(), tx({ TransactionType: "EscrowCreate", Sequence: 0 }, [node("CreatedNode", "Escrow", { ...A, Amount: "1" })]))[0]!.event_fields).toEqual({});
-  });
-
-  it("works a status out at the close time's boundaries, as D5's object-status.ts does", () => {
-    // An escrow: pending up to and at FinishAfter, then can be finished; can be cancelled after (not at) CancelAfter; a deleted one by its event.
-    expect([escrowStatus({ finishAfter: 100 }, 100), escrowStatus({ finishAfter: 100 }, 101), escrowStatus({}, 0)]).toEqual(["pending", "can_be_finished", "can_be_finished"]);
-    expect([escrowStatus({ finishAfter: 50, cancelAfter: 100 }, 100), escrowStatus({ finishAfter: 50, cancelAfter: 100 }, 101), escrowStatus({ finishAfter: 200, cancelAfter: 100 }, 101)]).toEqual([
-      "can_be_finished",
-      "can_be_cancelled",
-      "can_be_cancelled",
-    ]);
-    expect(["finish", "cancel", "removed", "update"].map((removedBy) => escrowStatus({ finishAfter: 1e12, removedBy }, 0))).toEqual(["finished", "cancelled", "removed", "removed"]);
-    // A check: expired at and after its Expiration.
-    expect([checkStatus({ expiration: 100 }, 99), checkStatus({ expiration: 100 }, 100), checkStatus({}, 1e12)]).toEqual(["open", "expired", "open"]);
-    expect(["cash", "cancel", "removed"].map((removedBy) => checkStatus({ removedBy }, 0))).toEqual(["cashed", "cancelled", "removed"]);
-    // A channel: closing once it has an Expiration, whatever the time, or at and after CancelAfter.
-    expect([channelStatus({ expiration: 1e12 }, 0), channelStatus({ cancelAfter: 100 }, 99), channelStatus({ cancelAfter: 100 }, 100), channelStatus({}, 1e12)]).toEqual(["closing", "open", "closing", "open"]);
-    expect(["close", "removed"].map((removedBy) => channelStatus({ removedBy }, 0))).toEqual(["closed", "removed"]);
   });
 
   it("answers an escrow's status at the as-of close time, a Ripple-epoch FinishAfter read in unix seconds", () => {

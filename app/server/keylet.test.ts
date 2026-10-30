@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { decodeAccountID } from "ripple-address-codec";
+
 import { allTxs } from "../../test/support/ledgers";
-import { escrowKeylet } from "./keylet";
+import { escrowKeylet, escrowPreimage } from "./keylet";
 
 // The escrows of the recordings D5 made (test/fixtures/ledgers/xrpl-objects and xahau-objects): the ID the ledger gave each one is the truth the keylet is held to.
 const SETS = ["xrpl-objects", "xahau-objects"] as const;
@@ -35,6 +37,13 @@ describe("escrowKeylet", () => {
     expect(await escrowKeylet("rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", 97531438)).toMatch(/^[0-9A-F]{64}$/);
   });
 
+  it("accepts the two ends of the range of a sequence", async () => {
+    const owner = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+    const [first, last] = await Promise.all([escrowKeylet(owner, 0), escrowKeylet(owner, 0xffff_ffff)]);
+    expect([first, last]).toEqual([expect.stringMatching(/^[0-9A-F]{64}$/), expect.stringMatching(/^[0-9A-F]{64}$/)]);
+    expect(first).not.toBe(last);
+  });
+
   it("refuses a sequence that is no unsigned 32-bit integer, which a byte write would wrap into another escrow's", async () => {
     const owner = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
     for (const sequence of [-1, 0xffff_ffff + 1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
@@ -44,5 +53,21 @@ describe("escrowKeylet", () => {
 
   it("refuses what is no address", async () => {
     await expect(escrowKeylet("not-an-address", 1)).rejects.toThrow();
+  });
+});
+
+describe("escrowPreimage", () => {
+  const owner = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
+
+  it("is 0x0075, the 20 bytes of the owner's AccountID, and the sequence as four big-endian bytes", () => {
+    expect([...escrowPreimage(owner, 0x0102_0304)]).toEqual([0x00, 0x75, ...decodeAccountID(owner), 0x01, 0x02, 0x03, 0x04]);
+    expect([...escrowPreimage(owner, 0).slice(22)]).toEqual([0, 0, 0, 0]);
+    expect([...escrowPreimage(owner, 0xffff_ffff).slice(22)]).toEqual([0xff, 0xff, 0xff, 0xff]);
+  });
+
+  it("refuses a sequence that is no unsigned 32-bit integer, and what is no address", () => {
+    expect(() => escrowPreimage(owner, 0xffff_ffff + 1)).toThrow(RangeError);
+    expect(() => escrowPreimage(owner, -1)).toThrow(RangeError);
+    expect(() => escrowPreimage("not-an-address", 1)).toThrow();
   });
 });
