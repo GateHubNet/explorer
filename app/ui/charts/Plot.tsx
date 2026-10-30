@@ -13,7 +13,12 @@ import { cx } from "../cx";
 import { createTipSlot, Cursor, TipSlotContext, type CursorProps, type TipSlot } from "./Cursor";
 import { END_LABEL_GUTTER_PX, MIN_SLOT_PX, fractionOf, percent, tooltipSide, xLabelPicks, xOf, type Placement, type ValueScale } from "./geometry";
 import { axisLabels, tickLabel } from "./labels";
+import { usePlotRing } from "./ring";
 import type { TimeAxis, ValueKind } from "./types";
+
+// The ring of a changed figure is a leaf of its own (ring.ts), so that a form with no plot (the share bars, the bar list, the window bar) does not load the plot for it; it is
+// exported from here too, as it always was.
+export { usePlotMark, usePlotRing } from "./ring";
 
 export interface PlotProps {
   /** The scroll region's name: "{title}, scrollable chart". */
@@ -51,44 +56,6 @@ export interface PlotProps {
   cursor?: Omit<CursorProps, "plot">;
   /** The marks. Each bucket's marks carry `data-bucket={i}`, which is how the cursor marks the active ones. */
   children: ReactNode;
-}
-
-/**
- * False until the token changes after the first render, then true: the figure mark of `LiveValue` (components.css), for a chart that a
- * beat of the page has redrawn. The server's render and the hydration have the first token, so they never have it.
- */
-export function usePlotMark(token: string): boolean {
-  const [seen, setSeen] = useState(token);
-  const [changed, setChanged] = useState(false);
-  // Adjusting state while rendering is React's way to answer a prop that changed, with no frame drawn in between.
-  if (seen !== token) {
-    setSeen(token);
-    setChanged(true);
-  }
-  return changed;
-}
-
-/**
- * `usePlotMark`, and the ring itself on `box`: the class `is-changed` that `charts.css` animates, which the token's change puts on (React
- * does, through the `changed` this returns), and each change after the first runs again. The class stays after the first change, and a CSS
- * animation that has finished cannot be started again from script (it is no longer there to ask for), so a later change does it with the
- * class: off, a reflow so that the browser sees it off, and on. The first change starts the ring by itself, with the class. For the plot,
- * and for a form that has none (the share bars): `box` is where the class goes. With `mark` false there is never a ring, and the class is
- * neither put on nor restarted.
- */
-export function usePlotRing(token: string, box: RefObject<HTMLElement | null>, mark = true): boolean {
-  const changed = usePlotMark(token) && mark;
-  const marked = useRef(false);
-  useEffect(() => {
-    const el = box.current;
-    if (marked.current && el) {
-      el.classList.remove("is-changed");
-      void el.offsetWidth;
-      el.classList.add("is-changed");
-    }
-    marked.current = changed;
-  }, [token]);
-  return changed;
 }
 
 /**

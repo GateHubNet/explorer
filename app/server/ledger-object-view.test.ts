@@ -681,7 +681,7 @@ describe("the helpers the three views share", () => {
 
   it("lists the accounts the rows draw as links, in their order: an account row's address and the issuer of a token in an amount row", () => {
     const rows: DetailRow[] = [
-      { label: "ID", value: { kind: "code", text: A(9), copy: "Copy" } },
+      { label: "ID", value: { kind: "code", text: A(9), copy: "ID" } },
       { label: "Source", value: { kind: "account", address: A(1) } },
       { label: "Destination", value: { kind: "account", address: A(2) } },
       { label: "Amount", value: { kind: "amount", amount: { value: "1", currency: "USD", issuer: A(3) } } },

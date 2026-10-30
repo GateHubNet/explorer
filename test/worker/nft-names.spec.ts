@@ -7,6 +7,7 @@ import {
   answerNamesAfterTheirEnd,
   dataUrlOf,
   expectAccountsDrawn,
+  expectAddressesOnly,
   expectLinkedAccountsNamed,
   failingNames,
   inCalls,
@@ -205,9 +206,7 @@ describe("when the names call fails", () => {
     await expectDegraded(path, response);
     expect(namesStatuses(mock)).toEqual([503]);
     // Every account the page links is an address, as before names: the owner whole after "Owner", the rest short.
-    const links = anchors(html).filter((a) => /href="\/xrpl\/account\/r/.test(a.attrs));
-    expect(links.length).toBeGreaterThan(3);
-    for (const link of links) expect(link.text, link.attrs).toMatch(/^(r[1-9A-HJ-NP-Za-km-z]{24,34}|r[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4})$/);
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(3);
     expect(logged()).toBe(1);
   });
 

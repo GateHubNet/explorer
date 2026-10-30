@@ -354,7 +354,7 @@ describe("checkPage: the details", () => {
     const data = page(indexed(answer));
     const none = { kind: "text", text: "None", faint: true };
     expect(data.details).toEqual([
-      { label: "Check ID", field: "ledger object ID", value: { kind: "code", text: answer.check.check_id, copy: "Copy check ID" } },
+      { label: "Check ID", field: "ledger object ID", value: { kind: "code", text: answer.check.check_id, copy: "check ID" } },
       { label: "Source", value: { kind: "account", address: answer.check.account } },
       { label: "Destination", value: { kind: "account", address: answer.check.destination } },
       {
@@ -385,7 +385,7 @@ describe("checkPage: the details", () => {
     expect(rowOf(data, "Invoice ID")).toEqual({
       label: "Invoice ID",
       field: "InvoiceID",
-      value: { kind: "code", text: answer.check.invoice_id, copy: "Copy invoice ID" },
+      value: { kind: "code", text: answer.check.invoice_id, copy: "invoice ID" },
       hint: "Set by the source, for example the hash of an invoice, so the destination can match the payment.",
     });
     expect(rowOf(data, "Destination tag")!.value).toEqual({ kind: "number", text: "88231" });

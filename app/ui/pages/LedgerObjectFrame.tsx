@@ -21,7 +21,7 @@ import { CopyButton } from "../components/CopyButton";
 import { Countdown } from "../components/Countdown";
 import { CoverageNote } from "../components/CoverageNote";
 // The table every other page of the budget draws, in the shell (scripts/shell-chunks.ts: what all of those pages reach statically): an object page draws none, and without this line the
-// table leaves the shell for a file of its own, one more file on every other page (about 290 B each, gzipped). The account page keeps it there the same way.
+// table leaves the shell for a file of its own, one more file on every other page (340 to 370 B each, gzipped, as measured). The account page keeps it there the same way.
 import "../components/DataTable";
 import { DetailList } from "../components/DetailList";
 import { HashLink, LedgerLink } from "../components/HashLink";
@@ -93,7 +93,7 @@ function Value({ net, value, asOf }: { net: NetworkId; value: DetailValue; asOf:
     case "code":
       return (
         <>
-          <span className="mono">{value.text}</span> <CopyButton value={value.text} label={value.copy.replace(/^Copy /, "")} />
+          <span className="mono">{value.text}</span> <CopyButton value={value.text} label={value.copy} />
         </>
       );
     case "account":

@@ -168,9 +168,8 @@ test.describe("the tags of a page reached by a link in the page", () => {
     expect(first.robots).toBeNull();
     expect(first.ogImage).toBe(`${origin}/og/xrpl/account/${XRPL_ACCOUNT}.png`);
 
-    // The list's links are the router's once the list panels' chunk and the files it imports are in (`lazyChunk`, AccountPage.tsx): a click before then is the browser's own, a new
-    // document. A busy run (the whole suite) loads them after the page has hydrated.
-    await page.waitForLoadState("networkidle");
+    // The list's links are the router's once the page is live (`hydrated`, test/e2e/support.ts): a click before then is the browser's own, a new document.
+    await hydrated(page);
     await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
     await page.waitForURL(/\?marker=/);
     await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");

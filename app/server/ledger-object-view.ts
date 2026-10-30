@@ -231,10 +231,10 @@ export const when = (unix: number): string => formatDateTime(unix);
 // ---- The rows of the Details card ------------------------------------------------------------------------------------------------------------------
 
 /**
- * What a row of the Details card shows. The page draws each by its `kind`: `code` mono text with a copy button named `copy`; `account` an `AccountLink` with the whole address beside the
- * name; `amount` an `Amount`, or `MptAmount` for the `mpt` form, or "—" for `null` (an amount D5 could not read), and the issuer of a token as an `AccountLink`; `time` the moment written
- * out with `formatUtc` and its age beside it (`RelativeTime` for a past one, `Countdown` for a future one); `number` a mono number; `text` plain words, `faint` where it says that
- * there is none.
+ * What a row of the Details card shows. The page draws each by its `kind`: `code` mono text with a copy button for what `copy` names ("escrow ID": the button says "Copy escrow ID");
+ * `account` an `AccountLink` with the whole address beside the name; `amount` an `Amount`, or `MptAmount` for the `mpt` form, or "—" for `null` (an amount D5 could not read), and the issuer
+ * of a token as an `AccountLink`; `time` the moment written out with `formatUtc` and its age beside it (`RelativeTime` for a past one, `Countdown` for a future one); `number` a mono
+ * number; `text` plain words, `faint` where it says that there is none.
  */
 export type DetailValue =
   | { kind: "code"; text: string; copy: string }

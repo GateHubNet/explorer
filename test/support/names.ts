@@ -200,6 +200,16 @@ export function linkedAccounts(html: string, net: NetworkName): string[] {
   return [...new Set(hrefs(html).flatMap((href) => pattern.exec(href)?.[1] ?? []))];
 }
 
+/** What a link to an account reads when it is drawn by its address, as before names: the short form (`rJF2Xa…fQvg`) or the whole address (a `full` link). */
+export const ADDRESS_TEXT = /^(r[1-9A-HJ-NP-Za-km-z]{24,34}|r[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4})$/;
+
+/** Says that every link to an account's page in `html` reads an address (`ADDRESS_TEXT`), as a page whose names call failed draws them; returns how many links there are. */
+export function expectAddressesOnly(html: string, net: NetworkName): number {
+  const links = anchors(html).filter((a) => a.attrs.includes(`href="/${net}/account/r`));
+  for (const link of links) expect(link.text, link.attrs).toMatch(ADDRESS_TEXT);
+  return links.length;
+}
+
 /**
  * Says that every link to `address` in `html` is a link by name: the name `linkTextOf` gives, the title `nameTitleOf` gives, and not the short address. There must be at least
  * one link. `ignore` leaves out the links whose attributes match it (the home page's search hints keep the short address).

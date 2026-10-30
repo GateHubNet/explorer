@@ -7,7 +7,7 @@ import { cx } from "../cx";
 import { cellOf } from "./cells";
 import { percent } from "./geometry";
 import { valueText } from "./labels";
-import { usePlotRing } from "./Plot";
+import { usePlotRing } from "./ring";
 import type { BarListData } from "./types";
 
 type BarItem = BarListData["items"][number];

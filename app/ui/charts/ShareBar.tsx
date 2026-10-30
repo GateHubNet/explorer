@@ -9,7 +9,7 @@ import { useCursorState } from "./Cursor";
 import { percent, tooltipSide } from "./geometry";
 import { tickLabel } from "./labels";
 import type { LegendItem } from "./Legend";
-import { usePlotRing } from "./Plot";
+import { usePlotRing } from "./ring";
 import type { ShareData } from "./types";
 
 export interface ShareBarProps {

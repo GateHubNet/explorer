@@ -2,7 +2,7 @@ import { act, cleanup, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { serverThenHydrated } from "../../../test/support/hydrate";
-import { ESCROW_DESTINATION, ESCROW_ID, ESCROW_OWNER, escrowAnswerSample } from "../../../test/support/object-samples";
+import { ESCROW_DESTINATION, ESCROW_ID, ESCROW_OWNER, escrowAnswerSample, historySample } from "../../../test/support/object-samples";
 import { stateOf, XAHAU, XRPL } from "../../../test/support/object-view-world";
 import { LAYOUT_XAHAU, LAYOUT_XRPL, mountPage, routedPage } from "../../../test/support/under-network";
 import { NO_NAMES, type NameMap } from "../../domain/names";
@@ -153,10 +153,15 @@ describe("EscrowPage", () => {
   });
 
   it("draws a page behind a marker with Newer and Older", () => {
-    const data = build({ history_marker: "M1" }, { marker: "M2", back: ["M1"] });
+    // The second page of older events (reached from the first's M1), which has a third behind it (M3).
+    const data = escrowPage(
+      { origin: "index", answer: escrowAnswerSample({ history_marker: "M1" }), history: historySample({ marker: "M3" }) },
+      { net: XRPL, serverState: stateOf(), names: NO_NAMES, marker: "M2", back: ["M1"] },
+    );
     mountPage(page(data), "escrow", { at: `${PATH}?marker=M2&back=M1`, network: LAYOUT_XRPL });
     const pager = screen.getByRole("navigation", { name: "Pagination" });
     expect(within(pager).getByRole("link", { name: "Newer" }).getAttribute("href")).toBe(`${PATH}?marker=M1`);
+    expect(within(pager).getByRole("link", { name: "Older" }).getAttribute("href")).toBe(`${PATH}?marker=M3&back=M2.M1`);
   });
 
   it("draws an escrow read from the node: the ledger it last changed in and the node's note", () => {

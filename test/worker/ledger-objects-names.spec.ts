@@ -4,6 +4,7 @@ import {
   answerNamesAfterTheirEnd,
   dataUrlOf,
   expectAccountsDrawn,
+  expectAddressesOnly,
   expectLinkedAccountsNamed,
   failingNames,
   inCalls,
@@ -42,9 +43,6 @@ const NODE_ONLY = await objectCase("xrpl", "escrow-node-only");
 const XAHAU = await objectCase("xahau", "xahau-escrow");
 /** The issuer of the MPT escrow's issuance, which its ID encodes (the fixture's amount names it). */
 const MPT_ISSUER = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
-
-/** The short address as an account link draws it, or the whole one (the Details rows). */
-const ADDRESS_TEXT = /^(r[1-9A-HJ-NP-Za-km-z]{24,34}|r[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4})$/;
 
 describe("the names call of an escrow of the index", () => {
   it("is one, after the page's calls, for the accounts the page links, sorted, and the page draws each by what the fixtures say", async () => {
@@ -139,9 +137,7 @@ describe("when the names call fails or is late", () => {
 
     await expectDegraded(path, response);
     expect(namesStatuses(mock)).toEqual([503]);
-    const links = anchors(html).filter((a) => /href="\/xrpl\/account\/r/.test(a.attrs));
-    expect(links.length).toBeGreaterThan(3);
-    for (const link of links) expect(link.text, link.attrs).toMatch(ADDRESS_TEXT);
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(3);
     expect(logged()).toBe(1);
   });
 
@@ -164,9 +160,7 @@ describe("when the names call fails or is late", () => {
     // One call, for the owner, the destination and the account that made it, which never answered.
     expect(namesCalls(mock)).toEqual(inCalls(linkedAccounts(html, "xrpl")));
     expect(html).not.toContain("acct__name");
-    const links = anchors(html).filter((a) => /href="\/xrpl\/account\/r/.test(a.attrs));
-    expect(links.length).toBeGreaterThan(1);
-    for (const link of links) expect(link.text, link.attrs).toMatch(ADDRESS_TEXT);
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(1);
     expect(logged()).toBe(1);
   });
 });

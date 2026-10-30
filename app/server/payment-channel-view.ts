@@ -445,7 +445,7 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
     removed: undefined,
   }[f.status];
   return [
-    { label: "Channel ID", field: "ledger object ID", value: { kind: "code", text: channel.channel_id, copy: "Copy channel ID" } },
+    { label: "Channel ID", field: "ledger object ID", value: { kind: "code", text: channel.channel_id, copy: "channel ID" } },
     { label: "Source", value: { kind: "account", address: channel.account } },
     { label: "Destination", value: { kind: "account", address: channel.destination } },
     { label: "Deposited", field: "Amount", value: { kind: "amount", amount }, ...(deposited !== undefined && { hint: deposited }) },
@@ -462,7 +462,7 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
       : {
           label: "Public key",
           field: "PublicKey",
-          value: { kind: "code", text: channel.public_key, copy: "Copy public key" },
+          value: { kind: "code", text: channel.public_key, copy: "public key" },
           hint: "Claims must be signed with this key; the ledger checks the signature when a claim is redeemed.",
         },
     ...(expiration === undefined

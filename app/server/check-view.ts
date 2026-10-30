@@ -325,7 +325,7 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
   const { check, sendMax, delivered, expiration } = f;
   const { noun } = fundsOf(sendMax);
   return [
-    { label: "Check ID", field: "ledger object ID", value: { kind: "code", text: check.check_id, copy: "Copy check ID" } },
+    { label: "Check ID", field: "ledger object ID", value: { kind: "code", text: check.check_id, copy: "check ID" } },
     { label: "Source", value: { kind: "account", address: check.account } },
     { label: "Destination", value: { kind: "account", address: check.destination } },
     {
@@ -350,7 +350,7 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
       : {
           label: "Invoice ID",
           field: "InvoiceID",
-          value: { kind: "code", text: check.invoice_id, copy: "Copy invoice ID" },
+          value: { kind: "code", text: check.invoice_id, copy: "invoice ID" },
           hint: "Set by the source, for example the hash of an invoice, so the destination can match the payment.",
         },
     { label: "Destination tag", value: tagValue(check.destination_tag) },

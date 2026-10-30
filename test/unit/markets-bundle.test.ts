@@ -43,7 +43,10 @@ describe("the files of the markets pages that run in the browser", () => {
   });
 
   it("walks the closure through every file, and sees Plot and Cursor where a page does load them", () => {
-    expect(staticClosure(appDir, "ui/charts/ShareBar.tsx")).toEqual(expect.arrayContaining(["ui/charts/Plot.tsx", "ui/charts/Cursor.tsx", "ui/use-hydrated.ts"]));
+    // The share bars take their cursor's state from Cursor.tsx and the ring of a changed figure from its leaf (ring.ts), not from Plot.tsx.
+    const shareBar = staticClosure(appDir, "ui/charts/ShareBar.tsx");
+    expect(shareBar).toEqual(expect.arrayContaining(["ui/charts/Cursor.tsx", "ui/charts/ring.ts", "ui/use-hydrated.ts"]));
+    expect(shareBar).not.toContain("ui/charts/Plot.tsx");
     // The network page draws plots: its closure holds both, the second one through Plot.
     expect(staticClosure(appDir, "ui/pages/NetworkPage.tsx")).toEqual(expect.arrayContaining(["ui/charts/Plot.tsx", "ui/charts/Cursor.tsx"]));
   });

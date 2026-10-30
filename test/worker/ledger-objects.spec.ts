@@ -2,10 +2,10 @@ import { classicAddressToXAddress } from "ripple-address-codec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { shortHash } from "../../app/domain/format";
-import { failingNames } from "../support/names";
+import { expectAddressesOnly, failingNames } from "../support/names";
 import { forgetStored, isNoindex, isStored, keysOf, unavailable } from "../support/nft-pages";
 import { objectCase } from "../support/object-cases";
-import { ESCROW_ID, historySample, OBJECT_MARKER } from "../support/object-samples";
+import { ESCROW_ID, ESCROW_OWNER, escrowAnswerSample, historySample, OBJECT_MARKER } from "../support/object-samples";
 import { anchors, elementText, hrefs, pageClient, textOf } from "../support/pages";
 import { cold } from "../support/subrequest-miss";
 import { dataApiError, mockUpstream, nodeError, statusesOf, type UpstreamMock } from "../support/upstream";
@@ -122,6 +122,63 @@ describe("an escrow's page", () => {
     expect(await isStored(path)).toBe(false);
   });
 
+  it("404s an escrow the index lacks behind a marker, without asking the node: the marker is the index's", async () => {
+    const id = fresh();
+    mock = mockUpstream("xrpl");
+    const path = `/xrpl/escrows/${id}?marker=${OBJECT_MARKER}`;
+    const { response, text } = await render(path);
+
+    expect(response.status).toBe(404);
+    expect(text).toContain("We couldn’t find that page of the escrow on XRPL.");
+    expect(statusesOf(mock, calls(id).ESCROW)).toEqual([404]);
+    expect(nodeEntryAsked(mock)).toEqual([]);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("answers 503 for an entry of the node it cannot read (an Escrow with no Destination), not stored", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = fresh();
+    const key = calls(id);
+    const node = { LedgerEntryType: "Escrow", index: id, Account: ESCROW_OWNER, Amount: "500000", FinishAfter: 815_000_000, PreviousTxnID: "D".repeat(64), PreviousTxnLgrSeq: 107_000_000 };
+    mock = mockUpstream("xrpl", { [key.ENTRY_OVERRIDE]: { index: id, ledger_index: 107_972_102, node, status: "success", validated: true } });
+    const path = `/xrpl/escrows/${id}`;
+    const { response } = await render(path);
+
+    expect(statusesOf(mock, key.ENTRY)).toEqual([200]);
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).not.toBeNull();
+    expect(await isStored(path)).toBe(false);
+  });
+
+  it("answers 503 when the history behind a marker fails, not stored", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = fresh();
+    const key = calls(id, OBJECT_MARKER);
+    mock = mockUpstream("xrpl", { [key.ESCROW]: escrowAnswerSample({ escrow: { ...escrowAnswerSample().escrow, escrow_id: id } }), [key.HISTORY]: unavailable() });
+    const path = `/xrpl/escrows/${id}?marker=${OBJECT_MARKER}`;
+    const { response } = await render(path);
+
+    expect(statusesOf(mock, key.HISTORY)).toEqual([503]);
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).not.toBeNull();
+    expect(await isStored(path)).toBe(false);
+  });
+
+  it("answers 503 for a 400 of the index for a well-formed ID, without asking the node", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = fresh();
+    const key = calls(id);
+    mock = mockUpstream("xrpl", { [key.ESCROW]: dataApiError(400, "invalid escrow id") });
+    const path = `/xrpl/escrows/${id}`;
+    const { response } = await render(path);
+
+    expect(statusesOf(mock, key.ESCROW)).toEqual([400]);
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).not.toBeNull();
+    expect(nodeEntryAsked(mock)).toEqual([]);
+    expect(await isStored(path)).toBe(false);
+  });
+
   it("serves the page without Owner reserve when server_state fails, not stored", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mock = mockUpstream("xrpl", { [calls(FINISHABLE.id).STATE]: nodeError("noNetwork") });
@@ -149,9 +206,7 @@ describe("an escrow's page", () => {
     expect(await isStored(path)).toBe(false);
     // Its owner is a verified name in the fixtures: it is drawn by its address, as every account of the page is.
     expect(html).not.toContain("acct__name");
-    const links = anchors(html).filter((a) => /href="\/xrpl\/account\/r/.test(a.attrs));
-    expect(links.length).toBeGreaterThan(2);
-    for (const link of links) expect(link.text, link.attrs).toMatch(/^(r[1-9A-HJ-NP-Za-km-z]{24,34}|r[1-9A-HJ-NP-Za-km-z]{5}…[1-9A-HJ-NP-Za-km-z]{4})$/);
+    expect(expectAddressesOnly(html, "xrpl")).toBeGreaterThan(2);
   });
 
   // ---- The pages ----------------------------------------------------------------------------------------------------------------------------------------------------------

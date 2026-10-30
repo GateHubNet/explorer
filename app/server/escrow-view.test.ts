@@ -426,7 +426,7 @@ describe("escrowPage: the details", () => {
     const answer = await answerOf("xrpl", "escrow-cancellable");
     const data = page(indexed(answer));
     expect(data.details).toEqual([
-      { label: "Escrow ID", field: "ledger object ID", value: { kind: "code", text: answer.escrow.escrow_id, copy: "Copy escrow ID" } },
+      { label: "Escrow ID", field: "ledger object ID", value: { kind: "code", text: answer.escrow.escrow_id, copy: "escrow ID" } },
       { label: "Owner", field: "source", value: { kind: "account", address: answer.escrow.account } },
       { label: "Destination", value: { kind: "account", address: answer.escrow.destination } },
       { label: "Amount", value: { kind: "amount", amount: { value: "25", currency: "XRP" } } },
@@ -460,12 +460,12 @@ describe("escrowPage: the details", () => {
     const data = page(indexed(answer));
     expect(rowOf(data, "Condition")).toEqual({
       label: "Condition",
-      value: { kind: "code", text: "A0258020AA", copy: "Copy condition" },
+      value: { kind: "code", text: "A0258020AA", copy: "condition" },
       hint: "A PREIMAGE-SHA-256 crypto-condition: only the fulfillment, the secret whose SHA-256 hash it holds, can finish the escrow. The EscrowFinish revealed it, below.",
     });
     expect(rowOf(data, "Fulfillment")).toEqual({
       label: "Fulfillment",
-      value: { kind: "code", text: "A0228020BB", copy: "Copy fulfillment" },
+      value: { kind: "code", text: "A0228020BB", copy: "fulfillment" },
       hint: "The secret that matches the condition, revealed by the EscrowFinish.",
     });
     expect(labels(data).indexOf("Fulfillment")).toBe(labels(data).indexOf("Condition") + 1);
@@ -710,7 +710,7 @@ describe("escrowPage from the node", () => {
     const { source, entry } = await entryAt(5);
     const data = page(source);
     expect(data.amount).toEqual({ value: "3888", currency: "5852504C00000000000000000000000000000000", issuer: "rUNuVgEcbL5Po5RKGnq8DP1KukY6RkTSyz" });
-    expect(rowOf(data, "Condition")!.value).toEqual({ kind: "code", text: entry.Condition, copy: "Copy condition" });
+    expect(rowOf(data, "Condition")!.value).toEqual({ kind: "code", text: entry.Condition, copy: "condition" });
     expect(rowOf(data, "Can be finished after")!.value).toEqual({ kind: "time", at: (entry.FinishAfter as number) + RIPPLE_EPOCH_OFFSET });
     // the node's CancelAfter is 839949407 Ripple-epoch seconds, which is 2026-08-13T15:16:47Z
     expect(data.statusLines.map(said)[0]).toBe("Can be finished by anyone with the fulfillment until Aug 13, 2026, 15:16 UTC");

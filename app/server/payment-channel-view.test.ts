@@ -471,7 +471,7 @@ describe("paymentChannelPage: the details", () => {
     const data = page(indexed(answer));
     const { payment_channel: channel } = answer;
     expect(data.details).toEqual([
-      { label: "Channel ID", field: "ledger object ID", value: { kind: "code", text: channel.channel_id, copy: "Copy channel ID" } },
+      { label: "Channel ID", field: "ledger object ID", value: { kind: "code", text: channel.channel_id, copy: "channel ID" } },
       { label: "Source", value: { kind: "account", address: channel.account } },
       { label: "Destination", value: { kind: "account", address: channel.destination } },
       { label: "Deposited", field: "Amount", value: { kind: "amount", amount: { value: "1", currency: "XRP" } }, hint: "1 XRP when it was opened." },
@@ -486,7 +486,7 @@ describe("paymentChannelPage: the details", () => {
       {
         label: "Public key",
         field: "PublicKey",
-        value: { kind: "code", text: channel.public_key, copy: "Copy public key" },
+        value: { kind: "code", text: channel.public_key, copy: "public key" },
         hint: "Claims must be signed with this key; the ledger checks the signature when a claim is redeemed.",
       },
       { label: "Destination tag", value: { kind: "text", text: "None", faint: true } },

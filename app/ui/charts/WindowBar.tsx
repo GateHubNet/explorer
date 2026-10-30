@@ -4,7 +4,7 @@ import { cx } from "../cx";
 import { cellOf } from "./cells";
 import { percent, tooltipSide } from "./geometry";
 import { Legend } from "./Legend";
-import { usePlotRing } from "./Plot";
+import { usePlotRing } from "./ring";
 import type { WindowBarData, WindowBarSegment } from "./types";
 
 type Segment = WindowBarSegment;

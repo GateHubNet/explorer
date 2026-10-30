@@ -363,7 +363,7 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
   const { escrow, amount, finishAfter: fa, cancelAfter: ca } = f;
   const token = issuerOf(amount) !== undefined;
   return [
-    { label: "Escrow ID", field: "ledger object ID", value: { kind: "code", text: escrow.escrow_id, copy: "Copy escrow ID" } },
+    { label: "Escrow ID", field: "ledger object ID", value: { kind: "code", text: escrow.escrow_id, copy: "escrow ID" } },
     { label: "Owner", field: "source", value: { kind: "account", address: escrow.account } },
     { label: "Destination", value: { kind: "account", address: escrow.destination } },
     { label: "Amount", value: { kind: "amount", amount } },
@@ -381,13 +381,13 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
     },
     escrow.condition === undefined
       ? { label: "Condition", value: none("None: time-based only"), hint: "No secret is needed to finish it." }
-      : { label: "Condition", value: { kind: "code", text: escrow.condition, copy: "Copy condition" }, hint: conditionHint(f) },
+      : { label: "Condition", value: { kind: "code", text: escrow.condition, copy: "condition" }, hint: conditionHint(f) },
     ...(escrow.fulfillment === undefined
       ? []
       : [
           {
             label: "Fulfillment",
-            value: { kind: "code" as const, text: escrow.fulfillment, copy: "Copy fulfillment" },
+            value: { kind: "code" as const, text: escrow.fulfillment, copy: "fulfillment" },
             hint: "The secret that matches the condition, revealed by the EscrowFinish.",
           },
         ]),
