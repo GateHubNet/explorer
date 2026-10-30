@@ -853,9 +853,10 @@ describe("the files of the pool page that run in the browser", () => {
   it("keeps the account page's time cell free of the chart kit, use-hydrated and StatTile (R18, P36)", () => {
     const KIT = [/\/charts\//, /use-hydrated/, /StatTile/];
     expect(valueImports(read("../components/WhenCell.tsx")).filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
-    // The account page imports the cell, and the kit only through its lazy analytics view.
-    const account = valueImports(read("./AccountPage.tsx"));
-    expect(account).toContain("../components/WhenCell");
-    expect(account.filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
+    // The account page's list panels (a lazy chunk of the page) import the cell, and the page the kit only through its lazy analytics view.
+    const panels = valueImports(read("./AccountListPanels.tsx"));
+    expect(panels).toContain("../components/WhenCell");
+    expect(panels.filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
+    expect(valueImports(read("./AccountPage.tsx")).filter((from) => KIT.some((pattern) => pattern.test(from)))).toEqual([]);
   });
 });

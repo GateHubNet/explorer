@@ -3,7 +3,7 @@ import { useState, type ReactElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { createMemoryRouter, createStaticHandler, createStaticRouter, RouterProvider, StaticRouterProvider } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnalyticsPeriod } from "../../domain/analytics-params";
 import { shortAddress } from "../../domain/format";
@@ -210,6 +210,15 @@ function renderInRouter(ui: ReactElement, loader: () => null = () => null) {
 
 /** The page under the `/:net` layout whose data holds `features`, as the app has it: what `useFeatures()` reads (the AMM pool links). */
 const renderUnderLayout = (ui: ReactElement, features: Features) => renderUnderNetwork(ui, features, { path: `/xrpl/account/${ADDRESS}` });
+
+// The list panels are a chunk of their own (`lazy`: AccountListPanels.tsx). The Worker's streaming render waits for it, and so does the browser; the
+// `renderToString` of the tests that compare the server's page with the browser's cannot wait, and throws while it is not loaded. A first render loads
+// it, and React keeps it for the rest of the file: one is made before the tests, so that each passes on its own too.
+beforeAll(async () => {
+  renderInRouter(<AccountPage network={XRPL} data={data()} />);
+  await screen.findByRole("table", { name: "Transactions" });
+  cleanup();
+});
 
 describe("the header", () => {
   it("shows the address as the page's title, with a copy button, a QR code in a closed details, and a picture of the address", async () => {

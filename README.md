@@ -828,6 +828,16 @@ is off. Lists are newest first, 20 a page, with Newer and Older.
   page shows as the section error. It is settled before the framework stops streaming (`streamTimeout`, 5 s), by a 4.5 s deadline of
   the loader's own, so a slow upstream cannot leave the browser with a rejected promise. Bots get the whole document
   (`entry.server.tsx` waits for `allReady` for them). A page behind a marker awaits its list: it is stored (for an hour) and must be whole.
+- **The list panels are a chunk of their own** (E10): `AccountListPanels.tsx` (the list drawn by its own names, in its panel with the note, the
+  count and the pager, and the six tables and the objects list it is made of), which `AccountPage.tsx` loads with `lazy()`. The analytics view
+  never draws a list, so its first load holds none of it; what the panels share with the rest of the page (`count`, `plural`, `ListFailed`)
+  stays in `AccountPage.tsx`. The panel has no `Suspense` of its own, so no placeholder shows where none did. On a first page it is drawn
+  inside the list's `Suspense` and `Await`: the server streams the rows once the list and the chunk are in, and hydration keeps that HTML
+  until the chunk has loaded (the header is interactive before it). A list that is not a promise (a page behind a marker, the Objects
+  tab) is drawn where it always was: the server's render waits for the chunk, so the HTML holds the rows inline, even in a Worker that has
+  not loaded it yet, and the browser hydrates the page once the chunk is in (one request more before the header's buttons work). A
+  client-side navigation shows the page it leads to once the chunk is in, and a first page's list keeps its "Loading …" until then. The figures
+  are in "The client bundle check" ("Lazy list panels").
 - **Retry** fetches the route's own data again in the browser (`useRevalidator`: the explorer's `.data` URL, never the data API). A
   degraded answer was not stored, so the retry reaches a fresh render, which is stored if it is good.
 - **Marker pages are `slow` (1 hour), not `immutable`: a deliberate deviation from spec 2, which the owner is to confirm.** The spec has
@@ -1075,7 +1085,7 @@ copy of the kit to fit: "The client bundle check" has the figures, the copy and 
 **Display names (E9).** The view's header is the other tabs', named: the header's names call (the address and its parent; no holdings, so no token issuers) and the toml of the domain it shows, started when `account_info` answers, as on the first page of a tab. The three cards that draw accounts name them
 inside their own deadline: the counterparties' rows, the balances' issuers (the `SmallMultiples` panels' sublabels) and the exchanges' issuers each make one `loadNames` of their own once their call has answered (`namedCard` in `analytics-load.ts`), with what is left of the loader's 4.5 s, and the card carries its own `names` and is drawn inside its
 own `NamesProvider`. A names call that fails or is late (`loadNames` marks and logs it) leaves its card drawn with addresses: it never makes the card late or failed. A pair's issued side is an `IssuerPart` (`IssuedSide`): its issuer written with `shownIssuer`, a name not set in mono, and a labelled issuer marked with `LabelMark` (decision 12), drawn by the view's own `Pair` so that the view loads no file beyond the account page's. The view's title carries the account's name ("SEO and link previews"). **Account analytics is the tightest page of the app:** 433 bytes
-under its 160,000 at the end of E9 ("The figures of E9: the final review's fixes"). Before the account page or the kit it shares grows again, room is made with **lazy list panels**: the account page's list panels (`TabPanel`, `ListPanel` and the six tables and the objects list under them in `AccountPage.tsx`, about 2 KB and more) go into a lazily loaded chunk. The Analytics view never draws them, and the first page of a tab draws them inside the list's streamed `<Await>` already, so neither waits for more than it does today. E10's plan opens with it, measured. (Moving "How we know" and its facts into a lazily loaded component that still renders on the server was weighed and left: its block is about 650 bytes, 0.3 to 0.5 KB net once the lazy wrapper is paid, with a risk to hydration.)
+under its 160,000 at the end of E9 ("The figures of E9: the final review's fixes"). E10 made room with **lazy list panels**: the account page's list panels (`TabPanel`, `ListPanel` and the six tables and the objects list under them) are `AccountListPanels.tsx`, a chunk the page loads with `lazy()` ("The account page"). The Analytics view never draws them and does not load that chunk, and the first page of a tab draws them inside the list's streamed `<Await>`. The view's total fell by 3,184 bytes to 156,384, 3,616 under its 160,000 ("The client bundle check": "Lazy list panels"). (Moving "How we know" and its facts into a lazily loaded component that still renders on the server was weighed and left: its block is about 650 bytes, 0.3 to 0.5 KB net once the lazy wrapper is paid, with a risk to hydration.)
 
 **Fixtures.** The answers are synthetic (`scripts/analytics-fixtures.ts`, seeded per network, account and endpoint): the six calls of the four periods for the
 active, the deleted and the never-funded account of each network, anchored to the hand-written header files so that the view and the header agree ("Upstream
@@ -2920,6 +2930,35 @@ chunks, grew by 114 bytes, 2,158 to 2,272, and is in every figure.
 
 - **The markets page grew by 1,310 bytes** (its route chunk +24, `IssuerTexts` 311, the marks' chunk 921, the shell's `join-and` 52), more than the ruling's estimate of 0.4 KB, which counted the marks' code and not the two files that bring it; it is 13,573 under its 150,000. **The AMM list grew by 981** (its route chunk +137, `AccountLink` 622, `IssuerTexts` 311, the shell's 52, less `join-and`'s file of 118).
 - **The account route took no JavaScript** (its route chunk −28, `join-and` into the shell): the account page and the view are each a file and about 100 bytes lighter. The view's own chunk grew by the DEX pairs' label mark (+13).
+
+**Lazy list panels** (E10, before its pages: the room the account page and the analytics view needed for the Delegation tab and the object links; `pnpm build && pnpm check:bundle`, gzip -9 bytes as the check counts them, each file once, the manifest included). *Before* is `2084d95`, the commit E10 starts from, built and measured on its own. What moved: the list of a tab, from `TabPanel` to `ObjectsList`, is `AccountListPanels.tsx`, which `AccountPage.tsx` loads with `lazy()` ("The account page"), and with it what only the lists draw: `Sentence`, `NftLink`, `NftGlyph`, `WhenCell`, `Pager`, `CoverageNote` and `HashLink` are no longer in the account route's first load. `test/unit/account-bundle.test.ts` holds the panels out of the route's static import graph and out of the analytics view's.
+
+| page | Before (files) | After (files) | Change | Budget | Under it by |
+|---|---:|---:|---:|---:|---:|
+| home | 137,087 (15) | 137,120 (15) | +33 | 150,000 | 12,880 |
+| ledger | 138,130 (21) | 138,317 (22) | +187 | 150,000 | 11,683 |
+| transaction | 140,702 (22) | 140,891 (23) | +189 | 150,000 | 9,109 |
+| **account** | 147,257 (31) | 144,073 (27) | **−3,184** | 150,000 | 5,927 |
+| network | 153,246 (28) | 153,279 (28) | +33 | 160,000 | 6,721 |
+| markets | 136,441 (15) | 136,474 (15) | +33 | 150,000 | 13,526 |
+| market-pair | 152,872 (29) | 152,905 (29) | +33 | 160,000 | 7,095 |
+| validators | 150,243 (26) | 150,276 (26) | +33 | 160,000 | 9,724 |
+| validator | 152,203 (29) | 152,236 (29) | +33 | 160,000 | 7,764 |
+| amendments | 140,590 (19) | 140,623 (19) | +33 | 160,000 | 19,377 |
+| amendment | 149,103 (24) | 149,136 (24) | +33 | 160,000 | 10,864 |
+| amm | 147,163 (25) | 147,196 (25) | +33 | 160,000 | 12,804 |
+| amm-pool | 155,106 (37) | 155,139 (37) | +33 | 160,000 | 4,861 |
+| nfts | 151,062 (30) | 151,272 (31) | +210 | 160,000 | 8,728 |
+| nft-sales | 136,230 (20) | 136,441 (21) | +211 | 150,000 | 13,559 |
+| nft-collection | 151,328 (32) | 151,552 (33) | +224 | 160,000 | 8,448 |
+| nft | 138,758 (24) | 138,954 (25) | +196 | 150,000 | 11,046 |
+| **account analytics (gate 2)** | 159,568 (32) | 156,384 (28) | **−3,184** | 160,000 | 3,616 |
+| manifest `assets/manifest-*.js`, the check's `gzipSync` (in each) | 2,263 | 2,296 | +33 | | |
+
+- **The account page and the view fell by 3,184 bytes each**: the account route's own chunk was 8,556 bytes, and is now 1,029 with `AccountPage.tsx` in a chunk of its own (6,039; the panels import `count`, `plural` and `ListFailed` from it, so Rolldown puts the module in a chunk the route and the panels share). It loads six files fewer (`Sentence`, `NftLink`, `NftGlyph`, `WhenCell`, `Pager`, `HashLink`; `CoverageNote` was in the route's chunk) and two more (`AccountPage.tsx`'s chunk and `nft-params.ts`'s, below). The analytics view loads no file of the panels: its files are the account page's and its own chunk, as `kitCopyProblems` wants. Had the panels their own copies of the three helpers, `AccountPage.tsx` would stay in the route's chunk and both would be 370 bytes lighter again (143,703 and 156,014, measured).
+- **What a list costs.** The panels' chunk is 2,661 bytes; with the files only it imports (`Sentence`, `NftLink`, `NftGlyph`, `HashLink`, `WhenCell`, `Pager`), a first page of a list tab loads 4,544 bytes after the page's first load, 148,617 in all: 1,360 more than before, the price of the chunks. The figure the budget counts is the first load, which the header needs before the page works; the list comes in its own streamed boundary.
+- **`DataTable` stays in the shell.** The shell holds what the routes of all the pages of the budget reach statically ("One shell file"). With the panels lazy, the account route did not reach `DataTable` any more, so it left the shell for a file of its own (1,395 bytes): every other page grew by about 370 bytes, and the analytics view, which draws tables, loaded that file beyond the account page's and failed the check. `AccountPage.tsx` imports the module for its side of the rule (`import "../components/DataTable"`, with the reason beside it), so the shell is the file it was to the byte.
+- **The other pages grew by the manifest** (+33, the account route's chunks are named in it). Those that draw `Sentence` or `NftLink` (ledger, transaction and the four NFT pages) grew by about 155 bytes more: `nft-params.ts`, which the account route still loads for the tabs' words, left `NftLink`'s chunk for a file of its own (764 bytes; `NftLink` is 263).
 
 ## The parsing libraries in the Workers runtime
 

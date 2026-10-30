@@ -1365,6 +1365,37 @@ describe("the list streams after the header", () => {
     expect(await copy!.text()).toContain("OfferCreate");
   });
 
+  it("streams the list's rows after its place, drawn by the list panels, a chunk of their own that the server's render waits for: a known row is in the document", async () => {
+    const a = account(41);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const history = await recordedList("transactions@descending=true&limit=20");
+    mock = mockUpstream("xrpl", {
+      ...healthy(a),
+      [LIST(a, "transactions")]: async () => {
+        await gate;
+        return Response.json(history);
+      },
+    });
+
+    const response = await get(`/xrpl/account/${a}`);
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let seen = "";
+    const deadline = Date.now() + 4_000;
+    while (!seen.includes("Loading transactions") && Date.now() < deadline) {
+      const part = await reader.read();
+      if (part.done) break;
+      seen += decoder.decode(part.value, { stream: true });
+    }
+    expect(seen).toContain("Loading transactions");
+    const place = seen.length;
+    release();
+    for (let part = await reader.read(); !part.done; part = await reader.read()) seen += decoder.decode(part.value, { stream: true });
+    // The rows are in what was sent after the list's place, whole: the date and time, the type and the result of the newest.
+    expect(tableRows(seen.slice(place), "Transactions").slice(1, 2).map((r) => [r[0], r[1], r[4]])).toEqual([["2026-10-17 16:11:02", "OfferCreate", "Success"]]);
+  });
+
   it("has the list's resolved markup after the header in the document, for the recorded account", async () => {
     mock = mockUpstream("xrpl");
     const { html } = await page(`/xrpl/account/${ACTIVE}?case=order`);
