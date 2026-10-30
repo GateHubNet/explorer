@@ -70,6 +70,8 @@ export interface CheckPageData extends ObjectPageCommon {
   statusLines: Segment[][];
   /** The words under "Expired, but still in the ledger" (the page writes the heading), for a check that expired and was not cancelled yet; `null` for any other. */
   expiredBanner: Segment[] | null;
+  /** The moments (unix seconds) the status lines write out, the expiration and the removal, for the page to put an age beside each (the browser's alone). */
+  dates: number[];
   flow: CheckFlowData;
   details: DetailRow[];
   meta: CheckMeta;
@@ -383,6 +385,7 @@ export function checkPage(
     summary: summaryOf(f),
     statusLines: statusLinesOf(f),
     expiredBanner: f.status === "expired" ? expiredBannerOf(common.reserve) : null,
+    dates: [f.expiration, f.removed?.at].filter((at): at is number => at !== undefined),
     flow: flowOf(f),
     details: detailsOf(f, common.reserve),
     meta: {

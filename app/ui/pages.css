@@ -4636,6 +4636,68 @@ a.markets__pair:hover .markets__name {
   font-size: 12px;
 }
 
+/* The check's flow of three boxes (CheckPage.tsx), in the Details card, which is half the page where there is room for two: where the boxes do not fit in a row with their arrows (200 px each
+   at least, `.flow__node`), they stand one under another with the arrows between them pointing down, as on a phone (the rule above that turns `.flow__arrow`, a width of the screen's), and
+   not two in a row with an arrow that points at nothing. The card, not the screen, says when: a container query. */
+.object-page__flow {
+  container-type: inline-size;
+  margin-bottom: 8px;
+}
+
+@container (width < 720px) {
+  .object-page__flow .flow__arrow {
+    width: 100%;
+  }
+
+  .object-page__flow .flow__arrow > svg {
+    transform: rotate(90deg);
+  }
+}
+
+/* A payment channel's deposit (PaymentChannelPage.tsx; the PayChannel board): the legend, the share bar and, under it, what each part is worth and its share of the deposit, side by side
+   while there is room and one under the other when there is not; then the paragraph on claims. */
+.object-page__deposit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.object-page__shares {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.object-page__share {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.object-page__share-name,
+.object-page__share-of {
+  color: var(--faint);
+}
+
+.object-page__share-amount {
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.object-page__claims {
+  margin: 0 0 14px;
+  max-width: 640px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 @media (max-width: 640px) {
   .object-page__title {
     font-size: 22px;

@@ -8,7 +8,7 @@ import { said, stateOf, walk, XAHAU, XRPL } from "../../test/support/object-view
 import type { Segment } from "../domain/describe";
 import { shortAddress } from "../domain/format";
 import { NO_NAMES, type NamesPart } from "../domain/names";
-import { formatDate } from "../domain/time-words";
+import { formatDate, formatDateTime } from "../domain/time-words";
 import type { CheckAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
 import { checkPage, drawnAccounts, type CheckPageData } from "./check-view";
 import type { DetailRow, ObjectSource } from "./ledger-object-view";
@@ -325,6 +325,21 @@ describe("checkPage: the head", () => {
     });
     const without = page(indexed(await answerOf("xrpl", "check-open")), { serverState: null });
     expect(labels(without)).not.toContain("Owner reserve");
+  });
+
+  it("carries the moment it is as of and the dates its status lines write out, for the page to put an age beside each", async () => {
+    const expired = await answerOf("xrpl", "check-expired");
+    const data = page(indexed(expired));
+    expect(data.asOfAt).toBe(unix(expired.close_time));
+    expect(data.dates).toEqual([unix(expired.check.expiration!)]);
+    expect(said(data.statusLines[1]!)).toContain(formatDateTime(data.dates[0]!));
+    // An open check with no expiration names none; a removed one (cashed, cancelled) names the day it was removed.
+    expect(page(indexed(await answerOf("xrpl", "check-open"))).dates).toEqual([]);
+    const cashed = await answerOf("xrpl", "check-cashed");
+    expect(page(indexed(cashed)).dates).toEqual([unix(cashed.check.removed!.time)]);
+    // From the node, "now" is the request's time.
+    const { entry, ledgerIndex } = await entryOf("xrpl", "check-node-only");
+    expect(page({ origin: "node", entry, ledgerIndex, now: 1_790_000_123 }).asOfAt).toBe(1_790_000_123);
   });
 
   it("describes the check for the meta tags with short addresses: no name goes in (C14)", async () => {

@@ -569,6 +569,22 @@ describe("paymentChannelPage: the details", () => {
     expect(page(indexed(await answerOf("xrpl", "channel-open"))).coverage).toBeNull();
   });
 
+  it("carries the moment it is as of and the dates its status lines write out, for the page to put an age beside each", async () => {
+    const open = await answerOf("xrpl", "channel-open");
+    const data = page(indexed(open));
+    expect(data.asOfAt).toBe(unix(open.close_time));
+    // An open channel names its CancelAfter, a closing one the earlier of its Expiration and CancelAfter, a closed one the day it was removed.
+    expect(data.dates).toEqual([]);
+    expect(page(indexed(answerWith("open", { cancel_after: "2026-12-01T00:00:00Z" }))).dates).toEqual([unix("2026-12-01T00:00:00Z")]);
+    const closing = await answerOf("xrpl", "channel-closing");
+    expect(page(indexed(closing)).dates).toContain(unix(closing.payment_channel.expiration!));
+    const closed = await answerOf("xrpl", "channel-closed");
+    expect(page(indexed(closed)).dates).toEqual([unix(closed.payment_channel.removed!.time)]);
+    // From the node, "now" is the request's time.
+    const { entry, ledgerIndex } = await entryOf("xrpl", "channel-open");
+    expect(page(fromNode(entry, ledgerIndex, 1_790_000_123)).asOfAt).toBe(1_790_000_123);
+  });
+
   it("describes the channel for the meta tags with short addresses: no name goes in (C14)", async () => {
     const answer = await answerOf("xrpl", "channel-open");
     const names: NamesPart = { state: "ok", map: { [answer.payment_channel.account]: { name: { text: "Glimmerfield Games", kind: "verified" }, domain: "glimmerfield.example", labels: [] } } };

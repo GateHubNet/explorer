@@ -2074,4 +2074,13 @@ describe("routes.ts", () => {
       { path: "escrows/:owner/:sequence", file: "routes/net.escrows.$owner.$sequence.tsx" },
     ]);
   });
+
+  it("has a check's page and a payment channel's page under :net, each by the ID alone", () => {
+    const net = routes.find((route) => route.path === ":net");
+    const pages = (net?.children ?? []).filter((route) => route.path?.startsWith("checks") || route.path?.startsWith("payment-channels")).map(({ path, file }) => ({ path, file }));
+    expect(pages).toEqual([
+      { path: "checks/:id", file: "routes/net.checks.$id.tsx" },
+      { path: "payment-channels/:id", file: "routes/net.payment-channels.$id.tsx" },
+    ]);
+  });
 });

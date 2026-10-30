@@ -23,6 +23,9 @@ export default [
     // An escrow by its ID, and the address of one by its owner and the sequence of its creation: a redirect to its ID (E10).
     route("escrows/:id", "routes/net.escrows.$id.tsx"),
     route("escrows/:owner/:sequence", "routes/net.escrows.$owner.$sequence.tsx"),
+    // A check and a payment channel by their IDs (E10).
+    route("checks/:id", "routes/net.checks.$id.tsx"),
+    route("payment-channels/:id", "routes/net.payment-channels.$id.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

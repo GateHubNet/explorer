@@ -83,6 +83,8 @@ export interface PaymentChannelPageData extends ObjectPageCommon {
   summary: Segment[];
   /** The status in a headline and the sentences under it. */
   statusLines: Segment[][];
+  /** The moments (unix seconds) the status lines write out, the CancelAfter, the time it closes from and the removal, for the page to put an age beside each (the browser's alone). */
+  dates: number[];
   /** What was deposited in all; `null` when D5 could not read it. */
   amount: DisplayAmount | null;
   /** One row, Deposit, of its two parts. No row when the amount or the balance is missing or does not add up: the bar then says "No data", and the page may leave the section out. */
@@ -272,6 +274,12 @@ function statusLinesOf(f: Facts): Segment[][] {
     case "removed":
       return [sentence(`Removed from the ledger by ${channel.removed?.tx_type ?? "a transaction"}`)];
   }
+}
+
+/** The moments the status lines of the channel's status write out (`statusLinesOf`): its CancelAfter while it is open, the time it closes from while it is closing, its removal once it is gone. */
+function datesOf(f: Facts): number[] {
+  const at = { open: f.cancelAfter, closing: f.closeAt?.at, closed: f.removed?.at, removed: undefined }[f.status];
+  return at === undefined ? [] : [at];
 }
 
 /** The sentence of the removed banner, which the timeline's `removed` event repeats; `null` for a channel that is in the ledger. */
@@ -514,6 +522,7 @@ export function paymentChannelPage(
     kind: "payment-channel",
     summary: summaryOf(f),
     statusLines: statusLinesOf(f),
+    dates: datesOf(f),
     amount,
     ...depositOf(f),
     claimsNote: claimsNoteOf(),

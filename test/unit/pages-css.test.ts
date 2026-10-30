@@ -549,4 +549,26 @@ describe("the ledger object pages", () => {
   it("puts the two cards side by side while there is room for 400 px each, and one under the other when there is not, each able to shrink", () => {
     expect(rule(pagesCss, ".object-page__col")).toMatchObject({ flex: "1 1 400px", "min-width": "0" });
   });
+
+  // The channel's deposit: the two parts under the bar share a row while they fit and wrap under one another on a phone, and a long amount breaks at the edge of its part. Each class is declared
+  // once in the sheet: a second rule of the same selector later in the file would override the first without a word (an AccountLink once lost its look that way).
+  it("lays the deposit's two parts out side by side, wrapping on a phone, with the amount in the page's text colour and the name and share faint", () => {
+    expect(rule(pagesCss, ".object-page__shares")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "justify-content": "space-between" });
+    expect(rule(pagesCss, ".object-page__share")).toMatchObject({ display: "flex", "flex-direction": "column", "min-width": "0", "overflow-wrap": "anywhere" });
+    expect(rule(pagesCss, ".object-page__share-amount").color).toBe("var(--fg)");
+    expect(rule(pagesCss, ".object-page__share-name,\n.object-page__share-of").color).toBe("var(--faint)");
+  });
+
+  // The check's flow stands in half a page, where its three boxes and their arrows do not fit in a row: the card says so (a container query), not the screen, and the boxes then stand one
+  // under another with their arrows pointing down, as `.flow__arrow` does on a phone (the media rule above it, which is the screen's).
+  it("stacks the check's flow, its arrows pointing down, where its card is narrower than three boxes in a row, by a container query on the card", () => {
+    expect(rule(pagesCss, ".object-page__flow")).toMatchObject({ "container-type": "inline-size" });
+    const stacked = /@container \(width < 720px\) \{\s*\.object-page__flow \.flow__arrow \{\s*width: 100%;\s*\}\s*\.object-page__flow \.flow__arrow > svg \{\s*transform: rotate\(90deg\);\s*\}\s*\}/;
+    expect(pagesCss).toMatch(stacked);
+  });
+
+  it.each([".object-page__flow", ".object-page__deposit", ".object-page__shares", ".object-page__share", ".object-page__share-amount", ".object-page__claims"])("declares %s once in the sheet", (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    expect(pagesCss.match(new RegExp(`(?:^|[},])\\s*${escaped}\\s*[{,]`, "gm")) ?? []).toHaveLength(1);
+  });
 });

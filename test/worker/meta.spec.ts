@@ -1017,6 +1017,81 @@ describe("an escrow's page", () => {
   });
 });
 
+describe("a check's page", () => {
+  // The open check of the fixtures: 1,000 XRP from Rowan Exchange (a verified name in the fixtures, which a description never uses) to rNWDKX…vMAM.
+  it("has a title, a description with short addresses and the status, a canonical URL and the sharing tags, with no image", async () => {
+    const { id, owner } = await objectCase("xrpl", "check-open");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/checks/${id}`)).html);
+    const title = `Check ${shortHash(id)} · XRPL · explorer`;
+    const description = `Check for up to 1,000 XRP from ${shortAddress(owner)} to ${shortAddress("rNWDKX2qk6ZiFvJD3aTkLDmqE681PVvMAM")} · open · XRPL`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(description);
+    expect(description).not.toContain("Rowan");
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/checks/${id}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/checks/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("twitter:title")).toBe(title);
+    // No link-preview image (decision 9).
+    for (const key of ["og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:image"]) expect(tags.content(key), key).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("says a status the page has: an expired check", async () => {
+    const { id } = await objectCase("xrpl", "check-expired");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/checks/${id}`)).html);
+    expect(tags.content("description")).toMatch(/^Check for up to 100 XRP from .+ to .+ · expired · XRPL$/);
+  });
+});
+
+describe("a payment channel's page", () => {
+  // The open channel of the fixtures: 1 XRP from rQQQrU…3ZrM to rLggTE…KrtR, and the long channel for a page of its older events.
+  it("has a title, a description with short addresses and the status, a canonical URL and the sharing tags, with no image", async () => {
+    const { id, owner } = await objectCase("xrpl", "channel-open");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/payment-channels/${id}`)).html);
+    const title = `Payment channel ${shortHash(id)} · XRPL · explorer`;
+    const description = `Payment channel of 1 XRP from ${shortAddress(owner)} to ${shortAddress("rLggTEwmTe3eJgyQbCSk4wQazow2TeKrtR")} · open · XRPL`;
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(description);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/payment-channels/${id}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:description")).toBe(description);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/payment-channels/${id}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:site_name")).toBe("explorer");
+    expect(tags.content("twitter:card")).toBe("summary");
+    expect(tags.content("twitter:title")).toBe(title);
+    for (const key of ["og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:image"]) expect(tags.content(key), key).toBeUndefined();
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL or sharing tags", async () => {
+    const { id, markers } = await objectCase("xrpl", "channel-long");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/payment-channels/${id}?marker=${markers![0]}`)).html);
+    expect(tags.titles).toEqual([`Payment channel ${shortHash(id)} · XRPL · explorer`]);
+    expect(tags.content("description")).toMatch(/^Payment channel of 2,100 XRP from .+ · open · XRPL$/);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
+  });
+
+  it("is Xahau's on Xahau, in the channel's currency", async () => {
+    const { id } = await objectCase("xahau", "xahau-token-channel");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/payment-channels/${id}`)).html);
+    expect(tags.titles).toEqual([`Payment channel ${shortHash(id)} · Xahau · explorer`]);
+    expect(tags.content("description")).toMatch(/^Payment channel of 1 DHA from .+ to .+ · open · Xahau$/);
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/payment-channels/${id}`]);
+  });
+});
+
 describe("the pages that are not for a search engine", () => {
   it("keeps a search page noindex, follow, without a canonical URL or sharing tags", async () => {
     mock = mockUpstream("xrpl");

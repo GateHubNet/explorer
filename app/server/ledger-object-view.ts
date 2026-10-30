@@ -414,6 +414,11 @@ export interface ObjectPageCommon {
   /** Newer and Older links of the history, in D5's direction (Older is the history page's `marker`); `null` for an object read from the node, which has none. */
   paging: Paging | null;
   asOf: string;
+  /**
+   * The moment the page is as of, unix seconds: the close time of the ledger the index's answer is as of, the request's time for the node's. A date the page writes out has its age beside it
+   * told against this: one before it is how long ago, one after it how long to come.
+   */
+  asOfAt: number;
   /** The note under the history (E8's, drawn by `CoverageNote`): `null` when the index holds the whole of the object's history. */
   coverage: CoverageNoteText | null;
   /** The owner reserve, or `null` when `server_state` failed (the page drops the row and is marked degraded by its loader). */
@@ -457,6 +462,7 @@ export function commonOf(
       timeline: timelineOf([], marks, { removed: [], say }),
       paging: null,
       asOf: asOfNoteOf(source, kind),
+      asOfAt: source.now,
       coverage: coverageNote({ complete: false }, `events of this ${kindOf(kind).words}`),
       reserve: reserveOf(o.serverState, net.native, kind, false),
       names: o.names,
@@ -486,6 +492,7 @@ export function commonOf(
       withQuery(path, trailPairs(to.marker, to.back).join("&")),
     ),
     asOf: asOfNoteOf(source, kind),
+    asOfAt: unixOf(answer.close_time),
     coverage: coverageNote(answer.coverage, `events of this ${kindOf(kind).words}`),
     reserve: reserveOf(o.serverState, net.native, kind, removed !== undefined),
     names: o.names,

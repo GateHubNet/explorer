@@ -34,6 +34,7 @@ import { amendmentPage } from "./amendment-view";
 import { amendmentsPage } from "./amendments-view";
 import type { AmmListFacts, AmmPoolMeta } from "./amm-view";
 import type { AmendmentDetail } from "./api-types";
+import type { CheckMeta } from "./check-view";
 import type { EscrowMeta } from "./escrow-view";
 import { imageUrl, metaContext, suffixOf, type MetaContext } from "./meta";
 import { accountMeta } from "./meta-account";
@@ -41,6 +42,7 @@ import { amendmentMeta } from "./meta-amendment";
 import { amendmentsMeta } from "./meta-amendments";
 import { ammListMeta } from "./meta-amm-list";
 import { ammPoolMeta } from "./meta-amm-pool";
+import { checkMeta } from "./meta-check";
 import { escrowMeta } from "./meta-escrow";
 import { nftMeta } from "./meta-nft";
 import { nftCollectionMeta } from "./meta-nft-collection";
@@ -51,6 +53,7 @@ import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
 import { networkMeta } from "./meta-network";
 import { pairMeta } from "./meta-pair";
+import { paymentChannelMeta } from "./meta-payment-channel";
 import { transactionDescription, transactionMeta } from "./meta-transaction";
 import { validatorMeta } from "./meta-validator";
 import { validatorsMeta } from "./meta-validators";
@@ -58,6 +61,7 @@ import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCo
 import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
 import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
 import { pairPage } from "./pair-view";
+import type { PaymentChannelMeta } from "./payment-channel-view";
 import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 import { validatorsPage } from "./validators-view";
 
@@ -1709,6 +1713,110 @@ describe("escrowMeta", () => {
   it("is noindex, follow behind a marker, with no canonical URL and nothing to share", () => {
     const list = escrowMeta(facts({ marker: true }), XRPL);
     expect(title(list)).toBe("Escrow 5B9C0E…D21F · XRPL · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(link(list, "canonical")).toBeUndefined();
+    expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
+  });
+});
+
+describe("checkMeta", () => {
+  const ID = "60FCB1E8C72A695CBB6BDF718D30AF2310A9BED6D3F6D92F54C0E429186D1A42";
+  const URL = `https://explorer.test/xrpl/checks/${ID}`;
+  const facts = (over: Partial<CheckMeta> = {}): CheckMeta => ({
+    id: ID,
+    amount: "1,000 XRP",
+    owner: "rJF2Xa…fQvg",
+    destination: "rNYbL8…UKq5",
+    status: "open",
+    marker: false,
+    ...over,
+  });
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("is the check's short ID in the title, and what it allows, from whom, to whom and its status in the description, with short addresses (C14)", () => {
+    const list = checkMeta(facts(), XRPL);
+    expect(title(list)).toBe("Check 60FCB1…1A42 · XRPL · explorer");
+    expect(content(list, "description")).toBe("Check for up to 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · open · XRPL");
+  });
+
+  it("reads well without a SendMax D5 could not read", () => {
+    expect(content(checkMeta(facts({ amount: "" }), XRPL), "description")).toBe("Check from rJF2Xa…fQvg to rNYbL8…UKq5 · open · XRPL");
+  });
+
+  it("has the canonical URL and the sharing tags with no image: a summary card (decision 9)", () => {
+    const list = checkMeta(facts({ status: "expired" }), XRPL);
+    expect(link(list, "canonical")).toBe(URL);
+    expect(content(list, "og:url")).toBe(URL);
+    expect(content(list, "og:title")).toBe("Check 60FCB1…1A42 · XRPL · explorer");
+    expect(content(list, "og:description")).toBe("Check for up to 1,000 XRP from rJF2Xa…fQvg to rNYbL8…UKq5 · expired · XRPL");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau", () => {
+    const list = checkMeta(facts({ amount: "200 XAH" }), XAHAU);
+    expect(title(list)).toBe("Check 60FCB1…1A42 · Xahau · explorer");
+    expect(content(list, "description")).toBe("Check for up to 200 XAH from rJF2Xa…fQvg to rNYbL8…UKq5 · open · Xahau");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xahau/checks/${ID}`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and nothing to share", () => {
+    const list = checkMeta(facts({ marker: true }), XRPL);
+    expect(title(list)).toBe("Check 60FCB1…1A42 · XRPL · explorer");
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(link(list, "canonical")).toBeUndefined();
+    expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
+  });
+});
+
+describe("paymentChannelMeta", () => {
+  const ID = "E22CCE8FA636C8BDF1C3C4AA17FD604B8FDE268E4F6BF9022B5336536F5B69EA";
+  const URL = `https://explorer.test/xrpl/payment-channels/${ID}`;
+  const facts = (over: Partial<PaymentChannelMeta> = {}): PaymentChannelMeta => ({
+    id: ID,
+    amount: "1 XRP",
+    owner: "rQQQrU…3ZrM",
+    destination: "rLggTE…KrtR",
+    status: "open",
+    marker: false,
+    ...over,
+  });
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+
+  it("is the channel's short ID in the title, and what was deposited, from whom, to whom and its status in the description, with short addresses (C14)", () => {
+    const list = paymentChannelMeta(facts(), XRPL);
+    expect(title(list)).toBe("Payment channel E22CCE…69EA · XRPL · explorer");
+    expect(content(list, "description")).toBe("Payment channel of 1 XRP from rQQQrU…3ZrM to rLggTE…KrtR · open · XRPL");
+  });
+
+  it("reads well without a deposit D5 could not read", () => {
+    expect(content(paymentChannelMeta(facts({ amount: "" }), XRPL), "description")).toBe("Payment channel from rQQQrU…3ZrM to rLggTE…KrtR · open · XRPL");
+  });
+
+  it("has the canonical URL and the sharing tags with no image: a summary card (decision 9)", () => {
+    const list = paymentChannelMeta(facts({ status: "closing" }), XRPL);
+    expect(link(list, "canonical")).toBe(URL);
+    expect(content(list, "og:url")).toBe(URL);
+    expect(content(list, "og:title")).toBe("Payment channel E22CCE…69EA · XRPL · explorer");
+    expect(content(list, "og:description")).toBe("Payment channel of 1 XRP from rQQQrU…3ZrM to rLggTE…KrtR · closing · XRPL");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is Xahau's on Xahau", () => {
+    const list = paymentChannelMeta(facts({ amount: "200 DHA" }), XAHAU);
+    expect(title(list)).toBe("Payment channel E22CCE…69EA · Xahau · explorer");
+    expect(content(list, "description")).toBe("Payment channel of 200 DHA from rQQQrU…3ZrM to rLggTE…KrtR · open · Xahau");
+    expect(link(list, "canonical")).toBe(`https://explorer.test/xahau/payment-channels/${ID}`);
+  });
+
+  it("is noindex, follow behind a marker, with no canonical URL and nothing to share", () => {
+    const list = paymentChannelMeta(facts({ marker: true }), XRPL);
+    expect(title(list)).toBe("Payment channel E22CCE…69EA · XRPL · explorer");
     expect(content(list, "robots")).toBe("noindex, follow");
     expect(link(list, "canonical")).toBeUndefined();
     expect(keys(list).filter((key) => key.startsWith("og:") || key.startsWith("twitter:"))).toEqual([]);
