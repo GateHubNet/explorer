@@ -154,7 +154,7 @@ older events, the first page has none.
 
 | File | Exports |
 |---|---|
-| `ledger-object-view.ts` | `ObjectSource` (`{ origin: "index"; answer; history? }` or `{ origin: "node"; entry; ledgerIndex; now }`), `fromNodeEntry(kind, entry, native)` (the node's fields as D5's object shape: drops to whole units, Ripple-epoch to unix), `timelineOf`, `removedBannerOf`, `asOfNoteOf`, `reserveOf` (the coverage line is E8's `coverageNote`) |
+| `ledger-object-view.ts` | `ObjectSource` (`{ origin: "index"; answer; history? }` or `{ origin: "node"; entry; ledgerIndex; now }`), `fromNodeEntry(kind, entry, native, now)` (the node's fields as D5's object exactly: drops to whole units, ISO times, the status at `now`), `timelineOf`, `removedBannerOf`, `asOfNoteOf`, `reserveOf` (the coverage line is E8's `coverageNote`) |
 | `escrow-view.ts` | `escrowPage(source, opts)` → `EscrowPageData` |
 | `check-view.ts` | `checkPage(source, opts)` → `CheckPageData` |
 | `payment-channel-view.ts` | `paymentChannelPage(source, opts)` → `PaymentChannelPageData` |
