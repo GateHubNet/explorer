@@ -1,0 +1,25 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-14T02:25:30+00:00",
+    "hash": "4833CA99071AF0939377A418006328F6777F8A81DE09284EF1B7134A57A97F32",
+    "ledger_index": 107641123,
+    "meta": {
+      "AffectedNodes": [{"CreatedNode":{"LedgerEntryType":"Escrow","LedgerIndex":"0D1331F9B60A0BCEC44FA9A0A1C60BEE947936ED5BF17A8DFA7D1BA9DA22273E","NewFields":{"Account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","Amount":"25000000","CancelAfter":845346330,"Destination":"rLxhH2P6SfxV71EnWdcAZMPpcAnSe5HyFB","DestinationNode":"0","FinishAfter":845263530,"Sequence":94461042}}}],
+      "TransactionIndex": 59,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
+      "Amount": "25000000",
+      "CancelAfter": 845346330,
+      "Destination": "rLxhH2P6SfxV71EnWdcAZMPpcAnSe5HyFB",
+      "Fee": "12",
+      "FinishAfter": 845263530,
+      "Flags": 0,
+      "LastLedgerSequence": 107641143,
+      "Sequence": 94461042,
+      "TransactionType": "EscrowCreate"
+    }
+  }
+}

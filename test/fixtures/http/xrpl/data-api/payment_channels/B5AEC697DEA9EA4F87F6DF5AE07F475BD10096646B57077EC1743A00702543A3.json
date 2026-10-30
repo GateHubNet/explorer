@@ -5,9 +5,9 @@
     "from_ledger_index": 102145584
   },
   "history": [
-    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"12"},"event":"close_request","expiration":"2026-11-16T06:18:50Z","ledger_index":107711512,"result":"tesSUCCESS","time":"2026-10-17T06:18:50Z","tx_hash":"AA495399F6392298F2B99B6149CE9439B13F2DB1CAC876A01DAFB0FBA5A1FCB3","tx_type":"PaymentChannelClaim"},
-    {"account":"rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"12"},"balance_change":{"currency":"XRP","value":"12"},"event":"claim","ledger_index":107558036,"result":"tesSUCCESS","time":"2026-10-10T09:03:20Z","tx_hash":"49F2B6C74AEA0F9CAB4BC720B7BBB844251F79FD62517872FC5FEDBE6E6464CC","tx_type":"PaymentChannelClaim"},
-    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"0"},"event":"create","ledger_index":107296498,"result":"tesSUCCESS","settle_delay":2592000,"time":"2026-09-28T16:40:31Z","tx_hash":"4C22E77E87D34CFF8E3747EC2F713B9E3D59F59F555E369C3F4A7F5984F32AE7","tx_type":"PaymentChannelCreate"}
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"12"},"event":"close_request","expiration":"2026-11-13T02:25:30Z","ledger_index":107641123,"result":"tesSUCCESS","time":"2026-10-14T02:25:30Z","tx_hash":"2611A5B42AAEB69895E1BF560AA7D8FD8940DE45BC180735BF4E3DFF3B9F2E9F","tx_type":"PaymentChannelClaim"},
+    {"account":"rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"12"},"balance_change":{"currency":"XRP","value":"12"},"event":"claim","ledger_index":107558036,"result":"tesSUCCESS","time":"2026-10-10T09:03:20Z","tx_hash":"3B2600BA40A1E88F5063C9EDBBB50A3DD4C8579453B212AA08092FD55BEB7AEA","tx_type":"PaymentChannelClaim"},
+    {"account":"rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh","amount":{"currency":"XRP","value":"50"},"balance":{"currency":"XRP","value":"0"},"event":"create","ledger_index":107296498,"result":"tesSUCCESS","settle_delay":2592000,"time":"2026-09-28T16:40:31Z","tx_hash":"DDC5BC23C9D6C3ACB90AB20C28FBBCF43454BFD5DF2EC8532A60CB11A0DC29C5","tx_type":"PaymentChannelCreate"}
   ],
   "ledger_index": 107972102,
   "payment_channel": {
@@ -25,10 +25,10 @@
     "created": {
       "ledger_index": 107296498,
       "time": "2026-09-28T16:40:31Z",
-      "tx_hash": "4C22E77E87D34CFF8E3747EC2F713B9E3D59F59F555E369C3F4A7F5984F32AE7"
+      "tx_hash": "DDC5BC23C9D6C3ACB90AB20C28FBBCF43454BFD5DF2EC8532A60CB11A0DC29C5"
     },
     "destination": "rfJXwnj9j5ALzAbYp2azD4Zn6E69pevFMB",
-    "expiration": "2026-11-16T06:18:50Z",
+    "expiration": "2026-11-13T02:25:30Z",
     "funds": 0,
     "opened_with": {
       "currency": "XRP",

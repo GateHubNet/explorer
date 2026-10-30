@@ -766,7 +766,7 @@ E10's `PIN` is `0c2e58c3995cb3fdc240c3bf89dea9c4ab1e8adb`, D5's `feat/explorer-d
 | `docs/api-reference.md` ("Ledger objects") | `0c2e58c` | the key orders, the rules, and the examples: the six object answers, the two lookups and Xahau's delegations of an account are real answers over these recordings, and `test/unit/object-fixtures.test.ts` compares the files with them, text for text |
 
 What the recordings give: XRPL 217 objects in 221 rows (201 escrows, 191 of them cancelled and one finished without their creation indexed, nine checks, six channels and the one
-delegation), Xahau 9 in 12 rows. **Coverage** (C8): the feature's coverage is the set's first ledger, not whole (`{ from_ledger_index: 102145584 | 8852809, complete: false }`: both
+delegation), Xahau 9 in 12 rows. The index leaves 190 of XRPL's cancels out (below): it holds 27 objects in 31 rows. **Coverage** (C8): the feature's coverage is the set's first ledger, not whole (`{ from_ledger_index: 102145584 | 8852809, complete: false }`: both
 networks had these objects before the recordings), and an object whose creation is indexed has it complete; one created before has no `created` (escrow `8993DA09…`, finished in
 107670360, is the reference's example of it). **One open recorded escrow and one open check** (the first of each by ID, `0F0EE149…` and `24BC04C8…`) have a node file and no index file
 (no answer, no lookup): the node fallback (`escrow-node-only`, `check-node-only`).
@@ -778,30 +778,32 @@ networks had these objects before the recordings), and an object whose creation 
 | `data-api/escrows/<ID>.json`, `data-api/checks/<ID>.json`, `data-api/payment_channels/<ID>.json` | the object as of the set's newest ledger and its newest 50 events, newest first, with `history_marker` when there are more |
 | `…/<ID>/history@descending=true&limit=50&marker=<M>.json` | the events behind each marker, newest first (the object page asks a page of 50 behind a marker); only `channel-long` has any |
 | `data-api/ledger_objects/<ID>.json` | `{ result, ledger_object }` of every ID of the index (a delegation's too), and of the delegations the hand-written files list |
-| `data-api/transactions/<HASH>.json`, `…@binary=true.json` | the transactions with a tracked node, a `Delegate` field or of type `DelegateSet` (C3), but those `generate()` serves already from `SETS` and the 190 bulk cancels (below), and the four of C9; made as the sets' transactions are made, the binary form re-hashing to the hash |
-| `data-api/ledgers/<index>@transactions=true.json` | the hashes of a ledger of those transactions that is not among `SETS` (XRPL 16, Xahau 12), in ledger order, which the transaction page reads for a transaction's neighbours (and which C9's transactions end) |
+| `data-api/transactions/<HASH>.json`, `…@binary=true.json` | the transactions with a row of the index, a `Delegate` field or of type `DelegateSet` (C3), but those `generate()` serves already from `SETS`, and the synthetic ones (the synthetic objects' 130 and C9's 4); made as the sets' transactions are made, the binary form re-hashing to the hash |
+| `data-api/ledgers/<index>@transactions=true.json` | the hashes of a ledger of those transactions that is not among `SETS` (XRPL 16, Xahau 12), in ledger order, which the transaction page reads for a transaction's neighbours, the synthetic transactions last |
 | `node/ledger_entry/<ID>.json` | rippled's and xahaud's `ledger_entry` (`validated`, the set's newest ledger) of every object still in the ledger: its fields as its newest transaction left them, `Flags` and the directory pages a node fills in (`"0"`), a channel's zero `Balance`, and its thread (`PreviousTxnID`, `PreviousTxnLgrSeq`); Ripple-epoch times, drops |
 
-628 files, 1,018,593 bytes (about 0.97 MiB, under the budget of 1.0 MiB): XRPL 570 files of 850,383 bytes (222 answers and 2 history pages, 323,008, of them 234,153 the 191 escrows the
-cancels of ledger 106179366 removed; 228 lookups, 61,620; 24 node entries, 22,353; 39 transactions and their binary forms, 226,094; 16 ledger lists, 217,308), Xahau 58 of 168,210 (9 answers, 9 lookups, 4
-node entries, 12 transactions and their binary forms, 67,847, 12 ledger lists, 81,838). They are `isObjectGenerated` in `scripts/http-fixtures.ts` (`node/ledger_entry/` but the NFT
-generator's URIToken entries, `nftLedgerEntryIds`, C5; and the transactions and ledger lists this generator writes), and have a size budget of their own in
+508 files, 1,024,795 bytes (about 0.98 MiB, under the budget of 1.0 MiB): XRPL 450 files of 856,585 bytes (32 answers and 2 history pages, 90,077; 38 lookups, 10,320; 24 node
+entries, 22,353; 169 transactions and their binary forms, 506,907, of which the synthetic objects' 130 are 280,813; 16 ledger lists, 226,928), Xahau 58 of 168,210 (9 answers, 9
+lookups, 4 node entries, 12 transactions and their binary forms, 67,847, 12 ledger lists, 81,838). They are `isObjectGenerated` in `scripts/http-fixtures.ts` (`node/ledger_entry/` but
+the NFT generator's URIToken entries, `nftLedgerEntryIds`, C5; and the transactions and ledger lists this generator writes), and have a size budget of their own in
 `test/unit/http-fixtures.test.ts` (at most 1.0 MiB, outside the recorded files': C4). An object's events and an account's delegations are a row to a line (`OBJECT_ROW_LISTS`).
 
-**The bulk cancels.** Ledger 106179366 holds 191 escrow cancels: the case `escrow_cancel` and 190 of the token-escrow testers, cancelling escrows created before the recordings. Their 191
-escrows are derived and answered like any other (234,153 bytes, and 51,570 of lookups), but the 190 cancels the manifest does not name have no transaction file (`isBulkCancel`): they are
-0.9 MB of transactions, which the budget cannot hold (C4). Their escrows' `cancel` events link to a transaction page that is a 404 in the fixtures.
+**The cancels left out** (the controller's ruling on Task 2's review). Ledger 106179366 holds 191 escrow cancels: the case `escrow_cancel` (a third party's cancel of `E81C0A08…`, the one
+recorded cancelled escrow the index keeps) and 190 of the token-escrow testers, cancelling escrows created before the recordings. The index is left without those 190 (`leftOutOf`): no
+row, no escrow answer, no lookup and no transaction file. They would be 190 escrows no case uses, with 0.9 MB of transactions behind their links, which the budget cannot hold (C4).
 
 ### The synthetic parts (XRPL, seeded with `mulberry32(seedOf("xrpl", "objects", <name>))`, `scripts/synthetic.ts`)
 
 - **Objects** the recordings cannot give, each made of transactions written here and derived by the port as the recorded ones are (IDs are their keylets: an escrow's and a check's
-  of owner and sequence, a channel's of owner, destination and sequence), each transaction in a recorded ledger at an index past the ledger's own (`placesOf`), its hash drawn,
-  with no transaction file. The active account (`rBbW6i…`, `OBJECTS_ACCOUNT`, test/e2e/fixtures.ts's `XRPL_ACCOUNT`) owns an escrow that can be cancelled (both its times passed, made
-  in 107641123), one cancelled by its owner (made in 107558036, cancelled in 107624182) and a channel asked to close (made in 107296498, claimed once in 107558036, its `Expiration` set
-  in 107711512 a 30-day settle delay on), and is the destination of a check that expired a day after it was written (107670360): all four before the explorer's head (107721455),
+  of owner and sequence, a channel's of owner, destination and sequence), each transaction in a recorded ledger that is not among `SETS` (whose lists are the recorded ones), at an
+  index past the ledger's own (`placesOf`), with its type's fields, a fee and a `LastLedgerSequence` (no signature), the object's node as its metadata, and the hash of its
+  serialization; each has a file, its binary form and its place in its ledger's list, so that every event's link opens (130 transactions). The active account (`rBbW6i…`,
+  `OBJECTS_ACCOUNT`, test/e2e/fixtures.ts's `XRPL_ACCOUNT`) owns an escrow that can be cancelled (both its times passed, made in 107641123), one cancelled by its owner (made in
+  107558036, cancelled in 107624182) and a channel asked to close (made in 107296498, claimed once in 107558036, its `Expiration` set in 107641123 a 30-day settle delay on), and is
+  the destination of a check that expired a day after it was written (107641123): all four before the explorer's head (107721455),
   whose `account_objects` holds the three still in the ledger (C7). Others own an escrow pending until 2030 (no recorded XRPL escrow is pending at the as-of time), one that can be
   finished and has no `CancelAfter` (none is), an escrow of D5's synthetic MPT issuance (`0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8`, 250 units: none was found on the
-  network, D5's FINDINGS (8)), and `channel-long`: created in the first recorded ledger and then claimed from (108 claims) and funded (11 funds) across the later ones, 120 events,
+  network, D5's FINDINGS (8)), and `channel-long`: created in the first recorded ledger and then claimed from (108 claims) and funded (11 funds) across 14 later ones, 120 events,
   so that its answer embeds 50 and two pages follow (50 and 20). The open ones have node entries too.
 - **C9's transactions**, in the ledger of the recorded `DelegateSet` (107558036), at the indexes after its own (71 to 74), with files and appended to that ledger's list: a delegated
   `Payment` and a delegated `tec` (D5's `delegatedFrom` over the ledger's first successful XRP `Payment` between two accounts and its first `tec` `Payment`: the `Delegate`

@@ -1,11 +1,12 @@
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
 import type { ObjectAnswer, ObjectApiKind, ObjectHistoryPage, TxObject } from "../../app/server/api-types";
 import { checkDelegations, checkLedgerObject, checkObjectAnswer, checkObjectHistory } from "../../app/server/object-shape";
-import { HTTP, isHandWritten, isNftGenerated, isObjectGenerated, readLedgers, servedHashes } from "../../scripts/http-fixtures";
-import { derivedObjectRows, rowsOfTransaction } from "../../scripts/object-derive";
+import { HTTP, isHandWritten, isNftGenerated, isObjectGenerated, readLedgers, servedHashes, TX_HASH_PREFIX, type RawLedger, type RawTx } from "../../scripts/http-fixtures";
+import { checkStatus, channelStatus, derivedAnswer, derivedObjectRows, escrowStatus, markerPosition, rowsOfTransaction, type DerivedObjectRow } from "../../scripts/object-derive";
 import {
   channelKeylet,
   checkKeylet,
@@ -62,8 +63,15 @@ function sourcesOf(net: NetworkName): ObjectSources {
 
 /**
  * The reference's examples (docs/api-reference.md at the pin, "Ledger objects"), each answer as its JSON text: two escrows, two checks, two channels, Xahau's delegations of an
- * account, and two lookups. They are real answers over the recordings these fixtures copy, so the port must give them exactly, key order and all.
+ * account, and two lookups. They are real answers over the recordings these fixtures copy, so the port must give them exactly, key order and all. `ASCENDING_EXAMPLES` are the
+ * reference's others: an escrow's and a channel's first page of history oldest first (`?limit=1`), which the pages never ask for, and an XRPL account's delegations.
  */
+const ASCENDING_EXAMPLES: string[] = [
+  '{"result":"success","coverage":{"from_ledger_index":102145584,"complete":true},"ledger_index":107972102,"close_time":"2026-10-29T03:50:41Z","count":1,"marker":"WzEwNzk0NTQzOCw5OF0","history":[{"event":"create","ledger_index":107945438,"time":"2026-10-27T22:14:51Z","tx_hash":"3D7F58900F76F6B50D7B5BB1988D9E3C4E33744928B14DE1106848FFA9A3343C","tx_type":"EscrowCreate","account":"rfd4xkXuigdGJV2XYkbosFzBQaLsc6M8Vm","result":"tesSUCCESS","amount":{"currency":"XRB","issuer":"rD9ixf7RRUKuKVFTsZa3fZGAN6HtNziPKa","value":"75000"}}]}',
+  '{"result":"success","coverage":{"from_ledger_index":102145584,"complete":true},"ledger_index":107972102,"close_time":"2026-10-29T03:50:41Z","count":1,"marker":"WzEwNzYyNDE4Miw0NF0","history":[{"event":"create","ledger_index":107624182,"time":"2026-10-13T08:05:31Z","tx_hash":"E8A8466AF9E1E5E6339F1EAC64A9B8AD7AB4BE42613605511EDC80E1FCD34127","tx_type":"PaymentChannelCreate","account":"rQQQrUdN1cLdNmxH4dHfKgmX5P4kf3ZrM","result":"tesSUCCESS","amount":{"currency":"XRP","value":"1"},"balance":{"currency":"XRP","value":"0"},"settle_delay":1209600}]}',
+];
+const DELEGATIONS_EXAMPLE =
+  '{"result":"success","coverage":{"from_ledger_index":102145584,"complete":true},"ledger_index":107972102,"close_time":"2026-10-29T03:50:41Z","count":1,"delegations":[{"delegation_id":"E63226B764F4D7C198DBF8E4DE0F5DA4F9C1AC449C2927F2150C0B731E020851","account":"rnt8PbBFT7idcLyj9PNgxjZi9Z1RiRX3QL","authorize":"rw2X2GFePFiLDdcQw6iELFfUEw1hPqAGcK","permissions":[{"permission":"OfferCreate","kind":"transaction"},{"permission":"OfferCancel","kind":"transaction"}],"updated":{"ledger_index":107558036,"time":"2026-10-10T09:03:20Z","tx_hash":"4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66"},"created":{"ledger_index":107558036,"time":"2026-10-10T09:03:20Z","tx_hash":"4250B72A5AB63CEB5501CFDDA3B4C9765B85941BB6AECE9720FC6C0D5F524B66"}}]}';
 const EXAMPLES: string[] = [
   '{"result":"success","coverage":{"from_ledger_index":102145584,"complete":true},"ledger_index":107972102,"close_time":"2026-10-29T03:50:41Z","escrow":{"escrow_id":"B95064B1A92F02EE009E6BDFB369CF476FB925BB8615456970E38774034A5D30","account":"rNeJW71pMjKy42j5jn7vnWZAbmuU6SKs6V","sequence":107896555,"destination":"rGtW2dWHmHQ3f65pfbjYF5PbFbdZwgwuqW","amount":{"currency":"XRP","value":"0.5"},"finish_after":"2026-10-25T16:50:01Z","cancel_after":"2026-10-25T17:49:01Z","source_tag":2610250016,"status":"can_be_cancelled","created":{"ledger_index":107897249,"time":"2026-10-25T16:49:20Z","tx_hash":"BF93E9B72AE372BCEB27781CA58C4ABE7E51EE9F5D254D02B83C92EC1A22AE53"}},"history":[{"event":"create","ledger_index":107897249,"time":"2026-10-25T16:49:20Z","tx_hash":"BF93E9B72AE372BCEB27781CA58C4ABE7E51EE9F5D254D02B83C92EC1A22AE53","tx_type":"EscrowCreate","account":"rNeJW71pMjKy42j5jn7vnWZAbmuU6SKs6V","result":"tesSUCCESS","amount":{"currency":"XRP","value":"0.5"}}]}',
   '{"result":"success","coverage":{"from_ledger_index":102145584,"complete":true},"ledger_index":107972102,"close_time":"2026-10-29T03:50:41Z","escrow":{"escrow_id":"FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4","account":"rfd4xkXuigdGJV2XYkbosFzBQaLsc6M8Vm","sequence":107945427,"destination":"rHiwfnKJCwNePaTj8HmEYCx8G5NCsSEJSt","amount":{"currency":"XRB","issuer":"rD9ixf7RRUKuKVFTsZa3fZGAN6HtNziPKa","value":"75000"},"finish_after":"2026-10-28T22:14:47Z","status":"finished","created":{"ledger_index":107945438,"time":"2026-10-27T22:14:51Z","tx_hash":"3D7F58900F76F6B50D7B5BB1988D9E3C4E33744928B14DE1106848FFA9A3343C"},"removed":{"ledger_index":107967068,"time":"2026-10-28T22:14:51Z","tx_hash":"375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA","tx_type":"EscrowFinish"}},"history":[{"event":"finish","ledger_index":107967068,"time":"2026-10-28T22:14:51Z","tx_hash":"375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA","tx_type":"EscrowFinish","account":"rPw6JAdM9BGwH4y4LxJQBDybaGNhFLCspU","result":"tesSUCCESS"},{"event":"create","ledger_index":107945438,"time":"2026-10-27T22:14:51Z","tx_hash":"3D7F58900F76F6B50D7B5BB1988D9E3C4E33744928B14DE1106848FFA9A3343C","tx_type":"EscrowCreate","account":"rfd4xkXuigdGJV2XYkbosFzBQaLsc6M8Vm","result":"tesSUCCESS","amount":{"currency":"XRB","issuer":"rD9ixf7RRUKuKVFTsZa3fZGAN6HtNziPKa","value":"75000"}}]}',
@@ -146,7 +154,7 @@ describe.each(NETS)("%s", (net) => {
         expect(() => checkLedgerObject((value as Json).ledger_object, `/v2/ledger_objects/${match![1]}`), path).not.toThrow();
       }
     }
-    expect(counted).toBeGreaterThan(net === "xrpl" ? 200 : 6);
+    expect(counted).toBeGreaterThan(net === "xrpl" ? 30 : 6);
     // The hand-written delegations files, which the Delegation tab reads.
     if (net === "xrpl") {
       for (const account of [XRPL_ACCOUNT, "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC", "rPzx7uasocDdgSNWoWxFytF8VRsAdLU9SC"]) {
@@ -156,6 +164,23 @@ describe.each(NETS)("%s", (net) => {
         }
       }
     }
+  });
+
+  it("gives every recorded object its keylet: an escrow's and a check's of owner and sequence, a channel's of owner, destination and sequence, a delegation's of its two accounts", () => {
+    const keyletOf: Record<string, (row: DerivedObjectRow) => string> = {
+      Escrow: (row) => escrowKeylet(row.owner, Number(row.fields.Sequence ?? row.event_fields.sequence)),
+      Check: (row) => checkKeylet(row.owner, Number(row.fields.Sequence ?? row.event_fields.sequence)),
+      PayChannel: (row) => channelKeylet(row.owner, row.counterparty, Number(row.fields.Sequence ?? row.event_fields.sequence)),
+      Delegate: (row) => delegateKeylet(row.owner, row.counterparty),
+    };
+    const checked: Record<string, number> = {};
+    for (const row of derivedObjectRows(worlds[net].ledgers)) {
+      if (row.object_type !== "Delegate" && row.fields.Sequence === undefined && row.event_fields.sequence === undefined) continue;
+      expect(keyletOf[row.object_type]!(row), `${row.object_type} ${row.object_id}`).toBe(row.object_id);
+      checked[row.object_type] = (checked[row.object_type] ?? 0) + 1;
+    }
+    // Every type the recordings have, with its sequence known (a channel or check of which only a later row is indexed has its `Sequence` in its fields).
+    expect(Object.keys(checked).sort()).toEqual(net === "xrpl" ? ["Check", "Delegate", "Escrow", "PayChannel"] : ["Check", "Escrow", "PayChannel"]);
   });
 
   it("every escrow's ID is the LedgerIndex of the node its EscrowCreate created, and the keylet of its owner and sequence", () => {
@@ -224,14 +249,15 @@ describe.each(NETS)("%s", (net) => {
     expect(isNftGenerated("xahau/node/ledger_entry/35B8D52858E0463C0F0FCCC73EFBE1D308F0AF71112035C4D45777EB9115E93D.json")).toBe(true);
   });
 
-  it("serves the transactions behind the objects: a tracked node, a Delegate or a DelegateSet, but the sets' own and the bulk cancels, each in a ledger whose list holds it at its place", () => {
+  it("serves the transactions behind the objects: a row of the index, a Delegate or a DelegateSet, but the sets' own, each in a ledger whose list holds it at its place", () => {
     const world = worlds[net];
     const already = servedHashes(net);
     const inSets = new Set(readLedgers(net).map((raw) => Number(raw.ledger.ledger_index)));
+    const indexed = new Set(world.rows.map((row) => row.tx_hash));
     let skipped = 0;
     for (const raw of world.ledgers) {
       for (const tx of raw.ledger.transactions) {
-        const wanted = rowsOfTransaction(raw, tx).length > 0 || typeof tx.Delegate === "string" || tx.TransactionType === "DelegateSet";
+        const wanted = indexed.has(tx.hash) || typeof tx.Delegate === "string" || tx.TransactionType === "DelegateSet";
         const path = `${net}/data-api/transactions/${tx.hash}.json`;
         if (!wanted || already.has(tx.hash)) {
           expect(files.has(path), path).toBe(false);
@@ -248,8 +274,18 @@ describe.each(NETS)("%s", (net) => {
         if (!inSets.has(index)) expect(list!.ledger.transactions[tx.metaData.TransactionIndex], path).toBe(tx.hash);
       }
     }
-    // The 190 escrow cancels of the token testers in ledger 106179366 (not the manifest's case): their escrows are derived, their transactions have no file (C4's budget).
-    expect(skipped).toBe(net === "xrpl" ? 190 : 0);
+    expect(skipped).toBe(0);
+    // The 190 escrow cancels of the token testers in ledger 106179366 that the manifest does not name are left out of the index: no row, no escrow, no file (the controller's
+    // ruling); the case's (the third party's cancel of `E81C0A08…`) stays.
+    if (net === "xrpl") {
+      const cancels = world.ledgers.flatMap((raw) => raw.ledger.transactions).filter((tx) => tx.TransactionType === "EscrowCancel");
+      expect(cancels).toHaveLength(191);
+      const kept = cancels.filter((tx) => indexed.has(tx.hash));
+      expect(kept.map((tx) => tx.hash)).toEqual(["852853679C20D7128E4201E8F3DC7B7FE894F93A03F7435C9FC7D3980C70C198"]);
+      expect(world.rows.filter((row) => row.tx_hash === kept[0]!.hash).map((row) => [row.object_id.slice(0, 10), row.event])).toEqual([["E81C0A083A", "cancel"]]);
+      // The escrows answered: the recordings' 11 (the case's cancelled one among them) but the node fallback's, and the five synthetic ones.
+      expect([...files.keys()].filter((path) => path.startsWith("xrpl/data-api/escrows/")).length).toBe(15);
+    }
   });
 });
 
@@ -268,12 +304,56 @@ describe("the recordings' objects", () => {
         });
         const answer = await upstream.handle(new Request("http://f.test/xahau/v2/accounts/rKqZCLrHu8dMPj444xPrDQCXUpZr6U2VWi/delegations", { headers: { "X-API-Key": "k" } }));
         expect(await answer!.text()).toBe(text);
+        expectKeys(example, KEY_LINES.delegationsAnswer!, "Xahau's delegations");
       } else {
         const [kind] = (["escrow", "check", "payment_channel"] as const).filter((each) => example[each] !== undefined);
         const id = example[kind!][kind === "payment_channel" ? "channel_id" : `${kind}_id`];
         expect(JSON.stringify(valueAt(`xrpl/data-api/${ROUTES[kind!]}/${id}.json`)), id).toBe(text);
       }
     }
+  });
+
+  it("agrees with the reference's oldest-first pages: the marker is the place of the creation, the event the creation the answer ends with", () => {
+    const xrpl = worlds.xrpl;
+    for (const text of ASCENDING_EXAMPLES) {
+      const example = JSON.parse(text) as Json;
+      const [event] = example.history as Json[];
+      const created = xrpl.rows.find((row) => row.tx_hash === event!.tx_hash && row.action === "created")!;
+      expect(markerPosition(example.marker)).toEqual([created.ledger_index, created.tx_index]);
+      const route = created.object_type === "Escrow" ? "escrows" : "payment_channels";
+      const answer = valueAt(`xrpl/data-api/${route}/${created.object_id}.json`)!;
+      // The same head (the object's coverage, the as-of ledger), and the oldest event of the answer's newest-first history, key order and all.
+      expect([answer.result, answer.coverage, answer.ledger_index, answer.close_time]).toEqual([example.result, example.coverage, example.ledger_index, example.close_time]);
+      expect(JSON.stringify(answer.history.at(-1))).toBe(JSON.stringify(event));
+      expectKeys(example, KEY_LINES.historyAnswer!, route);
+    }
+  });
+
+  it("gives the reference's delegations of an XRPL account from the delegation's rows, key order and all", () => {
+    const example = JSON.parse(DELEGATIONS_EXAMPLE) as Json;
+    expectKeys(example, KEY_LINES.delegationsAnswer!, "delegations");
+    const [delegation] = example.delegations as Json[];
+    expectKeys(delegation!, KEY_LINES.delegation!, "delegation");
+    for (const permission of delegation!.permissions as Json[]) expectKeys(permission, KEY_LINES.permission!, "permission");
+    // The delegation as D5's `delegationObject` makes it of its rows (one, its creation): its owner and authorize, its node's permissions (transaction types, by name), the places.
+    const xrpl = worlds.xrpl;
+    const rows = xrpl.rows.filter((row) => row.object_type === "Delegate" && row.object_id === delegation!.delegation_id);
+    expect(rows).toHaveLength(1);
+    const [row] = rows;
+    const ref = { ledger_index: row!.ledger_index, time: delegation!.updated.time, tx_hash: row!.tx_hash };
+    const derived = {
+      delegation_id: row!.object_id,
+      account: row!.owner,
+      authorize: row!.counterparty,
+      permissions: (row!.fields.Permissions as Json[]).map((entry) => ({ permission: entry.Permission.PermissionValue, kind: "transaction" })),
+      updated: ref,
+      created: ref,
+    };
+    expect(JSON.stringify(derived)).toBe(JSON.stringify(delegation));
+    expect(new Date(row!.close_time * 1000).toISOString().replace(".000", "")).toBe(delegation!.updated.time);
+    expect([example.coverage, example.ledger_index]).toEqual([{ from_ledger_index: xrpl.coverage.from_ledger_index, complete: true }, xrpl.asOf.ledger_index]);
+    // Its lookup says the same of it.
+    expect(valueAt(`xrpl/data-api/ledger_objects/${row!.object_id}.json`)!.ledger_object).toEqual({ object_id: row!.object_id, object_type: "Delegate", account: row!.owner, deleted: false, ledger_index: row!.ledger_index });
   });
 
   it("derives finished, cancelled, cashed, closed and open statuses where the recordings show them", () => {
@@ -326,15 +406,20 @@ describe("the synthetic objects", () => {
     const events = [...answer.history, ...pages.flatMap((page) => page.history)] as Json[];
     expect(events).toHaveLength(120);
     // Newest first, one place each: page 1 is events 120 to 71 (counted from the creation, the first), the marker of a page the place of its last event.
-    const places = events.map((event) => [event.ledger_index, event.tx_hash] as const);
-    expect(new Set(places.map(([, hash]) => hash)).size).toBe(120);
-    for (let at = 1; at < events.length; at++) expect(events[at - 1]!.ledger_index).toBeGreaterThanOrEqual(events[at]!.ledger_index);
+    const txIndex = new Map(worlds.xrpl.rows.filter((row) => row.object_id === id).map((row) => [row.tx_hash, row.tx_index]));
+    const places = events.map((event) => [event.ledger_index, txIndex.get(event.tx_hash)!] as const);
+    expect(new Set(events.map((event) => event.tx_hash)).size).toBe(120);
+    for (let at = 1; at < places.length; at++) {
+      const [[ledger, index], [olderLedger, olderIndex]] = [places[at - 1]!, places[at]!];
+      expect(ledger > olderLedger || (ledger === olderLedger && index > olderIndex), `${at}`).toBe(true);
+    }
     expect(events.at(-1)!.event).toBe("create");
     expect(events.filter((event) => event.event === "fund")).toHaveLength(11);
     expect(answer.payment_channel).toMatchObject({ status: "open", funds: 11, claims: 108 });
     const decode = (marker: string) => JSON.parse(Buffer.from(marker, "base64url").toString("utf8")) as [number, number];
-    expect(decode(answer.history_marker)[0]).toBe(answer.history[49].ledger_index);
-    expect(decode(pages[0]!.marker)[0]).toBe(pages[0]!.history[49].ledger_index);
+    // A marker is the place of the last event of its page: page 1 ends with event 71, page 2 with event 21.
+    expect(decode(answer.history_marker)).toEqual(places[49]);
+    expect(decode(pages[0]!.marker)).toEqual(places[99]);
     expect(pages[1]).not.toHaveProperty("marker");
     // The pages are of the same channel and coverage as the answer.
     for (const page of pages) expect(page.coverage).toEqual(answer.coverage);
@@ -384,6 +469,119 @@ describe("the synthetic objects", () => {
     expect((failed!.metaData.AffectedNodes as Json[]).map((wrapper) => wrapper.ModifiedNode?.LedgerEntryType)).toEqual(["AccountRoot"]);
     // Not rows of the index: the recorded delegation is as D5 says, not deleted.
     expect(valueAt(`xrpl/data-api/ledger_objects/${delegateKeylet(set.Account as string, set.Authorize as string)}.json`)!.ledger_object.deleted).toBe(false);
+  });
+});
+
+describe("the synthetic transactions", () => {
+  it("serve every event of every synthetic object, its creation and its removal, each at its place in its ledger's list, the hash its serialization's", () => {
+    const world = worlds.xrpl;
+    let linked = 0;
+    for (const [name, id] of world.synthetic) {
+      const route = name.startsWith("escrow") ? "escrows" : name.startsWith("check") ? "checks" : "payment_channels";
+      const answer = valueAt(`xrpl/data-api/${route}/${id}.json`)!;
+      const pages = [...answers.xrpl].filter(({ path }) => path.startsWith(`xrpl/data-api/${route}/${id}/history@`)).map(({ value }) => value as Json);
+      const object = objectOf(answer);
+      const hashes = [...answer.history, ...pages.flatMap((page) => page.history)].map((event: Json) => event.tx_hash as string);
+      for (const ref of [object.created, object.removed]) if (ref !== undefined) expect(hashes, name).toContain(ref.tx_hash);
+      for (const hash of hashes) {
+        const served = valueAt(`xrpl/data-api/transactions/${hash}.json`)?.transaction as TxObject | undefined;
+        expect(served, `${name} ${hash}`).toBeDefined();
+        const list = valueAt(`xrpl/data-api/ledgers/${served!.ledger_index}@transactions=true.json`)!;
+        expect(list.ledger.transactions[served!.meta.TransactionIndex], `${name} ${hash}`).toBe(hash);
+        const blob = valueAt(`xrpl/data-api/transactions/${hash}@binary=true.json`)!.transaction.tx as string;
+        expect(createHash("sha512").update(Buffer.from(TX_HASH_PREFIX + blob, "hex")).digest("hex").slice(0, 64).toUpperCase(), `${name} ${hash}`).toBe(hash);
+        linked++;
+      }
+    }
+    expect(linked).toBe(130);
+    // None is in a ledger of the sets, whose lists are the recorded ones.
+    const inSets = new Set(readLedgers("xrpl").map((raw) => Number(raw.ledger.ledger_index)));
+    for (const placed of world.made) expect(inSets.has(Number(placed.raw.ledger.ledger_index)), placed.tx.hash).toBe(false);
+  });
+});
+
+describe("D5's rules, on rows made for them", () => {
+  /** A ledger of the recordings' shape, closing at `close` (Ripple epoch), and a transaction in it whose metadata is `nodes`. */
+  const ledger = (close = 800_000_000): RawLedger => ({ ledger: { ledger_index: "100", close_time: close, transactions: [] } }) as unknown as RawLedger;
+  const tx = (fields: Json, nodes: Json[], result = "tesSUCCESS"): RawTx =>
+    ({ Account: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", Fee: "12", hash: "AB".repeat(32), ...fields, metaData: { AffectedNodes: nodes, TransactionIndex: 3, TransactionResult: result } }) as unknown as RawTx;
+  const ID = "CD".repeat(32);
+  const node = (op: string, type: string, fields: Json, previous?: Json): Json => ({
+    [op]: { LedgerEntryType: type, LedgerIndex: ID, [op === "CreatedNode" ? "NewFields" : "FinalFields"]: fields, ...(previous !== undefined && { PreviousFields: previous }) },
+  });
+  const events = (fields: Json, nodes: Json[], result?: string) => rowsOfTransaction(ledger(), tx(fields, nodes, result)).map((row) => row.event);
+  const A = { Account: "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh", Destination: "r3CgerzsDtZhh3ejvDjZJUKqXqRVWQcnNC" };
+
+  it.each([
+    ["an escrow created by EscrowCreate", { TransactionType: "EscrowCreate", Sequence: 5 }, [node("CreatedNode", "Escrow", { ...A, Amount: "1" })], ["create"]],
+    ["an escrow finished, with its fulfillment", { TransactionType: "EscrowFinish", Fulfillment: "A0028000" }, [node("DeletedNode", "Escrow", { ...A, Amount: "1" })], ["finish"]],
+    ["an escrow cancelled", { TransactionType: "EscrowCancel" }, [node("DeletedNode", "Escrow", { ...A, Amount: "1" })], ["cancel"]],
+    ["an escrow deleted by another transaction", { TransactionType: "AccountDelete" }, [node("DeletedNode", "Escrow", { ...A, Amount: "1" })], ["removed"]],
+    ["an escrow changed by a transaction no one expects", { TransactionType: "AccountSet" }, [node("ModifiedNode", "Escrow", { ...A, Amount: "1" }, { Amount: "2" })], ["update"]],
+    ["an escrow only threaded (no PreviousFields): no row", { TransactionType: "AccountSet" }, [node("ModifiedNode", "Escrow", { ...A, Amount: "1" })], []],
+    ["a check created", { TransactionType: "CheckCreate", Sequence: 5 }, [node("CreatedNode", "Check", { ...A, SendMax: "1" })], ["create"]],
+    ["a check cashed", { TransactionType: "CheckCash", Amount: "1" }, [node("DeletedNode", "Check", { ...A, SendMax: "1" })], ["cash"]],
+    ["a check cancelled", { TransactionType: "CheckCancel" }, [node("DeletedNode", "Check", { ...A, SendMax: "1" })], ["cancel"]],
+    ["a check deleted by another transaction", { TransactionType: "AccountDelete" }, [node("DeletedNode", "Check", { ...A, SendMax: "1" })], ["removed"]],
+    ["a check changed", { TransactionType: "AccountSet" }, [node("ModifiedNode", "Check", { ...A, SendMax: "1" }, { SendMax: "2" })], ["update"]],
+    ["a channel created", { TransactionType: "PaymentChannelCreate", Sequence: 5 }, [node("CreatedNode", "PayChannel", { ...A, Amount: "10" })], ["create"]],
+    ["a channel funded", { TransactionType: "PaymentChannelFund" }, [node("ModifiedNode", "PayChannel", { ...A, Amount: "11" }, { Amount: "10" })], ["fund"]],
+    ["a channel claimed", { TransactionType: "PaymentChannelClaim" }, [node("ModifiedNode", "PayChannel", { ...A, Amount: "10", Balance: "2" }, { Balance: "1" })], ["claim"]],
+    ["a channel asked to close", { TransactionType: "PaymentChannelClaim", Flags: 0x00020000 }, [node("ModifiedNode", "PayChannel", { ...A, Amount: "10", Expiration: 5 }, {})], ["close_request"]],
+    ["a close asked without an Expiration after it is a claim", { TransactionType: "PaymentChannelClaim", Flags: 0x00020000 }, [node("ModifiedNode", "PayChannel", { ...A, Amount: "10" }, { Balance: "1" })], ["claim"]],
+    ["a channel renewed", { TransactionType: "PaymentChannelClaim", Flags: 0x00010000 }, [node("ModifiedNode", "PayChannel", { ...A, Amount: "10" }, { Expiration: 5 })], ["renew"]],
+    ["a channel closed by a claim", { TransactionType: "PaymentChannelClaim" }, [node("DeletedNode", "PayChannel", { ...A, Amount: "10" })], ["close"]],
+    ["a channel closed by a fund", { TransactionType: "PaymentChannelFund" }, [node("DeletedNode", "PayChannel", { ...A, Amount: "10" })], ["close"]],
+    ["a channel deleted by another transaction", { TransactionType: "AccountDelete" }, [node("DeletedNode", "PayChannel", { ...A, Amount: "10" })], ["removed"]],
+    ["a channel changed by another transaction", { TransactionType: "AccountSet" }, [node("ModifiedNode", "PayChannel", { ...A, Amount: "10" }, { Amount: "9" })], ["update"]],
+    ["a delegation set", { TransactionType: "DelegateSet" }, [node("CreatedNode", "Delegate", { Account: A.Account, Authorize: A.Destination, Permissions: [] })], ["set"]],
+    ["a delegation deleted by DelegateSet", { TransactionType: "DelegateSet" }, [node("DeletedNode", "Delegate", { Account: A.Account, Authorize: A.Destination })], ["delete"]],
+    ["a delegation deleted by AccountDelete", { TransactionType: "AccountDelete" }, [node("DeletedNode", "Delegate", { Account: A.Account, Authorize: A.Destination })], ["removed"]],
+    ["a delegation changed by another transaction", { TransactionType: "AccountSet" }, [node("ModifiedNode", "Delegate", { Account: A.Account, Authorize: A.Destination }, { Flags: 1 })], ["update"]],
+    ["a node of another type: no row", { TransactionType: "AccountSet" }, [node("ModifiedNode", "AccountRoot", { Account: A.Account }, { Balance: "1" })], []],
+  ] as const)("%s", (_what, fields, nodes, expected) => {
+    expect(events(fields as Json, nodes as unknown as Json[])).toEqual(expected);
+  });
+
+  it("keeps a failed transaction's rows with its result, the facts of the event, and its delegate", () => {
+    const [row] = rowsOfTransaction(
+      ledger(),
+      tx({ TransactionType: "CheckCash", Amount: "7", Delegate: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh" }, [node("DeletedNode", "Check", { ...A, SendMax: "9" })], "tecPATH_PARTIAL"),
+    );
+    expect(row).toMatchObject({ event: "cash", result: "tecPATH_PARTIAL", delegate: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", event_fields: { delivered: "7" }, owner: A.Account, counterparty: A.Destination });
+    // The delivered amount: the stored DeliveredAmount, else the served delivered_amount, else the cash's Amount.
+    const delivered = (meta: Json) =>
+      rowsOfTransaction(ledger(), { ...tx({ TransactionType: "CheckCash", Amount: "7" }, [node("DeletedNode", "Check", { ...A, SendMax: "9" })]), metaData: { AffectedNodes: [node("DeletedNode", "Check", { ...A, SendMax: "9" })], TransactionIndex: 3, TransactionResult: "tesSUCCESS", ...meta } } as unknown as RawTx)[0]!.event_fields.delivered;
+    expect([delivered({ DeliveredAmount: "5", delivered_amount: "6" }), delivered({ delivered_amount: "6" }), delivered({})]).toEqual(["5", "6", "7"]);
+    // A creation with no Sequence (0, no ticket) says none; a ticket's sequence is its TicketSequence.
+    expect(rowsOfTransaction(ledger(), tx({ TransactionType: "EscrowCreate", Sequence: 0, TicketSequence: 9 }, [node("CreatedNode", "Escrow", { ...A, Amount: "1" })]))[0]!.event_fields).toEqual({ sequence: 9 });
+    expect(rowsOfTransaction(ledger(), tx({ TransactionType: "EscrowCreate", Sequence: 0 }, [node("CreatedNode", "Escrow", { ...A, Amount: "1" })]))[0]!.event_fields).toEqual({});
+  });
+
+  it("works a status out at the close time's boundaries, as D5's object-status.ts does", () => {
+    // An escrow: pending up to and at FinishAfter, then can be finished; can be cancelled after (not at) CancelAfter; a deleted one by its event.
+    expect([escrowStatus({ finishAfter: 100 }, 100), escrowStatus({ finishAfter: 100 }, 101), escrowStatus({}, 0)]).toEqual(["pending", "can_be_finished", "can_be_finished"]);
+    expect([escrowStatus({ finishAfter: 50, cancelAfter: 100 }, 100), escrowStatus({ finishAfter: 50, cancelAfter: 100 }, 101), escrowStatus({ finishAfter: 200, cancelAfter: 100 }, 101)]).toEqual([
+      "can_be_finished",
+      "can_be_cancelled",
+      "can_be_cancelled",
+    ]);
+    expect(["finish", "cancel", "removed", "update"].map((removedBy) => escrowStatus({ finishAfter: 1e12, removedBy }, 0))).toEqual(["finished", "cancelled", "removed", "removed"]);
+    // A check: expired at and after its Expiration.
+    expect([checkStatus({ expiration: 100 }, 99), checkStatus({ expiration: 100 }, 100), checkStatus({}, 1e12)]).toEqual(["open", "expired", "open"]);
+    expect(["cash", "cancel", "removed"].map((removedBy) => checkStatus({ removedBy }, 0))).toEqual(["cashed", "cancelled", "removed"]);
+    // A channel: closing once it has an Expiration, whatever the time, or at and after CancelAfter.
+    expect([channelStatus({ expiration: 1e12 }, 0), channelStatus({ cancelAfter: 100 }, 99), channelStatus({ cancelAfter: 100 }, 100), channelStatus({}, 1e12)]).toEqual(["closing", "open", "closing", "open"]);
+    expect(["close", "removed"].map((removedBy) => channelStatus({ removedBy }, 0))).toEqual(["closed", "removed"]);
+  });
+
+  it("answers an escrow's status at the as-of close time, a Ripple-epoch FinishAfter read in unix seconds", () => {
+    const created = (finishAfter: number) =>
+      rowsOfTransaction(ledger(), tx({ TransactionType: "EscrowCreate", Sequence: 5 }, [node("CreatedNode", "Escrow", { ...A, Amount: "1000000", FinishAfter: finishAfter })]));
+    const statusAt = (finishAfter: number, closeUnix: number) =>
+      (derivedAnswer("escrow", created(finishAfter), ID, { ledger_index: 100, close_time: closeUnix }, "XRP", { from_ledger_index: 100, complete: false }) as Json).escrow.status;
+    const finishAfter = 800_000_100;
+    expect([statusAt(finishAfter, finishAfter + 946_684_800), statusAt(finishAfter, finishAfter + 946_684_801)]).toEqual(["pending", "can_be_finished"]);
   });
 });
 

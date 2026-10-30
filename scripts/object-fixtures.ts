@@ -3,7 +3,8 @@
 // in the ledger. http-fixtures.ts calls `objectFixtures` from `generate()`, so `pnpm fixtures:sync` writes the files; test/fixtures/PROVENANCE.md ("Ledger object answers") says what
 // they are made of, and test/unit/object-fixtures.test.ts checks them.
 //
-// Derived (scripts/object-derive.ts, the port of D5's parser and answers), for every object of the recordings (XRPL 217 with the delegation, Xahau 9), as of the newest ledger of
+// Derived (scripts/object-derive.ts, the port of D5's parser and answers), for every object of the recordings (XRPL 27 with the delegation, Xahau 9: the 190 escrow cancels of the
+// token testers in ledger 106179366 that the manifest does not name are left out of the index, `leftOutOf`), as of the newest ledger of
 // the network's set (XRPL 107972102, Xahau 26399329: `asOf`), with the feature's coverage from the set's first ledger, `{ from_ledger_index, complete: false }`, which an object
 // whose creation is indexed has complete (D5's `itemCoverage`, C8):
 //
@@ -11,16 +12,18 @@
 //   escrows|checks|payment_channels/<ID>/history@descending=true&limit=50&marker=<M>.json    the older events behind each marker (only `channel-long` has more than 50)
 //   ledger_objects/<ID>.json                                 `{ result, ledger_object }`: the type, the owner and whether the newest row deleted it, for every ID (the delegation's too)
 //   transactions/<HASH>.json, …@binary=true.json             the transactions with a tracked node, a `Delegate` field or of type `DelegateSet` (C3), but those `generate()` serves already
-//                                                            from `SETS` and the 190 bulk escrow cancels (`isBulkCancel`), and the synthetic transactions of C9
-//   ledgers/<index>@transactions=true.json                   the hashes of a ledger of those transactions that is not among `SETS`, which the transaction page reads for its neighbours
+//                                                            from `SETS`, and the synthetic ones (the synthetic objects' and C9's)
+//   ledgers/<index>@transactions=true.json                   the hashes of a ledger of those transactions that is not among `SETS`, which the transaction page reads for its neighbours,
+//                                                            the synthetic transactions last
 //   node/ledger_entry/<ID>.json                              xahaud's and rippled's `ledger_entry` of every object still in the ledger at `asOf`
 //
 // One open recorded escrow and one open recorded check (the first of each by ID) have a node file and no index file: the node fallback (`escrow-node-only`, `check-node-only`).
 //
 // Synthetic (XRPL, seeded `mulberry32(seedOf("xrpl", "objects", <name>))`, IDs their keylets of their own accounts and sequences, each event a transaction made here and parsed by the
-// port, in a recorded ledger at a transaction index past the ledger's own: `placesOf`): the states the recordings cannot give. The active account `OBJECTS_ACCOUNT` owns an escrow that
+// port, in a recorded ledger that is not among `SETS` at a transaction index past the ledger's own: `placesOf`, its hash that of its serialization): the states the recordings
+// cannot give. The active account `OBJECTS_ACCOUNT` owns an escrow that
 // can be cancelled, one that was cancelled and a closing channel, and is the destination of an expired check (its Objects tab: C7); an escrow that is pending, one that can be
-// finished, an MPT escrow, and a channel with 120 events (three pages). None of their transactions has a file. Synthetic too, with files (C9), D5's `delegatedFrom` and
+// finished, an MPT escrow, and a channel with 120 events (three pages). Their transactions have files, as every event's link leads to one. Synthetic too (C9), D5's `delegatedFrom` and
 // `delegate_set_empty` over recorded transactions of the ledger of the recorded `DelegateSet`: a delegated Payment, a delegated `tec`, an empty `DelegateSet` and a failed one. They
 // are not rows of the index: D5 never indexed them, and the recorded delegation stays as it is.
 
@@ -39,9 +42,9 @@ import {
   fixtureText,
   inLedgerOrder,
   LEDGERS,
-  readLedgers,
   readLedgerSet,
   servedHashes,
+  SETS,
   TX_HASH_PREFIX,
   unixOf,
   type RawLedger,
@@ -151,6 +154,8 @@ export interface ObjectWorld {
   served: Placed[];
   /** The synthetic transactions of C9. */
   delegation: DelegationTx[];
+  /** Every synthetic transaction (C9's and the synthetic objects'), in the order they were placed. */
+  made: Placed[];
 }
 
 /** The hashes the manifest of the set names: its cases and its supporting transactions. */
@@ -160,18 +165,34 @@ function manifestNamed(net: NetworkName): Set<string> {
 }
 
 /**
- * The 190 escrow cancels of ledger 106179366 that the manifest does not name (the token-escrow testers cancelling their escrows; the case `escrow_cancel` is the one it names):
- * their escrows are derived like any other, but their transactions have no file. Their 0.9 MB of transactions would not fit the object files' budget (C4: at most 1.0 MiB).
+ * The transactions the index is left without (controller ruling of E10 Task 2's review): the 190 escrow cancels of ledger 106179366 that the manifest does not name, the token-escrow
+ * testers cancelling 190 escrows created before the recordings. Their escrows would be answers no case uses, with links to transaction pages the budget cannot hold (0.9 MB, C4);
+ * the case `escrow_cancel` (the third party's cancel of `E81C0A08…`) stays.
  */
-const isBulkCancel = (tx: RawTx, named: ReadonlySet<string>): boolean => tx.TransactionType === "EscrowCancel" && !named.has(tx.hash);
+function leftOutOf(ledgers: readonly RawLedger[], named: ReadonlySet<string>): Set<string> {
+  const left = new Set<string>();
+  for (const raw of ledgers) for (const tx of raw.ledger.transactions) if (tx.TransactionType === "EscrowCancel" && !named.has(tx.hash)) left.add(tx.hash);
+  return left;
+}
 
-/** The places past each ledger's own transactions that synthetic transactions take: the next index of a ledger is its count, then one more for each place given. */
-function placesOf(ledgers: readonly RawLedger[]): (index: number) => { raw: RawLedger; at: number } {
+/** The indexes of the ledgers of `SETS` (their files' names), whose ledger answers generate() writes. */
+function setLedgerIndexes(net: NetworkName): Set<number> {
+  const indexes = new Set<number>();
+  for (const set of SETS[net]) for (const name of readdirSync(new URL(`${set}/`, LEDGERS))) if (name.endsWith(".json.gz")) indexes.add(Number(name.slice(0, -".json.gz".length)));
+  return indexes;
+}
+
+/**
+ * The places past each ledger's own transactions that synthetic transactions take: the next index of a ledger is its count, then one more for each place given. A ledger of `SETS`
+ * gives none: its list of hashes is generate()'s, the recorded one.
+ */
+function placesOf(ledgers: readonly RawLedger[], inSets: ReadonlySet<number>): (index: number) => { raw: RawLedger; at: number } {
   const given = new Map<number, number>();
   const byIndex = new Map(ledgers.map((raw) => [Number(raw.ledger.ledger_index), raw]));
   return (index) => {
     const raw = byIndex.get(index);
     if (raw === undefined) throw new Error(`no recorded objects ledger ${index}`);
+    if (inSets.has(index)) throw new Error(`ledger ${index} is one of SETS: its list is the recorded one`);
     const taken = given.get(index) ?? 0;
     given.set(index, taken + 1);
     return { raw, at: raw.ledger.transactions.length + taken };
@@ -187,29 +208,37 @@ export function objectWorld(net: NetworkName): ObjectWorld {
   const txs = new Map<string, Placed>();
   for (const raw of ledgers) for (const tx of raw.ledger.transactions) txs.set(tx.hash, { raw, tx });
 
-  const rows = derivedObjectRows(ledgers);
+  const named = manifestNamed(net);
+  const leftOut = leftOutOf(ledgers, named);
+  const recorded = derivedObjectRows(ledgers).filter((row) => !leftOut.has(row.tx_hash));
+  const rows = [...recorded];
   const synthetic = new Map<string, string>();
   const delegation: DelegationTx[] = [];
+  const made: Placed[] = [];
   if (net === "xrpl") {
-    const place = placesOf(ledgers);
-    // C9 first: its places are the first past the ledger's own, so the ledger's list ends with them.
-    for (const made of delegationTransactions(ledgers, place)) {
-      delegation.push(made);
-      txs.set(made.tx.hash, made);
+    const place = placesOf(ledgers, setLedgerIndexes(net));
+    // C9 first: its places are the first past the ledger's own.
+    for (const each of delegationTransactions(ledgers, place)) {
+      delegation.push(each);
+      made.push(each);
     }
     for (const object of syntheticObjects(place)) {
       synthetic.set(object.name, object.id);
       for (const placed of object.txs) {
-        txs.set(placed.tx.hash, placed);
+        made.push(placed);
         rows.push(...rowsOfTransaction(placed.raw, placed.tx));
       }
+    }
+    for (const placed of made) {
+      if (txs.has(placed.tx.hash)) throw new Error(`a made transaction has the hash of another: ${placed.tx.hash}`);
+      txs.set(placed.tx.hash, placed);
     }
   }
 
   // The node fallback (XRPL): the first open recorded escrow and check by ID.
   const nodeOnly = new Set<string>();
   if (net === "xrpl") {
-    const recordedIds = new Set(derivedObjectRows(ledgers).map((row) => row.object_id));
+    const recordedIds = new Set(recorded.map((row) => row.object_id));
     const open = openObjects(rows, asOf);
     for (const type of ["Escrow", "Check"] as const) {
       const first = [...open].filter(([id, row]) => row.object_type === type && recordedIds.has(id)).map(([id]) => id).sort()[0];
@@ -218,19 +247,19 @@ export function objectWorld(net: NetworkName): ObjectWorld {
     }
   }
 
-  // The transactions with a file (C3): a tracked node, a `Delegate` field or a `DelegateSet`, but those generate() serves and the bulk cancels; then C9's.
+  // The transactions with a file (C3): a row of the index, a `Delegate` field or a `DelegateSet`, but those generate() serves; then the synthetic ones.
   const already = servedHashes(net);
-  const named = manifestNamed(net);
+  const indexed = new Set(recorded.map((row) => row.tx_hash));
   const served: Placed[] = [];
   for (const raw of ledgers) {
     for (const tx of inLedgerOrder(raw)) {
-      const wanted = rowsOfTransaction(raw, tx).length > 0 || typeof tx.Delegate === "string" || tx.TransactionType === "DelegateSet";
-      if (wanted && !already.has(tx.hash) && !isBulkCancel(tx, named)) served.push({ raw, tx });
+      const wanted = indexed.has(tx.hash) || typeof tx.Delegate === "string" || tx.TransactionType === "DelegateSet";
+      if (wanted && !already.has(tx.hash)) served.push({ raw, tx });
     }
   }
-  served.push(...delegation);
+  served.push(...made);
 
-  return { net, ledgers, head, asOf, coverage, rows, txs, synthetic, nodeOnly, served, delegation };
+  return { net, ledgers, head, asOf, coverage, rows, txs, synthetic, nodeOnly, served, delegation, made };
 }
 
 /** The objects still in the ledger at `asOf`: their newest row, by ID (a deleted one is gone). */
@@ -375,9 +404,21 @@ interface SyntheticObject {
   txs: Placed[];
 }
 
-/** One synthetic transaction: its fields (as far as the parser reads them) and the nodes of its metadata, at a place of its own. */
-function placedTx(at: { raw: RawLedger; at: number }, hash: string, tx: Json, nodes: Json[]): Placed {
-  return { raw: at.raw, tx: { ...tx, Fee: "12", Flags: tx.Flags ?? 0, hash, metaData: { AffectedNodes: nodes, TransactionIndex: at.at, TransactionResult: "tesSUCCESS" } } as unknown as RawTx };
+/**
+ * One synthetic transaction at a place of its own: its fields (the type's own, a fee, flags and a `LastLedgerSequence`; no signature) and the nodes of its metadata, the object's
+ * alone, and the hash of its serialization (`hashOfMade`).
+ */
+function placedTx(at: { raw: RawLedger; at: number }, tx: Json, nodes: Json[]): Placed {
+  const made = {
+    ...tx,
+    Fee: "12",
+    Flags: tx.Flags ?? 0,
+    LastLedgerSequence: Number(at.raw.ledger.ledger_index) + 20,
+    hash: "",
+    metaData: { AffectedNodes: nodes, TransactionIndex: at.at, TransactionResult: "tesSUCCESS" },
+  } as unknown as RawTx;
+  made.hash = hashOfMade(at.raw, made);
+  return { raw: at.raw, tx: made };
 }
 
 /** The close time (Ripple epoch) of a recorded ledger. */
@@ -390,7 +431,6 @@ const closeOf = (raw: RawLedger): number => raw.ledger.close_time;
 function syntheticObjects(place: ReturnType<typeof placesOf>): SyntheticObject[] {
   const objects: SyntheticObject[] = [];
   const draw = (name: string) => mulberry32(seedOf("xrpl", "objects", name));
-  const hashOf = (next: () => number) => hexOf(next, 64);
 
   /** An escrow: `finishAfter` and `cancelAfter` are seconds after its creation, `finishAt` a Ripple-epoch time; `cancelled` the ledger of its `EscrowCancel` by the owner. */
   const escrow = (
@@ -414,13 +454,23 @@ function syntheticObjects(place: ReturnType<typeof placesOf>): SyntheticObject[]
       ...(finishAfter !== undefined && { FinishAfter: finishAfter }),
       Sequence: sequence,
     };
-    const create = placedTx(where, hashOf(next), { TransactionType: "EscrowCreate", Account: owner, Destination: destination, Amount: o.amount, Sequence: sequence }, [
-      { CreatedNode: { LedgerEntryType: "Escrow", LedgerIndex: id, NewFields: fields } },
-    ]);
+    const create = placedTx(
+      where,
+      {
+        TransactionType: "EscrowCreate",
+        Account: owner,
+        Amount: o.amount,
+        ...(fields.CancelAfter !== undefined && { CancelAfter: fields.CancelAfter }),
+        Destination: destination,
+        ...(fields.FinishAfter !== undefined && { FinishAfter: fields.FinishAfter }),
+        Sequence: sequence,
+      },
+      [{ CreatedNode: { LedgerEntryType: "Escrow", LedgerIndex: id, NewFields: fields } }],
+    );
     const txs = [create];
     if (o.cancelled !== undefined) {
       txs.push(
-        placedTx(place(o.cancelled), hashOf(next), { TransactionType: "EscrowCancel", Account: owner, Owner: owner, OfferSequence: sequence, Sequence: sequence + 7 }, [
+        placedTx(place(o.cancelled), { TransactionType: "EscrowCancel", Account: owner, Owner: owner, OfferSequence: sequence, Sequence: sequence + 7 }, [
           {
             DeletedNode: {
               LedgerEntryType: "Escrow",
@@ -449,11 +499,13 @@ function syntheticObjects(place: ReturnType<typeof placesOf>): SyntheticObject[]
     const owner = accountOf(next);
     const sequence = drawIn(next, 90_000_000, 99_000_000);
     const id = checkKeylet(owner, sequence);
-    const where = place(107670360);
+    const where = place(107641123);
     const fields: Json = { Account: owner, Destination: OBJECTS_ACCOUNT, DestinationNode: "0", Expiration: closeOf(where.raw) + DAY, SendMax: drops(100), Sequence: sequence };
-    const tx = placedTx(where, hexOf(next, 64), { TransactionType: "CheckCreate", Account: owner, Destination: OBJECTS_ACCOUNT, SendMax: drops(100), Sequence: sequence }, [
-      { CreatedNode: { LedgerEntryType: "Check", LedgerIndex: id, NewFields: fields } },
-    ]);
+    const tx = placedTx(
+      where,
+      { TransactionType: "CheckCreate", Account: owner, Destination: OBJECTS_ACCOUNT, Expiration: fields.Expiration, SendMax: drops(100), Sequence: sequence },
+      [{ CreatedNode: { LedgerEntryType: "Check", LedgerIndex: id, NewFields: fields } }],
+    );
     objects.push({ name, id, txs: [tx] });
   }
 
@@ -475,11 +527,19 @@ function syntheticObjects(place: ReturnType<typeof placesOf>): SyntheticObject[]
     };
     const create = placedTx(
       where,
-      hexOf(next, 64),
-      { TransactionType: "PaymentChannelCreate", Account: owner, Destination: destination, Amount: drops(o.amount), SettleDelay: o.settleDelay, Sequence: sequence },
+      {
+        TransactionType: "PaymentChannelCreate",
+        Account: owner,
+        Amount: drops(o.amount),
+        Destination: destination,
+        PublicKey: fields.PublicKey,
+        SettleDelay: o.settleDelay,
+        Sequence: sequence,
+      },
       [{ CreatedNode: { LedgerEntryType: "PayChannel", LedgerIndex: id, NewFields: fields } }],
     );
-    const state: ChannelState = { id, owner, destination, fields: { ...fields, Balance: "0", Flags: 0, OwnerNode: "0" }, txs: [create], last: create, next, place };
+    const sequences = { owner: sequence + 1, destination: drawIn(next, 1_000_000, 9_000_000) };
+    const state: ChannelState = { id, owner, destination, fields: { ...fields, Balance: "0", Flags: 0, OwnerNode: "0" }, txs: [create], last: create, next, place, sequences };
     events(state);
     objects.push({ name, id, txs: state.txs });
   };
@@ -487,11 +547,11 @@ function syntheticObjects(place: ReturnType<typeof placesOf>): SyntheticObject[]
   // The account's channel, asked to close: claimed once, then the owner's close request sets its Expiration a settle delay (30 days) on, after the as-of ledger.
   channel("channel-closing", { owner: OBJECTS_ACCOUNT, amount: 50, settleDelay: 30 * DAY, created: 107296498 }, (c) => {
     claim(c, 107558036, drops(12));
-    closeRequest(c, 107711512);
+    closeRequest(c, 107641123);
   });
-  // A channel with 120 events: its creation in the first recorded ledger, then a claim in every later ledger until there are 120, a fund every tenth.
+  // A channel with 120 events: its creation in the first recorded ledger, then claims spread over the later ones until there are 120, a fund every tenth.
   channel("channel-long", { amount: 1_000, settleDelay: DAY, created: 102145584 }, (c) => {
-    const later = [107107437, 107218583, 107220098, 107296498, 107558036, 107624182, 107641123, 107670360, 107671568, 107698980, 107699656, 107703707, 107711512, 107897249, 107945438, 107967068, 107968411];
+    const later = [106179366, 106268539, 106970128, 107107437, 107218583, 107220098, 107296498, 107558036, 107624182, 107641123, 107897249, 107945438, 107967068, 107968411];
     let balance = 0;
     for (let n = 1; n < 120; n++) {
       const ledger = later[Math.floor(((n - 1) * later.length) / 119)]!;
@@ -515,6 +575,8 @@ interface ChannelState {
   last: Placed;
   next: () => number;
   place: ReturnType<typeof placesOf>;
+  /** The next sequence of the owner and of the destination. */
+  sequences: { owner: number; destination: number };
 }
 
 /** A change of a synthetic channel: a `ModifiedNode` with the fields after it and before it. */
@@ -524,7 +586,7 @@ function changeChannel(c: ChannelState, ledger: number, tx: Json, after: Json): 
   for (const key of Object.keys(after)) before[key] = c.fields[key];
   for (const [key, value] of Object.entries(before)) if (value === undefined) delete before[key];
   const fields = { ...c.fields, ...after };
-  const placed = placedTx(at, hexOf(c.next, 64), tx, [
+  const placed = placedTx(at, tx, [
     {
       ModifiedNode: {
         FinalFields: fields,
@@ -543,20 +605,21 @@ function changeChannel(c: ChannelState, ledger: number, tx: Json, after: Json): 
 
 /** The destination claims up to `balance` drops. */
 function claim(c: ChannelState, ledger: number, balance: string): void {
-  changeChannel(c, ledger, { TransactionType: "PaymentChannelClaim", Account: c.destination, Channel: c.id, Balance: balance, Sequence: drawIn(c.next, 1_000_000, 9_000_000) }, { Balance: balance });
+  const tx = { TransactionType: "PaymentChannelClaim", Account: c.destination, Amount: balance, Balance: balance, Channel: c.id, Sequence: c.sequences.destination++ };
+  changeChannel(c, ledger, tx, { Balance: balance });
 }
 
 /** The owner adds `amount` drops. */
 function fund(c: ChannelState, ledger: number, amount: string): void {
   const total = String(BigInt(c.fields.Amount as string) + BigInt(amount));
-  changeChannel(c, ledger, { TransactionType: "PaymentChannelFund", Account: c.owner, Channel: c.id, Amount: amount, Sequence: drawIn(c.next, 1_000_000, 9_000_000) }, { Amount: total });
+  changeChannel(c, ledger, { TransactionType: "PaymentChannelFund", Account: c.owner, Amount: amount, Channel: c.id, Sequence: c.sequences.owner++ }, { Amount: total });
 }
 
 /** The owner asks to close: the channel holds unclaimed funds, so it closes a settle delay after the request's ledger (its `Expiration`, which `PreviousFields` does not hold: it is new). */
 function closeRequest(c: ChannelState, ledger: number): void {
   const at = c.place(ledger);
   const fields = { ...c.fields, Expiration: closeOf(at.raw) + Number(c.fields.SettleDelay) };
-  const placed = placedTx(at, hexOf(c.next, 64), { TransactionType: "PaymentChannelClaim", Account: c.owner, Channel: c.id, Flags: 0x00020000, Sequence: drawIn(c.next, 1_000_000, 9_000_000) }, [
+  const placed = placedTx(at, { TransactionType: "PaymentChannelClaim", Account: c.owner, Channel: c.id, Flags: 0x00020000, Sequence: c.sequences.owner++ }, [
     {
       ModifiedNode: {
         FinalFields: fields,
@@ -626,11 +689,6 @@ function nodeEntryOf(world: ObjectWorld, newest: DerivedObjectRow): Json {
   return { ...node, LedgerEntryType: newest.object_type, PreviousTxnID: newest.tx_hash, PreviousTxnLgrSeq: newest.ledger_index, index: newest.object_id };
 }
 
-/** The indexes of the ledgers of `SETS` (their files' names), whose ledger answers generate() writes. */
-function setLedgerIndexes(net: NetworkName): Set<number> {
-  return new Set(readLedgers(net).map((raw) => Number(raw.ledger.ledger_index)));
-}
-
 /** Every object file of a network, before serialization (the module header). */
 export function objectAnswers(net: NetworkName): ObjectFile[] {
   const world = objectWorld(net);
@@ -685,10 +743,10 @@ export function objectAnswers(net: NetworkName): ObjectFile[] {
   const lists = new Map<number, RawLedger>();
   for (const { raw } of world.served) if (!inSets.has(Number(raw.ledger.ledger_index))) lists.set(Number(raw.ledger.ledger_index), raw);
   for (const [index, raw] of [...lists].sort(([a], [b]) => a - b)) {
-    const extra = world.delegation.filter((made) => made.raw === raw).sort((a, b) => a.tx.metaData.TransactionIndex - b.tx.metaData.TransactionIndex);
+    const extra = world.made.filter((made) => made.raw === raw).sort((a, b) => a.tx.metaData.TransactionIndex - b.tx.metaData.TransactionIndex);
     const hashes = [...inLedgerOrder(raw).map((tx) => tx.hash), ...extra.map((made) => made.tx.hash)];
     extra.forEach((made, at) => {
-      if (made.tx.metaData.TransactionIndex !== raw.ledger.transactions.length + at) throw new Error(`${made.name} is not at its place in ledger ${index}`);
+      if (made.tx.metaData.TransactionIndex !== raw.ledger.transactions.length + at) throw new Error(`${made.tx.hash} is not at its place in ledger ${index}`);
     });
     const ledger: LedgerWithHashes = { ...dataApiLedger(raw), transactions: hashes };
     api(`/v2/ledgers/${index}`, "transactions=true", { result: "success", ledger });

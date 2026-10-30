@@ -1,0 +1,24 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-25T16:49:20+00:00",
+    "hash": "3ECE14DA4921449418CEE5F6DFEADFB60F20E98E1813392F62EC75136BE0E731",
+    "ledger_index": 107897249,
+    "meta": {
+      "AffectedNodes": [{"ModifiedNode":{"FinalFields":{"Account":"ra3N2JCzU847PnG15R1aB3NMSd9DJTHUFZ","Amount":"1800000000","Balance":"229000000","Destination":"rD5HR8MTPkdGK9LhWgddKzCG3tcx2Fma9C","DestinationNode":"0","Flags":0,"OwnerNode":"0","PublicKey":"0343668D1C359F30ACB7029404BF00DC52850E188482B9100F08758BE3B9E2F05C","Sequence":97768380,"SettleDelay":86400},"LedgerEntryType":"PayChannel","LedgerIndex":"090539D4CC40DE307852D4EA97EFAE492E975525B4F8091D75542883A9D0AFB6","PreviousFields":{"Balance":"225000000"},"PreviousTxnID":"F20AED3FC83BF348467386B9F72D75098BE92FBE9D21A5042C27458074D696B5","PreviousTxnLgrSeq":107641123}}],
+      "TransactionIndex": 62,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rD5HR8MTPkdGK9LhWgddKzCG3tcx2Fma9C",
+      "Amount": "229000000",
+      "Balance": "229000000",
+      "Channel": "090539D4CC40DE307852D4EA97EFAE492E975525B4F8091D75542883A9D0AFB6",
+      "Fee": "12",
+      "Flags": 0,
+      "LastLedgerSequence": 107897269,
+      "Sequence": 8347255,
+      "TransactionType": "PaymentChannelClaim"
+    }
+  }
+}

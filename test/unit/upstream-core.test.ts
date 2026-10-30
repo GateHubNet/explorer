@@ -390,6 +390,12 @@ describe("createUpstream", () => {
       expect(await jsonOf(await upstream.handle(get(`/xrpl/v2/${route}/${id}/offers`)))).toEqual({ result: "error", message: `Cannot GET /v2/${route}/${id}/offers` });
       expect(await jsonOf(await upstream.handle(get(`/xrpl/v2/${route}`)))).toEqual({ result: "error", message: `Cannot GET /v2/${route}` });
     }
+    // A path whose first segment is a name the table's prototype has (`constructor`, `toString`) is no object route: still `Cannot GET`, never the prototype's value.
+    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      const answer = await upstream.handle(get(`/xrpl/v2/${name}/${id}`));
+      expect(answer!.status, name).toBe(404);
+      expect(await jsonOf(answer), name).toEqual({ result: "error", message: `Cannot GET /v2/${name}/${id}` });
+    }
     const lookup = await upstream.handle(get(`/xahau/v2/ledger_objects/${id}`));
     expect(lookup!.status).toBe(404);
     expect(await jsonOf(lookup)).toEqual({ result: "error", message: "ledger object not found" });

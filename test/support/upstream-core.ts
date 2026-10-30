@@ -343,7 +343,7 @@ function dataApiAbsent(net: NetworkName, segments: string[], search: URLSearchPa
     if (sub === "delegations" && segments.length === 4) return delegationsAbsent(net, id, search);
   }
   // D5's escrows, checks and payment channels (`/{id}` and `/{id}/history`) and the lookup of an ID: the routes' own not-found messages. Nothing else is below them.
-  if (version === "v2" && resource !== undefined && OBJECT_NOT_FOUND[resource] !== undefined && id !== undefined && (sub === undefined || (sub === "history" && segments.length === 4))) {
+  if (version === "v2" && resource !== undefined && Object.hasOwn(OBJECT_NOT_FOUND, resource) && id !== undefined && (sub === undefined || (sub === "history" && segments.length === 4))) {
     return dataApiError(404, OBJECT_NOT_FOUND[resource]!);
   }
   if (version === "v2" && resource === "ledger_objects" && id !== undefined && sub === undefined) return dataApiError(404, "ledger object not found");

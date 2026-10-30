@@ -3,12 +3,12 @@
     "account": "rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp",
     "check_id": "1D17BE181E11B2C0DF66782CCE12E3A47B569ADDB904BCE9B0482D0F02BC4F72",
     "created": {
-      "ledger_index": 107670360,
-      "time": "2026-10-15T10:00:02Z",
-      "tx_hash": "76FAB56A765E29FF49477AE9BD64163717E2F7F8C5EA57A847466F9012A9BD78"
+      "ledger_index": 107641123,
+      "time": "2026-10-14T02:25:30Z",
+      "tx_hash": "8D96AABD23998B235267F68275912D8B168F25C1FA4B0064BF81341116B305DE"
     },
     "destination": "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh",
-    "expiration": "2026-10-16T10:00:02Z",
+    "expiration": "2026-10-15T02:25:30Z",
     "send_max": {
       "currency": "XRP",
       "value": "100"
@@ -22,7 +22,7 @@
     "from_ledger_index": 102145584
   },
   "history": [
-    {"account":"rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp","event":"create","expiration":"2026-10-16T10:00:02Z","ledger_index":107670360,"result":"tesSUCCESS","send_max":{"currency":"XRP","value":"100"},"time":"2026-10-15T10:00:02Z","tx_hash":"76FAB56A765E29FF49477AE9BD64163717E2F7F8C5EA57A847466F9012A9BD78","tx_type":"CheckCreate"}
+    {"account":"rp8D2s2o2dDHxYNBobMmBmbjmzVEHDMPvp","event":"create","expiration":"2026-10-15T02:25:30Z","ledger_index":107641123,"result":"tesSUCCESS","send_max":{"currency":"XRP","value":"100"},"time":"2026-10-14T02:25:30Z","tx_hash":"8D96AABD23998B235267F68275912D8B168F25C1FA4B0064BF81341116B305DE","tx_type":"CheckCreate"}
   ],
   "ledger_index": 107972102,
   "result": "success"

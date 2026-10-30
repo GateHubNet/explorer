@@ -1,0 +1,24 @@
+{
+  "result": "success",
+  "transaction": {
+    "date": "2026-10-28T22:14:51+00:00",
+    "hash": "803014447D58D1036E8AE42A25F570EB8A14C22007EF82ACECACF208C6D6A020",
+    "ledger_index": 107967068,
+    "meta": {
+      "AffectedNodes": [{"CreatedNode":{"LedgerEntryType":"Escrow","LedgerIndex":"8C8470E8484F4403D643ABA4C53C9D3B5B39B01F8E38D6E9DE60587D2E652150","NewFields":{"Account":"rh49Zq6DWAuzzXLAfUYfMphyyVsZUUjxvt","Amount":"100000000","Destination":"rE8gwQaAppgYCtmGKF1WjPirzRP5hH5fF3","DestinationNode":"0","FinishAfter":946771200,"Sequence":93722783}}}],
+      "TransactionIndex": 217,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "tx": {
+      "Account": "rh49Zq6DWAuzzXLAfUYfMphyyVsZUUjxvt",
+      "Amount": "100000000",
+      "Destination": "rE8gwQaAppgYCtmGKF1WjPirzRP5hH5fF3",
+      "Fee": "12",
+      "FinishAfter": 946771200,
+      "Flags": 0,
+      "LastLedgerSequence": 107967088,
+      "Sequence": 93722783,
+      "TransactionType": "EscrowCreate"
+    }
+  }
+}
