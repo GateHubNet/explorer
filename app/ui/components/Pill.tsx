@@ -5,9 +5,10 @@ import { CheckIcon, CrossIcon } from "./icons";
 
 /**
  * `info` is the accent wash (an amendment about to activate); `off` is the outlined pill (obsolete, unknown, no recent vote); `testnet` is the amber
- * badge of the sandbox's header, which says "Testnet" in words. Colour is only for `ok` and `bad`, and the badge's amber.
+ * badge of the sandbox's header, which says "Testnet" in words; `warn` is the same amber on a plain pill, for a state that wants attention ("Can be cancelled",
+ * "Expired", "Closing"). Colour is only for `ok` and `bad`, and the amber of `testnet` and `warn`: each says its state in words.
  */
-export type PillTone = "ok" | "bad" | "neutral" | "info" | "off" | "testnet";
+export type PillTone = "ok" | "bad" | "neutral" | "info" | "off" | "testnet" | "warn";
 
 /**
  * A status: an icon and a word, never colour alone (spec 7.1). `ok` and `bad` come with a check and a cross; the other tones have no

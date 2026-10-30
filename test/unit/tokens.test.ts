@@ -357,3 +357,41 @@ describe.each([
     expect(contrast(rgb(tokens["--testnet-fg"]!), rgb(tokens["--testnet-bg"]!))).toBeGreaterThanOrEqual(least);
   });
 });
+
+// Object pages spec 5 and decision 13: the `warn` pill ("Can be cancelled", "Expired", "Closing") is amber, and the amber is the Testnet badge's (E7), not a second pair.
+// `--amb` and `--amb-bg` are those tokens by reference, declared once in the light block: a custom property is resolved where it is declared, and the dark blocks, which redeclare
+// `--testnet-fg` and `--testnet-bg` on the same elements, give the same reference their dark values. The badge's own rows above pin the pair on its wash (7.1:1 in light, 9.5:1
+// in dark, which is the word on the wash of the `warn` pill too); what is new here is that the names are those tokens, that the rule paints them, and the grounds the amber word sits on.
+describe("the amber of the warn pill", () => {
+  it("is the Testnet badge's tokens by reference, declared once, so that no second amber can drift from the first", () => {
+    expect(light["--amb"]).toBe("var(--testnet-fg)");
+    expect(light["--amb-bg"]).toBe("var(--testnet-bg)");
+    expect(darkByAttribute["--amb"]).toBeUndefined();
+    expect(darkByMedia["--amb"]).toBeUndefined();
+    expect(darkByAttribute["--amb-bg"]).toBeUndefined();
+    expect(darkByMedia["--amb-bg"]).toBeUndefined();
+    expect(css.match(/--amb(?:-bg)?\s*:/g)).toHaveLength(2);
+  });
+});
+
+describe.each(BLOCKS)("the warn pill in %s", (_block, tokens) => {
+  /** A token as the browser resolves it on an element of this block: the block's own value, else the light block's, a `var()` of another token read in this block. */
+  function resolved(name: string): string {
+    const value = tokens[name] ?? light[name];
+    const reference = value === undefined ? null : /^var\((--[\w-]+)\)$/.exec(value);
+    const result = reference ? tokens[reference[1]!] : value;
+    if (result === undefined || !/^#[0-9a-f]{6}$/.test(result)) throw new Error(`${name} does not resolve to a colour in this block: ${value}`);
+    return result;
+  }
+
+  it("paints the badge's word on the badge's wash: --amb on --amb-bg are --testnet-fg on --testnet-bg, the pair the badge's rows pin", () => {
+    expect(tokenOf(ruleProperty(".pill--warn", "color"))).toBe("--amb");
+    expect(tokenOf(ruleProperty(".pill--warn", "background"))).toBe("--amb-bg");
+    expect(resolved("--amb")).toBe(tokens["--testnet-fg"]);
+    expect(resolved("--amb-bg")).toBe(tokens["--testnet-bg"]);
+  });
+
+  it.each(["--bg", "--surface"] as const)("--amb on %s (the page and a card: amber words outside the pill) is at least 4.5:1", (ground) => {
+    expect(contrast(rgb(resolved("--amb")), rgb(tokens[ground]!))).toBeGreaterThanOrEqual(AA);
+  });
+});

@@ -28,6 +28,11 @@
   --testnet-fg: #7A4306;
   --testnet-bg: #FDF0D5;
   --testnet-border: #EBC985;
+  /* The amber of the `warn` pill (object pages decision 13: "Can be cancelled", "Expired", "Closing") is the badge's: the same two tokens by reference, not a second pair. A
+     custom property is resolved where it is declared, and the dark blocks redeclare `--testnet-fg` and `--testnet-bg` on these same elements, so this one declaration is
+     dark in both of them. test/unit/tokens.test.ts keeps it the only one. */
+  --amb: var(--testnet-fg);
+  --amb-bg: var(--testnet-bg);
   --link: color-mix(in srgb, var(--accent) 82%, #000000);
 
   /* Charts: series colours in this order, then "Other"; up and down. */

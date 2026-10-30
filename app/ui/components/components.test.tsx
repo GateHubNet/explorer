@@ -102,6 +102,17 @@ describe("Pill", () => {
     expect(container.innerHTML).toBe('<span class="pill pill--testnet">Testnet</span>');
   });
 
+  it("Pill warn is the amber pill of a state that needs attention, with the word and no icon of its own", () => {
+    const { container } = render(<Pill tone="warn">Can be cancelled</Pill>);
+    expect(container.innerHTML).toBe('<span class="pill pill--warn">Can be cancelled</span>');
+    expect(container.querySelector(".pill")!.classList.contains("pill--warn")).toBe(true);
+  });
+
+  it("takes an icon of its own on the warn tone, as the neutral and info tones do", () => {
+    render(<Pill tone="warn" icon={<svg data-testid="own" aria-hidden="true" />}>Expired</Pill>);
+    expect(screen.getByTestId("own").closest(".pill")!.className).toContain("pill--warn");
+  });
+
   it("ResultPill says Success for tesSUCCESS and shows the code of a failure", () => {
     const { rerender } = render(<ResultPill ok code="tesSUCCESS" />);
     expect(screen.getByText("Success")).toBeTruthy();

@@ -430,3 +430,111 @@ describe("the issuers under a pair (display names decision 12)", () => {
     expect(rule(componentsCss, ".issued-marked")["white-space"]).toBe("nowrap");
   });
 });
+
+describe("the classes of the ledger object pages' components (Task 5)", () => {
+  // E9 found `.acct` also defined in pages.css, which `styles.css` imports after components.css: at equal specificity the later rule won on every `AccountLink`. So the classes of the
+  // states strip, the timeline, the check flow, the permission chip, the MPT amount and the warn pill are components.css's alone, and no other sheet may take one of them over.
+  const chartsCss = read("charts.css");
+  const tokensCss = read("tokens.css");
+  const CLASSES = [
+    ".pill--warn",
+    ".states",
+    ".states__title",
+    ".states__list",
+    ".states__item",
+    ".states__item.is-current",
+    ".states__name",
+    ".states__here",
+    ".states__meaning",
+    ".timeline",
+    ".timeline__list",
+    ".timeline__item",
+    ".timeline__dot",
+    ".timeline__dot--tx",
+    ".timeline__dot--mark",
+    ".timeline__dot--next",
+    ".timeline__head",
+    ".timeline__type--ghost",
+    ".timeline__title",
+    ".timeline__when",
+    ".timeline__line",
+    ".timeline__what",
+    ".timeline__footnote",
+    ".checkflow",
+    ".checkflow__issuer",
+    ".permchip",
+    ".permchip--granular",
+    ".mptamount",
+  ];
+  /** Whether a stylesheet's rules mention `name` as a class: not a longer class that starts with it (`.states` is not `.states__item`, `.timeline__dot` is not `.timeline__dot--tx`). */
+  const mentions = (css: string, name: string) => new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(css);
+
+  it.each(CLASSES)("%s is defined in components.css and in no other stylesheet", (name) => {
+    expect(mentions(componentsCss, name), `components.css has ${name}`).toBe(true);
+    for (const [file, css] of [["pages.css", pagesCss], ["charts.css", chartsCss], ["base.css", baseCss], ["tokens.css", tokensCss]] as const) {
+      expect(mentions(css, name), `${file} has ${name}`).toBe(false);
+    }
+  });
+
+  // The roots are the whole class, whatever follows them: nothing of another sheet starts with one of these names either (`.timeline-x`, `.states-y`), which would be the next collision.
+  it.each(["states", "timeline", "checkflow", "permchip", "mptamount"])("no stylesheet but components.css has a class that starts with .%s", (root) => {
+    const started = new RegExp(`\\.${root}(?![\\w-])|\\.${root}[_-]`);
+    for (const [file, css] of [["pages.css", pagesCss], ["charts.css", chartsCss], ["base.css", baseCss], ["tokens.css", tokensCss]] as const) {
+      expect(started.test(css), `${file} has a class of ${root}`).toBe(false);
+    }
+  });
+
+  // The strip is a legend. The current state is told by its words ("· this escrow") and a frame in the link colour, never by the colour alone.
+  it("frames the current state in the link colour, and names it in --link text on the card", () => {
+    expect(rule(componentsCss, ".states__item.is-current")).toMatchObject({ "border-color": "var(--link)" });
+    expect(rule(componentsCss, ".states__item.is-current .states__name")).toMatchObject({ color: "var(--link)" });
+  });
+
+  it("lets the states wrap at 150 px each, so that the strip never scrolls sideways on a phone", () => {
+    expect(rule(componentsCss, ".states__list")).toMatchObject({ display: "flex", "flex-wrap": "wrap" });
+    expect(rule(componentsCss, ".states__item")).toMatchObject({ flex: "1 1 150px", "min-width": "0" });
+  });
+
+  // The board's dots: filled for a transaction, outlined for a time that passed, dashed for what can still happen.
+  it("dots the timeline: a transaction filled, a mark outlined on the card, a next step dashed", () => {
+    expect(rule(componentsCss, ".timeline__dot--tx")).toMatchObject({ background: "var(--accent)", "border-color": "var(--accent)" });
+    expect(rule(componentsCss, ".timeline__dot--mark")).toMatchObject({ background: "var(--surface)", "border-color": "var(--muted)" });
+    expect(rule(componentsCss, ".timeline__dot--next")).toMatchObject({ background: "transparent", "border-style": "dashed", "border-color": "var(--border-strong)" });
+  });
+
+  it("lets a long address or a hash break at the edge of the card, and the list shrink with it", () => {
+    expect(rule(componentsCss, ".timeline__line")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(componentsCss, ".timeline__item")["grid-template-columns"]).toBe("14px minmax(0, 1fr)");
+  });
+
+  // A link in a sentence is told from the words round it by more than its colour (WCAG 1.4.1; axe: link-in-text-block). A named account is underlined by its own rule
+  // (`a.acct:not(.ent) > .acct__name`, and a second line on the whole link would lie 1 px under it), and a chip has its box; everything else in the timeline's lines is underlined.
+  it("underlines every link in a line of the timeline that is not a named account or a chip: the by line's addresses, the hash, the ledger, an NFT", () => {
+    expect(rule(componentsCss, ".timeline__line a:not(.ent):not(.acct)")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+    expect(rule(componentsCss, "a.acct:not(.ent) > .acct__name")["text-decoration"]).toBe("underline");
+  });
+
+  it("underlines the issuer of a check, which is in the words 'issued by', and the ID of an MPT amount that is a link, which is in the words 'units of MPT'", () => {
+    expect(rule(componentsCss, ".checkflow__issuer a:not(.acct)")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+    expect(rule(componentsCss, ".mptamount a")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+  });
+
+  it("keeps the permission chip's hidden words inside it, so that they do not widen a scrolling table or the page (`.sr` is absolute)", () => {
+    expect(rule(baseCss, ".sr").position).toBe("absolute");
+    expect(rule(componentsCss, ".permchip").position).toBe("relative");
+    expect(rule(componentsCss, ".permchip")["white-space"]).toBe("nowrap");
+  });
+
+  it("outlines a narrower right and a permission nobody knows, and fills a transaction type's chip, as the board does", () => {
+    expect(rule(componentsCss, ".permchip")).toMatchObject({ background: "var(--sunken)", border: "1px solid var(--border)" });
+    expect(rule(componentsCss, ".permchip--granular,\n.permchip--unknown")).toMatchObject({ background: "transparent", "border-color": "var(--border-strong)" });
+  });
+
+  it("breaks the MPT amount at the edge of its cell instead of widening it, in mono with tabular figures", () => {
+    expect(rule(componentsCss, ".mptamount")).toMatchObject({ "overflow-wrap": "anywhere", "font-variant-numeric": "tabular-nums" });
+  });
+
+  it("draws the check flow's text anywhere it must, so that a long amount or issuer does not widen the page", () => {
+    expect(rule(componentsCss, ".checkflow")["overflow-wrap"]).toBe("anywhere");
+  });
+});
