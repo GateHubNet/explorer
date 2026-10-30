@@ -198,7 +198,7 @@ describe("PaymentChannelPage", () => {
     expect(value("Left")).toBe("0.967815 XRPCan still be paid out by claims.");
     expect(value("Settle delay")).toBe("14 days · 1,209,600 sAfter the source asks to close, the destination has this long to redeem its last claim.");
     expect(value("Public key")).toContain("03D63CA73239D94AAF52574A20E3BC26CBDB811CA55A5914FAA28836F079CE0DC3");
-    expect(value("Closes by")).toContain("Set when the channel was opened: it closes at this time at the latest.");
+    expect(value("Closes after")).toContain("Set when the channel was opened: after this time, the next transaction that touches it closes it.");
     expect(value("Owner reserve")).toBe("0.2 XRPHeld from the source’s balance while the channel exists.");
     expect(within(details).getByRole("button", { name: "Copy channel ID" })).toBeTruthy();
     expect(within(details).getByRole("button", { name: "Copy public key" })).toBeTruthy();
@@ -331,7 +331,7 @@ describe("PaymentChannelPage: the page the Worker prints is the page the browser
     };
     expect(await lines(build({ cancel_after: "2026-11-02T04:00:00Z" }))).toEqual([
       "Open: 0.967815 XRP of 1 XRP left to pay out",
-      "The destination has redeemed claims for 0.032185 XRP so far. No close has been requested; the channel closes by Nov 2, 2026, 04:00 UTCin 4 days at the latest.",
+      "The destination has redeemed claims for 0.032185 XRP so far. No close has been requested; from Nov 2, 2026, 04:00 UTCin 4 days the next transaction that touches it closes it.",
     ]);
     cleanup();
     expect(await lines(closing())).toEqual([

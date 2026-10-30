@@ -12,6 +12,7 @@
 import BigNumber from "bignumber.js";
 
 import { accountsIn, type Segment } from "../domain/describe";
+import { seq } from "../domain/describe/helpers";
 import { tokenOf } from "../domain/fnv";
 import { formatAmount, shortAddress } from "../domain/format";
 import type { NamesPart } from "../domain/names";
@@ -34,7 +35,7 @@ import {
   none,
   optionalUnix,
   rawValue,
-  sentence,
+  remainder,
   tagValue,
   text,
   theAmount,
@@ -173,11 +174,7 @@ interface Facts {
 const show = (amount: ObjectAmount | undefined): DisplayAmount | null => (amount === undefined ? null : displayAmount(amount));
 
 /** What is left of `whole` after `part` (D5's `remaining`, worked out for an event, which does not carry it), in `whole`'s currency; `null` when either is missing or not a number. */
-function minus(whole: ObjectAmount | undefined, part: ObjectAmount | undefined): DisplayAmount | null {
-  if (whole === undefined || part === undefined) return null;
-  const rest = new BigNumber(whole.value).minus(part.value);
-  return rest.isNaN() ? null : displayAmount({ ...whole, value: rest.toFixed() });
-}
+const minus = (whole: ObjectAmount | undefined, part: ObjectAmount | undefined): DisplayAmount | null => show(remainder(whole, part));
 
 function factsOf(source: ObjectSource, native: Native): Facts {
   let channel: Facts["channel"];
@@ -224,19 +221,19 @@ function factsOf(source: ObjectSource, native: Native): Facts {
 
 function summaryOf(f: Facts): Segment[] {
   const { channel, amount, created } = f;
-  return sentence(
+  return seq(
     { t: "account", v: channel.account },
     " opened a payment channel to ",
     { t: "account", v: channel.destination },
     created === undefined ? "" : ` on ${formatDate(created)}`,
-    amount === null ? "." : sentence(", with ", amountSegment(amount), " deposited in all."),
+    amount === null ? "." : seq(", with ", amountSegment(amount), " deposited in all."),
   );
 }
 
 /** What the destination has been paid, for the open channel's second line: nothing, or the running total of the claims. */
 function redeemedOf(balance: DisplayAmount | null): Segment[] {
   if (balance === null) return [];
-  return new BigNumber(rawValue(balance)).isZero() ? sentence("No claim has been redeemed yet. ") : sentence("The destination has redeemed claims for ", amountSegment(balance), " so far. ");
+  return new BigNumber(rawValue(balance)).isZero() ? seq("No claim has been redeemed yet. ") : seq("The destination has redeemed claims for ", amountSegment(balance), " so far. ");
 }
 
 /** The sentences of the status: the headline and what it means (the board's, with its ages left out). */
@@ -245,34 +242,34 @@ function statusLinesOf(f: Facts): Segment[][] {
   switch (f.status) {
     case "open":
       return [
-        remaining === null || amount === null ? sentence("Open: claims can be redeemed") : sentence("Open: ", amountSegment(remaining), " of ", amountSegment(amount), " left to pay out"),
-        sentence(redeemedOf(balance), "No close has been requested", cancelAfter === undefined ? ", and no end time is set." : `; the channel closes by ${when(cancelAfter)} at the latest.`),
+        remaining === null || amount === null ? seq("Open: claims can be redeemed") : seq("Open: ", amountSegment(remaining), " of ", amountSegment(amount), " left to pay out"),
+        seq(redeemedOf(balance), "No close has been requested", cancelAfter === undefined ? ", and no end time is set." : `; from ${when(cancelAfter)} the next transaction that touches it closes it.`),
       ];
     case "closing": {
-      if (closeAt === undefined) return [sentence("Closing")];
+      if (closeAt === undefined) return [seq("Closing")];
       // Past the earlier of Expiration and CancelAfter the next transaction on the channel closes it, whoever sends it.
       if (f.asOf >= closeAt.at) {
         return [
-          sentence("Closing: any transaction on the channel now closes it"),
-          sentence(`${closeAt.field} passed on ${when(closeAt.at)}. When it closes, `, theAmount(remaining), " left go back to the source."),
+          seq("Closing: any transaction on the channel now closes it"),
+          seq(`${closeAt.field} passed on ${when(closeAt.at)}. When it closes, `, theAmount(remaining), " left go back to the source."),
         ];
       }
       return [
-        sentence("Closing: claims can still be redeemed until ", when(closeAt.at)),
-        sentence("The source asked to close the channel. From ", when(closeAt.at), ", any transaction on the channel closes it, and ", theAmount(remaining), " left go back to the source."),
+        seq("Closing: claims can still be redeemed until ", when(closeAt.at)),
+        seq("The source asked to close the channel. From ", when(closeAt.at), ", any transaction on the channel closes it, and ", theAmount(remaining), " left go back to the source."),
       ];
     }
     case "closed":
       return [
-        balance !== null && remaining !== null ? sentence("Closed: ", amountSegment(balance), " paid out, ", amountSegment(remaining), " returned to the source") : sentence("Closed"),
-        sentence(
+        balance !== null && remaining !== null ? seq("Closed: ", amountSegment(balance), " paid out, ", amountSegment(remaining), " returned to the source") : seq("Closed"),
+        seq(
           "Closed",
           removed === undefined ? "" : ` on ${when(removed.at)}`,
           f.closedByClaim ? ", when the destination redeemed its last claim and closed the channel." : `, by a ${removed?.ref.tx_type ?? "transaction"}.`,
         ),
       ];
     case "removed":
-      return [sentence(`Removed from the ledger by ${channel.removed?.tx_type ?? "a transaction"}`)];
+      return [seq(`Removed from the ledger by ${channel.removed?.tx_type ?? "a transaction"}`)];
   }
 }
 
@@ -288,10 +285,10 @@ function bannerSentenceOf(f: Facts): Segment[] | null {
   if (removed === undefined) return null;
   if (f.status === "closed") {
     return balance !== null && remaining !== null
-      ? sentence("Closed on ", when(removed.at), "; ", amountSegment(balance), " was paid out and ", amountSegment(remaining), " went back to the source.")
-      : sentence("Closed on ", when(removed.at), ".");
+      ? seq("Closed on ", when(removed.at), "; ", amountSegment(balance), " was paid out and ", amountSegment(remaining), " went back to the source.")
+      : seq("Closed on ", when(removed.at), ".");
   }
-  return sentence("Removed on ", when(removed.at), ".");
+  return seq("Removed on ", when(removed.at), ".");
 }
 
 // ---- The deposit -----------------------------------------------------------------------------------------------------------------------------------
@@ -337,7 +334,7 @@ function depositOf(f: Facts): { deposit: ShareData; shares: DepositShare[] } {
  * What an event of a channel did, in the board's words: the opening, a funding, a claim, a close request, a renewal and the closing (the removed and the update are every kind's). An event's
  * `amount` and `balance` are those of the channel after it, so a missing one is not the channel's now: only the closing, which is the last state, falls back to it.
  */
-function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords {
+function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords | undefined {
   return (event) => {
     const [amount, balance, change, paidMore] = [show(event.amount), show(event.balance), show(event.amount_change), show(event.balance_change)];
     switch (event.event) {
@@ -345,15 +342,15 @@ function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords {
         const settle = event.settle_delay ?? f.settleDelay;
         return {
           title: "Opened",
-          what: sentence("Opened the channel with ", amount === null ? "funds" : amountSegment(amount), settle === undefined ? "" : ` and a settle delay of ${settleWords(settle)}`, "."),
+          what: seq("Opened the channel with ", amount === null ? "funds" : amountSegment(amount), settle === undefined ? "" : ` and a settle delay of ${settleWords(settle)}`, "."),
         };
       }
       case "fund":
         return {
           title: "Funded",
-          what: sentence(
-            change === null ? "Added funds" : sentence("Added ", amountSegment(change)),
-            amount === null ? "." : sentence("; ", amountSegment(amount), " deposited in all."),
+          what: seq(
+            change === null ? "Added funds" : seq("Added ", amountSegment(change)),
+            amount === null ? "." : seq("; ", amountSegment(amount), " deposited in all."),
           ),
         };
       case "claim":
@@ -361,35 +358,33 @@ function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords {
           title: "Claim redeemed",
           what:
             paidMore === null
-              ? sentence("Redeemed a claim", balance === null ? "." : sentence("; ", amountSegment(balance), " in all so far."))
+              ? seq("Redeemed a claim", balance === null ? "." : seq("; ", amountSegment(balance), " in all so far."))
               : balance !== null && new BigNumber(rawValue(paidMore)).eq(rawValue(balance))
-                ? sentence("Paid out ", amountSegment(paidMore), " with the first claim.")
-                : sentence("Paid out ", amountSegment(paidMore), " more", balance === null ? "." : sentence("; ", amountSegment(balance), " in all so far.")),
+                ? seq("Paid out ", amountSegment(paidMore), " with the first claim.")
+                : seq("Paid out ", amountSegment(paidMore), " more", balance === null ? "." : seq("; ", amountSegment(balance), " in all so far.")),
         };
       case "close_request": {
         const expiration = optionalUnix(event.expiration);
-        return { title: "Close requested", what: sentence("Asked to close the channel", expiration === undefined ? "." : `, which set its expiration to ${when(expiration)}.`) };
+        return { title: "Close requested", what: seq("Asked to close the channel", expiration === undefined ? "." : `, which set its expiration to ${when(expiration)}.`) };
       }
       case "renew":
-        return { title: "Renewed", what: sentence("Cleared the channel’s expiration: the close request no longer applies.") };
+        return { title: "Renewed", what: seq("Cleared the channel’s expiration: the close request no longer applies.") };
       case "close": {
         const [paid, left] = [balance ?? f.balance, minus(event.amount, event.balance) ?? f.remaining];
         const redeemed =
           paidMore === null
-            ? sentence("Closed the channel")
+            ? seq("Closed the channel")
             : paid === null
-              ? sentence("Redeemed the last claim and closed the channel")
-              : sentence("Redeemed the last claim, ", amountSegment(paid), " paid out in all, and closed the channel");
-        return { title: "Closed", what: sentence(redeemed, left === null ? "." : sentence("; ", amountSegment(left), " went back to the source.")) };
+              ? seq("Redeemed the last claim and closed the channel")
+              : seq("Redeemed the last claim, ", amountSegment(paid), " paid out in all, and closed the channel");
+        return { title: "Closed", what: seq(redeemed, left === null ? "." : seq("; ", amountSegment(left), " went back to the source.")) };
       }
-      default:
-        return { title: `Changed by ${event.tx_type}`, what: [] };
     }
   };
 }
 
 /**
- * What can still happen, as the board has it (spec 4.4): an open channel is not closed, by its CancelAfter at the latest or with no end time set; a closing one is not closed yet, from the
+ * What can still happen, as the board has it (spec 4.4): an open channel is not closed, from its CancelAfter or with no end time set; a closing one is not closed yet, from the
  * earlier of its Expiration and CancelAfter. A `next` has its `at` only while its time is ahead of the page (the page counts down to it); one that has come reads "Since {time}". A channel
  * that was closed, or removed, has nothing to come.
  */
@@ -402,7 +397,7 @@ function marksOf(f: Facts): TimelineItem[] {
           kind: "next",
           type: "PaymentChannelClaim",
           title: "Not closed",
-          ...(cancelAfter === undefined ? { whenText: "No end time set" } : { at: cancelAfter, whenText: `By ${when(cancelAfter)} at the latest` }),
+          ...(cancelAfter === undefined ? { whenText: "No end time set" } : { at: cancelAfter, whenText: `From ${when(cancelAfter)}` }),
           what: [text("The destination can close it at any time; the source can ask to, and it then closes after the settle delay.")],
         },
       ];
@@ -480,17 +475,17 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
             label: "Expires",
             field: "Expiration",
             value: { kind: "time" as const, at: expiration },
-            hint: "Set when the source asked to close: the time of the request plus the settle delay.",
+            hint: "Set by the source: when it asks to close, the time of the request plus the settle delay, or with a fund.",
           },
         ]),
     ...(cancelAfter === undefined
       ? []
       : [
           {
-            label: "Closes by",
+            label: "Closes after",
             field: "CancelAfter",
             value: { kind: "time" as const, at: cancelAfter },
-            hint: "Set when the channel was opened: it closes at this time at the latest.",
+            hint: "Set when the channel was opened: after this time, the next transaction that touches it closes it.",
           },
         ]),
     { label: "Destination tag", value: tagValue(channel.destination_tag) },

@@ -28,7 +28,8 @@ const FRAME = "ui/pages/LedgerObjectFrame.tsx";
 
 /**
  * The leaves the pages load: the kit's parts that are theirs (the states strip, the timeline, the check's flow, the MPT amount, the permission chip of a sentence, the window bar and its ring),
- * and the two files of `app/domain` that a link and a chip are made from, `object-href.ts` (the one decision every inbound link makes) and `permission-chip.ts`.
+ * the two files of `app/domain` that a link and a chip are made from, `object-href.ts` (the one decision every inbound link makes) and `permission-chip.ts`, and `object-nouns.ts`, the one list
+ * of what the pages call each kind.
  */
 const LEAVES = [
   "ui/components/StatesStrip.tsx",
@@ -40,6 +41,7 @@ const LEAVES = [
   "ui/charts/ring.ts",
   "domain/object-href.ts",
   "domain/permission-chip.ts",
+  "domain/object-nouns.ts",
 ];
 
 const FILES = [...PAGES, FRAME, ...LEAVES];
@@ -76,6 +78,7 @@ describe("the files of the ledger object pages that run in the browser", () => {
         "ui/components/Sentence.tsx",
         "ui/components/CoverageNote.tsx",
         "domain/object-href.ts",
+        "domain/object-nouns.ts",
         "domain/permission-chip.ts",
       ]),
     );

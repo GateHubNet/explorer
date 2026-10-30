@@ -6,7 +6,7 @@ import { account, closingDetails, detail, listOf, seq, type Part } from "./helpe
 import type { HandlerMap, Input, Segment, Summary } from "./types";
 
 /** An entry of the list that is not a permission this explorer can read: a chip of its own, so that it is counted and the list is not taken for an empty one. */
-const UNREADABLE: Segment = { t: "permission", name: "Unreadable permission", kind: "unknown", words: "Unreadable permission" };
+const UNREADABLE: Segment = { t: "permission", name: "Unreadable permission", kind: "unknown", words: "An entry of the list this explorer cannot read" };
 
 /**
  * The permissions of a `DelegateSet` (`Permissions[].Permission.PermissionValue`: a transaction type's or a granular permission's name, or a number), each as `permissionChip` says it.

@@ -7,14 +7,14 @@ import { LedgerObjectFrame } from "./LedgerObjectFrame";
  * status lines with the age of each date they name, the rows and the as-of note; this adds the window bar between the status and the rows. Takes what the view builder made (`escrowPage`) and
  * never fetches.
  *
- * The window bar comes after the summary and the status lines: its tooltip opens over it, and the card, which clips what is outside it, has their room above the bar for it. The page's moment,
- * which the ages are told against, is the bar's mark: the ledger the page is as of, or the escrow's removal.
+ * The window bar comes after the summary and the status lines: its tooltip opens over it, and the card, which clips what is outside it, has their room above the bar for it. The dates the
+ * status lines write out are the bar's bounds and its mark (the escrow's removal, when it has one), and the ages beside them are told against the moment the page is as of (`asOfAt`), as a
+ * check's and a channel's are.
  */
 export function EscrowPage({ data }: { data: EscrowPageData }) {
-  const asOf = Number(data.windowBar.mark.at);
-  const moments = [...data.windowBar.bounds.map((bound) => Number(bound.at)), asOf];
+  const moments = [...data.windowBar.bounds, data.windowBar.mark].map((moment) => Number(moment.at));
   return (
-    <LedgerObjectFrame data={data} title="Escrow" moments={moments} asOf={asOf}>
+    <LedgerObjectFrame data={data} title="Escrow" moments={moments} asOf={data.asOfAt}>
       <div className="object-page__figure">
         <WindowBar data={data.windowBar} />
       </div>

@@ -662,6 +662,28 @@ describe("describe: escrows", () => {
     });
   });
 
+  describe("an MPT's amount", () => {
+    const ISSUANCE = "0000012AB5F762798A53D543A014CAF8B297CFF8F2F937E8";
+    const AMOUNT = { mpt_issuance_id: ISSUANCE, value: "2500000" };
+    const WORDS = "2,500,000 units of MPT 0000012A…";
+
+    it("is in the words of `MptAmount` in an EscrowCreate's sentence and its Amount detail, never raw JSON", () => {
+      const d = say(synth("EscrowCreate", { Amount: AMOUNT, Destination: B, FinishAfter: 845387999 }), SUCCESS);
+      expect(textOf(d.sentence)).toBe(`${A} locked ${WORDS} for ${B}, release after 2026-10-15 13:59:59 UTC.`);
+      const amount = d.details.find((row) => row.label === "Amount")!;
+      expect(amount.value).toStrictEqual([text(WORDS)]);
+      expect(textOf(d.sentence)).not.toContain("{");
+      expect(textOf(amount.value)).not.toContain("{");
+    });
+
+    it("is in the same words in a type's own sentence and in a field of a type nothing here describes", () => {
+      const payment = say(synth("Payment", { Amount: AMOUNT, Destination: B }), SUCCESS);
+      expect(textOf(payment.sentence)).toContain(WORDS);
+      expect(textOf(payment.sentence)).not.toContain("{");
+      expect(say(synth("SomethingNew", { Amount: AMOUNT }), SUCCESS).details.find((row) => row.label === "Amount")!.value).toStrictEqual([text(WORDS)]);
+    });
+  });
+
   describe("EscrowFinish", () => {
     it("says which escrow of which owner was released", () => {
       const d = run("xrpl", FINISH);
@@ -2050,7 +2072,7 @@ describe("describe: delegation", () => {
   });
 
   it("keeps a permission it cannot read as an unknown chip, and counts it: only a list with no entry removes every permission", () => {
-    const unreadable: Segment = { t: "permission", name: "Unreadable permission", kind: "unknown", words: "Unreadable permission" };
+    const unreadable: Segment = { t: "permission", name: "Unreadable permission", kind: "unknown", words: "An entry of the list this explorer cannot read" };
     const d = describeTx(synth("DelegateSet", { Authorize: B, Permissions: [{ Permission: {} }, { NotAPermission: 1 }, "Payment"] }), SUCCESS, { native: "XRP" });
     expect(d.sentence).toStrictEqual([
       account(A),

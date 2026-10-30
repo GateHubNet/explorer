@@ -102,6 +102,13 @@ describe("escrowPage from the index", () => {
     expect(data.states[1]!.meaning).toBe("FinishAfter has passed: anyone with the fulfillment can finish it.");
   });
 
+  it("names no FinishAfter that passed for a conditional escrow that has none: its condition alone holds it", () => {
+    const sample = escrowAnswerSample();
+    const { finish_after: _none, ...escrow } = sample.escrow;
+    const data = page(indexed({ ...sample, escrow: { ...escrow, status: "can_be_finished", condition: "A0258020E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855810100" } }));
+    expect(data.states[1]).toMatchObject({ id: "can_be_finished", meaning: "Anyone with the fulfillment can finish it.", current: true });
+  });
+
   describe.each([
     {
       status: "pending" as const,
@@ -509,14 +516,23 @@ describe("escrowPage: the details", () => {
     expect(rowOf(page({ origin: "node", entry, ledgerIndex, now: Date.UTC(2026, 9, 29) / 1000 }), "Transfer rate")!.value).toEqual({ kind: "text", text: "0%" });
   });
 
-  it("shows no transfer rate row for a native escrow, with the field or without, nor for an MPT", async () => {
+  it("shows no transfer rate row for a native escrow, with the field or without, nor for an MPT whose answer does not carry it", async () => {
     const native = escrowAnswerSample();
     expect(native.escrow.transfer_rate).toBeUndefined();
     expect(rowOf(page(indexed(native)), "Transfer rate")).toBeUndefined();
     native.escrow = { ...native.escrow, transfer_rate: 1_005_000_000 };
     expect(rowOf(page(indexed(native)), "Transfer rate")).toBeUndefined();
     const mpt = await answerOf("xrpl", "escrow-mpt");
+    expect(mpt.escrow.transfer_rate).toBeUndefined();
     expect(rowOf(page(indexed(mpt)), "Transfer rate")).toBeUndefined();
+  });
+
+  it("shows the transfer rate of an MPT whose answer carries it (D5's key is on any escrow), and of an MPT the node's entry has it on", async () => {
+    const mpt = await answerOf("xrpl", "escrow-mpt");
+    expect(rowOf(page(indexed({ ...mpt, escrow: { ...mpt.escrow, transfer_rate: 1_005_000_000 } })), "Transfer rate")).toEqual({ label: "Transfer rate", value: { kind: "text", text: "0.5%" } });
+    const { entry, ledgerIndex } = await entryOf("xrpl", "escrow-node-only");
+    const held = { ...entry, Amount: { mpt_issuance_id: MPT_ISSUANCE_ID, value: "500" }, TransferRate: 1_002_000_000 };
+    expect(rowOf(page({ origin: "node", entry: held, ledgerIndex, now: Date.UTC(2026, 9, 29) / 1000 }), "Transfer rate")!.value).toEqual({ kind: "text", text: "0.2%" });
   });
 
   it("shows no transfer rate for a native escrow, whatever the ledger holds (Xahau's hold the default)", async () => {

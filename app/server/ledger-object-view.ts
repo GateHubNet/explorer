@@ -11,9 +11,11 @@ import BigNumber from "bignumber.js";
 import { encodeAccountID } from "ripple-address-codec";
 
 import { accountsIn, type Segment } from "../domain/describe";
+import { mptWords } from "../domain/describe/helpers";
 import { dropsToNative, formatAmount, formatCurrency } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import { OBJECT_KINDS, type ObjectKind } from "../domain/object-link";
+import { OBJECT_NOUNS } from "../domain/object-nouns";
 import { channelStatus, checkStatus, escrowStatus } from "../domain/object-status";
 import type { Native } from "../domain/parse/types";
 import { trailPaging, type Paging } from "../domain/paging";
@@ -84,7 +86,7 @@ function amountOf(raw: unknown, native: Native): ObjectAmount | undefined {
 }
 
 /** What is left of `amount` after `part`, exact and in plain decimal text (D5's `remaining`), or none when either is missing or not a number. */
-function remainder(amount: ObjectAmount | undefined, part: ObjectAmount | undefined): ObjectAmount | undefined {
+export function remainder(amount: ObjectAmount | undefined, part: ObjectAmount | undefined): ObjectAmount | undefined {
   if (amount === undefined || part === undefined) return undefined;
   const left = new BigNumber(amount.value).minus(part.value);
   return left.isNaN() ? undefined : { ...amount, value: left.toFixed() };
@@ -184,9 +186,6 @@ export const rawValue = (amount: DisplayAmount): string => ("mpt" in amount ? am
 /** A time of the API (`YYYY-MM-DDTHH:mm:ssZ`) as unix seconds, or nothing for a field the object does not have. */
 export const optionalUnix = (iso: string | undefined): number | undefined => (iso === undefined ? undefined : unixOf(iso));
 
-/** What `MptAmount` draws, as words for a sentence: "2,500,000 units of MPT 0000012A…". */
-const mptWords = ({ id, units }: { id: string; units: string }): string => `${formatAmount(units)} units of MPT ${id.slice(0, 8)}…`;
-
 /**
  * An amount in a sentence: an `amount` segment, which `Amount` draws with its issuer in a title only (so a sentence's issuer is not a name to collect), or words for an MPT, which a
  * segment cannot hold.
@@ -204,23 +203,6 @@ export function amountText(a: DisplayAmount): string {
 
 /** A piece of a sentence that is just text. */
 export const text = (v: string): Segment => ({ t: "text", v });
-
-/** What a sentence is made of: words, a segment, or a list of segments (an amount's phrase). */
-export type Part = string | Segment | readonly Segment[];
-
-/** A sentence from strings, segments and lists of segments, with the text next to text made one segment and no empty text (a part left out is `""`). */
-export function sentence(...parts: Part[]): Segment[] {
-  const segments: Segment[] = [];
-  for (const part of parts) {
-    for (const segment of typeof part === "string" ? [text(part)] : "t" in part ? [part] : part) {
-      if (segment.t === "text" && segment.v === "") continue;
-      const last = segments.at(-1);
-      if (segment.t === "text" && last?.t === "text") segments[segments.length - 1] = text(last.v + segment.v);
-      else segments.push(segment);
-    }
-  }
-  return segments;
-}
 
 /** The object's amount as a noun phrase: "the 1,000 XRP", or "the funds" where D5 could not read it. */
 export const theAmount = (amount: DisplayAmount | null): Segment[] => (amount === null ? [text("the funds")] : [text("the "), amountSegment(amount)]);
@@ -275,12 +257,8 @@ export function detailAccounts(rows: readonly DetailRow[]): string[] {
 
 // ---- The words of a kind of object ----------------------------------------------------------------------------------------------------------------
 
-/** What a sentence calls an object of each kind, and who holds its reserve (the boards': an escrow has an owner, a check and a channel a source). */
-const WORDS: Record<ObjectKind, { noun: string; holder: "owner" | "source" }> = {
-  escrow: { noun: "escrow", holder: "owner" },
-  check: { noun: "check", holder: "source" },
-  "payment-channel": { noun: "channel", holder: "source" },
-};
+/** Who holds the reserve of an object of each kind (the boards': an escrow has an owner, a check and a channel a source). What a sentence calls it is `OBJECT_NOUNS`. */
+const HOLDERS: Record<ObjectKind, "owner" | "source"> = { escrow: "owner", check: "source", "payment-channel": "source" };
 
 const kindOf = (kind: ObjectKind) => OBJECT_KINDS.find((each) => each.kind === kind)!;
 
@@ -325,7 +303,7 @@ export interface ReserveView {
 export function reserveOf(state: ServerState | null, native: Native, kind: ObjectKind, removed: boolean): ReserveView | null {
   const drops = state?.validated_ledger?.reserve_inc;
   if (drops === undefined) return null;
-  const { noun, holder } = WORDS[kind];
+  const [noun, holder] = [OBJECT_NOUNS[kind], HOLDERS[kind]];
   const hint = removed
     ? `Released to the ${holder} when the ${noun} was removed.`
     : kind === "escrow"
@@ -341,7 +319,7 @@ export function reserveOf(state: ServerState | null, native: Native, kind: Objec
 export function asOfNoteOf(source: ObjectSource, kind: ObjectKind): string {
   if (source.origin === "node") return `Read live from the network at ledger #${ledgerText(source.ledgerIndex)}.`;
   const removed = answerObject(source.answer).removed;
-  if (removed !== undefined) return `From history: the ${WORDS[kind].noun}’s last state, before ledger #${ledgerText(removed.ledger_index)} removed it.`;
+  if (removed !== undefined) return `From history: the ${OBJECT_NOUNS[kind]}’s last state, before ledger #${ledgerText(removed.ledger_index)} removed it.`;
   return `As of ledger #${ledgerText(source.answer.ledger_index)}, ${formatDateTime(source.answer.close_time)}.`;
 }
 
@@ -359,20 +337,17 @@ export interface EventWords {
  * its `tx_type`, its time, who sent it (`by`) and, when it was sent for them, the delegate (`delegate`: always with a `by`), its hash and ledger.
  *
  * Two events read the same for every kind (C25): a `removed` one is titled "Removed" and says `removed`, the sentence of the removed banner, and an `update` (a change by a transaction no one
- * expects) is "Changed by {tx_type}" with no sentence. The words of the others are the type's own: `say`.
+ * expects) is "Changed by {tx_type}" with no sentence. The words of the others are the type's own: `say`, which has none for an event it does not know (D5's `event` is any string), and
+ * that reads as an `update` does.
  */
 export function timelineOf(
   events: readonly ObjectEvent[],
   after: readonly TimelineItem[],
-  words: { removed: Segment[]; say: (event: ObjectEvent) => EventWords },
+  words: { removed: Segment[]; say: (event: ObjectEvent) => EventWords | undefined },
 ): TimelineItem[] {
   const items = events.map((event): TimelineItem => {
-    const { title, what } =
-      event.event === "update"
-        ? { title: `Changed by ${event.tx_type}`, what: [] }
-        : event.event === "removed"
-          ? { title: "Removed", what: words.removed }
-          : words.say(event);
+    const said = event.event === "removed" ? { title: "Removed", what: words.removed } : event.event === "update" ? undefined : words.say(event);
+    const { title, what } = said ?? { title: `Changed by ${event.tx_type}`, what: [] };
     return {
       kind: "tx",
       type: event.tx_type,
@@ -440,7 +415,7 @@ export function commonOf(
     states: StateItem[];
     marks: TimelineItem[];
     bannerSentence: Segment[] | null;
-    say: (event: ObjectEvent) => EventWords;
+    say: (event: ObjectEvent) => EventWords | undefined;
   },
 ): ObjectPageCommon {
   const { net, kind } = o;

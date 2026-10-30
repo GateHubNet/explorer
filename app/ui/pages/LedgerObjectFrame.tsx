@@ -10,6 +10,7 @@ import { Fragment, type ReactNode } from "react";
 import type { Segment } from "../../domain/describe";
 import { formatUtc, shortHash } from "../../domain/format";
 import type { ObjectKind } from "../../domain/object-link";
+import { OBJECT_NOUNS } from "../../domain/object-nouns";
 import { formatDateTime } from "../../domain/time-words";
 import type { DetailRow, DetailValue, DisplayAmount, ObjectPageCommon, RemovedBanner, TitleLine } from "../../server/ledger-object-view";
 import type { NetworkId } from "../../server/networks";
@@ -37,9 +38,6 @@ import { useNetwork } from "../use-network";
 
 /** The footnote of every object's history (spec 4.1). */
 const TIMELINE_FOOTNOTE = "Oldest first. Filled dots are transactions; dashed ones are what can still happen.";
-
-/** What the states strip calls the object ("· this escrow"). */
-const STRIP_WORDS: Record<ObjectKind, string> = { escrow: "escrow", check: "check", "payment-channel": "channel" };
 
 /** The icon of a pill whose tone has none of its own (`ok` has its check): a status is an icon and a word, never colour alone. */
 const PILL_ICONS: Partial<Record<PillTone, ReactNode>> = {
@@ -290,7 +288,7 @@ export function LedgerObjectFrame({
       </div>
       {data.banner !== null && <RemovedNotice net={net} banner={data.banner} />}
       {extra}
-      <StatesStrip states={data.states} what={STRIP_WORDS[data.kind]} />
+      <StatesStrip states={data.states} what={OBJECT_NOUNS[data.kind]} />
       <div className="object-page__cols">
         <Card title="Details" className="object-page__col">
           <ObjectStatus net={net} summary={data.summary} statusLines={data.statusLines} moments={moments} asOf={asOf} />

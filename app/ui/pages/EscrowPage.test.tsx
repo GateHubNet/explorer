@@ -218,6 +218,21 @@ describe("EscrowPage: the page the Worker prints is the page the browser takes o
     expect(container.querySelectorAll(".timeline__item").length).toBeGreaterThan(1);
   });
 
+  it("tells a removed escrow's ages against the moment the page is as of, as a check's and a channel's are, not against the removal", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-29T04:00:00Z"));
+    const removed = { ledger_index: 107_000_000, time: "2026-10-20T00:00:00Z", tx_hash: "A".repeat(64), tx_type: "EscrowFinish" };
+    const data = build({
+      close_time: "2026-10-29T03:50:41Z",
+      escrow: { ...escrowAnswerSample().escrow, status: "finished", finish_after: "2026-10-01T00:00:00Z", cancel_after: "2026-10-25T04:00:00Z", removed },
+    });
+    const { container } = await serverThenHydrated(routedPage(page(data), { at: PATH }));
+    await act(async () => {});
+    const row = [...container.querySelectorAll("dd")].find((each) => each.textContent!.startsWith("2026-10-25 04:00:00 UTC"))!;
+    expect(row.textContent).toContain("· 4 d ago");
+    expect(row.textContent).not.toContain("passed");
+  });
+
   it("puts the age of a date in a status line beside it, the countdown of one to come and the age of one that passed", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-29T04:00:00Z"));

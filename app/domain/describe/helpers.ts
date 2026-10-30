@@ -83,11 +83,21 @@ export function parseAmount(raw: unknown, native: Native): FlowAmount | undefine
 
 export const amountOf = (amount: FlowAmount): Segment => ({ t: "amount", ...amount });
 
-/** An amount field as an amount segment; a value that is not an amount is shown as it is. */
+/** What `MptAmount` draws, as words for a sentence: "2,500,000 units of MPT 0000012A…" (raw units, no scale: E14 replaces them). */
+export const mptWords = ({ id, units }: { id: string; units: string }): string => `${formatAmount(units)} units of MPT ${id.slice(0, 8)}…`;
+
+/** A field that is an MPT's amount (`{ mpt_issuance_id, value }`), as `mptWords` has it, which a segment cannot hold as an amount; `undefined` for anything else. */
+function mptField(raw: unknown): Segment | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { mpt_issuance_id: id, value } = raw as Record<string, unknown>;
+  return typeof id === "string" && typeof value === "string" ? text(mptWords({ id, units: value })) : undefined;
+}
+
+/** An amount field as an amount segment, an MPT's as its words; a value that is neither is shown as it is. */
 export function amountSegment(raw: unknown, native: Native): Segment {
   const amount = parseAmount(raw, native);
   if (amount) return amountOf(amount);
-  return text(typeof raw === "string" ? raw : (JSON.stringify(raw) ?? "an unknown amount"));
+  return mptField(raw) ?? text(typeof raw === "string" ? raw : (JSON.stringify(raw) ?? "an unknown amount"));
 }
 
 export function sameAmount(a: FlowAmount, b: FlowAmount): boolean {
@@ -207,7 +217,7 @@ export function fieldValue(name: string, value: unknown, native: Native): Segmen
   if (typeof value === "number" || typeof value === "boolean") return [text(String(value))];
   const amount = parseAmount(value, native);
   if (amount) return [amountOf(amount)];
-  return [text(JSON.stringify(value) ?? "")];
+  return [mptField(value) ?? text(JSON.stringify(value) ?? "")];
 }
 
 /** One detail per top-level field, in the transaction's order, labelled with the field's own name. */

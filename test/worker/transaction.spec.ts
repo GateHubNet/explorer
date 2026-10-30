@@ -841,6 +841,20 @@ describe("the ledger objects of a transaction", () => {
   /** Each link's text and where it leads. */
   const linksOf = (html: string) => anchors(html).map((a) => [a.text, /href="([^"]*)"/.exec(a.attrs)?.[1]]);
 
+  it("words an MPT escrow's creation, which the escrow's timeline links to, with no raw JSON in its sentence or its Amount detail", async () => {
+    const { id } = await objectCase("xrpl", "escrow-mpt");
+    mock = mockUpstream("xrpl", { "GET /v2/account_names": answerNamesAfterTheirEnd() });
+    const { html: escrow } = await page(`/xrpl/escrows/${id}`);
+    const created = hrefs(escrow).find((href) => href.startsWith("/xrpl/tx/"))!;
+    const { html } = await page(created);
+
+    const sentence = elementText(html, "summary__sentence")!;
+    expect(sentence).toMatch(/ locked 250 units of MPT 0000012A… for /);
+    expect(sentence).not.toContain("{");
+    const amount = /<dt[^>]*>Amount<\/dt><dd[^>]*>([\s\S]*?)<\/dd>/.exec(html)![1]!;
+    expect(textOf(amount)).toBe("250 units of MPT 0000012A…");
+  });
+
   it("links the escrow an EscrowFinish released, in its sentence and among the objects it touched, by the node its metadata deleted, and names exactly the accounts it links", async () => {
     const hash = "375202E930018352EA63F82A1DCAF7795916DC5117C74D013119E67955C157DA";
     const ESCROW = "FA8631A0C654F964699C8B9A1277DA0C3F62D034190E62062F2D662A9D23C1B4";

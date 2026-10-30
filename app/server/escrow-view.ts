@@ -9,6 +9,7 @@
 import BigNumber from "bignumber.js";
 
 import { accountsIn, type Segment } from "../domain/describe";
+import { seq } from "../domain/describe/helpers";
 import { tokenOf } from "../domain/fnv";
 import { formatUtcDay, shortAddress } from "../domain/format";
 import type { NamesPart } from "../domain/names";
@@ -30,7 +31,6 @@ import {
   issuerOf,
   none,
   optionalUnix,
-  sentence,
   tagValue,
   text,
   theAmount,
@@ -87,11 +87,15 @@ const PILLS: Record<EscrowStatus, { tone: PillTone; text: string }> = {
 /** The states of the strip in the board's order; `removed` is none of them. */
 const STATE_IDS = ["pending", "can_be_finished", "can_be_cancelled", "finished", "cancelled"] as const;
 
-/** The states of the strip, each with the board's one line of what it means; the escrow's own marked, none for a `removed` one. */
-function statesOf(status: EscrowStatus, conditional: boolean): StateItem[] {
+/**
+ * The states of the strip, each with the board's one line of what it means; the escrow's own marked, none for a `removed` one. An escrow with no FinishAfter (its condition alone holds it) has
+ * no time to pass before it can be finished, so its line names none.
+ */
+function statesOf(status: EscrowStatus, conditional: boolean, timed: boolean): StateItem[] {
+  const fulfilled = conditional ? " with the fulfillment" : "";
   const meaning: Record<(typeof STATE_IDS)[number], string> = {
     pending: "Locked: FinishAfter has not passed yet.",
-    can_be_finished: `FinishAfter has passed: ${conditional ? "anyone with the fulfillment" : "anyone"} can finish it.`,
+    can_be_finished: timed ? `FinishAfter has passed: anyone${fulfilled} can finish it.` : `Anyone${fulfilled} can finish it.`,
     can_be_cancelled: "CancelAfter has passed: anyone can cancel it.",
     finished: "Paid to the destination, then removed.",
     cancelled: "Returned to the owner, then removed.",
@@ -146,7 +150,7 @@ function factsOf(source: ObjectSource, native: Native): Facts {
 
 function summaryOf(f: Facts): Segment[] {
   const { escrow, amount, created } = f;
-  return sentence(
+  return seq(
     { t: "account", v: escrow.account },
     " locked ",
     amount === null ? "funds" : amountSegment(amount),
@@ -163,13 +167,13 @@ function statusLinesOf(f: Facts): Segment[][] {
   switch (f.status) {
     case "pending":
       return [
-        sentence("Can be finished by ", who, fa === undefined ? "" : ` after ${when(fa)}`),
-        sentence("Until then ", theAmount(amount), " stay locked.", ca === undefined ? "" : ` From ${when(ca)} it can no longer be finished, only cancelled.`),
+        seq("Can be finished by ", who, fa === undefined ? "" : ` after ${when(fa)}`),
+        seq("Until then ", theAmount(amount), " stay locked.", ca === undefined ? "" : ` From ${when(ca)} it can no longer be finished, only cancelled.`),
       ];
     case "can_be_finished":
       return [
-        sentence("Can be finished by ", who, ca === undefined ? ", with no end" : ` until ${when(ca)}`),
-        sentence(
+        seq("Can be finished by ", who, ca === undefined ? ", with no end" : ` until ${when(ca)}`),
+        seq(
           fa === undefined ? "" : `FinishAfter passed on ${when(fa)}. `,
           "An EscrowFinish sends ",
           theAmount(amount),
@@ -179,21 +183,21 @@ function statusLinesOf(f: Facts): Segment[][] {
       ];
     case "can_be_cancelled":
       return [
-        sentence("Can be cancelled: CancelAfter has passed"),
-        sentence(ca === undefined ? "" : `CancelAfter passed on ${when(ca)}, so it can no longer be finished. `, "Anyone can send an EscrowCancel to return ", theAmount(amount), " to the owner."),
+        seq("Can be cancelled: CancelAfter has passed"),
+        seq(ca === undefined ? "" : `CancelAfter passed on ${when(ca)}, so it can no longer be finished. `, "Anyone can send an EscrowCancel to return ", theAmount(amount), " to the owner."),
       ];
     case "finished":
       return [
-        amount === null ? sentence("Finished: funds delivered to the destination") : sentence("Finished: ", amountSegment(amount), " delivered to the destination"),
-        sentence("Finished", removed === undefined ? "" : ` on ${when(removed.at)}`, ", by an EscrowFinish", f.conditional ? " that carried the fulfillment" : "", "."),
+        amount === null ? seq("Finished: funds delivered to the destination") : seq("Finished: ", amountSegment(amount), " delivered to the destination"),
+        seq("Finished", removed === undefined ? "" : ` on ${when(removed.at)}`, ", by an EscrowFinish", f.conditional ? " that carried the fulfillment" : "", "."),
       ];
     case "cancelled":
       return [
-        amount === null ? sentence("Cancelled: funds returned to the owner") : sentence("Cancelled: ", amountSegment(amount), " returned to the owner"),
-        sentence("Cancelled", removed === undefined ? "" : ` on ${when(removed.at)}`, ", after CancelAfter had passed. It was never finished."),
+        amount === null ? seq("Cancelled: funds returned to the owner") : seq("Cancelled: ", amountSegment(amount), " returned to the owner"),
+        seq("Cancelled", removed === undefined ? "" : ` on ${when(removed.at)}`, ", after CancelAfter had passed. It was never finished."),
       ];
     case "removed":
-      return [sentence(`Removed from the ledger by ${escrow.removed?.tx_type ?? "a transaction"}`)];
+      return [seq(`Removed from the ledger by ${escrow.removed?.tx_type ?? "a transaction"}`)];
   }
 }
 
@@ -201,28 +205,26 @@ function statusLinesOf(f: Facts): Segment[][] {
 function bannerSentenceOf(f: Facts): Segment[] | null {
   const { removed, amount } = f;
   if (removed === undefined) return null;
-  if (f.status === "finished") return sentence("Finished on ", when(removed.at), "; ", theAmount(amount), " went to the destination.");
-  if (f.status === "cancelled") return sentence("Cancelled on ", when(removed.at), "; ", theAmount(amount), " went back to the owner.");
-  return sentence("Removed on ", when(removed.at), ".");
+  if (f.status === "finished") return seq("Finished on ", when(removed.at), "; ", theAmount(amount), " went to the destination.");
+  if (f.status === "cancelled") return seq("Cancelled on ", when(removed.at), "; ", theAmount(amount), " went back to the owner.");
+  return seq("Removed on ", when(removed.at), ".");
 }
 
 // ---- The timeline ----------------------------------------------------------------------------------------------------------------------------------
 
 /** What an event of an escrow did, in the board's words: the create, the finish and the cancel (the removed and the update are every kind's). */
-function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords {
+function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords | undefined {
   return (event) => {
     const amount = event.amount === undefined ? f.amount : displayAmount(event.amount);
     switch (event.event) {
       case "create":
-        return { title: "Created", what: sentence("Locked ", amount === null ? "funds" : amountSegment(amount), f.conditional ? " behind a condition" : "", " for the destination.") };
+        return { title: "Created", what: seq("Locked ", amount === null ? "funds" : amountSegment(amount), f.conditional ? " behind a condition" : "", " for the destination.") };
       case "finish": {
         const carried = event.fulfillment !== undefined || f.conditional;
-        return { title: "Finished", what: sentence("Sent ", amount === null ? text("the funds") : amountSegment(amount), " to the destination", carried ? " with the fulfillment" : "", ", and removed the escrow.") };
+        return { title: "Finished", what: seq("Sent ", amount === null ? text("the funds") : amountSegment(amount), " to the destination", carried ? " with the fulfillment" : "", ", and removed the escrow.") };
       }
       case "cancel":
-        return { title: "Cancelled", what: sentence("Returned ", amount === null ? text("the funds") : amountSegment(amount), " to the owner and removed the escrow.") };
-      default:
-        return { title: `Changed by ${event.tx_type}`, what: [] };
+        return { title: "Cancelled", what: seq("Returned ", amount === null ? text("the funds") : amountSegment(amount), " to the owner and removed the escrow.") };
     }
   };
 }
@@ -263,7 +265,7 @@ function marksOf(f: Facts): TimelineItem[] {
       return [
         ...passedFinish("From here it could be finished, but no one did."),
         ...(ca === undefined ? [] : [passed("CancelAfter", ca, "From here it can no longer be finished.")]),
-        cancelNext("Not cancelled yet", ca === undefined ? undefined : `Since ${when(ca)}`, undefined, sentence("Anyone can send it now; ", theAmount(amount), " go back to the owner.")),
+        cancelNext("Not cancelled yet", ca === undefined ? undefined : `Since ${when(ca)}`, undefined, seq("Anyone can send it now; ", theAmount(amount), " go back to the owner.")),
       ];
     case "finished":
       return passedFinish("From here it could be finished.");
@@ -361,7 +363,9 @@ function conditionHint(f: Facts): string {
 
 function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
   const { escrow, amount, finishAfter: fa, cancelAfter: ca } = f;
-  const token = issuerOf(amount) !== undefined;
+  // An escrow of an issued token always has the row: rippled leaves the field out of an entry with no fee, so one without it charges nothing. One of an MPT has it when the answer carries the
+  // field. A native one never does: there is no token to charge for, and Xahau's entries hold the default.
+  const transferRate = issuerOf(amount) !== undefined || (amount !== null && "mpt" in amount && escrow.transfer_rate !== undefined);
   return [
     { label: "Escrow ID", field: "ledger object ID", value: { kind: "code", text: escrow.escrow_id, copy: "escrow ID" } },
     { label: "Owner", field: "source", value: { kind: "account", address: escrow.account } },
@@ -393,8 +397,7 @@ function detailsOf(f: Facts, reserve: ReserveView | null): DetailRow[] {
         ]),
     { label: "Destination tag", value: tagValue(escrow.destination_tag) },
     { label: "Source tag", value: tagValue(escrow.source_tag) },
-    // rippled leaves the field out of an entry with no fee, so a token escrow without one charges nothing
-    ...(token ? [{ label: "Transfer rate", value: { kind: "text" as const, text: transferPercent(escrow.transfer_rate ?? NO_FEE) } }] : []),
+    ...(transferRate ? [{ label: "Transfer rate", value: { kind: "text" as const, text: transferPercent(escrow.transfer_rate ?? NO_FEE) } }] : []),
     ...(reserve === null ? [] : [{ label: "Owner reserve", value: { kind: "amount" as const, amount: { value: reserve.amount, currency: reserve.currency } }, hint: reserve.hint }]),
   ];
 }
@@ -415,7 +418,7 @@ export function escrowPage(
   const common = commonOf(
     source,
     { net: o.net, kind: "escrow", serverState: o.serverState, names: o.names, marker: o.marker, back: o.back },
-    { pill, states: statesOf(f.status, f.conditional), marks: marksOf(f), bannerSentence: bannerSentenceOf(f), say: eventWordsOf(f) },
+    { pill, states: statesOf(f.status, f.conditional, f.finishAfter !== undefined), marks: marksOf(f), bannerSentence: bannerSentenceOf(f), say: eventWordsOf(f) },
   );
   const markWord = f.removed === undefined ? "Now" : f.status === "finished" ? "Finished" : f.status === "cancelled" ? "Cancelled" : "Removed";
   return {

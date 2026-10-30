@@ -139,15 +139,15 @@ describe("paymentChannelPage from the index", () => {
       expect(data.amount).toEqual({ value: "1", currency: "XRP" });
     });
 
-    it("says the channel closes by CancelAfter at the latest when it has one", () => {
+    it("says the next transaction that touches the channel closes it from its CancelAfter, when it has one", () => {
       const data = page(indexed(answerWith("open", { cancel_after: "2031-01-01T00:00:00Z" })));
-      expect(data.statusLines.map(said)[1]).toBe("The destination has redeemed claims for 0.032185 XRP so far. No close has been requested; the channel closes by Jan 1, 2031, 00:00 UTC at the latest.");
-      expect(data.timeline.at(-1)).toMatchObject({ kind: "next", type: "PaymentChannelClaim", title: "Not closed", at: unix("2031-01-01T00:00:00Z"), whenText: "By Jan 1, 2031, 00:00 UTC at the latest" });
-      expect(rowOf(data, "Closes by")).toEqual({
-        label: "Closes by",
+      expect(data.statusLines.map(said)[1]).toBe("The destination has redeemed claims for 0.032185 XRP so far. No close has been requested; from Jan 1, 2031, 00:00 UTC the next transaction that touches it closes it.");
+      expect(data.timeline.at(-1)).toMatchObject({ kind: "next", type: "PaymentChannelClaim", title: "Not closed", at: unix("2031-01-01T00:00:00Z"), whenText: "From Jan 1, 2031, 00:00 UTC" });
+      expect(rowOf(data, "Closes after")).toEqual({
+        label: "Closes after",
         field: "CancelAfter",
         value: { kind: "time", at: unix("2031-01-01T00:00:00Z") },
-        hint: "Set when the channel was opened: it closes at this time at the latest.",
+        hint: "Set when the channel was opened: after this time, the next transaction that touches it closes it.",
       });
     });
 
@@ -180,7 +180,7 @@ describe("paymentChannelPage from the index", () => {
         label: "Expires",
         field: "Expiration",
         value: { kind: "time", at: unix("2026-11-13T02:25:30Z") },
-        hint: "Set when the source asked to close: the time of the request plus the settle delay.",
+        hint: "Set by the source: when it asks to close, the time of the request plus the settle delay, or with a fund.",
       });
     });
 
@@ -537,13 +537,13 @@ describe("paymentChannelPage: the details", () => {
     expect(settle(0)).toBe("0 seconds");
   });
 
-  it("shows the destination tag as a number, and has Expires only with an expiration and Closes by only with a CancelAfter", async () => {
+  it("shows the destination tag as a number, and has Expires only with an expiration and Closes after only with a CancelAfter", async () => {
     const tagged = page(indexed(answerWith("open", { destination_tag: 7741 })));
     expect(rowOf(tagged, "Destination tag")!.value).toEqual({ kind: "number", text: "7741" });
     expect(labels(tagged)).not.toContain("Expires");
-    expect(labels(tagged)).not.toContain("Closes by");
+    expect(labels(tagged)).not.toContain("Closes after");
     const both = page(indexed(answerWith("closing", { expiration: "2026-11-01T00:00:00Z", cancel_after: "2027-07-01T00:00:00Z" })));
-    expect(labels(both).slice(-4)).toEqual(["Expires", "Closes by", "Destination tag", "Owner reserve"]);
+    expect(labels(both).slice(-4)).toEqual(["Expires", "Closes after", "Destination tag", "Owner reserve"]);
     // the source tag is not a row of the channel
     expect(labels(page(indexed(answerWith("open", { source_tag: 5 }))))).not.toContain("Source tag");
   });

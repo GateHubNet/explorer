@@ -787,7 +787,7 @@ describe("a payment channel's page", () => {
     expect(elementText(html, "is-current")).toBe("Closing · this channelClose requested; it closes after the settle delay.");
     expect(elementText(html, "object-page__status")).toMatch(/^Closing: claims can still be redeemed until Nov 13, 2026, 02:25 UTC/);
     expect(rowOf(html, "Left")).toBe("38 XRP Goes back to the source when the channel closes, unless the destination claims it first.");
-    expect(rowOf(html, "Expires")).toBe("2026-11-13 02:25:30 UTC Set when the source asked to close: the time of the request plus the settle delay.");
+    expect(rowOf(html, "Expires")).toBe("2026-11-13 02:25:30 UTC Set by the source: when it asks to close, the time of the request plus the settle delay, or with a fund.");
     expect(text).toContain("Paid out 12 XRP 24% of the deposit Left 38 XRP 76% of the deposit");
     expect(text).toContain("PaymentChannelClaim Close requested");
     expect(text).toContain("PaymentChannelClaim Not closed yet From Nov 13, 2026, 02:25 UTC");
@@ -907,9 +907,24 @@ describe("a payment channel's page", () => {
 // pages the other kinds' IDs lead to.
 
 describe.each([
-  { kind: "check", segment: "checks", words: "check", id: CHECK_OPEN.id, other: { id: CHANNEL_OPEN.id, to: "payment-channels" } },
-  { kind: "payment channel", segment: "payment-channels", words: "payment channel", id: CHANNEL_OPEN.id, other: { id: CHECK_NODE_ONLY.id, to: "checks" } },
-])("the $kind route", ({ segment, words, id, other }) => {
+  { kind: "check", segment: "checks", api: "checks", words: "check", id: CHECK_OPEN.id, other: { id: CHANNEL_OPEN.id, to: "payment-channels" } },
+  { kind: "payment channel", segment: "payment-channels", api: "payment_channels", words: "payment channel", id: CHANNEL_OPEN.id, other: { id: CHECK_NODE_ONLY.id, to: "checks" } },
+])("the $kind route", ({ segment, api, words, id, other }) => {
+  it("answers 503 when the node fails after the index's not found, not stored", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const missing = fresh();
+    const node = nodeCalls(missing);
+    mock = mockUpstream("xrpl", { [node.ENTRY_OVERRIDE]: unavailable() });
+    const path = `/xrpl/${segment}/${missing}`;
+    const { response } = await render(path);
+
+    expect(statusesOf(mock, `GET /v2/${api}/${missing}`)).toEqual([404]);
+    expect(statusesOf(mock, node.ENTRY)).toEqual([503]);
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).not.toBeNull();
+    expect(await isStored(path)).toBe(false);
+  });
+
   it("redirects an ID in lower case to the upper-case URL, its query kept, as immutable, with no call", async () => {
     mock = mockUpstream("xrpl");
     const from = `/xrpl/${segment}/${id.toLowerCase()}?marker=${OBJECT_MARKER}&x=1`;

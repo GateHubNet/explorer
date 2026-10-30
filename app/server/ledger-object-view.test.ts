@@ -20,6 +20,7 @@ import {
 } from "../../test/support/object-samples";
 import { stateOf, XAHAU, XRPL } from "../../test/support/object-view-world";
 import type { Segment } from "../domain/describe";
+import { seq } from "../domain/describe/helpers";
 import { NO_NAMES, type NamesPart } from "../domain/names";
 import type { TimelineItem } from "../ui/components/Timeline";
 import type { ObjectAnswer, ObjectEvent, ObjectHistoryPage } from "./api-types";
@@ -39,7 +40,6 @@ import {
   rawValue,
   removedBannerOf,
   reserveOf,
-  sentence,
   tagValue,
   theAmount,
   timelineOf,
@@ -384,6 +384,11 @@ describe("timelineOf", () => {
     expect(item).toMatchObject({ kind: "tx", type: "AccountSet", title: "Changed by AccountSet", what: [] });
   });
 
+  it("titles an event the kind has no words for as it does an update: D5's `event` is any string", () => {
+    const [item] = timelineOf([event({ event: "something new", time: "2026-10-26T00:00:00Z", tx_type: "AccountSet" })], [], { removed: BANNER, say: () => undefined });
+    expect(item).toMatchObject({ kind: "tx", type: "AccountSet", title: "Changed by AccountSet", what: [] });
+  });
+
   it("titles a removed event `Removed` and gives it the sentence of the removed banner", () => {
     const [item] = timelineOf([event({ event: "removed", time: "2026-10-26T00:00:00Z", tx_type: "AccountDelete" })], [], words);
     expect(item).toMatchObject({ title: "Removed", what: BANNER, type: "AccountDelete" });
@@ -604,10 +609,10 @@ describe("commonOf", () => {
 
 // ---- The words and the accounts of a sentence --------------------------------------------------------------------------------------------------------
 
-describe("sentence and theAmount", () => {
+describe("the view builders' sentences (`seq`) and theAmount", () => {
   it("makes a sentence of strings, segments and lists of segments, with the text next to text made one segment", () => {
     const account: Segment = { t: "account", v: ESCROW_OWNER };
-    expect(sentence("a ", "b", account, " c", [{ t: "text", v: " d" }, { t: "amount", value: "1", currency: "XRP" }], "!")).toEqual([
+    expect(seq("a ", "b", account, " c", [{ t: "text", v: " d" }, { t: "amount", value: "1", currency: "XRP" }], "!")).toEqual([
       { t: "text", v: "a b" },
       account,
       { t: "text", v: " c d" },
@@ -615,14 +620,14 @@ describe("sentence and theAmount", () => {
       { t: "text", v: "!" },
     ]);
     // a part left out as "" leaves nothing behind
-    expect(sentence("", "", [{ t: "text", v: "" }])).toEqual([]);
-    expect(sentence("a", "", account)).toEqual([{ t: "text", v: "a" }, account]);
+    expect(seq("", "", [])).toEqual([]);
+    expect(seq("a", "", account)).toEqual([{ t: "text", v: "a" }, account]);
   });
 
   it("names the amount as a noun phrase, or the funds where D5 could not read it", () => {
     expect(theAmount({ value: "5", currency: "XRP" })).toEqual([{ t: "text", v: "the " }, { t: "amount", value: "5", currency: "XRP" }]);
     expect(theAmount(null)).toEqual([{ t: "text", v: "the funds" }]);
-    expect(sentence("Until then ", theAmount(null), " stay locked.")).toEqual([{ t: "text", v: "Until then the funds stay locked." }]);
+    expect(seq("Until then ", theAmount(null), " stay locked.")).toEqual([{ t: "text", v: "Until then the funds stay locked." }]);
   });
 });
 

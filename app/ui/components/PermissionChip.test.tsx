@@ -1,6 +1,8 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { describe as describeTx } from "../../domain/describe";
+import { permissionTitle } from "../../domain/permission-chip";
 import { permissionChip } from "../../domain/permissions";
 import { PermissionChip } from "./PermissionChip";
 
@@ -28,6 +30,17 @@ describe("PermissionChip", () => {
     expect(chip.className).toBe("permchip permchip--granular");
     expect(chip.getAttribute("title")).toBe("Narrower right. Only freezing trust lines, within TrustSet");
     expect(chip.querySelector(".sr")!.textContent).toContain("Only freezing trust lines, within TrustSet");
+  });
+
+  it("says what an entry of the list it cannot read is, to a pointer and to a screen reader, and does not say its name twice", () => {
+    const permissions = { TransactionType: "DelegateSet", Account: "rA", Authorize: "rB", Fee: "10", Sequence: 7, Permissions: [{ Permission: {} }] };
+    const segment = describeTx(permissions, { TransactionIndex: 0, TransactionResult: "tesSUCCESS", AffectedNodes: [] }, { native: "XRP" }).sentence.find((each) => each.t === "permission");
+    if (segment?.t !== "permission") throw new Error("the sentence has no permission");
+    const { container } = render(<PermissionChip chip={{ name: segment.name, kind: segment.kind, words: segment.words, title: permissionTitle(segment.kind, segment.words) }} />);
+    const chip = container.firstElementChild!;
+    expect(chip.className).toBe("permchip permchip--unknown");
+    expect(chip.getAttribute("title")).toBe("An entry of the list this explorer cannot read");
+    expect(chip.textContent).toBe("Unreadable permission: An entry of the list this explorer cannot read");
   });
 
   it("draws a permission this explorer does not know by its number, and says so", () => {

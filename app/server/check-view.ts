@@ -9,6 +9,7 @@
 import BigNumber from "bignumber.js";
 
 import { accountsIn, type Segment } from "../domain/describe";
+import { seq } from "../domain/describe/helpers";
 import { formatCurrency, shortAddress } from "../domain/format";
 import type { NamesPart } from "../domain/names";
 import type { Native } from "../domain/parse/types";
@@ -30,7 +31,6 @@ import {
   none,
   optionalUnix,
   rawValue,
-  sentence,
   tagValue,
   text,
   when,
@@ -150,10 +150,10 @@ function fundsOf(sendMax: DisplayAmount | null): { noun: string; verb: string } 
 
 function summaryOf(f: Facts): Segment[] {
   const { check, sendMax, created } = f;
-  return sentence(
+  return seq(
     { t: "account", v: check.account },
     " wrote a check ",
-    sendMax === null ? "" : sentence("for up to ", amountSegment(sendMax), " "),
+    sendMax === null ? "" : seq("for up to ", amountSegment(sendMax), " "),
     "to ",
     { t: "account", v: check.destination },
     created === undefined ? "." : ` on ${formatDate(created)}.`,
@@ -167,14 +167,14 @@ function statusLinesOf(f: Facts): Segment[][] {
     case "open": {
       const { noun, verb } = fundsOf(sendMax);
       return [
-        sentence("The destination can cash ", sendMax === null ? "the check" : sentence("up to ", amountSegment(sendMax)), expiration === undefined ? ", with no expiration" : ` until ${when(expiration)}`),
-        sentence("Nothing is set aside: ", noun, ` ${verb} from the source’s balance when the check is cashed, so the source must still hold it then. The source can cancel the check at any time.`),
+        seq("The destination can cash ", sendMax === null ? "the check" : seq("up to ", amountSegment(sendMax)), expiration === undefined ? ", with no expiration" : ` until ${when(expiration)}`),
+        seq("Nothing is set aside: ", noun, ` ${verb} from the source’s balance when the check is cashed, so the source must still hold it then. The source can cancel the check at any time.`),
       ];
     }
     case "expired":
       return [
-        sentence("Expired: it can no longer be cashed"),
-        sentence(expiration === undefined ? "" : `Its expiration passed on ${when(expiration)}. `, "Nothing was paid, and nothing will be."),
+        seq("Expired: it can no longer be cashed"),
+        seq(expiration === undefined ? "" : `Its expiration passed on ${when(expiration)}. `, "Nothing was paid, and nothing will be."),
       ];
     case "cashed": {
       // "for 2,180.4 NPUSD of the 2,500 NPUSD it allowed", or "all it allowed" when it was cashed for the whole of it
@@ -182,20 +182,20 @@ function statusLinesOf(f: Facts): Segment[][] {
         delivered === null || sendMax === null
           ? ""
           : new BigNumber(rawValue(delivered)).lt(rawValue(sendMax))
-            ? sentence(" of the ", amountSegment(sendMax), " it allowed")
+            ? seq(" of the ", amountSegment(sendMax), " it allowed")
             : ", all it allowed";
       return [
-        delivered === null ? sentence("Cashed: funds delivered to the destination") : sentence("Cashed: ", amountSegment(delivered), " delivered to the destination"),
-        sentence("Cashed", removed === undefined ? "" : ` on ${when(removed.at)}`, delivered === null ? "" : sentence(", for ", amountSegment(delivered)), allowed, "."),
+        delivered === null ? seq("Cashed: funds delivered to the destination") : seq("Cashed: ", amountSegment(delivered), " delivered to the destination"),
+        seq("Cashed", removed === undefined ? "" : ` on ${when(removed.at)}`, delivered === null ? "" : seq(", for ", amountSegment(delivered)), allowed, "."),
       ];
     }
     case "cancelled":
       return [
-        sentence("Cancelled before it was cashed"),
-        sentence(f.cancelledBySource ? "The source cancelled it" : "It was cancelled", removed === undefined ? "" : ` on ${when(removed.at)}`, ". Nothing was paid."),
+        seq("Cancelled before it was cashed"),
+        seq(f.cancelledBySource ? "The source cancelled it" : "It was cancelled", removed === undefined ? "" : ` on ${when(removed.at)}`, ". Nothing was paid."),
       ];
     case "removed":
-      return [sentence(`Removed from the ledger by ${check.removed?.tx_type ?? "a transaction"}`)];
+      return [seq(`Removed from the ledger by ${check.removed?.tx_type ?? "a transaction"}`)];
   }
 }
 
@@ -203,9 +203,9 @@ function statusLinesOf(f: Facts): Segment[][] {
 function bannerSentenceOf(f: Facts): Segment[] | null {
   const { removed, delivered } = f;
   if (removed === undefined) return null;
-  if (f.status === "cashed") return sentence("Cashed on ", when(removed.at), "; ", delivered === null ? text("the funds") : amountSegment(delivered), " went to the destination.");
-  if (f.status === "cancelled") return sentence(f.cancelledBySource ? "Cancelled by the source on " : "Cancelled on ", when(removed.at), "; nothing was paid.");
-  return sentence("Removed on ", when(removed.at), ".");
+  if (f.status === "cashed") return seq("Cashed on ", when(removed.at), "; ", delivered === null ? text("the funds") : amountSegment(delivered), " went to the destination.");
+  if (f.status === "cancelled") return seq(f.cancelledBySource ? "Cancelled by the source on " : "Cancelled on ", when(removed.at), "; nothing was paid.");
+  return seq("Removed on ", when(removed.at), ".");
 }
 
 /**
@@ -213,9 +213,9 @@ function bannerSentenceOf(f: Facts): Segment[] | null {
  * `server_state` call failed) it says that part of the source's balance stays reserved.
  */
 function expiredBannerOf(reserve: ReserveView | null): Segment[] {
-  return sentence(
+  return seq(
     "An expired check is not removed on its own. It stays until someone sends a CheckCancel, which anyone can do now; until then it ",
-    reserve === null ? "keeps part of the source’s balance reserved." : sentence("holds ", amountSegment({ value: reserve.amount, currency: reserve.currency }), " of the source’s reserve."),
+    reserve === null ? "keeps part of the source’s balance reserved." : seq("holds ", amountSegment({ value: reserve.amount, currency: reserve.currency }), " of the source’s reserve."),
   );
 }
 
@@ -257,7 +257,7 @@ function flowOf(f: Facts): CheckFlowData {
 // ---- The timeline ----------------------------------------------------------------------------------------------------------------------------------
 
 /** What an event of a check did, in the board's words: the create, the cash and the cancel (the removed and the update are every kind's). */
-function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords {
+function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords | undefined {
   return (event) => {
     switch (event.event) {
       case "create": {
@@ -265,17 +265,15 @@ function eventWordsOf(f: Facts): (event: ObjectEvent) => EventWords {
         const expiration = optionalUnix(event.expiration);
         return {
           title: "Created",
-          what: sentence("Wrote a check", sendMax === null ? "" : sentence(" for up to ", amountSegment(sendMax)), expiration === undefined ? "" : `, expiring ${when(expiration)}`, "."),
+          what: seq("Wrote a check", sendMax === null ? "" : seq(" for up to ", amountSegment(sendMax)), expiration === undefined ? "" : `, expiring ${when(expiration)}`, "."),
         };
       }
       case "cash": {
         const delivered = event.delivered === undefined ? f.delivered : displayAmount(event.delivered);
-        return { title: "Cashed", what: sentence("Delivered ", delivered === null ? text("the funds") : amountSegment(delivered), " to the destination and removed the check.") };
+        return { title: "Cashed", what: seq("Delivered ", delivered === null ? text("the funds") : amountSegment(delivered), " to the destination and removed the check.") };
       }
       case "cancel":
-        return { title: "Cancelled", what: sentence("Removed the check. Nothing was paid.") };
-      default:
-        return { title: `Changed by ${event.tx_type}`, what: [] };
+        return { title: "Cancelled", what: seq("Removed the check. Nothing was paid.") };
     }
   };
 }
@@ -295,7 +293,7 @@ function marksOf(f: Facts): TimelineItem[] {
           type: "CheckCash",
           title: "Not cashed yet",
           ...(expiration !== undefined && { at: expiration, whenText: `Until ${when(expiration)}` }),
-          what: sentence("The destination can cash it", sendMax === null ? "" : sentence(" for up to ", amountSegment(sendMax)), "."),
+          what: seq("The destination can cash it", sendMax === null ? "" : seq(" for up to ", amountSegment(sendMax)), "."),
         },
         {
           kind: "next",
