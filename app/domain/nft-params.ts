@@ -8,7 +8,6 @@
 // repeats and unknown parameters, and orders the rest as in the table of the spec. Every value is written with `queryValue`, so the query is what a URL parser leaves as it is once it
 // is serialized: a redirect to it ends.
 
-import type { NetworkId } from "../server/networks";
 import type { CollectionKey, NftPeriod, NftSort } from "../server/api-types";
 import { shortAddress, formatAmount } from "./format";
 import { collectionPath, nftPath } from "./nft-link";

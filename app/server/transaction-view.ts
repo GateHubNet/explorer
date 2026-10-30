@@ -173,7 +173,7 @@ export interface TransactionPageData {
   neighbours: { previous: Neighbour | null; next: Neighbour | null } | null;
   raw: { tx: string; meta: string; binary: BinaryRaw };
   /**
-   * The names of the addresses the page draws (display names spec 3.4): those of `sentence`, `flow`, `account`, `details`, `changes` and `objects`, never of the raw data. The loader
+   * The names of the addresses the page draws (display names spec 3.4): those of `sentence`, `sentBy`, `note`, `flow`, `account`, `delegate`, `details`, `changes` and `objects`, never of the raw data. The loader
    * adds it after `transactionPage`. `failed` when the names call did not work, `off` when the switch is. The title, the description, the card and `summary` keep short addresses (spec 7).
    */
   names: NamesPart;

@@ -25,8 +25,9 @@ function browserPage(): ChunkPage | null {
 }
 
 /**
- * `load()`, and on its first failure in this tab a reload of the page. A second failure rejects, and so does a storage that cannot keep the guard (it throws):
- * never a loop of reloads.
+ * `load()`, and on its first failure in this tab a reload of the page. A second failure rejects with the chunk's own error, and so does a storage that cannot keep
+ * the guard (it throws): never a loop of reloads, and what the error boundary is told is why the chunk did not load. A storage that throws when a chunk has loaded
+ * changes nothing: the chunk is there.
  */
 export async function loadChunk<T>(name: string, load: () => Promise<T>, page: ChunkPage | null = browserPage()): Promise<T> {
   if (page === null) return load();
@@ -35,13 +36,21 @@ export async function loadChunk<T>(name: string, load: () => Promise<T>, page: C
   try {
     loaded = await load();
   } catch (error) {
-    if (page.storage.getItem(key) !== null) throw error;
-    page.storage.setItem(key, "1");
+    try {
+      if (page.storage.getItem(key) !== null) throw error;
+      page.storage.setItem(key, "1");
+    } catch {
+      throw error;
+    }
     page.reload();
     // The page is going: what was waiting for the chunk waits for the new page.
     return new Promise<T>(() => {});
   }
-  page.storage.removeItem(key);
+  try {
+    page.storage.removeItem(key);
+  } catch {
+    // The guard stays, and a later deploy gets no reload of its own: less than failing a chunk that loaded.
+  }
   return loaded;
 }
 

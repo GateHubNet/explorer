@@ -46,7 +46,7 @@ interface Part {
 
 /**
  * The windows in the order of their starts, cut where one runs into the next, with a part for each stretch between them. An open end is the bar's. A window with
- * no span (its start at its end, or its end before its start) is a part of 0 share, which CSS gives its 24 px: a stub with a button, since the bar draws what it
+ * no span (its start at its end, or its end before its start) is a part of 0 share, which CSS gives its target's width: a stub with a button, since the bar draws what it
  * is given. The builder leaves an empty window out (no Pending for an unknown creation that the page is as of FinishAfter, no Can be finished between two equal
  * bounds), as it does a window the escrow does not have.
  */
@@ -105,7 +105,7 @@ interface Placed {
  * Where each label goes on a bar `width` px wide, with its text set as `CHAR_PX` says: centred on its time, unless that would put it out past an end of the bar
  * (it then starts at the time near the start and ends at it near the end), in the first row where it does not meet a label that is there. Bounds a few hours
  * apart on a bar of a year would otherwise be written over each other. Nothing is measured, so the Worker can print the places: the page's CSS says which set
- * is drawn, by the width of the bar (`--shift`, `--row`, and their `-narrow`). A window narrower than the bar's 24 px of target is stretched (below), and the
+ * is drawn, by the width of the bar (`--shift`, `--row`, and their `-narrow`). A window narrower than the bar's target (`--target`) is stretched (below), and the
  * times move with it: these places are those of a bar with true widths, which is near enough for where words go.
  */
 function placeLabels(labels: readonly { place: number; chars: number }[], charPx: number, width: number): Placed[] {
@@ -129,8 +129,8 @@ function placeLabels(labels: readonly { place: number; chars: number }[], charPx
  * escrow does not have is not in the data and is not drawn; a bar without windows draws nothing.
  *
  * The bar is a row of boxes, one for each window and one for each stretch that no window covers, each as wide as its span (`flex` in percent). A window is
- * a button, 24 px high and at least 24 px wide (WCAG 2.5.8): a window of an hour on a bar of three days would be 10 px, so the browser, which lays the
- * row out, gives it its 24 px and the others give way, in proportion, and the times that are in a window (its bounds, the mark) are placed in it, as far
+ * a button as high as its target and at least as wide (`--target`: 24 px, WCAG 2.5.8, and 44 px, spec 8, on a touch screen or a phone): a window of an hour on a bar of three days would be 10 px, so the browser, which lays the
+ * row out, gives it its target's width and the others give way, in proportion, and the times that are in a window (its bounds, the mark) are placed in it, as far
  * along as they are in its span, so that a label is where its window changes whatever the widths come to. A button is named by its label and range, and
  * a keyboard reaches each with Tab. Focus, the pointer and a tap show the kit's tooltip (`plot__tip`: the window's name, its range and its length) over
  * it, and the others are dimmed while it shows (the kit's cursor, as the share bars have it). Escape, from anywhere in the page, puts the tooltip away until the

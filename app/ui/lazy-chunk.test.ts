@@ -51,12 +51,31 @@ describe("loadChunk", () => {
     expect(page.reloads()).toBe(0);
   });
 
-  it("rejects without a reload when the storage cannot keep the guard: never a loop of reloads", async () => {
+  it("rejects with the chunk's own error, without a reload, when the storage cannot keep the guard: never a loop of reloads", async () => {
     const page = tab();
     page.storage.setItem = () => {
       throw new Error("QuotaExceededError");
     };
-    await expect(loadChunk("AccountListPanels", () => Promise.reject(gone), page)).rejects.toThrow("QuotaExceededError");
+    await expect(loadChunk("AccountListPanels", () => Promise.reject(gone), page)).rejects.toBe(gone);
+    expect(page.reloads()).toBe(0);
+  });
+
+  it("rejects with the chunk's own error, without a reload, when the storage cannot read the guard either", async () => {
+    const page = tab();
+    page.storage.getItem = () => {
+      throw new Error("SecurityError");
+    };
+    await expect(loadChunk("AccountListPanels", () => Promise.reject(gone), page)).rejects.toBe(gone);
+    expect(page.reloads()).toBe(0);
+  });
+
+  it("does not fail a chunk that loaded when the storage cannot forget the guard", async () => {
+    const page = tab({ [KEY]: "1" });
+    page.storage.removeItem = () => {
+      throw new Error("SecurityError");
+    };
+    const module = { default: () => null };
+    await expect(loadChunk("AccountListPanels", () => Promise.resolve(module), page)).resolves.toBe(module);
     expect(page.reloads()).toBe(0);
   });
 
