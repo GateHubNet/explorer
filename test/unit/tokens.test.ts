@@ -395,3 +395,30 @@ describe.each(BLOCKS)("the warn pill in %s", (_block, tokens) => {
     expect(contrast(rgb(resolved("--amb")), rgb(tokens[ground]!))).toBeGreaterThanOrEqual(AA);
   });
 });
+
+// Object pages spec 4.2: the window bar of an escrow (WindowBar) draws its windows as segments in the colours of their slots, on the card (--surface), with a
+// gap of the card's colour between two. A segment is a graphic that the bar's meaning rests on (which window is which, and how long), so it needs 3:1 against
+// what it sits on (WCAG 1.4.11). The slot's colour is read from the rule of charts.css that gives it, so that a changed rule is what fails. Of the slots, 3, 4
+// and 5 do not have it in light (2.8, 2.2 and 2.7), and the bar's data says so (types.ts, `WindowBarSegment`): the board's amber (slot 4) is one of them.
+const chartsCss = readFileSync(new URL("../../app/ui/charts.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** The token that charts.css gives the slot as its mark (`[data-slot="up"] { --mark: var(--up) }`). */
+function slotToken(slot: string): string {
+  const match = new RegExp(`\\[data-slot="${slot}"\\]\\s*\\{[^}]*--mark\\s*:\\s*var\\((--[\\w-]+)\\)`).exec(chartsCss);
+  if (!match) throw new Error(`charts.css gives slot ${slot} no mark`);
+  return match[1]!;
+}
+
+describe.each(BLOCKS)("the window bar's segments in %s", (_block, tokens) => {
+  it.each(["1", "2", "other", "neutral", "up", "down"])("slot %s is at least 3:1 on the card", (slot) => {
+    const colour = tokens[slotToken(slot)];
+    expect(colour, `${slotToken(slot)} is a colour in this block`).toMatch(/^#[0-9a-f]{6}$/);
+    expect(contrast(rgb(colour!), rgb(tokens["--surface"]!))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("the slots the window bar can use", () => {
+  it("are 1, 2, other, neutral, up and down: in light, 3, 4 and 5 are below 3:1 on the card, which is why types.ts leaves them out", () => {
+    for (const slot of ["3", "4", "5"]) expect(contrast(rgb(light[slotToken(slot)]!), rgb(light["--surface"]!)), `slot ${slot}`).toBeLessThan(3);
+  });
+});

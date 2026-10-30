@@ -79,5 +79,33 @@ export interface CandleData {
   token: string;
 }
 
+/**
+ * One window of an escrow on the `WindowBar`: when it opens and closes, and the words of its tooltip. `from` and `to` are unix seconds as text. `null` is
+ * open: a `from` runs from the start of the bar (a creation nobody knows), a `to` to its end (a window with no end). The builder writes `range`
+ * ("24 Oct 2026, 09:30 UTC to 3 Nov 2026, 09:30 UTC") and `length` ("10 days"); the kit makes no text of its own. The `slot` colours the segment, which
+ * is a graphic on the card and needs 3:1 against it in both themes: slots 1, 2, "other", "neutral", "up" and "down" have it, 3, 4 and 5 do not in light
+ * (tokens.test.ts says which).
+ */
+export interface WindowBarSegment {
+  id: "pending" | "finishable" | "cancellable";
+  label: string;
+  slot: Slot;
+  from: string | null;
+  to: string | null;
+  range: string;
+  length: string;
+}
+/**
+ * The window bar of an escrow: its windows on one bar, the bounds as ticks with their labels, and a mark for the moment the page shows ("Now · …", or
+ * the removal's "Finished · …"). The numbers (`from`, `to`, `at`: unix seconds as text) place everything; every text is the builder's. The `token` is
+ * what the bar is memoised on, as the other forms'.
+ */
+export interface WindowBarData {
+  segments: WindowBarSegment[];
+  bounds: { id: "created" | "finish_after" | "cancel_after"; label: string; at: string }[];
+  mark: { label: string; at: string };
+  token: string;
+}
+
 /** A `StatTile`'s delta: the signed text ("+12.4%") and which way the triangle points (1 up, -1 down, 0 flat). */
 export interface Delta { text: string; sign: 1 | -1 | 0 }
