@@ -4280,9 +4280,9 @@ describe("E10's object calls", () => {
       const error = await failureOf(c.call(api));
       expect(error.kind).toBe("server");
       expect(error.status).toBe(200);
-      expect(error.message).toContain("answered something unexpected");
-      expect(error.message).toContain(c.field);
       expect(error.message).toContain(`data API GET ${c.url}`);
+      // The field is looked for in the reason alone: the request every message holds says "history" or "account" for several of the calls.
+      expect(error.message.split("answered something unexpected: ")[1]).toContain(c.field);
 
       // Nothing was stored: the next call, and the one after it, make new upstream requests; only the good answer is stored, and then no request is made.
       fetchSpy.mockResolvedValueOnce(json(c.bad()));
@@ -4300,10 +4300,25 @@ describe("E10's object calls", () => {
 
       const error = await failureOf(api.escrow(OTHER_ID));
       expect(error).toMatchObject({ kind: "server", status: 200 });
-      expect(error.message).toContain("escrow_id");
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("escrow_id");
 
       fetchSpy.mockResolvedValueOnce(json({ result: "success", ledger_object: ledgerObjectSample() }));
       expect(await storedBy(() => api.ledgerObject(OTHER_ID).catch(() => undefined))).toEqual([]);
+    });
+
+    it("refuses a delegations page of another account, or of the other direction, than the one asked for, as a server error that is not stored", async () => {
+      const { api, storedBy } = storing("d5-other-account");
+      fetchSpy.mockResolvedValueOnce(json(delegationsSample()));
+
+      const error = await failureOf(api.accountDelegations(DELEGATE, { direction: "given", limit: 200 }));
+      expect(error).toMatchObject({ kind: "server", status: 200 });
+      expect(error.message.split("answered something unexpected: ")[1]).toContain("delegations[0].account");
+
+      // The page of the account that gave it, asked as the delegate's (held): its authorize is the delegate's, not the account's.
+      fetchSpy.mockResolvedValueOnce(json(delegationsSample()));
+      expect(await storedBy(() => api.accountDelegations(DELEGATOR, { direction: "held", limit: 200 }).catch(() => undefined))).toEqual([]);
+      fetchSpy.mockResolvedValueOnce(json(delegationsSample()));
+      expect((await storedBy(() => api.accountDelegations(DELEGATE, { direction: "held", limit: 200 }))).length).toBeGreaterThan(0);
     });
 
     it("makes a lookup answered without ledger_object a server error", async () => {

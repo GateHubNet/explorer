@@ -2155,8 +2155,9 @@ describe("ledgerEntry", () => {
 
     expect(error.kind).toBe("server");
     expect(error.status).toBe(200);
-    expect(error.message).toContain("node ledger_entry answered something unexpected");
-    expect(error.message).toContain(field);
+    expect(error.message).toContain("node ledger_entry answered something unexpected: ");
+    // The field is looked for in the reason alone: the request is "node ledger_entry", which holds "node".
+    expect(error.message.split("answered something unexpected: ")[1]).toContain(field);
   });
 
   it("is class live, under the key uriToken's request has", async () => {
@@ -2169,33 +2170,64 @@ describe("ledgerEntry", () => {
     expect(cache.calls[0]!.key).toBe(`POST https://s1.ripple.com:51234/ {"method":"ledger_entry","params":[{"index":"${ESCROW_ENTRY_ID}","ledger_index":"validated"}]}`);
   });
 
-  it("shares its cache entry with uriToken: the one request is made once, and each call reads its own from what is stored", async () => {
+  /** A cache that keeps what a load returned, as the Worker's does, so that a second call reads what the first stored. */
+  const memoryCache = (): SubrequestCache => {
     const stored = new Map<string, unknown>();
-    const memory: SubrequestCache = {
+    return {
       async json<T>(key: string, _cls: CacheClass, load: () => Promise<T>): Promise<T> {
         if (!stored.has(key)) stored.set(key, await load());
         return stored.get(key) as T;
       },
     };
-    const node = createNodeRpc(xahau, memory);
-    const token = {
-      Digest: "772B38763E8E603AEE9BBB2026B8E9B97537ECC8867E46D042630C0B326B8736",
-      Flags: 0,
-      Issuer: URI_TOKEN_ISSUER,
-      LedgerEntryType: "URIToken",
-      Owner: "rLEUHuVCd8o9XmKn3nk8oGwYS3QEpUjo3e",
-      URI: "6F64696E73657965733A726176656E3A76323A3030346230353234",
-      index: URI_TOKEN_ID,
-    };
-    fetchSpy.mockResolvedValueOnce(success({ index: URI_TOKEN_ID, ledger_hash: LEDGER_HASH, ledger_index: 26829859, node: token, validated: true }));
+  };
+  const uriTokenNode = (extra: Record<string, unknown> = {}) => ({
+    Digest: "772B38763E8E603AEE9BBB2026B8E9B97537ECC8867E46D042630C0B326B8736",
+    Flags: 0,
+    Issuer: URI_TOKEN_ISSUER,
+    LedgerEntryType: "URIToken",
+    Owner: "rLEUHuVCd8o9XmKn3nk8oGwYS3QEpUjo3e",
+    URI: "6F64696E73657965733A726176656E3A76323A3030346230353234",
+    index: URI_TOKEN_ID,
+    ...extra,
+  });
+  const uriTokenResult = (node: Record<string, unknown>) => ({ index: URI_TOKEN_ID, ledger_hash: LEDGER_HASH, ledger_index: 26829859, node, validated: true });
+
+  it("shares its cache entry with uriToken: the one request is made once, and each call reads its own from what is stored", async () => {
+    const node = createNodeRpc(xahau, memoryCache());
+    fetchSpy.mockResolvedValueOnce(success(uriTokenResult(uriTokenNode())));
 
     const entry = await node.ledgerEntry(URI_TOKEN_ID);
     const uri = await node.uriToken(URI_TOKEN_ID);
     const again = await node.ledgerEntry(URI_TOKEN_ID);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(entry).toEqual({ node: token, index: URI_TOKEN_ID, ledger_index: 26829859 });
+    expect(entry).toEqual({ node: uriTokenNode(), index: URI_TOKEN_ID, ledger_index: 26829859 });
     expect(uri).toEqual(nodeUriTokenSample());
     expect(again).toEqual(entry);
+  });
+
+  it("an entry that is no URIToken is not_found for uriToken, and ledgerEntry then returns it from what is stored, with no second request", async () => {
+    const node = createNodeRpc(xrpl, memoryCache());
+    fetchSpy.mockResolvedValueOnce(success(entryResult()));
+
+    const error = await failureOf(node.uriToken(ESCROW_ENTRY_ID));
+    expect(error.kind).toBe("not_found");
+    expect(error.message).toContain("Escrow");
+
+    expect(await node.ledgerEntry(ESCROW_ENTRY_ID)).toEqual({ node: escrowNode(), index: ESCROW_ENTRY_ID, ledger_index: 107972102 });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("a URIToken whose fields are not right (an Owner that is no address) is a server error for uriToken, and ledgerEntry still returns the entry, with no second request", async () => {
+    const node = createNodeRpc(xahau, memoryCache());
+    fetchSpy.mockResolvedValueOnce(success(uriTokenResult(uriTokenNode({ Owner: "rNope" }))));
+
+    const error = await failureOf(node.uriToken(URI_TOKEN_ID));
+    expect(error.kind).toBe("server");
+    expect(error.status).toBe(200);
+    expect(error.message.split("answered something unexpected: ")[1]).toContain("Owner");
+
+    expect(await node.ledgerEntry(URI_TOKEN_ID)).toEqual({ node: uriTokenNode({ Owner: "rNope" }), index: URI_TOKEN_ID, ledger_index: 26829859 });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

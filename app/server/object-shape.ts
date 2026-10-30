@@ -9,6 +9,7 @@
 //   - every answer but the lookup has `result: "success"`, a `coverage` that is one (`checkCoverage`), a `ledger_index` that is a whole number and a `close_time` that is a time;
 //   - an object ID, a delegation ID and a transaction hash are 64 hexadecimal digits in upper case: they go into paths and links. The ID of the object (the lookup's `object_id`
 //     too) is the one the request asked for; an answer for another object is not the answer to that request, and a page would show it as the one asked for;
+//   - a delegations page is of the account and the direction the path asks for: each delegation's `account` is that account (`given`, the default), or its `authorize` (`held`);
 //   - an account (an owner, a destination, an issuer, an event's sender and delegate, a delegation's two accounts) is a classic address with its checksum, because it goes into a
 //     link; an X-address holds a tag and is not one;
 //   - a time (`finish_after`, `cancel_after`, `expiration`, an event's `time`, a reference's `time`, `close_time`) is `YYYY-MM-DDTHH:mm:ssZ`; counts, ledger indexes, a sequence, a tag,
@@ -18,8 +19,10 @@
 //     `amount_change` and `balance_change` in every currency, are plain decimals (`isDecimalText`: D5 converts drops, writes the raw integer units, and computes with `toFixed()`);
 //     the `amount`, `balance`, `send_max`, `delivered` and `opened_with` of an issued token (an `issuer`, no `mpt_issuance_id`) are the ledger's own text, which writes large and tiny
 //     values in exponent form (`isNumberText`), on the objects and on the events;
-//   - a status is one of the object's (`OBJECT_STATUSES`), an event one of its object's (`OBJECT_EVENTS`); a channel's event has its `amount` and `balance`, which the reference
-//     says every one of its events carries; a permission's `kind` is one of three; the lookup's `object_type` is one of four.
+//   - a status is one of the object's (`OBJECT_STATUSES`), an event one of its object's (`OBJECT_EVENTS`); a permission's `kind` is one of three; the lookup's `object_type` is
+//     one of four;
+//   - D5 drops a field it cannot read from an object or an event (`compact`), so an escrow's `amount`, a check's `send_max`, a channel's `amount`, `balance`, `remaining`,
+//     `settle_delay` and `public_key`, and a channel event's `amount` and `balance` may be missing, and are checked when they are there.
 
 import { fields, isAccount, isBoolean, isDecimalText, isIsoTime, isName, isNumberText, isWhole, listOf, optionalFields, rowsOf } from "./aggregate-shape";
 import type {
@@ -118,6 +121,15 @@ function askedId(what: string, route: string, path: string): string {
   return id.toUpperCase();
 }
 
+/** The account and the direction a delegations request asked for: `/v2/accounts/{address}/delegations?direction=…` (missing or empty is `given`, D5's default). */
+function askedDelegations(what: string, path: string): { address: string; direction: "given" | "held" } {
+  const match = /^\/v2\/accounts\/([^/?#]+)\/delegations(?:\?([^#]*))?$/.exec(path);
+  if (match === null) throw malformed(what, "the request names no account under /v2/accounts/{address}/delegations, to compare the answer's with");
+  const direction = new URLSearchParams(match[2] ?? "").get("direction") || "given";
+  if (direction !== "given" && direction !== "held") throw malformed(what, `the request's direction is ${JSON.stringify(direction)}, neither given nor held`);
+  return { address: match[1]!, direction };
+}
+
 /**
  * Throws unless `value` is an amount whose `value` is text of the form `text` says: `ledger`, the ledger's own (so an issued token's may be in exponent form), or `plain`, a decimal
  * that D5 computed or converted. A native amount and an MPT's are plain decimals whichever, and an issued token is one with an `issuer` and no `mpt_issuance_id`.
@@ -161,8 +173,8 @@ function checkEvent(what: string, where: string, kind: ObjectApiKind, row: Row):
     for (const name of ["send_max", "delivered"]) if (row[name] !== undefined) checkAmount(what, `${where}.${name}`, row[name], "ledger");
     optionalFields(what, where, row, ["expiration"], isIsoTime, TIME);
   } else {
-    // Every event of a channel carries the channel's `amount` and `balance` after it; the changes are there only when nonzero, and are computed.
-    for (const name of ["amount", "balance"]) checkAmount(what, `${where}.${name}`, row[name], "ledger");
+    // An event of a channel carries the channel's `amount` and `balance` after it (D5 leaves one out that it cannot read); the changes are there only when nonzero, and are computed.
+    for (const name of ["amount", "balance"]) if (row[name] !== undefined) checkAmount(what, `${where}.${name}`, row[name], "ledger");
     for (const name of ["amount_change", "balance_change"]) if (row[name] !== undefined) checkAmount(what, `${where}.${name}`, row[name], "plain");
     optionalFields(what, where, row, ["expiration"], isIsoTime, TIME);
     optionalFields(what, where, row, ["settle_delay"], isWhole, WHOLE);
@@ -184,21 +196,21 @@ function checkObjectHead(what: string, where: string, kind: ObjectApiKind, objec
 /** The keys of each object beside its head. */
 function checkObjectBody(what: string, where: string, kind: ObjectApiKind, object: Row): void {
   if (kind === "escrow") {
-    checkAmount(what, `${where}.amount`, object.amount, "ledger");
+    if (object.amount !== undefined) checkAmount(what, `${where}.amount`, object.amount, "ledger");
     optionalFields(what, where, object, ["finish_after", "cancel_after"], isIsoTime, TIME);
     optionalFields(what, where, object, ["condition", "fulfillment"], isHex, HEX);
     optionalFields(what, where, object, ["transfer_rate"], isWhole, WHOLE);
   } else if (kind === "check") {
-    checkAmount(what, `${where}.send_max`, object.send_max, "ledger");
+    if (object.send_max !== undefined) checkAmount(what, `${where}.send_max`, object.send_max, "ledger");
     if (object.delivered !== undefined) checkAmount(what, `${where}.delivered`, object.delivered, "ledger");
     optionalFields(what, where, object, ["expiration"], isIsoTime, TIME);
     optionalFields(what, where, object, ["invoice_id"], isInvoiceId, "64 hexadecimal digits");
   } else {
-    for (const name of ["amount", "balance"]) checkAmount(what, `${where}.${name}`, object[name], "ledger");
-    checkAmount(what, `${where}.remaining`, object.remaining, "plain");
-    if (object.opened_with !== undefined) checkAmount(what, `${where}.opened_with`, object.opened_with, "ledger");
-    fields(what, where, object, ["settle_delay", "funds", "claims"], isWhole, WHOLE);
-    fields(what, where, object, ["public_key"], isHex, HEX);
+    for (const name of ["amount", "balance", "opened_with"]) if (object[name] !== undefined) checkAmount(what, `${where}.${name}`, object[name], "ledger");
+    if (object.remaining !== undefined) checkAmount(what, `${where}.remaining`, object.remaining, "plain");
+    fields(what, where, object, ["funds", "claims"], isWhole, WHOLE);
+    optionalFields(what, where, object, ["settle_delay"], isWhole, WHOLE);
+    optionalFields(what, where, object, ["public_key"], isHex, HEX);
     optionalFields(what, where, object, ["expiration", "cancel_after"], isIsoTime, TIME);
   }
 }
@@ -236,14 +248,20 @@ export function checkObjectHistory(kind: ObjectApiKind, body: unknown, path: str
   return body as ObjectHistoryPage;
 }
 
-/** `GET /v2/accounts/{address}/delegations`: the delegations, under `delegations`. */
+/**
+ * `GET /v2/accounts/{address}/delegations`: the delegations, under `delegations`, each of the account and the direction the path asks for: with `given` (the default) the account
+ * is its `account`, with `held` its `authorize`. A page of another account's, or of the other direction, is not the answer to that request.
+ */
 export function checkDelegations(body: unknown, path: string): DelegationsPage {
   const what = `data API GET ${path}`;
+  const { address, direction } = askedDelegations(what, path);
   answerOf(what, body);
   for (const [index, row] of listOf(what, body, "delegations").entries()) {
     const where = `delegations[${index}]`;
     fields(what, where, row, ["delegation_id"], isHash, OBJECT_ID);
     fields(what, where, row, ["account", "authorize"], isAccount, ACCOUNT);
+    const whose = direction === "given" ? "account" : "authorize";
+    if (row[whose] !== address) throw malformed(what, `${where}.${whose} is not the account asked for`);
     for (const [at, permission] of listAt(what, `${where}.permissions`, row.permissions).entries()) {
       const here = `${where}.permissions[${at}]`;
       fields(what, here, permission, ["permission"], isName, "a permission");

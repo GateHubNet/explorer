@@ -46,7 +46,10 @@ const OBJECTS = {
 const KINDS = Object.keys(OBJECTS) as ObjectApiKind[];
 const historyPath = (kind: ObjectApiKind) => `${OBJECTS[kind].path}/history?descending=true&limit=50`;
 
-/** The check refuses `body` as an `UpstreamError` of kind `server` that marks an answer of the upstream (status 200), and its message names the request and `field`. */
+/** What every message says between the request and the reason. */
+const WHY = "answered something unexpected: ";
+
+/** The check refuses `body` as an `UpstreamError` of kind `server` that marks an answer of the upstream (status 200), and its message names the request, and `field` in its reason. */
 function refuses(check: (body: unknown) => unknown, path: string, body: unknown, field: string): void {
   let error: unknown;
   try {
@@ -57,9 +60,25 @@ function refuses(check: (body: unknown) => unknown, path: string, body: unknown,
   expect(error).toBeInstanceOf(UpstreamError);
   expect((error as UpstreamError).kind).toBe("server");
   expect((error as UpstreamError).status).toBe(200);
-  expect((error as UpstreamError).message).toContain(`data API GET ${path}`);
-  expect((error as UpstreamError).message).toContain(field);
+  const { message } = error as UpstreamError;
+  expect(message).toContain(`data API GET ${path}`);
+  // The field is looked for in the reason alone: every message holds the path, and a field named "escrow", "check", "history" or "account" is in that.
+  expect(message).toContain(WHY);
+  expect(message.slice(message.indexOf(WHY) + WHY.length)).toContain(field);
 }
+
+describe("the helper that looks for a field", () => {
+  it("looks for it in the reason, not in the request every message holds: a close_time that is wrong is not a failure of \"escrow\"", () => {
+    const path = OBJECTS.escrow.path;
+    const body = escrowAnswerSample();
+    body.close_time = "2026-10-29";
+    const check = (b: unknown) => checkObjectAnswer("escrow", b, path);
+
+    refuses(check, path, body, "close_time");
+    expect(() => refuses(check, path, body, "escrow")).toThrow();
+    expect(() => refuses(check, path, body, "v2")).toThrow();
+  });
+});
 
 /** The example is taken and returned as it is; every change in `defects` makes it a refused answer that names its field. */
 function pins(check: (body: unknown) => unknown, path: string, good: unknown, defects: Defect[]): void {
@@ -248,7 +267,6 @@ describe("checkObjectAnswer", () => {
       ...within("the escrow", (b) => b.escrow, headDefects("escrow")),
       ...within("the escrow", (b) => b.escrow, [
         ["an owner that is no address", "account", (o) => (o.account = ESCROW_OWNER.slice(1))],
-        ["no amount", "amount", (o) => delete o.amount],
         ["an amount that is text", "amount", (o) => (o.amount = "0.5")],
         ["a finish_after that is no time", "finish_after", (o) => (o.finish_after = "2026-10-25")],
         ["a cancel_after that is a number", "cancel_after", (o) => (o.cancel_after = 1792152000)],
@@ -310,7 +328,6 @@ describe("checkObjectAnswer", () => {
       ["no check", "check", (b) => delete b.check],
       ...within("the check", (b) => b.check, headDefects("check")),
       ...within("the check", (b) => b.check, [
-        ["no send_max", "send_max", (o) => delete o.send_max],
         ["an expiration that is no time", "expiration", (o) => (o.expiration = "2026-10-16")],
         ["an invoice_id of 63 digits", "invoice_id", (o) => (o.invoice_id = o.invoice_id.slice(1))],
         ["an invoice_id that is a number", "invoice_id", (o) => (o.invoice_id = 1)],
@@ -327,10 +344,10 @@ describe("checkObjectAnswer", () => {
       delete body.check.created;
       Object.assign(body.check, {
         status: "cashed",
-        delivered: { ...body.check.send_max, value: "4.38027e-1" },
+        delivered: { ...body.check.send_max!, value: "4.38027e-1" },
         removed: { ledger_index: 107703707, time: "2026-10-16T21:57:22Z", tx_hash: OBJECT_TX_HASH, tx_type: "CheckCash" },
       });
-      body.history = [{ event: "cash", ledger_index: 107703707, time: "2026-10-16T21:57:22Z", tx_hash: OBJECT_TX_HASH, tx_type: "CheckCash", account: DELEGATOR, delegate: DELEGATE, result: "tesSUCCESS", delivered: { ...body.check.send_max, value: "0.438027" } }];
+      body.history = [{ event: "cash", ledger_index: 107703707, time: "2026-10-16T21:57:22Z", tx_hash: OBJECT_TX_HASH, tx_type: "CheckCash", account: DELEGATOR, delegate: DELEGATE, result: "tesSUCCESS", delivered: { ...body.check.send_max!, value: "0.438027" } }];
       expect(checkObjectAnswer("check", body, path)).toBe(body);
     });
 
@@ -359,13 +376,8 @@ describe("checkObjectAnswer", () => {
       ["no payment_channel", "payment_channel", (b) => delete b.payment_channel],
       ...within("the channel", (b) => b.payment_channel, headDefects("payment_channel")),
       ...within("the channel", (b) => b.payment_channel, [
-        ["no amount", "amount", (o) => delete o.amount],
-        ["no balance", "balance", (o) => delete o.balance],
-        ["no remaining", "remaining", (o) => delete o.remaining],
         ["a settle_delay that is text", "settle_delay", (o) => (o.settle_delay = "1209600")],
-        ["no settle_delay", "settle_delay", (o) => delete o.settle_delay],
         ["a public_key that is not hex", "public_key", (o) => (o.public_key = "03D63CA7XYZ")],
-        ["no public_key", "public_key", (o) => delete o.public_key],
         ["an expiration that is no time", "expiration", (o) => (o.expiration = "2026-10-09")],
         ["a cancel_after that is a number", "cancel_after", (o) => (o.cancel_after = 1792152000)],
         ["an opened_with that is text", "opened_with", (o) => (o.opened_with = "1")],
@@ -382,9 +394,6 @@ describe("checkObjectAnswer", () => {
       ...within("an event's amount", (b) => b.history[0].amount, amountDefects),
       ...within("an event's balance", (b) => b.history[0].balance, amountDefects),
       ...within("an event's balance_change", (b) => b.history[0].balance_change, amountDefects),
-      ["an event without amount", "amount", (b) => delete b.history[0].amount],
-      ["an event without balance", "balance", (b) => delete b.history[0].balance],
-      ["a create event without balance", "balance", (b) => delete b.history[1].balance],
       ["a settle_delay that is text, in an event", "settle_delay", (b) => (b.history[1].settle_delay = "1209600")],
       ["an expiration that is no time, in an event", "expiration", (b) => (b.history[0].expiration = "2026-10-09")],
     ]);
@@ -410,6 +419,51 @@ describe("checkObjectAnswer", () => {
         body.history[0]!.event = event;
         expect(checkObjectAnswer("payment_channel", body, path)).toBe(body);
       }
+    });
+  });
+
+  describe("the keys D5 leaves out when it cannot read them", () => {
+    // D5 drops a field it cannot read (object-views.ts: `compact`), so these are optional: an answer without one is taken (the page draws "—"), and one that has it malformed is not.
+    type Dropped = [name: string, kind: ObjectApiKind, holder: (body: Body) => Body, key: string, malformed: unknown];
+    const DROPPED: Dropped[] = [
+      ["the escrow's amount", "escrow", (b) => b.escrow, "amount", "0.5"],
+      ["an escrow event's amount", "escrow", (b) => b.history[0], "amount", "0.5"],
+      ["the check's send_max", "check", (b) => b.check, "send_max", "1"],
+      ["the channel's amount", "payment_channel", (b) => b.payment_channel, "amount", "1"],
+      ["the channel's balance", "payment_channel", (b) => b.payment_channel, "balance", "0.032185"],
+      ["the channel's remaining", "payment_channel", (b) => b.payment_channel, "remaining", "0.967815"],
+      ["the channel's settle_delay", "payment_channel", (b) => b.payment_channel, "settle_delay", "1209600"],
+      ["the channel's public_key", "payment_channel", (b) => b.payment_channel, "public_key", "03D63CA7XYZ"],
+      ["a channel event's amount", "payment_channel", (b) => b.history[0], "amount", "1"],
+      ["a channel event's balance", "payment_channel", (b) => b.history[0], "balance", "0.032185"],
+      ["a channel's create event's balance", "payment_channel", (b) => b.history[1], "balance", "0"],
+    ];
+
+    it.each(DROPPED)("%s: an answer without it is taken, and one with it malformed is refused", (_name, kind, holder, key, wrong) => {
+      const { path } = OBJECTS[kind];
+      const check = (b: unknown) => checkObjectAnswer(kind, b, path);
+
+      const whole = OBJECTS[kind].sample();
+      expect(holder(whole)[key]).toBeDefined();
+      expect(check(whole)).toBe(whole);
+
+      const without = OBJECTS[kind].sample();
+      delete holder(without)[key];
+      expect(check(without)).toBe(without);
+
+      const malformed = OBJECTS[kind].sample();
+      holder(malformed)[key] = wrong;
+      refuses(check, path, malformed, key);
+    });
+
+    it("takes a channel with none of its amounts, and an event with none", () => {
+      const body = paymentChannelAnswerSample();
+      for (const key of ["amount", "balance", "remaining", "settle_delay", "public_key"]) delete (body.payment_channel as Body)[key];
+      for (const event of body.history) {
+        delete event.amount;
+        delete event.balance;
+      }
+      expect(checkObjectAnswer("payment_channel", body, OBJECTS.payment_channel.path)).toBe(body);
     });
   });
 
@@ -579,6 +633,51 @@ describe("checkDelegations", () => {
       other.delegations[0]!.permissions[0]!.kind = kind as never;
       expect(check(other)).toBe(other);
     }
+  });
+
+  describe("the account and the direction asked for", () => {
+    const pathOf = (address: string, query: string) => `/v2/accounts/${address}/delegations${query}`;
+    const held = () => delegationsSample();
+
+    it("given: every delegation is the account's own (its account is the one asked for), whoever the delegate", () => {
+      const body = delegationsSample();
+      expect(checkDelegations(body, pathOf(DELEGATOR, "?direction=given&limit=200"))).toBe(body);
+      refuses((b) => checkDelegations(b, pathOf(DELEGATE, "?direction=given&limit=200")), pathOf(DELEGATE, "?direction=given&limit=200"), body, "account");
+    });
+
+    it("held: every delegation is one the account holds (its authorize is the one asked for), whoever gave it", () => {
+      const body = held();
+      expect(checkDelegations(body, pathOf(DELEGATE, "?direction=held&limit=200"))).toBe(body);
+      refuses((b) => checkDelegations(b, pathOf(DELEGATOR, "?direction=held&limit=200")), pathOf(DELEGATOR, "?direction=held&limit=200"), body, "authorize");
+    });
+
+    it("refuses one row among several that is not the account's, and says which", () => {
+      const body = delegationsSample({ count: 2 });
+      body.delegations.push({ ...body.delegations[0]!, delegation_id: ESCROW_ID, account: DELEGATE, authorize: DELEGATOR });
+      const path = pathOf(DELEGATOR, "?direction=given&limit=200");
+      refuses((b) => checkDelegations(b, path), path, body, "delegations[1].account");
+    });
+
+    it("takes no direction, or an empty one, as given, which is D5's default", () => {
+      const body = delegationsSample();
+      for (const query of ["", "?limit=200", "?direction=&limit=200"]) {
+        expect(checkDelegations(body, pathOf(DELEGATOR, query)), query).toBe(body);
+        refuses((b) => checkDelegations(b, pathOf(DELEGATE, query)), pathOf(DELEGATE, query), body, "account");
+      }
+    });
+
+    it("takes an empty page whichever account and direction", () => {
+      const none = delegationsSample({ count: 0, delegations: [] });
+      expect(checkDelegations(none, pathOf(DELEGATE, "?direction=given&limit=200"))).toBe(none);
+      expect(checkDelegations(none, pathOf(DELEGATOR, "?direction=held&limit=200"))).toBe(none);
+    });
+
+    it("refuses a path that names no account, and a direction that is neither", () => {
+      const body = delegationsSample();
+      refuses((b) => checkDelegations(b, "/v2/accounts"), "/v2/accounts", body, "delegations");
+      const odd = pathOf(DELEGATOR, "?direction=both&limit=200");
+      refuses((b) => checkDelegations(b, odd), odd, body, "direction");
+    });
   });
 
   it("takes a delegation without created (its transaction is not indexed), an empty list with a marker-less page, and the delegate's view (held)", () => {

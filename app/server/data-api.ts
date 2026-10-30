@@ -1035,17 +1035,17 @@ export function createDataApi(net: Network, env: Env, cache: SubrequestCache): D
       }),
     toml: (domain) => get<TomlAnswer>(PATHS.toml, { domain }, {}, "minute", { finish: (body) => checkToml(body, domain) }),
     // E10's object calls. The object and the lookup are in the ledger as of now: `live`. A history is newest first and written `descending`, `limit`, `marker`; behind a marker it is
-    // `MARKER_PAGE_CLASS` (the rule of `nftListClass`), the first page `live`. The lookup answers `{ result, ledger_object }`: the part under `ledger_object` is what is checked and returned.
+    // `MARKER_PAGE_CLASS` (`listClass`: it is newest first), the first page `live`. The lookup answers `{ result, ledger_object }`: the part under `ledger_object` is what is checked and returned.
     escrow: (id) => get<EscrowAnswer>(PATHS.escrow, { escrow_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("escrow", body, path) }),
     escrowHistory: (id, q) =>
-      get<ObjectHistoryPage>(PATHS.escrowHistory, { escrow_id: id }, listQuery(q), nftListClass(q), { finish: (body, path) => checkObjectHistory("escrow", body, path) }),
+      get<ObjectHistoryPage>(PATHS.escrowHistory, { escrow_id: id }, listQuery(q), listClass(q), { finish: (body, path) => checkObjectHistory("escrow", body, path) }),
     check: (id) => get<CheckAnswer>(PATHS.check, { check_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("check", body, path) }),
     checkHistory: (id, q) =>
-      get<ObjectHistoryPage>(PATHS.checkHistory, { check_id: id }, listQuery(q), nftListClass(q), { finish: (body, path) => checkObjectHistory("check", body, path) }),
+      get<ObjectHistoryPage>(PATHS.checkHistory, { check_id: id }, listQuery(q), listClass(q), { finish: (body, path) => checkObjectHistory("check", body, path) }),
     paymentChannel: (id) =>
       get<PaymentChannelAnswer>(PATHS.paymentChannel, { channel_id: id }, {}, "live", { finish: (body, path) => checkObjectAnswer("payment_channel", body, path) }),
     paymentChannelHistory: (id, q) =>
-      get<ObjectHistoryPage>(PATHS.paymentChannelHistory, { channel_id: id }, listQuery(q), nftListClass(q), {
+      get<ObjectHistoryPage>(PATHS.paymentChannelHistory, { channel_id: id }, listQuery(q), listClass(q), {
         finish: (body, path) => checkObjectHistory("payment_channel", body, path),
       }),
     accountDelegations: (address, q) =>
