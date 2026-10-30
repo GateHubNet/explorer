@@ -7,7 +7,7 @@ import { decodeLoaderData } from "../support/loader-data";
 import { XRPL_NFT } from "../support/nft-names";
 import { fixtures, unavailable } from "./fixture-control";
 import { LIVE, NEVER_FUNDED } from "./fixtures";
-import { expect, freshHtml, hydrated, seriousViolations, test } from "./support";
+import { expect, freshHtml, hydrated, reactOwns, seriousViolations, test } from "./support";
 
 // What of the NFT pages needs the fixture server to change an answer (README "NFTs", "End-to-end tests"): the list with cards that failed, the choice page of a hash that is both a
 // transaction and an NFT, and the Objects tab's link to the account's NFTs (no recorded account owns an NFT page). These tests change what the fixture server answers, and every page
@@ -259,7 +259,10 @@ test.describe("the Objects tab of an account that owns NFTs", () => {
     await page.goto(`/xrpl/account/${OWNER}?tab=objects`);
     await hydrated(page);
     await page.evaluate(() => Object.assign(window, { sameDocument: true }));
-    await page.getByRole("link", { name: "See the account’s NFTs" }).click();
+    // The Objects tab's list is the lazy panels' chunk's: its links are the router's once React has hydrated them (`reactOwns`).
+    const nfts = page.getByRole("link", { name: "See the account’s NFTs" });
+    await reactOwns(nfts);
+    await nfts.click();
     await page.waitForURL(`**/xrpl/account/${OWNER}?tab=nfts`);
     await expect(page.getByRole("navigation", { name: "Account activity" }).getByRole("link", { name: "NFTs" })).toHaveAttribute("aria-current", "page");
     expect(await page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument)).toBe(true);

@@ -1,6 +1,6 @@
 import { featuresOff } from "../../scripts/e2e-env";
 import { LIVE, XRPL_ACCOUNT } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { expect, hydrated, reactOwns, test } from "./support";
 
 const FEATURES_OFF = featuresOff(process.env);
 
@@ -56,6 +56,8 @@ test.describe("the account page", () => {
     const pagination = page.getByRole("navigation", { name: "Pagination" });
     await expect(pagination.getByRole("link", { name: "Newer" })).toHaveCount(0);
 
+    // The list is the lazy panels' chunk's: its links are the router's once React has hydrated them (`reactOwns`).
+    await reactOwns(pagination.getByRole("link", { name: "Older" }));
     await pagination.getByRole("link", { name: "Older" }).click();
     await page.waitForURL(/\/xrpl\/account\/[^?]+\?marker=[\w-]+$/);
     await expect(rowsOf(page, "Transactions")).toHaveCount(3); // the last two transactions and the header
@@ -74,7 +76,9 @@ test.describe("the account page", () => {
     test.skip(LIVE, HAND_WRITTEN);
     await page.goto(`/xrpl/account/${XRPL_ACCOUNT}?tab=payments`);
     await hydrated(page);
-    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    const older = page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" });
+    await reactOwns(older);
+    await older.click();
     await page.waitForURL(/\?tab=payments&marker=[\w-]+$/);
     await expect(rowsOf(page, "Payments")).toHaveCount(2);
     await expect(page.getByRole("navigation", { name: "Account activity" }).getByRole("link", { name: "Payments" })).toHaveAttribute("aria-current", "page");
@@ -102,7 +106,9 @@ test.describe("the account page", () => {
     await hydrated(cold);
     await expect(rowsOf(cold, "Transactions")).toHaveCount(3);
     await cold.evaluate(() => Object.assign(window, { sameDocument: true }));
-    await cold.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Newer" }).click();
+    const newer = cold.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Newer" });
+    await reactOwns(newer);
+    await newer.click();
     await cold.waitForURL(`**/xrpl/account/${XRPL_ACCOUNT}`);
     await expect(rowsOf(cold, "Transactions")).toHaveCount(5);
     expect(await sameDocument(cold)).toBe(true);

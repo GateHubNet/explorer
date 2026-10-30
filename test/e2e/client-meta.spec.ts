@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { featuresOff } from "../../scripts/e2e-env";
 import { XRPL_COLLECTION, XRPL_NFT } from "../support/nft-names";
 import { accountTitle, count, LIVE, XAHAU_LEDGER, XAHAU_LEDGER_NEXT, XRP_RLUSD_POOL, XRPL_ACCOUNT } from "./fixtures";
-import { expect, hydrated, test } from "./support";
+import { expect, hydrated, reactOwns, test } from "./support";
 
 // The tags of a page are made by its `meta` export, which the browser runs too when a visitor follows a link inside the page: no new
 // document, so nothing the server renders for it. The Worker's own tests (test/worker/meta.spec.ts) see only the server-rendered tags.
@@ -168,9 +168,10 @@ test.describe("the tags of a page reached by a link in the page", () => {
     expect(first.robots).toBeNull();
     expect(first.ogImage).toBe(`${origin}/og/xrpl/account/${XRPL_ACCOUNT}.png`);
 
-    // The list's links are the router's once the page is live (`hydrated`, test/e2e/support.ts): a click before then is the browser's own, a new document.
-    await hydrated(page);
-    await page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" }).click();
+    // The list is the lazy panels' chunk's (AccountPage.tsx): its links are the router's once React has hydrated them, and a click before then is the browser's own, a new document.
+    const older = page.getByRole("navigation", { name: "Pagination" }).getByRole("link", { name: "Older" });
+    await reactOwns(older);
+    await older.click();
     await page.waitForURL(/\?marker=/);
     await expect.poll(async () => (await head(page)).robots).toBe("noindex, follow");
     const behind = await head(page);

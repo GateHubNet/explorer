@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { type BrowserContext, type BrowserContextOptions, expect, test as base, type Page } from "@playwright/test";
+import { type BrowserContext, type BrowserContextOptions, expect, type Locator, test as base, type Page } from "@playwright/test";
 
 import { isExpectedConsoleError } from "../../scripts/e2e-env";
 
@@ -71,6 +71,9 @@ export const test = base.extend<{
 export async function hydrated(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Dark theme" })).toHaveAttribute("aria-pressed", /^(true|false)$/);
 }
+
+/** Waits until React has hydrated the element (it carries React's props): one inside a lazy chunk's Suspense boundary (the account's lists) stays the server's HTML, and a click on it a new document, until then. */
+export const reactOwns = (l: Locator) => expect.poll(() => l.evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactProps$")))).toBe(true);
 
 /**
  * The HTML of `path` as the Worker gives it now, or `undefined` while it serves a stored copy past its TTL (`X-Cache: STALE`, app/server/edge-cache.ts).
