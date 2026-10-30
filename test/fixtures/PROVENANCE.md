@@ -949,8 +949,8 @@ is `toml not found`. Every toml was checked (and an `ok` one read) at `2026-10-1
 
 **Generator and seeds.** The seeded addresses are the classic addresses of the files of `NAMES_SOURCES`, in its order (the hand-written accounts and balances, the eight newest
 transactions, the served transactions, the accounts' first pages, the pairs' active accounts, the AMM pages, the validators list, the NFT sales, collections and NFTs, and last the token
-lists, then the tokens' own files, each in order of its path), the fixed ones left out, up to 500: XRPL 500, where the cap cuts the tail (458 before the token files, then the list's 34 issuers
-and 8 addresses of the first token's files), Xahau 280. `fnv1a32("<net>:<address>") % 40` picks the state (0–7 verified, 8–12 named by GateHub, with a network name when bit 8 is set,
+lists, then the tokens' own files, each in order of its path), the fixed ones left out, up to 500: XRPL 500, where the cap cuts the tail (458 before the token files, then the list's 31 issuers
+that were not among them and 11 holders of LIONS, the first token by path), Xahau 280. `fnv1a32("<net>:<address>") % 40` picks the state (0–7 verified, 8–12 named by GateHub, with a network name when bit 8 is set,
 13–16 domain not verified, the rest nothing), and the hash the name (a word of 24 and one of 8) and the domain (the word and the hash's upper 16 bits in hex, `alder-1f2e.example`;
 the generator fails on a domain two addresses would share). A verified domain's `ok` toml lists its account with its `desc` (the first by sort without one: its name is its
 domain); every second unverified one by sort has an `ok` toml that lists nobody, the others none. An account the fixtures mark deleted (a transaction's `DeletedNode` of its
