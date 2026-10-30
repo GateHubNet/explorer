@@ -49,7 +49,7 @@ export function Sentence({ net, segments, compact }: { net: NetworkId; segments:
             return href === null ? (
               segment.v
             ) : (
-              <Link key={index} to={href} title={"id" in segment.ref ? segment.ref.id : undefined}>
+              <Link key={index} to={href} className="objectlink" title={"id" in segment.ref ? segment.ref.id : undefined}>
                 {segment.v}
               </Link>
             );

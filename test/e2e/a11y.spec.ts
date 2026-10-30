@@ -24,7 +24,7 @@ import {
   XRPL_PAYMENT,
 } from "./fixtures";
 import { drawnBy, type NamedPage, namedPagesOn, objectNamedPages } from "./names-pages";
-import { type ObjectCase, objectCase } from "./object-pages";
+import { type ObjectCase, objectCase, recordedDelegateSet, removedBy } from "./object-pages";
 import { expect, hashWords, hydrated, seriousViolations, test, WCAG_TAGS } from "./support";
 import { listedAmendment, listedValidator, needs, SKIP_OFF, VALIDATORS_OFF, withHistory } from "./validators-pages";
 
@@ -1150,6 +1150,19 @@ const DELEGATION_TAB: PageUnderTest[] = [
   },
 ];
 
+/** A transaction's page is whole when its raw data's tabs are drawn. */
+const rawReady = async (page: Page) => void (await expect(page.getByRole("tablist", { name: "Raw data" })).toBeVisible());
+
+/**
+ * The transactions with a link in their words (ledger object pages spec 6.2 and 7): the escrow an EscrowFinish released, in its sentence; "View the delegation" in a delegated Payment's Sent by
+ * row; a DelegateSet's permission chips, its Delegate and its note. A link in words is told from them by more than its colour (WCAG 1.4.1), which the plain payment of `MAIN` cannot show.
+ */
+const TRANSACTION_PAGES: PageUnderTest[] = [
+  { name: "EscrowFinish", path: `/xrpl/tx/${removedBy("xrpl", "escrow-finished")!.hash}`, ready: rawReady },
+  { name: "delegated Payment", path: `/xrpl/tx/${objectCase("xrpl", "delegated-payment").id}`, ready: rawReady },
+  { name: "DelegateSet", path: `/xrpl/tx/${recordedDelegateSet().id}`, ready: rawReady },
+];
+
 /** Axe at both widths in the two system themes (a phone's page not scrolling sideways), the landmarks of one role and name, and the names nothing is given that it cannot have, for `pages`. */
 function matrixOf(pages: PageUnderTest[]): void {
   for (const viewport of VIEWPORTS) {
@@ -1200,6 +1213,11 @@ test.describe("the ledger object pages", () => {
   test.skip(!LEDGER_OBJECTS_ON, "LEDGER_OBJECTS is off in the Worker under test: its pages are not found (ledger-objects.spec.ts checks that)");
   test.skip(LIVE, "the pages are drawn from the generated object fixtures, which a real stack does not hold");
   matrixOf([...ESCROW_PAGES, ...CHECK_PAGES, ...CHANNEL_PAGES]);
+});
+
+test.describe("the transactions with a link in their words", () => {
+  test.skip(LIVE, "the delegated Payment is synthetic, and the others are found in the fixtures' files");
+  matrixOf(TRANSACTION_PAGES);
 });
 
 test.describe("the account's Delegation tab", () => {

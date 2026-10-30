@@ -639,6 +639,7 @@ describe("a ledger whose row names an escrow", () => {
     const link = anchors(table).find((a) => a.text === "escrow 107945427");
     expect(link?.attrs).toContain(`href="/xrpl/escrows/${ESCROW}"`);
     expect(link?.attrs).toContain(`title="${ESCROW}"`);
+    expect(link?.attrs).toContain('class="objectlink"');
     expect(tableRows(html, "Transactions")[1]!.join(" ")).toContain("Released escrow 107945427 of");
     // An object's link is no account's: the names asked are the accounts the page links.
     expect(namesCalls(mock)).toEqual(callsOfLinks(html, "xrpl"));

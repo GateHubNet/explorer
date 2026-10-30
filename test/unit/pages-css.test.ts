@@ -465,6 +465,7 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     ".permchip",
     ".permchip--granular",
     ".mptamount",
+    ".objectlink",
   ];
   /** Whether a stylesheet's rules mention `name` as a class: not a longer class that starts with it (`.states` is not `.states__item`, `.timeline__dot` is not `.timeline__dot--tx`). */
   const mentions = (css: string, name: string) => new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(css);
@@ -517,6 +518,8 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
   it("underlines the issuer of a check, which is in the words 'issued by', and the ID of an MPT amount that is a link, which is in the words 'units of MPT'", () => {
     expect(rule(componentsCss, ".checkflow__issuer a:not(.acct)")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
     expect(rule(componentsCss, ".mptamount a")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+    // `Sentence`'s link to an object, the one a transaction's sentence, a ledger's row and an account's row draw. Axe does not see it (its heuristic wants more words than link), so this is its pin.
+    expect(rule(componentsCss, ".objectlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
   });
 
   it("keeps the permission chip's hidden words inside it, so that they do not widen a scrolling table or the page (`.sr` is absolute)", () => {
@@ -644,6 +647,10 @@ describe("the transaction page's delegation", () => {
     expect(rule(pagesCss, ".sentby__why")).toMatchObject({ color: "var(--muted)", "font-size": "12.5px" });
   });
 
+  it("underlines the link in what that means: in dark its colour is 1.01:1 against the words round it (WCAG 1.4.1; axe, in light: link-in-text-block)", () => {
+    expect(rule(pagesCss, ".sentby__why a")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
+  });
+
   const DECLARED_ONCE = [".summary__note", ".sentby", ".sentby__why"];
   it.each(DECLARED_ONCE)("declares %s once in the sheet", (selector) => {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -665,6 +672,10 @@ describe("the end of a row of the account's Objects tab", () => {
     expect(rule(pagesCss, ".object__end")).toMatchObject({ display: "flex", "flex-direction": "column", "align-items": "flex-end", "margin-left": "auto" });
     expect(rule(pagesCss, ".object__tx")).toMatchObject({ display: "inline-flex", "align-items": "center", "min-height": "24px" });
     expect(pagesCss).toMatch(/@media \(max-width: 640px\) \{[^@]*\.object__end \{\s*align-items: flex-start;\s*margin-left: 0;\s*\}/);
+  });
+
+  it("gives the transaction's link 44 px on a touch screen and on a phone (spec 8), where it is a target of its own", () => {
+    expect(pagesCss).toMatch(/@media \(pointer: coarse\), \(max-width: 720px\) \{\s*\.object__tx \{\s*min-height: 44px;\s*\}/);
   });
 
   // Each class is declared once in the sheet but for the phone's rule: a second rule of the same selector later in the file would override the first without a word.

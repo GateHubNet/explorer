@@ -427,6 +427,12 @@ a.example:hover {
   text-wrap: pretty;
 }
 
+/* The link in its words is told from them by more than its colour (WCAG 1.4.1, axe's link-in-text-block): in dark it is 1.01:1 against them. */
+.sentby__why a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Where the money went: boxes joined by arrows. The way through (a pool, an offer) is set apart by a tint that is not plain
    --sunken: the account link in it is the accent, kept clear of AA by the same blend as a hovered row (transaction-css.test.ts). */
 .flow {
@@ -1057,7 +1063,7 @@ a.example:hover {
 }
 
 /* The end of a row, as the board has it: where the object leads (its page, the account's NFTs, the delegation) as a button, over the transaction that last changed it. The link under the
-   button is 24 px high, so the two targets do not crowd each other (WCAG 2.5.8). */
+   button is 24 px high, so the two targets do not crowd each other (WCAG 2.5.8), and 44 px (spec 8) on touch screens and phones, where it stands alone. */
 .object__end {
   display: flex;
   flex-direction: column;
@@ -1071,6 +1077,12 @@ a.example:hover {
   align-items: center;
   min-height: 24px;
   font-size: 13px;
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .object__tx {
+    min-height: 44px;
+  }
 }
 
 /* Delegation: the account's Delegation tab (ledger object pages spec 6.1, the board's layout). The intro and its legend side by side while there is room, the legend under the words on a

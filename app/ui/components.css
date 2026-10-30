@@ -1706,7 +1706,7 @@ a.tabs__item:hover {
 }
 
 /* ---------------------------------------------------------------------------------------------------------------
-   Ledger object pages: the states strip, the timeline, the check flow, the permission chip, the MPT amount
+   Ledger object pages: the states strip, the timeline, the check flow, the permission chip, the MPT amount, the link to an object
    (the boards Escrow.dc.html, Check.dc.html, PayChannel.dc.html and Delegation.dc.html; spec 5). The classes are these components' alone: test/unit/pages-css.test.ts
    keeps every other sheet from taking one. */
 
@@ -1931,6 +1931,13 @@ a.tabs__item:hover {
 }
 
 .mptamount a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* An escrow, a check or a channel in a sentence ("escrow 57978925", "a check"): `Sentence`'s link, wherever it stands (a transaction's words, a ledger's or an account's row). Its colour alone
+   does not tell it from the words round it (2.06 to 2.88:1 against the text, and axe does not see it: its heuristic wants more words than link), so it is underlined (WCAG 1.4.1). */
+.objectlink {
   text-decoration: underline;
   text-underline-offset: 3px;
 }

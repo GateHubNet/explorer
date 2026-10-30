@@ -374,11 +374,15 @@ describe("Sentence", () => {
       ["channel E22CCE…69EA", `/xrpl/payment-channels/${CHANNEL}`, CHANNEL],
     ]);
     expect(container.textContent).toBe(words);
+    // Told from the words round it by more than its colour: the class pages-css.test.ts pins the underline of.
+    expect(links.map((a) => a.className)).toEqual(Array(4).fill("objectlink"));
     cleanup();
 
     // On the sentence's network, and the same in a table's cell.
     renderUnderNetwork(<Sentence net="xahau" segments={objects} compact />, on, { network: XAHAU });
-    expect((await screen.findByRole("link", { name: "a check" })).getAttribute("href")).toBe(`/xahau/checks/${HASH}`);
+    const compact = await screen.findByRole("link", { name: "a check" });
+    expect(compact.getAttribute("href")).toBe(`/xahau/checks/${HASH}`);
+    expect(compact.className).toBe("objectlink");
     cleanup();
 
     // Off, whatever the other switches are (DELEGATION, NFTS): the words, and no link.
