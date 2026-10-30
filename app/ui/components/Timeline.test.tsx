@@ -91,6 +91,9 @@ describe("Timeline", () => {
     expect(ref.textContent).toBe(`${shortHash(CREATE_HASH)} · ledger #107,695,660`);
     const [hash, ledger] = within(ref as HTMLElement).getAllByRole("link");
     expect(hash!.getAttribute("href")).toBe(`/xrpl/tx/${CREATE_HASH}`);
+    // The link is named by what the transaction is, with the hash it shows (the board's `aria-label`; WCAG 2.5.3: the visible text is in the name).
+    expect(hash!.getAttribute("aria-label")).toBe(`EscrowCreate transaction ${shortHash(CREATE_HASH)}`);
+    expect(within(finish.querySelector(".timeline__ref") as HTMLElement).getAllByRole("link")[0]!.getAttribute("aria-label")).toBe(`EscrowFinish transaction ${shortHash(FINISH_HASH)}`);
     expect(ledger!.getAttribute("href")).toBe("/xrpl/ledger/107695660");
 
     // Delegated: "by" the account the transaction is from, and "sent by" the delegate that sent it.

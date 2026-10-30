@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { Segment } from "../../domain/describe";
-import { formatUtc } from "../../domain/format";
+import { formatUtc, shortHash } from "../../domain/format";
 import type { NetworkId } from "../../server/networks";
 import { cx } from "../cx";
 import { AccountLink } from "./AccountLink";
@@ -59,7 +59,7 @@ function whenOf(item: TimelineItem): ReactNode {
 /**
  * The history of a ledger object, oldest first, as a list with a dot for each line on a rail (the board's): a filled dot for a transaction, an outlined one for a time that
  * passed, a dashed one for what can still happen, whose type tag is a dashed ghost. A transaction names who sent it ("by", and "sent by" for a delegate, both through
- * `AccountLink`), its hash and its ledger. What an event did is `Sentence`'s. `footnote` says how to read it. `newer` and `older` are the hrefs of the other pages of events
+ * `AccountLink`), its hash (a link named "{type} transaction {hash}") and its ledger. What an event did is `Sentence`'s. `footnote` says how to read it. `newer` and `older` are the hrefs of the other pages of events
  * (the pager keeps the window where it is: the history starts mid-page); none, no pager.
  *
  * Every link in a line is underlined by the stylesheet (`.timeline__line`, except a chip and a named account, which tell themselves): a link in a sentence is told by more than its colour.
@@ -109,7 +109,7 @@ export function Timeline({
                 )}
                 {(item.hash !== undefined || item.ledger !== undefined) && (
                   <div className="timeline__line timeline__ref">
-                    {item.hash !== undefined && <HashLink net={net} kind="tx" hash={item.hash} />}
+                    {item.hash !== undefined && <HashLink net={net} kind="tx" hash={item.hash} label={`${item.type} transaction ${shortHash(item.hash)}`} />}
                     {item.hash !== undefined && item.ledger !== undefined && " · "}
                     {item.ledger !== undefined && (
                       <>

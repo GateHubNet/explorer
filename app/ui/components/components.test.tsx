@@ -211,6 +211,20 @@ describe("AccountLink, HashLink and LedgerLink", () => {
     expect(ledger!.textContent).toBe(HASH);
   });
 
+  it("name a hash link by a label that holds the text it shows (WCAG 2.5.3), and leave the name to its text without one", () => {
+    renderInRouter(
+      <>
+        <HashLink net="xrpl" kind="tx" hash={HASH} label={`EscrowFinish transaction ${HASH.slice(0, 6)}…${HASH.slice(-4)}`} />
+        <HashLink net="xrpl" kind="tx" hash={HASH} />
+      </>,
+    );
+    const [named, plain] = screen.getAllByRole("link");
+    expect(named!.getAttribute("aria-label")).toBe(`EscrowFinish transaction ${HASH.slice(0, 6)}…${HASH.slice(-4)}`);
+    expect(named!.textContent).toBe(`${HASH.slice(0, 6)}…${HASH.slice(-4)}`);
+    expect(screen.getByRole("link", { name: `EscrowFinish transaction ${HASH.slice(0, 6)}…${HASH.slice(-4)}` })).toBe(named);
+    expect(plain!.hasAttribute("aria-label")).toBe(false);
+  });
+
   it("link a ledger index with thousands separators", () => {
     renderInRouter(<LedgerLink net="xrpl" index={107695660} />);
     const link = screen.getByRole("link");
