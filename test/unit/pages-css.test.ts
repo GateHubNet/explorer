@@ -376,6 +376,34 @@ describe("the Testnet badge", () => {
   });
 });
 
+describe("the header's box and toggle", () => {
+  // The toggle is never alone on a row of its own (E11: with the Tokens item the bar fits one row from 1204 px of container, and between 1139 and 1203 the toggle was left on a row
+  // by itself, with the sandbox's Testnet badge from 1211 up). The box carries the room of the toggle and its gap as a margin and the toggle takes it back, so the two wrap together.
+  const toggle = Number.parseInt(rule(componentsCss, ".icon-btn").width!, 10);
+  const gap = Number.parseInt(rule(componentsCss, ".hdr__inner").gap!.split(/\s+/)[1]!, 10);
+  const room = `${toggle + gap}px`;
+
+  it("takes the room of the toggle and its gap: 44 px and the column gap of the header, 64 px", () => {
+    expect([toggle, gap, room]).toEqual([44, 20, "64px"]);
+  });
+
+  it("wraps the box and the toggle together above a phone: the box has the room as a margin and the toggle takes it back", () => {
+    expect(componentsCss).toMatch(
+      new RegExp(`@media \\(min-width: 721px\\) \\{\\s*\\.search--header \\{\\s*margin-right: ${room};\\s*\\}\\s*\\.search--header \\+ \\.hdr__tools \\{\\s*margin-left: -${room};\\s*\\}\\s*\\}`),
+    );
+  });
+
+  it("starts where the phone layout ends, which has its own rules for both", () => {
+    expect(componentsCss).toMatch(/@media \(max-width: 720px\) \{\s*\.hdr__inner \{/);
+    expect(componentsCss).toMatch(/@media \(max-width: 720px\) \{[^@]*\.search--header \{\s*order: 5;\s*flex: 1 1 100%;/);
+  });
+
+  it("leaves the box its flex and the toggle its auto margin outside that: no margin on a phone, and the toggle of a header without a box (the home page) stays at the right", () => {
+    expect(rule(componentsCss, ".search--header")).toEqual({ flex: "1 1 260px" });
+    expect(rule(componentsCss, ".hdr__tools")).toMatchObject({ "margin-left": "auto" });
+  });
+});
+
 describe("the classes of an account link (display names spec 4.4)", () => {
   // `.acct` was once the balance changes' account too, defined in pages.css, which `styles.css` imports after components.css: at equal specificity the later rule won on every named
   // `AccountLink`, which became a block-level flex box with an 8 px gap, and a name in a sentence broke the line. The classes of `AccountLink` and its marks are components.css's alone.

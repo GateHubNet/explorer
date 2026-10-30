@@ -310,6 +310,20 @@ a.nav-item:hover {
   flex: 1 1 260px;
 }
 
+/* The box and the toggle wrap together: the toggle is never alone on a row of its own, at any width and with the sandbox's Testnet badge too. The box carries the room of the
+   toggle and its gap (44 px and the 20 px column gap of .hdr__inner: 64 px) as a margin, so it fits on a row only where the toggle fits after it, and the toggle takes that
+   margin back, which leaves both where they stand when they fit. Where the box wraps, the toggle wraps with it, beside the box on the next row. A phone (below) gives the box
+   a row of its own and the toggle the top row; without a box (the home page) the toggle keeps its auto margin. */
+@media (min-width: 721px) {
+  .search--header {
+    margin-right: 64px;
+  }
+
+  .search--header + .hdr__tools {
+    margin-left: -64px;
+  }
+}
+
 /* In the header the hints float over the page; in the hero and on a 404 they are part of it. */
 .search--header .search__hints {
   position: absolute;
