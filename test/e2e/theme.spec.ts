@@ -1,5 +1,6 @@
 import type { BrowserContext, Page } from "@playwright/test";
 
+import { featuresOff } from "../../scripts/e2e-env";
 import { expect, hydrated, test } from "./support";
 
 // Light by default, dark when the system is dark, unless the visitor chose with the toggle (stored in localStorage). The page is
@@ -252,11 +253,14 @@ test.describe("the toggle in the header", () => {
     ["the box, on a page that has one", "/xrpl/network", "searchbox"],
     ["the nav, on the home page, which has no box", "/xrpl", "navigation"],
   ] as const;
+  /** The switches whose items are the "soon" labels while off: with any of them off the Worker's own nav is wider than the cases of "the Worker's nav" assume (E2E_FEATURES_OFF). */
+  const NAV_SWITCHES = ["TOKENS", "MARKETS", "AMM_PAGES", "NFTS"] as const;
 
   for (const [what, path, role] of CASES) {
     for (const production of [false, true]) {
       test(`shares a row with ${what}, and is on the page, at every width above a phone${production ? ", with the nav of production" : ""}`, async ({ page }) => {
-        // Some 290 widths, each a reflow and two boxes read.
+        test.skip(!production && NAV_SWITCHES.some((name) => featuresOff(process.env).has(name)), "a switch of the nav is off in the Worker under test: its nav is the one of production, which the other case draws");
+        // 145 widths, each a reflow and two boxes read.
         test.slow();
         await page.setViewportSize({ width: 1280, height: 800 });
         await page.goto(path);
@@ -267,14 +271,10 @@ test.describe("the toggle in the header", () => {
         const neighbour = role === "searchbox" ? header.getByRole("searchbox") : nav;
 
         if (production) {
-          // The label a switch that is off leaves, as Header draws it: a span with the label and its tag.
+          // The label a switch that is off leaves, as Header draws it: a span with the label and its tag, in the item's li. Whether the item is a link or already that label.
           for (const name of ["Tokens", "Markets", "AMM", "NFTs"]) {
-            await nav.getByRole("link", { name, exact: true }).evaluate((link, label) => {
-              const soon = document.createElement("span");
-              soon.className = "nav-item is-soon";
-              soon.setAttribute("aria-disabled", "true");
-              soon.innerHTML = `<span>${label}</span><span class="soon">soon</span>`;
-              link.replaceWith(soon);
+            await nav.getByRole("listitem").filter({ hasText: new RegExp(`^${name}(soon)?$`) }).evaluate((item, label) => {
+              item.innerHTML = `<span class="nav-item is-soon" aria-disabled="true"><span>${label}</span><span class="soon">soon</span></span>`;
             }, name);
           }
         }
