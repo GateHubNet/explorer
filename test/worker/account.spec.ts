@@ -85,6 +85,16 @@ async function withHistory(address: string, health: Health = {}, extra: Override
 const requests = (m: UpstreamMock, kind: "node" | "data-api") => m.requests.filter((r) => r.kind === kind);
 
 /**
+ * The text of the page's main, where the account's own content is: the header has words of its own (its Tokens item, E11) that the Tokens card's title must not be mistaken for. It
+ * throws where the page has no main, so that a check made on it can never be vacuous.
+ */
+function mainTextOf(html: string): string {
+  const start = html.indexOf('<main id="main"');
+  if (start < 0) throw new Error('the page has no <main id="main">');
+  return textOf(html.slice(start));
+}
+
+/**
  * What a `.data` URL (a client-side navigation, a Retry) answers, decoded. It is turbo-stream: a flat list in which every key, string and
  * value is an element and objects and lists refer to elements by index, then one line `P<id>:[...]` for each promise of the data when it
  * settles, continuing the same index space. A promise is decoded in place; one that never settled is `"pending"`.
@@ -452,8 +462,7 @@ describe("a deleted account", () => {
     expect(text).toContain("Deleted This account was deleted from the ledger");
     expect(text).toContain("The account no longer exists");
     expect(text).not.toContain("Live state unavailable");
-    // The Tokens card, not the header's Tokens item (E11), which is on every page: the page's main only.
-    expect(textOf(html.slice(html.indexOf('<main id="main"')))).not.toContain("Tokens");
+    expect(mainTextOf(html)).not.toContain("Tokens");
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Sequence");
     const rows = tableRows(html, "Transactions");
@@ -1417,8 +1426,7 @@ describe("paging", () => {
     expect(text).not.toContain("Activation is not in the index");
     expect(text).toContain("does not show the balance or the live state");
     expect(text).not.toContain("Sequence");
-    // The Tokens card, not the header's Tokens item (E11), which is on every page: the page's main only.
-    expect(textOf(html.slice(html.indexOf('<main id="main"')))).not.toContain("Tokens");
+    expect(mainTextOf(html)).not.toContain("Tokens");
     expect(text).not.toContain("Owned objects");
     expect(text).not.toContain("Live state unavailable");
     expect(hrefs(html)).toContain(`/xrpl/account/${a}`);

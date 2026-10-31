@@ -1293,6 +1293,11 @@ describe("Header and Shell", () => {
       return within(await screen.findByRole("navigation", { name: "Main" }));
     }
 
+    /** The label of each item of the navigation, in order: a link's text, or a "soon" item's own label without its tag. */
+    function labelsOf(nav: ReturnType<typeof within>) {
+      return nav.getAllByRole("listitem").map((item: HTMLElement) => (item.querySelector(".nav-item.is-soon > span:first-child") ?? item.querySelector("a.nav-item"))!.textContent);
+    }
+
     function expectSoon(nav: ReturnType<typeof within>, label: string) {
       const item = nav.getByText(label).closest(".nav-item")!;
       expect(item.classList.contains("is-soon")).toBe(true);
@@ -1556,11 +1561,6 @@ describe("Header and Shell", () => {
       const NFT_ID = "000B013A95F14B0044F78A264E41713C64B5F89242540EE208C3098E00000D65";
       const NFTS_ON = { ...NO_FEATURES, nfts: true };
 
-      /** The label of each item of the navigation, in order: a link's text, or a "soon" item's own label without its tag. */
-      function labelsOf(nav: ReturnType<typeof within>) {
-        return nav.getAllByRole("listitem").map((item: HTMLElement) => (item.querySelector(".nav-item.is-soon > span:first-child") ?? item.querySelector("a.nav-item"))!.textContent);
-      }
-
       it("is the last item, after AMM, whether it is a link or the label", async () => {
         expect(labelsOf(await renderHeaderWithFeatures(NFTS_ON))).toEqual(["Ledgers", "Transactions", "Tokens", "Network", "Markets", "AMM", "NFTs"]);
         cleanup();
@@ -1637,11 +1637,6 @@ describe("Header and Shell", () => {
     describe("Tokens, while TOKENS is off and on", () => {
       const TOKEN = "RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
       const TOKENS_ON = { ...NO_FEATURES, tokens: true };
-
-      /** The label of each item of the navigation, in order: a link's text, or a "soon" item's own label without its tag. */
-      function labelsOf(nav: ReturnType<typeof within>) {
-        return nav.getAllByRole("listitem").map((item: HTMLElement) => (item.querySelector(".nav-item.is-soon > span:first-child") ?? item.querySelector("a.nav-item"))!.textContent);
-      }
 
       it("puts Tokens after Transactions and before Network, a link with TOKENS on", async () => {
         const nav = await renderHeaderWithFeatures(TOKENS_ON);

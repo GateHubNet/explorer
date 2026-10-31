@@ -376,29 +376,77 @@ describe("the Testnet badge", () => {
   });
 });
 
-describe("the header's box and toggle", () => {
-  // The toggle is never alone on a row of its own (E11: with the Tokens item the bar fits one row from 1204 px of container, and between 1139 and 1203 the toggle was left on a row
-  // by itself, with the sandbox's Testnet badge from 1211 up). The box carries the room of the toggle and its gap as a margin and the toggle takes it back, so the two wrap together.
+/** What is inside the braces of every media block that starts `@media ${query} {`, one after the other (the sheet's queries are flat). */
+function mediaBlocks(css: string, query: string): string {
+  const head = `@media ${query} {`;
+  const blocks: string[] = [];
+  for (let start = css.indexOf(head); start >= 0; start = css.indexOf(head, start + head.length)) {
+    const open = start + head.length - 1;
+    let depth = 0;
+    for (let i = open; i < css.length; i++) {
+      if (css[i] === "{") depth++;
+      if (css[i] === "}" && --depth === 0) {
+        blocks.push(css.slice(open + 1, i));
+        break;
+      }
+    }
+  }
+  if (blocks.length === 0) throw new Error(`no @media ${query}`);
+  return blocks.join("\n");
+}
+
+/** The rules of a block as selector to declarations. */
+function rulesOf(block: string): Record<string, Record<string, string>> {
+  return Object.fromEntries(
+    [...block.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => [
+      selector!.trim(),
+      Object.fromEntries(
+        body!
+          .split(";")
+          .map((declaration) => declaration.trim())
+          .filter(Boolean)
+          .map((declaration) => [declaration.slice(0, declaration.indexOf(":")).trim(), declaration.slice(declaration.indexOf(":") + 1).trim()]),
+      ),
+    ]),
+  );
+}
+
+describe("the header's toggle", () => {
+  // The toggle is never alone on a row of its own, at any width and in any environment (the sandbox's badge makes the header wider): the item before it in the markup, the box or the nav where
+  // there is no box (the home page), carries the room of the toggle and its gap as a margin and the toggle takes it back, so the two wrap together. A width at which it would be alone moves
+  // with the nav's items, the badge and the fonts, so it is not named here: `test/e2e/theme.spec.ts` sweeps the widths in a browser.
   const toggle = Number.parseInt(rule(componentsCss, ".icon-btn").width!, 10);
   const gap = Number.parseInt(rule(componentsCss, ".hdr__inner").gap!.split(/\s+/)[1]!, 10);
-  const room = `${toggle + gap}px`;
+  const room = "var(--hdr-tools-room)";
+  const takenBack = { "margin-left": `calc(-1 * ${room})` };
+  const rules = rulesOf(mediaBlocks(componentsCss, "(min-width: 721px)"));
 
-  it("takes the room of the toggle and its gap: 44 px and the column gap of the header, 64 px", () => {
-    expect([toggle, gap, room]).toEqual([44, 20, "64px"]);
+  it("takes the room of the toggle and its gap: the width of the toggle and the column gap of the header", () => {
+    expect([toggle, gap]).toEqual([44, 20]);
+    expect(rules[".hdr__inner"]).toEqual({ "--hdr-tools-room": `calc(${toggle}px + ${gap}px)` });
   });
 
-  it("wraps the box and the toggle together above a phone: the box has the room as a margin and the toggle takes it back", () => {
-    expect(componentsCss).toMatch(
-      new RegExp(`@media \\(min-width: 721px\\) \\{\\s*\\.search--header \\{\\s*margin-right: ${room};\\s*\\}\\s*\\.search--header \\+ \\.hdr__tools \\{\\s*margin-left: -${room};\\s*\\}\\s*\\}`),
-    );
+  it("gives the room to the box as a margin, and the toggle that follows it takes it back", () => {
+    expect(rules[".search--header"]).toEqual({ "margin-right": room });
+    expect(rules[".search--header + .hdr__tools"]).toEqual(takenBack);
   });
 
-  it("starts where the phone layout ends, which has its own rules for both", () => {
-    expect(componentsCss).toMatch(/@media \(max-width: 720px\) \{\s*\.hdr__inner \{/);
-    expect(componentsCss).toMatch(/@media \(max-width: 720px\) \{[^@]*\.search--header \{\s*order: 5;\s*flex: 1 1 100%;/);
+  it("gives it to the nav where there is no box, which grows so that the toggle stays at the right, and the toggle that follows it takes it back", () => {
+    expect(rules[".hdr__nav:has(+ .hdr__tools)"]).toEqual({ flex: "1 1 auto", "margin-right": room });
+    expect(rules[".hdr__nav:has(+ .hdr__tools) + .hdr__tools"]).toEqual(takenBack);
+    // Nothing else is in the block: a rule of it is a rule for every page above a phone.
+    expect(Object.keys(rules)).toHaveLength(5);
   });
 
-  it("leaves the box its flex and the toggle its auto margin outside that: no margin on a phone, and the toggle of a header without a box (the home page) stays at the right", () => {
+  it("starts where the phone layout ends, which has its own rules for the box, the nav and the toggle", () => {
+    const phone = rulesOf(mediaBlocks(componentsCss, "(max-width: 720px)"));
+    expect(phone[".search--header"]).toMatchObject({ order: "5", flex: "1 1 100%" });
+    expect(phone[".hdr__nav"]).toMatchObject({ display: "none", order: "4", flex: "1 1 100%" });
+    expect(phone[".hdr__tools"]).toEqual({ order: "2" });
+    expect(componentsCss.split("@media (min-width: 721px) {")).toHaveLength(2);
+  });
+
+  it("leaves the box its flex and the toggle its auto margin outside that: on a phone the margins are none and auto", () => {
     expect(rule(componentsCss, ".search--header")).toEqual({ flex: "1 1 260px" });
     expect(rule(componentsCss, ".hdr__tools")).toMatchObject({ "margin-left": "auto" });
   });

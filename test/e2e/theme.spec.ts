@@ -241,3 +241,36 @@ test.describe("the theme", () => {
     expect(await dataTheme(page)).toBe("dark");
   });
 });
+
+// The toggle is the last of the header's items, and it is never left alone on a row of its own (E11: the Tokens item made the bar wider, and a band of widths put the toggle on a second row
+// by itself). It shares the row of the box on a page that has one, and of the nav on the home page, which has none, at every width above a phone. Which widths were the band depends on the
+// nav's items and the fonts, so the test takes every few pixels from 721 to 1300 (the phone layout below has its own rows); the unit test of components.css pins the rule.
+test.describe("the toggle in the header", () => {
+  const CASES = [
+    ["the box, on a page that has one", "/xrpl/network", "searchbox"],
+    ["the nav, on the home page, which has no box", "/xrpl", "navigation"],
+  ] as const;
+
+  for (const [what, path, role] of CASES) {
+    test(`shares a row with ${what}, at every width above a phone`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(path);
+      await hydrated(page);
+      const header = page.getByRole("banner");
+      const toggle = header.getByRole("button", { name: "Dark theme" });
+      const neighbour = role === "searchbox" ? header.getByRole("searchbox") : header.getByRole("navigation", { name: "Main" });
+      const centre = async (locator: typeof toggle) => {
+        const box = await locator.boundingBox();
+        expect(box, "the item is drawn").not.toBeNull();
+        return box!.y + box!.height / 2;
+      };
+
+      const apart: number[] = [];
+      for (let width = 721; width <= 1300; width += 4) {
+        await page.setViewportSize({ width, height: 800 });
+        if (Math.abs((await centre(toggle)) - (await centre(neighbour))) > 2) apart.push(width);
+      }
+      expect(apart, `the widths at which the toggle is not on the row of ${what}`).toEqual([]);
+    });
+  }
+});

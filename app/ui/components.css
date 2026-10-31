@@ -310,17 +310,32 @@ a.nav-item:hover {
   flex: 1 1 260px;
 }
 
-/* The box and the toggle wrap together: the toggle is never alone on a row of its own, at any width and with the sandbox's Testnet badge too. The box carries the room of the
-   toggle and its gap (44 px and the 20 px column gap of .hdr__inner: 64 px) as a margin, so it fits on a row only where the toggle fits after it, and the toggle takes that
-   margin back, which leaves both where they stand when they fit. Where the box wraps, the toggle wraps with it, beside the box on the next row. A phone (below) gives the box
-   a row of its own and the toggle the top row; without a box (the home page) the toggle keeps its auto margin. */
+/* The toggle is never alone on a row of its own, at any width and with the sandbox's Testnet badge too: what comes before it in the markup (the box, or the nav where there is no
+   box: the home page) carries the room of the toggle and its gap (44 px and the 20 px column gap of .hdr__inner) as a margin, so it fits on a row only where the toggle fits after
+   it, and the toggle takes that margin back, which leaves both where they stand when they fit. Where that item wraps, the toggle wraps with it, beside it on the next row. The
+   toggle must follow the box (or the nav) directly in Header.tsx: another item between them would leave the margin as a gap. The nav grows (the toggle's auto margin is gone) so that
+   the toggle stays at the right. A phone (below) gives the box a row of its own and the toggle the top row. 721 px is the phone block's 720 and one: this sheet's media queries have no
+   range syntax. A browser without `:has` keeps the nav rules out, together, and the toggle may then wrap alone on the home page, as it did. */
 @media (min-width: 721px) {
+  .hdr__inner {
+    --hdr-tools-room: calc(44px + 20px);
+  }
+
   .search--header {
-    margin-right: 64px;
+    margin-right: var(--hdr-tools-room);
   }
 
   .search--header + .hdr__tools {
-    margin-left: -64px;
+    margin-left: calc(-1 * var(--hdr-tools-room));
+  }
+
+  .hdr__nav:has(+ .hdr__tools) {
+    flex: 1 1 auto;
+    margin-right: var(--hdr-tools-room);
+  }
+
+  .hdr__nav:has(+ .hdr__tools) + .hdr__tools {
+    margin-left: calc(-1 * var(--hdr-tools-room));
   }
 }
 
