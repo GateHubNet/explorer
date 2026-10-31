@@ -242,9 +242,11 @@ test.describe("the theme", () => {
   });
 });
 
-// The toggle is the last of the header's items, and it is never left alone on a row of its own (E11: the Tokens item made the bar wider, and a band of widths put the toggle on a second row
-// by itself). It shares the row of the box on a page that has one, and of the nav on the home page, which has none, at every width above a phone. Which widths were the band depends on the
-// nav's items and the fonts, so the test takes every few pixels from 721 to 1300 (the phone layout below has its own rows); the unit test of components.css pins the rule.
+// The toggle is the last of the header's items, and it is never left alone on a row of its own, nor drawn outside the page (E11: the Tokens item made the bar wider, and a band of widths put the
+// toggle on a second row by itself; the rule that mends it moves the toggle by a margin, which must never take it off the page). It shares the row of the box on a page that has one, and of
+// the nav on the home page, which has none, at every width above a phone. Which widths were the band depends on the nav's items and the fonts, so the test takes every few pixels from 721
+// to 1300 (the phone layout below has its own rows), with the nav as the Worker under test draws it (every switch on) and as production draws it today (Tokens, Markets, AMM and NFTs are
+// the "soon" labels: about 700 px of items); the unit test of components.css pins the rule.
 test.describe("the toggle in the header", () => {
   const CASES = [
     ["the box, on a page that has one", "/xrpl/network", "searchbox"],
@@ -252,25 +254,52 @@ test.describe("the toggle in the header", () => {
   ] as const;
 
   for (const [what, path, role] of CASES) {
-    test(`shares a row with ${what}, at every width above a phone`, async ({ page }) => {
-      await page.setViewportSize({ width: 1280, height: 800 });
-      await page.goto(path);
-      await hydrated(page);
-      const header = page.getByRole("banner");
-      const toggle = header.getByRole("button", { name: "Dark theme" });
-      const neighbour = role === "searchbox" ? header.getByRole("searchbox") : header.getByRole("navigation", { name: "Main" });
-      const centre = async (locator: typeof toggle) => {
-        const box = await locator.boundingBox();
-        expect(box, "the item is drawn").not.toBeNull();
-        return box!.y + box!.height / 2;
-      };
+    for (const production of [false, true]) {
+      test(`shares a row with ${what}, and is on the page, at every width above a phone${production ? ", with the nav of production" : ""}`, async ({ page }) => {
+        // Some 290 widths, each a reflow and two boxes read.
+        test.slow();
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.goto(path);
+        await hydrated(page);
+        const header = page.getByRole("banner");
+        const nav = header.getByRole("navigation", { name: "Main" });
+        const toggle = header.getByRole("button", { name: "Dark theme" });
+        const neighbour = role === "searchbox" ? header.getByRole("searchbox") : nav;
 
-      const apart: number[] = [];
-      for (let width = 721; width <= 1300; width += 4) {
-        await page.setViewportSize({ width, height: 800 });
-        if (Math.abs((await centre(toggle)) - (await centre(neighbour))) > 2) apart.push(width);
-      }
-      expect(apart, `the widths at which the toggle is not on the row of ${what}`).toEqual([]);
-    });
+        if (production) {
+          // The label a switch that is off leaves, as Header draws it: a span with the label and its tag.
+          for (const name of ["Tokens", "Markets", "AMM", "NFTs"]) {
+            await nav.getByRole("link", { name, exact: true }).evaluate((link, label) => {
+              const soon = document.createElement("span");
+              soon.className = "nav-item is-soon";
+              soon.setAttribute("aria-disabled", "true");
+              soon.innerHTML = `<span>${label}</span><span class="soon">soon</span>`;
+              link.replaceWith(soon);
+            }, name);
+          }
+        }
+        // The items are as wide as they are in production: 512 px with every switch on, about 700 with the four labels.
+        const items = await nav.getByRole("listitem").evaluateAll((lis) => lis.reduce((sum, li) => sum + li.getBoundingClientRect().width, 0));
+        expect(items, "the nav's items together").toBeGreaterThan(production ? 620 : 480);
+        expect(items).toBeLessThan(production ? 800 : 600);
+
+        const box = async (locator: typeof toggle) => {
+          const found = await locator.boundingBox();
+          expect(found, "the item is drawn").not.toBeNull();
+          return found!;
+        };
+        const apart: number[] = [];
+        const outside: number[] = [];
+        for (let width = 721; width <= 1300; width += 4) {
+          await page.setViewportSize({ width, height: 800 });
+          const at = await box(toggle);
+          const next = await box(neighbour);
+          if (Math.abs(at.y + at.height / 2 - (next.y + next.height / 2)) > 2) apart.push(width);
+          if (at.x < 0 || at.x + at.width > width || at.y < 0) outside.push(width);
+        }
+        expect.soft(apart, `the widths at which the toggle is not on the row of ${what}`).toEqual([]);
+        expect(outside, "the widths at which the toggle is not inside the page").toEqual([]);
+      });
+    }
   }
 });

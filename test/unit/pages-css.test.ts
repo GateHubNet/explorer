@@ -431,8 +431,9 @@ describe("the header's toggle", () => {
     expect(rules[".search--header + .hdr__tools"]).toEqual(takenBack);
   });
 
-  it("gives it to the nav where there is no box, which grows so that the toggle stays at the right, and the toggle that follows it takes it back", () => {
-    expect(rules[".hdr__nav:has(+ .hdr__tools)"]).toEqual({ flex: "1 1 auto", "margin-right": room });
+  it("gives it to the nav where there is no box, which grows so that the toggle stays at the right and is held to a row less the room, and the toggle that follows it takes it back", () => {
+    // The cap is what keeps the nav, with the room, on one row: a nav wider than that (production's, with its "soon" labels) would be alone on its line and leave the toggle off the page.
+    expect(rules[".hdr__nav:has(+ .hdr__tools)"]).toEqual({ flex: "1 1 auto", "max-width": `calc(100% - ${room})`, "margin-right": room });
     expect(rules[".hdr__nav:has(+ .hdr__tools) + .hdr__tools"]).toEqual(takenBack);
     // Nothing else is in the block: a rule of it is a rule for every page above a phone.
     expect(Object.keys(rules)).toHaveLength(5);
