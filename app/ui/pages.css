@@ -5335,3 +5335,159 @@ a.markets__pair:hover .markets__name {
     font-size: 22px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Supply: /{net}/supply (spec 5): the heading with the snapshot it is a picture of, the bar of where the currency is with its figures under it,
+   and the cards of days. The classes of the chart kit and of the tile (the card, the compact share bar, `.stat__formula`) are the kit's and are
+   not defined here; this sheet places them. The page is a column of cards that folds to the width of a phone with nothing to scroll sideways. */
+
+.supply {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* The heading at the left and the snapshot line at its right, on the heading's last line; the line goes under the heading when the two do not fit, and on a phone always. */
+.supply__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.supply__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.supply__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.supply__intro {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+.supply__snapshot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+/* The ledger is a link inside a sentence: its colour alone would not tell it from the words around it (axe: link-in-text-block). */
+.supply__snapshot a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.supply__text {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The bar, its burned line over it and its bracket under it share one column, so that the bracket's percent is a share of the bar's own width. */
+.supply__scale {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The sliver of burned XRP is told in words over the bar: a 2 px rule in the burned slot's colour at its left (a border, not text: no text wears a series colour). */
+.supply__burned {
+  padding: 0 0 6px 8px;
+  border-left: 2px solid var(--series-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.supply__burned b,
+.supply__part-text b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* The bracket of circulating: from where its segment starts (the page gives the margin in percent) to the end of the bar, the words centred under it. */
+.supply__part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.supply__bracket {
+  align-self: stretch;
+  height: 8px;
+  border: 1px solid var(--border-strong);
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+}
+
+.supply__part-text {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* The exact figure of a tile, the fraction in the muted colour so that the whole reads first and the currency after both. A figure of 25 characters at 24 px is wider than a tile on a phone
+   (about 300 px): it breaks anywhere rather than run out of the tile. */
+.supply__figure {
+  overflow-wrap: anywhere;
+}
+
+.supply__fraction {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.supply__currency {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* What is under a tile's figure, one line each: the formula, the definition, the sub line and the coverage note. */
+.supply__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The minted card and the note of its days' coverage, which stands under the card (a paragraph is not drawn inside the card's note paragraphs). */
+.supply__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .supply__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .supply__snapshot {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .supply__title {
+    font-size: 24px;
+  }
+}

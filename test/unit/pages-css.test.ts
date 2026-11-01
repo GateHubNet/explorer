@@ -880,3 +880,54 @@ describe("the hints of the search box", () => {
     expect(rule(componentsCss, ".search__hints .hit__detail")["flex-basis"]).toBe("8rem");
   });
 });
+
+describe("the supply page", () => {
+  const phone = rulesOf(mediaBlocks(pagesCss, "(max-width: 640px)"));
+
+  it("puts the snapshot line at the right of the heading's row, and under the heading on a phone: the heading's row becomes a column and the line is left-aligned", () => {
+    expect(rule(pagesCss, ".supply__head")).toMatchObject({ display: "flex", "flex-wrap": "wrap", "justify-content": "space-between" });
+    expect(rule(pagesCss, ".supply__snapshot")).toMatchObject({ "align-items": "flex-end", "text-align": "right" });
+    expect(phone[".supply__head"]).toMatchObject({ "flex-direction": "column", "align-items": "flex-start" });
+    expect(phone[".supply__snapshot"]).toMatchObject({ "align-items": "flex-start", "text-align": "left" });
+    expect(Number.parseFloat(phone[".supply__title"]!["font-size"]!)).toBeLessThan(Number.parseFloat(rule(pagesCss, ".supply__title")["font-size"]!));
+  });
+
+  it("mutes the fraction of an exact figure and the currency after it, in the colour of the secondary text", () => {
+    expect(rule(pagesCss, ".supply__fraction").color).toBe("var(--muted)");
+    expect(rule(pagesCss, ".supply__currency").color).toBe("var(--muted)");
+  });
+
+  it("breaks a long figure anywhere, so that a tile on a phone never scrolls sideways", () => {
+    expect(rule(pagesCss, ".supply__figure")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".supply__part-text")["overflow-wrap"]).toBe("anywhere");
+    expect(rule(pagesCss, ".supply__notes")["min-width"]).toBe("0");
+    expect(rule(pagesCss, ".supply__scale")["min-width"]).toBe("0");
+  });
+
+  it("underlines the ledger in the snapshot line: its colour alone would not tell it from the words around it (axe: link-in-text-block)", () => {
+    expect(rule(pagesCss, ".supply__snapshot a")["text-decoration"]).toBe("underline");
+  });
+
+  it("draws the burned line with a 2 px rule in the burned slot's colour at its left, and no text in a series colour", () => {
+    const burned = rule(pagesCss, ".supply__burned");
+    expect(burned["border-left"]).toBe("2px solid var(--series-2)");
+    expect(burned.color).toBe("var(--muted)");
+  });
+
+  it("draws the bracket under circulating as a box open at the top that spans the width of the bar from the page's margin to the end", () => {
+    expect(rule(pagesCss, ".supply__part")).toMatchObject({ display: "flex", "flex-direction": "column", "align-items": "center" });
+    expect(rule(pagesCss, ".supply__bracket")).toMatchObject({ "align-self": "stretch", "border-top": "0" });
+  });
+
+  it("declares its heading rules once in the sheet, the phone's rules aside", () => {
+    const outsideMedia = pagesCss.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*\s*\}/g, "");
+    for (const selector of [".supply__head", ".supply__snapshot", ".supply__title"]) {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      expect(outsideMedia.match(new RegExp(`(?:^|[},])\\s*${escaped}\\s*[{,]`, "gm")) ?? [], selector).toHaveLength(1);
+    }
+  });
+
+  it("defines none of the kit's classes (the compact bar, the tile's formula and aside, the card): this sheet places them", () => {
+    expect(pagesCss).not.toMatch(/\.share--compact|\.share__caption|\.stat__formula|\.stat__aside|\.stat-grid--wide|\.chart__head/);
+  });
+});
