@@ -105,6 +105,62 @@ describe("SegmentedLinks", () => {
     expect(screen.getByText("Period").className).toBe("seglinks__label");
   });
 
+  describe("a disabled segment (a view that cannot be chosen yet)", () => {
+    const KINDS: SegmentLink[] = [
+      { label: "Issued tokens", href: "/xrpl/tokens", current: true },
+      { label: "MPT", href: "/xrpl/tokens?kind=mpt", current: false, disabled: { tag: "soon" } },
+    ];
+
+    it("is a span that says it is disabled, not a link, with its tag visible and the other segments as they were", () => {
+      const { container } = render(routed(<SegmentedLinks label="Kind of token" links={KINDS} />).element);
+      const group = screen.getByRole("group", { name: "Kind of token" });
+      expect(within(group).getAllByRole("link").map((link) => link.textContent)).toEqual(["Issued tokens"]);
+      const disabled = container.querySelector(".netswitch__item.is-disabled")!;
+      expect(disabled.tagName).toBe("SPAN");
+      expect(disabled.getAttribute("aria-disabled")).toBe("true");
+      expect(disabled.hasAttribute("href")).toBe(false);
+      expect(disabled.hasAttribute("aria-current")).toBe(false);
+      expect(disabled.textContent).toBe("MPTsoon");
+      expect(disabled.querySelector(".soon")!.textContent).toBe("soon");
+      expect(disabled.hasAttribute("aria-describedby")).toBe(false);
+      expect(container.querySelector(".seglinks__note")).toBeNull();
+    });
+
+    it("tells why in a note the segment is described by, drawn beside the control", () => {
+      const links: SegmentLink[] = [KINDS[0]!, { label: "MPT", href: "/xahau/tokens?kind=mpt", current: false, disabled: { note: "MPT isn't enabled on Xahau." } }];
+      const { container } = render(routed(<SegmentedLinks label="Kind of token" links={links} />).element);
+      const disabled = container.querySelector(".netswitch__item.is-disabled")!;
+      expect(disabled.querySelector(".soon")).toBeNull();
+      const note = container.querySelector(".seglinks__note")!;
+      expect(note.textContent).toBe("MPT isn't enabled on Xahau.");
+      expect(note.id).not.toBe("");
+      expect(disabled.getAttribute("aria-describedby")).toBe(note.id);
+      expect(note.closest(".seglinks")).not.toBeNull();
+      // Beside the group, not in it: the group holds the segments alone.
+      expect(note.closest('[role="group"]')).toBeNull();
+    });
+
+    it("gives each note of two disabled segments an id of its own", () => {
+      const links: SegmentLink[] = [
+        { label: "A", href: "/a", current: false, disabled: { note: "No A." } },
+        { label: "B", href: "/b", current: true },
+        { label: "C", href: "/c", current: false, disabled: { note: "No C." } },
+      ];
+      const { container } = render(routed(<SegmentedLinks label="Kind" links={links} />).element);
+      const [a, c] = [...container.querySelectorAll(".is-disabled")];
+      expect(a!.getAttribute("aria-describedby")).not.toBe(c!.getAttribute("aria-describedby"));
+      expect(document.getElementById(a!.getAttribute("aria-describedby")!)!.textContent).toBe("No A.");
+      expect(document.getElementById(c!.getAttribute("aria-describedby")!)!.textContent).toBe("No C.");
+    });
+
+    it("is the same on the server as in the browser", async () => {
+      const links: SegmentLink[] = [KINDS[0]!, { label: "MPT", href: "/xahau/tokens?kind=mpt", current: false, disabled: { tag: "soon", note: "Not yet." } }];
+      const { container, errors } = await serverThenHydrated(routed(<SegmentedLinks label="Kind of token" links={links} />).element);
+      expect(errors).toEqual([]);
+      expect(container.querySelector(".is-disabled")!.getAttribute("aria-describedby")).toBe(container.querySelector(".seglinks__note")!.id);
+    });
+  });
+
   it("is the same on the server as in the browser", async () => {
     const { html, container, errors } = await serverThenHydrated(routed(<SegmentedLinks label="Period" links={PERIOD} />).element);
     expect(html).toContain('class="seglinks__label"');

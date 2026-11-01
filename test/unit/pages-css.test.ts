@@ -357,6 +357,36 @@ describe("the AMM pool page", () => {
   });
 });
 
+describe("the token list", () => {
+  it("makes the table's scroll region a containing block, so that the visually hidden words of a cell (`.sr`, absolute) stay inside it and do not widen the page", () => {
+    expect(rule(baseCss, ".sr").position).toBe("absolute");
+    expect(rule(pagesCss, ".tokens__table").position).toBe("relative");
+  });
+
+  it("gives the form's controls and the pager 44 px targets, and the links of the table a target of at least 24 px (WCAG 2.5.8)", () => {
+    for (const selector of [".tokens__field", ".tokens__submit,\n.tokens__all", ".tokens .pager .btn"]) {
+      expect(Number.parseFloat(rule(pagesCss, selector)["min-height"]!), selector).toBeGreaterThanOrEqual(44);
+    }
+    expect(Number.parseFloat(rule(pagesCss, ".tokens__table a")["min-height"]!)).toBeGreaterThanOrEqual(24);
+  });
+
+  it("underlines the link inside the note's sentence: its colour alone would not tell it from the words around it (axe: link-in-text-block)", () => {
+    expect(rule(pagesCss, ".tokens__more")["text-decoration"]).toBe("underline");
+    expect(rule(pagesCss, ".tokens__more")["text-underline-offset"]).toBe("3px");
+  });
+
+  it("is one column of rows 18 px apart, as the board is", () => {
+    expect(rule(pagesCss, ".tokens")).toMatchObject({ display: "flex", "flex-direction": "column", gap: "18px" });
+  });
+});
+
+describe("a disabled segment of the segmented links", () => {
+  it("is quieter than a link and keeps its colour on hover; its note sits beside the control", () => {
+    expect(rule(componentsCss, ".netswitch__item.is-disabled,\n.netswitch__item.is-disabled:hover")).toMatchObject({ color: "var(--faint)", cursor: "not-allowed" });
+    expect(rule(componentsCss, ".seglinks__note").display).toBe("inline-flex");
+  });
+});
+
 describe("the Testnet badge", () => {
   it("draws the testnet pill as the board's .tnet", () => {
     expect(rule(componentsCss, ".pill--testnet")).toMatchObject({

@@ -4826,3 +4826,217 @@ a.markets__pair:hover .markets__name {
     font-size: 22px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Tokens: /{net}/tokens (E11; the Tokens board's layout: one column of rows, the table scrolling sideways inside its card on a phone). The classes of the chart kit (charts.css) are never
+   defined here, the source line's included; the coin is the AMM list's `.amm__coin`, the kind tabs the components' `.seglinks`, the toml mark their `.st st--ok`. */
+
+.tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.tokens__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tokens__title {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.tokens__intro {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+/* The kind tabs (and the note of a disabled one) with the source line after them, under them when there is no room. */
+.tokens__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+/* The filters: the search form and Show all on one line while they fit, each 44 px high. */
+.tokens__filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tokens__form {
+  display: flex;
+  flex: 1 1 420px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.tokens__label {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.tokens__field {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 420px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--sunken);
+}
+
+/* A search that was too long: the field's border says it with the message, which is tied to the field (`aria-describedby`). */
+.tokens__field.is-invalid {
+  border-color: var(--bad);
+}
+
+/* The ring is the field's: the input inside it has none of its own. */
+.tokens__field:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.tokens__icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.tokens__input {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.tokens__input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.tokens__submit,
+.tokens__all {
+  min-height: 44px;
+}
+
+.tokens__error {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.tokens__error svg {
+  flex: none;
+}
+
+/* The table: rows of 58 px, the header row 40 px, 8 px above and below a row's content so that a row a long name wraps in does not touch its borders. A figure longer than its track wraps
+   inside its cell and never widens the table. The scroll region is a containing block, so that the visually hidden words of a cell (`.sr`, absolute) stay inside it and do not widen the
+   page. */
+.tokens__table {
+  position: relative;
+  overflow-wrap: anywhere;
+}
+
+.tokens__table .table__row {
+  min-height: 58px;
+  padding-block: 8px;
+}
+
+.tokens__table .table__head {
+  min-height: 40px;
+}
+
+/* A link in a cell is at least 24 px high (WCAG 2.5.8). */
+.tokens__table a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.tokens__rank {
+  font-size: 12px;
+}
+
+/* The token: its coin, then the code with the toml's name under it; the whole cell is the link (or the text, for a code with no page). */
+.tokens__token {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--fg);
+}
+
+.tokens__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.tokens__code {
+  font-weight: 600;
+}
+
+.tokens__name {
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokens__foot {
+  align-items: flex-start;
+}
+
+.tokens__notes {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+/* The link to the matches among the tokens with fewer holders sits inside the note's sentence: told from the words around it by more than its colour (WCAG 1.4.1, axe's link-in-text-block),
+   and 24 px high as a link in a cell is. */
+.tokens__more {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The pager of the list has 44 px buttons, as the form's are (the kit's are 36 px on a desktop). */
+.tokens .pager .btn {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .tokens__title {
+    font-size: 24px;
+  }
+}

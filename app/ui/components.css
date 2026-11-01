@@ -231,6 +231,25 @@ a.nav-item:hover {
   font-size: 13px;
 }
 
+/* A segment that cannot be chosen yet (SegmentedLinks `disabled`): a span, quieter than the links and with no hover; its tag sits in the segment, its note beside the control. */
+.netswitch__item.is-disabled,
+.netswitch__item.is-disabled:hover {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.netswitch__item .soon {
+  margin-left: 0;
+}
+
+.seglinks__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* ---------------------------------------------------------------------------------------------------------------
    Search box and its hints */
 

@@ -25,7 +25,7 @@ export function publicNetwork(net: Network): PublicNetwork {
 }
 
 /** What a page draws of its network, for the page builders of the validators and amendments: the id, the kind, the names, the native currency and the software. No URL, no switch. */
-export function networkInfoOf({ id, kind, name, label, longName, dexName, native, software }: Network): NetworkInfo {
+export function networkInfoOf({ id, kind, name, label, longName, dexName, native, software }: NetworkInfo): NetworkInfo {
   return { id, kind, name, label, longName, dexName, native, software };
 }
 

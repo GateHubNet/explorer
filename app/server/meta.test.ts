@@ -27,6 +27,7 @@ import type { CollectionKey, CollectionQuery, NftsQuery } from "../domain/nft-pa
 import type { FlowStep } from "../domain/describe";
 import { shortAddress, shortHash } from "../domain/format";
 import { NAMES_OFF, NO_NAMES, type NameMap, type NamesPart, type NameView } from "../domain/names";
+import { tokensHref } from "../domain/token-params";
 import type { ValidatorsParams } from "../domain/validators-params";
 import { NO_FEATURES } from "../ui/features";
 import type { NetworkInfo } from "../ui/networks";
@@ -48,6 +49,7 @@ import { nftMeta } from "./meta-nft";
 import { nftCollectionMeta } from "./meta-nft-collection";
 import { nftSalesMeta } from "./meta-nft-sales";
 import { nftsMeta } from "./meta-nfts";
+import { tokensMeta } from "./meta-tokens";
 import { homeMeta } from "./meta-home";
 import { ledgerMeta } from "./meta-ledger";
 import { marketsMeta } from "./meta-markets";
@@ -61,6 +63,7 @@ import { collectionMarkerPage, nftCollectionPage, type CollectionNet, type NftCo
 import { nftMarkerPage, nftPage, type NftNet, type NftPageData } from "./nft-view";
 import { nftSalesPage, nftsListPage, nftsMarkerPage, type NftSalesPageData, type NftsNet, type NftsPageData } from "./nfts-view";
 import { pairPage } from "./pair-view";
+import type { TokensMetaFacts } from "./token-view";
 import type { PaymentChannelMeta } from "./payment-channel-view";
 import { validatorHistoryPage, validatorPage, type ValidatorLiveData } from "./validator-view";
 import { validatorsPage } from "./validators-view";
@@ -1250,6 +1253,75 @@ describe("nftsMeta", () => {
   it("puts no number in the description: the page is stored for a minute", () => {
     expect(content(nftsMeta(view(), XRPL), "description")).not.toMatch(/\d/);
     expect(content(nftsMeta(view({}, { id: "xahau", native: "XAH", longName: "Xahau" }), XAHAU), "description")).not.toMatch(/\d/);
+  });
+});
+
+describe("tokensMeta", () => {
+  const DESCRIPTION = "Issued tokens on the XRP Ledger, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.";
+  const title = (list: ReadonlyArray<unknown>) => tags(list).find((tag) => "title" in tag)?.title;
+  /** The facts of a view as the view builder writes them (`TokensPageData.meta`): the first page, no search. */
+  const facts = (more: Partial<TokensMetaFacts> = {}): TokensMetaFacts => ({ all: false, more: false, error: false, ...more });
+
+  it("has the tags of the default view: a canonical URL on the origin, Open Graph, a summary card and no image", () => {
+    const list = tokensMeta(facts(), XRPL);
+    expect(title(list)).toBe("Tokens · XRPL · explorer");
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(link(list, "canonical")).toBe("https://explorer.test/xrpl/tokens");
+    expect(content(list, "og:title")).toBe("Tokens · XRPL · explorer");
+    expect(content(list, "og:description")).toBe(DESCRIPTION);
+    expect(content(list, "og:url")).toBe("https://explorer.test/xrpl/tokens");
+    expect(content(list, "og:type")).toBe("website");
+    expect(content(list, "og:site_name")).toBe("explorer");
+    expect(content(list, "twitter:card")).toBe("summary");
+    expect(keys(list)).not.toContain("og:image");
+    expect(keys(list)).not.toContain("twitter:image");
+    expect(keys(list)).not.toContain("robots");
+  });
+
+  it("is the path the page's own links write", () => {
+    expect(new URL(link(tokensMeta(facts(), XAHAU), "canonical")!).pathname).toBe(tokensHref("xahau"));
+  });
+
+  it("is Xahau's on Xahau, in the network's words", () => {
+    const list = tokensMeta(facts(), XAHAU);
+    expect(title(list)).toBe("Tokens · Xahau · explorer");
+    expect(content(list, "description")).toBe("Issued tokens on Xahau, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.");
+    expect(link(list, "canonical")).toBe("https://explorer.test/xahau/tokens");
+  });
+
+  it("names the network of the sandbox, in the title and in the description", () => {
+    const list = tokensMeta(facts(), XRPL_TESTNET);
+    expect(title(list)).toBe("Tokens · XRPL Testnet · explorer");
+    expect(content(list, "description")).toBe("Issued tokens on XRPL Testnet, ranked by holders: supply, price, 24-hour volume and whether each issuer's toml lists it.");
+    expect(title(tokensMeta(facts(), XAHAU_TESTNET))).toBe("Tokens · Xahau Testnet · explorer");
+  });
+
+  it("is on the request's origin", () => {
+    const list = tokensMeta(facts(), { ...XRPL, origin: "https://explorer.example" });
+    expect(link(list, "canonical")).toBe("https://explorer.example/xrpl/tokens");
+    expect(content(list, "og:url")).toBe("https://explorer.example/xrpl/tokens");
+  });
+
+  it.each([
+    ["a search", facts({ q: "USD" }), "Tokens matching “USD” · XRPL · explorer"],
+    ["all", facts({ all: true }), "All tokens · XRPL · explorer"],
+    ["a search and all", facts({ q: "USD", all: true }), "Tokens matching “USD” · XRPL · explorer"],
+    ["a marker", facts({ more: true }), "More tokens · XRPL · explorer"],
+    ["a marker and a search", facts({ more: true, q: "USD" }), "More tokens matching “USD” · XRPL · explorer"],
+    ["a marker and all", facts({ more: true, all: true }), "More tokens · XRPL · explorer"],
+    ["a search that was too long", facts({ error: true }), "Tokens · XRPL · explorer"],
+  ] satisfies Array<[string, TokensMetaFacts, string]>)("is noindex, follow, with no canonical URL and no Open Graph or card tags, with %s", (_name, view, expected) => {
+    const list = tokensMeta(view, XRPL);
+    expect(title(list)).toBe(expected);
+    expect(content(list, "description")).toBe(DESCRIPTION);
+    expect(content(list, "robots")).toBe("noindex, follow");
+    expect(tags(list).some((tag) => tag.tagName === "link")).toBe(false);
+    expect(keys(list).filter((key) => /^(og|twitter):/.test(key))).toEqual([]);
+    expect(keys(list).sort()).toEqual(["description", "robots"]);
+  });
+
+  it("puts no figure of the data in the description: the page is stored for a minute", () => {
+    expect(content(tokensMeta(facts(), XRPL), "description")?.replace("24-hour", "")).not.toMatch(/\d/);
   });
 });
 
