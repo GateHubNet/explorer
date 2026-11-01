@@ -675,6 +675,21 @@ describe("tokenCard", () => {
     expect(tokenCard(facts({ listedBy: "a".repeat(50) }), XRPL).footer[0]!.text).toBe(`Listed in ${"a".repeat(50)}'s toml`);
   });
 
+  it("cuts a note that runs on (a supply near 1e96, which `compactNumber` has no unit for) to one line of the card, so that the footer stays in place, and leaves one that fits whole (final review M4)", () => {
+    const huge = tokenFacts({ id: "xrpl" }, tokenDetailSample({ supply: `1${"0".repeat(95)}` }), false);
+    expect(huge.supply.length, "the facts' supply is long, as the review's case").toBeGreaterThan(60);
+    const note = tokenCard(huge, XRPL).note!;
+    expect(Array.from(note)).toHaveLength(46);
+    expect(note).toMatch(/^120 holders · supply 1\S*…$/);
+    // A note of 46 characters is whole; one of 47 is cut to 46, with the ellipsis in the last place.
+    const whole = facts({ holders: "1,234,567", supply: "123.45B", code: "ABCDEF" });
+    expect(tokenCard(whole, XRPL).note).toBe("1,234,567 holders · supply 123.45B ABCDEF");
+    const exact = facts({ holders: "1,234,567", supply: "123.45B", code: "ABCDEFGHIJK" });
+    expect(Array.from(tokenCard(exact, XRPL).note!)).toHaveLength(46);
+    expect(tokenCard(exact, XRPL).note).toBe("1,234,567 holders · supply 123.45B ABCDEFGHIJK");
+    expect(tokenCard(facts({ holders: "1,234,567", supply: "123.45B", code: "ABCDEFGHIJKL" }), XRPL).note).toBe("1,234,567 holders · supply 123.45B ABCDEFGHIJ…");
+  });
+
   it("has a card with no status, no note of its own beyond the figures and no end to the footer", () => {
     const card = tokenCard(facts(), XRPL);
     expect("status" in card).toBe(false);

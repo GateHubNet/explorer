@@ -320,6 +320,13 @@ export function nftCard(facts: NftCardFacts, network: NetworkBrief): CardData {
 const DOMAIN_MAX = 50;
 
 /**
+ * The most characters of the note of a token's card: it is one line of 34 px between the card's side paddings (1,056 px), and a digit of Geist at that size is 22.9 px wide, so a line
+ * of 46 digits is the longest that stays on the card. A supply has no unit above T (`compactNumber`), so one near 1e96 is a line of digits that would run off the edge and push the
+ * footer with it. The cut takes the end of the note (the code, which the headline says as well), as the domain's does.
+ */
+const NOTE_MAX = 46;
+
+/**
  * The card of an issued token (token pages spec 7.2), made of the facts the page's tags are (`tokenFacts`), so a link's text and its picture agree: the kind "Issued token"; the toml's name
  * for the headline in the text font, else the code in mono; the issuer's whole account under it; the note "{holders} holders · supply {supply} {CODE}" ("1 holder" for one); and the footer,
  * "Listed in {domain}'s toml" for a token its issuer's toml lists, else "Issued token on {network}". Every figure is the facts' own text: none is worked out here.
@@ -332,7 +339,7 @@ export function tokenCard(facts: TokenMetaFacts, network: NetworkBrief): CardDat
     kind: "Issued token",
     headline: facts.name === undefined ? { text: facts.code, mono: true } : { text: facts.name, mono: false },
     parties: [facts.issuer],
-    note: `${holders} · supply ${facts.supply} ${facts.code}`,
+    note: clip(`${holders} · supply ${facts.supply} ${facts.code}`, NOTE_MAX),
     footer: [{ text: facts.listedBy === undefined ? `Issued token on ${network.name}` : `Listed in ${clip(facts.listedBy, DOMAIN_MAX)}'s toml` }],
   };
 }
