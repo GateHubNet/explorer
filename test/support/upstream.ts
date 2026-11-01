@@ -27,16 +27,22 @@ import {
 
 export { dataApiError, nodeError, type Override, type Overrides, type SeenRequest } from "./upstream-core";
 
-/** The fixture files, bundled by Vite into the test module graph (the Workers runtime has no disk to read). */
-const loaders = import.meta.glob("../fixtures/http/**/*.json", { query: "?raw", import: "default" }) as Record<
-  string,
-  () => Promise<string>
->;
+/**
+ * The fixture files, bundled by Vite into the test module graph (the Workers runtime has no disk to read): `fixture-loaders.ts` holds the glob, and this file imports it when a fixture is first
+ * read, with an import Vite cannot follow (a variable, so `@vite-ignore`). A static glob here would make every one of the 3,000 fixtures an import of this file, and so of every spec that mocks
+ * the upstream: Vitest hands a worker, when it starts a spec file, the code of every module of the file's import graph that it has transformed already, in one WebSocket message, and
+ * workerd closes the socket over 32 MiB ("Message is too large", the file's worker "exited unexpectedly"). The fixtures a run has read add up to 30 MB by its end, so a spec file that starts late
+ * in a run (names-off.spec.ts was the first, with the token fixtures) would be refused. Read at run time, each fixture is fetched by the worker alone, when a call needs it.
+ */
+const LOADERS_MODULE = "./fixture-loaders";
 const PREFIX = "../fixtures/http/";
+
+let loaded: Promise<typeof import("./fixture-loaders")> | undefined;
 
 const bundled: FixtureFiles = {
   async read(path) {
-    const load = loaders[`${PREFIX}${path}`];
+    loaded ??= import(/* @vite-ignore */ LOADERS_MODULE) as Promise<typeof import("./fixture-loaders")>;
+    const load = (await loaded).loaders[`${PREFIX}${path}`];
     return load === undefined ? undefined : await load();
   },
 };
