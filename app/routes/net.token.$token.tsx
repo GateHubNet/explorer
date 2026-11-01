@@ -89,7 +89,7 @@ async function firstPage(context: Route.LoaderArgs["context"], request: Request,
   ]);
 
   if (token.status === "rejected") {
-    if (isNotFound(token.reason)) return throwTokenNotFound(api, net, asset);
+    if (isNotFound(token.reason)) return throwTokenNotFound(api, net, asset, request);
     logProblem(`the token ${formatCurrency(asset.currency)} could not be loaded`, token.reason, request);
     return upstreamOutage(asOutage(token.reason), `token ${formatCurrency(asset.currency)}`);
   }
@@ -135,7 +135,7 @@ async function olderTransfers(context: Route.LoaderArgs["context"], request: Req
   const olderNotFound = `that page of the transfers of ${formatCurrency(asset.currency)}`;
   const [token, transfers] = await Promise.allSettled([api.token(asset), api.tokenTransfers(asset, { limit: TRANSFERS_PAGE, marker: view.marker })]);
   if (token.status === "rejected") {
-    if (isNotFound(token.reason)) return throwTokenNotFound(api, net, asset);
+    if (isNotFound(token.reason)) return throwTokenNotFound(api, net, asset, request);
     logProblem(`the token ${formatCurrency(asset.currency)} could not be loaded`, token.reason, request);
     return upstreamOutage(token.reason, `token ${formatCurrency(asset.currency)}`);
   }

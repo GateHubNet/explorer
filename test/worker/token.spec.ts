@@ -144,6 +144,27 @@ describe("the call that decides the page fails (spec 1.3)", () => {
     const { response } = await render(`/xrpl/token/${pathOf(token)}`);
     expect(response.status).toBe(503);
     expect(statusesOf(mock, TOKEN(token))).toEqual([400]);
+    expect(await isStored(`/xrpl/token/${pathOf(token)}`)).toBe(false);
+  });
+});
+
+describe("the call that decides the page misses the card deadline (spec 1.3, final review M2)", () => {
+  it("is a 503 not stored, at the deadline (4.5 s), and no page is drawn: a missed deadline of #1 is an outage, not a bug", async () => {
+    cold();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const token = asset("JJJ");
+    // The token's call never answers; the other calls of the page are not found for a token the fixtures lack.
+    mock = mockUpstream("xrpl", { [TOKEN(token)]: () => new Promise<Response>(() => {}) });
+    const path = `/xrpl/token/${pathOf(token)}`;
+    const started = performance.now();
+    const { response, html, text } = await render(path);
+
+    expect(performance.now() - started).toBeLessThan(10_000);
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).not.toBeNull();
+    expect(html).not.toContain('<h1 id="token-title"');
+    expect(text).not.toContain("We couldn’t find");
+    expect(await isStored(path)).toBe(false);
   });
 });
 
@@ -168,6 +189,7 @@ describe("a token the index lacks (spec 1.3)", () => {
 
   it("is a 404 without the note when the coverage call fails", async () => {
     cold();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const token = asset("GGG");
     const path = `/xrpl/token/${pathOf(token)}`;
     mock = mockUpstream("xrpl", { [COVERAGE]: unavailable() });
@@ -177,6 +199,10 @@ describe("a token the index lacks (spec 1.3)", () => {
     expect(text).toContain("We couldn’t find GGG issued by rhub8V…F3wq on XRPL.");
     expect(text).not.toContain("A token whose trust lines have not changed since");
     expect(statusesOf(mock, COVERAGE)).toEqual([503]);
+    // The failed call changes only the words, but it is logged: a list of D6's that is down must not be a silent path (final review, T7-T9 Minor 6).
+    expect(logged.mock.calls.map(([line]) => JSON.parse(String(line)))).toEqual([
+      { level: "error", what: "the token list for the coverage note of a missing token could not be loaded", path, error: expect.stringContaining("503") },
+    ]);
     expect(linksTo(html, "Open the issuer's account")).toEqual([`/xrpl/account/${ISSUER}`]);
     expect(await storedAs(path)).toEqual(SHORT);
   });

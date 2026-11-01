@@ -60,7 +60,7 @@ export async function loader({ request, url, params, context }: Route.LoaderArgs
   const [token, holders] = await Promise.all([race(api.token(asset)), race(api.tokenHolders(asset, { limit: HOLDERS_PAGE, marker: view.marker }))]);
 
   if (token.status === "rejected") {
-    if (isNotFound(token.reason)) return throwTokenNotFound(api, net, asset);
+    if (isNotFound(token.reason)) return throwTokenNotFound(api, net, asset, request);
     logProblem(`the token ${code} could not be loaded`, token.reason, request);
     return upstreamOutage(asOutage(token.reason), `token ${code}`);
   }

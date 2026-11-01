@@ -12,6 +12,7 @@ import type { DataApi } from "./data-api";
 import { echoOf } from "./echo";
 import { cacheClassHeaders } from "./edge-cache";
 import { notFound } from "./loader-errors";
+import { logProblem } from "./logging";
 import { isMarker } from "./marker";
 import type { Network } from "./networks";
 import { redirectToCanonical } from "./pair-route";
@@ -70,12 +71,13 @@ export function checkTokenRoute(
 /**
  * The 404 of a token D6 does not know ("We couldn't find RLUSD issued by rMxCKb…m5De on XRPL": the page adds the network), with the way to the issuer's account. While D6's coverage is not complete, a token that exists may
  * be missing from its index, so the page says so: the answer to the missing token has no `coverage` (an error answer has none), so it comes from a `limit=1` list call made only here. If
- * that call fails, or its coverage is complete, there is no note. Always throws.
+ * that call fails, or its coverage is complete, there is no note; a failed call is logged (`request` is the page's), so that a list of D6's that is down is not a silent path. Always throws.
  */
-export async function throwTokenNotFound(api: Pick<DataApi, "tokens">, net: Network, asset: { currency: string; issuer: string }): Promise<never> {
+export async function throwTokenNotFound(api: Pick<DataApi, "tokens">, net: Network, asset: { currency: string; issuer: string }, request: Request): Promise<never> {
   const listed = await api.tokens({ kind: "issued", limit: 1, minHolders: 10 }).catch((err: unknown) => {
-    // A failed call says nothing of the index; anything that is not an upstream's failure is a bug.
+    // A failed call says nothing of the index (the page is the 404 all the same, without the note); anything that is not an upstream's failure is a bug.
     if (!(err instanceof UpstreamError)) throw err;
+    logProblem("the token list for the coverage note of a missing token could not be loaded", err, request);
     return null;
   });
   const note = listed === null ? null : coverageNote(listed.coverage, "trust lines");
