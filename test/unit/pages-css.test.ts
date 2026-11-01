@@ -655,6 +655,20 @@ describe("the classes of the ledger object pages' components (Task 5)", () => {
     expect(rule(componentsCss, ".objectlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });
   });
 
+  // E11: a token whose code is a link has two links in its row, one under the other (the code's and the issuer's), and the pool's issuer lines wrap on a phone to put the issuer's link under
+  // the code's: two links under 24 px leave less than 24 px between their centres (axe, WCAG 2.5.8). Each is a target of at least 24 px.
+  it("gives the code that is a link and the issuer's link under it, in the account's Tokens card and in the pool's issuer lines, targets of at least 24 px (WCAG 2.5.8)", () => {
+    for (const selector of [
+      ".token--linked .token__name a",
+      ".amm-pool__fact a",
+    ]) {
+      const link = rule(pagesCss, selector);
+      expect(link, selector).toMatchObject({ display: "inline-flex", "align-items": "center" });
+      expect(Number.parseFloat(link["min-height"]!), selector).toBeGreaterThanOrEqual(24);
+      expect(Number.parseFloat(link["min-width"]!), selector).toBeGreaterThanOrEqual(24);
+    }
+  });
+
   // E11: a token's code is a link in the words of a pair's and a pool's "USD issued by r…" and of the toml's currencies under "How we know", where a colour alone would not tell it (WCAG 1.4.1).
   it("underlines a token's code that is a link in running words, with an offset of 3 px, as an object link is", () => {
     expect(rule(componentsCss, ".tokenlink")).toMatchObject({ "text-decoration": "underline", "text-underline-offset": "3px" });

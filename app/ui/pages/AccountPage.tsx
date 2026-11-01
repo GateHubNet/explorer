@@ -23,6 +23,7 @@ import { Notice } from "../components/Notice";
 import { RelativeTime } from "../components/RelativeTime";
 import { SectionError } from "../components/SectionError";
 import { Tabs, type TabItem } from "../components/Tabs";
+import { cx } from "../cx";
 import type { Features } from "../features";
 import { lazyChunk } from "../lazy-chunk";
 import type { NetworkInfo } from "../networks";
@@ -321,7 +322,7 @@ function TokenRow({ net, token, features }: { net: NetworkInfo["id"]; token: Tok
   // The whole code, where the text is not it (a hex code shown as its text).
   const title = name === token.currency ? undefined : token.currency;
   return (
-    <div className="token">
+    <div className={cx("token", token.href !== null && "token--linked")}>
       <span className="token__badge mono" aria-hidden="true">
         {badge}
       </span>

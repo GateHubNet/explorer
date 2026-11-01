@@ -889,6 +889,8 @@ describe("the margin", () => {
     const code = within(usd!).getByRole("link", { name: "USD" });
     expect(code.getAttribute("href")).toBe(`/xrpl/token/USD.${ISSUER}`);
     expect(code.parentElement!.matches(".token__name > span:first-child")).toBe(true);
+    // The row says it has a link, for the 24 px targets of its two links (pages-css.test.ts); the LP row and a row without a link do not.
+    expect(rows.map((row) => row.classList.contains("token--linked"))).toEqual([true, false, true]);
     expect(within(usd!).getByRole("link", { name: shortAddress(ISSUER) }).getAttribute("href")).toBe(`/xrpl/account/${ISSUER}`);
 
     // The LP token keeps its pool link and has no code link: the row's only link is the pool's.

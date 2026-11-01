@@ -914,6 +914,15 @@ a.example:hover {
   font-size: 12px;
 }
 
+/* A token whose code is a link has two links, one under the other, in its row: each is a target of at least 24 px (WCAG 2.5.8; axe's target-size), for two links under 24 px high, stacked,
+   leave less than 24 px between their centres. */
+.token--linked .token__name a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+
 /* A balance is read as a whole: it keeps its line, and the name beside it gives way. */
 .token > .amt {
   flex: none;
@@ -3738,6 +3747,15 @@ a.markets__pair:hover .markets__name {
   align-items: center;
   gap: 0 4px;
   min-width: 0;
+}
+
+/* The links of a fact (the code of an issuer's line that leads to its token page, the issuer's account after it, the pool's account, the creator) are targets of at least 24 px (WCAG 2.5.8; axe's
+   target-size): on a phone an issuer's line wraps and its account link sits under the code's. */
+.amm-pool__fact a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  min-height: 24px;
 }
 
 .amm-pool__lp {
