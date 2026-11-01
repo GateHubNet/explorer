@@ -120,6 +120,13 @@ describe("the pages", () => {
     expect(helpPage("hello")).toEqual({ kind: "help", query: "hello" });
   });
 
+  it("carries the link to the tokens when it is given, and has no key for it when it is not (E11 spec 5.3)", () => {
+    const tokens = { href: "/xrpl/tokens?q=RLUSD", label: "Look for “RLUSD” among tokens →" };
+    expect(helpPage("RLUSD", tokens)).toEqual({ kind: "help", query: "RLUSD", tokens });
+    expect(helpPage("RLUSD", undefined)).not.toHaveProperty("tokens");
+    expect(helpPage("RLUSD")).not.toHaveProperty("tokens");
+  });
+
   it("builds the offer of a CTID of the other network", () => {
     expect(otherNetworkPage("c10ac4a1000c5359", "C10AC4A1000C5359", XAHAU)).toEqual({
       kind: "other-network",

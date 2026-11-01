@@ -152,6 +152,36 @@ describe("the places that link a token with TOKENS off (E11 spec 5.2)", () => {
   });
 });
 
+describe("search with TOKENS off (E11 spec 5.3)", () => {
+  const BITSTAMP = "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B";
+  const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+  const LP = "03B245BE580EC4F4386A751C084489EC4B514A2F";
+  const search = (net: string, q: string) => `/${net}/search?q=${encodeURIComponent(q)}`;
+
+  // The help page it was: what could be typed, the box holding it, and no word of a token anywhere. Asks nothing of anyone, and sends nowhere.
+  it.each([
+    ["xrpl", `USD.${BITSTAMP}`, "XRPL"],
+    ["xrpl", `usd+${BITSTAMP}`, "XRPL"],
+    ["xrpl", "RLUSD", "XRPL"],
+    ["xrpl", `${LP}+${POOL}`, "XRPL"],
+    ["xahau", "EVR.rEvernodee8dJLaFsujS6q1EiXvZYmHXr8", "Xahau"],
+  ])("answers a search on %s for %s with today's help page, no link to a token and no call", async (net, q, name) => {
+    mock = mockUpstream(net === "xahau" ? "xahau" : "xrpl");
+    const response = await get(search(net, q));
+    const html = await response.text();
+    const text = textOf(html);
+
+    expect(response.status, html.slice(0, 400)).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+    expect(text).toContain(`Nothing on ${name} looks like “${q}”.`);
+    expect(text).toContain("An account address, starting with r, or an X-address");
+    expect(text).not.toMatch(/A token: its code and issuer|among tokens/);
+    expect(hrefs(html).filter((href) => /\/tokens?(\/|\?|$)/.test(href))).toEqual([]);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(search(net, q))).toEqual(SHORT);
+  });
+});
+
 describe("the header with TOKENS off", () => {
   const SOON = '<span class="nav-item is-soon" aria-disabled="true"><span>Tokens</span><span class="soon">soon</span></span>';
 

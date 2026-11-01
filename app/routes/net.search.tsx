@@ -2,14 +2,16 @@ import { redirect } from "react-router";
 
 import { hashWhat } from "../domain/hash-nouns";
 import { nftPath } from "../domain/nft-link";
+import { poolLink } from "../domain/pool-link";
 import { classify } from "../domain/search";
+import { parseTokenPath, TOKEN_SEARCH_MAX, tokenHref, tokensHref } from "../domain/token-params";
 import { clientsFor } from "../server/clients";
 import { cacheClassHeaders, cached, forwardCacheClass } from "../server/edge-cache";
 import { getEnv } from "../server/env";
 import { upstreamFailure } from "../server/loader-errors";
 import { metaContext } from "../server/meta";
 import { requireNetwork } from "../server/network-route";
-import { networkIdOfCtid, networkOf, type NetworkId } from "../server/networks";
+import { networkIdOfCtid, networkOf, type Network, type NetworkId } from "../server/networks";
 import { findHash, resolveCtid, type HashQuestions } from "../server/resolve";
 import {
   choicePage,
@@ -42,6 +44,25 @@ function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkNam
   return { id, name: networkOf(id, getEnv(context)).name };
 }
 
+/** What the token step of the search makes of a text `classify` found nothing in: where to send the visitor, the link to offer with the help text, or nothing. */
+type TokenStep = { to: string } | { offer: { href: string; label: string } } | null;
+
+/**
+ * The token step (token pages spec 5.3): `typed`, trimmed, read by `parseTokenPath`. A token is its page (`tokenHref`, the canonical spelling) and an LP token its pool (`poolLink`, which is the account
+ * page while `AMM_PAGES` is off); any other text, `XRP` alone and a word of a name included, is offered the list searched for it (`tokensHref`), when it is as long as the list takes (1 to `TOKEN_SEARCH_MAX`
+ * code points, as the list counts them: a longer one would only get its message). Nothing while `TOKENS` is off.
+ */
+function tokenStep(network: Network, typed: string): TokenStep {
+  if (!network.features.tokens) return null;
+  const text = typed.trim();
+  const path = parseTokenPath(network, text);
+  if (path.kind === "token") return { to: tokenHref(network.id, path.asset) };
+  if (path.kind === "lp") return { to: poolLink(network.id, path.issuer, network.features) };
+  const length = [...text].length;
+  if (length === 0 || length > TOKEN_SEARCH_MAX) return null;
+  return { offer: { href: tokensHref(network.id, { q: text }), label: `Look for “${text}” among tokens →` } };
+}
+
 /**
  * `/{net}/search?q=...` (spec 6): says what the input is (`classify`) and either redirects to the page that shows it or
  * answers with a page of its own. Every answer is class `short`; the pages are `noindex, follow`.
@@ -55,7 +76,10 @@ function nameOf(context: Route.LoaderArgs["context"], id: NetworkId): NetworkNam
  *   its question is not asked (the sequence is `findHash`'s, which E14 extends).
  * - A CTID: of this network, the transaction at its place in the ledger (a redirect, or a 404 if there is none); of the
  *   other network, a page that offers it there; of neither, a 404.
- * - Anything else: the help text, as a 200.
+ * - A text none of those is, while `TOKENS` is on (token pages spec 5.3): the text read as the path of a token (`parseTokenPath`: `USD.rvYAf…`, `usd rvYAf…`, `RLUSD+rMxCK…`) is a redirect to the token's page, without a
+ *   call (the page answers its own 404, so a token that is not there is no 404 here), and an AMM's LP token to its pool; any other text of 1 to 64 characters gets the link "Look for “…” among tokens →" with the help
+ *   text. It is the last step: it runs only when `classify` gave `none`.
+ * - Anything else, and every text while `TOKENS` is off: the help text, as a 200.
  * - An upstream failure that leaves the question open is a 503 (`upstreamFailure`), never a "not found" that would be stored.
  */
 export async function loader({ request, params, context }: Route.LoaderArgs) {
@@ -105,8 +129,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       return cached(otherNetworkPage(query, input.ctid, nameOf(context, resolved.otherNetwork)), "short");
     }
 
-    case "none":
-      return cached(helpPage(query), "short");
+    case "none": {
+      const step = tokenStep(network, typed);
+      if (step !== null && "to" in step) return found(step.to);
+      return cached(step === null ? helpPage(query) : helpPage(query, step.offer), "short");
+    }
   }
 }
 

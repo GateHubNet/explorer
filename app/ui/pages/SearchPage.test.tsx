@@ -15,6 +15,8 @@ const CTID = "C10AC4A1000C5359";
 /** The switches of the ledger object pages' words: `LEDGER_OBJECTS` on, every other off; and both of the search's switches on. */
 const OBJECTS_ON = { ...NO_FEATURES, ledgerObjects: true };
 const NFTS_AND_OBJECTS_ON = { ...NFTS_ON, ledgerObjects: true };
+/** `TOKENS` on, every other switch off. */
+const TOKENS_ON = { ...NO_FEATURES, tokens: true };
 
 afterEach(cleanup);
 
@@ -212,6 +214,46 @@ describe("the help text", () => {
       "A ledger index, such as 107695660",
       "A CTID: C followed by 15 hexadecimal characters",
     ]);
+  });
+
+  it("adds the token with TOKENS on, after the ids, before the ledger index, and only then (E11Δ4)", () => {
+    renderUnderNetwork(<SearchPage network={XRPL} data={{ kind: "help", query: "hello" }} />, TOKENS_ON, { path: "/xrpl/search", hydrated: true });
+    expect(within(screen.getByRole("list")).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "An account address, starting with r, or an X-address",
+      "A transaction or ledger hash: 64 hexadecimal characters",
+      "A token: its code and issuer",
+      "A ledger index, such as 107695660",
+      "A CTID: C followed by 15 hexadecimal characters",
+    ]);
+    cleanup();
+    renderUnderNetwork(<SearchPage network={XRPL} data={{ kind: "help", query: "hello" }} />, { ...NFTS_AND_OBJECTS_ON, tokens: true }, { path: "/xrpl/search", hydrated: true });
+    expect(within(screen.getByRole("list")).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "An account address, starting with r, or an X-address",
+      "A transaction or ledger hash: 64 hexadecimal characters",
+      "An NFT or URIToken id: 64 hexadecimal characters",
+      "An escrow, check or payment channel id: 64 hexadecimal characters",
+      "A token: its code and issuer",
+      "A ledger index, such as 107695660",
+      "A CTID: C followed by 15 hexadecimal characters",
+    ]);
+  });
+
+  it("draws the link to the tokens under the box, as the other pages' one suggestion, and nothing without it (E11Δ2-3)", () => {
+    const tokens = { href: "/xrpl/tokens?q=RLUSD", label: "Look for “RLUSD” among tokens →" };
+    renderUnderNetwork(<SearchPage network={XRPL} data={{ kind: "help", query: "RLUSD", tokens }} />, TOKENS_ON, { path: "/xrpl/search", hydrated: true });
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("No match");
+    expect(screen.getByText("Nothing on XRPL looks like “RLUSD”.")).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Look for “RLUSD” among tokens →" });
+    expect(link.getAttribute("href")).toBe("/xrpl/tokens?q=RLUSD");
+    // After the help text and the box; one link of the kind, and the way home still last.
+    expect(screen.getByRole("list").compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("searchbox").compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole("link").filter((a) => /among tokens/.test(a.textContent ?? ""))).toHaveLength(1);
+    expect(screen.getAllByRole("link").at(-1)!.getAttribute("href")).toBe("/xrpl");
+
+    cleanup();
+    renderUnderNetwork(<SearchPage network={XRPL} data={{ kind: "help", query: "RLUSD" }} />, TOKENS_ON, { path: "/xrpl/search", hydrated: true });
+    expect(screen.queryByText(/among tokens/)).toBeNull();
   });
 
   it("is a prompt, not a complaint, when nothing was typed", () => {

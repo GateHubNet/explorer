@@ -1062,6 +1062,163 @@ describe("anything else", () => {
   });
 });
 
+describe("a token (E11 spec 5.3)", () => {
+  const BITSTAMP = "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B";
+  const RLUSD_ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+  const EVR_ISSUER = "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8";
+  const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
+  const LP = "03B245BE580EC4F4386A751C084489EC4B514A2F";
+  /** The `href`s of the links to the list of tokens that a page offers. */
+  const tokensLinks = (html: string) => anchors(html).filter((a) => /among tokens/.test(a.text)).map((a) => /href="([^"]*)"/.exec(a.attrs)?.[1]);
+
+  // None of them asks anyone: the token page answers its own 404, so a search for a token that is not there still leads to it.
+  it.each([
+    ["a standard code and its issuer", `USD.${BITSTAMP}`, `/xrpl/token/USD.${BITSTAMP}`],
+    ["a code in lower case", `usd.${BITSTAMP}`, `/xrpl/token/USD.${BITSTAMP}`],
+    ["a space for the dot", `usd ${BITSTAMP}`, `/xrpl/token/USD.${BITSTAMP}`],
+    ["a plus for the dot", `usd+${BITSTAMP}`, `/xrpl/token/USD.${BITSTAMP}`],
+    ["a pipe for the dot", `USD|${BITSTAMP}`, `/xrpl/token/USD.${BITSTAMP}`],
+    ["spaces around it", `  USD.${BITSTAMP}\n`, `/xrpl/token/USD.${BITSTAMP}`],
+    // A text code is its bytes: rlusd is another code than RLUSD, and its page answers its own 404.
+    ["a text code in lower case", `rlusd+${RLUSD_ISSUER}`, `/xrpl/token/rlusd.${RLUSD_ISSUER}`],
+    ["a text code", `RLUSD.${RLUSD_ISSUER}`, `/xrpl/token/RLUSD.${RLUSD_ISSUER}`],
+    ["the 40 hex digits of a text code", `524C555344000000000000000000000000000000.${RLUSD_ISSUER}`, `/xrpl/token/RLUSD.${RLUSD_ISSUER}`],
+  ])("redirects %s to the token's page, without asking anyone", async (_what, q, location) => {
+    mock = mockUpstream("xrpl");
+    const response = await get(search(q));
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(location);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(search(q))).toEqual({ cls: "short", ttl: 30 });
+  });
+
+  it("reads the plus sign a form without JavaScript puts where the space was", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/xrpl/search?q=usd+${BITSTAMP}`);
+    await response.text();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/xrpl/token/USD.${BITSTAMP}`);
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("keeps the network it was asked on, and Xahau's own code is no token", async () => {
+    mock = mockUpstream("xahau");
+    const evr = await get(`/xahau/search?q=EVR.${EVR_ISSUER}`);
+    await evr.text();
+    expect(evr.status).toBe(302);
+    expect(evr.headers.get("Location")).toBe(`/xahau/token/EVR.${EVR_ISSUER}`);
+    // XRP is a token on Xahau; XAH is its currency, and with an issuer it is none.
+    const xrp = await get(`/xahau/search?q=XRP.${EVR_ISSUER}`);
+    await xrp.text();
+    expect(xrp.headers.get("Location")).toBe(`/xahau/token/XRP.${EVR_ISSUER}`);
+    const xah = await page(`/xahau/search?q=XAH.${EVR_ISSUER}`);
+    expect(xah.response.status).toBe(200);
+    expect(xah.response.headers.get("Location")).toBeNull();
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("redirects an LP token to its pool, class short, without asking anyone", async () => {
+    mock = mockUpstream("xrpl");
+    for (const q of [`${LP}+${POOL}`, `${LP.toLowerCase()}.${POOL}`]) {
+      const response = await get(search(q));
+      await response.text();
+      expect(response.status, q).toBe(302);
+      expect(response.headers.get("Location"), q).toBe(`/xrpl/amm/${POOL}`);
+      expect(await storedAs(search(q)), q).toEqual({ cls: "short", ttl: 30 });
+    }
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("redirects in the `.data` response a client-side navigation reads", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get(`/xrpl/search.data?q=USD.${BITSTAMP}`);
+    const body = await response.text();
+
+    expect(response.status).toBe(202);
+    expect(body).toContain(`/xrpl/token/USD.${BITSTAMP}`);
+    expect(body).toContain("SingleFetchRedirect");
+  });
+
+  it("offers the list of tokens for a text that is no token, on the help page", async () => {
+    mock = mockUpstream("xrpl");
+    const { response, html } = await page(search("RLUSD"));
+    const text = textOf(html);
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("Nothing on XRPL looks like “RLUSD”.");
+    expect(text).toContain("A token: its code and issuer");
+    expect(text).toContain("Look for “RLUSD” among tokens →");
+    expect(tokensLinks(html)).toEqual(["/xrpl/tokens?q=RLUSD"]);
+    expect(html).toContain('value="RLUSD"');
+    expect(isNoindexFollow(html)).toBe(true);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(search("RLUSD"))).toEqual({ cls: "short", ttl: 30 });
+  });
+
+  it.each([
+    ["the native code alone, which is no token", "XRP", "/xrpl/tokens?q=XRP"],
+    ["a code with an issuer that is not an address", "USD.rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59C", "/xrpl/tokens?q=USD.rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59C"],
+    ["a word of a name", "Ripple USD", "/xrpl/tokens?q=Ripple%20USD"],
+    ["a text with an ampersand, a quote and a hash", "A&B 'x' #1", "/xrpl/tokens?q=A%26B%20%27x%27%20%231"],
+    ["a text trimmed", "  gateway \t", "/xrpl/tokens?q=gateway"],
+  ])("offers the list for %s", async (_what, q, href) => {
+    mock = mockUpstream("xrpl");
+    const { response, html } = await page(search(q));
+
+    expect(response.status).toBe(200);
+    expect(tokensLinks(html)).toEqual([href]);
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("offers it on Xahau as well, for its own native code too", async () => {
+    mock = mockUpstream("xahau");
+    const { html } = await page("/xahau/search?q=XAH");
+    expect(tokensLinks(html)).toEqual(["/xahau/tokens?q=XAH"]);
+    expect(textOf(html)).toContain("Look for “XAH” among tokens →");
+  });
+
+  // The list's own limit (spec 2.4), counted in code points as D6 does (C18): a text beyond it would get the list's message and no list.
+  it.each([
+    ["64 characters", "x".repeat(64), true],
+    ["65 characters", "x".repeat(65), false],
+    ["64 emoji, which are 128 UTF-16 units", "😀".repeat(64), true],
+    ["65 emoji", "😀".repeat(65), false],
+  ])("offers the list for %s only up to 64 characters", async (_what, q, offered) => {
+    mock = mockUpstream("xrpl");
+    const { response, html } = await page(search(q));
+
+    expect(response.status).toBe(200);
+    expect(tokensLinks(html)).toHaveLength(offered ? 1 : 0);
+    expect(textOf(html)).toContain("Nothing on XRPL looks like");
+    expect(mock.requests).toEqual([]);
+  });
+
+  it("writes a hostile text as text, in the label and in the query", async () => {
+    mock = mockUpstream("xrpl");
+    const { html } = await page(search("<b>x</b>"));
+
+    expect(html).not.toContain("<b>x</b>");
+    expect(html).toContain("Look for “&lt;b&gt;x&lt;/b&gt;” among tokens →");
+    expect(tokensLinks(html)).toEqual(["/xrpl/tokens?q=%3Cb%3Ex%3C%2Fb%3E"]);
+  });
+
+  it("leaves what classify knows alone: an address, a hash, a ledger index, a CTID and an empty box are what they were", async () => {
+    mock = mockUpstream("xrpl");
+    const address = await get(search(ADDRESS));
+    await address.text();
+    expect(address.headers.get("Location")).toBe(`/xrpl/account/${ADDRESS}`);
+    const index = await get(search("107695660"));
+    await index.text();
+    expect(index.headers.get("Location")).toBe("/xrpl/ledger/107695660");
+    const empty = await page(search(""));
+    expect(tokensLinks(empty.html)).toEqual([]);
+    expect(textOf(empty.html)).toContain("Search XRPL");
+  });
+});
+
 describe("the route", () => {
   it("sets a title that names the search and the network", async () => {
     mock = mockUpstream("xrpl");

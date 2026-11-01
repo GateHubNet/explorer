@@ -36,6 +36,8 @@ export type SearchPageData =
       /** Nothing the box was given looks like anything searchable: the help text. */
       kind: "help";
       query: string;
+      /** While `TOKENS` is on and the text is as long as the list of tokens takes: the link to the list searched for it, drawn as a page's one suggestion (E11 spec 5.3). */
+      tokens?: { href: string; label: string };
     }
   | {
       /** A CTID of the other network: a link to the transaction there. */
@@ -118,8 +120,8 @@ export function choicePage(hash: string, matches: HashMatches, network: ObjectLi
   };
 }
 
-export function helpPage(query: string): SearchPageData {
-  return { kind: "help", query };
+export function helpPage(query: string, tokens?: { href: string; label: string }): SearchPageData {
+  return { kind: "help", query, ...(tokens && { tokens }) };
 }
 
 export function otherNetworkPage(query: string, ctid: string, other: NetworkName): SearchPageData {
