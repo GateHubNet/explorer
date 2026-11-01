@@ -482,8 +482,7 @@ the browser).
   (the home page) exports `handle = { heroSearch: true }` so the header leaves its box out. The header's Ledgers and
   Transactions links go to the ids `latest-ledgers` and `latest-transactions` (`app/ui/anchors.ts`) on the home page. The header's items are `NAV` in `app/ui/components/Header.tsx`, in the order
   Ledgers, Transactions, Tokens, Network, Markets, AMM, NFTs: Tokens (`TOKENS`, E11, between Transactions and Network), Markets, AMM and NFTs lead to their list while their switch is on and are the "soon" label
-  while it is off, and a route's `navSection` (`"tokens"` for the tokens list, a token's page and its holders') marks its item as the current one (`aria-current="page"` on the list, `"true"` on another page of the
-  section). The Tokens item leads to `/{net}/tokens`, which is the not-found page until E11 builds the routes.
+  while it is off, and a route's `navSection` (`"tokens"` for the tokens list, a token's page and its holders') marks its item as the current one (`aria-current="page"` on the list, `"true"` on another page of the section).
 - **The NFT routes** (E8, "NFTs") are four children of `routes/net.tsx`: `routes/net.nfts._index.tsx` (`/{net}/nfts`), `net.nfts.sales.tsx`, `net.nfts.$issuer.$taxon.tsx` (`/{net}/nfts/{issuer}[/{taxon}]`, the taxon optional) and
   `net.nft.$id.tsx`. Each exports `handle = { navSection: "nfts" } satisfies NetworkRouteHandle` (`app/ui/route-handle.ts`), so the header's NFTs item is `aria-current="page"` on the list (whatever its query) and `"true"` on any other page of the section: the older sales, a collection and an NFT (`nfts-list.spec.ts`, "the header's NFTs item").
   The header item is a link while `NFTS` is on and the "soon" label while it is off.

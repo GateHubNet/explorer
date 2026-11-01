@@ -9,7 +9,7 @@ import { textOf } from "../support/pages";
 import { validatorCase } from "../support/validators-cases";
 
 // The pages that another switch gates, with only `NAMES` off (display names spec 2.2 and 6.1; global constraints): the account's Analytics view, NFTs tab and Delegation tab, the markets and a pair, the AMM
-// list and a pool, a swap through it, the validators, the NFT pages, an escrow, a check and a payment channel. They make no `account_names` request and no toml request, whatever they hold that a name could be made of, and draw no
+// list and a pool, a swap through it, the validators, the NFT pages, an escrow, a check, a payment channel and the token list. They make no `account_names` request and no toml request, whatever they hold that a name could be made of, and draw no
 // name or mark (no `acct__name`). The `worker-off` project (names-off.spec.ts) has every switch off, where each of these is a 404 or a redirect before any call, and "no names request" of a
 // 404 says nothing; the `worker-names-off` project (vitest.config.ts) has every switch on but this one, so that each page is there. Each page also says what a name would have been made
 // of: an account the fixtures name that it links, or a short address it draws (the tables that write an issuer as text). What the two files check of each page, and their setup, are
@@ -66,6 +66,8 @@ describe("the pages the other switches gate", () => {
     ["an escrow", "xrpl", `/xrpl/escrows/${ESCROW.id}`, "linked"],
     ["a check", "xrpl", `/xrpl/checks/${CHECK.id}`, "linked"],
     ["a payment channel", "xrpl", `/xrpl/payment-channels/${CHANNEL.id}`, "linked"],
+    ["the token list", "xrpl", "/xrpl/tokens", "linked"],
+    ["the Xahau token list", "xahau", "/xahau/tokens", "linked"],
   ] as const)("draws %s by addresses, with the page there, and asks for no name and no toml", async (_, net, path, says) => {
     const mock = upstream(net);
     const { response, html } = await serve(path);

@@ -1,14 +1,17 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { anchors, pageClient } from "../support/pages";
+import { anchors, pageClient, textOf } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
 
 // The token pages with every switch "off" (the `worker-off` project, README "Switches"), as production has them until the owner turns `TOKENS` on (token pages spec 1.4 and 13). `TOKENS` is
-// page-level: the header's Tokens item is the "soon" label, a label and not a link. The `worker` project's cases, with the switch on, are the specs of the token pages; the later tasks add
-// their routes' 404s, the token image and the places that link a token to this file.
+// page-level: every route of the token pages, and the link-preview image of a token, is a 404 of class `short` made before any call (neither the query nor the marker is read: no redirect, no
+// "not a page"), and the header's Tokens item is the "soon" label. The `worker` project's cases, with the switch on, are the specs of the token pages; the later tasks add their routes'
+// 404s, the token image and the places that link a token to this file.
 
-const { page } = pageClient("198.18.94");
+const { get, page, storedAs } = pageClient("198.18.94");
+
+const SHORT = { cls: "short", ttl: 30 };
 
 let mock: UpstreamMock | undefined;
 afterEach(() => {
@@ -22,6 +25,39 @@ afterEach(() => {
 describe("the project", () => {
   it("is the one with TOKENS off", () => {
     expect((env as unknown as Record<string, string>).TOKENS).toBe("off");
+  });
+});
+
+describe("the token list with TOKENS off", () => {
+  it.each([
+    ["/xrpl/tokens", "XRPL"],
+    ["/xahau/tokens?q=USD", "Xahau"],
+    // A view that the list would redirect, one behind a marker, one with a marker that is none, and the path in another case: none of them is read.
+    ["/xrpl/tokens?all=1&q=USD", "XRPL"],
+    ["/xrpl/tokens?kind=mpt", "XRPL"],
+    ["/xrpl/tokens?back=M1", "XRPL"],
+    ["/xrpl/tokens?marker=WyJpc3N1ZWQiLDQ4XQ", "XRPL"],
+    ["/xrpl/tokens?marker=%25", "XRPL"],
+    [`/xrpl/tokens?q=${"x".repeat(65)}`, "XRPL"],
+    ["/xrpl/TOKENS", "XRPL"],
+  ])("answers %s with the not-found page, a 404 of class short, and asks nothing upstream", async (path, name) => {
+    mock = mockUpstream(path.startsWith("/xahau") ? "xahau" : "xrpl");
+    const response = await get(path);
+    const html = await response.text();
+
+    expect(response.status, html.slice(0, 400)).toBe(404);
+    expect(textOf(html)).toContain(`We couldn’t find the token pages on ${name}.`);
+    expect(html).toMatch(/<meta name="robots" content="noindex"\/?>/);
+    expect(mock.requests).toEqual([]);
+    expect(await storedAs(path)).toEqual(SHORT);
+  });
+
+  it("answers the .data URL of the list (a client-side navigation) with a 404 too, and no call", async () => {
+    mock = mockUpstream("xrpl");
+    const response = await get("/xrpl/tokens.data?_routes=routes%2Fnet.tokens");
+    await response.text();
+    expect(response.status).toBe(404);
+    expect(mock.requests).toEqual([]);
   });
 });
 
