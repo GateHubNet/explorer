@@ -28,6 +28,7 @@ export default [
     route("payment-channels/:id", "routes/net.payment-channels.$id.tsx"),
     // The issued tokens, ranked by holders (E11).
     route("tokens", "routes/net.tokens.tsx"),
+    route("token/:token", "routes/net.token.$token.tsx"),
     route("ledger/:id", "routes/net.ledger.$id.tsx"),
     route("tx/:id", "routes/net.tx.$id.tsx"),
     route("account/:address", "routes/net.account.$address.tsx"),

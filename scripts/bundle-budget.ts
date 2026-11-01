@@ -59,6 +59,7 @@ export const PAGES = [
   { name: "check", route: "routes/net.checks.$id", budget: "lookup" },
   { name: "payment-channel", route: "routes/net.payment-channels.$id", budget: "lookup" },
   { name: "tokens", route: "routes/net.tokens", budget: "lookup" },
+  { name: "token", route: "routes/net.token.$token", budget: "lookup" },
 ] as const satisfies ReadonlyArray<{ name: string; route: string; budget: BudgetName }>;
 
 /**

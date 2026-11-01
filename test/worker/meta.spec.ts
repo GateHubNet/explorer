@@ -5,7 +5,7 @@ import { dropsToNative, formatAmount, formatCurrency, formatUtc, shortAddress, s
 import { accountHeadOf, viewOf } from "../support/names";
 import { collectionCase, collectionsMarker, nftCase, salesMarker } from "../support/nft-cases";
 import { objectCase } from "../support/object-cases";
-import { tokensMarker } from "../support/token-cases";
+import { tokenCase, tokensMarker, transfersMarker } from "../support/token-cases";
 import { historySample, OBJECT_MARKER } from "../support/object-samples";
 import { pageClient } from "../support/pages";
 import { mockUpstream, type UpstreamMock } from "../support/upstream";
@@ -1150,6 +1150,58 @@ describe("a payment channel's page", () => {
     expect(tags.titles).toEqual([`Payment channel ${shortHash(id)} · Xahau · explorer`]);
     expect(tags.content("description")).toMatch(/^Payment channel of 1 DHA from .+ to .+ · open · Xahau$/);
     expect(tags.canonical).toEqual([`${ORIGIN}/xahau/payment-channels/${id}`]);
+  });
+});
+
+describe("a token's page", () => {
+  const DESCRIPTION = (code: string, issuer: string, where: string) => `${code}, issued by ${shortAddress(issuer)} on ${where}: holders, supply, price, markets, the issuer's settings and recent transfers.`;
+
+  it("has the tags of an indexable page: the name and the code in the title, the canonical URL, Open Graph, the image and a large card", async () => {
+    const rlusd = await tokenCase("xrpl", "rlusd");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/token/${rlusd.path}`)).html);
+    const title = "Ripple USD (RLUSD) · XRPL · explorer";
+    expect(tags.titles).toEqual([title]);
+    expect(tags.content("description")).toBe(DESCRIPTION("RLUSD", rlusd.issuer, "XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/token/${rlusd.path}`]);
+    expect(tags.content("og:title")).toBe(title);
+    expect(tags.content("og:url")).toBe(`${ORIGIN}/xrpl/token/${rlusd.path}`);
+    expect(tags.content("og:type")).toBe("website");
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xrpl/token/${rlusd.path}.png`);
+    expect(tags.content("og:image:width")).toBe("1200");
+    expect(tags.content("og:image:height")).toBe("630");
+    expect(tags.content("twitter:card")).toBe("summary_large_image");
+    expect(tags.content("twitter:image")).toBe(`${ORIGIN}/og/xrpl/token/${rlusd.path}.png`);
+    expect(tags.content("robots")).toBeUndefined();
+  });
+
+  it("is headed by the code and the short issuer when the toml gives no name: USD", async () => {
+    const usd = await tokenCase("xrpl", "usd");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/token/${usd.path}`)).html);
+    expect(tags.titles).toEqual([`USD by ${shortAddress(usd.issuer)} · XRPL · explorer`]);
+    expect(tags.content("description")).toBe(DESCRIPTION("USD", usd.issuer, "XRPL"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xrpl/token/${usd.path}`]);
+  });
+
+  it("is Xahau's on Xahau", async () => {
+    const evr = await tokenCase("xahau", "evr");
+    mock = mockUpstream("xahau");
+    const tags = head((await page(`/xahau/token/${evr.path}`)).html);
+    expect(tags.titles).toEqual(["Evernode (EVR) · Xahau · explorer"]);
+    expect(tags.content("description")).toBe(DESCRIPTION("EVR", evr.issuer, "Xahau"));
+    expect(tags.canonical).toEqual([`${ORIGIN}/xahau/token/${evr.path}`]);
+    expect(tags.content("og:image")).toBe(`${ORIGIN}/og/xahau/token/${evr.path}.png`);
+  });
+
+  it("is noindex, follow behind a marker, titled Older transfers of the code, with no canonical URL or sharing tags", async () => {
+    const older = await transfersMarker("xrpl");
+    mock = mockUpstream("xrpl");
+    const tags = head((await page(`/xrpl/token/${older.token}?marker=${older.marker}`)).html);
+    expect(tags.titles).toEqual(["Older transfers of RLUSD · XRPL · explorer"]);
+    expect(tags.content("robots")).toBe("noindex, follow");
+    expect(tags.canonical).toEqual([]);
+    for (const key of SHARING) expect(tags.content(key), key).toBeUndefined();
   });
 });
 

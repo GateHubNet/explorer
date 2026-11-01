@@ -9,7 +9,7 @@ import { textOf } from "../support/pages";
 import { validatorCase } from "../support/validators-cases";
 
 // The pages that another switch gates, with only `NAMES` off (display names spec 2.2 and 6.1; global constraints): the account's Analytics view, NFTs tab and Delegation tab, the markets and a pair, the AMM
-// list and a pool, a swap through it, the validators, the NFT pages, an escrow, a check, a payment channel and the token list. They make no `account_names` request and no toml request, whatever they hold that a name could be made of, and draw no
+// list and a pool, a swap through it, the validators, the NFT pages, an escrow, a check, a payment channel, the token list and a token. They make no `account_names` request and no toml request, whatever they hold that a name could be made of, and draw no
 // name or mark (no `acct__name`). The `worker-off` project (names-off.spec.ts) has every switch off, where each of these is a 404 or a redirect before any call, and "no names request" of a
 // 404 says nothing; the `worker-names-off` project (vitest.config.ts) has every switch on but this one, so that each page is there. Each page also says what a name would have been made
 // of: an account the fixtures name that it links, or a short address it draws (the tables that write an issuer as text). What the two files check of each page, and their setup, are
@@ -19,6 +19,7 @@ const { serve, upstream } = namesOffSpec("198.18.81");
 
 const ACTIVE = "rBbW6idAiqYJzUuk76FYqr347Pbx9oW5jh";
 const RLUSD_ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De";
+const EVR_ISSUER = "rEvernodee8dJLaFsujS6q1EiXvZYmHXr8";
 const POOL = "rhWTXC2m2gGGA9WozUaoMm6kLAVPb1tcS3";
 const SWAP = "52E2AD5B382D4588BECF6A743E7AE5C84D49A5C06968EC7700E8333BF41E1C60";
 const FEATURED_COLLECTION = await collectionCase("xrpl", "featured");
@@ -68,6 +69,8 @@ describe("the pages the other switches gate", () => {
     ["a payment channel", "xrpl", `/xrpl/payment-channels/${CHANNEL.id}`, "linked"],
     ["the token list", "xrpl", "/xrpl/tokens", "linked"],
     ["the Xahau token list", "xahau", "/xahau/tokens", "linked"],
+    ["a token", "xrpl", `/xrpl/token/RLUSD.${RLUSD_ISSUER}`, "linked"],
+    ["a Xahau token", "xahau", `/xahau/token/EVR.${EVR_ISSUER}`, "linked"],
   ] as const)("draws %s by addresses, with the page there, and asks for no name and no toml", async (_, net, path, says) => {
     const mock = upstream(net);
     const { response, html } = await serve(path);
