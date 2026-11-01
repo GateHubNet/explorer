@@ -5009,6 +5009,11 @@ a.markets__pair:hover .markets__name {
   color: var(--fg);
 }
 
+/* `.tokens__table a` above is more specific than `.tokens__token` and would make the link inline-flex, a box that sizes to its content: a long toml name would never meet the cell's edge, and its ellipsis would never clip. The link is a block the cell bounds. */
+.tokens__table a.tokens__token {
+  display: flex;
+}
+
 .tokens__names {
   display: flex;
   flex-direction: column;

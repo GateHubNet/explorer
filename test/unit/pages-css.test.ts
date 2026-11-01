@@ -370,6 +370,17 @@ describe("the token list", () => {
     expect(Number.parseFloat(rule(pagesCss, ".tokens__table a")["min-height"]!)).toBeGreaterThanOrEqual(24);
   });
 
+  it("keeps the token's link a block that its cell bounds, so that a long toml name is clipped by its ellipsis: `.tokens__table a` (inline-flex) outranks `.tokens__token`, and an inline-flex link sizes to its content and lets the name run over the next column", () => {
+    expect(rule(pagesCss, ".tokens__table a")).toMatchObject({ display: "inline-flex" });
+    // The cell's link is as specific as the rule that would make it inline-flex, and comes after it.
+    expect(rule(pagesCss, ".tokens__table a.tokens__token")).toMatchObject({ display: "flex" });
+    expect(pagesCss.indexOf(".tokens__table a.tokens__token {")).toBeGreaterThan(pagesCss.indexOf(".tokens__table a {"));
+    // What the ellipsis needs of the name and of the boxes around it.
+    expect(rule(pagesCss, ".tokens__token")["min-width"]).toBe("0");
+    expect(rule(pagesCss, ".tokens__names")["min-width"]).toBe("0");
+    expect(rule(pagesCss, ".tokens__name")).toMatchObject({ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" });
+  });
+
   it("underlines the link inside the note's sentence: its colour alone would not tell it from the words around it (axe: link-in-text-block)", () => {
     expect(rule(pagesCss, ".tokens__more")["text-decoration"]).toBe("underline");
     expect(rule(pagesCss, ".tokens__more")["text-underline-offset"]).toBe("3px");

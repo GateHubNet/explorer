@@ -4,7 +4,7 @@ import { featuresOff } from "../../scripts/e2e-env";
 import { fixtures, unavailable } from "./fixture-control";
 import { LIVE } from "./fixtures";
 import { expect, freshHtml, hydrated, seriousViolations, test } from "./support";
-import { tokenCase } from "./token-pages";
+import { listOf, tokenCase } from "./token-pages";
 
 // What of the token pages needs the fixture server to change an answer (README "Tokens", "End-to-end tests"): a card whose call fails and its Retry. These tests change what the fixture
 // server answers, and every page the Worker renders meanwhile would show it: they are in the `live` project (playwright.config.ts, `*-live.spec.ts`), which runs alone after the others, one
@@ -110,3 +110,42 @@ test.describe("when the call answers again", () => {
     expect(await page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument === true)).toBe(true);
   });
 });
+
+// The list with names no fixture has: a toml name is the issuer's text, as long as the issuer likes, and its ellipsis must keep it inside its cell (final review I1: a rule of the table's
+// links made the link a box that sizes to its content, and a long name was drawn over the Issuer column). The search is one no other spec makes, so nothing the Worker kept for the
+// list can hide the override; the rows are the fixtures' own for USD, with long names on the first three.
+const LONG_SEARCH = "LONGNAMES";
+const LONG_NAMES = [36, 40, 95].map((length) => "Reserve Notes of the Example Issuer ".repeat(4).slice(0, length).trim());
+const LONG_LIST = `GET /v2/tokens?kind=issued&limit=20&min_holders=10&q=${LONG_SEARCH}`;
+
+for (const viewport of VIEWPORTS) {
+  test.describe(`when a toml name is very long, at ${viewport.name}`, () => {
+    test.use({ viewport: viewport.size });
+
+    test("the name is cut by its ellipsis inside the Token cell, short of the issuer's column, and the page has no sideways scroll", async ({ page }) => {
+      const base = listOf("xrpl", { q: "USD" });
+      const tokens = base.tokens.map((token, i) => (i < LONG_NAMES.length ? { ...token, name: LONG_NAMES[i] } : token));
+      await fixtures.override({ [LONG_LIST]: { ...base, tokens } });
+      await page.goto(`/xrpl/tokens?q=${LONG_SEARCH}`);
+      await hydrated(page);
+      const names = page.locator(".tokens__name");
+      await expect(names).toHaveCount(tokens.filter((token) => token.name !== undefined).length);
+      const drawn = await names.evaluateAll((elements) =>
+        elements.map((element) => ({
+          text: element.textContent ?? "",
+          right: element.getBoundingClientRect().right,
+          cellRight: element.closest('[role="cell"]')!.getBoundingClientRect().right,
+          clipped: element.scrollWidth > element.clientWidth,
+        })),
+      );
+      for (const name of LONG_NAMES) {
+        const one = drawn.find((entry) => entry.text === name);
+        expect(one, name).toBeDefined();
+        // Inside its cell (half a pixel for the rounding), and cut: the text is wider than the box that shows it.
+        expect(one!.right, `the right edge of "${name}" against its cell's`).toBeLessThanOrEqual(one!.cellRight + 0.5);
+        expect(one!.clipped, `"${name}" is cut`).toBe(true);
+      }
+      expect(await sideways(page)).toBeLessThanOrEqual(0);
+    });
+  });
+}
